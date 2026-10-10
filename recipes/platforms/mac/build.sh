@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# docs/stack/mac/build.sh — build the HEP stack on macOS: Homebrew's packages (Brewfile), then
+# recipes/platforms/mac/build.sh — build the HEP stack into Heimdall on macOS: Homebrew's packages (Brewfile), then
 # build_stack.py with mac.toml. Run it after README.md's manual steps (Xcode's tools, Homebrew).
 #
-#   bash docs/stack/mac/build.sh                       # the core stack into ~/HEP (hours: ROOT is 1–2 h)
-#   bash docs/stack/mac/build.sh packages=all cores=8  # every build_stack.py argument passes through
-#   bash docs/stack/mac/build.sh --dry-run             # the commands as bash; nothing installed or built
-#   BREW_BUNDLE=0 bash docs/stack/mac/build.sh         # skip `brew bundle` (the Brewfile is installed)
+#   bash recipes/platforms/mac/build.sh                       # the core stack into this Heimdall (hours: ROOT is 1–2 h)
+#   bash recipes/platforms/mac/build.sh packages=all cores=8  # every build_stack.py argument passes through
+#   bash recipes/platforms/mac/build.sh --dry-run             # the commands as bash; nothing installed or built
+#   BREW_BUNDLE=0 bash recipes/platforms/mac/build.sh         # skip `brew bundle` (the Brewfile is installed)
 #
-# Rerunning resumes: finished packages are stamped and skipped (docs/stack/README.md).
+# Rerunning resumes: finished packages are stamped and skipped (recipes/README.md).
 
 set -euo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -15,7 +15,7 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 say() { printf '\033[1m==> %s\033[0m\n' "$*" >&2; }
 die() { printf '\033[31merror: %s\033[0m\n' "$*" >&2; exit 1; }
 
-[ "$(uname -s)" = Darwin ] || die "this is the macOS build; on Linux run docs/stack/build_stack.py"
+[ "$(uname -s)" = Darwin ] || die "this is the macOS build; on Linux run recipes/build_stack.py"
 xcode-select -p >/dev/null 2>&1 || die "no Xcode command-line tools: run 'xcode-select --install' (README step 1)"
 if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ] && [ "$(uname -m)" != arm64 ]; then
     die "this shell runs under Rosetta (x86_64) on an Apple Silicon Mac: open a native terminal (README step 0)"
@@ -50,4 +50,4 @@ done
 [ -n "$PY" ] || die "no Homebrew Python 3.11+: brew install python@3.12"
 
 # Arguments after mac.toml's, so the command line wins over it
-exec "$PY" "$HERE/../build_stack.py" --config "$HERE/mac.toml" python="$PY" "$@"
+exec "$PY" "$HERE/../../build_stack.py" --config "$HERE/mac.toml" python="$PY" "$@"

@@ -1,10 +1,10 @@
-# docs/stack/settings.toml — build_stack.py's settings, each with its default.
+# recipes/settings.toml — build_stack.py's settings, each with its default.
 #
 # Change one with key=value on the command line (`cores=8`, `packages="rivet pythia8"`), or with
 # --config FILE: a TOML file holding any of these keys, and [package] tables that change or add
 # packages.toml's entries. The command line wins over the file.
 
-prefix      = "~/HEP"      # src/ build/ install/ .venv/ logs/ .stamps/ setup.sh
+prefix      = ""           # "": this Heimdall (stash/ forge/ stack/ env/venv/); another folder only for tests
 packages    = "core"       # "core", "all", or names: "rivet pythia8" (what they need is added)
 cores       = 0            # how many compilers run at once (make -j<cores>, cmake --build -j<cores>);
                            # 0: every CPU this process may use (hyper-threads count: 24 on the lab PC)
@@ -16,8 +16,7 @@ python      = "python3"    # the interpreter the venv is made from
 system      = true         # apt-get install apt_packages first (sudo when not root); false: they are there
 graphics    = "ON"         # ROOT's x11/opengl/webgui/asimage and Geant4's OpenGL; "OFF" when headless
 geant4_data = "ON"         # Geant4's datasets (~4 GB), downloaded during its build
-hekit_root  = ""           # the checkout setup.sh loads utils/Env/hep_env.sh from; "": this one
-setup_extra = []           # lines setup.sh gets after sourcing hep_env.sh (placeholders expanded)
+setup_extra = []           # this machine's lines, written to env/machine.sh, which setup.sh sources after hep_env.sh
 
 # The venv's packages: the framework's. Add the analysis ones you want (scipy, pandas, pyhf, …).
 python_packages = ["numpy", "cython", "tomli_w", "rich", "pyyaml", "pillow", "matplotlib", "uproot",

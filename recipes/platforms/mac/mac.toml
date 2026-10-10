@@ -1,4 +1,4 @@
-# docs/stack/mac/mac.toml — what build_stack.py does differently on macOS (Apple clang, Homebrew):
+# recipes/platforms/mac/mac.toml — what build_stack.py does differently on macOS (Apple clang, Homebrew):
 # build.sh gives it as --config. Everything else is packages.toml's and settings.toml's, unchanged.
 # {HOMEBREW_PREFIX} is the environment variable `brew shellenv` sets (/opt/homebrew, or /usr/local on
 # an Intel Mac).
@@ -6,7 +6,7 @@
 system   = false                  # Homebrew instead of apt: build.sh runs `brew bundle` (Brewfile)
 graphics = "OFF"                  # no X11 on macOS: Geant4 without its OpenGL/X11 viewer; ROOT: Cocoa below
 
-# setup.sh, after hep_env.sh: the libraries on DYLD_LIBRARY_PATH too (hep_env.sh sets LD_LIBRARY_PATH,
+# env/machine.sh, which setup.sh sources after hep_env.sh: the libraries on DYLD_LIBRARY_PATH too (hep_env.sh sets LD_LIBRARY_PATH,
 # which macOS ignores), and GNU make, sed and coreutils ahead of Apple's for the framework.
 setup_extra = [
   "export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH",

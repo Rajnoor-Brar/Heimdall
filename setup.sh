@@ -3,5 +3,6 @@
 # its own folder, so a clone anywhere works (docs/framework/01_Target.md §5.8).
 export HEP=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 export HEP_INSTALL=$HEP/stack
-[ -f "$HEP/env/machine.sh" ] && source "$HEP/env/machine.sh"     # this machine's lines (macOS: DYLD, GNU tools)
 source "$HEP/env/hep_env.sh"
+[ -f "$HEP/env/machine.sh" ] && source "$HEP/env/machine.sh"     # this machine's lines, after hep_env.sh (macOS: DYLD, GNU tools)
+return 0 2>/dev/null || true

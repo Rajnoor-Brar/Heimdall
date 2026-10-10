@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
-"""docs/stack/build_stack.py — build the HEP stack from source, as packages.toml and settings.toml say.
+"""recipes/build_stack.py — build the HEP stack from source into Heimdall, as packages.toml and settings.toml say.
 
-    python3 docs/stack/build_stack.py                          # the core stack into ~/HEP
-    python3 docs/stack/build_stack.py packages=all cores=8     # everything, 8 compilers at once
-    python3 docs/stack/build_stack.py packages="rivet pythia8" root.release=6.40.06
-    python3 docs/stack/build_stack.py --config my.toml         # settings, and package changes, from a file
-    python3 docs/stack/build_stack.py --list                   # each package: release, needs, state
-    python3 docs/stack/build_stack.py --dry-run > build.sh     # the build as a bash script; nothing is run
+    python3 recipes/build_stack.py                          # the core stack into this Heimdall
+    python3 recipes/build_stack.py packages=all cores=8     # everything, 8 compilers at once
+    python3 recipes/build_stack.py packages="rivet pythia8" root.release=6.40.06
+    python3 recipes/build_stack.py --config my.toml         # settings, and package changes, from a file
+    python3 recipes/build_stack.py --list                   # each package: release, needs, state
+    python3 recipes/build_stack.py --dry-run > build.sh     # the build as a bash script; nothing is run
 
 A setting is a key of settings.toml, given as key=value; a package's key as <package>.<key>=value.
-A finished package is stamped ($prefix/.stamps/<name>-<release>) and skipped after, so a rerun
+Where things go (docs/framework/01_Target.md §2): archives and their sources in stash/, build trees
+and logs in forge/, installs in stack/, the Python environment in env/venv/.
+A finished package is stamped (stack/.stamps/<name>-<release>) and skipped after, so a rerun
 resumes; delete a stamp to redo its package. Every tarball is fetched before the first build, so a
-dead link stops the run at once. Each package logs to $prefix/logs/<name>.log.
+dead link stops the run at once. Each package logs to forge/logs/<name>.log.
 
-Linux and macOS (docs/stack/mac/ adds Homebrew and mac.toml). Standard library only: Python 3.11+
-(tomllib), or an older Python with tomli.
+Linux and macOS (recipes/platforms/mac/ adds Homebrew and mac.toml). Standard library only: Python
+3.11+ (tomllib), or an older Python with tomli.
 """
 
 from __future__ import annotations
@@ -40,7 +42,7 @@ except ModuleNotFoundError:                                        # Python < 3.
         sys.exit("build_stack.py reads TOML: it needs Python 3.11+, or the tomli package")
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parent.parent
+REPO = HERE.parent                                                 # Heimdall: recipes/ is in it
 FIELDS = {"release", "url", "kind", "needs", "group", "install", "probe", "args", "extra", "optional",
           "patch", "env", "pre", "post", "cores"}
 KINDS = ("autotools", "cmake", "unpack", "none")
@@ -48,12 +50,9 @@ PLACEHOLDER = re.compile(r"\{(\w+)\}")
 MAC = sys.platform == "darwin"
 TARBALLS = (".tar.gz", ".tar.bz2", ".tar.xz", ".tgz")
 
-SETUP = """#!/bin/bash
-# {prefix}/setup.sh: source it once per session (written by docs/stack/build_stack.py).
-export HEP={prefix}
-export HEP_INSTALL=$HEP/install
-export HEKIT_ROOT=${{HEKIT_ROOT:-{hekit_root}}}
-source "$HEKIT_ROOT/utils/Env/hep_env.sh"
+#: env/machine.sh: this machine's lines from settings.toml's setup_extra; setup.sh (tracked) sources it.
+MACHINE = """# env/machine.sh — this machine's lines for setup.sh, written by recipes/build_stack.py from
+# settings.toml's setup_extra (not in git).
 """
 
 
@@ -162,26 +161,27 @@ def ram_kb() -> int:
 
 def context(s: dict) -> dict:
     """The placeholders every package sees: the settings, and what follows from them."""
-    prefix = Path(s["prefix"]).expanduser().resolve()
+    prefix = Path(s["prefix"] or REPO).expanduser().resolve()     # "": this Heimdall
     python = shutil.which(s["python"]) or die(f"no {s['python']}: install Python 3, or set python=")
     py = probe([python, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"])
     cores = s["cores"] or (len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity")   # Linux: the
                            else os.cpu_count() or 4)                                       # CPUs it may use
     machine = os.uname().machine
-    return {**s, "prefix": str(prefix), "inst": str(prefix / "install"), "venv": str(prefix / ".venv"),
+    return {**s, "prefix": str(prefix), "inst": str(prefix / "stack"), "venv": str(prefix / "env" / "venv"),
+            "stash": str(prefix / "stash"), "forge": str(prefix / "forge"),
             "cores": cores, "root_cores": s["root_cores"] or max(1, min(cores, ram_kb() // 3_000_000)),
             "python": python, "py": py, "pyxy": py.replace(".", ""),
             "pyinc": probe([python, "-c", "import sysconfig; print(sysconfig.get_paths()['include'])"]),
             "cxxflags": f"{s['opt_flags']} -std=c++{s['cxx_std']}", "arch": {"x86_64": "x64"}.get(machine, machine),
             "machine": machine, "dylib": "dylib" if MAC else "so",
-            "repo": str(REPO), "hekit_root": s["hekit_root"] or str(REPO)}
+            "repo": str(REPO)}
 
 
 def scope(name: str, p: dict, c: dict) -> dict:
     """A package's own placeholders on top of the run's."""
     release = str(p.get("release", ""))
     return {**c, "release": release, "series": release.rpartition(".")[0] or release,
-            "src": f"{c['prefix']}/src/{name}", "build": f"{c['prefix']}/build/{name}",
+            "src": f"{c['stash']}/{name}", "build": f"{c['forge']}/{name}",
             "install": f"{c['inst']}/{p.get('install', name)}"}
 
 
@@ -209,7 +209,7 @@ def words(items: list[str], k: dict) -> list[str]:
 # ── the packages ───────────────────────────────────────────────────────────────────────────────
 
 def stamp(name: str, p: dict, c: dict) -> Path:
-    return Path(c["prefix"], ".stamps", name + (f"-{p['release']}" if p.get("release") else ""))
+    return Path(c["inst"], ".stamps", name + (f"-{p['release']}" if p.get("release") else ""))
 
 
 def present(name: str, p: dict, c: dict) -> bool:
@@ -221,7 +221,7 @@ def present(name: str, p: dict, c: dict) -> bool:
 def tarball(name: str, p: dict, c: dict) -> tuple[Path, str]:
     url = expand(p["url"], scope(name, p, c))
     ending = next((end for end in TARBALLS if url.endswith(end)), ".tar")
-    return Path(c["prefix"], "src", f"{name}-{p.get('release', '')}{ending}"), url
+    return Path(c["stash"], f"{name}-{p.get('release', '')}{ending}"), url
 
 
 def plan(s: dict, packages: dict, c: dict) -> tuple[list[str], list[str]]:
@@ -282,7 +282,7 @@ class Shell:
 
 
 def fetch(items: list[tuple[Path, str]], shell: Shell) -> None:
-    """Every tarball not yet in src/, four at a time, before anything is built."""
+    """Every tarball not yet in stash/, four at a time, before anything is built."""
     missing = [(file, url) for file, url in items if not file.is_file() or not file.stat().st_size]
     if shell.script:
         for file, url in missing:
@@ -307,7 +307,7 @@ def fetch(items: list[tuple[Path, str]], shell: Shell) -> None:
 
     with ThreadPoolExecutor(4) as pool:
         if errors := [error for error in pool.map(get, missing) if error]:
-            die("downloads failed (set <package>.url=…, or put the tarball in src/ yourself):\n  "
+            die("downloads failed (set <package>.url=…, or put the tarball in stash/ yourself):\n  "
                 + "\n  ".join(errors))
 
 
@@ -346,7 +346,7 @@ def build(name: str, p: dict, c: dict, shell: Shell, have: set[str]) -> None:
 
 def system(s: dict, c: dict, shell: Shell) -> None:
     """apt_packages, through sudo when not root; stamped like a package."""
-    done = Path(c["prefix"], ".stamps", "system")
+    done = Path(c["inst"], ".stamps", "system")
     if done.exists():
         say("system packages: done already")
         return
@@ -354,7 +354,7 @@ def system(s: dict, c: dict, shell: Shell) -> None:
         die("no apt-get: install settings.toml's apt_packages (under this system's names), then system=false")
     sudo = [] if os.geteuid() == 0 else ["sudo"]
     say("system packages (apt)")
-    shell.name, shell.log = "system", Path(c["prefix"], "logs", "system.log")
+    shell.name, shell.log = "system", Path(c["forge"], "logs", "system.log")
     if sudo and not shell.script and subprocess.run(["sudo", "-v"]).returncode:    # its prompt, not in the log
         die("sudo failed: run as root, or install the system packages and set system=false")
     shell.run([*sudo, "apt-get", "update"])
@@ -384,9 +384,9 @@ def show(order: list[str], packages: dict, c: dict) -> None:
               f"{' '.join(p.get('needs', []))}")
 
 
-def setup_text(c: dict) -> str:
-    """setup.sh: the lab PC's stub, then settings.toml's setup_extra lines."""
-    return SETUP.format(**c) + "".join(expand(line, c) + "\n" for line in c["setup_extra"])
+def machine_text(c: dict) -> str:
+    """env/machine.sh: settings.toml's setup_extra lines (macOS: DYLD_LIBRARY_PATH, the GNU tools)."""
+    return MACHINE + "".join(expand(line, c) + "\n" for line in c["setup_extra"])
 
 
 def main(argv: list[str]) -> None:
@@ -403,7 +403,7 @@ def main(argv: list[str]) -> None:
         env[key] = ":".join([*items, *([os.environ[key]] if os.environ.get(key) else [])])
     shell = Shell(script, {**env, **fixed})
     prefix = Path(c["prefix"])
-    folders = [prefix / f for f in ("src", "build", "install", "logs", ".stamps")]
+    folders = [prefix / f for f in ("stash", "forge", "forge/logs", "stack", "stack/.stamps", "env")]
     if script:
         print("#!/usr/bin/env bash\n# The HEP stack's build, as `build_stack.py --dry-run` printed it: run it on a fresh\n"
               "# prefix (it neither reads nor writes stamps).\nset -euo pipefail")
@@ -430,7 +430,7 @@ def main(argv: list[str]) -> None:
             say(f"{label}: done already")
             continue
         say(label)
-        shell.name, shell.log = name, prefix / "logs" / f"{name}.log"
+        shell.name, shell.log = name, prefix / "forge" / "logs" / f"{name}.log"
         started = time.monotonic()
         if script:
             print(f"\n# == {label}")
@@ -440,13 +440,13 @@ def main(argv: list[str]) -> None:
         if not script:
             stamp(name, p, c).touch()
             say(f"{label}: done in {(time.monotonic() - started) / 60:.0f} min")
-    setup = prefix / "setup.sh"                                    # the lab PC's stub; one already there is kept
-    if script:
-        print(f"\n[ -e {shlex.quote(str(setup))} ] || cat > {shlex.quote(str(setup))} <<'EOF'\n"
-              f"{setup_text(c)}EOF")
-    elif not setup.exists():
-        setup.write_text(setup_text(c), encoding="utf-8")
-    say(f"done: source {setup}")
+    machine = prefix / "env" / "machine.sh"                        # setup.sh itself is tracked
+    if c["setup_extra"]:
+        if script:
+            print(f"\ncat > {shlex.quote(str(machine))} <<'EOF'\n{machine_text(c)}EOF")
+        else:
+            machine.write_text(machine_text(c), encoding="utf-8")
+    say(f"done: source {prefix / 'setup.sh'}")
 
 
 if __name__ == "__main__":

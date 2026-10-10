@@ -1,46 +1,60 @@
-# The HEP stack: building it on another machine
+# The stack's recipes: building Heimdall's stack
 
-`build_stack.py` builds, from source, the software stack the framework runs on: the one the lab PC
-has in `~/HEP` (Ubuntu 24.04, GCC 13), with the same versions, the same features and the fixes its
+`build_stack.py` builds, from source, the software stack Heimdall runs on, **into Heimdall itself**:
+the lab PC's stack (Ubuntu 24.04, GCC 13), with the same versions, the same features and the fixes its
 build needed. It runs on a Linux machine with apt, in a Docker container, or on macOS with Homebrew
-([mac/](mac/README.md)). It needs only `python3` (3.11+, or older with `tomli`): its standard library,
-no other packages.
+([platforms/mac/](platforms/mac/README.md)). It needs only `python3` (3.11+, or older with `tomli`):
+its standard library, no other packages.
 
 | File | Is |
 |---|---|
 | [packages.toml](packages.toml) | each package: release, tarball, how it is built, what it needs |
-| [settings.toml](settings.toml) | the run's settings, each with its default: prefix, cores, features, the apt, pip and PDF lists |
+| [settings.toml](settings.toml) | the run's settings, each with its default: cores, features, the apt, pip and PDF lists |
 | [build_stack.py](build_stack.py) | the engine: reads both, then fetches, builds, stamps and logs |
-| [Dockerfile](Dockerfile) (+ `Dockerfile.dockerignore`) | the same build in an Ubuntu 24.04 image |
+| [pth.py](pth.py) | writes the venv's `heimdall.pth`, so Python finds `framework/` |
+| [patches/](patches/) | patches the stack's sources need (FastJet's SISCone, L29) |
+| [platforms/container/](platforms/container/Dockerfile) | the same build in an Ubuntu 24.04 image (Dockerfile, Apptainer definition) |
 | [build_by_hand.txt](build_by_hand.txt) | the same build as commands to paste into a terminal, step by step (Ubuntu 24.04) |
-| [mac/](mac/README.md) | macOS: a Brewfile, the `mac.toml` overlay, `build.sh` and `launch.sh`, and the steps by hand |
+| [platforms/mac/](platforms/mac/README.md) | macOS: a Brewfile, the `mac.toml` overlay, `build.sh` and `launch.sh`, and the steps by hand |
 
 The data says what is built; the engine knows only five steps (fetch, unpack, configure or cmake,
 install, stamp) and four kinds of package. A version bump, a new flag or a new package is a TOML
 edit, never a code change.
 
-The framework's own view of the stack (each library's flags and version) is
-`utils/Env/stack.toml`; the shell environment is `utils/Env/hep_env.sh`
-([06 §15.3](../06_Internals.md#153-the-flag-cache)).
+**Where the build puts things** (docs/framework/01_Target.md §2), all of it outside git:
+
+| Folder | Holds |
+|---|---|
+| `stash/` | the downloaded archives (`<package>-<release>.<ext>`) and their unpacked sources |
+| `forge/<package>/`, `forge/logs/` | the build trees (CMake's); one log per package |
+| `stack/<dir>/`, `stack/.stamps/` | the installs; what is built |
+| `env/venv/` | the Python environment, with `heimdall.pth` |
+| `env/machine.sh` | this machine's extra lines for `setup.sh` (`setup_extra`; macOS's DYLD and GNU tools) |
+
+The framework's own view of the stack (each library's flags and version) is `env/stack.toml`; the
+shell environment is `env/hep_env.sh`, which `setup.sh` sources
+([06 §15.3](../docs/06_Internals.md#153-the-flag-cache)).
 
 ---
 
 ## 1. Quick start
 
-**On a machine** (sudo for the system packages, or `system=false` if they are installed):
+**On a machine** (sudo for the system packages, or `system=false` if they are installed), from
+Heimdall's folder:
 
 ```bash
-python3 docs/stack/build_stack.py --list                 # each package: release, state, what this run builds
-python3 docs/stack/build_stack.py                        # the core stack into ~/HEP (hours: ROOT alone is 1–2 h)
-python3 docs/stack/build_stack.py packages=all           # and Sherpa, MadGraph, Whizard, ONNX Runtime, Geant4
-source ~/HEP/setup.sh                                    # then, in this repository: hep build
+python3 recipes/build_stack.py --list                 # each package: release, state, what this run builds
+python3 recipes/build_stack.py                        # the core stack (hours: ROOT alone is 1–2 h)
+python3 recipes/build_stack.py packages=all           # and Sherpa, MadGraph, Whizard, ONNX Runtime, Geant4
+source setup.sh && hep build --framework              # the environment, then the framework's apps
 ```
 
-**Settings.** Any key of `settings.toml` is `key=value` on the command line (`prefix=/opt/hep
-cores=8 graphics=OFF`); any key of a package is `<package>.<key>=value` (`root.release=6.40.06`,
+**Settings.** Any key of `settings.toml` is `key=value` on the command line (`cores=8
+graphics=OFF`); any key of a package is `<package>.<key>=value` (`root.release=6.40.06`,
 `madgraph.url=…`, `fastjet.patch=` for none, `root.extra="-Droofit=OFF"` for more arguments after a
-package's own). For many changes, `--config my.toml`: a TOML file with
-settings and `[package]` tables, which change packages or add new ones. The command line wins.
+package's own). For many changes, `--config my.toml`: a TOML file with settings and `[package]`
+tables, which change packages or add new ones. The command line wins. `prefix=` builds somewhere
+else than this Heimdall; only the tests use it.
 
 **Cores.** `cores` is how many compilers run at once: each package's build gets it as
 `make -j<cores>` (autotools) or `cmake --build <build> -j<cores>` (CMake); one compiler keeps one CPU
@@ -55,35 +69,34 @@ pythia8"`). What a named package needs is added when it is not installed; they a
 
 **A bash script instead.** `--dry-run` prints the whole build as a plain bash script, so it can be
 read first, or saved and run where you want plain commands (`--dry-run > build.sh; bash build.sh`).
-It is the same commands, without stamps or logs: run it on a fresh prefix.
+It is the same commands, without stamps or logs: run it on a fresh Heimdall.
 
-**In Docker** (from the repository root):
+**In Docker** (from Heimdall's folder; [docs/framework/targets/container.md](../docs/framework/targets/container.md)):
 
 ```bash
-docker build -f docs/stack/Dockerfile -t hep-stack .
-docker build -f docs/stack/Dockerfile --build-arg PACKAGES=all --build-arg ROOT_CORES=2 -t hep-stack:all .
-docker run --rm -it -v "$PWD":/work -w /work hep-stack
+docker build -f recipes/platforms/container/Dockerfile -t heimdall .
+docker build -f recipes/platforms/container/Dockerfile --build-arg PACKAGES=core --build-arg ROOT_CORES=2 -t heimdall:core .
+docker run --rm -it --user "$(id -u):$(id -g)" -v "$HOME/Github/Top-Quark:$HOME/Github/Top-Quark" -w "$HOME/Github/Top-Quark" heimdall
 ```
 
-The image is headless (`graphics=OFF`) and keeps the stack in `/opt/hep`. Its environment is the
-repository's `hep_env.sh`, so a shell loads it when the repository is mounted at `/work`.
+The image is headless (`graphics=OFF`) and holds Heimdall, with its stack, at `/opt/heimdall`. Work
+dirs are mounted into it.
 
-**Resuming.** A package that finishes is stamped (`$prefix/.stamps/<name>-<release>`) and skipped
+**Resuming.** A package that finishes is stamped (`stack/.stamps/<name>-<release>`) and skipped
 next time, so the same command resumes after a failure, a reboot or a Ctrl-C. A changed release is a
 new stamp, so it builds; delete a stamp to redo its package. A package's source is unpacked afresh
 each time, so a half-done build never leaks into the next try.
 
 **Downloads.** Every tarball the run needs is fetched first, four at a time, before anything is
 built: a dead link stops the run in its first minute, not after ROOT. A tarball already in
-`$prefix/src/<name>-<release>.<ext>` is used as it is, so a machine without network can build from
+`stash/<name>-<release>.<ext>` is used as it is, so a machine without network can build from
 copied tarballs.
 
-**Logs.** Each package writes `$prefix/logs/<name>.log`. A failure stops the build at once, prints
+**Logs.** Each package writes `forge/logs/<name>.log`. A failure stops the build at once, prints
 the last 30 lines and names the log.
 
-**setup.sh.** At the end the run writes `$prefix/setup.sh`, the lab PC's stub: it sets `HEP`,
-`HEP_INSTALL` and `HEKIT_ROOT` (this checkout) and sources `utils/Env/hep_env.sh`. A `setup.sh`
-already there is kept.
+**setup.sh** is tracked at Heimdall's root and finds its own folder; the build writes nothing to it.
+What a machine needs beyond it (`setup_extra`) goes to `env/machine.sh`, which `setup.sh` sources.
 
 ---
 
@@ -93,7 +106,7 @@ already there is kept.
 
 | Package | Release | Kind | For |
 |---|---|---|---|
-| `python` | your `python3` | a venv in `$prefix/.venv`, `python_packages` | every Python binding; the framework's `tomli_w`, `rich`, `uproot`, Pillow, matplotlib, pytest |
+| `python` | your `python3` | a venv in `env/venv`, `python_packages`, `heimdall.pth` | every Python binding; the framework's `tomli_w`, `rich`, `uproot`, Pillow, matplotlib, pytest |
 | `lhapdf` | 6.5.6 | autotools | PDFs for Pythia8, Herwig, Sherpa, Whizard, MadGraph |
 | `hepmc3` | 3.3.1 | CMake | the event format between the tools |
 | `fastjet` | 3.5.0 | autotools, the SISCone patch | jets for Rivet, Pythia8, Sherpa, Whizard and module programs |
@@ -102,17 +115,17 @@ already there is kept.
 | `yoda` | 2.1.3 | autotools | Rivet's histograms; the plot backends |
 | `rivet` | 4.1.3 | autotools | the analyses |
 | `pythia8` | 8.317 | its configure, with ROOT's and Rivet's plugins | App_Pythia, InprocJets |
-| `thepeg` | 2.3.0 | autotools, into `install/herwig7` | Herwig's event framework |
-| `herwig` | 7.3.0 | autotools, into `install/herwig7` | the `herwig` tool |
+| `thepeg` | 2.3.0 | autotools, into `stack/herwig7` | Herwig's event framework |
+| `herwig` | 7.3.0 | autotools, into `stack/herwig7` | the `herwig` tool |
 | `delphes` | 3.5.1 | CMake | the `delphes` tool |
 | `sherpa` | 3.0.5 | CMake (extra) | the `sherpa` tool |
-| `madgraph` | 3.7.3 | unpacked into `install/madgraph`, configured (extra) | the `madgraph` tool |
+| `madgraph` | 3.7.3 | unpacked into `stack/madgraph`, configured (extra) | the `madgraph` tool |
 | `whizard` | 3.1.8 | autotools, OCaml (extra) | the `whizard` tool |
 | `onnxruntime` | 1.29.0 | the released binary, x64 or aarch64 (extra) | `// requires: onnx` |
 | `geant4` | 11.4.2 | CMake, MT, GDML, datasets (extra) | `// requires: geant4` |
 | `pdfsets` | `pdf_sets` | `lhapdf install` | the sets the configs and the tests use (the lab PC's 21) |
 
-The installs go to `$prefix/install/<dir>`, under the directory names `hep_env.sh` expects:
+The installs go to `stack/<dir>`, under the directory names `env/hep_env.sh` expects:
 `LHAPDF hepmc3 fastjet root yoda rivet pythia8 herwig7 delphes sherpa madgraph whizard onnxruntime
 geant4`. More Python packages (scipy, pandas, scikit-learn, pyhf, …) go into `python_packages`.
 
@@ -138,7 +151,7 @@ Each of these was hit on the lab PC; the TOML files do what is in the right colu
 | all | ROOT, Rivet, Pythia8 and the module programs pass C++ types across libraries: mixed standards are ABI trouble | one standard for everything: `CXXFLAGS="-O2 -std=c++17"` for every build, and `CMAKE_CXX_STANDARD=17` |
 | all | the build of one package needs the ones before it on its paths | the venv first on `PATH`, and every install on `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`, as `setup.sh` gives them later (`settings.toml [env]` for the rest) |
 | HepMC3 | `pyHepMC3` built but not installed; `GenEvent` missing from it | `-DHEPMC3_Python_SITEARCH<XY>=<venv site-packages>` (`HEPMC3_PYTHON_INSTALL_DIR` is ignored), and `-fno-lto`: LTO strips the pybind11 symbols |
-| FastJet | several Rivets in one process (InprocJets, `rivet_threads`) cluster SISCone jets with one shared random state: other jets, or a FastJet internal error (L16, L29) | `fastjet.patch`: `utils/Env/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch`, the state per thread; one thread draws exactly what it drew before |
+| FastJet | several Rivets in one process (InprocJets, `rivet_threads`) cluster SISCone jets with one shared random state: other jets, or a FastJet internal error (L16, L29) | `fastjet.patch`: `recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch`, the state per thread; one thread draws exactly what it drew before |
 | fjcontrib | `make install` gives only static contrib libraries | `make fragile-shared-install` as well: `libfastjetcontribfragile.so`, as the lab PC has it |
 | ROOT | 6.40.00's `rootcling_stage1` fails to link (`clang::CodeGenerator::GetModule()`) | pinned to 6.40.04, which fixes that regression |
 | ROOT | parallel compilation of its LLVM/Cling OOM-kills `cc1plus`, and the truncated objects then fail later links with errors that look unrelated | `root_cores`: one compiler per 3 GB of RAM (5 on 15 GB); every other package at `cores` |
@@ -151,7 +164,7 @@ Each of these was hit on the lab PC; the TOML files do what is in the right colu
 | Delphes | DelphesPythia8 is built only when Pythia8 is found | `PYTHIA8=<install>` in its environment, `-DROOT_DIR=<root>/cmake` |
 | Sherpa | its `_DIR` options are spelled per package (`HepMC3_DIR`, `RIVET_DIR`, `FASTJET_DIR`, `LHAPDF_DIR`) | as Sherpa spells them; `HepMC3_DIR` is the CMake config directory |
 | Whizard | HepMC3 is `--enable-hepmc --with-hepmc` (no `*hepmc3` options); O'Mega needs OCaml | so; `ocaml ocaml-findlib libgc-dev` are system packages |
-| MadGraph | not built: a tree that finds LHAPDF and Pythia8 through its configuration file | unpacked into `install/madgraph`; `lhapdf`, `pythia8_path` and `automatic_html_opening = False` set |
+| MadGraph | not built: a tree that finds LHAPDF and Pythia8 through its configuration file | unpacked into `stack/madgraph`; `lhapdf`, `pythia8_path` and `automatic_html_opening = False` set |
 | Python | pip wheels of FastJet or HepMC3 do not match the stack's symbols | every compiled HEP library is built here; pip installs only pure-Python and ML packages |
 
 ---
@@ -173,9 +186,9 @@ On a distribution without apt, install the same packages under its names and run
 ## 5. After the build
 
 ```bash
-source ~/HEP/setup.sh                 # or $prefix/setup.sh
+source setup.sh                       # in Heimdall's folder (alias load_hep)
 hep status --stack                    # each package's version
-hep build && make test                # the framework against the new stack
+hep build --framework && make test    # the framework's apps and tests, against the new stack
 ```
 
 **What is checked.**
@@ -194,7 +207,7 @@ hep build && make test                # the framework against the new stack
   against 6.40. A dictionary (`rootcling`) failure there is Delphes', not this build's.
 - **Geant4's datasets** need network during its build. A timeout is retried by rerunning.
 - **Rebuilt binaries change identities.** A point that ran with the old App_Pythia, App_yd2rt or a
-  Rivet plugin reruns once the framework is rebuilt against a new stack (06 §27).
+  Rivet plugin reruns once the framework is rebuilt against a new stack (docs/06_Internals.md §27).
 - **Not built here:** CMSSW and Key4hep, which come from CVMFS in an el9 apptainer container. Never
   mix their environment with this stack's in one shell. A standalone xrootd is not built either:
   ROOT builds its own.

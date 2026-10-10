@@ -1,5 +1,5 @@
-# docs/stack/mac/Brewfile — what the HEP stack needs from Homebrew; build.sh runs
-# `brew bundle --file docs/stack/mac/Brewfile`. The macOS counterpart of settings.toml's apt_packages.
+# recipes/platforms/mac/Brewfile — what the HEP stack needs from Homebrew; build.sh runs
+# `brew bundle --file recipes/platforms/mac/Brewfile`. The macOS counterpart of settings.toml's apt_packages.
 #
 # Do not also have Homebrew's own root, fastjet, hepmc3, lhapdf, pythia, yoda or rivet installed: the
 # build puts Homebrew's include/ and lib/ on its search paths, where they would shadow the stack's.

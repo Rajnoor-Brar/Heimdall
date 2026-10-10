@@ -1,6 +1,6 @@
-# docs/stack/build_by_hand.txt — the HEP stack, built by hand: commands to copy and paste into a
+# recipes/build_by_hand.txt — Heimdall's stack, built by hand: commands to copy and paste into a
 # terminal, one step at a time, in this order. Ubuntu 24.04 (the lab PC's system); the versions and
-# flags are packages.toml's (docs/stack/README.md §3 says why each flag is there).
+# flags are packages.toml's (recipes/README.md §3 says why each flag is there).
 #
 # How to use it:
 #   - Paste STEP 0 first, in every new terminal: it sets the variables and the helper every later step
@@ -8,7 +8,7 @@
 #   - Paste one step at a time, and wait for it to finish. Each ends with a check: if the check prints
 #     an error, stop there and read the last lines above it.
 #   - The whole file is also valid bash, but pasting step by step lets you see where something fails.
-#     (python3 docs/stack/build_stack.py does all of this by itself, with resume and logs.)
+#     (python3 recipes/build_stack.py does all of this by itself, with resume and logs.)
 #
 # Time: about 3 hours for the core stack on 16 cores (ROOT alone 1-2 h). Disk: about 20 GB.
 
@@ -17,9 +17,8 @@
 # STEP 0 — the variables and a helper (paste in every new terminal)
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
-export HEP=$HOME/HEP                                  # where everything goes
-export HEKIT_ROOT=$HOME/Github/High-Energy            # this repository (for the FastJet patch, setup.sh)
-export SRC=$HEP/src BUILD=$HEP/build HEP_INSTALL=$HEP/install VENV=$HEP/.venv
+export HEP=$HOME/Github/Heimdall                      # Heimdall: everything goes into it
+export SRC=$HEP/stash BUILD=$HEP/forge HEP_INSTALL=$HEP/stack VENV=$HEP/env/venv
 export CORES=$(nproc)                                 # compilers at once: make -j$CORES
 export ROOT_CORES=$(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 3000000 ))   # ROOT: one per 3 GB RAM
 [ "$ROOT_CORES" -ge 1 ] || ROOT_CORES=1; [ "$ROOT_CORES" -le "$CORES" ] || ROOT_CORES=$CORES
@@ -72,6 +71,7 @@ cmake --version | head -1 && gfortran --version | head -1
 python3 -m venv --prompt HEP "$VENV"                 # the shell shows (HEP) while it is active
 "$VENV/bin/pip" install numpy cython tomli_w rich pyyaml pillow matplotlib uproot awkward pytest
 # check:
+"$VENV/bin/python" "$HEP/recipes/pth.py" "$HEP"         # heimdall.pth: framework/ on the venv's path
 "$VENV/bin/python" -c 'import numpy, tomli_w, rich, uproot; print("venv OK")'
 
 
@@ -108,7 +108,7 @@ HepMC3-config --version && python -c 'import pyHepMC3; print("pyHepMC3 OK")'
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
 get fastjet "https://fastjet.fr/repo/fastjet-3.5.0.tar.gz"
-patch -d "$SRC/fastjet" -p0 -i "$HEKIT_ROOT/utils/Env/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch"
+patch -d "$SRC/fastjet" -p0 -i "$HEP/recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch"
 cd "$SRC/fastjet"
 ./configure --prefix="$HEP_INSTALL/fastjet" --enable-shared --enable-allcxxplugins
 make -j"$CORES" && make install
@@ -240,22 +240,14 @@ lhapdf list --installed | wc -l
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
-# STEP 15 — setup.sh, the environment for every later session (skip it if $HEP/setup.sh exists)
+# STEP 15 — the environment for every later session: Heimdall's setup.sh (tracked; nothing to write)
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
-[ -e "$HEP/setup.sh" ] || cat > "$HEP/setup.sh" <<EOF
-#!/bin/bash
-# $HEP/setup.sh: source it once per session.
-export HEP=$HEP
-export HEP_INSTALL=\$HEP/install
-export HEKIT_ROOT=\${HEKIT_ROOT:-$HEKIT_ROOT}
-source "\$HEKIT_ROOT/utils/Env/hep_env.sh"
-EOF
 echo "alias load_hep='source $HEP/setup.sh'" >> ~/.bashrc
 # check, in a NEW terminal:
 #   load_hep && hep_status
-# then, in the repository:
-#   cd "$HEKIT_ROOT" && hep build && make test
+# then the framework's apps and tests:
+#   hep build --framework && make -C "$HEP" test
 
 # ── The core stack is done here. The rest is optional (packages = "all"). ────────────────────────
 

@@ -1,17 +1,20 @@
 #!/bin/bash
-# utils/Env/hep_env.sh — the HEP shell environment (rework v2; docs/06_Internals.md §1).
+# env/hep_env.sh — Heimdall's shell environment (docs/framework/01_Target.md §5.8; docs/06_Internals.md §1).
 #
-# Sourced by the stub ~/HEP/setup.sh (alias `load_hep`), which sets HEP, HEP_INSTALL and HEKIT_ROOT.
-# It puts the ~/HEP stack and utils/Env (the `hep` command) on PATH, activates the venv, and defines
-# the shell helpers below.
+# Sourced by Heimdall's setup.sh (alias `load_hep`), which sets HEP (Heimdall's folder) and HEP_INSTALL
+# ($HEP/stack). It puts the stack and framework/bin (the `hep` command) on PATH, activates the venv
+# (env/venv), and defines the shell helpers below.
 # Safe to source repeatedly: path variables are only ever prepended once, and never get empty elements
 # (an empty element means the CWD). `quit` removes exactly what was added here.
 
-: "${HEP:=$HOME/HEP}"
-: "${HEP_INSTALL:=$HEP/install}"
-: "${HEKIT_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-export HEP HEP_INSTALL HEKIT_ROOT
-# The file that sourced this one (the ~/HEP/setup.sh stub), re-sourced by hep_refresh
+: "${HEP:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+: "${HEP_INSTALL:=$HEP/stack}"
+export HEP HEP_INSTALL
+if [ -n "${HEKIT_ROOT-}" ]; then                 # High-Energy's name for the checkout: retired (K15)
+    echo "HEKIT_ROOT is retired: Heimdall uses HEP ($HEP)" >&2
+    unset HEKIT_ROOT
+fi
+# The file that sourced this one (Heimdall's setup.sh), re-sourced by hep_refresh
 export HEP_SETUP="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
 
 _HEP_PACKAGES="LHAPDF hepmc3 fastjet xrootd root yoda pythia8 rivet herwig7 delphes sherpa madgraph whizard onnxruntime geant4"
@@ -73,7 +76,7 @@ _hep_status_probe() {
         fi
     }
 
-    # echo "HEP environment — $HEP (repo: $HEKIT_ROOT)"
+    # echo "HEP environment — $HEP"
     echo " "
     printf "  %-10s %s\n" LHAPDF   "$(_ver lhapdf-config --version)"
     printf "  %-10s %s\n" HepMC3   "$(_ver HepMC3-config --version)"
@@ -126,13 +129,15 @@ hep_refresh() {
 # hep_status: the installed tool versions.
 hep_status() { _hep_status_probe "$@"; }
 
-hep_src()     { cd "$HEP/src"; }
-hep_build()   { cd "$HEP/build"; }
-hep_install() { cd "$HEP/install"; }
-# hep_cd PROJECT [configs|modules|results|output] — cd into a project directory of the repo.
+hep_stash()   { cd "$HEP/stash"; }
+hep_forge()   { cd "$HEP/forge"; }
+hep_stack()   { cd "$HEP/stack"; }
+# hep_cd PROJECT [configs|modules|results|output] — cd into a project folder of the current work dir.
 hep_cd() {
     [ -n "${1-}" ] || { echo "usage: hep_cd PROJECT [configs|modules|results|output]"; return 2; }
-    cd "$HEKIT_ROOT/${2:-configs}/$1"
+    local work
+    work=$(hep where --work) || return 2
+    cd "$work/${2:-configs}/$1"
 }
 hep_help() {
     cat << HLP
@@ -141,10 +146,10 @@ HEP environment commands:
   hep_status             installed tool versions
   hep_refresh            reload the environment from scratch
   quit                   leave the HEP environment (restores paths, deactivates venv)
-  hep_cd PROJECT [DIR]   cd to \$HEKIT_ROOT/DIR/PROJECT (DIR: configs|modules|results|output)
-  hep_src                cd to \$HEP/src
-  hep_build              cd to \$HEP/build
-  hep_install            cd to \$HEP/install
+  hep_cd PROJECT [DIR]   cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|output)
+  hep_stash              cd to \$HEP/stash (downloads)
+  hep_forge              cd to \$HEP/forge (builds in progress)
+  hep_stack              cd to \$HEP/stack (the installs)
   hep_help               this message
 HLP
 }
@@ -157,9 +162,9 @@ if [ -n "${HEP_ENV_LOADED-}" ]; then
 fi
 
 # Activate the Python venv
-source "$HEP/.venv/bin/activate"
+source "$HEP/env/venv/bin/activate"
 
-_hep_pyver=$("$HEP/.venv/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
+_hep_pyver=$("$HEP/env/venv/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
 for pkg in $_HEP_PACKAGES; do
     _hep_prepend PATH              "$HEP_INSTALL/$pkg/bin"
     _hep_prepend LD_LIBRARY_PATH   "$HEP_INSTALL/$pkg/lib"
@@ -172,9 +177,9 @@ done
 _hep_prepend PYTHONPATH "$HEP_INSTALL/root/lib"
 _hep_prepend PYTHONPATH "$HEP_INSTALL/pythia8/lib"
 unset pkg _hep_pyver
-# utils/Env last, so it sits in front of everything, including the venv's bin/: the `hep` command
-# is utils/Env/hep. The venv still holds v1's editable `hekit` install and its dead `hep` entry point.
-_hep_prepend PATH "$HEKIT_ROOT/utils/Env"
+# framework/bin last, so it sits in front of everything, including the venv's bin/: the `hep` command
+# is framework/bin/hep.
+_hep_prepend PATH "$HEP/framework/bin"
 
 for _hep_var in $_HEP_SCALARS; do
     export "_HEP_SAVED_$_hep_var=${!_hep_var-}"

@@ -1,5 +1,11 @@
-# The build context of docs/stack/Dockerfile (docker build -f docs/stack/Dockerfile .): only what it
-# copies, never output/, results/ or build/.
-*
-!docs/stack/
-!utils/Env/patches/
+# The build context of recipes/platforms/container/Dockerfile is Heimdall: everything tracked, and
+# .git/ (provenance records Heimdall's revision), but never the trees a machine makes.
+stack/
+forge/
+stash/
+env/venv/
+env/machine.sh
+framework/Apps/
+.setup/
+**/__pycache__/
+.pytest_cache/

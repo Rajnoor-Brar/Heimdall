@@ -1,6 +1,6 @@
 # The HEP stack on macOS
 
-The same build as on Linux ([../README.md](../README.md)), with Homebrew for the system packages and
+The same build as on Linux ([../../README.md](../../README.md)), with Homebrew for the system packages and
 Apple's clang as the compiler. On Apple Silicon or Intel. The build is `build_stack.py` with one
 overlay, `mac.toml`; nothing in `packages.toml` is copied.
 
@@ -29,10 +29,10 @@ overlay, `mac.toml`; nothing in `packages.toml` is copied.
    ```bash
    brew --version
    ```
-3. **This repository**, if it is not on the Mac yet:
+3. **Heimdall**, if it is not on the Mac yet:
    ```bash
-   git clone <the High-Energy repository's URL> ~/Github/High-Energy
-   cd ~/Github/High-Energy
+   git clone <Heimdall's URL> ~/Github/Heimdall
+   cd ~/Github/Heimdall
    ```
 4. **Optional: pdflatex** for the sheet figures (about 100 MB; asks for your password):
    ```bash
@@ -46,37 +46,37 @@ overlay, `mac.toml`; nothing in `packages.toml` is copied.
 
 ## 2. Build
 
-From the repository's root:
+From Heimdall's folder:
 
 ```bash
-bash docs/stack/mac/build.sh --dry-run > ~/hep-build.sh     # look first: the whole build as bash; nothing installed
-caffeinate -i bash docs/stack/mac/build.sh                  # Homebrew's packages, then the core stack into ~/HEP
-caffeinate -i bash docs/stack/mac/build.sh packages=all     # and Sherpa, MadGraph, Whizard, ONNX Runtime, Geant4
+bash recipes/platforms/mac/build.sh --dry-run > ~/hep-build.sh     # look first: the whole build as bash; nothing installed
+caffeinate -i bash recipes/platforms/mac/build.sh                  # Homebrew's packages, then the core stack into Heimdall
+caffeinate -i bash recipes/platforms/mac/build.sh packages=all     # and Sherpa, MadGraph, Whizard, ONNX Runtime, Geant4
 ```
 
 `build.sh` checks the machine (macOS, Xcode's tools, not Rosetta, Homebrew), runs `brew bundle`
 (skip it with `BREW_BUNDLE=0`), puts GNU make, sed and coreutils first on `PATH`, picks Homebrew's
 Python 3.11+, and runs `build_stack.py` with `mac.toml`. Every `build_stack.py` argument passes
-through and wins over `mac.toml`: `cores=8`, `prefix=/opt/hep`, `root.release=6.40.06`,
-`packages="rivet pythia8"`. Stamps, logs (`~/HEP/logs/<package>.log`), resuming and `--list` are as
-on Linux ([../README.md §1](../README.md#1-quick-start)).
+through and wins over `mac.toml`: `cores=8`, `root.release=6.40.06`,
+`packages="rivet pythia8"`. Stamps (`stack/.stamps/`), logs (`forge/logs/<package>.log`), resuming and
+`--list` are as on Linux ([../../README.md §1](../../README.md#1-quick-start)). `mac.toml`'s `setup_extra`
+lines go to `env/machine.sh`, which `setup.sh` sources.
 
 ---
 
 ## 3. Launch
 
 ```bash
-docs/stack/mac/launch.sh                       # a bash with ~/HEP/setup.sh loaded (hep_status shows the stack)
-docs/stack/mac/launch.sh root -l               # one command in that environment
-HEP=/opt/hep docs/stack/mac/launch.sh          # another prefix
+recipes/platforms/mac/launch.sh                # a bash with Heimdall's setup.sh loaded (hep_status shows the stack)
+recipes/platforms/mac/launch.sh root -l        # one command in that environment
 ```
 
-The environment (`utils/Env/hep_env.sh`) is bash, and macOS's login shell is zsh, with a bash 3.2:
+The environment (`env/hep_env.sh`) is bash, and macOS's login shell is zsh, with a bash 3.2:
 `launch.sh` runs Homebrew's bash 5 with your `~/.bashrc` and `setup.sh`. Inside a bash already,
-`source ~/HEP/setup.sh` does the same. For a zsh shortcut, in `~/.zshrc`:
+`source ~/Github/Heimdall/setup.sh` does the same. For a zsh shortcut, in `~/.zshrc`:
 
 ```bash
-alias load_hep="$HOME/Github/High-Energy/docs/stack/mac/launch.sh"
+alias load_hep="$HOME/Github/Heimdall/recipes/platforms/mac/launch.sh"
 ```
 
 Then, in the launched shell, the framework against the new stack:
@@ -109,9 +109,8 @@ hep build && make test
 - **Not yet run on a Mac.** The files follow the Linux build, which the lab PC proved, and macOS's
   conventions. Their dry run is tested (`tests/runner/test_stack_build.py`); the real build is not.
   Expect the first run to need small fixes: the log names them, and a fix is a `mac.toml` line.
-- **`hep run` does not start on macOS yet.** Its watch socket (`utils/Env/runner/events.py`) uses
-  Linux's abstract socket namespace, which macOS does not have. The stack, `hep build`, `make`, ROOT,
-  Rivet and the generators are not affected.
+- **`hep run`'s watch socket** (`framework/runner/events.py`) uses Linux's abstract socket namespace;
+  on macOS it falls back to a socket file in `$TMPDIR` (docs/framework/06_Seam.md, S2).
 - **DYLD_LIBRARY_PATH** is dropped by macOS (System Integrity Protection) whenever one of Apple's own
   programs starts, `/usr/bin/env` and `/bin/sh` among them, and so for most scripts. The stack does
   not rely on it: its libraries carry absolute install names or rpaths (the table above).

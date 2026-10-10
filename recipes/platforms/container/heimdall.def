@@ -1,0 +1,11 @@
+# recipes/platforms/container/heimdall.def — an Apptainer image from the Docker image, saved as a file
+# (docker save heimdall -o heimdall.tar), so a cluster needs no Docker:
+#   apptainer build heimdall.sif recipes/platforms/container/heimdall.def      # where heimdall.tar is
+Bootstrap: docker-archive
+From: heimdall.tar
+
+%environment
+    . /opt/heimdall/setup.sh
+
+%runscript
+    exec bash "$@"

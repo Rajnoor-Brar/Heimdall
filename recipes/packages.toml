@@ -1,4 +1,4 @@
-# docs/stack/packages.toml — the stack's packages, in build order: where each one's source is and how
+# recipes/packages.toml — the stack's packages, in build order: where each one's source is and how
 # it is built (the lab PC's versions and fixes; README.md §3 says why each flag is there).
 #
 #   release   its version: the stamp's, {release} below, and {series} (it without its last ".x")
@@ -9,13 +9,13 @@
 #             none       only its pre and post commands
 #   needs     the packages it builds against: added to a run when they are not installed
 #   group     "core" (the default) or "extra": packages = "core" builds the first, "all" both
-#   install   its directory under install/ (default: its name): the names hep_env.sh expects
+#   install   its directory under stack/ (default: its name): the names env/hep_env.sh expects
 #   probe     the file that shows it installed (default: {install})
 #   args      configure or cmake arguments
 #   extra     more of them, after args: for an overlay or the command line (root.extra="-Droofit=OFF"),
 #             without repeating args (CMake and configure take the last of a repeated option)
 #   optional  { package = [args] }: added when that package is installed or in the run
-#   patch     a patch (-p0) for the unpacked source; a path from the repository root
+#   patch     a patch (-p0) for the unpacked source; a path from Heimdall's root
 #   env       environment for its commands
 #   pre, post commands run before configuring and after installing (in {src}; shell words, no shell)
 #   cores     how many compilers it runs at once, its make -j (default {cores})
@@ -28,7 +28,8 @@
 [python]
 kind  = "none"
 probe = "{venv}/bin/python"
-pre   = ["{python} -m venv --prompt HEP {venv}", "{venv}/bin/pip install {python_packages}"]
+pre   = ["{python} -m venv --prompt HEP {venv}", "{venv}/bin/pip install {python_packages}",
+         "{venv}/bin/python {repo}/recipes/pth.py {repo}"]       # heimdall.pth: $HEP/framework on the venv's path
 
 [lhapdf]
 release = "6.5.6"
@@ -57,7 +58,7 @@ url     = "https://fastjet.fr/repo/fastjet-{release}.tar.gz"
 kind    = "autotools"
 # SISCone's random-number state is one per process: threads clustering at once get other jets (L29).
 # The patch makes it per thread. fastjet.patch="" builds without it.
-patch   = "utils/Env/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch"
+patch   = "recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch"
 args    = ["--enable-shared", "--enable-allcxxplugins"]
 
 [fjcontrib]

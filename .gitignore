@@ -1,0 +1,14 @@
+# Heimdall's own trees, never in git (docs/framework/01_Target.md §2, D27):
+stack/
+forge/
+stash/
+env/venv/
+env/machine.sh
+framework/Apps/
+.setup/
+
+# Python and editors
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store

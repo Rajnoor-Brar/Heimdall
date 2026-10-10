@@ -30,10 +30,10 @@ from . import plugins
 from . import quantities as qmod
 from .config import Tool
 from .errors import HepError, did_you_mean
-from .paths import output_root, repo_root, resolve, results_root
+from .paths import hep_root, output_root, placeholders, resolve, results_root
 from .sweep import tag_of
 
-ENV = Path(__file__).resolve().parents[1]                 # utils/Env
+ENV = Path(__file__).resolve().parents[1] / "tools"       # framework/tools
 
 FOLDER_SECTIONS = {
     "tool": {"category", "executable", "streamable", "status", "consumes_events", "produces_events", "config_file",
@@ -102,7 +102,7 @@ def folders() -> dict[str, Folder]:
     if _FOLDERS is None:
         found = {}
         for path in sorted(ENV.glob("*/tool.toml")):
-            where = str(path.relative_to(repo_root()))
+            where = str(path.relative_to(hep_root()))
             try:
                 spec = tomllib.loads(path.read_text(encoding="utf-8"))
             except tomllib.TOMLDecodeError as error:
@@ -164,6 +164,9 @@ def _lookup(name: str, context: dict, where: str):
     table = context.get(f"{head}:")
     if isinstance(table, dict) and arg in table:
         return table[arg]
+    if name == "repo":                                               # High-Energy's, retired (01 §5.3)
+        raise HepError("{repo} is retired: {work} for your files, {hep} for Heimdall's", where=where,
+                       hint="hep migrate rewrites it in a run TOML")
     raise HepError(f"unknown placeholder {{{name}}}", where=where,
                    hint=did_you_mean(name, [k for k in context if not k.endswith(":")]))
 
@@ -212,7 +215,7 @@ def merge_files(sources: list[Path], target: Path) -> Path:
     name, _ = combiner()
     folder = folders()[name]
     partial = target.with_name(target.stem + ".partial" + target.suffix)
-    context: dict[str, Any] = {"repo": str(repo_root()), "inputs": [str(s) for s in sources], "output": str(target),
+    context: dict[str, Any] = {**placeholders(), "inputs": [str(s) for s in sources], "output": str(target),
                                "partial:": {"output": str(partial)}}
     context["exe"] = str(executable_of(Tool(tag=name, tool=name), folder, ""))
     for key, rule in folder.spec.get("options", {}).items():
@@ -240,7 +243,7 @@ def merge_files(sources: list[Path], target: Path) -> Path:
 
 
 def executable_of(tool, folder: Folder, project: str) -> Path:
-    """A folder's executable (`{repo}` expanded, else PATH), or a custom table's (04 §2): bare →
+    """A folder's executable (`{hep}`/`{work}` expanded, else PATH), or a custom table's (04 §2): bare →
     build/<project>/<name>, which must exist; `path:<command>` → that command on PATH, asked for by
     name. A bare name never falls back to PATH (V54): a missing build would run a system binary."""
     if tool.executable:
@@ -261,11 +264,11 @@ def executable_of(tool, folder: Folder, project: str) -> Path:
     template = folder.get("tool", "executable")
     if not template:
         raise HepError(f"[tools.{tool.tag}] needs executable = \"...\"", where=f"[tools.{tool.tag}]")
-    text = expand(template, {"repo": str(repo_root())}, f"{folder.name}/tool.toml")
+    text = expand(template, placeholders(), f"{folder.name}/tool.toml")
     if "/" in text:
         path = Path(text)
         if not path.exists():
-            rel = path.relative_to(repo_root()) if path.is_relative_to(repo_root()) else path
+            rel = path.relative_to(hep_root()) if path.is_relative_to(hep_root()) else path
             raise HepError(f"{rel} is not built", where=f"tool '{folder.name}'",
                            hint="run `hep build` (or make utils/App_*.exe)")
         return path
@@ -323,7 +326,7 @@ def meta_notes(run) -> list[str]:
 @functools.lru_cache(maxsize=1)
 def _stack():
     """utils/Env/stack.py, the stack registry's reader (V78)."""
-    return plugins.load(repo_root() / "utils" / "Env" / "stack.py", "stack")
+    return plugins.load(hep_root() / "env" / "stack.py", "stack")
 
 
 # ── the plan of one point ──────────────────────────────────────────────────────────────────────
@@ -668,7 +671,7 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
         where = f"{run.path}: [tools.{tag}]"
         _check_options(tool, folder, where)
         for pattern in folder.get("checks", "files", []):          # what the tool needs built first
-            needed = Path(expand(pattern, {"repo": str(repo_root())}, f"{folder.name}/tool.toml [checks].files"))
+            needed = Path(expand(pattern, placeholders(), f"{folder.name}/tool.toml [checks].files"))
             if not needed.exists():
                 raise HepError(f"{folder.name} needs {needed}, which does not exist", where=where,
                                hint="hep build (see utils/Env/" + folder.name + "/tool.toml)")
@@ -925,7 +928,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
         for pattern in folder.get("identity", "files", []):
             for name, values in given.get("identity_values", {}).items():
                 for value in values:
-                    path = Path(expand(pattern, {"repo": str(repo_root()), "exe": str(step.exe), name: value}, folder.name))
+                    path = Path(expand(pattern, {**placeholders(), "exe": str(step.exe), name: value}, folder.name))
                     if path.is_file():
                         step.identity_parts.setdefault("files_sha256", {})[str(path)] = sha256_file(path)
     step.flags = flags                                  # argv after [command] argv (V63)
@@ -991,7 +994,7 @@ def _prepare_argv(plan: PointPlan, step: Step) -> None:
     """The prepare command, run in the cache entry: for chain steps and export-only ones alike."""
     if step.prepare_dir is None:
         return
-    context = {"repo": str(repo_root()), "exe": str(step.exe), "card": str(step.card_combined or ""),
+    context = {**placeholders(), "exe": str(step.exe), "card": str(step.card_combined or ""),
                "prepared": str(step.prepare_dir), "out": str(plan.out),
                "prepare_card": str(step.prepare_card or step.card_combined or "")}
     argv = []
@@ -1027,7 +1030,7 @@ def _same(a: str, b: str) -> bool:
 
 
 def _info_dirs(folder: Folder) -> list[Path]:
-    dirs = [Path(expand(d, {"repo": str(repo_root())}, folder.name)) for d in folder.get("checks", "info_dirs", [])]
+    dirs = [Path(expand(d, placeholders(), folder.name)) for d in folder.get("checks", "info_dirs", [])]
     command = folder.get("checks", "info_dirs_command")
     if command:
         key = " ".join(command)
@@ -1043,7 +1046,7 @@ def _info_dirs(folder: Folder) -> list[Path]:
 def _argv(plan: PointPlan, step: Step, run, requests: dict[str, str]) -> None:
     folder, tool = step.folder, step.tool
     context: dict[str, Any] = {
-        "repo": str(repo_root()), "out": str(plan.out), "res": str(plan.res), "exe": str(step.exe),
+        **placeholders(), "out": str(plan.out), "res": str(plan.res), "exe": str(step.exe),
         "threads": plan.threads, "events": plan.events,
         "input": str(step.inputs[0].path) if step.inputs else "",
         "inputs": [str(p) for i in step.inputs for p in (i.paths if i.kind == "points" else [i.path])],
@@ -1096,7 +1099,7 @@ def _argv(plan: PointPlan, step: Step, run, requests: dict[str, str]) -> None:
                 if template.startswith("identity:"):
                     values[give] = source.identity_parts.get(template[len("identity:"):], [])
                 else:
-                    values[give] = expand(template, {"repo": str(repo_root())}, f"{source.folder.name}/tool.toml [exports.{export}]")
+                    values[give] = expand(template, placeholders(), f"{source.folder.name}/tool.toml [exports.{export}]")
             standard[key] = values
         step.identity_parts.setdefault("exports", {})[key] = plan.rendered[tag].identity_parts
     context["std:"] = {k: v.get("path", "") for k, v in standard.items()}
@@ -1161,7 +1164,7 @@ def _outputs_argument(step: Step, deal: dict[str, str]) -> str:
             raise HepError(f"an output path of [tools.{step.tag}] contains ',' or '+', which separate its outputs",
                            where=str(interface.path),
                            hint="rename what puts it there: the run's name or serial, a configuration, a quantity tag, "
-                                "or $HEKIT_OUTPUT")
+                                "or $HEP_OUTPUT")
         group = deal.get(interface.name)
         if group is not None and group in at:
             items[at[group]] += "+" + str(interface.path)
@@ -1321,7 +1324,7 @@ def check_cards(plan: PointPlan) -> None:
                 _CHECKED[key] = json.loads(cache.read_text(encoding="utf-8"))
             else:
                 card = cache.with_suffix(".card")
-                argv = [expand(a, {"repo": str(repo_root()), "card": str(card)}, f"{step.folder.name}/tool.toml [checks].card")
+                argv = [expand(a, {**placeholders(), "card": str(card)}, f"{step.folder.name}/tool.toml [checks].card")
                         for a in command]
                 checker = Path(argv[0])
                 if not checker.is_file():

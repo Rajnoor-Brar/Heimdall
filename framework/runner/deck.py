@@ -36,7 +36,7 @@ from typing import Callable
 
 from . import hepfiles, plugins, schema, viewer
 from .errors import HepError, did_you_mean
-from .paths import output_root, repo_root, reports_root, results_root
+from .paths import hep_root, output_root, reports_root, results_root
 
 RECIPE = "deck.toml"
 TALK = "deck.md"
@@ -439,7 +439,7 @@ class Talk:
 
 
 def _layout():
-    return plugins.load(repo_root() / "utils" / "Env" / "figures" / "layout.py", "layout")
+    return plugins.load(hep_root() / "framework" / "tools" / "figures" / "layout.py", "layout")
 
 
 def generated(deck: Deck) -> str:

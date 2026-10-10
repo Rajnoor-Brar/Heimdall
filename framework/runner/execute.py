@@ -43,7 +43,7 @@ from pathlib import Path
 
 from . import hepfiles
 from .errors import HepError
-from .paths import repo_root
+from .paths import placeholders
 from .record import complete_marker, is_complete, now, provenance, write_atomic, write_identity
 from .status import Reader, ToolState
 from .tools import PointPlan, Step, expand
@@ -291,7 +291,7 @@ def prepare(plan: PointPlan, logs: bool = False) -> None:
         elif interface.kind == "file" and interface.name in plan.prelim.get("files", []):
             interface.path.touch(exist_ok=True)
     for command in plan.prelim.get("commands", []):
-        context = {"repo": str(repo_root()), "out": str(plan.out), "res": str(plan.res),
+        context = {**placeholders(), "out": str(plan.out), "res": str(plan.res),
                    "file:": {n: str(i.path) for n, i in plan.interfaces.items()}}
         argv = [x for a in command for x in ([expand(str(a), context, "[prelim].commands")])]
         done = subprocess.run(argv, cwd=plan.out, capture_output=True, text=True)

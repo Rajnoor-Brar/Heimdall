@@ -10,7 +10,7 @@ style = "none"
 
 [command]
 argv = ["{exe}", "{equivalent}", "-o", "{partial:output}", "{inputs}"]
-env  = { RIVET_ANALYSIS_PATH = "{repo}/build/Rivet" }   # it re-runs the analyses' finalize()
+env  = { RIVET_ANALYSIS_PATH = "{work}/build/Rivet" }   # it re-runs the analyses' finalize()
 
 [options]
 # Seed replicas are statistically independent runs of one process (-e): their statistics add and the

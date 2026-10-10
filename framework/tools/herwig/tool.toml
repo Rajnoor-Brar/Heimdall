@@ -30,7 +30,7 @@ slots = ["lepton", "hadron"]
 argv = ["{exe}", "run", "{prepared}/point.run", "-N", "{events}", "-s", "{seed}", "-d", "0"]
 
 [prepare]
-argv   = ["{exe}", "read", "--repo={repo}/build/Herwig/HerwigDefaults.rpo", "{card}"]
+argv   = ["{exe}", "read", "--repo={hep}/framework/Apps/Herwig/HerwigDefaults.rpo", "{card}"]
 marker = "point.run"
 
 [outputs]
@@ -45,7 +45,7 @@ needs_prepare = true
 alias = "card"                      # herwig_in = herwig_card
 
 [checks]
-files = ["{repo}/build/Herwig/HerwigDefaults.rpo"]
+files = ["{hep}/framework/Apps/Herwig/HerwigDefaults.rpo"]
 
 [identity]
 version = "stack:herwig"                # utils/Env/stack.toml's (V78)

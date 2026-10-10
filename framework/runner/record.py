@@ -30,11 +30,12 @@ import platform
 import secrets
 import socket
 import subprocess
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .errors import HepError
-from .paths import repo_root
+from .paths import find_work, hep_root
 from .tools import DEFAULT_SEED_RANGE, PointPlan, version_of
 
 
@@ -231,14 +232,30 @@ def is_complete(plan: PointPlan) -> bool:
     return marker.is_file() and marker.read_text(encoding="utf-8").strip() == plan.identity
 
 
-def git_state() -> dict:
+def git_state(root: Path) -> dict:
+    """A folder's git revision and whether its tracked files changed; {} when it is not a git repo."""
     def git(*args) -> str:
         try:
-            return subprocess.run(["git", *args], cwd=repo_root(), capture_output=True, text=True,
+            return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True,
                                   timeout=10).stdout.strip()
         except (OSError, subprocess.SubprocessError):
             return ""
-    return {"revision": git("rev-parse", "HEAD"), "dirty": bool(git("status", "--porcelain", "--untracked-files=no"))}
+    revision = git("rev-parse", "HEAD") if (root / ".git").exists() else ""
+    if not revision:
+        return {}
+    return {"revision": revision, "dirty": bool(git("status", "--porcelain", "--untracked-files=no"))}
+
+
+def work_record() -> dict:
+    """The work dir a point ran in: its name (hep.toml) and folder; {} outside one (tests set the roots)."""
+    work = find_work()
+    if work is None:
+        return {}
+    try:
+        name = tomllib.loads((work / "hep.toml").read_text(encoding="utf-8"))["work"].get("name", work.name)
+    except (OSError, tomllib.TOMLDecodeError, KeyError):
+        name = work.name
+    return {"name": name, "root": str(work)}
 
 
 def provenance(plan: PointPlan, run, configuration, started: str, finished: str, results: dict) -> dict:
@@ -263,7 +280,10 @@ def provenance(plan: PointPlan, run, configuration, started: str, finished: str,
         "identity": plan.identity, "seed": plan.seed, "threads": plan.threads, "events": plan.events,
         "tools": tools,
         "host": socket.gethostname(), "platform": platform.platform(), "user": os.environ.get("USER", ""),
-        "git": git_state(), "started": started, "finished": finished,
+        "git": {"heimdall": git_state(hep_root()),                # two repos (01 §5.6, D8)
+                "work": git_state(Path(work["root"])) if (work := work_record()) else {}},
+        "hep": str(hep_root()), "work": work, "stack": os.environ.get("HEP_STACK", ""),
+        "started": started, "finished": finished,
     }
 
 

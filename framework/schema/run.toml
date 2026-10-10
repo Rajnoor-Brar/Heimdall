@@ -367,7 +367,7 @@ type = "list"
 doc  = "commands run in the point's folder before the tools"
 notes = """\
   run in the point's output directory; output to `logs/prelim.log`; a nonzero exit fails the \
-  point. Placeholders: `{repo}`, `{out}`, `{res}`, `{file:<name>}`"""
+  point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}`"""
 
 # ── [quantities.<q>] ─────────────────────────────────────────────────────────────────────────
 

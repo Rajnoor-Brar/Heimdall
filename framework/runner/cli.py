@@ -69,7 +69,7 @@ def parser() -> argparse.ArgumentParser:
     overlay.add_argument("--objects", nargs="+", default=[], metavar="GLOB", help="only these YODA paths")
     overlay.add_argument("--formats", default="pdf,png", help="pdf, png, svg, eps (default pdf,png)")
     overlay.add_argument("--ratio", action="store_true", help="a ratio panel against the first curve")
-    overlay.add_argument("--style", metavar="FILE", help="a style file over utils/Apps/Paint/base.toml")
+    overlay.add_argument("--style", metavar="FILE", help="a style file over src/Apps/Paint/base.toml")
 
     deck = commands.add_parser("deck", help="a deck of slides from drawn pages, in reports/<deck>/ (deck.toml, deck.md)")
     deck.add_argument("deck", help="reports/<deck>, or a path starting ./, ../ or /")
@@ -704,8 +704,8 @@ def cmd_status(args) -> int:
     (V78): each package of utils/Env/stack.toml, its version and where it is."""
     if getattr(args, "stack", False):
         from .plugins import load
-        from .paths import repo_root
-        for line in load(repo_root() / "utils" / "Env" / "stack.py", "stack").versions():
+        from .paths import hep_root
+        for line in load(hep_root() / "env" / "stack.py", "stack").versions():
             print(line)
         return 0
     names = [args.config] if args.config else house.config_names()
@@ -805,10 +805,10 @@ def cmd_reproduce(args) -> int:
     sets = []
     if planned.configuration.seed_type == "random":
         sets = ["--set", f'run.{key}.seed_type="manual"', "--set", f"run.{key}.manual_seed={record_['seed']}"]
-    argv = [sys.executable, str(Path(__file__).resolve().parents[1] / "run"), "run", config_file, key,
+    argv = [sys.executable, str(Path(__file__).resolve().parents[1] / "bin" / "run"), "run", config_file, key,
             "--points", name, "--rerun", *[x for item in given for x in ("--set", item)], *sets,
             *(["--plain"] if args.plain else [])]
-    env = dict(os.environ, HEKIT_OUTPUT=str(where / "output"), HEKIT_RESULTS=str(where / "results"))
+    env = dict(os.environ, HEP_OUTPUT=str(where / "output"), HEP_RESULTS=str(where / "results"))
     print(f"reproducing {record_['run']} · {key} · {name} (seed {record_['seed']}) in {where}", flush=True)
     code = subprocess.run(argv, env=env).returncode
     if code != 0:

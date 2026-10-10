@@ -12,7 +12,7 @@ bools = ["1", "0"]                  # how an analysis option writes true and fal
 
 [command]
 argv = ["{exe}", "-o", "{partial:output}", "{analyses}", "{input}"]
-env  = { RIVET_ANALYSIS_PATH = "{repo}/build/Rivet" }
+env  = { RIVET_ANALYSIS_PATH = "{work}/build/Rivet" }
 
 [options]
 analyses = { kind = "list", required = true }
@@ -23,10 +23,10 @@ products    = ["yoda"]
 event_count = "yoda:/RAW/_EVTCOUNT"  # the count check against the producer's sidecar (L7)
 
 [exports.analyses]                  # rivet_analyses: what an integrated program needs to run them itself
-values = { analyses = "identity:analyses", plugin_path = "{repo}/build/Rivet" }
+values = { analyses = "identity:analyses", plugin_path = "{work}/build/Rivet" }
 
 [identity]
-files   = ["{repo}/build/Rivet/Rivet_{analysis}.so"]
+files   = ["{work}/build/Rivet/Rivet_{analysis}.so"]
 version = "stack:rivet"                # utils/Env/stack.toml's (V78)
 
 [shard]
@@ -39,5 +39,5 @@ merge = "merge"
 # option given to it must be declared there: an undeclared option is silently ignored by Rivet and
 # gives identical curves (L19, v1's 00/B14). Our plugins are copied to build/Rivet; Rivet's own
 # analyses are in its data directory.
-info_dirs         = ["{repo}/build/Rivet"]
+info_dirs         = ["{work}/build/Rivet"]
 info_dirs_command = ["rivet-config", "--datadir"]

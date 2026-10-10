@@ -2,7 +2,7 @@
 # The ROOT file is a product (results/), non-temporary, as the brief asks (§Plotting).
 [tool]
 category = "visualisation"
-executable = "{repo}/build/App_yd2rt.exe"
+executable = "{hep}/framework/Apps/App_yd2rt.exe"
 status     = "standard"
 
 [card]

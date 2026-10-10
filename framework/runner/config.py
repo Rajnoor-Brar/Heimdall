@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import plugins, schema
 from .errors import HepError, did_you_mean
-from .paths import config_file, configs_root, repo_root, resolve
+from .paths import config_file, configs_root, hep_root, resolve
 from .quantities import check_shapes
 
 #: How a point's seeds are chosen (V39, 06 §8); the schema's [run.seed_type].choices.
@@ -844,10 +844,10 @@ def check_meta(meta: dict, where: str) -> None:
     if not isinstance(versions, dict):
         raise HepError("[config.meta].versions is a table: package = \"version\"", where=f"{where}.versions",
                        hint='versions = { pythia8 = "8.317", rivet = "4.1.3" }')
-    known = list(plugins.load(repo_root() / "utils" / "Env" / "stack.py", "stack").entries())
+    known = list(plugins.load(hep_root() / "env" / "stack.py", "stack").entries())
     for name, version in versions.items():
         if name not in known:
-            raise HepError(f"'{name}' is not a package of utils/Env/stack.toml", where=f"{where}.versions",
+            raise HepError(f"'{name}' is not a package of env/stack.toml", where=f"{where}.versions",
                            hint=did_you_mean(name, known) or f"packages: {', '.join(known)}")
         if not isinstance(version, str):
             raise HepError(f"{name}'s version is a string (\"8.317\"), so its digits stay as written", where=f"{where}.versions.{name}")

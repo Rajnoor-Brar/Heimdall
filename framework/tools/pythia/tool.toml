@@ -1,7 +1,7 @@
 # utils/Env/pythia/tool.toml — the standard Pythia tool: build/App_Pythia.exe (docs/05_Commands_and_Tools.md §16).
 [tool]
 category        = "event-generator"
-executable      = "{repo}/build/App_Pythia.exe"
+executable      = "{hep}/framework/Apps/App_Pythia.exe"
 status          = "standard"
 produces_events = true
 
@@ -41,7 +41,7 @@ deal    = true                      # it can deal events among a sharded tool's 
 alias = "card"                      # pythia_cmnd = pythia_card
 
 [checks]
-card = ["{repo}/build/App_PythiaCheck.exe", "{card}"]   # Pythia reads the card and names what it rejects (V59)
+card = ["{hep}/framework/Apps/App_PythiaCheck.exe", "{card}"]   # Pythia reads the card and names what it rejects (V59)
 
 [identity]
 files   = ["{exe}"]

@@ -23,12 +23,12 @@ from typing import Any, NamedTuple
 
 from . import plugins
 from .errors import HepError, did_you_mean
-from .paths import repo_root, resolve
+from .paths import hep_root, resolve
 
 @functools.cache
 def vocabulary() -> dict:
     """utils/Env/quantities.toml: what each quantity name means, for every tool (V58)."""
-    path = repo_root() / "utils" / "Env" / "quantities.toml"
+    path = hep_root() / "framework" / "schema" / "quantities.toml"
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
@@ -70,12 +70,12 @@ def _folders_master() -> dict:
     A folder maps only names the vocabulary has (V58)."""
     master: dict = {"quantities": {}}
     known = vocabulary()
-    for path in sorted((repo_root() / "utils" / "Env").glob("*/quantities.toml")):
+    for path in sorted((hep_root() / "framework" / "tools").glob("*/quantities.toml")):
         table = _read(path)
         unknown = [name for name in table if name not in known]
         if unknown:
             raise HepError(f"{path.parent.name} maps {', '.join(unknown)}, which the vocabulary does not have",
-                           where=str(path), hint="add it to utils/Env/quantities.toml, with its shape")
+                           where=str(path), hint="add it to framework/schema/quantities.toml, with its shape")
         master["quantities"][path.parent.name] = {"compatible_quantities": table}
     return master
 
@@ -269,7 +269,7 @@ def check_shapes(quantity, where: str) -> None:
 
 def _provider(name: str):
     """utils/Env/<name>/provider.py (V60): a provider's checks, loaded by name."""
-    return plugins.load(repo_root() / "utils" / "Env" / name / "provider.py", "provider")
+    return plugins.load(hep_root() / "framework" / "tools" / name / "provider.py", "provider")
 
 
 def check_provider(kind: str, value, where: str) -> None:

@@ -24,7 +24,7 @@ import tomllib
 from pathlib import Path
 
 from . import cli, schema
-from .paths import repo_root
+from .paths import hep_root
 
 BLOCK = re.compile(r"(<!-- generated: ([^>]+?) -->\n)(.*?)(<!-- /generated -->)", re.S)
 
@@ -78,7 +78,7 @@ def _style_entries() -> list[tuple[str, str, str]]:
     """base.toml's keys in file order: (dotted key, default as written, comment). A comment-only line
     under a key, indented to its comment, continues that key's comment; a key without one has its
     table's (`[page.margins]   # fractions of the page`)."""
-    path = repo_root() / "utils" / "Apps" / "Paint" / "base.toml"
+    path = hep_root() / "src" / "Apps" / "Paint" / "base.toml"
     text = path.read_text(encoding="utf-8")
     values = tomllib.loads(text)
     out: list[list[str]] = []
@@ -156,13 +156,13 @@ def updated(text: str) -> str:
 
 
 def pages() -> list[Path]:
-    docs = repo_root() / "docs"
+    docs = hep_root() / "docs"
     return sorted(p for p in docs.rglob("*.md") if "audit_" not in str(p.relative_to(docs)))
 
 
 def stale() -> list[str]:
     """The pages whose generated blocks differ from what the code says now."""
-    return [str(p.relative_to(repo_root())) for p in pages()
+    return [str(p.relative_to(hep_root())) for p in pages()
             if BLOCK.search(text := p.read_text(encoding="utf-8")) and updated(text) != text]
 
 
@@ -171,4 +171,4 @@ if __name__ == "__main__":                                  # make docs
         text = page.read_text(encoding="utf-8")
         if BLOCK.search(text) and (new := updated(text)) != text:
             page.write_text(new, encoding="utf-8")
-            print(page.relative_to(repo_root()))
+            print(page.relative_to(hep_root()))

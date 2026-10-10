@@ -36,7 +36,7 @@ import tomli_w
 from . import hepfiles, plugins, schema
 from .errors import HepError, did_you_mean
 from .labels import canonical, labels_of, lines_of, macros, root_text, tlatex  # noqa: F401 (tlatex et al. re-exported)
-from .paths import build_root, output_root, repo_root, resolve, results_root
+from .paths import apps_dir, hep_root, output_root, resolve, results_root
 from .record import is_complete
 from .tools import merge_files, sha256_file
 from .sweep import axes, label_of, tag_of
@@ -124,7 +124,7 @@ def _matches(path: str, glob: str, fulls=()) -> bool:
 def backend(name: str):
     """A backend other than Paint: utils/Env/<name>/backend.py, with validate(settings) and
     draw(cells, settings, say) -> failed pages."""
-    path = repo_root() / "utils" / "Env" / name / "backend.py"
+    path = hep_root() / "framework" / "tools" / name / "backend.py"
     if not path.is_file():
         raise HepError(f"no plot backend '{name}'", hint=f"expected {path}")
     return plugins.load(path, "backend")
@@ -165,7 +165,7 @@ def validate(run) -> None:
 
 def base_style() -> dict:
     """utils/Apps/Paint/base.toml: every style key, with its default. Paint reads the same file."""
-    path = repo_root() / "utils" / "Apps" / "Paint" / "base.toml"
+    path = hep_root() / "src" / "Apps" / "Paint" / "base.toml"
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
@@ -186,7 +186,7 @@ def check_style(layer: dict, where: str, base: dict | None = None, at: str = "")
             continue
         if key not in base:
             raise HepError(f"the style has no key '{name}'", where=where,
-                           hint=did_you_mean(key, list(base)) or f"utils/Apps/Paint/base.toml has: {', '.join(base)}")
+                           hint=did_you_mean(key, list(base)) or f"src/Apps/Paint/base.toml has: {', '.join(base)}")
         mine = base[key]
         if isinstance(mine, dict) or isinstance(value, dict):
             if not (isinstance(mine, dict) and isinstance(value, dict)):
@@ -289,7 +289,7 @@ def convert(yoda: Path, target: Path) -> Path:
     digest = _sha(yoda)
     if target.exists() and stamp.exists() and stamp.read_text().strip() == digest:
         return target
-    app = build_root() / "App_yd2rt.exe"
+    app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
         raise HepError("build/App_yd2rt.exe is not built", hint="hep build")
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -325,7 +325,7 @@ def merge(sources: dict[str, Path], target: Path, stamp: Path, points: Path | No
     digest = "\n".join(f"{name} {_sha(path)}" for name, path in sources.items())
     if target.exists() and stamp.exists() and stamp.read_text(encoding="utf-8") == digest:
         return target
-    app = build_root() / "App_yd2rt.exe"
+    app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
         raise HepError("build/App_yd2rt.exe is not built", hint="hep build")
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -394,7 +394,7 @@ def _scanned(run, figure: Figure, complete: list, sources: dict, groups: list, w
     the figure reads of the point (utils/Env/figures/derive.py), its x range reaching halfway to its
     nearer neighbour on both sides, so it is centred on its value and every backend can draw it as a
     bin (a scan is drawn as markers, V86). Remade only when a member's YODA or the figure changed."""
-    module = plugins.load(repo_root() / "utils" / "Env" / "figures" / "derive.py", "derive")
+    module = plugins.load(hep_root() / "framework" / "tools" / "figures" / "derive.py", "derive")
     quantity = run.quantities[figure.x]
     kept = [g for g in groups if figure.x not in g]
     by: dict[tuple, list] = {}
@@ -483,7 +483,7 @@ def point_yodas(run, complete: list) -> dict[str, Path]:
     derived = [f for f in figures(run) if f.kind == "derived"]
     if not derived:
         return plain
-    module = plugins.load(repo_root() / "utils" / "Env" / "figures" / "derive.py", "derive")
+    module = plugins.load(hep_root() / "framework" / "tools" / "figures" / "derive.py", "derive")
     where = complete[0].out.parent / "plots" / "derived"
     where.mkdir(parents=True, exist_ok=True)
     specs = [(f.name, f.op, list(f.objects)) for f in derived]
@@ -1080,7 +1080,7 @@ def draw(run, configuration, plans, say, others=None) -> int:
     another configuration's plans."""
     if not run.plot:
         return 0
-    paint = build_root() / "Paint.exe"
+    paint = apps_dir() / "Paint.exe"
     if not paint.exists():
         raise HepError("build/Paint.exe is not built", hint="hep build")
     todo = pages(run, configuration, plans)
@@ -1115,7 +1115,7 @@ def sheet(run, figure: Figure, todo: list[Page], say) -> int:
     utils/Env/figures/layout.py into plots/<backend>/sheets/<name>.pdf, and its .png rendered from that
     PDF (V102), for Paint's pages and mpl's (mkhtml lays its files out its own way). 1 when it could
     not be made."""
-    module = plugins.load(repo_root() / "utils" / "Env" / "figures" / "layout.py", "layout")
+    module = plugins.load(hep_root() / "framework" / "tools" / "figures" / "layout.py", "layout")
     chosen_pages: list[Page] = []
     for glob in figure.table_pages:
         found = [p for p in todo if fnmatch.fnmatch(p.name, glob) and p not in chosen_pages]
@@ -1234,7 +1234,7 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
         raise HepError(f"no such file: {', '.join(missing)}")
     if labels and len(labels) != len(paths):
         raise HepError(f"--labels gives {len(labels)} names for {len(paths)} files")
-    paint = build_root() / "Paint.exe"
+    paint = apps_dir() / "Paint.exe"
     if not paint.exists():
         raise HepError("build/Paint.exe is not built", hint="hep build")
     key = hashlib.sha256("\n".join(map(str, paths)).encode()).hexdigest()[:12]

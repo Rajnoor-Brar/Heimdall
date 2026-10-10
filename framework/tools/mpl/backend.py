@@ -30,7 +30,7 @@ from pathlib import Path
 from runner.errors import HepError
 from runner.hepfiles import base_path
 from runner.labels import mathtext
-from runner.paths import build_root
+from runner.paths import work_build
 
 INDEX = True                               # the core writes plots/mpl/index.html (V70's write_index)
 _YODA = Path(__file__).resolve().parents[1] / "yoda" / "backend.py"
@@ -99,8 +99,8 @@ def _page(page, settings: dict) -> None:
     import yoda
 
     yb = _mkhtml_backend()
-    os.environ["RIVET_ANALYSIS_PATH"] = str(build_root() / "Rivet")
-    os.environ["RIVET_DATA_PATH"] = os.pathsep.join(filter(None, [str(build_root() / "Rivet"), os.environ.get("RIVET_DATA_PATH")]))
+    os.environ["RIVET_ANALYSIS_PATH"] = str(work_build() / "Rivet")
+    os.environ["RIVET_DATA_PATH"] = os.pathsep.join(filter(None, [str(work_build() / "Rivet"), os.environ.get("RIVET_DATA_PATH")]))
     hists, features, window = _inputs(yb, yoda, page)
     with matplotlib.rc_context():
         plt.style.use(_style_file(yoda))

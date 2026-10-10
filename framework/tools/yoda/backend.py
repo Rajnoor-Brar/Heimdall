@@ -38,7 +38,7 @@ from pathlib import Path
 from runner.errors import HepError
 from runner.hepfiles import base_path
 from runner.labels import canonical, mathtext
-from runner.paths import build_root
+from runner.paths import work_build
 
 _SPEC = tomllib.loads((Path(__file__).with_name("backend.toml")).read_text(encoding="utf-8"))   # V61
 FORMATS = {k: v or None for k, v in _SPEC["formats"].items()}                     # None: mkhtml writes it anyway
@@ -310,8 +310,8 @@ def _finish(page, outdir: Path, say) -> bool:
 def _mkhtml(argv: list, work: Path, outdir: Path, pages: list, plot_text: str, plot_file: Path, say) -> list:
     """Run mkhtml once for `pages`; returns those drawn (their PDF exists and their script's fixes ran)."""
     plot_file.write_text(plot_text, encoding="utf-8")
-    env = dict(os.environ, RIVET_ANALYSIS_PATH=str(build_root() / "Rivet"),
-               RIVET_DATA_PATH=os.pathsep.join(filter(None, [str(build_root() / "Rivet"), os.environ.get("RIVET_DATA_PATH")])))
+    env = dict(os.environ, RIVET_ANALYSIS_PATH=str(work_build() / "Rivet"),
+               RIVET_DATA_PATH=os.pathsep.join(filter(None, [str(work_build() / "Rivet"), os.environ.get("RIVET_DATA_PATH")])))
     done = subprocess.run(argv, capture_output=True, text=True, env=env, cwd=work)
     log = work / f"{plot_file.stem}.log"
     log.write_text(" ".join(argv) + "\n" + done.stdout + done.stderr, encoding="utf-8")

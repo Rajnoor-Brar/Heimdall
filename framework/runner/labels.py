@@ -12,14 +12,14 @@ import re
 import tomllib
 
 from . import hepfiles
-from .paths import repo_root
+from .paths import hep_root
 
 # ── LaTeX ($…$ in Rivet .plot files) → ROOT TLatex (V11) ──────────────────────────────────────
 
 @functools.cache
 def latex() -> dict:
     """utils/Env/latex.toml: the LaTeX → TLatex commands, YODA's macros, TLatex → mathtext (V61)."""
-    return tomllib.loads((repo_root() / "utils" / "Env" / "latex.toml").read_text(encoding="utf-8"))
+    return tomllib.loads((hep_root() / "framework" / "schema" / "latex.toml").read_text(encoding="utf-8"))
 
 
 _COMMANDS = latex()["tlatex"]

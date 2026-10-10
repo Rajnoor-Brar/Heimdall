@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import HepError, did_you_mean
-from .paths import repo_root
+from .paths import hep_root
 
 DEFAULT = "default"
 TYPES = {"int": int, "float": (int, float), "str": str, "bool": bool, "list": list, "table": dict}
@@ -33,7 +33,7 @@ FIGURE_OWN = ("class", "type", "name", "objects", "labels", "over", "configurati
 
 
 def path(name: str = "run") -> Path:
-    return repo_root() / "utils" / "Env" / "schema" / f"{name}.toml"
+    return hep_root() / "framework" / "schema" / f"{name}.toml"
 
 
 @functools.cache

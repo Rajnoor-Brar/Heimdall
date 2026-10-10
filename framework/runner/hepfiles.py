@@ -14,7 +14,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from .paths import build_root
+from .paths import work_build
 
 #: Not pages: Rivet's run counters, and its raw and temporary twins.
 COUNTERS = ("/_XSEC", "/_EVTCOUNT")
@@ -70,7 +70,7 @@ def entries(path: Path, obj: str) -> float | None:
 @functools.cache
 def rivet_dirs() -> tuple[Path, ...]:
     """Where analyses' .info, .plot and reference .yoda files are: build/Rivet, then Rivet's own."""
-    places = [build_root() / "Rivet"]
+    places = [work_build() / "Rivet"]
     try:
         found = subprocess.run(["rivet-config", "--datadir"], capture_output=True, text=True, timeout=30)
         places += [Path(p) for p in found.stdout.strip().split(":") if p]

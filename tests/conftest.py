@@ -1,39 +1,67 @@
-"""Test setup shared by every suite.
+"""Test setup shared by every suite (docs/framework/01_Target.md §5.7).
 
-* The runner package is importable as `runner` (utils/Env on sys.path), and tests/ is on sys.path for
+* The runner package is importable as `runner` (framework/ on sys.path), and tests/ is on sys.path for
   `support` (the shared helpers).
-* Tests read and write only their own places, whatever the shell has set: HEKIT_RESULTS, HEKIT_OUTPUT
-  and HEKIT_REPORTS point into output/tests/, and HEKIT_CONFIGS to tests/fixtures/configs (frozen
-  copies), so a test never reads the user's configs/ and fails only when the code changed.
-* The basetemp is output/tests/pytest from the repository, wherever pytest is started.
-* The session guard: tests/fixtures and tests/reference must come out byte for byte as they went in
-  (a failure). results/, configs/ and modules/ are the user's, who may edit them while tests run, so a
-  change there is reported at the end (a test escaping HEKIT_* would show up there), not failed.
+* The tests run in a work dir of their own: tests/fixtures/work/ (frozen) is synced into
+  forge/scratch/work/, which HEP_WORK names; HEP_RESULTS, HEP_OUTPUT and HEP_REPORTS point into
+  forge/scratch/. So a test reads and writes no real work dir, whatever the shell has set, and fails
+  only when the code changed. $HEP is this Heimdall; a shell's retired HEKIT_* are dropped (the
+  tests of their refusal set them).
+* The basetemp is forge/scratch/pytest, wherever pytest is started.
+* The session guard: tests/fixtures and tests/reference must come out byte for byte as they went in.
+* The scratch work's module programs and Rivet plugins are made once per session (framework/work.mk)
+  when the stack is loaded: planning reads a plugin's .info. `work_built` is that build, or a skip
+  without the stack; every `slow` test has it (they run real processes, through the work's plugins).
 """
 
 from __future__ import annotations
 
 import hashlib
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "utils" / "Env"))
+REPO = Path(__file__).resolve().parents[1]                  # Heimdall
+sys.path.insert(0, str(REPO / "framework"))
 
-SCRATCH = REPO / "output" / "tests"
-FIXTURES = REPO / "tests" / "fixtures" / "configs"
-os.environ["HEKIT_RESULTS"] = str(SCRATCH / "results")
-os.environ["HEKIT_OUTPUT"] = str(SCRATCH / "output")
-os.environ["HEKIT_REPORTS"] = str(SCRATCH / "reports")
-os.environ["HEKIT_CONFIGS"] = str(FIXTURES)
+SCRATCH = REPO / "forge" / "scratch"
+FIXTURE = REPO / "tests" / "fixtures" / "work"
+WORK = SCRATCH / "work"
+
+
+def _sync(src: Path, dst: Path) -> None:
+    """dst mirrors src file by file: only what differs is copied, and dst's build/ is left alone (so make
+    rebuilds only what changed)."""
+    want = {p.relative_to(src) for p in src.rglob("*") if p.is_file() and "__pycache__" not in p.parts}
+    for rel in sorted(want):
+        a, b = src / rel, dst / rel
+        if not b.is_file() or b.read_bytes() != a.read_bytes():
+            b.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(a, b)
+    for path in sorted(dst.rglob("*"), reverse=True) if dst.is_dir() else ():
+        rel = path.relative_to(dst)
+        if rel.parts[0] == "build":
+            continue
+        if path.is_file() and rel not in want:
+            path.unlink()
+        elif path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
+
+
+_sync(FIXTURE, WORK)
+os.environ["HEP"] = str(REPO)
+for name in ("HEKIT_ROOT", "HEKIT_CONFIGS", "HEKIT_OUTPUT", "HEKIT_RESULTS", "HEKIT_REPORTS", "HEP_CONFIGS"):
+    os.environ.pop(name, None)
+os.environ["HEP_WORK"] = str(WORK)
+os.environ["HEP_RESULTS"] = str(SCRATCH / "results")
+os.environ["HEP_OUTPUT"] = str(SCRATCH / "output")
+os.environ["HEP_REPORTS"] = str(SCRATCH / "reports")
 
 OURS = (REPO / "tests" / "fixtures", REPO / "tests" / "reference")         # must not change: content hashes
-THEIRS = (REPO / "results", REPO / "configs", REPO / "modules")           # the user's: reported, by stat
-
-_report: list[str] = []
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -51,42 +79,54 @@ def _hashes(tops) -> dict[str, str]:
     return seen
 
 
-def _stats(tops) -> dict[str, tuple]:
-    seen = {}
-    for top in tops:
-        for path in top.rglob("*") if top.is_dir() else ():
-            try:
-                info = path.stat()
-            except FileNotFoundError:
-                continue
-            seen[str(path)] = (info.st_size, info.st_mtime_ns)
-    return seen
-
-
 def _changed(before: dict, after: dict) -> list[str]:
     return sorted(p for p in set(before) | set(after) if before.get(p) != after.get(p))
 
 
 @pytest.fixture(scope="session", autouse=True)
-def the_repository_is_left_alone():
-    ours, theirs = _hashes(OURS), _stats(THEIRS)
+def the_fixtures_are_left_alone():
+    ours = _hashes(OURS)
     yield
-    _report.extend(_changed(theirs, _stats(THEIRS)))
     changed = _changed(ours, _hashes(OURS))
     assert not changed, "tests changed their fixtures or reference data:\n  " + "\n  ".join(changed[:20])
 
 
-def pytest_terminal_summary(terminalreporter):
-    if _report:
-        terminalreporter.write_sep("-", "changed under results/, configs/ or modules/ during the session")
-        terminalreporter.write_line("(your own edits, or a test that escaped HEKIT_*: check any you did not make)")
-        for path in _report[:20]:
-            terminalreporter.write_line(f"  {path}")
-        if len(_report) > 20:
-            terminalreporter.write_line(f"  … and {len(_report) - 20} more")
+def pytest_collection_modifyitems(items):
+    for item in items:
+        if item.get_closest_marker("slow"):
+            item.fixturenames.insert(0, "work_built")
+
+
+_made: list[subprocess.CompletedProcess] = []
+
+
+def _make_work() -> subprocess.CompletedProcess | None:
+    """`make all` in the scratch work, once per session; None without the stack."""
+    if not os.environ.get("HEP_INSTALL") or not shutil.which("rivet-build"):
+        return None
+    if not _made:
+        _made.append(subprocess.run(["make", "-C", str(WORK), "--no-print-directory", "-j", str(os.cpu_count() or 1),
+                                     "all"], capture_output=True, text=True))
+    return _made[0]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def the_scratch_work_is_built():
+    _make_work()                                         # a failure is work_built's to report
+
+
+@pytest.fixture(scope="session")
+def work_built() -> Path:
+    """The scratch work's build/ (module programs, Rivet/), made by framework/work.mk."""
+    done = _make_work()
+    if done is None:
+        pytest.skip("the stack is not loaded (source Heimdall's setup.sh)")
+    if done.returncode:
+        pytest.fail("make in the scratch work failed:\n" + done.stdout[-3000:] + done.stderr[-3000:])
+    return WORK / "build"
 
 
 @pytest.fixture
 def scratch(tmp_path_factory) -> Path:
-    """A fresh directory under the basetemp (output/tests/pytest/) for one test."""
+    """A fresh directory under the basetemp (forge/scratch/pytest/) for one test."""
     return Path(tmp_path_factory.mktemp("t", numbered=True))

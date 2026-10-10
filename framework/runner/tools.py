@@ -164,7 +164,7 @@ def _lookup(name: str, context: dict, where: str):
     table = context.get(f"{head}:")
     if isinstance(table, dict) and arg in table:
         return table[arg]
-    if name == "repo":                                               # High-Energy's, retired (01 §5.3)
+    if name == "repo":                                               # High-Energy's, retired (framework/01 §5.3)
         raise HepError("{repo} is retired: {work} for your files, {hep} for Heimdall's", where=where,
                        hint="hep migrate rewrites it in a run TOML")
     raise HepError(f"unknown placeholder {{{name}}}", where=where,

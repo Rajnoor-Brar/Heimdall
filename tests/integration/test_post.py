@@ -18,6 +18,8 @@ from runner.errors import HepError
 from runner.events import Bus
 from runner.watch import PlainView
 
+from support import apps  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tests" / "runner"))
 from helpers import parse, raw  # noqa: E402
@@ -194,7 +196,7 @@ def test_a_point_may_not_be_named_pre(scratch):
 LEGACY = REPO / "tests" / "reference" / "legacy_run"
 
 
-@pytest.mark.skipif(not (REPO / "build" / "App_yd2rt.exe").exists(), reason="make utils/App_yd2rt.exe")
+@pytest.mark.skipif(not (apps() / "App_yd2rt.exe").exists(), reason="hep build --framework")
 @pytest.mark.parametrize("target", ["sweep.root", "sweep.yoda"])
 def test_plotmerge_puts_every_point_in_one_file(scratch, target):
     run, configuration, master, plans = stage(scratch, name=f"plotmerge_{target.split('.')[1]}", run__cfgs__one__post=["bundle"],

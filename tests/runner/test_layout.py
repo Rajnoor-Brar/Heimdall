@@ -1,4 +1,4 @@
-"""utils/Env/figures/layout.py (V102): panels laid out in a grid, as one PDF by pdflatex and its PNG
+"""framework/tools/figures/layout.py (V102): panels laid out in a grid, as one PDF by pdflatex and its PNG
 rendered from it by pdftoppm; a sheet's tiling (V89) and a deck's composites. Panels are made here by
 PIL, in tmp_path."""
 
@@ -19,7 +19,7 @@ needs_tools = pytest.mark.skipif(not TOOLS, reason="pdflatex and poppler (pdftop
 
 @pytest.fixture(scope="module")
 def layout():
-    return plugins.load(REPO / "utils" / "Env" / "figures" / "layout.py", "layout")
+    return plugins.load(REPO / "framework" / "tools" / "figures" / "layout.py", "layout")
 
 
 def page(path: Path, size=(336, 303), colour="white") -> Path:

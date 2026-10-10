@@ -1,6 +1,6 @@
 """runner/deck.py (docs/reporter/D2_Collect.md, V103): a deck's blocks from result folders (deck.toml) or from its
-folder's own files, labelled and copied into panels/. Every tree here is tmp_path's: HEKIT_RESULTS,
-HEKIT_OUTPUT and the deck folder."""
+folder's own files, labelled and copied into panels/. Every tree here is tmp_path's: HEP_RESULTS,
+HEP_OUTPUT and the deck folder."""
 
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ def trees(tmp_path, monkeypatch):
     """results/P/validation/ with three result folders, each with drawn pages and a point's YODA; one of them
     has its provenance in output/. Returns (the deck's folder, the run's results folder)."""
     results, output = tmp_path / "results", tmp_path / "output"
-    monkeypatch.setenv("HEKIT_RESULTS", str(results))
-    monkeypatch.setenv("HEKIT_OUTPUT", str(output))
+    monkeypatch.setenv("HEP_RESULTS", str(results))
+    monkeypatch.setenv("HEP_OUTPUT", str(output))
     run = results / "P" / "validation"
     for folder, n in (("01_PDFs_010M", 9_999_062), ("02_seeds", 24_998_000), ("03_PDFs_150M", 149_998_000)):
         for backend, pages in (("root", ("d01-x01-y01", "d02-x01-y01")), ("mpl", ("d01-x01-y01", "d02-x01-y01", "d09-x01-y01"))):
@@ -167,7 +167,7 @@ def test_folder_mode_groups_files_by_name(tmp_path):
 def test_hep_deck_list_writes_nothing(trees, capsys, monkeypatch):
     folder, _ = trees
     recipe(folder, ZEUS)
-    monkeypatch.setenv("HEKIT_REPORTS", str(folder.parent))
+    monkeypatch.setenv("HEP_REPORTS", str(folder.parent))
     assert cli.main(["deck", folder.name, "--list"]) == 0
     out = capsys.readouterr().out
     assert "validation-d01  \"validation d01\"  3 panel(s), full, columns auto" in out and "150M  03_PDFs_150M/plots/root/d01-x01-y01" in out

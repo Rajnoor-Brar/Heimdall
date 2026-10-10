@@ -1,5 +1,5 @@
 """The plot stage's plan-time checks and translations (P3 S2 row 5, V11), and the style layers over
-utils/Apps/Paint/base.toml (P5 S3)."""
+src/Apps/Paint/base.toml (P5 S3)."""
 
 from __future__ import annotations
 
@@ -88,14 +88,13 @@ def test_objects_skip_raw_tmp_and_the_counters():
     assert sorted(found) == [f"/photo_eic/d{n:02d}-x01-y01" for n in range(1, 18)]
 
 
-@pytest.mark.skipif(not (REPO / "build" / "Rivet" / "photo_eic.plot").exists(), reason="make the Rivet plugins")
-def test_labels_come_from_the_rivet_plot_file_for_every_variant():
+def test_labels_come_from_the_rivet_plot_file_for_every_variant(work_built):
     plain, variant = plot.labels_of("/photo_eic/d01-x01-y01"), plot.labels_of("/photo_eic:R=0.7/d01-x01-y01")
     assert plain == variant
     assert plain["LogY"] == "1" and "E_T" in plain["XLabel"]
 
 
-# ── the yoda backend (utils/Env/yoda/backend.py) ──────────────────────────────────────────────
+# ── the yoda backend (framework/tools/yoda/backend.py) ──────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
 def yoda_backend():

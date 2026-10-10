@@ -22,7 +22,7 @@ from .paths import MARKER_FILE, STACK_VAR, find_work, hep_root, is_work, work_me
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "work"
 STARTER = "starter"
-#: The key folders every work dir has (01 §4.1).
+#: The key folders every work dir has (framework/01 §4.1).
 FOLDERS = ("configs", "modules", "datasets", "results", "output", "reports", "build")
 
 
@@ -120,26 +120,26 @@ def _commit(target: Path, files: list[str], values: dict[str, str]) -> None:
 
 
 def expects_warning(work: Path) -> str:
-    """A warning when the work dir was made by a Heimdall this one does not contain (01 §4.2), or "".
+    """A warning when the work dir was made by a Heimdall this one does not contain (framework/01 §4.2), or "".
 
     Warned about, never enforced, as [config.meta] is (V97); no revision, or no git, is no warning."""
     expects = work_meta(work)["expects"]
     root = hep_root()
     if not expects or not (root / ".git").exists():
         return ""
-    try:
-        done = subprocess.run(["git", "merge-base", "--is-ancestor", expects, "HEAD"], cwd=root,
-                              capture_output=True, timeout=10)
+    try:                                                            # its commits that HEAD lacks: none, if an ancestor
+        done = subprocess.run(["git", "rev-list", "--max-count=1", expects, "^HEAD"], cwd=root,
+                              capture_output=True, text=True, timeout=10)
     except (OSError, subprocess.SubprocessError):
         return ""
-    if done.returncode == 0:
+    if done.returncode == 0 and not done.stdout.strip():
         return ""
     return (f"warning: {work.name} was made by Heimdall {expects[:12]}, which {root} does not contain "
             "(an older Heimdall, or one without those commits): git pull there")
 
 
 def _pth_problem(hep: Path) -> str:
-    """What is wrong with the venv's heimdall.pth (01 §5.5), or ""."""
+    """What is wrong with the venv's heimdall.pth (framework/01 §5.5), or ""."""
     for folder in site.getsitepackages():
         pth = Path(folder, "heimdall.pth")
         if pth.is_file():

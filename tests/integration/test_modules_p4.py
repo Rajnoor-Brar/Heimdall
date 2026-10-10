@@ -15,12 +15,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from support import REPO, folder, hep_ok
-BUILT = [REPO / "build" / p for p in ("App_Pythia.exe", "Lambda/Decay.exe", "Demo/InprocJets.exe")]
+from support import apps, folder, hep_ok
+BUILT = [apps() / "App_Pythia.exe"]          # the module programs: work_built (every slow test has it)
 uproot = pytest.importorskip("uproot")
 yoda = pytest.importorskip("yoda")
 
-pytestmark = [pytest.mark.slow, pytest.mark.skipif(not all(p.exists() for p in BUILT), reason="hep build")]
+pytestmark = [pytest.mark.slow, pytest.mark.skipif(not all(p.exists() for p in BUILT), reason="hep build --framework")]
 
 
 def hep_run(scratch: Path, *args: str) -> tuple[Path, Path]:

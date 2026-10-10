@@ -253,6 +253,23 @@ def work_record() -> dict:
     return {"name": work_meta(work)["name"], "root": str(work)}
 
 
+def revision_changes(recorded: dict) -> list[str]:
+    """How a provenance's git states ({"heimdall": …, "work": …}) differ from today's: a line for each
+    repo whose revision moved, or that had uncommitted changes then (`hep reproduce` warns, V77)."""
+    now = {"heimdall": git_state(hep_root()), "work": git_state(Path(w["root"])) if (w := work_record()) else {}}
+    out = []
+    for repo in ("heimdall", "work"):
+        then = recorded.get(repo) or {}
+        if not then.get("revision"):
+            continue
+        today = now[repo].get("revision", "")
+        if then["revision"] != today:
+            out.append(f"{repo} was at {then['revision'][:12]} when it ran, and is at {today[:12] or '(no git)'} now")
+        if then.get("dirty"):
+            out.append(f"{repo} had uncommitted changes when it ran: what they were is not recorded")
+    return out
+
+
 def provenance(plan: PointPlan, run, configuration, started: str, finished: str, results: dict) -> dict:
     tools = []
     for tag, step in plan.rendered.items():
@@ -275,7 +292,7 @@ def provenance(plan: PointPlan, run, configuration, started: str, finished: str,
         "identity": plan.identity, "seed": plan.seed, "threads": plan.threads, "events": plan.events,
         "tools": tools,
         "host": socket.gethostname(), "platform": platform.platform(), "user": os.environ.get("USER", ""),
-        "git": {"heimdall": git_state(hep_root()),                # two repos (01 §5.6, D8)
+        "git": {"heimdall": git_state(hep_root()),                # two repos (framework/01 §5.6)
                 "work": git_state(Path(work["root"])) if (work := work_record()) else {}},
         "hep": str(hep_root()), "work": work, "stack": os.environ.get("HEP_STACK", ""),
         "started": started, "finished": finished,

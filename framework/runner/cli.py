@@ -803,6 +803,8 @@ def cmd_reproduce(args) -> int:
     except (OSError, ValueError) as error:
         raise HepError(f"cannot read {path}: {error}", hint="give a finished point's provenance.json")
     config_file, key, name = record_["config_file"], record_["configuration"], record_["point"]
+    for line in record.revision_changes(record_.get("git", {})):    # the code may differ, though the setup does not
+        print(f"warning: {line}", file=sys.stderr)
     given = list(record_.get("sets", []))                     # the --set overrides it ran with
     planned = build_plans(argparse.Namespace(config=config_file, set=given, points=None, rerun=False, only=None), key)
     plan = next((p for p in planned.every if p.point.name == name), None)
@@ -817,7 +819,7 @@ def cmd_reproduce(args) -> int:
     where = output_root() / record_["project"] / ".reproduce" / record_["identity"][:12]
     sets = []
     if planned.configuration.seed_type == "random":
-        sets = ["--set", f'run.cfgs.{key}.seed_type="manual"', "--set", f"run.cfgs.{key}.manual_seed={record_['seed']}"]   # V98's form (C78)
+        sets = ["--set", f'run.cfgs.{key}.seed_type="manual"', "--set", f"run.cfgs.{key}.manual_seed={record_['seed']}"]   # V98's form
     argv = [sys.executable, str(Path(__file__).resolve().parents[1] / "bin" / "run"), "run", config_file, key,
             "--points", name, "--rerun", *[x for item in given for x in ("--set", item)], *sets,
             *(["--plain"] if args.plain else [])]
@@ -888,7 +890,7 @@ def main(argv: list[str]) -> int:
     try:
         check_retired()                                            # a shell with High-Energy's names (K15)
         if args.command != "setup" and (work := find_work()) is not None:
-            if warning := setupmod.expects_warning(work):          # once per command (01 §4.2)
+            if warning := setupmod.expects_warning(work):          # once per command (framework/01 §4.2)
                 print(warning, file=sys.stderr)
         if args.command == "setup":
             setupmod.setup(Path(args.dir), project=args.project, git=args.git, adopt=args.adopt, name=args.name)

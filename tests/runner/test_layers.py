@@ -154,7 +154,7 @@ def test_another_projects_file_brings_its_cards_and_plans_the_same(scratch, monk
     (root / "Other").mkdir(parents=True)
     (root / "Demo").mkdir()
     shutil.copy(fixtures / "Demo" / "ep.cmnd", root / "Other" / "ep.cmnd")
-    monkeypatch.setenv("HEKIT_CONFIGS", str(root))
+    monkeypatch.setenv("HEP_CONFIGS", str(root))
     (root / "Other" / "other.toml").write_text(tomli_w.dumps(raw(run__name="other", run__project="Other")), encoding="utf-8")
     (root / "Demo" / "mine.toml").write_text(tomli_w.dumps(
         {"config": {"import": "Other/other"}, "run": {"name": "mine", "project": "Demo"}}), encoding="utf-8")
@@ -265,7 +265,7 @@ def test_meta_versions_warn_and_never_refuse(scratch, monkeypatch):
     assert tools.meta_notes(run) == ["t.toml was run with onnx 1.20; the stack gives no version of it to compare"]
     run = parse(raw(config={"meta": {"versions": {"pythia8": "8.312", "rivet": "4.1.3"}}}), scratch)
     assert tools.meta_notes(run) == ["t.toml was run with pythia8 8.312; the stack has 8.317 (it runs anyway, at your own risk)"]
-    with pytest.raises(HepError, match="'pythia' is not a package of utils/Env/stack.toml") as error:
+    with pytest.raises(HepError, match="'pythia' is not a package of env/stack.toml") as error:
         parse(raw(config={"meta": {"versions": {"pythia": "8.317"}}}), scratch)
     assert "pythia8" in error.value.hint
     with pytest.raises(HepError, match="version is a string"):

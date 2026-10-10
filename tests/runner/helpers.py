@@ -50,7 +50,7 @@ def plan(data: dict, scratch: Path, configuration: str | None = None, point: int
 
 
 def plans_of(name: str, configuration: str | None = None, sets=()):
-    """A config by name (it resolves under tests/fixtures/configs): its run, configuration, points and the
+    """A config by name (it resolves under the scratch work's configs/): its run, configuration, points and the
     points' plans, with identities and seeds, before the seeds are written into the cards."""
     run = config.load(name, sets=list(sets))
     conf = run.configuration(configuration)

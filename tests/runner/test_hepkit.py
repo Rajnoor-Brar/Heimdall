@@ -1,5 +1,5 @@
-"""utils/hepkit.py (V74): the kit for a custom tool in Python — the status protocol, the report, the
-exit codes (the same table as utils/Kit.hh's), and a tool that uses it under the runner's Reader."""
+"""framework/hepkit.py (V74): the kit for a custom tool in Python — the status protocol, the report, the
+exit codes (the same table as src/Kit.hh's), and a tool that uses it under the runner's Reader."""
 
 from __future__ import annotations
 
@@ -12,12 +12,12 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO / "utils"))
+sys.path.insert(0, str(REPO / "framework"))
 import hepkit  # noqa: E402
 
 
 def test_the_exit_table_is_kit_hh_s():
-    text = (REPO / "utils" / "Kit.hh").read_text(encoding="utf-8")
+    text = (REPO / "src" / "Kit.hh").read_text(encoding="utf-8")
     table = dict(re.findall(r"(\w+) = (\d+)", re.search(r"enum Exit : int \{([^}]*)\}", text).group(1)))
     assert {name.upper(): int(code) for name, code in table.items()} == {e.name: e.value for e in hepkit.Exit}
 

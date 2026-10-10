@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from support import REPO, folder, hep_ok
+from support import apps, folder, hep_ok
 yoda = pytest.importorskip("yoda")
 uproot = pytest.importorskip("uproot")
 
@@ -52,8 +52,8 @@ def test_sherpa_sigma_matches_v1_and_the_integration_is_cached(scratch):
     assert "sherpa:prepare: cached" in again
 
 
-@pytest.mark.skipif(not shutil.which("Herwig") or not (REPO / "build/Herwig/HerwigDefaults.rpo").exists(),
-                    reason="load_hep and hep build: Herwig and its repository")
+@pytest.mark.skipif(not shutil.which("Herwig") or not (apps() / "Herwig" / "HerwigDefaults.rpo").exists(),
+                    reason="load_hep and hep build --framework: Herwig and its repository")
 def test_herwig_sigma_is_its_own_and_the_run_file_is_shared(scratch):
     hep_run(scratch, "Demo/herwig", "--set", "run.event_count=500")
     point = scratch / "output" / folder("Demo/herwig") / "point"

@@ -6,14 +6,14 @@
 Reads the Delphes tree and writes, per event, the reconstructed jet multiplicity and the leading
 jet's pT: the smallest real analysis at detector level, and the end of the file chain
 pythia → (file) → delphes → this. It speaks the standard status protocol and the exit codes through
-utils/hepkit.py (V74), so its table may say status = "standard".
+Heimdall's framework/hepkit.py (V74), so its table may say status = "standard".
 """
 
 import json
+import os
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "utils"))
+sys.path.insert(0, os.environ["HEP"] + "/framework")       # Heimdall's venv has it already (heimdall.pth)
 import hepkit  # noqa: E402
 
 

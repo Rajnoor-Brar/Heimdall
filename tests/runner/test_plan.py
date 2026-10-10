@@ -11,6 +11,8 @@ from runner.errors import HepError
 
 from helpers import plan, raw
 
+from support import apps  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[2]
 CUSTOM = {"tool": "custom", "executable": "/bin/true"}
 
@@ -239,12 +241,11 @@ def test_a_tcl_comment_line_inside_braces_is_kept(scratch):
                                               "set X 1  # not a comment in Tcl"]
 
 
-@pytest.mark.skipif(not (Path(__file__).resolve().parents[2] / "build" / "App_PythiaCheck.exe").exists(),
-                    reason="make utils/App_PythiaCheck.exe")
+@pytest.mark.skipif(not (apps() / "App_PythiaCheck.exe").exists(), reason="hep build --framework")
 def test_pythia_reads_the_card_and_a_rejected_line_names_its_source(scratch, monkeypatch):
     """V59: [checks] card. Pythia's own reader, so a nucleus or an id:new particle needs no list of ours."""
     from runner import tools
-    monkeypatch.setenv("HEKIT_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
     _, _, good = plan(raw(tools__pythia__settings={"9999999:new": "x void 1 0 0 1.0", "9999999:m0": 2.0,
                                                     "HeavyIon:mode": 1}), scratch)
     tools.check_cards(good)                                                 # no error: every line read

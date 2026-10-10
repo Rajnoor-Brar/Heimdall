@@ -106,7 +106,7 @@ def toml(data: dict) -> str:
 
 @pytest.fixture
 def sweep_file(scratch, monkeypatch):
-    monkeypatch.setenv("HEKIT_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
     path = scratch / "sw.toml"
     path.write_text(toml(several()), encoding="utf-8")
     return path

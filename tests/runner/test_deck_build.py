@@ -49,8 +49,8 @@ def plot(path: Path, colour: str) -> Path:
 def talk(tmp_path, monkeypatch):
     """A deck over two result folders of P/validation, each with a drawn page d01."""
     results = tmp_path / "results"
-    monkeypatch.setenv("HEKIT_RESULTS", str(results))
-    monkeypatch.setenv("HEKIT_OUTPUT", str(tmp_path / "output"))
+    monkeypatch.setenv("HEP_RESULTS", str(results))
+    monkeypatch.setenv("HEP_OUTPUT", str(tmp_path / "output"))
     for folder, colour in (("01_PDFs_010M", "lightblue"), ("01_PDFs_050M", "lightgreen")):
         plot(results / "P" / "validation" / folder / "plots" / "root" / "d01-x01-y01.pdf", colour)
     folder = tmp_path / "talk"
@@ -126,7 +126,7 @@ def test_references_name_blocks_and_panels(talk):
 
 
 def test_init_writes_deck_md_once(talk, monkeypatch, capsys):
-    monkeypatch.setenv("HEKIT_REPORTS", str(talk.parent))
+    monkeypatch.setenv("HEP_REPORTS", str(talk.parent))
     assert cli.main(["deck", talk.name, "--init"]) == 0
     assert "![](validation-d01)" in (talk / "deck.md").read_text()
     assert cli.main(["deck", talk.name, "--init"]) == 2                          # there already: refused

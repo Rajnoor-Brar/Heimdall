@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from support import REPO, folder, hep_ok
+from support import apps, folder, hep_ok
 yoda = pytest.importorskip("yoda")
 
 pytestmark = pytest.mark.slow
@@ -49,7 +49,7 @@ def test_whizard_direct_photoproduction_runs(scratch):
 
 
 @pytest.mark.skipif(not (shutil.which("Herwig") and shutil.which("Sherpa")) or
-                    not (REPO / "build/Herwig/HerwigDefaults.rpo").exists(), reason="load_hep and hep build")
+                    not (apps() / "Herwig" / "HerwigDefaults.rpo").exists(), reason="load_hep and hep build --framework")
 def test_three_generators_one_page_per_spectrum(scratch):
     out = hep_run(scratch, "Generators/generators", "--set", "run.event_count=500")
     assert "3 done, 0 failed" in out and "plot: 4 of 4 page(s) drawn" in out

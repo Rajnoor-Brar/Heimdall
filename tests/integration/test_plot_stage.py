@@ -16,13 +16,15 @@ import pytest
 
 from runner import labels, plot, quantities, record, sweep, tools
 
+from support import BUILD, apps  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tests" / "runner"))
 from helpers import parse, raw  # noqa: E402
 LEGACY = REPO / "tests" / "reference" / "legacy_run"
-BUILT = all((REPO / "build" / name).exists() for name in ("Paint.exe", "App_yd2rt.exe"))
+BUILT = all((apps() / name).exists() for name in ("Paint.exe", "App_yd2rt.exe"))
 
-pytestmark = pytest.mark.skipif(not BUILT, reason="make utils/Apps/Paint.exe utils/App_yd2rt.exe")
+pytestmark = pytest.mark.skipif(not BUILT, reason="hep build --framework")
 
 
 @pytest.fixture
@@ -32,7 +34,7 @@ def stage(scratch, request):
                quantities__lepton={"key": {"pythia": "Beams:idB"}, "values": [11, -11], "tags": ["em", "ep"]},
                quantities__pdf__labels=["MSTW 2008 LO", "NNPDF 2.3 LO"],
                plot={"backend": backend, "formats": ["png"], "ratio": True, "min_entries": 10, "range_pad": 1,
-                     "data": {"file": "./tests/reference/legacy_run/ydmrg/photo_eic_data.yoda", "legend": "legacy",
+                     "data": {"file": str(LEGACY / "ydmrg" / "photo_eic_data.yoda"), "legend": "legacy",
                               "map": {"d01-x01-y01": "/REF/photo_eic/d01-x01-y01"}},
                      "style": {"page": {"dpi": 100}},
                      "figures": {"d04": {"objects": ["d04-*"], "logy": True, "y_gutter": 3.0, "title": "override",
@@ -85,7 +87,7 @@ def test_object_overrides_and_rivet_labels(stage):
     assert pages["em/d04-x01-y01"]["logy"] is True and pages["em/d04-x01-y01"]["y_gutter"] == 3.0
     assert pages["em/d04-x01-y01"]["title"] == "override"
     assert pages["em/d02-x01-y01"]["y_gutter"] == 0.5 and pages["em/d02-x01-y01"]["x_gutter"] == "default"
-    if (REPO / "build" / "Rivet" / "photo_eic.plot").exists():
+    if (BUILD / "Rivet" / "photo_eic.plot").exists():
         assert pages["em/d01-x01-y01"]["x_label"] == "#it{E}_{#it{T}}^{#it{jet}} [GeV]"
         # with no figure of its own, log y is what the analysis's .plot says (the built copy, which
         # follows modules/: the user may be editing it)

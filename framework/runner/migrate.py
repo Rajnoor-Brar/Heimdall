@@ -105,7 +105,7 @@ def defaults_text(text: str) -> str:
     return "".join(rest[:run + 1] + body + block + (tail or ["\n"]) + rest[after:])
 
 
-#: High-Energy's single root, split (01 §5.3): the first prefix that matches wins.
+#: High-Energy's single root, split (framework/01 §5.3): the first prefix that matches wins.
 PLACEHOLDERS = (("{repo}/build/App_", "{hep}/framework/Apps/App_"),
                 ("{repo}/build/Paint.exe", "{hep}/framework/Apps/Paint.exe"),
                 ("{repo}/build/Herwig/", "{hep}/framework/Apps/Herwig/"),

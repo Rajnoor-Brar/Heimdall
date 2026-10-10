@@ -13,12 +13,14 @@ import pytest
 from runner import plot
 from runner.errors import HepError
 
+from support import apps  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[2]
 LEGACY = REPO / "tests" / "reference" / "legacy_run"
 YODAS = [LEGACY / "mini_27x920_ep_MSTW.yoda", LEGACY / "mini_27x920_ep_NNLO.yoda"]
-BUILT = all((REPO / "build" / n).exists() for n in ("Paint.exe", "App_yd2rt.exe"))
+BUILT = all((apps() / n).exists() for n in ("Paint.exe", "App_yd2rt.exe"))
 
-pytestmark = pytest.mark.skipif(not BUILT, reason="make utils/Apps/Paint.exe utils/App_yd2rt.exe")
+pytestmark = pytest.mark.skipif(not BUILT, reason="hep build --framework")
 
 
 def configs(scratch_output: Path) -> list[dict]:
@@ -26,7 +28,7 @@ def configs(scratch_output: Path) -> list[dict]:
 
 
 def test_two_yoda_files_one_page_per_object(scratch, monkeypatch):
-    monkeypatch.setenv("HEKIT_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
     said = []
     assert plot.files([str(p) for p in YODAS], scratch / "pages", labels=["MSTW", "NNLO"], formats=["png"],
                       say=said.append) == 0
@@ -38,13 +40,13 @@ def test_two_yoda_files_one_page_per_object(scratch, monkeypatch):
 
 
 def test_a_merged_sweep_is_one_curve_per_point(scratch, monkeypatch):
-    monkeypatch.setenv("HEKIT_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
     points = scratch / "points.json"
     points.write_text(json.dumps({"points": [
         {"name": "a", "values": {"pdf": {"label": "MSTW 2008 LO", "swept": True}}},
         {"name": "b", "values": {"pdf": {"label": "NNPDF 2.3 LO", "swept": True}}}]}))
     sweep = scratch / "sweep.root"
-    done = subprocess.run([str(REPO / "build" / "App_yd2rt.exe"), "--merge", str(sweep), f"a={YODAS[0]}", f"b={YODAS[1]}",
+    done = subprocess.run([str(apps() / "App_yd2rt.exe"), "--merge", str(sweep), f"a={YODAS[0]}", f"b={YODAS[1]}",
                            "--keep-raw", "--points", str(points)], capture_output=True, text=True, encoding="utf-8")
     assert done.returncode == 0, done.stderr
     pytest.importorskip("uproot")
@@ -63,9 +65,9 @@ def test_mistakes_are_named(scratch):
 
 
 def test_hep_overlay_draws_files(scratch):
-    env = {"HEKIT_OUTPUT": str(scratch / "output"), "HEKIT_RESULTS": str(scratch / "results")}
+    env = {"HEP_OUTPUT": str(scratch / "output"), "HEP_RESULTS": str(scratch / "results")}
     import os
-    done = subprocess.run(["python3", str(REPO / "utils" / "Env" / "run"), "overlay", str(YODAS[0]), "--objects", "/photo_eic/d01*",
+    done = subprocess.run(["python3", str(REPO / "framework" / "bin" / "run"), "overlay", str(YODAS[0]), "--objects", "/photo_eic/d01*",
                            "--formats", "png"], capture_output=True, text=True, encoding="utf-8",
                           errors="replace", env=dict(os.environ, **env))
     assert done.returncode == 0, done.stderr

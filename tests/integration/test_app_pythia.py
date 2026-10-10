@@ -12,8 +12,10 @@ from pathlib import Path
 
 import pytest
 
+from support import apps  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[2]
-APP = REPO / "build" / "App_Pythia.exe"
+APP = apps() / "App_Pythia.exe"
 
 CARD = """\
 Beams:eCM = 13000.
@@ -25,7 +27,7 @@ Random:setSeed = on
 Random:seed = 4711
 """
 
-pytestmark = pytest.mark.skipif(not APP.exists(), reason="build/App_Pythia.exe not built (make)")
+pytestmark = pytest.mark.skipif(not APP.exists(), reason="framework/Apps/App_Pythia.exe not built (make)")
 
 
 def run(*args, cwd: Path) -> subprocess.CompletedProcess:

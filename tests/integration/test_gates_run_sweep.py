@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 import support
-from support import HEP, REPO, env
+from support import HEP, WORK, env
 
 pytestmark = pytest.mark.slow
 
@@ -121,7 +121,7 @@ def test_ctrl_c_starts_no_more_runs(scratch):
     text = text.replace('title  = "Bee"\n', 'title  = "Bee"\nsweeps = ["twice"]\n')   # time: its run has not
     text = text.replace('consumes   = ["fail", "nap"]', 'consumes   = ["fail", "nap", "twice"]')   # started all its
     config.write_text(text + '\n[quantities.twice]\nvalues = [1, 2]\n', encoding="utf-8")       # points (V75)
-    runner = subprocess.Popen([str(HEP), "run", str(config), "--plain", "--journal"], cwd=REPO, env=env(scratch),
+    runner = subprocess.Popen([str(HEP), "run", str(config), "--plain", "--journal"], cwd=WORK, env=env(scratch),
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
     journal = base(scratch) / "b" / "status.jsonl"
     deadline = time.monotonic() + 60

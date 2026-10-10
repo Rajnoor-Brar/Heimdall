@@ -17,13 +17,15 @@ from pathlib import Path
 import pytest
 import tomli_w
 
+from support import apps  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[2]
-PAINT = REPO / "build" / "Paint.exe"
-YD2RT = REPO / "build" / "App_yd2rt.exe"
+PAINT = apps() / "Paint.exe"
+YD2RT = apps() / "App_yd2rt.exe"
 LEGACY = REPO / "tests" / "reference" / "legacy_run"
 OBJECTS = [f"d{n:02d}-x01-y01" for n in range(1, 18)]
 
-pytestmark = pytest.mark.skipif(not (PAINT.exists() and YD2RT.exists()), reason="make build/Paint.exe build/App_yd2rt.exe")
+pytestmark = pytest.mark.skipif(not (PAINT.exists() and YD2RT.exists()), reason="make framework/Apps/Paint.exe framework/Apps/App_yd2rt.exe")
 
 
 @pytest.fixture(scope="module")
@@ -249,7 +251,7 @@ def test_v1_data_is_trimmed_to_its_longest_aligned_run(scratch):
     assert v1_page(scratch, mc, data=unaligned)["data_bins"] == 0
 
 
-# ── the style (Style.hh, utils/Apps/Paint/base.toml) ─────────────────────────────────────────
+# ── the style (Style.hh, src/Apps/Paint/base.toml) ─────────────────────────────────────────
 
 def dump_style(path: Path | None = None, *extra: str) -> subprocess.CompletedProcess:
     return subprocess.run([str(PAINT), *([str(path)] if path else []), "--dump-style", *extra],
@@ -259,7 +261,7 @@ def dump_style(path: Path | None = None, *extra: str) -> subprocess.CompletedPro
 def test_the_base_style_is_base_toml():
     done = dump_style()
     assert done.returncode == 0, done.stderr
-    assert tomllib.loads(done.stdout) == tomllib.loads((REPO / "utils/Apps/Paint/base.toml").read_text(encoding="utf-8"))
+    assert tomllib.loads(done.stdout) == tomllib.loads((REPO / "src/Apps/Paint/base.toml").read_text(encoding="utf-8"))
 
 
 def test_a_page_style_merges_over_the_base_and_is_checked(inputs):
@@ -269,7 +271,7 @@ def test_a_page_style_merges_over_the_base_and_is_checked(inputs):
     config.write_text(tomli_w.dumps(document))
     merged = tomllib.loads(dump_style(config).stdout)
     assert merged["page"]["dpi"] == 100 and merged["legend"]["position"] == [0.4, 0.9]
-    assert merged["text"] == tomllib.loads((REPO / "utils/Apps/Paint/base.toml").read_text(encoding="utf-8"))["text"]
+    assert merged["text"] == tomllib.loads((REPO / "src/Apps/Paint/base.toml").read_text(encoding="utf-8"))["text"]
     done = subprocess.run([str(PAINT), str(config)], capture_output=True, text=True, encoding="utf-8")
     assert done.returncode == 0, done.stderr
     Image = pytest.importorskip("PIL.Image")

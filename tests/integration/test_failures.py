@@ -18,10 +18,10 @@ from pathlib import Path
 
 import pytest
 
-from support import REPO, hep
+from support import apps, hep
 
 pytestmark = [pytest.mark.slow,
-              pytest.mark.skipif(not (REPO / "build" / "App_Pythia.exe").exists(), reason="make first")]
+              pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="hep build --framework")]
 
 
 def write_config(where: Path, *, events: int, extra_base: str = "") -> str:
@@ -47,7 +47,7 @@ input = "events.hepmc"
 analyses = ["photo_eic"]
 output_file = "jets.yoda"
 """, encoding="utf-8")
-    return "./" + str((where / "f.toml").resolve().relative_to(REPO))
+    return str((where / "f.toml").resolve())
 
 
 def point_dirs(where: Path) -> tuple[Path, Path]:
@@ -95,7 +95,7 @@ def test_init_failure_with_the_reader_blocked_at_open_does_not_hang(scratch):
     bad = scratch / "bad.cmnd"
     bad.write_text("PDF:pSet = LHAPDF6:NoSuchPdfSet\n", encoding="utf-8")
     started = time.monotonic()
-    runner = start(write_config(scratch, events=1000, extra_base="./" + str(bad.resolve().relative_to(REPO))), scratch)
+    runner = start(write_config(scratch, events=1000, extra_base=str(bad.resolve())), scratch)
     text, _ = runner.communicate(timeout=120)
     assert runner.returncode == 1, text
     assert "FAILED [pythia]" in text and "exit code 3" in text

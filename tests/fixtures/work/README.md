@@ -12,6 +12,9 @@ tests never read or write a real work dir, and a failure means the code changed,
   build Decay.exe, InprocJets.exe and the photo_eic, DecayRiv and particle_spectra plugins.
 - `datasets/jets_data.yoda`: High-Energy's (sha256 `625723465b10ea69…`), the one dataset the plot
   tests name.
+- `Makefile`: the work-dir template's (`include $(HEP)/framework/work.mk`), so `work_built` can make it.
+- Changed with Heimdall's seam (P2 task 2): `jets.toml`'s `{repo}` is `{work}` (what `hep migrate` writes),
+  and `delphes_jets.py` finds hepkit under `$HEP/framework`, as a migrated module does.
 - `hep.toml`: the marker. The walk-up search skips it (it lies under `tests/`); only `$HEP_WORK`
   finds it.
 

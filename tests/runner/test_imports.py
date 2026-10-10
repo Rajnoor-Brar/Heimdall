@@ -2,7 +2,7 @@
 
 A module may import only from its own rank or a lower one, and the import graph has no cycles.
 A module missing from RANKS fails, so a new module has to be given its place. Tool plugins
-(utils/Env/<tool>/render.py, backend.py) may import only PLUGINS_MAY_IMPORT, and never another plugin.
+(framework/tools/<tool>/render.py, backend.py) may import only PLUGINS_MAY_IMPORT, and never another plugin.
 Both tables are runner/__init__.py's.
 """
 
@@ -15,8 +15,8 @@ from pathlib import Path
 from runner import PLUGINS_MAY_IMPORT as PLUGIN_MAY_IMPORT, RANKS
 
 REPO = Path(__file__).resolve().parents[2]
-RUNNER = REPO / "utils" / "Env" / "runner"
-ENV = REPO / "utils" / "Env"
+RUNNER = REPO / "framework" / "runner"
+ENV = REPO / "framework" / "tools"
 
 
 def runner_imports(path: Path) -> set[str]:

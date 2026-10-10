@@ -17,12 +17,14 @@ from pathlib import Path
 
 import pytest
 
+from support import BUILD, WORK, apps  # noqa: E402
+
+APP = apps() / "App_Pythia.exe"
 REPO = Path(__file__).resolve().parents[2]
-APP = REPO / "build" / "App_Pythia.exe"
 REF = REPO / "tests" / "reference" / "legacy_run"
 
 pytestmark = [pytest.mark.slow,
-              pytest.mark.skipif(not APP.exists(), reason="build/App_Pythia.exe not built (make)")]
+              pytest.mark.skipif(not APP.exists(), reason="App_Pythia.exe not built (hep build --framework)")]
 
 
 def chain(workdir: Path, cards: list[Path], plugin_dir: Path, name: str) -> tuple[Path, dict]:
@@ -47,10 +49,8 @@ def chain(workdir: Path, cards: list[Path], plugin_dir: Path, name: str) -> tupl
 @pytest.fixture(scope="module")
 def capture_plugin(tmp_path_factory) -> Path:
     where = tmp_path_factory.mktemp("capture_photo_eic")
-    for ext in ("cc", "info", "plot"):
-        text = subprocess.run(["git", "show", f"18db967:<the analysis's sources>/photo_eic.{ext}"], cwd=REPO,
-                              capture_output=True, text=True, encoding="utf-8", check=True).stdout
-        (where / f"photo_eic.{ext}").write_text(text, encoding="utf-8")
+    for ext in ("cc", "info", "plot"):                     # as High-Energy had them at 18db967 (frozen: REF/plugin)
+        (where / f"photo_eic.{ext}").write_bytes((REF / "plugin" / f"photo_eic.{ext}").read_bytes())
     subprocess.run(["rivet-build", "Rivet_photo_eic.so", "photo_eic.cc"], cwd=where, check=True,
                    capture_output=True)
     return where
@@ -70,8 +70,8 @@ def test_sigma_at_four_threads_is_the_combination(scratch):
     point.write_text("Main:numberOfEvents = 20000\nParallelism:numThreads = 4\n"
                      "Parallelism:seeds = {1001,1002,1003,1004}\nBeams:eA = 920\nBeams:eB = 27.5\n"
                      "Beams:idB = -11\n", encoding="utf-8")
-    yoda, side = chain(scratch, [REPO / "tests" / "fixtures" / "configs" / "Demo" / "ep.cmnd", point],
-                       REPO / "build" / "Rivet", "t4")
+    yoda, side = chain(scratch, [WORK / "configs" / "Demo" / "ep.cmnd", point],
+                       BUILD / "Rivet", "t4")
     text = yoda.read_text(encoding="utf-8")
     xsec = float(re.search(r"/_XSEC\n.*?# value[^\n]*\n(\S+)", text, re.S).group(1))
     assert abs(xsec - side["sigma_pb"]) / side["sigma_pb"] < 1e-6

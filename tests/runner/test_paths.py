@@ -1,4 +1,4 @@
-"""Path resolution (docs/04_Config_Reference.md §2)."""
+"""The two roots and path resolution (docs/framework/01_Target.md §5.2–5.3; docs/04_Config_Reference.md §2)."""
 
 from __future__ import annotations
 
@@ -6,34 +6,126 @@ from pathlib import Path
 
 import pytest
 
-from runner import paths
+from runner import paths, tools
 from runner.errors import HepError
-
-REPO = Path(__file__).resolve().parents[2]
-FIXTURES = REPO / "tests" / "fixtures" / "configs"
+from support import REPO, WORK
 
 
-def test_the_repository_is_found_by_its_markers():
-    assert paths.repo_root() == REPO
+@pytest.fixture
+def fresh():
+    """The cached roots forgotten before and after: a test that moves the roots leaves no trace."""
+    paths.reset()
+    yield
+    paths.reset()
 
 
-def test_hekit_root_must_be_the_repository(monkeypatch, scratch):
-    monkeypatch.setenv("HEKIT_ROOT", str(scratch))
-    with pytest.raises(HepError, match="is not the repository"):
-        paths.repo_root()
+def make_work(folder: Path, name: str = "w") -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "hep.toml").write_text(f'[work]\nname = "{name}"\n', encoding="utf-8")
+    return folder
 
+
+# ── Heimdall ────────────────────────────────────────────────────────────────────────────────────
+
+def test_heimdall_is_where_the_code_is():
+    assert paths.hep_root() == REPO
+    assert paths.is_heimdall(REPO)
+
+
+def test_another_heimdalls_hep_is_refused(monkeypatch, scratch, fresh):
+    monkeypatch.setenv("HEP", str(scratch))
+    with pytest.raises(HepError, match="two Heimdalls"):
+        paths.hep_root()
+
+
+@pytest.mark.parametrize("old,new", sorted(paths.RETIRED.items()))
+def test_high_energys_variables_are_refused(monkeypatch, old, new):
+    monkeypatch.setenv(old, "/anywhere")
+    with pytest.raises(HepError, match=f"\\${old} is set, and it is retired: Heimdall reads \\${new}"):
+        paths.check_retired()
+
+
+def test_apps_go_with_the_loaded_stack(monkeypatch):
+    monkeypatch.delenv("HEP_STACK", raising=False)
+    assert paths.apps_dir() == REPO / "framework" / "Apps"
+    assert paths.forge_dir() == REPO / "forge"
+    monkeypatch.setenv("HEP_STACK", "gpu-sim")
+    assert paths.apps_dir() == REPO / "stacks" / "gpu-sim" / "Apps"
+    assert paths.forge_dir() == REPO / "stacks" / "gpu-sim" / "forge"
+
+
+# ── the work dir ────────────────────────────────────────────────────────────────────────────────
+
+def test_the_tests_work_in_the_scratch_copy_of_the_fixture():
+    assert paths.work_root() == WORK
+    assert paths.configs_root() == WORK / "configs"
+    assert paths.work_meta(WORK)["name"] == "fixture"
+
+
+def test_the_work_dir_is_found_by_walking_up(monkeypatch, scratch, fresh):
+    monkeypatch.delenv("HEP_WORK")
+    work = make_work(scratch / "study")
+    (work / "configs" / "P").mkdir(parents=True)
+    monkeypatch.chdir(work / "configs" / "P")
+    assert paths.work_root() == work.resolve()
+
+
+def test_a_hep_toml_without_work_is_no_marker(monkeypatch, scratch, fresh):
+    monkeypatch.delenv("HEP_WORK")
+    (scratch / "hep.toml").write_text('[framework]\nexpects = ""\n', encoding="utf-8")
+    monkeypatch.chdir(scratch)
+    assert not paths.is_work(scratch)
+    assert paths.find_work() is None
+
+
+def test_outside_a_work_dir_is_an_error_naming_hep_setup(monkeypatch, scratch, fresh):
+    monkeypatch.delenv("HEP_WORK")
+    monkeypatch.chdir(scratch)
+    with pytest.raises(HepError, match="not inside a work dir") as caught:
+        paths.work_root()
+    assert "hep setup" in caught.value.hint
+
+
+def test_markers_under_heimdalls_tests_are_skipped(monkeypatch, fresh):
+    monkeypatch.delenv("HEP_WORK")
+    monkeypatch.chdir(REPO / "tests" / "fixtures" / "work" / "configs")
+    assert paths.find_work() is None                     # the fixture is found only through HEP_WORK
+
+
+def test_hep_work_must_be_a_work_dir(monkeypatch, scratch, fresh):
+    monkeypatch.setenv("HEP_WORK", str(scratch))
+    with pytest.raises(HepError, match="is not a work dir"):
+        paths.work_root()
+
+
+def test_hep_toml_refuses_what_it_does_not_know(scratch):
+    work = make_work(scratch / "w")
+    (work / "hep.toml").write_text('[work]\nname = "w"\ncolour = "red"\n', encoding="utf-8")
+    with pytest.raises(HepError, match="unknown key 'work.colour'"):
+        paths.work_meta(work)
+    (work / "hep.toml").write_text('[work]\n[extra]\n', encoding="utf-8")
+    with pytest.raises(HepError, match="unknown table 'extra'"):
+        paths.work_meta(work)
+
+
+def test_a_work_dirs_name_is_its_folders_unless_given(scratch):
+    work = make_work(scratch / "Top-Quark")
+    (work / "hep.toml").write_text("[work]\n", encoding="utf-8")
+    assert paths.work_meta(work) == {"name": "Top-Quark", "expects": ""}
+
+
+# ── resolution ──────────────────────────────────────────────────────────────────────────────────
 
 def test_a_bare_name_takes_its_keys_convention_root():
     assert paths.resolve("ep.cmnd", "baseconfig", project="Demo") == \
-        FIXTURES / "Demo" / "ep.cmnd"
-    assert paths.resolve("Decay.exe", "executable", project="Decay") == REPO / "build" / "Decay" / "Decay.exe"
-    assert paths.resolve("jets_data.yoda", "data") == REPO / "datasets" / "jets_data.yoda"
+        WORK / "configs" / "Demo" / "ep.cmnd"
+    assert paths.resolve("Decay.exe", "executable", project="Decay") == WORK / "build" / "Decay" / "Decay.exe"
+    assert paths.resolve("jets_data.yoda", "data") == WORK / "datasets" / "jets_data.yoda"
 
 
-def test_dot_slash_is_the_repository_root_not_the_working_directory(monkeypatch, scratch):
+def test_dot_slash_is_the_work_dir_not_the_working_directory(monkeypatch, scratch):
     monkeypatch.chdir(scratch)
-    assert paths.resolve("./tests/reference/point_counts.toml", "baseconfig", project="X") == \
-        REPO / "tests" / "reference" / "point_counts.toml"
+    assert paths.resolve("./datasets/jets_data.yoda", "baseconfig", project="X") == WORK / "datasets" / "jets_data.yoda"
 
 
 def test_an_absolute_path_is_kept():
@@ -51,25 +143,37 @@ def test_an_explicit_root_wins():
     assert paths.resolve("events.hepmc", "prelim", root=Path("/o/p")) == Path("/o/p/events.hepmc")
 
 
-def test_config_lookup_makes_toml_optional(scratch):
-    target = FIXTURES / "Demo" / "jets.toml"
+def test_config_lookup_makes_toml_optional():
+    target = WORK / "configs" / "Demo" / "jets.toml"
     assert paths.config_file("Demo/jets") == target
     assert paths.config_file("Demo/jets.toml") == target
     with pytest.raises(HepError, match="no run config"):
         paths.config_file("Demo/nope")
 
 
-def test_tests_write_into_output_tests():
-    assert "output/tests" in str(paths.results_root())
-    assert "output/tests" in str(paths.output_root())
+def test_tests_write_into_the_scratch():
+    scratch = REPO / "forge" / "scratch"
+    assert paths.results_root() == scratch / "results"
+    assert paths.output_root() == scratch / "output"
+    assert paths.reports_root() == scratch / "reports"
 
 
-def test_tests_read_frozen_configs_not_the_users():
-    assert paths.configs_root() == FIXTURES
+def test_without_the_variables_the_work_dirs_folders(monkeypatch):
+    for var in ("HEP_RESULTS", "HEP_OUTPUT", "HEP_REPORTS"):
+        monkeypatch.delenv(var)
+    assert paths.results_root() == WORK / "results"
+    assert paths.output_root() == WORK / "output"
+    assert paths.reports_root() == WORK / "reports"
 
 
-def test_configs_root_is_the_repositorys_without_the_variable(monkeypatch):
-    monkeypatch.delenv("HEKIT_CONFIGS")
-    assert paths.configs_root() == REPO / "configs"
-    assert paths.resolve("ep.cmnd", "baseconfig", project="Demo") == \
-        REPO / "configs" / "Demo" / "ep.cmnd"
+# ── placeholders ────────────────────────────────────────────────────────────────────────────────
+
+def test_hep_and_work_are_the_placeholders():
+    assert paths.placeholders() == {"hep": str(REPO), "work": str(WORK)}
+    assert tools.expand("{hep}/framework/Apps/Paint.exe", paths.placeholders(), "t") == f"{REPO}/framework/Apps/Paint.exe"
+    assert tools.expand("{work}/build/Rivet", paths.placeholders(), "t") == f"{WORK}/build/Rivet"
+
+
+def test_repo_is_retired_with_its_replacements_named():
+    with pytest.raises(HepError, match=r"\{repo\} is retired: \{work\} for your files, \{hep\} for Heimdall's"):
+        tools.expand("{repo}/modules/x.py", paths.placeholders(), "t")

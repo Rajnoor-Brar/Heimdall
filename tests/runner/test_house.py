@@ -13,8 +13,8 @@ from runner.errors import HepError
 
 @pytest.fixture
 def trees(scratch, monkeypatch):
-    monkeypatch.setenv("HEKIT_OUTPUT", str(scratch / "output"))
-    monkeypatch.setenv("HEKIT_RESULTS", str(scratch / "results"))
+    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_RESULTS", str(scratch / "results"))
     return scratch
 
 

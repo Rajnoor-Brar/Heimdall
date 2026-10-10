@@ -7,11 +7,13 @@ from pathlib import Path
 
 import pytest
 
+from support import apps  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[2]
-APP = REPO / "build" / "App_yd2rt.exe"
+APP = apps() / "App_yd2rt.exe"
 REFERENCE = REPO / "tests" / "reference" / "legacy_run" / "mini_27x920_ep_MSTW.yoda"
 
-pytestmark = pytest.mark.skipif(not APP.exists(), reason="make utils/App_yd2rt.exe")
+pytestmark = pytest.mark.skipif(not APP.exists(), reason="make src/App_yd2rt.exe")
 uproot = pytest.importorskip("uproot")
 yoda = pytest.importorskip("yoda")
 

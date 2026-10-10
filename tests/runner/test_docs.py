@@ -64,7 +64,7 @@ def prose(body: str) -> str:
     return re.sub(r"`[^`\n]*`", "", re.sub(r"^```.*?^```", "", body, flags=re.M | re.S))
 
 
-@pytest.mark.parametrize("page", PAGES + [REPO / "bots" / "BOT.md"], ids=lambda p: p.name)
+@pytest.mark.parametrize("page", PAGES + [REPO / "CLAUDE.md", REPO / "README.md"], ids=lambda p: p.name)
 def test_every_relative_link_resolves(page):
     for target in re.findall(r"\]\(([^)\s]+)\)", prose(text(page))):
         if re.match(r"[a-z]+://", target) or target.startswith("mailto:"):
@@ -91,7 +91,7 @@ def test_every_toml_block_parses_and_complete_runs_load(page, scratch):
 
 
 def test_every_key_the_loader_accepts_is_documented():
-    """Every key of the schema (utils/Env/schema/run.toml, V55) is in the reference."""
+    """Every key of the schema (framework/schema/run.toml, V55) is in the reference."""
     from runner import schema
     ref = reference()
     missing = [f"[{table}] {key}" for table in schema.TABLES for key in schema.keys(table) if f"`{key}`" not in ref]
@@ -148,10 +148,12 @@ def test_every_tool_folder_and_its_options_are_documented():
 
 # ── what the code cites ─────────────────────────────────────────────────────────────────────────
 
-CODE = [p for top in ("utils", "modules", "tests") for p in (REPO / top).rglob("*")   # not configs/: the user's
-        if p.is_file() and p.suffix in (".py", ".hh", ".cc", ".toml", ".sh", ".in", ".cmnd", ".yaml", ".sin", ".mg5")
-        and "reference/legacy_run" not in str(p) and "/_" not in str(p.relative_to(REPO))]   # (V52, V92)
-CODE += [REPO / "Makefile", REPO / "utils" / "Env" / "hep", REPO / "utils" / "Env" / "run"]
+CODE = [p for top in ("framework", "src", "tests") for p in (REPO / top).rglob("*")   # the fixture's modules are under tests/
+        if p.is_file() and p.suffix in (".py", ".hh", ".cc", ".toml", ".sh", ".in", ".cmnd", ".yaml", ".sin", ".mg5", ".mk")
+        and "reference/legacy_run" not in str(p) and "/_" not in str(p.relative_to(REPO))
+        and not {"Apps", "venv"} & set(p.relative_to(REPO).parts)]                         # (V52, V92)
+CODE += [REPO / "Makefile", REPO / "setup.sh", REPO / "framework" / "bin" / "hep", REPO / "framework" / "bin" / "run",
+         *(p for p in (REPO / "env").glob("*") if p.is_file())]                    # env/venv/ is the venv
 
 
 def code_text() -> list[tuple[Path, str]]:

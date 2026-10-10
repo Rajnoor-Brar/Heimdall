@@ -2,6 +2,7 @@
 stack/
 forge/
 stash/
+stacks/
 env/venv/
 env/machine.sh
 framework/Apps/

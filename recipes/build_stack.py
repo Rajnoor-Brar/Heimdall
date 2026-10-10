@@ -6,11 +6,17 @@
     python3 recipes/build_stack.py packages="rivet pythia8" root.release=6.40.06
     python3 recipes/build_stack.py --config my.toml         # settings, and package changes, from a file
     python3 recipes/build_stack.py --list                   # each package: release, needs, state
+    python3 recipes/build_stack.py --toolkits               # the toolkits: named sets for a kind of work
+    python3 recipes/build_stack.py packages=@bsm-recast     # a toolkit (toolkits.toml), with what it needs
+    python3 recipes/build_stack.py packages=@gpu-sim        # an isolated toolkit: its own C++20 stack in stacks/gpu-sim/
     python3 recipes/build_stack.py --dry-run > build.sh     # the build as a bash script; nothing is run
 
 A setting is a key of settings.toml, given as key=value; a package's key as <package>.<key>=value.
 Where things go (docs/framework/01_Target.md §2): archives and their sources in stash/, build trees
 and logs in forge/, installs in stack/, the Python environment in env/venv/.
+A toolkit (toolkits.toml, and your own in toolkits.d/*.toml) is a named set of packages. One that
+changes the C++ standard is isolated: it builds a whole stack of its own in stacks/<toolkit>/
+(installs, build trees, venv), loaded by stacks/<toolkit>/setup.sh; stash/ is shared.
 A finished package is stamped (stack/.stamps/<name>-<release>) and skipped after, so a rerun
 resumes; delete a stamp to redo its package. Every tarball is fetched before the first build, so a
 dead link stops the run at once. Each package logs to forge/logs/<name>.log.
@@ -44,11 +50,26 @@ except ModuleNotFoundError:                                        # Python < 3.
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent                                                 # Heimdall: recipes/ is in it
 FIELDS = {"release", "url", "kind", "needs", "group", "install", "probe", "args", "extra", "optional",
-          "patch", "env", "pre", "post", "cores"}
-KINDS = ("autotools", "cmake", "unpack", "none")
+          "patch", "env", "pre", "post", "cores", "status", "how", "apt"}
+KINDS = ("autotools", "cmake", "unpack", "none", "external")
+#: packages = "all": the lab PC's set. Group "toolkit" joins only by name or by toolkit (@name).
+ALL_GROUPS = ("core", "extra")
+#: The toolkits: the standard presets, then the user's own (one file each, any name).
+TOOLKITS = HERE / "toolkits.toml"
+TOOLKITS_D = HERE / "toolkits.d"
+KIT_FIELDS = {"description", "packages", "note", "isolated", "settings", "override"}
+#: Settings that change the ABI: a toolkit that changes one must be isolated (a stack of its own).
+ABI = ("cxx_std", "opt_flags")
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 MAC = sys.platform == "darwin"
 TARBALLS = (".tar.gz", ".tar.bz2", ".tar.xz", ".tgz")
+
+#: stacks/<toolkit>/setup.sh: an isolated stack's loader (`quit` the default environment first).
+STACK_SETUP = """#!/bin/bash
+# stacks/{stack}/setup.sh — the isolated stack of toolkit @{stack} (C++{cxx_std}), written by recipes/build_stack.py.
+# Load it instead of Heimdall's setup.sh, in a shell of its own (or after `quit`): its ABI differs.
+HEP_STACK_REQUEST={stack} source "{prefix}/setup.sh"
+"""
 
 #: env/machine.sh: this machine's lines from settings.toml's setup_extra; setup.sh (tracked) sources it.
 MACHINE = """# env/machine.sh — this machine's lines for setup.sh, written by recipes/build_stack.py from
@@ -115,16 +136,20 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             mode = "script"
         elif arg == "--list":
             mode = "list"
+        elif arg == "--toolkits":
+            mode = "toolkits"
         elif arg == "--config":
             merge(settings, packages, read(Path(next(args, "") or die("--config needs a file"))))
         elif "=" in arg:
             given.append(arg.split("=", 1))
         else:
             die(f"unknown argument '{arg}' (see --help)")
+    wanted = next((text for key, text in reversed(given) if key == "packages"), settings["packages"])
+    apply_toolkits(wanted, settings, packages)                     # the toolkits' own settings, then …
     for key, text in given:                                        # after --config: the command line wins
         name, _, field = key.rpartition(".")
         if not name:
-            if key not in settings or isinstance(settings[key], dict):
+            if key.startswith("_") or key not in settings or isinstance(settings[key], dict):
                 die(f"no setting '{key}' (settings.toml)")
             settings[key] = coerce(text, settings[key])
         elif name not in packages:
@@ -138,8 +163,10 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             die(f"[{name}] has no key {', '.join(unknown)}")
         if p.get("kind") not in KINDS:
             die(f"[{name}].kind must be one of {', '.join(KINDS)}")
-        if p["kind"] != "none" and not p.get("url"):
+        if p["kind"] not in ("none", "external") and not p.get("url"):
             die(f"[{name}] has no url")
+        if p["kind"] == "external" and not p.get("how"):
+            die(f"[{name}] is external: it needs a 'how' (where it comes from)")
         for other in [*p.get("needs", []), *p.get("optional", {})]:
             if other not in packages:
                 die(f"[{name}] names '{other}', which is not a package")
@@ -162,19 +189,23 @@ def ram_kb() -> int:
 def context(s: dict) -> dict:
     """The placeholders every package sees: the settings, and what follows from them."""
     prefix = Path(s["prefix"] or REPO).expanduser().resolve()     # "": this Heimdall
+    stack = s.get("_stack", "")                                   # an isolated toolkit's: stacks/<it>/
+    base = prefix / "stacks" / stack if stack else prefix
     python = shutil.which(s["python"]) or die(f"no {s['python']}: install Python 3, or set python=")
     py = probe([python, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"])
     cores = s["cores"] or (len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity")   # Linux: the
                            else os.cpu_count() or 4)                                       # CPUs it may use
     machine = os.uname().machine
-    return {**s, "prefix": str(prefix), "inst": str(prefix / "stack"), "venv": str(prefix / "env" / "venv"),
-            "stash": str(prefix / "stash"), "forge": str(prefix / "forge"),
+    return {**s, "prefix": str(prefix), "inst": str(base / "stack"),
+            "venv": str(base / "venv" if stack else prefix / "env" / "venv"),
+            "stash": str(prefix / "stash"), "forge": str(base / "forge"), "stack": stack,
+            "venv_prompt": f"HEP-{stack}" if stack else "HEP",
             "cores": cores, "root_cores": s["root_cores"] or max(1, min(cores, ram_kb() // 3_000_000)),
             "python": python, "py": py, "pyxy": py.replace(".", ""),
             "pyinc": probe([python, "-c", "import sysconfig; print(sysconfig.get_paths()['include'])"]),
             "cxxflags": f"{s['opt_flags']} -std=c++{s['cxx_std']}", "arch": {"x86_64": "x64"}.get(machine, machine),
             "machine": machine, "dylib": "dylib" if MAC else "so",
-            "repo": str(REPO)}
+            "repo": str(REPO), "cmake_prefix": ""}                   # filled in main(): every install folder
 
 
 def scope(name: str, p: dict, c: dict) -> dict:
@@ -224,18 +255,83 @@ def tarball(name: str, p: dict, c: dict) -> tuple[Path, str]:
     return Path(c["stash"], f"{name}-{p.get('release', '')}{ending}"), url
 
 
+def toolkits() -> dict:
+    """The toolkits: toolkits.toml's presets and the user's toolkits.d/*.toml (recipes/README.md §6).
+    A name defined twice is refused, so a custom toolkit never silently replaces a preset."""
+    kits: dict = {}
+    for file in [TOOLKITS, *sorted(TOOLKITS_D.glob("*.toml"))] if TOOLKITS_D.is_dir() else [TOOLKITS]:
+        for name, kit in read(file).items():
+            if name in kits:
+                die(f"toolkit '{name}' is defined twice: {kits[name]['_file']} and {file.name}")
+            if not isinstance(kit, dict):
+                die(f"{file.name}: '{name}' is not a [toolkit] table")
+            if unknown := sorted(set(kit) - KIT_FIELDS):
+                die(f"{file.name}: [{name}] has no key {', '.join(unknown)} (toolkits.toml's header says which)")
+            kits[name] = {**kit, "_file": file.name}
+    return kits
+
+
+def kits_in(want: list[str], kits: dict, seen: tuple[str, ...] = ()) -> list[str]:
+    """The toolkits a packages value names, with the ones they name in turn."""
+    out: list[str] = []
+    for word in want:
+        if word.startswith("@") and word[1:] in kits and word[1:] not in seen:
+            out += [word[1:], *kits_in(kits[word[1:]].get("packages", []), kits, (*seen, word[1:]))]
+    return list(dict.fromkeys(out))
+
+
+def apply_toolkits(wanted, settings: dict, packages: dict) -> None:
+    """The requested toolkits' settings and package overrides. A toolkit that changes the ABI
+    (cxx_std, opt_flags) must be isolated, and a run builds at most one isolated stack."""
+    kits = toolkits()
+    named = kits_in(wanted.split() if isinstance(wanted, str) else list(wanted), kits)
+    isolated = [k for k in named if kits[k].get("isolated")]
+    if len(isolated) > 1:
+        die(f"one isolated stack per run: {', '.join('@' + k for k in isolated)}")
+    settings["_stack"] = isolated[0] if isolated else ""
+    for name in named:
+        kit = kits[name]
+        for key, value in kit.get("settings", {}).items():
+            if key not in settings or isinstance(settings[key], dict):
+                die(f"toolkit @{name}: no setting '{key}' (settings.toml)")
+            if key in ABI and value != settings[key] and not kit.get("isolated"):
+                die(f"toolkit @{name} changes {key}: it must be isolated (isolated = true), "
+                    "or its packages would share an install with another ABI")
+            settings[key] = value
+        for package, fields in kit.get("override", {}).items():
+            if package not in packages:
+                die(f"toolkit @{name}: no package '{package}' to override")
+            if unknown := sorted(set(fields) - FIELDS):
+                die(f"toolkit @{name}: a package has no key {', '.join(unknown)}")
+            packages[package].update(fields)
+
+
+def chosen_of(want: list[str], packages: dict, kits: dict, seen: tuple[str, ...] = ()) -> list[str]:
+    """Names, "core", "all" and @toolkits, expanded to package names (a toolkit may name another)."""
+    out: list[str] = []
+    for word in want:
+        if word == "core":
+            out += [n for n, p in packages.items() if p.get("group", "core") == "core"]
+        elif word == "all":
+            out += [n for n, p in packages.items() if p.get("group", "core") in ALL_GROUPS]
+        elif word.startswith("@"):
+            kit = word[1:]
+            if kit not in kits:
+                die(f"no toolkit '{kit}'; there are: {' '.join(kits)} (--toolkits)")
+            if kit in seen:
+                die("the toolkits go round: " + " → ".join([*seen, kit]))
+            out += chosen_of(kits[kit].get("packages", []), packages, kits, (*seen, kit))
+        elif word in packages:
+            out.append(word)
+        else:
+            die(f"no package '{word}'; there are: {' '.join(packages)}")
+    return list(dict.fromkeys(out))
+
+
 def plan(s: dict, packages: dict, c: dict) -> tuple[list[str], list[str]]:
     """The packages to go through, in build order, and those of them added because others need them."""
     want = s["packages"].split() if isinstance(s["packages"], str) else list(s["packages"])
-    if want == ["core"]:
-        chosen = [n for n, p in packages.items() if p.get("group", "core") == "core"]
-    elif want == ["all"]:
-        chosen = list(packages)
-    else:
-        chosen = want
-        for name in want:
-            if name not in packages:
-                die(f"no package '{name}'; there are: {' '.join(packages)}")
+    chosen = chosen_of(want, packages, toolkits())
     order: list[str] = []
 
     def visit(name: str, chain: list[str]) -> None:
@@ -344,9 +440,11 @@ def build(name: str, p: dict, c: dict, shell: Shell, have: set[str]) -> None:
         shell.run(words(shlex.split(text), k), where, env)
 
 
-def system(s: dict, c: dict, shell: Shell) -> None:
-    """apt_packages, through sudo when not root; stamped like a package."""
-    done = Path(c["inst"], ".stamps", "system")
+def system(s: dict, c: dict, shell: Shell, extra: list[str] = ()) -> None:
+    """apt_packages and the chosen packages' own (`apt`), through sudo when not root; stamped like a
+    package, by what it installed: a run that adds packages installs again."""
+    wanted = list(dict.fromkeys([*s["apt_packages"], *extra]))
+    done = Path(c["inst"], ".stamps", "system" + (f"-{len(wanted)}" if extra else ""))
     if done.exists():
         say("system packages: done already")
         return
@@ -359,7 +457,7 @@ def system(s: dict, c: dict, shell: Shell) -> None:
         die("sudo failed: run as root, or install the system packages and set system=false")
     shell.run([*sudo, "apt-get", "update"])
     shell.run([*sudo, "env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y",
-               "--no-install-recommends", *s["apt_packages"]])
+               "--no-install-recommends", *wanted])
     if not shell.script:
         done.touch()
 
@@ -375,13 +473,25 @@ def environment(s: dict, c: dict, packages: dict) -> tuple[dict[str, list[str]],
 
 def show(order: list[str], packages: dict, c: dict) -> None:
     """Each package: built here (stamped) or installed otherwise, and whether this run builds it."""
-    print(f"{'package':12} {'release':9} {'group':6} {'state':10} {'this run':9} needs")
+    print(f"{'package':13} {'release':10} {'group':8} {'state':10} {'this run':9} needs")
     for name, p in packages.items():
         built = stamp(name, p, c).exists()
-        state = "built" if built else "installed" if present(name, p, c) else ""
-        run = "build" if name in order and not built else ""
-        print(f"{name:12} {p.get('release', '—'):9} {p.get('group', 'core'):6} {state:10} {run:9} "
-              f"{' '.join(p.get('needs', []))}")
+        state = ("external" if p["kind"] == "external" else "built" if built
+                 else "installed" if present(name, p, c) else "")
+        run = "build" if name in order and not built and p["kind"] != "external" else ""
+        flag = " (new recipe)" if p.get("status") == "new" else ""
+        print(f"{name:13} {str(p.get('release', '—')):10} {p.get('group', 'core'):8} {state:10} {run:9} "
+              f"{' '.join(p.get('needs', []))}{flag}")
+
+
+def show_toolkits(packages: dict) -> None:
+    """The toolkits, each with what it is for and its packages."""
+    for name, kit in toolkits().items():
+        names = chosen_of(kit.get("packages", []), packages, toolkits())
+        print(f"@{name:15} {kit.get('description', '')}")
+        print(f"{'':16} {' '.join(names)}")
+        if kit.get("note"):
+            print(f"{'':16} note: {kit['note']}")
 
 
 def machine_text(c: dict) -> str:
@@ -392,18 +502,23 @@ def machine_text(c: dict) -> str:
 def main(argv: list[str]) -> None:
     mode, s, packages = options(argv)
     c = context(s)
+    if mode == "toolkits":
+        show_toolkits(packages)
+        return
     order, added = plan(s, packages, c)
     if mode == "list":
         show(order, packages, c)
         return
     script = mode == "script"
+    c["cmake_prefix"] = ";".join(dict.fromkeys(f"{c['inst']}/{p.get('install', n)}" for n, p in packages.items()
+                                               if p["kind"] not in ("none", "external")))
     paths, fixed = environment(s, c, packages)
     env = dict(os.environ)
     for key, items in paths.items():
         env[key] = ":".join([*items, *([os.environ[key]] if os.environ.get(key) else [])])
     shell = Shell(script, {**env, **fixed})
     prefix = Path(c["prefix"])
-    folders = [prefix / f for f in ("stash", "forge", "forge/logs", "stack", "stack/.stamps", "env")]
+    folders = [prefix / "stash", Path(c["forge"], "logs"), Path(c["inst"], ".stamps"), Path(c["venv"]).parent]
     if script:
         print("#!/usr/bin/env bash\n# The HEP stack's build, as `build_stack.py --dry-run` printed it: run it on a fresh\n"
               "# prefix (it neither reads nor writes stamps).\nset -euo pipefail")
@@ -419,18 +534,21 @@ def main(argv: list[str]) -> None:
     say(f"C++{c['cxx_std']} {c['opt_flags']}, {c['cores']} cores (ROOT {c['root_cores']})"
         + (", dry run: nothing is run" if script else ""))
     if s["system"]:
-        system(s, c, shell)
+        system(s, c, shell, [a for n in order for a in packages[n].get("apt", [])])
     todo = [n for n in order if not stamp(n, packages[n], c).exists()]
-    fetch([tarball(n, packages[n], c) for n in todo if packages[n]["kind"] != "none"], shell)
+    fetch([tarball(n, packages[n], c) for n in todo if packages[n]["kind"] not in ("none", "external")], shell)
     have = {n for n, p in packages.items() if present(n, p, c)} | set(order)
     for name in order:
         p = packages[name]
         label = name + (f" {p['release']}" if p.get("release") else "")
+        if p["kind"] == "external":                                 # never built here: where it comes from
+            say(f"{label}: external ({'there' if present(name, p, c) else 'not there'}): {expand(p['how'], c)}")
+            continue
         if name not in todo:
             say(f"{label}: done already")
             continue
-        say(label)
-        shell.name, shell.log = name, prefix / "forge" / "logs" / f"{name}.log"
+        say(label + ("  (a new recipe, not yet proven by a build: a failure is a gate)" if p.get("status") == "new" else ""))
+        shell.name, shell.log = name, Path(c["forge"], "logs", f"{name}.log")
         started = time.monotonic()
         if script:
             print(f"\n# == {label}")
@@ -446,7 +564,15 @@ def main(argv: list[str]) -> None:
             print(f"\ncat > {shlex.quote(str(machine))} <<'EOF'\n{machine_text(c)}EOF")
         else:
             machine.write_text(machine_text(c), encoding="utf-8")
-    say(f"done: source {prefix / 'setup.sh'}")
+    load = prefix / "setup.sh"
+    if c["stack"]:                                                 # an isolated stack: its own loader
+        load = prefix / "stacks" / c["stack"] / "setup.sh"
+        text = STACK_SETUP.format(stack=c["stack"], cxx_std=c["cxx_std"], prefix=prefix)
+        if script:
+            print(f"\ncat > {shlex.quote(str(load))} <<'EOF'\n{text}EOF")
+        else:
+            load.write_text(text, encoding="utf-8")
+    say(f"done: source {load}")
 
 
 if __name__ == "__main__":

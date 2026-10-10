@@ -16,11 +16,16 @@ python      = "python3"    # the interpreter the venv is made from
 system      = true         # apt-get install apt_packages first (sudo when not root); false: they are there
 graphics    = "ON"         # ROOT's x11/opengl/webgui/asimage and Geant4's OpenGL; "OFF" when headless
 geant4_data = "ON"         # Geant4's datasets (~4 GB), downloaded during its build
+cuda_arch   = "native"     # CMAKE_CUDA_ARCHITECTURES for the GPU packages (@gpu-sim): "native", or e.g. "86;89"
 setup_extra = []           # this machine's lines, written to env/machine.sh, which setup.sh sources after hep_env.sh
 
 # The venv's packages: the framework's. Add the analysis ones you want (scipy, pandas, pyhf, …).
 python_packages = ["numpy", "cython", "tomli_w", "rich", "pyyaml", "pillow", "matplotlib", "uproot",
                    "awkward", "pytest"]
+
+# What the `ufo-models` package (toolkit @bsm-models) fetches into MadGraph's models/: URLs of UFO
+# archives (.tgz, .tar.gz or .zip), e.g. from the FeynRules model database. Empty: nothing.
+ufo_models = []
 
 # What the `pdfsets` package installs: the sets the configs and the tests use (the lab PC's).
 pdf_sets = ["CT14lo", "CT14nlo", "CT10", "CT18NLO", "CT18NNLO", "cteq6l1", "MSHT20nlo_as118",

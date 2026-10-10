@@ -28,7 +28,7 @@
 [python]
 kind  = "none"
 probe = "{venv}/bin/python"
-pre   = ["{python} -m venv --prompt HEP {venv}", "{venv}/bin/pip install {python_packages}",
+pre   = ["{python} -m venv --prompt {venv_prompt} {venv}", "{venv}/bin/pip install {python_packages}",
          "{venv}/bin/python {repo}/recipes/pth.py {repo}"]       # heimdall.pth: $HEP/framework on the venv's path
 
 [lhapdf]
@@ -201,3 +201,280 @@ args = [
 kind  = "none"
 needs = ["lhapdf"]
 post  = ["lhapdf install {pdf_sets}"]                 # a set already there is skipped
+
+# ── Toolkit packages (group "toolkit"): only by name or through a toolkit (toolkits.toml) ───────────
+# status = "new": the recipe follows the project's own build instructions, but no build has proven it
+# here yet. build_stack.py says so, and a failure is a gate (docs/framework/02_Agents.md §6). Releases
+# were checked against the projects' pages on 2026-10-10. kind = "external": never built here; `how`
+# says where it comes from. Why each is in, and what was left out, is README.md §6.
+
+[photospp]
+release = "3.64"                                      # HepMC3 support since 3.64 (EvtGen's minimum)
+url     = "https://photospp.web.cern.ch/photospp/resources/PHOTOS.{release}/PHOTOS.{release}.tar.gz"
+kind    = "autotools"
+group   = "toolkit"
+status  = "new"
+needs   = ["hepmc3"]
+args    = ["--with-hepmc3={inst}/hepmc3"]
+
+[tauolapp]
+release = "1.1.8"                                     # HepMC3 support since 1.1.8 (EvtGen's minimum)
+url     = "https://tauolapp.web.cern.ch/tauolapp/resources/TAUOLA.{release}/TAUOLA.{release}.tar.gz"
+kind    = "autotools"
+group   = "toolkit"
+status  = "new"
+needs   = ["hepmc3", "lhapdf"]
+args    = ["--with-hepmc3={inst}/hepmc3", "--with-lhapdf={inst}/LHAPDF"]
+
+[evtgen]
+release = "R03-00-01"
+url     = "https://gitlab.cern.ch/evtgen/evtgen/-/archive/{release}/evtgen-{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["hepmc3", "pythia8", "photospp", "tauolapp"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args = [
+  "-DEVTGEN_HEPMC3=ON", "-DEVTGEN_PYTHIA=ON", "-DEVTGEN_PHOTOS=ON", "-DEVTGEN_TAUOLA=ON",
+  "-DHEPMC3_ROOT_DIR={inst}/hepmc3", "-DPYTHIA8_ROOT_DIR={inst}/pythia8",
+  "-DPHOTOSPP_ROOT_DIR={inst}/photospp", "-DTAUOLAPP_ROOT_DIR={inst}/tauolapp",
+]
+
+[superchic]
+release = "5.6.2"                                     # central exclusive production (LHAPDF for its PDFs)
+url     = "https://github.com/LucianHL/SuperChic/archive/refs/tags/{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["lhapdf", "hepmc3"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+
+[mcfm]
+release = "10.3"                                      # fixed order (NLO, NNLO, N3LO); its own LHAPDF off
+url     = "https://mcfm.fnal.gov/downloads/MCFM-{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["lhapdf"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args    = ["-Duse_internal_lhapdf=OFF", "-Duse_external_lhapdf=ON"]
+
+[jetscape]
+release = "4.0.2"                                     # heavy-ion framework; HDF5 for its hydro modules
+url     = "https://github.com/JETSCAPE/JETSCAPE/archive/refs/tags/v{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["pythia8", "hepmc3", "root"]
+apt     = ["libhdf5-dev"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+
+[madanalysis5]
+release = "1.11.1"                                    # recasting; it finds ROOT, FastJet, Delphes at first start
+url     = "https://github.com/MadAnalysis/madanalysis5/archive/refs/tags/v{release}.tar.gz"
+kind    = "unpack"                                    # a Python tree, run in place: stack/madanalysis5/bin/ma5
+group   = "toolkit"
+status  = "new"
+needs   = ["root", "fastjet", "delphes"]
+probe   = "{install}/bin/ma5"
+
+[contur]
+release = "3.1.3"                                     # model interpretation on Rivet's measurements (Rivet 4)
+kind    = "none"
+group   = "toolkit"
+status  = "new"
+needs   = ["rivet", "yoda"]
+probe   = "{venv}/bin/contur"
+pre     = ["{venv}/bin/pip install contur=={release}"]
+
+[professor]
+release = "2.5.2"                                     # tuning: parametrise, then fit (Eigen, iminuit)
+url     = "https://professor.hepforge.org/downloads/?f=Professor-{release}.tar.gz"
+kind    = "unpack"
+group   = "toolkit"
+status  = "new"
+needs   = ["yoda"]
+apt     = ["libeigen3-dev"]
+post    = ["{venv}/bin/pip install cython iminuit", "{venv}/bin/pip install {install}"]
+
+[hepdata]
+kind    = "none"                                      # the HEPData clients: make and fetch submissions
+group   = "toolkit"
+status  = "new"
+needs   = ["python"]
+probe   = "{venv}/bin/hepdata-cli"
+pre     = ["{venv}/bin/pip install hepdata-lib hepdata-cli"]
+
+[highfive]
+release = "3.3.0"                                     # header-only C++ for HDF5 (libhdf5 from the system)
+url     = "https://github.com/highfive-devs/highfive/archive/refs/tags/v{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+apt     = ["libhdf5-dev"]
+args    = ["-DHIGHFIVE_UNIT_TESTS=OFF", "-DHIGHFIVE_EXAMPLES=OFF"]
+post    = ["{venv}/bin/pip install h5py"]
+
+[dd4hep]
+release = "01-38"                                     # C++17 since v01-35: the stack's standard
+url     = "https://github.com/AIDASoft/DD4hep/archive/refs/tags/v{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["root", "geant4", "hepmc3"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args    = ["-DDD4HEP_USE_GEANT4=ON", "-DDD4HEP_USE_XERCESC=ON", "-DDD4HEP_USE_HEPMC3=ON", "-DBUILD_TESTING=OFF"]
+
+[geomodel]
+release = "6.27.0"                                    # with ATLAS FullSimLight (now part of GeoModel)
+url     = "https://gitlab.cern.ch/GeoModelDev/GeoModel/-/archive/{release}/GeoModel-{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["geant4"]
+apt     = ["libeigen3-dev", "nlohmann-json3-dev"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args    = ["-DGEOMODEL_BUILD_FULLSIMLIGHT=ON", "-DGEOMODEL_BUILD_TOOLS=ON"]
+
+[garfieldpp]
+release = "2025.12"                                   # gaseous and semiconductor detectors (ROOT, GSL)
+url     = "https://gitlab.cern.ch/garfield/garfieldpp/-/archive/{release}/garfieldpp-{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["root"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args    = ["-DWITH_EXAMPLES=OFF"]
+
+[feynrules]
+release = "2.3.49"                                    # a Mathematica package: unusable without Mathematica
+url     = "https://feynrules.irmp.ucl.ac.be/downloads/feynrules-current.tar.gz"   # the site serves only "current"
+kind    = "unpack"
+group   = "toolkit"
+status  = "new"
+needs   = ["mathematica"]
+
+[sarah]
+release = "4.15.4"                                    # a Mathematica package: unusable without Mathematica
+url     = "https://sarah.hepforge.org/downloads/?f=SARAH-{release}.tar.gz"
+kind    = "unpack"
+group   = "toolkit"
+status  = "new"
+needs   = ["mathematica"]
+
+[ufo-models]
+kind    = "none"                                      # settings.toml's ufo_models (URLs), into MadGraph's models/
+group   = "toolkit"
+status  = "new"
+needs   = ["madgraph"]
+probe   = ""
+pre     = ["""bash -c 'for u in {ufo_models}; do f={stash}/$(basename "$u"); [ -s "$f" ] || curl -fL -o "$f" "$u";
+  case "$f" in *.zip) unzip -oq "$f" -d {inst}/madgraph/models ;; *) tar xf "$f" -C {inst}/madgraph/models ;; esac; done'"""]
+
+[mathematica]
+kind    = "external"
+group   = "toolkit"
+probe   = ""
+how     = "a Mathematica (Wolfram) licence and installation, on PATH as `math` or `wolframscript`; FeynRules, SARAH and NLOCT run inside it"
+
+[key4hep]
+kind    = "external"
+group   = "toolkit"
+probe   = "/cvmfs/sw.hsf.org/key4hep"
+how     = "CVMFS (https://cvmfs.readthedocs.io; sudo) with sw.hsf.org, then `source /cvmfs/sw.hsf.org/key4hep/setup.sh` in a shell of its own (an AlmaLinux 9 container on other systems). It brings EDM4hep, podio, DD4hep, Gaudi and k4FWCore, built with C++20: never in the same shell as setup.sh"
+
+[cmssw]
+kind    = "external"
+group   = "toolkit"
+probe   = "/cvmfs/cms.cern.ch"
+how     = "CVMFS with cms.cern.ch, then `/cvmfs/cms.cern.ch/common/cmssw-el9` (an el9 container) and `cmsrel CMSSW_<release>` inside it: never in the same shell as setup.sh"
+
+[fluka]
+kind    = "external"
+group   = "toolkit"
+probe   = "{inst}/fluka"
+how     = "FLUKA from https://fluka.cern after registering and accepting its licence (it cannot be fetched for you); install it into {inst}/fluka by its manual, with the system's gfortran"
+
+# ── C++20 packages: for isolated toolkits only (@key4hep-src, @gpu-sim): they need cxx_std = 20, so
+# they never share an install with the C++17 stack (README.md §6). Releases checked 2026-10-10.
+
+[podio]
+release = "01-07"                                     # the EDM toolkit EDM4hep is generated with
+url     = "https://github.com/AIDASoft/podio/archive/refs/tags/v{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["root", "python"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+pre     = ["{venv}/bin/pip install jinja2 pyyaml"]
+args    = ["-DBUILD_TESTING=OFF", "-DENABLE_SIO=OFF"]
+
+[edm4hep]
+release = "01-01"                                     # needs podio >= 1.7 and C++20
+url     = "https://github.com/key4hep/EDM4hep/archive/refs/tags/v{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["podio", "hepmc3"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args    = ["-DBUILD_TESTING=OFF"]
+
+[gaudi]
+release = "v40r6"                                     # C++20 since v39r0
+url     = "https://gitlab.cern.ch/gaudi/Gaudi/-/archive/{release}/Gaudi-{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["root", "python"]
+apt     = ["libtbb-dev", "librange-v3-dev", "libfmt-dev", "libmsgsl-dev", "nlohmann-json3-dev", "libunwind-dev"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args = [
+  "-DBUILD_TESTING=OFF", "-DGAUDI_USE_AIDA=OFF", "-DGAUDI_USE_CPPUNIT=OFF", "-DGAUDI_USE_GPERFTOOLS=OFF",
+  "-DGAUDI_USE_JEMALLOC=OFF", "-DGAUDI_USE_CLHEP=OFF", "-DGAUDI_USE_HEPPDT=OFF", "-DGAUDI_USE_DOXYGEN=OFF",
+]
+
+[cuda]
+kind    = "external"
+group   = "toolkit"
+probe   = "/usr/local/cuda/bin/nvcc"
+how     = "NVIDIA's CUDA Toolkit (12 or newer) and a CUDA GPU with its driver, nvcc on PATH (developer.nvidia.com/cuda-downloads; sudo)"
+
+[veccore]
+release = "0.8.2"                                     # SIMD abstraction under VecGeom
+url     = "https://github.com/root-project/veccore/archive/refs/tags/v{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+args    = ["-DBUILD_TESTING=OFF"]
+
+[vecgeom]
+release = "v2.1.1"                                    # the 2.x line AdePT needs (>= 2.0.0-rc.4)
+url     = "https://gitlab.cern.ch/VecGeom/VecGeom/-/archive/{release}/VecGeom-{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["veccore", "cuda"]
+apt     = ["libxerces-c-dev"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args    = ["-DVECGEOM_ENABLE_CUDA=ON", "-DVECGEOM_GDML=ON", "-DVECGEOM_USE_NAVINDEX=ON", "-DBUILD_TESTING=OFF",
+           "-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}"]
+
+[g4hepem]
+release = "20251114"                                  # Geant4's EM physics for GPUs (AdePT needs >= 20250610)
+url     = "https://github.com/mnovak42/g4hepem/archive/refs/tags/{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["geant4", "cuda"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args    = ["-DG4HepEm_CUDA_BUILD=ON", "-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}"]
+
+[adept]
+release = "0.4.1"                                     # Geant4 EM showers on the GPU
+url     = "https://github.com/apt-sim/AdePT/archive/refs/tags/v{release}.tar.gz"
+kind    = "cmake"
+group   = "toolkit"
+status  = "new"
+needs   = ["geant4", "vecgeom", "g4hepem", "hepmc3", "cuda"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+args    = ["-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}", "-DBUILD_TESTING=OFF"]

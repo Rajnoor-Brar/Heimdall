@@ -9,7 +9,8 @@
 
 : "${HEP:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 : "${HEP_INSTALL:=$HEP/stack}"
-export HEP HEP_INSTALL
+: "${HEP_VENV:=$HEP/env/venv}"                     # an isolated toolkit's stack has its own (setup.sh)
+export HEP HEP_INSTALL HEP_VENV
 if [ -n "${HEKIT_ROOT-}" ]; then                 # High-Energy's name for the checkout: retired (K15)
     echo "HEKIT_ROOT is retired: Heimdall uses HEP ($HEP)" >&2
     unset HEKIT_ROOT
@@ -17,7 +18,8 @@ fi
 # The file that sourced this one (Heimdall's setup.sh), re-sourced by hep_refresh
 export HEP_SETUP="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
 
-_HEP_PACKAGES="LHAPDF hepmc3 fastjet xrootd root yoda pythia8 rivet herwig7 delphes sherpa madgraph whizard onnxruntime geant4"
+_HEP_PACKAGES="LHAPDF hepmc3 fastjet xrootd root yoda pythia8 rivet herwig7 delphes sherpa madgraph whizard onnxruntime geant4
+  photospp tauolapp evtgen superchic mcfm jetscape madanalysis5 professor highfive dd4hep geomodel garfieldpp"    # the toolkits' (recipes/toolkits.toml): only what is installed is added
 _HEP_SCALARS="LHAPDF_DATA_PATH ONNXRUNTIME_DIR GEANT4_DATA_DIR"
 
 # _hep_prepend VAR DIR — prepend DIR if it exists and is not already present; record the addition.
@@ -118,7 +120,7 @@ quit() {
         if [ -n "${!saved-}" ]; then export "$var=${!saved}"; else unset "$var"; fi
         unset "$saved"
     done
-    unset HEP_ENV_LOADED _HEP_ADDED
+    unset HEP_ENV_LOADED _HEP_ADDED HEP_STACK
     hash -r
 }
 hep_refresh() {
@@ -162,9 +164,9 @@ if [ -n "${HEP_ENV_LOADED-}" ]; then
 fi
 
 # Activate the Python venv
-source "$HEP/env/venv/bin/activate"
+source "$HEP_VENV/bin/activate"
 
-_hep_pyver=$("$HEP/env/venv/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
+_hep_pyver=$("$HEP_VENV/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
 for pkg in $_HEP_PACKAGES; do
     _hep_prepend PATH              "$HEP_INSTALL/$pkg/bin"
     _hep_prepend LD_LIBRARY_PATH   "$HEP_INSTALL/$pkg/lib"
@@ -193,5 +195,5 @@ export ONNXRUNTIME_DIR="$HEP_INSTALL/onnxruntime"
 export HEP_ENV_LOADED=1
 hash -r
 
-[[ $- == *i* ]] && echo "HEP env loaded — $HEP (hep_status for versions, hep_help for commands)"
+[[ $- == *i* ]] && echo "HEP env loaded — $HEP${HEP_STACK:+ (stack: $HEP_STACK)} (hep_status for versions, hep_help for commands)"
 return 0

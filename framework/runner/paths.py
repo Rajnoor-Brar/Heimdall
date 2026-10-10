@@ -151,14 +151,25 @@ def datasets_root() -> Path:
     return work_root() / "datasets"
 
 
+STACK_VAR = "HEP_STACK"
+
+
+def stack_dir() -> Path:
+    """The loaded stack's folder: Heimdall itself, or stacks/<toolkit>/ for an isolated toolkit's
+    (setup.sh sets $HEP_STACK; recipes/README.md §6). Its compiled apps and builds go with it: they
+    are linked against that stack."""
+    name = os.environ.get(STACK_VAR)
+    return hep_root() / "stacks" / name if name else hep_root()
+
+
 def apps_dir() -> Path:
-    """Heimdall's compiled apps (App_*.exe, Paint.exe) and Herwig's repository."""
-    return hep_root() / "framework" / "Apps"
+    """Heimdall's compiled apps (App_*.exe, Paint.exe) and Herwig's repository, for the loaded stack."""
+    return stack_dir() / "Apps" if os.environ.get(STACK_VAR) else hep_root() / "framework" / "Apps"
 
 
 def forge_dir() -> Path:
-    """Heimdall's builds in progress: make/, tests/, scratch/."""
-    return hep_root() / "forge"
+    """Heimdall's builds in progress for the loaded stack: make/, tests/, scratch/."""
+    return stack_dir() / "forge"
 
 
 def placeholders() -> dict[str, str]:

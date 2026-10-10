@@ -24,6 +24,7 @@ Heimdall is the framework **and** the machine's home: `$HEP` is this folder
 | `bots/` | `current_plan.md`, `intent.md`, `archive.md` |
 | `tests/` | `runner/`, `integration/`, `cxx/`, `reference/`, `fixtures/work/` (the frozen work dir the tests use) |
 | `stack/`, `forge/`, `stash/` | ignored: the installs; builds in progress (and the tests' scratch); downloads |
+| `stacks/<toolkit>/` | ignored: an isolated toolkit's own stack (another C++ standard; recipes/README.md §6) |
 
 Work dirs (configs, modules, results) live elsewhere, one per workspace, made by `hep setup <dir>`.
 
@@ -32,8 +33,8 @@ Work dirs (configs, modules, results) live elsewhere, one per workspace, made by
 
 ## Never
 
-- **Never `git clean -x` here.** It would delete `stack/`, `env/venv/` and `framework/Apps/`: hours
-  of building. `forge/` and `stash/` may be emptied by hand.
+- **Never `git clean -x` here.** It would delete `stack/`, `stacks/`, `env/venv/` and `framework/Apps/`:
+  hours of building. `forge/` and `stash/` may be emptied by hand.
 - Never `git commit -a`: stage named paths.
 
 ## Code design

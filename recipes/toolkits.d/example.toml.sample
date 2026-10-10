@@ -1,0 +1,18 @@
+# recipes/toolkits.d/example.toml.sample — a custom toolkit: copy to <name>.toml, then edit.
+#   python3 recipes/build_stack.py --toolkits                 # it is listed with the presets
+#   python3 recipes/build_stack.py packages=@my-analysis      # and built like them
+
+[my-analysis]
+description = "what this set is for"
+packages    = ["core", "@heavy-flavour", "highfive"]      # packages, "core", "all", or other toolkits
+note        = "anything worth saying when it is listed"
+
+# A stack of its own, with another C++ standard (the engine requires isolated = true for that):
+#isolated = true
+#[my-analysis.settings]
+#cxx_std = 20
+#graphics = "OFF"
+
+# A package's keys, for this toolkit only (packages.toml's header lists them):
+#[my-analysis.override.root]
+#extra = ["-Droofit=OFF"]

@@ -1,0 +1,98 @@
+# recipes/toolkits.toml — toolkits: named sets of packages for a kind of work (README.md §6).
+#
+#   python3 recipes/build_stack.py --toolkits                       # each toolkit, what it is for, its packages
+#   python3 recipes/build_stack.py packages=@bsm-recast             # one toolkit; what it needs is added
+#   python3 recipes/build_stack.py packages="@lab @heavy-flavour"   # several, and names, mixed
+#
+# A toolkit names packages (packages.toml), "core", "all", or other toolkits (@name). A package of
+# kind "external" is never built: the run says where it comes from. Packages marked status = "new"
+# have recipes no build has proven yet (packages.toml).
+
+[lab]
+description = "the lab PC's stack: the core, the extra generators, Delphes, ONNX Runtime, Geant4"
+packages    = ["all"]
+
+[generators]
+description = "event generators side by side: Pythia 8, Herwig 7, Sherpa, Whizard, MadGraph5_aMC@NLO"
+packages    = ["core", "herwig", "sherpa", "whizard", "madgraph"]
+
+[bsm-recast]
+description = "BSM reinterpretation: MadGraph, Delphes, MadAnalysis 5, Contur on Rivet, the HEPData clients"
+packages    = ["core", "madgraph", "delphes", "madanalysis5", "contur", "hepdata"]
+note        = "DelphesMA5tune comes from inside MadAnalysis 5: `install delphesMA5tune` at its prompt"
+
+[bsm-models]
+description = "model building: FeynRules and SARAH (Mathematica packages), UFO models into MadGraph"
+packages    = ["madgraph", "feynrules", "sarah", "ufo-models"]
+note        = "needs Mathematica (external); NLOCT goes into FeynRules' folder from the FeynRules wiki"
+
+[heavy-flavour]
+description = "heavy-flavour and tau decays: EvtGen with PHOTOS++ and TAUOLA++, on Pythia 8 and HepMC3"
+packages    = ["core", "evtgen"]
+
+[exclusive]
+description = "central exclusive production: SuperChic"
+packages    = ["core", "superchic"]
+
+[fixed-order]
+description = "fixed-order predictions: MCFM"
+packages    = ["core", "mcfm"]
+
+[tuning]
+description = "generator tuning: Professor, on Rivet and YODA"
+packages    = ["core", "professor"]
+
+[detector]
+description = "detector simulation and description: Geant4, DD4hep, GeoModel with ATLAS FullSimLight, Garfield++, Delphes"
+packages    = ["core", "geant4", "delphes", "dd4hep", "geomodel", "garfieldpp"]
+
+[heavy-ion]
+description = "heavy-ion collisions: the JETSCAPE framework"
+packages    = ["core", "jetscape"]
+
+[data]
+description = "data formats and publishing: HDF5 with HighFive (and h5py), the HEPData clients"
+packages    = ["highfive", "hepdata"]
+
+[key4hep]
+description = "the Key4hep stack (EDM4hep, podio, DD4hep, Gaudi, k4FWCore) from CVMFS: external, in a shell of its own"
+packages    = ["key4hep"]
+
+[cms]
+description = "CMSSW from CVMFS, in an el9 container: external"
+packages    = ["cmssw"]
+
+[fluka]
+description = "FLUKA (CERN): external, behind its licence and registration"
+packages    = ["fluka"]
+
+# ── Isolated toolkits: a C++ standard of their own, so a whole stack of their own ──────────────
+# isolated = true builds into stacks/<toolkit>/ (installs, build trees, venv; the framework's apps for
+# that stack go to stacks/<toolkit>/Apps). Load it with `source stacks/<toolkit>/setup.sh`, in a
+# shell of its own (or after `quit`). [<toolkit>.settings] changes settings.toml's values for the
+# run; [<toolkit>.override.<package>] changes a package's keys. A toolkit that changes cxx_std or
+# opt_flags must be isolated: the engine refuses it otherwise.
+
+[key4hep-src]
+description = "Key4hep's data model and framework from source, in a C++20 stack of their own: podio, EDM4hep, Gaudi, on ROOT, HepMC3 and Geant4"
+isolated    = true
+packages    = ["python", "root", "hepmc3", "geant4", "podio", "edm4hep", "gaudi"]
+note        = "the same tools come prebuilt with @key4hep (CVMFS); this builds them here, for a machine without CVMFS"
+
+[key4hep-src.settings]
+cxx_std = 20
+
+[key4hep-src.override.geant4]
+extra = ["-DGEANT4_BUILD_CXXSTD=20"]
+
+[gpu-sim]
+description = "Geant4 electromagnetic showers on the GPU: AdePT, on VecGeom, G4HepEm and Geant4, in a C++20 stack of their own"
+isolated    = true
+packages    = ["python", "hepmc3", "geant4", "adept"]
+note        = "needs CUDA and an NVIDIA GPU (external: cuda); set cuda_arch for a machine without its GPU"
+
+[gpu-sim.settings]
+cxx_std = 20
+
+[gpu-sim.override.geant4]
+extra = ["-DGEANT4_BUILD_CXXSTD=20"]

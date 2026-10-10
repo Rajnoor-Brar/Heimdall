@@ -211,3 +211,104 @@ hep build --framework && make test    # the framework's apps and tests, against 
 - **Not built here:** CMSSW and Key4hep, which come from CVMFS in an el9 apptainer container. Never
   mix their environment with this stack's in one shell. A standalone xrootd is not built either:
   ROOT builds its own.
+
+---
+
+## 6. Toolkits: preset sets for a kind of work
+
+A toolkit is a named set of packages ([toolkits.toml](toolkits.toml)). `packages=@<toolkit>` builds it,
+with what its packages need. Toolkits mix with each other and with names: `packages="@lab
+@heavy-flavour"`. `--toolkits` lists them. `packages=all` is still the lab PC's set (`@lab`): the
+toolkit packages join only by name or through a toolkit.
+
+| Toolkit | For | Brings (besides the core) |
+|---|---|---|
+| `@lab` | the lab PC's stack | the extra generators, Delphes, ONNX Runtime, Geant4 |
+| `@generators` | event generators side by side | Herwig, Sherpa, Whizard, MadGraph5_aMC@NLO |
+| `@bsm-recast` | BSM reinterpretation | MadGraph, Delphes, MadAnalysis 5, Contur, the HEPData clients |
+| `@bsm-models` | model building | FeynRules, SARAH, UFO models into MadGraph; needs Mathematica |
+| `@heavy-flavour` | heavy-flavour and tau decays | EvtGen with PHOTOS++ and TAUOLA++ |
+| `@exclusive` | central exclusive production | SuperChic |
+| `@fixed-order` | fixed-order predictions | MCFM |
+| `@tuning` | generator tuning | Professor |
+| `@detector` | detector simulation and description | Geant4, Delphes, DD4hep, GeoModel with FullSimLight, Garfield++ |
+| `@heavy-ion` | heavy-ion collisions | JETSCAPE |
+| `@data` | data formats and publishing | HDF5 with HighFive (and h5py), the HEPData clients |
+| `@key4hep`, `@cms`, `@fluka` | external stacks | nothing built: the run says where they come from |
+| `@key4hep-src` | Key4hep's data model and framework, from source | **isolated, C++20:** ROOT, HepMC3, Geant4, podio, EDM4hep, Gaudi |
+| `@gpu-sim` | Geant4 EM showers on the GPU | **isolated, C++20:** Geant4, VecCore, VecGeom, G4HepEm, AdePT; CUDA (external) |
+
+**Isolated toolkits: a C++ standard of their own.** The stack is one ABI: ROOT, Rivet, Pythia 8,
+Geant4 and the framework's apps all C++17. A tool that needs C++20 cannot join it, so a toolkit may
+build a whole stack of its own:
+- `isolated = true` builds into `stacks/<toolkit>/` (its installs, build trees and venv; its
+  framework apps go to `stacks/<toolkit>/Apps`). `stash/` is shared.
+- `[<toolkit>.settings]` changes settings for the run, `cxx_std = 20` above all, and
+  `[<toolkit>.override.<package>]` changes a package's keys for it (Geant4's own C++ switch).
+- **A toolkit that changes `cxx_std` or `opt_flags` must be isolated**: the engine refuses it
+  otherwise. **One isolated stack per run.**
+- `source stacks/<toolkit>/setup.sh`, which the build writes, loads it instead of `setup.sh`, in a
+  shell of its own (or after `quit`). `hep where` and the prompt (`HEP-<toolkit>`) say which stack
+  is loaded.
+
+**Your own toolkits** go in [toolkits.d/](toolkits.d/README.md), one or more `*.toml` files in the
+same format; [toolkits.d/example.toml.sample](toolkits.d/example.toml.sample) shows every key. They
+are read with the presets and used the same way. A name that a preset already has is refused, so a
+custom toolkit never silently replaces one.
+
+**Three kinds of package beyond the lab PC's:**
+- **`status = "new"`**: the recipe follows the project's own build instructions, with releases
+  checked on 2026-10-10, but no build has proven it yet. The run says so when it starts one, and
+  its first failure is a gate (docs/framework/02_Agents.md §6). Once a build proves it, the status
+  goes.
+- **`kind = "external"`**: never built here. Key4hep and CMSSW come from CVMFS, each in a shell or
+  container of its own and never mixed with `setup.sh`'s. FLUKA comes behind its licence, and
+  Mathematica behind its own. Their `how` says where each comes from.
+- **`apt = [...]`**: a package's own system packages, installed with `settings.toml`'s for the run
+  that builds it.
+
+### What was asked for, and what came of it
+
+From the list asked for on 2026-10-10: a tool is added when it is installed on its own, rather than
+being part of another tool. It must also be compatible (MadGraph 3, Pythia 8.3; a tool needing
+another C++ standard gets an isolated toolkit), and still be released and supported.
+
+| Asked for | Decision | Why |
+|---|---|---|
+| Contur | **added** (`contur`, pip, 3.1.3) | separate; Contur 3 runs on Rivet 4 |
+| MadAnalysis 5 | **added** (`madanalysis5`, 1.11.1) | separate; releases on GitHub |
+| DelphesMA5tune | inside MadAnalysis 5 | installed from MadAnalysis 5's prompt (`install delphesMA5tune`): a part of it |
+| EvtGen | **added** (`evtgen`, R03-00-01) | separate; HepMC3, Pythia 8, PHOTOS++ and TAUOLA++ interfaces |
+| PHOTOS++ | **added** (`photospp`, 3.64) | separate; HepMC3 since 3.64 |
+| TAUOLA++ | **added** (`tauolapp`, 1.1.8) | separate; HepMC3 since 1.1.8 |
+| SuperChic | **added** (`superchic`, 5.6.2) | separate; active |
+| MCFM | **added** (`mcfm`, 10.3) | separate; the latest release |
+| Professor | **added** (`professor`, 2.5.2) | separate; still released (Apprentice is its intended successor, not yet a replacement) |
+| JETSCAPE | **added** (`jetscape`, 4.0.2) | separate; active |
+| HighFive / HDF5 | **added** (`highfive`, 3.3.0; `libhdf5-dev`) | HighFive is maintained at highfive-devs since BlueBrain's archive (2025) |
+| HEPData | **added** (`hepdata`: hepdata-lib, hepdata-cli) | the database is a website; its clients are what installs |
+| DD4hep | **added** (`dd4hep`, 01-38) | standalone on the stack's ROOT and Geant4; C++17 since v01-35 |
+| ATLAS FullSimLight | **added** inside `geomodel` (6.27.0) | its own repository is archived; it is now built as part of GeoModel |
+| Garfield++ | **added** (`garfieldpp`, 2025.12) | separate; active |
+| FeynRules, SARAH | **added** (`feynrules` 2.3.49, `sarah` 4.15.4) | separate Mathematica packages: they need Mathematica (external) |
+| NLOCT | with FeynRules | a FeynRules extension, downloaded into FeynRules' folder from the FeynRules wiki |
+| UFO models | **added** (`ufo-models`) | data, not a tool: `settings.toml`'s `ufo_models` URLs are unpacked into MadGraph's `models/` |
+| Key4hep | **external** (`key4hep`) | a whole stack (Spack, C++20) from CVMFS, in a shell of its own |
+| EDM4hep | **added**, isolated (`@key4hep-src`: `edm4hep` 01-01 on `podio` 01-07); or prebuilt through `@key4hep` | it needs C++20 (and podio): a stack of its own |
+| Gaudi | **added**, isolated (`@key4hep-src`: `gaudi` v40r6); or prebuilt through `@key4hep` | C++20 since v39r0: a stack of its own |
+| CMSSW | **external** (`cmssw`) | from CVMFS in an el9 container; never mixed with this stack |
+| FLUKA | **external** (`fluka`) | registration and licence: it cannot be fetched for the user |
+| VINCIA | inside Pythia 8 | Pythia 8.3's shower (`PartonShowers:model = 2`) |
+| DIRE | inside Pythia 8 | Pythia 8.3's shower (`PartonShowers:model = 3`); the standalone DIRE is no longer released |
+| MadSpin, MadWidth | inside MadGraph | parts of MG5_aMC |
+| MadSTR | left out | a MadGraph plugin that does not support MadGraph 3: in conflict with MG5_aMC 3.7.3 |
+| TCL detector cards | inside Delphes | Delphes' cards are Tcl files (`cards/`); a work dir keeps its own |
+| GDML | inside ROOT and Geant4 | a format: ROOT (`gdml`) and Geant4 (`GEANT4_USE_GDML`) are built with it |
+| CheckMATE | left out | its Pythia support is the 8.2 series only (the stack has 8.317), and it has no tagged releases to pin; MadAnalysis 5 and Contur cover recasting |
+| AdePT | **added**, isolated (`@gpu-sim`: `adept` 0.4.1 on `vecgeom` v2.1.1, `g4hepem` 20251114, `veccore` 0.8.2) | C++20 and CUDA: a stack of its own; CUDA and the GPU are external |
+| HELAC-Onia | left out | the public release is 2.0.1, from 2015; newer versions are not distributed publicly |
+| Hector | left out | the last release is 1.5.2, from 2009 |
+| FROG | left out | an event display unmaintained for over a decade |
+| GeantV | left out | the project ended in 2019 (its successors are AdePT and Celeritas) |
+| MCplots | left out | a website (mcplots.cern.ch) built on Rivet, not a tool to install |
+| TArt | left out | not identified with certainty (RIKEN ANAROOT's `TArt` classes are experiment-specific); name the one you meant |

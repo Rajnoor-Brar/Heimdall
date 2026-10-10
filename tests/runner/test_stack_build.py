@@ -136,6 +136,8 @@ def test_every_toolkit_plans_and_names_only_packages(bs, tmp_path):
     (lab, _), _, _ = planned(bs, tmp_path, "packages=@lab")
     (everything, _), _, _ = planned(bs, tmp_path, "packages=all")
     assert lab == everything
+    (primary, _), _, _ = planned(bs, tmp_path, "packages=@primary")
+    assert primary == everything + ["madanalysis5"]                  # the primary workflow: ~/HEP's and MadAnalysis 5
 
 
 def test_a_toolkit_brings_what_it_needs(bs, tmp_path):

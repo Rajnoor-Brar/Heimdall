@@ -1,0 +1,9 @@
+# What the runner and the build make: reproducible from configs/ and modules/
+build/
+output/
+results/
+# Inputs and decks: too large, or not for git (hep setup . makes the folders again)
+datasets/*
+reports/*
+__pycache__/
+*.exe

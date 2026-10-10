@@ -1,10 +1,8 @@
-"""utils/hepkit.py — the C++ kit (utils/Kit.hh, Status.hh) for a custom tool written in Python (V74).
+"""framework/hepkit.py — the C++ kit (src/Kit.hh, Status.hh) for a custom tool written in Python (V74).
 
 A custom tool is any program; this module gives one written in Python what the apps have:
 
-    import sys, pathlib
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "utils"))   # from modules/<P>/
-    import hepkit
+    import hepkit                            # Heimdall's venv has framework/ on its path (heimdall.pth)
 
     status = hepkit.Status()                 # JSON lines on $HEP_STATUS_FD (status = "standard"), else stderr
     status.phase("reading", source)
@@ -21,8 +19,8 @@ A custom tool is any program; this module gives one written in Python what the a
   is written, exit `Exit.STOPPED`.
 * `usage(text)`: print it and exit `Exit.USAGE`.
 
-Standard library only; utils/ (not utils/Env, whose tool folders would shadow the yoda and rivet
-packages) is what a tool puts on its path.
+Standard library only. Another Python finds it with `sys.path.insert(0, os.environ["HEP"] + "/framework")`:
+framework/ shadows nothing (the tool folders, named like the yoda and rivet packages, are in framework/tools/).
 """
 
 from __future__ import annotations
@@ -67,7 +65,7 @@ def usage(text: str) -> None:
 
 
 class Status:
-    """The standard status protocol, as utils/Status.hh writes it."""
+    """The standard status protocol, as src/Status.hh writes it."""
 
     def __init__(self, beat: float = 0.5, signals: bool = True):
         value = os.environ.get("HEP_STATUS_FD")

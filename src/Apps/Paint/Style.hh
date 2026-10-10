@@ -1,8 +1,9 @@
 #pragma once
-// utils/Apps/Paint/Style.hh — a page's style: base.toml, with the page's [style] merged over it.
+// src/Apps/Paint/Style.hh — a page's style: base.toml, with the page's [style] merged over it.
 //
-// base.toml (beside this file) is the one place a default lives. Paint finds it from its own
-// executable (build/Paint.exe → ../utils/Apps/Paint/base.toml), else under $HEKIT_ROOT. A page's
+// base.toml (beside this file) is the one place a default lives. Paint finds it under $HEP
+// (Heimdall), else from its own executable on Linux (framework/Apps/Paint.exe, or an isolated
+// stack's stacks/<toolkit>/Apps/Paint.exe → Heimdall/src/Apps/Paint/base.toml). A page's
 // [style] names only what it changes, in base.toml's tables; a key base.toml does not have, or a
 // value of another type, is an error. `legend.position` is a corner name, "best" or [x, y].
 
@@ -56,7 +57,7 @@ namespace Paint {
             for (auto&& [key, value] : over) {
                 const std::string name = where.empty() ? std::string(key.str()) : where + "." + std::string(key.str());
                 toml::node* mine = base.get(key);
-                if (!mine) throw std::runtime_error("[style] has no key '" + name + "' (utils/Apps/Paint/base.toml lists them)");
+                if (!mine) throw std::runtime_error("[style] has no key '" + name + "' (src/Apps/Paint/base.toml lists them)");
                 if (mine->is_table() && value.is_table()) {
                     merge(*mine->as_table(), *value.as_table(), name);
                     continue;
@@ -107,12 +108,16 @@ namespace Paint {
 
     inline std::filesystem::path basePath() {
         namespace fs = std::filesystem;
-        const fs::path rel = fs::path("utils") / "Apps" / "Paint" / "base.toml";
+        const fs::path rel = fs::path("src") / "Apps" / "Paint" / "base.toml";
+        if (const char* root = std::getenv("HEP"); root && fs::exists(fs::path(root) / rel)) return fs::path(root) / rel;
         std::error_code ec;
-        const fs::path exe = fs::canonical("/proc/self/exe", ec);
-        if (!ec && fs::exists(exe.parent_path().parent_path() / rel)) return exe.parent_path().parent_path() / rel;
-        if (const char* root = std::getenv("HEKIT_ROOT"); root && fs::exists(fs::path(root) / rel)) return fs::path(root) / rel;
-        throw std::runtime_error("cannot find utils/Apps/Paint/base.toml (beside build/, or under $HEKIT_ROOT)");
+        const fs::path exe = fs::canonical("/proc/self/exe", ec);      // Linux only; $HEP is the portable way
+        if (!ec) {
+            const fs::path apps = exe.parent_path();
+            for (const fs::path& root : {apps.parent_path().parent_path(), apps.parent_path().parent_path().parent_path()})
+                if (fs::exists(root / rel)) return root / rel;
+        }
+        throw std::runtime_error("cannot find src/Apps/Paint/base.toml (under $HEP, or from Paint.exe's folder)");
     }
 
     inline Style readStyle(const toml::table* over) {

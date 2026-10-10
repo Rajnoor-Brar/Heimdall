@@ -1,7 +1,7 @@
 """`hep deck` (docs/reporter): a deck of slides from drawn pages, in reports/<deck>/.
 
 A deck's folder holds the user's deck.md (the talk) and deck.toml (where its plots come from:
-utils/Env/schema/deck.toml). The plots are blocks, each a grid of panels:
+framework/schema/deck.toml). The plots are blocks, each a grid of panels:
 
 * **From result folders** (a recipe's `[blocks.<name>]`, V103): `from = "<Project>/<run>"`, its result
   `folders` (a panel each) and the `pages` drawn in them (a block each), plus an `extra` file. A panel is
@@ -14,7 +14,7 @@ Collecting copies a recipe's panels into panels/<block>/, again only when one ch
 everything it shows (D-R5).
 
 Building (V104) draws each block's composite (figures/<block>.pdf by pdflatex, its .png rendered from
-it: utils/Env/figures/layout.py), then turns the user's deck.md into every target with pandoc: a block
+it: framework/tools/figures/layout.py), then turns the user's deck.md into every target with pandoc: a block
 reference `![](<block>)` becomes its composite's path, the PDF for Beamer, the PNG for pptx and HTML.
 deck.md is only read (D-R4); `--init` writes it once.
 """

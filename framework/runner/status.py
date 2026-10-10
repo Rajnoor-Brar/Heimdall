@@ -2,7 +2,7 @@
 
 docs/06_Internals.md §22 and docs/06_Internals.md §10.
 
-* A tool with status = "standard" writes JSON lines to $HEP_STATUS_FD (utils/Status.hh); a tool's
+* A tool with status = "standard" writes JSON lines to $HEP_STATUS_FD (src/Status.hh); a tool's
   output is matched against its filters.toml rules (progress, phase, warn, error, ignore). A rule never
   fails a run: the exit code does that.
 * Both are read from pipes by one thread per tool (V72), so a tool that prints fast never waits on a

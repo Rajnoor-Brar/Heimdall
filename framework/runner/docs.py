@@ -9,10 +9,10 @@ A page of docs/ holds blocks
 and `make docs` rewrites what is between from the code; tests/runner/test_docs.py fails while a block
 differs ("run `make docs`"). What a block may name:
 
-* `keys <table>`: a schema table's keys (utils/Env/schema/run.toml: type, choices, bounds, default,
+* `keys <table>`: a schema table's keys (framework/schema/run.toml: type, choices, bounds, default,
   inheritance, doc and notes, V90); `keys figure` lists a figure's own keys, then the [plot] keys it
   inherits;
-* `style`: utils/Apps/Paint/base.toml's keys, their defaults and their comments;
+* `style`: src/Apps/Paint/base.toml's keys, their defaults and their comments;
 * `commands`: `hep`'s subcommands and their options, from cli.parser()'s help.
 """
 

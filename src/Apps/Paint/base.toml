@@ -1,7 +1,7 @@
-# utils/Apps/Paint/base.toml — Paint's base style: rivet-mkhtml's look (its default.mplstyle).
+# src/Apps/Paint/base.toml — Paint's base style: rivet-mkhtml's look (its default.mplstyle).
 #
 # Every ROOT page starts from this file; edit it to change them all. Over it, key by key, go:
-#   1. [plot].root_style = "file.toml"   a style file of the run (configs/<Project>/…, ./… from the repo root)
+#   1. [plot].root_style = "file.toml"   a style file of the run (configs/<Project>/…, ./… from the work dir)
 #   2. [plot.style]                       inline in the run TOML
 #   3. [plot.figures.<figure>.style]      for a figure's pages
 # Each layer names only the keys it changes, in the same tables as here. A key that is not in this

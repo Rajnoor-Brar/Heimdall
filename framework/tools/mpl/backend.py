@@ -1,4 +1,4 @@
-"""utils/Env/mpl/backend.py — `[plot] backend = "mpl"`: the pages drawn with matplotlib, in this process.
+"""framework/tools/mpl/backend.py — `[plot] backend = "mpl"`: the pages drawn with matplotlib, in this process.
 
 docs/04_Config_Reference.md §11, docs/03_Plots.md §9 (V71). The same pages the yoda backend hands
 rivet-mkhtml, drawn without it. **Until the user has verified them, they must match mkhtml's pages**, so

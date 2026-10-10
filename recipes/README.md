@@ -223,6 +223,7 @@ toolkit packages join only by name or through a toolkit.
 
 | Toolkit | For | Brings (besides the core) |
 |---|---|---|
+| **`@primary`** | **the primary workflow**: what the fresh-machine plans build | the lab PC's stack (`@lab`) and MadAnalysis 5 |
 | `@lab` | the lab PC's stack | the extra generators, Delphes, ONNX Runtime, Geant4 |
 | `@generators` | event generators side by side | Herwig, Sherpa, Whizard, MadGraph5_aMC@NLO |
 | `@bsm-recast` | BSM reinterpretation | MadGraph, Delphes, MadAnalysis 5, Contur, the HEPData clients |

@@ -2,7 +2,7 @@
 `explain`, `status`, `clean`: house.py) (rank 5): argument parsing and the order of events.
 
 docs/05_Commands_and_Tools.md §1. `hep build` is handled by the shell dispatcher
-(utils/Env/hep), which runs make.
+(framework/bin/hep), which runs make.
 
 Exit codes: 0 every point done (or skipped), 1 a point failed, 2 a config error before anything ran,
 6 stopped by the user. Under [run].sweep_runs (V38), several runs one after another: 6 if one was
@@ -27,8 +27,9 @@ from pathlib import Path
 from . import config as configmod
 from . import deck as deckmod
 from . import execute, house, plot, post, record, sweep, tools
+from . import setup as setupmod
 from .errors import HepError
-from .paths import output_root, results_root
+from .paths import check_retired, find_work, output_root, results_root
 from .quantities import load_master
 from .events import Bus, Hub, Journal, RunBus, greeting, connect, hubs
 from .watch import follow_events, follow_file, view
@@ -39,7 +40,7 @@ def parser() -> argparse.ArgumentParser:
     commands = top.add_subparsers(dest="command", required=True)
 
     run = commands.add_parser("run", help="plan and run a configuration")
-    run.add_argument("config", help="configs/<Project>/<name>[.toml], or ./path from the repo root")
+    run.add_argument("config", help="configs/<Project>/<name>[.toml], or ./path from the work dir")
     run.add_argument("configuration", nargs="?", help="overrides [run].configuration; under [run].sweep_runs, runs only it")
     run.add_argument("--plan", action="store_true", help="print the plan; run nothing")
     run.add_argument("--why", action="store_true",
@@ -111,6 +112,18 @@ def parser() -> argparse.ArgumentParser:
     watch.add_argument("configuration", nargs="?", help="overrides [run].configuration (or the sweep's latest)")
     watch.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
     watch.add_argument("--file", metavar="STATUS.JSONL", help="follow a --journal run's status file instead")
+
+    make = commands.add_parser("setup", help="make a work dir: the key folders, hep.toml and the template's files (never overwrites)")
+    make.add_argument("dir", help="the work dir's folder: new, empty, or a work dir to complete")
+    make.add_argument("--project", metavar="P", help="also configs/<P>/ with a starter run TOML and card, and modules/<P>/")
+    make.add_argument("--git", action="store_true", help="git init, and commit what was added")
+    make.add_argument("--adopt", action="store_true", help="make a work dir of a folder that has files but no hep.toml")
+    make.add_argument("--name", help="the work dir's name in hep.toml (default: the folder's)")
+
+    where = commands.add_parser("where", help="which Heimdall and which work dir this shell sees")
+    which = where.add_mutually_exclusive_group()
+    which.add_argument("--hep", action="store_const", const="hep", dest="which", help="only Heimdall's folder")
+    which.add_argument("--work", action="store_const", const="work", dest="which", help="only the work dir (exit 2 outside one)")
     return top
 
 
@@ -701,7 +714,7 @@ def _planned_all(names: list[str], configuration: str | None = None) -> tuple[li
 
 def cmd_status(args) -> int:
     """`hep status [CONFIG [CONFIGURATION]]` (V74): each configuration's points and stages. `--stack`
-    (V78): each package of utils/Env/stack.toml, its version and where it is."""
+    (V78): each package of env/stack.toml, its version and where it is."""
     if getattr(args, "stack", False):
         from .plugins import load
         from .paths import hep_root
@@ -804,7 +817,7 @@ def cmd_reproduce(args) -> int:
     where = output_root() / record_["project"] / ".reproduce" / record_["identity"][:12]
     sets = []
     if planned.configuration.seed_type == "random":
-        sets = ["--set", f'run.{key}.seed_type="manual"', "--set", f"run.{key}.manual_seed={record_['seed']}"]
+        sets = ["--set", f'run.cfgs.{key}.seed_type="manual"', "--set", f"run.cfgs.{key}.manual_seed={record_['seed']}"]   # V98's form (C78)
     argv = [sys.executable, str(Path(__file__).resolve().parents[1] / "bin" / "run"), "run", config_file, key,
             "--points", name, "--rerun", *[x for item in given for x in ("--set", item)], *sets,
             *(["--plain"] if args.plain else [])]
@@ -873,6 +886,15 @@ def parse(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse(argv)
     try:
+        check_retired()                                            # a shell with High-Energy's names (K15)
+        if args.command != "setup" and (work := find_work()) is not None:
+            if warning := setupmod.expects_warning(work):          # once per command (01 §4.2)
+                print(warning, file=sys.stderr)
+        if args.command == "setup":
+            setupmod.setup(Path(args.dir), project=args.project, git=args.git, adopt=args.adopt, name=args.name)
+            return 0
+        if args.command == "where":
+            return setupmod.where(args.which)
         if args.command == "run":
             return cmd_run(args)
         if args.command == "plot":

@@ -27,7 +27,7 @@ from .paths import hep_root, resolve
 
 @functools.cache
 def vocabulary() -> dict:
-    """utils/Env/quantities.toml: what each quantity name means, for every tool (V58)."""
+    """framework/schema/quantities.toml: what each quantity name means, for every tool (V58)."""
     path = hep_root() / "framework" / "schema" / "quantities.toml"
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
@@ -81,7 +81,7 @@ def _folders_master() -> dict:
 
 
 def load_master(project: str, master_toml: str | None) -> dict:
-    """The tool folders' mappings (utils/Env/<tool>/quantities.toml), overlaid key by key by the project's
+    """The tool folders' mappings (framework/tools/<tool>/quantities.toml), overlaid key by key by the project's
     master if [config].master names one ([quantities.<tool>.compatible_quantities], as before)."""
     master = copy.deepcopy(_folders_master())
     read = _read
@@ -268,13 +268,13 @@ def check_shapes(quantity, where: str) -> None:
 # ── providers: things a value needs installed (06 §4, category 1) ─────────────────────────────
 
 def _provider(name: str):
-    """utils/Env/<name>/provider.py (V60): a provider's checks, loaded by name."""
+    """framework/tools/<name>/provider.py (V60): a provider's checks, loaded by name."""
     return plugins.load(hep_root() / "framework" / "tools" / name / "provider.py", "provider")
 
 
 def check_provider(kind: str, value, where: str) -> None:
     """Refuse at plan time a value whose provider is missing (C10): `check = "<provider>:<form>"` in a tool
-    folder's quantities.toml, e.g. "lhapdf:pythia" (utils/Env/lhapdf/provider.py)."""
+    folder's quantities.toml, e.g. "lhapdf:pythia" (framework/tools/lhapdf/provider.py)."""
     provider, _, form = kind.partition(":")
     if not form:
         raise HepError(f"a provider check is '<provider>:<form>', not '{kind}'", where=where)

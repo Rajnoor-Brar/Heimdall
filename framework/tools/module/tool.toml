@@ -1,4 +1,4 @@
-# utils/Env/module/tool.toml — a module program built with utils/Module.hh (docs/06_Internals.md §21).
+# framework/tools/module/tool.toml — a module program built with src/Module.hh (docs/06_Internals.md §21).
 # The table names it: executable = "Decay.exe" → build/<project>/Decay.exe. It always gets its
 # extracted config as the first argument; an empty --input means an integrated program.
 [tool]

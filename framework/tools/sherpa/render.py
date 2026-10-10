@@ -1,4 +1,4 @@
-"""utils/Env/sherpa/render.py — Sherpa's point card: the base YAML deep-merged with the point's
+"""framework/tools/sherpa/render.py — Sherpa's point card: the base YAML deep-merged with the point's
 values, written whole (docs/06_Internals.md §16, L12).
 
 Sherpa's card is a tree, so "base plus overrides" is a merge, not v1's append-and-last-wins. A key

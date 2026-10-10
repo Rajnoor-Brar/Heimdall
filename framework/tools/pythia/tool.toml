@@ -1,4 +1,4 @@
-# utils/Env/pythia/tool.toml — the standard Pythia tool: build/App_Pythia.exe (docs/05_Commands_and_Tools.md §16).
+# framework/tools/pythia/tool.toml — the standard Pythia tool: framework/Apps/App_Pythia.exe (docs/05_Commands_and_Tools.md §16).
 [tool]
 category        = "event-generator"
 executable      = "{hep}/framework/Apps/App_Pythia.exe"
@@ -45,4 +45,4 @@ card = ["{hep}/framework/Apps/App_PythiaCheck.exe", "{card}"]   # Pythia reads t
 
 [identity]
 files   = ["{exe}"]
-version = "stack:pythia8"                # utils/Env/stack.toml's (V78)
+version = "stack:pythia8"                # env/stack.toml's (V78)

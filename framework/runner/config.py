@@ -837,7 +837,7 @@ TEXT_KEYS = ("labels", "title", "title_left", "title_right", "legend_header", "x
 
 
 def check_meta(meta: dict, where: str) -> None:
-    """[config.meta] (V97): free keys for people; `versions` names packages of utils/Env/stack.toml, each
+    """[config.meta] (V97): free keys for people; `versions` names packages of env/stack.toml, each
     with the version (a string) the file was run with. A misspelt package is refused, or its warning
     would never come; a version that differs is only a warning (tools.meta_notes), never a refusal."""
     versions = meta.get("versions", {})

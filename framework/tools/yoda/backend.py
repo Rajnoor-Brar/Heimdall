@@ -1,4 +1,4 @@
-"""utils/Env/yoda/backend.py — `[plot] backend = "yoda"`: the same pages drawn by rivet-mkhtml.
+"""framework/tools/yoda/backend.py — `[plot] backend = "yoda"`: the same pages drawn by rivet-mkhtml.
 
 Frozen (V71, B4c option B): no new features; the mpl backend draws these pages without mkhtml, and uses
 this module's transforms until it goes.
@@ -15,7 +15,7 @@ plot_points cell this writes
   overrides in LaTeX; the rest of the labels mkhtml reads from the analysis's own .plot;
 
 and runs rivet-mkhtml into results/…/plots/<cell>/. mkhtml always writes PDF and PNG; svg and eps
-are added. Of the style (utils/Apps/Paint/base.toml) mkhtml can honour a legend corner and the ratio
+are added. Of the style (src/Apps/Paint/base.toml) mkhtml can honour a legend corner and the ratio
 pad's y ticks (ratio.divisions: YODA's generator puts them at a fifth of the range, so each page's
 script is redone with ROOT's rule and run again); any other [plot.style] or
 [plot.figures.<figure>].style key, and [plot].root_style, are refused. Beside
@@ -44,8 +44,8 @@ _SPEC = tomllib.loads((Path(__file__).with_name("backend.toml")).read_text(encod
 FORMATS = {k: v or None for k, v in _SPEC["formats"].items()}                     # None: mkhtml writes it anyway
 LEGEND = _SPEC["legend"]
 HONOURED = {tuple(key.split(".")) for key in _SPEC["style"]["honoured"]}         # style keys mkhtml can follow
-MARK = "# ratio ticks: ratio.divisions (utils/Env/yoda/backend.py)"
-TITLE_MARK = "# titles: title, title_left, title_right (utils/Env/yoda/backend.py)"
+MARK = "# ratio ticks: ratio.divisions (framework/tools/yoda/backend.py)"
+TITLE_MARK = "# titles: title, title_left, title_right (framework/tools/yoda/backend.py)"
 
 
 def validate(settings: dict, beside_root: bool = False, curve_styles: list[dict] = ()) -> None:

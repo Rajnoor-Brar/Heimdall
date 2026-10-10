@@ -82,7 +82,7 @@ alias load_hep="$HOME/Github/Heimdall/recipes/platforms/mac/launch.sh"
 Then, in the launched shell, the framework against the new stack:
 
 ```bash
-hep build && make test
+hep build --framework && make -C "$HEP" test
 ```
 
 ---

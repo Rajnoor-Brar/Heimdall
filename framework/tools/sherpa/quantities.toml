@@ -1,4 +1,4 @@
-# utils/Env/sherpa/quantities.toml — how Sherpa consumes the vocabulary (V58): keys are paths into
+# framework/tools/sherpa/quantities.toml — how Sherpa consumes the vocabulary (V58): keys are paths into
 # the YAML card (render.py).
 energies = { key = "BEAM_ENERGIES" }                # [E_A, E_B]: the card puts the proton first
 beams    = { key = "BEAMS" }                        # [id_A, id_B]: the plan owns BEAMS, so it is set whole

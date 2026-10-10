@@ -1,4 +1,4 @@
-# utils/Env/schema/deck.toml — a deck's recipe, reports/<name>/deck.toml (docs/reporter, V103).
+# framework/schema/deck.toml — a deck's recipe, reports/<name>/deck.toml (docs/reporter, V103).
 #
 # Every key's type, default and meaning, written once: runner/schema.py checks a recipe against it
 # (its tables "deck" and "block"), and `make docs` writes the tables into docs/04_Config_Reference.md.

@@ -69,6 +69,30 @@ def hep_root() -> Path:
     return root
 
 
+#: hep.toml's tables and keys (docs/framework/01_Target.md §4.2): any other is refused.
+WORK_KEYS = {"work": ("name",), "framework": ("expects",)}
+
+
+def work_meta(root: Path) -> dict:
+    """A work dir's hep.toml, checked: its name ([work] name, else the folder's) and [framework] expects."""
+    marker = root / MARKER_FILE
+    try:
+        data = tomllib.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise HepError(f"cannot read {marker}: {error}") from None
+    known = ", ".join(f"[{table}] {' '.join(keys)}" for table, keys in WORK_KEYS.items())
+    for table, value in data.items():
+        if table not in WORK_KEYS or not isinstance(value, dict):
+            raise HepError(f"unknown table '{table}'", where=str(marker), hint=f"hep.toml has {known}")
+        for key, item in value.items():
+            if key not in WORK_KEYS[table]:
+                raise HepError(f"unknown key '{table}.{key}'", where=str(marker), hint=f"hep.toml has {known}")
+            if not isinstance(item, str):
+                raise HepError(f"'{table}.{key}' must be a string, got {item!r}", where=str(marker))
+    return {"name": data.get("work", {}).get("name") or root.name,
+            "expects": data.get("framework", {}).get("expects", "")}
+
+
 def is_work(path: Path) -> bool:
     """A work dir: a hep.toml with a [work] table."""
     marker = path / MARKER_FILE

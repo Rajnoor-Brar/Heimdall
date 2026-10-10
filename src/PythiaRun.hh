@@ -1,5 +1,5 @@
 #pragma once
-// utils/PythiaRun.hh — what every program that runs Pythia for the framework does the same way (V63):
+// src/PythiaRun.hh — what every program that runs Pythia for the framework does the same way (V63):
 // App_Pythia (the chain's generator) and the integrated programs (modules/Demo/InprocJets),
 // so their events and σ are the same by construction, not by a copied file.
 //

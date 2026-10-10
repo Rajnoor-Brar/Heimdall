@@ -7,14 +7,15 @@ the time `t`, and its kind `k`:
     run    state = started (points, title, header) | finished (verdict)
     point  state = started (index, stage) | done | stopped | failed (cause, msg, res) | skipped
     tool   state = started                     exit   code, seconds, error
-    phase, progress, xsec, log                  a tool's own status (utils/Status.hh, or its filters)
+    phase, progress, xsec, log                  a tool's own status (src/Status.hh, or its filters)
     line   a tool's latest output line (at most twice a second per tool)
     note   a line for the point's block        say    a line of the run's
 
 Runtime state stays off disk (the user, 2026-10-03). Who hears the bus:
 * the view, always (watch.py);
 * the **Hub**, while the process lives: an abstract Unix socket `@hep-watch-<pid>` (no file, no path
-  limit). `hep watch` finds it in /proc/net/unix, gets a greeting, the current run's events so far
+  limit) on Linux, which `hep watch` finds in /proc/net/unix; elsewhere (macOS has neither) a socket
+  file <tmp>/hep-watch/hep-watch-<pid>, removed when the process ends. The watcher gets a greeting, the current run's events so far
   (a tool's progress only as its latest), then every event live. A sweep of runs is one process, so
   the stream follows from run to run by itself;
 * the **Journal**, only with `--journal`: the same events in output/…/status.jsonl, one file per run,
@@ -31,12 +32,22 @@ import json
 import os
 import queue
 import socket
+import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 
 VERSION = 1
-PREFIX = "hep-watch-"                     # the abstract socket's name: PREFIX + pid
+PREFIX = "hep-watch-"                     # the socket's name: PREFIX + pid
+#: Abstract sockets are Linux's; elsewhere the sockets are files in one folder (a short path: 104 bytes on macOS).
+ABSTRACT = sys.platform.startswith("linux")
+SOCKETS = Path(tempfile.gettempdir()) / "hep-watch"
+
+
+def address(name: str) -> str:
+    """Where the watch socket `name` is: an abstract name on Linux, a file elsewhere."""
+    return "\0" + name if ABSTRACT else str(SOCKETS / name)
 
 
 class Bus:
@@ -117,7 +128,10 @@ class Hub:
         self._clients: list[queue.Queue] = []
         self._lock = threading.Lock()
         self._server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._server.bind("\0" + self.name)
+        if not ABSTRACT:
+            SOCKETS.mkdir(mode=0o700, exist_ok=True)
+            Path(address(self.name)).unlink(missing_ok=True)    # a dead process's, with this pid
+        self._server.bind(address(self.name))
         self._server.listen(8)
         self._closed = False
         threading.Thread(target=self._accept, name="hep-watch-hub", daemon=True).start()
@@ -182,10 +196,24 @@ class Hub:
             self._server.close()
         except OSError:
             pass
+        if not ABSTRACT:
+            Path(address(self.name)).unlink(missing_ok=True)
 
 
 def hubs() -> list[str]:
-    """The watch sockets on this machine: their abstract names, from /proc/net/unix."""
+    """The watch sockets on this machine: their names, from /proc/net/unix (Linux) or the sockets' folder."""
+    if not ABSTRACT:
+        found = []
+        for path in sorted(SOCKETS.glob(PREFIX + "*")):
+            try:
+                os.kill(int(path.name[len(PREFIX):]), 0)
+            except ProcessLookupError:
+                path.unlink(missing_ok=True)                # its process is gone
+                continue
+            except (ValueError, PermissionError):           # a name without a pid; another user's process
+                pass
+            found.append(path.name)
+        return found
     found = []
     try:
         with open("/proc/net/unix", encoding="utf-8", errors="replace") as table:
@@ -202,7 +230,7 @@ def connect(name: str, timeout: float = 2.0):
     """A watch socket's events, as they come; the first is its greeting. Ends when the run's process does."""
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client.settimeout(timeout)
-    client.connect("\0" + name)
+    client.connect(address(name))
     client.settimeout(None)
     with client, client.makefile("r", encoding="utf-8") as stream:
         for line in stream:

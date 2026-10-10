@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
-# utils/Env/flags.sh — probe each library's *-config once and write build/flags.mk
+# env/flags.sh — probe each library's *-config once and write flags.mk
 # (docs/06_Internals.md §15.3).
 #
-#   flags.sh [OUT]     probe and write OUT (default build/flags.mk)
+#   flags.sh [OUT]     probe and write OUT: forge/make/flags.mk (Heimdall's build, framework/rules.mk),
+#                      build/flags.mk (a work dir's; the default)
 #   flags.sh --key     print what the cache depends on, cheaply: no probe runs
 #
-# The Makefile compares FLAGS_KEY in the cache with `--key` on every invocation and rewrites the
+# framework/rules.mk compares FLAGS_KEY in the cache with `--key` on every invocation and rewrites the
 # cache only when they differ. A cache keyed on less than everything it reads is a correctness bug
 # waiting for an unusual environment (ledger L22, v1's 00/B38), so the key holds the resolved path
 # of every tool probed, plus the two directories the non-config libraries come from, and the stack
-# file itself. What is probed is utils/Env/stack.toml's (V78): TOOLS, NAMES and probes() come from it.
+# file itself. What is probed is env/stack.toml's (V78): TOOLS, NAMES and probes() come from it.
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-eval "$(python3 "$here/stack.py" --bash)" || { echo "flags.sh: cannot read utils/Env/stack.toml" >&2; exit 1; }
+eval "$(python3 "$here/stack.py" --bash)" || { echo "flags.sh: cannot read env/stack.toml" >&2; exit 1; }
 
 key() {
     local t
@@ -51,7 +52,7 @@ dir_lib() {                                 # dir_lib NAME DIR LIB — a library
 }
 
 {
-    echo "# build/flags.mk — written by utils/Env/flags.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ). Do not edit:"
+    echo "# flags.mk — written by env/flags.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ). Do not edit:"
     echo "# delete it, or run \`hep build --configure\`, to probe again."
     echo "FLAGS_KEY := $(key)"
     echo "KNOWN := ${NAMES[*]}"

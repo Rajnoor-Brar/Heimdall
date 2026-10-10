@@ -1,4 +1,4 @@
-// utils/App_Pythia.cc — the standard Pythia tool (docs/05_Commands_and_Tools.md §16).
+// src/App_Pythia.cc — the standard Pythia tool (docs/05_Commands_and_Tools.md §16).
 // requires: pythia8 hepmc3 zstd zlib
 //
 //     App_Pythia.exe [--threads N] [--events N] [--seeds S1,S2,…] [--sidecar FILE]
@@ -33,14 +33,14 @@
 //       within a chunk.
 //   L25 zstd for kept event files.
 // The σ combination (L1), the stamping (L2, L28), the seed check (L4) and the chunking (L6) are
-// utils/PythiaRun.hh's, shared with the integrated programs (V63).
+// src/PythiaRun.hh's, shared with the integrated programs (V63).
 // The output is opened only after init() succeeds, so a card that fails leaves no half-open FIFO.
 // Callbacks run concurrently (processAsync = on): each instance converts with its own converter,
 // σ is combined under one small lock, and each output has its own writer and lock, so formatting
 // the HepMC text (28 kB an event) is shared among the outputs rather than done by one thread. One
 // writer holding one lock capped this app at ~2,200 events/s whatever its thread count (measured
 // 2026-09-29: 4 threads 17.7 s, 20 threads 20.5 s for 40k events).
-// Exit codes: utils/Kit.hh's one table (V73): 0 ok, 1 its card, 2 usage, 3 init, 5 output, 6 stopped,
+// Exit codes: src/Kit.hh's one table (V73): 0 ok, 1 its card, 2 usage, 3 init, 5 output, 6 stopped,
 // 70 internal.
 
 #define HEPMC3_USE_COMPRESSION 1

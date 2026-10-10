@@ -521,7 +521,7 @@ def main(argv: list[str]) -> None:
     folders = [prefix / "stash", Path(c["forge"], "logs"), Path(c["inst"], ".stamps"), Path(c["venv"]).parent]
     if script:
         print("#!/usr/bin/env bash\n# The HEP stack's build, as `build_stack.py --dry-run` printed it: run it on a fresh\n"
-              "# prefix (it neither reads nor writes stamps).\nset -euo pipefail")
+              "# prefix (it reads no stamps, and writes only the C++ standard's).\nset -euo pipefail")
         print("mkdir -p " + " ".join(shlex.quote(str(f)) for f in folders))
         for key, items in paths.items():
             print(f'export {key}={shlex.quote(":".join(items))}"${{{key}:+:${key}}}"')
@@ -530,6 +530,11 @@ def main(argv: list[str]) -> None:
     else:
         for folder in folders:
             folder.mkdir(parents=True, exist_ok=True)
+    std = Path(c["inst"], ".stamps", "cxx_std")                     # the stack's C++ standard: framework/rules.mk reads it
+    if script:
+        print(f"echo {c['cxx_std']} > {shlex.quote(str(std))}")
+    else:
+        std.write_text(f"{c['cxx_std']}\n", encoding="utf-8")
     say(f"HEP stack → {prefix}: {' '.join(order)}" + (f"  (added, as needed: {' '.join(added)})" if added else ""))
     say(f"C++{c['cxx_std']} {c['opt_flags']}, {c['cores']} cores (ROOT {c['root_cores']})"
         + (", dry run: nothing is run" if script else ""))

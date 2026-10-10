@@ -65,7 +65,7 @@ def ls(project: str | None = None) -> list[str]:
 # ── hep explain ────────────────────────────────────────────────────────────────────────────────
 
 def explain(key: str) -> list[str]:
-    """A key's type, default, choices, bounds, inheritance and doc, from utils/Env/schema/run.toml.
+    """A key's type, default, choices, bounds, inheritance and doc, from framework/schema/run.toml.
     `plot.y_gutter`, `[plot].y_gutter`, `run.event_count`, `quantities.<q>.styles`, `tools.<tag>.shards`,
     `plot.figures.<figure>.logy`, `run.cfgs.<cfg>.threads` (a configuration's, V98); a bare key is looked
     up in every table."""

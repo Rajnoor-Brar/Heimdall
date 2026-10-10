@@ -1,0 +1,63 @@
+# {{p}}.toml — the starter: Pythia's dijets through Rivet's MC_JETS, for two proton PDFs.
+#
+#   hep check {{P}}/{{p}}             is it valid? (plans every configuration, runs nothing)
+#   hep run {{P}}/{{p}} --plan        what would run, and where it would go
+#   hep run {{P}}/{{p}}               two points of 500 events, and a page per histogram
+#
+# App_Pythia writes events into a FIFO, Rivet reads them and writes jets.yoda, yd2rt converts that
+# to ROOT. Physics lives in the card ({{p}}.cmnd); this file says what varies and what runs.
+# The run TOML's keys: docs/04_Config_Reference.md, or `hep explain <key>`.
+
+[run]
+name          = "{{p}}"
+project       = "{{P}}"
+configuration = "pdf"
+event_count   = 500
+threads       = 2
+
+[run.cfgs.single]
+description = "One run at the static point"
+sweeps      = []
+tools       = [["pythia", "rivet"], "yd2rt"]
+
+[run.cfgs.pdf]
+description = "Two proton PDFs: a curve each on every page"
+sweeps      = ["pdf"]
+tools       = [["pythia", "rivet"], "yd2rt"]
+
+[prelim]
+fifo = ["events.hepmc"]
+
+[static]
+sqrts = "13tev"
+pdf   = "nnpdf23"
+
+[tools.pythia]
+tool        = "pythia"
+baseconfig  = "{{p}}.cmnd"
+output_file = "events.hepmc"
+
+[tools.rivet]
+tool        = "rivet"
+input       = "events.hepmc"
+analyses    = ["MC_JETS"]
+output_file = "jets.yoda"
+
+[tools.yd2rt]
+tool        = "yd2rt"
+input       = "jets.yoda"
+output_file = "jets.root"
+
+[quantities.sqrts]
+values = [13000.0]
+tags   = ["13tev"]
+labels = ["13 TeV"]
+
+[quantities.pdf]                  # Pythia's own sets: no LHAPDF set to install (LHAPDF6:<set> also works)
+values = [13, 8]
+tags   = ["nnpdf23", "cteq6l1"]
+labels = ["NNPDF 2.3 QCD+QED LO", "CTEQ6L1"]
+
+[plot]
+formats = ["png"]
+objects = ["/MC_JETS/[!_]*"]       # not the _ ones: Rivet's intermediates, as rivet-mkhtml skips them

@@ -1,4 +1,4 @@
-// utils/Apps/Paint/main.cc — the ROOT plotting app (docs/05_Commands_and_Tools.md §18).
+// src/Apps/Paint/main.cc — the ROOT plotting app (docs/05_Commands_and_Tools.md §18).
 // requires: root toml
 //
 //     Paint.exe PAGE.toml [PAGE.toml …] [--ranges | --ranges-only]
@@ -12,9 +12,9 @@
 // ranges and voided bins beside its config, <PAGE>.ranges.json, for the other backends; `--ranges-only`
 // writes them and draws nothing (a run whose only backend is yoda).
 // `--dump-ranges` prints one page's ranges as JSON and draws nothing, which is how the arithmetic is
-// tested without looking at pixels. `--dump-style` prints the page's style — utils/Apps/Paint/base.toml
+// tested without looking at pixels. `--dump-style` prints the page's style — src/Apps/Paint/base.toml
 // with the page's [style] over it — as TOML; with no page, base.toml's.
-// Exit codes: utils/Kit.hh's one table (V73): 0 ok, 1 page config, 2 usage, 4 input, 5 output (with
+// Exit codes: src/Kit.hh's one table (V73): 0 ok, 1 page config, 2 usage, 4 input, 5 output (with
 // several pages: 1 when any failed).
 
 #include "Kit.hh"

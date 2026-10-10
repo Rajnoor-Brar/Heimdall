@@ -1,4 +1,4 @@
-# utils/Env/schema/run.toml — every key a run TOML may hold (docs/04_Config_Reference.md), in one place
+# framework/schema/run.toml — every key a run TOML may hold (docs/04_Config_Reference.md), in one place
 # (V55). The runner validates against it (runner/schema.py), the editor schema is generated from it
 # (`make schema` → run.schema.json), and test_docs.py holds docs/04 to it.
 #
@@ -43,7 +43,7 @@ doc   = "run TOMLs whose tables this one starts from, in order; this file wins (
 notes = """\
   run TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this \
   project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the \
-  repository root; `.toml` optional. **This file wins** (V56): a quantity, tool table or \
+  work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or \
   configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and \
   `[run]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own \
   imports come first, depth-first; a circle is refused. Another project's file keeps its bare paths \
@@ -83,7 +83,7 @@ doc   = "about the file, for people; versions: the stack it was run with, warned
 notes = """\
   descriptive: it never changes a run (V97). Any key is free text for people (`author`, \
   `references`, …) except `versions = { pythia8 = \"8.317\", rivet = \"4.1.3\" }`: the packages of \
-  `utils/Env/stack.toml` the file was run with, each version a string. A version the stack does \
+  `env/stack.toml` the file was run with, each version a string. A version the stack does \
   not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in \
   `hep check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does \
   not name is refused, since its warning could never come."""
@@ -402,7 +402,7 @@ doc  = "a user quantity's value shape, as the vocabulary's: \"pdg\", \"float|int
 notes = """\
   the values' shape, in the vocabulary's grammar (V76): `\"pdg\"`, `\"float|int\"`, `[\"float\", \
   \"float\"]`; checked when the TOML is read. For a quantity of your own (one the vocabulary, \
-  `utils/Env/quantities.toml`, does not name); a vocabulary quantity has its own shape"""
+  `framework/schema/quantities.toml`, does not name); a vocabulary quantity has its own shape"""
 
 [quantity.styles]
 type  = "list"
@@ -454,9 +454,9 @@ notes = """\
 [tool.tool]
 type     = "str"
 required = true
-doc      = "a standard tool (a folder of utils/Env/) or custom"
+doc      = "a standard tool (a folder of framework/tools/) or custom"
 notes = """\
-  a standard tool (a folder of `utils/Env/`, 05 §3), `\"custom\"` or `\"module\"`"""
+  a standard tool (a folder of `framework/tools/`, 05 §3), `\"custom\"` or `\"module\"`"""
 
 [tool.baseconfig]
 path = "baseconfig"
@@ -825,7 +825,7 @@ notes = """\
   object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a \
   Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA \
   (`output/…/plots/derived/`, remade when the product or the figures change, by \
-  `utils/Env/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: \
+  `framework/tools/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: \
   its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or \
   a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a \
   swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), \

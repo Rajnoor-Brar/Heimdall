@@ -1,4 +1,4 @@
-# utils/Env/pythia/quantities.toml — how Pythia consumes the vocabulary (utils/Env/quantities.toml, V58).
+# framework/tools/pythia/quantities.toml — how Pythia consumes the vocabulary (framework/schema/quantities.toml, V58).
 #   name = { key = "K" }                     the card line K = value
 #          { keys = ["K1", "K2"] }           a list value spread over several keys, in order
 #          { key = "K", format = "X{}" }     with the value written through a format

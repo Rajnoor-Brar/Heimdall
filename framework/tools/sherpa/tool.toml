@@ -1,4 +1,4 @@
-# utils/Env/sherpa/tool.toml — Sherpa 3, an event generator (docs/05_Commands_and_Tools.md §13, L12).
+# framework/tools/sherpa/tool.toml — Sherpa 3, an event generator (docs/05_Commands_and_Tools.md §13, L12).
 #
 # The card is YAML, deep-merged by render.py and written whole. Integration is a [prepare] step,
 # cached by the card without its event count, so every seed replica and rerun shares it. The
@@ -42,4 +42,4 @@ alias = "card"                      # sherpa_yaml = sherpa_card
 
 [identity]
 files   = ["{exe}"]
-version = "stack:sherpa"                # utils/Env/stack.toml's (V78)
+version = "stack:sherpa"                # env/stack.toml's (V78)

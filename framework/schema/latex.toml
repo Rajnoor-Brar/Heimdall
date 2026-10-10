@@ -1,4 +1,4 @@
-# utils/Env/latex.toml — what the plot stage knows of LaTeX text (V61): read by runner/labels.py
+# framework/schema/latex.toml — what the plot stage knows of LaTeX text (V61): read by runner/labels.py
 # (.plot labels to ROOT's TLatex, V11, V47, V48) and the yoda backend (TLatex to matplotlib mathtext).
 # Literal strings ('…') keep the backslashes as written.
 

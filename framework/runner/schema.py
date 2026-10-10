@@ -1,5 +1,5 @@
-"""The run TOML's schema: utils/Env/schema/run.toml, and checking a table against it (rank 0). A deck's
-recipe has its own, utils/Env/schema/deck.toml (tables "deck" and "block", V103).
+"""The run TOML's schema: framework/schema/run.toml, and checking a table against it (rank 0). A deck's
+recipe has its own, framework/schema/deck.toml (tables "deck" and "block", V103).
 
 docs/04_Config_Reference.md. Every key's type, allowed values, smallest value, default, inheritance and
 whether it takes "default" is written once, in run.toml (V55); config.py and plot.py check their tables
@@ -179,7 +179,7 @@ def json_schema() -> dict:
     plot["properties"]["data"]["properties"]["map"] = {"type": "object", "additionalProperties": {"type": "string"}}
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "hep run TOML (generated from utils/Env/schema/run.toml)",
+        "title": "hep run TOML (generated from framework/schema/run.toml)",
         "type": "object",
         "properties": {
             "config": _object("config"), "run": run, "prelim": _object("prelim"),

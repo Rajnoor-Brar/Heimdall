@@ -1,4 +1,4 @@
-// tests/cxx/test_kit.cc — utils/Kit.hh (V73): the arguments, the JSON writer and its flat reader.
+// tests/cxx/test_kit.cc — src/Kit.hh (V73): the arguments, the JSON writer and its flat reader.
 // requires: none
 
 #include "Kit.hh"

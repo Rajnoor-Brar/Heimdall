@@ -1,4 +1,4 @@
-// utils/App_PythiaCheck.cc — Pythia reads a card and says which lines it rejects (V59).
+// src/App_PythiaCheck.cc — Pythia reads a card and says which lines it rejects (V59).
 // requires: pythia8
 //
 //     App_PythiaCheck.exe CARD

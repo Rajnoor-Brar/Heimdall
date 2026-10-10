@@ -1,4 +1,4 @@
-// tests/cxx/test_status.cc — utils/Status.hh: the JSON envelope, never blocking, the plain fallback.
+// tests/cxx/test_status.cc — src/Status.hh: the JSON envelope, never blocking, the plain fallback.
 // requires: none
 
 #include "Status.hh"

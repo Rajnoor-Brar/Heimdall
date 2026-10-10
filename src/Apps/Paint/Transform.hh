@@ -1,5 +1,5 @@
 #pragma once
-// utils/Apps/Paint/Transform.hh — what makes a page readable, as pure functions over bins.
+// src/Apps/Paint/Transform.hh — what makes a page readable, as pure functions over bins.
 //
 // The rules are v1's (plot/transform.py, itself a port of the legacy ydmrg), written again here:
 //   * void   — a bin that is zero in every curve (void_empty), or that fewer than min_entries raw

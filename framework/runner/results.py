@@ -1,6 +1,6 @@
 """A run's results, read from Python (rank 3, V77): for notebooks and the statistics tools (category 9).
 
-    import sys; sys.path.insert(0, "<repo>/utils/Env")
+    import sys; sys.path.insert(0, "<Heimdall>/framework")      # Heimdall's venv has it (heimdall.pth)
     from runner import results
 
     for point in results.load("Demo/jets", "pdf"):

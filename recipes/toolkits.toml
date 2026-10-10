@@ -8,6 +8,11 @@
 # kind "external" is never built: the run says where it comes from. Packages marked status = "new"
 # have recipes no build has proven yet (packages.toml).
 
+[primary]
+description = "the primary workflow: the lab PC's stack (everything ~/HEP has) and MadAnalysis 5"
+packages    = ["all", "madanalysis5"]
+note        = "what the fresh-machine plans build (docs/framework/05_Stack.md)"
+
 [lab]
 description = "the lab PC's stack: the core, the extra generators, Delphes, ONNX Runtime, Geant4"
 packages    = ["all"]

@@ -1,4 +1,4 @@
-// utils/App_yd2rt.cc — YODA → ROOT, and a sweep's YODAs into one file (docs/05_Commands_and_Tools.md §17).
+// src/App_yd2rt.cc — YODA → ROOT, and a sweep's YODAs into one file (docs/05_Commands_and_Tools.md §17).
 // requires: yoda root
 //
 //     App_yd2rt.exe IN.yoda OUT.root [GLOB …] [--keep-raw]                    (GLOB: YODA paths to convert)
@@ -21,7 +21,7 @@
 // a path prefix instead (/27x920_MSTW08lo/photo_eic/d01-x01-y01): one YODA file for the sweep.
 //
 // The output is the non-temporary ROOT file of the brief (§Plotting): a product in results/.
-// Exit codes: utils/Kit.hh's one table (V73): 0 ok, 2 usage, 4 input, 5 output.
+// Exit codes: src/Kit.hh's one table (V73): 0 ok, 2 usage, 4 input, 5 output.
 
 #include "Kit.hh"
 #include "Status.hh"

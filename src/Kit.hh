@@ -1,5 +1,5 @@
 #pragma once
-// utils/Kit.hh — what every program of the framework does the same way (audit 1 L8, L9, C13; V73):
+// src/Kit.hh — what every program of the framework does the same way (audit 1 L8, L9, C13; V73):
 //
 //   Kit::Exit         one table of exit codes for every app and module program (06 §11)
 //   Kit::Args         --key value, --key=value, flags and positionals; an unknown option is an error

@@ -1,4 +1,4 @@
-# utils/Env/merge/tool.toml — rivet-merge, in `post`: one YODA product of every point, merged
+# framework/tools/merge/tool.toml — rivet-merge, in `post`: one YODA product of every point, merged
 # (docs/05_Commands_and_Tools.md §7). `input` names the points' product; {inputs} is that product of every point.
 [tool]
 category   = "analysis-application"
@@ -22,4 +22,4 @@ products = ["yoda"]
 combines = ["yoda"]                  # combine (V35) merges the points' YODA products with this folder (V60)
 
 [identity]
-version = "stack:rivet"                # utils/Env/stack.toml's (V78)
+version = "stack:rivet"                # env/stack.toml's (V78)

@@ -1,7 +1,7 @@
-"""utils/Env/lhapdf/provider.py — LHAPDF as a provider: is a PDF set a tool is given installed (V60, C10).
+"""framework/tools/lhapdf/provider.py — LHAPDF as a provider: is a PDF set a tool is given installed (V60, C10).
 
 A provider is the first of the tool categories (01 §5): it gives other tools data. A tool folder's
-quantity mapping names a check, `check = "lhapdf:<form>"` (utils/Env/<tool>/quantities.toml), and the
+quantity mapping names a check, `check = "lhapdf:<form>"` (framework/tools/<tool>/quantities.toml), and the
 runner calls `check(form, value, where)` at plan time, so a missing set is refused before anything runs.
 
 * "bare": the value is a bare set name, `<set>[/member]` (Sherpa's PDF_SET).

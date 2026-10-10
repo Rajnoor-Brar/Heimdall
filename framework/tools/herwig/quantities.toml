@@ -1,4 +1,4 @@
-# utils/Env/herwig/quantities.toml — how Herwig consumes the vocabulary (V58): ThePEG `set` lines;
+# framework/tools/herwig/quantities.toml — how Herwig consumes the vocabulary (V58): ThePEG `set` lines;
 # events and seed are flags.
 # [beam A, beam B] in Herwig's slots: snippets/EPCollider.in puts the lepton on A, so tool.toml's [beams]
 # slots reorders the run's values to match (V62)

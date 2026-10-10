@@ -1,9 +1,9 @@
 #pragma once
-// utils/Apps/Paint/Page.hh — one page's config, as the runner writes it (docs/05_Commands_and_Tools.md §18).
+// src/Apps/Paint/Page.hh — one page's config, as the runner writes it (docs/05_Commands_and_Tools.md §18).
 //
 //     [page]    name, output (path without extension), formats, title, x_label, y_label, logx, logy,
 //               y_gutter, x_gutter, ratio, ratio_label, void_empty, min_entries, auto_range, range_pad
-//     [style]   what differs from utils/Apps/Paint/base.toml, in its tables (Style.hh)
+//     [style]   what differs from src/Apps/Paint/base.toml, in its tables (Style.hh)
 //     [[curve]] file, object, raw (optional: the /RAW twin, for min_entries), label
 //     [data]    file, object, label                       (optional: reference data)
 
@@ -30,7 +30,7 @@ namespace Paint {
         std::string title, titleLeft, titleRight, legendHeader;   // above the frame: centred, its corners; the legend's first line
         std::vector<std::string> formats{"pdf"};
         // A key the page leaves out is what ROOT does by itself (V55): no gutter, no auto range, no voiding.
-        // The runner writes every key it sets (its defaults are utils/Env/schema/run.toml's), so Paint keeps none.
+        // The runner writes every key it sets (its defaults are framework/schema/run.toml's), so Paint keeps none.
         bool logx = false, logy = false, ratio = false, voidEmpty = false, autoRange = false;
         bool normalise = false;                                 // "area": unit area over the bins drawn (V68)
         bool markers = false;                                   // the curves as markers, as data (type Scatter2D, V86)

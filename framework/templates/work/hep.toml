@@ -1,0 +1,8 @@
+# hep.toml — this folder is a Heimdall work dir (made by `hep setup`, {{date}}).
+# [work] marks it; [framework] expects is the Heimdall it was made by: a Heimdall without that
+# revision warns (docs/framework/01_Target.md §4.2). Any other key is refused.
+[work]
+name = "{{name}}"
+
+[framework]
+expects = "{{revision}}"

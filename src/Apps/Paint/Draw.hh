@@ -1,7 +1,7 @@
 #pragma once
-// utils/Apps/Paint/Draw.hh — loading series from ROOT files, and drawing a page with ROOT.
+// src/Apps/Paint/Draw.hh — loading series from ROOT files, and drawing a page with ROOT.
 //
-// The look is the page's style (Style.hh; utils/Apps/Paint/base.toml is rivet-mkhtml's). Curves are steps, drawn per run of non-void
+// The look is the page's style (Style.hh; src/Apps/Paint/base.toml is rivet-mkhtml's). Curves are steps, drawn per run of non-void
 // bins, so a voided bin is a gap rather than a drop to zero. Data are points with x bars. The
 // optional ratio pad divides each curve by the reference: the data when there are any, otherwise
 // the first curve. Curves are rebinned onto the reference bins, which the alignment guarantees are
@@ -146,7 +146,7 @@ namespace Paint {
         return g;
     }
 
-    // ── the look: utils/Apps/Paint/base.toml (rivet-mkhtml's), as merged for the page ─────────
+    // ── the look: src/Apps/Paint/base.toml (rivet-mkhtml's), as merged for the page ─────────
     //
     // Sizes in the style are points of the page (size, in inches); here they become pixels at the
     // style's dpi. Text is sized in pixels (ROOT's precision 3), so both pads share one text size.

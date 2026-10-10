@@ -14,7 +14,7 @@ docs/04_Config_Reference.md §11, docs/05_Commands_and_Tools.md §18. After the 
 * one Paint config per page, output/…/plots/[<page>/]<object>.toml, drawn to
   results/…/plots/root/[<page>/]<object>.<fmt>; the yoda backend writes results/…/plots/yoda/, and
   backend = ["root", "yoda"] (or "both") writes both from the same pages;
-* the style is utils/Apps/Paint/base.toml, which Paint reads itself; a page's [style] holds only
+* the style is src/Apps/Paint/base.toml, which Paint reads itself; a page's [style] holds only
   what the run changes: the [plot].root_style file, then [plot.style], then its figure's style, each
   checked against base.toml's keys and types.
 """
@@ -122,7 +122,7 @@ def _matches(path: str, glob: str, fulls=()) -> bool:
 
 
 def backend(name: str):
-    """A backend other than Paint: utils/Env/<name>/backend.py, with validate(settings) and
+    """A backend other than Paint: framework/tools/<name>/backend.py, with validate(settings) and
     draw(cells, settings, say) -> failed pages."""
     path = hep_root() / "framework" / "tools" / name / "backend.py"
     if not path.is_file():
@@ -161,10 +161,10 @@ def validate(run) -> None:
         raise HepError("[plot.data] has a map but no file", where=f"{where}.data")
 
 
-# ── the style: utils/Apps/Paint/base.toml and the layers over it ─────────────────────────────
+# ── the style: src/Apps/Paint/base.toml and the layers over it ─────────────────────────────
 
 def base_style() -> dict:
-    """utils/Apps/Paint/base.toml: every style key, with its default. Paint reads the same file."""
+    """src/Apps/Paint/base.toml: every style key, with its default. Paint reads the same file."""
     path = hep_root() / "src" / "Apps" / "Paint" / "base.toml"
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
@@ -291,7 +291,7 @@ def convert(yoda: Path, target: Path) -> Path:
         return target
     app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
-        raise HepError("build/App_yd2rt.exe is not built", hint="hep build")
+        raise HepError("framework/Apps/App_yd2rt.exe is not built", hint="hep build --framework")
     target.parent.mkdir(parents=True, exist_ok=True)
     done = subprocess.run([str(app), str(yoda), str(target), "--keep-raw"], capture_output=True, text=True)
     if done.returncode != 0:
@@ -327,7 +327,7 @@ def merge(sources: dict[str, Path], target: Path, stamp: Path, points: Path | No
         return target
     app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
-        raise HepError("build/App_yd2rt.exe is not built", hint="hep build")
+        raise HepError("framework/Apps/App_yd2rt.exe is not built", hint="hep build --framework")
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.stem + ".partial" + target.suffix)
     argv = [str(app), "--merge", str(partial), *(f"{name}={path}" for name, path in sources.items()), "--keep-raw"]
@@ -391,7 +391,7 @@ SCAN_LABELS = {"sigma": r"$\sigma$ [pb]", "entries": "entries", "integral": "int
 def _scanned(run, figure: Figure, complete: list, sources: dict, groups: list, where: Path) -> tuple[list, dict]:
     """A scan figure's members (V85): per value of the axes other than x, a stand-in plan named by their
     tags, its YODA one Scatter2D /FIGURES/<name>: a point per value of x, at that value, its y the number
-    the figure reads of the point (utils/Env/figures/derive.py), its x range reaching halfway to its
+    the figure reads of the point (framework/tools/figures/derive.py), its x range reaching halfway to its
     nearer neighbour on both sides, so it is centred on its value and every backend can draw it as a
     bin (a scan is drawn as markers, V86). Remade only when a member's YODA or the figure changed."""
     module = plugins.load(hep_root() / "framework" / "tools" / "figures" / "derive.py", "derive")
@@ -478,7 +478,7 @@ def _labels_from(declared: list, sources: dict) -> dict[str, str]:
 def point_yodas(run, complete: list) -> dict[str, Path]:
     """Each complete point's YODA, as the pages read it: its product, or with a derived figure (V84) a
     copy with the derived objects after its own (output/…/plots/derived/<point>.yoda), made by
-    utils/Env/figures/derive.py and remade only when the product or the figures changed."""
+    framework/tools/figures/derive.py and remade only when the product or the figures changed."""
     plain = {p.point.name: yoda_of(p) for p in complete}
     derived = [f for f in figures(run) if f.kind == "derived"]
     if not derived:
@@ -1082,7 +1082,7 @@ def draw(run, configuration, plans, say, others=None) -> int:
         return 0
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
-        raise HepError("build/Paint.exe is not built", hint="hep build")
+        raise HepError("framework/Apps/Paint.exe is not built", hint="hep build --framework")
     todo = pages(run, configuration, plans)
     failed = _draw(run, paint, todo, f"{run.name} · {configuration.label}", say) if todo else 0
     if not todo:
@@ -1112,7 +1112,7 @@ def draw(run, configuration, plans, say, others=None) -> int:
 
 def sheet(run, figure: Figure, todo: list[Page], say) -> int:
     """A sheet figure (V89): the drawn pages its globs name, in their order, tiled `columns` wide by
-    utils/Env/figures/layout.py into plots/<backend>/sheets/<name>.pdf, and its .png rendered from that
+    framework/tools/figures/layout.py into plots/<backend>/sheets/<name>.pdf, and its .png rendered from that
     PDF (V102), for Paint's pages and mpl's (mkhtml lays its files out its own way). 1 when it could
     not be made."""
     module = plugins.load(hep_root() / "framework" / "tools" / "figures" / "layout.py", "layout")
@@ -1236,7 +1236,7 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
         raise HepError(f"--labels gives {len(labels)} names for {len(paths)} files")
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
-        raise HepError("build/Paint.exe is not built", hint="hep build")
+        raise HepError("framework/Apps/Paint.exe is not built", hint="hep build --framework")
     key = hashlib.sha256("\n".join(map(str, paths)).encode()).hexdigest()[:12]
     work = output_root() / "plots" / key
     outdir = (outdir or (results_root() / "plots" / paths[0].name.split(".")[0])).resolve()

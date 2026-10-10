@@ -30,12 +30,11 @@ import platform
 import secrets
 import socket
 import subprocess
-import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .errors import HepError
-from .paths import find_work, hep_root
+from .paths import find_work, hep_root, work_meta
 from .tools import DEFAULT_SEED_RANGE, PointPlan, version_of
 
 
@@ -251,11 +250,7 @@ def work_record() -> dict:
     work = find_work()
     if work is None:
         return {}
-    try:
-        name = tomllib.loads((work / "hep.toml").read_text(encoding="utf-8"))["work"].get("name", work.name)
-    except (OSError, tomllib.TOMLDecodeError, KeyError):
-        name = work.name
-    return {"name": name, "root": str(work)}
+    return {"name": work_meta(work)["name"], "root": str(work)}
 
 
 def provenance(plan: PointPlan, run, configuration, started: str, finished: str, results: dict) -> dict:

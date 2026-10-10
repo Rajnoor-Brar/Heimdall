@@ -1,14 +1,14 @@
-# utils/Env/stack.toml — the software stack, in one place (audit 1 B7, V78).
+# env/stack.toml — the software stack, in one place (audit 1 B7, V78).
 #
-# Each entry is one library or program of the stack (~/HEP, docs/06_Internals.md §15.3):
-#   flags    the command that prints its compile and link flags: build/flags.mk's FLAGS_<name>, which a
-#            source asks for by `// requires: <name>` (utils/Env/flags.sh reads this file)
+# Each entry is one library or program of the stack (Heimdall's stack/, docs/06_Internals.md §15.3):
+#   flags    the command that prints its compile and link flags: flags.mk's FLAGS_<name>, which a
+#            source asks for by `// requires: <name>` (env/flags.sh reads this file)
 #   dir      a library with no *-config: its install directory (shell text, expanded) …
 #   lib      … and the library to link (-l<lib>), from <dir>/include and <dir>/lib
 #   version  the command that prints its version: `hep status --stack`, and a tool folder's
 #            `[identity] version = "stack:<name>"`; or { file = "<shell path>" }: the file's first
 #            line that holds "version"
-# Read by utils/Env/stack.py. utils/Env/hep_env.sh (sourced at login) keeps its own list, on purpose:
+# Read by env/stack.py. env/hep_env.sh (sourced at login) keeps its own list, on purpose:
 # it must stay fast and bash-only (the user, 2026-10-03).
 
 [pythia8]

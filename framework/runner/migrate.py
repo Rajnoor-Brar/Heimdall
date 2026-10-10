@@ -20,6 +20,9 @@ and layout stay:
   headers in comments (a configuration commented out stays one to uncomment).
 * (V99) `[run.defaults]` → its keys moved into `[run]`, at the end of its keys; one [run] sets too is
   [run.defaults]'s value (it was the nearer layer). Its comments go with it.
+* (Heimdall, docs/framework/01_Target.md §5.3) `{repo}` → `{work}`, or `{hep}` for what moved into
+  Heimdall: `{repo}/build/App_*`, `Paint.exe` and `Herwig/` → `{hep}/framework/Apps/…`, `{repo}/utils/`
+  → `{hep}/src/`. On the text, anywhere in the file (a comment's example too).
 """
 
 from __future__ import annotations
@@ -100,6 +103,20 @@ def defaults_text(text: str) -> str:
     while body and not body[-1].strip():
         tail.insert(0, body.pop())
     return "".join(rest[:run + 1] + body + block + (tail or ["\n"]) + rest[after:])
+
+
+#: High-Energy's single root, split (01 §5.3): the first prefix that matches wins.
+PLACEHOLDERS = (("{repo}/build/App_", "{hep}/framework/Apps/App_"),
+                ("{repo}/build/Paint.exe", "{hep}/framework/Apps/Paint.exe"),
+                ("{repo}/build/Herwig/", "{hep}/framework/Apps/Herwig/"),
+                ("{repo}/utils/", "{hep}/src/"),
+                ("{repo}", "{work}"))
+_REPO = re.compile("|".join(re.escape(old) for old, _ in PLACEHOLDERS))
+
+
+def placeholder_text(text: str) -> str:
+    """{repo} as {work}, or {hep} for Heimdall's files (PLACEHOLDERS)."""
+    return _REPO.sub(lambda match: dict(PLACEHOLDERS)[match[0]], text)
 
 
 #: [master]'s keys as [config] names them (V93).
@@ -305,7 +322,7 @@ def plan(names: list[str]) -> dict[Path, tuple[str, str]]:
     changes: dict[Path, tuple[str, str]] = {}
     for name in names:
         text = config_file(name).read_text(encoding="utf-8")
-        first = defaults_text(cfgs_text(config_text(figure_text(text))))
+        first = defaults_text(cfgs_text(config_text(figure_text(placeholder_text(text)))))
         run = configmod.load(name, strict=False, text=first)
         new = toml_text(first, run, run.project)
         if new != text:

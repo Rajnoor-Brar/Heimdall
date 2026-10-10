@@ -1,4 +1,4 @@
-// tests/cxx/test_module_kit.cc — utils/Module.hh: the config view, events from HepMC3, σ and ΣW, the
+// tests/cxx/test_module_kit.cc — src/Module.hh: the config view, events from HepMC3, σ and ΣW, the
 // scaling rule (fill raw, scale once), the report, and a truncated stream.
 // requires: hepmc3 toml root
 
@@ -23,7 +23,7 @@ static int failures = 0;
     } while (0)
 
 namespace fs = std::filesystem;
-static const fs::path HERE = "output/tests/cxx/module_kit";
+static const fs::path HERE = "forge/scratch/cxx/module_kit";       // Heimdall's scratch (ignored); make test runs from its root
 
 // Ten events: event i has weight 1 + i/10 and σ = 100 + i pb; a beam proton in, one pion of pT = i + 0.5 out.
 static void writeEvents(const fs::path& path, int n) {

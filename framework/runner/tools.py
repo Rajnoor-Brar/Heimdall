@@ -2,7 +2,7 @@
 
 docs/06_Internals.md §16 (the tool-folder contract), docs/06_Internals.md §6 (connections) and
 docs/04_Config_Reference.md §9 (tool tables, custom tools, standard configurations). Everything the runner knows
-about a tool comes from its folder utils/Env/<tool>/. This module never names one.
+about a tool comes from its folder framework/tools/<tool>/. This module never names one.
 
 `plan_point` turns (run, configuration, point) into groups of Steps: argv, environment, files to
 write, inputs and outputs, and what to check afterwards. Nothing is spawned or written here; that is
@@ -75,7 +75,7 @@ class Folder:
 
     @property
     def plugin(self):
-        """utils/Env/<tool>/render.py, for `[card] style = "render"` (06 §16)."""
+        """framework/tools/<tool>/render.py, for `[card] style = "render"` (06 §16)."""
         path = self.dir / "render.py"
         if not path.is_file():
             raise HepError(f'{self.name} has [card] style = "render" but no render.py', where=str(self.dir))
@@ -97,7 +97,7 @@ _FOLDERS: dict[str, Folder] | None = None
 
 
 def folders() -> dict[str, Folder]:
-    """Every utils/Env/<tool>/tool.toml, checked. The set of folders is the dict of standard tools."""
+    """Every framework/tools/<tool>/tool.toml, checked. The set of folders is the dict of standard tools."""
     global _FOLDERS
     if _FOLDERS is None:
         found = {}
@@ -270,7 +270,7 @@ def executable_of(tool, folder: Folder, project: str) -> Path:
         if not path.exists():
             rel = path.relative_to(hep_root()) if path.is_relative_to(hep_root()) else path
             raise HepError(f"{rel} is not built", where=f"tool '{folder.name}'",
-                           hint="run `hep build` (or make utils/App_*.exe)")
+                           hint="hep build --framework" if path.is_relative_to(hep_root()) else "hep build")
         return path
     found = shutil.which(text)
     if not found:
@@ -284,7 +284,7 @@ _OUTPUTS: dict[str, str] = {}                       # [checks] info_dirs_command
 
 def version_of(folder: Folder) -> str:
     command = folder.get("identity", "version")
-    if isinstance(command, str) and command.startswith("stack:"):    # utils/Env/stack.toml's command (V78)
+    if isinstance(command, str) and command.startswith("stack:"):    # env/stack.toml's command (V78)
         command = _stack().version_command(command.removeprefix("stack:"))
     if not command:
         return ""
@@ -325,7 +325,7 @@ def meta_notes(run) -> list[str]:
 
 @functools.lru_cache(maxsize=1)
 def _stack():
-    """utils/Env/stack.py, the stack registry's reader (V78)."""
+    """env/stack.py, the stack registry's reader (V78)."""
     return plugins.load(hep_root() / "env" / "stack.py", "stack")
 
 
@@ -674,7 +674,8 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
             needed = Path(expand(pattern, placeholders(), f"{folder.name}/tool.toml [checks].files"))
             if not needed.exists():
                 raise HepError(f"{folder.name} needs {needed}, which does not exist", where=where,
-                               hint="hep build (see utils/Env/" + folder.name + "/tool.toml)")
+                               hint=("hep build --framework" if needed.is_relative_to(hep_root()) else "hep build")
+                                    + f" (see framework/tools/{folder.name}/tool.toml)")
         step = Step(tag=tag, tool=tool, folder=folder, group=group_of.get(tag, -1),
                     exe=executable_of(tool, folder, run.project))
         step.status = tool.status or folder.get("tool", "status", "none")
@@ -1302,7 +1303,7 @@ _CHECKED: dict[str, list] = {}
 
 def check_cards(plan: PointPlan) -> None:
     """[checks] card (V59): the tool reads each card it is given and says which lines it rejects (Pythia:
-    build/App_PythiaCheck.exe), so a key it does not know or a value of the wrong kind is refused before
+    framework/Apps/App_PythiaCheck.exe), so a key it does not know or a value of the wrong kind is refused before
     anything runs, with no list of keys of ours. The card checked is the base cards' settings and the
     point card before seeds; the answer is cached by its text, in output/<P>/.cache/checks/."""
     for step in plan.rendered.values():
@@ -1328,7 +1329,7 @@ def check_cards(plan: PointPlan) -> None:
                         for a in command]
                 checker = Path(argv[0])
                 if not checker.is_file():
-                    plan.notes.append(f"{step.tag}'s card is not checked: {checker.name} is not built (hep build)")
+                    plan.notes.append(f"{step.tag}'s card is not checked: {checker.name} is not built (hep build --framework)")
                     continue
                 cache.parent.mkdir(parents=True, exist_ok=True)
                 card.write_text(text, encoding="utf-8")

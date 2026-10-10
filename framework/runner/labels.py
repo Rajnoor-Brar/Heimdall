@@ -18,7 +18,7 @@ from .paths import hep_root
 
 @functools.cache
 def latex() -> dict:
-    """utils/Env/latex.toml: the LaTeX → TLatex commands, YODA's macros, TLatex → mathtext (V61)."""
+    """framework/schema/latex.toml: the LaTeX → TLatex commands, YODA's macros, TLatex → mathtext (V61)."""
     return tomllib.loads((hep_root() / "framework" / "schema" / "latex.toml").read_text(encoding="utf-8"))
 
 

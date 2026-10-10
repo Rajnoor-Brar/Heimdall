@@ -8,61 +8,96 @@ conventions (§15–27). The principles behind both are [01](01_Overview.md#4-pr
 
 ---
 
-## 1. Repository layout
+## 1. Layout: Heimdall and work dirs
 
-| Path | Holds | In git |
+Two roots ([01 §1](01_Overview.md#1-what-it-is)). **Heimdall** (`$HEP`) is a git repository that is
+also the machine's home: what it builds and installs sits in it, ignored.
+
+| Heimdall's | Holds | In git |
 |---|---|---|
+| `setup.sh` | the environment: sets `HEP` from its own folder, the loaded stack (`HEP_INSTALL`, `HEP_VENV`, `HEP_STACK`), then sources `env/hep_env.sh` and `env/machine.sh` | yes |
+| `recipes/` | how the stack is built: `build_stack.py`, `packages.toml`, `settings.toml`, `toolkits.toml` and `toolkits.d/` (your own), `patches/`, `platforms/` (mac, container), `pth.py`, `build_by_hand.txt`; [recipes/README.md](../recipes/README.md) | yes |
+| `env/` | the environment's files: `hep_env.sh` (the shell), `flags.sh`, `stack.toml` and `stack.py` (the stack's libraries, versions and flags); `machine.sh` (this machine's lines, written by the build) | yes, but `machine.sh` |
+| `framework/` | what runs: `bin/` (`hep`, `run`), `runner/`, `tools/<tool>/` (the tool folders, the plot backends `yoda/` and `mpl/`, `figures/`, the provider `lhapdf/`), `schema/` (`run.toml`, `deck.toml`, `quantities.toml` the vocabulary, `latex.toml`), `templates/work/` (what `hep setup` lays down), `rules.mk` and `work.mk` (the build's rules), `hepkit.py` | yes |
+| `src/` | what is compiled: the C++ kits `Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh` (§2.2), the single-file apps `App_*.cc`, the multi-file `Apps/Paint/` and its `base.toml` (the style) | yes |
+| `docs/` | this manual; `framework/` (setting Heimdall up on a fresh machine, for agents); `reporter/`, `audit_2/` | yes |
+| `tests/` | `runner/` (unit), `integration/` (real processes), `cxx/`, `fixtures/work/` (the frozen work dir the tests run in), `reference/` (data the gates compare against) | yes |
+| `bots/` | `intent.md` (ideas not built), the agents' plans | yes |
+| `framework/Apps/` | Heimdall's compiled apps: `App_*.exe`, `Paint.exe`, `Herwig/HerwigDefaults.rpo` | no |
+| `stack/` | the installed stack: a folder per package, `.stamps/` (what is built, and `cxx_std`) | no |
+| `env/venv/` | the Python environment; its `heimdall.pth` puts `framework/` on the path | no |
+| `forge/` | builds in progress: the stack's (`<pkg>/`, `logs/`), the framework's (`make/`: `flags.mk`, `deps/`), the C++ tests (`tests/`), the tests' scratch (`scratch/`) | no |
+| `stash/` | the stack's downloads and their extracted sources | no |
+| `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `venv/`, `forge/`, `Apps/` and `setup.sh` (another C++ standard) | no |
+
+**Never `git clean -x` in Heimdall**: it would delete the stack. `forge/` and `stash/` may be emptied
+by hand.
+
+A **work dir** holds a study. `hep setup <dir>` makes it from `framework/templates/work/`:
+
+| A work dir's | Holds | In git |
+|---|---|---|
+| `hep.toml` | the marker: `[work] name`, `[framework] expects` (the Heimdall revision it was made by); any other key is refused | yes |
+| `Makefile` | one line: `include $(HEP)/framework/work.mk` | yes |
 | `configs/<Project>/` | run TOMLs and native base cards; optionally a project `master.toml` and style files | yes |
 | `modules/<Project>/` | programs (`<Name>.cc`), shared headers, Rivet plugins (`Rivet/<x>.{cc,info,plot,yoda}` or `Rivet_<x>.cc`); `_`-prefixed folders are parked | yes |
-| `utils/*.hh` | the C++ kits: `Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh` (§2.2) | yes |
-| `utils/App_*.cc` | single-file apps: App_Pythia, App_PythiaCheck, App_yd2rt | yes |
-| `utils/Apps/Paint/` | the multi-file Paint app, and `base.toml` (the style) | yes |
-| `utils/hepkit.py` | the kit for a custom tool in Python (§22) | yes |
-| `utils/Env/` | `hep`, `run`, `hep_env.sh`, `flags.sh`, `stack.toml` and `stack.py` (the software stack), `quantities.toml` (the vocabulary), `latex.toml`, `schema/`, `runner/`, the tool folders, the plot backends (`yoda/`, `mpl/`), `figures/` (the figures' plugins), `patches/` | yes |
-| `utils/Env/patches/` | patches this repository needs in the `~/HEP` stack, applied by hand; each file says to which source (`fastjet-3.5.0-siscone-thread-local-ranlux.patch`: `cd ~/HEP/src/fastjet-3.5.0 && patch -p0 < …`, rebuild, `make install`) | yes |
-| `tests/` | `runner/` (unit), `integration/` (real processes), `cxx/`, `fixtures/` (the configs tests load), `reference/` (data the gates compare against) | yes |
-| `docs/` | this manual; `stack/` (building the software stack from source, on a machine or in Docker); `audit_2/01_Health.md` (the open health check; finished audits are in git) | yes |
-| `bots/` | agent rules (`BOT.md`), `intent.md` (ideas not built) | yes |
-| `build/` | everything compiled: apps, `<Project>/`, `Rivet/`, `tests/`, `deps/`, `flags.mk`, `Herwig/` | no |
-| `output/` | technical files per project, `output/tests/` | no |
-| `results/` | products per project | no |
 | `datasets/` | your own reference data | no |
+| `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
+| `output/` | technical files per project | no |
+| `results/` | products per project | no |
+| `reports/` | decks (`hep deck`) | no |
 
-The repository root is found by its markers (`configs/`, `modules/`, `utils/Env/`) or by
-`$HEKIT_ROOT`, never by the working directory. `aux/`, `literature/` and the other non-framework
-folders are not the framework's business.
+**The roots** (`runner/paths.py`):
+- `hep_root()` is where the code is (`framework/runner/paths.py`, two levels up). A `$HEP` that names
+  another folder is refused ("two Heimdalls"): a shell loaded for one Heimdall never runs another's
+  code against its own stack.
+- `work_root()` is `$HEP_WORK`, or the first folder up from the working directory whose `hep.toml`
+  has a `[work]` table, as git finds a repository. Markers under Heimdall's `tests/` are skipped (the
+  tests' fixture is found only through `$HEP_WORK`). Outside a work dir, a command that needs one
+  fails, naming `hep setup`.
+- `$HEKIT_*`, High-Energy's names, are refused; `{repo}` is refused, naming `{work}` and `{hep}`.
 
 ---
 
 ## 2. Components
 
 ```
-configs/<Project>/            run TOMLs and native base cards (the physics)
-modules/<Project>/            your C++: programs (<Name>.cc) and Rivet plugins (Rivet/<x>.cc, Rivet_<x>.cc)
-utils/
-├── Env/                      ─── shell and Python ───
-│   ├── hep                   the `hep` command: build → make; everything else → the runner
-│   ├── run                   the runner's entry script
-│   ├── hep_env.sh            the shell environment (load_hep, quit, hep_cd, hep_status, …)
-│   ├── flags.sh, stack.toml  the stack: each library's flags and version, probed once → build/flags.mk
-│   ├── quantities.toml       the vocabulary: what each quantity name means (shape, unit)
-│   ├── schema/run.toml       every key a run TOML may hold, its type, default and meaning (V55, V90)
+Heimdall ($HEP)
+├── setup.sh                  the environment (load_hep): HEP, the loaded stack, env/hep_env.sh
+├── recipes/                  the stack's recipes and toolkits (recipes/README.md)
+├── env/
+│   ├── hep_env.sh            the shell environment (quit, hep_cd, hep_status, …)
+│   └── flags.sh, stack.toml  the stack: each library's flags and version, probed once → flags.mk
+├── framework/                ─── shell and Python ───
+│   ├── bin/hep               the `hep` command: build, make → make (work dir or --framework); the rest → bin/run
+│   ├── bin/run               the runner's entry script
 │   ├── runner/               the runner: one flat Python package (§2.1)
-│   ├── <tool>/               one folder per standard tool: tool.toml (+ quantities.toml, render.py, filters.toml)
-│   ├── yoda/, mpl/           the plot backends besides Paint: backend.py
-│   └── figures/              the figures' plugins: derive.py (YODA's Python), layout.py (pdflatex, pdftoppm)
-├── Status.hh, Kit.hh         ─── C++ ─── the status protocol; exit codes, arguments, JSON
-├── Module.hh, PythiaRun.hh   the kit for module programs; App_Pythia's Pythia rules, shared
-├── App_Pythia.cc             the standard Pythia tool (+ App_PythiaCheck.cc: its card check)
-├── App_yd2rt.cc              YODA → ROOT, and a sweep into one file
-├── Apps/Paint/               the ROOT plotting app (+ base.toml, the style)
-└── hepkit.py                 the kit for a custom tool in Python
-build/                        everything compiled; output/ technical files; results/ products
+│   ├── tools/<tool>/         one folder per standard tool: tool.toml (+ quantities.toml, render.py, filters.toml)
+│   ├── tools/yoda/, mpl/     the plot backends besides Paint: backend.py
+│   ├── tools/figures/        the figures' plugins: derive.py (YODA's Python), layout.py (pdflatex, pdftoppm)
+│   ├── schema/               run.toml (every key a run TOML may hold, V55, V90), deck.toml,
+│   │                         quantities.toml (the vocabulary: what each quantity name means), latex.toml
+│   ├── templates/work/       what `hep setup` lays down
+│   ├── rules.mk, work.mk     the build's shared rules; a work dir's build (§15)
+│   ├── hepkit.py             the kit for a custom tool in Python
+│   └── Apps/                 the compiled apps (not in git)
+└── src/                      ─── C++ ───
+    ├── Status.hh, Kit.hh     the status protocol; exit codes, arguments, JSON
+    ├── Module.hh, PythiaRun.hh   the kit for module programs; App_Pythia's Pythia rules, shared
+    ├── App_Pythia.cc         the standard Pythia tool (+ App_PythiaCheck.cc: its card check)
+    ├── App_yd2rt.cc          YODA → ROOT, and a sweep into one file
+    └── Apps/Paint/           the ROOT plotting app (+ base.toml, the style)
+
+a work dir
+├── hep.toml, Makefile        the marker; include $(HEP)/framework/work.mk
+├── configs/<Project>/        run TOMLs and native base cards (the physics)
+├── modules/<Project>/        your C++: programs (<Name>.cc) and Rivet plugins (Rivet/<x>.cc, Rivet_<x>.cc)
+└── build/  output/  results/ compiled modules; technical files; products
 ```
 
 ### 2.1 The runner
 
-The runner is **one flat package**, `utils/Env/runner/`, with a declared rank for each module. A
+The runner is **one flat package**, `framework/runner/`, with a declared rank for each module. A
 module imports only from its own rank or a lower one, and the import graph has no cycles.
 - The ranks are one table, `RANKS` in `runner/__init__.py`.
 - `tests/runner/test_imports.py` enforces it, and `test_docs.py` holds the table below to it.
@@ -73,8 +108,8 @@ layering was not had nine cycles.)
 | Rank | Module | Owns |
 |---|---|---|
 | 0 | `errors.py` | `HepError(message, where, hint)`, `did_you_mean` |
-| 0 | `paths.py` | the repository root (by markers, or `$HEKIT_ROOT`), the `configs/`, `output/`, `results/` and `reports/` roots, the path rules (04 §2) |
-| 0 | `schema.py` | the run TOML's schema, `utils/Env/schema/run.toml`: every key's type, choices, bounds, default, inheritance, doc and notes; checking a table against it; the editor schema (V55, V90); a deck's, `deck.toml` (V103) |
+| 0 | `paths.py` | the two roots: Heimdall (`hep_root`, where the code is) and the work dir (`work_root`: `$HEP_WORK` or the walk up to a `hep.toml`), `hep.toml` read (`work_meta`); the `configs/`, `output/`, `results/` and `reports/` roots; the loaded stack's apps (`apps_dir`); `{hep}` and `{work}`; the path rules (04 §2); the retired `HEKIT_*` |
+| 0 | `schema.py` | the run TOML's schema, `framework/schema/run.toml`: every key's type, choices, bounds, default, inheritance, doc and notes; checking a table against it; the editor schema (V55, V90); a deck's, `deck.toml` (V103) |
 | 0 | `hepfiles.py` | reading YODA text (1D and 2D objects, `/RAW` twins, counters; `.gz` too) and Rivet's data directories, once (V60) |
 | 0 | `plugins.py` | loading a folder's Python by path, once: `render.py`, `backend.py`, `provider.py`, the figures' plugins (V61) |
 | 0 | `viewer.py` | the viewer: a page of blocks of labelled panels, sizes and columns, ← → (V104) |
@@ -96,9 +131,10 @@ layering was not had nine cycles.)
 | 5 | `house.py` | `ls`, `explain`, `status`, `clean` (V74) |
 | 5 | `migrate.py` | `hep migrate`: run TOMLs and cards rewritten in today's forms (V79) |
 | 5 | `docs.py` | `make docs`: the manual's generated blocks (keys, style, commands) from the schema, base.toml and the CLI (V91) |
+| 5 | `setup.py` | `hep setup` (a work dir from `framework/templates/work/`, never overwriting) and `hep where`; the `[framework] expects` warning (V107) |
 
 **Plugins:**
-- A tool plugin (`utils/Env/<tool>/render.py`, `provider.py`) and a plot backend's `backend.py` may
+- A tool plugin (`framework/tools/<tool>/render.py`, `provider.py`) and a plot backend's `backend.py` may
   import only `PLUGINS_MAY_IMPORT` (`errors`, `paths`, `quantities`, `labels` and `hepfiles`), and
   never another plugin.
 - The figures' plugins import nothing of the runner.
@@ -480,7 +516,9 @@ process directory.
   It has three listeners:
   - **the view;**
   - **the process's watch socket**, an abstract Unix socket `@hep-watch-<pid>` that `hep watch`
-    finds in `/proc/net/unix`. It sends a greeting, the current run's events so far, then every
+    finds in `/proc/net/unix` (where there are no abstract sockets, as on macOS, a socket file
+    `<tmp>/hep-watch/hep-watch-<pid>`, removed at exit; a dead process's is cleared by the next
+    `hep watch`). It sends a greeting, the current run's events so far, then every
     event live for the life of the process: a sweep of runs is one stream.
   - **the journal** `output/…/<cfg>/status.jsonl`, only with `--journal`: one file per run, for
     `hep watch --file` and replay.
@@ -534,7 +572,7 @@ the run with exit 6. The point is left partial, and rerunning the same command r
 finished points are skipped. A second Ctrl-C gets the default behaviour.
 
 **Exit codes of our apps** (App_Pythia, App_yd2rt, Paint, module programs, `hepkit` tools). They are
-one table, `Kit::Exit` in `utils/Kit.hh` (V73), and `hepkit.Exit` in Python:
+one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
 
 | Code | Meaning |
 |---|---|
@@ -569,10 +607,13 @@ one table, `Kit::Exit` in `utils/Kit.hh` (V73), and `hepkit.Exit` in Python:
   - per tool: the binary's path, sha256 and version, the argv, the card and its sha256, the config,
     and the result (exit, seconds, note);
   - the `--set`s it ran with (V77);
-  - the host, platform, user, git revision and dirty flag;
-  - start and end times.
+  - the host, platform, user and start and end times;
+  - `git = {heimdall, work}`: each repository's revision and dirty flag (`{}` for a work dir not in
+    git), `hep` (Heimdall's folder), `work` (the work dir's name and folder) and `stack` (the
+    isolated toolkit's stack, or empty) (V111).
 
-  `hep reproduce` runs a point again from it.
+  `hep reproduce` runs a point again from it, and warns first when either revision moved, or was
+  dirty when it ran: the setup may be the same while the code is not.
 - **`output/…/<cfg>/points.json`**: every point's values (tag, label, value), page, products,
   directories, identity, seed and whether it is complete. Post tools, the plot stage and
   `runner.results` read it, so none of them has to know the layout. It is also stored inside the
@@ -641,7 +682,7 @@ one table, `Kit::Exit` in `utils/Kit.hh` (V73), and `hepkit.Exit` in Python:
 
    A failed page is counted, and the run exits 1, but the others are drawn.
 
-The style is a stack of TOML layers over `utils/Apps/Paint/base.toml` (V27), checked against it at
+The style is a stack of TOML layers over `src/Apps/Paint/base.toml` (V27), checked against it at
 plan time (`check_style`). Keys a backend cannot honour are errors, never silently dropped (v1's
 `LegendXPos` was parsed and ignored).
 
@@ -649,8 +690,9 @@ plan time (`check_style`). Keys a backend cannot honour are errors, never silent
 
 ## 14. Where files go
 
-**Technical files go in `output/`, products in `results/`, compiled things in `build/`.** A run
-writes nothing else; `hep deck` writes only into its deck's folder, under `reports/`.
+**In the work dir: technical files go in `output/`, products in `results/`, compiled modules in
+`build/`.** A run writes nothing else, and nothing in Heimdall; `hep deck` writes only into its deck's
+folder, under `reports/`. Heimdall's own builds are §1's: `framework/Apps/`, `forge/`.
 
 ```
 output/<P>/<run>/<cfg>/
@@ -662,7 +704,7 @@ output/<P>/<run>/<cfg>/
 output/<P>/<run>/compare/<figure>/    a compare figure's page configs
 output/<P>/.cache/<tool>/<key>/       prepare caches
 output/<P>/.cache/datasets/           reference data converted for Paint
-output/tests/                         everything tests write
+forge/scratch/ (in Heimdall)          everything tests write: work/ (the fixture's copy), output/, results/, reports/, pytest/
 
 results/<P>/<run>/<cfg>/
   <point>/                            the products only
@@ -687,7 +729,14 @@ reports/<deck>/                       a deck (hep deck, V103, V104): yours, deck
 
 ## 15. The build
 
-`Makefile`, `utils/Env/flags.sh`, and `hep build` = `make all`. No CMake (V6).
+`make`, `env/flags.sh`, and `hep build` = `make all`. No CMake (V6). Two makefiles share one set of
+rules, `framework/rules.mk` (the flag cache, `// requires:`, the rule templates):
+- **Heimdall's `Makefile`** (`hep build --framework`) builds Heimdall's apps and C++ tests. Its
+  intermediates (`flags.mk`, `flags.log`, `deps/`) are in `forge/make/`. With an isolated toolkit's
+  stack loaded (`$HEP_STACK`), `framework/Apps/` is `stacks/<toolkit>/Apps/` and `forge/` is
+  `stacks/<toolkit>/forge/`: the apps are linked against the stack that runs them.
+- **A work dir's `Makefile`** is `include $(HEP)/framework/work.mk` (`hep build`): its module
+  programs and Rivet plugins, everything in its `build/`.
 
 ### 15.1 The rules
 
@@ -695,37 +744,34 @@ The target is written the way the source is, and the output lands where the conv
 
 | Source | Target | Output | Include path |
 |---|---|---|---|
-| `utils/App_<X>.cc` | `utils/App_<X>.exe` | `build/App_<X>.exe` | `-I utils` |
-| `utils/Apps/<X>/main.cc` | `utils/Apps/<X>.exe` | `build/<X>.exe` | `-I utils -I utils/Apps/<X>/` |
-| `modules/<P>/<X>.cc` | `modules/<P>/<X>.exe` | `build/<P>/<X>.exe` | `-I utils -I modules/<P>` |
-| `modules/<P>/Rivet/<x>.cc`, `modules/<P>/Rivet_<x>.cc` | `….so`, or `rivet_<x>` | `build/Rivet/Rivet_<x>.so` + `<x>.info`, `.plot`, `.yoda` | `rivet-build … -I utils -I modules/<P>` |
-| `tests/cxx/<X>.cc` | `tests/cxx/<X>.exe` | `build/tests/<X>.exe` | `-I utils` |
-| any other `<dir>/<X>.cc`, named | `<dir>/<X>.exe` or `.so` | `build/<dir>/<X>.exe` or `build/<dir>/lib<X>.so` | `-I utils` |
+| Heimdall's `src/App_<X>.cc` | `src/App_<X>.exe` | `framework/Apps/App_<X>.exe` | `-I $HEP/src` |
+| Heimdall's `src/Apps/<X>/main.cc` | `src/Apps/<X>.exe` | `framework/Apps/<X>.exe` | `-I $HEP/src -I src/Apps/<X>/` |
+| Heimdall's `tests/cxx/<X>.cc` | `tests/cxx/<X>.exe` | `forge/tests/<X>.exe` | `-I $HEP/src` |
+| a work dir's `modules/<P>/<X>.cc` | `modules/<P>/<X>.exe` | `build/<P>/<X>.exe` | `-I $HEP/src -I modules/<P>` |
+| a work dir's `modules/<P>/Rivet/<x>.cc`, `modules/<P>/Rivet_<x>.cc` | `….so`, or `rivet_<x>` | `build/Rivet/Rivet_<x>.so` + `<x>.info`, `.plot`, `.yoda` | `rivet-build … -I $HEP/src -I modules/<P>` |
+| any other `<dir>/<X>.cc`, named | `<dir>/<X>.exe` or `.so` | `build/<dir>/<X>.exe` or `build/<dir>/lib<X>.so` (Heimdall's: `forge/make/<dir>/…`) | `-I $HEP/src` |
 
-- **Aliases:** the typed target is a phony alias of the real file in `build/`, so make's up-to-date
-  check works on the real file.
-- **Header dependencies:** `-MMD -MP` writes them to `build/deps/`. Editing `Reconstruction.hh`
-  rebuilds `Decay.exe` and `Rivet_DecayRiv.so`.
+- **Aliases:** the typed target is a phony alias of the real file, so make's up-to-date check works
+  on the real file.
+- **Header dependencies:** `-MMD -MP` writes them to `deps/` (the work dir's `build/deps/`,
+  Heimdall's `forge/make/deps/`). Editing `Reconstruction.hh` rebuilds `Decay.exe` and
+  `Rivet_DecayRiv.so`.
+- **The flags are a dependency:** every output depends on `flags.mk`, so a re-probe (another stack
+  loaded, a tool moved) rebuilds what was linked against the old one.
 - **Rivet plugins:**
   - a plugin's `.info`, `.plot` and `.yoda` copies are real targets: editing one re-copies it
     (00/B44);
   - a `.info` saying `Requires: ONNX` adds the ONNX flags (00/B37, L20).
-- **`make all`** builds:
-  - every non-parked `modules/<P>/*.cc` program and `modules/<P>/Rivet/` plugin (a subfolder of a
-    project holds headers);
-  - every app;
-  - `build/Herwig/HerwigDefaults.rpo` (`Herwig init --repo=…`, when Herwig is on `PATH`; a failure
-    warns and leaves no file, L15).
-- **Other targets:**
-  - `tests` (the C++ tests);
-  - `test` (build and run them, then pytest without the slow tests);
-  - `test-slow`;
-  - `configure`;
-  - `list` (everything `all` builds);
-  - `schema` (the editor schema, V55);
-  - `docs` (the manual's generated blocks, V91);
-  - `clean`.
-- **Compiler:** `CXX` (default `g++`), `CXXFLAGS` (default `-O2`), always `-std=c++17`.
+- **`make all`** builds, in a work dir, every non-parked `modules/<P>/*.cc` program and
+  `modules/<P>/Rivet/` plugin (a subfolder of a project holds headers); in Heimdall, every app, and
+  `framework/Apps/Herwig/HerwigDefaults.rpo` (`Herwig init --repo=…`, when Herwig is on `PATH`; a
+  failure warns and leaves no file, L15).
+- **Other targets:** `configure`, `list` (everything `all` builds), `clean`; Heimdall's also `tests`
+  (the C++ tests), `test` (build and run them, then pytest without the slow tests), `test-slow`,
+  `schema` (the editor schema, V55), `docs` (the manual's generated blocks, V91).
+- **Compiler:** `CXX` (default `g++`), `CXXFLAGS` (default `-O2`), and the loaded stack's C++
+  standard (`stack/.stamps/cxx_std`, written by `recipes/build_stack.py`; 17 when absent), so a
+  module built against an isolated C++20 stack is C++20 too.
 
 ### 15.2 `// requires:`
 
@@ -756,39 +802,39 @@ A source names its libraries in a comment near the top; a trailing `(…)` is a 
 
 ### 15.3 The flag cache
 
-**The stack is one file**, `utils/Env/stack.toml` (V78). For each library and program it gives:
+**The stack is one file**, `env/stack.toml` (V78). For each library and program it gives:
 - the command that prints its flags (or, for a library with no `*-config`, its install directory and
   library);
 - the command that prints its version (or a `{ file = … }` to read it from).
 
-A new library is one entry there. `utils/Env/stack.py` reads it:
+A new library is one entry there. `env/stack.py` reads it:
 - for `flags.sh` (its probes);
 - for the tool folders (`[identity] version = "stack:<name>"`, the version in a point's provenance);
 - for `hep status --stack`.
 
 `hep_env.sh` keeps its own list: it runs at login and stays bash-only.
 
-`build/flags.mk` holds every library's flags, `FOUND` and `KNOWN` (the stack's libraries: what a
-`// requires:` line may name).
-- It is written by `utils/Env/flags.sh`, which runs each `*-config` once.
+`flags.mk` (a work dir's `build/flags.mk`, Heimdall's `forge/make/flags.mk`) holds every library's
+flags, `FOUND` and `KNOWN` (the stack's libraries: what a `// requires:` line may name).
+- It is written by `env/flags.sh`, which runs each `*-config` once.
 - It records a key: the resolved path of every `*-config` it used, the two install directories, and
   the stack file's checksum.
 - Make recomputes the key on every call and rewrites the cache when it differs (L22: a cache keyed on
   less than it reads is a correctness bug). `hep build --configure` forces it.
-- `build/flags.log` records each probe.
+- `flags.log`, beside it, records each probe.
 
-**Run make with the environment loaded** (`load_hep`): without it, the probes find nothing, and the
-cache is rewritten with every library missing.
+**Run make with the environment loaded** (`load_hep`): without it, `framework/rules.mk` stops, since
+`$HEP` is unset (a work dir's `Makefile` says so first).
 
 ---
 
 ## 16. The tool-folder contract
 
-Everything the runner knows about a kind of tool is in `utils/Env/<tool>/`. The core never names a
+Everything the runner knows about a kind of tool is in `framework/tools/<tool>/`. The core never names a
 tool, so adding one is adding a folder.
 
 ```
-utils/Env/<tool>/
+framework/tools/<tool>/
   tool.toml        required   what the tool is and how to run it
   quantities.toml  optional   how it consumes the vocabulary's quantity names (V58)
   render.py        optional   the whole point card, for dialects [card] cannot write
@@ -802,7 +848,7 @@ Every section and key is checked when the folders load: an unknown one is an err
 | Section | Key | Means |
 |---|---|---|
 | `[tool]` | `category` | one of the ten (§4), for reading |
-| | `executable` | a command on `PATH`, or `{repo}/build/…` for our apps (must exist: "not built, run hep build") |
+| | `executable` | a command on `PATH`, or `{hep}/framework/Apps/…` for Heimdall's apps (must exist: "not built", `hep build --framework`) |
 | | `streamable` | may read its input from a FIFO (default false) |
 | | `status` | `standard`, `filters`, `none` (default none) |
 | | `consumes_events` | its product's event count is checked against its input's producer sidecar |
@@ -818,7 +864,7 @@ Every section and key is checked when the folders load: an unknown one is an err
 | | `merge`, `repeatable`, `owned` | `merge = true`: the combined card holds each key once, parsed with the folder's `line` (V59); `repeatable`: commands kept every time (Pythia's particle-data `onIfMatch`, …); `owned`: keys the runner sets: a base card's value of one is reported by `--plan` (append), or refused by `render.py`, which gets the list as `context["owned"]` (V61) |
 | | `drop`, `trailing`, `drop_inside_braces` | how the combined card leaves out a base card's comments (V54): `drop` a full-line comment (a regex; default: a line starting with `comment`), `trailing` a comment after a value, `drop_inside_braces = false` keeps comment-looking lines inside `{ … }` (Tcl) |
 | `[command]` | `argv` | the argv template (04 §10); default `["{exe}"]` |
-| | `env` | extra environment (`RIVET_ANALYSIS_PATH = "{repo}/build/Rivet"`) |
+| | `env` | extra environment (`RIVET_ANALYSIS_PATH = "{work}/build/Rivet"`) |
 | | `cwd` | where it runs (default the point's output directory; Whizard: `{prepared}`) |
 | `[options]` | `<key> = { kind, required, flag, default }` | the tool-specific keys a table may carry; `kind` is `list`, `table`, `str`, `int`, `float`, `bool` or `flag` (`flag = "-e"`, `default`); every option is also a placeholder |
 | `[outputs]` | `products` | the kinds it writes (for reading) |
@@ -827,15 +873,15 @@ Every section and key is checked when the folders load: an unknown one is an err
 | | `written` | `"requested"`: it always makes what it is asked for or fails, so the runner writes the sidecar after exit 0 |
 | | `combines` | product suffixes this folder merges for `combine` (V35): `["yoda"]` in `merge` (V60) |
 | | `deal` | `true`: its `{outputs}` may hold a deal group (`A+B+C`: each event to one member), so it can feed a sharded tool; its sidecar must then carry `written_per_output` |
-| `[prepare]` | `argv` | the prepare step (`{repo}`, `{exe}`, `{card}`, `{prepare_card}`, `{prepared}`, `{out}`), run in the cache entry |
+| `[prepare]` | `argv` | the prepare step (`{work}`, `{exe}`, `{card}`, `{prepare_card}`, `{prepared}`, `{out}`), run in the cache entry |
 | | `marker` | a file the step must leave; the `.prepared` stamp is written only then |
 | | `ignore` | card keys left out of the cache key (`EVENTS`, `n_events`, `seed`) |
 | | `key` | `"card"` (default) or `"base"`: key on the base cards only |
 | `[exports.<name>]` | `alias = "card"` | `<tool>_<name>` is `<tool>_card` |
-| | `values` | values handed over: a template (`plugin_path = "{repo}/build/Rivet"`), or `"identity:<part>"` for a part of the tool's identity (`analyses = "identity:analyses"`) (V60) |
+| | `values` | values handed over: a template (`plugin_path = "{work}/build/Rivet"`), or `"identity:<part>"` for a part of the tool's identity (`analyses = "identity:analyses"`) (V60) |
 | | `path` | a path handed over (`{prepared}`, `{card}`) |
 | | `needs_prepare` | asking for it runs the prepare step on demand |
-| `[identity]` | `files` | files whose sha256 enters the identity (`{repo}`, `{exe}`, `{analysis}`) |
+| `[identity]` | `files` | files whose sha256 enters the identity (`{work}`, `{exe}`, `{analysis}`) |
 | | `version` | a command whose first line is the version, or `"stack:<name>"` (the stack's, V78), for provenance |
 | `[shard]` | `merge` | the tool folder that joins K shards' products into the table's `output_file`; without it, `shards` is refused (rivet: `merge`, i.e. `rivet-merge -e`) |
 | `[beams]` | `slots` | the card's fixed beam slots, `["lepton", "hadron"]` (Herwig): the run's per-beam values are reordered into them (V62); without it a tool takes `[beam A, beam B]` as given |
@@ -870,7 +916,7 @@ def options(extra: dict, targeted: dict, context: dict) -> dict:             # o
     [identity] files expands, e.g. {"analysis": [...]}) and texts (what page texts may cite)."""
 ```
 
-**Providers:** a provider (`utils/Env/<name>/provider.py`, V60) is a folder with no `tool.toml` and
+**Providers:** a provider (`framework/tools/<name>/provider.py`, V60) is a folder with no `tool.toml` and
 one function, `check(form, value, where)`, which a mapping names as `check = "<name>:<form>"`
 (`lhapdf:pythia`). `tests/runner/test_imports.py` fails if a core module names a tool or a provider.
 
@@ -908,8 +954,8 @@ one function, `check(form, value, where)`, which a mapping names as `check = "<n
 A worked outline, for a generator `gen` that reads a card and writes HepMC to a named file:
 
 1. **Read the ledger** ([07 §3](07_Record.md#3-the-knowledge-ledger)) and v1's adapter if there was
-   one (`git show rework/v1-final:utils/python/hekit/adapters/<tool>.py`).
-2. **`utils/Env/gen/tool.toml`**:
+   one (in High-Energy: `git show rework/v1-final:utils/python/hekit/adapters/<tool>.py`).
+2. **`framework/tools/gen/tool.toml`**:
 
    ```toml
    [tool]
@@ -936,10 +982,10 @@ A worked outline, for a generator `gen` that reads a card and writes HepMC to a 
    ```
 
 3. **`filters.toml`**: a progress rule from a real log and an error rule; nothing that fails a run.
-4. **Its quantities**: `utils/Env/gen/quantities.toml`, how it consumes the vocabulary's names
+4. **Its quantities**: `framework/tools/gen/quantities.toml`, how it consumes the vocabulary's names
    (`energies = { keys = [...] }`, `pdf`, `events`). A name the vocabulary lacks goes into
-   `utils/Env/quantities.toml` first, with its shape (V58).
-5. **Its version**: an entry in `utils/Env/stack.toml`, and `[identity] version = "stack:gen"`.
+   `framework/schema/quantities.toml` first, with its shape (V58).
+5. **Its version**: an entry in `env/stack.toml`, and `[identity] version = "stack:gen"`.
 6. **Tests**:
    - a **plan-time test** in `tests/runner/` (the card, the argv, a refusal), using `helpers.raw()`,
      `parse()` and `plan()`;
@@ -960,7 +1006,7 @@ These questions decide the design of a folder:
 
 ## 18. Adding a plot backend
 
-A backend is `utils/Env/<name>/backend.py`, with no `tool.toml`, loaded by `plot.backend(name)`:
+A backend is `framework/tools/<name>/backend.py`, with no `tool.toml`, loaded by `plot.backend(name)`:
 
 ```python
 def validate(settings: dict, beside_root: bool = False, curve_styles: list[dict] = ()) -> None:
@@ -979,7 +1025,7 @@ INDEX = True      # optional: the runner writes plots/<name>/index.html (the bac
 
 - Add the name to the schema's `[plot.backend]` choices (`plot.BACKENDS` reads them).
 - **A key the backend cannot honour is an error**, never ignored (v1's `LegendXPos`).
-- The mpl backend is the example (`utils/Env/mpl/backend.py`). The yoda backend is frozen (V71).
+- The mpl backend is the example (`framework/tools/mpl/backend.py`). The yoda backend is frozen (V71).
 
 ---
 
@@ -989,7 +1035,7 @@ A figure class is a way to build pages: which members and which objects. Drawing
 page document, then the backends, so a new class gets ratios, bands, data, styles, placeholders,
 overrides and every backend for free.
 
-1. **Schema**: add the class to `[figure.class]`'s choices in `utils/Env/schema/run.toml`, and any
+1. **Schema**: add the class to `[figure.class]`'s choices in `framework/schema/run.toml`, and any
    key of its own as a `[figure.<key>]` entry. List that key in `schema.FIGURE_OWN`, so it is not
    taken for a page key, and run `make schema`.
 2. **Rules**: in `config.check_plot`, add the keys it needs and the ones it refuses, refused when the
@@ -998,7 +1044,7 @@ overrides and every backend for free.
 3. **`Figure`**: a field for each key of its own, read in `plot.figures`.
 4. **Members**: a function that returns `(members, yodas)`: stand-in plans named by what they stand
    for, and each one's YODA, made once per change of its inputs (a sha256 stamp beside it). Arithmetic
-   on YODA objects belongs in a plugin in `utils/Env/figures/` (loaded with `plugins.load`), which
+   on YODA objects belongs in a plugin in `framework/tools/figures/` (loaded with `plugins.load`), which
    keeps the runner standard library.
 5. **Pages**: in `plot.pages` (or `plot.draw`, for figures that need other configurations' plans or
    drawn pages), merge the members into their own ROOT file (`merge`) and call `_pages` with the
@@ -1014,14 +1060,14 @@ overrides and every backend for free.
 
 ## 20. Paint inside
 
-`utils/Apps/Paint/`:
+`src/Apps/Paint/`:
 - `main.cc`: the batch and the modes;
 - `Page.hh`: the page TOML;
 - `Style.hh`: base.toml and the layers;
 - `Transform.hh`: void, align, normalise and the ranges;
 - `Draw.hh`: the canvases.
 
-It is built to `build/Paint.exe`, with `// requires: root toml`. Its command line is
+It is built to `framework/Apps/Paint.exe`, with `// requires: root toml`. Its command line is
 [05 §18](05_Commands_and_Tools.md#18-paints-command-line).
 
 **A page, in this order** (inherited from v1, and load-bearing):
@@ -1066,8 +1112,8 @@ coloured by value (`COLZ`, ROOT's `kBird` palette), with its z scale on the righ
 This is how the arithmetic is tested; `--ranges` writes the same beside each page for the other
 backends. **`--dump-style`** prints the merged style as TOML (base.toml's alone, without a page).
 
-The style is `utils/Apps/Paint/base.toml`, found beside `build/` (else under `$HEKIT_ROOT`), with
-the page's `[style]` merged over it. An unknown key, or a value of another kind, is an error.
+The style is `src/Apps/Paint/base.toml`, found under `$HEP` (else, on Linux, from Paint's own
+folder: `framework/Apps/` or `stacks/<toolkit>/Apps/`), with the page's `[style]` merged over it. An unknown key, or a value of another kind, is an error.
 
 ---
 
@@ -1139,8 +1185,9 @@ own (V34). Its parts are headers in `modules/Demo/Inproc/`:
 **Several Rivets in one process** need FastJet's SISCone to keep its state per thread. Stock SISCone
 has one random generator and one η range for the process, so threads clustering at once get other
 jets, or a FastJet internal error (L16, L29). The patch is
-`utils/Env/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch`, applied to `~/HEP` on
-2026-09-29; a single-threaded Rivet gives byte-identical YODAs with it.
+`recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch`, which `recipes/build_stack.py`
+applies to FastJet's source (first by hand, on 2026-09-29); a single-threaded Rivet gives
+byte-identical YODAs with it.
 
 | 200k events of `single`, with the ~5 s start-up | photo_eic (`inproc_jets`) | ZEUS (`inproc_validation`) |
 |---|---|---|
@@ -1186,19 +1233,20 @@ Every line has the envelope `{"t": <unix time>, "k": <kind>, …}`.
 Writes are **non-blocking and drop on a full pipe**, so a slow reader never slows a generator. With
 the variable unset, the same calls print plain lines to stderr, so a tool run by hand is readable.
 
-**Python**: `utils/hepkit.py` (V74) is the same kit for a custom tool. It provides:
+**Python**: `framework/hepkit.py` (V74) is the same kit for a custom tool. It provides:
 - `hepkit.Status()`: `phase`, `progress`, `xsec`, `log`, `summary`, and a heartbeat every half
   second;
 - `hepkit.report(output, **fields)`: the report, written whole;
 - `hepkit.Exit`: §11's table;
 - `stopping()` and `usage()`.
 
-It lives in `utils/`, not `utils/Env`, whose `yoda/` and `rivet/` folders would shadow those packages
-on a tool's path.
+It lives in `framework/`, which Heimdall's venv puts on every path (`heimdall.pth`); the tool
+folders, some named like the `yoda` and `rivet` packages, are in `framework/tools/`, so they shadow
+nothing.
 
 ```python
-import sys, pathlib
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2] / "utils"))   # from modules/<P>/
+import sys, os
+sys.path.insert(0, os.environ["HEP"] + "/framework")    # Heimdall's venv has it already (heimdall.pth)
 import hepkit
 
 status = hepkit.Status()
@@ -1218,7 +1266,7 @@ This is for a tool that only prints. Its output is read line by line, each line 
 rules in order, and **the first match wins**.
 
 ```toml
-# utils/Env/<tool>/filters.toml, or your own via filters = "<file>" (V61)
+# framework/tools/<tool>/filters.toml, or your own via filters = "<file>" (V61)
 [[rule]]
 match = '^Event (?P<done>\d+) \('     # a Python regex
 emit  = "progress"                    # progress | phase | warn | error | ignore
@@ -1248,7 +1296,7 @@ bar, not a result. Lines are split on `\n` and `\r` (a counter rewritten in plac
 
 ## 24. Writing C++
 
-- **A few headers only.** A helper a second program needs goes into `utils/` as one more header;
+- **A few headers only.** A helper a second program needs goes into Heimdall's `src/` as one more header;
   until then it lives in `modules/<P>/`. The headers today:
   - `Status.hh`, `Kit.hh` and `Module.hh`;
   - `PythiaRun.hh`, App_Pythia's and the integrated programs'.
@@ -1274,29 +1322,37 @@ bar, not a result. Lines are split on `\n` and `\r` (a counter rewritten in plac
 ## 25. Tests
 
 ```bash
-make test           # the C++ tests, then pytest -m "not slow" (about 90 s)
-make test-slow      # real generators and plots: the gates (several minutes)
+hep make --framework test        # Heimdall's C++ tests, then pytest -m "not slow" (about 90 s)
+hep make --framework test-slow   # real generators and plots: the gates (several minutes)
 ```
+
+The tests are Heimdall's and run in Heimdall, with the stack loaded (`load_hep`), in a work dir of
+their own.
 
 | Suite | Holds |
 |---|---|
-| `tests/runner/` | the runner, fast:<br>• one bad config per rule (`test_config.py`)<br>• plans and connections (`test_plan.py`)<br>• paths, sweeps and the point-count gate (`test_sweeps.py`)<br>• the import ranks (`test_imports.py`)<br>• status (`test_status.py`)<br>• plot checks, figures and the style layers (`test_plot.py`)<br>• each tool folder's cards (`test_module.py`, `test_generators.py`, `test_process_generators.py`)<br>• seeds (`test_seeds.py`)<br>• shards, `combine`, `parallelism` and `sweep_runs` (`test_shards.py`, `test_combine.py`, `test_parallel.py`, `test_run_sweep.py`)<br>• layers and `include` (`test_layers.py`)<br>• `--why` and `hep check` (`test_why.py`)<br>• housekeeping and `hep migrate` (`test_house.py`, `test_migrate.py`)<br>• the path rules (`test_paths.py`)<br>• `hepkit` and the stack (`test_hepkit.py`, `test_stack.py`)<br>• the manual (`test_docs.py`) |
+| `tests/runner/` | the runner, fast:<br>• the two roots, `hep.toml` and the placeholders (`test_paths.py`)<br>• `hep setup` and `hep where` (`test_setup.py`)<br>• provenance across both repositories (`test_provenance.py`)<br>• the stack's recipes and toolkits (`test_stack_build.py`)<br>• one bad config per rule (`test_config.py`)<br>• plans and connections (`test_plan.py`)<br>• paths, sweeps and the point-count gate (`test_sweeps.py`)<br>• the import ranks (`test_imports.py`)<br>• status (`test_status.py`)<br>• plot checks, figures and the style layers (`test_plot.py`)<br>• each tool folder's cards (`test_module.py`, `test_generators.py`, `test_process_generators.py`)<br>• seeds (`test_seeds.py`)<br>• shards, `combine`, `parallelism` and `sweep_runs` (`test_shards.py`, `test_combine.py`, `test_parallel.py`, `test_run_sweep.py`)<br>• layers and `include` (`test_layers.py`)<br>• `--why` and `hep check` (`test_why.py`)<br>• housekeeping and `hep migrate` (`test_house.py`, `test_migrate.py`)<br>• the path rules (`test_paths.py`)<br>• `hepkit` and the stack (`test_hepkit.py`, `test_stack.py`)<br>• the manual (`test_docs.py`) |
 | `tests/integration/` | real processes: App_Pythia, App_yd2rt, Paint, the plot stage and every figure class (`test_plot_stage.py`), `hep overlay` (`test_hep_plot.py`), post and pre (`test_post.py`), failure injection (`test_failures.py`); `@pytest.mark.slow` for the physics gates (`test_gates_*.py`, `test_*_p4.py`) |
 | `tests/cxx/` | `Status.hh`, `Kit.hh` and the module kit |
-| `tests/fixtures/configs/` | the run TOMLs and cards the tests load by name (`Demo/jets`, …), frozen from `configs/` (V52). Change one only with the test that needs it |
-| `tests/support.py`, `tests/runner/helpers.py` | the shared helpers: `support.hep` / `hep_ok` run `hep` with outputs under a scratch folder; `helpers.raw`, `parse`, `plan`, `plans_of`, `plans` build and plan configs |
-| `tests/reference/` | **data only**: `legacy_run/` (the legacy Pythia → FIFO → `rivet` pipeline's cards, frozen base card and YODAs, at one thread, seed 12345) and `point_counts.toml` (the legacy point and page counts). **Never regenerate them.** |
+| `tests/fixtures/work/` | the tests' work dir, frozen (V52, V112): `hep.toml`, `Makefile`, `configs/` (the run TOMLs and cards the tests load by name: `Demo/jets`, …), `modules/` (Lambda, InprocJets, the photo_eic, DecayRiv and particle_spectra plugins), `datasets/jets_data.yoda`. Change a file only with the test that needs it |
+| `tests/support.py`, `tests/runner/helpers.py` | the shared helpers: `support.hep` / `hep_ok` run `hep` in the scratch work with outputs under a scratch folder, `support.apps()` is Heimdall's apps, `support.WORK` and `BUILD` the scratch work; `helpers.raw`, `parse`, `plan`, `plans_of`, `plans` build and plan configs |
+| `tests/reference/` | **data only**: `legacy_run/` (the legacy Pythia → FIFO → `rivet` pipeline's cards, frozen base card and YODAs, at one thread, seed 12345, and `plugin/`, the photo_eic sources they were made with) and `point_counts.toml` (the legacy point and page counts). **Never regenerate them.** |
 
-**Rules** (also in `bots/BOT.md`):
+**Rules** (also in `CLAUDE.md`):
 
-- **Tests never read or write the user's `configs/` and `results/`** (V52).
-  - `tests/conftest.py` sets `HEKIT_RESULTS` and `HEKIT_OUTPUT` to `output/tests/` and
-    `HEKIT_CONFIGS` to `tests/fixtures/configs/`, unconditionally, and the basetemp to
-    `output/tests/pytest/` wherever pytest starts.
+- **Tests never read or write a real work dir** (V52, V112).
+  - `tests/conftest.py` syncs `tests/fixtures/work/` into `forge/scratch/work/` (only what changed;
+    its `build/` is kept, so make rebuilds only what changed), sets `HEP_WORK` there, `HEP_RESULTS`,
+    `HEP_OUTPUT` and `HEP_REPORTS` into `forge/scratch/`, and `HEP` to this Heimdall, unconditionally;
+    the basetemp is `forge/scratch/pytest/` wherever pytest starts.
+  - With the stack loaded, the session runs `make all` in the scratch work once (planning reads a
+    plugin's `.info`); the `work_built` fixture is that build, or a skip without the stack, and every
+    `slow` test has it.
   - The session guard fails the run if `tests/fixtures/` or `tests/reference/` changed (content
-    hashes). A change under `results/`, `configs/` or `modules/`, which the user may be editing
-    meanwhile, is listed at the end instead.
-  - Use the `scratch` fixture for files, and `support.hep` to run `hep`.
+    hashes).
+  - Use the `scratch` fixture for files, and `support.hep` to run `hep`. A test that needs a work dir
+    of its own makes one there (`hep setup`, or a `hep.toml` with `[work]`) and points `HEP_WORK` at
+    it, calling `paths.reset()` around the change.
 - **One pytest session at a time**: the basetemp is shared and wiped per session.
 - **Name `encoding="utf-8"`** on every text read and write, and on subprocess output: reading a YODA
   resets `LC_ALL` to `C` (L17), and `make` runs in an ASCII locale.

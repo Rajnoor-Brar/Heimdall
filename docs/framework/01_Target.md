@@ -1,10 +1,29 @@
 # 01 — The target
 
 What exists when the plans are done, and the contract between its parts. This page details
-[README](README.md) §2's decisions without reopening them. Rows added here continue the numbering
+[README](README.md) §3's decisions without reopening them. Rows added here continue the numbering
 (§9).
 
-The phase files (`03`–`09`) say *how* to get here. This page says *what* "here" is, and it gives
+> **As built (2026-10-10).** This page is the design of rounds 1–2c, and the code cites it by section
+> (`framework/01 §5.2`). Its seam is built: the seed (old P1) and the seam (old P3) are Heimdall's
+> history, `99da1d3`…`c6e7590`, and the manual's V105–V113 record them. The phase files were then
+> rewritten for a fresh machine that starts from a clone of Heimdall: 03 Preflight (P0), 04 Stack
+> (P1, `@primary`), 05 Framework (P2), 06 Work dirs (P3), 07 Verify (P4). Below, a phase number,
+> a file `04`–`09` or a C-row's "Becomes" refers to the old set (`git show c6e7590:docs/framework/<file>`).
+>
+> Where the build differs from this page:
+> - per-machine lines go to `env/machine.sh`, not `stack/setup_extra.sh` (§5.8, D28);
+> - the build's rules shared by both makefiles are `framework/rules.mk`; the C++ standard is the
+>   stack's, `stack/.stamps/cxx_std`; every output depends on `flags.mk` (§5.4);
+> - `[framework] expects` is checked with `git rev-list` (§4.2), and `hep reproduce` warns when a
+>   recorded revision moved (§5.6);
+> - the fixture work dir has a `Makefile`, `jets.toml` says `{work}`, `delphes_jets.py` finds hepkit
+>   under `$HEP/framework`, and the capture-time photo_eic sources are frozen in
+>   `tests/reference/legacy_run/plugin/`; the session builds the fixture's modules once (§5.7);
+> - the stack's recipes gained toolkits (`recipes/toolkits.toml`, `toolkits.d/`, isolated stacks in
+>   `stacks/<toolkit>/`, V110), and a fresh machine builds `@primary`.
+
+The phase files (`03`–`07`) say *how* to get here. This page says *what* "here" is, and it gives
 three things those phases build on:
 - the classification of every coupling in the code (§6);
 - the move map (§7);
@@ -658,18 +677,20 @@ to copy to a disk that survives the wipe:
 
 | What | Why | How |
 |---|---|---|
-| High-Energy, every branch and tag | the source of everything | `git push origin rework` (and the tags), or `git bundle create HE.bundle --all` |
+| **Heimdall**, every branch | what the new machine clones (02 §1) | push it once published, or `git -C ~/Github/Heimdall bundle create heimdall.bundle --all` |
+| High-Energy, every branch and tag | the user's studies and the history before `split/base` | `git push origin rework` (and the tags), or `git bundle create HE.bundle --all` |
 | `datasets/` (the one reference dataset, 20 kB) | not in git; the fixture's `jets_data.yoda` is a copy of it | copy |
 | `literature/`, `cross_machine/`, `reports/` | the user's, not in git | copy |
-| `~/HEP/src/*.tar*`, `*.tgz` and `~/HEP/LHAPDF-6.5.6.tar.gz` (optional, 555 MB) | saves the downloads: `build_stack.py` uses an archive already in `stash/`; 05 S2 renames them to its names | copy |
-| **the reference point** (90 kB): `output/Demo/inproc_validation/01_default/NNPDF23lo/{cards,config,provenance.json}` and `results/Demo/inproc_validation/01_default/NNPDF23lo/` | P6 runs it again on its seed and compares (09 S1) | copy, keeping the paths under `kept/reference/` |
-| `results/` (optional) | only to look at again; the comparisons in `09` use numbers recorded in these files | copy if wanted |
+| `~/HEP/src/*.tar*`, `*.tgz` and `~/HEP/LHAPDF-6.5.6.tar.gz` (optional, 555 MB) | saves the downloads: `build_stack.py` uses an archive already in `stash/`; 04 S2 renames them to its names | copy |
+| **the reference point** (90 kB): in High-Energy, the in-process validation run's point `NNPDF23lo` (configuration `default`): its output folder (`cards/`, `config/`, `provenance.json`) and its results folder | P4 runs it again on its seed and compares (07 S1) | copy the output folder's contents to `kept/reference/output/`, the results folder's to `kept/reference/results/` |
+| `results/` (optional) | only to look at again; the comparisons in `07` use numbers recorded in these files | copy if wanted |
 | `~/.claude/projects/…High-Energy/memory/` (optional) | the agents' notes about this repo | copy |
 
 **Before the copy:**
 - Round 2b recorded the lab PC's baselines into these files: the stack's versions, the PDF sets,
   one reference point's numbers.
-- These files are committed and pushed with `rework`, because the baselines must survive the wipe.
+- These files are committed in Heimdall, which travels as a push or a bundle, because the baselines
+  must survive the wipe.
 
 On the new install, P0 brings the copies back into `~/Github/Heimdall/.setup/kept/`. The user's own
 folders stay there until the user says where they go (D31: High-Energy is not touched).

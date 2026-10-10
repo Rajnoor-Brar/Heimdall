@@ -15,29 +15,25 @@
 
 ## Now
 
-**docs/framework/** (2026-10-08 … 10-10): the plan set for AI agents that set up **Heimdall** on the
-**lab PC after a clean reinstall** (D16). Planning only; nothing here changes.
-- **Round 2c (2026-10-10), the user's layout (D26–D33):**
-  - `~/Github/Heimdall` is the framework **and** `$HEP`, with the recipes at its root;
-  - `env/` (hep_env.sh, flags.sh, stack.toml/stack.py, and `env/venv/`), `framework/` (bin, runner,
-    tools, schema, templates, work.mk, hepkit.py; `Apps/` ignored), `src/` (today's utils/ minus
-    Env);
-  - ignored: `stack/` (installs), `forge/` (builds in progress), `stash/` (downloads), `env/venv/`,
-    `framework/Apps/`, `.setup/`;
-  - work dirs keep `build/`; **Top-Quark** (`~/Github/Top-Quark`, generic starter) is P5's test
-    work dir;
-  - **High-Energy is left alone** (its lean conversion is parked in 08's appendix).
-- The files:
-  - [README](../docs/framework/README.md) (D1–D16, D26–D33);
-  - [01_Target](../docs/framework/01_Target.md) (the tree, the seam, C1–C80, the move map: 215 fw /
-    1363 work at 81253a4, re-tested), [02_Agents](../docs/framework/02_Agents.md);
-  - the phases [03](../docs/framework/03_Preflight.md)–[09](../docs/framework/09_Verify.md);
-  - `targets/`.
-- **Next, the user's:** review; then 01 §8's pre-wipe checklist (push `rework`, keep datasets/
-  literature/cross_machine/reports, the reference point, optionally the tarballs and memory).
-- Found while writing 2b (not fixed): `hep reproduce` still builds `--set run.<cfg>.seed_type` (pre-V98),
-  so it probably fails on a random-seed configuration (C78); `build/flags.mk` was last probed without
-  `load_hep` (self-heals).
+**Heimdall (2026-10-10):** split from High-Energy at `split/base` (5e0a913) and built here, in its own
+repository at `~/Github/Heimdall`, on the old lab PC's stack (`stack` and `env/venv` are local links to
+`~/HEP/install` and `~/HEP/.venv`, excluded in `.git/info/exclude`, never committed).
+- **Done:** the seed (`99da1d3`), the recipes and toolkits (`@primary` = the lab set plus
+  MadAnalysis5; isolated C++20 stacks), the seam (two roots, `hep setup`/`hep where`, the build split
+  on `framework/rules.mk`, provenance across both repositories, portability), the tests on the
+  fixture work dir, the manual re-rooted (V105–V113), and
+  [docs/framework/](../docs/framework/README.md) rewritten as the fresh-machine runbook (P0 Preflight,
+  P1 Stack `@primary`, P2 Framework, P3 Work dirs, P4 Verify).
+- **Numbers here:** `hep build --framework` 4 s; 3 C++ tests pass; fast suite 605 passed; slow suite
+  36 passed (8 min 46 s, the byte-identical legacy gate included); `test_stack_build` 27; the
+  starter in a scratch Top-Quark: 2 points, 35 pages, 9 s.
+- **Next, the user's:**
+  - publish Heimdall (a gate: a private `Rajnoor-Brar/Heimdall`), or keep a bundle;
+  - before the reinstall, 01 §8's checklist (Heimdall's bundle or push; High-Energy pushed; the
+    kept files and the reference point);
+  - on the new machine, the runbook from 02 §1.
+- High-Energy itself is untouched (only the tag `split/base` was added); its conversion to a work
+  dir is parked (06's appendix).
 
 Otherwise nothing is in progress. Waiting on the user:
 
@@ -48,7 +44,6 @@ Otherwise nothing is in progress. Waiting on the user:
 - **Later**, on the user's word:
   - F8 `--more`;
   - F9, a Slurm/HTCondor executor;
-  - K15, the `HEKIT_*` rename;
   - Paint's PDF line widths (about 2× too thick);
   - the held C++/Rivet items (K3, K4, K7, K8, K10, yd2rt's dead parameter);
   - `extends`/`common.toml` for validation ("not now").
@@ -56,20 +51,18 @@ Otherwise nothing is in progress. Waiting on the user:
 ## Standing constraints
 
 - **Commits:**
-  - local, never pushed, with the Co-Authored-By line;
-  - stage named paths only, never `commit -a`: the worktree holds the user's uncommitted
-    `configs/`, `modules/Demo/Rivet/photo_eic.plot`, a legacy README deletion and
-    `docs/Untitled-1.md`.
+  - local, never pushed without the gate, with the Co-Authored-By line;
+  - stage named paths only, never `commit -a`; never `git clean -x` (the stack is in the tree).
 - **Tests:**
-  - tests never read or write the user's `configs/` and `results/` (V52: `tests/fixtures/configs/`);
+  - tests run in the fixture work dir's copy, `forge/scratch/work/` (V52, V112), never a real one;
   - one pytest session at a time, and the slow suite not while the user's long runs share the cores;
-  - `source ~/HEP/setup.sh` before make or pytest, or `build/flags.mk` is re-probed empty.
+  - `source setup.sh` (this Heimdall's) before make or pytest.
 - **Approvals:**
-  - `~/HEP` changes and downloads need the user's approval; the venv and `hep_env.sh` are the
-    user's;
+  - the stack (`stack/`, `env/venv/`; here, links to `~/HEP`) and downloads need the user's
+    approval; never write into `~/HEP` or its venv;
   - a rebuilt App_Pythia, App_yd2rt, InprocJets or Rivet plugin changes the identity of every point
     that ran it, so ask before rebuilding (Paint is plot-only and safe).
 - **Docs:** after changing a schema key's `doc`/`notes`, base.toml's comments or the CLI's help, run
-  `make docs` (and `make schema`).
+  `hep make --framework docs schema`.
 - **Way of working:** never implement without an explicit order; plans first, questions when a
   request is ambiguous.

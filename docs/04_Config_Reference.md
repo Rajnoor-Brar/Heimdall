@@ -1,7 +1,7 @@
 # 04 — Configuration reference
 
 Every key a run TOML accepts: its type, default and meaning, and what is checked. **The key tables
-are generated** from `utils/Env/schema/run.toml` and `utils/Apps/Paint/base.toml` (`make docs`, V91),
+are generated** from `framework/schema/run.toml` and `src/Apps/Paint/base.toml` (`make docs`, V91),
 the same source `hep explain KEY` and the editor schema read, so they cannot drift from the code. The
 prose around them says what a table cannot.
 - **Worked pipelines:** [02](02_User_Guide.md).
@@ -23,8 +23,8 @@ prose around them says what a table cannot.
 |---|---|---|
 | native base cards: `configs/<P>/*.cmnd`, `.in`, `.yaml`, `.sin`, `.mg5`, `.tcl` | the physics | you; never modified by the runner |
 | the run TOML: `configs/<P>/<run>.toml` | configurations, quantities, tools, wiring, plots | you |
-| `utils/Env/quantities.toml` (what each quantity name means) and each tool folder's `quantities.toml` (how that tool consumes it), optionally overlaid by a project's master | how each standard tool consumes named quantities (§3) | the framework; a project may add to it |
-| `utils/Apps/Paint/base.toml`, optionally a style file | the look of the pages (§12) | the framework; you, to change every page |
+| `framework/schema/quantities.toml` (what each quantity name means) and each tool folder's `quantities.toml` (how that tool consumes it), optionally overlaid by a project's master | how each standard tool consumes named quantities (§3) | the framework; a project may add to it |
+| `src/Apps/Paint/base.toml`, optionally a style file | the look of the pages (§12) | the framework; you, to change every page |
 
 **Physics stays in the native card.** A quantity renders an *override* into a point card. The base
 card is read first, and the override is applied by the tool's own rule: last wins for Pythia, a
@@ -33,7 +33,7 @@ YAML merge for Sherpa, and so on (see [05](05_Commands_and_Tools.md)).
 **Precedence of a value, lowest to highest:**
 
 ```
-utils/Env/<tool>/quantities.toml  <  [config].master  <  [quantities.<q>].key / target  <  --set
+framework/tools/<tool>/quantities.toml  <  [config].master  <  [quantities.<q>].key / target  <  --set
 [static]  <  [run.cfgs.<cfg>].static  <  --set static.<q>=…  <  the value a sweep gives the point
 [run]  <  extends  <  [run.cfgs.<cfg>]  <  --set
 [config].import files  <  this file
@@ -57,11 +57,13 @@ run.
 ## 2. Paths
 
 Every key that takes a path has **one** convention root. There is no search path and no fallback.
+The roots are the **work dir**'s: the folder whose `hep.toml` has a `[work]` table, found by walking
+up from the working directory (or `$HEP_WORK`), never the working directory itself (05 §2).
 
 | Written as | Resolves to |
 |---|---|
 | `name` or `sub/name` | the key's convention root (table below) + `name` |
-| `./sub/name` | the **repository root** + `sub/name` (never the working directory, V13) |
+| `./sub/name` | the **work dir** + `sub/name` (never the working directory, V13) |
 | `/abs/path` | as written |
 | `../x`, `a/../b` | **an error** (C12): write `./…` or an absolute path |
 
@@ -113,10 +115,10 @@ master = "master.toml"           # optional: configs/<project>/master.toml overl
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `master` | a string |  | overlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an entry for a (tool, quantity) pair replaces the framework's. The file must exist. |
-| `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the repository root; `.toml` optional. **This file wins** (V56): a quantity, tool table or configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own imports come first, depth-first; a circle is refused. Another project's file keeps its bare paths (cards, filters, styles, executables) its own project's, so its tools plan as they do in it. The file that imports sets its own `[run].name` and `project`; no folder of its configurations may be an imported run's (V100). An entry may be `{ from = "<config>", only = ["quantities", "run.default", …] }`: only those sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where each quantity, tool and configuration came from. |
+| `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own imports come first, depth-first; a circle is refused. Another project's file keeps its bare paths (cards, filters, styles, executables) its own project's, so its tools plan as they do in it. The file that imports sets its own `[run].name` and `project`; no folder of its configurations may be an imported run's (V100). An entry may be `{ from = "<config>", only = ["quantities", "run.default", …] }`: only those sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where each quantity, tool and configuration came from. |
 | `drop` | a list (a string each) |  | dotted keys (`run.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken out of what the imports brought in, before this file's own tables are laid over them (V95). Each must name something an import gave, so a misspelt drop is refused rather than keeping what it meant to remove; a file that imports nothing has nothing to drop. |
 | `vars` | a table |  | `name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result (V96). A string that is exactly one var takes its value as it is: `event_count = "{var:events}"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`"rivet:{var:ana}"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value, so a shared file can be written with parameters; its own `[config.vars]` come with whatever is taken of it (`only` included, V101), under this file's. Imports are read before vars, so an import's name cannot cite one; `--set config.vars.<name>=…` changes one for a run. |
-| `meta` | a table |  | descriptive: it never changes a run (V97). Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `utils/Env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `hep check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
+| `meta` | a table |  | descriptive: it never changes a run (V97). Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `hep check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
 <!-- /generated -->
 
 **`import`** (V56, V94). The imported files are read in order, then this file's tables are laid over
@@ -127,7 +129,7 @@ them:
 
 Its rules:
 - **Names:** an import is named as `hep run` names a config: `validation_common` is this project's,
-  `Demo/validation` another project's, and `./…` is from the repository root.
+  `Demo/validation` another project's, and `./…` is from the work dir.
 - **Nesting:** an imported file is read the same way first, so its own imports come before it,
   depth-first. A circle is refused, naming it.
 - **Another project's file:** its bare paths stay its own project's (the keys the schema marks
@@ -183,12 +185,12 @@ references = ["ZEUS, Nucl. Phys. B 864 (2012) 1"]
 versions   = { pythia8 = "8.317", rivet = "4.1.3", lhapdf = "6.5" }   # the stack the file was run with
 ```
 
-`versions` names packages of `utils/Env/stack.toml`, each with a version string. When the stack has
+`versions` names packages of `env/stack.toml`, each with a version string. When the stack has
 another version, `--plan`, the run's start and `hep check` say so as a **warning**, and the run goes
 ahead at your own risk. What is written is compared: `6.5` matches 6.5.6. A package stack.toml does
 not name is refused, since its warning could never come. Every other key is free.
 
-**The vocabulary** (`utils/Env/quantities.toml`, V58) says what each quantity name means for every
+**The vocabulary** (`framework/schema/quantities.toml`, V58) says what each quantity name means for every
 tool:
 - its **shape**: `energies` is two numbers, `[beam A, beam B]`; `beams` is two PDG ids; `pdf` is a
   string or a set number;
@@ -199,7 +201,7 @@ A run TOML's quantity of that name is checked against the shape when the file is
 through its `key` or `target` (§8.1).
 
 **Each tool folder** says how that tool consumes the vocabulary, in
-`utils/Env/<tool>/quantities.toml`; a project master overlays those mappings in the same form:
+`framework/tools/<tool>/quantities.toml`; a project master overlays those mappings in the same form:
 
 ```toml
 [quantities.pythia.compatible_quantities]           # [quantities.<tool>.compatible_quantities]
@@ -499,7 +501,7 @@ commands = [["lhapdf", "ls", "--installed"]] # argv arrays, run in order before 
 |---|---|---|---|
 | `fifo` | a list (a string each) |  | named pipes in the point's output directory. A FIFO connects tools **in one group** only, has **one reader**, and never feeds a tool that is not `streamable` (C6). |
 | `files` | a list (a string each) |  | regular files in the point's output directory, **kept**: the way to keep events for another configuration |
-| `commands` | a list |  | run in the point's output directory; output to `logs/prelim.log`; a nonzero exit fails the point. Placeholders: `{repo}`, `{out}`, `{res}`, `{file:<name>}` |
+| `commands` | a list |  | run in the point's output directory; output to `logs/prelim.log`; a nonzero exit fails the point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}` |
 <!-- /generated -->
 
 A name declared twice is an error. `[run.cfgs.<cfg>].prelim` replaces this table for one configuration.
@@ -555,7 +557,7 @@ values = [0.05, 0.10, 0.15, 0.25]
 | `values` | a list | **required** | scalars or arrays (an energy pair) |
 | `tags` | a list |  | one per value. The default is the value with anything but `A–Za–z0–9.+-` replaced by `-`. Tags name point directories: keep them short and unique. |
 | `labels` | a list |  | legend text, in **LaTeX** (`$e^-$`, `$\sqrt{s}$`), the one label language of every text a run TOML gives a page (V65): math in `$…$`, the rest text, where a bare `_` or `^` is the character (`"PDF4LHC21_40"`). A label written in ROOT's TLatex (`#sqrt{s}`, `p_{T}` with no `$`) is refused, with its LaTeX as the hint; `hep migrate` rewrites it (V79). `\_`, `\^` and `\#` also give the character, even before a brace; in TOML write them in single quotes, `'PDF4LHC21\_40'`, since in `"…"` a backslash starts a TOML escape |
-| `shape` | a string or a list |  | the values' shape, in the vocabulary's grammar (V76): `"pdg"`, `"float\|int"`, `["float", "float"]`; checked when the TOML is read. For a quantity of your own (one the vocabulary, `utils/Env/quantities.toml`, does not name); a vocabulary quantity has its own shape |
+| `shape` | a string or a list |  | the values' shape, in the vocabulary's grammar (V76): `"pdg"`, `"float\|int"`, `["float", "float"]`; checked when the TOML is read. For a quantity of your own (one the vocabulary, `framework/schema/quantities.toml`, does not name); a vocabulary quantity has its own shape |
 | `styles` | a list (a table each) |  | one per value (V67): its curves' look, `{ colour, line, width }`. `colour` is `"#rrggbb"`, a ROOT name (`"kBlue+1"`) or number (the yoda backend draws `#rrggbb` only); `line` is `solid`, `dashed`, `dotted` or `dashdot`; `width` is in points. A key left out, or `"default"`, is the style's; curves with no colour take the palette in turn, as mkhtml's take its cycle. A value keeps its look on every page, so a PDF is one colour throughout. With two curve axes, the later one's keys win |
 | `key` | a string or a table |  | the native key. A string needs a `target`. A table entry for a tool tag wins over one for its type. |
 | `target` | a string or a list |  | restricts the consumers (04 §8.1) |
@@ -635,7 +637,7 @@ analyses    = ["photo_eic"]        # a key of the rivet folder's [options]
 <!-- generated: keys tool -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `tool` | a string | **required** | a standard tool (a folder of `utils/Env/`, 05 §3), `"custom"` or `"module"` |
+| `tool` | a string | **required** | a standard tool (a folder of `framework/tools/`, 05 §3), `"custom"` or `"module"` |
 | `baseconfig` | a string or a list |  | native base card(s), read in order (root `configs/<project>/`). Tools with a card only. |
 | `input` | a string or a list |  | what it reads: `[prelim]` names, another tool's `output_file`, a pre product, (post) a product of every point, or a path. The first input is `{input}`. |
 | `output_file` | a string or a list |  | what it writes. An array is fan-out: App_Pythia writes the same events to each (V16). Exactly one writer per output (C6). |
@@ -704,7 +706,7 @@ output_file = "decay.root"
 mass_tolerance = 0.15
 ```
 
-A module tool works as a custom tool does, for a program built with `utils/Module.hh`
+A module tool works as a custom tool does, for a program built with `src/Module.hh`
 ([06 §21](06_Internals.md#21-modulehh)). It always gets a config, and its argv is
 `{exe} {config} --input={input} --output={partial:output} --events={events}
 --sidecar={input_sidecar} {arguments}`. Its count is checked from its report (`<output>.json`, key
@@ -757,7 +759,8 @@ The rules:
 
 | Placeholder | Is |
 |---|---|
-| `{repo}` | the repository root |
+| `{work}` | the work dir (its root folder) |
+| `{hep}` | Heimdall (`$HEP`): its apps are `{hep}/framework/Apps/…` |
 | `{exe}` | the tool's executable |
 | `{out}`, `{res}` | the point's output and results directories |
 | `{config}` | the extracted config file (custom, module), or empty |
@@ -781,6 +784,10 @@ The rules:
 | `{std:<key>}` | an export's `path` (§9.4) |
 | `{points}` | pre and post: `points.json` |
 | `{<option>}` | every key of the folder's `[options]`: its value, empty when unset; `kind = "flag"` → the flag or nothing |
+
+`{repo}`, High-Energy's single root, is refused, naming `{work}` and `{hep}`; `hep migrate` rewrites
+it (`{repo}/build/App_*` → `{hep}/framework/Apps/App_*`, `{repo}/utils/` → `{hep}/src/`, any other
+`{repo}` → `{work}`).
 
 **In the run TOML itself**, `{var:name}` is a `[config.vars]` value (§3), replaced when the file is
 read, everywhere, before any of these.
@@ -877,7 +884,7 @@ A figure is a recipe for pages (V80); its classes, each with an example, are
 <!-- generated: keys figure -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `output/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `output/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`hep plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`output/…/plots/derived/`, remade when the product or the figures change, by `utils/Env/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
+| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `output/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `output/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`hep plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`output/…/plots/derived/`, remade when the product or the figures change, by `framework/tools/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
 | `type` | a string: `"Hist1D"`, `"Scatter2D"`, `"HeatMap"` |  | what is drawn: `Hist1D`, steps per curve; `Scatter2D` (V86), a marker per bin at its centre with its y error, in the curve's colour (`data.marker`, `data.marker_size` of the style), as Paint draws data; the legend shows the marker. The page TOML says `markers = true`; mkhtml and mpl draw the curves as they draw points (`ConnectBins=0`, with their x bars). `HeatMap` (V87): a 2D object (a YODA `Histo2D` or `Estimate2D`), the default for one: a page per point of the cell, `<cell>/<object>/<point>`, coloured by value with its scale on the right (labels from the `.plot`, `ZLabel` and `LogZ` too; no ratio, data or voiding). Paint draws heat maps; mkhtml and mpl draw the 1D pages only, and the plot stage says so. A 1D object cannot be a HeatMap, a 2D object neither a Hist1D nor a Scatter2D, nor in an overlay |
 | `name` | a string |  | an overlay's page file stem, a merged figure's folder. A defined figure takes none: its pages are the objects' own |
 | `objects` | a list (a string each) |  | matched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob matching no object of the points is an error, at the plot stage |
@@ -916,7 +923,7 @@ overlap, which the plot stage refuses: merge them by hand.
 
 ## 12. The style
 
-The look of the ROOT pages is TOML (V27). **`utils/Apps/Paint/base.toml`** holds every key with its
+The look of the ROOT pages is TOML (V27). **`src/Apps/Paint/base.toml`** holds every key with its
 default (rivet-mkhtml's look); edit it to change every page. Over it, key by key:
 
 1. `[plot].root_style`: a style file (a bare name under `configs/<project>/`, `.toml` optional);
@@ -931,7 +938,7 @@ checked:
   palette;
 - the runner checks at plan time, and Paint checks again.
 
-**What a page holds.** A page's document holds only what the layers changed; `build/Paint.exe
+**What a page holds.** A page's document holds only what the layers changed; `framework/Apps/Paint.exe
 PAGE.toml --dump-style` prints the whole merged style. Sizes are **points** (1/72 in) of the page,
 unless said otherwise.
 
@@ -1069,7 +1076,7 @@ Where everything goes, as a tree, is [06 §14](06_Internals.md#14-where-files-go
 ## 15. A deck's recipe: `deck.toml`
 
 A deck is a folder, `reports/<deck>/`, made by `hep deck <deck>` (05). Its `deck.toml` says where its
-plots come from; `utils/Env/schema/deck.toml` holds every key, as below. A recipe has `[deck]` and
+plots come from; `framework/schema/deck.toml` holds every key, as below. A recipe has `[deck]` and
 `[blocks.<name>]` tables, and nothing else; with no block, the deck takes the folder's own PDF and PNG
 files (folder mode, grouped by `[deck].group`).
 

@@ -10,15 +10,16 @@
 
 ## Layout
 
-Heimdall is the framework **and** the machine's home: `$HEP` is this folder
-(docs/framework/01_Target.md §2). The manual's index is [docs/README.md](docs/README.md).
+Heimdall is the framework **and** the machine's home: `$HEP` is this folder (V105; the manual's
+[06 §1](docs/06_Internals.md#1-layout-heimdall-and-work-dirs)). The manual's index is
+[docs/README.md](docs/README.md); setting Heimdall up on a fresh machine is [docs/framework/](docs/framework/README.md).
 
 | Path | Holds |
 | --- | --- |
 | `setup.sh` | the environment (`load_hep` = `source <Heimdall>/setup.sh`) |
-| `recipes/` | the stack's recipes: `build_stack.py`, `packages.toml`, `settings.toml`, `patches/`, `platforms/{mac,container}/` |
+| `recipes/` | the stack's recipes: `build_stack.py`, `packages.toml`, `settings.toml`, `toolkits.toml` and `toolkits.d/`, `patches/`, `platforms/{mac,container}/` |
 | `env/` | `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py`; `venv/` (ignored), `machine.sh` (ignored) |
-| `framework/` | `bin/` (`hep`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders, backends, figures), `schema/`, `templates/work/`, `work.mk`, `hepkit.py`; `Apps/` (ignored: the compiled apps) |
+| `framework/` | `bin/` (`hep`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders, backends, figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py`; `Apps/` (ignored: the compiled apps) |
 | `src/` | the C++ kits (`Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh`) and the apps' sources (`App_*.cc`, `Apps/Paint/`) |
 | `docs/` | the manual `01`–`07`, `reporter/`, `audit_2/`, `framework/` (the setup plans) |
 | `bots/` | `current_plan.md`, `intent.md`, `archive.md` |
@@ -52,7 +53,9 @@ Work dirs (configs, modules, results) live elsewhere, one per workspace, made by
 ## Testing
 
 - Tests write only `forge/scratch/`, through `HEP_WORK`, `HEP_OUTPUT`, `HEP_RESULTS` and
-  `HEP_REPORTS` (tests/conftest.py). Never name a real work dir in a test.
+  `HEP_REPORTS` (tests/conftest.py). Never name a real work dir in a test. Run them with the stack
+  loaded (`source setup.sh`): the session builds the fixture work dir's modules first.
+- The fixtures (`tests/fixtures/work/`) change only together with the test that needs the change.
 - The gates compare against `tests/reference/`: the legacy pipeline's cards, base card and YODAs,
   and `point_counts.toml`. Never regenerate them.
 - A fake in a test has the real type (ledger L26).

@@ -9,37 +9,78 @@ as a recipe from a run TOML. Every key is in [04](04_Config_Reference.md), every
 
 ## 1. Set up and build
 
+There are two places ([01 §1](01_Overview.md#1-what-it-is)): **Heimdall**, the framework and its
+stack, one per machine; and your **work dirs**, where studies live.
+
+### 1.1 Heimdall
+
 ```bash
-load_hep            # or: source ~/HEP/setup.sh — the ~/HEP stack, the venv, `hep` on PATH
-hep build           # every app, module program and Rivet plugin, and Herwig's repository
+git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
+python3 recipes/build_stack.py packages=@primary     # the stack, from source, into stack/ (hours)
+source setup.sh                                      # the environment: alias load_hep='source ~/Github/Heimdall/setup.sh'
+hep build --framework                                # Heimdall's apps, into framework/Apps/
 ```
 
-On a new machine, build the stack first: `python3 docs/stack/build_stack.py` builds it from source into
-`~/HEP`, or into a Docker image ([stack/README.md](stack/README.md)).
+The stack's recipes, its toolkits (`@primary` is the lab set plus MadAnalysis5; `--toolkits` lists
+the others, and your own go in `recipes/toolkits.d/`) and the isolated stacks of another C++ standard
+are [recipes/README.md](../recipes/README.md). On macOS use `recipes/platforms/mac/`; for an image,
+`recipes/platforms/container/`.
 
-`hep build` takes these options:
-- `--tests` also builds the C++ tests;
+`source setup.sh` (`load_hep`) sets `HEP` to Heimdall's folder, puts the stack and `hep` on `PATH`
+and activates the Python environment. An isolated toolkit's stack is loaded by its own
+`stacks/<toolkit>/setup.sh` instead, in a shell of its own. `hep where` says which Heimdall (and which
+stack) a shell sees, and which work dir.
+
+The shell gives you `hep_status` (installed versions), `hep_cd PROJECT
+[configs|modules|results|output]` (in the current work dir), `hep_refresh`, `quit` (leave the
+environment) and `hep_help`.
+
+### 1.2 A work dir
+
+```bash
+hep setup ~/Github/My-Study --project Jets --git     # the folders, hep.toml, a starter, one commit
+cd ~/Github/My-Study
+hep build                                            # its module programs and Rivet plugins
+hep run Jets/jets                                    # the starter: Pythia → MC_JETS, two PDFs
+```
+
+`hep setup <dir>` makes the folders every work dir has (`configs/ modules/ datasets/ results/
+output/ reports/ build/`), its `hep.toml` (the marker: `[work] name`, and `[framework] expects`, the
+Heimdall revision it was made by), a `Makefile`, `.gitignore`, `README.md`, `CLAUDE.md` and editor
+settings. It never overwrites: run it again in a work dir (after a fresh clone, say) and it adds only
+what is missing. `--project P` adds `configs/P/p.toml` and `p.cmnd`, a starter that `hep check`
+accepts, and `modules/P/`; `--git` commits what it added; `--adopt` makes a work dir of a folder that
+already has files.
+
+Every `hep` command finds its work dir by walking up from the working directory to a `hep.toml`
+with a `[work]` table; `$HEP_WORK` names one instead. Outside a work dir, `hep run` says so. A work
+dir made by a newer Heimdall than the one running (its `expects` is not in Heimdall's history) is
+warned about, once per command.
+
+### 1.3 Building
+
+`hep build` compiles the work dir's sources (`make all`, by `$HEP/framework/work.mk`); `hep build
+--framework` compiles Heimdall's own (its `Makefile`). Both take:
+- `--tests` (with `--framework`) also builds the C++ tests;
 - `--configure` probes the toolchain again (after installing a library);
-- `--clean` empties `build/` first;
+- `--clean` empties the build first;
 - `-j N` limits the jobs.
 
-To build one source, `make` it by its path (`hep make …` works from anywhere); the output lands where
-the convention says:
+To build one source, `make` it by its path (`hep make …` works from anywhere in the work dir, `hep
+make --framework …` in Heimdall); the output lands where the convention says:
 
 | Source | `make` | Output |
 |---|---|---|
 | `modules/<P>/<X>.cc` | `make modules/<P>/<X>.exe` | `build/<P>/<X>.exe` |
 | `modules/<P>/Rivet/<x>.cc`, `modules/<P>/Rivet_<x>.cc` | `make modules/<P>/Rivet/<x>.so` | `build/Rivet/Rivet_<x>.so` + its `.info`, `.plot`, `.yoda` |
-| `utils/App_<X>.cc` | `make utils/App_<X>.exe` | `build/App_<X>.exe` |
-| `utils/Apps/<X>/main.cc` | `make utils/Apps/<X>.exe` | `build/<X>.exe` |
+| Heimdall's `src/App_<X>.cc` | `hep make --framework src/App_<X>.exe` | `framework/Apps/App_<X>.exe` |
+| Heimdall's `src/Apps/<X>/main.cc` | `hep make --framework src/Apps/<X>.exe` | `framework/Apps/<X>.exe` |
 
 A source says what it links in one line near the top: `// requires: pythia8 hepmc3 fastjet`. The
-names it may use are those of `utils/Env/stack.toml` (`pythia8 hepmc3 yoda root fastjet lhapdf rivet
+names it may use are those of `env/stack.toml` (`pythia8 hepmc3 yoda root fastjet lhapdf rivet
 geant4 toml zstd zlib onnx delphes`), or `none`. Without the line it links everything that was found.
-A folder or file whose name starts with `_` is parked: `hep build` skips it.
-
-The shell gives you `hep_status` (installed versions), `hep_cd PROJECT
-[configs|modules|results|output]`, `hep_refresh`, `quit` (leave the environment) and `hep_help`.
+Heimdall's headers (`Module.hh`, `Kit.hh`, `Status.hh`, `PythiaRun.hh`) are on the include path. A
+folder or file whose name starts with `_` is parked: `hep build` skips it.
 
 ---
 
@@ -147,7 +188,7 @@ ratio   = true
 - **Connections are named**: `output_file` and `input` say what goes where. A FIFO connects tools in
   one group; between groups the interface is a file (C6).
 - **Paths**: a bare name goes under its key's convention root (`baseconfig` under `configs/<P>/`),
-  `./x` is from the repository root, and `/x` is absolute (04 §2).
+  `./x` is from the work dir, and `/x` is absolute (04 §2).
 - **Labels are LaTeX**, as a physicist writes them (`$p_{T}$ > 4 GeV`, `$\sqrt{s}$`). Words outside
   `$…$` are text, as written. A label in ROOT's TLatex (`#sqrt{s}`, `p_{T}` with no `$`) is refused
   with its LaTeX as the hint, and `hep migrate` rewrites old files (§10).
@@ -336,7 +377,7 @@ output_file = "delphes.root"
 [tools.jets_reco]
 tool        = "custom"
 executable  = "path:python3"
-arguments   = ["{repo}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
+arguments   = ["{work}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
 input       = "delphes.root"
 output_file = "jets_reco.json"
 ```
@@ -360,7 +401,7 @@ output_file = "events.hepmc"
 
 | Generator | Base card | Notes |
 |---|---|---|
-| `herwig` | `.in` | `hep build` makes its repository; seed and events are flags |
+| `herwig` | `.in` | `hep build --framework` makes its repository; seed and events are flags |
 | `sherpa` | `.yaml` | keys are paths into the YAML (`PDF_SET[0]`, `EPA:Q2Max`); `MPI_PDF_SET` follows `PDF_SET` |
 | `whizard` | `.sin` | one base card, included after the plan's settings; beams by the model's names; direct photoproduction only |
 | `madgraph` | proc card | writes an LHE **file**; shower it with a `pythia` table in a later group (its base card sets `Beams:frameType = 4`) |
@@ -370,7 +411,7 @@ A MadGraph chain is `tools = ["madgraph", ["shower", "rivet"], "yd2rt"]`, with
 
 Keep each generator's configurations in a run TOML of their own when their quantities differ:
 jets's `pt0ref` is a Pythia key, and in a Sherpa chain nothing would consume it (C7). The shipped
-examples are under `tests/fixtures/configs/Demo/` (`herwig.toml`, `sherpa.toml`,
+examples are in Heimdall's fixture work dir, `tests/fixtures/work/configs/Demo/` (`herwig.toml`, `sherpa.toml`,
 `whizard.toml`, `madgraph.toml`).
 
 ### 5.3 The same study with several generators
@@ -478,7 +519,7 @@ counting.
 
 **Speed:** Pythia runs on the configuration's `threads`, and `rivet_threads = K` in
 `[tools.jets.config]` runs K Rivets on threads of their own, merged at the end. With 12 + 12 it is
-about 1.5× faster than the sharded chain (§7.1). K above 1 needs the SISCone patch in `~/HEP` (L29).
+about 1.5× faster than the sharded chain (§7.1). K above 1 needs the SISCone patch in the stack's FastJet (L29; `recipes/patches/`, applied by the build).
 
 **A whole study in one process** imports the chain's run TOML (§4.9) and writes only what differs: the
 program, the configurations that run it, and a run name of its own. The physics (statics, quantities,
@@ -536,7 +577,7 @@ window = [1.09, 1.14]
   with `target = "fit"` and `key = "window"` sweeps a key of it.
 - **Its products:** write them to `{partial:output}`; the runner renames them after the checks.
 - **Its status:** set `filters = "my_rules.toml"` for a progress bar from your prints
-  ([06 §23](06_Internals.md#23-filterstoml)), or speak the status protocol with `utils/hepkit.py`
+  ([06 §23](06_Internals.md#23-filterstoml)), or speak the status protocol with `framework/hepkit.py`
   ([06 §22](06_Internals.md#22-statushh-and-the-status-protocol)). `hepkit` also gives the exit
   codes and the report a module writes.
 
@@ -717,7 +758,8 @@ Common refusals, and what they mean:
 | `'…' is TLatex; labels are LaTeX` | write the LaTeX the hint gives, or `hep migrate` the file (§10) |
 | `[plot.overlay] is a figure now` | `[plot.figures.<name>] class = "overlay"`, or `hep migrate` |
 | `base config not found` | the card is not under `configs/<P>/` (write `./path` for elsewhere) |
-| `build/App_Pythia.exe is not built` | `hep build` |
+| `framework/Apps/App_Pythia.exe is not built` | `hep build --framework` |
+| `not inside a work dir` | `cd` into one, or `hep setup <dir>` (§1.2) |
 | `unknown section [schema]` | a v1 (hekit) run TOML: the schema is 04; `git show HEAD:<file>` has the current one |
 
 ---
@@ -757,9 +799,8 @@ Each command is in [05 §1](05_Commands_and_Tools.md#1-commands).
 ## 11. Reading results from Python
 
 ```python
-import sys
-sys.path.insert(0, "utils/Env")             # from the repository root
-from runner import results
+from runner import results                  # Heimdall's venv has framework/ on its path; elsewhere,
+                                            # sys.path.insert(0, os.environ["HEP"] + "/framework")
 
 for point in results.load("Demo/jets", "energy_pdf"):
     print(point.name, point.values["pdf"].label, point.complete, point.yoda())
@@ -779,6 +820,9 @@ installed: for notebooks and statistics tools.
 ---
 
 ## 12. A new project
+
+A new study that shares nothing with the others is a new work dir: `hep setup <dir> --project
+<Project> --git` (§1.2). A new project in a work dir:
 
 1. `configs/<Project>/`: the native base card(s) and a run TOML with `project = "<Project>"`.
 2. `modules/<Project>/`: Rivet plugins in `Rivet/<name>.cc` (with `.info`, `.plot`, `.yoda`), and

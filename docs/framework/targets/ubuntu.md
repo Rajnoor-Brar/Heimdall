@@ -9,11 +9,11 @@ differs from the phase files is here (D11).
 - `sudo`. A password is fine: the gates ask before every `sudo`.
 - 60 GB free where `$HEP` goes.
 
-## System packages (P2 S1)
+## System packages (P1 S1)
 
 `settings.toml`'s `apt_packages`: 51 at 9cb907a, grouped there by what needs each one. That
 includes `pandoc`, `poppler-utils` and `texlive-latex-recommended` for decks (V102–V104). They are
-installed once, at P2 S1's gate, and the build then runs with `system=false`.
+installed once, at P1 S1's gate, and the build then runs with `system=false`.
 
 ## Overlay and launching
 
@@ -35,7 +35,7 @@ These may be made without a gate, then recorded, reported and folded back:
    <new>` against the old name's source, and record both names.
 
 Everything else is a gate. That includes:
-- a different release of any HEP package (it changes P2 S3's expected versions);
+- a different release of any HEP package (it changes P1 S3's expected versions);
 - a compiler flag;
 - a patch.
 
@@ -51,6 +51,6 @@ Everything else is a gate. That includes:
   - Sherpa.
 
   A failure there is a gate. The way out is usually a newer release (`<package>.release=…` on the
-  command line), which the user must approve because P2 S3's versions move.
-- **P4 S2's R2** (byte-identical against the legacy reference) may fail on a new compiler, as 07
+  command line), which the user must approve because P1 S3's versions move.
+- **P2 S2's R2** (byte-identical against the legacy reference) may fail on a new compiler, as 05
   explains. That is a decision for the user, not a fault.

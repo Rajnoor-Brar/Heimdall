@@ -8,8 +8,8 @@ modules, maybe no network on the compute nodes. Only what differs from the phase
 
 | Way | When | How |
 |---|---|---|
-| **A. The image** (preferred) | Apptainer (or Singularity) is installed | build the image elsewhere (the [container](container.md) annex), copy the `.sif` over, run work dirs through it. P2 is replaced by the image; P3 and P4 are done where the image was built |
-| B. A native user-space build | no Apptainer, and the user asks for it | `system=false`: every system package must come from environment modules or already be there. P2 S1 lists what is missing; each item is a gate |
+| **A. The image** (preferred) | Apptainer (or Singularity) is installed | build the image elsewhere (the [container](container.md) annex), copy the `.sif` over, run work dirs through it. P1 is replaced by the image, which also builds Heimdall's apps; P2's tests run inside it |
+| B. A native user-space build | no Apptainer, and the user asks for it | `system=false`: every system package must come from environment modules or already be there. P1 S1 lists what is missing; each item is a gate |
 
 P0 S1 records `apptainer` in `[machine]`. With it, propose A at P0's end.
 
@@ -23,7 +23,7 @@ P0 S1 records `apptainer` in `[machine]`. With it, propose A at P0's end.
 
 | | Way A | Way B |
 |---|---|---|
-| system packages | inside the image | modules: record the exact `module load` lines in `[choices]`, and put them in `stack/setup_extra.sh` through `settings.toml`'s `setup_extra` (`settings.toml`) |
+| system packages | inside the image | modules: record the exact `module load` lines in `[choices]`, and put them in `env/machine.sh` through `settings.toml`'s `setup_extra` (`settings.toml`) |
 | overlay | none | `system=false graphics=OFF`; `geant4_data=OFF` if the build node has no network (Geant4 then runs only without its datasets) |
 | launching | `apptainer exec --bind <work>:<work> heimdall.sif bash -lc 'cd <work> && hep run …'` | `source $HEP/setup.sh` after the module loads |
 
@@ -48,4 +48,4 @@ Everything else is a gate.
 
 - Way B has never been run. Expect a gate per missing library.
 - Without network on compute nodes, the PDF sets and Geant4's data must be fetched on a login node
-  (P2 S2's downloads gate says where).
+  (P1 S2's downloads gate says where).

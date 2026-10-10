@@ -13,14 +13,17 @@ dirs** (`configs/`, `modules/`, `results/`, …), as many as you like.
 ```bash
 git clone <Heimdall's URL> ~/Github/Heimdall
 cd ~/Github/Heimdall
-python3 recipes/build_stack.py              # the stack, from source, into stack/ (hours; recipes/README.md)
-python3 recipes/build_stack.py --toolkits   # preset sets for a kind of work: packages=@bsm-recast, @detector, …
+python3 recipes/build_stack.py packages=@primary   # the stack, from source, into stack/ (hours; recipes/README.md)
+python3 recipes/build_stack.py --toolkits   # other sets for a kind of work: @bsm-recast, @detector, … and yours
 source setup.sh                             # the environment; alias load_hep='source ~/Github/Heimdall/setup.sh'
 hep build --framework                       # the framework's apps, into framework/Apps/
 hep setup ~/Github/My-Study --project Jets --git    # a work dir with a starter
 ```
 
-On macOS use `recipes/platforms/mac/`. For an image, use `recipes/platforms/container/`.
+`@primary` is the lab PC's set (ROOT, Pythia8, Rivet, YODA, HepMC3, FastJet, LHAPDF and its PDF
+sets, Herwig, Sherpa, MadGraph, Whizard, Delphes, Geant4, ONNX Runtime) plus MadAnalysis5. On macOS
+use `recipes/platforms/mac/`. For an image, use `recipes/platforms/container/`. An agent setting up a
+fresh machine follows [docs/framework/](docs/framework/README.md), step by step.
 
 ## What is where
 
@@ -29,7 +32,7 @@ On macOS use `recipes/platforms/mac/`. For an image, use `recipes/platforms/cont
 | `setup.sh` | the environment: `HEP`, the stack on `PATH`, the venv, `hep` |
 | `recipes/` | how the stack is built: `build_stack.py`, `packages.toml`, `settings.toml`, `patches/`, `platforms/` |
 | `env/` | the environment's files: `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py`; `venv/` (the Python environment) |
-| `framework/` | what runs: `bin/hep`, the runner, the tool folders, the schema, the work-dir template; `Apps/` (the compiled apps) |
+| `framework/` | what runs: `bin/hep`, the runner, the tool folders, the schema, the work-dir template, the build's rules; `Apps/` (the compiled apps) |
 | `src/` | what is compiled: the C++ kits and the apps' sources |
 | `docs/` | the manual ([docs/README.md](docs/README.md)); `framework/`, the plans that set Heimdall up on a fresh machine |
 | `tests/` | the tests, and the frozen work dir they run in |

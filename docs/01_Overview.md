@@ -11,6 +11,15 @@ A framework for **Monte Carlo studies in high-energy physics** on one machine, f
 physicist-developer. It generates events with a standard generator, analyses them with Rivet or your
 own program, sweeps the settings that matter, and compares the curves with each other and with data.
 
+It lives in two kinds of place:
+- **Heimdall** (`$HEP`) is the framework and the machine's home at once: the recipes that build the
+  software stack, the stack itself, the Python environment, the runner and its tool folders, and the
+  compiled apps. One per machine (or per toolkit's isolated stack).
+- **Work dirs** hold your studies: run TOMLs and cards, your programs and Rivet plugins, data, and
+  what runs make. As many as you like, each its own git repository, independent of each other. `hep
+  setup <dir>` makes one; a `hep.toml` marks it, and the runner finds it from the working directory,
+  as git finds a repository.
+
 Its whole shape is one sentence of the brief ([07 §1](07_Record.md#1-the-brief)): **tools are
 processes, chained by a TOML**.
 
@@ -26,9 +35,9 @@ The runner decides and supervises. The tools do the physics.
 ## 2. The model in one picture
 
 ```
-hep run Demo/jets energy_pdf                      utils/Env/hep → utils/Env/run → runner.cli
+hep run Demo/jets energy_pdf                      framework/bin/hep → framework/bin/run → runner.cli
   │
-  ├─ load     configs/Demo/jets.toml  (+ utils/Env/quantities.toml, <tool>/quantities.toml: quantity → tool maps)
+  ├─ load     configs/Demo/jets.toml  (in the work dir; + framework/schema/quantities.toml, <tool>/quantities.toml)
   ├─ resolve  [run.cfgs.energy_pdf]: sweeps, plot_points, tools, static, prelim
   ├─ expand   sweeps = ["energies", "pdf"]  →  16 points   (a grid of axes; entangled groups zip)
   ├─ plan     per point: cards, config files, argv, connections, identity, seeds; every check (C1–C14)
@@ -46,7 +55,7 @@ hep run Demo/jets energy_pdf                      utils/Env/hep → utils/Env/ru
   ├─ combine  points that differ only in a combined quantity (replicas) merged into one, per group
   ├─ post     tools run once after every point, handed every point's products and points.json
   └─ plot     the sweep merged into plots/root/energy_pdf.root; its figures made into pages: one per
-              energy and histogram, the PDFs as curves; drawn by build/Paint.exe (and/or mkhtml, mpl)
+              energy and histogram, the PDFs as curves; drawn by Heimdall's Paint.exe (and/or mkhtml, mpl)
 ```
 
 **Every box is a process or a file.** No tool runs inside another, the runner links no physics
@@ -118,10 +127,10 @@ means.
 ### 4.4 Say it once, where it belongs
 
 Each kind of knowledge has one home:
-- **a kind of tool:** its folder, `utils/Env/<tool>/`. That covers how to run it, write its card,
+- **a kind of tool:** its folder, `framework/tools/<tool>/`. That covers how to run it, write its card,
   read its progress, count its events and cache its slow step.
 - **how a quantity reaches a tool:** the master TOML.
-- **every key a run TOML may hold:** `utils/Env/schema/run.toml`, with its type, default and
+- **every key a run TOML may hold:** `framework/schema/run.toml`, with its type, default and
   meaning.
 - **the look of a page:** `base.toml`.
 
@@ -199,7 +208,7 @@ against them and why ([07 §9](07_Record.md#9-budget)).
 
 These rules are enforced by tests:
 - the runner's import ranks;
-- tests never write into `results/` or `configs/`, and a guard fails the run if they do;
+- tests run in a scratch work dir of their own, and a guard fails the run if they change their fixtures;
 - the manual's keys, links, examples and generated tables are checked against the code.
 
 A rule a test enforces is a rule; a rule in a document is a hope.
@@ -209,6 +218,7 @@ A rule a test enforces is a rule; a rule in a document is a hope.
 The surface stays small:
 - one `hep` command with a few subcommands ([05 §1](05_Commands_and_Tools.md#1-commands)), plus
   `hep build` and `make`;
+- one marker file, `hep.toml`, between a work dir and the framework;
 - seven sections in a run TOML;
 - a few C++ headers;
 - one flat runner package.
@@ -244,5 +254,7 @@ Anything a user does not ask for is not there (v1 had 19 commands).
 | **audit 1** (V52–V79) | the schema, frozen test fixtures, the tool folders as data, labels in LaTeX, the event stream and `hep watch`, the mpl backend, `hep check`, `migrate` and `reproduce` |
 | **figures** (V80–V89) | `[plot.figures]`: seven ways to build a page and three things to draw |
 | **audit 2** (V90–) | this manual, rebuilt on generated reference tables |
+| **decks** (V102–V104) | `hep deck`: talks and reports from drawn pages |
+| **Heimdall** (V105–V113) | the framework split from High-Energy (`split/base`) into its own repository, which is also the machine's home: the stack's recipes and toolkits, `hep setup` for work dirs, two roots, provenance across both repositories |
 
 The decisions and what each gave up are in [07 §2](07_Record.md#2-decisions).

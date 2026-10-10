@@ -5,7 +5,7 @@ it runs, how its card is written, which quantities it consumes, what it writes, 
 counted, what it can export, and the quirks that shaped it (the ledger rows,
 [07 §3](07_Record.md#3-the-knowledge-ledger)). Then the apps as you run them by hand.
 - **Generated:** the commands' options come from `hep`'s own parser (`make docs`, V91).
-- **Written by hand:** the tools' sections come from `utils/Env/<tool>/`.
+- **Written by hand:** the tools' sections come from `framework/tools/<tool>/`.
 - **Writing a new tool folder:** [06 §16](06_Internals.md#16-the-tool-folder-contract).
 
 ---
@@ -19,7 +19,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `config` | configs/<Project>/<name>[.toml], or ./path from the repo root |
+| `config` | configs/<Project>/<name>[.toml], or ./path from the work dir |
 | `[configuration]` | overrides [run].configuration; under [run].sweep_runs, runs only it |
 | `--plan` | print the plan; run nothing |
 | `--why` | for each point that would run, what changed since it last completed; run nothing |
@@ -50,7 +50,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--objects GLOB…` | only these YODA paths |
 | `--formats FORMATS` | pdf, png, svg, eps (default pdf,png) |
 | `--ratio` | a ratio panel against the first curve |
-| `--style FILE` | a style file over utils/Apps/Paint/base.toml |
+| `--style FILE` | a style file over src/Apps/Paint/base.toml |
 
 **`hep deck`**: a deck of slides from drawn pages, in reports/<deck>/ (deck.toml, deck.md)
 
@@ -118,6 +118,23 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `[configuration]` | overrides [run].configuration (or the sweep's latest) |
 | `--plain` | plain lines instead of the live view |
 | `--file STATUS.JSONL` | follow a --journal run's status file instead |
+
+**`hep setup`**: make a work dir: the key folders, hep.toml and the template's files (never overwrites)
+
+| Argument | Meaning |
+|---|---|
+| `dir` | the work dir's folder: new, empty, or a work dir to complete |
+| `--project P` | also configs/<P>/ with a starter run TOML and card, and modules/<P>/ |
+| `--git` | git init, and commit what was added |
+| `--adopt` | make a work dir of a folder that has files but no hep.toml |
+| `--name NAME` | the work dir's name in hep.toml (default: the folder's) |
+
+**`hep where`**: which Heimdall and which work dir this shell sees
+
+| Argument | Meaning |
+|---|---|
+| `--hep` | only Heimdall's folder |
+| `--work` | only the work dir (exit 2 outside one) |
 <!-- /generated -->
 
 ### 1.1 `hep run`
@@ -185,13 +202,13 @@ This is housekeeping (V74).
 - **`ls`** lists every config and its configurations, with descriptions; a `*` marks what `hep run
   CONFIG` runs.
 - **`explain`** gives a key's type, default, choices, bounds, inheritance, doc and notes, from the
-  schema (`utils/Env/schema/run.toml`): `plot.y_gutter`, `run.event_count`,
+  schema (`framework/schema/run.toml`): `plot.y_gutter`, `run.event_count`,
   `quantities.<q>.styles`, `plot.figures.<f>.logy`, or a bare key looked up in every table.
 - **`status`** gives every configuration's points and stages, each **complete**, **stale** (complete
   for an earlier identity: it reruns), **incomplete** (begun, not done: failed, stopped or running)
   or **to run**. Each comes with when it finished and its results' size, and `[running]` marks a
   configuration a job is running now. `status --stack` gives each package of
-  `utils/Env/stack.toml`, its version and where it is (V78).
+  `env/stack.toml`, its version and where it is (V78).
 - **`clean`** removes what the runner made and no plan uses:
   - within each configuration's folder, the point folders no plan has (in `output/`) and the
     `.partial` leftovers (in `output/` and `results/`);
@@ -275,50 +292,61 @@ starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
 - **`--init`:** writes `deck.md` once (a title slide, then a section per table and a slide per
   block), and a starter `deck.toml` where there is none. It refuses when `deck.md` is there.
 - **What it needs:** pdflatex and poppler (`pdftoppm`, `pdfinfo`) for the composites, pandoc and
-  the Beamer class for the slides (docs/stack/README.md §4).
+  the Beamer class for the slides (recipes/README.md §4).
 
 ---
 
 ## 2. The environment, `hep build` and `make`
 
-`hep build [TARGET…] [--tests] [--clean] [--configure] [-j N]` is `make all` from the repository
-root, on every core by default:
-- `make all` builds every module program, Rivet plugin and app, and Herwig's repository;
-- `--tests` adds the C++ tests;
-- `--clean` empties `build/` first;
+`hep build [TARGET…] [--framework] [--tests] [--clean] [--configure] [-j N]` is `make all`, on every
+core by default:
+- in the **work dir** (found as every command finds it), by its `Makefile`, which includes
+  `$HEP/framework/work.mk`: every module program and Rivet plugin, into `build/`;
+- with **`--framework`**, in **Heimdall**, by its own `Makefile`: the apps (`App_*.exe`, `Paint.exe`)
+  into `framework/Apps/`, and Herwig's repository;
+- `--tests` adds the C++ tests (Heimdall's, into `forge/tests/`);
+- `--clean` empties the build first;
 - `--configure` probes the toolchain again.
 
-`hep make …` is `make …` from the repository root, wherever it is typed (V54). The targets:
+`hep make …` is `make …` in the work dir, wherever in it it is typed (V54); `hep make --framework …`
+is `make …` in Heimdall. The targets:
 - `<path>/<X>.exe`, `<path>/<x>.so`;
-- `all`, `tests`, `test`, `test-slow`;
-- `configure`, `list`;
-- `schema`, `docs`;
-- `clean`.
+- `all`, `configure`, `list`, `clean`;
+- Heimdall's only: `tests`, `test`, `test-slow`, `schema`, `docs`.
 
 The make rules are in [06 §15](06_Internals.md#15-the-build). Run them with the environment loaded
-(`load_hep`).
+(`source <Heimdall>/setup.sh`, the alias `load_hep`).
+
+`hep setup <dir>` makes a work dir and `hep where` says which Heimdall and which work dir a shell
+sees ([02 §1](02_User_Guide.md#1-set-up-and-build); their options are in §1).
 
 | Variable | Set by | Means |
 |---|---|---|
-| `HEKIT_ROOT` | `~/HEP/setup.sh` | the repository (else found from the runner's own location) |
-| `HEKIT_OUTPUT`, `HEKIT_RESULTS` | you, tests | replace `output/` and `results/` (the tests point them into `output/tests/`) |
-| `HEKIT_CONFIGS` | tests | replaces `configs/` as the root of run TOMLs and their cards (the tests point it at `tests/fixtures/configs/`) |
+| `HEP` | `setup.sh` | Heimdall's folder. The runner always runs from its own Heimdall and refuses a `$HEP` that names another ("two Heimdalls") |
+| `HEP_INSTALL`, `HEP_VENV` | `setup.sh` | the loaded stack (`stack/`, or `stacks/<toolkit>/stack`) and its Python environment |
+| `HEP_STACK` | `stacks/<toolkit>/setup.sh` | an isolated toolkit's stack is loaded: Heimdall's apps are `stacks/<toolkit>/Apps/` (built against it) |
+| `HEP_WORK` | you, tests | the work dir, instead of the walk up from the working directory (it must have a `hep.toml` with `[work]`) |
+| `HEP_OUTPUT`, `HEP_RESULTS`, `HEP_REPORTS` | you, tests | replace the work dir's `output/`, `results/` and `reports/` (the tests point them into `forge/scratch/`) |
+| `HEP_CONFIGS` | you | replaces the work dir's `configs/` as the root of run TOMLs and their cards |
 | `HEP_STATUS_FD` | the runner, per tool | the status pipe of a `status = "standard"` tool |
-| `RIVET_ANALYSIS_PATH` | the rivet and merge folders, per run | `build/Rivet` (not set in the shell on purpose) |
-| `LHAPDF_DATA_PATH`, `GEANT4_DATA_DIR`, `ONNXRUNTIME_DIR` | `utils/Env/hep_env.sh` | the toolchain's data |
+| `RIVET_ANALYSIS_PATH` | the rivet and merge folders, per run | the work dir's `build/Rivet` (not set in the shell on purpose) |
+| `LHAPDF_DATA_PATH`, `GEANT4_DATA_DIR`, `ONNXRUNTIME_DIR` | `env/hep_env.sh` | the toolchain's data |
+
+High-Energy's variables (`HEKIT_ROOT`, `HEKIT_OUTPUT`, …) are retired: a shell that still sets one is
+refused, naming its replacement, and `setup.sh` unsets `HEKIT_ROOT` with a warning.
 
 ---
 
 ## 3. The standard tools at a glance
 
-A **standard tool** is a folder `utils/Env/<tool>/`, and its name is the value of `tool = …`. The
+A **standard tool** is a folder `framework/tools/<tool>/`, and its name is the value of `tool = …`. The
 runner discovers the folders and names none of them.
 
 | `tool =` | Category | Runs | Card | Streamable | Status | Count check | Prepare | Exports |
 |---|---|---|---|---|---|---|---|---|
-| `pythia` | event generator | `build/App_Pythia.exe` | `.cmnd`, append | — (writes) | standard | produces: sidecar | — | `card`, `cmnd` |
+| `pythia` | event generator | `framework/Apps/App_Pythia.exe` | `.cmnd`, append | — (writes) | standard | produces: sidecar | — | `card`, `cmnd` |
 | `rivet` | analysis application | `rivet` (or K of them: `shards`) | none (flags) | yes | filters | `/RAW/_EVTCOUNT` | — | `analyses` |
-| `yd2rt` | visualisation | `build/App_yd2rt.exe` | none | file | standard | — | — | — |
+| `yd2rt` | visualisation | `framework/Apps/App_yd2rt.exe` | none | file | standard | — | — | — |
 | `merge` | analysis application (post) | `rivet-merge` | none | files | none | — | — | — |
 | `plotmerge` | visualisation (post) | `App_yd2rt.exe --merge` | none | files | standard | — | — | — |
 | `custom` | any | your `executable` | none | per table | none (set it) | only if you set it | — | — |
@@ -329,17 +357,17 @@ runner discovers the folders and names none of them.
 | `whizard` | process generator | `whizard` | `.sin`, render | — (writes) | filters | produces: runner-written sidecar | integration | `card`, `sin` |
 | `madgraph` | process generator | `mg5_aMC` | launch script, render | — (writes a file) | filters | produces: runner-written sidecar | process directory | `card`, `proc`, `process` |
 
-Other folders of `utils/Env/` are not tools in a chain:
+Other folders of `framework/tools/` are not tools in a chain:
 - **`yoda/` and `mpl/`** hold the plot backends (`backend.py`, [03 §9](03_Plots.md#9-backends));
 - **`figures/`** holds the figures' plugins;
 - **`lhapdf/`** is a provider.
 
-Paint (`utils/Apps/Paint/`) is driven by the plot stage, and is never named in `tools` (§18).
+Paint (`src/Apps/Paint/`) is driven by the plot stage, and is never named in `tools` (§18).
 
 **Not tools at all:**
 - **Providers** (LHAPDF, FeynRules, SARAH) are plan-time checks. A mapping with `check =
   "lhapdf:bare"` or `"lhapdf:pythia"` refuses an uninstalled PDF set (C10,
-  `utils/Env/lhapdf/provider.py`, V60).
+  `framework/tools/lhapdf/provider.py`, V60).
 - **Analysis algorithms** (FastJet, ROOT libraries) are `// requires:` names in a source.
 - **A detector simulation with no command line of its own** (Geant4) is a module program with
   `// requires: geant4`.
@@ -356,7 +384,7 @@ baseconfig  = "ep.cmnd"        # configs/<P>/ep.cmnd
 output_file = "events.hepmc"         # a [prelim] FIFO or file; an array fans out (V16)
 ```
 
-- **Runs** `build/App_Pythia.exe <outputs> <base cards…> <point card>` (§16): the base cards in
+- **Runs** `framework/Apps/App_Pythia.exe <outputs> <base cards…> <point card>` (§16): the base cards in
   order, then the point card, so its settings win.
 - **Card** (`cards/pythia.point.cmnd`, and `cards/pythia.cmnd` = base + point):
   - a header comment;
@@ -373,7 +401,7 @@ output_file = "events.hepmc"         # a [prelim] FIFO or file; an array fans ou
 - **Keys the runner sets** (`[card] owned`: `Main:numberOfEvents`, `Parallelism:numThreads`, the
   `Random:` seeds, `Parallelism:seeds`, `Beams:LHEF`): a base card's line for one of them is never
   used, and `--plan` and the run say so (V59).
-- **Checked** (`[checks] card`, V59): at plan time, `build/App_PythiaCheck.exe` gives every line of
+- **Checked** (`[checks] card`, V59): at plan time, `framework/Apps/App_PythiaCheck.exe` gives every line of
   the card (base settings and point card, before seeds) to Pythia's own reader.
   - A line Pythia rejects (a key it does not know, a value of the wrong kind, a particle its table
     lacks) refuses the plan, with the line's source.
@@ -423,7 +451,7 @@ output_file = "jets.yoda"
   version is the stack's.
 - **Exports** `rivet_analyses`: `analyses` (with this point's options applied, e.g. `photo_eic:R=0.4`)
   and `plugin_path` (`build/Rivet`).
-- **Its own code** is `utils/Env/rivet/render.py`'s `options` hook (V60). It handles:
+- **Its own code** is `framework/tools/rivet/render.py`'s `options` hook (V60). It handles:
   - the analyses with their options;
   - the `.info` check;
   - `{analyses}` for the argv;
@@ -558,12 +586,12 @@ table sets it, and `HEP_STATUS_FD` is passed when `status = "standard"`.
 [tools.jets_reco]
 tool        = "custom"
 executable  = "path:python3"
-arguments   = ["{repo}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
+arguments   = ["{work}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
 input       = "delphes.root"
 output_file = "jets_reco.json"
 ```
 
-**A custom tool in Python** gets the kit's half that applies through `utils/hepkit.py` (V74):
+**A custom tool in Python** gets the kit's half that applies through `framework/hepkit.py` (V74):
 - `Exit`: Kit::Exit's table;
 - `Status`: the standard protocol, with a heartbeat, or plain lines on stderr when the fd is not
   given;
@@ -613,10 +641,10 @@ baseconfig  = "dis_ep.herwig.in"
 output_file = "events.hepmc"
 ```
 
-- **Prepare** (cached per card): `Herwig read --repo=build/Herwig/HerwigDefaults.rpo <card>` →
-  `point.run` in the cache entry. The repository is made by `hep build`: Herwig's own install could
-  not make it, since its defaults need CT14lo/CT14nlo (L15). A plan without it is refused (C10),
-  with `hep build`.
+- **Prepare** (cached per card): `Herwig read --repo={hep}/framework/Apps/Herwig/HerwigDefaults.rpo <card>` →
+  `point.run` in the cache entry. The repository is made by `hep build --framework`: Herwig's own
+  install could not make it, since its defaults need CT14lo/CT14nlo (L15). A plan without it is
+  refused (C10), with `hep build --framework`.
 - **Runs** `Herwig run <cache>/point.run -N <events> -s <seed> -d 0`. Events and seed are flags, so
   every point and replica with the same physics shares one read.
 - **Card**: ThePEG `set {key} {value}` lines (a later `set` wins). The footer reads HepMC output
@@ -737,14 +765,14 @@ output_file = "events.hepmc"
 
 ---
 
-## 16. App_Pythia — `utils/App_Pythia.cc`
+## 16. App_Pythia — `src/App_Pythia.cc`
 
 ```
 App_Pythia.exe [--threads N] [--events N] [--seeds S1,S2,…] [--sidecar FILE] OUTPUT[,OUTPUT…] CARD [CARD…]
 ```
 
 **Its rules.** Its Pythia rules (the σ combination, the stamping, the seed check, the chunking: L1,
-L2, L4, L6, L28) are `utils/PythiaRun.hh`'s. The integrated programs (InprocJets) run them too
+L2, L4, L6, L28) are `src/PythiaRun.hh`'s. The integrated programs (InprocJets) run them too
 (V63), so an integrated point's events and σ are the chain's by construction.
 
 **Outputs.** Every comma-separated OUTPUT gets **every** event (fan-out, V16). An OUTPUT written
@@ -797,7 +825,7 @@ holds:
 
 `App_PythiaCheck.exe CARD` is its card check (§4).
 
-## 17. App_yd2rt — `utils/App_yd2rt.cc`
+## 17. App_yd2rt — `src/App_yd2rt.cc`
 
 ```
 App_yd2rt.exe IN.yoda OUT.root [GLOB …] [--keep-raw]

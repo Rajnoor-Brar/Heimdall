@@ -77,7 +77,8 @@ def pages(configuration, point_list: list[Point]) -> dict[tuple, list[Point]]:
 
 
 def select_points(run, configuration, point_list: list[Point], selector: str | None) -> list[Point]:
-    """--points: comma-separated tags, 1-based indices, point names or quantity=tag filters."""
+    """--points: comma-separated tags, 1-based indices, point names or quantity=tag filters. A whole
+    point name picks that point alone (hep cluster's jobs name theirs, V114), before any tag match."""
     if not selector:
         return point_list
     chosen = []
@@ -90,7 +91,7 @@ def select_points(run, configuration, point_list: list[Point], selector: str | N
         elif item.isdigit():
             matched = [p for p in point_list if p.index == int(item)]
         else:
-            matched = [p for p in point_list if p.name == item or item in p.name.split("_")]
+            matched = [p for p in point_list if p.name == item] or [p for p in point_list if item in p.name.split("_")]
         if not matched:
             raise HepError(f"--points: '{item}' matches no point", hint=", ".join(p.name for p in point_list[:8]))
         chosen += [p for p in matched if p not in chosen]

@@ -400,6 +400,7 @@ with the layer it came from.
 | `post` | a list |  | the form of `tools` (04 §5.4) |
 | `static` | a table |  | merged over `[static]` and the layers', key by key (04 §7); a `"default"` keeps the layer below's |
 | `prelim` | a table |  | the nearest layer's **replaces** `[prelim]` whole for this configuration (its chain's interfaces); `{}` means none |
+| `cluster` | a table |  | merged over the run TOML's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys (04 §16) |
 <!-- /generated -->
 
 ### 5.1 `sweeps`
@@ -1117,3 +1118,38 @@ per result folder its `folders` name, then its `extra` file.
 No run TOML is read: a block takes its result folders as they are on disk (`results/<Project>/<run>/`),
 whichever config file made them. A page a folder lacks is refused, naming the backend that drew it there,
 if one did.
+
+---
+
+## 16. `[cluster]`: running on Slurm
+
+`hep cluster` ([02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster), 05 §1.9) submits a configuration as
+Slurm jobs with these options (V114). They come in layers, lowest first:
+1. the work dir's `hep.toml` `[cluster]`: the machine's (account, partition, setup lines);
+2. the run TOML's `[cluster]`, into which an import's merges key by key, as `[plot]`;
+3. a configuration's `cluster` table, `[run.cfgs.<cfg>.cluster]`;
+4. `--set cluster.<key>=…`, for one submission.
+
+`[cluster.pre]` and `[cluster.finish]` take the resource keys (`time`, `partition`, `account`, `qos`,
+`constraint`, `gres`, `memory`, `cpus`, `sbatch`) for those jobs only. Nothing here enters an
+identity or a seed: changing it reruns nothing. `time` is required in one of the layers.
+
+<!-- generated: keys cluster -->
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `scheduler` | a string: `"slurm"` | `"slurm"` | the batch system `hep cluster` submits to: `"slurm"` (`sbatch`, `squeue`, `sacct`, `scancel`), the only one so far |
+| `time` | a string |  | each job's wall-time limit, as `sbatch --time` takes it (`"02:00:00"`, `"1-00:00:00"`): one point's, for the points; **required** in one of the layers, because a site's default limit is a surprise `TIMEOUT` |
+| `partition` | a string |  | `sbatch --partition`; unset: the site's default |
+| `account` | a string |  | `sbatch --account`; unset: the user's default |
+| `qos` | a string |  | `sbatch --qos` |
+| `constraint` | a string |  | `sbatch --constraint`, the nodes' features (`"avx2"`) |
+| `gres` | a string |  | `sbatch --gres` (`"gpu:1"`) |
+| `memory` | a string |  | `sbatch --mem` per job (`"8G"`); unset: the partition's default |
+| `cpus` | an integer, ≥ 0 | `0` | `sbatch --cpus-per-task`; `0`: the costliest point's cores, as `--plan` counts them (its generator's `threads`, a sharded tool's shards, an integrated program's threads and one more) |
+| `max_running` | an integer, ≥ 0 | `0` | the points array's throttle, `--array=1-N%K`; `0`: as many as the scheduler gives. `parallelism` is not used: each job is one point |
+| `mail` | a string |  | `sbatch --mail-user`, with `--mail-type=END,FAIL` |
+| `setup` | a list (a string each) | `[]` | shell lines each job runs first, before it sources Heimdall's `setup.sh` (`"module load gcc/13"`): what the nodes need that the login shell had |
+| `sbatch` | a list (a string each) | `[]` | any other `sbatch` options, each as written (`"--exclusive"`, `"--export=NONE"`, `"--reservation=r"`), after the ones the keys above give |
+| `pre` | a table |  | the resource keys (`time`, `partition`, `account`, `qos`, `constraint`, `gres`, `memory`, `cpus`, `sbatch`) for the pre job only, over the others |
+| `finish` | a table |  | the resource keys for the finish job only (the combined groups, the post tools and the plots), over the others; its `cpus` default to 1 |
+<!-- /generated -->

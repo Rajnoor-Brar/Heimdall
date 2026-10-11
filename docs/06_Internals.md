@@ -127,6 +127,7 @@ layering was not had nine cycles.)
 | 4 | `plot.py` | the plot stage: figures, the merged sweep, page configs, the style layers, Paint and the other backends; `hep overlay` on files |
 | 4 | `post.py` | the pre, combined and post stages |
 | 4 | `deck.py` | `hep deck`: a deck's blocks from result folders or its own files, labelled and copied into `panels/` (V103); their composites, and `deck.md` through pandoc to Beamer, pptx, dzslides HTML and an Overleaf zip, the viewer, `--init` (V104) |
+| 4 | `cluster.py` | `hep cluster`: [cluster] in its layers, the Slurm scripts (a pre job, a points array, a finish job, each an ordinary `hep run --stages …`), `sbatch` and the dependencies, `jobs.toml`, `--status` from `sacct` and `squeue`, `--cancel` (V114) |
 | 5 | `cli.py` | `argparse`: `run`, `plot`, `overlay`, `watch`, `check`, …; the order of events |
 | 5 | `house.py` | `ls`, `explain`, `status`, `clean` (V74) |
 | 5 | `migrate.py` | `hep migrate`: run TOMLs and cards rewritten in today's forms (V79) |
@@ -288,6 +289,12 @@ written, and the run goes on to the next point.
 - Each run emits through an `events.RunBus`, which adds `run` to its events. A run's journal takes
   only its own events. A run whose planning fails at its turn gets a `not run` pair of events
   (`cli.not_run`), so `watch.follow_file` never waits on it.
+
+**On a cluster** (`hep cluster`, `cluster.py`, V114): no executor of its own. A job is `hep run
+--stages …` on a node; `cli.run_one` turns `--only` and `--stages` into one set of stages. The
+submission plans every point first, as `--plan` does, so the card checks' cache (`.cache/checks/`)
+is warm before any job starts. Processes on one tree never rename each other's temporary files:
+`record.write_atomic` and the card-check cache name theirs by process.
 
 **Combine** (`post.plan_combined`, V35) plans one stage for each group of points that differ only in
 `combine`'s quantities. It works as `post.plan` plans the post stage:
@@ -704,6 +711,7 @@ output/<P>/<run>/<cfg>/
 output/<P>/<run>/compare/<figure>/    a compare figure's page configs
 output/<P>/.cache/<tool>/<key>/       prepare caches
 output/<P>/.cache/datasets/           reference data converted for Paint
+output/<P>/<run>/<cfg>/cluster/<stamp>/   hep cluster's submissions: *.sbatch, points.txt, jobs.toml, logs/
 forge/scratch/ (in Heimdall)          everything tests write: work/ (the fixture's copy), output/, results/, reports/, pytest/
 
 results/<P>/<run>/<cfg>/

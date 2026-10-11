@@ -111,7 +111,7 @@ def test_hep_toml_refuses_what_it_does_not_know(scratch):
 def test_a_work_dirs_name_is_its_folders_unless_given(scratch):
     work = make_work(scratch / "Top-Quark")
     (work / "hep.toml").write_text("[work]\n", encoding="utf-8")
-    assert paths.work_meta(work) == {"name": "Top-Quark", "expects": ""}
+    assert paths.work_meta(work) == {"name": "Top-Quark", "expects": "", "cluster": {}}
 
 
 # ── resolution ──────────────────────────────────────────────────────────────────────────────────

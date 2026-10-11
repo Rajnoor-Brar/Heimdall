@@ -197,6 +197,10 @@
        "prelim": {
         "description": "this configuration's [prelim]\n\nthe nearest layer's **replaces** `[prelim]` whole for this configuration (its chain's interfaces); `{}` means none",
         "type": "object"
+       },
+       "cluster": {
+        "description": "this configuration's [cluster] keys, over the run's (hep cluster, V114)\n\nmerged over the run TOML's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys (04 §16)",
+        "type": "object"
        }
       },
       "required": [
@@ -1123,6 +1127,88 @@
       },
       "additionalProperties": false
      }
+    }
+   },
+   "additionalProperties": false
+  },
+  "cluster": {
+   "type": "object",
+   "properties": {
+    "scheduler": {
+     "description": "the batch system: slurm (sbatch)\n\nthe batch system `hep cluster` submits to: `\"slurm\"` (`sbatch`, `squeue`, `sacct`, `scancel`), the only one so far",
+     "type": "string",
+     "enum": [
+      "slurm"
+     ],
+     "default": "slurm"
+    },
+    "time": {
+     "description": "each job's time limit (--time), required in some layer\n\neach job's wall-time limit, as `sbatch --time` takes it (`\"02:00:00\"`, `\"1-00:00:00\"`): one point's, for the points; **required** in one of the layers, because a site's default limit is a surprise `TIMEOUT`",
+     "type": "string"
+    },
+    "partition": {
+     "description": "the partition (--partition); unset: the site's default\n\n`sbatch --partition`; unset: the site's default",
+     "type": "string"
+    },
+    "account": {
+     "description": "the account to charge (--account)\n\n`sbatch --account`; unset: the user's default",
+     "type": "string"
+    },
+    "qos": {
+     "description": "the quality of service (--qos)\n\n`sbatch --qos`",
+     "type": "string"
+    },
+    "constraint": {
+     "description": "node features (--constraint)\n\n`sbatch --constraint`, the nodes' features (`\"avx2\"`)",
+     "type": "string"
+    },
+    "gres": {
+     "description": "generic resources (--gres)\n\n`sbatch --gres` (`\"gpu:1\"`)",
+     "type": "string"
+    },
+    "memory": {
+     "description": "memory per job (--mem); unset: the partition's default\n\n`sbatch --mem` per job (`\"8G\"`); unset: the partition's default",
+     "type": "string"
+    },
+    "cpus": {
+     "description": "cores per job (--cpus-per-task); 0: the costliest point's\n\n`sbatch --cpus-per-task`; `0`: the costliest point's cores, as `--plan` counts them (its generator's `threads`, a sharded tool's shards, an integrated program's threads and one more)",
+     "type": "integer",
+     "minimum": 0,
+     "default": 0
+    },
+    "max_running": {
+     "description": "at most this many points at once (the array's %K); 0: no limit\n\nthe points array's throttle, `--array=1-N%K`; `0`: as many as the scheduler gives. `parallelism` is not used: each job is one point",
+     "type": "integer",
+     "minimum": 0,
+     "default": 0
+    },
+    "mail": {
+     "description": "mail this address when a job ends or fails\n\n`sbatch --mail-user`, with `--mail-type=END,FAIL`",
+     "type": "string"
+    },
+    "setup": {
+     "description": "shell lines each job runs before Heimdall's setup.sh (module loads)\n\nshell lines each job runs first, before it sources Heimdall's `setup.sh` (`\"module load gcc/13\"`): what the nodes need that the login shell had",
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "default": []
+    },
+    "sbatch": {
+     "description": "any other sbatch options, as written\n\nany other `sbatch` options, each as written (`\"--exclusive\"`, `\"--export=NONE\"`, `\"--reservation=r\"`), after the ones the keys above give",
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "default": []
+    },
+    "pre": {
+     "description": "time, memory, cpus, … for the pre job only\n\nthe resource keys (`time`, `partition`, `account`, `qos`, `constraint`, `gres`, `memory`, `cpus`, `sbatch`) for the pre job only, over the others",
+     "type": "object"
+    },
+    "finish": {
+     "description": "time, memory, cpus, … for the finish job only (combine, post, plots)\n\nthe resource keys for the finish job only (the combined groups, the post tools and the plots), over the others; its `cpus` default to 1",
+     "type": "object"
     }
    },
    "additionalProperties": false

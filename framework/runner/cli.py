@@ -24,11 +24,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import cluster as clustermod
 from . import config as configmod
 from . import deck as deckmod
 from . import execute, house, plot, post, record, sweep, tools
 from . import setup as setupmod
-from .errors import HepError
+from .errors import HepError, did_you_mean
 from .paths import check_retired, find_work, output_root, results_root
 from .quantities import load_master
 from .events import Bus, Hub, Journal, RunBus, greeting, connect, hubs
@@ -52,6 +53,8 @@ def parser() -> argparse.ArgumentParser:
                      help="override one value for this invocation (repeatable)")
     run.add_argument("--rerun", action="store_true", help="ignore skip-unchanged")
     run.add_argument("--only", choices=["pre", "post", "plot"], help="rerun only the pre tools, the post tools or the plots")
+    run.add_argument("--stages", metavar="LIST",
+                     help="run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; hep cluster's jobs)")
     run.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
     run.add_argument("--journal", action="store_true",
                      help="also write every status event to output/…/status.jsonl (for hep watch --file and replay)")
@@ -112,6 +115,18 @@ def parser() -> argparse.ArgumentParser:
     watch.add_argument("configuration", nargs="?", help="overrides [run].configuration (or the sweep's latest)")
     watch.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
     watch.add_argument("--file", metavar="STATUS.JSONL", help="follow a --journal run's status file instead")
+
+    batch = commands.add_parser("cluster", help="run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job")
+    batch.add_argument("config", help="the run config, as hep run names it")
+    batch.add_argument("configuration", nargs="?", help="overrides [run].configuration; under [run].sweep_runs, submits only it")
+    batch.add_argument("--points", metavar="SEL", help="submit a subset: tags, indices or quantity=tag")
+    batch.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                       help="override one value for this submission (repeatable; cluster.time=… too); the jobs get it")
+    batch.add_argument("--rerun", action="store_true", help="submit complete points too, and rerun them")
+    what = batch.add_mutually_exclusive_group()
+    what.add_argument("--dry-run", action="store_true", help="write the job scripts and print the sbatch lines; submit nothing")
+    what.add_argument("--status", action="store_true", help="the latest submission: each point's state (sacct, squeue)")
+    what.add_argument("--cancel", action="store_true", help="scancel the latest submission's jobs")
 
     make = commands.add_parser("setup", help="make a work dir: the key folders, hep.toml and the template's files (never overwrites)")
     make.add_argument("dir", help="the work dir's folder: new, empty, or a work dir to complete")
@@ -271,6 +286,27 @@ def catch_signals(stopper: execute.Stopper) -> None:
     signal.signal(signal.SIGTERM, on_signal)
 
 
+#: A run's stages, in order (V114). `--stages` runs some of them, skip-unchanged; `--only` runs one again.
+STAGES = ("pre", "points", "combine", "post", "plot")
+
+
+def stages_of(args) -> frozenset[str]:
+    """The stages this `hep run` runs: `--only`'s one, `--stages`'s list, or all of them."""
+    given = getattr(args, "stages", None)
+    if given is None:
+        return frozenset([args.only]) if getattr(args, "only", None) else frozenset(STAGES)
+    if getattr(args, "only", None):
+        raise HepError("--only and --stages do not go together",
+                       hint="--only reruns one stage; --stages runs several, skipping what is unchanged")
+    named = [s.strip() for s in given.split(",") if s.strip()]
+    for stage in named:
+        if stage not in STAGES:
+            raise HepError(f"--stages: '{stage}' is not a stage", hint=did_you_mean(stage, STAGES) or ", ".join(STAGES))
+    if not named:
+        raise HepError("--stages names no stage", hint=", ".join(STAGES))
+    return frozenset(named)
+
+
 def cmd_run(args) -> int:
     """One run; or, under [run].sweep_runs, every swept configuration as a run of its own, one after
     another (V38). Each is exactly `hep run CONFIG <cfg>`, after a `run NN - <title> -` line. All are
@@ -284,7 +320,7 @@ def cmd_run(args) -> int:
             print(line)
         return 0
     stopper = execute.Stopper()
-    if getattr(args, "why", False) or args.plan or args.only == "plot":
+    if getattr(args, "why", False) or args.plan or stages_of(args) == {"plot"}:
         bus = None                           # nothing runs: nothing to watch
     else:                                    # one stream for the whole process, served while it lives (V72)
         bus = Bus()
@@ -332,7 +368,7 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus) -> int:
             skipped[key] = f"   no {args.only} tools: skipped"
     if len(skipped) == len(keys):
         raise HepError(f"no configuration of this sweep has {args.only} tools", where=f"{run.path}: [run].sweep_runs")
-    if bus is not None and args.only is None:
+    if bus is not None and args.only is None and getattr(args, "stages", None) is None:
         return _pipelined(args, run, keys, stopper, bus, ahead, stamp)
     failed = False
     for number, key in enumerate(keys, 1):
@@ -479,13 +515,14 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     planned = planned or build_plans(args, key)
     run, configuration, every, plans = planned.run, planned.configuration, planned.every, planned.plans
     post_plan, pre_plan, combined = planned.post, planned.pre, planned.combined
+    stages, again = stages_of(args), getattr(args, "only", None)       # again: the stage --only reruns
     title_line = header(number, configuration) if number else ""
     if getattr(args, "why", False):
         if title_line:
             print(("\n" if number > 1 else "") + title_line)
         print_why(run, configuration, plans, post_plan, pre_plan, combined)
         return 0
-    if args.plan or args.only == "plot":
+    if args.plan or stages == {"plot"}:
         if title_line:
             print(("\n" if number > 1 else "") + title_line)
         if args.plan:
@@ -496,6 +533,9 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         raise HepError(f"configuration '{configuration.key}' has no post tools", where=f"{run.path}: [run.cfgs.{configuration.key}].post")
     if args.only == "pre" and pre_plan is None:
         raise HepError(f"configuration '{configuration.key}' has no pre tools", where=f"{run.path}: [run.cfgs.{configuration.key}].pre")
+    if "points" in stages and "pre" not in stages and pre_plan is not None and not record.is_complete(pre_plan):
+        raise HepError(f"configuration '{configuration.key}': the pre stage is not complete, and the points need it",
+                       hint="run --stages pre first (hep cluster's pre job does), or leave --stages out")
     if stopper.requested:                    # Ctrl-C while this run was being planned
         return 6
 
@@ -525,31 +565,31 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         bus.say(f"   note: {note}")
     for warning in tools.meta_notes(run):                       # V97
         bus.say(f"   warning: {warning}")
-    def manifest() -> None:
-        if base:
+    def manifest() -> None:                  # a points-only run (a cluster job) leaves it to the finish job
+        if base and stages != {"points"}:
             record.write_atomic(base / "points.json",
                                 json.dumps(record.points_manifest(every, run, configuration), indent=1, default=str) + "\n")
     manifest()
     failed = done = 0
     verdict = "stopped"
     try:
-        if args.only in (None, "pre"):
+        if "pre" in stages:
             if not post.run_pre(pre_plan, run, configuration, bus=bus, stopper=stopper, logs=logs,
-                                rerun=args.rerun or args.only == "pre"):
+                                rerun=args.rerun or again == "pre"):
                 verdict = "pre failed: no point ran"
                 return 6 if stopper.requested else 1
-            if args.only == "pre":
+            if stages == {"pre"}:
                 verdict = "pre done"
                 return 0
-        if args.only != "post":
+        if "points" in stages:
             done, failed, stopped = execute.run_points(plans, run, configuration, bus=bus, stopper=stopper,
                                                        rerun=args.rerun, logs=logs, budget=budget,
                                                        started_all=gate.set if gate is not None else None)
             if stopped:
                 return 6
-        verdict = f"{done} done, {failed} failed, {len(plans) - done - failed} skipped" if args.only != "post" else ""
+        verdict = f"{done} done, {failed} failed, {len(plans) - done - failed} skipped" if "points" in stages else ""
         manifest()                           # post tools read it: it must say which points are complete
-        if combined and args.only != "post":
+        if combined and "combine" in stages:
             bad = post.run_combined(combined, every, run, configuration, bus=bus, stopper=stopper, logs=logs,
                                     rerun=args.rerun, say=bus.say)
             if stopper.requested:
@@ -557,16 +597,17 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             if bad:
                 failed += bad
                 verdict = f"{verdict}, {bad} combined group(s) failed"
-        if not post.run(post_plan, every, run, configuration, bus=bus, stopper=stopper, logs=logs,
-                        rerun=args.rerun or args.only == "post", say=bus.say):
+        if "post" in stages and not post.run(post_plan, every, run, configuration, bus=bus, stopper=stopper, logs=logs,
+                                             rerun=args.rerun or again == "post", say=bus.say):
             if stopper.requested:
                 return 6
             failed += 1
             verdict = ", ".join(v for v in (verdict, "post failed") if v)
-        elif post_plan is not None and args.only == "post":
+        elif post_plan is not None and again == "post":
             verdict = "post done"
-        if args.only != "post":
+        if "plot" in stages:
             failed += plot.draw(run, configuration, combined or every, bus.say, others=others_of(args)) > 0   # the groups, when combined
+        verdict = verdict or ", ".join(s for s in STAGES if s in stages) + " done"         # a run without its points
         bus.say(verdict)                     # before end(): the view's thread prints it (V32)
     finally:
         onward = {"next": str(following)} if following and not stopper.requested else {}
@@ -579,6 +620,32 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             bus.unsubscribe(journal)
             journal.close()
     return 1 if failed else 0
+
+
+def cmd_cluster(args) -> int:
+    """`hep cluster` (V114): each configuration (every swept one under [run].sweep_runs) planned as hep run
+    plans it, then submitted, or its latest submission's state shown, or cancelled (runner/cluster.py)."""
+    run = configmod.load(args.config, sets=args.set)
+    keys = run.runs(args.configuration)
+    if len(keys) > 1 and args.points:
+        raise HepError("--points picks points of one configuration, and this sweep runs several",
+                       where=f"{run.path}: [run].sweep_runs", hint=f"name it: hep cluster {args.config} <configuration> --points …")
+    planned = {key: build_plans(argparse.Namespace(**{**vars(args), "only": None, "stages": None}), key) for key in keys}
+    code = 0
+    for number, key in enumerate(keys, 1):
+        if number > 1:
+            print()
+        if args.status:
+            code = max(code, clustermod.status(planned[key]))
+        elif args.cancel:
+            code = max(code, clustermod.cancel(planned[key]))
+        else:
+            for note in notes_of(planned[key].plans):
+                print(f"note: {note}")
+            for warning in tools.meta_notes(run):
+                print(f"warning: {warning}")
+            code = max(code, clustermod.submit(planned[key], args))
+    return code
 
 
 def cmd_overlay(args) -> int:
@@ -923,6 +990,8 @@ def main(argv: list[str]) -> int:
             return cmd_reproduce(args)
         if args.command == "migrate":
             return cmd_migrate(args)
+        if args.command == "cluster":
+            return cmd_cluster(args)
         return cmd_watch(args)
     except HepError as error:
         print(error.render(), file=sys.stderr)

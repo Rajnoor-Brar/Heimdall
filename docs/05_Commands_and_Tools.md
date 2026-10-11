@@ -28,6 +28,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--set KEY=VALUE` | override one value for this invocation (repeatable) |
 | `--rerun` | ignore skip-unchanged |
 | `--only pre\|post\|plot` | rerun only the pre tools, the post tools or the plots |
+| `--stages LIST` | run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; hep cluster's jobs) |
 | `--plain` | plain lines instead of the live view |
 | `--journal` | also write every status event to output/…/status.jsonl (for hep watch --file and replay) |
 | `--logs` | keep every tool's whole output in logs/<tag>.log (default: only a failed tool's last lines) |
@@ -119,6 +120,19 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--plain` | plain lines instead of the live view |
 | `--file STATUS.JSONL` | follow a --journal run's status file instead |
 
+**`hep cluster`**: run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job
+
+| Argument | Meaning |
+|---|---|
+| `config` | the run config, as hep run names it |
+| `[configuration]` | overrides [run].configuration; under [run].sweep_runs, submits only it |
+| `--points SEL` | submit a subset: tags, indices or quantity=tag |
+| `--set KEY=VALUE` | override one value for this submission (repeatable; cluster.time=… too); the jobs get it |
+| `--rerun` | submit complete points too, and rerun them |
+| `--dry-run` | write the job scripts and print the sbatch lines; submit nothing |
+| `--status` | the latest submission: each point's state (sacct, squeue) |
+| `--cancel` | scancel the latest submission's jobs |
+
 **`hep setup`**: make a work dir: the key folders, hep.toml and the template's files (never overwrites)
 
 | Argument | Meaning |
@@ -164,6 +178,10 @@ the others.
 - **`--rerun`** runs complete points (and the stages) again.
 - **`--only`:** `--only plot` draws the pages and runs nothing; `--only pre` and `--only post` run
   that stage whether or not it is complete.
+- **`--stages LIST`** runs only the named stages of `pre, points, combine, post, plot`, each skipping
+  what is unchanged (`--rerun` as usual): what `hep cluster`'s jobs run (§1.9). A run of the points
+  alone writes no `points.json` and draws nothing; the points refuse to start without their pre
+  stage complete.
 - **`--journal`** also writes the run's events to `output/…/<cfg>/status.jsonl` (V72). Without it,
   nothing of the run's state is on disk.
 - **`--logs`** keeps every tool's whole output; without it, only a failed tool's last 200 lines are
@@ -293,6 +311,33 @@ starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
   block), and a starter `deck.toml` where there is none. It refuses when `deck.md` is there.
 - **What it needs:** pdflatex and poppler (`pdftoppm`, `pdfinfo`) for the composites, pandoc and
   the Beamer class for the slides (recipes/README.md §4).
+
+---
+
+### 1.9 `hep cluster`
+
+`hep cluster <config> [<configuration>]` runs a configuration as Slurm jobs, from the cluster's login
+node (V114; how to, [02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster); the keys,
+[04 §16](04_Config_Reference.md#16-cluster-running-on-slurm)). It plans as `hep run --plan` does, with
+every check, then writes three scripts into `output/<P>/<run>/<cfg>/cluster/<stamp>/` and submits
+them with `sbatch --parsable`:
+
+| Job | Runs | Waits for |
+|---|---|---|
+| pre (when there are pre tools to run) | `hep run C cfg --stages pre` | — |
+| points: an array, a task per point to run | `hep run C cfg --points <name> --stages points` | the pre job's success (`afterok`) |
+| finish | `hep run C cfg --stages combine,post,plot` | every point's end (`afterany`) |
+
+- Each job sources Heimdall's `setup.sh` (or the loaded isolated stack's) after `[cluster] setup`,
+  exports `HEP_WORK` (and the output roots set at submission), and runs in the work dir.
+- `points.txt` lists the points, `jobs.toml` the job ids and each `sbatch` line, `logs/` the jobs'
+  output (`points-<job>_<task>.log`).
+- **`--dry-run`** writes the scripts and prints the `sbatch` lines; nothing is submitted.
+- **`--status`**: the latest submission's points, complete from their markers, else what `sacct` and
+  `squeue` say of their tasks (a failed one with its log).
+- **`--cancel`**: `scancel` the latest submission's jobs.
+- **Refused:** no `sbatch` on `PATH`; no `time` in any layer; the latest submission still has jobs
+  pending or running.
 
 ---
 

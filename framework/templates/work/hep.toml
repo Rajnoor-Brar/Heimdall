@@ -1,8 +1,15 @@
 # hep.toml — this folder is a Heimdall work dir (made by `hep setup`, {{date}}).
 # [work] marks it; [framework] expects is the Heimdall it was made by: a Heimdall without that
-# revision warns (docs/framework/01_Target.md §4.2). Any other key is refused.
+# revision warns (docs/framework/01_Target.md §4.2). [cluster] is optional; any other table is refused.
 [work]
 name = "{{name}}"
 
 [framework]
 expects = "{{revision}}"
+
+# On a Slurm cluster, this machine's defaults for `hep cluster` (docs/04_Config_Reference.md §16); a
+# run TOML's [cluster] is over them. Uncomment what the site needs:
+# [cluster]
+# account   = "my-group"
+# partition = "standard"
+# setup     = ["module load gcc/13"]

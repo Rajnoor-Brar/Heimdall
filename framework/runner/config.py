@@ -111,6 +111,7 @@ class Configuration:
     seed_type: str = "identity"                         # SEED_TYPES (V39)
     manual_seed: int | None = None                      # seed_type = "manual": every point's seed
     origins: dict = field(default_factory=dict)         # key → where its value came from (--show-config, V56)
+    cluster: dict = field(default_factory=dict)         # [cluster], this configuration's over the run's (V114); never in an identity
 
 
 @dataclass
@@ -724,6 +725,9 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             raise HepError(f"[static] sets '{name}', which is not a [quantities.<q>] table",
                            where=f"{where}: [static]", hint=did_you_mean(name, quantities))
 
+    cluster = raw.get("cluster", {})
+    check_cluster(cluster, f"{where}: [cluster]")
+
     configurations: dict[str, Configuration] = {}
     for key, chain in _layers(run, where).items():
         table = chain[0][1]
@@ -782,6 +786,8 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
         for _, layer in chain:
             if isinstance(layer.get("prelim"), dict):
                 schema.check(layer["prelim"], "prelim", f"{at}.prelim")
+            if "cluster" in layer:
+                check_cluster(layer["cluster"], f"{at}.cluster")
         event_count = inherited("event_count")
         if event_count is None:
             raise HepError("no event_count: set it here or in [run]", where=at)
@@ -800,7 +806,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             pre=_groups(inherited("pre", []), f"{at}.pre", tools),
             static=static_values,
             prelim=_own_prelim(chain, prelim, origins),                     # replaced whole: its chain's interfaces
-            origins=origins)
+            origins=origins, cluster=merged("cluster", cluster))
 
     if isinstance(run.get("sweep_runs"), list):            # V79: the members, in order
         listed = run["sweep_runs"]
@@ -881,6 +887,21 @@ FIGURE_TABLES = {"overlay": '[plot.figures.<name>] class = "overlay"', "object":
 def figure_tables(plot: dict) -> dict[str, tuple[dict, str]]:
     """The declared figures, key → (its table, where it was written)."""
     return {key: (table, f"[plot.figures.{key}]") for key, table in plot.get("figures", {}).items()}
+
+
+#: The keys a [cluster.pre] or [cluster.finish] table may set: a job's resources (04 §16).
+CLUSTER_JOB_KEYS = ("time", "partition", "account", "qos", "constraint", "gres", "memory", "cpus", "sbatch")
+
+
+def check_cluster(values, where: str) -> None:
+    """[cluster] (V114), in a run TOML, a configuration or a work dir's hep.toml: the schema's keys, and its
+    pre and finish tables the resource keys only."""
+    if not isinstance(values, dict):
+        raise HepError("[cluster] is a table", where=where)
+    schema.check(values, "cluster", where)
+    for job in ("pre", "finish"):
+        if job in values:
+            schema.check(values[job], "cluster", f"{where}.{job}", only=CLUSTER_JOB_KEYS)
 
 
 def check_plot(plot: dict, where: str, strict: bool = True) -> None:

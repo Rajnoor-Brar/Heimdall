@@ -697,6 +697,56 @@ values = [1001, 2001, 3001]
     the original, and compares the products (§10).
   - Or set `seed_type = "manual"` and that seed.
 
+### 7.5 On a Slurm cluster
+
+`hep cluster` runs a configuration as Slurm jobs (V114):
+- a **pre job** first, when there are pre tools to run;
+- a **points array**, a task per point to run;
+- a **finish job** after every point has ended: the combined groups, the post tools and the plots.
+
+Each job is an ordinary `hep run`, so it skips a complete point, writes where a run writes, and gives
+the same events as the same point run here. Run it on the cluster's login node, with Heimdall and
+the work dir on a filesystem the nodes see. The machine's settings go in the work dir's `hep.toml`,
+the study's in the run TOML:
+
+```toml
+[cluster]                     # hep.toml: this machine's defaults
+account   = "my-group"
+partition = "standard"
+setup     = ["module load gcc/13"]
+```
+
+```toml
+[cluster]                     # the run TOML: the study's
+time        = "04:00:00"      # each point's limit: required in one of the two
+memory      = "8G"
+max_running = 20              # at most 20 points at once
+
+[cluster.finish]
+time = "00:30:00"
+```
+
+```bash
+hep cluster Demo/jets energy_pdf --dry-run   # write the job scripts, print the sbatch lines
+hep cluster Demo/jets energy_pdf             # submit: pre → points (an array) → finish
+hep cluster Demo/jets energy_pdf --status    # each point: complete, running, pending, failed (its log)
+hep cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
+```
+
+- A configuration's own `cluster = { time = "08:00:00" }` is over the run's, and `--set
+  cluster.time=…` is over everything, for one submission. Every key is in
+  [04 §16](04_Config_Reference.md#16-cluster-running-on-slurm).
+- `cpus` defaults to what a point keeps busy (its generator's `threads`, its shards, …), as `--plan`
+  counts it. `parallelism` is not used: `max_running` is how many points run at once.
+- A second submission of a configuration waits until the first's jobs have ended (`--status`,
+  `--cancel`).
+- The scripts, the job ids and the jobs' logs are in `output/<P>/<run>/<cfg>/cluster/<stamp>/`.
+  `hep watch` cannot reach a node: the logs and `--status` stand in.
+- Each script's last line is the `hep run` it makes, which can be typed by hand: `hep run C cfg
+  --points <name> --stages points`, then `hep run C cfg --stages combine,post,plot`.
+- `[prelim]`'s FIFOs and the prepare caches' locks are on the shared filesystem: NFSv4 and Lustre
+  take both (a FIFO's two ends are on one node).
+
 ---
 
 ## 8. Watching, subsets and reruns

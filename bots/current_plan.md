@@ -24,14 +24,21 @@ repository at `~/Github/Heimdall`, on the old lab PC's stack (`stack` and `env/v
   fixture work dir, the manual re-rooted (V105–V113), and
   [docs/framework/](../docs/framework/README.md) rewritten as the fresh-machine runbook (P0 Preflight,
   P1 Stack `@primary`, P2 Framework, P3 Work dirs, P4 Verify).
-- **Numbers here:** `hep build --framework` 4 s; 3 C++ tests pass; fast suite 605 passed; slow suite
-  36 passed (8 min 46 s, the byte-identical legacy gate included); `test_stack_build` 27; the
+- **Numbers here:** `hep build --framework` 4 s; 3 C++ tests pass; fast suite 629 passed; slow suite
+  37 passed (about 9 min, the byte-identical legacy gate and the emulated cluster included); `test_stack_build` 27; the
   starter in a scratch Top-Quark: 2 points, 35 pages, 9 s.
 - **Next, the user's:**
   - publish Heimdall (a gate: a private `Rajnoor-Brar/Heimdall`), or keep a bundle;
   - before the reinstall, 01 §8's checklist (Heimdall's bundle or push; High-Energy pushed; the
     kept files and the reference point);
   - on the new machine, the runbook from 02 §1.
+- **`hep cluster` (2026-10-11, V114):** a configuration as Slurm jobs (pre job → points array →
+  finish job, each an ordinary `hep run --stages …`), `[cluster]` in hep.toml, the run TOML, the
+  configuration, `--set`. Tested against an emulated Slurm only: the first real submission (on a
+  cluster the user has) is a by-hand check, `--dry-run` first.
+- **The fixture holds no study by name:** the projects are `Demo` (ep jets, the
+  validation against ZEUS 2012, the generators), `Decay` (Λ → p π⁻) and `Generators`; the physics
+  and the frozen references are as they were.
 - High-Energy itself is untouched (only the tag `split/base` was added); its conversion to a work
   dir is parked (06's appendix).
 
@@ -43,7 +50,7 @@ Otherwise nothing is in progress. Waiting on the user:
 - **`hep migrate --stamp`** (the [config] plan's optional C3 S3): it would write the stack's versions into `[config.meta].versions`. Only if wanted.
 - **Later**, on the user's word:
   - F8 `--more`;
-  - F9, a Slurm/HTCondor executor;
+  - HTCondor and PBS for `hep cluster` (Slurm is V114); an Apptainer image for its jobs;
   - Paint's PDF line widths (about 2× too thick);
   - the held C++/Rivet items (K3, K4, K7, K8, K10, yd2rt's dead parameter);
   - `extends`/`common.toml` for validation ("not now").

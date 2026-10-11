@@ -30,6 +30,7 @@ import platform
 import secrets
 import socket
 import subprocess
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -309,8 +310,10 @@ def now() -> str:
 
 
 def write_atomic(path: Path, text: str) -> None:
+    """Written whole, then renamed: a reader never sees half of it. The temporary file is this process's
+    and thread's, so several runs on one tree (cluster jobs, V114) never rename each other's."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    partial = path.with_name(path.name + ".tmp")
+    partial = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     partial.write_text(text, encoding="utf-8")
     partial.replace(path)
 

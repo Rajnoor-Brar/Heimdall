@@ -69,19 +69,25 @@ def hep_root() -> Path:
     return root
 
 
-#: hep.toml's tables and keys (docs/framework/01_Target.md §4.2): any other is refused.
+#: hep.toml's tables and keys (docs/framework/01_Target.md §4.2): any other is refused. [cluster] is the
+#: machine's defaults for hep cluster (V114): its keys are the run TOML's, checked by cluster.py.
 WORK_KEYS = {"work": ("name",), "framework": ("expects",)}
+WORK_TABLES = ("cluster",)
 
 
 def work_meta(root: Path) -> dict:
-    """A work dir's hep.toml, checked: its name ([work] name, else the folder's) and [framework] expects."""
+    """A work dir's hep.toml, checked: its name ([work] name, else the folder's), [framework] expects, and
+    [cluster] as written."""
     marker = root / MARKER_FILE
     try:
         data = tomllib.loads(marker.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise HepError(f"cannot read {marker}: {error}") from None
-    known = ", ".join(f"[{table}] {' '.join(keys)}" for table, keys in WORK_KEYS.items())
+    known = ", ".join([*(f"[{table}] {' '.join(keys)}" for table, keys in WORK_KEYS.items()),
+                       *(f"[{table}]" for table in WORK_TABLES)])
     for table, value in data.items():
+        if table in WORK_TABLES and isinstance(value, dict):
+            continue
         if table not in WORK_KEYS or not isinstance(value, dict):
             raise HepError(f"unknown table '{table}'", where=str(marker), hint=f"hep.toml has {known}")
         for key, item in value.items():
@@ -90,7 +96,8 @@ def work_meta(root: Path) -> dict:
             if not isinstance(item, str):
                 raise HepError(f"'{table}.{key}' must be a string, got {item!r}", where=str(marker))
     return {"name": data.get("work", {}).get("name") or root.name,
-            "expects": data.get("framework", {}).get("expects", "")}
+            "expects": data.get("framework", {}).get("expects", ""),
+            "cluster": dict(data.get("cluster", {}))}
 
 
 def is_work(path: Path) -> bool:

@@ -7,6 +7,7 @@
 #   hep deck <deck>                                a deck of slides from drawn pages (reports/<deck>/)
 #   hep watch [<config>]                           attach the live view
 #   hep ls | explain | status | clean              housekeeping (docs/05_Commands_and_Tools.md §1)
+#   hep cluster <config> [<configuration>]          the run as Slurm jobs (sbatch), from a cluster's login node
 #   hep setup <dir> | where                        make a work dir; which Heimdall and work dir this shell sees
 #   hep build [targets…] [--tests] [--clean] [--configure] [-j N]    make, in the work dir
 #   hep build --framework …                        make, in Heimdall: the framework's apps
@@ -31,6 +32,7 @@ usage: hep <command> [options]
   clean [<config>] [--dry-run]     remove what the runner made and no plan uses (lists, then asks)
   reproduce <provenance.json>      run a finished point again, beside it, and compare its products
   migrate [<config>…] [--apply]    rewrite run TOMLs and cards in today's forms (a diff by default)
+  cluster <config> [<configuration>]   run it as Slurm jobs: --dry-run, --status, --cancel (hep cluster --help)
   setup <dir> [--project P] [--git] [--adopt]    make a work dir     (hep setup --help)
   where [--hep | --work]           which Heimdall and which work dir this shell sees
   build [targets…]                 compile the work dir's module programs and Rivet plugins (make all)
@@ -50,7 +52,7 @@ work() { python3 "$here/run" where --work; }                       # the work di
 cmd=${1-}
 [ $# -gt 0 ] && shift
 case "$cmd" in
-    run|watch|plot|overlay|deck|check|ls|explain|status|clean|reproduce|migrate|setup|where)
+    run|watch|plot|overlay|deck|check|ls|explain|status|clean|reproduce|migrate|setup|where|cluster)
         exec python3 "$here/run" "$cmd" "$@"
         ;;
     build)

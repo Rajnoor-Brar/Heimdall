@@ -1324,7 +1324,7 @@ def check_cards(plan: PointPlan) -> None:
             if cache.is_file():
                 _CHECKED[key] = json.loads(cache.read_text(encoding="utf-8"))
             else:
-                card = cache.with_suffix(".card")
+                card = cache.with_suffix(f".{os.getpid()}.card")          # this process's: jobs may check at once
                 argv = [expand(a, {**placeholders(), "card": str(card)}, f"{step.folder.name}/tool.toml [checks].card")
                         for a in command]
                 checker = Path(argv[0])
@@ -1340,7 +1340,9 @@ def check_cards(plan: PointPlan) -> None:
                     continue
                 rejected = [json.loads(l) for l in done.stdout.splitlines() if l.startswith("{")]
                 _CHECKED[key] = rejected
-                cache.write_text(json.dumps(rejected) + "\n", encoding="utf-8")
+                partial = cache.with_suffix(f".{os.getpid()}.tmp")
+                partial.write_text(json.dumps(rejected) + "\n", encoding="utf-8")
+                partial.replace(cache)
                 card.unlink(missing_ok=True)
         rejected = _CHECKED[key]
         if rejected:

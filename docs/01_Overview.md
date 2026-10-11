@@ -217,7 +217,7 @@ A rule a test enforces is a rule; a rule in a document is a hope.
 
 The surface stays small:
 - one `hep` command with a few subcommands ([05 §1](05_Commands_and_Tools.md#1-commands)), plus
-  `hep build` and `make`;
+  `hep build` and `make`; `hep cluster` runs the same `hep run` as Slurm jobs;
 - one marker file, `hep.toml`, between a work dir and the framework;
 - seven sections in a run TOML;
 - a few C++ headers;

@@ -21,10 +21,10 @@
 #
 # Tables: config, run, configuration ([run.cfgs.<cfg>]), prelim, quantity ([quantities.<q>]), tool
 # ([tools.<tag>]: the keys every tool table may carry; a folder's [options] add its own), plot,
-# figure ([plot.figures.<figure>]), data.
+# figure ([plot.figures.<figure>]), data, cluster (also a work dir's hep.toml [cluster], V114).
 
 [sections]
-order = ["config", "run", "prelim", "static", "tools", "quantities", "plot"]
+order = ["config", "run", "prelim", "static", "tools", "quantities", "plot", "cluster"]
 
 # ── [config]: how the file is read (V93) ──────────────────────────────────────────────────────────
 
@@ -343,6 +343,13 @@ doc  = "this configuration's [prelim]"
 notes = """\
   the nearest layer's **replaces** `[prelim]` whole for this configuration (its chain's \
   interfaces); `{}` means none"""
+
+[configuration.cluster]
+type = "table"
+doc  = "this configuration's [cluster] keys, over the run's (hep cluster, V114)"
+notes = """\
+  merged over the run TOML's `[cluster]`, key by key, for this configuration's jobs (a longer \
+  `time` for its many events, say); the same keys (04 §16)"""
 
 # ── [prelim] ─────────────────────────────────────────────────────────────────────────────────
 
@@ -980,3 +987,116 @@ doc  = "object = reference path, explicitly"
 notes = """\
   MC object name (`d01-x01-y01`) → reference path. **Explicit only**, never matched by name (L18). \
   A file without a map, or a map without a file, is an error."""
+
+# ── [cluster]: hep cluster, a run as Slurm jobs (V114) ───────────────────────────────────────────
+# Also a work dir's hep.toml [cluster] (the machine's defaults); the run TOML's is over it, a
+# configuration's ([run.cfgs.<cfg>].cluster) over that, --set cluster.<key>=… over all (04 §16).
+
+[cluster.scheduler]
+type    = "str"
+choices = ["slurm"]
+default = "slurm"
+doc     = "the batch system: slurm (sbatch)"
+notes = """\
+  the batch system `hep cluster` submits to: `\"slurm\"` (`sbatch`, `squeue`, `sacct`, `scancel`), \
+  the only one so far"""
+
+[cluster.time]
+type = "str"
+doc  = "each job's time limit (--time), required in some layer"
+notes = """\
+  each job's wall-time limit, as `sbatch --time` takes it (`\"02:00:00\"`, `\"1-00:00:00\"`): one \
+  point's, for the points; **required** in one of the layers, because a site's default limit is a \
+  surprise `TIMEOUT`"""
+
+[cluster.partition]
+type = "str"
+doc  = "the partition (--partition); unset: the site's default"
+notes = """\
+  `sbatch --partition`; unset: the site's default"""
+
+[cluster.account]
+type = "str"
+doc  = "the account to charge (--account)"
+notes = """\
+  `sbatch --account`; unset: the user's default"""
+
+[cluster.qos]
+type = "str"
+doc  = "the quality of service (--qos)"
+notes = """\
+  `sbatch --qos`"""
+
+[cluster.constraint]
+type = "str"
+doc  = "node features (--constraint)"
+notes = """\
+  `sbatch --constraint`, the nodes' features (`\"avx2\"`)"""
+
+[cluster.gres]
+type = "str"
+doc  = "generic resources (--gres)"
+notes = """\
+  `sbatch --gres` (`\"gpu:1\"`)"""
+
+[cluster.memory]
+type = "str"
+doc  = "memory per job (--mem); unset: the partition's default"
+notes = """\
+  `sbatch --mem` per job (`\"8G\"`); unset: the partition's default"""
+
+[cluster.cpus]
+type    = "int"
+min     = 0
+default = 0
+doc     = "cores per job (--cpus-per-task); 0: the costliest point's"
+notes = """\
+  `sbatch --cpus-per-task`; `0`: the costliest point's cores, as `--plan` counts them (its \
+  generator's `threads`, a sharded tool's shards, an integrated program's threads and one more)"""
+
+[cluster.max_running]
+type    = "int"
+min     = 0
+default = 0
+doc     = "at most this many points at once (the array's %K); 0: no limit"
+notes = """\
+  the points array's throttle, `--array=1-N%K`; `0`: as many as the scheduler gives. `parallelism` \
+  is not used: each job is one point"""
+
+[cluster.mail]
+type = "str"
+doc  = "mail this address when a job ends or fails"
+notes = """\
+  `sbatch --mail-user`, with `--mail-type=END,FAIL`"""
+
+[cluster.setup]
+type    = "list"
+items   = "str"
+default = []
+doc     = "shell lines each job runs before Heimdall's setup.sh (module loads)"
+notes = """\
+  shell lines each job runs first, before it sources Heimdall's `setup.sh` (`\"module load \
+  gcc/13\"`): what the nodes need that the login shell had"""
+
+[cluster.sbatch]
+type    = "list"
+items   = "str"
+default = []
+doc     = "any other sbatch options, as written"
+notes = """\
+  any other `sbatch` options, each as written (`\"--exclusive\"`, `\"--export=NONE\"`, \
+  `\"--reservation=r\"`), after the ones the keys above give"""
+
+[cluster.pre]
+type = "table"
+doc  = "time, memory, cpus, … for the pre job only"
+notes = """\
+  the resource keys (`time`, `partition`, `account`, `qos`, `constraint`, `gres`, `memory`, `cpus`, \
+  `sbatch`) for the pre job only, over the others"""
+
+[cluster.finish]
+type = "table"
+doc  = "time, memory, cpus, … for the finish job only (combine, post, plots)"
+notes = """\
+  the resource keys for the finish job only (the combined groups, the post tools and the plots), \
+  over the others; its `cpus` default to 1"""

@@ -14,7 +14,7 @@ Collecting copies a recipe's panels into panels/<block>/, again only when one ch
 everything it shows (D-R5).
 
 Building (V104) draws each block's composite (figures/<block>.pdf by pdflatex, its .png rendered from
-it: framework/tools/figures/layout.py), then turns the user's deck.md into every target with pandoc: a block
+it: framework/plot/figures/layout.py), then turns the user's deck.md into every target with pandoc: a block
 reference `![](<block>)` becomes its composite's path, the PDF for Beamer, the PNG for pptx and HTML.
 deck.md is only read (D-R4); `--init` writes it once.
 """
@@ -439,7 +439,7 @@ class Talk:
 
 
 def _layout():
-    return plugins.load(hep_root() / "framework" / "tools" / "figures" / "layout.py", "layout")
+    return plugins.load(hep_root() / "framework" / "plot" / "figures" / "layout.py", "layout")
 
 
 def generated(deck: Deck) -> str:

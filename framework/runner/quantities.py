@@ -26,7 +26,7 @@ from .errors import HepError, did_you_mean
 from .paths import hep_root, resolve, tool_chains
 
 @functools.cache
-def vocabulary() -> dict:
+def shipped_vocabulary() -> dict:
     """framework/schema/quantities.toml: what each quantity name means, for every tool (V58)."""
     path = hep_root() / "framework" / "schema" / "quantities.toml"
     try:
@@ -35,8 +35,46 @@ def vocabulary() -> dict:
         raise HepError(f"cannot read the quantity vocabulary: {error}", where=str(path)) from None
 
 
+#: What a folder's quantities.toml entry may say to declare a name the vocabulary lacks (audit 3, 4.3).
+DECLARING = ("shape", "unit", "doc", "per_beam", "unnamed")
+_VOCABULARY: tuple[dict, dict] | None = None             # (the chains it was made from, the vocabulary)
+
+
+def vocabulary() -> dict:
+    """The vocabulary: Heimdall's names, and the ones a tool folder declares (an entry of its
+    quantities.toml with a `shape`, for a name Heimdall's lacks: a study's own word, mapped by its own
+    tool). A declared name then binds as any: [quantities.<name>] needs no key or target."""
+    global _VOCABULARY
+    chains = tool_chains()
+    if _VOCABULARY is None or _VOCABULARY[0] is not chains:
+        _VOCABULARY = (chains, _declared(chains))
+    return _VOCABULARY[1]
+
+
+def _declared(chains: dict) -> dict:
+    shipped = shipped_vocabulary()
+    out, where = dict(shipped), {}
+    for name, chain in sorted(chains.items()):
+        for _, folder in reversed(chain):
+            path = folder / "quantities.toml"
+            if not path.is_file():
+                continue
+            for key, entry in _read(path).items():
+                if not isinstance(entry, dict) or "shape" not in entry:
+                    continue
+                declared = {k: entry[k] for k in DECLARING if k in entry}
+                if key in shipped:
+                    raise HepError(f"{name} declares '{key}', which Heimdall's vocabulary has", where=str(path),
+                                   hint="map it without shape, unit and doc: its meaning is the vocabulary's")
+                _check_shape_text(declared["shape"], f"{path}: {key}.shape")
+                if key in where and {k: v for k, v in out[key].items() if k != "declared"} != declared:
+                    raise HepError(f"'{key}' is declared twice, differently", where=str(path), hint=f"and in {where[key]}")
+                out[key], where[key] = {**declared, "declared": str(path)}, path
+    return out
+
+
 #: The built-in quantities: the runner provides them, and they need no consumer (04 §8.3).
-BUILTIN = tuple(name for name, entry in vocabulary().items() if entry.get("builtin"))
+BUILTIN = tuple(name for name, entry in shipped_vocabulary().items() if entry.get("builtin"))
 
 
 class Override(NamedTuple):
@@ -191,9 +229,11 @@ def mappings(run, master: dict, name: str, tags: list[str], configured: set = fr
 
 
 def _from_master(tag: str, entry: dict, where: str) -> Mapping:
-    forms = [f for f in ("key", "keys", "flag", "render") if f in entry]
+    """A folder's (or a master's) mapping: a card key, several, a flag, the folder's render, or a key of
+    an exec or module tool's config (`config = "cuts.window"`, dotted keys nest)."""
+    forms = [f for f in ("key", "keys", "flag", "render", "config") if f in entry]
     if len(forms) != 1:
-        raise HepError("a master mapping takes exactly one of key, keys, flag, render", where=where)
+        raise HepError("a master mapping takes exactly one of key, keys, flag, render, config", where=where)
     return Mapping(tag, forms[0], entry[forms[0]], entry.get("format", ""), check=entry.get("check", ""))
 
 

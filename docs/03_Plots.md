@@ -184,11 +184,14 @@ Every ROOT page starts from `src/Apps/Paint/base.toml`, which gives it rivet-mkh
 
 Edit base.toml to change every page. Over it, key by key:
 
-1. `[plot].root_style`: a style file of the run, under `configs/<P>/`;
-2. `[plot.style]`, inline;
-3. a figure's `style`, for its pages.
+1. the machine root's `style.toml` (`~/Himinbjorg/style.toml`): every study's on this machine;
+2. the work dir's `style.toml`: its studies';
+3. `[plot].root_style`: a style file of the run, under `configs/<P>/`;
+4. `[plot.style]`, inline;
+5. a figure's `style`, for its pages.
 
-Each layer names **only what it changes**, in base.toml's tables:
+Each layer names **only what it changes**, in base.toml's tables (the labels' LaTeX → TLatex table,
+`framework/schema/latex.toml`, takes a work dir's `latex.toml` over it too: its own macros):
 
 ```toml
 # configs/Demo/talk.toml       (root_style = "talk")
@@ -357,7 +360,7 @@ analysis-option variant.
     whose x ranges are the bins.
 - **Where it is written:** it is appended to a copy of each point's YODA
   (`output/…/plots/derived/`), remade when the product or the figures change, by
-  `framework/tools/figures/derive.py` with YODA's Python (`load_hep`).
+  `framework/plot/figures/derive.py` with YODA's Python (`load_hep`).
 
 **Using it.** It is then an object like any other:
 - its pages are `<cell>/r15`;
@@ -435,8 +438,8 @@ in an overlay. To see a 2D object in 1D, project it with a derived figure.
 | `backend =` | Draws with | Pages in | Honours |
 |---|---|---|---|
 | `"root"` (default) | `$HEP_APPS/Paint.exe`, up to 200 pages per process | `plots/root/` | every `[plot]` key, every figure and type, the whole style |
-| `"mpl"` | matplotlib in this process, a pool of workers (`framework/tools/mpl/backend.py`, V71) | `plots/mpl/` + `index.html` | **mkhtml's pages, pixel for pixel** (until the user has verified it), about 18× faster than mkhtml; 1D pages only |
-| `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/tools/yoda/backend.py`) | `plots/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | the same pages with Paint's ranges and voids; frozen (V71) |
+| `"mpl"` | matplotlib in this process, a pool of workers (`framework/plot/mpl/backend.py`, V71) | `plots/mpl/` + `index.html` | **mkhtml's pages, pixel for pixel** (until the user has verified it), about 18× faster than mkhtml; 1D pages only |
+| `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/plot/yoda/backend.py`) | `plots/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | the same pages with Paint's ranges and voids; frozen (V71) |
 | `["root", "mpl"]`, `"both"` | each, from the same page documents | each tree | as each; `"both"` is root and yoda |
 
 **What the other backends honour.** They draw the same page documents with the ranges and voided

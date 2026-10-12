@@ -1,4 +1,4 @@
-"""framework/tools/yoda/backend.py — `[plot] backend = "yoda"`: the same pages drawn by rivet-mkhtml.
+"""framework/plot/yoda/backend.py — `[plot] backend = "yoda"`: the same pages drawn by rivet-mkhtml.
 
 Frozen (V71, B4c option B): no new features; the mpl backend draws these pages without mkhtml, and uses
 this module's transforms until it goes.
@@ -44,8 +44,8 @@ _SPEC = tomllib.loads((Path(__file__).with_name("backend.toml")).read_text(encod
 FORMATS = {k: v or None for k, v in _SPEC["formats"].items()}                     # None: mkhtml writes it anyway
 LEGEND = _SPEC["legend"]
 HONOURED = {tuple(key.split(".")) for key in _SPEC["style"]["honoured"]}         # style keys mkhtml can follow
-MARK = "# ratio ticks: ratio.divisions (framework/tools/yoda/backend.py)"
-TITLE_MARK = "# titles: title, title_left, title_right (framework/tools/yoda/backend.py)"
+MARK = "# ratio ticks: ratio.divisions (framework/plot/yoda/backend.py)"
+TITLE_MARK = "# titles: title, title_left, title_right (framework/plot/yoda/backend.py)"
 
 
 def validate(settings: dict, beside_root: bool = False, curve_styles: list[dict] = ()) -> None:

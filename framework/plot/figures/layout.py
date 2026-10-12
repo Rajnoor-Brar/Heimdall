@@ -1,4 +1,4 @@
-"""framework/tools/figures/layout.py — figures laid out in a grid: a sheet's pages (V89) and a deck's composites (V102).
+"""framework/plot/figures/layout.py — figures laid out in a grid: a sheet's pages (V89) and a deck's composites (V102).
 
 One PDF, drawn by pdflatex: each panel (a page's PDF, or a PNG) placed in its cell by graphicx, vector as
 it is, with an optional label above it and an optional title above the grid. The PNG is that PDF

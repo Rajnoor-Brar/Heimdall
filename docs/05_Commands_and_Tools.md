@@ -428,10 +428,9 @@ comes from.
 | `whizard` | process generator | `whizard` | `.sin`, render | — (writes) | filters | produces: runner-written sidecar | integration | `card` |
 | `madgraph` | process generator | `mg5_aMC` | launch script, render | — (writes a file) | filters | produces: runner-written sidecar | process directory | `card`; product `process` |
 
-Other folders of `framework/tools/` are not tools in a chain:
-- **`yoda/` and `mpl/`** hold the plot backends (`backend.py`, [03 §9](03_Plots.md#9-backends));
-- **`figures/`** holds the figures' plugins;
-- **`lhapdf/`** is a provider.
+`framework/tools/lhapdf/` is not a tool in a chain: it is a provider. The plot backends (`yoda/`,
+`mpl/`: `backend.py`, [03 §9](03_Plots.md#9-backends)) and the figures' plugins (`figures/`) are in
+`framework/plot/`.
 
 Paint (`src/Apps/Paint/`) is driven by the plot stage, and is never named in `tools` (§18).
 

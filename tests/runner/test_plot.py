@@ -94,7 +94,7 @@ def test_labels_come_from_the_rivet_plot_file_for_every_variant(work_built):
     assert plain["LogY"] == "1" and "E_T" in plain["XLabel"]
 
 
-# ── the yoda backend (framework/tools/yoda/backend.py) ──────────────────────────────────────────────
+# ── the yoda backend (framework/plot/yoda/backend.py) ──────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
 def yoda_backend():

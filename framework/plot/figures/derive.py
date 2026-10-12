@@ -1,4 +1,4 @@
-"""framework/tools/figures/derive.py — a derived figure's objects (V84), from a point's YODA, with YODA's Python.
+"""framework/plot/figures/derive.py — a derived figure's objects (V84), from a point's YODA, with YODA's Python.
 
 The runner stays standard library; this plugin is where YODA's arithmetic is. `derive(source, specs)`:
 for each spec (name, op, objects), the object `/FIGURES/<name>` per variant of the first object (an

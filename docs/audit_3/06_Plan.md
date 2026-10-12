@@ -243,7 +243,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 - Adding a shipped tool: the 7 places become 3 (the folder with its docs; the vocabulary entry if
   new; a test). `test_docs` reads the folder's `doc` strings.
 
-**4.3 Plot code, style, vocabulary** (U25, U55, U56)
+**4.3 Plot code, style, vocabulary** (U25, U55, U56) — **done, V127** (`merge` and `plotmerge` stay tools; `base.toml` stays Paint's, the layers over it are the machine's and the work dir's `style.toml`)
 - `framework/tools/{mpl,yoda,figures,merge,plotmerge}` → `framework/plot/`.
 - `base.toml` → `framework/style/`, with `$HEP_MACHINE/style.toml` and `<work>/style.toml` over it.
 - A folder's `quantities.toml` may declare vocabulary names. A work dir may extend `latex.toml`.

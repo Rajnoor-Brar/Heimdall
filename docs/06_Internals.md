@@ -1015,7 +1015,8 @@ A worked outline, for a generator `gen` that reads a card and writes HepMC to a 
 3. **`filters.toml`**: a progress rule from a real log and an error rule; nothing that fails a run.
 4. **Its quantities**: `framework/tools/gen/quantities.toml`, how it consumes the vocabulary's names
    (`energies = { keys = [...] }`, `pdf`, `events`). A name the vocabulary lacks goes into
-   `framework/schema/quantities.toml` first, with its shape (V58).
+   `framework/schema/quantities.toml` first, with its shape (V58); a study's own tool may instead
+   declare it in its folder's `quantities.toml` (a `shape` beside the mapping; 04 §3).
 5. **Its version**: an entry in `env/stack.toml`, and `[identity] version = "stack:gen"`.
 6. **Tests**:
    - a **plan-time test** in `tests/runner/` (the card, the argv, a refusal), using `helpers.raw()`,
@@ -1056,7 +1057,7 @@ INDEX = True      # optional: the runner writes plots/<name>/index.html (the bac
 
 - Add the name to the schema's `[plot.backend]` choices (`plot.BACKENDS` reads them).
 - **A key the backend cannot honour is an error**, never ignored (v1's `LegendXPos`).
-- The mpl backend is the example (`framework/tools/mpl/backend.py`). The yoda backend is frozen (V71).
+- The mpl backend is the example (`framework/plot/mpl/backend.py`). The yoda backend is frozen (V71).
 
 ---
 
@@ -1075,7 +1076,7 @@ overrides and every backend for free.
 3. **`Figure`**: a field for each key of its own, read in `plot.figures`.
 4. **Members**: a function that returns `(members, yodas)`: stand-in plans named by what they stand
    for, and each one's YODA, made once per change of its inputs (a sha256 stamp beside it). Arithmetic
-   on YODA objects belongs in a plugin in `framework/tools/figures/` (loaded with `plugins.load`), which
+   on YODA objects belongs in a plugin in `framework/plot/figures/` (loaded with `plugins.load`), which
    keeps the runner standard library.
 5. **Pages**: in `plot.pages` (or `plot.draw`, for figures that need other configurations' plans or
    drawn pages), merge the members into their own ROOT file (`merge`) and call `_pages` with the

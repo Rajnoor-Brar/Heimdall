@@ -845,7 +845,7 @@ notes = """\
   object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a \
   Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA \
   (`output/…/plots/derived/`, remade when the product or the figures change, by \
-  `framework/tools/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: \
+  `framework/plot/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: \
   its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or \
   a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a \
   swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), \

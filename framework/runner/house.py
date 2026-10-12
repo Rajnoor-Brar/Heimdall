@@ -101,6 +101,25 @@ def module_settings(key: str) -> list[str]:
     return lines
 
 
+def _quantity_lines(key: str) -> list[str]:
+    """`hep explain <quantity>`: a vocabulary name's shape, unit, doc, who declared it, and how each tool
+    maps it; [] for a name the vocabulary lacks."""
+    from . import quantities as qmod
+    entry = qmod.vocabulary().get(key) if "." not in key else None
+    if entry is None:
+        return []
+    mapped = {tool: table["compatible_quantities"][key] for tool, table in qmod.load_master("", None)["quantities"].items()
+              if key in table["compatible_quantities"]}
+    source = ("declared by " + entry["declared"]) if "declared" in entry else "the vocabulary: framework/schema/quantities.toml"
+    lines = [f"quantity '{key}' ({source})", f"  shape    {qmod._shape_text(entry['shape'])}"]
+    lines += [f"  unit     {entry['unit']}"] if entry.get("unit") else []
+    lines += ["  per beam yes, in the run's beam order"] if entry.get("per_beam") else []
+    lines += [f"  doc      {entry['doc']}"] if entry.get("doc") else []
+    lines += (["  tools    " + "; ".join(f"{t} {m}" for t, m in sorted(mapped.items()))] if mapped
+              else ["  tools    none map it: a tool table gives it a key"])
+    return lines
+
+
 def explain(key: str) -> list[str]:
     """A key's type, default, choices, bounds, inheritance and doc, from framework/schema/run.toml.
     `plot.y_gutter`, `[plot].y_gutter`, `run.event_count`, `quantities.<q>.styles`, `tools.<tag>.shards`,
@@ -108,6 +127,10 @@ def explain(key: str) -> list[str]:
     up in every table."""
     if ".exe" in key:                                                   # a module program's own settings
         return module_settings(key)
+    vocab = _quantity_lines(key)                                        # a quantity's name too (V58)
+    if vocab and not any(key in schema.keys(t) for t in schema.spec() if t != "sections"):
+        return vocab
+
     parts = [p for p in key.replace("[", "").replace("]", ".").split(".") if p]
     if not parts:
         raise HepError("explain which key?", hint="e.g. hep explain plot.y_gutter")
@@ -147,7 +170,7 @@ def explain(key: str) -> list[str]:
             lines.append(f"  {entry['doc']}")
         if entry.get("notes"):
             lines += [""] + [f"  {line}" for line in textwrap.wrap(entry["notes"], 96)]
-    return lines
+    return lines + ([""] + vocab if vocab else [])
 
 
 # ── hep status ─────────────────────────────────────────────────────────────────────────────────

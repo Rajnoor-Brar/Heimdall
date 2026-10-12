@@ -2,7 +2,8 @@
 
 A module may import only from its own rank or a lower one, and the import graph has no cycles.
 A module missing from RANKS fails, so a new module has to be given its place. Tool plugins
-(framework/tools/<tool>/render.py, backend.py) may import only PLUGINS_MAY_IMPORT, and never another plugin.
+(framework/tools/<tool>/render.py, framework/plot/<backend>/backend.py) may import only PLUGINS_MAY_IMPORT, and
+never another plugin.
 Both tables are runner/__init__.py's.
 """
 
@@ -59,7 +60,7 @@ def test_no_module_imports_upward():
 
 def test_plugins_import_only_the_allowed_modules():
     violations = []
-    for render in sorted([*ENV.glob("*/render.py"), *ENV.glob("*/backend.py")]):
+    for render in sorted([*ENV.glob("*/render.py"), *(REPO / "framework" / "plot").glob("*/backend.py")]):
         extra = runner_imports(render) - PLUGIN_MAY_IMPORT
         if extra:
             violations.append(f"{render.relative_to(REPO)} imports {sorted(extra)}")

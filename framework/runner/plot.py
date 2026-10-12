@@ -15,8 +15,9 @@ docs/04_Config_Reference.md §11, docs/05_Commands_and_Tools.md §18. After the 
   results/…/plots/root/[<page>/]<object>.<fmt>; the yoda backend writes results/…/plots/yoda/, and
   backend = ["root", "yoda"] (or "both") writes both from the same pages;
 * the style is src/Apps/Paint/base.toml, which Paint reads itself; a page's [style] holds only
-  what the run changes: the [plot].root_style file, then [plot.style], then its figure's style, each
-  checked against base.toml's keys and types.
+  what is changed over it: the machine root's style.toml, the work dir's style.toml, the
+  [plot].root_style file, then [plot.style], then its figure's style, each checked against base.toml's
+  keys and types.
 """
 
 from __future__ import annotations
@@ -122,9 +123,9 @@ def _matches(path: str, glob: str, fulls=()) -> bool:
 
 
 def backend(name: str):
-    """A backend other than Paint: framework/tools/<name>/backend.py, with validate(settings) and
+    """A backend other than Paint: framework/plot/<name>/backend.py, with validate(settings) and
     draw(cells, settings, say) -> failed pages."""
-    path = hep_root() / "framework" / "tools" / name / "backend.py"
+    path = hep_root() / "framework" / "plot" / name / "backend.py"
     if not path.is_file():
         raise HepError(f"no plot backend '{name}'", hint=f"expected {path}")
     return plugins.load(path, "backend")
@@ -235,14 +236,31 @@ def style_file(value: str, project: str = "", where: str = "") -> dict:
     return layer
 
 
+def house_style() -> dict:
+    """The style's layers over base.toml that are not a run's: the machine root's style.toml (every work
+    dir's on this machine), then the work dir's style.toml (its studies'), each checked (audit 3, 4.3)."""
+    from .paths import find_work, machine_root
+    layers = []
+    for path in (machine_root() / "style.toml", *([find_work() / "style.toml"] if find_work() else [])):
+        if path.is_file():
+            try:
+                layer = tomllib.loads(path.read_text(encoding="utf-8"))
+            except tomllib.TOMLDecodeError as error:
+                raise HepError(f"cannot parse the style file: {error}", where=str(path)) from None
+            check_style(layer, str(path))
+            layers.append(layer)
+    return merge_style(*layers)
+
+
 def run_style(run) -> dict:
-    """What a run changes of the base style: its root_style file, then [plot.style]."""
+    """What a run changes of the base style: the machine's and the work dir's style.toml, its root_style
+    file, then [plot.style]."""
     settings = run.plot
     where = f"{run.path}: [plot]"
     named = settings.get("root_style", DEFAULT)
     layer = style_file(named, run.project, f"{where}.root_style") if named != DEFAULT else {}
     check_style(settings.get("style", {}), f"{where}.style")
-    return merge_style(layer, settings.get("style", {}))
+    return merge_style(house_style(), layer, settings.get("style", {}))
 
 
 # ── the page document as Paint reads it ──────────────────────────────────────────────────────
@@ -391,10 +409,10 @@ SCAN_LABELS = {"sigma": r"$\sigma$ [pb]", "entries": "entries", "integral": "int
 def _scanned(run, figure: Figure, complete: list, sources: dict, groups: list, where: Path) -> tuple[list, dict]:
     """A scan figure's members (V85): per value of the axes other than x, a stand-in plan named by their
     tags, its YODA one Scatter2D /FIGURES/<name>: a point per value of x, at that value, its y the number
-    the figure reads of the point (framework/tools/figures/derive.py), its x range reaching halfway to its
+    the figure reads of the point (framework/plot/figures/derive.py), its x range reaching halfway to its
     nearer neighbour on both sides, so it is centred on its value and every backend can draw it as a
     bin (a scan is drawn as markers, V86). Remade only when a member's YODA or the figure changed."""
-    module = plugins.load(hep_root() / "framework" / "tools" / "figures" / "derive.py", "derive")
+    module = plugins.load(hep_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
     quantity = run.quantities[figure.x]
     kept = [g for g in groups if figure.x not in g]
     by: dict[tuple, list] = {}
@@ -478,12 +496,12 @@ def _labels_from(declared: list, sources: dict) -> dict[str, str]:
 def point_yodas(run, complete: list) -> dict[str, Path]:
     """Each complete point's YODA, as the pages read it: its product, or with a derived figure (V84) a
     copy with the derived objects after its own (output/…/plots/derived/<point>.yoda), made by
-    framework/tools/figures/derive.py and remade only when the product or the figures changed."""
+    framework/plot/figures/derive.py and remade only when the product or the figures changed."""
     plain = {p.point.name: yoda_of(p) for p in complete}
     derived = [f for f in figures(run) if f.kind == "derived"]
     if not derived:
         return plain
-    module = plugins.load(hep_root() / "framework" / "tools" / "figures" / "derive.py", "derive")
+    module = plugins.load(hep_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
     where = complete[0].out.parent / "plots" / "derived"
     where.mkdir(parents=True, exist_ok=True)
     specs = [(f.name, f.op, list(f.objects)) for f in derived]
@@ -1112,10 +1130,10 @@ def draw(run, configuration, plans, say, others=None) -> int:
 
 def sheet(run, figure: Figure, todo: list[Page], say) -> int:
     """A sheet figure (V89): the drawn pages its globs name, in their order, tiled `columns` wide by
-    framework/tools/figures/layout.py into plots/<backend>/sheets/<name>.pdf, and its .png rendered from that
+    framework/plot/figures/layout.py into plots/<backend>/sheets/<name>.pdf, and its .png rendered from that
     PDF (V102), for Paint's pages and mpl's (mkhtml lays its files out its own way). 1 when it could
     not be made."""
-    module = plugins.load(hep_root() / "framework" / "tools" / "figures" / "layout.py", "layout")
+    module = plugins.load(hep_root() / "framework" / "plot" / "figures" / "layout.py", "layout")
     chosen_pages: list[Page] = []
     for glob in figure.table_pages:
         found = [p for p in todo if fnmatch.fnmatch(p.name, glob) and p not in chosen_pages]
@@ -1263,7 +1281,7 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
     if not pages_of:
         raise HepError("no 1D object to draw" + (f" matches {list(objects)}" if objects else ""))
     settings = {"formats": list(formats), "ratio": ratio, "auto_range": True}
-    layer = style_file(style) if style else {}
+    layer = merge_style(house_style(), style_file(style) if style else {})   # the machine's and work dir's, then --style
     failed, written = 0, {}
     for path in pages_of:
         rel = path.strip("/").replace(":", "__")

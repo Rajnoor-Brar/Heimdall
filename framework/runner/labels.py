@@ -10,16 +10,37 @@ from __future__ import annotations
 import functools
 import re
 import tomllib
+from pathlib import Path
 
 from . import hepfiles
+from .errors import HepError
 from .paths import hep_root
 
 # ── LaTeX ($…$ in Rivet .plot files) → ROOT TLatex (V11) ──────────────────────────────────────
 
-@functools.cache
 def latex() -> dict:
-    """framework/schema/latex.toml: the LaTeX → TLatex commands, YODA's macros, TLatex → mathtext (V61)."""
-    return tomllib.loads((hep_root() / "framework" / "schema" / "latex.toml").read_text(encoding="utf-8"))
+    """framework/schema/latex.toml: the LaTeX → TLatex commands, YODA's macros, TLatex → mathtext (V61);
+    the work dir's latex.toml over it, table by table (its own macros and commands; audit 3, 4.3)."""
+    from .paths import find_work
+    work = find_work()
+    own = work / "latex.toml" if work is not None else None
+    return _latex(str(own), own.stat().st_mtime_ns) if own is not None and own.is_file() else _latex("", 0)
+
+
+@functools.cache
+def _latex(own: str, stamp: int) -> dict:
+    shipped = tomllib.loads((hep_root() / "framework" / "schema" / "latex.toml").read_text(encoding="utf-8"))
+    if not own:
+        return shipped
+    try:
+        mine = tomllib.loads(Path(own).read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise HepError(f"cannot parse the work dir's latex.toml: {error}", where=own) from None
+    for table, entries in mine.items():
+        if table not in shipped or not isinstance(entries, dict):
+            raise HepError(f"latex.toml has no table [{table}]", where=own, hint=", ".join(shipped))
+        shipped[table] = {**shipped[table], **entries}
+    return shipped
 
 
 _COMMANDS = latex()["tlatex"]

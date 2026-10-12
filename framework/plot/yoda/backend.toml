@@ -1,4 +1,4 @@
-# framework/tools/yoda/backend.toml — what the yoda backend tells rivet-mkhtml (V61), read by backend.py.
+# framework/plot/yoda/backend.toml — what the yoda backend tells rivet-mkhtml (V61), read by backend.py.
 
 # legend.position → the .plot keys that place mkhtml's legend ("best": then matplotlib's loc='best')
 [legend.top-right]

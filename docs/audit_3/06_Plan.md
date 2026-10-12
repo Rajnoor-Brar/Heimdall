@@ -109,7 +109,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 
 ## Phase 2 — Verification
 
-**2.1 `hep doctor`** (U7, U33)
+**2.1 `hep doctor`** (U7, U33) — **done, V119**
 - `check_stack.sh` (now in Heimdall's ignored `.setup/`) becomes a framework command, `hep doctor`,
   in Python. It is driven by a `verify` table per package in `packages.toml`:
   - `features`: `root-config --features ⊇ […]`; `pythia8-config --with-lhapdf6 = true`;

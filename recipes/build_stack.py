@@ -68,7 +68,7 @@ except ModuleNotFoundError:                                        # Python < 3.
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent                                                 # Heimdall: recipes/ is in it
 FIELDS = {"release", "url", "sha256", "kind", "needs", "group", "install", "probe", "args", "extra", "optional",
-          "patch", "strip", "env", "pre", "post", "cores", "status", "how", "apt"}
+          "patch", "strip", "env", "pre", "post", "cores", "status", "how", "apt", "verify"}
 KINDS = ("autotools", "cmake", "unpack", "none", "external")
 #: packages = "all": the lab PC's set. Group "toolkit" joins only by name or by toolkit (@name).
 ALL_GROUPS = ("core", "extra")
@@ -165,6 +165,10 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             mode = "urls"
         elif arg == "--sha256":
             mode = "sha256"
+        elif arg == "--verify":
+            mode = "verify"
+        elif arg == "--quick":
+            settings["_quick"] = True
         elif arg == "--rebuild":
             settings.setdefault("_rebuild", []).extend(next(args, "").replace(",", " ").split()
                                                        or die("--rebuild needs a package"))
@@ -223,6 +227,8 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
         for other in [*p.get("needs", []), *p.get("optional", {})]:
             if other not in packages:
                 die(f"[{name}] names '{other}', which is not a package")
+        if "verify" in p and (wrong := checker().problems(name, p["verify"])):
+            die("; ".join(wrong))
     return mode, settings, packages
 
 
@@ -420,6 +426,40 @@ def chosen_of(want: list[str], packages: dict, kits: dict, seen: tuple[str, ...]
         else:
             die(f"no package '{word}'; there are: {' '.join(packages)}")
     return list(dict.fromkeys(out))
+
+
+def checker():
+    """recipes/verify.py: a package's checks, and the scan for libraries that no longer resolve."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("heimdall_verify", HERE / "verify.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def checks(name: str, p: dict, c: dict, env: dict[str, str], quick: bool = False, slow_ok: bool = True) -> list:
+    """A package's [[verify]] rows (recipes/verify.py)."""
+    k = scope(name, p, c)
+    return checker().run(name, p.get("verify", []), lambda text: expand(text, k), f"{c['venv']}/bin/python",
+                         env, quick=quick, slow_ok=slow_ok)
+
+
+def doctor_rows(packages: dict, c: dict, env: dict[str, str], quick: bool = False) -> list:
+    """--verify (and `hep doctor`): every installed package's checks, then each install folder's scan."""
+    rows, scanned = [], set()
+    v = checker()
+    for name, p in packages.items():
+        if p["kind"] == "external" or state(name, p, c) in ("", "failed"):
+            continue
+        rows += checks(name, p, c, env, quick=quick)
+        folder = scope(name, p, c)["install"]
+        if p["kind"] != "none" and folder not in scanned:          # each install folder once (ThePEG and Herwig share one)
+            scanned.add(folder)
+            n, lost = v.scan(Path(folder))
+            if n:
+                rows.append((name, f"libraries ({Path(folder).name}/)", "FAIL" if lost else "ok",
+                             " ".join(lost)[:140] if lost else f"{n} files"))
+    return rows
 
 
 def rebuild_set(names: list[str], packages: dict, c: dict) -> list[str]:
@@ -778,7 +818,8 @@ def environment(s: dict, c: dict, packages: dict) -> tuple[dict[str, list[str]],
     dirs = dict.fromkeys(f"{c['inst']}/{p.get('install', n)}" for n, p in packages.items() if p["kind"] != "none")
     paths = {"PATH": [f"{c['venv']}/bin", *(f"{d}/bin" for d in dirs)],
              "DYLD_LIBRARY_PATH" if MAC else "LD_LIBRARY_PATH": [f"{d}/lib" for d in dirs],
-             "PYTHONPATH": [f"{d}/lib/python{c['py']}/site-packages" for d in dirs]}
+             "PYTHONPATH": [*(f"{d}/lib/python{c['py']}/site-packages" for d in dirs),
+                            *(f"{d}/lib" for d in dirs)]}             # ROOT's and Pythia's modules sit in lib/
     return paths, {key: expand(value, c) for key, value in s["env"].items()}
 
 
@@ -887,6 +928,15 @@ def main(argv: list[str]) -> None:
     if mode == "urls":
         check_urls(order, packages, c)
         return
+    if mode == "verify":                                           # in the environment the user works in
+        if not os.environ.get("HEP_ENV_LOADED"):
+            say("Heimdall's environment is not loaded here: the checks see only what this shell has")
+        rows = doctor_rows(packages, c, dict(os.environ), quick=bool(s.get("_quick")))
+        for row in rows:
+            print("\t".join(row))
+        if any(row[2] == "FAIL" for row in rows):
+            sys.exit(1)
+        return
     if mode == "sha256":                                           # for the recipes: what this machine downloaded
         for name in order:
             file = tarball(name, packages[name], c)[0] if packages[name]["kind"] not in ("none", "external") else None
@@ -965,6 +1015,13 @@ def main(argv: list[str]) -> None:
             stamp(name, p, c).unlink(missing_ok=True)
             building(name, p, c).touch()
         build(name, p, c, shell, have)
+        if not script and s["verify"] and p.get("verify"):
+            rows = checks(name, p, c, {**shell.env}, slow_ok=False)
+            for _, check, result, note in rows:
+                say(f"{label}: check {check}: {result}" + (f" ({note})" if note and result != "ok" else ""))
+            if bad := [row for row in rows if row[2] in ("FAIL", "MISSING")]:
+                die(f"{label} is built but cannot do what its recipe checks ({', '.join(r[1] for r in bad)}): "
+                    f"see the lines above; the log is {shell.log} (verify=false skips the checks)")
         if not script:
             stamp(name, p, c).write_text(digest(name, p, c) + "\n", encoding="utf-8")
             building(name, p, c).unlink(missing_ok=True)

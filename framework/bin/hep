@@ -37,6 +37,7 @@ usage: hep <command> [options]
   cluster <config> [<configuration>]   run it as Slurm jobs: --dry-run, --status, --cancel (hep cluster --help)
   setup <dir> [--project P] [--git] [--adopt]    make a work dir     (hep setup --help)
   where [--hep | --work]           which Heimdall and which work dir this shell sees
+  doctor [--quick] [--record]      what this machine's stack and Heimdall can do, checked
   refresh                          reload this shell's environment (setup.sh again, from scratch)
   build [targets…]                 compile the work dir's module programs and Rivet plugins (make all)
         --framework                Heimdall's apps instead (framework/Apps/)
@@ -55,7 +56,7 @@ work() { python3 "$here/run" where --work; }                       # the work di
 cmd=${1-}
 [ $# -gt 0 ] && shift
 case "$cmd" in
-    run|watch|plot|overlay|deck|check|ls|explain|status|clean|reproduce|migrate|setup|where|cluster)
+    run|watch|plot|overlay|deck|check|ls|explain|status|clean|reproduce|migrate|setup|where|cluster|doctor)
         exec python3 "$here/run" "$cmd" "$@"
         ;;
     build)

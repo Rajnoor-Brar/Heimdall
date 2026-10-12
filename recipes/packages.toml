@@ -507,3 +507,187 @@ status  = "new"
 needs   = ["geant4", "vecgeom", "g4hepem", "hepmc3", "cuda"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}", "-DBUILD_TESTING=OFF"]
+
+# ── What each package must be able to do: its checks (recipes/verify.py) ─────────────────────────────
+# build_stack.py runs a package's checks right after installing it (a failed check fails the build);
+# `hep doctor` runs them all, with a scan for libraries that no longer resolve. Each [[<pkg>.verify]]:
+# name, and one of command (+ expect, has), python (+ expect, has), files (globs), links (globs + has);
+# slow = true for a run of minutes (hep doctor only; --quick skips it).
+
+[[python.verify]]
+name   = "venv packages"
+python = "import importlib.metadata as m; print(' '.join({v for d in m.distributions() for n in [d.metadata['Name'].lower()] for v in (n, n.replace('-', '_'), n.replace('_', '-'))}))"
+has    = ["{python_packages}"]
+
+[[lhapdf.verify]]
+name    = "version"
+command = "lhapdf-config --version"
+
+[[lhapdf.verify]]
+name   = "python: import lhapdf"
+python = "import lhapdf"
+
+[[hepmc3.verify]]
+name    = "version"
+command = "HepMC3-config --version"
+
+[[hepmc3.verify]]
+name  = "search library"
+files = ["{install}/lib*/libHepMC3search.*"]
+
+[[hepmc3.verify]]
+name   = "python: import pyHepMC3"
+python = "import pyHepMC3"
+
+[[fastjet.verify]]
+name    = "version"
+command = "fastjet-config --version"
+
+[[fastjet.verify]]
+name    = "plugins"
+command = "fastjet-config --list-plugins"
+has     = ["SISCone"]
+
+[[fjcontrib.verify]]
+name  = "contribs"
+files = ["{install}/lib/libRecursiveTools.*", "{install}/lib/libNsubjettiness.*", "{install}/lib/libLundPlane.*",
+         "{install}/lib/libfastjetcontribfragile.{dylib}"]
+
+[[root.verify]]
+name    = "version"
+command = "root-config --version"
+
+[[root.verify]]
+name    = "features"
+command = "root-config --features"
+has     = ["pyroot", "mathmore", "roofit", "tmva", "fftw3", "imt", "xrootd", "ssl", "gdml", "http", "sqlite"]
+
+[[root.verify]]
+name   = "python: import ROOT"
+python = "import ROOT"
+
+[[root.verify]]
+name    = "fill and fit"
+command = '''root -b -q -l -e 'TH1D h("h","",60,-4,4); gRandom->SetSeed(1); h.FillRandom("gaus",20000); h.Fit("gaus","Q0"); printf("sigma=%.2f\n", h.GetFunction("gaus")->GetParameter(2)); gSystem->Exit(0);' '''
+expect  = 'sigma=(0\.9|1\.0)'
+
+[[pdfsets.verify]]
+name    = "the sets"
+command = "lhapdf list --installed"
+has     = ["{pdf_sets}"]
+
+[[pdfsets.verify]]
+name   = "a set reads"
+python = "import lhapdf; lhapdf.setVerbosity(0); print('xg', round(lhapdf.mkPDF('CT14lo', 0).xfxQ(21, 0.1, 10.0), 3))"
+expect = '^xg [0-9]'
+
+[[hdf5.verify]]
+name    = "version"
+command = "{install}/bin/h5dump --version"
+
+[[hdf5.verify]]
+name  = "h5cc-plain"
+files = ["{install}/bin/h5cc-plain"]
+
+[[yoda.verify]]
+name    = "version"
+command = "yoda-config --version"
+
+[[yoda.verify]]
+name   = "python: write and read"
+python = "import yoda; h = yoda.Histo1D(10, 0, 1, '/t/h'); [h.fill(0.05 + 0.1 * i) for i in range(10)]; yoda.write([h], 't.yoda'); print('entries', int(yoda.read('t.yoda')['/t/h'].numEntries()))"
+expect = 'entries 10'
+
+[[rivet.verify]]
+name    = "version"
+command = "rivet --version"
+
+[[rivet.verify]]
+name    = "linked"
+command = "rivet-config --libs --ldflags"
+has     = ["-lHepMC3", "-lYODA", "-lfastjet"]
+
+[[rivet.verify]]
+name   = "python: import rivet"
+python = "import rivet"
+
+[[rivet.verify]]
+name    = "an analysis"
+command = "rivet --show-analysis MC_JETS"
+
+[[pythia8.verify]]
+name    = "version"
+command = "pythia8-config --version"
+
+[[pythia8.verify]]
+name    = "built with LHAPDF 6, HepMC3, FastJet 3, Python"
+command = "pythia8-config --with-lhapdf6 --with-hepmc3 --with-fastjet3 --with-python"
+expect  = '^(true\s*){4}$'
+
+[[pythia8.verify]]
+name   = "100 events with an LHAPDF set"
+python = "import pythia8; p = pythia8.Pythia('', False); [p.readString(s) for s in ('Beams:eCM = 13000', 'SoftQCD:inelastic = on', 'PDF:pSet = LHAPDF6:CT14lo', 'Random:setSeed = on', 'Random:seed = 1')]; p.init(); print('events', sum(1 for _ in range(100) if p.next()), flush=True)"
+expect = '^events 100'
+
+[[thepeg.verify]]
+name  = "installed"
+files = ["{install}/bin/setupThePEG", "{install}/lib/ThePEG/libThePEG.*"]
+
+[[herwig.verify]]
+name    = "version"
+command = "Herwig --version"
+
+[[herwig.verify]]
+name    = "LHC.in: read, then 10 events"
+command = '''sh -c 'Herwig read {install}/share/Herwig/LHC.in > read.log 2>&1 && Herwig run LHC.run -N 10 > run.log 2>&1 && echo HERWIG-OK || { tail -3 read.log run.log 2>/dev/null; exit 1; }' '''
+expect  = 'HERWIG-OK'
+slow    = true
+
+[[delphes.verify]]
+name  = "programs"
+files = ["{install}/bin/DelphesHepMC3", "{install}/bin/DelphesPythia8", "{install}/bin/DelphesROOT"]
+
+[[sherpa.verify]]
+name    = "version"
+command = "Sherpa --version"
+
+[[sherpa.verify]]
+name  = "HepMC3, Rivet and LHAPDF interfaces"
+files = ["{install}/lib/SHERPA-MC/libSherpaHepMC3Output.*", "{install}/lib/SHERPA-MC/libSherpaRivetAnalysis.*",
+         "{install}/lib/SHERPA-MC/libLHAPDFSherpa.*"]
+
+[[madgraph.verify]]
+name   = "its Python imports"
+python = "import sys; sys.path.insert(0, '{install}'); import madgraph.interface.master_interface; print('imported')"
+expect = 'imported'
+
+[[whizard.verify]]
+name    = "version"
+command = "whizard --version"
+
+[[whizard.verify]]
+name  = "linked: LHAPDF, HepMC3, FastJet, Pythia 8"
+links = ["{install}/lib/libwhizard*.{dylib}*", "{install}/bin/whizard"]
+has   = ["LHAPDF", "HepMC3", "fastjet", "pythia8"]
+
+[[onnxruntime.verify]]
+name  = "library"
+files = ["{install}/lib/libonnxruntime.*", "{install}/VERSION_NUMBER"]
+
+[[geant4.verify]]
+name    = "version"
+command = "geant4-config --version"
+
+[[geant4.verify]]
+name    = "multithreading"
+command = "geant4-config --has-feature multithreading"
+expect  = 'yes'
+
+[[geant4.verify]]
+name    = "GDML"
+command = "geant4-config --has-feature gdml"
+expect  = 'yes'
+
+[[madanalysis5.verify]]
+name  = "installed"
+files = ["{install}/bin/ma5"]

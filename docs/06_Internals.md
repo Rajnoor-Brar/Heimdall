@@ -132,6 +132,7 @@ layering was not had nine cycles.)
 | 5 | `house.py` | `ls`, `explain`, `status`, `clean` (V74) |
 | 5 | `migrate.py` | `hep migrate`: run TOMLs and cards rewritten in today's forms (V79) |
 | 5 | `docs.py` | `make docs`: the manual's generated blocks (keys, style, commands) from the schema, base.toml and the CLI (V91) |
+| 5 | `doctor.py` | `hep doctor`: every installed package's checks (its recipe's `[[verify]]`, through `recipes/verify.py`), the scan for libraries that no longer resolve, Heimdall's own rows; `--record`, `--matrix` (V119) |
 | 5 | `setup.py` | `hep setup` (a work dir from `framework/templates/work/`, never overwriting) and `hep where`; the `[framework] expects` warning (V107) |
 
 **Plugins:**

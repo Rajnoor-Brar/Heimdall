@@ -28,6 +28,7 @@ from . import cluster as clustermod
 from . import config as configmod
 from . import deck as deckmod
 from . import execute, house, plot, post, record, sweep, tools
+from . import doctor as doctormod
 from . import setup as setupmod
 from .errors import HepError, did_you_mean
 from .paths import check_retired, find_work, output_root, results_root
@@ -134,6 +135,15 @@ def parser() -> argparse.ArgumentParser:
     make.add_argument("--git", action="store_true", help="git init, and commit what was added")
     make.add_argument("--adopt", action="store_true", help="make a work dir of a folder that has files but no hep.toml")
     make.add_argument("--name", help="the work dir's name in hep.toml (default: the folder's)")
+
+    doctor = commands.add_parser("doctor", help="what this machine's stack and Heimdall can do, checked",
+                                 description="Every installed package's checks (its recipe's [[verify]]), a scan for "
+                                             "libraries that no longer resolve, and Heimdall's own: one row each, "
+                                             "ok / MISSING / FAIL / n/a. Exit 1 on a FAIL.")
+    doctor.add_argument("--quick", action="store_true", help="skip the slow runs (Herwig's LHC.in): under a minute")
+    doctor.add_argument("--record", action="store_true",
+                        help="write this machine's summary to recipes/support/<platform>-<host>.toml (the support matrix)")
+    doctor.add_argument("--matrix", action="store_true", help="the support matrix: every machine's recorded summary")
 
     where = commands.add_parser("where", help="which Heimdall and which work dir this shell sees")
     which = where.add_mutually_exclusive_group()
@@ -964,6 +974,8 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "where":
             return setupmod.where(args.which)
+        if args.command == "doctor":
+            return doctormod.main(quick=args.quick, record_it=args.record, show_matrix=args.matrix)
         if args.command == "run":
             return cmd_run(args)
         if args.command == "plot":

@@ -62,6 +62,12 @@ warned about, once per command.
 
 ### 1.3 Building
 
+**First, is the machine ready?** `hep doctor` checks what every installed package of the stack can
+do (its recipe's checks: versions, compiled-in features, Python modules, short runs), scans every
+program and library for libraries that no longer resolve (after an OS upgrade, say), and checks
+Heimdall's own: one row each, ok / MISSING / FAIL / n/a, exit 1 on a FAIL. `--quick` skips the
+slow runs; `--record` adds this machine to the support matrix (`hep doctor --matrix`).
+
 `hep build` compiles the work dir's sources (`make all`, by `$HEP/framework/work.mk`); `hep build
 --framework` compiles Heimdall's own (its `Makefile`). Both take:
 - `--tests` (with `--framework`) also builds the C++ tests;

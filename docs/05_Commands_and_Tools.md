@@ -143,6 +143,14 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--adopt` | make a work dir of a folder that has files but no hep.toml |
 | `--name NAME` | the work dir's name in hep.toml (default: the folder's) |
 
+**`hep doctor`**: what this machine's stack and Heimdall can do, checked
+
+| Argument | Meaning |
+|---|---|
+| `--quick` | skip the slow runs (Herwig's LHC.in): under a minute |
+| `--record` | write this machine's summary to recipes/support/<platform>-<host>.toml (the support matrix) |
+| `--matrix` | the support matrix: every machine's recorded summary |
+
 **`hep where`**: which Heimdall and which work dir this shell sees
 
 | Argument | Meaning |

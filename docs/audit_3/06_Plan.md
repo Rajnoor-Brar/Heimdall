@@ -228,11 +228,14 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 - `hep tools new <name> --from exec|module|<tool>` writes a commented folder in `<work>/tools/`.
 - **The context file** ([04 §3](04_Extending.md#3-the-tool-contract-its-own-arguments-and-one-context-file)):
   - written when a point starts and removed when it ends;
-  - lists every tool's card and config;
+  - lists the card and config of every tool it generated cards for: the point's chain plus
+    `run.generate_cards` (a configuration may override it). Tool tables that are defined but unused
+    get no card;
   - reaches a tool as `HEP_CONTEXT` first, and as `{context}` in a folder's argv where wanted.
   
-  It replaces the `<tool>_<export>` keys and the `[standard.<key>]` tables. Only the expensive
-  products (Herwig's run file, MadGraph's process directory, Sherpa's integration) stay requests.
+  It replaces the `<tool>_<export>` keys and the `[standard.<key>]` tables. The expensive products
+  (Herwig's run file, MadGraph's process directory, Sherpa's integration) are asked for in the same
+  list as `"<tool>:<product>"`.
 - `src/Module.hh`:
   - `setting(name, default, doc)` declarations;
   - unknown keys refused before the first event;

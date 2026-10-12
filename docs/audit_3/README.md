@@ -28,9 +28,11 @@ Also covered: the everyday commands ([05_CLI.md](05_CLI.md)). The remediation, i
   build. `<name>.toml` (`@name`) borrows from it through `[standard]` booleans (packages or groups),
   can `extends` another toolkit, and can override or add recipes.
 - **The tool contract** ([04 §3](04_Extending.md#3-the-tool-contract-its-own-arguments-and-one-context-file)).
-  Each tool defines its own arguments. The run adds one context TOML listing every tool's card and
-  config. It reaches tools through `HEP_CONTEXT` first (`{context}` in an argv where wanted), and is
-  written when a point starts and removed when it ends.
+  Each tool defines its own arguments. The run adds one context TOML listing the card and config of
+  each tool it generated cards for. Those are only the tools used: the chain, plus
+  `run.generate_cards = [...]` (for example Pythia's and Rivet's for an integrated program). It
+  reaches tools through `HEP_CONTEXT` first (`{context}` in an argv where wanted), and is written
+  when a point starts and removed when it ends.
 - **Versions:** the recipes adopt the Mac's newer versions (YODA 2.1.4, Rivet 4.1.4, Pythia 8318,
   MadGraph 3.8.1).
 - **HDF5** is a recipe, built by `@primary` and `@lab` too.

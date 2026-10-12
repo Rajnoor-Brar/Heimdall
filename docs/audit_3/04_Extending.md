@@ -147,9 +147,24 @@ It works, but it is opt-in per pair of tools, and it is named by convention.
   `{config}`, `{input}`, `{output}`, `{events}` and so on. Inputs and outputs stay arguments, as a
   program expects them.
 - **The context file is the one thing the run adds.** When a point starts, the runner writes one
-  standard TOML for it. For every tool tag of the point it gives:
+  standard TOML for it. For each tool whose card it generated, it gives:
   - the path of that tool's **card** (its native card, if it has one);
   - its **config** (the tool's resolved table as TOML: options, analyses, settings).
+- **Cards are generated only for the tools that are used** (the user, 2026-10-12): the tools in the
+  point's chain, plus the ones named in `run.generate_cards`. A tool table that is defined but not
+  used (a shared file's spare Pythia, a Delphes table for another configuration) gets no card and
+  isn't in the context. It is still checked by `hep check` (U46).
+
+  An integrated program shows why the list exists. InprocJets runs Pythia and Rivet inside itself,
+  so its chain is `["jets", "yd2rt"]`, yet it needs Pythia's card and Rivet's analyses:
+
+  ```toml
+  [run]
+  chain          = ["jets", "yd2rt"]
+  generate_cards = ["pythia", "rivet"]    # not run as processes; their cards and configs are made for jets
+  ```
+
+  A configuration may set its own `generate_cards`, as it may set its own chain.
 
   ```toml
   # the point's context file (HEP_CONTEXT), written when the point starts
@@ -179,11 +194,11 @@ It works, but it is opt-in per pair of tools, and it is named by convention.
     provenance doesn't depend on the file.
 - **What it replaces.**
   - The `<tool>_<export> = true` keys and the `[standard.<key>]` tables go: an integrated program
-    reads Pythia's card and Rivet's analyses from the context.
-  - What stays a request: the **expensive, on-demand products**. Herwig's run file, MadGraph's
-    process directory and Sherpa's integration take minutes to hours, so they are built only when a
-    tool asks (`needs = ["sherpa:results"]` in its folder or table), and then listed in the context
-    too.
+    reads Pythia's card and Rivet's analyses from the context, because `generate_cards` named them.
+  - **The expensive products use the same key** (a proposal). Herwig's run file, MadGraph's process
+    directory and Sherpa's integration take minutes to hours, so they are made only when listed as
+    `"<tool>:<product>"` (`generate_cards = ["sherpa:results"]`), and then appear in the context
+    too. One key says what the run prepares beyond its chain.
 - **What it doesn't carry** (the user's choice): inputs and outputs (they are arguments), and the
   point's quantity values and paths (each tool gets its own through its card, config and arguments).
 

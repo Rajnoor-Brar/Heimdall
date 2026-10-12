@@ -106,9 +106,13 @@ hep build --framework && make -C "$HEP" test
 
 ## 5. Known limits
 
-- **Not yet run on a Mac.** The files follow the Linux build, which the lab PC proved, and macOS's
-  conventions. Their dry run is tested (`tests/runner/test_stack_build.py`); the real build is not.
-  Expect the first run to need small fixes: the log names them, and a fix is a `mac.toml` line.
+- **Proven once** (2026-10-12: an M4, macOS 27, AppleClang 21, Homebrew GCC 16, `@primary`). That
+  first build needed fixes that are now `mac.toml` lines, each with its reason: ThePEG and Herwig
+  (libc++, GSL, `-lc++`, type_info across plugins) and Whizard (`CXXLIBS`). Herwig's 8-byte Fortran
+  integers and Whizard's PDF sets are in `packages.toml`, for every platform. The whole story:
+  `docs/audit_3/01_Process.md`.
+- **Your shell is zsh; the environment is bash.** Load it with `launch.sh` (above), never by
+  `source setup.sh` in zsh.
 - **`hep run`'s watch socket** (`framework/runner/events.py`) uses Linux's abstract socket namespace;
   on macOS it falls back to a socket file in `$TMPDIR` (docs/framework/06_Seam.md, S2).
 - **DYLD_LIBRARY_PATH** is dropped by macOS (System Integrity Protection) whenever one of Apple's own

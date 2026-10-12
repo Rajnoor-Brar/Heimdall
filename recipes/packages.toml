@@ -153,7 +153,12 @@ needs   = ["thepeg", "lhapdf", "fastjet"]
 install = "herwig7"
 probe   = "{install}/bin/Herwig"
 pre     = ["lhapdf install CT14lo CT14nlo"]           # its defaults read them: make install needs them (L15)
-args    = ["--with-thepeg={inst}/herwig7", "--with-fastjet={inst}/fastjet", "--with-lhapdf={inst}/LHAPDF"]
+# Looptools needs 8-byte default integers; Herwig's m4/herwig.m4 adds -fdefault-integer-8 only for x86_64
+# and old Intel Macs, so an arm64 machine (an M-series Mac, an ARM Linux) fails at D0funcC.F. Given here
+# for every platform (x86_64 Linux gets the same flags from its configure anyway).
+args    = ["--with-thepeg={inst}/herwig7", "--with-fastjet={inst}/fastjet", "--with-lhapdf={inst}/LHAPDF",
+           "FFLAGS=-O2 -std=legacy -ffixed-line-length-none -fdefault-integer-8",
+           "FCFLAGS=-O2 -std=legacy -ffixed-line-length-none -fdefault-integer-8"]
 
 [delphes]
 release = "3.5.1"

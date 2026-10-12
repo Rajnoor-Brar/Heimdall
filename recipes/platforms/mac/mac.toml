@@ -43,3 +43,27 @@ extra = ["-DCMAKE_INSTALL_NAME_DIR={install}/lib"]
 
 [onnxruntime]                     # the macOS release: onnxruntime-osx-arm64 / -x86_64
 url = "https://github.com/microsoft/onnxruntime/releases/download/v{release}/onnxruntime-osx-{machine}-{release}.tgz"
+
+# ── ThePEG and Herwig on Apple clang and libc++ (the first Mac build, 2026-10-12; docs/audit_3/01_Process.md D)
+# ThePEG 2.3.0 and Herwig 7.3.0, proven on macOS 27 (arm64), AppleClang 21, Homebrew GCC 16:
+#   _LIBCPP_ENABLE_CXX17_REMOVED_*  libc++ drops C++17's removals (std::mem_fun …), which they use;
+#                                   libstdc++ keeps them, so Linux needs none
+#   THEPEG_DYNAMIC_TYPE_INFO_BUG    ThePEG keys class descriptions by type_info address, which is not
+#                                   one object across its plugin libraries on arm64 macOS: a class lost
+#                                   its base's interfaces ("AlphaQCDISR:ScaleFactor was not found")
+#   --with-gsl                      its default, "system", expects GSL on the compiler's own path
+#   LDFLAGS … -lc++                 libtool links them -flat_namespace, so libThePEG recorded no libc++
+#                                   dependency and its static initialisers ran before libc++'s (macOS 27
+#                                   aborted: "typed operator new … before its static initializer")
+[thepeg]
+env   = { CXXFLAGS = "{cxxflags} -D_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -D_LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -DTHEPEG_DYNAMIC_TYPE_INFO_BUG" }
+extra = ["--with-gsl={HOMEBREW_PREFIX}/opt/gsl", "LDFLAGS=-L{HOMEBREW_PREFIX}/lib -lc++"]
+
+[herwig]
+env   = { CXXFLAGS = "{cxxflags} -D_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -D_LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -DTHEPEG_DYNAMIC_TYPE_INFO_BUG" }
+extra = ["--with-gsl={HOMEBREW_PREFIX}/opt/gsl", "LDFLAGS=-L{HOMEBREW_PREFIX}/lib -lc++"]
+
+# Whizard 3.1.8: its configure copies clang++'s link line into CXXLIBS and keeps a bare -lto_library;
+# it filters that only when it can read Xcode's version, which the Command Line Tools alone don't give.
+[whizard]
+extra = ["CXXLIBS=-lc++"]

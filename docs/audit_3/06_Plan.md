@@ -69,7 +69,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 | Whizard built | `ldd`/`otool -L` of `libwhizard` shows LHAPDF; `hep doctor` row ok |
 | `python3 recipes/build_stack.py` on a Mac | one line naming `build.sh` |
 
-**1.3 The Mac's fixes as data, stamps, progress** (U8, U9, U10, U11, U12, U13, U18)
+**1.3 The Mac's fixes as data, stamps, progress** (U8, U9, U10, U11, U12, U13, U18) — **done, V118**
 - `recipes/platforms/mac/mac.toml`, from [01 D](01_Process.md#d-toolchain-drift--u8-40):
   - ThePEG and Herwig: the four libc++ macros, `--with-gsl`, `LDFLAGS=… -lc++` and
     `THEPEG_DYNAMIC_TYPE_INFO_BUG`;

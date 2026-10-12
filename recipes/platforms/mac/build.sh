@@ -47,7 +47,7 @@ PY=""
 for v in 3.13 3.12 3.11; do
     [ -x "$HOMEBREW_PREFIX/bin/python$v" ] && { PY="$HOMEBREW_PREFIX/bin/python$v"; break; }
 done
-[ -n "$PY" ] || die "no Homebrew Python 3.11+: brew install python@3.12"
+[ -n "$PY" ] || die "no Homebrew Python 3.11+: brew install python@3.13"
 
 # Arguments after mac.toml's, so the command line wins over it
 exec "$PY" "$HERE/../../build_stack.py" --config "$HERE/mac.toml" python="$PY" "$@"

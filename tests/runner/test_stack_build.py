@@ -175,7 +175,7 @@ def test_new_recipes_say_so_and_bring_their_system_packages(bs, tmp_path, capsys
     prefix = tmp_path / "hep"
     bs.main(["--dry-run", f"prefix={prefix}", "packages=@detector"])
     out = capsys.readouterr()
-    assert "dd4hep 01-38  (a new recipe" in out.err
+    assert "dd4hep 01-38  (a recipe not yet proven by a build)" in out.err
     install = next(line for line in out.out.splitlines() if "apt-get install" in line)
     assert "libeigen3-dev" in install and "nlohmann-json3-dev" in install and "libxerces-c-dev" in install
     _, _, packages = bs.options([f"prefix={tmp_path}"])
@@ -407,3 +407,100 @@ def test_h5cc_plain_answers_in_one_line_each(tmp_path):
     assert show.splitlines() == ["HDF5 Version: 2.2.0", f"Installation point: {install}", "Extra libraries: -lz"]
     assert subprocess.run([str(install / "bin/h5cc-plain"), "-show"], capture_output=True, text=True).stdout.strip() \
         == f"cc -I{install}/include -L{install}/lib -lhdf5"
+
+
+# ── stamps, rebuilds, overrides, the ABI guard, the Mac's fixes (phase 1.3) ────────────────────
+
+def stamped(bs, prefix, name, content=None, packages=None, c=None):
+    _, s, packages = bs.options([f"prefix={prefix}"]) if packages is None else (None, None, packages)
+    c = c or bs.context(s)
+    file = bs.stamp(name, packages[name], c)
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(bs.digest(name, packages[name], c) if content is None else content, encoding="utf-8")
+    return packages, c
+
+
+def test_a_stamp_knows_the_recipe_it_was_built_with(bs, tmp_path):
+    packages, c = stamped(bs, tmp_path, "fastjet")
+    assert bs.state("fastjet", packages["fastjet"], c) == "built"
+    packages["fastjet"]["args"] = [*packages["fastjet"]["args"], "--enable-extra"]
+    assert bs.state("fastjet", packages["fastjet"], c) == "changed"
+    stamped(bs, tmp_path, "hepmc3", content="", packages=packages, c=c)
+    assert bs.state("hepmc3", packages["hepmc3"], c) == "built (no digest)"
+    bs.building("root", packages["root"], c).touch()
+    assert bs.state("root", packages["root"], c) == "failed" and not bs.present("root", packages["root"], c)
+    (Path(c["inst"]) / "yoda").mkdir()
+    assert bs.state("yoda", packages["yoda"], c) == "installed"
+
+
+def test_installed_is_used_failed_is_built_again(bs, tmp_path, capsys):
+    prefix = tmp_path / "hep"
+    _, s, packages = bs.options([f"prefix={prefix}"])
+    c = bs.context(s)
+    (Path(c["inst"]) / "fastjet").mkdir(parents=True)                # installed some other way: used
+    stamped(bs, prefix, "hepmc3", packages=packages, c=c)
+    bs.building("python", packages["python"], c).touch()             # an attempt that did not finish
+    bs.main(["--dry-run", "--resume", f"prefix={prefix}", "packages=fastjet hepmc3 python", "system=false"])
+    script = capsys.readouterr().out
+    assert "# == fastjet" not in script and "# == hepmc3" not in script and "# == python" in script
+
+
+def test_rebuild_takes_what_depends_on_it(bs, tmp_path, capsys):
+    prefix = tmp_path / "hep"
+    _, s, packages = bs.options([f"prefix={prefix}"])
+    c = bs.context(s)
+    for name in ("python", "lhapdf", "hepmc3", "fastjet", "thepeg", "herwig", "rivet"):
+        stamped(bs, prefix, name, packages=packages, c=c)
+    assert bs.rebuild_set(["thepeg"], packages, c) == ["thepeg", "herwig"]
+    bs.main(["--dry-run", "--resume", "--rebuild", "thepeg", f"prefix={prefix}", "system=false"])
+    script = capsys.readouterr().out
+    assert "# == thepeg" in script and "# == herwig" in script and "# == rivet" not in script
+    with pytest.raises(SystemExit):
+        bs.main(["--dry-run", "--rebuild", "nope", f"prefix={prefix}"])
+
+
+def test_overrides_append_and_reach_the_environment(bs, tmp_path, monkeypatch):
+    monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
+    _, s, packages = bs.options(["--config", str(REPO / "recipes/platforms/mac/mac.toml"), f"prefix={tmp_path}",
+                                 "root.extra+=-Dfoo=ON", "thepeg.extra+='LDFLAGS=-L/x -lc++'",
+                                 "delphes.env.EXTRA=1", "env.MY_FLAG=yes", "pdf_sets=CT10,cteq6l1"])
+    assert packages["root"]["extra"][-1] == "-Dfoo=ON" and "-Dcocoa=ON" in packages["root"]["extra"]
+    assert packages["thepeg"]["extra"][-1] == "LDFLAGS=-L/x -lc++"
+    assert packages["delphes"]["env"] == {"PYTHIA8": "{inst}/pythia8", "EXTRA": "1"}
+    assert s["env"]["MY_FLAG"] == "yes" and s["pdf_sets"] == ["CT10", "cteq6l1"]
+
+
+def test_another_cxx_standard_on_a_built_stack_is_refused(bs, tmp_path):
+    prefix = tmp_path / "hep"
+    stamps = prefix / "stack" / ".stamps"
+    stamps.mkdir(parents=True)
+    (stamps / "cxx_std").write_text("17\n")
+    with pytest.raises(SystemExit) as stop:
+        bs.main([f"prefix={prefix}", "cxx_std=20", "system=false", "packages=fastjet"])
+    assert "would mix ABIs" in str(stop.value)
+
+
+def test_the_macs_fixes_are_recipe_lines(bs, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(bs, "MAC", True)
+    monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
+    prefix = tmp_path / "hep"
+    bs.main(["--dry-run", "--config", str(REPO / "recipes/platforms/mac/mac.toml"), f"prefix={prefix}", "packages=@primary"])
+    lines = capsys.readouterr().out.splitlines()
+    thepeg = next(line for line in lines if "./configure" in line and "/thepeg " in line)
+    for part in ("THEPEG_DYNAMIC_TYPE_INFO_BUG", "_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS", "--with-gsl=/opt/homebrew/opt/gsl",
+                 "'LDFLAGS=-L/opt/homebrew/lib -lc++'"):
+        assert part in thepeg, part
+    herwig = next(line for line in lines if "./configure" in line and "/herwig " in line)
+    assert "-fdefault-integer-8" in herwig and "THEPEG_DYNAMIC_TYPE_INFO_BUG" in herwig
+    whizard = next(line for line in lines if "./configure" in line and "/whizard " in line)
+    assert "CXXLIBS=-lc++" in whizard
+
+
+def test_a_failure_shows_its_errors_first(bs, tmp_path):
+    log = tmp_path / "x.log"
+    log.write_text("\n".join(["checking things", *(f"warning: noise {i}" for i in range(200)),
+                               "../include/ThePEG/Repository/RandomGenerator.h:15:10: fatal error: 'gsl/gsl_rng.h' file not found",
+                               *(f"warning: more noise {i}" for i in range(50)), "make: *** [Makefile:444: all-recursive] Error 1"]))
+    excerpt = bs.failure_excerpt(log)
+    assert excerpt.startswith("the first errors:") and "gsl/gsl_rng.h" in excerpt
+    assert excerpt.index("gsl/gsl_rng.h") < excerpt.index("the log's end:")

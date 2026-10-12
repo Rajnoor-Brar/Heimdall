@@ -13,6 +13,11 @@
     python3 recipes/build_stack.py --dry-run --resume       # … only what this prefix still lacks
     python3 recipes/build_stack.py --check-urls             # ask every chosen package's URLs; nothing is downloaded
     python3 recipes/build_stack.py --sha256                 # the checksums of the archives in stash/, as recipe lines
+    python3 recipes/build_stack.py --rebuild thepeg         # build it again, and what depends on it (Herwig)
+    python3 recipes/build_stack.py thepeg.extra+=--foo env.CXXFLAGS="…"   # append to a list; one variable
+
+A key=value sets; key+=value appends to a list. A list value is split like a shell line (quote an item
+with spaces: thepeg.extra+="'LDFLAGS=-L/x -lc++'"), or on commas when it has no spaces.
 
 A setting is a key of settings.toml, given as key=value; a package's key as <package>.<key>=value.
 Where things go (docs/framework/01_Target.md §2): archives and their sources in stash/, build trees
@@ -20,8 +25,10 @@ and logs in forge/, installs in stack/, the Python environment in env/venv/.
 A toolkit (toolkits.toml, and your own in toolkits.d/*.toml) is a named set of packages. One that
 changes the C++ standard is isolated: it builds a whole stack of its own in stacks/<toolkit>/
 (installs, build trees, venv), loaded by stacks/<toolkit>/setup.sh; stash/ is shared.
-A finished package is stamped (stack/.stamps/<name>-<release>) and skipped after, so a rerun
-resumes; delete a stamp to redo its package. Every tarball is fetched before the first build, so a
+A finished package is stamped (stack/.stamps/<name>-<release>, holding a digest of the recipe it was
+built with) and skipped after, so a rerun resumes; --rebuild <package> builds it again, with what
+depends on it. A package installed some other way (its probe file there, no stamp) is used as it is.
+A recipe changed since a package was built is named, not rebuilt on its own. Every tarball is fetched before the first build, so a
 dead link stops the run at once: each package's url may be a list (mirrors, tried in order), a
 download resumes and retries, and an archive is kept only when it is one (a web page or a cut-off
 file is refused, and a sha256 is checked when the recipe gives one). Each package logs to
@@ -41,6 +48,8 @@ import subprocess
 import sys
 import time
 import hashlib
+import json
+import threading
 import http.client
 import urllib.error
 import urllib.request
@@ -90,12 +99,15 @@ MACHINE = """# env/machine.sh — this machine's lines for setup.sh, written by 
 """
 
 
+COLOUR = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
+
+
 def die(message: str) -> NoReturn:
-    sys.exit(f"\033[31merror: {message}\033[0m")
+    sys.exit(f"\033[31merror: {message}\033[0m" if COLOUR else f"error: {message}")
 
 
 def say(message: str) -> None:
-    print(f"\033[1m==> {message}\033[0m", file=sys.stderr, flush=True)
+    print(f"\033[1m==> {message}\033[0m" if COLOUR else f"==> {message}", file=sys.stderr, flush=True)
 
 
 # ── the files and the command line ─────────────────────────────────────────────────────────────
@@ -119,7 +131,7 @@ def coerce(text: str, like):
         except ValueError:
             die(f"'{text}' is not a number")
     if isinstance(like, list):
-        return text.replace(",", " ").split()
+        return text.split(",") if "," in text and " " not in text else shlex.split(text)
     return text
 
 
@@ -153,6 +165,9 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             mode = "urls"
         elif arg == "--sha256":
             mode = "sha256"
+        elif arg == "--rebuild":
+            settings.setdefault("_rebuild", []).extend(next(args, "").replace(",", " ").split()
+                                                       or die("--rebuild needs a package"))
         elif arg == "--list":
             mode = "list"
         elif arg == "--toolkits":
@@ -162,23 +177,40 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             merge(settings, packages, read(file))
             settings.setdefault("_configs", []).append(str(file))
         elif "=" in arg:
-            given.append(arg.split("=", 1))
+            key, text = arg.split("=", 1)
+            given.append((key[:-1], text, "+=") if key.endswith("+") else (key, text, "="))
+            if key == "packages":
+                settings["_packages_given"] = True
         else:
             die(f"unknown argument '{arg}' (see --help)")
-    wanted = next((text for key, text in reversed(given) if key == "packages"), settings["packages"])
+    wanted = next((text for key, text, _ in reversed(given) if key == "packages"), settings["packages"])
     apply_toolkits(wanted, settings, packages)                     # the toolkits' own settings, then …
-    for key, text in given:                                        # after --config: the command line wins
-        name, _, field = key.rpartition(".")
-        if not name:
+    for key, text, op in given:                                    # after --config: the command line wins
+        parts = key.split(".")
+        if parts[0] == "env" and len(parts) == 2:                  # env.VAR=…: one variable of the build
+            settings["env"][parts[1]] = text
+            continue
+        if len(parts) == 3 and parts[1] == "env":                  # <package>.env.VAR=…
+            if parts[0] not in packages:
+                die(f"no package '{parts[0]}' (packages.toml)")
+            packages[parts[0]].setdefault("env", {})[parts[2]] = text
+            continue
+        if len(parts) == 1:
             if key.startswith("_") or key not in settings or isinstance(settings[key], dict):
                 die(f"no setting '{key}' (settings.toml)")
-            settings[key] = coerce(text, settings[key])
-        elif name not in packages:
-            die(f"no package '{name}' (packages.toml)")
-        elif field not in FIELDS:
-            die(f"a package has no key '{field}' (packages.toml says which)")
+            target, field = settings, key
+        elif len(parts) == 2 and parts[0] in packages:
+            if parts[1] not in FIELDS or parts[1] == "env":
+                die(f"a package has no key '{parts[1]}' (packages.toml says which)")
+            target, field = packages[parts[0]], parts[1]
         else:
-            packages[name][field] = coerce(text, packages[name].get(field, ""))
+            die(f"no package '{parts[0]}' (packages.toml)" if len(parts) == 2 else f"no such key '{key}'")
+        old = target.get(field, "")
+        if op == "+=":
+            current = shlex.split(old) if isinstance(old, str) else list(old)
+            target[field] = current + coerce(text, [])
+        else:
+            target[field] = coerce(text, old)
     for name, p in packages.items():
         if unknown := sorted(set(p) - FIELDS):
             die(f"[{name}] has no key {', '.join(unknown)}")
@@ -264,13 +296,44 @@ def stamp(name: str, p: dict, c: dict) -> Path:
     return Path(c["inst"], ".stamps", name + (f"-{p['release']}" if p.get("release") else ""))
 
 
+def building(name: str, p: dict, c: dict) -> Path:
+    """The marker of a build under way: left behind, it says the last attempt did not finish."""
+    return stamp(name, p, c).with_name(stamp(name, p, c).name + ".building")
+
+
+def digest(name: str, p: dict, c: dict) -> str:
+    """What a package's build depends on, hashed: its recipe (not where it is downloaded from), the
+    ABI, and the lists it installs. Kept in its stamp; a different one means the recipe changed."""
+    recipe = {k: p.get(k) for k in ("release", "kind", "args", "extra", "optional", "patch", "strip", "env",
+                                     "pre", "post", "install")}
+    recipe["abi"] = [c["cxx_std"], c["opt_flags"]]
+    for key, owner in (("python_packages", "python"), ("pdf_sets", "pdfsets"), ("ufo_models", "ufo-models")):
+        if name == owner:
+            recipe[key] = c.get(key)
+    if p.get("patch") and (REPO / p["patch"]).is_file():
+        recipe["patch_sha256"] = sha256_of(REPO / p["patch"])
+    return hashlib.sha256(json.dumps(recipe, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
+def state(name: str, p: dict, c: dict) -> str:
+    """built | changed (the recipe differs from the one it was built with) | built (no digest) (stamped
+    before digests) | failed (an attempt did not finish) | installed (some other way) | "" (absent)."""
+    file = stamp(name, p, c)
+    if file.exists():
+        kept = file.read_text(encoding="utf-8").strip() if file.stat().st_size else ""
+        return "built (no digest)" if not kept else "built" if kept == digest(name, p, c) else "changed"
+    if building(name, p, c).exists():
+        return "failed"
+    marker = p.get("probe", "{install}")
+    return "installed" if marker and Path(expand(marker, scope(name, p, c))).exists() else ""
+
+
 def present(name: str, p: dict, c: dict) -> bool:
-    """Built here (stamped), or installed some other way (its probe file is there). A dry run without
-    --resume sees an empty prefix: it prints the whole build."""
+    """Built here (stamped), or installed some other way (its probe file is there, and no attempt of
+    ours failed in it). A dry run without --resume sees an empty prefix: it prints the whole build."""
     if c.get("fresh"):
         return False
-    marker = p.get("probe", "{install}")
-    return stamp(name, p, c).exists() or bool(marker) and Path(expand(marker, scope(name, p, c))).exists()
+    return state(name, p, c) not in ("", "failed")
 
 
 def urls_of(name: str, p: dict, c: dict) -> list[str]:
@@ -359,10 +422,30 @@ def chosen_of(want: list[str], packages: dict, kits: dict, seen: tuple[str, ...]
     return list(dict.fromkeys(out))
 
 
+def rebuild_set(names: list[str], packages: dict, c: dict) -> list[str]:
+    """--rebuild: the packages named, and every installed package that needs one of them, in turn."""
+    for name in names:
+        if name not in packages:
+            die(f"--rebuild: no package '{name}'")
+    out = list(dict.fromkeys(names))
+    grew = True
+    while grew:
+        grew = False
+        for name, p in packages.items():
+            if name not in out and state(name, p, c) and set(p.get("needs", [])) & set(out):
+                out.append(name)
+                grew = True
+    return out
+
+
 def plan(s: dict, packages: dict, c: dict) -> tuple[list[str], list[str]]:
     """The packages to go through, in build order, and those of them added because others need them."""
     want = s["packages"].split() if isinstance(s["packages"], str) else list(s["packages"])
-    chosen = chosen_of(want, packages, toolkits())
+    rebuild = s.get("_rebuild", [])
+    if rebuild and not s.get("_packages_given"):                    # --rebuild alone: only those, and theirs
+        want = []
+    chosen = chosen_of(want, packages, toolkits()) + [n for n in rebuild_set(rebuild, packages, c) if n not in want]
+    chosen = list(dict.fromkeys(chosen))
     order: list[str] = []
 
     def visit(name: str, chain: list[str]) -> None:
@@ -384,11 +467,97 @@ def plan(s: dict, packages: dict, c: dict) -> tuple[list[str], list[str]]:
     return order, [n for n in order if n not in chosen]
 
 
+#: The lines of a failed step's log worth showing first: the errors, not the warnings around them.
+ERRORS = re.compile(r"(error:|Error \d+|fatal error|CMake Error|undefined reference to|No such file or directory"
+                    r"|command not found|\*\*\* \[|Traceback|Abort trap|Segmentation fault)")
+PERCENT = re.compile(r"\[\s*(\d+)%\]")
+
+
+def minutes(seconds: float) -> str:
+    seconds = int(seconds)
+    return (f"{seconds // 3600}h {seconds % 3600 // 60:02d}min" if seconds >= 3600
+            else f"{seconds // 60}min {seconds % 60:02d}s" if seconds >= 60 else f"{seconds}s")
+
+
+def log_tail(path: Path, lines: int) -> list[str]:
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - 16384))
+            text = handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return []
+    return [line for line in text.splitlines() if line.strip()][-lines:]
+
+
+class Progress:
+    """On a terminal: a status line for the step under way and a three-line window on its log,
+    redrawn twice a second and cleared when the step ends. Elsewhere: nothing."""
+    SPIN = "|/-\\"
+
+    def __init__(self, shell: "Shell", step: str):
+        self.shell, self.step, self.drawn, self.done = shell, step, 0, threading.Event()
+        self.live = sys.stderr.isatty() and not os.environ.get("HEP_PLAIN")
+        self.thread = threading.Thread(target=self.loop, daemon=True)
+
+    def __enter__(self):
+        if self.live:
+            self.thread.start()
+        return self
+
+    def __exit__(self, *exc):
+        self.done.set()
+        if self.live:
+            self.thread.join()
+            self.clear()
+
+    def clear(self):
+        if self.drawn:
+            sys.stderr.write(f"\x1b[{self.drawn}F\x1b[J")
+            sys.stderr.flush()
+            self.drawn = 0
+
+    def loop(self):
+        tick = 0
+        while not self.done.wait(0.5):
+            width = shutil.get_terminal_size((100, 20)).columns - 2
+            tail = log_tail(self.shell.log, 40)
+            pct = next((m[1] + "%" for line in reversed(tail) if (m := PERCENT.search(line))), "")
+            s = self.shell
+            head = (f"  {self.SPIN[tick % 4]} [{s.position}] {s.name}: {self.step}  "
+                    f"{minutes(time.monotonic() - s.started)}" + (f"  {pct}" if pct else ""))
+            lines = [head[:width], *("    │ " + line[: width - 6] for line in tail[-3:])]
+            self.clear()
+            sys.stderr.write("\n".join(lines) + "\n")
+            sys.stderr.flush()
+            self.drawn = len(lines)
+            tick += 1
+
+
+def failure_excerpt(log: Path) -> str:
+    """A failed step's log, as much as helps: its first error lines with a line of context, then its end."""
+    lines = log.read_text(encoding="utf-8", errors="replace").splitlines()
+    hits = [i for i, line in enumerate(lines) if ERRORS.search(line) and "warning" not in line.lower()]
+    shown: list[str] = []
+    seen: set[int] = set()
+    for i in hits[:12]:
+        for j in range(max(0, i - 1), min(len(lines), i + 2)):
+            if j not in seen:
+                seen.add(j)
+                shown.append(lines[j])
+    end = lines[-15:]
+    if shown:
+        return "\n".join(["the first errors:", *("  " + line for line in shown), "", "the log's end:",
+                          *("  " + line for line in end)])
+    return "\n".join(["the log's end:", *("  " + line for line in end)])
+
+
 class Shell:
     """Runs the build's commands, each into its package's log; for --dry-run, prints them as bash."""
 
     def __init__(self, script: bool, env: dict[str, str]):
         self.script, self.env, self.name, self.log = script, env, "setup", Path(os.devnull)
+        self.position, self.started = "", time.monotonic()
 
     def run(self, argv: list[str], cwd: str | None = None, env: dict[str, str] | None = None) -> None:
         if self.script:
@@ -396,18 +565,20 @@ class Shell:
                              shlex.join(argv)])
             print(f"cd {shlex.quote(cwd)} && {line}" if cwd else line)
             return
+        step = " ".join(Path(argv[0]).name.split()[:1] + [a for a in argv[1:3] if a.startswith("-") or a in
+                                                           ("install", "--build", "--install")])
         with open(self.log, "a", encoding="utf-8") as log:
             log.write(f"+ {shlex.join(argv)}\n")
             log.flush()
-            try:
-                code = subprocess.run(argv, cwd=cwd, env={**self.env, **(env or {})}, stdin=subprocess.DEVNULL,
-                                      stdout=log, stderr=subprocess.STDOUT).returncode
-            except OSError as error:
-                log.write(f"{error}\n")
-                code = 127
+            with Progress(self, step):
+                try:
+                    code = subprocess.run(argv, cwd=cwd, env={**self.env, **(env or {})}, stdin=subprocess.DEVNULL,
+                                          stdout=log, stderr=subprocess.STDOUT).returncode
+                except OSError as error:
+                    log.write(f"{error}\n")
+                    code = 127
         if code:
-            tail = self.log.read_text(encoding="utf-8", errors="replace").splitlines()[-30:]
-            print("\n".join(tail), file=sys.stderr)
+            print(failure_excerpt(self.log), file=sys.stderr)
             die(f"{self.name}: '{shlex.join(argv)}' failed; the whole log is {self.log}")
 
 
@@ -674,14 +845,14 @@ def preflight(s: dict, c: dict, order: list[str]) -> None:
 
 def show(order: list[str], packages: dict, c: dict) -> None:
     """Each package: built here (stamped) or installed otherwise, and whether this run builds it."""
-    print(f"{'package':13} {'release':10} {'group':8} {'state':10} {'this run':9} needs")
+    print(f"{'package':13} {'release':10} {'group':8} {'state':18} {'this run':9} needs")
+    rebuild = set(c.get("rebuild", []))
     for name, p in packages.items():
-        built = stamp(name, p, c).exists()
-        state = ("external" if p["kind"] == "external" else "built" if built
-                 else "installed" if present(name, p, c) else "")
-        run = "build" if name in order and not built and p["kind"] != "external" else ""
-        flag = " (new recipe)" if p.get("status") == "new" else ""
-        print(f"{name:13} {str(p.get('release', '—')):10} {p.get('group', 'core'):8} {state:10} {run:9} "
+        now = "external" if p["kind"] == "external" else state(name, p, c)
+        run = ("rebuild" if name in rebuild else "build" if name in order and now in ("", "failed")
+               and p["kind"] != "external" else "")
+        flag = " (recipe not yet proven by a build)" if p.get("status") == "new" else ""
+        print(f"{name:13} {str(p.get('release', '—')):10} {p.get('group', 'core'):8} {now:18} {run:9} "
               f"{' '.join(p.get('needs', []))}{flag}")
 
 
@@ -708,6 +879,7 @@ def main(argv: list[str]) -> None:
         return
     script = mode == "script"
     c["fresh"] = script and not s.get("_resume")                  # a dry run prints the whole build
+    c["rebuild"] = rebuild_set(s.get("_rebuild", []), packages, c) if s.get("_rebuild") else []
     order, added = plan(s, packages, c)
     if mode == "list":
         show(order, packages, c)
@@ -752,6 +924,9 @@ def main(argv: list[str]) -> None:
     std = Path(c["inst"], ".stamps", "cxx_std")                     # the stack's C++ standard: framework/rules.mk reads it
     if script:
         print(f"echo {c['cxx_std']} > {shlex.quote(str(std))}")
+    elif std.is_file() and std.read_text(encoding="utf-8").strip() != str(c["cxx_std"]):
+        die(f"the stack in {c['inst']} is C++{std.read_text(encoding='utf-8').strip()}; a C++{c['cxx_std']} build "
+            "would mix ABIs in one install: use an isolated toolkit (stacks/<name>/), or another prefix")
     else:
         std.write_text(f"{c['cxx_std']}\n", encoding="utf-8")
     say(f"HEP stack → {prefix}: {' '.join(order)}" + (f"  (added, as needed: {' '.join(added)})" if added else ""))
@@ -759,7 +934,10 @@ def main(argv: list[str]) -> None:
         + (", dry run: nothing is run" if script else ""))
     if s["system"]:
         system(s, c, shell, [a for n in order for a in packages[n].get("apt", [])])
-    todo = [n for n in order if c["fresh"] or not stamp(n, packages[n], c).exists()]
+    todo = [n for n in order if c["fresh"] or n in c["rebuild"] or state(n, packages[n], c) in ("", "failed")]
+    for n in order:
+        if not c["fresh"] and n not in todo and state(n, packages[n], c) == "changed":
+            say(f"{n}: its recipe changed since it was built: --rebuild {n} applies it")
     fetch([(tarball(n, packages[n], c)[0], urls_of(n, packages[n], c), packages[n].get("sha256", ""))
            for n in todo if packages[n]["kind"] not in ("none", "external")], shell)
     have = {n for n, p in packages.items() if present(n, p, c)} | set(order)
@@ -770,19 +948,27 @@ def main(argv: list[str]) -> None:
             say(f"{label}: external ({'there' if present(name, p, c) else 'not there'}): {expand(p['how'], c)}")
             continue
         if name not in todo:
-            say(f"{label}: done already")
+            say(f"{label}: done already" + (" (installed, not by this script)" if state(name, p, c) == "installed" else ""))
             continue
-        say(label + ("  (a new recipe, not yet proven by a build: a failure is a gate)" if p.get("status") == "new" else ""))
+        position = f"{todo.index(name) + 1}/{len(todo)}"
+        say(f"[{position}] {label}" + ("  (a recipe not yet proven by a build)" if p.get("status") == "new" else ""))
         shell.name, shell.log = name, Path(c["forge"], "logs", f"{name}.log")
-        started = time.monotonic()
+        shell.position, shell.started = position, time.monotonic()
         if script:
             print(f"\n# == {label}")
         else:
+            for older, newer in ((2, 1), (1, 0)):                      # keep the last two attempts' logs
+                src = shell.log.with_name(f"{name}.log" + (f".{newer}" if newer else ""))
+                if src.exists() and src.stat().st_size:
+                    src.replace(shell.log.with_name(f"{name}.log.{older}"))
             shell.log.write_text("", encoding="utf-8")
+            stamp(name, p, c).unlink(missing_ok=True)
+            building(name, p, c).touch()
         build(name, p, c, shell, have)
         if not script:
-            stamp(name, p, c).touch()
-            say(f"{label}: done in {(time.monotonic() - started) / 60:.0f} min")
+            stamp(name, p, c).write_text(digest(name, p, c) + "\n", encoding="utf-8")
+            building(name, p, c).unlink(missing_ok=True)
+            say(f"{label}: done in {minutes(time.monotonic() - shell.started)}")
     machine = prefix / "env" / "machine.sh"                        # setup.sh itself is tracked
     if c["setup_extra"]:
         if script:

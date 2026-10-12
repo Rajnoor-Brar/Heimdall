@@ -82,13 +82,26 @@ docker run --rm -it --user "$(id -u):$(id -g)" -v "$HOME/Github/Top-Quark:$HOME/
 The image is headless (`graphics=OFF`) and holds Heimdall, with its stack, at `/opt/heimdall`. Work
 dirs are mounted into it.
 
-**Resuming.** A package that finishes is stamped (`stack/.stamps/<name>-<release>`) and skipped
-next time, so the same command resumes after a failure, a reboot or a Ctrl-C. A changed release is a
-new stamp, so it builds; delete a stamp to redo its package. A package's source is unpacked afresh
-each time, so a half-done build never leaks into the next try.
+**Resuming.** A package that finishes is stamped (`stack/.stamps/<name>-<release>`, holding a digest
+of the recipe it was built with) and skipped next time, so the same command resumes after a failure,
+a reboot or a Ctrl-C. A changed release is a new stamp, so it builds. A recipe changed in any other
+way is named ("its recipe changed since it was built"), never rebuilt on its own: `--rebuild <package>`
+builds it again, with every installed package that needs it. An attempt that did not finish leaves a
+`.building` marker, so the next run builds that package again; a package installed some other way
+(its probe file there, no stamp) is used as it is. `--list` shows each package's state. A package's
+source is unpacked afresh each time, so a half-done build never leaks into the next try.
+
+**Overrides.** `key=value` sets a setting or a package's key, `key+=value` appends to a list
+(`root.extra+=-Droofit=OFF` keeps an overlay's own), `env.VAR=…` and `<package>.env.VAR=…` set one
+variable. A list value splits like a shell line: quote an item with spaces
+(`thepeg.extra+="'LDFLAGS=-L/x -lc++'"`). The C++ standard of a built stack can't be changed in place
+(an isolated toolkit builds another).
 
 **Downloads.** Every tarball the run needs is fetched first, four at a time, before anything is
-built: a dead link stops the run in its first minute, not after ROOT. A tarball already in
+built: a dead link stops the run in its first minute, not after ROOT. A package's `url` may list
+mirrors; a download resumes and retries; an archive is kept only when it is one (a web page, a
+cut-off file or a wrong `sha256` is refused and named). `--check-urls` asks every URL first, and
+`--sha256` prints the checksums of the archives you have, as recipe lines. A tarball already in
 `stash/<name>-<release>.<ext>` is used as it is, so a machine without network can build from
 copied tarballs.
 

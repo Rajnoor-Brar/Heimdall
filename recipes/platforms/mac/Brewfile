@@ -11,10 +11,10 @@ brew "autoconf"
 brew "automake"
 brew "libtool"
 brew "gcc"            # gfortran: Whizard, Sherpa's internal PDFs
-brew "python@3.12"    # tomllib for build_stack.py, and the venv's interpreter
+brew "python@3.13"    # tomllib for build_stack.py, and the venv's interpreter (build.sh picks it first)
 
 # GNU tools for the framework (put first on PATH by setup.sh): its Makefile is GNU make 4 and uses
-# GNU sed -i; `hep` uses nproc; hep_env.sh and hep are bash (macOS has bash 3.2)
+# GNU sed -i; hep_env.sh and hep are bash (macOS has bash 3.2)
 brew "make"
 brew "gnu-sed"
 brew "coreutils"
@@ -23,6 +23,7 @@ brew "bash"
 # libraries
 brew "openssl@3"      # ROOT (ssl), its builtin xrootd
 brew "gsl"            # ROOT (mathmore), ThePEG, Herwig
+brew "tbb"            # ROOT (imt): threads
 brew "boost"          # ThePEG, Herwig
 brew "fftw"           # ROOT
 brew "yaml-cpp"       # LHAPDF

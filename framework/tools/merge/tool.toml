@@ -15,7 +15,7 @@ env  = { RIVET_ANALYSIS_PATH = "{work}/build/Rivet" }   # it re-runs the analyse
 [options]
 # Seed replicas are statistically independent runs of one process (-e): their statistics add and the
 # cross section is averaged. false merges different processes into their sum.
-equivalent = { kind = "flag", flag = "-e", default = true }
+equivalent = { kind = "flag", flag = "-e", default = true, doc = "the inputs are replicas of one process (-e): averaged σ" }
 
 [outputs]
 products = ["yoda"]

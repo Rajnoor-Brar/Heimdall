@@ -2,7 +2,7 @@
 
 Every `hep` command and its options, the build and the environment; then every standard tool: what
 it runs, how its card is written, which quantities it consumes, what it writes, how its events are
-counted, what it can export, and the quirks that shaped it (the ledger rows,
+counted, what it puts in the context file, and the quirks that shaped it (the ledger rows,
 [07 §3](07_Record.md#3-the-knowledge-ledger)). Then the apps as you run them by hand.
 - **Generated:** the commands' options come from `hep`'s own parser (`make docs`, V91).
 - **Written by hand:** the tools' sections come from `framework/tools/<tool>/`.
@@ -155,6 +155,8 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
+| `NAME \| new NAME…` | a folder to show, or new and a folder to make |
+| `--from SOURCE` | hep tools new: the folder it starts from (exec, module: a copy; any other: extends it) |
 
 **`hep where`**: which Heimdall and which work dir this shell sees
 
@@ -284,7 +286,7 @@ config, every config). It works by line, so comments and layout stay. It rewrite
   GeV`, and `p_{T0}^{ref}` becomes `$p_{T0}^{\mathrm{ref}}$`;
 - **`swept = false`** → `sweep_runs = ["a", "b", …]`, the configurations the sweep ran, in its
   order;
-- **a custom tool's bare `executable`** that is not built but is a command on PATH → `"path:<name>"`
+- **an exec tool's bare `executable`** that is not built but is a command on PATH → `"path:<name>"`
   (V54);
 - **a base card's lines for keys the runner sets** (its folder's `[card] owned`). This changes the
   card, so the points' identities: they rerun.
@@ -411,20 +413,20 @@ root's come first, and may replace or extend (`extends = "<tool>"`) a shipped on
 ([06 §16](06_Internals.md#16-the-tool-folder-contract)); `hep tools` lists them all, with where each
 comes from.
 
-| `tool =` | Category | Runs | Card | Streamable | Status | Count check | Prepare | Exports |
+| `tool =` | Category | Runs | Card | Streamable | Status | Count check | Prepare | In the context file |
 |---|---|---|---|---|---|---|---|---|
-| `pythia` | event generator | `$HEP_APPS/App_Pythia.exe` | `.cmnd`, append | — (writes) | standard | produces: sidecar | — | `card`, `cmnd` |
-| `rivet` | analysis application | `rivet` (or K of them: `shards`) | none (flags) | yes | filters | `/RAW/_EVTCOUNT` | — | `analyses` |
+| `pythia` | event generator | `$HEP_APPS/App_Pythia.exe` | `.cmnd`, append | — (writes) | standard | produces: sidecar | — | `card` |
+| `rivet` | analysis application | `rivet` (or K of them: `shards`) | none (flags) | yes | filters | `/RAW/_EVTCOUNT` | — | `analyses`, `plugin_path` |
 | `yd2rt` | visualisation | `$HEP_APPS/App_yd2rt.exe` | none | file | standard | — | — | — |
 | `merge` | analysis application (post) | `rivet-merge` | none | files | none | — | — | — |
 | `plotmerge` | visualisation (post) | `App_yd2rt.exe --merge` | none | files | standard | — | — | — |
-| `custom` | any | your `executable` | none | per table | none (set it) | only if you set it | — | — |
-| `module` | analysis application | your `Module.hh` program | none | yes | standard | the report's `events` | — | — |
-| `delphes` | detector simulation | `DelphesHepMC3` | `.tcl`, append (`set`) | **no** (L11) | filters | the `Delphes` tree | — | `card`, `tcl` |
-| `herwig` | event generator | `Herwig run` | `.in`, append (`set`) | — (writes) | filters | produces: runner-written sidecar | `Herwig read` | `card`, `in`, `run` |
-| `sherpa` | event generator | `Sherpa` | `.yaml`, render (merge) | — (writes) | none | produces: runner-written sidecar | integration | `card`, `yaml`, `results` |
-| `whizard` | process generator | `whizard` | `.sin`, render | — (writes) | filters | produces: runner-written sidecar | integration | `card`, `sin` |
-| `madgraph` | process generator | `mg5_aMC` | launch script, render | — (writes a file) | filters | produces: runner-written sidecar | process directory | `card`, `proc`, `process` |
+| `exec` | any | your `executable` | none | per table | none (set it) | only if you set it | — | `config` |
+| `module` | analysis application | your `Module.hh` program | none | yes | standard | the report's `events` | — | `config` |
+| `delphes` | detector simulation | `DelphesHepMC3` | `.tcl`, append (`set`) | **no** (L11) | filters | the `Delphes` tree | — | `card` |
+| `herwig` | event generator | `Herwig run` | `.in`, append (`set`) | — (writes) | filters | produces: runner-written sidecar | `Herwig read` | `card`; product `run` |
+| `sherpa` | event generator | `Sherpa` | `.yaml`, render (merge) | — (writes) | none | produces: runner-written sidecar | integration | `card`; product `results` |
+| `whizard` | process generator | `whizard` | `.sin`, render | — (writes) | filters | produces: runner-written sidecar | integration | `card` |
+| `madgraph` | process generator | `mg5_aMC` | launch script, render | — (writes a file) | filters | produces: runner-written sidecar | process directory | `card`; product `process` |
 
 Other folders of `framework/tools/` are not tools in a chain:
 - **`yoda/` and `mpl/`** hold the plot backends (`backend.py`, [03 §9](03_Plots.md#9-backends));
@@ -440,7 +442,7 @@ Paint (`src/Apps/Paint/`) is driven by the plot stage, and is never named in `to
 - **Analysis algorithms** (FastJet, ROOT libraries) are `// requires:` names in a source.
 - **A detector simulation with no command line of its own** (Geant4) is a module program with
   `// requires: geant4`.
-- **Statistics** (RooFit, pyhf, uproot, scikit-learn) are custom tools, usually in `post`.
+- **Statistics** (RooFit, pyhf, uproot, scikit-learn) are exec tools, usually in `post`.
 
 ---
 
@@ -483,7 +485,7 @@ output_file = "events.hepmc"         # a [prelim] FIFO or file; an array fans ou
   (checked installed), `events` and `threads` (04 §3); anything else with `key = { pythia = … }`.
 - **Writes** HepMC3 to every output, and the **sidecar** `<first output>.json` (§16). It can
   **deal** its events among a sharded tool's inputs (`[outputs] deal = true`, §5.1).
-- **Exports** `pythia_card` = `pythia_cmnd`: `path` (the combined card, seeds included) and `parts`.
+- **In the context file** (04 §9.4): `card` (the combined card, seeds included) and `card_parts`.
 - **Identity** includes the binary's sha256; the **version** is the stack's (`stack:pythia8`).
 - Ledger: L1–L6, L25.
 
@@ -518,8 +520,8 @@ output_file = "jets.yoda"
 - **Count check**: `/RAW/_EVTCOUNT`'s entries against the producer's sidecar `written` (L7).
 - **Identity** includes each project plugin's `.so` (`build/Rivet/Rivet_<analysis>.so`); the
   version is the stack's.
-- **Exports** `rivet_analyses`: `analyses` (with this point's options applied, e.g. `photo_eic:R=0.4`)
-  and `plugin_path` (`build/Rivet`).
+- **In the context file** (04 §9.4): `analyses` (with this point's options applied, e.g.
+  `photo_eic:R=0.4`) and `plugin_path` (`build/Rivet`): its folder's `[context] values`.
 - **Its own code** is `framework/tools/rivet/render.py`'s `options` hook (V60). It handles:
   - the analyses with their options;
   - the `.info` check;
@@ -646,21 +648,23 @@ It runs `App_yd2rt.exe --merge <partial output> <point>=<yoda>… --keep-raw --p
 It is not a statistical merge (that is `merge`). The plot stage makes the same file itself,
 `plots/root/<cfg>.root`, so this tool is for a copy elsewhere, or a YODA version.
 
-## 9. `custom`
+## 9. `exec`
 
-Any executable: its argv is `{exe} {config} {arguments}` (04 §9.2). Its status is `none` unless the
-table sets it, and `HEP_STATUS_FD` is passed when `status = "standard"`.
+Any executable (it was `custom`): its argv is `{exe} {config} {arguments}` (04 §9.2). Its status is
+`none` unless the table sets it, and `HEP_STATUS_FD` is passed when `status = "standard"`. Like every
+tool it finds the point's context file at `$HEP_CONTEXT`, or `{context}` in its arguments (04 §9.4).
+`hep tools new <name> --from exec` copies the folder into the work dir's `tools/`, as a tool of its own.
 
 ```toml
 [tools.jets_reco]
-tool        = "custom"
+tool        = "exec"
 executable  = "path:python3"
 arguments   = ["{work}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
 input       = "delphes.root"
 output_file = "jets_reco.json"
 ```
 
-**A custom tool in Python** gets the kit's half that applies through `framework/hepkit.py` (V74):
+**An exec tool in Python** gets the kit's half that applies through `framework/hepkit.py` (V74):
 - `Exit`: Kit::Exit's table;
 - `Status`: the standard protocol, with a heartbeat, or plain lines on stderr when the fd is not
   given;
@@ -678,7 +682,11 @@ output_file = "jets_reco.json"
 - **Count check:** it reads `events` from the program's report, `<output>.json`, against the
   producer's sidecar.
 - **Integrated programs:** an empty `--input=` means an integrated program, which makes its own
-  events.
+  events. It reads the cards of the tools it runs itself from the context file (`job.card("pythia")`),
+  which `generate_cards` fills (04 §9.4).
+- **Settings:** every key of its config must be one the program reads; a misspelt one is refused
+  before the first event, with the nearest name. `<Name>.exe --describe` lists them (name, type,
+  default, doc), and `hep explain <Name>.exe` shows them.
 
 The kit is [06 §21](06_Internals.md#21-modulehh).
 
@@ -699,7 +707,7 @@ output_file = "delphes.root"
   card, so it writes the partial name the runner gives.
 - **Count check**: the `Delphes` tree's entries (read with uproot) against the sidecar.
 - **Seeds**: Delphes is not an event producer, so it never moves the generator's seeds (V22).
-- **Exports** `delphes_card` = `delphes_tcl`.
+- **In the context file:** `card`.
 
 ## 12. `herwig` — Herwig 7
 
@@ -723,8 +731,8 @@ output_file = "events.hepmc"
 - **Consumes** `energies` (`Luminosity:BeamEMaxA`, `…B`) and `sqrts` (`Luminosity:Energy`).
 - **Sidecar** written by the runner after exit 0 (`written = "requested"`: Herwig makes exactly `-N`
   events or fails).
-- **Exports** `herwig_card` = `herwig_in`; `herwig_run`: `path` = the `.run` file, **prepared on
-  demand** for a custom tool that asks.
+- **In the context file:** `card`; the product `run` (`generate_cards = ["herwig:run"]`), the
+  `.run` file, **prepared on demand** for a tool that asks.
 - Ledger: L15.
 
 ## 13. `sherpa` — Sherpa 3
@@ -753,8 +761,8 @@ output_file = "events.hepmc"
   prepends `./` to the output name (L12), so the name is relative.
 - **Consumes** `energies`, `beams`, `sqrts`, `pdf` (checked) and `events`.
 - **Sidecar** written by the runner (`written = "requested"`).
-- **Exports** `sherpa_card` = `sherpa_yaml`; `sherpa_results`: the integration directory, prepared
-  on demand.
+- **In the context file:** `card`; the product `results` (`"sherpa:results"`), the integration
+  directory, prepared on demand.
 - **Notes:**
   - Sherpa writes a YODA variation per extra weight; the plot stage draws the nominal only.
   - With `MI_HANDLER: Amisic`, ep photoproduction made 0 events in 768 s (v1), so the committed card
@@ -789,7 +797,7 @@ output_file = "events.hepmc"
 - **Limits:** Whizard has no photon structure function, so it does direct photoproduction only
   (L13). Its EPA record has no scattered lepton, so a Rivet analysis using `DISKinematics` cannot run
   on it.
-- **Exports** `whizard_card` = `whizard_sin`.
+- **In the context file:** `card`.
 
 ## 15. `madgraph` — MadGraph5_aMC@NLO
 
@@ -828,8 +836,8 @@ output_file = "events.hepmc"
 - **Consumes** `energies` (`ebeam1`, `ebeam2`: beam 1 is the proc card's first incoming particle),
   `beams` and `events` (`nevents`).
 - **Sidecar** written by the runner (`written = "requested"`).
-- **Exports** `madgraph_card` = `madgraph_proc`; `madgraph_process`: the process directory, prepared
-  on demand.
+- **In the context file:** `card`; the product `process` (`"madgraph:process"`), the process
+  directory, prepared on demand.
 - Ledger: L14.
 
 ---

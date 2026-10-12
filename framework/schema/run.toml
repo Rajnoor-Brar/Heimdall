@@ -318,6 +318,17 @@ doc      = "the chain: [A, [B, C], D]; an inner list runs together"
 notes = """\
   04 §5.3"""
 
+[configuration.generate_cards]
+type  = "list"
+items = "str"
+doc   = "tools not in the chain whose cards and configs go into the point's context file"
+notes = """\
+  tool tables (tags) whose cards and configs are made for the point although they do not run in it, \
+  for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and \
+  `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's \
+  `process`). The chain's tools are always in the context file, which every tool finds through \
+  `HEP_CONTEXT` (04 §9.4)"""
+
 [configuration.pre]
 type = "list"
 doc  = "tools run once, before every point"
@@ -461,9 +472,11 @@ notes = """\
 [tool.tool]
 type     = "str"
 required = true
-doc      = "a standard tool (a folder of framework/tools/) or custom"
+doc      = "a tool folder: shipped, the machine's or the work dir's (hep tools)"
 notes = """\
-  a standard tool (a folder of `framework/tools/`, 05 §3), `\"custom\"` or `\"module\"`"""
+  a tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work \
+  dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a \
+  `Module.hh` program"""
 
 [tool.baseconfig]
 path = "baseconfig"
@@ -521,26 +534,26 @@ path = "executable"
 type = "str"
 doc  = "custom/module: build/<project>/<name>, or path:<command>"
 notes = """\
-  custom and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`"""
+  exec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`"""
 
 [tool.arguments]
 type = "list"
 doc  = "custom: its arguments"
 notes = """\
-  custom and module: argv after the config; placeholders (04 §10)"""
+  exec and module: argv after the config; placeholders (04 §10)"""
 
 [tool.consumes]
 type  = "list"
 items = "str"
 doc   = "custom/module: quantities it reads from its config"
 notes = """\
-  custom and module: quantities written into the config"""
+  exec and module: quantities written into the config"""
 
 [tool.config]
 type = "table"
 doc  = "custom/module: written to config/<tag>.toml"
 notes = """\
-  custom and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2)"""
+  exec and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2)"""
 
 [tool.streamable]
 type = "bool"

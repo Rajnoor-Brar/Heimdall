@@ -33,12 +33,9 @@ marker = "Results.zip"
 sidecar = "{output}.json"
 written = "requested"
 
-[exports.results]                   # sherpa_results = true: the integration, run on demand
+[context.products.results]          # generate_cards = ["sherpa:results"]: the integration, run on demand
 path          = "{prepared}/Results"
 needs_prepare = true
-
-[exports.yaml]
-alias = "card"                      # sherpa_yaml = sherpa_card
 
 [identity]
 files   = ["{exe}"]

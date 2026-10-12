@@ -57,7 +57,7 @@ namespace Inproc {
 
     class Analysis {
       public:
-        // `table` is [standard.rivet_analyses]: the analyses, options included, and the plugin path.
+        // `table` is the context file's rivet: the analyses, options included, and the plugin path.
         Analysis(Module::Job& job, const Module::Values& table, int threads, size_t depth = 128)
             : job_(job), feed_(depth * static_cast<size_t>(std::max(threads, 1))) {
             if (threads < 1) job.fail(Module::Config, "rivet_threads must be at least 1");

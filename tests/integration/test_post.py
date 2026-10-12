@@ -38,7 +38,7 @@ def stage(scratch, name="poststage", **changes):
     script = scratch / "summary.py"
     script.write_text(SCRIPT)
     changes = {"run__name": name, "run__cfgs__one__sweeps": ["pdf"], "run__cfgs__one__post": ["summary"],
-               "tools__summary": {"tool": "custom", "executable": sys.executable, "input": "jets.yoda",
+               "tools__summary": {"tool": "exec", "executable": sys.executable, "input": "jets.yoda",
                                   "output_file": "summary.json",
                                   "arguments": [str(script), "{points}", "{partial:output}", "{inputs}"]},
                **changes}
@@ -140,9 +140,9 @@ def pre_stage(scratch, marker="first"):
     script.write_text(PRE_SCRIPT)
     data = raw(run__name="prestage", run__cfgs__one__sweeps=["pdf"], run__cfgs__one__pre=["fetch"],
                run__cfgs__one__tools=[["pythia", "rivet"], "use"],
-               tools__fetch={"tool": "custom", "executable": sys.executable, "output_file": "shared.txt",
+               tools__fetch={"tool": "exec", "executable": sys.executable, "output_file": "shared.txt",
                              "arguments": [str(script), "{partial:output}", marker]},
-               tools__use={"tool": "custom", "executable": sys.executable, "input": "shared.txt",
+               tools__use={"tool": "exec", "executable": sys.executable, "input": "shared.txt",
                            "arguments": ["-c", "pass", "{input}"]})
     run = parse(data, scratch)
     configuration = run.configuration(None)
@@ -183,7 +183,7 @@ def test_a_failing_pre_stops_the_run(scratch):
 
 def test_a_point_may_not_be_named_pre(scratch):
     data = raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__pre=["fetch"], quantities__pdf__tags=["pre", "x"],
-               tools__fetch={"tool": "custom", "executable": sys.executable, "arguments": ["-c", "pass"]})
+               tools__fetch={"tool": "exec", "executable": sys.executable, "arguments": ["-c", "pass"]})
     run = parse(data, scratch)
     configuration = run.configuration(None)
     with pytest.raises(HepError, match="named 'pre'"):

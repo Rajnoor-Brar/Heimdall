@@ -83,7 +83,7 @@ sweeps = ["{sweep}"]
 tools  = ["check"]
 
 [tools.check]
-tool       = "custom"
+tool       = "exec"
 executable = "{script}"
 consumes   = ["fail"]
 {extra}

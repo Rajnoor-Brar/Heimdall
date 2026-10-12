@@ -24,6 +24,10 @@ and layout stay:
   Heimdall: `{repo}/build/App_*`, `Paint.exe` and `Herwig/` → `{apps}/…`, `{repo}/utils/` → `{hep}/src/`.
   On the text, anywhere in the file (a comment's example too).
 * (audit 3, phase 3.1) `{hep}/framework/Apps/` → `{apps}/`: the compiled apps are in the machine root.
+* (audit 3, phase 4.2) `tool = "custom"` → `tool = "exec"`; the export keys of an exec or module table
+  (`pythia_cmnd = true`, `herwig_run = true`) → `generate_cards` (the context file gives every tool's card
+  and config), in each configuration whose chain runs that table, or in [run] when every one does;
+  `{std:<key>}` → `{context:<tag>.<card or product>}`.
 """
 
 from __future__ import annotations
@@ -319,12 +323,115 @@ def card_text(text: str, folder) -> str:
     return "".join(kept)
 
 
+#: The exports that were a tool's card under another name (V21): pythia_cmnd, herwig_in, sherpa_yaml …
+CARD_EXPORTS = {"card", "cmnd", "in", "yaml", "proc", "tcl", "sin"}
+
+
+def formerly_text(text: str) -> str:
+    """A tool folder's old name as its name: tool = "<old>" → tool = "<name>", for every folder whose
+    [tool] formerly lists it (custom → exec, audit 3, phase 4.2)."""
+    for name, folder in tools.folders().items():
+        for old in folder.get("tool", "formerly", []):
+            text = re.sub(rf'^(\s*tool\s*=\s*)"{re.escape(old)}"', lambda m: f'{m[1]}"{name}"', text, flags=re.M)
+    return text
+
+
+def _flat(entries) -> list[str]:
+    return [x for e in entries or [] for x in (_flat(e) if isinstance(e, list) else [e]) if isinstance(x, str)]
+
+
+def _block_end(lines: list[str], header: int) -> int:
+    """Where a table's keys end: before the blank lines and comments ahead of the next table header."""
+    end = next((i for i in range(header + 1, len(lines)) if _TABLE.match(lines[i])), len(lines))
+    while end > header + 1 and (not lines[end - 1].strip() or lines[end - 1].lstrip().startswith("#")):
+        end -= 1
+    return end
+
+
+def exports_text(text: str) -> str:
+    """An exec or module table's export keys (`pythia_cmnd = true`, C13) as generate_cards (audit 3,
+    phase 4.2): the table each one named, as "<tag>:<product>" when its folder makes it on demand, in
+    every configuration whose chain runs the asking table (in [run] when every configuration does), and
+    `{std:<key>}` as `{context:<tag>.<card or product>}`. By line; the rest of the file is kept."""
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return text
+    tables = {t: v for t, v in data.get("tools", {}).items() if isinstance(v, dict)}
+    known = tools.folders()
+    wants: dict[str, list[str]] = {}                       # asking tag → generate_cards entries
+    drop: dict[str, set[str]] = {}
+    renamed: dict[str, str] = {}
+    for tag, table in tables.items():
+        folder = known.get(table.get("tool", "")) or next(
+            (f for f in known.values() if table.get("tool") in f.get("tool", "formerly", [])), None)
+        if folder is None or not folder.get("tool", "config_file"):
+            continue
+        for key, value in table.items():
+            m = tools.EXPORT.match(key)
+            if not m or m["tool"] not in known or key in folder.spec.get("options", {}) or isinstance(value, dict):
+                continue
+            drop.setdefault(tag, set()).add(key)
+            if value is False:
+                continue
+            kind, export = m["tool"], m["export"]
+            same = [t for t, other in tables.items() if other.get("tool") == kind]
+            target = value if isinstance(value, str) else kind if kind in same else same[0] if len(same) == 1 else None
+            if target is None:
+                drop[tag].discard(key)                     # ambiguous: left for the plan to name
+                continue
+            products = known[kind].spec.get("context", {}).get("products", {})
+            wants.setdefault(tag, []).append(f"{target}:{export}" if export in products else target)
+            renamed[key] = f"{target}.{export if export in products else 'card' if export in CARD_EXPORTS else export}"
+    if not drop:
+        return text
+    lines = text.splitlines(keepends=True)
+    for tag, keys in drop.items():                         # the keys out of their tables
+        header = next((i for i, l in enumerate(lines) if _TABLE.match(l) and _TABLE.match(l)[1].strip() == f"tools.{tag}"), None)
+        if header is None:
+            continue
+        end = next((i for i in range(header + 1, len(lines)) if _TABLE.match(lines[i])), len(lines))
+        lines[header + 1:end] = [l for l in lines[header + 1:end]
+                                 if not ((m := _KEY.match(l.rstrip("\n"))) and m[2] in keys)]
+    text = "".join(lines)
+    for key, new in renamed.items():
+        text = text.replace("{std:" + key + "}", "{context:" + new + "}")
+    run = data.get("run", {})
+    cfgs = run.get("cfgs", {}) if isinstance(run.get("cfgs"), dict) else {}
+
+    def chain_of(name: str, seen=()) -> list[str]:
+        table = cfgs.get(name, {})
+        if "tools" in table:
+            return _flat(table["tools"])
+        if isinstance(table.get("extends"), str) and table["extends"] not in seen:
+            return chain_of(table["extends"], (*seen, name))
+        return _flat(run.get("tools"))
+
+    needs = {name: list(dict.fromkeys(e for tag in chain_of(name) for e in wants.get(tag, []))) for name in cfgs}
+    def put(header_name: str, entries: list[str]) -> None:
+        nonlocal text
+        lines = text.splitlines(keepends=True)
+        header = next((i for i, l in enumerate(lines) if _TABLE.match(l) and _TABLE.match(l)[1].strip() == header_name), None)
+        if header is None or not entries:
+            return
+        at = _block_end(lines, header)
+        lines.insert(at, "generate_cards = [" + ", ".join(f'"{e}"' for e in entries) + "]   # their cards in the context file\n")
+        text = "".join(lines)
+    every = list(dict.fromkeys(e for entries in wants.values() for e in entries))
+    if not cfgs or (all(needs.values()) and len({tuple(v) for v in needs.values()}) == 1):
+        put("run", next(iter(needs.values())) if cfgs else every)
+    else:
+        for name, entries in needs.items():
+            put(f"run.cfgs.{name}", entries)
+    return text
+
+
 def plan(names: list[str]) -> dict[Path, tuple[str, str]]:
     """Every file the configs touch: path → (its text, its migrated text), only those that change."""
     changes: dict[Path, tuple[str, str]] = {}
     for name in names:
         text = config_file(name).read_text(encoding="utf-8")
-        first = defaults_text(cfgs_text(config_text(figure_text(placeholder_text(text)))))
+        first = exports_text(formerly_text(defaults_text(cfgs_text(config_text(figure_text(placeholder_text(text)))))))
         run = configmod.load(name, strict=False, text=first)
         new = toml_text(first, run, run.project)
         if new != text:

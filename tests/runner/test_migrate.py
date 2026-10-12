@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import tomllib
 
 import pytest
 
@@ -159,3 +160,21 @@ def test_the_apps_become_the_machine_roots():
     assert new == ('exe = "{apps}/App_Pythia.exe"\nrpo = "{apps}/Herwig/HerwigDefaults.rpo"\n'
                    'kit = "{hep}/src/Kit.hh"\ncard = "{work}/configs/a.cmnd"\n')
     assert migrate.placeholder_text(new) == new
+
+
+def test_exports_become_generate_cards_and_custom_becomes_exec():
+    """Audit 3, phase 4.2: the keys move to the configurations whose chain runs the asking table (all of
+    them: [run]); {std:<key>} names the context file's value; tool = "custom" is "exec"."""
+    text = ('[run]\nname = "x"\n\n[run.cfgs.a]\ntools = ["probe"]\n\n[run.cfgs.b]\ntools = [["pythia", "rivet"]]\n\n'
+            '[tools.probe]\ntool = "custom"\nexecutable = "x"\narguments = ["{std:herwig_run}"]\npythia_cmnd = true\n'
+            'herwig_run = true\n\n[tools.pythia]\ntool = "pythia"\n\n[tools.rivet]\ntool = "rivet"\n\n'
+            '[tools.herwig]\ntool = "herwig"\n')
+    new = migrate.exports_text(migrate.formerly_text(text))
+    data = tomllib.loads(new)
+    assert data["tools"]["probe"]["tool"] == "exec" and "pythia_cmnd" not in data["tools"]["probe"]
+    assert data["tools"]["probe"]["arguments"] == ["{context:herwig.run}"]
+    assert data["run"]["cfgs"]["a"]["generate_cards"] == ["pythia", "herwig:run"]
+    assert "generate_cards" not in data["run"]["cfgs"]["b"] and "generate_cards" not in data["run"]
+    assert migrate.exports_text(new) == new
+    every = text.replace('tools = [["pythia", "rivet"]]', 'tools = ["probe"]')
+    assert tomllib.loads(migrate.exports_text(every))["run"]["generate_cards"] == ["pythia", "herwig:run"]

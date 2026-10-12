@@ -8,8 +8,8 @@
 # statics, ZEUS_2012_I1116258. Instead of App_Pythia → FIFO → rivet, one program
 # (modules/Demo/InprocJets.cc) runs PythiaParallel and its Rivets, and hands each event to
 # Rivet as an in-memory HepMC3::GenEvent: no HepMC text, no FIFO. It gets the pythia table's point
-# card (seeds included) and the rivet table's analyses as standard configurations (04 §9.4); those
-# two tables are configured here but never run.
+# card (seeds included) and the rivet table's analyses from the point's context file (generate_cards,
+# 04 §9.4); those two tables are configured here but never run.
 #
 # Seeds follow the generator's card, base card, binary, threads and event count (V22): with the same
 # event_count and threads as validation.toml, a point here and the same point there get the
@@ -28,6 +28,7 @@ project       = "Demo"
 configuration = "default"
 event_count   = 1_000_000
 threads       = 12            # Pythia's; 12 + 12 Rivets fill the 24 hardware threads
+generate_cards = ["pythia", "rivet"]   # not run: their cards, for inproc (HEP_CONTEXT)
 
 [run.cfgs.default]
 description = "Proton-PDF comparison at 27.5x920 GeV e+p against ZEUS 2012, in one process"
@@ -62,19 +63,17 @@ pt0ref   = "pt34"
 tool           = "module"
 executable     = "InprocJets.exe"
 output_file    = "validation.yoda"
-pythia_cmnd    = true         # [tools.pythia]'s point card: sweeps and seeds included
-rivet_analyses = true         # [tools.rivet]'s analyses (options included) and the plugin path
 
 [tools.inproc.config]
 engine        = "parallel"    # PythiaParallel as App_Pythia runs it; "serial": one Pythia8::Pythia
 rivet_threads = 12            # Rivets on threads of their own, merged at the end (V34, L29)
 
-[tools.pythia]                # configured, not run: exported to inproc as pythia_cmnd
+[tools.pythia]                # configured, not run: its point card goes to inproc (generate_cards)
 tool        = "pythia"
 baseconfig  = "ep_validation.cmnd"
 output_file = "events.hepmc"
 
-[tools.rivet]                 # configured, not run: exported to inproc as rivet_analyses
+[tools.rivet]                 # configured, not run: its analyses go to inproc (generate_cards)
 tool        = "rivet"
 input       = "events.hepmc"
 analyses    = ["ZEUS_2012_I1116258"]

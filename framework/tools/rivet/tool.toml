@@ -15,14 +15,14 @@ argv = ["{exe}", "-o", "{partial:output}", "{analyses}", "{input}"]
 env  = { RIVET_ANALYSIS_PATH = "{work}/build/Rivet" }
 
 [options]
-analyses = { kind = "list", required = true }
-options  = { kind = "table" }       # analysis options applied to every analysis
+analyses = { kind = "list", required = true, doc = "the analyses to run, with options: \"photo_eic:R=0.4\"" }
+options  = { kind = "table", doc = "analysis options applied to every analysis: { R = 0.4 }" }
 
 [outputs]
 products    = ["yoda"]
 event_count = "yoda:/RAW/_EVTCOUNT"  # the count check against the producer's sidecar (L7)
 
-[exports.analyses]                  # rivet_analyses: what an integrated program needs to run them itself
+[context]                           # in the context file: what an integrated program needs to run them itself
 values = { analyses = "identity:analyses", plugin_path = "{work}/build/Rivet" }
 
 [identity]

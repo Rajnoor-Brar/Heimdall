@@ -289,6 +289,7 @@ description   = "Inclusive jets in ep collisions"
 | `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) A configuration inherits it from `[run]`. |
 | `pre` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[run]`. |
 | `post` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[run]`. |
+| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4) A configuration inherits it from `[run]`. |
 <!-- /generated -->
 
 The configurations are `[run.cfgs.<cfg>]` (§5); any other key or table in `[run]` is an error (C1).
@@ -398,6 +399,7 @@ with the layer it came from.
 | `plot_points` | a list (a string each) |  | 04 §5.2 |
 | `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) |
 | `tools` | a list | **required** | 04 §5.3 |
+| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4) |
 | `pre` | a list |  | the form of `tools` (04 §5.4) |
 | `post` | a list |  | the form of `tools` (04 §5.4) |
 | `static` | a table |  | merged over `[static]` and the layers', key by key (04 §7); a `"default"` keeps the layer below's |
@@ -439,8 +441,8 @@ Naming one member of an entangled group selects the group.
 - **`"@<quantity>"`** is replaced, per point, by the tool tag that quantity's value names (V19):
   `tools = [["@generator", "spectra"]]` with `values = ["pythia", "herwig", "sherpa"]`. The quantity
   must be swept or static, and every value must be a tool tag (C5).
-- **Exported tags:** a tag that is only *exported* to another tool (§9.4) need not be in `tools`; it
-  is configured and rendered, not run.
+- **Cards for tools not run:** a tag in `generate_cards` (§9.4) need not be in `tools`; its card and
+  config are rendered for the point's context file, and it is not run.
 
 ### 5.4 `pre` and `post`
 
@@ -580,14 +582,14 @@ be a `[tools.<tag>]` table, and a target not in this configuration's chain is sk
 |---|---|---|
 | `"<tag>/seed"` | any | a **replica**: enters the generator's identity, so its seeds; renders nothing. Under `seed_type = "manual"` the value **is** the point's seed (an integer) |
 | `"<tag>/<analysis>"` | rivet (any tool with `analyses`) | an **analysis option** `<analysis>:<key>=<value>`; `key` is the option's name and is required. It must be declared in the analysis's `.info` (C9) |
-| `"<tag>"` | `custom` or `module` | a **config key**: `key` (or the quantity's name) in the tool's extracted config (§9.2) |
+| `"<tag>"` | `exec` or `module` | a **config key**: `key` (or the quantity's name) in the tool's extracted config (§9.2) |
 | `"<tag>"` | a tool with a card | the native `key`, else the master's mapping for this tool type, else an error |
 
-**Without `target`**, every tool in the chain (and every exported tool) is asked, in order:
+**Without `target`**, every tool in the chain (and every tool in `generate_cards`) is asked, in order:
 
 1. the quantity's `key` table has an entry for its tag or its tool type → that native key;
 2. else the master maps the quantity for its tool type → the master's mapping;
-3. else the quantity is in the tool's `consumes` list (custom and module tools) → its config.
+3. else the quantity is in the tool's `consumes` list (exec and module tools) → its config.
 
 **Zero consumers is an error** (C7): a value that changes a directory name and nothing else is what
 v1 kept finding (00/B14, 00/B40).
@@ -640,7 +642,7 @@ analyses    = ["photo_eic"]        # a key of the rivet folder's [options]
 <!-- generated: keys tool -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `tool` | a string | **required** | a standard tool (a folder of `framework/tools/`, 05 §3), `"custom"` or `"module"` |
+| `tool` | a string | **required** | a tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `"exec"` runs any executable, `"module"` a `Module.hh` program |
 | `baseconfig` | a string or a list |  | native base card(s), read in order (root `configs/<project>/`). Tools with a card only. |
 | `input` | a string or a list |  | what it reads: `[prelim]` names, another tool's `output_file`, a pre product, (post) a product of every point, or a path. The first input is `{input}`. |
 | `output_file` | a string or a list |  | what it writes. An array is fan-out: App_Pythia writes the same events to each (V16). Exactly one writer per output (C6). |
@@ -648,10 +650,10 @@ analyses    = ["photo_eic"]        # a key of the rivet folder's [options]
 | `stall_after` | a number, ≥ 0 |  | the tool fails when silent this long: no log line, status message or heartbeat (a prepare step waits at least 3600) |
 | `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEP_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
 | `filters` | a string |  | your own rules in place of the folder's, root `configs/<P>/`; implies `status = "filters"` (V61) |
-| `executable` | a string |  | custom and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH` |
-| `arguments` | a list |  | custom and module: argv after the config; placeholders (04 §10) |
-| `consumes` | a list (a string each) |  | custom and module: quantities written into the config |
-| `config` | a table |  | custom and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2) |
+| `executable` | a string |  | exec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH` |
+| `arguments` | a list |  | exec and module: argv after the config; placeholders (04 §10) |
+| `consumes` | a list (a string each) |  | exec and module: quantities written into the config |
+| `config` | a table |  | exec and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2) |
 | `streamable` | true or false |  | may it read a FIFO? |
 | `consumes_events` | true or false |  | is its event count checked against the producer's sidecar? |
 | `settings` | a table |  | native card settings as written, `"HeavyIon:mode" = 1`, with no base card needed: over the base card, refused when a quantity sets the same key (one source per key, C8); a tool with no card refuses them (V59) |
@@ -660,14 +662,18 @@ analyses    = ["photo_eic"]        # a key of the rivet folder's [options]
 <!-- /generated -->
 
 Every other key is **tool-specific**. It is checked against the tool folder's `[options]` (type and
-`required`, 05 §4–15), or, for custom and module tools, taken as a standard-configuration request
-(§9.4). An unknown key is an error that lists the keys the tool takes (C1).
+`required`, 05 §4–15). An unknown key is an error that lists the keys the tool takes (C1); an old
+export key (`pythia_cmnd = true`) is refused with the way on (§9.4).
 
-### 9.2 Custom tools
+### 9.2 Exec tools
+
+Any executable, as `tool = "exec"` (it was `"custom"`; `hep migrate` rewrites it). To make one a
+tool folder of its own, `hep tools new fit --from exec` copies the folder into the work dir's
+`tools/fit/` ([06 §16](06_Internals.md#16-the-tool-folder-contract)).
 
 ```toml
 [tools.fit]
-tool        = "custom"
+tool        = "exec"
 executable  = "fit_peaks.py"                # build/<P>/fit_peaks.py (path:<command> for PATH); ./… from the repo
 arguments   = ["{in:lambda.yoda}", "{res}/fit.json"]
 input       = "lambda.yoda"
@@ -680,8 +686,8 @@ model  = "gauss+poly2"
 window = [1.09, 1.14]
 ```
 
-The runner writes `output/…/<point>/config/<tag>.toml` when the table has a `config`, consumes a
-quantity, or requests an export. It passes it as the **first argument** (the folder's argv is
+The runner writes `output/…/<point>/config/<tag>.toml` when the table has a `config` or consumes a
+quantity. It passes it as the **first argument** (the folder's argv is
 `{exe} {config} {arguments}`). The file holds:
 
 - the `[tools.<tag>.config]` table, verbatim;
@@ -689,11 +695,12 @@ quantity, or requests an export. It passes it as the **first argument** (the fol
   - a value mapped to a **config key** (`target = "fit"`, `key = "window"`) is set at that key
     (dotted keys nest: `"cuts.window"`);
   - a value consumed **by its quantity name** (`consumes`, or a target with no key) goes under
-    `[quantities]`;
-- `[standard.<key>]` tables for export requests (§9.4).
+    `[quantities]`.
 
-A custom tool is count-checked only if its table sets `consumes_events = true` and its folder names
-how to read the count (the `custom` folder names none). A product it writes should go to
+The other tools' cards and configs are in the point's context file (§9.4), at `$HEP_CONTEXT`.
+
+An exec tool is count-checked only if its table sets `consumes_events = true` and its folder names
+how to read the count (the `exec` folder names none). A product it writes should go to
 `{partial:output}`; the runner renames it after the checks pass.
 
 ### 9.3 Module tools
@@ -709,42 +716,66 @@ output_file = "decay.root"
 mass_tolerance = 0.15
 ```
 
-A module tool works as a custom tool does, for a program built with `src/Module.hh`
+A module tool works as an exec tool does, for a program built with `src/Module.hh`
 ([06 §21](06_Internals.md#21-modulehh)). It always gets a config, and its argv is
 `{exe} {config} --input={input} --output={partial:output} --events={events}
 --sidecar={input_sidecar} {arguments}`. Its count is checked from its report (`<output>.json`, key
-`events`).
+`events`). **Every key of its config must be one the program reads:** a misspelt setting is refused
+before the first event, with the nearest name, instead of running with its default.
+`hep explain <Name>.exe` lists the settings a program reads (`<Name>.exe --describe`).
 
-### 9.4 Standard configurations (exports)
+### 9.4 The context file: every tool's card and config
 
-A custom or module tool may ask for the configuration the runner renders for a **standard** tool, and
-use it however it likes. This is how an **integrated program** (Pythia and Rivet in one process) gets
-the same card and seeds as the chain.
+When a point starts, the runner writes **one context file** for it, `output/…/<point>/context.toml`,
+and removes it when the point ends. Every tool of the point finds it through `$HEP_CONTEXT` (set in
+each tool's environment, never in your shell), or `{context}` in its arguments. It lists, by tag:
 
 ```toml
+[tools.pythia]
+tool       = "pythia"
+card       = "/…/cards/pythia.cmnd"            # base and point card in one file, seeds included
+card_parts = ["/…/ep.cmnd", "/…/cards/pythia.point.cmnd"]
+
+[tools.rivet]
+tool        = "rivet"
+analyses    = ["photo_eic:R=0.4"]               # what its folder's [context] gives
+plugin_path = "/…/build/Rivet"
+
 [tools.jets]
-tool           = "module"
-executable     = "InprocJets.exe"
-output_file    = "jets.yoda"
-pythia_cmnd    = true                        # the pythia table's rendered card
-rivet_analyses = true                        # the rivet table's analysis list
+tool   = "module"
+config = "/…/config/jets.toml"
+```
+
+**Which tools are in it:** the chain's, and the ones in `generate_cards`. A tool table that is defined
+but not used gets no card. A program that runs other tools inside itself (an **integrated program**:
+Pythia and Rivet in one process) names them, so their cards are rendered for it although they do not
+run:
+
+```toml
+[run.cfgs.inproc]
+tools          = ["jets", "yd2rt"]
+generate_cards = ["pythia", "rivet"]          # not run: their cards and configs, in the context file
 ```
 
 | Rule | |
 |---|---|
-| The key | `<tool>_<export>`, bool, default false; `"<tag>"` instead of `true` names the table |
-| Which table | `true`: the table tagged `<tool>`, else the only table with `tool = "<tool>"`; several candidates are an error (C13) |
-| What exists | every tool with a card exports `<tool>_card` automatically; the rest are declared in the folder's `[exports]` (05 lists them per tool). An export a tool does not offer is an error, with the ones it does (C13) |
-| Rendered as in a chain | the same card a process of that tool would get for this point, **seeds included**; the table need not be in `tools` |
-| Consumed | the quantities the exported tool consumes count as consumed (C7) |
-| Prepared on demand | an export with `needs_prepare` (`herwig_run`, `sherpa_results`, `madgraph_process`) runs that tool's prepare step (cached) before this tool's group |
-| In the config | `[standard.<key>]` with `tool`, `tag` and, for a card, `path` (base + point card in one file) and `parts` (the files in reading order); for values, the named values (`analyses`, `plugin_path`); for a prepared product, `path` |
-| On the command line | `{std:<key>}` is the export's `path` |
-| Identity | includes the exported tool's identity |
+| Where | `generate_cards` in `[run]` or a configuration (the nearer one wins), a list of tool tables |
+| Rendered as in a chain | the same card a process of that tool would get for this point, **seeds included** |
+| Consumed | the quantities such a tool consumes count as consumed (C7) |
+| Products on demand | `"<tag>:<product>"` (`"herwig:run"`, `"sherpa:results"`, `"madgraph:process"`) runs that tool's prepare step (cached) and puts the product's path in its table: `run = "…/point.run"`. A tool makes only the products its folder declares (`[context.products]`) |
+| What each tool gives | `tool`; `card` and `card_parts` for a tool with a card; `config` for one with a config file; its folder's `[context] values` (Rivet's `analyses` and `plugin_path`); the products asked for |
+| On the command line | `{context}` is the file's path; `{context:<tag>.<key>}` one value of it (`{context:herwig.run}`) |
+| In a module program | `job.card("pythia")`, `job.tool("rivet").list("analyses")`: by tag, else by the one tool of that kind ([06 §21](06_Internals.md#21-modulehh)) |
+| Identity | the cards of every tool in it are part of the point's identity; so are the products asked for |
 
 The program then owns what the chain would have done: σ over threads (L1), the final σ to Rivet (L2),
 and catching at thread boundaries (L3). There is no FIFO, so the runner checks its exit code and its
 outputs.
+
+**Before (V21, C13):** a tool asked for one other tool at a time with `<tool>_<export> = true` keys
+(`pythia_cmnd`, `rivet_analyses`, `herwig_run`), and got `[standard.<key>]` tables in its config.
+Those keys are refused now; `hep migrate` turns them into `generate_cards` and `{std:<key>}` into
+`{context:<tag>.<key>}`.
 
 ---
 
@@ -752,7 +783,7 @@ outputs.
 
 **In argv, cards and arguments.** `{name}` is replaced from the point's plan in:
 - a folder's argv, env, cwd, card lines and footers;
-- a custom tool's `arguments`.
+- an exec or module tool's `arguments`.
 
 The rules:
 - `{{` and `}}` are literal braces.
@@ -766,7 +797,7 @@ The rules:
 | `{hep}` | Heimdall (`$HEP`): its apps are `{apps}/…` |
 | `{exe}` | the tool's executable |
 | `{out}`, `{res}` | the point's output and results directories |
-| `{config}` | the extracted config file (custom, module), or empty |
+| `{config}` | the extracted config file (exec, module), or empty |
 | `{arguments}` | the table's `arguments`, expanded |
 | `{input}` | the first input's path |
 | `{inputs}` | every input's path (post: that product of every point, in point order) |
@@ -784,7 +815,7 @@ The rules:
 | `{card}` | the combined card (base + point card in one file) |
 | `{analyses}` | rivet: `-a <analysis[:options]>` for each |
 | `{prepared}`, `{prepare_card}` | the tool's prepare cache entry / the card its prepare step reads |
-| `{std:<key>}` | an export's `path` (§9.4) |
+| `{context}`, `{context:<tag>.<key>}` | the point's context file / one value of it (§9.4) |
 | `{points}` | pre and post: `points.json` |
 | `{<option>}` | every key of the folder's `[options]`: its value, empty when unset; `kind = "flag"` → the flag or nothing |
 
@@ -1020,7 +1051,7 @@ them, before anything runs.
 | **C10** | Providers: a PDF set named by a checked mapping is installed; base configs exist; executables are built; files a tool folder needs (`[checks] files`, e.g. Herwig's repository) exist. | `the PDF set 'CT14lo' is not installed` · `lhapdf install CT14lo` |
 | **C11** | Point directory names are unique. | `these points would share a directory: …` |
 | **C12** | Paths: no `../`; a missing file is reported under its convention root. | `'../cards/x.cmnd' climbs out of its root` |
-| **C13** | A standard-configuration request names an export its tool offers and resolves to exactly one table. | `pythia_cmnd = true matches several pythia tables: pythia, shower` · `name one: pythia_cmnd = "<tag>"` |
+| **C13** | `generate_cards` names tool tables, and a `"<tag>:<product>"` a product that tool's folder makes (§9.4); an old export key is refused with the way on. | `pythia makes no product 'run'` · `'pythia_cmnd' is retired: …` |
 | **C14** | `combine` names quantities swept here as axes of their own, none of them in `plot_points`. | `combine names 'pdf', which is not swept here as an axis of its own` · `'replica' is both combined and a page axis (plot_points)` |
 
 The plot checks follow the same shape:
@@ -1044,7 +1075,8 @@ The plot checks follow the same shape:
 | `cards/<tag>.<ext>` | base + point card in one file (what an export hands out); for render style, the whole card |
 | `cards/<tag>.json` | each key's value and where it came from (a folder with `[card] merge`: pythia, V59) |
 | `cards/<tag>.prepare.<ext>` | the card a prepare step reads, when the tool's `render.py` makes one |
-| `config/<tag>.toml` | a custom or module tool's extracted config |
+| `config/<tag>.toml` | an exec or module tool's extracted config |
+| `context.toml` | the point's context file (§9.4): every tool's card and config; there only while the point runs |
 | `logs/<tag>.log`, `logs/<tag>.prepare.log`, `logs/prelim.log` | a failed tool's last 200 lines of stdout and stderr (a failed `[prelim]` command's output); with `--logs`, every tool's whole output (V72) |
 | `provenance.json` | `point`, `run`, `project`, `configuration`, `config_file`, `sets`; `values` (each active quantity's index, tag and value); `identity`, `seed`, `threads`, `events`; per tool `tag`, `tool`, `exe`, `exe_sha256`, `version`, `argv`, `ran`, `card`, `card_sha256`, `config`, `result` (exit, seconds, note); `host`, `platform`, `user`, `git` (`revision`, `dirty`), `started`, `finished` |
 | `identity.json` | the parts the identity hashes (each tool's card lines, argv, binaries, options; threads, events, groups, prelim, the seed rule), written when the point completes, for `--why` (V57) |

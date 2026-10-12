@@ -28,9 +28,6 @@ ignore = ["n_events", "$sample", "sample_format", "seed"]
 sidecar = "{output}.json"
 written = "requested"
 
-[exports.sin]
-alias = "card"                      # whizard_sin = whizard_card
-
 [identity]
 files   = ["{exe}"]
 version = "stack:whizard"                # env/stack.toml's (V78)

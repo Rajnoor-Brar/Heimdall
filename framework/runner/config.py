@@ -102,6 +102,7 @@ class Configuration:
     static: dict
     prelim: dict
     pre: list[list[str]] = field(default_factory=list)   # tools run once before every point
+    generate_cards: list[str] = field(default_factory=list)   # tags (and tag:product) for the context file, beyond the chain
     combine: list[str] = field(default_factory=list)    # swept quantities whose points are merged into one (V35)
     parallelism: int = 1                                # points run at once (V36); never in an identity
     parallelism_auto: bool = False                      # "auto" (V75): set from the plans, cores ÷ a point's
@@ -201,6 +202,19 @@ def _deep(base: dict, over: dict) -> dict:
             continue
         out[key] = _deep(out[key], value) if isinstance(value, dict) and isinstance(out.get(key), dict) else value
     return out
+
+
+def _generate_cards(entries, where: str, tools: dict) -> list[str]:
+    """generate_cards: tool tables (and "<tag>:<product>") the context file gets beyond the chain (04 §9.4);
+    whether a product exists is the tool folder's, checked when the point is planned."""
+    if not isinstance(entries, list) or not all(isinstance(e, str) for e in entries):
+        raise HepError("generate_cards is a list of tool tables: [\"pythia\", \"rivet\", \"herwig:run\"]", where=where)
+    for entry in entries:
+        tag = entry.partition(":")[0]
+        if tag not in tools:
+            raise HepError(f"generate_cards names '{tag}', which is not a [tools.<tag>] table", where=where,
+                           hint=did_you_mean(tag, tools))
+    return list(dict.fromkeys(entries))
 
 
 def _own_prelim(chain, prelim: dict, origins: dict) -> dict:
@@ -804,6 +818,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             tools=_groups(tools_entries, f"{at}.tools", tools),
             post=_groups(inherited("post", []), f"{at}.post", tools),
             pre=_groups(inherited("pre", []), f"{at}.pre", tools),
+            generate_cards=_generate_cards(inherited("generate_cards", []), f"{at}.generate_cards", tools),
             static=static_values,
             prelim=_own_prelim(chain, prelim, origins),                     # replaced whole: its chain's interfaces
             origins=origins, cluster=merged("cluster", cluster))

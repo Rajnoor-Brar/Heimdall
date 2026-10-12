@@ -36,6 +36,7 @@ project       = "Demo"
 configuration = "pdf"
 event_count   = 1_000_000
 threads       = 12            # Pythia's; as jets.toml, so the same seeds (10 + 14 Rivets is 7% faster)
+generate_cards = ["pythia", "rivet"]   # not run: their cards, for inproc (HEP_CONTEXT)
 
 [run.cfgs.single]
 description = "One run at the static point (27x920 e+p), in one process"
@@ -98,7 +99,7 @@ static      = { energies = "18x275" }
 
 [run.cfgs.radius]
 serial      = 9
-description = "Jet radius R at 18x275, in one process (the option reaches Rivet through rivet_analyses)"
+description = "Jet radius R at 18x275, in one process (the option reaches Rivet through the context file)"
 sweeps      = ["radius"]
 tools       = ["inproc", "yd2rt"]
 static      = { energies = "18x275" }
@@ -125,19 +126,17 @@ mpi      = "mpi"
 tool           = "module"
 executable     = "InprocJets.exe"
 output_file    = "jets.yoda"
-pythia_cmnd    = true         # [tools.pythia]'s point card: sweeps and seeds included
-rivet_analyses = true         # [tools.rivet]'s analyses (options included) and the plugin path
 
 [tools.inproc.config]
 engine        = "parallel"    # PythiaParallel as App_Pythia runs it; "serial": one Pythia8::Pythia
 rivet_threads = 12            # Rivets on threads of their own, merged at the end (V34, L29)
 
-[tools.pythia]                # configured, not run: exported to inproc as pythia_cmnd
+[tools.pythia]                # configured, not run: its point card goes to inproc (generate_cards)
 tool        = "pythia"
 baseconfig  = "ep.cmnd"
 output_file = "events.hepmc"
 
-[tools.rivet]                 # configured, not run: exported to inproc as rivet_analyses
+[tools.rivet]                 # configured, not run: its analyses go to inproc (generate_cards)
 tool        = "rivet"
 input       = "events.hepmc"
 analyses    = ["photo_eic"]
@@ -198,7 +197,7 @@ tags   = ["allproc", "resolved"]
 labels = ["resolved + direct", "resolved"]
 
 [quantities.radius]
-target = "rivet/photo_eic"    # an analysis option: reaches InprocJets in [standard.rivet_analyses]
+target = "rivet/photo_eic"    # an analysis option: reaches InprocJets in the context file's [tools.rivet]
 key    = "R"
 values = [0.4, 0.7, 1.0]
 tags   = ["r04", "r07", "r10"]

@@ -9,6 +9,9 @@
 #include "TH1D.h"
 
 #include <cstdio>
+#include <cstdlib>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -23,7 +26,8 @@ static int failures = 0;
     } while (0)
 
 namespace fs = std::filesystem;
-static const fs::path HERE = "forge/scratch/cxx/module_kit";       // Heimdall's scratch (ignored); make test runs from its root
+// The machine root's scratch ($HEP_FORGE, setup.sh's), wherever the test is started from; never the checkout.
+static const fs::path HERE = fs::path(std::getenv("HEP_FORGE") ? std::getenv("HEP_FORGE") : "/nowhere") / "scratch/cxx/module_kit";
 
 // Ten events: event i has weight 1 + i/10 and σ = 100 + i pb; a beam proton in, one pion of pT = i + 0.5 out.
 static void writeEvents(const fs::path& path, int n) {
@@ -58,23 +62,34 @@ static Module::Job job(const std::vector<std::string>& args) {
 int main() {
     fs::remove_all(HERE);
     fs::create_directories(HERE);
-    const fs::path events = HERE / "ten.hepmc", config = HERE / "config.toml", output = HERE / "out.partial.root";
+    const fs::path events = HERE / "ten.hepmc", config = HERE / "config.toml", output = HERE / "out.partial.root",
+                   context = HERE / "context.toml";
+    if (!std::getenv("HEP_FORGE")) {
+        std::fprintf(stderr, "test_module_kit: HEP_FORGE is not set: source setup.sh first\n");
+        return 2;
+    }
     writeEvents(events, 10);
     std::ofstream(config) << "tolerance = 0.25\nbins = 4\nname = \"x\"\nlist = [\"a\", \"b\"]\n"
-                             "[quantities]\nenergy = 7000\n"
-                             "[standard.pythia_cmnd]\npath = \"/tmp/card.cmnd\"\nparts = [\"base.cmnd\", \"point.cmnd\"]\n";
+                             "[quantities]\nenergy = 7000\n";
+    std::ofstream(context) << "[tools.gen]\ntool = \"pythia\"\ncard = \"/tmp/card.cmnd\"\n"
+                              "card_parts = [\"base.cmnd\", \"point.cmnd\"]\n"
+                              "[tools.rivet]\ntool = \"rivet\"\nanalyses = [\"A\", \"B\"]\nplugin_path = \"/p\"\n";
 
     // ── the config, with defaults following the type ──
     {
-        auto j = job({config.string(), "--input=" + events.string(), "--output", output.string(), "--events=10"});
+        auto j = job({config.string(), "--input=" + events.string(), "--output", output.string(), "--events=10",
+                      "--context=" + context.string()});
         CHECK(j.config().get("tolerance", 0.15) == 0.25);
         CHECK(j.config().get("bins", 100) == 4);
         CHECK(j.config().get("absent", 7) == 7);
         CHECK(j.config().get("name", "y") == "x");
         CHECK(j.config().list("list") == (std::vector<std::string>{"a", "b"}));
         CHECK(j.quantities().get("energy", 0.0) == 7000.0);                 // an integer read as a double
-        CHECK(j.standard("pythia_cmnd") == "/tmp/card.cmnd");
-        CHECK(j.standardParts("pythia_cmnd").size() == 2);
+        CHECK(j.card("pythia") == "/tmp/card.cmnd");                     // by tool: the one pythia
+        CHECK(j.card("gen") == "/tmp/card.cmnd");                        // by its table's tag
+        CHECK(j.tool("pythia").list("card_parts").size() == 2);
+        CHECK(j.tool("rivet").list("analyses") == (std::vector<std::string>{"A", "B"}));
+        CHECK(j.tool("rivet").get("plugin_path", "") == "/p");
         CHECK(j.hasInput() && j.input() == events.string() && j.output() == output.string());
 
         // ── events, ΣW, σ from the last event; fill raw, scale once, as a density ──
@@ -104,10 +119,27 @@ int main() {
         CHECK(report.find("\"sigma_from\": \"events\"") != std::string::npos);
     }
 
+    // ── a key the program never reads is refused before the first event (exit 1, the config's) ──
+    const fs::path bare = HERE / "bare.toml";
+    std::ofstream(bare) << "[quantities]\nenergy = 7000\n";
+    {
+        const pid_t child = fork();
+        if (child == 0) {
+            std::freopen("/dev/null", "w", stderr);
+            auto j = job({config.string(), "--input=" + events.string()});
+            (void)j.config().get("tolerance", 0.15);                       // bins, name and list unread
+            for (const Module::Event& event : j.events()) (void)event;
+            std::_Exit(0);
+        }
+        int status = 0;
+        waitpid(child, &status, 0);
+        CHECK(WIFEXITED(status) && WEXITSTATUS(status) == Module::Config);
+    }
+
     // ── σ from a sidecar when one is given ──
     {
         std::ofstream(HERE / "side.json") << "{\n  \"written\": 10,\n  \"sigma_pb\": 123.5,\n  \"sigma_err_pb\": 0.5\n}\n";
-        auto j = job({config.string(), "--input=" + events.string(), "--sidecar=" + (HERE / "side.json").string()});
+        auto j = job({bare.string(), "--input=" + events.string(), "--sidecar=" + (HERE / "side.json").string()});
         for (const Module::Event& event : j.events()) (void)event;
         CHECK(j.crossSectionPb() == 123.5 && j.crossSectionErrPb() == 0.5);
     }
@@ -117,7 +149,7 @@ int main() {
         const std::string text = slurp(events);
         const auto cut = text.rfind("\nE ");                                   // the last event starts here
         std::ofstream(HERE / "cut.hepmc") << text.substr(0, cut + 1) << "E 9 1 1\nU GEV MM\n";
-        auto j = job({config.string(), "--input=" + (HERE / "cut.hepmc").string(), "--output=" + (HERE / "cut.root").string()});
+        auto j = job({bare.string(), "--input=" + (HERE / "cut.hepmc").string(), "--output=" + (HERE / "cut.root").string()});
         long seen = 0;
         for (const Module::Event& event : j.events()) (void)event, ++seen;
         CHECK(seen < 10 && j.count() == seen);

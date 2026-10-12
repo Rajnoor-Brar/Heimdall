@@ -7,7 +7,9 @@ product's `.partial` leftover, and it refuses while a job is running).
 
 from __future__ import annotations
 
+import json
 import shutil
+import subprocess
 import textwrap
 import time
 import tomllib
@@ -17,7 +19,7 @@ from . import config as configmod
 from . import schema, tools
 from .errors import HepError, did_you_mean
 from .events import greeting, hubs
-from .paths import configs_root, output_root, results_root
+from .paths import configs_root, find_work, output_root, results_root
 from .record import is_complete, complete_marker
 
 TABLES = {"run": "run", "config": "config", "prelim": "prelim", "plot": "plot", "data": "data",
@@ -64,11 +66,48 @@ def ls(project: str | None = None) -> list[str]:
 
 # ── hep explain ────────────────────────────────────────────────────────────────────────────────
 
+def module_settings(key: str) -> list[str]:
+    """`hep explain <Name>.exe[.<setting>]`: a module program's settings, as it lists them itself
+    (`<Name>.exe --describe`, src/Module.hh): name, type, default, doc. Found in the work dir's build/."""
+    name, _, setting = key.partition(".exe")
+    setting = setting.lstrip(".")
+    exe = Path(name + ".exe")
+    if not exe.is_file():
+        work = find_work()
+        found = sorted((work / "build").rglob(f"{exe.name}")) if work is not None else []
+        if not found:
+            raise HepError(f"no program {exe.name} built in this work dir", hint="hep build makes it (build/<project>/)")
+        exe = found[0]
+    try:
+        done = subprocess.run([str(exe), "--describe"], capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise HepError(f"{exe.name} --describe did not answer: {error}") from None
+    rows = [json.loads(line) for line in done.stdout.splitlines() if line.startswith("{")]
+    if done.returncode != 0 or not rows and done.stderr.strip():
+        raise HepError(f"{exe.name} --describe failed", hint=(done.stderr.strip().splitlines() or [""])[-1][:200])
+    if setting:
+        chosen = [r for r in rows if r["name"] == setting]
+        if not chosen:
+            raise HepError(f"{exe.name} reads no setting '{setting}'",
+                           hint=did_you_mean(setting, [r["name"] for r in rows]) or ", ".join(r["name"] for r in rows))
+        rows = chosen
+    lines = [f"{exe} — the settings it reads ([tools.<tag>.config]; an unknown one is refused)"]
+    width = max((len(r["name"]) for r in rows), default=4)
+    for row in rows:
+        default = json.dumps(row["default"]) if row["type"] == "str" else row["default"]
+        lines.append(f"  {row['name']:{width}}  {row['type']:5}  default {default}" + (f"  {row['doc']}" if row["doc"] else ""))
+    if not rows:
+        lines.append("  (none read before it asks for its input: read settings first, src/Module.hh)")
+    return lines
+
+
 def explain(key: str) -> list[str]:
     """A key's type, default, choices, bounds, inheritance and doc, from framework/schema/run.toml.
     `plot.y_gutter`, `[plot].y_gutter`, `run.event_count`, `quantities.<q>.styles`, `tools.<tag>.shards`,
     `plot.figures.<figure>.logy`, `run.cfgs.<cfg>.threads` (a configuration's, V98); a bare key is looked
     up in every table."""
+    if ".exe" in key:                                                   # a module program's own settings
+        return module_settings(key)
     parts = [p for p in key.replace("[", "").replace("]", ".").split(".") if p]
     if not parts:
         raise HepError("explain which key?", hint="e.g. hep explain plot.y_gutter")

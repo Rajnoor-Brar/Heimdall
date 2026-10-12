@@ -37,12 +37,9 @@ marker = "point.run"
 sidecar = "{output}.json"
 written = "requested"
 
-[exports.run]                       # herwig_run = true: the run file, read on demand
+[context.products.run]              # generate_cards = ["herwig:run"]: the run file, read on demand
 path          = "{prepared}/point.run"
 needs_prepare = true
-
-[exports.in]
-alias = "card"                      # herwig_in = herwig_card
 
 [checks]
 files = ["{apps}/Herwig/HerwigDefaults.rpo"]

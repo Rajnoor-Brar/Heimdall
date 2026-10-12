@@ -37,10 +37,7 @@ marker = "process/bin/generate_events"
 sidecar = "{output}.json"
 written = "requested"
 
-[exports.proc]
-alias = "card"                      # madgraph_proc: the launch script and proc card, as rendered
-
-[exports.process]                   # madgraph_process = true: the process directory, built on demand
+[context.products.process]          # generate_cards = ["madgraph:process"]: the process directory, built on demand
 path          = "{prepared}/process"
 needs_prepare = true
 

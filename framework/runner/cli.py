@@ -145,10 +145,15 @@ def parser() -> argparse.ArgumentParser:
                         help="write this machine's summary to recipes/support/<platform>-<host>.toml (the support matrix)")
     doctor.add_argument("--matrix", action="store_true", help="the support matrix: every machine's recorded summary")
 
-    commands.add_parser("tools", help="every tool folder: the work dir's tools/, the machine root's, Heimdall's",
-                        description="Each tool folder by name, nearest first: a work dir's tools/<name>/, the machine "
-                                    "root's tools/<name>/, Heimdall's framework/tools/<name>/. A nearer folder replaces "
-                                    "a farther one, or, with extends = \"<name>\" in its tool.toml, is laid over it.")
+    folders_ = commands.add_parser("tools", help="every tool folder: the work dir's tools/, the machine root's, Heimdall's",
+                                   description="Each tool folder by name, nearest first: a work dir's tools/<name>/, the "
+                                               "machine root's tools/<name>/, Heimdall's framework/tools/<name>/. A nearer "
+                                               "folder replaces a farther one, or, with extends = \"<name>\" in its "
+                                               "tool.toml, is laid over it. `hep tools <name>`: one folder in full; "
+                                               "`hep tools new <name> --from <tool>`: a folder in this work dir's tools/.")
+    folders_.add_argument("what", nargs="*", metavar="NAME | new NAME", help="a folder to show, or new and a folder to make")
+    folders_.add_argument("--from", dest="source", help="hep tools new: the folder it starts from (exec, module: a copy; "
+                                                        "any other: extends it)")
 
     where = commands.add_parser("where", help="which Heimdall and which work dir this shell sees")
     which = where.add_mutually_exclusive_group()
@@ -981,8 +986,15 @@ def main(argv: list[str]) -> int:
         if args.command == "doctor":
             return doctormod.main(quick=args.quick, record_it=args.record, show_matrix=args.matrix)
         if args.command == "tools":
-            from .tools import folder_rows
-            for line in folder_rows():
+            from . import tools as toolsmod
+            if args.what[:1] == ["new"]:
+                if len(args.what) != 2 or not args.source:
+                    raise HepError("hep tools new <name> --from <tool>", hint="--from a template folder (copied) or any tool (extended): hep tools lists them")
+                print(f"made {toolsmod.new_folder(args.what[1], args.source)}/tool.toml")
+                return 0
+            if len(args.what) > 1:
+                raise HepError("hep tools [<name>] | new <name> --from <tool>")
+            for line in (toolsmod.folder_lines(args.what[0]) if args.what else toolsmod.folder_rows()):
                 print(line)
             return 0
         if args.command == "run":

@@ -44,7 +44,7 @@ tools  = ["make"]
 {own}
 
 [tools.make]
-tool        = "custom"
+tool        = "exec"
 executable  = "{tool}"
 arguments   = ["{{partial:output}}"]
 consumes    = ["q"]
@@ -52,7 +52,7 @@ output_file = "x.txt"
 cores       = 3
 
 [tools.prep]
-tool        = "custom"
+tool        = "exec"
 executable  = "{tool}"
 arguments   = ["{{partial:output}}"]
 output_file = "y.txt"

@@ -46,7 +46,7 @@ def spec(name: str = "run") -> dict:
 
 #: Configuration keys [run] gives every configuration (V99; they were [run.defaults]'s), besides the
 #: ones the schema marks `inherit` in [run] itself.
-RUN_GIVES = ("tools", "sweeps", "plot_points", "combine", "pre", "post")
+RUN_GIVES = ("tools", "sweeps", "plot_points", "combine", "pre", "post", "generate_cards")
 
 
 def keys(table: str) -> dict[str, dict]:

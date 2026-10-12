@@ -25,8 +25,5 @@ argv = ["{exe}", "{card}", "{partial:output}", "{input}"]
 products    = ["root"]
 event_count = "root:Delphes"        # the Delphes tree's entries, against the producer's sidecar
 
-[exports.tcl]
-alias = "card"                      # delphes_tcl = delphes_card
-
 [identity]
 files = ["{exe}"]

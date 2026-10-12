@@ -58,6 +58,8 @@ def identity_parts(plan: PointPlan) -> dict:
     }
     if plan.upstream:                    # post: it changes when any point does
         parts["upstream"] = plan.upstream
+    if plan.products:                    # generate_cards' products: what the context file gives (04 §9.4)
+        parts["products"] = plan.products
     return parts
 
 

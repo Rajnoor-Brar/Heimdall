@@ -98,7 +98,7 @@ def test_there_are_no_import_cycles():
 PLOT_DOMAIN = {"plot", "labels", "hepfiles"}
 #: Words of the folder contract that are also a folder's name: "merge" is a key of [card] and [shard]
 #: (and ".merge" the suffix of a sharded table's merge step), not the merge tool.
-CONTRACT_WORDS = {"merge", ".merge"}
+CONTRACT_WORDS = {"merge", ".merge", "exec "}   # exec: also the shell's (a cluster job's last line)
 
 
 def test_the_core_names_no_tool():

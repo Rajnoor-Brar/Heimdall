@@ -46,7 +46,7 @@ from .errors import HepError
 from .paths import placeholders
 from .record import complete_marker, is_complete, now, provenance, write_atomic, write_identity
 from .status import Reader, ToolState
-from .tools import PointPlan, Step, expand
+from .tools import CONTEXT_FILE, PointPlan, Step, expand
 
 GRACE = 2.0                  # after the first failure, before the rest of the group is asked to stop
 TERM_GRACE = 5.0             # after SIGTERM, before SIGKILL
@@ -189,21 +189,19 @@ def run_points(plans: list[PointPlan], run, configuration, *, bus=None, stopper:
 
 def cores(plan: PointPlan) -> int:
     """About how many cores a point keeps busy, for the plan's note: its busiest group, where a
-    generator counts its threads, a table's own `cores` what it says, an integrated program (one that
-    asks for a generator's standard configuration) the generator's threads and one more, anything
-    else one (V60: no tool named here)."""
-    from .tools import folders
+    generator counts its threads, a table's own `cores` what it says, an integrated program (a program
+    with a config file, in a point whose context has a generator that does not run as a process of its
+    own: generate_cards) the generator's threads and one more, anything else one (V60: no tool named)."""
     busiest = 0
+    integrated = any(s.group < 0 and s.folder.get("tool", "produces_events") for s in plan.rendered.values())
     for group in plan.groups:
         count = 0
         for step in group:
-            standard = (step.config_data or {}).get("standard", {})
             if step.folder.get("tool", "produces_events"):
                 count += plan.threads
             elif step.tool.cores:
                 count += step.tool.cores
-            elif any(folders().get(s.get("tool"), None) and folders()[s["tool"]].get("tool", "produces_events")
-                     for s in standard.values()):
+            elif integrated and step.folder.get("tool", "config_file"):
                 count += plan.threads + 1
             else:
                 count += 1
@@ -333,6 +331,7 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
         out_read, out_write = os.pipe()
         env = dict(os.environ)
         env.update(step.env)
+        env["HEP_CONTEXT"] = str(plan.out / CONTEXT_FILE)         # every tool's card and config (04 §9.4)
         env.pop("HEP_STATUS_FD", None)
         read_fd = write_fd = None
         if step.status == "standard":
@@ -576,7 +575,8 @@ def _finished(plan: PointPlan, result: PointResult, bus) -> None:
 
 
 def _cleanup(plan: PointPlan) -> None:
-    """FIFOs are removed when the point ends (04 §6); files are kept."""
+    """FIFOs and the context file are removed when the point ends (04 §6, §9.4); files are kept."""
+    (plan.out / CONTEXT_FILE).unlink(missing_ok=True)
     for interface in plan.interfaces.values():
         if interface.kind == "fifo" and interface.path.exists() and stat.S_ISFIFO(interface.path.stat().st_mode):
             interface.path.unlink()

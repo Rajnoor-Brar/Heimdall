@@ -391,7 +391,7 @@ input       = "showered.hepmc"
 output_file = "delphes.root"
 
 [tools.jets_reco]
-tool        = "custom"
+tool        = "exec"
 executable  = "path:python3"
 arguments   = ["{work}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
 input       = "delphes.root"
@@ -456,7 +456,7 @@ pre    = ["fetch"]                                # once, before every point
 tools  = [["pythia", "rivet"]]
 
 [tools.fetch]
-tool        = "custom"
+tool        = "exec"
 executable  = "./modules/Demo/fetch_lhe.sh"   # your script
 arguments   = ["{partial:output}"]
 output_file = "shared.lhe"                        # every point may name it: input = "shared.lhe"
@@ -515,20 +515,20 @@ One process that runs Pythia (and Rivet) itself, with the runner's sweeps and se
 
 ```toml
 [run.cfgs.inproc]
-sweeps = []
-tools  = ["jets", "yd2rt"]
-prelim = {}                                       # no FIFO: the events never leave the process
+sweeps         = []
+tools          = ["jets", "yd2rt"]
+generate_cards = ["pythia", "rivet"]              # not run: their cards, in the point's context file
+prelim         = {}                               # no FIFO: the events never leave the process
 
 [tools.jets]
 tool           = "module"
 executable     = "InprocJets.exe"
 output_file    = "jets.yoda"
-pythia_cmnd    = true                             # the pythia table's point card (not run)
-rivet_analyses = true                             # the rivet table's analysis list
 ```
 
-**What it gets:** the program reads `job.standard("pythia_cmnd")`: the same card, seeds included,
-that App_Pythia would have got, so `inproc` and `single` give the same events.
+**What it gets:** the point's context file (`$HEP_CONTEXT`, 04 §9.4) lists every tool's card and
+config; the program reads `job.card("pythia")`, the same card, seeds included, that App_Pythia would
+have got, so `inproc` and `single` give the same events, and `job.tool("rivet")` for the analyses.
 
 **What it owns:** what the chain would do (04 §9.4): σ over threads, the final σ to Rivet, the
 counting.
@@ -555,6 +555,7 @@ configuration = "default"
 event_count   = 1_000_000
 threads       = 12
 tools         = ["inproc", "yd2rt"]   # every configuration's, unless it sets its own
+generate_cards = ["pythia", "rivet"]   # validation's tables: configured, not run; their cards for inproc
 
 [run.cfgs.default]
 sweeps = ["pdf"]                  # the file has ptref, mpi and single too, each a sweep and nothing more
@@ -563,8 +564,6 @@ sweeps = ["pdf"]                  # the file has ptref, mpi and single too, each
 tool           = "module"
 executable     = "InprocJets.exe"
 output_file    = "validation.yoda"
-pythia_cmnd    = true             # validation's pythia table: configured, not run
-rivet_analyses = true             # its rivet table's analyses
 
 [tools.inproc.config]
 rivet_threads = 12
@@ -574,11 +573,11 @@ rivet_threads = 12
 ["static", "quantities", "plot", "tools.pythia", "tools.rivet", "tools.yd2rt", "tools.merge"]`).
 How the program is built: [06 §21](06_Internals.md#21-modulehh).
 
-### 6.3 A custom tool, and a Python one
+### 6.3 An exec tool, and a Python one
 
 ```toml
 [tools.fit]
-tool        = "custom"
+tool        = "exec"                              # any executable (custom, before)
 executable  = "path:python3"                      # a command on PATH, asked for by name (V54)
 arguments   = ["./modules/Decay/fit_mass.py", "{in:decay.root}", "{partial:output}"]   # your script
 input       = "decay.root"
@@ -592,6 +591,10 @@ window = [1.09, 1.14]
 - **Its config:** the file `output/…/<point>/config/fit.toml` is the first argument. A quantity
   with `target = "fit"` and `key = "window"` sweeps a key of it.
 - **Its products:** write them to `{partial:output}`; the runner renames them after the checks.
+- **The other tools:** their cards and configs are in the point's context file, `$HEP_CONTEXT`
+  (04 §9.4); a tool that is not in the chain goes in `generate_cards`.
+- **A tool of your own:** `hep tools new fit --from exec` makes `tools/fit/` in the work dir, a folder
+  you can give options, a card or a status of its own (`tool = "fit"`; 06 §16).
 - **Its status:** set `filters = "my_rules.toml"` for a progress bar from your prints
   ([06 §23](06_Internals.md#23-filterstoml)), or speak the status protocol with `framework/hepkit.py`
   ([06 §22](06_Internals.md#22-statushh-and-the-status-protocol)). `hepkit` also gives the exit

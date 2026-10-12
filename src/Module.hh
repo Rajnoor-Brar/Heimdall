@@ -3,10 +3,15 @@
 //
 // A module is a plain program. This header removes the boilerplate and nothing else:
 //
-//     <Name>.exe CONFIG.toml [--input=FILE] [--output=FILE] [--events=N] [--sidecar=FILE]
+//     <Name>.exe CONFIG.toml [--input=FILE] [--output=FILE] [--events=N] [--sidecar=FILE] [--context=FILE]
+//     <Name>.exe --describe                 its settings, as JSON lines: name, type, default, doc
 //
 //   * CONFIG.toml: the extracted [tools.<tag>.config], with the consumed quantities set in it (or
-//     under [quantities]) and any requested standard configurations under [standard.<key>];
+//     under [quantities]). Every top-level key must be one the program reads (config().get, setting):
+//     an unknown one is refused before the first event, with the nearest name (a misspelt setting
+//     would otherwise run with its default);
+//   * the point's context file ($HEP_CONTEXT, or --context): every tool's card and config, by tag or
+//     by tool, through tool("rivet") and card("pythia") (docs/04_Config_Reference.md §9.4);
 //   * --input: HepMC3 from a file or a FIFO, plain, gz or zst (HepMC3::deduce_reader); none for an
 //     integrated program that makes its own events;
 //   * --output: written as given (the runner passes the .partial name and renames it after its
@@ -30,6 +35,7 @@
 
 #include <toml++/toml.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -38,7 +44,9 @@
 #include <cstdlib>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -77,6 +85,21 @@ namespace Module {
             status().log("error", message);
             std::exit(code);
         }
+        // Edits from a to b (Levenshtein): the nearest setting to a misspelt one.
+        inline size_t distance(const std::string& a, const std::string& b) {
+            std::vector<size_t> row(b.size() + 1);
+            for (size_t j = 0; j <= b.size(); ++j) row[j] = j;
+            for (size_t i = 1; i <= a.size(); ++i) {
+                size_t diagonal = row[0];
+                row[0] = i;
+                for (size_t j = 1; j <= b.size(); ++j) {
+                    const size_t up = row[j];
+                    row[j] = std::min({row[j] + 1, row[j - 1] + 1, diagonal + (a[i - 1] == b[j - 1] ? 0 : 1)});
+                    diagonal = up;
+                }
+            }
+            return row[b.size()];
+        }
     }  // namespace detail
 
     // A read-only view of a TOML table, with defaults. A missing table is an empty view.
@@ -85,12 +108,23 @@ namespace Module {
         Values() = default;
         Values(const toml::table* table, std::string where) : table_(table), where_(std::move(where)) {}
 
-        bool has(const std::string& key) const { return table_ && table_->contains(key); }
+        // A setting as the program reads it: its key, its type and default (the getter's), its doc.
+        struct Read { std::string type, fallback, doc; };
+        using Reads = std::map<std::string, Read>;
+        // The config's view records every key read, for the unknown-key check and --describe.
+        Values(const toml::table* table, std::string where, Reads* reads)
+            : table_(table), where_(std::move(where)), reads_(reads) {}
+
+        bool has(const std::string& key) const {
+            note(key, "", "", "");
+            return table_ && table_->contains(key);
+        }
         const toml::table* raw() const { return table_; }
 
         // The type follows the default: get("bins", 100) is an int, get("tolerance", 0.15) a double.
         template <class T>
         T get(const std::string& key, T fallback) const {
+            note(key, typeName<T>(), text(fallback), "");
             if (!has(key)) return fallback;
             const toml::node& node = *table_->get(key);
             if constexpr (std::is_same_v<T, bool>) {
@@ -108,6 +142,7 @@ namespace Module {
         std::string get(const std::string& key, const char* fallback) const { return get<std::string>(key, fallback); }
 
         std::vector<std::string> list(const std::string& key) const {
+            note(key, "list", "[]", "");
             std::vector<std::string> out;
             if (!has(key)) return out;
             const toml::array* array = table_->get(key)->as_array();
@@ -121,15 +156,43 @@ namespace Module {
         }
 
         Values table(const std::string& key) const {
+            note(key, "table", "{}", "");
             if (!has(key)) return Values(nullptr, where_ + "." + key);
             const toml::table* inner = table_->get(key)->as_table();
             if (!inner) detail::die(Config, where_ + "." + key + " must be a table");
             return Values(inner, where_ + "." + key);
         }
 
+        // What setting() adds to a read: its doc.
+        void describe(const std::string& key, const std::string& doc) const {
+            if (reads_) (*reads_)[key].doc = doc;
+        }
+
       private:
+        void note(const std::string& key, const std::string& type, const std::string& fallback,
+                  const std::string& doc) const {
+            if (!reads_) return;
+            Read& read = (*reads_)[key];
+            if (read.type.empty() && !type.empty()) read.type = type, read.fallback = fallback;
+            if (read.doc.empty() && !doc.empty()) read.doc = doc;
+        }
+        template <class T>
+        static std::string typeName() {
+            if constexpr (std::is_same_v<T, bool>) return "bool";
+            else if constexpr (std::is_integral_v<T>) return "int";
+            else if constexpr (std::is_floating_point_v<T>) return "float";
+            else return "str";
+        }
+        template <class T>
+        static std::string text(const T& value) {
+            if constexpr (std::is_same_v<T, bool>) return value ? "true" : "false";
+            else if constexpr (std::is_arithmetic_v<T>) { std::ostringstream out; out << value; return out.str(); }
+            else return std::string(value);
+        }
+
         const toml::table* table_ = nullptr;
         std::string where_;
+        Reads* reads_ = nullptr;
     };
 
     class Job;
@@ -146,18 +209,30 @@ namespace Module {
         Job(int argc, char** argv) {
             std::signal(SIGINT, detail::onSignal);
             std::signal(SIGTERM, detail::onSignal);
-            const Kit::Args args(argc, argv, {"input", "output", "sidecar", "events"});
+            const Kit::Args args(argc, argv, {"input", "output", "sidecar", "events", "context"}, {"describe"});
             if (!args.ok()) usage(argv[0], args.error());
+            describing_ = args.has("describe");
             input_ = args.get("input"), output_ = args.get("output"), sidecar_ = args.get("sidecar");
             expected_ = std::atol(args.get("events", "0").c_str());
             const std::vector<std::string>& positional = args.positional();
-            if (positional.size() != 1) usage(argv[0], "one CONFIG.toml expected");
-            try {
-                document_ = toml::parse_file(positional.front());
-            } catch (const toml::parse_error& error) {
-                detail::die(Config, "cannot parse " + positional.front() + ": " + std::string(error.description()));
+            if (positional.size() != (describing_ ? 0u : 1u)) usage(argv[0], "one CONFIG.toml expected");
+            if (!describing_) {
+                try {
+                    document_ = toml::parse_file(positional.front());
+                } catch (const toml::parse_error& error) {
+                    detail::die(Config, "cannot parse " + positional.front() + ": " + std::string(error.description()));
+                }
             }
-            config_ = Values(&document_, positional.front());
+            config_ = Values(&document_, describing_ ? "settings" : positional.front(), &reads_);
+            const char* fromEnv = std::getenv("HEP_CONTEXT");
+            contextPath_ = args.get("context", fromEnv ? fromEnv : "");
+            if (!describing_ && !contextPath_.empty() && std::ifstream(contextPath_).good()) {
+                try {
+                    context_ = toml::parse_file(contextPath_);
+                } catch (const toml::parse_error& error) {
+                    detail::die(Config, "cannot parse the context file " + contextPath_ + ": " + std::string(error.description()));
+                }
+            }
             if (!sidecar_.empty()) readSidecar();
             started_ = std::chrono::steady_clock::now();
         }
@@ -166,17 +241,55 @@ namespace Module {
         Job& operator=(const Job&) = delete;
 
         const Values& config() const { return config_; }
-        Values quantities() const { return config_.table("quantities"); }
-        const std::string& input() const { return input_; }
-        const std::string& output() const { return output_; }
-        bool hasInput() const { return !input_.empty(); }
+        Values quantities() const { return Values(document_.get_as<toml::table>("quantities"), "quantities"); }
+        const std::string& input() { gate(); return input_; }
+        const std::string& output() { gate(); return output_; }
+        bool hasInput() { gate(); return !input_.empty(); }
         bool stopping() const { return detail::stop; }
         Status::Reporter& status() { return detail::status(); }
 
-        // ── standard configurations (V21, 04 §9.4) ──────────────────────────────────────────
-        std::string standard(const std::string& key) const { return requested(key).get("path", ""); }
-        std::vector<std::string> standardParts(const std::string& key) const { return requested(key).list("parts"); }
-        Values standardValues(const std::string& key) const { return requested(key); }
+        // ── settings: config().get with a doc, for --describe and `hep explain` ───────────────
+        // Read them before anything else (the input, the context), so --describe sees them all.
+        template <class T>
+        T setting(const std::string& key, T fallback, const std::string& doc) {
+            const T value = config_.get(key, fallback);
+            config_.describe(key, doc);
+            return value;
+        }
+        std::string setting(const std::string& key, const char* fallback, const std::string& doc) {
+            return setting<std::string>(key, fallback, doc);
+        }
+
+        // ── the point's context file ($HEP_CONTEXT; docs/04_Config_Reference.md §9.4) ──────────
+        // A tool of the point, by its table's tag, else the one table of that tool: its card, card_parts
+        // and config, and what its folder gives (Rivet's analyses and plugin_path; a product asked for
+        // in generate_cards, "herwig:run" → run). A tool outside the chain is there when generate_cards
+        // names it.
+        Values tool(const std::string& name) {
+            gate();
+            const toml::table* tools = context_.get_as<toml::table>("tools");
+            if (!tools)
+                detail::die(Config, contextPath_.empty() ? "no context file: hep run gives one ($HEP_CONTEXT)"
+                                                         : "the context file " + contextPath_ + " has no [tools]");
+            if (const toml::table* own = tools->get_as<toml::table>(name)) return Values(own, "context [tools." + name + "]");
+            const toml::table* found = nullptr;
+            std::string tag;
+            int count = 0;
+            for (const auto& [key, node] : *tools) {
+                const toml::table* table = node.as_table();
+                if (table && table->get_as<std::string>("tool") && table->get_as<std::string>("tool")->get() == name)
+                    found = table, tag = std::string(key.str()), ++count;
+            }
+            if (count == 1) return Values(found, "context [tools." + tag + "]");
+            detail::die(Config, count ? "the context has several " + name + " tools: name one by its table's tag"
+                                      : "no tool '" + name + "' in the context file: add it to generate_cards");
+        }
+        // A tool's card: the path of its combined card (base cards and the point's lines, seeds included).
+        std::string card(const std::string& name) {
+            const std::string path = tool(name).get("card", "");
+            if (path.empty()) detail::die(Config, "the context's " + name + " has no card");
+            return path;
+        }
 
         // ── events ───────────────────────────────────────────────────────────────────────────
         class Events {
@@ -204,6 +317,8 @@ namespace Module {
         };
 
         Events events() {
+            gate();
+            checkSettings();
             if (!hasInput()) detail::die(Usage, "this module was given no --input");
             if (reader_) detail::die(Internal, "events() can be iterated once");
             reader_ = HepMC3::deduce_reader(input_);
@@ -220,6 +335,8 @@ namespace Module {
 
         // For integrated programs that loop themselves.
         void progress(long done, long total) {
+            gate();
+            checkSettings();
             const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - started_).count();
             status().progress(done, total, s > 0 ? done / s : 0.0, done == 0 || done == total);
         }
@@ -237,6 +354,8 @@ namespace Module {
         // Write every output, then the report. Stopped (6) when interrupted: the outputs are still
         // written, under the .partial name the runner gave them.
         int finish() {
+            gate();
+            checkSettings();
             if (reader_) reader_->close();
             progress(count_, expected_ ? expected_ : count_);
             bool ok = true;
@@ -265,11 +384,37 @@ namespace Module {
             std::exit(Usage);
         }
 
-        Values requested(const std::string& key) const {
-            Values table = config_.table("standard").table(key);
-            if (!table.raw())
-                detail::die(Config, "no standard configuration '" + key + "': add " + key + " = true to this tool's table");
-            return table;
+        // --describe: the settings read so far, as JSON lines, then exit. Every accessor of the run (the
+        // input, the context, events) calls it first, so a program that reads its settings first lists them.
+        void gate() {
+            if (!describing_) return;
+            for (const auto& [key, read] : reads_)
+                if (key != "quantities")
+                    std::printf("%s\n", Kit::Json::Object().add("name", key).add("type", read.type.empty() ? std::string("any") : read.type)
+                                            .add("default", read.fallback).add("doc", read.doc).str(false).c_str());
+            std::exit(Ok);
+        }
+
+        // Every top-level key of the config must be one the program read: else a misspelt setting would
+        // run with its default. Once, before the first event (events, progress) or at the finish.
+        void checkSettings() {
+            if (checked_) return;
+            checked_ = true;
+            for (const auto& [key, node] : document_) {
+                const std::string name(key.str());
+                if (name == "quantities" || reads_.count(name)) continue;
+                std::string nearest, known;
+                size_t best = std::string::npos;
+                for (const auto& [read, _] : reads_) {
+                    if (read == "quantities") continue;
+                    known += (known.empty() ? "" : ", ") + read;
+                    const size_t d = detail::distance(name, read);
+                    if (d < best) best = d, nearest = read;
+                }
+                detail::die(Config, "unknown setting '" + name + "'" +
+                                        (best <= 2 ? " (did you mean '" + nearest + "'?)" : std::string()) +
+                                        "; this program reads: " + (known.empty() ? "none" : known));
+            }
         }
 
         void readSidecar() {                       // App_Pythia's flat JSON object, by the kit's reader (L9)
@@ -292,8 +437,11 @@ namespace Module {
             return true;
         }
 
-        toml::table document_;
+        toml::table document_, context_;
+        Values::Reads reads_;
         Values config_;
+        std::string contextPath_;
+        bool describing_ = false, checked_ = false;
         std::string input_, output_, sidecar_;
         long expected_ = 0, count_ = 0;
         double sumW_ = 0, lastPb_ = 0, lastErrPb_ = 0, sidecarPb_ = 0, sidecarErrPb_ = 0;

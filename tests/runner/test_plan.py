@@ -1,5 +1,5 @@
 """Planning one point: cards, argv, the connection rules (C6), consumers (C7/C8) and the
-standard-configuration exports (V21, C13)."""
+the context file (04 §9.4) that replaced standard-configuration exports (V21, C13)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from helpers import plan, raw
 from support import apps  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
-CUSTOM = {"tool": "custom", "executable": "/bin/true"}
+CUSTOM = {"tool": "exec", "executable": "/bin/true"}
 
 
 def test_the_pythia_card_has_builtins_quantities_and_seeds(scratch):
@@ -120,47 +120,56 @@ def test_c8_two_sources_for_one_key_are_refused(scratch):
 
 # ── V21, C13: standard configurations for custom tools ─────────────────────────────────────────
 
-def test_c13_an_export_is_the_same_card_pythia_gets(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"],
-               tools__probe={**CUSTOM, "pythia_cmnd": True, "rivet_analyses": True})
-    _, _, p = plan(data, scratch)
+def context_of(p) -> dict:
     import tomllib
-    exported = tomllib.loads(p.writes[p.rendered["probe"].config_path])["standard"]
-    card = exported["pythia_cmnd"]
+    return tomllib.loads(p.writes[p.out / "context.toml"])["tools"]
+
+
+def test_the_context_file_gives_every_tool_its_card_and_config(scratch):
+    """04 §9.4: one file per point, the chain's tools in it; reached by $HEP_CONTEXT or {context}."""
+    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"],
+               tools__probe={**CUSTOM, "config": {"model": "gauss"}, "arguments": ["{context}", "{context:pythia.card}"]})
+    _, _, p = plan(data, scratch)
+    tools_ = context_of(p)
     pythia = p.rendered["pythia"]
-    assert card["path"] == str(pythia.card_combined)
-    assert card["parts"] == [str(x) for x in pythia.card_base] + [str(pythia.card_point)]
-    assert pythia.argv[2:] == card["parts"]                # App_Pythia reads exactly these, in order
-    assert p.writes[pythia.card_combined].endswith(p.writes[pythia.card_point])
-    assert exported["rivet_analyses"]["analyses"] == ["photo_eic"]
-    assert p.rendered["probe"].argv[:2] == ["/bin/true", str(p.rendered["probe"].config_path)]
+    assert set(tools_) == {"pythia", "rivet", "probe"} and tools_["pythia"]["tool"] == "pythia"
+    assert tools_["pythia"]["card"] == str(pythia.card_combined)
+    assert tools_["pythia"]["card_parts"] == [str(x) for x in pythia.card_base] + [str(pythia.card_point)]
+    assert pythia.argv[2:] == tools_["pythia"]["card_parts"]           # App_Pythia reads exactly these, in order
+    assert tools_["rivet"]["analyses"] == ["photo_eic"] and tools_["rivet"]["plugin_path"].endswith("build/Rivet")
+    assert tools_["probe"]["config"] == str(p.rendered["probe"].config_path)
+    assert p.rendered["probe"].argv[-2:] == [str(p.out / "context.toml"), str(pythia.card_combined)]
+    import tomllib
+    assert "standard" not in tomllib.loads(p.writes[p.rendered["probe"].config_path])
 
 
-def test_an_exported_tool_is_rendered_without_being_run(scratch):
-    data = raw(run__cfgs__one__tools=["probe"], prelim={}, static={"pdf": "MSTW08lo"},
-               tools__probe={**CUSTOM, "pythia_card": True})
+def test_generate_cards_renders_a_tool_without_running_it(scratch):
+    data = raw(run__cfgs__one__tools=["probe"], run__cfgs__one__generate_cards=["pythia"], prelim={},
+               static={"pdf": "MSTW08lo"}, tools__probe=dict(CUSTOM))
     _, _, p = plan(data, scratch)
     assert [s.tag for g in p.groups for s in g] == ["probe"]
-    assert "PDF:pSet = LHAPDF6:MSTW2008lo68cl" in p.writes[p.rendered["pythia"].card_point]   # C7 passes via the export
+    assert "PDF:pSet = LHAPDF6:MSTW2008lo68cl" in p.writes[p.rendered["pythia"].card_point]   # C7 passes into its card
     assert "Random:seed = 12345" in p.writes[p.rendered["pythia"].card_combined]
+    assert set(context_of(p)) == {"probe", "pythia"} and "rivet" not in p.rendered         # unused: no card
 
 
-def test_c13_true_with_two_candidate_tables_must_name_one(scratch):
+def test_a_product_is_asked_for_by_tag_and_name(scratch):
     data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"],
-               tools__other={"tool": "pythia", "baseconfig": "ep.cmnd"},
-               tools__probe={**CUSTOM, "pythia_cmnd": True})
-    data["tools"]["main"] = data["tools"].pop("pythia")
-    data["run"]["cfgs"]["one"]["tools"] = [["main", "rivet"], "probe"]
-    with pytest.raises(HepError, match="several pythia tables") as caught:
+               run__cfgs__one__generate_cards=["pythia:run"], tools__probe=dict(CUSTOM))
+    with pytest.raises(HepError, match="pythia makes no product 'run'") as caught:
         plan(data, scratch)
-    assert 'pythia_cmnd = "<tag>"' in caught.value.hint
+    assert '"pythia" alone' in caught.value.hint
+    data = raw(run__cfgs__one__tools=[["pythia", "rivet"]], run__cfgs__one__generate_cards=["nope"])
+    with pytest.raises(HepError, match="generate_cards names 'nope'"):
+        plan(data, scratch)
 
 
-def test_c13_an_unknown_export_suggests_the_offers(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={**CUSTOM, "pythia_cmd": True})
-    with pytest.raises(HepError, match="does not export 'cmd'") as caught:
+@pytest.mark.parametrize("key", ["pythia_cmnd", "rivet_analyses", "pythia_card"])
+def test_the_export_keys_are_retired_with_a_way_on(scratch, key):
+    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={**CUSTOM, key: True})
+    with pytest.raises(HepError, match=f"'{key}' is retired") as caught:
         plan(data, scratch)
-    assert "cmnd" in caught.value.hint
+    assert "generate_cards" in caught.value.hint and "hep migrate" in caught.value.hint
 
 
 def test_a_custom_tool_gets_its_config_and_consumed_quantities(scratch):
@@ -176,14 +185,14 @@ def test_a_custom_tool_gets_its_config_and_consumed_quantities(scratch):
 # ── V54: an executable is built, or asked for on PATH by name ─────────────────────────────────
 
 def test_a_bare_executable_must_be_built_and_never_falls_back_to_path(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={"tool": "custom", "executable": "true"})
+    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={"tool": "exec", "executable": "true"})
     with pytest.raises(HepError, match="is not built") as caught:
         plan(data, scratch)
     assert 'path:true' in caught.value.hint
 
 
 def test_path_prefix_takes_the_command_from_path(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={"tool": "custom", "executable": "path:true"})
+    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={"tool": "exec", "executable": "path:true"})
     _, _, p = plan(data, scratch)
     assert p.rendered["probe"].exe.name == "true" and p.rendered["probe"].exe.is_absolute()
     data["tools"]["probe"]["executable"] = "path:no-such-command-here"

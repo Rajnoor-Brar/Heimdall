@@ -85,7 +85,7 @@ Heimdall ($HEP)
 │   │                         quantities.toml (the vocabulary: what each quantity name means), latex.toml
 │   ├── templates/work/       what `hep setup` lays down
 │   ├── rules.mk, work.mk     the build's shared rules; a work dir's build (§15)
-│   ├── hepkit.py             the kit for a custom tool in Python
+│   ├── hepkit.py             the kit for an exec tool in Python
 │   └── Apps/                 the compiled apps (not in git)
 └── src/                      ─── C++ ───
     ├── Status.hh, Kit.hh     the status protocol; exit codes, arguments, JSON
@@ -124,7 +124,7 @@ layering was not had nine cycles.)
 | 1 | `sweep.py` | points from `sweeps` (grid and zip), point names, pages, `--points` |
 | 1 | `labels.py` | Rivet `.plot` keys, YODA's text macros, line breaks, LaTeX → TLatex for Paint, TLatex → LaTeX for `hep migrate` |
 | 1 | `events.py` | the event stream (V72): the bus, the watch socket (`Hub`), the `--journal` file |
-| 2 | `tools.py` | the tool folders; per point: interfaces, connections (C6), cards, configs, exports, prepare keys, argv; seeds last; the combine command (`combiner`, `merge_files`) |
+| 2 | `tools.py` | the tool folders; per point: interfaces, connections (C6), cards, configs, the context file, prepare keys, argv; seeds last; the combine command (`combiner`, `merge_files`) |
 | 3 | `execute.py` | `[prelim]`, prepare steps, groups as supervised process groups, the count checks, settling products |
 | 3 | `status.py` | the status and output pipes, read on a thread per tool; the filter rules; a failed tool's tail |
 | 3 | `record.py` | identity, seeds, skip, provenance, `points.json` |
@@ -177,14 +177,14 @@ what their `// requires:` line names.
 |---|---|---|
 | `RunConfig` | `config` | the parsed run TOML: `path`, `project`, `name`, `serial`, `default_configuration` (None under `sweep_runs`), `configurations`, `prelim`, `static`, `tools`, `quantities`, `plot`, `master_toml`, `raw`, `sweep_runs`, `sweep_list` (`sweep_runs = ["a", "b"]`), `sets` (the `--set`s it was loaded with), `included` (what came from `[config].import`) |
 | `Configuration` | `config` | one `[run.cfgs.<cfg>]`: `key`, `label` (its folder: `[run.cfgs.<cfg>].label`, else the key), `run_folder` (`[run.cfgs.<cfg>].name`, else `[run].name`), `serial`, `title`, `description`, `event_count`, `threads` (resolved), `parallelism` (and `parallelism_auto`), `sweeps`, `plot_points`, `combine`, `tools`/`pre`/`post` (lists of groups), `static` (merged), `prelim`, `swept`, `seed_type`, `manual_seed`, `origins` (where each value came from, for `--show-config`) |
-| `Tool`, `Quantity` | `config` | one table each; a tool's folder-specific keys and export requests are in `Tool.extra`; a quantity's `values`, `tags`, `labels`, `styles` (a look per value), `shape`, `exclude` |
+| `Tool`, `Quantity` | `config` | one table each; a tool's folder-specific keys are in `Tool.extra`; a quantity's `values`, `tags`, `labels`, `styles` (a look per value), `shape`, `exclude` |
 | `Point` | `sweep` | `index` (1-based; −1 pre, 0 post), `name`, `choice` (quantity → value index), `page`, `stage` (`"combined"`) |
 | `Mapping` | `quantities` | how one quantity reaches one tool: `tag`, `form` (`key`, `keys`, `flag`, `option`, `config`, `seed`), `key`, `format`, `analysis`, `check` |
 | `Override` | `quantities` | `(key, value, origin)`, a `NamedTuple`: what a `render.py` receives |
 | `Folder` | `tools` | a tool folder: `name`, `dir`, `spec` (its `tool.toml`), `plugin` (`render.py`), `filters` |
 | `Interface` | `tools` | `name`, `path`, `kind` (`fifo`, `file`, `product`, `pre`, `points`), `producer`, `readers`, `group`, for `points` the `paths` and `names` of every point, and `shard` (a shard's product: technical, not the point's) |
 | `Step` | `tools` | one tool of one point: its folder, group, executable, argv, env, cwd, log, status mode, filters, inputs, outputs, products (final, partial), sidecar, count check, card lines and paths, config, prepare entry and argv, `identity_parts`, `texts` (what page texts may cite: `{opt:…}`) |
-| `PointPlan` | `tools` | one point (or stage): `point`, `values`, `out`, `res`, `groups` of steps, `rendered` (every step, export-only ones included), `interfaces`, `consumers`, `identity`, `seed`, `writes` (files to write), `context`, `upstream`, `deal` (a dealt interface → its group) |
+| `PointPlan` | `tools` | one point (or stage): `point`, `values`, `out`, `res`, `groups` of steps, `rendered` (every step, generate_cards' ones included), `context_tools` (the context file), `interfaces`, `consumers`, `identity`, `seed`, `writes` (files to write), `context`, `upstream`, `deal` (a dealt interface → its group) |
 | `ToolState`, `Reader` | `status` | what the views show per tool; one process's status and output pipes, on a thread (V72) |
 | `Bus`, `RunBus`, `Hub`, `Journal` | `events` | the event stream; a run's view of it under a sweep of runs; the watch socket; `status.jsonl` with `--journal` (V72, V75) |
 | `State`, `PlainView`, `LiveView` | `watch` | the reducer of events, and the views that render it |
@@ -210,7 +210,7 @@ and what it reads and writes**, which its tool folder declares.
 | 6 | Analysis algorithms | FastJet, ROOT libraries | build flags only (`// requires: fastjet`) |
 | 7 | Analysis applications | Rivet; module programs | per-point tools → YODA/ROOT, **count-checked** against the producer |
 | 8 | Visualisation | YODA, ROOT | `yd2rt`, `plotmerge`, and the plot stage (Paint, mkhtml, matplotlib) |
-| 9 | Statistics | RooFit, pyhf, uproot, ML | custom tools, per point or in `post`; no built-in fitter (V4) |
+| 9 | Statistics | RooFit, pyhf, uproot, ML | exec tools, per point or in `post`; no built-in fitter (V4) |
 | 10 | Database | xrootd, rucio | none yet; a fetch would be a `[prelim]` command or a `pre` tool |
 
 ---
@@ -227,7 +227,7 @@ and what it reads and writes**, which its tool folder declares.
 3. **Plan the pre stage** (`post.plan_pre`), then **every point** (`tools.plan_point`):
    - the active quantities and their consumers (C7, C8, C10);
    - the interfaces from `[prelim]`, outputs and inputs, and the connection rules (C6);
-   - each tool's card lines, config file, exports (C13), prepare key and argv.
+   - each tool's card lines, config file, prepare key and argv; the point's context file (04 §9.4).
 
    Nothing is spawned yet.
 4. **Identity** (`record.identity`, §8), then **seeds** (`record.assign_seeds`), disjoint across the
@@ -363,10 +363,11 @@ previous tool" is meant.
 | Every input is produced earlier or in the same group, is a `[prelim]` file, or already exists | the brief's "inexistence error" cannot happen |
 | Every output has exactly one writer | two writers race |
 
-**Standard configurations** move *configuration*, where connections move *data*. A custom or module
-tool may ask for a standard tool's rendered card or values (`pythia_cmnd = true`), and that tool is
-then configured without being run (04 §9.4). That is how an **integrated program**, one process
-running Pythia and Rivet, gets the chain's card and seeds.
+**The context file** moves *configuration*, where connections move *data*. Each point's
+`context.toml` lists every tool's card and config: the chain's, and those of the tables in
+`generate_cards`, which are configured without being run (04 §9.4). Every tool gets it as
+`$HEP_CONTEXT`. That is how an **integrated program**, one process running Pythia and Rivet, gets the
+chain's card and seeds.
 
 ### 6.1 Sharding: one tool as K processes
 
@@ -422,9 +423,10 @@ identity = sha256( threads, events, the groups, [prelim],
                    for every rendered tool: its tag, tool, binary path and sha256, card lines (without
                      lines that repeat the base card's own value), base cards' sha256, flags, analysis
                      options, config values, analyses (and each plugin's sha256), the extracted config,
-                     exported tools' identities, argv (with the point's directories as {out}/{res}),
+                     argv (with the point's directories as {out}/{res}),
                      the prepare key, replica values;
-                   the seed rule; for pre, combined and post, the identities upstream )
+                   the seed rule; generate_cards' products asked for;
+                   for pre, combined and post, the identities upstream )
 ```
 
 It is computed from the cards **before** seeds are written into them. The seeds are then derived
@@ -499,8 +501,8 @@ process directory.
 - **A hit:** an entry is a hit when it holds a **`.prepared` stamp**, written only after the step
   exited 0 and left its `marker` file. An interrupted integration is redone, never used.
 - **In use:** `{prepared}` names the entry in argv and cards, and `--plan` shows each prepare step
-  and whether it is cached. An export that needs a prepared product (`herwig_run`) runs the step on
-  demand.
+  and whether it is cached. A product asked for in `generate_cards` (`"herwig:run"`) runs the step
+  on demand.
 
 ---
 
@@ -879,7 +881,9 @@ Every section and key is checked when the folders load: an unknown one is an err
 | | `status` | `standard`, `filters`, `none` (default none) |
 | | `consumes_events` | its product's event count is checked against its input's producer sidecar |
 | | `produces_events` | an event generator: its identity is the seed basis, and its `[outputs] sidecar` is its sidecar |
-| | `config_file`, `config_always` | its table's `config`, consumed quantities and standard-configuration requests go to `config/<tag>.toml`, its first argument, and it may ask for exports (custom, module); `config_always`: even when empty (module) (V60) |
+| | `config_file`, `config_always` | its table's `config` and consumed quantities go to `config/<tag>.toml`, its first argument (exec, module); `config_always`: even when empty (module) (V60) |
+| | `template` | `true`: `hep tools new <name> --from <it>` copies the folder (exec, module); any other is extended |
+| | `formerly` | the folder's old names (`exec`: `["custom"]`): a table naming one is told the new name, and `hep migrate` rewrites it |
 | `[card]` | `style` | `append` (base cards then the point card: last wins), `render` (`render.py` writes the whole card), `none` (no card; values become flags or options) |
 | | `ext`, `comment` | the card's extension and comment marker (`cmnd`, `!`) |
 | | `bools` | how true and false are written (default `["true", "false"]`; Pythia `["on", "off"]`) |
@@ -903,9 +907,8 @@ Every section and key is checked when the folders load: an unknown one is an err
 | | `marker` | a file the step must leave; the `.prepared` stamp is written only then |
 | | `ignore` | card keys left out of the cache key (`EVENTS`, `n_events`, `seed`) |
 | | `key` | `"card"` (default) or `"base"`: key on the base cards only |
-| `[exports.<name>]` | `alias = "card"` | `<tool>_<name>` is `<tool>_card` |
-| | `values` | values handed over: a template (`plugin_path = "{work}/build/Rivet"`), or `"identity:<part>"` for a part of the tool's identity (`analyses = "identity:analyses"`) (V60) |
-| | `path` | a path handed over (`{prepared}`, `{card}`) |
+| `[context]` | `values` | what the point's context file gives of the tool besides its card and config: a template (`plugin_path = "{work}/build/Rivet"`), or `"identity:<part>"` for a part of its identity (`analyses = "identity:analyses"`) (V60) |
+| `[context.products.<name>]` | `path` | a product made on demand when `generate_cards` asks for `"<tag>:<name>"`: its path (`{prepared}`, `{card}`), in the tool's table of the context file |
 | | `needs_prepare` | asking for it runs the prepare step on demand |
 | `[identity]` | `files` | files whose sha256 enters the identity (`{work}`, `{exe}`, `{analysis}`) |
 | | `version` | a command whose first line is the version, or `"stack:<name>"` (the stack's, V78), for provenance |
@@ -916,7 +919,9 @@ Every section and key is checked when the folders load: an unknown one is an err
 | | `card` | argv that reads a card (`{card}`) and prints one JSON line `{"line": N, "text": …}` per line it rejects; run at plan time, cached by the card's text (V59) |
 | | `info_dirs`, `info_dirs_command` | where analyses' `.info` files are, for C9 |
 
-`<tool>_card` is exported automatically by every folder whose card style is not `none`.
+Every tool with a card has `card` and `card_parts` in the context file; one with a config file has
+`config` (04 §9.4). Outside a section, a `tool.toml` may say `extends = "<tool>"` (§16), and `[tool]
+formerly = […]` lists a folder's old names, which a run TOML is told about and `hep migrate` rewrites.
 
 ### 16.2 `render.py`
 
@@ -968,8 +973,8 @@ one function, `check(form, value, where)`, which a mapping names as `check = "<n
    Then come the header, the lines and the footer; for `render`, `card()`. The seed lines are added
    at `finalise`, after the identity.
 3. **Prepare key and argv**, if `[prepare]`.
-4. **argv**, `env` and `cwd` from `[command]`, with every placeholder (04 §10); a module or custom
-   tool's config file.
+4. **argv**, `env` and `cwd` from `[command]`, with every placeholder (04 §10); a module or exec
+   tool's config file; `$HEP_CONTEXT` for every tool.
 5. **Count check**, if the tool consumes events and reads a count, and its input's producer has a
    sidecar.
 
@@ -1171,14 +1176,15 @@ int main(int argc, char** argv) {
 
 | Call | Does |
 |---|---|
-| `Module::Job job(argc, argv)` | parses `CONFIG.toml [--input=F] [--output=F] [--events=N] [--sidecar=F]` (`--x v` also works); reads the config; installs SIGINT/SIGTERM handlers |
-| `job.config()` | a `Values` view of the config: `get(key, fallback)`, `has(key)`, `list(key)`, `table(key)`, `raw()` |
+| `Module::Job job(argc, argv)` | parses `CONFIG.toml [--input=F] [--output=F] [--events=N] [--sidecar=F] [--context=F]` (`--x v` also works), or `--describe`; reads the config and the context file (`$HEP_CONTEXT`); installs SIGINT/SIGTERM handlers |
+| `job.config()` | a `Values` view of the config: `get(key, fallback)`, `has(key)`, `list(key)`, `table(key)`, `raw()`. Every key read is recorded: a top-level key of the config the program never read is refused before the first event (`events()`, `progress()`, or `finish()`), with the nearest name |
+| `job.setting(key, fallback, doc)` | `config().get` with a doc: what `--describe` (and `hep explain <Name>.exe`) shows. Read settings first: `--describe` lists those read before the program asks for its input or context, then exits |
 | `job.quantities()` | the config's `[quantities]` table |
 | `job.events()` | iterates `Module::Event`s from the input (`HepMC3::deduce_reader`: file or FIFO, plain, gz or zst); counts events and ΣW, reports progress, stops on a signal |
 | `event.hepmc()`, `event.weight()` | the `HepMC3::GenEvent`; its first weight (1 if none) |
 | `job.count()`, `job.sumW()` | events read and ΣW so far |
 | `job.crossSectionPb()`, `job.crossSectionErrPb()` | from `--sidecar` when given (a file chain), else the last event's `GenCrossSection` (Rivet's rule, L2) |
-| `job.standard(key)`, `job.standardParts(key)`, `job.standardValues(key)` | a requested standard configuration (04 §9.4): its `path`, its `parts`, or its table; a request the table did not make is an error naming the key |
+| `job.tool(name)`, `job.card(name)` | a tool of the point's context file (04 §9.4), by its table's tag, else the one table of that tool: its `Values` (`card`, `card_parts`, `config`, its folder's values such as Rivet's `analyses` and `plugin_path`, a product asked for); its card's path. A tool not in the context is an error naming `generate_cards` |
 | `job.hasInput()` | false for an integrated program (empty `--input=`); `events()` is then unavailable |
 | `job.countEvent(w)`, `job.setCrossSection(pb, err)` | an integrated program's own count, ΣW and σ |
 | `job.progress(done, total)`, `job.status()` | status reporting (§22) |
@@ -1192,8 +1198,9 @@ int main(int argc, char** argv) {
   SISCone statics (L16).
 - The exit codes are §11's.
 
-**An integrated program** (`modules/Demo/InprocJets.cc`, V33) asks for `pythia_cmnd` and
-`rivet_analyses` (`job.standard`, `job.standardValues`). It gets the same card and seeds as the
+**An integrated program** (`modules/Demo/InprocJets.cc`, V33) runs with `generate_cards =
+["pythia", "rivet"]` and reads both from the context file (`job.card("pythia")`, `job.tool("rivet")`).
+It gets the same card and seeds as the
 chain's App_Pythia would, and the rivet table's analyses with their options. It runs Pythia through
 `PythiaRun.hh` as App_Pythia does, and `rivet_threads` `Rivet::AnalysisHandler`s on threads of their
 own (V34). Its parts are headers in `modules/Demo/Inproc/`:
@@ -1205,8 +1212,8 @@ own (V34). Its parts are headers in `modules/Demo/Inproc/`:
 | `Analysis.hh` | the Rivets: every handler initialised on the first event before any analyses; each `analyze`s on its own thread; at the end `merge` into the first (raw fills and event counters added, before any `finalize`, so re-entrancy is not needed), the L28 σ as a user σ (`setCrossSection(σ, true)`), one `finalize`, `writeData`. Above one Rivet it checks that SISCone's state is per thread (L29) and refuses otherwise |
 | `Engines.hh` | `serial` (one `Pythia8::Pythia`) and `parallel` (`PythiaParallel`, `processAsync = on`, a converter per instance, chunks of 100 × threads); after Rivet's thread starts, a failure is returned, never exited on (L3, L5, L6) |
 
-**Its config** (`[tools.<tag>.config]`) has `engine` (`"parallel"`, `"serial"`) and **`rivet_threads`**
-(default 1).
+**Its settings** (`[tools.<tag>.config]`, `InprocJets.exe --describe`) are `engine` (`"parallel"`,
+`"serial"`) and **`rivet_threads`** (default 1).
 
 **Several Rivets in one process** need FastJet's SISCone to keep its state per thread. Stock SISCone
 has one random generator and one η range for the process, so threads clustering at once get other
@@ -1259,7 +1266,7 @@ Every line has the envelope `{"t": <unix time>, "k": <kind>, …}`.
 Writes are **non-blocking and drop on a full pipe**, so a slow reader never slows a generator. With
 the variable unset, the same calls print plain lines to stderr, so a tool run by hand is readable.
 
-**Python**: `framework/hepkit.py` (V74) is the same kit for a custom tool. It provides:
+**Python**: `framework/hepkit.py` (V74) is the same kit for an exec tool. It provides:
 - `hepkit.Status()`: `phase`, `progress`, `xsec`, `log`, `summary`, and a heartbeat every half
   second;
 - `hepkit.report(output, **fields)`: the report, written whole;

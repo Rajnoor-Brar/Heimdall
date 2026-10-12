@@ -1,0 +1,17 @@
+# framework/tools/exec/tool.toml — any executable (docs/05_Commands_and_Tools.md §9). Its table gives
+# executable and arguments; its [tools.<tag>.config] and consumed quantities are written to
+# config/<tag>.toml and passed as the first argument. Like every tool it finds the point's context file
+# (every tool's card and config) through $HEP_CONTEXT, or {context} in its arguments.
+# `hep tools new <name> --from exec` copies this folder into the work dir's tools/, to make it your own.
+[tool]
+config_file     = true             # its table's config and consumed quantities, written to config/<tag>.toml
+category = "custom"
+status   = "none"
+template = true                     # hep tools new <name> --from exec copies it: a tool of your own
+formerly = ["custom"]               # its name before (audit 3, phase 4.2): hep migrate rewrites tool = "custom"
+
+[card]
+style = "none"
+
+[command]
+argv = ["{exe}", "{config}", "{arguments}"]

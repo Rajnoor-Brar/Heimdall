@@ -19,7 +19,7 @@ from runner.watch import PlainView, follow_file
 
 from helpers import parse, plan, raw
 
-CUSTOM = {"tool": "custom", "executable": "/bin/true"}
+CUSTOM = {"tool": "exec", "executable": "/bin/true"}
 
 
 def several(**changes):

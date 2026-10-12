@@ -55,13 +55,13 @@ def test_the_shipped_folders_are_the_last_on_the_path(roots):
     work, machine = roots
     assert paths.tool_roots() == [("work", work / "tools"), ("machine", machine / "tools"), ("shipped", SHIPPED)]
     known = tools.folders()
-    assert {"pythia", "rivet", "custom", "module"} <= set(known) and known["pythia"].origin == "shipped"
+    assert {"pythia", "rivet", "exec", "module"} <= set(known) and known["pythia"].origin == "shipped"
     assert "lhapdf" not in known and "figures" not in known           # plugins and mappings only: no tool.toml
 
 
 def test_a_work_dirs_folder_is_a_tool_and_hep_tools_says_so(roots):
     work, _ = roots
-    folder(work, "fit", copy_of="custom")
+    folder(work, "fit", copy_of="exec")
     assert tools.folders()["fit"].origin == "work" and tools.folders()["fit"].dir == work / "tools" / "fit"
     assert row("fit").split()[1] == "work" and row("pythia").split()[1] == "shipped"
 
@@ -86,7 +86,7 @@ def test_a_folder_without_extends_replaces_the_shipped_one(roots):
 
 def test_the_machine_roots_folders_sit_between(roots):
     work, machine = roots
-    folder(machine, "fit", copy_of="custom")
+    folder(machine, "fit", copy_of="exec")
     assert tools.folders()["fit"].origin == "machine"
     folder(work, "fit", 'extends = "fit"\n[tool]\nstatus = "mine"\n')
     fit = tools.folders()["fit"]
@@ -121,7 +121,7 @@ def test_a_folders_mappings_lay_over_the_extended_ones(roots):
 def test_a_run_uses_a_work_dirs_tool(roots):
     """06_Plan's row: a work dir's tools/fit/, copied from the shipped custom folder, runs; Heimdall's tree is not touched."""
     work, _ = roots
-    folder(work, "fit", copy_of="custom")
+    folder(work, "fit", copy_of="exec")
     script = work / "make.py"
     script.write_text(SCRIPT, encoding="utf-8")
     script.chmod(0o755)

@@ -65,7 +65,7 @@ def test_a_quantity_aimed_at_the_table_reaches_every_shard(scratch, radius):
 def test_other_outputs_still_get_every_event(scratch):
     data = sharded(2, prelim__fifo=["events.hepmc", "copy.hepmc"],
                    tools__pythia__output_file=["events.hepmc", "copy.hepmc"],
-                   tools__probe={"tool": "custom", "executable": "/bin/cat", "arguments": ["{input}"],
+                   tools__probe={"tool": "exec", "executable": "/bin/cat", "arguments": ["{input}"],
                                  "input": "copy.hepmc", "streamable": True},
                    run__cfgs__one__tools=[["pythia", "rivet", "probe"]])
     _, _, p = plan(data, scratch)
@@ -84,7 +84,7 @@ def test_an_output_path_with_a_separator_is_refused(scratch):
     ({"tools__rivet__shards": 0}, "at least 1"),
     ({"tools__yd2rt": {"tool": "yd2rt", "input": "jets.yoda", "output_file": "jets.root", "shards": 2},
       "run__cfgs__one__tools": [["pythia", "rivet"], "yd2rt"]}, "cannot be sharded"),
-    ({"tools__rivet__shards": 2, "tools__pythia": {"tool": "custom", "executable": "/bin/true",
+    ({"tools__rivet__shards": 2, "tools__pythia": {"tool": "exec", "executable": "/bin/true",
                                                    "output_file": "events.hepmc"}}, "cannot deal"),
     ({"tools__rivet__shards": 2, "prelim__fifo": [], "tools__rivet__input": "./tests/reference/legacy_run/x.hepmc"},
      "not a \\[prelim\\] FIFO or file"),

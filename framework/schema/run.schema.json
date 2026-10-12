@@ -182,6 +182,13 @@
         "description": "the chain: [A, [B, C], D]; an inner list runs together\n\n04 §5.3",
         "type": "array"
        },
+       "generate_cards": {
+        "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4)",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
        "pre": {
         "description": "tools run once, before every point\n\nthe form of `tools` (04 §5.4)",
         "type": "array"
@@ -308,6 +315,13 @@
     "post": {
      "description": "tools run once, after every point\n\nthe form of `tools` (04 §5.4)",
      "type": "array"
+    },
+    "generate_cards": {
+     "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4)",
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
     }
    },
    "required": [
@@ -351,7 +365,7 @@
     "type": "object",
     "properties": {
      "tool": {
-      "description": "a standard tool (a folder of framework/tools/) or custom\n\na standard tool (a folder of `framework/tools/`, 05 §3), `\"custom\"` or `\"module\"`",
+      "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
       "type": "string"
      },
      "baseconfig": {
@@ -399,22 +413,22 @@
       "type": "string"
      },
      "executable": {
-      "description": "custom/module: build/<project>/<name>, or path:<command>\n\ncustom and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+      "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
       "type": "string"
      },
      "arguments": {
-      "description": "custom: its arguments\n\ncustom and module: argv after the config; placeholders (04 §10)",
+      "description": "custom: its arguments\n\nexec and module: argv after the config; placeholders (04 §10)",
       "type": "array"
      },
      "consumes": {
-      "description": "custom/module: quantities it reads from its config\n\ncustom and module: quantities written into the config",
+      "description": "custom/module: quantities it reads from its config\n\nexec and module: quantities written into the config",
       "type": "array",
       "items": {
        "type": "string"
       }
      },
      "config": {
-      "description": "custom/module: written to config/<tag>.toml\n\ncustom and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2)",
+      "description": "custom/module: written to config/<tag>.toml\n\nexec and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2)",
       "type": "object"
      },
      "streamable": {

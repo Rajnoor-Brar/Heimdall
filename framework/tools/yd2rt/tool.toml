@@ -12,7 +12,7 @@ style = "none"
 argv = ["{exe}", "{input}", "{partial:output}", "{select}"]
 
 [options]
-select = { kind = "list" }          # YODA path globs to convert (default: everything except /RAW, /TMP)
+select = { kind = "list", doc = "YODA path globs to convert (default: everything but /RAW, /TMP)" }
 
 [outputs]
 products = ["root"]

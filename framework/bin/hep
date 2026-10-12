@@ -43,7 +43,8 @@ usage: hep <command> [options]
   setup <dir> [--project P] [--git] [--adopt]    make a work dir     (hep setup --help)
   where [--hep | --work]           which Heimdall and which work dir this shell sees
   doctor [--quick] [--record]      what this machine's stack and Heimdall can do, checked
-  tools                            every tool folder: the work dir's tools/, the machine root's, Heimdall's
+  tools [<name>]                   every tool folder (the work dir's tools/, the machine root's, Heimdall's); one in full
+  tools new <name> --from <tool>   a tool folder of this work dir: a copy of exec/module, or one extending <tool>
   refresh | quit                   reload this shell's environment (the same stack, from scratch); leave it
   cd PROJECT [DIR]                 cd to the work dir's DIR/PROJECT (DIR: configs, modules, results, output)
   build [targets…]                 compile the work dir's module programs and Rivet plugins (make all)

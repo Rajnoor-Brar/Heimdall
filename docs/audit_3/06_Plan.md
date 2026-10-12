@@ -222,7 +222,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 - `{apps}` replaces `{hep}/framework/Apps` in the shipped folders.
 - `hep tools` lists every folder with its origin.
 
-**4.2 `custom` and `module` as folders; module settings checked** (U52, U53, U54)
+**4.2 `custom` and `module` as folders; module settings checked** (U52, U53, U54) — **done, V126** (folder docs: each option's `doc`, shown by `hep tools <name>`; 05's per-tool sections stay written by hand)
 - Shipped `exec` and `module` folders replace the two special kinds (`tool = "custom"` migrates to
   `tool = "exec"`).
 - `hep tools new <name> --from exec|module|<tool>` writes a commented folder in `<work>/tools/`.

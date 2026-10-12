@@ -59,7 +59,7 @@ fail = "ok"
 nap  = "no"
 
 [tools.check]
-tool       = "custom"
+tool       = "exec"
 executable = "{script}"
 consumes   = ["fail", "nap"]
 
@@ -158,7 +158,7 @@ fail = "ok"
 nap  = "two"
 
 [tools.check]
-tool       = "custom"
+tool       = "exec"
 executable = "{script}"
 consumes   = ["fail", "nap", "slot"]
 

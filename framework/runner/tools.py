@@ -39,13 +39,13 @@ ENV = Path(__file__).resolve().parents[1] / "tools"       # framework/tools: the
 
 FOLDER_SECTIONS = {
     "tool": {"category", "executable", "streamable", "status", "consumes_events", "produces_events", "config_file",
-             "config_always"},
+             "config_always", "formerly", "template"},
     "card": {"style", "ext", "comment", "bools", "seed", "seed_parallel", "seed_range", "line", "footer",
              "drop", "trailing", "drop_inside_braces", "merge", "repeatable", "owned"},
     "command": {"argv", "env", "cwd"},
     "options": None,                                      # free: the schema of tool-specific keys
     "outputs": {"products", "event_count", "sidecar", "written", "deal", "combines"},
-    "exports": None,
+    "context": {"values", "products"},                    # what the point's context file gives of it (04 §9.4)
     "identity": {"files", "version"},
     "prepare": {"argv", "marker", "ignore", "key"},
     "checks": {"info_dirs", "info_dirs_command", "files", "card"},
@@ -54,7 +54,10 @@ FOLDER_SECTIONS = {
     "beams": {"slots"},                                   # the card's fixed beam slots (V62)
 }
 CARD_STYLES = ("append", "none", "render")
+#: The retired export keys (`pythia_cmnd = true`): the context file and generate_cards replace them.
 EXPORT = re.compile(r"^(?P<tool>[a-z0-9]+)_(?P<export>[a-z0-9_]+)$")
+#: The point's context file (04 §9.4): every tool's card and config, for any program of the point.
+CONTEXT_FILE = "context.toml"
 #: Seeds a folder accepts unless its [card] seed_range says otherwise (V54): Pythia's, 1 … 9·10⁸, which
 #: every seed was drawn from before, so an existing point keeps its seeds.
 DEFAULT_SEED_RANGE = (1, 900_000_000)
@@ -171,8 +174,75 @@ def folder_rows() -> list[str]:
             for row in [head, *rows]]
 
 
+def folder_lines(name: str) -> list[str]:
+    """`hep tools <name>`: one folder: where it is and what it extends, what it runs, its options (with
+    their docs) and what the context file gives of it."""
+    known = folders()
+    if name not in known:
+        raise HepError(f"no tool folder '{name}'", hint=did_you_mean(name, known) or "hep tools lists them")
+    folder = known[name]
+    lines = [f"{name}: {folder.get('tool', 'category', '')}, from {folder.origin}"
+             + (" (a template: hep tools new <name> --from " + name + " copies it)" if folder.get("tool", "template") else ""),
+             *(f"  folder   {d}  ({o})" for o, d in folder.chain or (("", folder.dir),)),
+             "  runs     " + (folder.get("tool", "executable") or "the table's executable"),
+             f"  argv     {' '.join(folder.get('command', 'argv', ['{exe}']))}"]
+    if folder.get("card", "style", "none") != "none":
+        lines.append(f"  card     {folder.get('card', 'ext', '')} ({folder.get('card', 'style')})")
+    for key, rule in folder.spec.get("options", {}).items():
+        lines.append(f"  option   {key} ({rule.get('kind', 'any')}{', required' if rule.get('required') else ''})"
+                     + (f": {rule['doc']}" if rule.get("doc") else ""))
+    context = folder.spec.get("context", {})
+    gives = ["card", "card_parts"] if folder.get("card", "style", "none") != "none" else []
+    gives += ["config"] if folder.get("tool", "config_file") else []
+    gives += list(context.get("values", {}))
+    lines.append(f"  context  {', '.join(gives) or '-'}" + "".join(f"; product {p} (\"{name}:{p}\" in generate_cards)"
+                                                                 for p in context.get("products", {})))
+    return lines
+
+
+def new_folder(name: str, source: str) -> Path:
+    """`hep tools new <name> --from <tool>`: <work>/tools/<name>/tool.toml. From a template folder ([tool]
+    template = true: exec, module) a copy, to make a tool of your own; from any other tool a folder that
+    extends it, its tool.toml below as comments, so the keys you change override it and the rest stays
+    Heimdall's."""
+    from .paths import find_work
+    work = find_work()
+    if work is None:
+        raise HepError("hep tools new makes a folder in a work dir's tools/: not inside a work dir",
+                       hint="cd into one (hep where --work)")
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+        raise HepError(f"'{name}' is not a tool name: lower case letters, digits and _", where="hep tools new")
+    known = folders()
+    if source not in known:
+        raise HepError(f"no tool folder '{source}' to start from", hint=did_you_mean(source, known) or "hep tools lists them")
+    target = work / "tools" / name
+    if target.exists():
+        raise HepError(f"{target} exists already", hint="edit it, or remove it first")
+    origin = known[source]
+    text = (origin.find("tool.toml") or origin.dir / "tool.toml").read_text(encoding="utf-8")
+    target.mkdir(parents=True)
+    if origin.get("tool", "template"):                              # [tool] template = true: copied whole
+        body = (f"# tools/{name}/tool.toml — a tool of this work dir, made from Heimdall's {source} folder (hep tools new).\n"
+                f"# Tables use it as tool = \"{name}\"; give it [options], a [card], a [context] … (docs/06_Internals.md §16).\n\n"
+                + "\n".join(line for line in text.splitlines() if not line.startswith(f"# framework/tools/{source}/"))
+                + "\n")
+    else:
+        body = (f"# tools/{name}/tool.toml — this work dir's {source}, laid over Heimdall's (hep tools new): the keys here\n"
+                f"# win, the rest is {source}'s (docs/06_Internals.md §16). Its tool.toml, for reference:\n#\n"
+                + "".join(f"#   {line}\n" if line else "#\n" for line in text.splitlines())
+                + f"\nextends = \"{source}\"\n")
+    (target / "tool.toml").write_text(body, encoding="utf-8")
+    from .paths import reset
+    reset()
+    return target
+
+
 def folder_of(tool) -> Folder:
     known = folders()
+    renamed = next((name for name, f in known.items() if tool.tool in f.get("tool", "formerly", [])), None)
+    if tool.tool not in known and renamed:                          # a folder's old name ([tool] formerly)
+        raise HepError(f'tool = "{tool.tool}" is tool = "{renamed}" now', where=f"[tools.{tool.tag}]",
+                       hint="hep migrate rewrites it")
     if tool.tool not in known:
         raise HepError(f"tool = \"{tool.tool}\" is no tool folder", where=f"[tools.{tool.tag}]",
                        hint=did_you_mean(tool.tool, known) or f"tool folders (hep tools): {', '.join(known)}")
@@ -446,6 +516,8 @@ class PointPlan:
     events: int = 0
     writes: dict[Path, str] = field(default_factory=dict)
     context: dict[str, Any] = field(default_factory=dict)   # post: {points}, the manifest
+    context_tools: dict[str, dict] = field(default_factory=dict)   # the context file's [tools.<tag>] (04 §9.4)
+    products: list[str] = field(default_factory=list)       # generate_cards' "<tag>:<product>": in the identity
     upstream: list[str] = field(default_factory=list)       # post: the identities of the points
     deal: dict[str, str] = field(default_factory=dict)      # a dealt interface → its deal group (V31)
     seed_type: str = "identity"                             # a point's seed rule (V39); stages keep identity
@@ -474,8 +546,12 @@ def point_dirs(run, configuration, point) -> tuple[Path, Path]:
 def _check_options(tool, folder: Folder, where: str) -> None:
     schema = folder.spec.get("options", {})
     for key, value in tool.extra.items():
-        if EXPORT.match(key) and folder.get("tool", "config_file") and EXPORT.match(key).group("tool") in folders():
-            continue
+        if (key not in schema and folder.get("tool", "config_file") and EXPORT.match(key)
+                and EXPORT.match(key).group("tool") in folders()):
+            raise HepError(f"'{key}' is retired: the point's context file gives every tool's card and config",
+                           where=f"{where}.{key}",
+                           hint=f"a tool that is not in the chain goes in generate_cards = [\"<tag>\"] (or \"<tag>:<product>\"); "
+                                "the program reads $HEP_CONTEXT. hep migrate rewrites it")
         if key not in schema:
             raise HepError(f"unknown key '{key}' for a {folder.name} tool", where=where,
                            hint=did_you_mean(key, schema) or (f"{folder.name} takes: {', '.join(schema)}"
@@ -489,44 +565,61 @@ def _check_options(tool, folder: Folder, where: str) -> None:
             raise HepError(f"a {folder.name} tool needs '{key}'", where=where)
 
 
-def _export_requests(run, tool) -> dict[str, str]:
-    """A folder with [tool] config_file (custom, module): `<tool>_<export> = true | "<tag>"` → {request key:
-    referenced tag} (C13)."""
-    if not folder_of(tool).get("tool", "config_file"):
-        return {}
-    out = {}
-    for key, value in tool.extra.items():
-        m = EXPORT.match(key)
-        if not m or m.group("tool") not in folders() or value is False:
-            continue
-        kind = m.group("tool")
-        if isinstance(value, str):
-            tag = value
-            if tag not in run.tools or run.tools[tag].tool != kind:
-                raise HepError(f"{key} = \"{value}\" names no {kind} tool table", where=f"[tools.{tool.tag}].{key}")
-        elif value is True:
-            candidates = [t for t, other in run.tools.items() if other.tool == kind]
-            if kind in run.tools and run.tools[kind].tool == kind:
-                tag = kind
-            elif len(candidates) == 1:
-                tag = candidates[0]
-            elif not candidates:
-                raise HepError(f"{key}: there is no {kind} tool table to take the configuration from",
-                               where=f"[tools.{tool.tag}].{key}", hint=f"add [tools.{kind}] with tool = \"{kind}\"")
-            else:
-                raise HepError(f"{key} = true matches several {kind} tables: {', '.join(candidates)}",
-                               where=f"[tools.{tool.tag}].{key}", hint=f"name one: {key} = \"<tag>\" (C13)")
-        else:
-            raise HepError(f"{key} must be true, false or a tool tag", where=f"[tools.{tool.tag}].{key}")
-        export = m.group("export")
-        folder = folders()[kind]
-        declared = folder.spec.get("exports", {})
-        if not (export == "card" and folder.card_style != "none") and export not in declared:
-            offers = (["card"] if folder.card_style != "none" else []) + list(declared)
-            raise HepError(f"{kind} does not export '{export}'", where=f"[tools.{tool.tag}].{key}",
-                           hint=did_you_mean(export, offers) or f"{kind} exports: {', '.join(offers) or 'nothing'}")
-        out[key] = tag
-    return out
+def _generated(run, configuration, chain: list[str]) -> tuple[list[str], dict[str, list[str]]]:
+    """generate_cards (04 §9.4): the tool tables beyond the chain whose cards and configs the context file
+    gets, and the products asked for ("herwig:run"), each one its folder's [context.products]."""
+    tags, products = [], {}
+    for entry in configuration.generate_cards:
+        tag, _, product = entry.partition(":")
+        if tag not in run.tools:
+            raise HepError(f"generate_cards names '{tag}', which is not a tool table", where="generate_cards",
+                           hint=did_you_mean(tag, run.tools))
+        if product:
+            offered = folder_of(run.tools[tag]).spec.get("context", {}).get("products", {})
+            if product not in offered:
+                raise HepError(f"{run.tools[tag].tool} makes no product '{product}'", where=f"generate_cards: \"{entry}\"",
+                               hint=(f"its products: {', '.join(offered)}" if offered else
+                                     f"{run.tools[tag].tool} has none; \"{tag}\" alone gives its card and config"))
+            products.setdefault(tag, []).append(product)
+        if tag not in chain:
+            tags.append(tag)
+    return list(dict.fromkeys(tags)), products
+
+
+def _context_tables(plan: PointPlan, products: dict[str, list[str]]) -> dict[str, dict]:
+    """The context file's [tools.<tag>] tables (04 §9.4): every rendered tool's card (its parts too), its
+    folder's [context] values, and the products asked for (which then are prepared). Configs are added
+    when the argv are made."""
+    tables: dict[str, dict] = {}
+    for tag, step in plan.rendered.items():
+        entry: dict[str, Any] = {"tool": step.tool.tool}
+        if step.card_combined is not None:
+            entry["card"] = str(step.card_combined)
+            entry["card_parts"] = [str(p) for p in step.card_base] + ([str(step.card_point)] if step.card_point else [])
+        where = f"{step.folder.name}/tool.toml [context]"
+        for give, template in step.folder.get("context", "values", {}).items():   # V60: data, not names in the core
+            entry[give] = (step.identity_parts.get(template[len("identity:"):], []) if template.startswith("identity:")
+                           else expand(template, placeholders(), where))
+        if step.config_path is not None:
+            entry["config"] = str(step.config_path)
+        for product in products.get(tag, []):
+            declared = step.folder.spec["context"]["products"][product]
+            if declared.get("needs_prepare"):
+                if step.prepare_dir is None:
+                    raise HepError(f"{step.folder.name}'s product '{product}' needs a prepare step it does not have",
+                                   where=where)
+                step.prepare_needed = True
+            entry[product] = expand(declared["path"], {"prepared": str(step.prepare_dir or ""),
+                                                       "card": str(step.card_combined or "")}, where)
+        tables[tag] = entry
+    return tables
+
+
+def context_text(plan: PointPlan) -> str:
+    """The context file: written when the point starts, removed when it ends (execute)."""
+    return (f"# {CONTEXT_FILE} — point {plan.point.name}: every tool's card and config, for any program of it\n"
+            "# (HEP_CONTEXT; docs/04_Config_Reference.md §9.4). Written when the point starts, removed when it ends.\n\n"
+            + tomli_w.dumps({"tools": plan.context_tools}))
 
 
 def _resolve_chain(run, configuration, point) -> list[list[str]]:
@@ -666,10 +759,9 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
     for tag in chain:                                  # every table names a standard tool (or refuses)
         folder_of(run.tools[tag])
 
-    # standard-configuration requests pull in tables that are configured but not run (V21)
-    requests = {tag: _export_requests(run, run.tools[tag]) for tag in chain}
-    exported = [t for reqs in requests.values() for t in reqs.values() if t not in chain]
-    rendered_tags = chain + list(dict.fromkeys(exported))
+    # generate_cards: tables configured but not run, whose cards the context file gives (04 §9.4)
+    generated, products = _generated(run, configuration, chain)
+    rendered_tags = chain + generated
 
     # quantities: swept, then static where not swept; who consumes each (C7)
     values = dict(point.choice)
@@ -746,10 +838,15 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
     for tag in rendered_tags:
         _render(plan, plan.rendered[tag], run, master)
         _prepare_argv(plan, plan.rendered[tag])
+    for tag in rendered_tags:
+        _config(plan, plan.rendered[tag], run)
+    plan.context_tools = _context_tables(plan, products)
+    plan.products = sorted(f"{tag}:{p}" for tag, names in products.items() for p in names)
     for tag in chain:
-        _argv(plan, plan.rendered[tag], run, requests.get(tag, {}))
+        _argv(plan, plan.rendered[tag], run)
         if plan.rendered[tag].prepare_dir is not None:
             plan.rendered[tag].prepare_needed = True   # a chain step always runs its prepare (cached)
+    plan.writes[plan.out / CONTEXT_FILE] = context_text(plan)
 
     plan.groups = [[plan.rendered[tag] for tag in group] for group in groups_tags]
     plan.seed_range = seed_range_of(plan.rendered.values())
@@ -1090,7 +1187,31 @@ def _info_dirs(folder: Folder) -> list[Path]:
     return dirs
 
 
-def _argv(plan: PointPlan, step: Step, run, requests: dict[str, str]) -> None:
+def _config(plan: PointPlan, step: Step, run) -> None:
+    """A folder with [tool] config_file (exec, module): its table's config and the consumed values, as
+    config/<tag>.toml (its first argument, and in the context file), for every rendered tool (04 §9.2)."""
+    tool, folder = step.tool, step.folder
+    if not folder.get("tool", "config_file"):
+        return
+    data = dict(tool.config or {})
+    consumed = {k: v for k, v in step.identity_parts.get("config_values", {}).items()}
+    quantities_table = {k: v for k, v in consumed.items() if k in run.quantities}
+    for key, value in consumed.items():
+        if key not in run.quantities:
+            target = data
+            *head, last = key.split(".")
+            for part in head:
+                target = target.setdefault(part, {})
+            target[last] = value
+    if quantities_table:
+        data["quantities"] = quantities_table
+    if data or tool.config is not None or folder.get("tool", "config_always"):   # a kit program always takes one
+        step.config_path = plan.out / "config" / f"{step.tag}.toml"
+        step.config_data = data
+        step.identity_parts["config"] = tomli_w.dumps(data)
+
+
+def _argv(plan: PointPlan, step: Step, run) -> None:
     folder, tool = step.folder, step.tool
     context: dict[str, Any] = {
         **placeholders(), "out": str(plan.out), "res": str(plan.res), "exe": str(step.exe),
@@ -1110,6 +1231,8 @@ def _argv(plan: PointPlan, step: Step, run, requests: dict[str, str]) -> None:
         "q:": {name: str(run.quantities[name].values[i]) for name, i in plan.values.items()},
         "cards": [str(p) for p in step.card_base] + ([str(step.card_point)] if step.card_point else []),
         "card": str(step.card_combined or ""),
+        "context": str(plan.out / CONTEXT_FILE),             # the context file (04 §9.4); also $HEP_CONTEXT
+        "context:": {f"{tag}.{key}": value for tag, table in plan.context_tools.items() for key, value in table.items()},
         **step.placeholders,
         **plan.context,
     }
@@ -1122,54 +1245,8 @@ def _argv(plan: PointPlan, step: Step, run, requests: dict[str, str]) -> None:
             continue
         value = tool.extra.get(key, [] if rule.get("kind") == "list" else "")
         context[key] = [str(v) for v in value] if isinstance(value, list) else str(value)
-    # standard configurations handed to a custom/module tool (V21, 04 §9.4)
-    standard: dict[str, dict] = {}
-    for key, tag in requests.items():
-        source = plan.rendered[tag]
-        export = EXPORT.match(key).group("export")
-        declared = source.folder.spec.get("exports", {}).get(export, {})
-        if export == "card" or declared.get("alias") == "card":
-            parts = [str(p) for p in source.card_base] + ([str(source.card_point)] if source.card_point else [])
-            standard[key] = {"tool": source.tool.tool, "tag": tag, "path": str(source.card_combined), "parts": parts}
-        else:
-            values = {"tool": source.tool.tool, "tag": tag}
-            if declared.get("needs_prepare"):          # prepare on demand (04 §9.4)
-                if source.prepare_dir is None:
-                    raise HepError(f"{source.folder.name} export '{export}' needs a prepare step the tool does not have",
-                                   where=f"{source.folder.name}/tool.toml")
-                source.prepare_needed = True
-            if "path" in declared:
-                values["path"] = expand(declared["path"], {"prepared": str(source.prepare_dir or ""),
-                                                           "card": str(source.card_combined or "")},
-                                        f"{source.folder.name}/tool.toml [exports.{export}]")
-            for give, template in declared.get("values", {}).items():   # V60: data, not names in the core
-                if template.startswith("identity:"):
-                    values[give] = source.identity_parts.get(template[len("identity:"):], [])
-                else:
-                    values[give] = expand(template, placeholders(), f"{source.folder.name}/tool.toml [exports.{export}]")
-            standard[key] = values
-        step.identity_parts.setdefault("exports", {})[key] = plan.rendered[tag].identity_parts
-    context["std:"] = {k: v.get("path", "") for k, v in standard.items()}
 
     if folder.get("tool", "config_file"):
-        data = dict(tool.config or {})
-        consumed = {k: v for k, v in step.identity_parts.get("config_values", {}).items()}
-        quantities_table = {k: v for k, v in consumed.items() if k in run.quantities}
-        for key, value in consumed.items():
-            if key not in run.quantities:
-                target = data
-                *head, last = key.split(".")
-                for part in head:
-                    target = target.setdefault(part, {})
-                target[last] = value
-        if quantities_table:
-            data["quantities"] = quantities_table
-        if standard:
-            data["standard"] = standard
-        if data or tool.config is not None or folder.get("tool", "config_always"):   # a kit program always takes one
-            step.config_path = plan.out / "config" / f"{step.tag}.toml"
-            step.config_data = data
-            step.identity_parts["config"] = tomli_w.dumps(data)
         context["config"] = str(step.config_path) if step.config_path else ""
         context["arguments"] = [expand(str(a), context, f"[tools.{step.tag}].arguments") for a in tool.arguments]
         context["arguments"] = [x for a in context["arguments"] for x in (a if isinstance(a, list) else [a])]

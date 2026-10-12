@@ -4,16 +4,17 @@
 //     InprocJets.exe CONFIG.toml --output=jets.yoda
 //
 // The chain App_Pythia → FIFO → rivet as one program, with no HepMC text between the two
-// (docs/06_Internals.md §21). It asks for two standard configurations (V21, 04 §9.4), so the
-// runner still owns the sweeps, seeds and cards, and this program only runs them:
+// (docs/06_Internals.md §21). It reads Pythia's card and Rivet's analyses from the point's context file
+// (04 §9.4), so the runner still owns the sweeps, seeds and cards, and this program only runs them:
 //
+//     [run.cfgs.inproc]
+//     tools          = ["jets", "yd2rt"]
+//     generate_cards = ["pythia", "rivet"]   # not run: the card App_Pythia would get (seeds included),
+//                                            # the rivet table's analyses (options included), the plugin path
 //     [tools.jets]
 //     tool           = "module"
 //     executable     = "InprocJets.exe"
 //     output_file    = "jets.yoda"
-//     pythia_cmnd    = true       # [standard.pythia_cmnd].path: the card App_Pythia would get, seeds included
-//     rivet_analyses = true       # [standard.rivet_analyses]: the rivet table's analyses (options included)
-//                                 # and the plugin path
 //
 // Config ([tools.<tag>.config]):
 //   engine        = "parallel"  PythiaParallel as App_Pythia runs it: the same card, seeds and instances
@@ -35,12 +36,13 @@
 
 int main(int argc, char** argv) {
     Module::Job job(argc, argv);
+    const std::string engine = job.setting("engine", "parallel", "parallel: PythiaParallel, as App_Pythia; serial: one Pythia");
+    const int rivetThreads = job.setting("rivet_threads", 1, "Rivets on threads of their own, merged at the end (V34, L29)");
     if (job.hasInput()) job.fail(Module::Usage, "InprocJets makes its own events; give it no input");
-    const std::string card = job.standard("pythia_cmnd");
-    const std::string engine = job.config().get("engine", "parallel");
     if (engine != "parallel" && engine != "serial") job.fail(Module::Config, "engine must be parallel or serial");
+    const std::string card = job.card("pythia");                    // the context file's (generate_cards)
 
-    Inproc::Analysis rivet(job, job.standardValues("rivet_analyses"), job.config().get("rivet_threads", 1));
+    Inproc::Analysis rivet(job, job.tool("rivet"), rivetThreads);
     Inproc::Stamper stamper;
     const Inproc::Run run = engine == "serial" ? Inproc::serial(job, card, stamper, rivet)
                                                : Inproc::parallel(job, card, stamper, rivet);

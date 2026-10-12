@@ -9,6 +9,8 @@
 #   hep ls | explain | status | clean              housekeeping (docs/05_Commands_and_Tools.md §1)
 #   hep cluster <config> [<configuration>]          the run as Slurm jobs (sbatch), from a cluster's login node
 #   hep setup <dir> | where                        make a work dir; which Heimdall and work dir this shell sees
+#   hep refresh                                    reload the shell's environment: setup.sh's `hep` function
+#                                                  does it (env/hep_env.sh); this script only explains that
 #   hep build [targets…] [--tests] [--clean] [--configure] [-j N]    make, in the work dir
 #   hep build --framework …                        make, in Heimdall: the framework's apps
 set -euo pipefail
@@ -35,6 +37,7 @@ usage: hep <command> [options]
   cluster <config> [<configuration>]   run it as Slurm jobs: --dry-run, --status, --cancel (hep cluster --help)
   setup <dir> [--project P] [--git] [--adopt]    make a work dir     (hep setup --help)
   where [--hep | --work]           which Heimdall and which work dir this shell sees
+  refresh                          reload this shell's environment (setup.sh again, from scratch)
   build [targets…]                 compile the work dir's module programs and Rivet plugins (make all)
         --framework                Heimdall's apps instead (framework/Apps/)
         --tests                    also build the C++ tests (with --framework)
@@ -83,6 +86,11 @@ case "$cmd" in
         fi
         dir=$(work) || exit 2
         exec make -C "$dir" --no-print-directory "$@"
+        ;;
+    refresh)
+        echo "hep refresh: reloads the environment of the shell it is typed in, so it is setup.sh's shell function," >&2
+        echo "  and this shell does not have it (a script, or a shell started from one): source $hep/setup.sh" >&2
+        exit 2
         ;;
     ""|-h|--help|help)
         usage

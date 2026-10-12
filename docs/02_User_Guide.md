@@ -32,8 +32,11 @@ and activates the Python environment. An isolated toolkit's stack is loaded by i
 stack) a shell sees, and which work dir.
 
 The shell gives you `hep_status` (installed versions), `hep_cd PROJECT
-[configs|modules|results|output]` (in the current work dir), `hep_refresh`, `quit` (leave the
-environment) and `hep_help`.
+[configs|modules|results|output]` (in the current work dir), `quit` (leave the environment) and
+`hep_help`. **`hep refresh`** reloads the environment in the same shell, from scratch: `quit`, then the
+same `setup.sh` again. Use it after a stack's rebuild, an edit of `env/hep_env.sh` or
+`env/machine.sh`, or a `git pull` of Heimdall. It is the shell function `hep` that `setup.sh` defines
+(also `hep_refresh`), since a program cannot change its shell's variables.
 
 ### 1.2 A work dir
 

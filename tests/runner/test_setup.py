@@ -166,3 +166,33 @@ def test_a_revision_heimdall_contains_is_no_warning(scratch):
 def test_a_revision_heimdall_lacks_is_warned_about(scratch):
     warning = setup.expects_warning(expecting(scratch / "w", "0123456789abcdef0123456789abcdef01234567"))
     assert warning.startswith("warning: w was made by Heimdall 0123456789ab, which ") and "git pull" in warning
+
+
+def shell(script: str) -> subprocess.CompletedProcess:
+    """A clean bash, as a user's: nothing of this session's environment but HOME and a plain PATH."""
+    env = {"HOME": os.environ["HOME"], "PATH": "/usr/bin:/bin"}
+    return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, timeout=120)
+
+
+@pytest.mark.skipif(not (REPO / "env" / "venv" / "bin" / "activate").exists(), reason="no env/venv: build the stack")
+def test_hep_refresh_reloads_the_shell_in_place():
+    out = shell(f"""set -e
+        source {REPO}/setup.sh >/dev/null
+        before=$_HEP_ADDED
+        export PATH=/nowhere:$PATH                       # the user's own, not the environment's: kept
+        hep refresh >/dev/null
+        type -t hep
+        echo "$HEP_ENV_LOADED"
+        [ "$_HEP_ADDED" = "$before" ] && echo same-additions
+        tr ':' '\\n' <<< "$PATH" | grep -c '^{REPO}/framework/bin$'
+        tr ':' '\\n' <<< "$PATH" | grep -c '^/nowhere$'
+        hep where --hep""")
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.split("\n")[:5] == ["function", "1", "same-additions", "1", "1"]
+    assert str(REPO) in out.stdout.split("\n")[5]
+
+
+def test_hep_refresh_without_the_shell_function_says_to_source_setup():
+    out = shell(f"{HEP} refresh")
+    assert out.returncode == 2
+    assert "setup.sh's shell function" in out.stderr and f"source {REPO}/setup.sh" in out.stderr

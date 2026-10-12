@@ -105,12 +105,13 @@ quit() {
         echo "HEP env not loaded"
         return 0
     fi
-    if declare -F deactivate >/dev/null; then
-        deactivate
-    elif [ -n "${VIRTUAL_ENV-}" ]; then          # child shell: venv vars inherited, function not
-        _hep_strip PATH "$VIRTUAL_ENV/bin"
-        unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT
-    fi
+    local venv=${VIRTUAL_ENV-} path=$PATH
+    if declare -F deactivate >/dev/null; then    # the prompt and PYTHONHOME; but it also puts PATH back as it was
+        deactivate                               # at activation, losing what was added since: keep today's
+        export PATH=$path
+    fi                                           # (a child shell inherits the venv's variables, not deactivate)
+    [ -n "$venv" ] && _hep_strip PATH "$venv/bin"
+    unset VIRTUAL_ENV VIRTUAL_ENV_PROMPT
     local var dir saved
     while IFS='=' read -r var dir; do
         [ -n "$var" ] && _hep_strip "$var" "$dir"
@@ -127,6 +128,17 @@ hep_refresh() {
     local setup="${HEP_SETUP:-$HEP/setup.sh}"
     quit >/dev/null
     source "$setup"
+}
+# hep: the command (framework/bin/hep), except `hep refresh`, which reloads this shell's environment and
+# so must run in the shell itself (a program cannot change its parent's variables).
+hep() {
+    if [ "${1-}" = refresh ]; then
+        shift
+        [ $# -eq 0 ] || { echo "hep refresh: takes no arguments" >&2; return 2; }
+        hep_refresh
+    else
+        command hep "$@"
+    fi
 }
 # hep_status: the installed tool versions.
 hep_status() { _hep_status_probe "$@"; }
@@ -146,7 +158,7 @@ hep_help() {
 hep run | plot | watch | build | make   the framework (hep --help)
 HEP environment commands:
   hep_status             installed tool versions
-  hep_refresh            reload the environment from scratch
+  hep refresh            reload the environment from scratch (also hep_refresh)
   quit                   leave the HEP environment (restores paths, deactivates venv)
   hep_cd PROJECT [DIR]   cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|output)
   hep_stash              cd to \$HEP/stash (downloads)

@@ -362,6 +362,12 @@ is `make …` in Heimdall. The targets:
 The make rules are in [06 §15](06_Internals.md#15-the-build). Run them with the environment loaded
 (`source <Heimdall>/setup.sh`, the alias `load_hep`).
 
+`hep refresh` reloads that environment in the shell it is typed in: `quit`, then the same `setup.sh`
+(a toolkit's `stacks/<toolkit>/setup.sh` when that is the one loaded). `setup.sh` defines `hep` as a
+shell function that runs `hep_refresh` for `refresh` and `framework/bin/hep` for everything else. In
+a shell without that function (a script, or a shell started from one), `framework/bin/hep refresh`
+exits 2 and says to source `setup.sh`.
+
 `hep setup <dir>` makes a work dir and `hep where` says which Heimdall and which work dir a shell
 sees ([02 §1](02_User_Guide.md#1-set-up-and-build); their options are in §1).
 

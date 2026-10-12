@@ -1421,6 +1421,37 @@ def clean_base(base: Path, folder: Folder) -> list[str]:
     return [f"{folder.get('card', 'comment', '#')} from {base}", *(line for _, line in _cleaned(base, folder))]
 
 
+def card_view(plan: PointPlan, tag: str) -> list[str]:
+    """`hep run --plan --card <tag>` (audit 3, 04 §4): the tool's card for this point as the tool reads it,
+    each line with where its value comes from: a base card's line (and whether the point card sets it
+    again), a setting, a quantity, the vocabulary, a built-in, or the runner (seeds, the footer)."""
+    if tag not in plan.rendered:
+        raise HepError(f"--card: no tool table '{tag}' in this point", hint="its tools: " + ", ".join(plan.rendered))
+    step = plan.rendered[tag]
+    if step.card_combined is None:
+        raise HepError(f"--card {tag}: {step.folder.name} has no card", hint="its values are flags, options or a config file")
+    parse = card_parser(step.folder)
+    comment = step.folder.get("card", "comment", "#")
+    point = plan.writes.get(step.card_point or step.card_combined, "\n".join(step.card_lines))
+    point_lines = point.splitlines()
+    again = {parsed[0] for line in point_lines if (parsed := parse(line))}
+    rows: list[tuple[str, str]] = []
+    for base in step.card_base if step.card_point is not None else ():
+        for n, line in _cleaned(base, step.folder):
+            parsed = parse(line)
+            rows.append((line, f"{base.name}:{n}" + (", set again below" if parsed and parsed[0] in again else "")))
+    for line in point_lines:
+        parsed = parse(line)
+        if not line.strip() or line.lstrip().startswith(comment):
+            rows.append((line, ""))
+            continue
+        origin = step.card_origins.get(parsed[0]) if parsed else None
+        rows.append((line, origin or ("the base card" if step.card_point is None else "the runner (seeds, the footer)")))
+    width = min(max((len(line) for line, origin in rows if origin), default=20), 64)
+    return [f"{tag}'s card for point {plan.point.name}: {step.card_combined}",
+            *(f"  {line:{width}}  ← {origin}" if origin else f"  {line}" for line, origin in rows)]
+
+
 _CHECKED: dict[str, list] = {}
 
 

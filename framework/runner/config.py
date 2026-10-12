@@ -389,9 +389,21 @@ ENTRIES = ("quantities", "tools")
 
 
 def _over(base: dict, over: dict) -> dict:
-    out = dict(base)
+    """`over`'s tables laid over `base`'s (V56): whole entries for quantities and tools, but a v3 file's
+    tool tables merge key by key (03 §6); [run]'s keys one by one; tables deep. The v3 mark is the file's
+    own (the last one laid: the file being run)."""
+    out = {k: v for k, v in base.items() if k != v3.MARK}
+    if over.get(v3.MARK):
+        out[v3.MARK] = True
     for section, value in over.items():
-        if section in ENTRIES and isinstance(value, dict):
+        if section == v3.MARK:
+            continue
+        if section == "tools" and over.get(v3.MARK) and isinstance(value, dict):     # v3: key by key
+            below = dict(out.get(section, {}))
+            for tag, table in value.items():
+                below[tag] = _deep(below[tag], table) if isinstance(below.get(tag), dict) and isinstance(table, dict) else table
+            out[section] = below
+        elif section in ENTRIES and isinstance(value, dict):
             out[section] = {**out.get(section, {}), **value}
         elif section == "run" and isinstance(value, dict):          # [run] keys one by one, configurations whole
             below = out.get(section, {})

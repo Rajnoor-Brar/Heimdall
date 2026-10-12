@@ -24,6 +24,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--plan` | print the plan; run nothing |
 | `--why` | for each point that would run, what changed since it last completed; run nothing |
 | `--show-config` | print each configuration's resolved values and where each came from; run nothing |
+| `--card TAG` | with --plan: that tool's card for the first point, each line with where its value comes from |
 | `--points SEL` | run a subset: tags, indices or quantity=tag |
 | `--set KEY=VALUE` | override one value for this invocation (repeatable) |
 | `--rerun` | ignore skip-unchanged |

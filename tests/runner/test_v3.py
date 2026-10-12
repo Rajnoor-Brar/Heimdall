@@ -206,3 +206,25 @@ def test_a_v2_file_stays_v2(scratch):
     """For one release: a file without v3's tables, or one that says [file] schema = 2."""
     assert load(scratch, V2).form == 2
     assert load(scratch, "[file]\nschema = 2\n\n" + V2, "said.toml").form == 2
+
+
+def test_an_imported_tool_table_merges_key_by_key(scratch):
+    """03 §6: a v3 file changes one key of an imported tool, not the whole table (v2 replaced it)."""
+    common = scratch / "common.toml"
+    common.write_text(V3.replace('[cfgs.single]\ndescription = "One run at the fixed point"\n', "")
+                      .replace('[cfgs.pdf]\nvary = ["pdf"]\n', ""), encoding="utf-8")
+    mine = f'[file]\nimport = ["{common}"]\n\n[run]\nproject = "Demo"\nname = "mine"\nrun = "one"\n\n' \
+           '[tools.rivet]\nanalyses = ["photo_eic:R=0.7"]\n\n[cfgs.one]\nvary = ["pdf"]\n'
+    run = load(scratch, mine, "mine.toml")
+    assert run.form == 3 and run.tools["rivet"].extra["analyses"] == ["photo_eic:R=0.7"]
+    assert run.tools["rivet"].output_file == ["jets.yoda"] and run.tools["rivet"].input == ["events.hepmc"]
+
+
+def test_the_card_shows_where_each_line_comes_from(scratch, capsys):
+    from runner import cli
+    path = written(scratch, V3)
+    assert cli.main(["run", path, "pdf", "--plan", "--card", "pythia", "--points", "NNPDF23lo"]) == 0
+    shown = capsys.readouterr().out
+    assert "pythia's card for point NNPDF23lo" in shown
+    assert "← [quantities.pdf] = NNPDF23lo" in shown and "ep.cmnd:" in shown and "set again below" in shown
+    assert "← the runner (seeds, the footer)" in shown

@@ -49,6 +49,8 @@ def parser() -> argparse.ArgumentParser:
                      help="for each point that would run, what changed since it last completed; run nothing")
     run.add_argument("--show-config", action="store_true",
                      help="print each configuration's resolved values and where each came from; run nothing")
+    run.add_argument("--card", metavar="TAG", help="with --plan: that tool's card for the first point, each line with "
+                                                   "where its value comes from")
     run.add_argument("--points", metavar="SEL", help="run a subset: tags, indices or quantity=tag")
     run.add_argument("--set", metavar="KEY=VALUE", action="append", default=[],
                      help="override one value for this invocation (repeatable)")
@@ -546,6 +548,12 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         if title_line:
             print(("\n" if number > 1 else "") + title_line)
         if args.plan:
+            if getattr(args, "card", None):
+                if not plans:
+                    raise HepError("--card: no point to show", hint="--points picks one")
+                for line in tools.card_view(plans[0], args.card):
+                    print(line)
+                return 0
             print_plan(run, configuration, plans, post_plan, pre_plan, combined)
             return 0
         return 1 if plot.draw(run, configuration, combined or every, print, others=others_of(args)) else 0

@@ -304,7 +304,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 - **An inactive quantity is an error** (U36): "declared but neither varied nor fixed: give `fixed`,
   or vary it". This can come first, even in v2.
 
-**6.2 Tools and the chain** (U37, U38, U39, U42, U44)
+**6.2 Tools and the chain** (U37, U38, U39, U42, U44) — **done, V128–V129** (one source per key stays C8's among the run TOML's sources, the base card shown by `--card` rather than refused; no `replicas` key; `keep = true` on a FIFO not done)
 - Tools are typed by table name (`uses =` for a second instance).
 - `input = "<producer>"`; FIFO or file inferred; `keep = true`.
 - `[prelim]` retired (its commands become a `pre` step).

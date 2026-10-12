@@ -2,7 +2,9 @@
 
 docs/06_Internals.md §16 (the tool-folder contract), docs/06_Internals.md §6 (connections) and
 docs/04_Config_Reference.md §9 (tool tables, custom tools, standard configurations). Everything the runner knows
-about a tool comes from its folder framework/tools/<tool>/. This module never names one.
+about a tool comes from its folder: the nearest <name>/ on the search path (a work dir's tools/, the machine
+root's tools/, Heimdall's framework/tools/; paths.tool_chains), laid over the one it extends. This module
+never names one.
 
 `plan_point` turns (run, configuration, point) into groups of Steps: argv, environment, files to
 write, inputs and outputs, and what to check afterwards. Nothing is spawned or written here; that is
@@ -30,10 +32,10 @@ from . import plugins
 from . import quantities as qmod
 from .config import Tool
 from .errors import HepError, did_you_mean
-from .paths import hep_root, output_root, placeholders, portable, resolve, results_root
+from .paths import hep_root, output_root, placeholders, portable, resolve, results_root, tool_chains
 from .sweep import tag_of
 
-ENV = Path(__file__).resolve().parents[1] / "tools"       # framework/tools
+ENV = Path(__file__).resolve().parents[1] / "tools"       # framework/tools: the shipped folders (the search path's last)
 
 FOLDER_SECTIONS = {
     "tool": {"category", "executable", "streamable", "status", "consumes_events", "produces_events", "config_file",
@@ -65,9 +67,15 @@ class Folder:
     name: str
     dir: Path
     spec: dict
+    origin: str = "shipped"                               # work, machine or shipped: where the nearest is
+    chain: tuple = ()                                     # ((origin, dir), …) nearest first: it, then what it extends
 
     def get(self, section: str, key: str, default: Any = None) -> Any:
         return self.spec.get(section, {}).get(key, default)
+
+    def find(self, file: str) -> Path | None:
+        """A file of the folder: the nearest folder's, else the one it extends (render.py, filters.toml …)."""
+        return next((d / file for _, d in (self.chain or (("", self.dir),)) if (d / file).is_file()), None)
 
     @property
     def card_style(self) -> str:
@@ -75,61 +83,99 @@ class Folder:
 
     @property
     def plugin(self):
-        """framework/tools/<tool>/render.py, for `[card] style = "render"` (06 §16)."""
-        path = self.dir / "render.py"
-        if not path.is_file():
+        """<tool>/render.py, for `[card] style = "render"` (06 §16): the nearest folder's, or the extended one's."""
+        path = self.find("render.py")
+        if path is None:
             raise HepError(f'{self.name} has [card] style = "render" but no render.py', where=str(self.dir))
         return plugins.load(path, "render")
 
     def hook(self, name: str):
         """A function of the folder's render.py, or None (V60): the folder's own code, called by name."""
-        if not (self.dir / "render.py").is_file():
+        if self.find("render.py") is None:
             return None
         return getattr(self.plugin, name, None)
 
     @property
     def filters(self) -> list[dict]:
-        path = self.dir / "filters.toml"
-        return tomllib.loads(path.read_text(encoding="utf-8")).get("rule", []) if path.exists() else []
+        path = self.find("filters.toml")
+        return tomllib.loads(path.read_text(encoding="utf-8")).get("rule", []) if path else []
 
 
-_FOLDERS: dict[str, Folder] | None = None
+_FOLDERS: tuple[dict, dict[str, Folder]] | None = None     # (the chains they were made from, the folders)
+
+
+def _spec(path: Path) -> dict:
+    """One tool.toml, checked: its sections and their keys; `extends` the only key outside a section."""
+    where = str(path.relative_to(hep_root())) if path.is_relative_to(hep_root()) else str(path)
+    try:
+        spec = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as error:
+        raise HepError(f"not valid TOML: {error}", where=where)
+    for section, table in spec.items():
+        if section == "extends":
+            continue
+        if section not in FOLDER_SECTIONS:
+            raise HepError(f"unknown section [{section}] in a tool folder", where=where,
+                           hint=did_you_mean(section, [*FOLDER_SECTIONS, "extends"]))
+        allowed = FOLDER_SECTIONS[section]
+        if allowed is not None:
+            for key in table:
+                if key not in allowed:
+                    raise HepError(f"unknown key [{section}].{key}", where=where,
+                                   hint=did_you_mean(key, allowed))
+    return spec
+
+
+def _laid(base: dict, over: dict) -> dict:
+    """A nearer folder's tool.toml over the one it extends: tables merge key by key, anything else replaces."""
+    out = dict(base)
+    for key, value in over.items():
+        out[key] = _laid(out[key], value) if isinstance(value, dict) and isinstance(out.get(key), dict) else value
+    return out
 
 
 def folders() -> dict[str, Folder]:
-    """Every framework/tools/<tool>/tool.toml, checked. The set of folders is the dict of standard tools."""
+    """Every tool folder on the search path (paths.tool_chains), checked; one that extends another is laid
+    over it. Its name is the `tool = "<name>"` a tool table gives."""
     global _FOLDERS
-    if _FOLDERS is None:
+    chains = tool_chains()
+    if _FOLDERS is None or _FOLDERS[0] is not chains:
         found = {}
-        for path in sorted(ENV.glob("*/tool.toml")):
-            where = str(path.relative_to(hep_root()))
-            try:
-                spec = tomllib.loads(path.read_text(encoding="utf-8"))
-            except tomllib.TOMLDecodeError as error:
-                raise HepError(f"not valid TOML: {error}", where=where)
-            for section, table in spec.items():
-                if section not in FOLDER_SECTIONS:
-                    raise HepError(f"unknown section [{section}] in a tool folder", where=where,
-                                   hint=did_you_mean(section, FOLDER_SECTIONS))
-                allowed = FOLDER_SECTIONS[section]
-                if allowed is not None:
-                    for key in table:
-                        if key not in allowed:
-                            raise HepError(f"unknown key [{section}].{key}", where=where,
-                                           hint=did_you_mean(key, allowed))
+        for name, chain in chains.items():
+            spec: dict = {}
+            for _, folder in reversed(chain):
+                if (folder / "tool.toml").is_file():
+                    spec = _laid(spec, _spec(folder / "tool.toml"))
+            if not spec:
+                continue                                  # a folder of plugins or mappings only (lhapdf, figures …)
+            spec.pop("extends", None)
             style = spec.get("card", {}).get("style", "none")
             if style not in CARD_STYLES:
-                raise HepError(f"[card].style must be one of {', '.join(CARD_STYLES)}", where=where)
-            found[path.parent.name] = Folder(path.parent.name, path.parent, spec)
-        _FOLDERS = found
-    return _FOLDERS
+                raise HepError(f"[card].style must be one of {', '.join(CARD_STYLES)}", where=str(chain[0][1]))
+            found[name] = Folder(name, chain[0][1], spec, chain[0][0], tuple(chain))
+        _FOLDERS = (chains, found)
+    return _FOLDERS[1]
+
+
+def folder_rows() -> list[str]:
+    """`hep tools`: every tool folder, where the nearest comes from and what it extends, and what it is."""
+    known = folders()
+    rows = []
+    for name in sorted(known):
+        folder = known[name]
+        origin = folder.origin + "".join(f", extends {d.name} ({o})" for o, d in folder.chain[1:])
+        rows.append((name, origin, folder.get("tool", "category", ""), folder.get("tool", "status", ""), str(folder.dir)))
+    widths = [max(len(r[i]) for r in rows + [("tool", "from", "category", "status", "")]) for i in range(4)]
+    head = ("tool", "from", "category", "status", "folder")
+    return [" ".join(f"{cell:{widths[i]}}" if i < 4 else cell for i, cell in enumerate(row)).rstrip()
+            for row in [head, *rows]]
 
 
 def folder_of(tool) -> Folder:
     known = folders()
     if tool.tool not in known:
-        raise HepError(f"tool = \"{tool.tool}\" is not a standard tool", where=f"[tools.{tool.tag}]",
-                       hint=did_you_mean(tool.tool, known) or f"tool folders: {', '.join(known)}")
+        raise HepError(f"tool = \"{tool.tool}\" is no tool folder", where=f"[tools.{tool.tag}]",
+                       hint=did_you_mean(tool.tool, known) or f"tool folders (hep tools): {', '.join(known)}")
     return known[tool.tool]
 
 

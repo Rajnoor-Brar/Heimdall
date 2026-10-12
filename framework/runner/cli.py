@@ -145,6 +145,11 @@ def parser() -> argparse.ArgumentParser:
                         help="write this machine's summary to recipes/support/<platform>-<host>.toml (the support matrix)")
     doctor.add_argument("--matrix", action="store_true", help="the support matrix: every machine's recorded summary")
 
+    commands.add_parser("tools", help="every tool folder: the work dir's tools/, the machine root's, Heimdall's",
+                        description="Each tool folder by name, nearest first: a work dir's tools/<name>/, the machine "
+                                    "root's tools/<name>/, Heimdall's framework/tools/<name>/. A nearer folder replaces "
+                                    "a farther one, or, with extends = \"<name>\" in its tool.toml, is laid over it.")
+
     where = commands.add_parser("where", help="which Heimdall and which work dir this shell sees")
     which = where.add_mutually_exclusive_group()
     which.add_argument("--hep", action="store_const", const="hep", dest="which", help="only Heimdall's folder")
@@ -975,6 +980,11 @@ def main(argv: list[str]) -> int:
             return setupmod.where(args.which)
         if args.command == "doctor":
             return doctormod.main(quick=args.quick, record_it=args.record, show_matrix=args.matrix)
+        if args.command == "tools":
+            from .tools import folder_rows
+            for line in folder_rows():
+                print(line)
+            return 0
         if args.command == "run":
             return cmd_run(args)
         if args.command == "plot":

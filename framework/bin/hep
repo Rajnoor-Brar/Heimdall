@@ -43,6 +43,7 @@ usage: hep <command> [options]
   setup <dir> [--project P] [--git] [--adopt]    make a work dir     (hep setup --help)
   where [--hep | --work]           which Heimdall and which work dir this shell sees
   doctor [--quick] [--record]      what this machine's stack and Heimdall can do, checked
+  tools                            every tool folder: the work dir's tools/, the machine root's, Heimdall's
   refresh | quit                   reload this shell's environment (the same stack, from scratch); leave it
   cd PROJECT [DIR]                 cd to the work dir's DIR/PROJECT (DIR: configs, modules, results, output)
   build [targets…]                 compile the work dir's module programs and Rivet plugins (make all)
@@ -62,7 +63,7 @@ work() { "$py" "$here/run" where --work; }                         # the work di
 cmd=${1-}
 [ $# -gt 0 ] && shift
 case "$cmd" in
-    run|watch|plot|overlay|deck|check|ls|explain|status|clean|reproduce|migrate|setup|where|cluster|doctor)
+    run|watch|plot|overlay|deck|check|ls|explain|status|clean|reproduce|migrate|setup|where|cluster|doctor|tools)
         exec "$py" "$here/run" "$cmd" "$@"
         ;;
     build)

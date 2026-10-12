@@ -151,6 +151,11 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--record` | write this machine's summary to recipes/support/<platform>-<host>.toml (the support matrix) |
 | `--matrix` | the support matrix: every machine's recorded summary |
 
+**`hep tools`**: every tool folder: the work dir's tools/, the machine root's, Heimdall's
+
+| Argument | Meaning |
+|---|---|
+
 **`hep where`**: which Heimdall and which work dir this shell sees
 
 | Argument | Meaning |
@@ -401,7 +406,10 @@ refused, naming its replacement, and `setup.sh` unsets `HEKIT_ROOT` with a warni
 ## 3. The standard tools at a glance
 
 A **standard tool** is a folder `framework/tools/<tool>/`, and its name is the value of `tool = …`. The
-runner discovers the folders and names none of them.
+runner discovers the folders and names none of them. A work dir's `tools/<tool>/` and the machine
+root's come first, and may replace or extend (`extends = "<tool>"`) a shipped one
+([06 §16](06_Internals.md#16-the-tool-folder-contract)); `hep tools` lists them all, with where each
+comes from.
 
 | `tool =` | Category | Runs | Card | Streamable | Status | Count check | Prepare | Exports |
 |---|---|---|---|---|---|---|---|---|

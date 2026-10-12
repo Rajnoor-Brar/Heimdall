@@ -846,8 +846,18 @@ flags, `FOUND` and `KNOWN` (the stack's libraries: what a `// requires:` line ma
 
 ## 16. The tool-folder contract
 
-Everything the runner knows about a kind of tool is in `framework/tools/<tool>/`. The core never names a
-tool, so adding one is adding a folder.
+Everything the runner knows about a kind of tool is in its folder, `<tool>/`. The core never names a
+tool, so adding one is adding a folder. Folders are found on a **search path**, nearest first
+(`paths.tool_chains`, audit 3 phase 4.1):
+1. the work dir's `tools/<tool>/`: one study's tools, or its version of a shipped one;
+2. the machine root's `tools/<tool>/` (`$HEP_MACHINE/tools/`): every work dir's on this machine;
+3. Heimdall's `framework/tools/<tool>/`: the shipped ones.
+
+A nearer folder replaces a farther one of the same name whole, unless its `tool.toml` says
+`extends = "<tool>"`: then it is laid over that folder (of its own name: the next one down the path),
+table by table and key by key, and its other files (`render.py`, `filters.toml`, `quantities.toml`,
+`provider.py`) are the nearest folder's that has them. `hep tools` lists every folder, where it comes
+from and what it extends.
 
 ```
 framework/tools/<tool>/

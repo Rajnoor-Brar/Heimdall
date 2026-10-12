@@ -23,7 +23,7 @@ from typing import Any, NamedTuple
 
 from . import plugins
 from .errors import HepError, did_you_mean
-from .paths import hep_root, resolve
+from .paths import hep_root, resolve, tool_chains
 
 @functools.cache
 def vocabulary() -> dict:
@@ -64,19 +64,36 @@ def _read(path: Path) -> dict:
         raise HepError(f"not valid TOML: {error}", where=str(path)) from None
 
 
-@functools.cache
+_MASTER: tuple[dict, dict] | None = None              # (the chains it was made from, the master)
+
+
 def _folders_master() -> dict:
     """Every tool folder's quantities.toml, as one master: {quantities: {<tool>: {compatible_quantities}}}.
-    A folder maps only names the vocabulary has (V58)."""
+    A folder maps only names the vocabulary has (V58); a nearer folder's over the one it extends."""
+    global _MASTER
+    chains = tool_chains()
+    if _MASTER is None or _MASTER[0] is not chains:
+        _MASTER = (chains, _master_of())
+    return _MASTER[1]
+
+
+def _master_of() -> dict:
     master: dict = {"quantities": {}}
     known = vocabulary()
-    for path in sorted((hep_root() / "framework" / "tools").glob("*/quantities.toml")):
-        table = _read(path)
-        unknown = [name for name in table if name not in known]
-        if unknown:
-            raise HepError(f"{path.parent.name} maps {', '.join(unknown)}, which the vocabulary does not have",
-                           where=str(path), hint="add it to framework/schema/quantities.toml, with its shape")
-        master["quantities"][path.parent.name] = {"compatible_quantities": table}
+    for name, chain in sorted(tool_chains().items()):
+        table: dict = {}
+        for _, folder in reversed(chain):                 # the extended folder's, then the nearer's over it
+            path = folder / "quantities.toml"
+            if not path.is_file():
+                continue
+            mapped = _read(path)
+            unknown = [key for key in mapped if key not in known]
+            if unknown:
+                raise HepError(f"{name} maps {', '.join(unknown)}, which the vocabulary does not have",
+                               where=str(path), hint="add it to framework/schema/quantities.toml, with its shape")
+            table.update(mapped)
+        if table:
+            master["quantities"][name] = {"compatible_quantities": table}
     return master
 
 
@@ -268,8 +285,11 @@ def check_shapes(quantity, where: str) -> None:
 # ── providers: things a value needs installed (06 §4, category 1) ─────────────────────────────
 
 def _provider(name: str):
-    """framework/tools/<name>/provider.py (V60): a provider's checks, loaded by name."""
-    return plugins.load(hep_root() / "framework" / "tools" / name / "provider.py", "provider")
+    """<name>/provider.py (V60): a provider's checks, loaded by name, from the nearest folder that has one."""
+    path = next((d / "provider.py" for _, d in tool_chains().get(name, []) if (d / "provider.py").is_file()), None)
+    if path is None:
+        raise HepError(f"no provider '{name}': no {name}/provider.py on the tool search path (hep tools)")
+    return plugins.load(path, "provider")
 
 
 def check_provider(kind: str, value, where: str) -> None:

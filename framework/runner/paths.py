@@ -145,9 +145,10 @@ def work_root() -> Path:
 
 
 def reset() -> None:
-    """Forget the cached search (tests that make and move work dirs)."""
+    """Forget the cached search (tests that make and move work dirs, or tool folders)."""
     _search.cache_clear()
     hep_root.cache_clear()
+    _tool_chains.cache_clear()
 
 
 def _rooted(var: str, name: str) -> Path:
@@ -228,6 +229,60 @@ def apps_dir() -> Path:
 def forge_dir() -> Path:
     """Builds in progress for the loaded stack: make/ (Heimdall's intermediates), tests/, scratch/."""
     return Path(os.environ["HEP_FORGE"]) if os.environ.get("HEP_FORGE") else stack_dir() / "forge"
+
+
+def tool_roots() -> list[tuple[str, Path]]:
+    """Where tool folders are, nearest first (docs/audit_3/04_Extending.md §2): the work dir's tools/
+    ("work"), the machine root's tools/ ("machine"), Heimdall's framework/tools/ ("shipped")."""
+    out = []
+    work = find_work()
+    if work is not None:
+        out.append(("work", work / "tools"))
+    out.append(("machine", machine_root() / "tools"))
+    out.append(("shipped", hep_root() / "framework" / "tools"))
+    return out
+
+
+def tool_chains() -> dict[str, list[tuple[str, Path]]]:
+    """Each tool folder's name → the folders that make it, nearest first: the first folder of that name on
+    the search path (tool_roots), then, when its tool.toml says extends = "<name>", the chain of <name>
+    (of its own name: the next folder of it down the path). A nearer folder without extends replaces a
+    farther one whole."""
+    return _tool_chains(tuple((origin, str(root)) for origin, root in tool_roots()))
+
+
+@functools.cache
+def _tool_chains(roots: tuple[tuple[str, str], ...]) -> dict[str, list[tuple[str, Path]]]:
+    found: dict[str, list[tuple[str, Path]]] = {}
+    for origin, root in roots:
+        for folder in sorted(Path(root).iterdir()) if Path(root).is_dir() else ():
+            if folder.is_dir() and not folder.name.startswith((".", "_")):
+                found.setdefault(folder.name, []).append((origin, folder))
+
+    def chain(name: str, level: int, seen: tuple[Path, ...]) -> list[tuple[str, Path]]:
+        places = found.get(name, [])
+        if level >= len(places):
+            below = f" below {places[-1][1]}" if places else ""
+            raise HepError(f"no tool folder '{name}'{below} to extend", where=str(seen[-1] / "tool.toml"),
+                           hint="tool folders: " + ", ".join(sorted(found)))
+        origin, folder = places[level]
+        if folder in seen:
+            raise HepError("tool folders extend each other in a circle: "
+                           + " → ".join(f.name for f in (*seen, folder)), where=str(folder / "tool.toml"))
+        spec_file = folder / "tool.toml"
+        extends = None
+        if spec_file.is_file():
+            try:
+                extends = tomllib.loads(spec_file.read_text(encoding="utf-8")).get("extends")
+            except tomllib.TOMLDecodeError as error:
+                raise HepError(f"not valid TOML: {error}", where=str(spec_file)) from None
+        if extends is None:
+            return [(origin, folder)]
+        if not isinstance(extends, str):
+            raise HepError("extends names one tool folder", where=str(spec_file))
+        return [(origin, folder), *chain(extends, level + 1 if extends == name else 0, (*seen, folder))]
+
+    return {name: chain(name, 0, ()) for name in found}
 
 
 def placeholders() -> dict[str, str]:

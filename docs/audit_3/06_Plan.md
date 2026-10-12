@@ -213,7 +213,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 
 ## Phase 4 — One tool system
 
-**4.1 The tool search path** (U51, U27)
+**4.1 The tool search path** (U51, U27) — **done, V125**
 - `tools.folders()` and the quantity mappings search, nearest first:
   1. `<work>/tools/`;
   2. `$HEP_MACHINE/tools/`;

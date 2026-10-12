@@ -33,7 +33,7 @@ YAML merge for Sherpa, and so on (see [05](05_Commands_and_Tools.md)).
 **Precedence of a value, lowest to highest:**
 
 ```
-framework/tools/<tool>/quantities.toml  <  [config].master  <  [quantities.<q>].key / target  <  --set
+<tool>/quantities.toml (shipped < machine < work dir)  <  [config].master  <  [quantities.<q>].key / target  <  --set
 [static]  <  [run.cfgs.<cfg>].static  <  --set static.<q>=…  <  the value a sweep gives the point
 [run]  <  extends  <  [run.cfgs.<cfg>]  <  --set
 [config].import files  <  this file
@@ -201,7 +201,9 @@ A run TOML's quantity of that name is checked against the shape when the file is
 through its `key` or `target` (§8.1).
 
 **Each tool folder** says how that tool consumes the vocabulary, in
-`framework/tools/<tool>/quantities.toml`; a project master overlays those mappings in the same form:
+`<tool>/quantities.toml` (Heimdall's `framework/tools/`, then the machine root's and the work dir's
+`tools/`, each over the folder it extends: [06 §16](06_Internals.md#16-the-tool-folder-contract)); a
+project master overlays those mappings in the same form:
 
 ```toml
 [quantities.pythia.compatible_quantities]           # [quantities.<tool>.compatible_quantities]

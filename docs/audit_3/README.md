@@ -22,6 +22,21 @@ Also covered: the everyday commands ([05_CLI.md](05_CLI.md)). The remediation, i
 - **Downloads, sources and builds go in `forge/`;** `stack/` holds finished installs only.
 - **Nothing here is built without the user's order,** phase by phase.
 
+**Decisions taken while reviewing the audit (the user, 2026-10-12):**
+- **Toolkits are build configurations,** one TOML each ([04 §5](04_Extending.md#5-toolkits-the-stacks-build-configurations)).
+  `standard.toml` holds every recipe, with conditional flags evaluated on what is installed or in the
+  build. `<name>.toml` (`@name`) borrows from it through `[standard]` booleans (packages or groups),
+  can `extends` another toolkit, and can override or add recipes.
+- **The tool contract** ([04 §3](04_Extending.md#3-the-tool-contract-its-own-arguments-and-one-context-file)).
+  Each tool defines its own arguments. The run adds one context TOML listing every tool's card and
+  config. It reaches tools through `HEP_CONTEXT` first (`{context}` in an argv where wanted), and is
+  written when a point starts and removed when it ends.
+- **Versions:** the recipes adopt the Mac's newer versions (YODA 2.1.4, Rivet 4.1.4, Pythia 8318,
+  MadGraph 3.8.1).
+- **HDF5** is a recipe, built by `@primary` and `@lab` too.
+- **Schema v3:** configurations are `[cfgs.<name>]`; serial numbers are optional (automatic unless
+  set, and a changed identity under a set serial is refused).
+
 ## Evidence
 
 - **The Mac build.** It met 17 problems before `@primary` stood, logged one by one as they came

@@ -124,12 +124,72 @@ tools only, the same kind of thing in every root.
 **Style, toolkits, patches:**
 - a work dir's `style.toml` (and a machine's) is laid over `base.toml`. `base.toml` moves to
   `framework/style/`;
-- `toolkits/` and `patches/` live in the machine root (02 §3). A user toolkit may define new packages
-  outright, with one registry generating the environment's package list (U34).
+- `toolkits/` and `patches/` live in the machine root (02 §3). Toolkits, the stack's build
+  configurations, are [§5](#5-toolkits-the-stacks-build-configurations).
 
 ---
 
-## 3. Customising a standard tool: five sources, one rule
+## 3. The tool contract: its own arguments, and one context file
+
+The user's design (2026-10-12): **each tool defines the arguments it takes, and the run provides one
+more thing, a TOML listing the cards of the other tools.**
+
+**Today:**
+- one tool reaches another's set-up through **exports**: `<tool>_<export> = true | "<tag>"` in its
+  table (`pythia_cmnd = true`, `rivet_analyses = true`; `tools.py:446-483`, C13);
+- each tool folder declares what it offers (`[exports.cmnd]`, `[exports.analyses]`, …);
+- a `custom` or `module` tool gets them as `[standard.<key>]` tables in its config file.
+
+It works, but it is opt-in per pair of tools, and it is named by convention.
+
+**Proposed:**
+- **Arguments are the tool's own.** A tool's folder declares its argv with placeholders: `{card}`,
+  `{config}`, `{input}`, `{output}`, `{events}` and so on. Inputs and outputs stay arguments, as a
+  program expects them.
+- **The context file is the one thing the run adds.** When a point starts, the runner writes one
+  standard TOML for it. For every tool tag of the point it gives:
+  - the path of that tool's **card** (its native card, if it has one);
+  - its **config** (the tool's resolved table as TOML: options, analyses, settings).
+
+  ```toml
+  # the point's context file (HEP_CONTEXT), written when the point starts
+  [tools.pythia]
+  tool   = "pythia"
+  card   = "/…/output/Demo/jets/03_pdf/NNPDF23lo/cards/pythia.point.cmnd"
+  config = "/…/output/Demo/jets/03_pdf/NNPDF23lo/config/pythia.toml"
+
+  [tools.rivet]
+  tool   = "rivet"
+  config = "/…/config/rivet.toml"          # analyses, options, plugin path
+
+  [tools.jets]
+  tool   = "module"
+  config = "/…/config/jets.toml"
+  ```
+
+- **Delivery, environment first.**
+  - Every tool's process gets `HEP_CONTEXT=<path>`, so any program can find the file without an argv
+    change. Third-party tools (Rivet, Delphes, Sherpa) simply ignore it.
+  - A tool whose folder wants it on the command line puts `{context}` in its argv. Heimdall's apps
+    and the user's tools can.
+- **Lifetime.**
+  - The file is written when the point starts and removed when the point ends.
+  - It lives in the point's ephemeral area (`logs/`, 02 §3), never in its record.
+  - The cards and configs it names stay in the record, as now. So nothing is lost, and the
+    provenance doesn't depend on the file.
+- **What it replaces.**
+  - The `<tool>_<export> = true` keys and the `[standard.<key>]` tables go: an integrated program
+    reads Pythia's card and Rivet's analyses from the context.
+  - What stays a request: the **expensive, on-demand products**. Herwig's run file, MadGraph's
+    process directory and Sherpa's integration take minutes to hours, so they are built only when a
+    tool asks (`needs = ["sherpa:results"]` in its folder or table), and then listed in the context
+    too.
+- **What it doesn't carry** (the user's choice): inputs and outputs (they are arguments), and the
+  point's quantity values and paths (each tool gets its own through its card, config and arguments).
+
+---
+
+## 4. Customising a standard tool: five sources, one rule
 
 Pythia's settings can come from five places today:
 1. the base card;
@@ -148,10 +208,79 @@ The card loses silently to the others, and owned keys are dropped with a `--plan
 
 ---
 
-## 4. Verification of the design (for its phase)
+## 5. Toolkits: the stack's build configurations
+
+A toolkit is a **configuration for building the stack**: which packages, with which flags and
+settings. It is not a run-time tool.
+
+**Today:**
+- `recipes/packages.toml` defines every package's recipe (47 tables);
+- `recipes/toolkits.toml` holds 21 presets in one file (`[primary]`, `[lab]`, `[generators]`, …);
+- a user's own toolkit goes in `recipes/toolkits.d/*.toml`, in Heimdall's tree. It may override a
+  package but not add one (U26);
+- the Mac's platform fixes are a third file, `--config mac.toml`.
+
+**Proposed (the user's design, 2026-10-12):**
+
+- **`toolkits/standard.toml`** holds every package's definition:
+  - url (with mirrors), version and sha256;
+  - its flags;
+  - its **conditional flags**, evaluated on the final set: what is installed, plus what this build
+    adds (today's `optional = { root = [...] }`, as for YODA's HDF5 or Delphes' Pythia 8);
+  - its `verify`;
+  - its groups (`core`, `generators`, `data`, …).
+
+  `@standard` builds the usual set.
+- **One TOML per toolkit**, invoked as `@<name>` (`toolkits/lab.toml` → `@lab`). Shipped ones are in
+  Heimdall's `recipes/toolkits/`; the user's are in the machine root's `toolkits/`, nearest first, as
+  for tools. A toolkit file:
+
+  ```toml
+  # toolkits/heavy-ion.toml — invoked as @heavy-ion
+  description = "heavy-ion work: JETSCAPE with HDF5, on the lab set"
+  extends     = "lab"                   # start from another toolkit (optional)
+
+  [standard]                            # which of standard.toml's recipes to borrow
+  core     = true                       # a group …
+  jetscape = true                       # … or a package
+  hdf5     = true
+  sherpa   = false                      # take one out of what `extends` brought
+
+  [settings]                            # cxx_std, opt_flags, cores: changing the ABI makes it an isolated stack
+  cores = 16
+
+  [packages.jetscape]                   # override fields of a borrowed recipe (merged, not replaced)
+  extra = ["-DUSE_ROOT=ON"]
+
+  [packages.my-generator]               # or a recipe of its own, with the same keys as standard.toml's
+  release = "1.2"
+  url     = "https://example.org/my-generator-{release}.tar.gz"
+  kind    = "cmake"
+  needs   = ["hepmc3"]
+  ```
+
+  Dependencies are added automatically. The resolved set prints with `--list @heavy-ion`, showing
+  where each package and each flag came from.
+- **Platform fixes are not a toolkit.** `recipes/platforms/<platform>.toml` (the Mac's fixes of
+  [01 D](01_Process.md#d-toolchain-drift--u8-40)) is applied by platform, under every toolkit. The
+  machine's `machine.toml` is applied last.
+- **Versions** (the user's decision): the recipes move to the newer versions the Mac proved (YODA
+  2.1.4, Rivet 4.1.4, Pythia 8318, MadGraph 3.8.1). The lab PC takes them when it is repaired
+  (phase 2.3). Old points stay valid as recorded; new ones record the new versions.
+- **HDF5** (the user's decision) is a recipe in `standard.toml`, in `@primary` and `@lab` as well as
+  `@data` and `@heavy-ion`. YODA is built with `.yoda.h5` support when HDF5 is in the build (a
+  conditional flag), else `--disable-h5`.
+
+---
+
+## 6. Verification of the design (for its phase)
 
 | Check | Expected |
 |---|---|
+| a point runs; a module prints `$HEP_CONTEXT` | a TOML with every tool's card and config path; gone after the point |
+| an integrated program (InprocJets) with no `pythia_cmnd`/`rivet_analyses` keys | runs from the context file alone |
+| `toolkits/mine.toml` in the machine root, `extends = "lab"`, one package off, one added | `--list @mine` shows the set and each value's origin; the build does it |
+| `@primary` on a fresh machine | HDF5 built; YODA with `.yoda.h5`; `hep doctor` confirms |
 | a study's `tools/fit/tool.toml` (copied from `exec`) | `hep tools` lists `fit (work)`; a run uses it; Heimdall's tree untouched |
 | `tools/pythia/tool.toml` with `extends = "pythia"` and another executable | used for that study only; `hep tools` says "pythia (work, extends shipped)" |
 | a vocabulary name declared in `tools/fit/quantities.toml` | `[quantities.<name>]` binds without `key`; `hep explain <name>` describes it |

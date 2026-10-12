@@ -30,7 +30,9 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
   - `url` may be a list (mirrors);
   - `sha256` per package;
   - Pythia → `/releases/pythia83/`;
-  - Rivet and YODA → `cedar-tools.web.cern.ch/downloads/` (HepForge as the second mirror).
+  - Rivet and YODA → `cedar-tools.web.cern.ch/downloads/` (HepForge as the second mirror);
+  - the newer versions the Mac proved (the user's decision): YODA 2.1.4, Rivet 4.1.4, Pythia 8318,
+    MadGraph 3.8.1. The lab PC takes them at its repair (2.3).
 - `--check-urls`: a HEAD request to every chosen package's URLs, no download.
 - pip runs with `--timeout 60 --retries 10`.
 - `--dry-run` reads stamps only with `--resume`. By default it prints the whole build.
@@ -167,12 +169,29 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 | two checkouts with one `HEP_MACHINE` | both run; one stack |
 | Heimdall moved to another folder | `hep doctor` passes without a rebuild |
 
-**3.2 One package registry** (U34)
-- `packages.toml` (with `verify`) generates the environment's package list (`env/packages.sh`), the
-  rows of `hep stack status` and `stack.toml`'s library entries.
-- `_HEP_PACKAGES` and `hep_status`'s fixed rows are gone.
-- HDF5 is a recipe (in `@data` and `@heavy-ion`; whether in `@primary` is the user's call).
+**3.2 Toolkits as files, one package registry** (U26, U34)
+- The toolkits of [04 §5](04_Extending.md#5-toolkits-the-stacks-build-configurations), the user's
+  design:
+  - `recipes/toolkits/standard.toml` holds every recipe, with its groups, conditional flags and
+    `verify`;
+  - one file per toolkit (`lab.toml` → `@lab`), with `extends`, `[standard]` booleans (packages or
+    groups), `[settings]` and `[packages.<name>]` overrides or additions;
+  - the user's toolkits go in the machine root's `toolkits/`, nearest first;
+  - platform fixes in `recipes/platforms/<platform>.toml`, applied under every toolkit.
+
+  `packages.toml`, `toolkits.toml` and `toolkits.d/` merge into this.
+- `--list @<toolkit>` prints the resolved set, and where each package and flag came from.
+- The registry generates the environment's package list (`env/packages.sh`), the rows of
+  `hep stack status` and `stack.toml`'s library entries. `_HEP_PACKAGES` and `hep_status`'s fixed
+  rows are gone.
+- HDF5 is a recipe, in `@primary`, `@lab`, `@data` and `@heavy-ion` (the user's decision). YODA gets
+  `.yoda.h5` when HDF5 is in the build.
 - ONNX Runtime's library name comes from `{dylib}`.
+
+| Row | Expected |
+|---|---|
+| `--list @primary` before and after the merge | the same packages and flags (plus HDF5) |
+| a machine `toolkits/mine.toml` with `extends = "lab"`, one package off, one recipe added | built as listed; Heimdall's tree untouched |
 
 **3.3 The shell** (U57, U58)
 - `setup.sh` refuses any shell but bash, before touching anything, with the way in.
@@ -207,6 +226,13 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 - Shipped `exec` and `module` folders replace the two special kinds (`tool = "custom"` migrates to
   `tool = "exec"`).
 - `hep tools new <name> --from exec|module|<tool>` writes a commented folder in `<work>/tools/`.
+- **The context file** ([04 §3](04_Extending.md#3-the-tool-contract-its-own-arguments-and-one-context-file)):
+  - written when a point starts and removed when it ends;
+  - lists every tool's card and config;
+  - reaches a tool as `HEP_CONTEXT` first, and as `{context}` in a folder's argv where wanted.
+  
+  It replaces the `<tool>_<export>` keys and the `[standard.<key>]` tables. Only the expensive
+  products (Herwig's run file, MadGraph's process directory, Sherpa's integration) stay requests.
 - `src/Module.hh`:
   - `setting(name, default, doc)` declarations;
   - unknown keys refused before the first event;
@@ -280,7 +306,8 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 
 **6.3 Names, errors, help, migration** (U41, U45, U46, U47, U48, U49)
 - The renames of [03 §6](03_Configuration.md#6-schema-v3): `[file]`, `card`, `folder`, automatic
-  serials, one meaning of `"default"`, and `[cfgs.<name>]` at the top level.
+  serials optional (automatic unless `serial` is set; a changed identity under a set serial is
+  refused), one meaning of `"default"`, and `[cfgs.<name>]` at the top level.
 - Errors that cross tables (a wrong-table key names its table).
 - Unused tool tables and shared files checked by `hep check`.
 - `hep explain` for tables, tool options, style keys, the vocabulary, `[static]`, decks and

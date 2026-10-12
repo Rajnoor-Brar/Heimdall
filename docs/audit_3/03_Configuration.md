@@ -278,7 +278,11 @@ Five principles, then three before/after examples.
    - a folder `label` → `folder`;
    - `[prelim]` gone (no `pre`/`prelim` pair);
    - `"default"` means "the layer below's value" and nothing else;
-   - serial numbers automatic (a new folder when the identity's inputs change, as points already do).
+   - serial numbers optional (the user's choice): automatic unless the file sets `serial`, and then a
+     changed identity under the same serial is refused with the hint to bump it, so a forgotten bump
+     can't overwrite;
+   - configurations are `[cfgs.<name>]` at the top level (the user's choice), picked by
+     `hep run <file> <name>`.
 5. **Every error crosses tables:**
    - a key in the wrong table names the right one;
    - a value set twice names both places;

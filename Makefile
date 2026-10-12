@@ -51,7 +51,7 @@ $(APPS)/Herwig/HerwigDefaults.rpo: $(HERWIG)
 	@mkdir -p $(@D)
 	@cd $(@D) && if Herwig init -L$(HERWIG_HOME)/lib/Herwig -i$(HERWIG_HOME)/share/Herwig \
 	    --repo=$(abspath $@) defaults/HerwigDefaults.in > init.log 2>&1; then echo "── $@"; \
-	  else rm -f $(abspath $@); echo "warning: Herwig's repository was not built: $$(tail -1 init.log)"; fi
+	  else rm -f $(abspath $@); echo "warning: Herwig's repository was not built: $$(tail -n 1 init.log)"; fi
 ALL += $(APPS)/Herwig/HerwigDefaults.rpo
 endif
 

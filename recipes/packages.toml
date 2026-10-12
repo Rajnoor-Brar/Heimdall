@@ -639,7 +639,7 @@ command = "Herwig --version"
 
 [[herwig.verify]]
 name    = "LHC.in: read, then 10 events"
-command = '''sh -c 'Herwig read {install}/share/Herwig/LHC.in > read.log 2>&1 && Herwig run LHC.run -N 10 > run.log 2>&1 && echo HERWIG-OK || { tail -3 read.log run.log 2>/dev/null; exit 1; }' '''
+command = '''sh -c 'Herwig read {install}/share/Herwig/LHC.in > read.log 2>&1 && Herwig run LHC.run -N 10 > run.log 2>&1 && echo HERWIG-OK || { tail -n 3 read.log run.log 2>/dev/null; exit 1; }' '''
 expect  = 'HERWIG-OK'
 slow    = true
 

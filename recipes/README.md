@@ -200,19 +200,27 @@ On a distribution without apt, install the same packages under its names and run
 ## 5. After the build
 
 ```bash
-source setup.sh                       # in Heimdall's folder (alias load_hep)
-hep status --stack                    # each package's version
+source setup.sh                       # in Heimdall's folder (alias load_hep; launch.sh on macOS)
+hep doctor                            # what every package can do, checked; libraries that no longer resolve
 hep build --framework && make test    # the framework's apps and tests, against the new stack
 ```
 
 **What is checked.**
+- **Each package, as it is built:** its recipe's `[[<package>.verify]]` checks run right after it
+  installs (versions, compiled-in features, Python modules, a short run), and a failed check fails
+  the package. `hep doctor` runs them all whenever asked, with a scan of every program and library for
+  libraries that no longer resolve (after an OS upgrade).
 - `tests/runner/test_stack_build.py`: the plans (order, added needs, overrides, `--config`,
-  refusals) and the full dry run, which must be valid bash and write nothing.
-- For real: FastJet with its patch and fjcontrib, offline from local tarballs, both through the
-  engine and through its `--dry-run` script.
-- Not yet: the whole stack in one run, the Dockerfile, and the downloader against the live sites.
-  The full stack was built on the lab PC by hand, with these flags. Expect the first full run on a
-  new machine to need small fixes, which the log names.
+  refusals), the full dry run (valid bash, writing nothing), and the downloader against a local
+  server (mirrors, web pages, cut-off files, resumes).
+- `--check-urls`: every chosen package's URL answers with an archive.
+
+**The support matrix.** Each machine that ran `hep doctor --record` has a file in
+[support/](support/): its platform, date, Heimdall revision, the versions and every check that didn't
+pass. `hep doctor --matrix` prints them side by side. A platform is supported as far as its last
+recorded run says; a recipe change is proven when a machine records it again. The CI workflow
+`.github/workflows/stack.yml` (started by hand) builds the container on a clean Ubuntu, then runs
+`hep doctor --quick` and the fast tests in it.
 
 **Known caveats.**
 - **MadGraph and ONNX Runtime** rename releases often. When a download 404s, set `madgraph.url` or

@@ -51,8 +51,8 @@ _hep_status_probe() {
     _ver() {
         command -v "$1" &>/dev/null || { printf "%s—%s\n" "$DIM" "$RESET"; return; }
         local out v
-        out=$("$@" 2>/dev/null | head -1)
-        v=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' <<< "$out" | head -1)
+        out=$("$@" 2>/dev/null | head -n 1)
+        v=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' <<< "$out" | head -n 1)
         printf "%s%s%s\n" "$GREEN" "${v:-$out}" "$RESET"
     }
     _flag() {
@@ -61,7 +61,7 @@ _hep_status_probe() {
     _sherpa_ver() {
         command -v Sherpa &>/dev/null || { printf "%s—%s\n" "$DIM" "$RESET"; return; }
         local out v
-        out=$(Sherpa --version 2>/dev/null | head -1)
+        out=$(Sherpa --version 2>/dev/null | head -n 1)
         v=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?.*' <<< "$out")
         printf "%s%s%s\n" "$GREEN" "${v:-$out}" "$RESET"
     }

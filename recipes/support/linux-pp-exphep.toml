@@ -1,0 +1,25 @@
+# linux-pp-exphep.toml — `hep doctor --record` on this machine; the support matrix's row (recipes/README.md)
+date     = "2026-10-12"
+platform = "Ubuntu 26.04.1 LTS x86_64"
+heimdall = "06afd05"
+counts   = { "ok" = 49, "MISSING" = 1, "FAIL" = 6, "n/a" = 0 }
+
+[versions]
+lhapdf = "6.5.6"
+hepmc3 = "3.03.01"
+fastjet = "3.5.0"
+root = "6.40.04"
+yoda = "2.1.3"
+rivet = "rivet v4.1.3"
+pythia8 = "8.317"
+whizard = "WHIZARD 3.1.8"
+geant4 = "11.4.2"
+
+[problems]
+"root: libraries (root/)" = "FAIL: libxml2.so.2 (hist2workspace) libgsl.so.27 (libMathMore.so)"
+"thepeg: libraries (herwig7/)" = "FAIL: libgsl.so.27 (Herwig)"
+"herwig: version" = "FAIL: Herwig: error while loading shared libraries: libgsl.so.27: cannot open shared object file: No such file or di"
+"herwig: LHC.in: read, then 10 events" = "FAIL: Herwig: error while loading shared libraries: libgsl.so.27: cannot open shared object file: No such file or di"
+"sherpa: version" = "FAIL: Sherpa: error while loading shared libraries: libzip.so.4: cannot open shared object file: No such file or dir"
+"sherpa: libraries (sherpa/)" = "FAIL: libzip.so.4 (Sherpa)"
+"whizard: linked: LHAPDF, HepMC3, FastJet, Pythia 8" = "MISSING: not linked: LHAPDF"

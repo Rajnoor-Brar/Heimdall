@@ -126,7 +126,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 | `hep doctor` on the Mac today | 0 FAIL; Whizard's LHAPDF MISSING; ONNX path MISSING |
 | `hep doctor --quick` | no smoke runs, under 10 s |
 
-**2.2 A support matrix and a second platform** (U15)
+**2.2 A support matrix and a second platform** (U15) — **done, V120** (the CI workflow is written, not yet run)
 - `recipes/README.md` holds a table of platform × package × last verified (date, machine,
   `hep doctor` summary), written by `hep doctor --record`.
 - A CI job builds the container recipe's core set, then runs `hep doctor` and the fast tests.

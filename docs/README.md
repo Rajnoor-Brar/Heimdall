@@ -48,7 +48,9 @@ an agent: [framework/](framework/README.md).
 Decks (`hep deck`, talks and shareable reports from drawn pages) were planned and built as
 [reporter/](reporter/00_Plan.md) (V102–V104).
 
-What is open is the health check [audit_2/01_Health.md](audit_2/01_Health.md) (H1–H16). The finished audit 1
+What is open is the health check [audit_2/01_Health.md](audit_2/01_Health.md) (H1–H16), and the
+user-experience audit [audit_3/](audit_3/README.md) (U1–U65, 2026-10-12): the process, the layout,
+the run TOML, extending, the CLI, and a remediation plan in seven phases. The finished audit 1
 (V52–V89) and the manual's rebuild plan (V90–V92) are in High-Energy's git: `git show 3a5ec16:docs/audit_1/README.md`,
 `git show 3a5ec16:docs/audit_2/02_Manual.md`.
 

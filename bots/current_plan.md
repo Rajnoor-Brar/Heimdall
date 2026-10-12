@@ -44,6 +44,11 @@ repository at `~/Github/Heimdall`, on the old lab PC's stack (`stack` and `env/v
 
 Otherwise nothing is in progress. Waiting on the user:
 
+- **Audit 3** (2026-10-12, [docs/audit_3/](../docs/audit_3/README.md)): a user-experience audit after the
+  first Mac build (U1–U65). Remediation in seven phases (06_Plan.md: build reliability,
+  verification/`hep doctor`, the machine root `$HEP_MACHINE` and the shell, one tool system, the work
+  dir's lifecycle, schema v3, the CLI and first run). Nothing built until the user orders a phase.
+  The Mac build's notes and `check_stack.sh` are in the ignored `.setup/`.
 - **R0:** verify the mpl pages against mkhtml's, after which the yoda backend goes (H11).
 - **R1–R3** of the health check: quick fixes (a compare figure drawn once, H2), then structure
   (`runner/figures.py`, the figure-class rules in the schema), then sheets, tests and docs.

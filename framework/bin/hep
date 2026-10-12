@@ -9,14 +9,19 @@
 #   hep ls | explain | status | clean              housekeeping (docs/05_Commands_and_Tools.md §1)
 #   hep cluster <config> [<configuration>]          the run as Slurm jobs (sbatch), from a cluster's login node
 #   hep setup <dir> | where                        make a work dir; which Heimdall and work dir this shell sees
-#   hep refresh                                    reload the shell's environment: setup.sh's `hep` function
-#                                                  does it (env/hep_env.sh); this script only explains that
+#   hep refresh | quit | cd PROJECT [DIR]          this shell itself: setup.sh's `hep` function does them
+#                                                  (env/hep_env.sh); this script only explains that
 #   hep build [targets…] [--tests] [--clean] [--configure] [-j N]    make, in the work dir
 #   hep build --framework …                        make, in Heimdall: the framework's apps
 set -euo pipefail
 
 here=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
 hep=$(cd "$here/../.." && pwd)                                 # Heimdall: framework/bin/ is two levels down
+# The machine's venv Python, by path: `hep` works without the environment loaded (cron, scripts, Slurm,
+# env -i), where python3 may lack the runner's packages. ~ is found without $HOME too.
+machine=${HEP_MACHINE:-~/Himinbjorg}
+py=${HEP_VENV:-$machine/venv}/bin/python
+[ -x "$py" ] || py=python3
 
 usage() {
     cat <<EOF
@@ -38,7 +43,8 @@ usage: hep <command> [options]
   setup <dir> [--project P] [--git] [--adopt]    make a work dir     (hep setup --help)
   where [--hep | --work]           which Heimdall and which work dir this shell sees
   doctor [--quick] [--record]      what this machine's stack and Heimdall can do, checked
-  refresh                          reload this shell's environment (setup.sh again, from scratch)
+  refresh | quit                   reload this shell's environment (the same stack, from scratch); leave it
+  cd PROJECT [DIR]                 cd to the work dir's DIR/PROJECT (DIR: configs, modules, results, output)
   build [targets…]                 compile the work dir's module programs and Rivet plugins (make all)
         --framework                Heimdall's apps instead (framework/Apps/)
         --tests                    also build the C++ tests (with --framework)
@@ -50,14 +56,14 @@ usage: hep <command> [options]
 EOF
 }
 
-cores() { python3 -c 'import os; print(os.cpu_count() or 1)'; }    # nproc is not on macOS
-work() { python3 "$here/run" where --work; }                       # the work dir, or exit 2 with why not
+cores() { "$py" -c 'import os; print(os.cpu_count() or 1)'; }     # nproc is not on macOS
+work() { "$py" "$here/run" where --work; }                         # the work dir, or exit 2 with why not
 
 cmd=${1-}
 [ $# -gt 0 ] && shift
 case "$cmd" in
     run|watch|plot|overlay|deck|check|ls|explain|status|clean|reproduce|migrate|setup|where|cluster|doctor)
-        exec python3 "$here/run" "$cmd" "$@"
+        exec "$py" "$here/run" "$cmd" "$@"
         ;;
     build)
         goals=(all) jobs=(-j "$(cores)") dir="" clean=0 configure=0
@@ -88,8 +94,8 @@ case "$cmd" in
         dir=$(work) || exit 2
         exec make -C "$dir" --no-print-directory "$@"
         ;;
-    refresh)
-        echo "hep refresh: reloads the environment of the shell it is typed in, so it is setup.sh's shell function," >&2
+    refresh|quit|cd)
+        echo "hep $cmd: changes the shell it is typed in, so it is setup.sh's shell function," >&2
         echo "  and this shell does not have it (a script, or a shell started from one): source $hep/setup.sh" >&2
         exit 2
         ;;

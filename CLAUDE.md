@@ -16,7 +16,7 @@ Heimdall is the framework **and** the machine's home: `$HEP` is this folder (V10
 
 | Path | Holds |
 | --- | --- |
-| `setup.sh` | the environment (`load_hep` = `source <Heimdall>/setup.sh`) |
+| `setup.sh`, `launch.sh` | the environment, bash only (`source <Heimdall>/setup.sh`); `launch.sh` is it from any shell (`load_hep`) |
 | `recipes/` | the stack's recipes: `build_stack.py`, `toolkits/` (`standard.toml`: every recipe; one file per toolkit), `settings.toml`, `patches/`, `platforms/{mac,container}/` |
 | `env/` | `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
 | `framework/` | `bin/` (`hep`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders, backends, figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py` |

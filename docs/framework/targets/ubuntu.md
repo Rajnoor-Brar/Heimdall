@@ -18,7 +18,7 @@ installed once, at P1 S1's gate, and the build then runs with `system=false`.
 ## Overlay and launching
 
 - **Overlay:** none. `recipes/toolkits/standard.toml` and `settings.toml` are the lab PC's.
-- **Launching:** `source ~/Github/Heimdall/setup.sh`, or the alias `load_hep` (09 S2 asks to add it).
+- **Launching:** `source ~/Github/Heimdall/setup.sh` in bash, or `~/Github/Heimdall/launch.sh` from any shell; the alias `load_hep` (09 S2 asks to add it).
 
 ## Allowed adjustments (02 §7)
 

@@ -368,13 +368,15 @@ is `make …` in Heimdall. The targets:
 - Heimdall's only: `tests`, `test`, `test-slow`, `schema`, `docs`.
 
 The make rules are in [06 §15](06_Internals.md#15-the-build). Run them with the environment loaded
-(`source <Heimdall>/setup.sh`, the alias `load_hep`).
+(`source <Heimdall>/setup.sh` in bash, or `launch.sh` from any shell: the alias `load_hep`).
 
-`hep refresh` reloads that environment in the shell it is typed in: `quit`, then the same `setup.sh`
-(a toolkit's `stacks/<toolkit>/setup.sh` when that is the one loaded). `setup.sh` defines `hep` as a
-shell function that runs `hep_refresh` for `refresh` and `framework/bin/hep` for everything else. In
-a shell without that function (a script, or a shell started from one), `framework/bin/hep refresh`
-exits 2 and says to source `setup.sh`.
+`hep refresh`, `hep quit` and `hep cd PROJECT [DIR]` change the shell they are typed in. `setup.sh`
+defines `hep` as a shell function that does them there, and runs `framework/bin/hep` for everything
+else. `refresh` is `quit`, then the same stack again (`$HEP_STACK`: an isolated toolkit's included);
+`quit` takes out everything the environment added, `machine.sh`'s lines too. In a shell without that
+function (a script, or a shell started from one), `framework/bin/hep refresh` (or `quit`, `cd`) exits
+2 and says to source `setup.sh`. Everything else works without the environment: `framework/bin/hep`
+runs the machine's venv Python by path (cron, scripts, Slurm).
 
 `hep setup <dir>` makes a work dir and `hep where` says which Heimdall and which work dir a shell
 sees ([02 §1](02_User_Guide.md#1-set-up-and-build); their options are in §1).

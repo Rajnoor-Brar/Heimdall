@@ -9,7 +9,7 @@ Apple's clang as the compiler. On Apple Silicon or Intel. The build is `build_st
 | [Brewfile](Brewfile) | what the stack needs from Homebrew (the macOS counterpart of `apt_packages`) |
 | [mac.toml](mac.toml) | what the build does differently on macOS: `[settings]`, `[env]`, `[packages.<name>]`, laid on macOS by itself |
 | [build.sh](build.sh) | checks the machine, runs `brew bundle`, puts the GNU tools first, then runs `build_stack.py` |
-| [launch.sh](launch.sh) | a bash with the stack loaded, or one command in it, from any shell (zsh included) |
+| [launch.sh](launch.sh) | moved to `launch.sh` at Heimdall's root (every platform); this one passes on to it, for older aliases |
 
 ---
 
@@ -67,16 +67,17 @@ lines go to the machine root's `machine.sh`, which `setup.sh` sources.
 ## 3. Launch
 
 ```bash
-recipes/platforms/mac/launch.sh                # a bash with Heimdall's setup.sh loaded (hep_status shows the stack)
-recipes/platforms/mac/launch.sh root -l        # one command in that environment
+~/Github/Heimdall/launch.sh                    # a bash with Heimdall's setup.sh loaded (hep_status shows the stack)
+~/Github/Heimdall/launch.sh root -l            # one command in that environment
 ```
 
 The environment (`env/hep_env.sh`) is bash, and macOS's login shell is zsh, with a bash 3.2:
 `launch.sh` runs Homebrew's bash 5 with your `~/.bashrc` and `setup.sh`. Inside a bash already,
-`source ~/Github/Heimdall/setup.sh` does the same. For a zsh shortcut, in `~/.zshrc`:
+`source ~/Github/Heimdall/setup.sh` does the same; zsh sourcing it is turned away. For a zsh
+shortcut, in `~/.zshrc` (an older alias to `recipes/platforms/mac/launch.sh` still works):
 
 ```bash
-alias load_hep="$HOME/Github/Heimdall/recipes/platforms/mac/launch.sh"
+alias load_hep="$HOME/Github/Heimdall/launch.sh"
 ```
 
 Then, in the launched shell, the framework against the new stack:
@@ -111,8 +112,9 @@ hep build --framework && make -C "$HEP" test
   (libc++, GSL, `-lc++`, type_info across plugins) and Whizard (`CXXLIBS`). Herwig's 8-byte Fortran
   integers and Whizard's PDF sets are in `recipes/toolkits/standard.toml`, for every platform. The whole story:
   `docs/audit_3/01_Process.md`.
-- **Your shell is zsh; the environment is bash.** Load it with `launch.sh` (above), never by
-  `source setup.sh` in zsh.
+- **Your shell is zsh; the environment is bash.** Load it with `launch.sh` (above); `source setup.sh`
+  in zsh is turned away, with nothing changed. `hep quit` takes `DYLD_LIBRARY_PATH` and the GNU tools
+  out again (`machine.sh`'s lines are recorded when they are sourced).
 - **`hep run`'s watch socket** (`framework/runner/events.py`) uses Linux's abstract socket namespace;
   on macOS it falls back to a socket file in `$TMPDIR` (docs/framework/06_Seam.md, S2).
 - **DYLD_LIBRARY_PATH** is dropped by macOS (System Integrity Protection) whenever one of Apple's own

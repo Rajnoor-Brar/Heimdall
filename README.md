@@ -13,9 +13,9 @@ dirs** (`configs/`, `modules/`, `results/`, …), as many as you like.
 ```bash
 git clone <Heimdall's URL> ~/Github/Heimdall
 cd ~/Github/Heimdall
-python3 recipes/build_stack.py packages=@primary   # the stack, from source, into stack/ (hours; recipes/README.md)
+python3 recipes/build_stack.py packages=@primary   # the stack, from source, into ~/Himinbjorg (hours; recipes/README.md)
 python3 recipes/build_stack.py --toolkits   # other sets for a kind of work: @bsm-recast, @detector, … and yours
-source setup.sh                             # the environment; alias load_hep='source ~/Github/Heimdall/setup.sh'
+source setup.sh                             # the environment, in bash (from zsh or any shell: ./launch.sh, alias load_hep)
 hep build --framework                       # the framework's apps, into the machine root's apps/ ($HEP_APPS)
 hep setup ~/Github/My-Study --project Jets --git    # a work dir with a starter
 ```

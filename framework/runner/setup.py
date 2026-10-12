@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 from .errors import HepError
-from .paths import MARKER_FILE, STACK_VAR, find_work, hep_root, is_work, work_meta
+from .paths import MARKER_FILE, STACK_VAR, find_work, hep_root, is_work, machine_root, stack_dir, work_meta
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "work"
 STARTER = "starter"
@@ -149,7 +149,8 @@ def _pth_problem(hep: Path) -> str:
 
 
 def where(which: str | None = None, out=print, err=None) -> int:
-    """Two lines (hep=…, work=…), or one path for --hep / --work; 2 when the one asked for is not there."""
+    """Three lines (hep=…, work=…, machine=…), or one path for --hep / --work; 2 when the one asked for is
+    not there."""
     err = err or (lambda line: print(line, file=sys.stderr))
     hep = hep_root()
     work = find_work()
@@ -165,6 +166,7 @@ def where(which: str | None = None, out=print, err=None) -> int:
     stack = os.environ.get(STACK_VAR, "")
     out(f"hep={hep} {revision(hep)[:12] or '(uncommitted changes)'}" + (f" (stack: {stack})" if stack else ""))
     out(f"work={work if work else '-'}")
+    out(f"machine={machine_root()}" + (f" (stack: {stack_dir()})" if stack else ""))
     if problem := _pth_problem(hep):
         err(f"warning: {problem}")
     return 0

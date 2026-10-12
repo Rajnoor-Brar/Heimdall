@@ -105,7 +105,8 @@ ATTEMPTS, BACKOFF, TIMEOUT = 5, 3, 60
 STACK_SETUP = """#!/bin/bash
 # stacks/{stack}/setup.sh — the isolated stack of toolkit @{stack} (C++{cxx_std}), written by recipes/build_stack.py.
 # Load it instead of Heimdall's setup.sh, in a shell of its own (or after `quit`): its ABI differs.
-HEP_MACHINE="{root}" HEP_STACK_REQUEST={stack} source "{repo}/setup.sh"
+export HEP_MACHINE="{root}" HEP_STACK_REQUEST={stack}
+source "{repo}/setup.sh"
 """
 
 #: <machine>/machine.sh: this machine's lines from the setup_extra setting; setup.sh sources it.

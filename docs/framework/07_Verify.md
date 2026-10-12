@@ -176,7 +176,7 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
      `Rajnoor-Brar/Heimdall` (the user creates it, or approves `gh repo create --private`), then
      `git push -u origin main`; otherwise push the commits these phases made;
    - **Top-Quark:** keep it local, or give it a remote (the user's choice; it is a test);
-   - **`load_hep`:** add `alias load_hep='source ~/Github/Heimdall/setup.sh'` to `~/.bashrc`;
+   - **`load_hep`:** add `alias load_hep="$HOME/Github/Heimdall/launch.sh"` to the shell's rc file (or, in bash, `alias load_hep='source ~/Github/Heimdall/setup.sh'`);
    - **the agents' memory:** copy `$HEP/.setup/kept/memory/` (if it was kept, 01 §8) back to
      the agents' memory folder for `~/Github/Heimdall`, and update its lab-PC entries to the new
      install (Heimdall at `~/Github/Heimdall`, Top-Quark, High-Energy left alone);

@@ -235,7 +235,7 @@ On a distribution without apt, install the same packages under its names and run
 ## 5. After the build
 
 ```bash
-source setup.sh                       # in Heimdall's folder (alias load_hep; launch.sh on macOS)
+source setup.sh                       # in Heimdall's folder, in bash (from any shell: ./launch.sh, alias load_hep)
 hep doctor                            # what every package can do, checked; libraries that no longer resolve
 hep build --framework && make test    # the framework's apps and tests, against the new stack
 ```

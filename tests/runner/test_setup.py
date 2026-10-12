@@ -189,11 +189,108 @@ def test_hep_refresh_reloads_the_shell_in_place():
         tr ':' '\\n' <<< "$PATH" | grep -c '^/nowhere$'
         hep where --hep""")
     assert out.returncode == 0, out.stderr
-    assert out.stdout.split("\n")[:5] == ["function", "1", "same-additions", "1", "1"]
+    assert out.stdout.split("\n")[:5] == ["function", os.environ["HEP_INSTALL"], "same-additions", "1", "1"]
     assert str(REPO) in out.stdout.split("\n")[5]
 
 
-def test_hep_refresh_without_the_shell_function_says_to_source_setup():
-    out = shell(f"{HEP} refresh")
+@pytest.mark.parametrize("verb", ["refresh", "quit", "cd"])
+def test_the_shell_verbs_without_the_shell_function_say_to_source_setup(verb):
+    out = shell(f"{HEP} {verb}")
     assert out.returncode == 2
     assert "setup.sh's shell function" in out.stderr and f"source {REPO}/setup.sh" in out.stderr
+
+
+# ── the shell (docs/audit_3/06_Plan.md, phase 3.3) ──────────────────────────────────────────────
+
+NEEDS_VENV = pytest.mark.skipif(not Path(os.environ.get("HEP_VENV", "/nowhere"), "bin", "activate").exists(),
+                                reason="no venv in the machine root: build the stack")
+
+
+def a_machine(root: Path, machine_sh: str = "") -> Path:
+    """A machine root of the test's: the real venv, linked; stack folders that are empty but there; an
+    isolated toolkit's stack, kit, with the setup.sh the build writes."""
+    for base in (root, root / "stacks" / "kit"):
+        for sub in ("root/bin", "root/lib"):
+            (base / "stack" / sub).mkdir(parents=True)
+        (base / "venv").symlink_to(os.environ["HEP_VENV"], target_is_directory=True)
+    (root / "stacks" / "kit" / "setup.sh").write_text(
+        f'export HEP_MACHINE="{root}" HEP_STACK_REQUEST=kit\nsource "{REPO}/setup.sh"\n', encoding="utf-8")
+    if machine_sh:
+        (root / "machine.sh").write_text(machine_sh, encoding="utf-8")
+    return root
+
+
+@pytest.mark.parametrize("other", ["dash", "zsh", "ksh"])
+def test_a_shell_that_is_not_bash_is_turned_away_untouched(other):
+    if not shutil.which(other):
+        pytest.skip(f"no {other} here")
+    out = subprocess.run([other, "-c", f". {REPO}/setup.sh; echo rc=$?; env"], capture_output=True, text=True,
+                         env={"HOME": os.environ["HOME"], "PATH": "/usr/bin:/bin"}, timeout=60)
+    assert out.stderr.count("\n") == 1 and "launch.sh" in out.stderr
+    assert "rc=1" in out.stdout and not re.search(r"^(HEP|VIRTUAL_ENV|LD_LIBRARY_PATH)\w*=", out.stdout, re.M)
+    assert re.search(r"^PATH=/usr/bin:/bin$", out.stdout, re.M)
+
+
+@NEEDS_VENV
+def test_hep_runs_without_the_environment_or_home():
+    """bin/hep runs the machine's venv Python by path: cron, scripts and Slurm need no `source setup.sh`."""
+    out = subprocess.run([str(HEP), "where"], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin"},
+                         timeout=60, cwd="/")
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.startswith(f"hep={REPO}") and "\nmachine=" in out.stdout
+
+
+@NEEDS_VENV
+def test_switching_to_an_isolated_stack_takes_the_other_out_and_refresh_keeps_it(scratch):
+    root = a_machine(scratch / "machine")
+    out = shell(f"""set -e
+        export HEP_MACHINE={root}
+        source {REPO}/setup.sh >/dev/null
+        echo "$HEP_ENV_LOADED"
+        source {root}/stacks/kit/setup.sh >/dev/null       # no quit first
+        echo "$HEP_STACK $HEP_ENV_LOADED"
+        tr ':' '\n' <<< "$PATH" | grep -c '^{root}/stack/root/bin$' || true
+        hep refresh >/dev/null
+        echo "$HEP_STACK $HEP_INSTALL"
+        tr ':' '\n' <<< "$PATH" | grep -c '^{root}/stacks/kit/stack/root/bin$'
+        hep where | tail -n 1""")
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.split("\n")[:6] == [
+        f"{root}/stack", f"kit {root}/stacks/kit/stack", "0", f"kit {root}/stacks/kit/stack", "1",
+        f"machine={root} (stack: {root}/stacks/kit)"]
+
+
+@NEEDS_VENV
+def test_quit_undoes_machine_sh_and_refresh_never_piles_it_up(scratch):
+    """The Mac's machine.sh (DYLD_LIBRARY_PATH, the GNU tools first), a scalar it changes, one it adds, one it
+    unsets: after load_hep and quit, the environment is as it was."""
+    root = a_machine(scratch / "machine", "export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH\n"
+                                           "PATH=/opt/gnubin:$PATH; export PATH\n"
+                                           "export FOO=machine KEPT=changed\nunset GONE\n")
+    # (PS1 is the venv's: its deactivate leaves "(HEP) " when the prompt was empty, as only a script's is)
+    keep = "grep -v -e '^_=' -e '^HEP=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD=' -e '^PS1=' | sort"
+    out = shell(f"""set -e
+        export HEP_MACHINE={root} PATH=/opt/gnubin:/usr/bin:/bin KEPT=orig GONE=here
+        before=$(env | {keep})
+        source {REPO}/setup.sh >/dev/null
+        echo "$FOO $KEPT ${{GONE-gone}}"
+        tr ':' '\n' <<< "$DYLD_LIBRARY_PATH" | grep -c '^{root}/stack/root/lib$'
+        hep refresh >/dev/null
+        hep refresh >/dev/null
+        tr ':' '\n' <<< "$PATH" | grep -c '^/opt/gnubin$'
+        hep quit
+        after=$(env | {keep})
+        [ "$before" = "$after" ] && echo as-before || diff <(echo "$before") <(echo "$after")""")
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.split("\n")[:4] == ["machine changed gone", "1", "2", "as-before"], out.stdout
+
+
+def test_hep_cd_goes_to_a_project_folder_of_the_work_dir():
+    out = shell(f"""set -e
+        source {REPO}/setup.sh >/dev/null
+        export HEP_WORK={WORK}
+        hep cd Demo
+        pwd
+        hep cd Demo modules >/dev/null 2>&1 || echo no-modules""")
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.split("\n")[0] == str(WORK / "configs" / "Demo")

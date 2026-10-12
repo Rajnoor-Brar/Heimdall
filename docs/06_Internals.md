@@ -16,7 +16,7 @@ built and installed, outside git. A **work dir** holds a study.
 
 | Heimdall's | Holds | In git |
 |---|---|---|
-| `setup.sh` | the environment: sets `HEP` from its own folder, the machine root (`HEP_MACHINE`), the loaded stack (`HEP_INSTALL`, `HEP_VENV`, `HEP_APPS`, `HEP_FORGE`, `HEP_STACK`), then sources `env/hep_env.sh` and the machine root's `machine.sh` | yes |
+| `setup.sh`, `launch.sh` | the environment, bash only (any other shell is turned away first): sets `HEP` from its own folder, the machine root (`HEP_MACHINE`), the loaded stack (`HEP_INSTALL`, `HEP_VENV`, `HEP_APPS`, `HEP_FORGE`, `HEP_STACK`), then sources `env/hep_env.sh`, which also sources the machine root's `machine.sh`, recording what it changes for `quit`; `launch.sh` is it from any shell | yes |
 | `recipes/` | how the stack is built: `build_stack.py`, `machine.py` (`adopt`, `where`), `verify.py`, `toolkits/` (`standard.toml`, every recipe; one file per toolkit; your own in the machine root's `toolkits/`), `settings.toml`, `patches/`, `platforms/` (mac, container), `pth.py`, `build_by_hand.txt`; [recipes/README.md](../recipes/README.md) | yes |
 | `env/` | the environment's files: `hep_env.sh` (the shell), `flags.sh`, `stack.toml` and `stack.py` (the stack's libraries, versions and flags) | yes |
 | `framework/` | what runs: `bin/` (`hep`, `run`), `runner/`, `tools/<tool>/` (the tool folders, the plot backends `yoda/` and `mpl/`, `figures/`, the provider `lhapdf/`), `schema/` (`run.toml`, `deck.toml`, `quantities.toml` the vocabulary, `latex.toml`), `templates/work/` (what `hep setup` lays down), `rules.mk` and `work.mk` (the build's rules), `hepkit.py` | yes |
@@ -68,10 +68,11 @@ A **work dir** holds a study. `hep setup <dir>` makes it from `framework/templat
 
 ```
 Heimdall ($HEP)
-├── setup.sh                  the environment (load_hep): HEP, the loaded stack, env/hep_env.sh
+├── setup.sh                  the environment, bash only: HEP, the loaded stack, env/hep_env.sh
+├── launch.sh                 setup.sh from any shell: a bash with it loaded, or one command (load_hep)
 ├── recipes/                  the stack's recipes and toolkits (recipes/README.md)
 ├── env/
-│   ├── hep_env.sh            the shell environment (quit, hep_cd, hep_status, …); packages.sh, its install folders (generated)
+│   ├── hep_env.sh            the shell environment (the hep function: refresh, quit, cd; machine.sh, recorded); packages.sh, its install folders (generated)
 │   └── flags.sh, stack.toml  the stack: each library's flags and version, probed once → flags.mk
 ├── framework/                ─── shell and Python ───
 │   ├── bin/hep               the `hep` command: build, make → make (work dir or --framework); the rest → bin/run

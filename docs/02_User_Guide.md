@@ -17,7 +17,7 @@ stack, one per machine; and your **work dirs**, where studies live.
 ```bash
 git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
 python3 recipes/build_stack.py packages=@primary     # the stack, from source, into stack/ (hours)
-source setup.sh                                      # the environment: alias load_hep='source ~/Github/Heimdall/setup.sh'
+source setup.sh                                      # the environment, in bash (any shell: ~/Github/Heimdall/launch.sh)
 hep build --framework                                # Heimdall's apps, into the machine root's apps/ ($HEP_APPS)
 ```
 
@@ -27,15 +27,21 @@ isolated stacks of another C++ standard
 are [recipes/README.md](../recipes/README.md). On macOS use `recipes/platforms/mac/`; for an image,
 `recipes/platforms/container/`.
 
-`source setup.sh` (`load_hep`) sets `HEP` to Heimdall's folder, puts the stack and `hep` on `PATH`
-and activates the Python environment. An isolated toolkit's stack is loaded by its own
+`source setup.sh` sets `HEP` to Heimdall's folder, puts the stack and `hep` on `PATH`, activates the
+Python environment and adds this machine's lines (the machine root's `machine.sh`). It is bash: from
+zsh, or any other shell, `launch.sh` (in Heimdall's folder) opens a bash with it loaded, or runs one
+command in it (`launch.sh hep run …`); make that your `load_hep` alias. Another shell sourcing
+`setup.sh` is turned away before anything changes. An isolated toolkit's stack is loaded by its own
 `stacks/<toolkit>/setup.sh` instead, in a shell of its own. `hep where` says which Heimdall (and which
 stack) a shell sees, and which work dir.
 
-The shell gives you `hep_status` (the stack's packages: `hep status --stack`), `hep_cd PROJECT
-[configs|modules|results|output]` (in the current work dir), `quit` (leave the environment) and
-`hep_help`. **`hep refresh`** reloads the environment in the same shell, from scratch: `quit`, then the
-same `setup.sh` again. Use it after a stack's rebuild, an edit of `env/hep_env.sh` or of the machine
+Three verbs change the shell itself, so they are the shell function `hep` that `setup.sh` defines:
+`hep cd PROJECT [configs|modules|results|output]` (in the current work dir), `hep quit` (leave the
+environment: `PATH`, the venv and `machine.sh`'s lines as they were) and **`hep refresh`**, which
+reloads the environment in the same shell, from scratch: `quit`, then the same stack again (an
+isolated toolkit's included). `hep_status` lists the stack's packages (`hep status --stack`) and
+`hep_help` the rest; `quit`, `hep_cd` and `hep_refresh` are the old names. Sourcing another stack's
+`setup.sh` takes the loaded one out first. Use it after a stack's rebuild, an edit of `env/hep_env.sh` or of the machine
 root's `machine.sh`, or a `git pull` of Heimdall. It is the shell function `hep` that `setup.sh` defines
 (also `hep_refresh`), since a program cannot change its shell's variables.
 

@@ -193,7 +193,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 | `--list @primary` before and after the merge | the same packages and flags (plus HDF5) |
 | a machine `toolkits/mine.toml` with `extends = "lab"`, one package off, one recipe added | built as listed; Heimdall's tree untouched |
 
-**3.3 The shell** (U57, U58)
+**3.3 The shell** (U57, U58) — **done, V124** (the zsh row ran with dash here, which has no zsh; the Mac row as a test with a Mac-like `machine.sh`)
 - `setup.sh` refuses any shell but bash, before touching anything, with the way in.
 - `launch.sh` is `load_hep` on every platform.
 - The loaded check tests the functions, not only the exported variable.

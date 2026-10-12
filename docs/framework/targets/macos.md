@@ -26,7 +26,7 @@ hand). Only what differs from the phase files is here (D11).
 - **The build:** `bash $HEP/recipes/platforms/mac/build.sh packages=@primary cores=… root_cores=…`
   stands in for P1 S2's command. It runs `recipes/build_stack.py`, which lays `mac.toml` itself, with GNU
   make, sed and coreutils first on `PATH`.
-- **Launching:** `recipes/platforms/mac/launch.sh` opens a bash 5 with `$HEP/setup.sh` loaded, or runs one
+- **Launching:** `$HEP/launch.sh` (every platform's; the Mac's old path passes on to it) opens a bash 5 with `$HEP/setup.sh` loaded, or runs one
   command in it. The machine root's `machine.sh`, written from `mac.toml`'s `setup_extra` and sourced by
   `setup.sh`, adds `DYLD_LIBRARY_PATH` and the GNU tools.
 

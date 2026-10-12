@@ -1,4 +1,4 @@
-"""recipes/build_stack.py: the stack's build, from packages.toml, settings.toml and toolkits.toml. Only
+"""recipes/build_stack.py: the stack's build, from recipes/toolkits/ and settings.toml. Only
 plans and dry runs here (nothing is built or downloaded); every prefix is a tmp_path."""
 
 from __future__ import annotations
@@ -33,10 +33,10 @@ def planned(bs, prefix, *args):
 def test_core_and_all_follow_the_file(bs, tmp_path):
     (core, added), packages, _ = planned(bs, tmp_path)
     assert added == []
-    assert core == [n for n, p in packages.items() if p.get("group", "core") == "core"]
+    assert core == [n for n, p in packages.items() if p.get("group") == "core"]
     assert core[0] == "python" and core[-1] == "pdfsets"
     (everything, _), _, _ = planned(bs, tmp_path, "packages=all")
-    assert everything == [n for n, p in packages.items() if p.get("group", "core") in ("core", "extra")]
+    assert everything == [n for n, p in packages.items() if p.get("group") in ("core", "extra")]
     assert "evtgen" in packages and "evtgen" not in everything        # the toolkits' join only by name or @kit
     for name in everything:                                        # each after what it needs
         assert all(everything.index(need) < everything.index(name) for need in packages[name].get("needs", []))
@@ -77,8 +77,8 @@ def test_mistakes_are_refused(bs, tmp_path, arg):
 
 def test_a_config_file_changes_and_adds_packages(bs, tmp_path):
     extra = tmp_path / "my.toml"
-    extra.write_text('cores = 3\n[root]\nrelease = "6.40.06"\n'
-                     '[mine]\nrelease = "1"\nurl = "https://x/mine-{release}.tgz"\nkind = "cmake"\nneeds = ["root"]\n')
+    extra.write_text('[settings]\ncores = 3\n[packages.root]\nrelease = "6.40.06"\n'
+                     '[packages.mine]\nrelease = "1"\nurl = "https://x/mine-{release}.tgz"\nkind = "cmake"\nneeds = ["root"]\n')
     (order, added), packages, c = planned(bs, tmp_path, "--config", str(extra), "packages=mine", "cores=2")
     assert order == ["python", "root", "mine"] and added == ["python", "root"]
     assert c["cores"] == 2 and packages["root"]["release"] == "6.40.06"   # the command line wins over the file
@@ -94,14 +94,14 @@ def test_machine_toml_is_this_machines_layer(bs, tmp_path):
         '[packages.yoda]\nargs = ["--x"]\nreplace = ["args"]\n'
         '[packages.mine]\nrelease = "1"\nurl = "https://x/mine-{release}.tgz"\nkind = "cmake"\nneeds = ["root"]\n'
         '[cluster]\naccount = "lab"\n', encoding="utf-8")
-    shipped = bs.read(REPO / "recipes" / "packages.toml")
+    shipped = bs.read(REPO / "recipes" / "toolkits" / "standard.toml")["packages"]
     (order, _), packages, c = planned(bs, tmp_path, "packages=mine", "cores=3")
     assert c["cores"] == 3 and c["root_cores"] == 2                # the command line wins; the file's own stays
     assert c["pdf_sets"][-1] == "NNPDF31_nnlo_as_0118" and len(c["pdf_sets"]) > 1
     assert c["setup_extra"] == ["module load x"] and c["env"]["FOO"] == "bar" and "CXXFLAGS" in c["env"]
     assert packages["root"]["args"] == [*shipped["root"]["args"], "-Dmine=ON"]
     assert packages["yoda"]["args"] == ["--x"]
-    assert order[-1] == "mine" and str(tmp_path / "machine.toml") in c["_configs"]
+    assert order[-1] == "mine" and "machine.toml" in c["_layers"]
 
 
 @pytest.mark.parametrize("text, message", [
@@ -146,12 +146,12 @@ def test_the_dry_run_is_a_bash_script_and_writes_nothing(bs, tmp_path, capsys):
 
 
 def test_the_mac_overlay(bs, tmp_path, monkeypatch, capsys):
-    """recipes/platforms/mac/mac.toml as build.sh gives it, with macOS switched on: no apt, Homebrew's paths,
+    """recipes/platforms/mac/mac.toml, laid by itself with macOS switched on: no apt, Homebrew's paths,
     ROOT through Cocoa, absolute install names, DYLD_LIBRARY_PATH, the macOS ONNX Runtime."""
     monkeypatch.setattr(bs, "MAC", True)
     monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
     prefix = tmp_path / "hep"
-    bs.main(["--dry-run", "--config", str(REPO / "recipes/platforms/mac/mac.toml"), f"machine={prefix}", "packages=all"])
+    bs.main(["--dry-run", f"machine={prefix}", "packages=all"])
     script = capsys.readouterr().out
     root = next(line for line in script.splitlines() if line.startswith(f"cmake -S {prefix}/forge/src/root "))
     assert root.index("-Dx11=OFF") < root.index("-Dcocoa=ON")        # the overlay's come last, and win
@@ -173,12 +173,12 @@ def test_the_system_packages_carry_what_decks_need(bs, tmp_path):
     assert {"pandoc", "poppler-utils", "texlive-latex-recommended"} <= set(s["apt_packages"])
 
 
-# ── toolkits (toolkits.toml, README.md §6) ─────────────────────────────────────────────────────
+# ── toolkits (recipes/toolkits/, README.md §6) ─────────────────────────────────────────────────
 
 def test_every_toolkit_plans_and_names_only_packages(bs, tmp_path):
     _, _, packages = bs.options([f"machine={tmp_path}"])
-    kits = bs.toolkits()
-    assert {"lab", "bsm-recast", "heavy-flavour", "detector", "key4hep"} <= set(kits)
+    kits = bs.kit_files(tmp_path)
+    assert {"standard", "lab", "bsm-recast", "heavy-flavour", "detector", "key4hep"} <= set(kits)
     for name in kits:
         (order, _), _, _ = planned(bs, tmp_path, f"packages=@{name}")
         assert order, name
@@ -186,9 +186,50 @@ def test_every_toolkit_plans_and_names_only_packages(bs, tmp_path):
             assert all(order.index(n) < order.index(package) for n in packages[package].get("needs", []) if n in order)
     (lab, _), _, _ = planned(bs, tmp_path, "packages=@lab")
     (everything, _), _, _ = planned(bs, tmp_path, "packages=all")
-    assert lab == everything
+    assert lab == everything and "hdf5" in lab                       # HDF5 in the lab set (the user's decision)
     (primary, _), _, _ = planned(bs, tmp_path, "packages=@primary")
     assert primary == everything + ["madanalysis5"]                  # the primary workflow: ~/HEP's and MadAnalysis 5
+    (standard, _), _, _ = planned(bs, tmp_path, "packages=@standard")
+    (core, _), _, _ = planned(bs, tmp_path, "packages=core")
+    assert standard == core
+
+
+def test_the_recipes_are_one_file_and_each_toolkit_one_more(bs):
+    """Audit 3, phase 3.2: standard.toml holds every recipe; the other files hold no recipe of their own."""
+    standard = bs.read(REPO / "recipes" / "toolkits" / "standard.toml")
+    assert len(standard["packages"]) >= 48 and standard["standard"] == {"core": True}
+    for file in (REPO / "recipes" / "toolkits").glob("*.toml"):
+        data = bs.read(file)
+        assert set(data) <= bs.KIT_FIELDS, file.name
+        if file.name != "standard.toml":
+            assert set(data.get("packages", {})) <= set(standard["packages"]), file.name
+    for name in ("heavy-ion", "data"):                               # HDF5 named where the user asked
+        assert bs.read(REPO / "recipes" / "toolkits" / f"{name}.toml")["standard"]["hdf5"] is True
+    assert not (REPO / "recipes" / "packages.toml").exists() and not (REPO / "recipes" / "toolkits.toml").exists()
+
+
+def test_the_shells_package_list_is_the_recipes(bs):
+    """env/packages.sh is generated from the recipes (make registry), so the shell's list cannot drift."""
+    assert (REPO / "env" / "packages.sh").read_text(encoding="utf-8") == bs.packages_sh(), "run: make registry"
+    text = bs.packages_sh()
+    for folder in ("LHAPDF", "herwig7", "hdf5", "podio", "adept"):   # the isolated stacks' too
+        assert f" {folder}" in text or f'"{folder}' in text
+    assert "xrootd" not in text and "pdfsets" not in text
+
+
+def test_every_stack_toml_library_is_a_recipe_or_the_systems(bs):
+    """env/stack.toml stays written by hand (its hash keys flags.mk: an edit rebuilds every app and module);
+    each of its entries is a recipe's library, or one the system provides."""
+    import tomllib
+    stack = tomllib.loads((REPO / "env" / "stack.toml").read_text(encoding="utf-8"))
+    recipes = bs.read(REPO / "recipes" / "toolkits" / "standard.toml")["packages"]
+    system = {"toml": "libtomlplusplus-dev", "zstd": "libzstd-dev", "zlib": "zlib1g-dev"}
+    named = {"onnx": "onnxruntime"}
+    for entry in stack:
+        if entry in system:
+            assert system[entry] in bs.read(REPO / "recipes" / "settings.toml")["apt_packages"], entry
+        else:
+            assert named.get(entry, entry) in recipes, entry
 
 
 def test_a_toolkit_brings_what_it_needs(bs, tmp_path):
@@ -196,7 +237,9 @@ def test_a_toolkit_brings_what_it_needs(bs, tmp_path):
     assert order[-3:] == ["photospp", "tauolapp", "evtgen"]              # PHOTOS++ and TAUOLA++ before EvtGen
     assert "photospp" in added and "tauolapp" in added
     (mixed, _), _, _ = planned(bs, tmp_path, "packages=@data rivet")     # toolkits and names together
-    assert {"highfive", "hepdata", "rivet"} <= set(mixed)
+    assert {"highfive", "hepdata", "rivet", "hdf5"} <= set(mixed)
+    (ions, _), _, _ = planned(bs, tmp_path, "packages=@heavy-ion")
+    assert ions.index("hdf5") < ions.index("yoda")                       # YODA after HDF5: .yoda.h5
 
 
 @pytest.mark.parametrize("arg", ["packages=@nope", "packages=@"])
@@ -224,11 +267,11 @@ def test_new_recipes_say_so_and_bring_their_system_packages(bs, tmp_path, capsys
     install = next(line for line in out.out.splitlines() if "apt-get install" in line)
     assert "libeigen3-dev" in install and "nlohmann-json3-dev" in install and "libxerces-c-dev" in install
     _, _, packages = bs.options([f"machine={tmp_path}"])
-    proven = [n for n, p in packages.items() if p.get("group", "core") in ("core", "extra")]
+    proven = [n for n, p in packages.items() if p.get("group") in ("core", "extra")]
     assert not [n for n in proven if packages[n].get("status")]          # the lab PC's recipes are proven
 
 
-# ── isolated toolkits and your own (toolkits.d) ────────────────────────────────────────────────
+# ── isolated toolkits, and a machine's own (<machine root>/toolkits/) ──────────────────────────
 
 def test_an_isolated_toolkit_builds_a_stack_of_its_own(bs, tmp_path, capsys):
     prefix = tmp_path / "hep"
@@ -238,7 +281,7 @@ def test_an_isolated_toolkit_builds_a_stack_of_its_own(bs, tmp_path, capsys):
     root = next(line for line in script.splitlines() if line.startswith(f"cmake -S {prefix}/forge/src/root "))  # forge/src/ is shared
     assert f"-DCMAKE_INSTALL_PREFIX={base}/stack/root" in root and "-DCMAKE_CXX_STANDARD=20" in root
     assert f"-m venv --prompt HEP-key4hep-src {base}/venv" in script
-    assert "-DGEANT4_BUILD_CXXSTD=20" in script                     # the toolkit's override
+    assert "-DGEANT4_BUILD_CXXSTD=20" in script                     # the toolkit's [packages.geant4]
     assert f"cat > {base}/setup.sh" in script and "HEP_STACK_REQUEST=key4hep-src" in script
     assert f"{prefix}/stack/" not in script                           # the default stack is not touched
 
@@ -248,30 +291,67 @@ def test_the_default_stack_keeps_cxx17(bs, tmp_path):
     assert c["cxx_std"] == 17 and c["stack"] == "" and c["inst"] == str(tmp_path.resolve() / "stack")
 
 
-def write_kits(bs, monkeypatch, tmp_path, text):
-    folder = tmp_path / "toolkits.d"
-    folder.mkdir(exist_ok=True)
-    (folder / "mine.toml").write_text(text, encoding="utf-8")
-    monkeypatch.setattr(bs, "TOOLKITS_D", folder)
+def write_kit(root, name, text):
+    (root / "toolkits").mkdir(parents=True, exist_ok=True)
+    (root / "toolkits" / f"{name}.toml").write_text(text, encoding="utf-8")
 
 
-def test_your_own_toolkit_is_read_with_the_presets(bs, tmp_path, monkeypatch):
-    write_kits(bs, monkeypatch, tmp_path, '[mine]\ndescription = "x"\npackages = ["@data", "rivet"]\n'
-                                          '[mine.override.rivet]\nrelease = "4.1.4"\n')
+def test_a_machines_toolkit_extends_one_takes_one_out_and_adds_a_recipe(bs, tmp_path, capsys):
+    """06_Plan 3.2's row: <machine>/toolkits/mine.toml, extends = "lab", one package off, one recipe added."""
+    write_kit(tmp_path, "mine", 'description = "mine"\nextends = "lab"\n[standard]\nsherpa = false\n'
+              '[packages.rivet]\nrelease = "4.1.4"\n'
+              '[packages.mygen]\nrelease = "1.2"\nurl = "https://example.org/mygen-{release}.tar.gz"\n'
+              'kind = "cmake"\nneeds = ["hepmc3"]\n')
+    before = sorted(p.relative_to(REPO) for p in (REPO / "recipes").rglob("*") if p.is_file() and "__pycache__" not in p.parts)
     (order, _), packages, _ = planned(bs, tmp_path, "packages=@mine")
-    assert {"highfive", "hepdata", "rivet"} <= set(order) and packages["rivet"]["release"] == "4.1.4"
+    (lab, _), _, _ = planned(bs, tmp_path, "packages=@lab")
+    assert "sherpa" not in order and order[-1] == "mygen" and set(order) == set(lab) - {"sherpa"} | {"mygen"}
+    assert packages["rivet"]["release"] == "4.1.4"
+    bs.main(["--list", "@mine", f"machine={tmp_path}"])
+    out = capsys.readouterr().out
+    assert "@lab: all" in out and "@mine: its recipe" in out and "release ← @mine" in out
+    bs.main(["--toolkits", f"machine={tmp_path}"])
+    assert f"this machine's ({tmp_path / 'toolkits' / 'mine.toml'})" in capsys.readouterr().out
+    after = sorted(p.relative_to(REPO) for p in (REPO / "recipes").rglob("*") if p.is_file() and "__pycache__" not in p.parts)
+    assert before == after                                             # Heimdall's tree untouched
 
 
-@pytest.mark.parametrize("text", [
-    '[lab]\npackages = ["core"]\n',                                   # a preset's name: refused, never replaced
-    '[mine]\npackages = ["core"]\n[mine.settings]\ncxx_std = 20\n',    # another ABI without isolation
-    '[mine]\npackages = ["core"]\ncolour = "red"\n',                   # an unknown key
-    '[mine]\npackages = ["core"]\n[mine.override.nope]\nrelease = "1"\n',
+def test_a_machines_toolkit_of_a_shipped_name_is_used_and_may_extend_it(bs, tmp_path, capsys):
+    write_kit(tmp_path, "lab", 'description = "the lab, without ONNX"\nextends = "lab"\n[standard]\nonnxruntime = false\n')
+    (order, _), _, _ = planned(bs, tmp_path, "packages=@lab")
+    (everything, _), _, _ = planned(bs, tmp_path, "packages=all")
+    assert order == [n for n in everything if n != "onnxruntime"]
+    bs.main(["--toolkits", f"machine={tmp_path}"])
+    assert "over Heimdall's" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("name, text, message", [
+    ("mine", '[standard]\ncore = true\n[settings]\ncxx_std = 20\n', "must be isolated"),
+    ("mine", 'colour = "red"\n', "no key colour"),
+    ("mine", '[standard]\nnope = true\n', "no group or package 'nope'"),
+    ("mine", '[standard]\ncore = "yes"\n', "true or false"),
+    ("mine", 'extends = "mine2"\n', "no toolkit 'mine2'"),
+    ("mine", '[packages.rivet]\nrelaese = "1"\n', "no key 'relaese'"),
+    ("mine", '[settings]\npackages = "all"\n', "no key 'packages'"),
+    ("standard", '[standard]\ncore = true\n', "@standard is Heimdall's recipes"),
 ])
-def test_a_bad_toolkit_is_refused(bs, tmp_path, monkeypatch, text):
-    write_kits(bs, monkeypatch, tmp_path, text)
-    with pytest.raises(SystemExit):
-        planned(bs, tmp_path, "packages=@mine" if "[mine]" in text else "packages=@lab")
+def test_a_bad_toolkit_is_refused(bs, tmp_path, name, text, message):
+    write_kit(tmp_path, name, text)
+    with pytest.raises(SystemExit, match=message):
+        planned(bs, tmp_path, f"packages=@{name}")
+
+
+def test_toolkits_that_go_round_are_refused(bs, tmp_path):
+    write_kit(tmp_path, "a", 'extends = "b"\n')
+    write_kit(tmp_path, "b", 'extends = "a"\n')
+    with pytest.raises(SystemExit, match="go round"):
+        planned(bs, tmp_path, "packages=@a")
+
+
+def test_extending_an_isolated_toolkit_is_isolated(bs, tmp_path):
+    write_kit(tmp_path, "gpu-mine", 'extends = "gpu-sim"\n[standard]\ng4hepem = true\n')
+    (_, _), _, c = planned(bs, tmp_path, "packages=@gpu-mine")
+    assert c["stack"] == "gpu-mine" and c["cxx_std"] == 20
 
 
 def test_one_isolated_stack_per_run(bs, tmp_path):
@@ -416,16 +496,26 @@ def test_the_build_leaves_another_stack_out(bs, tmp_path, monkeypatch):
     assert "ROOTSYS" in dropped and f"PATH:{other}" in dropped
 
 
-def test_a_mac_without_its_overlay_is_sent_to_build_sh(bs, tmp_path, monkeypatch):
+def test_a_mac_build_goes_through_build_sh(bs, tmp_path, monkeypatch):
+    """On macOS the platform's fixes are laid by themselves; Homebrew and the GNU tools are build.sh's."""
     monkeypatch.setattr(bs, "MAC", True)
+    monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
+    monkeypatch.delenv("HEP_BUILD_SH", raising=False)
     _, s, packages = bs.options([f"machine={tmp_path}"])
+    assert "platform mac" in s["_layers"] and "-Dcocoa=ON" in packages["root"]["extra"]
     with pytest.raises(SystemExit) as stop:
         bs.preflight(s, bs.context(s), [])
     assert "recipes/platforms/mac/build.sh" in str(stop.value)
-    _, s, _ = bs.options(["--config", str(REPO / "recipes/platforms/mac/mac.toml"), f"machine={tmp_path}"])
-    monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
+    monkeypatch.setenv("HEP_BUILD_SH", "1")
     monkeypatch.setattr(bs.shutil, "which", lambda name: None if name == "brew" else "/usr/bin/" + name)
-    bs.preflight(s, bs.context(s), [])                              # with mac.toml: no stop
+    bs.preflight(s, bs.context(s), [])                              # through build.sh: no stop
+
+
+def test_a_platform_is_laid_only_where_it_is(bs, tmp_path):
+    _, s, packages = bs.options([f"machine={tmp_path}"])
+    assert "platform mac" not in s.get("_layers", []) and "extra" not in packages["root"]
+    with pytest.raises(SystemExit, match="no platform 'nope'"):
+        bs.options(["--platform", "nope", f"machine={tmp_path}"])
 
 
 def test_yoda_takes_hdf5_only_from_the_stack(bs, tmp_path, capsys):
@@ -506,7 +596,7 @@ def test_rebuild_takes_what_depends_on_it(bs, tmp_path, capsys):
 
 def test_overrides_append_and_reach_the_environment(bs, tmp_path, monkeypatch):
     monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
-    _, s, packages = bs.options(["--config", str(REPO / "recipes/platforms/mac/mac.toml"), f"machine={tmp_path}",
+    _, s, packages = bs.options(["--platform", "mac", f"machine={tmp_path}",
                                  "root.extra+=-Dfoo=ON", "thepeg.extra+='LDFLAGS=-L/x -lc++'",
                                  "delphes.env.EXTRA=1", "env.MY_FLAG=yes", "pdf_sets=CT10,cteq6l1"])
     assert packages["root"]["extra"][-1] == "-Dfoo=ON" and "-Dcocoa=ON" in packages["root"]["extra"]
@@ -529,7 +619,7 @@ def test_the_macs_fixes_are_recipe_lines(bs, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(bs, "MAC", True)
     monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
     prefix = tmp_path / "hep"
-    bs.main(["--dry-run", "--config", str(REPO / "recipes/platforms/mac/mac.toml"), f"machine={prefix}", "packages=@primary"])
+    bs.main(["--dry-run", f"machine={prefix}", "packages=@primary"])
     lines = capsys.readouterr().out.splitlines()
     thepeg = next(line for line in lines if "./configure" in line and "/thepeg " in line)
     for part in ("THEPEG_DYNAMIC_TYPE_INFO_BUG", "_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS", "--with-gsl=/opt/homebrew/opt/gsl",

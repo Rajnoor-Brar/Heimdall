@@ -1,11 +1,11 @@
-"""recipes/verify.py — what a built package can do, checked: the `verify` entries of packages.toml, and a
+"""recipes/verify.py — what a built package can do, checked: the `verify` entries of the recipes, and a
 scan of every program and library for libraries that no longer resolve (docs/audit_3/01_Process.md E, I).
 
 build_stack.py runs a package's checks right after it installs it; `hep doctor` runs them all. Standard
 library only, like build_stack.py. Each check gives one row: (package, check, result, note), with result
 ok, MISSING, FAIL or n/a.
 
-A verify entry (`[[<package>.verify]]` in packages.toml) has a `name` and one of:
+A verify entry (`[[packages.<name>.verify]]` in recipes/toolkits/) has a `name` and one of:
   command = "…"     a command line (split like a shell's); ok when it exits 0, its output matches
                     `expect` (a regular expression) when given, and holds every word of `has`
   python  = "…"     Python code run by the venv's interpreter; the same `expect` and `has`

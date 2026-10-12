@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# recipes/platforms/mac/build.sh — build the HEP stack into Heimdall on macOS: Homebrew's packages (Brewfile), then
-# build_stack.py with mac.toml. Run it after README.md's manual steps (Xcode's tools, Homebrew).
+# recipes/platforms/mac/build.sh — build the HEP stack into the machine root on macOS: Homebrew's packages
+# (Brewfile), then build_stack.py, which lays mac.toml under every toolkit by itself. Run it after README.md's manual steps (Xcode's tools, Homebrew).
 #
-#   bash recipes/platforms/mac/build.sh                       # the core stack into this Heimdall (hours: ROOT is 1–2 h)
+#   bash recipes/platforms/mac/build.sh                       # the core stack into ~/Himinbjorg (hours: ROOT is 1–2 h)
 #   bash recipes/platforms/mac/build.sh packages=all cores=8  # every build_stack.py argument passes through
 #   bash recipes/platforms/mac/build.sh --dry-run             # the commands as bash; nothing installed or built
 #   BREW_BUNDLE=0 bash recipes/platforms/mac/build.sh         # skip `brew bundle` (the Brewfile is installed)
@@ -49,5 +49,6 @@ for v in 3.13 3.12 3.11; do
 done
 [ -n "$PY" ] || die "no Homebrew Python 3.11+: brew install python@3.13"
 
-# Arguments after mac.toml's, so the command line wins over it
-exec "$PY" "$HERE/../../build_stack.py" --config "$HERE/mac.toml" python="$PY" "$@"
+# build_stack.py lays mac.toml itself; HEP_BUILD_SH says Homebrew and the GNU tools are set up (its preflight)
+export HEP_BUILD_SH=1
+exec "$PY" "$HERE/../../build_stack.py" python="$PY" "$@"

@@ -80,7 +80,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `[config]` | one config (default: every config) |
 | `[configuration]` | one configuration of it |
-| `--stack` | the software stack instead: each package's version (V78) |
+| `--stack` | the loaded stack instead: each package installed, its release and state; the libraries' versions |
 
 **`hep migrate`**: rewrite run TOMLs and their cards in today's forms (a diff, or --apply)
 

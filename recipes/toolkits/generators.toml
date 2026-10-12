@@ -1,0 +1,10 @@
+# recipes/toolkits/generators.toml — @generators (README.md §6)
+
+description = "event generators side by side: Pythia 8, Herwig 7, Sherpa, Whizard, MadGraph5_aMC@NLO"
+
+[standard]
+core     = true
+herwig   = true
+sherpa   = true
+whizard  = true
+madgraph = true

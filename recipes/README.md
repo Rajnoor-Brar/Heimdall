@@ -1,6 +1,7 @@
 # The stack's recipes: building Heimdall's stack
 
-`build_stack.py` builds, from source, the software stack Heimdall runs on, **into Heimdall itself**:
+`build_stack.py` builds, from source, the software stack Heimdall runs on, **into the machine root**
+(`~/Himinbjorg`):
 the lab PC's stack (Ubuntu 24.04, GCC 13), with the same versions, the same features and the fixes its
 build needed. It runs on a Linux machine with apt, in a Docker container, or on macOS with Homebrew
 ([platforms/mac/](platforms/mac/README.md)). It needs only `python3` (3.11+, or older with `tomli`):
@@ -8,14 +9,17 @@ its standard library, no other packages.
 
 | File | Is |
 |---|---|
-| [packages.toml](packages.toml) | each package: release, tarball, how it is built, what it needs |
+| [toolkits/standard.toml](toolkits/standard.toml) | every recipe: release, tarball, how it is built, what it needs, its checks; `@standard` |
+| [toolkits/](toolkits/) | one file per toolkit (`lab.toml` is `@lab`): which recipes it takes, and what it changes (§6) |
 | [settings.toml](settings.toml) | the run's settings, each with its default: cores, features, the apt, pip and PDF lists |
-| [build_stack.py](build_stack.py) | the engine: reads both, then fetches, builds, stamps and logs |
+| [build_stack.py](build_stack.py) | the engine: reads them, then fetches, builds, stamps and logs |
+| [verify.py](verify.py) | a package's checks, after it installs and in `hep doctor` |
+| [machine.py](machine.py), [machine.template.toml](machine.template.toml) | the machine root: `where`, `adopt`; a new root's `machine.toml` |
 | [pth.py](pth.py) | writes the venv's `heimdall.pth`, so Python finds `framework/` |
 | [patches/](patches/) | patches the stack's sources need (FastJet's SISCone, L29) |
 | [platforms/container/](platforms/container/Dockerfile) | the same build in an Ubuntu 24.04 image (Dockerfile, Apptainer definition) |
 | [build_by_hand.txt](build_by_hand.txt) | the same build as commands to paste into a terminal, step by step (Ubuntu 24.04) |
-| [platforms/mac/](platforms/mac/README.md) | macOS: a Brewfile, the `mac.toml` overlay, `build.sh` and `launch.sh`, and the steps by hand |
+| [platforms/mac/](platforms/mac/README.md) | macOS: a Brewfile, `mac.toml` (the platform's fixes, laid by themselves on macOS), `build.sh` and `launch.sh`, and the steps by hand |
 
 The data says what is built; the engine knows only five steps (fetch, unpack, configure or cmake,
 install, stamp) and four kinds of package. A version bump, a new flag or a new package is a TOML
@@ -58,17 +62,22 @@ source setup.sh && hep build --framework              # the environment, then th
 **Settings.** Any key of `settings.toml` is `key=value` on the command line (`cores=8
 graphics=OFF`); any key of a package is `<package>.<key>=value` (`root.release=6.40.06`,
 `madgraph.url=…`, `fastjet.patch=` for none, `root.extra="-Droofit=OFF"` for more arguments after a
-package's own). For many changes, `--config my.toml`: a TOML file with settings and `[package]`
-tables, which change packages or add new ones. The command line wins. `machine=` builds into another
+package's own). For many changes, `--config my.toml`: a file with `[settings]`, `[env]` and
+`[packages.<name>]` tables, as `machine.toml` below. The command line wins. `machine=` builds into another
 machine root than `$HEP_MACHINE` (`~/Himinbjorg`); the tests use it.
 
 **This machine's settings: `machine.toml`,** in the machine root, written once from
 [machine.template.toml](machine.template.toml) and yours to edit (never in git, so editing it leaves
-the checkout clean). `[settings]`, `[env]` and `[packages.<name>]` are a layer over the shipped files
-and any `--config`, under the toolkits asked for and the command line. A list appends to the shipped
+the checkout clean). `[settings]`, `[env]` and `[packages.<name>]` are a layer over the recipes, the
+platform's fixes and the toolkits asked for, under `--config` files and the command line. A list appends to the shipped
 one (`pdf_sets = ["NNPDF31_nnlo_as_0118"]` adds a set; `setup_extra` adds lines to `machine.sh`), unless
 its table says `replace = ["pdf_sets"]`; anything else replaces. `[cluster]` is `hep cluster`'s
 defaults for every work dir on the machine.
+
+**The layers, lowest first:** the recipes (`toolkits/standard.toml`) and `settings.toml`; the
+platform's fixes (`platforms/mac/mac.toml` on macOS; `--platform mac` shows them anywhere); the
+toolkits asked for, each after what it extends (§6); `machine.toml`; `--config` files; the command
+line. `--list @<toolkit>` says which layer changed which value.
 
 ```toml
 [settings]
@@ -86,9 +95,9 @@ lab PC's i7-13700K has 16 cores and 24 threads: 24). ROOT has its own, `root_cor
 its LLVM/Cling compilers needs ~3 GB: `0` gives one per 3 GB of RAM, at most `cores` (5 on 15 GB).
 `make install`, pip and the downloads do not use it.
 
-**Choosing packages.** `packages = "core"` (the default), `"all"`, or names (`packages="rivet
-pythia8"`). What a named package needs is added when it is not installed; they are always built in
-`packages.toml`'s order.
+**Choosing packages.** `packages = "core"` (the default), `"all"` (core and extra), a toolkit
+(`packages=@lab`, §6), or names (`packages="rivet pythia8"`). What a named package needs is added when
+it is not installed; they are always built in `standard.toml`'s order.
 
 **A bash script instead.** `--dry-run` prints the whole build as a plain bash script, so it can be
 read first, or saved and run where you want plain commands (`--dry-run > build.sh; bash build.sh`).
@@ -138,7 +147,7 @@ What a machine needs beyond it (`setup_extra`) goes to the machine root's `machi
 
 ## 2. The packages
 
-`packages.toml`'s header documents every key. In its order (the build order), `core` first:
+`toolkits/standard.toml`'s header documents every key. In its order (the build order), `core` first:
 
 | Package | Release | Kind | For |
 |---|---|---|---|
@@ -162,14 +171,17 @@ What a machine needs beyond it (`setup_extra`) goes to the machine root's `machi
 | `geant4` | 11.4.2 | CMake, MT, GDML, datasets (extra) | `// requires: geant4` |
 | `pdfsets` | `pdf_sets` | `lhapdf install` | the sets the configs and the tests use (the lab PC's 21) |
 
-The installs go to `stack/<dir>`, under the directory names `env/hep_env.sh` expects:
-`LHAPDF hepmc3 fastjet root yoda rivet pythia8 herwig7 delphes sherpa madgraph whizard onnxruntime
-geant4`. More Python packages (scipy, pandas, scikit-learn, pyhf, …) go into `python_packages`.
+The installs go to `stack/<dir>` (a recipe's `install`, else its name). `env/packages.sh`, generated
+from the recipes (`make registry`; a test keeps it current), lists them for `env/hep_env.sh`, with
+what this stack's own builds made (`stack/.stamps/folders`). `hep status --stack` (or `hep_status`)
+shows what is installed, from the recipes. More Python packages (scipy, pandas, scikit-learn, pyhf, …)
+go into `python_packages`.
 
-**A new package** is a table in `packages.toml`, or in a `--config` file:
+**A new package** is a `[packages.<name>]` table: in a toolkit of your own (§6), which builds it, or in
+`machine.toml` or a `--config` file:
 
 ```toml
-[mytool]
+[packages.mytool]
 release = "1.2"
 url     = "https://example.org/mytool-{release}.tar.gz"
 kind    = "cmake"
@@ -264,17 +276,52 @@ records the system libraries it linked, beside its stamp (`.libs`).
 
 ---
 
-## 6. Toolkits: preset sets for a kind of work
+## 6. Toolkits: the stack's build configurations
 
-A toolkit is a named set of packages ([toolkits.toml](toolkits.toml)). `packages=@<toolkit>` builds it,
-with what its packages need. Toolkits mix with each other and with names: `packages="@lab
-@heavy-flavour"`. `--toolkits` lists them. `packages=all` is still the lab PC's set (`@lab`): the
-toolkit packages join only by name or through a toolkit.
+A toolkit is a configuration for building the stack: which recipes, with which settings and changes.
+Each is one file in [toolkits/](toolkits/), named as it is invoked (`lab.toml` is `@lab`).
+`packages=@<toolkit>` builds it, with what its packages need; toolkits mix with each other and with
+names (`packages="@lab @heavy-flavour"`). `--toolkits` lists them; `--list @<toolkit>` prints the
+resolved set, why each package is in, and which layer changed which value.
+
+[toolkits/standard.toml](toolkits/standard.toml) holds **every recipe**, each in a group (`core`,
+`extra`; `all` is both) or in none, when it joins only by name. It is itself a toolkit, `@standard`:
+the core. Every other toolkit borrows from it:
+
+```toml
+# <machine root>/toolkits/heavy-ion.toml — invoked as @heavy-ion
+description = "heavy-ion work: JETSCAPE with HDF5, on the lab set"
+extends     = "lab"                   # start from another toolkit (or a list of them)
+
+[standard]                            # which of standard.toml's recipes it takes
+jetscape = true                       # a package …
+core     = true                       # … or a group
+sherpa   = false                      # false: out of what `extends` brought
+
+[settings]                            # settings.toml's keys, for this toolkit's builds
+cores = 16
+
+[packages.jetscape]                   # a recipe's keys changed: a list appends (unless replace = ["key"])
+extra = ["-DUSE_ROOT=ON"]
+
+[packages.my-generator]               # or a recipe of its own, which joins the set
+release = "1.2"
+url     = "https://example.org/my-generator-{release}.tar.gz"
+kind    = "cmake"
+needs   = ["hepmc3"]
+```
+
+**Your own toolkits** go in the machine root's `toolkits/` (`~/Himinbjorg/toolkits/`), never in
+Heimdall's tree, and are used the same way. A file there with a shipped toolkit's name is used
+instead of it, and may extend it: `extends = "lab"` inside your `lab.toml` is Heimdall's `@lab`.
+`--toolkits` says which are this machine's and which they replace. `standard.toml` itself is not
+replaced: a machine changes recipes in `machine.toml` or in a toolkit of its own.
 
 | Toolkit | For | Brings (besides the core) |
 |---|---|---|
-| **`@primary`** | **the primary workflow**: what the fresh-machine plans build | the lab PC's stack (`@lab`) and MadAnalysis 5 |
-| `@lab` | the lab PC's stack | the extra generators, Delphes, ONNX Runtime, Geant4 |
+| **`@primary`** | **the primary workflow**: what the fresh-machine plans build | the lab PC's stack (`extends = "lab"`) and MadAnalysis 5 |
+| `@lab` | the lab PC's stack (`all`) | the extra generators, Delphes, HDF5, ONNX Runtime, Geant4 |
+| `@standard` | the core | — |
 | `@generators` | event generators side by side | Herwig, Sherpa, Whizard, MadGraph5_aMC@NLO |
 | `@bsm-recast` | BSM reinterpretation | MadGraph, Delphes, MadAnalysis 5, Contur, the HEPData clients |
 | `@bsm-models` | model building | FeynRules, SARAH, UFO models into MadGraph; needs Mathematica |
@@ -283,7 +330,7 @@ toolkit packages join only by name or through a toolkit.
 | `@fixed-order` | fixed-order predictions | MCFM |
 | `@tuning` | generator tuning | Professor |
 | `@detector` | detector simulation and description | Geant4, Delphes, DD4hep, GeoModel with FullSimLight, Garfield++ |
-| `@heavy-ion` | heavy-ion collisions | JETSCAPE |
+| `@heavy-ion` | heavy-ion collisions | JETSCAPE, HDF5 (YODA with `.yoda.h5`) |
 | `@data` | data formats and publishing | HDF5 with HighFive (and h5py), the HEPData clients |
 | `@key4hep`, `@cms`, `@fluka` | external stacks | nothing built: the run says where they come from |
 | `@key4hep-src` | Key4hep's data model and framework, from source | **isolated, C++20:** ROOT, HepMC3, Geant4, podio, EDM4hep, Gaudi |
@@ -293,19 +340,15 @@ toolkit packages join only by name or through a toolkit.
 Geant4 and the framework's apps all C++17. A tool that needs C++20 cannot join it, so a toolkit may
 build a whole stack of its own:
 - `isolated = true` builds into the machine root's `stacks/<toolkit>/` (its installs, build trees,
-  venv and framework apps, `stacks/<toolkit>/apps`). `forge/downloads/` is shared.
-- `[<toolkit>.settings]` changes settings for the run, `cxx_std = 20` above all, and
-  `[<toolkit>.override.<package>]` changes a package's keys for it (Geant4's own C++ switch).
+  venv and framework apps, `stacks/<toolkit>/apps`). `forge/downloads/` is shared. A toolkit that
+  extends an isolated one is isolated, in `stacks/<its name>/`.
+- `[settings]` changes settings for the run, `cxx_std = 20` above all, and `[packages.<name>]` a
+  package's keys for it (Geant4's own C++ switch).
 - **A toolkit that changes `cxx_std` or `opt_flags` must be isolated**: the engine refuses it
   otherwise. **One isolated stack per run.**
 - `source stacks/<toolkit>/setup.sh`, which the build writes, loads it instead of `setup.sh`, in a
   shell of its own (or after `quit`). `hep where` and the prompt (`HEP-<toolkit>`) say which stack
   is loaded.
-
-**Your own toolkits** go in [toolkits.d/](toolkits.d/README.md), one or more `*.toml` files in the
-same format; [toolkits.d/example.toml.sample](toolkits.d/example.toml.sample) shows every key. They
-are read with the presets and used the same way. A name that a preset already has is refused, so a
-custom toolkit never silently replaces one.
 
 **Three kinds of package beyond the lab PC's:**
 - **`status = "new"`**: the recipe follows the project's own build instructions, with releases

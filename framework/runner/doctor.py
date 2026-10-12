@@ -1,6 +1,6 @@
 """`hep doctor`: what this machine's stack and Heimdall can do, checked (docs/audit_3/06_Plan.md, phase 2).
 
-The packages' checks are their recipes' (`[[<package>.verify]]` in recipes/packages.toml, run by
+The packages' checks are their recipes' (`[[packages.<name>.verify]]` in recipes/toolkits/, run by
 recipes/verify.py through recipes/build_stack.py), with a scan of every program and library for
 libraries that no longer resolve. Heimdall's own rows follow: the system, where things are, and the
 framework's apps. Nothing here names a tool: what a package must do is in its recipe.
@@ -28,6 +28,36 @@ RESULTS = ("ok", "MISSING", "FAIL", "n/a")
 
 def builder():
     return plugins.load(hep_root() / "recipes" / "build_stack.py", "build_stack")
+
+
+def loaded(bs):
+    """The recipes, settings and placeholders of the stack this shell has loaded: the machine root's, or an
+    isolated toolkit's ($HEP_STACK), with that toolkit's changes."""
+    stack = os.environ.get("HEP_STACK", "")
+    _, settings, packages = bs.options([f"packages=@{stack}"] if stack else [])
+    return settings, packages, bs.context(settings)
+
+
+def stack_status() -> list[str]:
+    """`hep status --stack`: every recipe installed in the loaded stack (its release, its state, its
+    folder), then the libraries a module may require (env/stack.toml) with their versions."""
+    bs = builder()
+    _, packages, c = loaded(bs)
+    out = [f"the stack: {c['inst']}" + (f" (@{c['stack']}, C++{c['cxx_std']})" if c["stack"] else ""),
+           f"  {'package':13} {'release':10} {'state':18} folder"]
+    for name, p in packages.items():
+        now = "" if p.get("kind") == "external" else bs.state(name, p, c)
+        if now:
+            folder = "venv" if name == "python" else p.get("install", name) if p.get("kind") != "none" else "-"
+            release = "?" if now == "installed" else str(p.get("release", "—"))   # not built here: below
+            out.append(f"  {name:13} {release:10} {now:18} {folder}")
+    if len(out) == 2:
+        out.append("  (nothing installed: python3 recipes/build_stack.py)")
+    if any(" installed " in line for line in out[2:]):
+        out.append("  (installed: there, but not built by build_stack.py here; its version is below, or in hep doctor)")
+    out += ["", "libraries a module may require (env/stack.toml), and the programs' versions:"]
+    out += ["  " + line for line in plugins.load(hep_root() / "env" / "stack.py", "stack").versions()]
+    return out
 
 
 def first_line(argv: list[str]) -> str:
@@ -68,8 +98,7 @@ def heimdall_rows() -> list[tuple[str, str, str, str]]:
 
 def report(quick: bool = False) -> list[tuple[str, str, str, str]]:
     bs = builder()
-    _, settings, packages = bs.options([])
-    c = bs.context(settings)
+    _, packages, c = loaded(bs)
     return [*system_rows(), *bs.doctor_rows(packages, c, dict(os.environ), quick=quick), *heimdall_rows()]
 
 

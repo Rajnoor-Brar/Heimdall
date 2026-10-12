@@ -1,0 +1,10 @@
+# recipes/toolkits/bsm-models.toml — @bsm-models (README.md §6)
+
+description = "model building: FeynRules and SARAH (Mathematica packages), UFO models into MadGraph"
+note        = "needs Mathematica (external); NLOCT goes into FeynRules' folder from the FeynRules wiki"
+
+[standard]
+madgraph     = true
+feynrules    = true
+sarah        = true
+"ufo-models" = true

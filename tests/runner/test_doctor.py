@@ -55,7 +55,7 @@ def test_a_bad_entry_is_named(verify):
 
 def test_every_recipes_checks_are_well_formed(verify):
     import tomllib
-    packages = tomllib.loads((REPO / "recipes" / "packages.toml").read_text(encoding="utf-8"))
+    packages = tomllib.loads((REPO / "recipes" / "toolkits" / "standard.toml").read_text(encoding="utf-8"))["packages"]
     checked = [name for name, p in packages.items() if p.get("verify")]
     for name in checked:
         assert not verify.problems(name, packages[name]["verify"]), name
@@ -87,3 +87,20 @@ def test_the_report_and_the_support_matrix(tmp_path, monkeypatch):
     assert path.parent == tmp_path / "recipes" / "support"
     table = "\n".join(doctor.matrix())
     assert path.stem in table and "root: libraries (root/): FAIL: libgsl.so.27" in table
+
+
+def test_the_stack_status_comes_from_the_recipes(tmp_path, monkeypatch):
+    """Audit 3, phase 3.2: `hep status --stack` lists every recipe installed in the loaded stack, with no
+    list of its own; a package not built here shows no release (its version is the libraries' block's)."""
+    monkeypatch.setenv("HEP_MACHINE", str(tmp_path))
+    monkeypatch.delenv("HEP_STACK", raising=False)
+    stamps = tmp_path / "stack" / ".stamps"
+    stamps.mkdir(parents=True)
+    (stamps / "fastjet-3.5.0").touch()                                 # built here, before digests
+    (tmp_path / "stack" / "hepmc3").mkdir()                            # there, but not built here
+    lines = doctor.stack_status()
+    assert lines[0] == f"the stack: {tmp_path.resolve() / 'stack'}"
+    first = lines[2:lines.index("")]                                  # the recipes' block
+    rows = {line.split()[0]: line.split()[1:] for line in first if not line.startswith("  (")}
+    assert rows["fastjet"][:2] == ["3.5.0", "built"] and rows["hepmc3"][:2] == ["?", "installed"]
+    assert "rivet" not in rows and any("libraries a module may require" in line for line in lines)

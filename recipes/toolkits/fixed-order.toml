@@ -1,0 +1,7 @@
+# recipes/toolkits/fixed-order.toml — @fixed-order (README.md §6)
+
+description = "fixed-order predictions: MCFM"
+
+[standard]
+core = true
+mcfm = true

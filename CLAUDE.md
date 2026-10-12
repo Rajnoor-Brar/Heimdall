@@ -17,7 +17,7 @@ Heimdall is the framework **and** the machine's home: `$HEP` is this folder (V10
 | Path | Holds |
 | --- | --- |
 | `setup.sh` | the environment (`load_hep` = `source <Heimdall>/setup.sh`) |
-| `recipes/` | the stack's recipes: `build_stack.py`, `packages.toml`, `settings.toml`, `toolkits.toml` and `toolkits.d/`, `patches/`, `platforms/{mac,container}/` |
+| `recipes/` | the stack's recipes: `build_stack.py`, `toolkits/` (`standard.toml`: every recipe; one file per toolkit), `settings.toml`, `patches/`, `platforms/{mac,container}/` |
 | `env/` | `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
 | `framework/` | `bin/` (`hep`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders, backends, figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py` |
 | `src/` | the C++ kits (`Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh`) and the apps' sources (`App_*.cc`, `Apps/Paint/`) |

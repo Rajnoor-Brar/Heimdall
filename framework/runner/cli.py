@@ -91,7 +91,7 @@ def parser() -> argparse.ArgumentParser:
     state = commands.add_parser("status", help="each configuration's points: complete, stale, incomplete or to run")
     state.add_argument("config", nargs="?", help="one config (default: every config)")
     state.add_argument("configuration", nargs="?", help="one configuration of it")
-    state.add_argument("--stack", action="store_true", help="the software stack instead: each package's version (V78)")
+    state.add_argument("--stack", action="store_true", help="the loaded stack instead: each package installed, its release and state; the libraries' versions")
 
     move = commands.add_parser("migrate", help="rewrite run TOMLs and their cards in today's forms (a diff, or --apply)")
     move.add_argument("configs", nargs="*", metavar="CONFIG", help="configs to migrate (default: every config)")
@@ -791,11 +791,10 @@ def _planned_all(names: list[str], configuration: str | None = None) -> tuple[li
 
 def cmd_status(args) -> int:
     """`hep status [CONFIG [CONFIGURATION]]` (V74): each configuration's points and stages. `--stack`
-    (V78): each package of env/stack.toml, its version and where it is."""
+    (V78, V123): every recipe installed in the loaded stack, then env/stack.toml's libraries and versions."""
     if getattr(args, "stack", False):
-        from .plugins import load
-        from .paths import hep_root
-        for line in load(hep_root() / "env" / "stack.py", "stack").versions():
+        from .doctor import stack_status
+        for line in stack_status():
             print(line)
         return 0
     names = [args.config] if args.config else house.config_names()

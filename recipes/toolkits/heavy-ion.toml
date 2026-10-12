@@ -1,0 +1,8 @@
+# recipes/toolkits/heavy-ion.toml — @heavy-ion (README.md §6)
+
+description = "heavy-ion collisions: the JETSCAPE framework"
+
+[standard]
+core     = true
+jetscape = true
+hdf5     = true   # HDF5 itself (YODA's .yoda.h5 too)

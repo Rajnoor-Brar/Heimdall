@@ -1,8 +1,11 @@
-# recipes/platforms/mac/mac.toml — what build_stack.py does differently on macOS (Apple clang, Homebrew):
-# build.sh gives it as --config. Everything else is packages.toml's and settings.toml's, unchanged.
+# recipes/platforms/mac/mac.toml — what build_stack.py does differently on macOS (Apple clang, Homebrew).
+# A platform's fixes: build_stack.py lays it on macOS by itself, under every toolkit (--platform mac shows
+# it anywhere, for a dry run). The recipes are recipes/toolkits/standard.toml's; this changes them as a
+# toolkit would: a list appends to the recipe's (so root's extra comes after its args), a table merges.
 # {HOMEBREW_PREFIX} is the environment variable `brew shellenv` sets (/opt/homebrew, or /usr/local on
 # an Intel Mac).
 
+[settings]
 system   = false                  # Homebrew instead of apt: build.sh runs `brew bundle` (Brewfile)
 graphics = "OFF"                  # no X11 on macOS: Geant4 without its OpenGL/X11 viewer; ROOT: Cocoa below
 
@@ -23,25 +26,25 @@ CMAKE_PREFIX_PATH = "{HOMEBREW_PREFIX}"
 BOOST_ROOT        = "{HOMEBREW_PREFIX}"
 OPENSSL_ROOT_DIR  = "{HOMEBREW_PREFIX}/opt/openssl@3"
 
-# ROOT's graphics through Cocoa (after packages.toml's -Dx11=OFF …: CMake takes the last of an option);
+# ROOT's graphics through Cocoa (after standard.toml's -Dx11=OFF …: CMake takes the last of an option);
 # OpenSSL is keg-only in Homebrew, so ROOT and its builtin xrootd are told where it is.
-[root]
+[packages.root]
 extra = ["-Dcocoa=ON", "-Dopengl=ON", "-Dwebgui=ON", "-Dasimage=ON",
          "-DOPENSSL_ROOT_DIR={HOMEBREW_PREFIX}/opt/openssl@3"]
 
 # Absolute install names for the CMake-built libraries whose *-config gives no rpath: a program linked
 # against them finds them without DYLD_LIBRARY_PATH, which macOS drops for its own programs (/usr/bin/env,
 # /bin/sh). Not Sherpa: its libraries are in lib/SHERPA-MC, and only its own programs use them.
-[hepmc3]
+[packages.hepmc3]
 extra = ["-DCMAKE_INSTALL_NAME_DIR={install}/lib"]
 
-[delphes]
+[packages.delphes]
 extra = ["-DCMAKE_INSTALL_NAME_DIR={install}/lib"]
 
-[geant4]
+[packages.geant4]
 extra = ["-DCMAKE_INSTALL_NAME_DIR={install}/lib"]
 
-[onnxruntime]                     # the macOS release: onnxruntime-osx-arm64 / -x86_64
+[packages.onnxruntime]                     # the macOS release: onnxruntime-osx-arm64 / -x86_64
 url = "https://github.com/microsoft/onnxruntime/releases/download/v{release}/onnxruntime-osx-{machine}-{release}.tgz"
 
 # ── ThePEG and Herwig on Apple clang and libc++ (the first Mac build, 2026-10-12; docs/audit_3/01_Process.md D)
@@ -55,15 +58,15 @@ url = "https://github.com/microsoft/onnxruntime/releases/download/v{release}/onn
 #   LDFLAGS … -lc++                 libtool links them -flat_namespace, so libThePEG recorded no libc++
 #                                   dependency and its static initialisers ran before libc++'s (macOS 27
 #                                   aborted: "typed operator new … before its static initializer")
-[thepeg]
+[packages.thepeg]
 env   = { CXXFLAGS = "{cxxflags} -D_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -D_LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -DTHEPEG_DYNAMIC_TYPE_INFO_BUG" }
 extra = ["--with-gsl={HOMEBREW_PREFIX}/opt/gsl", "LDFLAGS=-L{HOMEBREW_PREFIX}/lib -lc++"]
 
-[herwig]
+[packages.herwig]
 env   = { CXXFLAGS = "{cxxflags} -D_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -D_LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -DTHEPEG_DYNAMIC_TYPE_INFO_BUG" }
 extra = ["--with-gsl={HOMEBREW_PREFIX}/opt/gsl", "LDFLAGS=-L{HOMEBREW_PREFIX}/lib -lc++"]
 
 # Whizard 3.1.8: its configure copies clang++'s link line into CXXLIBS and keeps a bare -lto_library;
 # it filters that only when it can read Xcode's version, which the Command Line Tools alone don't give.
-[whizard]
+[packages.whizard]
 extra = ["CXXLIBS=-lc++"]

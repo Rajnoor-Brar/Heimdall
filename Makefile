@@ -54,7 +54,7 @@ $(APPS)/Herwig/HerwigDefaults.rpo: $(HERWIG)
 ALL += $(APPS)/Herwig/HerwigDefaults.rpo
 endif
 
-.PHONY: all tests test test-slow clean configure list schema docs
+.PHONY: all tests test test-slow clean configure list schema docs registry
 all: $(ALL)
 tests: $(TESTS)
 test: all tests
@@ -70,6 +70,8 @@ schema:                         # framework/schema/run.schema.json from run.toml
 	cd framework && python3 -m runner.schema
 docs:                           # the manual's generated blocks, from the schema, base.toml and the CLI (V91)
 	cd framework && python3 -m runner.docs
+registry:                       # env/packages.sh, the shell's install folders, from the recipes (V123)
+	python3 recipes/build_stack.py --packages-sh > env/packages.sh
 clean:
 	rm -rf $(APPS) $(MK) $(FORGE)/tests
 

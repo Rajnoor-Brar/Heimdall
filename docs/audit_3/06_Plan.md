@@ -169,7 +169,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 | two checkouts with one `HEP_MACHINE` | both run; one stack |
 | Heimdall moved to another folder | `hep doctor` passes without a rebuild |
 
-**3.2 Toolkits as files, one package registry** (U26, U34)
+**3.2 Toolkits as files, one package registry** (U26, U34) — **done, V123** (the platform's fixes stay in `platforms/mac/mac.toml`; `env/stack.toml` stays hand-written, tied to the recipes by a test, since its hash keys `flags.mk`)
 - The toolkits of [04 §5](04_Extending.md#5-toolkits-the-stacks-build-configurations), the user's
   design:
   - `recipes/toolkits/standard.toml` holds every recipe, with its groups, conditional flags and

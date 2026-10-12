@@ -1,0 +1,6 @@
+# recipes/toolkits/cms.toml — @cms (README.md §6)
+
+description = "CMSSW from CVMFS, in an el9 container: external"
+
+[standard]
+cmssw = true

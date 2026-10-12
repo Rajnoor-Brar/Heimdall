@@ -1,6 +1,22 @@
-# recipes/packages.toml — the stack's packages, in build order: where each one's source is and how
-# it is built (the lab PC's versions and fixes; README.md §3 says why each flag is there).
+# recipes/toolkits/standard.toml — every recipe of the stack, in build order: where each package's source
+# is and how it is built (README.md §3 says why each flag is there). A toolkit (README.md §6) borrows
+# from here by its [standard] table; this file is itself a toolkit, @standard, which builds the core.
 #
+# A toolkit file (this one, the others in this folder, your own in the machine root's toolkits/):
+#   description, note   what it is for (--toolkits prints them)
+#   extends             another toolkit (or a list) whose set and changes it starts from
+#   isolated            true: a whole stack of its own in the machine root's stacks/<toolkit>/ (another
+#                       C++ standard); a toolkit that changes cxx_std or opt_flags must be
+#   [standard]          which recipes it borrows: a group ("core", "extra", "all": both) or a package,
+#                       = true to take it, = false to leave it out of what `extends` brought
+#   [settings] [env]    settings.toml's keys, and the build's environment, for this toolkit's builds
+#   [packages.<name>]   a recipe's keys changed (a list appends, unless replace = ["key"] names it), or
+#                       a recipe of its own, which joins its set
+# What a package needs is added to any set. The layers, lowest first: this file and settings.toml;
+# the platform's fixes (platforms/<platform>/<platform>.toml); the toolkits asked for, each after what
+# it extends; the machine root's machine.toml; --config files; the command line.
+#
+# A recipe, [packages.<name>]:
 #   release   its version: the stamp's, {release} below, and {series} (it without its last ".x")
 #   url       its tarball, or a list of mirrors tried in order (a web page or a cut-off file is refused)
 #   sha256    the tarball's checksum, checked when given (`build_stack.py --sha256` prints the archives')
@@ -8,12 +24,13 @@
 #             cmake      {src} built in {build} and installed into {install} (Release, C++{cxx_std})
 #             unpack     the tarball unpacked into {install}; nothing built
 #             none       only its pre and post commands
+#             external   never built here: `how` says where it comes from
 #   needs     the packages it builds against: added to a run when they are not installed
-#   group     "core" (the default) or "extra": packages = "core" builds the first, "all" both
-#   install   its directory under stack/ (default: its name): the names env/hep_env.sh expects
+#   group     "core" or "extra" ("all" is both); without one, a package joins a build only by name
+#   install   its directory under stack/ (default: its name); env/packages.sh lists them for the shell
 #   probe     the file that shows it installed (default: {install})
 #   args      configure or cmake arguments
-#   extra     more of them, after args: for an overlay or the command line (root.extra="-Droofit=OFF"),
+#   extra     more of them, after args: for a toolkit or the command line (root.extra="-Droofit=OFF"),
 #             without repeating args (CMake and configure take the last of a repeated option)
 #   optional  { package = [args] }: added when that package is installed or in the run
 #   patch     a patch (-p0) for the unpacked source; a path from Heimdall's root
@@ -21,31 +38,42 @@
 #   env       environment for its commands
 #   pre, post commands run before configuring and after installing (in {src}; shell words, no shell)
 #   cores     how many compilers it runs at once, its make -j (default {cores})
+#   status    "new": a recipe no build has proven yet
+#   verify    [[packages.<name>.verify]]: what it must be able to do, checked after it installs and by
+#             `hep doctor` (recipes/verify.py says how)
 #
 # Placeholders: any setting ({cores}, {graphics}, …), and {prefix} (the machine root) {inst} {venv} {src} {build}
 # {install} {release} {series} {py} {pyxy} {pyinc} {cxxflags} {arch} {machine} {dylib} {repo}, and any
 # environment variable ({HOMEBREW_PREFIX}). A word that is only a list setting ({pdf_sets}) becomes its
 # words.
 
-[python]
+description = "every recipe; @standard builds the core: generators, Rivet, ROOT, LHAPDF, Delphes"
+
+[standard]
+core = true
+
+[packages.python]
 kind  = "none"
+group = "core"
 probe = "{venv}/bin/python"
 pre   = ["{python} -m venv --prompt {venv_prompt} {venv}",
          "{venv}/bin/python -m pip install --timeout 60 --retries 10 --upgrade pip",
          "{venv}/bin/python -m pip install --timeout 60 --retries 10 {python_packages}",
          "{venv}/bin/python {repo}/recipes/pth.py {repo}"]       # heimdall.pth: $HEP/framework on the venv's path
 
-[lhapdf]
+[packages.lhapdf]
 release = "6.5.6"
 url     = "https://lhapdf.hepforge.org/downloads/?f=LHAPDF-{release}.tar.gz"
 kind    = "autotools"
+group   = "core"
 needs   = ["python"]
 install = "LHAPDF"
 
-[hepmc3]
+[packages.hepmc3]
 release = "3.3.1"
 url     = "https://hepmc.web.cern.ch/hepmc/releases/HepMC3-{release}.tar.gz"
 kind    = "cmake"
+group   = "core"
 needs   = ["python"]
 # The Python directory is HEPMC3_Python_SITEARCH<XY> (HEPMC3_PYTHON_INSTALL_DIR is ignored); LTO strips
 # the pybind11 symbols.
@@ -56,29 +84,32 @@ args = [
   "-DCMAKE_CXX_FLAGS={cxxflags} -fno-lto", "-DCMAKE_SHARED_LINKER_FLAGS=-fno-lto",
 ]
 
-[fastjet]
+[packages.fastjet]
 release = "3.5.0"
 url     = "https://fastjet.fr/repo/fastjet-{release}.tar.gz"
 kind    = "autotools"
+group   = "core"
 # SISCone's random-number state is one per process: threads clustering at once get other jets (L29).
 # The patch makes it per thread. fastjet.patch="" builds without it.
 patch   = "recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch"
 args    = ["--enable-shared", "--enable-allcxxplugins"]
 
-[fjcontrib]
+[packages.fjcontrib]
 release = "1.104"
 url     = "https://fastjet.hepforge.org/contrib/downloads/fjcontrib-{release}.tar.gz"
 kind    = "autotools"
+group   = "core"
 needs   = ["fastjet"]
 install = "fastjet"                                   # into FastJet's prefix, as the lab PC has it
 probe   = "{install}/lib/libfastjetcontribfragile.{dylib}"
 args    = ["--fastjet-config={inst}/fastjet/bin/fastjet-config", "CXXFLAGS={cxxflags} -fPIC"]
 post    = ["make fragile-shared-install"]             # libfastjetcontribfragile.so (.dylib), which Rivet links
 
-[root]
+[packages.root]
 release = "6.40.04"                                   # not 6.40.00: its rootcling_stage1 does not link
 url     = "https://root.cern/download/root_v{release}.source.tar.gz"
 kind    = "cmake"
+group   = "core"
 needs   = ["python"]
 cores   = "{root_cores}"
 args = [
@@ -89,7 +120,7 @@ args = [
   "-Dbuiltin_freetype=ON", "-Dbuiltin_pcre=ON", "-Dxrootd=ON", "-Dbuiltin_xrootd=ON", "-Ddavix=OFF",
 ]
 
-[hdf5]
+[packages.hdf5]
 release = "2.2.0"                                     # 2.x builds with CMake only
 url     = "https://github.com/HDFGroup/hdf5/releases/download/{release}/hdf5-{release}.tar.gz"
 kind    = "cmake"
@@ -103,28 +134,31 @@ args = [
 # h5cc-plain: the one-line h5cc YODA's configure can read (HDF5 2.x's broke its link line on the Mac)
 post = ["{python} {repo}/recipes/helpers/h5cc_plain.py {install} {release}"]
 
-[yoda]
+[packages.yoda]
 release = "2.1.4"
 url     = ["https://cedar-tools.web.cern.ch/downloads/YODA-{release}.tar.gz",     # CEDAR: the releases' home now
            "https://yoda.hepforge.org/downloads?f=YODA-{release}.tar.gz"]
 kind    = "autotools"
+group   = "core"
 needs   = ["python"]
 # HDF5 support (.yoda.h5) only with the stack's HDF5: never one the system happens to have (the Mac's
 # Homebrew HDF5 broke the link, docs/audit_3/01_Process.md §5). The later --enable-h5 wins.
 args     = ["--disable-h5"]
 optional = { hdf5 = ["--enable-h5", "--with-hdf5={inst}/hdf5/bin/h5cc-plain", "--enable-h5-rpath"] }
 
-[rivet]
+[packages.rivet]
 release = "4.1.4"
 url     = "https://cedar-tools.web.cern.ch/downloads/Rivet-{release}.tar.gz"      # HepForge stops at 4.1.3
 kind    = "autotools"
+group   = "core"
 needs   = ["python", "hepmc3", "yoda", "fastjet", "fjcontrib"]
 args    = ["--with-hepmc3={inst}/hepmc3", "--with-yoda={inst}/yoda", "--with-fastjet={inst}/fastjet"]
 
-[pythia8]
+[packages.pythia8]
 release = "8318"
 url     = "https://pythia.org/releases/pythia83/pythia{release}.tgz"     # /download/ is gone (404) since 2026
 kind    = "autotools"
+group   = "core"
 needs   = ["python", "lhapdf", "hepmc3", "fastjet"]
 args = [
   "--with-lhapdf6={inst}/LHAPDF", "--with-hepmc3={inst}/hepmc3", "--with-fastjet3={inst}/fastjet",
@@ -134,10 +168,11 @@ args = [
 # Its ROOT and Rivet plugins (Pythia8Plugins/RivetHooks.h) exist only when built after them.
 optional = { root = ["--with-root={inst}/root"], rivet = ["--with-rivet={inst}/rivet"] }
 
-[thepeg]
+[packages.thepeg]
 release = "2.3.0"
 url     = "https://thepeg.hepforge.org/downloads/?f=ThePEG-{release}.tar.bz2"
 kind    = "autotools"
+group   = "core"
 needs   = ["lhapdf", "hepmc3", "fastjet"]
 install = "herwig7"
 probe   = "{install}/bin/setupThePEG"
@@ -145,10 +180,11 @@ probe   = "{install}/bin/setupThePEG"
 args    = ["--with-hepmc={inst}/hepmc3", "--with-hepmcversion=3", "--with-fastjet={inst}/fastjet",
            "--with-lhapdf={inst}/LHAPDF"]
 
-[herwig]
+[packages.herwig]
 release = "7.3.0"
 url     = "https://herwig.hepforge.org/downloads/?f=Herwig-{release}.tar.bz2"
 kind    = "autotools"
+group   = "core"
 needs   = ["thepeg", "lhapdf", "fastjet"]
 install = "herwig7"
 probe   = "{install}/bin/Herwig"
@@ -160,20 +196,22 @@ args    = ["--with-thepeg={inst}/herwig7", "--with-fastjet={inst}/fastjet", "--w
            "FFLAGS=-O2 -std=legacy -ffixed-line-length-none -fdefault-integer-8",
            "FCFLAGS=-O2 -std=legacy -ffixed-line-length-none -fdefault-integer-8"]
 
-[delphes]
+[packages.delphes]
 release = "3.5.1"
 url     = "https://github.com/delphes/delphes/archive/refs/tags/{release}.tar.gz"
 kind    = "cmake"
+group   = "core"
 needs   = ["root"]
 env     = { PYTHIA8 = "{inst}/pythia8" }              # DelphesPythia8 too, when Pythia8 is there
 args    = ["-DROOT_DIR={inst}/root/cmake"]
 
-[pdfsets]
+[packages.pdfsets]
 kind  = "none"
+group = "core"
 needs = ["lhapdf"]
 post  = ["lhapdf install {pdf_sets}"]                 # a set already there is skipped
 
-[sherpa]
+[packages.sherpa]
 release = "3.0.5"
 url     = "https://gitlab.com/sherpa-team/sherpa/-/archive/v{release}/sherpa-v{release}.tar.gz"
 kind    = "cmake"
@@ -188,7 +226,7 @@ args = [
   "-DSHERPA_ENABLE_INTERNAL_PDFS=ON", "-DSHERPA_ENABLE_EXAMPLES=ON",
 ]
 
-[madgraph]
+[packages.madgraph]
 release = "3.8.1"                                     # Launchpad renames releases: set madgraph.url when it 404s
 url     = "https://launchpad.net/mg5amcnlo/3.0/{series}.x/+download/MG5_aMC_v{release}.tar.gz"
 kind    = "unpack"                                    # a Python/Fortran tree, pointed at the stack
@@ -200,7 +238,7 @@ post = ["""sed -i.orig
   -e 's|^#* *automatic_html_opening *=.*|automatic_html_opening = False|'
   {install}/input/mg5_configuration.txt"""]
 
-[whizard]
+[packages.whizard]
 release = "3.1.8"
 url     = "https://whizard.hepforge.org/downloads/?f=whizard-{release}.tar.gz"
 kind    = "autotools"
@@ -214,13 +252,13 @@ args = [
   "--disable-dependency-tracking", "FC=gfortran",
 ]
 
-[onnxruntime]
+[packages.onnxruntime]
 release = "1.29.0"
 url     = "https://github.com/microsoft/onnxruntime/releases/download/v{release}/onnxruntime-linux-{arch}-{release}.tgz"
 kind    = "unpack"                                    # a released binary: no ABI to match
 group   = "extra"
 
-[geant4]
+[packages.geant4]
 release = "11.4.2"
 url     = "https://github.com/Geant4/geant4/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
@@ -231,35 +269,32 @@ args = [
   "-DGEANT4_USE_SYSTEM_ZLIB=OFF", "-DGEANT4_INSTALL_DATA_TIMEOUT=1500",
 ]
 
-# ── Toolkit packages (group "toolkit"): only by name or through a toolkit (toolkits.toml) ───────────
+# ── Packages a toolkit names (no group): only by name, or through a toolkit (the other files here) ──────
 # status = "new": the recipe follows the project's own build instructions, but no build has proven it
 # here yet. build_stack.py says so, and a failure is a gate (docs/framework/02_Agents.md §6). Releases
 # were checked against the projects' pages on 2026-10-10. kind = "external": never built here; `how`
 # says where it comes from. Why each is in, and what was left out, is README.md §6.
 
-[photospp]
+[packages.photospp]
 release = "3.64"                                      # HepMC3 support since 3.64 (EvtGen's minimum)
 url     = "https://photospp.web.cern.ch/photospp/resources/PHOTOS.{release}/PHOTOS.{release}.tar.gz"
 kind    = "autotools"
-group   = "toolkit"
 status  = "new"
 needs   = ["hepmc3"]
 args    = ["--with-hepmc3={inst}/hepmc3"]
 
-[tauolapp]
+[packages.tauolapp]
 release = "1.1.8"                                     # HepMC3 support since 1.1.8 (EvtGen's minimum)
 url     = "https://tauolapp.web.cern.ch/tauolapp/resources/TAUOLA.{release}/TAUOLA.{release}.tar.gz"
 kind    = "autotools"
-group   = "toolkit"
 status  = "new"
 needs   = ["hepmc3", "lhapdf"]
 args    = ["--with-hepmc3={inst}/hepmc3", "--with-lhapdf={inst}/LHAPDF"]
 
-[evtgen]
+[packages.evtgen]
 release = "R03-00-01"
 url     = "https://gitlab.cern.ch/evtgen/evtgen/-/archive/{release}/evtgen-{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["hepmc3", "pythia8", "photospp", "tauolapp"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
@@ -269,190 +304,169 @@ args = [
   "-DPHOTOSPP_ROOT_DIR={inst}/photospp", "-DTAUOLAPP_ROOT_DIR={inst}/tauolapp",
 ]
 
-[superchic]
+[packages.superchic]
 release = "5.6.2"                                     # central exclusive production (LHAPDF for its PDFs)
 url     = "https://github.com/LucianHL/SuperChic/archive/refs/tags/{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["lhapdf", "hepmc3"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 
-[mcfm]
+[packages.mcfm]
 release = "10.3"                                      # fixed order (NLO, NNLO, N3LO); its own LHAPDF off
 url     = "https://mcfm.fnal.gov/downloads/MCFM-{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["lhapdf"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-Duse_internal_lhapdf=OFF", "-Duse_external_lhapdf=ON"]
 
-[jetscape]
+[packages.jetscape]
 release = "4.0.2"                                     # heavy-ion framework; HDF5 for its hydro modules
 url     = "https://github.com/JETSCAPE/JETSCAPE/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["pythia8", "hepmc3", "root", "hdf5"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}", HDF5_ROOT = "{inst}/hdf5" }
 
-[madanalysis5]
+[packages.madanalysis5]
 release = "1.11.1"                                    # recasting; it finds ROOT, FastJet, Delphes at first start
 url     = "https://github.com/MadAnalysis/madanalysis5/archive/refs/tags/v{release}.tar.gz"
 kind    = "unpack"                                    # a Python tree, run in place: stack/madanalysis5/bin/ma5
-group   = "toolkit"
 status  = "new"
 needs   = ["root", "fastjet", "delphes"]
 probe   = "{install}/bin/ma5"
 
-[contur]
+[packages.contur]
 release = "3.1.3"                                     # model interpretation on Rivet's measurements (Rivet 4)
 kind    = "none"
-group   = "toolkit"
 status  = "new"
 needs   = ["rivet", "yoda"]
 probe   = "{venv}/bin/contur"
 pre     = ["{venv}/bin/pip install contur=={release}"]
 
-[professor]
+[packages.professor]
 release = "2.5.2"                                     # tuning: parametrise, then fit (Eigen, iminuit)
 url     = "https://professor.hepforge.org/downloads/?f=Professor-{release}.tar.gz"
 kind    = "unpack"
-group   = "toolkit"
 status  = "new"
 needs   = ["yoda"]
 apt     = ["libeigen3-dev"]
 post    = ["{venv}/bin/pip install cython iminuit", "{venv}/bin/pip install {install}"]
 
-[hepdata]
+[packages.hepdata]
 kind    = "none"                                      # the HEPData clients: make and fetch submissions
-group   = "toolkit"
 status  = "new"
 needs   = ["python"]
 probe   = "{venv}/bin/hepdata-cli"
 pre     = ["{venv}/bin/pip install hepdata-lib hepdata-cli"]
 
-[highfive]
+[packages.highfive]
 release = "3.3.0"                                     # header-only C++ for HDF5 (the stack's)
 url     = "https://github.com/highfive-devs/highfive/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["hdf5"]
 args    = ["-DHIGHFIVE_UNIT_TESTS=OFF", "-DHIGHFIVE_EXAMPLES=OFF", "-DHDF5_ROOT={inst}/hdf5"]
 env     = { HDF5_DIR = "{inst}/hdf5" }                # h5py built against the stack's HDF5
 post    = ["{venv}/bin/python -m pip install --no-binary=h5py h5py"]
 
-[dd4hep]
+[packages.dd4hep]
 release = "01-38"                                     # C++17 since v01-35: the stack's standard
 url     = "https://github.com/AIDASoft/DD4hep/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["root", "geant4", "hepmc3"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-DDD4HEP_USE_GEANT4=ON", "-DDD4HEP_USE_XERCESC=ON", "-DDD4HEP_USE_HEPMC3=ON", "-DBUILD_TESTING=OFF"]
 
-[geomodel]
+[packages.geomodel]
 release = "6.27.0"                                    # with ATLAS FullSimLight (now part of GeoModel)
 url     = "https://gitlab.cern.ch/GeoModelDev/GeoModel/-/archive/{release}/GeoModel-{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["geant4"]
 apt     = ["libeigen3-dev", "nlohmann-json3-dev"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-DGEOMODEL_BUILD_FULLSIMLIGHT=ON", "-DGEOMODEL_BUILD_TOOLS=ON"]
 
-[garfieldpp]
+[packages.garfieldpp]
 release = "2025.12"                                   # gaseous and semiconductor detectors (ROOT, GSL)
 url     = "https://gitlab.cern.ch/garfield/garfieldpp/-/archive/{release}/garfieldpp-{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["root"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-DWITH_EXAMPLES=OFF"]
 
-[feynrules]
+[packages.feynrules]
 release = "2.3.49"                                    # a Mathematica package: unusable without Mathematica
 url     = "https://feynrules.irmp.ucl.ac.be/downloads/feynrules-current.tar.gz"   # the site serves only "current"
 kind    = "unpack"
-group   = "toolkit"
 status  = "new"
 needs   = ["mathematica"]
 
-[sarah]
+[packages.sarah]
 release = "4.15.4"                                    # a Mathematica package: unusable without Mathematica
 url     = "https://sarah.hepforge.org/downloads/?f=SARAH-{release}.tar.gz"
 kind    = "unpack"
-group   = "toolkit"
 status  = "new"
 needs   = ["mathematica"]
 
-[ufo-models]
+[packages.ufo-models]
 kind    = "none"                                      # settings.toml's ufo_models (URLs), into MadGraph's models/
-group   = "toolkit"
 status  = "new"
 needs   = ["madgraph"]
 probe   = ""
 pre     = ["""bash -c 'for u in {ufo_models}; do f={stash}/$(basename "$u"); [ -s "$f" ] || curl -fL -o "$f" "$u";
   case "$f" in *.zip) unzip -oq "$f" -d {inst}/madgraph/models ;; *) tar xf "$f" -C {inst}/madgraph/models ;; esac; done'"""]
 
-[mathematica]
+[packages.mathematica]
 kind    = "external"
-group   = "toolkit"
 probe   = ""
 how     = "a Mathematica (Wolfram) licence and installation, on PATH as `math` or `wolframscript`; FeynRules, SARAH and NLOCT run inside it"
 
-[key4hep]
+[packages.key4hep]
 kind    = "external"
-group   = "toolkit"
 probe   = "/cvmfs/sw.hsf.org/key4hep"
 how     = "CVMFS (https://cvmfs.readthedocs.io; sudo) with sw.hsf.org, then `source /cvmfs/sw.hsf.org/key4hep/setup.sh` in a shell of its own (an AlmaLinux 9 container on other systems). It brings EDM4hep, podio, DD4hep, Gaudi and k4FWCore, built with C++20: never in the same shell as setup.sh"
 
-[cmssw]
+[packages.cmssw]
 kind    = "external"
-group   = "toolkit"
 probe   = "/cvmfs/cms.cern.ch"
 how     = "CVMFS with cms.cern.ch, then `/cvmfs/cms.cern.ch/common/cmssw-el9` (an el9 container) and `cmsrel CMSSW_<release>` inside it: never in the same shell as setup.sh"
 
-[fluka]
+[packages.fluka]
 kind    = "external"
-group   = "toolkit"
 probe   = "{inst}/fluka"
 how     = "FLUKA from https://fluka.cern after registering and accepting its licence (it cannot be fetched for you); install it into {inst}/fluka by its manual, with the system's gfortran"
 
 # ── C++20 packages: for isolated toolkits only (@key4hep-src, @gpu-sim): they need cxx_std = 20, so
 # they never share an install with the C++17 stack (README.md §6). Releases checked 2026-10-10.
 
-[podio]
+[packages.podio]
 release = "01-07"                                     # the EDM toolkit EDM4hep is generated with
 url     = "https://github.com/AIDASoft/podio/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["root", "python"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 pre     = ["{venv}/bin/pip install jinja2 pyyaml"]
 args    = ["-DBUILD_TESTING=OFF", "-DENABLE_SIO=OFF"]
 
-[edm4hep]
+[packages.edm4hep]
 release = "01-01"                                     # needs podio >= 1.7 and C++20
 url     = "https://github.com/key4hep/EDM4hep/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["podio", "hepmc3"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-DBUILD_TESTING=OFF"]
 
-[gaudi]
+[packages.gaudi]
 release = "v40r6"                                     # C++20 since v39r0
 url     = "https://gitlab.cern.ch/gaudi/Gaudi/-/archive/{release}/Gaudi-{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["root", "python"]
 apt     = ["libtbb-dev", "librange-v3-dev", "libfmt-dev", "libmsgsl-dev", "nlohmann-json3-dev", "libunwind-dev"]
@@ -462,25 +476,22 @@ args = [
   "-DGAUDI_USE_JEMALLOC=OFF", "-DGAUDI_USE_CLHEP=OFF", "-DGAUDI_USE_HEPPDT=OFF", "-DGAUDI_USE_DOXYGEN=OFF",
 ]
 
-[cuda]
+[packages.cuda]
 kind    = "external"
-group   = "toolkit"
 probe   = "/usr/local/cuda/bin/nvcc"
 how     = "NVIDIA's CUDA Toolkit (12 or newer) and a CUDA GPU with its driver, nvcc on PATH (developer.nvidia.com/cuda-downloads; sudo)"
 
-[veccore]
+[packages.veccore]
 release = "0.8.2"                                     # SIMD abstraction under VecGeom
 url     = "https://github.com/root-project/veccore/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 args    = ["-DBUILD_TESTING=OFF"]
 
-[vecgeom]
+[packages.vecgeom]
 release = "v2.1.1"                                    # the 2.x line AdePT needs (>= 2.0.0-rc.4)
 url     = "https://gitlab.cern.ch/VecGeom/VecGeom/-/archive/{release}/VecGeom-{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["veccore", "cuda"]
 apt     = ["libxerces-c-dev"]
@@ -488,21 +499,19 @@ env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-DVECGEOM_ENABLE_CUDA=ON", "-DVECGEOM_GDML=ON", "-DVECGEOM_USE_NAVINDEX=ON", "-DBUILD_TESTING=OFF",
            "-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}"]
 
-[g4hepem]
+[packages.g4hepem]
 release = "20251114"                                  # Geant4's EM physics for GPUs (AdePT needs >= 20250610)
 url     = "https://github.com/mnovak42/g4hepem/archive/refs/tags/{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["geant4", "cuda"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-DG4HepEm_CUDA_BUILD=ON", "-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}"]
 
-[adept]
+[packages.adept]
 release = "0.4.1"                                     # Geant4 EM showers on the GPU
 url     = "https://github.com/apt-sim/AdePT/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
-group   = "toolkit"
 status  = "new"
 needs   = ["geant4", "vecgeom", "g4hepem", "hepmc3", "cuda"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
@@ -514,180 +523,180 @@ args    = ["-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}", "-DBUILD_TESTING=OFF"]
 # name, and one of command (+ expect, has), python (+ expect, has), files (globs), links (globs + has);
 # slow = true for a run of minutes (hep doctor only; --quick skips it).
 
-[[python.verify]]
+[[packages.python.verify]]
 name   = "venv packages"
 python = "import importlib.metadata as m; print(' '.join({v for d in m.distributions() for n in [d.metadata['Name'].lower()] for v in (n, n.replace('-', '_'), n.replace('_', '-'))}))"
 has    = ["{python_packages}"]
 
-[[lhapdf.verify]]
+[[packages.lhapdf.verify]]
 name    = "version"
 command = "lhapdf-config --version"
 
-[[lhapdf.verify]]
+[[packages.lhapdf.verify]]
 name   = "python: import lhapdf"
 python = "import lhapdf"
 
-[[hepmc3.verify]]
+[[packages.hepmc3.verify]]
 name    = "version"
 command = "HepMC3-config --version"
 
-[[hepmc3.verify]]
+[[packages.hepmc3.verify]]
 name  = "search library"
 files = ["{install}/lib*/libHepMC3search.*"]
 
-[[hepmc3.verify]]
+[[packages.hepmc3.verify]]
 name   = "python: import pyHepMC3"
 python = "import pyHepMC3"
 
-[[fastjet.verify]]
+[[packages.fastjet.verify]]
 name    = "version"
 command = "fastjet-config --version"
 
-[[fastjet.verify]]
+[[packages.fastjet.verify]]
 name    = "plugins"
 command = "fastjet-config --list-plugins"
 has     = ["SISCone"]
 
-[[fjcontrib.verify]]
+[[packages.fjcontrib.verify]]
 name  = "contribs"
 files = ["{install}/lib/libRecursiveTools.*", "{install}/lib/libNsubjettiness.*", "{install}/lib/libLundPlane.*",
          "{install}/lib/libfastjetcontribfragile.{dylib}"]
 
-[[root.verify]]
+[[packages.root.verify]]
 name    = "version"
 command = "root-config --version"
 
-[[root.verify]]
+[[packages.root.verify]]
 name    = "features"
 command = "root-config --features"
 has     = ["pyroot", "mathmore", "roofit", "tmva", "fftw3", "imt", "xrootd", "ssl", "gdml", "http", "sqlite"]
 
-[[root.verify]]
+[[packages.root.verify]]
 name   = "python: import ROOT"
 python = "import ROOT"
 
-[[root.verify]]
+[[packages.root.verify]]
 name    = "fill and fit"
 command = '''root -b -q -l -e 'TH1D h("h","",60,-4,4); gRandom->SetSeed(1); h.FillRandom("gaus",20000); h.Fit("gaus","Q0"); printf("sigma=%.2f\n", h.GetFunction("gaus")->GetParameter(2)); gSystem->Exit(0);' '''
 expect  = 'sigma=(0\.9|1\.0)'
 
-[[pdfsets.verify]]
+[[packages.pdfsets.verify]]
 name    = "the sets"
 command = "lhapdf list --installed"
 has     = ["{pdf_sets}"]
 
-[[pdfsets.verify]]
+[[packages.pdfsets.verify]]
 name   = "a set reads"
 python = "import lhapdf; lhapdf.setVerbosity(0); print('xg', round(lhapdf.mkPDF('CT14lo', 0).xfxQ(21, 0.1, 10.0), 3))"
 expect = '^xg [0-9]'
 
-[[hdf5.verify]]
+[[packages.hdf5.verify]]
 name    = "version"
 command = "{install}/bin/h5dump --version"
 
-[[hdf5.verify]]
+[[packages.hdf5.verify]]
 name  = "h5cc-plain"
 files = ["{install}/bin/h5cc-plain"]
 
-[[yoda.verify]]
+[[packages.yoda.verify]]
 name    = "version"
 command = "yoda-config --version"
 
-[[yoda.verify]]
+[[packages.yoda.verify]]
 name   = "python: write and read"
 python = "import yoda; h = yoda.Histo1D(10, 0, 1, '/t/h'); [h.fill(0.05 + 0.1 * i) for i in range(10)]; yoda.write([h], 't.yoda'); print('entries', int(yoda.read('t.yoda')['/t/h'].numEntries()))"
 expect = 'entries 10'
 
-[[rivet.verify]]
+[[packages.rivet.verify]]
 name    = "version"
 command = "rivet --version"
 
-[[rivet.verify]]
+[[packages.rivet.verify]]
 name    = "linked"
 command = "rivet-config --libs --ldflags"
 has     = ["-lHepMC3", "-lYODA", "-lfastjet"]
 
-[[rivet.verify]]
+[[packages.rivet.verify]]
 name   = "python: import rivet"
 python = "import rivet"
 
-[[rivet.verify]]
+[[packages.rivet.verify]]
 name    = "an analysis"
 command = "rivet --show-analysis MC_JETS"
 
-[[pythia8.verify]]
+[[packages.pythia8.verify]]
 name    = "version"
 command = "pythia8-config --version"
 
-[[pythia8.verify]]
+[[packages.pythia8.verify]]
 name    = "built with LHAPDF 6, HepMC3, FastJet 3, Python"
 command = "pythia8-config --with-lhapdf6 --with-hepmc3 --with-fastjet3 --with-python"
 expect  = '^(true\s*){4}$'
 
-[[pythia8.verify]]
+[[packages.pythia8.verify]]
 name   = "100 events with an LHAPDF set"
 python = "import pythia8; p = pythia8.Pythia('', False); [p.readString(s) for s in ('Beams:eCM = 13000', 'SoftQCD:inelastic = on', 'PDF:pSet = LHAPDF6:CT14lo', 'Random:setSeed = on', 'Random:seed = 1')]; p.init(); print('events', sum(1 for _ in range(100) if p.next()), flush=True)"
 expect = '^events 100'
 
-[[thepeg.verify]]
+[[packages.thepeg.verify]]
 name  = "installed"
 files = ["{install}/bin/setupThePEG", "{install}/lib/ThePEG/libThePEG.*"]
 
-[[herwig.verify]]
+[[packages.herwig.verify]]
 name    = "version"
 command = "Herwig --version"
 
-[[herwig.verify]]
+[[packages.herwig.verify]]
 name    = "LHC.in: read, then 10 events"
 command = '''sh -c 'Herwig read {install}/share/Herwig/LHC.in > read.log 2>&1 && Herwig run LHC.run -N 10 > run.log 2>&1 && echo HERWIG-OK || { tail -n 3 read.log run.log 2>/dev/null; exit 1; }' '''
 expect  = 'HERWIG-OK'
 slow    = true
 
-[[delphes.verify]]
+[[packages.delphes.verify]]
 name  = "programs"
 files = ["{install}/bin/DelphesHepMC3", "{install}/bin/DelphesPythia8", "{install}/bin/DelphesROOT"]
 
-[[sherpa.verify]]
+[[packages.sherpa.verify]]
 name    = "version"
 command = "Sherpa --version"
 
-[[sherpa.verify]]
+[[packages.sherpa.verify]]
 name  = "HepMC3, Rivet and LHAPDF interfaces"
 files = ["{install}/lib/SHERPA-MC/libSherpaHepMC3Output.*", "{install}/lib/SHERPA-MC/libSherpaRivetAnalysis.*",
          "{install}/lib/SHERPA-MC/libLHAPDFSherpa.*"]
 
-[[madgraph.verify]]
+[[packages.madgraph.verify]]
 name   = "its Python imports"
 python = "import sys; sys.path.insert(0, '{install}'); import madgraph.interface.master_interface; print('imported')"
 expect = 'imported'
 
-[[whizard.verify]]
+[[packages.whizard.verify]]
 name    = "version"
 command = "whizard --version"
 
-[[whizard.verify]]
+[[packages.whizard.verify]]
 name  = "linked: LHAPDF, HepMC3, FastJet, Pythia 8"
 links = ["{install}/lib/libwhizard*.{dylib}*", "{install}/bin/whizard"]
 has   = ["LHAPDF", "HepMC3", "fastjet", "pythia8"]
 
-[[onnxruntime.verify]]
+[[packages.onnxruntime.verify]]
 name  = "library"
 files = ["{install}/lib/libonnxruntime.*", "{install}/VERSION_NUMBER"]
 
-[[geant4.verify]]
+[[packages.geant4.verify]]
 name    = "version"
 command = "geant4-config --version"
 
-[[geant4.verify]]
+[[packages.geant4.verify]]
 name    = "multithreading"
 command = "geant4-config --has-feature multithreading"
 expect  = 'yes'
 
-[[geant4.verify]]
+[[packages.geant4.verify]]
 name    = "GDML"
 command = "geant4-config --has-feature gdml"
 expect  = 'yes'
 
-[[madanalysis5.verify]]
+[[packages.madanalysis5.verify]]
 name  = "installed"
 files = ["{install}/bin/ma5"]

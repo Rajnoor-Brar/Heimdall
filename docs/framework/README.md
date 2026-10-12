@@ -45,7 +45,7 @@ loop, verification, gates, deviations and reports. **A fresh machine starts at 0
 ```
 ~/Github/Heimdall/                  = $HEP: the framework, what git has (V105, V122)
   README.md CLAUDE.md .gitignore Makefile pytest.ini setup.sh (load_hep)
-  recipes/                          build_stack.py packages.toml settings.toml toolkits.toml toolkits.d/ patches/ platforms/
+  recipes/                          build_stack.py toolkits/ settings.toml patches/ platforms/
   env/                              hep_env.sh flags.sh stack.toml stack.py
   framework/                        bin/ runner/ tools/ schema/ templates/work/ rules.mk work.mk hepkit.py
   src/                              the kits (*.hh), App_*.cc, Apps/Paint/

@@ -1,0 +1,11 @@
+# recipes/toolkits/detector.toml — @detector (README.md §6)
+
+description = "detector simulation and description: Geant4, DD4hep, GeoModel with ATLAS FullSimLight, Garfield++, Delphes"
+
+[standard]
+core       = true
+geant4     = true
+delphes    = true
+dd4hep     = true
+geomodel   = true
+garfieldpp = true

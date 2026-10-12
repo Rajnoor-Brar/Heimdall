@@ -1,0 +1,8 @@
+# recipes/toolkits/primary.toml — @primary (README.md §6)
+
+description = "the primary workflow: the lab PC's stack (everything ~/HEP has) and MadAnalysis 5"
+note        = "what the fresh-machine plans build (docs/framework/04_Stack.md)"
+extends     = "lab"
+
+[standard]
+madanalysis5 = true

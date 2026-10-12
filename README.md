@@ -30,7 +30,7 @@ fresh machine follows [docs/framework/](docs/framework/README.md), step by step.
 | Folder | Holds |
 |---|---|
 | `setup.sh` | the environment: `HEP`, the stack on `PATH`, the venv, `hep` |
-| `recipes/` | how the stack is built: `build_stack.py`, `packages.toml`, `settings.toml`, `patches/`, `platforms/` |
+| `recipes/` | how the stack is built: `build_stack.py`, `toolkits/` (`standard.toml`, every recipe; one file per toolkit), `settings.toml`, `patches/`, `platforms/` |
 | `env/` | the environment's files: `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
 | `framework/` | what runs: `bin/hep`, the runner, the tool folders, the schema, the work-dir template, the build's rules |
 | `src/` | what is compiled: the C++ kits and the apps' sources |

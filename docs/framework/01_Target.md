@@ -18,7 +18,9 @@ What exists when the plans are done, and the contract between its parts. This pa
 > `env/venv/`), `apps/` (was `framework/Apps/`, the placeholder `{apps}`), `forge/` with
 > `downloads/` and `src/` (was `stash/`) and `build/<pkg>/` (was `forge/<pkg>/`), `stacks/<toolkit>/`,
 > and `machine.sh` (was `env/machine.sh`). Read this page's paths through that map; Heimdall's
-> checkout holds what git has only.
+> checkout holds what git has only. The recipes and toolkits (phase 3.2, V123) are one file each in
+> `recipes/toolkits/` (`standard.toml` holds every recipe, which was `packages.toml`; `toolkits.toml`
+> and `toolkits.d/` are gone; a machine's own toolkits are in the root's `toolkits/`).
 >
 > Earlier differences:
 > - per-machine lines go to `env/machine.sh` (now the machine root's), not `stack/setup_extra.sh` (§5.8, D28);

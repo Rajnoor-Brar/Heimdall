@@ -1,14 +1,14 @@
 # The HEP stack on macOS
 
 The same build as on Linux ([../../README.md](../../README.md)), with Homebrew for the system packages and
-Apple's clang as the compiler. On Apple Silicon or Intel. The build is `build_stack.py` with one
-overlay, `mac.toml`; nothing in `packages.toml` is copied.
+Apple's clang as the compiler. On Apple Silicon or Intel. The build is `build_stack.py`, which lays
+`mac.toml` (the platform's fixes) under every toolkit by itself on macOS; no recipe is copied.
 
 | File | Is |
 |---|---|
 | [Brewfile](Brewfile) | what the stack needs from Homebrew (the macOS counterpart of `apt_packages`) |
-| [mac.toml](mac.toml) | what the build does differently on macOS, as a `--config` overlay |
-| [build.sh](build.sh) | checks the machine, runs `brew bundle`, then `build_stack.py --config mac.toml` |
+| [mac.toml](mac.toml) | what the build does differently on macOS: `[settings]`, `[env]`, `[packages.<name>]`, laid on macOS by itself |
+| [build.sh](build.sh) | checks the machine, runs `brew bundle`, puts the GNU tools first, then runs `build_stack.py` |
 | [launch.sh](launch.sh) | a bash with the stack loaded, or one command in it, from any shell (zsh included) |
 
 ---
@@ -56,8 +56,8 @@ caffeinate -i bash recipes/platforms/mac/build.sh packages=all     # and Sherpa,
 
 `build.sh` checks the machine (macOS, Xcode's tools, not Rosetta, Homebrew), runs `brew bundle`
 (skip it with `BREW_BUNDLE=0`), puts GNU make, sed and coreutils first on `PATH`, picks Homebrew's
-Python 3.11+, and runs `build_stack.py` with `mac.toml`. Every `build_stack.py` argument passes
-through and wins over `mac.toml`: `cores=8`, `root.release=6.40.06`,
+Python 3.11+, and runs `build_stack.py`, which lays `mac.toml` under every toolkit. Every
+`build_stack.py` argument passes through and wins over `mac.toml`: `cores=8`, `root.release=6.40.06`,
 `packages="rivet pythia8"`. Stamps (`stack/.stamps/`), logs (`forge/logs/<package>.log`), resuming and
 `--list` are as on Linux ([../../README.md §1](../../README.md#1-quick-start)). `mac.toml`'s `setup_extra`
 lines go to the machine root's `machine.sh`, which `setup.sh` sources.
@@ -109,7 +109,7 @@ hep build --framework && make -C "$HEP" test
 - **Proven once** (2026-10-12: an M4, macOS 27, AppleClang 21, Homebrew GCC 16, `@primary`). That
   first build needed fixes that are now `mac.toml` lines, each with its reason: ThePEG and Herwig
   (libc++, GSL, `-lc++`, type_info across plugins) and Whizard (`CXXLIBS`). Herwig's 8-byte Fortran
-  integers and Whizard's PDF sets are in `packages.toml`, for every platform. The whole story:
+  integers and Whizard's PDF sets are in `recipes/toolkits/standard.toml`, for every platform. The whole story:
   `docs/audit_3/01_Process.md`.
 - **Your shell is zsh; the environment is bash.** Load it with `launch.sh` (above), never by
   `source setup.sh` in zsh.
@@ -121,5 +121,3 @@ hep build --framework && make -C "$HEP" test
 - **No Homebrew HEP formulae alongside:** Homebrew's own `root`, `hepmc3`, `lhapdf`, `pythia`,
   `yoda`, `rivet` or `fastjet` would sit on the build's search paths ahead of the stack's. Remove
   them first (`brew uninstall root`, …).
-- `hep_status` shows ONNX Runtime as missing on macOS (it looks for `libonnxruntime.so`); the library
-  is there as `.dylib`.

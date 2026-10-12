@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""recipes/build_stack.py — build the HEP stack from source into the machine root, as packages.toml and settings.toml say.
+"""recipes/build_stack.py — build the HEP stack from source into the machine root, as recipes/toolkits/ and settings.toml say.
 
     python3 recipes/build_stack.py                          # the core stack into the machine root (~/Himinbjorg)
     python3 recipes/build_stack.py packages=all cores=8     # everything, 8 compilers at once
     python3 recipes/build_stack.py packages="rivet pythia8" root.release=6.40.06
-    python3 recipes/build_stack.py --config my.toml         # settings, and package changes, from a file
+    python3 recipes/build_stack.py --config my.toml         # [settings], [env], [packages.<name>] from a file
     python3 recipes/build_stack.py --list                   # each package: release, needs, state
-    python3 recipes/build_stack.py --toolkits               # the toolkits: named sets for a kind of work
-    python3 recipes/build_stack.py packages=@bsm-recast     # a toolkit (toolkits.toml), with what it needs
+    python3 recipes/build_stack.py --list @primary          # a toolkit's set: why each package, which layer set what
+    python3 recipes/build_stack.py --toolkits               # the toolkits: Heimdall's and this machine's
+    python3 recipes/build_stack.py packages=@bsm-recast     # a toolkit (toolkits/bsm-recast.toml), with what it needs
     python3 recipes/build_stack.py packages=@gpu-sim        # an isolated toolkit: its own C++20 stack in stacks/gpu-sim/
     python3 recipes/build_stack.py --dry-run > build.sh     # the whole build as a bash script; nothing is run
     python3 recipes/build_stack.py --dry-run --resume       # … only what this prefix still lacks
@@ -16,19 +17,24 @@
     python3 recipes/build_stack.py --rebuild thepeg         # build it again, and what depends on it (Herwig)
     python3 recipes/build_stack.py --rebuild-broken         # after an OS upgrade: what links a library that is gone
     python3 recipes/build_stack.py thepeg.extra+=--foo env.CXXFLAGS="…"   # append to a list; one variable
+    python3 recipes/build_stack.py --platform mac --dry-run # another platform's build, as a script
+    python3 recipes/build_stack.py --packages-sh            # env/packages.sh, from the recipes (make registry)
 
 A key=value sets; key+=value appends to a list. A list value is split like a shell line (quote an item
 with spaces: thepeg.extra+="'LDFLAGS=-L/x -lc++'"), or on commas when it has no spaces.
 
 A setting is a key of settings.toml, given as key=value; a package's key as <package>.<key>=value.
-The layers, lowest first: settings.toml and packages.toml; --config files; the machine root's
-machine.toml ([settings], [env], [packages.<name>]: this machine's, where a list appends unless its
-table says replace = ["key"]); the toolkits asked for; the command line.
+The layers, lowest first: recipes/toolkits/standard.toml (every recipe) and settings.toml; the
+platform's fixes (platforms/mac/mac.toml on macOS); the toolkits asked for, each after what it
+extends; the machine root's machine.toml; --config files; the command line. Each layer's [settings],
+[env] and [packages.<name>] change what is below: a list appends unless the table says
+replace = ["key"], a table merges, anything else replaces.
 Where things go: the machine root ($HEP_MACHINE, or the `machine` setting; ~/Himinbjorg by default),
 apart from Heimdall's checkout (docs/audit_3/02_Organisation.md §3): downloads in forge/downloads/,
 unpacked sources in forge/src/, build trees in forge/build/, logs in forge/logs/, installs in stack/,
 the Python environment in venv/, this machine's shell lines in machine.sh.
-A toolkit (toolkits.toml, and your own in toolkits.d/*.toml) is a named set of packages. One that
+A toolkit is one file (recipes/toolkits/<name>.toml, and your own in <machine root>/toolkits/, which
+come first): which recipes it takes ([standard]), what it extends, what it changes. One that
 changes the C++ standard is isolated: it builds a whole stack of its own in the machine root's
 stacks/<toolkit>/ (installs, build trees, venv, apps), loaded by its setup.sh; downloads are shared.
 A finished package is stamped (stack/.stamps/<name>-<release>, holding a digest of the recipe it was
@@ -46,6 +52,7 @@ Linux and macOS (recipes/platforms/mac/ adds Homebrew and mac.toml). Standard li
 
 from __future__ import annotations
 
+import copy
 import os
 import re
 import shlex
@@ -76,12 +83,14 @@ REPO = HERE.parent                                                 # Heimdall: r
 FIELDS = {"release", "url", "sha256", "kind", "needs", "group", "install", "probe", "args", "extra", "optional",
           "patch", "strip", "env", "pre", "post", "cores", "status", "how", "apt", "verify"}
 KINDS = ("autotools", "cmake", "unpack", "none", "external")
-#: packages = "all": the lab PC's set. Group "toolkit" joins only by name or by toolkit (@name).
-ALL_GROUPS = ("core", "extra")
-#: The toolkits: the standard presets, then the user's own (one file each, any name).
-TOOLKITS = HERE / "toolkits.toml"
-TOOLKITS_D = HERE / "toolkits.d"
-KIT_FIELDS = {"description", "packages", "note", "isolated", "settings", "override"}
+#: The groups a recipe may be in, and "all", both: what packages = "core" or a toolkit's [standard] names.
+#: A recipe in no group joins a build only by name.
+GROUPS = {"core": ("core",), "extra": ("extra",), "all": ("core", "extra")}
+#: The toolkits: standard.toml (every recipe; @standard) and one file per toolkit, Heimdall's here and
+#: a machine's own in <machine root>/toolkits/, which come first (README.md §6).
+SHIPPED = HERE / "toolkits"
+STANDARD = SHIPPED / "standard.toml"
+KIT_FIELDS = {"description", "note", "extends", "isolated", "standard", "settings", "env", "packages"}
 #: Settings that change the ABI: a toolkit that changes one must be isolated (a stack of its own).
 ABI = ("cxx_std", "opt_flags")
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
@@ -141,23 +150,14 @@ def coerce(text: str, like):
     return text
 
 
-def merge(settings: dict, packages: dict, extra: dict) -> None:
-    """A --config file: its settings replace, its [package] tables change or add packages."""
-    for key, value in extra.items():
-        if key in settings:
-            if isinstance(settings[key], dict):
-                settings[key].update(value)
-            else:
-                settings[key] = value
-        elif isinstance(value, dict):
-            packages.setdefault(key, {}).update(value)
-        else:
-            die(f"--config: no setting '{key}' (settings.toml)")
-
-
-#: machine.toml's tables (docs/audit_3/02_Organisation.md §3): the build reads the first three; [cluster] is
-#: hep cluster's (framework/runner/cluster.py).
-MACHINE_TABLES = ("settings", "env", "packages", "cluster")
+#: The tables a layer may have (a toolkit's, a platform's, machine.toml's, a --config file's); machine.toml's
+#: [cluster] is hep cluster's (framework/runner/cluster.py).
+LAYER_TABLES = ("settings", "env", "packages")
+MACHINE_TABLES = (*LAYER_TABLES, "cluster")
+#: What changed each value, for --list: "root.extra" → ["platform mac", "@gpu-sim"]; "cores" → ["machine.toml"].
+ORIGINS: dict[str, list[str]] = {}
+#: Each toolkit file read, once per run (options() empties it).
+KIT_CACHE: dict[Path, dict] = {}
 
 
 def root_of(machine: str) -> Path:
@@ -165,9 +165,10 @@ def root_of(machine: str) -> Path:
     return Path(machine or os.environ.get("HEP_MACHINE") or "~/Himinbjorg").expanduser().resolve()
 
 
-def lay(target: dict, values: dict, where: str, known) -> None:
-    """One machine.toml table over what it changes: a list appends to the list it meets, unless the
-    table names its key in `replace`; anything else replaces. `known`: the keys it may set (None: any)."""
+def lay(target: dict, values: dict, where: str, known, label: str = "", prefix: str = "") -> None:
+    """One layer's table over what it changes: a list appends to the list it meets, unless the table
+    names its key in `replace`; a table merges; anything else replaces. `known`: the keys it may set
+    (None: any). `label` and `prefix` record the change in ORIGINS."""
     replace = values.get("replace", [])
     if not isinstance(replace, list) or not all(isinstance(key, str) for key in replace):
         die(f"{where}: replace is a list of key names")
@@ -176,40 +177,132 @@ def lay(target: dict, values: dict, where: str, known) -> None:
             continue
         if known is not None and key not in known:
             die(f"{where}: no key '{key}'")
-        old = target.get(key)
+        old, value = target.get(key), copy.deepcopy(value)
         if isinstance(value, list) and old is not None and key not in replace:
             target[key] = (shlex.split(old) if isinstance(old, str) else list(old)) + value
         elif isinstance(value, dict) and isinstance(old, dict) and key not in replace:
             old.update(value)
         else:
             target[key] = value
+        if label:
+            ORIGINS.setdefault(prefix + key, []).append(label)
 
 
-def machine_layer(settings: dict, packages: dict, root: Path) -> None:
-    """The machine root's machine.toml: this machine's [settings], [env] and [packages.<name>], above the
-    shipped files and --config overlays, below the toolkits asked for and the command line
-    (recipes/README.md §1). A [packages.<name>] the recipes lack adds a package."""
-    file = root / "machine.toml"
-    if not file.is_file():
-        return
-    data = read(file)
-    if unknown := sorted(set(data) - set(MACHINE_TABLES)):
-        die(f"{file}: no table [{'], ['.join(unknown)}] (it has {', '.join(MACHINE_TABLES)})")
-    known = {key for key in settings if not key.startswith("_") and key not in ("machine", "env")}
-    lay(settings, data.get("settings", {}), f"{file}: [settings]", known)
-    lay(settings["env"], data.get("env", {}), f"{file}: [env]", None)
+def layer(settings: dict, packages: dict, data: dict, where: str, label: str, known: set[str]) -> list[str]:
+    """A layer's [settings], [env] and [packages.<name>] over what is there; the recipes it adds."""
+    for table in LAYER_TABLES:
+        if not isinstance(data.get(table, {}), dict):
+            die(f"{where}: [{table}] is a table")
+    lay(settings, data.get("settings", {}), f"{where}: [settings]", known, label)
+    lay(settings["env"], data.get("env", {}), f"{where}: [env]", None, label, "env.")
+    added = []
     for name, fields in data.get("packages", {}).items():
         if not isinstance(fields, dict):
-            die(f"{file}: [packages.{name}] is a table")
-        lay(packages.setdefault(name, {}), fields, f"{file}: [packages.{name}]", FIELDS)
-    settings.setdefault("_configs", []).append(str(file))
+            die(f"{where}: [packages.{name}] is a table")
+        if name not in packages:
+            added.append(name)
+        lay(packages.setdefault(name, {}), fields, f"{where}: [packages.{name}]", FIELDS, label, f"{name}.")
+    settings.setdefault("_layers", []).append(label)
+    return added
+
+
+def settable(settings: dict, *also: str) -> set[str]:
+    """The settings a layer may set: settings.toml's, but the machine root, the env table and `also`."""
+    return {key for key in settings if not key.startswith("_") and key not in ("machine", "env", *also)}
+
+
+# ── toolkits (recipes/toolkits/, README.md §6) ──────────────────────────────────────────────────
+
+def kit_files(root: Path) -> dict[str, list[Path]]:
+    """Each toolkit's files by name, nearest first: the machine root's toolkits/, then Heimdall's."""
+    found: dict[str, list[Path]] = {}
+    for folder in (root / "toolkits", SHIPPED):
+        for file in sorted(folder.glob("*.toml")) if folder.is_dir() else []:
+            found.setdefault(file.stem, []).append(file)
+    if len(found.get("standard", [])) > 1:
+        die(f"{found['standard'][0]}: @standard is Heimdall's recipes; a machine changes them in machine.toml's "
+            "[packages.<name>], or in a toolkit of its own")
+    return found
+
+
+def kit_load(file: Path) -> dict:
+    """A toolkit file, checked: its keys, [standard]'s booleans, extends."""
+    if file not in KIT_CACHE:
+        data = read(file)
+        if unknown := sorted(set(data) - KIT_FIELDS):
+            die(f"{file}: no key {', '.join(unknown)} (a toolkit has {', '.join(sorted(KIT_FIELDS))})")
+        for key, on in data.get("standard", {}).items():
+            if not isinstance(on, bool):
+                die(f"{file}: [standard] {key} is true or false")
+        extends = data.get("extends", [])
+        if not (isinstance(extends, str) or isinstance(extends, list) and all(isinstance(e, str) for e in extends)):
+            die(f"{file}: extends is a toolkit's name, or a list of them")
+        KIT_CACHE[file] = data
+    return KIT_CACHE[file]
+
+
+def kit_chain(name: str, files: dict[str, list[Path]], level: int = 0,
+              seen: tuple[Path, ...] = ()) -> list[tuple[str, Path]]:
+    """The files that make toolkit `name`, each after the ones it extends. A toolkit that extends its
+    own name extends the next file down: a machine's lab.toml over Heimdall's."""
+    paths = files.get(name, [])
+    if level >= len(paths):
+        die(f"no toolkit '{name}'" + (f" under {paths[-1]}" if paths else "")
+            + f"; there are: {' '.join('@' + n for n in files)} (--toolkits)")
+    file = paths[level]
+    if file in seen:
+        die("the toolkits go round: " + " → ".join(f"@{f.stem}" for f in (*seen, file)))
+    extends = kit_load(file).get("extends", [])
+    out: list[tuple[str, Path]] = []
+    for other in [extends] if isinstance(extends, str) else extends:
+        other = other.removeprefix("@")
+        out += kit_chain(other, files, level + 1 if other == name else 0, (*seen, file))
+    return list(dict.fromkeys([*out, (name, file)]))
+
+
+def members(key: str, packages: dict, where: str) -> list[str]:
+    """A group's packages ("all": core and extra), or the package of that name."""
+    if key in GROUPS:
+        return [n for n, p in packages.items() if p.get("group") in GROUPS[key]]
+    if key in packages:
+        return [key]
+    die(f"{where}: no group or package '{key}' (the groups: {', '.join(GROUPS)}; the packages: --list)")
+
+
+def kit_set(chain: list[tuple[str, Path]], packages: dict) -> dict[str, str]:
+    """The packages a toolkit builds, each with why it is in: [standard]'s trues, then its own recipes,
+    then [standard]'s falses take out, file by file (what a package needs is added later, by plan)."""
+    why: dict[str, str] = {}
+    for name, file in chain:
+        data = kit_load(file)
+        table = data.get("standard", {})
+        for key in (k for k, on in table.items() if on):
+            for n in members(key, packages, f"{file}: [standard]"):
+                why.setdefault(n, f"@{name}: {key}")
+        if file != STANDARD:
+            for n in data.get("packages", {}):
+                if n not in kit_load(STANDARD).get("packages", {}):    # a recipe of its own joins its set
+                    why.setdefault(n, f"@{name}: its recipe")
+        for key in (k for k, on in table.items() if not on):
+            for n in members(key, packages, f"{file}: [standard]"):
+                why.pop(n, None)
+    return why
 
 
 def options(argv: list[str]) -> tuple[str, dict, dict]:
-    settings, packages = read(HERE / "settings.toml"), read(HERE / "packages.toml")
-    mode, given = "build", []
-    args = iter(argv)
-    for arg in args:
+    ORIGINS.clear()
+    KIT_CACHE.clear()
+    settings = read(HERE / "settings.toml")
+    packages = copy.deepcopy(kit_load(STANDARD).get("packages", {}))
+    mode, given, configs = "build", [], []
+    platform = "mac" if MAC else ""             # the fixes under every toolkit (platforms/<platform>/); --platform
+    args = list(argv)
+
+    def value(option: str) -> str:
+        return args.pop(0) if args and not args[0].startswith("--") else die(f"{option} needs a value")
+
+    while args:
+        arg = args.pop(0)
         if arg in ("-h", "--help"):
             print(__doc__.split("\n", 1)[1].rstrip())
             sys.exit(0)
@@ -228,16 +321,20 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
         elif arg == "--rebuild-broken":
             settings["_rebuild_broken"] = True
         elif arg == "--rebuild":
-            settings.setdefault("_rebuild", []).extend(next(args, "").replace(",", " ").split()
-                                                       or die("--rebuild needs a package"))
+            settings.setdefault("_rebuild", []).extend(value(arg).replace(",", " ").split())
         elif arg == "--list":
             mode = "list"
+            if args and args[0].startswith("@"):                   # --list @kit: that set, and where from
+                given.append(("packages", args.pop(0), "="))
+                settings["_packages_given"] = settings["_list_kit"] = True
         elif arg == "--toolkits":
             mode = "toolkits"
+        elif arg == "--packages-sh":
+            mode = "packages-sh"
+        elif arg == "--platform":
+            platform = value(arg)
         elif arg == "--config":
-            file = Path(next(args, "") or die("--config needs a file"))
-            merge(settings, packages, read(file))
-            settings.setdefault("_configs", []).append(str(file))
+            configs.append(Path(value(arg)))
         elif "=" in arg:
             key, text = arg.split("=", 1)
             given.append((key[:-1], text, "+=") if key.endswith("+") else (key, text, "="))
@@ -245,19 +342,61 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
                 settings["_packages_given"] = True
         else:
             die(f"unknown argument '{arg}' (see --help)")
-    machine = next((text for key, text, _ in reversed(given) if key == "machine"), settings["machine"])
-    machine_layer(settings, packages, root_of(machine))            # this machine's machine.toml, then …
-    wanted = next((text for key, text, _ in reversed(given) if key == "packages"), settings["packages"])
-    apply_toolkits(wanted, settings, packages)                     # the toolkits' own settings, then …
-    for key, text, op in given:                                    # after --config: the command line wins
+    root = root_of(next((text for key, text, _ in reversed(given) if key == "machine"), settings["machine"]))
+    machine_file = root / "machine.toml"
+    machine = read(machine_file) if machine_file.is_file() else {}
+    if unknown := sorted(set(machine) - set(MACHINE_TABLES)):
+        die(f"{machine_file}: no table [{'], ['.join(unknown)}] (it has {', '.join(MACHINE_TABLES)})")
+    extras = [(file, read(file)) for file in configs]
+    for file, data in extras:
+        if unknown := sorted(set(data) - set(LAYER_TABLES)):
+            die(f"{file}: no table [{'], ['.join(unknown)}] (a --config file has {', '.join(LAYER_TABLES)})")
+    # The set asked for: the command line's, else the last --config file's, else machine.toml's, else settings.toml's.
+    wanted = next((text for key, text, _ in reversed(given) if key == "packages"),
+                  next((d["settings"]["packages"] for _, d in reversed(extras) if "packages" in d.get("settings", {})),
+                       machine.get("settings", {}).get("packages", settings["packages"])))
+    settings["_want"] = wanted.split() if isinstance(wanted, str) else list(wanted)
+    files = kit_files(root)
+    if platform:                                                   # 1. the platform's fixes, under every toolkit
+        file = HERE / "platforms" / platform / f"{platform}.toml"
+        if not file.is_file():
+            die(f"no platform '{platform}': {file} is not there")
+        data = read(file)
+        if unknown := sorted(set(data) - set(LAYER_TABLES)):
+            die(f"{file}: no table [{'], ['.join(unknown)}] (a platform has {', '.join(LAYER_TABLES)})")
+        layer(settings, packages, data, str(file), f"platform {platform}", settable(settings))
+    chains = {w[1:]: kit_chain(w[1:], files) for w in settings["_want"] if w.startswith("@")}
+    isolated = [kit for kit, chain in chains.items() if any(kit_load(f).get("isolated") for _, f in chain)]
+    if len(isolated) > 1:
+        die(f"one isolated stack per run: {', '.join('@' + k for k in isolated)}")
+    settings["_stack"], settings["_chains"] = (isolated[0] if isolated else ""), chains
+    done: set[Path] = set()
+    for kit, chain in chains.items():                              # 2. the toolkits, each after what it extends
+        for name, file in chain:
+            if file in done or file == STANDARD:                   # (standard.toml is the recipes themselves)
+                continue
+            done.add(file)
+            data = kit_load(file)
+            abi = sorted(k for k, v in data.get("settings", {}).items() if k in ABI and v != settings.get(k))
+            if abi and kit not in isolated:
+                die(f"toolkit @{name} changes {', '.join(abi)}: it must be isolated (isolated = true), "
+                    "or its packages would share an install with another ABI")
+            layer(settings, packages, data, str(file), f"@{name}", settable(settings, "packages"))
+    if machine:                                                    # 3. this machine's
+        layer(settings, packages, machine, str(machine_file), "machine.toml", settable(settings))
+    for file, data in extras:                                      # 4. --config files
+        layer(settings, packages, data, str(file), f"--config {file.name}", settable(settings))
+    for key, text, op in given:                                    # 5. the command line wins
         parts = key.split(".")
         if parts[0] == "env" and len(parts) == 2:                  # env.VAR=…: one variable of the build
             settings["env"][parts[1]] = text
+            ORIGINS.setdefault(key, []).append("command line")
             continue
         if len(parts) == 3 and parts[1] == "env":                  # <package>.env.VAR=…
             if parts[0] not in packages:
-                die(f"no package '{parts[0]}' (packages.toml)")
+                die(f"no package '{parts[0]}' (--list names them)")
             packages[parts[0]].setdefault("env", {})[parts[2]] = text
+            ORIGINS.setdefault(f"{parts[0]}.env", []).append("command line")
             continue
         if len(parts) == 1:
             if key.startswith("_") or key not in settings or isinstance(settings[key], dict):
@@ -265,28 +404,32 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             target, field = settings, key
         elif len(parts) == 2 and parts[0] in packages:
             if parts[1] not in FIELDS or parts[1] == "env":
-                die(f"a package has no key '{parts[1]}' (packages.toml says which)")
+                die(f"a package has no key '{parts[1]}' (recipes/toolkits/standard.toml's header says which)")
             target, field = packages[parts[0]], parts[1]
         else:
-            die(f"no package '{parts[0]}' (packages.toml)" if len(parts) == 2 else f"no such key '{key}'")
+            die(f"no package '{parts[0]}' (--list names them)" if len(parts) == 2 else f"no such key '{key}'")
         old = target.get(field, "")
         if op == "+=":
             current = shlex.split(old) if isinstance(old, str) else list(old)
             target[field] = current + coerce(text, [])
         else:
             target[field] = coerce(text, old)
+        if key not in ("packages", "machine"):
+            ORIGINS.setdefault(key, []).append("command line")
     for name, p in packages.items():
         if unknown := sorted(set(p) - FIELDS):
-            die(f"[{name}] has no key {', '.join(unknown)}")
+            die(f"[packages.{name}] has no key {', '.join(unknown)}")
         if p.get("kind") not in KINDS:
-            die(f"[{name}].kind must be one of {', '.join(KINDS)}")
+            die(f"[packages.{name}].kind must be one of {', '.join(KINDS)}")
         if p["kind"] not in ("none", "external") and not p.get("url"):
-            die(f"[{name}] has no url")
+            die(f"[packages.{name}] has no url")
         if p["kind"] == "external" and not p.get("how"):
-            die(f"[{name}] is external: it needs a 'how' (where it comes from)")
+            die(f"[packages.{name}] is external: it needs a 'how' (where it comes from)")
+        if p.get("group") not in (None, *GROUPS) or p.get("group") == "all":
+            die(f"[packages.{name}].group is \"core\" or \"extra\", or none (joins only by name)")
         for other in [*p.get("needs", []), *p.get("optional", {})]:
             if other not in packages:
-                die(f"[{name}] names '{other}', which is not a package")
+                die(f"[packages.{name}] names '{other}', which is not a package")
         if "verify" in p and (wrong := checker().problems(name, p["verify"])):
             die("; ".join(wrong))
     return mode, settings, packages
@@ -415,76 +558,11 @@ def tarball(name: str, p: dict, c: dict) -> tuple[Path, str]:
     return Path(c["stash"], f"{name}-{p.get('release', '')}{ending}"), url
 
 
-def toolkits() -> dict:
-    """The toolkits: toolkits.toml's presets and the user's toolkits.d/*.toml (recipes/README.md §6).
-    A name defined twice is refused, so a custom toolkit never silently replaces a preset."""
-    kits: dict = {}
-    for file in [TOOLKITS, *sorted(TOOLKITS_D.glob("*.toml"))] if TOOLKITS_D.is_dir() else [TOOLKITS]:
-        for name, kit in read(file).items():
-            if name in kits:
-                die(f"toolkit '{name}' is defined twice: {kits[name]['_file']} and {file.name}")
-            if not isinstance(kit, dict):
-                die(f"{file.name}: '{name}' is not a [toolkit] table")
-            if unknown := sorted(set(kit) - KIT_FIELDS):
-                die(f"{file.name}: [{name}] has no key {', '.join(unknown)} (toolkits.toml's header says which)")
-            kits[name] = {**kit, "_file": file.name}
-    return kits
-
-
-def kits_in(want: list[str], kits: dict, seen: tuple[str, ...] = ()) -> list[str]:
-    """The toolkits a packages value names, with the ones they name in turn."""
+def chosen_of(want: list[str], packages: dict, s: dict) -> list[str]:
+    """Groups, names and @toolkits (options() resolved them), as package names."""
     out: list[str] = []
     for word in want:
-        if word.startswith("@") and word[1:] in kits and word[1:] not in seen:
-            out += [word[1:], *kits_in(kits[word[1:]].get("packages", []), kits, (*seen, word[1:]))]
-    return list(dict.fromkeys(out))
-
-
-def apply_toolkits(wanted, settings: dict, packages: dict) -> None:
-    """The requested toolkits' settings and package overrides. A toolkit that changes the ABI
-    (cxx_std, opt_flags) must be isolated, and a run builds at most one isolated stack."""
-    kits = toolkits()
-    named = kits_in(wanted.split() if isinstance(wanted, str) else list(wanted), kits)
-    isolated = [k for k in named if kits[k].get("isolated")]
-    if len(isolated) > 1:
-        die(f"one isolated stack per run: {', '.join('@' + k for k in isolated)}")
-    settings["_stack"] = isolated[0] if isolated else ""
-    for name in named:
-        kit = kits[name]
-        for key, value in kit.get("settings", {}).items():
-            if key not in settings or isinstance(settings[key], dict):
-                die(f"toolkit @{name}: no setting '{key}' (settings.toml)")
-            if key in ABI and value != settings[key] and not kit.get("isolated"):
-                die(f"toolkit @{name} changes {key}: it must be isolated (isolated = true), "
-                    "or its packages would share an install with another ABI")
-            settings[key] = value
-        for package, fields in kit.get("override", {}).items():
-            if package not in packages:
-                die(f"toolkit @{name}: no package '{package}' to override")
-            if unknown := sorted(set(fields) - FIELDS):
-                die(f"toolkit @{name}: a package has no key {', '.join(unknown)}")
-            packages[package].update(fields)
-
-
-def chosen_of(want: list[str], packages: dict, kits: dict, seen: tuple[str, ...] = ()) -> list[str]:
-    """Names, "core", "all" and @toolkits, expanded to package names (a toolkit may name another)."""
-    out: list[str] = []
-    for word in want:
-        if word == "core":
-            out += [n for n, p in packages.items() if p.get("group", "core") == "core"]
-        elif word == "all":
-            out += [n for n, p in packages.items() if p.get("group", "core") in ALL_GROUPS]
-        elif word.startswith("@"):
-            kit = word[1:]
-            if kit not in kits:
-                die(f"no toolkit '{kit}'; there are: {' '.join(kits)} (--toolkits)")
-            if kit in seen:
-                die("the toolkits go round: " + " → ".join([*seen, kit]))
-            out += chosen_of(kits[kit].get("packages", []), packages, kits, (*seen, kit))
-        elif word in packages:
-            out.append(word)
-        else:
-            die(f"no package '{word}'; there are: {' '.join(packages)}")
+        out += list(kit_set(s["_chains"][word[1:]], packages)) if word.startswith("@") else members(word, packages, "packages")
     return list(dict.fromkeys(out))
 
 
@@ -538,6 +616,15 @@ def broken(packages: dict, c: dict) -> dict[str, list[str]]:
     return out
 
 
+def note_folder(folder: str, c: dict) -> None:
+    """<stack>/.stamps/folders: every install folder a build made here, which env/hep_env.sh puts on the
+    paths with env/packages.sh's (a recipe of a machine's own toolkit is on no shipped list)."""
+    file = Path(c["inst"], ".stamps", "folders")
+    have = file.read_text(encoding="utf-8").split() if file.is_file() else []
+    if folder not in have:
+        file.write_text("\n".join([*have, folder]) + "\n", encoding="utf-8")
+
+
 def record_links(name: str, p: dict, c: dict) -> None:
     """Beside a package's stamp, the libraries from outside the stack its binaries link, so a later OS
     upgrade can be traced to what it took away (<stamp>.libs: one line each)."""
@@ -573,11 +660,11 @@ def rebuild_set(names: list[str], packages: dict, c: dict) -> list[str]:
 
 def plan(s: dict, packages: dict, c: dict) -> tuple[list[str], list[str]]:
     """The packages to go through, in build order, and those of them added because others need them."""
-    want = s["packages"].split() if isinstance(s["packages"], str) else list(s["packages"])
+    want = list(s["_want"])
     rebuild = s.get("_rebuild", [])
     if rebuild and not s.get("_packages_given"):                    # --rebuild alone: only those, and theirs
         want = []
-    chosen = chosen_of(want, packages, toolkits()) + [n for n in rebuild_set(rebuild, packages, c) if n not in want]
+    chosen = chosen_of(want, packages, s) + [n for n in rebuild_set(rebuild, packages, c) if n not in want]
     chosen = list(dict.fromkeys(chosen))
     order: list[str] = []
 
@@ -956,8 +1043,8 @@ def clean_environment(c: dict) -> tuple[dict[str, str], list[str]]:
 
 def preflight(s: dict, c: dict, order: list[str]) -> None:
     """What will cause trouble, said before anything is downloaded (docs/audit_3/01_Process.md C, H)."""
-    if MAC and not any(Path(f).name == "mac.toml" for f in s.get("_configs", [])):
-        die("on macOS, build through recipes/platforms/mac/build.sh (Homebrew's packages and mac.toml): "
+    if MAC and not os.environ.get("HEP_BUILD_SH"):
+        die("on macOS, build through recipes/platforms/mac/build.sh (Homebrew's packages, GNU tools first): "
             f"bash recipes/platforms/mac/build.sh {' '.join(sys.argv[1:])}".rstrip())
     notes = []
     if os.environ.get("ROOTSYS"):
@@ -977,27 +1064,76 @@ def preflight(s: dict, c: dict, order: list[str]) -> None:
         say(f"preflight: {note}")
 
 
-def show(order: list[str], packages: dict, c: dict) -> None:
-    """Each package: built here (stamped) or installed otherwise, and whether this run builds it."""
-    print(f"{'package':13} {'release':10} {'group':8} {'state':18} {'this run':9} needs")
+def show(order: list[str], added: list[str], packages: dict, c: dict, s: dict) -> None:
+    """Every package: built here (stamped) or installed otherwise, and whether this run builds it. With
+    --list @<toolkit>, that set alone, why each package is in, and which layer changed which value."""
     rebuild = set(c.get("rebuild", []))
-    for name, p in packages.items():
+    why = {}
+    for word in s["_want"]:
+        why.update({n: r for n, r in kit_set(s["_chains"][word[1:]], packages).items() if n not in why}
+                   if word.startswith("@") else {n: word for n in members(word, packages, "packages") if n not in why})
+    shown = order if s.get("_list_kit") else list(packages)
+    print(f"{'package':13} {'release':10} {'group':6} {'state':18} {'this run':9} " + ("why" if s.get("_list_kit") else "needs"))
+    for name in shown:
+        p = packages[name]
         now = "external" if p["kind"] == "external" else state(name, p, c)
         run = ("rebuild" if name in rebuild else "build" if name in order and now in ("", "failed")
                and p["kind"] != "external" else "")
         flag = " (recipe not yet proven by a build)" if p.get("status") == "new" else ""
-        print(f"{name:13} {str(p.get('release', '—')):10} {p.get('group', 'core'):8} {now:18} {run:9} "
-              f"{' '.join(p.get('needs', []))}{flag}")
+        if s.get("_list_kit"):
+            reason = why.get(name) or "needed by " + ", ".join(n for n in order if name in packages[n].get("needs", []))
+        else:
+            reason = " ".join(p.get("needs", []))
+        print(f"{name:13} {str(p.get('release', '—')):10} {p.get('group') or '-':6} {now:18} {run:9} {reason}{flag}")
+        if s.get("_list_kit"):
+            for key, labels in ORIGINS.items():
+                if key.startswith(name + "."):
+                    print(f"{'':15}{key.split('.', 1)[1]} ← {', '.join(labels)}")
+    if s.get("_list_kit"):
+        for key, labels in ORIGINS.items():
+            if key.split(".")[0] not in packages:                   # a setting, or env.<VAR>
+                now = s["env"].get(key[4:], "") if key.startswith("env.") else s.get(key, "")
+                print(f"setting  {key} = {now} ← {', '.join(labels)}")
+        print("layers:  standard.toml, " + ", ".join(s.get("_layers", []))
+              + (", command line" if any("command line" in v for v in ORIGINS.values()) else ""))
 
 
-def show_toolkits(packages: dict) -> None:
-    """The toolkits, each with what it is for and its packages."""
-    for name, kit in toolkits().items():
-        names = chosen_of(kit.get("packages", []), packages, toolkits())
-        print(f"@{name:15} {kit.get('description', '')}")
+def show_toolkits(packages: dict, s: dict) -> None:
+    """The toolkits, nearest first: each with where it is, what it is for and its packages."""
+    files = kit_files(root_of(s["machine"]))
+    for name in sorted(files, key=lambda n: (n != "standard", n)):
+        nearest = files[name][0]
+        where = "Heimdall's" if nearest.parent == SHIPPED else f"this machine's ({nearest})"
+        if len(files[name]) > 1:
+            where += ", over Heimdall's"
+        data = kit_load(nearest)
+        names = list(kit_set(kit_chain(name, files), packages))
+        isolated = any(kit_load(f).get("isolated") for _, f in kit_chain(name, files))
+        print(f"@{name:15} {data.get('description', '')}")
+        print(f"{'':16} {where}" + (", isolated (a stack of its own)" if isolated else ""))
         print(f"{'':16} {' '.join(names)}")
-        if kit.get("note"):
-            print(f"{'':16} note: {kit['note']}")
+        if data.get("note"):
+            print(f"{'':16} note: {data['note']}")
+
+
+def packages_sh() -> str:
+    """env/packages.sh: the install folders of every recipe Heimdall ships, for env/hep_env.sh's paths."""
+    standard = read(STANDARD)["packages"]
+    folders = []
+    for file in [STANDARD, *sorted(SHIPPED.glob("*.toml"))]:
+        for name, fields in read(file).get("packages", {}).items():
+            p = {**standard.get(name, {}), **fields}
+            if p.get("kind") in ("autotools", "cmake", "unpack"):
+                folders.append(p.get("install", name))
+    lines = [""]
+    for folder in dict.fromkeys(folders):
+        if lines[-1] and len(lines[-1]) + len(folder) > 96:
+            lines.append("")
+        lines[-1] += (" " if lines[-1] else "") + folder
+    return ("# env/packages.sh — the install folders of every recipe Heimdall ships (recipes/toolkits/); env/hep_env.sh\n"
+            "# puts those that are there on the paths. Generated by `make registry`; tests/runner/test_stack_build.py\n"
+            "# checks it is current.\n"
+            '_HEP_PACKAGES="' + "\n  ".join(lines) + '"\n')
 
 
 def machine_text(c: dict) -> str:
@@ -1009,7 +1145,10 @@ def main(argv: list[str]) -> None:
     mode, s, packages = options(argv)
     c = context(s)
     if mode == "toolkits":
-        show_toolkits(packages)
+        show_toolkits(packages, s)
+        return
+    if mode == "packages-sh":
+        sys.stdout.write(packages_sh())
         return
     script = mode == "script"
     c["fresh"] = script and not s.get("_resume")                  # a dry run prints the whole build
@@ -1025,7 +1164,7 @@ def main(argv: list[str]) -> None:
     c["rebuild"] = rebuild_set(s.get("_rebuild", []), packages, c) if s.get("_rebuild") else []
     order, added = plan(s, packages, c)
     if mode == "list":
-        show(order, packages, c)
+        show(order, added, packages, c, s)
         return
     if mode == "urls":
         check_urls(order, packages, c)
@@ -1127,6 +1266,8 @@ def main(argv: list[str]) -> None:
                     f"see the lines above; the log is {shell.log} (verify=false skips the checks)")
         if not script:
             stamp(name, p, c).write_text(digest(name, p, c) + "\n", encoding="utf-8")
+            if p["kind"] in ("autotools", "cmake", "unpack"):
+                note_folder(p.get("install", name), c)
             building(name, p, c).unlink(missing_ok=True)
             if p["kind"] not in ("none", "external"):
                 record_links(name, p, c)

@@ -1,0 +1,6 @@
+# recipes/toolkits/key4hep.toml — @key4hep (README.md §6)
+
+description = "the Key4hep stack (EDM4hep, podio, DD4hep, Gaudi, k4FWCore) from CVMFS: external, in a shell of its own"
+
+[standard]
+key4hep = true

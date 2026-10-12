@@ -1,0 +1,6 @@
+# recipes/toolkits/fluka.toml — @fluka (README.md §6)
+
+description = "FLUKA (CERN): external, behind its licence and registration"
+
+[standard]
+fluka = true

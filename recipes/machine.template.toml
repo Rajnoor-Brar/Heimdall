@@ -6,9 +6,10 @@
 # apps), forge/ (downloads, sources, builds, logs), stacks/<toolkit>/, and machine.sh (this machine's
 # shell lines, which setup.sh sources). Several checkouts of Heimdall may share one root.
 #
-# Each table is a layer over the shipped files (recipes/README.md §1): a list appends to the shipped
-# list unless the table names it in replace = ["key"]; anything else replaces. The toolkits asked for
-# and the command line come after it.
+# Each table is a layer over the recipes, the platform's fixes and the toolkits asked for
+# (recipes/README.md §1): a list appends to the list below it unless the table names it in
+# replace = ["key"]; anything else replaces. --config files and the command line come after it.
+# This machine's own toolkits go in the machine root's toolkits/ (recipes/README.md §6).
 
 # [settings]                      # recipes/settings.toml's keys, this machine's values
 # cores       = 20
@@ -19,7 +20,7 @@
 # [env]                           # the build's environment variables
 # CC = "gcc-13"
 
-# [packages.root]                 # a recipe's keys (recipes/packages.toml), this machine's
+# [packages.root]                 # a recipe's keys (recipes/toolkits/standard.toml), this machine's
 # extra   = ["-Dcuda=ON"]
 # replace = []
 

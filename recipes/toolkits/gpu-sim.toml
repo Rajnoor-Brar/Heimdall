@@ -1,0 +1,17 @@
+# recipes/toolkits/gpu-sim.toml — @gpu-sim (README.md §6)
+
+description = "Geant4 electromagnetic showers on the GPU: AdePT, on VecGeom, G4HepEm and Geant4, in a C++20 stack of their own"
+note        = "needs CUDA and an NVIDIA GPU (external: cuda); set cuda_arch for a machine without its GPU"
+isolated    = true                    # C++20: a stack of its own, stacks/gpu-sim/
+
+[standard]
+python = true
+hepmc3 = true
+geant4 = true
+adept  = true
+
+[settings]
+cxx_std = 20
+
+[packages.geant4]
+extra = ["-DGEANT4_BUILD_CXXSTD=20"]

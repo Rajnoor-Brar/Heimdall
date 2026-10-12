@@ -1,6 +1,6 @@
 # recipes/build_by_hand.txt — Heimdall's stack, built by hand: commands to copy and paste into a
 # terminal, one step at a time, in this order. Ubuntu 24.04 (the lab PC's system); the versions and
-# flags are packages.toml's (recipes/README.md §3 says why each flag is there).
+# flags are recipes/toolkits/standard.toml's (recipes/README.md §3 says why each flag is there).
 #
 # How to use it:
 #   - Paste STEP 0 first, in every new terminal: it sets the variables and the helper every later step

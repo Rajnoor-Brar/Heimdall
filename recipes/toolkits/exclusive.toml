@@ -1,0 +1,7 @@
+# recipes/toolkits/exclusive.toml — @exclusive (README.md §6)
+
+description = "central exclusive production: SuperChic"
+
+[standard]
+core      = true
+superchic = true

@@ -22,8 +22,6 @@ fi
 # The file that sourced this one (Heimdall's setup.sh), re-sourced by hep_refresh
 export HEP_SETUP="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
 
-_HEP_PACKAGES="LHAPDF hdf5 hepmc3 fastjet xrootd root yoda pythia8 rivet herwig7 delphes sherpa madgraph whizard onnxruntime geant4
-  photospp tauolapp evtgen superchic mcfm jetscape madanalysis5 professor highfive dd4hep geomodel garfieldpp"    # the toolkits' (recipes/toolkits.toml): only what is installed is added
 _HEP_SCALARS="LHAPDF_DATA_PATH ONNXRUNTIME_DIR GEANT4_DATA_DIR"
 
 # _hep_prepend VAR DIR — prepend DIR if it exists and is not already present; record the addition.
@@ -43,62 +41,6 @@ _hep_strip() {
     while [[ $cur == *":$2:"* ]]; do cur=${cur//":$2:"/:}; done
     cur=${cur#:}; cur=${cur%:}
     if [ -n "$cur" ]; then export "$1=$cur"; else unset "$1"; fi
-}
-
-# --- status report (on demand; several version probes are slow) ---
-# Strips version strings down to the number for most tools, with two exceptions: Sherpa keeps its
-# codename ("3.0.5 (Erebus)"), and Herwig7/ThePEG share one line since `Herwig --version` reports both.
-_hep_status_probe() {
-    local GREEN=$'\033[0;32m' DIM=$'\033[2m' RESET=$'\033[0m'
-    [ -t 1 ] || { GREEN=''; DIM=''; RESET=''; }
-
-    _ver() {
-        command -v "$1" &>/dev/null || { printf "%s—%s\n" "$DIM" "$RESET"; return; }
-        local out v
-        out=$("$@" 2>/dev/null | head -n 1)
-        v=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' <<< "$out" | head -n 1)
-        printf "%s%s%s\n" "$GREEN" "${v:-$out}" "$RESET"
-    }
-    _flag() {
-        [ -e "$1" ] && printf "%sinstalled%s\n" "$GREEN" "$RESET" || printf "%s—%s\n" "$DIM" "$RESET"
-    }
-    _sherpa_ver() {
-        command -v Sherpa &>/dev/null || { printf "%s—%s\n" "$DIM" "$RESET"; return; }
-        local out v
-        out=$(Sherpa --version 2>/dev/null | head -n 1)
-        v=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?.*' <<< "$out")
-        printf "%s%s%s\n" "$GREEN" "${v:-$out}" "$RESET"
-    }
-    _herwig_ver() {
-        command -v Herwig &>/dev/null || { printf "%s—%s\n" "$DIM" "$RESET"; return; }
-        local out hwv tpv
-        out=$(Herwig --version 2>/dev/null)
-        hwv=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' <<< "$out" | sed -n '1p')
-        tpv=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' <<< "$out" | sed -n '2p')
-        if [ -n "$tpv" ]; then
-            printf "%s%s with ThePEG %s%s\n" "$GREEN" "$hwv" "$tpv" "$RESET"
-        else
-            printf "%s%s%s\n" "$GREEN" "${hwv:-$out}" "$RESET"
-        fi
-    }
-
-    # echo "HEP environment — $HEP"
-    echo " "
-    printf "  %-10s %s\n" LHAPDF   "$(_ver lhapdf-config --version)"
-    printf "  %-10s %s\n" HepMC3   "$(_ver HepMC3-config --version)"
-    printf "  %-10s %s\n" FastJet  "$(_ver fastjet-config --version)"
-    printf "  %-10s %s\n" ROOT     "$(_ver root-config --version)"
-    printf "  %-10s %s\n" Yoda     "$(_ver yoda-config --version)"
-    printf "  %-10s %s\n" Pythia8  "$(_ver pythia8-config --version)"
-    printf "  %-10s %s\n" Rivet    "$(_ver rivet --version)"
-    printf "  %-10s %s\n" Herwig7  "$(_herwig_ver)"
-    printf "  %-10s %s\n" Delphes  "$(_flag "$HEP_INSTALL/delphes/bin/DelphesHepMC3")"
-    printf "  %-10s %s\n" Sherpa   "$(_sherpa_ver)"
-    printf "  %-10s %s\n" MadGraph "$(_flag "$HEP_INSTALL/madgraph/bin/mg5_aMC")"
-    printf "  %-10s %s\n" Whizard  "$(_ver whizard --version)"
-    printf "  %-10s %s\n" ONNXRT   "$(_flag "$HEP_INSTALL/onnxruntime/lib/libonnxruntime.so")"
-    echo " "
-    unset -f _ver _flag _sherpa_ver _herwig_ver
 }
 
 # --- routine commands ---
@@ -144,8 +86,8 @@ hep() {
         command hep "$@"
     fi
 }
-# hep_status: the installed tool versions.
-hep_status() { _hep_status_probe "$@"; }
+# hep_status: the loaded stack's packages, from their recipes (`hep status --stack`).
+hep_status() { command hep status --stack "$@"; }
 
 hep_stash()   { cd "$HEP_MACHINE/forge/downloads"; }   # the downloads (stash/ before the machine root)
 hep_forge()   { cd "$HEP_FORGE"; }
@@ -161,7 +103,7 @@ hep_help() {
     cat << HLP
 hep run | plot | watch | build | make   the framework (hep --help)
 HEP environment commands:
-  hep_status             installed tool versions
+  hep_status             the loaded stack: each package, its release and state (hep status --stack)
   hep refresh            reload the environment from scratch (also hep_refresh)
   quit                   leave the HEP environment (restores paths, deactivates venv)
   hep_cd PROJECT [DIR]   cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|output)
@@ -182,6 +124,10 @@ fi
 # Activate the Python venv
 source "$HEP_VENV/bin/activate"
 
+# The stack's install folders: every shipped recipe's (env/packages.sh, generated from recipes/toolkits/),
+# and what this stack's builds made (a machine toolkit's own recipes); only folders that are there count.
+source "$HEP/env/packages.sh"
+[ -f "$HEP_INSTALL/.stamps/folders" ] && _HEP_PACKAGES="$_HEP_PACKAGES $(< "$HEP_INSTALL/.stamps/folders")"
 _hep_pyver=$("$HEP_VENV/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])')
 for pkg in $_HEP_PACKAGES; do
     _hep_prepend PATH              "$HEP_INSTALL/$pkg/bin"
@@ -194,7 +140,7 @@ done
 # ROOT and Pythia install their Python modules into lib/ (import ROOT, import pythia8)
 _hep_prepend PYTHONPATH "$HEP_INSTALL/root/lib"
 _hep_prepend PYTHONPATH "$HEP_INSTALL/pythia8/lib"
-unset pkg _hep_pyver
+unset pkg _hep_pyver _HEP_PACKAGES
 # framework/bin last, so it sits in front of everything, including the venv's bin/: the `hep` command
 # is framework/bin/hep.
 _hep_prepend PATH "$HEP/framework/bin"

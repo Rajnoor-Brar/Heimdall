@@ -1,0 +1,7 @@
+# recipes/toolkits/tuning.toml — @tuning (README.md §6)
+
+description = "generator tuning: Professor, on Rivet and YODA"
+
+[standard]
+core      = true
+professor = true

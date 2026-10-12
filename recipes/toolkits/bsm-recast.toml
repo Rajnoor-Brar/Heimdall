@@ -1,0 +1,12 @@
+# recipes/toolkits/bsm-recast.toml — @bsm-recast (README.md §6)
+
+description = "BSM reinterpretation: MadGraph, Delphes, MadAnalysis 5, Contur on Rivet, the HEPData clients"
+note        = "DelphesMA5tune comes from inside MadAnalysis 5: `install delphesMA5tune` at its prompt"
+
+[standard]
+core         = true
+madgraph     = true
+delphes      = true
+madanalysis5 = true
+contur       = true
+hepdata      = true

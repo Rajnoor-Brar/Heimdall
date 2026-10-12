@@ -1,0 +1,20 @@
+# recipes/toolkits/key4hep-src.toml — @key4hep-src (README.md §6)
+
+description = "Key4hep's data model and framework from source, in a C++20 stack of their own: podio, EDM4hep, Gaudi, on ROOT, HepMC3 and Geant4"
+note        = "the same tools come prebuilt with @key4hep (CVMFS); this builds them here, for a machine without CVMFS"
+isolated    = true                    # C++20: a stack of its own, stacks/key4hep-src/
+
+[standard]
+python  = true
+root    = true
+hepmc3  = true
+geant4  = true
+podio   = true
+edm4hep = true
+gaudi   = true
+
+[settings]
+cxx_std = 20
+
+[packages.geant4]
+extra = ["-DGEANT4_BUILD_CXXSTD=20"]

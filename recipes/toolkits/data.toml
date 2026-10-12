@@ -1,0 +1,8 @@
+# recipes/toolkits/data.toml — @data (README.md §6)
+
+description = "data formats and publishing: HDF5 with HighFive (and h5py), the HEPData clients"
+
+[standard]
+highfive = true
+hepdata  = true
+hdf5     = true   # HDF5 itself (YODA's .yoda.h5 too)

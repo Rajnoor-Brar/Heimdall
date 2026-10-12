@@ -21,8 +21,9 @@ source setup.sh                                      # the environment: alias lo
 hep build --framework                                # Heimdall's apps, into the machine root's apps/ ($HEP_APPS)
 ```
 
-The stack's recipes, its toolkits (`@primary` is the lab set plus MadAnalysis5; `--toolkits` lists
-the others, and your own go in `recipes/toolkits.d/`) and the isolated stacks of another C++ standard
+The stack's recipes, its toolkits (one file each in `recipes/toolkits/`: `@primary` is the lab set plus
+MadAnalysis5; `--toolkits` lists the others, and your own go in the machine root's `toolkits/`) and the
+isolated stacks of another C++ standard
 are [recipes/README.md](../recipes/README.md). On macOS use `recipes/platforms/mac/`; for an image,
 `recipes/platforms/container/`.
 
@@ -31,7 +32,7 @@ and activates the Python environment. An isolated toolkit's stack is loaded by i
 `stacks/<toolkit>/setup.sh` instead, in a shell of its own. `hep where` says which Heimdall (and which
 stack) a shell sees, and which work dir.
 
-The shell gives you `hep_status` (installed versions), `hep_cd PROJECT
+The shell gives you `hep_status` (the stack's packages: `hep status --stack`), `hep_cd PROJECT
 [configs|modules|results|output]` (in the current work dir), `quit` (leave the environment) and
 `hep_help`. **`hep refresh`** reloads the environment in the same shell, from scratch: `quit`, then the
 same `setup.sh` again. Use it after a stack's rebuild, an edit of `env/hep_env.sh` or of the machine

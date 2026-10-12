@@ -1,0 +1,7 @@
+# recipes/toolkits/heavy-flavour.toml — @heavy-flavour (README.md §6)
+
+description = "heavy-flavour and tau decays: EvtGen with PHOTOS++ and TAUOLA++, on Pythia 8 and HepMC3"
+
+[standard]
+core   = true
+evtgen = true

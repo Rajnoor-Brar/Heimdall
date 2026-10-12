@@ -187,11 +187,29 @@ It works, but it is opt-in per pair of tools, and it is named by convention.
     change. Third-party tools (Rivet, Delphes, Sherpa) simply ignore it.
   - A tool whose folder wants it on the command line puts `{context}` in its argv. Heimdall's apps
     and the user's tools can.
-- **Lifetime.**
-  - The file is written when the point starts and removed when the point ends.
-  - It lives in the point's ephemeral area (`logs/`, 02 §3), never in its record.
-  - The cards and configs it names stay in the record, as now. So nothing is lost, and the
-    provenance doesn't depend on the file.
+- **Where it lives, and for how long.**
+  - One file per running point, in that point's ephemeral folder of its work dir:
+    `<work>/logs/<P>/<run>/<cfg>/<point>/context.toml` (today's layout:
+    `output/…/<point>/context.toml`, beside `logs/`).
+  - It is written when the point starts (replacing any file a killed attempt left) and removed when
+    the point ends.
+  - It is never in the point's record. The cards and configs it names stay in the record, as now, so
+    nothing is lost and the provenance doesn't depend on it.
+  - **Why the point's folder, not a temp dir:** every tool of a point runs on the same machine and
+    sees that folder, including a node of a cluster on the shared filesystem. While the point runs,
+    the file can be inspected beside its logs.
+- **Several runs, several sessions.**
+  - `HEP_CONTEXT` is set in each tool's process environment by the runner. It is never exported to
+    the user's shell, so sessions don't share it.
+  - Two runs of different points (other configurations, files or work dirs, in any number of
+    sessions, on a cluster too) have different point folders, hence different files. Nothing
+    collides.
+  - **The one collision is the same point in two sessions at once.** That is a gap today for
+    everything a point writes (cards, logs, products), not only this file: points are not locked
+    across processes (only the prepare caches are, `execute.py:221-238`). The fix is a point lock
+    (U66, phase 5.1): `flock` on `<point>/.lock`. A second run of a running point skips it with
+    "being run by pid N on <host> since <time>", or waits with `--wait`. A lock whose process is
+    gone is taken over.
 - **What it replaces.**
   - The `<tool>_<export> = true` keys and the `[standard.<key>]` tables go: an integrated program
     reads Pythia's card and Rivet's analyses from the context, because `generate_cards` named them.

@@ -36,6 +36,10 @@ Also covered: the everyday commands ([05_CLI.md](05_CLI.md)). The remediation, i
 - **Versions:** the recipes adopt the Mac's newer versions (YODA 2.1.4, Rivet 4.1.4, Pythia 8318,
   MadGraph 3.8.1).
 - **HDF5** is a recipe, built by `@primary` and `@lab` too.
+- **The machine root** is `~/Himinbjorg` by default (`$HEP_MACHINE` to move it).
+- **The context file** lives in its point's ephemeral folder, one per running point. `HEP_CONTEXT` is
+  set per tool process, never in the user's shell, so runs in any number of sessions don't collide.
+  The one real collision, the same point in two sessions, needs the point lock of U66.
 - **Schema v3:** configurations are `[cfgs.<name>]`; serial numbers are optional (automatic unless
   set, and a changed identity under a set serial is refused).
 
@@ -88,6 +92,7 @@ Each finding gives:
 | U34 | 28 | layout | Six package lists (`packages.toml`, `stack.toml`, `_HEP_PACKAGES`, `hep_status`, two docs) drift: `xrootd` listed, the C++20 packages missing | 3 |
 | U54 | 28 | extend | A module's config keys are not checked: a typo falls back to the default silently | 4 |
 | U63 | 28 | CLI | The first-run path breaks or stops: the README fails on a Mac, `hep setup` prints no next step, the guide's examples live in the hidden fixture | 7 |
+| U66 | 28 | layout | Points are not locked across processes: the same point run from two sessions writes the same cards, logs and products at once | 5 |
 | U7 | 27 | process | Nothing checks what a build can do, after it or later (`hep doctor`) | 2 |
 | U16 | 27 | process | An OS upgrade breaks a working stack unnoticed (lab PC: Herwig, Sherpa, ROOT MathMore) | 2 |
 | U49 | 25 | config | The editor JSON schema is wrong: it requires `[run].tools`, leaves tool keys open, and has no types for `[static]` | 6 |

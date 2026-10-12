@@ -109,7 +109,7 @@ Downloads, sources and builds go in `forge/`; `stack/` holds finished installs o
 ~/Github/Heimdall/                 framework · authored — the checkout, nothing else
   framework/  src/  recipes/  docs/  tests/  setup.sh  Makefile
 
-$HEP_MACHINE  (default ~/Heimdall-machine; set once in the user's shell, or found next to the checkout)
+~/Himinbjorg  ($HEP_MACHINE: the default is ~/Himinbjorg, the user's choice — Himinbjörg is Heimdall's hall)
   machine.toml                     machine · authored: setup lines, recipe overrides (merged), cluster
                                    defaults, extra toolkits, the platform's name
   toolkits/  patches/  tools/      machine · authored: the user's own (tools: see 04)

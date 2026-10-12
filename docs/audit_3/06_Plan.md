@@ -148,16 +148,16 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 
 ## Phase 3 — The machine root and the shell
 
-**3.1 `$HEP_MACHINE`** (U19, U20, U24, U26, U29)
-- The machine root, as in [02 §3](02_Organisation.md#3-the-proposed-layout):
+**3.1 The machine root, `~/Himinbjorg`** (U19, U20, U24, U26, U29)
+- The machine root, as in [02 §3](02_Organisation.md#3-the-proposed-layout), by default
+  `~/Himinbjorg` (the user's choice):
   - `machine.toml`;
   - `forge/{downloads,src,build,logs}` (`stash/` retired, by the user's rule);
   - `stack/`, `venv/`, `apps/`, `stacks/<kit>/`;
   - `toolkits/`, `patches/`, `tools/`.
 - `setup.sh` finds the root:
   1. `$HEP_MACHINE`;
-  2. else `machine.toml` beside the checkout;
-  3. else a default.
+  2. else `~/Himinbjorg`.
 - `paths.py` gains `machine_root()` and `{apps}`.
 - `setup_extra`, `[cluster]` defaults and recipe overrides move into `machine.toml`.
 - `hep setup --machine <root>` creates one or adopts an existing install (by moving or linking; the
@@ -259,7 +259,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 
 ## Phase 5 — The work dir's lifecycle
 
-**5.1 Records apart from logs and caches** (U21, U30, U29)
+**5.1 Records apart from logs and caches; a point lock** (U21, U30, U29, U66)
 - `output/` splits by lifecycle into:
   - `records/` (provenance, identity, `.complete`, `points.json`, `cluster/<time>/`);
   - `logs/` (point logs, FIFOs);
@@ -269,6 +269,12 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
   confirming.
 - Reserved names (`plots`, `pre`, `post`, `cluster`, `compare`) are refused as configuration and
   point names.
+- **A point lock** (U66): `flock` on `<point>/.lock` (host, pid and start time inside).
+  - A second session's run of a running point skips it with a message naming who holds it, or waits
+    with `--wait`.
+  - A stale lock (a dead pid on this host, or older than the point's timeout on another) is taken
+    over.
+  - `hep status` shows "running (pid N, host H)".
 - `hep migrate --layout` moves an existing work dir.
 
 **5.2 Deck sources, datasets, the template** (U22, U23, U28)
@@ -281,6 +287,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 | Row (phase 5) | Expected |
 |---|---|
 | `rm -rf logs .cache` in a work dir | `hep status` still shows every point complete |
+| the same configuration started in two sessions | the second skips the points the first holds, naming them; no file is written twice |
 | a fresh clone of a work dir | `hep check` passes; data-backed pages draw |
 | `hep clean` | never lists `records/` or `cluster/` |
 

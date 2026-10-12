@@ -9,7 +9,10 @@
     python3 recipes/build_stack.py --toolkits               # the toolkits: named sets for a kind of work
     python3 recipes/build_stack.py packages=@bsm-recast     # a toolkit (toolkits.toml), with what it needs
     python3 recipes/build_stack.py packages=@gpu-sim        # an isolated toolkit: its own C++20 stack in stacks/gpu-sim/
-    python3 recipes/build_stack.py --dry-run > build.sh     # the build as a bash script; nothing is run
+    python3 recipes/build_stack.py --dry-run > build.sh     # the whole build as a bash script; nothing is run
+    python3 recipes/build_stack.py --dry-run --resume       # … only what this prefix still lacks
+    python3 recipes/build_stack.py --check-urls             # ask every chosen package's URLs; nothing is downloaded
+    python3 recipes/build_stack.py --sha256                 # the checksums of the archives in stash/, as recipe lines
 
 A setting is a key of settings.toml, given as key=value; a package's key as <package>.<key>=value.
 Where things go (docs/framework/01_Target.md §2): archives and their sources in stash/, build trees
@@ -19,7 +22,10 @@ changes the C++ standard is isolated: it builds a whole stack of its own in stac
 (installs, build trees, venv), loaded by stacks/<toolkit>/setup.sh; stash/ is shared.
 A finished package is stamped (stack/.stamps/<name>-<release>) and skipped after, so a rerun
 resumes; delete a stamp to redo its package. Every tarball is fetched before the first build, so a
-dead link stops the run at once. Each package logs to forge/logs/<name>.log.
+dead link stops the run at once: each package's url may be a list (mirrors, tried in order), a
+download resumes and retries, and an archive is kept only when it is one (a web page or a cut-off
+file is refused, and a sha256 is checked when the recipe gives one). Each package logs to
+forge/logs/<name>.log.
 
 Linux and macOS (recipes/platforms/mac/ adds Homebrew and mac.toml). Standard library only: Python
 3.11+ (tomllib), or an older Python with tomli.
@@ -34,6 +40,9 @@ import shutil
 import subprocess
 import sys
 import time
+import hashlib
+import http.client
+import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -49,7 +58,7 @@ except ModuleNotFoundError:                                        # Python < 3.
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent                                                 # Heimdall: recipes/ is in it
-FIELDS = {"release", "url", "kind", "needs", "group", "install", "probe", "args", "extra", "optional",
+FIELDS = {"release", "url", "sha256", "kind", "needs", "group", "install", "probe", "args", "extra", "optional",
           "patch", "env", "pre", "post", "cores", "status", "how", "apt"}
 KINDS = ("autotools", "cmake", "unpack", "none", "external")
 #: packages = "all": the lab PC's set. Group "toolkit" joins only by name or by toolkit (@name).
@@ -63,6 +72,10 @@ ABI = ("cxx_std", "opt_flags")
 PLACEHOLDER = re.compile(r"\{(\w+)\}")
 MAC = sys.platform == "darwin"
 TARBALLS = (".tar.gz", ".tar.bz2", ".tar.xz", ".tgz")
+#: What an archive's first bytes are: gzip, bzip2, xz, zip. A web page starts with "<".
+MAGIC = (b"\x1f\x8b", b"BZh", b"\xfd7zXZ\x00", b"PK\x03\x04")
+#: A download's patience: attempts per URL, seconds between them (doubling), and a read's timeout.
+ATTEMPTS, BACKOFF, TIMEOUT = 5, 3, 60
 
 #: stacks/<toolkit>/setup.sh: an isolated stack's loader (`quit` the default environment first).
 STACK_SETUP = """#!/bin/bash
@@ -134,6 +147,12 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             sys.exit(0)
         elif arg in ("-n", "--dry-run"):
             mode = "script"
+        elif arg == "--resume":
+            settings["_resume"] = True
+        elif arg == "--check-urls":
+            mode = "urls"
+        elif arg == "--sha256":
+            mode = "sha256"
         elif arg == "--list":
             mode = "list"
         elif arg == "--toolkits":
@@ -244,14 +263,24 @@ def stamp(name: str, p: dict, c: dict) -> Path:
 
 
 def present(name: str, p: dict, c: dict) -> bool:
-    """Built here (stamped), or installed some other way (its probe file is there)."""
+    """Built here (stamped), or installed some other way (its probe file is there). A dry run without
+    --resume sees an empty prefix: it prints the whole build."""
+    if c.get("fresh"):
+        return False
     marker = p.get("probe", "{install}")
     return stamp(name, p, c).exists() or bool(marker) and Path(expand(marker, scope(name, p, c))).exists()
 
 
+def urls_of(name: str, p: dict, c: dict) -> list[str]:
+    """A package's URLs: one, or a list of mirrors tried in order."""
+    given = p["url"] if isinstance(p["url"], list) else [p["url"]]
+    return [expand(url, scope(name, p, c)) for url in given]
+
+
 def tarball(name: str, p: dict, c: dict) -> tuple[Path, str]:
-    url = expand(p["url"], scope(name, p, c))
-    ending = next((end for end in TARBALLS if url.endswith(end)), ".tar")
+    """Where the archive goes, and its first URL (the others are mirrors: urls_of)."""
+    url = urls_of(name, p, c)[0]
+    ending = next((end for end in TARBALLS if any(u.endswith(end) for u in urls_of(name, p, c))), ".tar")
     return Path(c["stash"], f"{name}-{p.get('release', '')}{ending}"), url
 
 
@@ -377,34 +406,140 @@ class Shell:
             die(f"{self.name}: '{shlex.join(argv)}' failed; the whole log is {self.log}")
 
 
-def fetch(items: list[tuple[Path, str]], shell: Shell) -> None:
-    """Every tarball not yet in stash/, four at a time, before anything is built."""
-    missing = [(file, url) for file, url in items if not file.is_file() or not file.stat().st_size]
-    if shell.script:
-        for file, url in missing:
-            part = shlex.quote(f"{file}.part")
-            print(f"curl -fL --retry 3 -o {part} {shlex.quote(url)} && mv {part} {shlex.quote(str(file))}")
-        return
-    if not missing:
-        return
-    say(f"downloading {len(missing)} tarball{'s' if len(missing) > 1 else ''}")
+def sha256_of(file: Path) -> str:
+    digest = hashlib.sha256()
+    with open(file, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
-    def get(item: tuple[Path, str]) -> str | None:
-        file, url = item
-        part = file.with_name(file.name + ".part")
+
+def archive_problem(file: Path, sha256: str = "", full: bool = True) -> str | None:
+    """Why a file is not the archive it should be, or None. `full`: also list it (tar -t), which
+    reads it whole and so finds a cut-off file."""
+    if not file.is_file() or not file.stat().st_size:
+        return "empty or missing"
+    head = file.open("rb").read(512)
+    if head.lstrip()[:1] == b"<" or b"<html" in head.lower():
+        return "the server sent a web page, not the archive"
+    if not head.startswith(MAGIC):
+        return f"not an archive (it starts with {head[:8]!r})"
+    if sha256 and sha256_of(file) != sha256.lower():
+        return f"sha256 differs from the recipe's ({sha256[:12]}…)"
+    if full:
+        listing = (["unzip", "-tq", str(file)] if head.startswith(b"PK") else ["tar", "-tf", str(file)])
+        check = subprocess.run(listing, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        if check.returncode:
+            return "cut off or damaged: " + (check.stderr.strip().splitlines() or ["tar -t failed"])[-1]
+    return None
+
+
+def download(file: Path, url: str) -> str | None:
+    """One URL into `file`, resuming a partial .part and retrying; None, or why it failed."""
+    part = file.with_name(file.name + ".part")
+    error = "no attempt"
+    for attempt in range(ATTEMPTS):
+        if attempt:
+            time.sleep(BACKOFF * 2 ** (attempt - 1))
+        have = part.stat().st_size if part.exists() else 0
+        headers = {"User-Agent": "build_stack.py"} | ({"Range": f"bytes={have}-"} if have else {})
         try:
-            request = urllib.request.Request(url, headers={"User-Agent": "build_stack.py"})
-            with urllib.request.urlopen(request, timeout=60) as response, open(part, "wb") as out:
-                shutil.copyfileobj(response, out, 1 << 20)
-        except (OSError, ValueError) as error:
-            return f"{url}: {error}"
-        part.replace(file)
-        return None
+            request = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+                resumed = have and response.status == 206
+                with open(part, "ab" if resumed else "wb") as out:
+                    shutil.copyfileobj(response, out, 1 << 20)
+                expected = response.headers.get("Content-Length")
+                if expected and part.stat().st_size < int(expected) + (have if resumed else 0):
+                    raise http.client.IncompleteRead(b"", int(expected))
+            part.replace(file)
+            return None
+        except urllib.error.HTTPError as failure:
+            if failure.code == 416 and part.exists():              # a range past the end: the .part is whole
+                part.replace(file)
+                return None
+            error = f"HTTP {failure.code} {failure.reason}"
+            if failure.code in (403, 404, 410):                    # no point retrying a missing file
+                break
+        except (OSError, ValueError, http.client.HTTPException) as failure:   # IncompleteRead included
+            error = f"{type(failure).__name__}: {failure}"
+    return error
+
+
+def fetch(items: list[tuple[Path, list[str], str]], shell: Shell) -> None:
+    """Every archive the run needs, four at a time, before anything is built: kept only when it is
+    one (archive_problem). An archive already there is checked the same way, and fetched again when
+    it is not one."""
+    if shell.script:
+        for file, urls, sha256 in items:
+            f = shlex.quote(str(file))
+            tries = " || ".join(f"curl -fL -C - --retry 5 --retry-all-errors -o {f}.part {shlex.quote(u)}"
+                                for u in urls)
+            check = (f" && echo {shlex.quote(sha256)}' '{f}.part | sha256sum -c -" if sha256 else "")
+            print(f"[ -s {f} ] || {{ {{ {tries}; }} && tar -tf {f}.part > /dev/null{check} && mv {f}.part {f}; }}")
+        return
+    todo = []
+    for file, urls, sha256 in items:
+        if file.exists() and (problem := archive_problem(file, sha256)):
+            say(f"{file.name}: {problem}; fetching it again")
+            file.unlink()
+        if not file.exists():
+            todo.append((file, urls, sha256))
+    if not todo:
+        return
+    say(f"downloading {len(todo)} archive{'s' if len(todo) > 1 else ''}")
+
+    def get(item: tuple[Path, list[str], str]) -> str | None:
+        file, urls, sha256 = item
+        reasons = []
+        for url in urls:
+            if failure := download(file, url):
+                reasons.append(f"{url}: {failure}")
+                continue
+            if problem := archive_problem(file, sha256):
+                reasons.append(f"{url}: {problem}")
+                file.unlink()
+                file.with_name(file.name + ".part").unlink(missing_ok=True)
+                continue
+            return None
+        return f"{file.name}: " + "; ".join(reasons)
 
     with ThreadPoolExecutor(4) as pool:
-        if errors := [error for error in pool.map(get, missing) if error]:
-            die("downloads failed (set <package>.url=…, or put the tarball in stash/ yourself):\n  "
+        if errors := [error for error in pool.map(get, todo) if error]:
+            die("downloads failed (set <package>.url=…, or put the archive in stash/ yourself):\n  "
                 + "\n  ".join(errors))
+
+
+def check_urls(order: list[str], packages: dict, c: dict) -> None:
+    """--check-urls: each chosen package's URLs asked for their headers (nothing downloaded), and what
+    answered: an archive, a web page, or nothing."""
+    bad = 0
+    for name in order:
+        p = packages[name]
+        if p["kind"] in ("none", "external"):
+            continue
+        answered = False
+        for url in urls_of(name, p, c):
+            try:
+                request = urllib.request.Request(url, headers={"User-Agent": "build_stack.py", "Range": "bytes=0-511"})
+                with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+                    head = response.read(512)
+                    kind = ("web page" if head.lstrip()[:1] == b"<" else "archive" if head.startswith(MAGIC)
+                            else "unknown content")
+                    size = response.headers.get("Content-Range", "").rpartition("/")[2] or "?"
+            except urllib.error.HTTPError as failure:
+                kind, size = f"HTTP {failure.code}", "-"
+            except (OSError, ValueError, http.client.HTTPException) as failure:
+                kind, size = type(failure).__name__, "-"
+            ok = kind == "archive"
+            answered |= ok
+            size = size if size not in ("0", "") else "?"
+            print(f"{'ok  ' if ok else 'dead'} {name:13} {kind:15} {size:>11}  {url}")
+        if not answered:
+            bad += 1
+            print(f"BAD  {name}: no URL answers with an archive")
+    if bad:
+        die(f"{bad} package(s) cannot be downloaded: set <package>.url=…")
 
 
 def build(name: str, p: dict, c: dict, shell: Shell, have: set[str]) -> None:
@@ -505,11 +640,21 @@ def main(argv: list[str]) -> None:
     if mode == "toolkits":
         show_toolkits(packages)
         return
+    script = mode == "script"
+    c["fresh"] = script and not s.get("_resume")                  # a dry run prints the whole build
     order, added = plan(s, packages, c)
     if mode == "list":
         show(order, packages, c)
         return
-    script = mode == "script"
+    if mode == "urls":
+        check_urls(order, packages, c)
+        return
+    if mode == "sha256":                                           # for the recipes: what this machine downloaded
+        for name in order:
+            file = tarball(name, packages[name], c)[0] if packages[name]["kind"] not in ("none", "external") else None
+            if file and file.is_file() and not archive_problem(file, full=False):
+                print(f'[{name}]   # {file.name}\nsha256 = "{sha256_of(file)}"\n')
+        return
     c["cmake_prefix"] = ";".join(dict.fromkeys(f"{c['inst']}/{p.get('install', n)}" for n, p in packages.items()
                                                if p["kind"] not in ("none", "external")))
     paths, fixed = environment(s, c, packages)
@@ -520,8 +665,9 @@ def main(argv: list[str]) -> None:
     prefix = Path(c["prefix"])
     folders = [prefix / "stash", Path(c["forge"], "logs"), Path(c["inst"], ".stamps"), Path(c["venv"]).parent]
     if script:
-        print("#!/usr/bin/env bash\n# The HEP stack's build, as `build_stack.py --dry-run` printed it: run it on a fresh\n"
-              "# prefix (it reads no stamps, and writes only the C++ standard's).\nset -euo pipefail")
+        print("#!/usr/bin/env bash\n# The HEP stack's build, as `build_stack.py --dry-run` printed it"
+              + (" (--resume: what this prefix still lacks)." if not c["fresh"] else ": the whole build, for a fresh\n"
+                 "# prefix (it reads no stamps, and writes only the C++ standard's).") + "\nset -euo pipefail")
         print("mkdir -p " + " ".join(shlex.quote(str(f)) for f in folders))
         for key, items in paths.items():
             print(f'export {key}={shlex.quote(":".join(items))}"${{{key}:+:${key}}}"')
@@ -540,8 +686,9 @@ def main(argv: list[str]) -> None:
         + (", dry run: nothing is run" if script else ""))
     if s["system"]:
         system(s, c, shell, [a for n in order for a in packages[n].get("apt", [])])
-    todo = [n for n in order if not stamp(n, packages[n], c).exists()]
-    fetch([tarball(n, packages[n], c) for n in todo if packages[n]["kind"] not in ("none", "external")], shell)
+    todo = [n for n in order if c["fresh"] or not stamp(n, packages[n], c).exists()]
+    fetch([(tarball(n, packages[n], c)[0], urls_of(n, packages[n], c), packages[n].get("sha256", ""))
+           for n in todo if packages[n]["kind"] not in ("none", "external")], shell)
     have = {n for n, p in packages.items() if present(n, p, c)} | set(order)
     for name in order:
         p = packages[name]

@@ -273,7 +273,7 @@ Everything else is a gate.
 
 ```
 P1 done — verified 26/26 (verify/P1/table.md).
-  ROOT 6.40.04 · Pythia 8.317 · Rivet 4.1.3 · YODA 2.1.3 · HepMC3 3.3.1 · FastJet 3.5.0 (patched) · MadAnalysis5 1.11.1 · 21 PDF sets
+  ROOT 6.40.04 · Pythia 8.318 · Rivet 4.1.4 · YODA 2.1.4 · HepMC3 3.3.1 · FastJet 3.5.0 (patched) · MadAnalysis5 1.11.1 · 21 PDF sets
   deviations: 1 (libpcre3-dev → libpcre2-dev; annex-allowed; folded in a1b2c3d)
   took 4 h 35 min; 22 GB under $HEP
 Next: P2.S1. No gate pending.

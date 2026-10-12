@@ -87,13 +87,13 @@ The steps:
    | `HepMC3-3.3.1.tar.gz` | `hepmc3-3.3.1.tar.gz` |
    | `fastjet-3.5.0.tar.gz`, `fjcontrib-1.104.tar.gz` | the same |
    | `root_v6.40.04.source.tar.gz` | `root-6.40.04.tar.gz` |
-   | `downloads?f=YODA-2.1.3.tar.gz` | `yoda-2.1.3.tar.gz` |
-   | `Rivet-4.1.3.tar.gz` | `rivet-4.1.3.tar.gz` |
-   | `pythia8317.tgz` | `pythia8-8317.tgz` |
+   | `YODA-2.1.4.tar.gz` (CEDAR) | `yoda-2.1.4.tar.gz` |
+   | `Rivet-4.1.4.tar.gz` (CEDAR) | `rivet-4.1.4.tar.gz` |
+   | `pythia8318.tgz` | `pythia8-8318.tgz` |
    | `ThePEG-2.3.0.tar.bz2`, `Herwig-7.3.0.tar.bz2` | `thepeg-2.3.0.tar.bz2`, `herwig-7.3.0.tar.bz2` |
    | `Delphes-3.5.1.tar.gz` | `delphes-3.5.1.tar.gz` |
    | `sherpa-3.0.5.tar.gz`, `whizard-3.1.8.tar.gz`, `geant4-11.4.2.tar.gz` | the same |
-   | `MG5_aMC_v3.7.3.tar.gz` | `madgraph-3.7.3.tar.gz` |
+   | `MG5_aMC_v3.8.1.tar.gz` | `madgraph-3.8.1.tar.gz` |
    | `onnxruntime-linux-x64-1.29.0.tgz` | `onnxruntime-1.29.0.tgz` |
 
    The names come from `build_stack.py`'s `tarball()`; the dry run of S1 shows each download it
@@ -147,9 +147,9 @@ of 2026-10-10 (`hep status --stack`, `lhapdf list --installed`).
 | # | Command | Expected |
 |---|---|---|
 | R1 | `root-config --version` | `6.40.04` |
-| R2 | `pythia8-config --version` | `8.317` |
-| R3 | `rivet --version` | `rivet v4.1.3` |
-| R4 | `yoda-config --version` | `2.1.3` |
+| R2 | `pythia8-config --version` | `8.318` |
+| R3 | `rivet --version` | `rivet v4.1.4` |
+| R4 | `yoda-config --version` | `2.1.4` |
 | R5 | `HepMC3-config --version` | `3.03.01` |
 | R6 | `fastjet-config --version` | `3.5.0` |
 | R7 | `lhapdf-config --version` | `6.5.6` |
@@ -157,7 +157,7 @@ of 2026-10-10 (`hep status --stack`, `lhapdf list --installed`).
 | R9 | `Herwig --version \| head -1` | contains `7.3.0` |
 | R10 | `Sherpa-config --version` | `3.0.5` |
 | R11 | `whizard --version \| head -1` | contains `3.1.8` |
-| R12 | `grep -i version $HEP_INSTALL/madgraph/VERSION` | contains `3.7.3` |
+| R12 | `grep -i version $HEP_INSTALL/madgraph/VERSION` | contains `3.8.1` |
 | R13 | `test -f $HEP_INSTALL/onnxruntime/lib/libonnxruntime.so && test -x $HEP_INSTALL/delphes/bin/DelphesHepMC3 && echo ok` | `ok` |
 | R14 | `test -x $HEP_INSTALL/madanalysis5/bin/ma5 && echo ok` | `ok` |
 | R15 | `lhapdf list --installed \| wc -l` | `21` |

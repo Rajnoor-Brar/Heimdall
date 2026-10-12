@@ -112,14 +112,14 @@ What a machine needs beyond it (`setup_extra`) goes to `env/machine.sh`, which `
 | `fastjet` | 3.5.0 | autotools, the SISCone patch | jets for Rivet, Pythia8, Sherpa, Whizard and module programs |
 | `fjcontrib` | 1.104 | autotools, into FastJet's prefix | the contribs; `libfastjetcontribfragile.so`, which Rivet links |
 | `root` | 6.40.04 | CMake, `builtin_xrootd`, `root_cores` | App_yd2rt, Paint, Delphes, module programs |
-| `yoda` | 2.1.3 | autotools | Rivet's histograms; the plot backends |
-| `rivet` | 4.1.3 | autotools | the analyses |
-| `pythia8` | 8.317 | its configure, with ROOT's and Rivet's plugins | App_Pythia, InprocJets |
+| `yoda` | 2.1.4 | autotools | Rivet's histograms; the plot backends |
+| `rivet` | 4.1.4 | autotools | the analyses |
+| `pythia8` | 8.318 | its configure, with ROOT's and Rivet's plugins | App_Pythia, InprocJets |
 | `thepeg` | 2.3.0 | autotools, into `stack/herwig7` | Herwig's event framework |
 | `herwig` | 7.3.0 | autotools, into `stack/herwig7` | the `herwig` tool |
 | `delphes` | 3.5.1 | CMake | the `delphes` tool |
 | `sherpa` | 3.0.5 | CMake (extra) | the `sherpa` tool |
-| `madgraph` | 3.7.3 | unpacked into `stack/madgraph`, configured (extra) | the `madgraph` tool |
+| `madgraph` | 3.8.1 | unpacked into `stack/madgraph`, configured (extra) | the `madgraph` tool |
 | `whizard` | 3.1.8 | autotools, OCaml (extra) | the `whizard` tool |
 | `onnxruntime` | 1.29.0 | the released binary, x64 or aarch64 (extra) | `// requires: onnx` |
 | `geant4` | 11.4.2 | CMake, MT, GDML, datasets (extra) | `// requires: geant4` |
@@ -305,7 +305,7 @@ another C++ standard gets an isolated toolkit), and still be released and suppor
 | MadSTR | left out | a MadGraph plugin that does not support MadGraph 3: in conflict with MG5_aMC 3.7.3 |
 | TCL detector cards | inside Delphes | Delphes' cards are Tcl files (`cards/`); a work dir keeps its own |
 | GDML | inside ROOT and Geant4 | a format: ROOT (`gdml`) and Geant4 (`GEANT4_USE_GDML`) are built with it |
-| CheckMATE | left out | its Pythia support is the 8.2 series only (the stack has 8.317), and it has no tagged releases to pin; MadAnalysis 5 and Contur cover recasting |
+| CheckMATE | left out | its Pythia support is the 8.2 series only (the stack has 8.318), and it has no tagged releases to pin; MadAnalysis 5 and Contur cover recasting |
 | AdePT | **added**, isolated (`@gpu-sim`: `adept` 0.4.1 on `vecgeom` v2.1.1, `g4hepem` 20251114, `veccore` 0.8.2) | C++20 and CUDA: a stack of its own; CUDA and the GPU are external |
 | HELAC-Onia | left out | the public release is 2.0.1, from 2015; newer versions are not distributed publicly |
 | Hector | left out | the last release is 1.5.2, from 2009 |

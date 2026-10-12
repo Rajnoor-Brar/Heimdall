@@ -9,6 +9,12 @@ from pathlib import Path
 import pytest
 
 from runner import plugins
+import functools
+import gzip
+import http.server
+import io
+import tarfile
+import threading
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -42,7 +48,7 @@ def test_needs_are_added_only_when_missing(bs, tmp_path):
     assert added == order[:-1]
     stamps = tmp_path / "stack" / ".stamps"
     stamps.mkdir(parents=True)
-    for name in ("python", "hepmc3-3.3.1", "yoda-2.1.3"):
+    for name in ("python", "hepmc3-3.3.1", "yoda-2.1.4"):
         (stamps / name).touch()
     (tmp_path / "stack" / "fastjet" / "lib").mkdir(parents=True)    # FastJet installed otherwise: its dir
     (order, added), _, _ = planned(bs, tmp_path, "packages=rivet")
@@ -228,3 +234,121 @@ def test_one_isolated_stack_per_run(bs, tmp_path):
         planned(bs, tmp_path, "packages=@key4hep-src @gpu-sim")
     with pytest.raises(SystemExit):
         planned(bs, tmp_path, "_stack=sneaky")                       # the internal key is not a setting
+
+
+# ── downloads (phase 1.1 of docs/audit_3/06_Plan.md) ───────────────────────────────────────────
+
+def a_tarball() -> bytes:
+    raw = io.BytesIO()
+    with tarfile.open(fileobj=raw, mode="w:gz") as tar:
+        data = b"x" * 200_000
+        info = tarfile.TarInfo("pkg-1/big.txt")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+    return raw.getvalue()
+
+
+@pytest.fixture
+def server():
+    """A local web server: /good.tgz an archive, /page.tgz a web page with status 200, /short.tgz an
+    archive cut off after a third (its Content-Length says the whole), /ranged.tgz honours Range."""
+    body = a_tarball()
+    hits: dict[str, int] = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            hits[self.path] = hits.get(self.path, 0) + 1
+            if self.path == "/good.tgz":
+                self._send(200, body)
+            elif self.path == "/page.tgz":
+                self._send(200, b"<!DOCTYPE html><html>no such release</html>")
+            elif self.path == "/short.tgz":
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body[: len(body) // 3])
+            elif self.path == "/ranged.tgz":
+                start = int(self.headers.get("Range", "bytes=0-").split("=")[1].rstrip("-") or 0)
+                if hits[self.path] == 1:                              # the first answer stops half-way
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body[: len(body) // 2])
+                else:
+                    self._send(206 if start else 200, body[start:])
+            else:
+                self._send(404, b"not here")
+
+        def _send(self, code, data):
+            self.send_response(code)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{httpd.server_address[1]}", body, hits
+    httpd.shutdown()
+
+
+def test_a_web_page_and_a_cut_off_file_are_not_archives(bs, tmp_path):
+    page, short, good = tmp_path / "page.tgz", tmp_path / "short.tgz", tmp_path / "good.tgz"
+    page.write_bytes(b"<!DOCTYPE html><html></html>")
+    body = a_tarball()
+    short.write_bytes(body[: len(body) // 3])
+    good.write_bytes(body)
+    assert "web page" in bs.archive_problem(page)
+    assert "cut off" in bs.archive_problem(short)
+    assert bs.archive_problem(good) is None
+    assert "sha256 differs" in bs.archive_problem(good, "0" * 64)
+    assert bs.archive_problem(good, bs.sha256_of(good)) is None
+
+
+def test_downloads_try_mirrors_refuse_pages_and_resume(bs, tmp_path, server, monkeypatch):
+    base, body, hits = server
+    monkeypatch.setattr(bs, "BACKOFF", 0)
+    shell = bs.Shell(False, {})
+    first = tmp_path / "a.tgz"
+    bs.fetch([(first, [f"{base}/page.tgz", f"{base}/missing.tgz", f"{base}/good.tgz"], "")], shell)
+    assert first.read_bytes() == body                                # the page refused, the 404 skipped, the mirror taken
+    resumed = tmp_path / "b.tgz"
+    bs.fetch([(resumed, [f"{base}/ranged.tgz"], "")], shell)
+    assert resumed.read_bytes() == body and hits["/ranged.tgz"] == 2   # the second request resumed the first
+    with pytest.raises(SystemExit) as stop:
+        bs.fetch([(tmp_path / "c.tgz", [f"{base}/page.tgz"], "")], shell)
+    assert not (tmp_path / "c.tgz").exists()
+    damaged = tmp_path / "d.tgz"                                     # an archive left cut off by an earlier run
+    damaged.write_bytes(body[:1000])
+    bs.fetch([(damaged, [f"{base}/good.tgz"], "")], shell)
+    assert damaged.read_bytes() == body
+
+
+def test_a_short_answer_is_retried_then_refused(bs, tmp_path, server, monkeypatch):
+    base, _, hits = server
+    monkeypatch.setattr(bs, "BACKOFF", 0)
+    assert "IncompleteRead" in bs.download(tmp_path / "s.tgz", f"{base}/short.tgz")
+    assert hits["/short.tgz"] == bs.ATTEMPTS
+
+
+def test_the_dry_run_prints_the_whole_build_unless_resumed(bs, tmp_path, capsys):
+    prefix = tmp_path / "hep"
+    stamps = prefix / "stack" / ".stamps"
+    stamps.mkdir(parents=True)
+    (stamps / "hepmc3-3.3.1").touch()
+    bs.main(["--dry-run", f"prefix={prefix}", "packages=rivet", "system=false"])
+    whole = capsys.readouterr().out
+    assert "# == hepmc3" in whole and "--retry-all-errors" in whole and "-C -" in whole
+    assert "cedar-tools.web.cern.ch/downloads/Rivet-4.1.4.tar.gz" in whole and "yoda.hepforge.org" in whole
+    bs.main(["--dry-run", "--resume", f"prefix={prefix}", "packages=rivet", "system=false"])
+    assert "# == hepmc3" not in capsys.readouterr().out
+
+
+def test_pythia_and_rivet_come_from_where_they_live_now(bs, tmp_path):
+    _, s, packages = bs.options([f"prefix={tmp_path}"])
+    c = bs.context(s)
+    assert bs.urls_of("pythia8", packages["pythia8"], c)[0].startswith("https://pythia.org/releases/pythia83/")
+    assert bs.urls_of("rivet", packages["rivet"], c)[0].startswith("https://cedar-tools.web.cern.ch/")
+    assert "pdfsets" in packages["whizard"]["needs"]                 # its LHAPDF needs CT10 and cteq6l1 first

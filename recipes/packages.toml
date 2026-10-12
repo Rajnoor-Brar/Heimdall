@@ -2,7 +2,8 @@
 # it is built (the lab PC's versions and fixes; README.md §3 says why each flag is there).
 #
 #   release   its version: the stamp's, {release} below, and {series} (it without its last ".x")
-#   url       its tarball
+#   url       its tarball, or a list of mirrors tried in order (a web page or a cut-off file is refused)
+#   sha256    the tarball's checksum, checked when given (`build_stack.py --sha256` prints the archives')
 #   kind      autotools  ./configure --prefix={install} ARGS, make, make install, in {src}
 #             cmake      {src} built in {build} and installed into {install} (Release, C++{cxx_std})
 #             unpack     the tarball unpacked into {install}; nothing built
@@ -28,7 +29,9 @@
 [python]
 kind  = "none"
 probe = "{venv}/bin/python"
-pre   = ["{python} -m venv --prompt {venv_prompt} {venv}", "{venv}/bin/pip install {python_packages}",
+pre   = ["{python} -m venv --prompt {venv_prompt} {venv}",
+         "{venv}/bin/python -m pip install --timeout 60 --retries 10 --upgrade pip",
+         "{venv}/bin/python -m pip install --timeout 60 --retries 10 {python_packages}",
          "{venv}/bin/python {repo}/recipes/pth.py {repo}"]       # heimdall.pth: $HEP/framework on the venv's path
 
 [lhapdf]
@@ -86,21 +89,22 @@ args = [
 ]
 
 [yoda]
-release = "2.1.3"
-url     = "https://yoda.hepforge.org/downloads?f=YODA-{release}.tar.gz"
+release = "2.1.4"
+url     = ["https://cedar-tools.web.cern.ch/downloads/YODA-{release}.tar.gz",     # CEDAR: the releases' home now
+           "https://yoda.hepforge.org/downloads?f=YODA-{release}.tar.gz"]
 kind    = "autotools"
 needs   = ["python"]
 
 [rivet]
-release = "4.1.3"
-url     = "https://rivet.hepforge.org/downloads/?f=Rivet-{release}.tar.gz"
+release = "4.1.4"
+url     = "https://cedar-tools.web.cern.ch/downloads/Rivet-{release}.tar.gz"      # HepForge stops at 4.1.3
 kind    = "autotools"
 needs   = ["python", "hepmc3", "yoda", "fastjet", "fjcontrib"]
 args    = ["--with-hepmc3={inst}/hepmc3", "--with-yoda={inst}/yoda", "--with-fastjet={inst}/fastjet"]
 
 [pythia8]
-release = "8317"
-url     = "https://pythia.org/download/pythia83/pythia{release}.tgz"     # pythia83: the 8.3 series
+release = "8318"
+url     = "https://pythia.org/releases/pythia83/pythia{release}.tgz"     # /download/ is gone (404) since 2026
 kind    = "autotools"
 needs   = ["python", "lhapdf", "hepmc3", "fastjet"]
 args = [
@@ -140,6 +144,11 @@ needs   = ["root"]
 env     = { PYTHIA8 = "{inst}/pythia8" }              # DelphesPythia8 too, when Pythia8 is there
 args    = ["-DROOT_DIR={inst}/root/cmake"]
 
+[pdfsets]
+kind  = "none"
+needs = ["lhapdf"]
+post  = ["lhapdf install {pdf_sets}"]                 # a set already there is skipped
+
 [sherpa]
 release = "3.0.5"
 url     = "https://gitlab.com/sherpa-team/sherpa/-/archive/v{release}/sherpa-v{release}.tar.gz"
@@ -156,7 +165,7 @@ args = [
 ]
 
 [madgraph]
-release = "3.7.3"                                     # Launchpad renames releases: set madgraph.url when it 404s
+release = "3.8.1"                                     # Launchpad renames releases: set madgraph.url when it 404s
 url     = "https://launchpad.net/mg5amcnlo/3.0/{series}.x/+download/MG5_aMC_v{release}.tar.gz"
 kind    = "unpack"                                    # a Python/Fortran tree, pointed at the stack
 group   = "extra"
@@ -172,8 +181,9 @@ release = "3.1.8"
 url     = "https://whizard.hepforge.org/downloads/?f=whizard-{release}.tar.gz"
 kind    = "autotools"
 group   = "extra"
-needs   = ["hepmc3", "fastjet", "lhapdf", "pythia8"]
-# --enable-hepmc takes HepMC3 (there are no *hepmc3 options); O'Mega needs OCaml.
+needs   = ["hepmc3", "fastjet", "lhapdf", "pythia8", "pdfsets"]
+# pdfsets first: Whizard's configure turns LHAPDF off unless CT10 and cteq6l1 are installed (m4/lhapdf.m4),
+# silently (it was built without LHAPDF on both machines before this). --enable-hepmc takes HepMC3 (there are no *hepmc3 options); O'Mega needs OCaml.
 args = [
   "--enable-lhapdf", "--enable-hepmc", "--with-hepmc={inst}/hepmc3", "--enable-fastjet",
   "--with-fastjet={inst}/fastjet", "--enable-pythia8", "--with-pythia8={inst}/pythia8",
@@ -196,11 +206,6 @@ args = [
   "-DGEANT4_USE_OPENGL_X11={graphics}", "-DGEANT4_USE_SYSTEM_CLHEP=OFF", "-DGEANT4_USE_SYSTEM_EXPAT=OFF",
   "-DGEANT4_USE_SYSTEM_ZLIB=OFF", "-DGEANT4_INSTALL_DATA_TIMEOUT=1500",
 ]
-
-[pdfsets]
-kind  = "none"
-needs = ["lhapdf"]
-post  = ["lhapdf install {pdf_sets}"]                 # a set already there is skipped
 
 # ── Toolkit packages (group "toolkit"): only by name or through a toolkit (toolkits.toml) ───────────
 # status = "new": the recipe follows the project's own build instructions, but no build has proven it

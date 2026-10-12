@@ -19,7 +19,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 
 ## Phase 1 — Build reliability
 
-**1.1 Downloads** (U1, U2, U3, U17)
+**1.1 Downloads** (U1, U2, U3, U17) — **done, V116**
 - `recipes/build_stack.py` (`fetch`):
   - one downloader for the build and `--dry-run`: resume, 5 retries with backoff, a read timeout;
   - every archive checked (magic bytes, `tar -t` or `unzip -l`, size against Content-Length,

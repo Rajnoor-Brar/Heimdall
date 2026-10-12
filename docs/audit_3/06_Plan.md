@@ -44,7 +44,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 | `--check-urls packages=@primary` | every URL answers 200 (after the URL changes) |
 | `--dry-run` on a fresh Heimdall | lists every package of the set, with curl lines that resume and retry |
 
-**1.2 A hermetic build and a preflight** (U4, U5, U6, U14)
+**1.2 A hermetic build and a preflight** (U4, U5, U6, U14) — **done, V117**
 - `build_stack.py`'s environment:
   - starts from a clean set: `PATH` = the system's and the stack's, `HOME`, `TMPDIR` and the locale;
   - `ROOTSYS`, `LD_LIBRARY_PATH`, `DYLD_*`, `PYTHONPATH` and `CMAKE_PREFIX_PATH` are reset, then

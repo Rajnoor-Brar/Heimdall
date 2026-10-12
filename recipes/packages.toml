@@ -17,6 +17,7 @@
 #             without repeating args (CMake and configure take the last of a repeated option)
 #   optional  { package = [args] }: added when that package is installed or in the run
 #   patch     a patch (-p0) for the unpacked source; a path from Heimdall's root
+#   strip     the folder levels a tarball's paths carry before the source (default 1)
 #   env       environment for its commands
 #   pre, post commands run before configuring and after installing (in {src}; shell words, no shell)
 #   cores     how many compilers it runs at once, its make -j (default {cores})
@@ -88,12 +89,30 @@ args = [
   "-Dbuiltin_freetype=ON", "-Dbuiltin_pcre=ON", "-Dxrootd=ON", "-Dbuiltin_xrootd=ON", "-Ddavix=OFF",
 ]
 
+[hdf5]
+release = "2.2.0"                                     # 2.x builds with CMake only
+url     = "https://github.com/HDFGroup/hdf5/releases/download/{release}/hdf5-{release}.tar.gz"
+kind    = "cmake"
+group   = "extra"
+strip   = 2                                           # its paths start with ./hdf5-<release>/
+args = [
+  "-DBUILD_SHARED_LIBS=ON", "-DBUILD_STATIC_LIBS=OFF", "-DHDF5_BUILD_CPP_LIB=ON", "-DHDF5_BUILD_HL_LIB=ON",
+  "-DHDF5_BUILD_FORTRAN=OFF", "-DHDF5_BUILD_JAVA=OFF", "-DHDF5_BUILD_EXAMPLES=OFF", "-DBUILD_TESTING=OFF",
+  "-DHDF5_ENABLE_ZLIB_SUPPORT=ON", "-DHDF5_ENABLE_SZIP_SUPPORT=OFF", "-DCMAKE_INSTALL_NAME_DIR={install}/lib",
+]
+# h5cc-plain: the one-line h5cc YODA's configure can read (HDF5 2.x's broke its link line on the Mac)
+post = ["{python} {repo}/recipes/helpers/h5cc_plain.py {install} {release}"]
+
 [yoda]
 release = "2.1.4"
 url     = ["https://cedar-tools.web.cern.ch/downloads/YODA-{release}.tar.gz",     # CEDAR: the releases' home now
            "https://yoda.hepforge.org/downloads?f=YODA-{release}.tar.gz"]
 kind    = "autotools"
 needs   = ["python"]
+# HDF5 support (.yoda.h5) only with the stack's HDF5: never one the system happens to have (the Mac's
+# Homebrew HDF5 broke the link, docs/audit_3/01_Process.md §5). The later --enable-h5 wins.
+args     = ["--disable-h5"]
+optional = { hdf5 = ["--enable-h5", "--with-hdf5={inst}/hdf5/bin/h5cc-plain", "--enable-h5-rpath"] }
 
 [rivet]
 release = "4.1.4"
@@ -270,9 +289,8 @@ url     = "https://github.com/JETSCAPE/JETSCAPE/archive/refs/tags/v{release}.tar
 kind    = "cmake"
 group   = "toolkit"
 status  = "new"
-needs   = ["pythia8", "hepmc3", "root"]
-apt     = ["libhdf5-dev"]
-env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
+needs   = ["pythia8", "hepmc3", "root", "hdf5"]
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}", HDF5_ROOT = "{inst}/hdf5" }
 
 [madanalysis5]
 release = "1.11.1"                                    # recasting; it finds ROOT, FastJet, Delphes at first start
@@ -311,14 +329,15 @@ probe   = "{venv}/bin/hepdata-cli"
 pre     = ["{venv}/bin/pip install hepdata-lib hepdata-cli"]
 
 [highfive]
-release = "3.3.0"                                     # header-only C++ for HDF5 (libhdf5 from the system)
+release = "3.3.0"                                     # header-only C++ for HDF5 (the stack's)
 url     = "https://github.com/highfive-devs/highfive/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
 group   = "toolkit"
 status  = "new"
-apt     = ["libhdf5-dev"]
-args    = ["-DHIGHFIVE_UNIT_TESTS=OFF", "-DHIGHFIVE_EXAMPLES=OFF"]
-post    = ["{venv}/bin/pip install h5py"]
+needs   = ["hdf5"]
+args    = ["-DHIGHFIVE_UNIT_TESTS=OFF", "-DHIGHFIVE_EXAMPLES=OFF", "-DHDF5_ROOT={inst}/hdf5"]
+env     = { HDF5_DIR = "{inst}/hdf5" }                # h5py built against the stack's HDF5
+post    = ["{venv}/bin/python -m pip install --no-binary=h5py h5py"]
 
 [dd4hep]
 release = "01-38"                                     # C++17 since v01-35: the stack's standard

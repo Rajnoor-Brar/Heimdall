@@ -352,3 +352,58 @@ def test_pythia_and_rivet_come_from_where_they_live_now(bs, tmp_path):
     assert bs.urls_of("pythia8", packages["pythia8"], c)[0].startswith("https://pythia.org/releases/pythia83/")
     assert bs.urls_of("rivet", packages["rivet"], c)[0].startswith("https://cedar-tools.web.cern.ch/")
     assert "pdfsets" in packages["whizard"]["needs"]                 # its LHAPDF needs CT10 and cteq6l1 first
+
+
+# ── a clean build environment, the preflight, explicit options (phase 1.2) ─────────────────────
+
+def test_the_build_leaves_another_stack_out(bs, tmp_path, monkeypatch):
+    other = tmp_path / "old" / "bin"
+    other.mkdir(parents=True)
+    (other / "root-config").touch()
+    monkeypatch.setenv("PATH", f"{other}:/usr/bin:/bin")
+    monkeypatch.setenv("ROOTSYS", str(tmp_path / "old"))
+    monkeypatch.setenv("LD_LIBRARY_PATH", str(tmp_path / "old" / "lib"))
+    monkeypatch.setenv("LC_ALL", "C")
+    (_, _), _, c = planned(bs, tmp_path)
+    env, dropped = bs.clean_environment(c)
+    assert "ROOTSYS" not in env and "LD_LIBRARY_PATH" not in env and env["LC_ALL"] == "C"
+    assert env["PATH"] == "/usr/bin:/bin"
+    assert "ROOTSYS" in dropped and f"PATH:{other}" in dropped
+
+
+def test_a_mac_without_its_overlay_is_sent_to_build_sh(bs, tmp_path, monkeypatch):
+    monkeypatch.setattr(bs, "MAC", True)
+    _, s, packages = bs.options([f"prefix={tmp_path}"])
+    with pytest.raises(SystemExit) as stop:
+        bs.preflight(s, bs.context(s), [])
+    assert "recipes/platforms/mac/build.sh" in str(stop.value)
+    _, s, _ = bs.options(["--config", str(REPO / "recipes/platforms/mac/mac.toml"), f"prefix={tmp_path}"])
+    monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
+    monkeypatch.setattr(bs.shutil, "which", lambda name: None if name == "brew" else "/usr/bin/" + name)
+    bs.preflight(s, bs.context(s), [])                              # with mac.toml: no stop
+
+
+def test_yoda_takes_hdf5_only_from_the_stack(bs, tmp_path, capsys):
+    prefix = tmp_path / "hep"
+    bs.main(["--dry-run", f"prefix={prefix}", "packages=yoda", "system=false"])
+    alone = next(line for line in capsys.readouterr().out.splitlines() if "./configure" in line and "/yoda " in line)
+    assert "--disable-h5" in alone and "--enable-h5" not in alone
+    bs.main(["--dry-run", f"prefix={prefix}", "packages=yoda hdf5", "system=false"])
+    script = capsys.readouterr().out
+    assert script.index("# == hdf5") < script.index("# == yoda")    # the optional one first
+    yoda = next(line for line in script.splitlines() if "./configure" in line and "/yoda " in line)
+    assert yoda.index("--disable-h5") < yoda.index("--enable-h5")   # the later wins
+    assert f"--with-hdf5={prefix}/stack/hdf5/bin/h5cc-plain" in yoda
+    assert "hdf5-2.2.0.tar.gz -C" in script and "--strip-components=2" in script
+    assert "recipes/helpers/h5cc_plain.py" in script
+
+
+def test_h5cc_plain_answers_in_one_line_each(tmp_path):
+    install = tmp_path / "hdf5"
+    (install / "bin").mkdir(parents=True)
+    subprocess.run(["python3", str(REPO / "recipes/helpers/h5cc_plain.py"), str(install), "2.2.0"], check=True,
+                   capture_output=True)
+    show = subprocess.run([str(install / "bin/h5cc-plain"), "-showconfig"], capture_output=True, text=True).stdout
+    assert show.splitlines() == ["HDF5 Version: 2.2.0", f"Installation point: {install}", "Extra libraries: -lz"]
+    assert subprocess.run([str(install / "bin/h5cc-plain"), "-show"], capture_output=True, text=True).stdout.strip() \
+        == f"cc -I{install}/include -L{install}/lib -lhdf5"

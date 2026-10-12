@@ -18,7 +18,7 @@ fi
 # The file that sourced this one (Heimdall's setup.sh), re-sourced by hep_refresh
 export HEP_SETUP="${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}"
 
-_HEP_PACKAGES="LHAPDF hepmc3 fastjet xrootd root yoda pythia8 rivet herwig7 delphes sherpa madgraph whizard onnxruntime geant4
+_HEP_PACKAGES="LHAPDF hdf5 hepmc3 fastjet xrootd root yoda pythia8 rivet herwig7 delphes sherpa madgraph whizard onnxruntime geant4
   photospp tauolapp evtgen superchic mcfm jetscape madanalysis5 professor highfive dd4hep geomodel garfieldpp"    # the toolkits' (recipes/toolkits.toml): only what is installed is added
 _HEP_SCALARS="LHAPDF_DATA_PATH ONNXRUNTIME_DIR GEANT4_DATA_DIR"
 

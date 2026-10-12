@@ -112,7 +112,8 @@ What a machine needs beyond it (`setup_extra`) goes to `env/machine.sh`, which `
 | `fastjet` | 3.5.0 | autotools, the SISCone patch | jets for Rivet, Pythia8, Sherpa, Whizard and module programs |
 | `fjcontrib` | 1.104 | autotools, into FastJet's prefix | the contribs; `libfastjetcontribfragile.so`, which Rivet links |
 | `root` | 6.40.04 | CMake, `builtin_xrootd`, `root_cores` | App_yd2rt, Paint, Delphes, module programs |
-| `yoda` | 2.1.4 | autotools | Rivet's histograms; the plot backends |
+| `hdf5` | 2.2.0 | cmake, with `h5cc-plain` for configure scripts (extra) | YODA's `.yoda.h5` when built together; HighFive, h5py, JETSCAPE |
+| `yoda` | 2.1.4 | autotools; `.yoda.h5` with the stack's HDF5 in the build, else `--disable-h5` (never a system HDF5) | Rivet's histograms; the plot backends |
 | `rivet` | 4.1.4 | autotools | the analyses |
 | `pythia8` | 8.318 | its configure, with ROOT's and Rivet's plugins | App_Pythia, InprocJets |
 | `thepeg` | 2.3.0 | autotools, into `stack/herwig7` | Herwig's event framework |
@@ -286,7 +287,7 @@ another C++ standard gets an isolated toolkit), and still be released and suppor
 | MCFM | **added** (`mcfm`, 10.3) | separate; the latest release |
 | Professor | **added** (`professor`, 2.5.2) | separate; still released (Apprentice is its intended successor, not yet a replacement) |
 | JETSCAPE | **added** (`jetscape`, 4.0.2) | separate; active |
-| HighFive / HDF5 | **added** (`highfive`, 3.3.0; `libhdf5-dev`) | HighFive is maintained at highfive-devs since BlueBrain's archive (2025) |
+| HighFive / HDF5 | **added** (`highfive`, 3.3.0, on the stack's `hdf5`) | HighFive is maintained at highfive-devs since BlueBrain's archive (2025) |
 | HEPData | **added** (`hepdata`: hepdata-lib, hepdata-cli) | the database is a website; its clients are what installs |
 | DD4hep | **added** (`dd4hep`, 01-38) | standalone on the stack's ROOT and Geant4; C++17 since v01-35 |
 | ATLAS FullSimLight | **added** inside `geomodel` (6.27.0) | its own repository is archived; it is now built as part of GeoModel |

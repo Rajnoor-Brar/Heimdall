@@ -59,7 +59,7 @@ except ModuleNotFoundError:                                        # Python < 3.
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent                                                 # Heimdall: recipes/ is in it
 FIELDS = {"release", "url", "sha256", "kind", "needs", "group", "install", "probe", "args", "extra", "optional",
-          "patch", "env", "pre", "post", "cores", "status", "how", "apt"}
+          "patch", "strip", "env", "pre", "post", "cores", "status", "how", "apt"}
 KINDS = ("autotools", "cmake", "unpack", "none", "external")
 #: packages = "all": the lab PC's set. Group "toolkit" joins only by name or by toolkit (@name).
 ALL_GROUPS = ("core", "extra")
@@ -158,7 +158,9 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
         elif arg == "--toolkits":
             mode = "toolkits"
         elif arg == "--config":
-            merge(settings, packages, read(Path(next(args, "") or die("--config needs a file"))))
+            file = Path(next(args, "") or die("--config needs a file"))
+            merge(settings, packages, read(file))
+            settings.setdefault("_configs", []).append(str(file))
         elif "=" in arg:
             given.append(arg.split("=", 1))
         else:
@@ -371,6 +373,9 @@ def plan(s: dict, packages: dict, c: dict) -> tuple[list[str], list[str]]:
         for need in packages[name].get("needs", []):
             if need in chosen or not present(need, packages[need], c):
                 visit(need, [*chain, name])
+        for other in packages[name].get("optional", {}):           # an optional one in the run goes first,
+            if other in chosen:                                    # so its flags apply (YODA after HDF5)
+                visit(other, [*chain, name])
         order.append(name)
 
     for name in packages:                                          # the file's order, needs first
@@ -549,7 +554,7 @@ def build(name: str, p: dict, c: dict, shell: Shell, have: set[str]) -> None:
         into = k["install"] if kind == "unpack" else k["src"]      # afresh, so a failed try leaves nothing
         shell.run(["rm", "-rf", into])
         shell.run(["mkdir", "-p", into])
-        shell.run(["tar", "xf", str(tarball(name, p, c)[0]), "-C", into, "--strip-components=1"])
+        shell.run(["tar", "xf", str(tarball(name, p, c)[0]), "-C", into, f"--strip-components={p.get('strip', 1)}"])
     if p.get("patch"):
         shell.run(["patch", "-d", k["src"], "-p0", "-i", str(REPO / expand(p["patch"], k))])
     env = {key: expand(value, k) for key, value in p.get("env", {}).items()}
@@ -606,6 +611,67 @@ def environment(s: dict, c: dict, packages: dict) -> tuple[dict[str, list[str]],
     return paths, {key: expand(value, c) for key, value in s["env"].items()}
 
 
+#: The user's environment the build keeps: the rest (ROOTSYS, LD_LIBRARY_PATH, PYTHONPATH, another
+#: stack's paths, a venv or conda) never reaches a configure script (docs/audit_3/01_Process.md C).
+KEEP_ENV = ("HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR", "LANG", "TZ", "DISPLAY", "SSH_AUTH_SOCK",
+            "http_proxy", "https_proxy", "no_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
+            "SSL_CERT_FILE", "SSL_CERT_DIR", "CURL_CA_BUNDLE", "REQUESTS_CA_BUNDLE",
+            "CC", "CXX", "FC", "F77", "SUDO_ASKPASS")
+KEEP_PREFIXES = ("LC_", "HOMEBREW_", "XDG_")
+#: Programs that mark another HEP stack's bin/ on PATH: such an entry is left out of the build's PATH.
+FOREIGN = ("root-config", "thisroot.sh", "rivet-config", "yoda-config", "pythia8-config", "lhapdf-config",
+           "fastjet-config", "HepMC3-config", "geant4-config")
+#: System folders that may hold such a program (Homebrew's formulae): kept, and the preflight warns.
+SYSTEM_BINS = ("/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin", "/opt/homebrew/bin")
+
+
+def clean_environment(c: dict) -> tuple[dict[str, str], list[str]]:
+    """The user's environment, cleaned for the build: what KEEP_ENV keeps, and PATH without another
+    stack's bin/ or the active venv's. Returns it, and what was left out (to say once)."""
+    env = {k: v for k, v in os.environ.items() if k in KEEP_ENV or k.startswith(KEEP_PREFIXES)}
+    dropped = sorted(k for k in ("ROOTSYS", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH",
+                                 "PYTHONPATH", "CMAKE_PREFIX_PATH", "PKG_CONFIG_PATH", "CPATH", "LIBRARY_PATH",
+                                 "VIRTUAL_ENV", "CONDA_PREFIX", "LHAPDF_DATA_PATH") if os.environ.get(k))
+    own = c["inst"]
+    venv = os.environ.get("VIRTUAL_ENV", "")
+    kept = []
+    for entry in os.environ.get("PATH", "").split(":"):
+        if not entry or entry in kept:
+            continue
+        foreign = (venv and entry.startswith(venv)) or (os.environ.get("CONDA_PREFIX") and entry.startswith(os.environ["CONDA_PREFIX"]))
+        if not foreign and entry not in SYSTEM_BINS and not entry.startswith(own):
+            foreign = any(Path(entry, name).exists() for name in FOREIGN)
+        if foreign or entry.startswith(own):                       # the stack's own come first, from paths
+            dropped.append(f"PATH:{entry}")
+            continue
+        kept.append(entry)
+    env["PATH"] = ":".join(kept)
+    return env, dropped
+
+
+def preflight(s: dict, c: dict, order: list[str]) -> None:
+    """What will cause trouble, said before anything is downloaded (docs/audit_3/01_Process.md C, H)."""
+    if MAC and not any(Path(f).name == "mac.toml" for f in s.get("_configs", [])):
+        die("on macOS, build through recipes/platforms/mac/build.sh (Homebrew's packages and mac.toml): "
+            f"bash recipes/platforms/mac/build.sh {' '.join(sys.argv[1:])}".rstrip())
+    notes = []
+    if os.environ.get("ROOTSYS"):
+        notes.append(f"ROOTSYS={os.environ['ROOTSYS']} is set by your shell: the build leaves it out "
+                     "(remove it from your shell's startup file, or ROOT's own builds may trip on it)")
+    if shutil.which("brew"):
+        listed = subprocess.run(["brew", "list", "--formula", "-1"], capture_output=True, text=True).stdout.split()
+        clash = sorted(set(listed) & {"root", "hepmc3", "fastjet", "lhapdf", "pythia", "yoda", "rivet", "herwig",
+                                       "thepeg", "sherpa", "geant4", "delphes"})
+        if clash:
+            notes.append(f"Homebrew has HEP formulae of its own ({' '.join(clash)}): their headers sit in "
+                         "the build's search path; `brew uninstall` them, or expect mixed versions")
+    free = shutil.disk_usage(Path(c["prefix"]) if Path(c["prefix"]).exists() else Path.home()).free / 2**30
+    if free < 25 and not c.get("fresh"):
+        notes.append(f"{free:.0f} GB free where the stack goes: the core needs about 20 GB while building")
+    for note in notes:
+        say(f"preflight: {note}")
+
+
 def show(order: list[str], packages: dict, c: dict) -> None:
     """Each package: built here (stamped) or installed otherwise, and whether this run builds it."""
     print(f"{'package':13} {'release':10} {'group':8} {'state':10} {'this run':9} needs")
@@ -657,10 +723,14 @@ def main(argv: list[str]) -> None:
         return
     c["cmake_prefix"] = ";".join(dict.fromkeys(f"{c['inst']}/{p.get('install', n)}" for n, p in packages.items()
                                                if p["kind"] not in ("none", "external")))
+    if not script:
+        preflight(s, c, order)
     paths, fixed = environment(s, c, packages)
-    env = dict(os.environ)
+    env, dropped = clean_environment(c)
+    if dropped and not script:
+        say("the build leaves out of your environment: " + ", ".join(dropped))
     for key, items in paths.items():
-        env[key] = ":".join([*items, *([os.environ[key]] if os.environ.get(key) else [])])
+        env[key] = ":".join([*items, *([env[key]] if env.get(key) else [])])
     shell = Shell(script, {**env, **fixed})
     prefix = Path(c["prefix"])
     folders = [prefix / "stash", Path(c["forge"], "logs"), Path(c["inst"], ".stamps"), Path(c["venv"]).parent]
@@ -668,6 +738,9 @@ def main(argv: list[str]) -> None:
         print("#!/usr/bin/env bash\n# The HEP stack's build, as `build_stack.py --dry-run` printed it"
               + (" (--resume: what this prefix still lacks)." if not c["fresh"] else ": the whole build, for a fresh\n"
                  "# prefix (it reads no stamps, and writes only the C++ standard's).") + "\nset -euo pipefail")
+        print("# the build's own environment: another stack's variables never reach a configure script")
+        print("unset ROOTSYS LD_LIBRARY_PATH DYLD_LIBRARY_PATH PYTHONPATH CMAKE_PREFIX_PATH PKG_CONFIG_PATH CPATH "
+              "LIBRARY_PATH VIRTUAL_ENV CONDA_PREFIX LHAPDF_DATA_PATH")
         print("mkdir -p " + " ".join(shlex.quote(str(f)) for f in folders))
         for key, items in paths.items():
             print(f'export {key}={shlex.quote(":".join(items))}"${{{key}:+:${key}}}"')

@@ -25,6 +25,7 @@ CUSTOM = {"tool": "exec", "executable": "/bin/true"}
 def several(**changes):
     """Four configurations a, b, c, d; the sweep runs a, b and d (V79: sweep_runs lists them)."""
     return raw(**{"run__sweep_runs": ["a", "b", "d"], "run__configuration": None, "run__cfgs__one": None, "prelim": None,
+                  "quantities": None, "static": None,
                   "tools__check": CUSTOM, "run__cfgs__a": {"tools": ["check"]}, "run__cfgs__b": {"tools": ["check"], "title": "Bee"},
                   "run__cfgs__c": {"tools": ["check"]}, "run__cfgs__d": {"tools": ["check"]}, **changes})
 

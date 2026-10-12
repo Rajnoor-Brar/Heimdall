@@ -223,13 +223,6 @@ values = [1, 2, 3]
 tags   = ["s1", "s2", "s3"]
 labels = ["seed 1", "seed 2", "seed 3"]
 
-[quantities.etmin]
-target = "rivet/photo_eic"
-key    = "ETMIN"
-values = [4.0, 5.0, 6.0]
-tags   = ["et4", "et5", "et6"]
-labels = ["$E_{T}$ > 4 GeV", "$E_{T}$ > 5 GeV", "$E_{T}$ > 6 GeV"]
-
 [plot]
 backend     = "root"
 formats     = ["pdf", "png"]

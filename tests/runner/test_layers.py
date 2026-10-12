@@ -23,6 +23,15 @@ def configurations(**tables) -> dict:
     return data
 
 
+
+def used(data: dict, *more: str) -> dict:
+    """A file written from raw() whose pdf (and `more`) a configuration uses: a quantity nothing uses is
+    refused (U36)."""
+    data.setdefault("static", {}).setdefault("pdf", "MSTW08lo")
+    for name in more:
+        data["static"].setdefault(name, "#1")
+    return data
+
 def test_run_gives_every_configuration_its_keys_and_their_own_win(scratch):
     run = parse(configurations(run={"tools": [["pythia", "rivet"]], "event_count": 50},
                                a={}, b={"event_count": 7}), scratch)
@@ -92,7 +101,7 @@ def test_include_gives_tables_and_the_file_wins(scratch):
         "plot": {"ratio": True, "y_gutter": 2.0},
         "run": {"event_count": 33},
     }), encoding="utf-8")
-    data = raw(config={"import": [str(common)]}, plot={"y_gutter": 0.3})
+    data = used(raw(config={"import": [str(common)]}, plot={"y_gutter": 0.3}))
     del data["run"]["event_count"]
     path = scratch / "run.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
@@ -112,7 +121,7 @@ def test_imports_nest_depth_first_and_say_where_from(scratch):
     middle = scratch / "middle.toml"
     middle.write_text(tomli_w.dumps({"config": {"import": str(inner)}, "plot": {"y_gutter": 1.0}}), encoding="utf-8")
     path = scratch / "run.toml"
-    path.write_text(tomli_w.dumps(raw(config={"import": str(middle)})), encoding="utf-8")
+    path.write_text(tomli_w.dumps(used(raw(config={"import": str(middle)}))), encoding="utf-8")
     run = config.load(str(path))
     assert run.quantities["energies"].tags == ["18x275"] and run.plot == {"ratio": True, "y_gutter": 1.0}
     assert run.included == {"quantities.energies": "middle.toml ← inner.toml"}
@@ -155,7 +164,7 @@ def test_another_projects_file_brings_its_cards_and_plans_the_same(scratch, monk
     (root / "Demo").mkdir()
     shutil.copy(fixtures / "Demo" / "ep.cmnd", root / "Other" / "ep.cmnd")
     monkeypatch.setenv("HEP_CONFIGS", str(root))
-    (root / "Other" / "other.toml").write_text(tomli_w.dumps(raw(run__name="other", run__project="Other")), encoding="utf-8")
+    (root / "Other" / "other.toml").write_text(tomli_w.dumps(used(raw(run__name="other", run__project="Other"))), encoding="utf-8")
     (root / "Demo" / "mine.toml").write_text(tomli_w.dumps(
         {"config": {"import": "Other/other"}, "run": {"name": "mine", "project": "Demo"}}), encoding="utf-8")
 
@@ -229,12 +238,12 @@ def test_vars_are_said_once_and_keep_their_type(scratch):
                run__event_count="{var:events}", tools__rivet__analyses=["{var:ana}"],
                quantities__cut={"values": "{var:cuts}", "target": "rivet/photo_eic", "key": "ETMIN"},
                plot={"title": "{var:ana}: {var:events} events"})
-    run = config.load(_written(scratch, data))
+    run = config.load(_written(scratch, used(data, "cut")))
     assert run.configuration(None).event_count == 500 and run.tools["rivet"].extra["analyses"] == ["photo_eic"]
     assert run.quantities["cut"].values == [4.0, 5.0] and run.plot["title"] == "photo_eic: 500 events"
     written = raw(run__event_count=500, quantities__cut={"values": [4.0, 5.0], "target": "rivet/photo_eic", "key": "ETMIN"},
                   plot={"title": "photo_eic: 500 events"})
-    plain = config.load(_written(scratch, written, "plain.toml"))
+    plain = config.load(_written(scratch, used(written, "cut"), "plain.toml"))
     assert (plain.quantities["cut"].values, plain.plot) == (run.quantities["cut"].values, run.plot)
     assert config.load(_written(scratch, data), sets=["config.vars.events=7"]).configuration(None).event_count == 7
 
@@ -251,7 +260,7 @@ def test_an_imported_file_takes_the_importers_vars(scratch):
     """V96: a shared file written with parameters; the file that imports it gives them."""
     shared = _written(scratch, {"tools": {"rivet": {"tool": "rivet", "input": "events.hepmc", "analyses": ["{var:ana}"],
                                                     "output_file": "{var:ana}.yoda"}}}, "shared.toml")
-    data = raw(config={"import": shared, "vars": {"ana": "photo_eic"}})
+    data = used(raw(config={"import": shared, "vars": {"ana": "photo_eic"}}))
     del data["tools"]["rivet"]
     run = config.load(_written(scratch, data))
     assert run.tools["rivet"].extra["analyses"] == ["photo_eic"] and run.tools["rivet"].output_file == ["photo_eic.yoda"]
@@ -277,7 +286,7 @@ def test_an_imported_files_vars_come_with_the_part_taken(scratch):
     shared = _written(scratch, {"config": {"vars": {"ana": "photo_eic", "out": "photo"}},
                                 "tools": {"rivet": {"tool": "rivet", "input": "events.hepmc", "analyses": ["{var:ana}"],
                                                     "output_file": "{var:out}.yoda"}}}, "shared.toml")
-    data = raw(config={"import": [{"from": shared, "only": ["tools.rivet"]}], "vars": {"out": "mine"}})
+    data = used(raw(config={"import": [{"from": shared, "only": ["tools.rivet"]}], "vars": {"out": "mine"}}))
     del data["tools"]["rivet"]
     run = config.load(_written(scratch, data))
     assert run.tools["rivet"].extra["analyses"] == ["photo_eic"] and run.tools["rivet"].output_file == ["mine.yoda"]

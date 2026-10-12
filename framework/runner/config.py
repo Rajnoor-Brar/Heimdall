@@ -15,7 +15,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import plugins, schema
+from . import plugins, schema, v3
 from .errors import HepError, did_you_mean
 from .paths import config_file, configs_root, hep_root, resolve
 from .quantities import check_shapes
@@ -85,6 +85,7 @@ class Quantity:
     format: str = ""
     description: str = ""
     exclude: list[int] = field(default_factory=list)   # 1-based value indices a sweep leaves out (V42)
+    silent: bool = False                               # a compound quantity's later field: not in point names (v3)
 
 
 @dataclass
@@ -135,9 +136,14 @@ class RunConfig:
     sets: list = field(default_factory=list)            # the --set overrides it was loaded with (V77: provenance)
     included: dict = field(default_factory=dict)        # "<section>.<name>" → the [config].import file it came from
     meta: dict = field(default_factory=dict)            # [config.meta]: descriptive; versions warned about (V97)
+    families: dict = field(default_factory=dict)        # v3: a configuration with several event counts → its configurations
+    form: int = 2                                       # the file's form: 2, or 3 (runner/v3.py)
 
     def configuration(self, name: str | None) -> Configuration:
         wanted = name or self.default_configuration
+        if wanted in self.families:
+            raise HepError(f"'{wanted}' is several configurations, one per event count: {', '.join(self.families[wanted])}",
+                           where=f"{self.path}", hint=f"hep run runs them in turn; name one, e.g. {self.families[wanted][0]}")
         if wanted is None:
             raise HepError("[run] runs every configuration (sweep_runs) and names none", where=f"{self.path}: [run]",
                            hint=f"name one: configurations {', '.join(self.configurations)}")
@@ -151,12 +157,16 @@ class RunConfig:
         """The configurations `hep run` executes, in order (V38): the one named on the command line,
         even under sweep_runs; else, under [run].sweep_runs, every configuration not `swept = false`, in the
         order of the file; else [run].configuration."""
+        if name in self.families:                       # v3: one configuration per event count
+            return list(self.families[name])
         if name:
             return [self.configuration(name).key]
         if self.sweep_list:
-            return [self.configuration(key).key for key in self.sweep_list]
+            return [k for key in self.sweep_list for k in (self.families.get(key) or [self.configuration(key).key])]
         if self.sweep_runs:
             return [key for key, c in self.configurations.items() if c.swept]
+        if self.default_configuration in self.families:
+            return list(self.families[self.default_configuration])
         return [self.configuration(None).key]
 
 
@@ -215,6 +225,40 @@ def _generate_cards(entries, where: str, tools: dict) -> list[str]:
             raise HepError(f"generate_cards names '{tag}', which is not a [tools.<tag>] table", where=where,
                            hint=did_you_mean(tag, tools))
     return list(dict.fromkeys(entries))
+
+
+def _inferred(groups: list[list[str]], tools: dict, keep: dict, base: dict, quantities: dict) -> dict:
+    """A v3 configuration's [prelim] (runner/v3.py): an output of its chain read by a tool of the same group
+    is a FIFO; read only later, a file in the point's folder when its producer says keep = false (else a
+    product, as any output); [run] commands as written. "@<quantity>" stands for each tool it may choose."""
+    def members(entry: str) -> list[str]:
+        if entry.startswith("@") and entry[1:] in quantities:
+            return [v for v in quantities[entry[1:]].values if isinstance(v, str) and v in tools]
+        return [entry] if entry in tools else []
+    group_of = {tag: g for g, group in enumerate(groups) for entry in group for tag in members(entry)}
+    fifo: list[str] = []
+    files: list[str] = []
+    for tag, g in group_of.items():
+        for name in tools[tag].output_file:
+            readers = [t for t in group_of if name in tools[t].input]
+            same = [t for t in readers if group_of[t] == g and t != tag]
+            later = [t for t in readers if group_of[t] > g]
+            if same and later:
+                raise HepError(f"'{name}' is read in {tag}'s group ({', '.join(same)}) and after it ({', '.join(later)}): "
+                               "a FIFO has one reader", where=f"[tools.{tag}].output",
+                               hint="write two outputs, one for each (fan-out, V16)")
+            if same and name not in fifo:
+                fifo.append(name)
+            elif later and keep.get(tag) is False and name not in files:
+                files.append(name)
+    out: dict = {}
+    if fifo:
+        out["fifo"] = fifo
+    if files:
+        out["files"] = files
+    if base.get("commands"):
+        out["commands"] = base["commands"]
+    return out
 
 
 def _own_prelim(chain, prelim: dict, origins: dict) -> dict:
@@ -311,6 +355,23 @@ def apply_sets(raw: dict, sets: list[str]) -> None:
 # ── loading ────────────────────────────────────────────────────────────────────────────────────
 
 def _read(path: Path) -> dict:
+    """A run TOML's tables, a v3 file's as v2's (runner/v3.py)."""
+    return _form(_toml(path), path)
+
+
+def _form(raw: dict, path: Path) -> dict:
+    """A v3 file as v2's tables; a v2 file as it is ([file] schema = 2 says so: its other keys are [config]'s)."""
+    if v3.is_v3(raw):
+        return v3.translate(raw, str(path))
+    if isinstance(raw.get("file"), dict):
+        given = {k: v for k, v in raw["file"].items() if k != "schema"}
+        raw = {k: v for k, v in raw.items() if k != "file"}
+        if given:
+            raw["config"] = {**raw.get("config", {}), **given}
+    return raw
+
+
+def _toml(path: Path) -> dict:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except OSError:
@@ -615,7 +676,7 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
         first = _read(path)
     else:
         try:
-            first = tomllib.loads(text)
+            first = _form(tomllib.loads(text), path)
         except tomllib.TOMLDecodeError as error:
             raise HepError(f"not valid TOML, even migrated: {error}", where=str(path)) from None
     raw, included, imported = _with_imports(first, path)
@@ -625,11 +686,61 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
     _shared_folders(run, imported)
     run.included = included
     run.sets = list(sets)
+    if strict:
+        _check_used(run)
     return run
+
+
+def _check_used(run: RunConfig) -> None:
+    """A quantity of this file's own (not an import's) that no configuration varies, fixes or chooses a tool
+    by would change nothing: refused, with the fix (U36)."""
+    used: set[str] = set()
+    for configuration in run.configurations.values():
+        used |= {n for entry in configuration.sweeps for n in (entry if isinstance(entry, list) else [entry])}
+        used |= set(configuration.static)
+        used |= {m[1:] for groups in (configuration.tools, configuration.pre, configuration.post)
+                 for group in groups for m in group if m.startswith("@")}
+    for name in run.quantities:
+        if name in used or f"quantities.{name}" in run.included:
+            continue
+        if run.form == 3:
+            raise HepError(f"quantity '{name}' is declared but neither varied nor fixed: it would change nothing",
+                           where=f"{run.path}: [quantities.{name}]",
+                           hint="give it fixed = \"<tag>\", vary it in a configuration (vary = [...]), or remove it")
+        raise HepError(f"quantity '{name}' is declared but neither swept nor static: it would change nothing",
+                       where=f"{run.path}: [quantities.{name}]",
+                       hint="set it in [static] (or a configuration's static), sweep it in a configuration, or remove it")
+
+
+def _marks(raw: dict) -> tuple[dict, int, dict, dict, dict]:
+    """runner/v3.py's private keys out of the tables (copied): the form, each tool's keep, each quantity's
+    silence, each configuration's family."""
+    raw = dict(raw)
+    form = 3 if raw.pop(v3.MARK, False) else 2
+    keep, silent, families = {}, {}, {}
+    if isinstance(raw.get("tools"), dict):
+        keep = {t: tb[v3.KEEP] for t, tb in raw["tools"].items() if isinstance(tb, dict) and v3.KEEP in tb}
+        raw["tools"] = {t: ({k: v for k, v in tb.items() if k != v3.KEEP} if isinstance(tb, dict) else tb)
+                        for t, tb in raw["tools"].items()}
+    if isinstance(raw.get("quantities"), dict):
+        silent = {q for q, tb in raw["quantities"].items() if isinstance(tb, dict) and tb.get(v3.SILENT)}
+        raw["quantities"] = {q: ({k: v for k, v in tb.items() if k != v3.SILENT} if isinstance(tb, dict) else tb)
+                             for q, tb in raw["quantities"].items()}
+    run = raw.get("run")
+    if isinstance(run, dict) and isinstance(run.get(CFGS), dict):
+        cfgs = {}
+        for key, tb in run[CFGS].items():
+            if isinstance(tb, dict) and v3.FAMILY in tb:
+                families.setdefault(tb[v3.FAMILY], []).append(key)
+                tb = {k: v for k, v in tb.items() if k != v3.FAMILY}
+            cfgs[key] = tb
+        raw["run"] = {**run, CFGS: cfgs}
+    return raw, form, keep, silent, families
 
 
 def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     where = str(path)
+    raw, form, keep, silent, families = _marks(raw)
     sections = schema.sections()
     if "master" in raw:                                    # break and migrate (V93)
         raise HepError("[master] is [config] now (V93): master_toml is master, include is import", where=f"{where}: [master]",
@@ -706,7 +817,8 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
                                     styles=[{k: v for k, v in s.items() if v != DEFAULT} for s in table.get("styles", [])],
                                     shape=table.get("shape", ""),
                                     target=_as_list(table.get("target")), format=table.get("format", ""),
-                                    description=table.get("description", ""), exclude=sorted(set(exclude)))
+                                    description=table.get("description", ""), exclude=sorted(set(exclude)),
+                                    silent=name in silent)
         check_shapes(quantity, at)                                          # V58: the vocabulary's shape
         if strict:
             no_tlatex(quantity.labels, f"{at}.labels")
@@ -719,7 +831,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             raise HepError("a tool is a table", where=at)
         extras = schema.check(table, "tool", at, extra=True)
         if "tool" not in table:
-            raise HepError("a tool table needs tool = \"<standard tool>\" or \"custom\"", where=at)
+            raise HepError("a tool table needs tool = \"<tool folder>\" (hep tools lists them)", where=at)
         tools[tag] = Tool(tag=tag, tool=table["tool"], baseconfig=_as_list(table.get("baseconfig")),
                           input=_as_list(table.get("input")), output_file=_as_list(table.get("output_file")),
                           timeout=float(table.get("timeout", 0)), stall_after=float(table.get("stall_after", 0)),
@@ -730,6 +842,20 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
                           settings=dict(table.get("settings", {})), cores=int(table.get("cores", 0)),
                           filters=table.get("filters", ""),
                           extra=extras)
+
+    outputs = {name for tool in tools.values() for name in tool.output_file}
+    for tag, tool in tools.items():                    # an input that names its producer reads its output (v3)
+        resolved = []
+        for name in tool.input:
+            if name in tools and name not in outputs:
+                made = tools[name].output_file
+                if len(made) != 1:
+                    raise HepError(f"input names '{name}', which writes {len(made)} outputs: name the one it reads",
+                                   where=f"{where}: [tools.{tag}].input", hint=", ".join(made) or f"{name} writes none")
+                resolved.append(made[0])
+            else:
+                resolved.append(name)
+        tool.input = resolved
 
     static = raw.get("static", {})
     if not isinstance(static, dict):
@@ -815,12 +941,13 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             threads=_resolved_threads(int(inherited("threads"))), parallelism=1 if inherited("parallelism") == "auto" else int(inherited("parallelism")),
             parallelism_auto=inherited("parallelism") == "auto",
             sweeps=sweeps, plot_points=list(plot_points), combine=list(combine),
-            tools=_groups(tools_entries, f"{at}.tools", tools),
+            tools=(groups := _groups(tools_entries, f"{at}.tools", tools)),
             post=_groups(inherited("post", []), f"{at}.post", tools),
             pre=_groups(inherited("pre", []), f"{at}.pre", tools),
             generate_cards=_generate_cards(inherited("generate_cards", []), f"{at}.generate_cards", tools),
             static=static_values,
-            prelim=_own_prelim(chain, prelim, origins),                     # replaced whole: its chain's interfaces
+            prelim=(_inferred(groups, tools, keep, prelim, quantities) if form == 3     # v3: from the chain
+                    else _own_prelim(chain, prelim, origins)),                 # replaced whole: its chain's interfaces
             origins=origins, cluster=merged("cluster", cluster))
 
     if isinstance(run.get("sweep_runs"), list):            # V79: the members, in order
@@ -851,7 +978,8 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
                      default_configuration=run.get("configuration"), configurations=configurations,
                      prelim=prelim, static=static, tools=tools, quantities=quantities, plot=plot,
                      master_toml=file_config.get("master"), meta=dict(file_config.get("meta", {})), raw=raw, sweep_runs=sweep_on,
-                     sweep_list=list(run["sweep_runs"]) if isinstance(run.get("sweep_runs"), list) else [])
+                     sweep_list=list(run["sweep_runs"]) if isinstance(run.get("sweep_runs"), list) else [],
+                     families=families, form=form)
 
 
 TEXT_KEYS = ("labels", "title", "title_left", "title_right", "legend_header", "x_label", "y_label", "legend")

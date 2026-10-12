@@ -143,7 +143,7 @@ def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.P
     out = []
     for number, (key, members) in enumerate(groups.items(), start=1):
         choice = dict(zip(kept, key))
-        name = "_".join(tag_of(run.quantities[q], choice[q]) for q in kept) or COMBINED
+        name = "_".join(tag_of(run.quantities[q], choice[q]) for q in kept if not run.quantities[q].silent) or COMBINED
         if name in taken:
             raise HepError(f"the combined group '{name}' would share a directory with a point or stage", where=where,
                            hint="give the swept quantities distinct tags (C11)")

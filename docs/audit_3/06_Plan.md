@@ -295,7 +295,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 
 ## Phase 6 — Schema v3
 
-**6.1 Quantities** (U35, U36, U40, U43)
+**6.1 Quantities** (U35, U36, U40, U43) — **done, V128** (with 6.2's tool typing, producer inputs, inferred interfaces, `keep`, `[prelim]` retired and the seed key; `keep = true` does not yet make a FIFO a file too)
 - `points = [{tag, value, label, style}]` rows, `fixed`, and bindings (`to = {tool = key}`).
 - Compound quantities (`fields`) for entangled sweeps.
 - `vary = [...]` in a configuration.

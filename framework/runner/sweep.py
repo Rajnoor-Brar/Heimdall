@@ -57,7 +57,8 @@ def points(run, configuration) -> list[Point]:
     out: list[Point] = []
     for number, combination in enumerate(itertools.product(*ranges), start=1):
         choice = {name: index for group, index in zip(groups, combination) for name in group}
-        tags = [tag_of(run.quantities[name], choice[name]) for group in groups for name in group]
+        tags = [tag_of(run.quantities[name], choice[name]) for group in groups for name in group
+                if not run.quantities[name].silent]                # a compound quantity's later fields (v3)
         page = tuple(combination[i] for i in page_axes)
         out.append(Point(index=number, name="_".join(tags) or "point", choice=choice, page=page))
     names = [p.name for p in out]

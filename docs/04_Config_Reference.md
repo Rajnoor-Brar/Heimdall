@@ -14,6 +14,59 @@ prose around them says what a table cannot.
 - A key marked **required** has no default; a key that may take `"default"` says so.
 - Everything is checked **at plan time**, before any process starts: `hep check` and `hep run …
   --plan` run every check below.
+- **A quantity a file declares must be used:** varied (swept) in a configuration, fixed (`[static]`,
+  a configuration's static), or choosing a tool (`"@<quantity>"`). One that changes nothing is
+  refused, with the fix (U36). An imported file's quantities may go unused.
+
+**Two forms.** This page writes the run TOML's second form (v2). The third (v3, audit 3 phase 6) says
+each fact once and is read as v2 is, so a study in either form is the same run, the same points and
+the same identities (`framework/runner/v3.py`). A file is v3 when it has `[file]` or `[cfgs.<name>]`,
+or a `[run] chain`; `[file] schema = 2` keeps a file v2 for one release:
+
+```toml
+[run]
+project = "Demo"
+name    = "pair"
+run     = "pdf"                          # [run].configuration
+events  = 500                            # event_count
+threads = 2
+chain   = [["pythia", "rivet"], "yd2rt"] # every configuration's tools, unless it sets its own
+seed    = "identity"                     # or "random", or an integer (seed_type, manual_seed)
+
+[tools.pythia]                           # the table's name is the tool (uses = "pythia" for a second one)
+card   = "ep.cmnd"                       # baseconfig
+output = "events.hepmc"                  # output_file; rivet reads it in its group: a FIFO, inferred
+
+[tools.rivet]
+input    = "pythia"                      # its producer: reads what it writes
+analyses = ["photo_eic"]
+output   = "jets.yoda"                   # read by a later group: a product (keep = false: a scratch file)
+
+[tools.yd2rt]
+input  = "rivet"
+output = "jets.root"
+
+[quantities.pdf]                         # points as rows; fixed is [static]'s value; to = { tool = "key" }
+fixed  = "MSTW08lo"
+points = [
+  { tag = "MSTW08lo",  value = "LHAPDF6:MSTW2008lo68cl",         label = "MSTW 2008 LO" },
+  { tag = "NNPDF23lo", value = "LHAPDF6:NNPDF23_lo_as_0130_qed", label = "NNPDF 2.3 LO" },
+]
+
+[quantities.collision]                   # a compound quantity: its fields set together, one row a point
+fields = { energies = "energies", nucleus = { pythia = "PDF:nPDFBeamA" } }
+points = [{ tag = "p", energies = [130, 9], nucleus = 2212 }, { tag = "Au", energies = [100, 9], nucleus = 1000791970 }]
+fixed  = "p"
+
+[cfgs.pdf]                               # [run.cfgs.pdf]
+vary   = ["pdf"]                         # sweeps
+events = [1000, 10000]                   # a list: one configuration per count, pdf_1k and pdf_10k, run in turn
+```
+
+Also: `[file]` is `[config]`; a configuration's `folder` is its `label`, `fixed = { q = "tag" }` its
+static; `[quantities.beams]` rows may give `a = { id, energy }` and `b = { … }`; `[run] commands`
+are `[prelim] commands`. `[static]`, `[prelim]` and every renamed key are refused in a v3 file,
+naming the v3 key.
 
 ---
 

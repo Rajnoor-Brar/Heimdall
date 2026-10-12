@@ -504,3 +504,28 @@ def test_a_failure_shows_its_errors_first(bs, tmp_path):
     excerpt = bs.failure_excerpt(log)
     assert excerpt.startswith("the first errors:") and "gsl/gsl_rng.h" in excerpt
     assert excerpt.index("gsl/gsl_rng.h") < excerpt.index("the log's end:")
+
+
+# ── after an OS upgrade (phase 2.3) ────────────────────────────────────────────────────────────
+
+def test_rebuild_broken_takes_what_lost_a_library_and_what_needs_it(bs, tmp_path, monkeypatch, capsys):
+    prefix = tmp_path / "hep"
+    _, s, packages = bs.options([f"prefix={prefix}"])
+    c = bs.context(s)
+    for name in ("python", "lhapdf", "hepmc3", "fastjet", "root", "delphes", "rivet"):
+        stamped(bs, prefix, name, packages=packages, c=c)
+        (Path(c["inst"]) / packages[name].get("install", name)).mkdir(parents=True, exist_ok=True)
+
+    class Scan:
+        def problems(self, name, entries):
+            return []
+
+        def scan(self, folder):
+            return (3, ["libgsl.so.27 (libMathMore.so)"]) if folder.name == "root" else (3, [])
+
+    monkeypatch.setattr(bs, "checker", lambda: Scan())
+    assert bs.broken(packages, c) == {"root": ["libgsl.so.27 (libMathMore.so)"]}
+    bs.main(["--dry-run", "--resume", "--rebuild-broken", f"prefix={prefix}", "system=false"])
+    out = capsys.readouterr()
+    assert "root: needs libgsl.so.27" in out.err
+    assert "# == root" in out.out and "# == delphes" in out.out and "# == rivet" not in out.out

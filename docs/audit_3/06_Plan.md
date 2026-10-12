@@ -133,7 +133,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 - The macOS annex (`docs/framework/targets/macos.md`) is rewritten from the Mac's build: what differs,
   and why.
 
-**2.3 After an OS upgrade** (U16)
+**2.3 After an OS upgrade** (U16) — **done, V121** (the lab PC's real rebuild waits for the user)
 - The install records the system libraries each package links (sonames).
 - `hep doctor` compares them with what's there now.
 - `build_stack.py --rebuild-broken` rebuilds the packages with unresolved libraries, and their

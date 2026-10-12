@@ -222,6 +222,11 @@ recorded run says; a recipe change is proven when a machine records it again. Th
 `.github/workflows/stack.yml` (started by hand) builds the container on a clean Ubuntu, then runs
 `hep doctor --quick` and the fast tests in it.
 
+**After an OS upgrade.** An upgrade can replace a system library under the stack's feet (Ubuntu
+26.04: libgsl, libzip, libxml2). `hep doctor` names what no longer resolves; `build_stack.py
+--rebuild-broken` rebuilds exactly those packages and what needs them (`--dry-run` first). Each build
+records the system libraries it linked, beside its stamp (`.libs`).
+
 **Known caveats.**
 - **MadGraph and ONNX Runtime** rename releases often. When a download 404s, set `madgraph.url` or
   `onnxruntime.url` from their download pages.

@@ -14,6 +14,7 @@
     python3 recipes/build_stack.py --check-urls             # ask every chosen package's URLs; nothing is downloaded
     python3 recipes/build_stack.py --sha256                 # the checksums of the archives in stash/, as recipe lines
     python3 recipes/build_stack.py --rebuild thepeg         # build it again, and what depends on it (Herwig)
+    python3 recipes/build_stack.py --rebuild-broken         # after an OS upgrade: what links a library that is gone
     python3 recipes/build_stack.py thepeg.extra+=--foo env.CXXFLAGS="…"   # append to a list; one variable
 
 A key=value sets; key+=value appends to a list. A list value is split like a shell line (quote an item
@@ -169,6 +170,8 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             mode = "verify"
         elif arg == "--quick":
             settings["_quick"] = True
+        elif arg == "--rebuild-broken":
+            settings["_rebuild_broken"] = True
         elif arg == "--rebuild":
             settings.setdefault("_rebuild", []).extend(next(args, "").replace(",", " ").split()
                                                        or die("--rebuild needs a package"))
@@ -460,6 +463,39 @@ def doctor_rows(packages: dict, c: dict, env: dict[str, str], quick: bool = Fals
                 rows.append((name, f"libraries ({Path(folder).name}/)", "FAIL" if lost else "ok",
                              " ".join(lost)[:140] if lost else f"{n} files"))
     return rows
+
+
+def broken(packages: dict, c: dict) -> dict[str, list[str]]:
+    """The installed packages whose programs or libraries need a library that no longer resolves (an OS
+    upgrade replaced it), each with what is missing. Packages sharing a folder (ThePEG, Herwig) go
+    together."""
+    v, out, seen = checker(), {}, {}
+    for name, p in packages.items():
+        if p["kind"] in ("none", "external") or state(name, p, c) in ("", "failed"):
+            continue
+        folder = scope(name, p, c)["install"]
+        if folder not in seen:
+            seen[folder] = v.scan(Path(folder))[1]
+        if seen[folder]:
+            out[name] = seen[folder]
+    return out
+
+
+def record_links(name: str, p: dict, c: dict) -> None:
+    """Beside a package's stamp, the libraries from outside the stack its binaries link, so a later OS
+    upgrade can be traced to what it took away (<stamp>.libs: one line each)."""
+    v, folder, found = checker(), Path(scope(name, p, c)["install"]), set()
+    for sub in ("bin", "lib", "lib64"):
+        for path in sorted((folder / sub).rglob("*")) if (folder / sub).is_dir() else []:
+            if len(found) > 400 or path.is_symlink() or not path.is_file() or not v.is_binary(path):
+                continue
+            for line in v.links_of(str(path)).splitlines():
+                words = line.replace("=>", " ").split()
+                lib = next((w for w in words if w.startswith("/")), "")
+                if lib and not lib.startswith((c["inst"], c["prefix"], "/System/", "/usr/lib/system/")):
+                    found.add(lib)
+    stamp(name, p, c).with_name(stamp(name, p, c).name + ".libs").write_text(
+        "".join(f"{lib}\n" for lib in sorted(found)), encoding="utf-8")
 
 
 def rebuild_set(names: list[str], packages: dict, c: dict) -> list[str]:
@@ -920,6 +956,15 @@ def main(argv: list[str]) -> None:
         return
     script = mode == "script"
     c["fresh"] = script and not s.get("_resume")                  # a dry run prints the whole build
+    if s.get("_rebuild_broken"):                                  # after an OS upgrade
+        damage = broken(packages, c)
+        for name, lost in damage.items():
+            say(f"{name}: needs {', '.join(lost)}")
+        if not damage:
+            say("nothing is broken: every program and library of the stack resolves")
+        s["_rebuild"] = [*s.get("_rebuild", []), *damage]
+        if not s["_rebuild"]:
+            return
     c["rebuild"] = rebuild_set(s.get("_rebuild", []), packages, c) if s.get("_rebuild") else []
     order, added = plan(s, packages, c)
     if mode == "list":
@@ -1025,6 +1070,8 @@ def main(argv: list[str]) -> None:
         if not script:
             stamp(name, p, c).write_text(digest(name, p, c) + "\n", encoding="utf-8")
             building(name, p, c).unlink(missing_ok=True)
+            if p["kind"] not in ("none", "external"):
+                record_links(name, p, c)
             say(f"{label}: done in {minutes(time.monotonic() - shell.started)}")
     machine = prefix / "env" / "machine.sh"                        # setup.sh itself is tracked
     if c["setup_extra"]:

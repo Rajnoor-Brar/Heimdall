@@ -21,15 +21,21 @@ The data says what is built; the engine knows only five steps (fetch, unpack, co
 install, stamp) and four kinds of package. A version bump, a new flag or a new package is a TOML
 edit, never a code change.
 
-**Where the build puts things** (docs/framework/01_Target.md §2), all of it outside git:
+**Where the build puts things:** the machine root, `~/Himinbjorg` (`$HEP_MACHINE`, or `machine=` in
+settings), outside git. Sources and builds stay in `forge/`; `stack/` holds installs only:
 
 | Folder | Holds |
 |---|---|
-| `stash/` | the downloaded archives (`<package>-<release>.<ext>`) and their unpacked sources |
-| `forge/<package>/`, `forge/logs/` | the build trees (CMake's); one log per package |
+| `forge/downloads/` | the downloaded archives (`<package>-<release>.<ext>`) |
+| `forge/src/`, `forge/build/<package>/`, `forge/logs/` | the unpacked sources; the build trees (CMake's); one log per package |
 | `stack/<dir>/`, `stack/.stamps/` | the installs; what is built |
-| `env/venv/` | the Python environment, with `heimdall.pth` |
-| `env/machine.sh` | this machine's extra lines for `setup.sh` (`setup_extra`; macOS's DYLD and GNU tools) |
+| `venv/` | the Python environment, with `heimdall.pth` |
+| `apps/` | Heimdall's compiled apps (`hep build --framework`) |
+| `machine.sh` | this machine's extra lines for `setup.sh` (`setup_extra`; macOS's DYLD and GNU tools) |
+
+`python3 recipes/machine.py where` prints them; `python3 recipes/machine.py adopt` moves a stack built
+inside a checkout (`stack/`, `env/venv/`, `stash/`, `framework/Apps/`) into the machine root, by links
+and moves only.
 
 The framework's own view of the stack (each library's flags and version) is `env/stack.toml`; the
 shell environment is `env/hep_env.sh`, which `setup.sh` sources
@@ -53,8 +59,25 @@ source setup.sh && hep build --framework              # the environment, then th
 graphics=OFF`); any key of a package is `<package>.<key>=value` (`root.release=6.40.06`,
 `madgraph.url=…`, `fastjet.patch=` for none, `root.extra="-Droofit=OFF"` for more arguments after a
 package's own). For many changes, `--config my.toml`: a TOML file with settings and `[package]`
-tables, which change packages or add new ones. The command line wins. `prefix=` builds somewhere
-else than this Heimdall; only the tests use it.
+tables, which change packages or add new ones. The command line wins. `machine=` builds into another
+machine root than `$HEP_MACHINE` (`~/Himinbjorg`); the tests use it.
+
+**This machine's settings: `machine.toml`,** in the machine root, written once from
+[machine.template.toml](machine.template.toml) and yours to edit (never in git, so editing it leaves
+the checkout clean). `[settings]`, `[env]` and `[packages.<name>]` are a layer over the shipped files
+and any `--config`, under the toolkits asked for and the command line. A list appends to the shipped
+one (`pdf_sets = ["NNPDF31_nnlo_as_0118"]` adds a set; `setup_extra` adds lines to `machine.sh`), unless
+its table says `replace = ["pdf_sets"]`; anything else replaces. `[cluster]` is `hep cluster`'s
+defaults for every work dir on the machine.
+
+```toml
+[settings]
+cores = 20
+setup_extra = ["module load gcc/13"]
+
+[packages.root]
+args = ["-Dcuda=ON"]          # after ROOT's own arguments
+```
 
 **Cores.** `cores` is how many compilers run at once: each package's build gets it as
 `make -j<cores>` (autotools) or `cmake --build <build> -j<cores>` (CMake); one compiler keeps one CPU
@@ -102,14 +125,14 @@ built: a dead link stops the run in its first minute, not after ROOT. A package'
 mirrors; a download resumes and retries; an archive is kept only when it is one (a web page, a
 cut-off file or a wrong `sha256` is refused and named). `--check-urls` asks every URL first, and
 `--sha256` prints the checksums of the archives you have, as recipe lines. A tarball already in
-`stash/<name>-<release>.<ext>` is used as it is, so a machine without network can build from
+`forge/downloads/<name>-<release>.<ext>` (in the machine root) is used as it is, so a machine without network can build from
 copied tarballs.
 
 **Logs.** Each package writes `forge/logs/<name>.log`. A failure stops the build at once, prints
 the last 30 lines and names the log.
 
 **setup.sh** is tracked at Heimdall's root and finds its own folder; the build writes nothing to it.
-What a machine needs beyond it (`setup_extra`) goes to `env/machine.sh`, which `setup.sh` sources.
+What a machine needs beyond it (`setup_extra`) goes to the machine root's `machine.sh`, which `setup.sh` sources.
 
 ---
 
@@ -119,7 +142,7 @@ What a machine needs beyond it (`setup_extra`) goes to `env/machine.sh`, which `
 
 | Package | Release | Kind | For |
 |---|---|---|---|
-| `python` | your `python3` | a venv in `env/venv`, `python_packages`, `heimdall.pth` | every Python binding; the framework's `tomli_w`, `rich`, `uproot`, Pillow, matplotlib, pytest |
+| `python` | your `python3` | a venv in the machine root's `venv/`, `python_packages`, `heimdall.pth` | every Python binding; the framework's `tomli_w`, `rich`, `uproot`, Pillow, matplotlib, pytest |
 | `lhapdf` | 6.5.6 | autotools | PDFs for Pythia8, Herwig, Sherpa, Whizard, MadGraph |
 | `hepmc3` | 3.3.1 | CMake | the event format between the tools |
 | `fastjet` | 3.5.0 | autotools, the SISCone patch | jets for Rivet, Pythia8, Sherpa, Whizard and module programs |
@@ -269,8 +292,8 @@ toolkit packages join only by name or through a toolkit.
 **Isolated toolkits: a C++ standard of their own.** The stack is one ABI: ROOT, Rivet, Pythia 8,
 Geant4 and the framework's apps all C++17. A tool that needs C++20 cannot join it, so a toolkit may
 build a whole stack of its own:
-- `isolated = true` builds into `stacks/<toolkit>/` (its installs, build trees and venv; its
-  framework apps go to `stacks/<toolkit>/Apps`). `stash/` is shared.
+- `isolated = true` builds into the machine root's `stacks/<toolkit>/` (its installs, build trees,
+  venv and framework apps, `stacks/<toolkit>/apps`). `forge/downloads/` is shared.
 - `[<toolkit>.settings]` changes settings for the run, `cxx_std = 20` above all, and
   `[<toolkit>.override.<package>]` changes a package's keys for it (Geant4's own C++ switch).
 - **A toolkit that changes `cxx_std` or `opt_flags` must be isolated**: the engine refuses it

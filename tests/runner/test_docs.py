@@ -153,7 +153,7 @@ CODE = [p for top in ("framework", "src", "tests") for p in (REPO / top).rglob("
         and "reference/legacy_run" not in str(p) and "/_" not in str(p.relative_to(REPO))
         and not {"Apps", "venv"} & set(p.relative_to(REPO).parts)]                         # (V52, V92)
 CODE += [REPO / "Makefile", REPO / "setup.sh", REPO / "framework" / "bin" / "hep", REPO / "framework" / "bin" / "run",
-         *(p for p in (REPO / "env").glob("*") if p.is_file())]                    # env/venv/ is the venv
+         *(p for p in (REPO / "env").glob("*") if p.is_file())]                    # the venv is in the machine root
 
 
 def code_text() -> list[tuple[Path, str]]:

@@ -148,7 +148,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 
 ## Phase 3 — The machine root and the shell
 
-**3.1 The machine root, `~/Himinbjorg`** (U19, U20, U24, U26, U29)
+**3.1 The machine root, `~/Himinbjorg`** (U19, U20, U24, U26, U29) — **done, V122** (adoption is `recipes/machine.py adopt`; the root's `toolkits/`, `patches/` and `tools/` come with 3.2 and 4)
 - The machine root, as in [02 §3](02_Organisation.md#3-the-proposed-layout), by default
   `~/Himinbjorg` (the user's choice):
   - `machine.toml`;

@@ -9,7 +9,7 @@ The baselines are the lab PC's of 2026-10-10: Heimdall at `c6e7590` and after, a
 
 **Reads:** the manual's 07 §8 (the gates' numbers), copied here as rows.
 
-**Writes:** `framework/Apps/`, `forge/make/`, `forge/tests/`, `forge/scratch/`; nothing in git.
+**Writes:** the machine root's `apps/`, `forge/make/`, `forge/tests/`, `forge/scratch/`; nothing in git.
 
 **Gates:**
 - a gate row that differs from its number twice (S2);
@@ -29,7 +29,7 @@ The baselines are the lab PC's of 2026-10-10: Heimdall at `c6e7590` and after, a
 1. `hep build --framework --tests`: the apps (`App_Pythia`, `App_PythiaCheck`, `App_yd2rt`, `Paint`),
    Herwig's repository and the C++ tests.
 2. `hep make --framework test`: runs the C++ tests, then `pytest -m "not slow"`, which first builds
-   the fixture work dir's modules and plugins in `forge/scratch/work/` (V112). Collect the summary
+   the fixture work dir's modules and plugins in `$HEP_FORGE/scratch/work/` (V112). Collect the summary
    line and every skip with its reason (`-rs`).
 3. Check that the generated parts of the manual are current: `hep make --framework docs schema`.
 
@@ -37,11 +37,11 @@ The baselines are the lab PC's of 2026-10-10: Heimdall at `c6e7590` and after, a
 
 | # | Command | Expected |
 |---|---|---|
-| R1 | `ls $HEP/framework/Apps/*.exe $HEP/framework/Apps/Herwig/HerwigDefaults.rpo \| wc -l` | `5` |
-| R2 | `ls $HEP/forge/tests/*.exe \| wc -l` | `3` (test_kit, test_module_kit, test_status) |
-| R3 | `cd $HEP && for t in forge/tests/*.exe; do $t >/dev/null \|\| echo FAIL $t; done \| wc -l` | `0` |
+| R1 | `ls $HEP_APPS/*.exe $HEP_APPS/Herwig/HerwigDefaults.rpo \| wc -l` | `5` |
+| R2 | `ls $HEP_FORGE/tests/*.exe \| wc -l` | `3` (test_kit, test_module_kit, test_status) |
+| R3 | `cd $HEP && for t in $HEP_FORGE/tests/*.exe; do $t >/dev/null \|\| echo FAIL $t; done \| wc -l` | `0` |
 | R4 | `cd $HEP && python3 -m pytest -q -m "not slow" -rs -p no:cacheprovider 2>&1 \| tail -1` | `605 passed`, 0 failed, 0 errors, no skips (the lab PC's, 2026-10-10; more if tests were added since, never fewer) |
-| R5 | `ls $HEP/forge/scratch/work/build/Rivet/*.so \| wc -l` | `3` (photo_eic, DecayRiv, particle_spectra) |
+| R5 | `ls $HEP_FORGE/scratch/work/build/Rivet/*.so \| wc -l` | `3` (photo_eic, DecayRiv, particle_spectra) |
 | R6 | `git -C $HEP status --porcelain \| wc -l` | `0` (the generated blocks and the editor schema were current; the build wrote only ignored folders) |
 | R7 | `git -C $HEP status --porcelain --ignored tests \| grep -v __pycache__ \| wc -l` | `0` (the tests wrote nothing under `tests/`) |
 

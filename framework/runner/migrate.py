@@ -21,8 +21,9 @@ and layout stay:
 * (V99) `[run.defaults]` → its keys moved into `[run]`, at the end of its keys; one [run] sets too is
   [run.defaults]'s value (it was the nearer layer). Its comments go with it.
 * (Heimdall, docs/framework/01_Target.md §5.3) `{repo}` → `{work}`, or `{hep}` for what moved into
-  Heimdall: `{repo}/build/App_*`, `Paint.exe` and `Herwig/` → `{hep}/framework/Apps/…`, `{repo}/utils/`
-  → `{hep}/src/`. On the text, anywhere in the file (a comment's example too).
+  Heimdall: `{repo}/build/App_*`, `Paint.exe` and `Herwig/` → `{apps}/…`, `{repo}/utils/` → `{hep}/src/`.
+  On the text, anywhere in the file (a comment's example too).
+* (audit 3, phase 3.1) `{hep}/framework/Apps/` → `{apps}/`: the compiled apps are in the machine root.
 """
 
 from __future__ import annotations
@@ -106,16 +107,17 @@ def defaults_text(text: str) -> str:
 
 
 #: High-Energy's single root, split (framework/01 §5.3): the first prefix that matches wins.
-PLACEHOLDERS = (("{repo}/build/App_", "{hep}/framework/Apps/App_"),
-                ("{repo}/build/Paint.exe", "{hep}/framework/Apps/Paint.exe"),
-                ("{repo}/build/Herwig/", "{hep}/framework/Apps/Herwig/"),
+PLACEHOLDERS = (("{repo}/build/App_", "{apps}/App_"),
+                ("{repo}/build/Paint.exe", "{apps}/Paint.exe"),
+                ("{repo}/build/Herwig/", "{apps}/Herwig/"),
+                ("{hep}/framework/Apps/", "{apps}/"),
                 ("{repo}/utils/", "{hep}/src/"),
                 ("{repo}", "{work}"))
 _REPO = re.compile("|".join(re.escape(old) for old, _ in PLACEHOLDERS))
 
 
 def placeholder_text(text: str) -> str:
-    """{repo} as {work}, or {hep} for Heimdall's files (PLACEHOLDERS)."""
+    """{repo} as {work}, {apps} for the compiled apps, {hep} for Heimdall's files (PLACEHOLDERS)."""
     return _REPO.sub(lambda match: dict(PLACEHOLDERS)[match[0]], text)
 
 

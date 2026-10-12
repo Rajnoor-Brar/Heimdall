@@ -32,7 +32,8 @@ def test_flags_sh_probes_what_the_stack_lists(stack):
 def test_the_flags_cache_says_what_is_known_and_keys_on_the_stack():
     key = subprocess.run([str(ENV / "flags.sh"), "--key"], capture_output=True, text=True).stdout
     assert ";STACK=" in key
-    flags = REPO / "forge" / "make" / "flags.mk"                   # Heimdall's build
+    from runner import paths
+    flags = paths.forge_dir() / "make" / "flags.mk"                 # Heimdall's build (the machine root's forge/)
     if flags.exists():                                              # written by make, from the stack
         known = next((l for l in flags.read_text(encoding="utf-8").splitlines() if l.startswith("KNOWN := ")), "")
         assert known.split(" := ")[1].split() == [n for n, e in tomllib.loads((ENV / "stack.toml").read_text(encoding="utf-8")).items()

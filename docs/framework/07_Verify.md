@@ -156,7 +156,7 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
    - the phases with their times;
    - every gate and its answer;
    - every deviation and where it was folded in;
-   - the disk used (`du -sh $HEP/stack $HEP/env/venv $HEP/forge $HEP/stash $HEP/framework/Apps`);
+   - the disk used (`du -sh $HEP_MACHINE/{stack,venv,forge,apps}/`);
    - P2's test counts;
    - S1's table;
    - **"how to work now"** in five lines:
@@ -167,10 +167,10 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
      hep build --framework                 # after changing Heimdall's apps (identities change, 06 §27)
      hep where                             # which Heimdall and work dir this shell sees
      ```
-3. **Clean the stack's build trees.** The stack's trees in `$HEP/forge/<pkg>/` (6.8 GB on the lab
-   PC) and the unpacked folders in `$HEP/stash/` go. The archives in `$HEP/stash/`, and
+3. **Clean the stack's build trees.** The stack's trees in `$HEP_MACHINE/forge/build/` (6.8 GB on the
+   lab PC) and the unpacked sources in `forge/src/` go. The archives in `forge/downloads/`, and
    `forge/logs/`, `forge/make/`, `forge/tests/`, `forge/scratch/` stay. This is inside
-   `$HEP/{stash,forge}`, so 02 §6 needs no gate; report the space freed. Never `git clean -x`.
+   `$HEP_MACHINE/forge`, so 02 §6 needs no gate; report the space freed. Never `git clean -x`.
 4. **Gates, asked together, each answered on its own:**
    - **publish Heimdall:** if it was cloned from a bundle, a new private GitHub repository
      `Rajnoor-Brar/Heimdall` (the user creates it, or approves `gh repo create --private`), then
@@ -191,6 +191,6 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
 | R2 | `python3 -c "import tomllib; d=tomllib.load(open('$HEP/.setup/state.toml','rb')).get('deviation',[]); print(sum(not x['folded'] for x in d))"` | `0` (every deviation folded into the plans) |
 | R3 | `git -C $HEP status --porcelain \| wc -l` | `0` |
 | R4 | `test -s $HEP/.setup/report.md && grep -c '^## ' $HEP/.setup/report.md` | ≥ `5` |
-| R5 | `ls -d $HEP/forge/root $HEP/forge/geant4 2>/dev/null \| wc -l` | `0` (the stack's trees are gone) |
+| R5 | `ls -d $HEP_MACHINE/forge/build/root $HEP_MACHINE/forge/build/geant4 2>/dev/null \| wc -l` | `0` (the stack's trees are gone) |
 | R6 | `bash -lc 'source ~/Github/Heimdall/setup.sh >/dev/null; cd ~/Github/Top-Quark && hep where'` | two lines: `hep=…/Github/Heimdall <revision>`, `work=…/Github/Top-Quark` |
-| R7 | `ls $HEP/stack/.stamps \| wc -l` | `20` (the cleaning left the installs) |
+| R7 | `ls $HEP_MACHINE/stack/.stamps \| wc -l` | `20` (the cleaning left the installs) |

@@ -1,0 +1,29 @@
+# machine.toml — this machine's settings for Heimdall, in its machine root (~/Himinbjorg, or $HEP_MACHINE).
+# Written once from recipes/machine.template.toml (by build_stack.py or machine.py adopt); yours to edit;
+# never in git, so editing it leaves Heimdall's checkout clean.
+#
+# The machine root holds what this machine built: stack/ (installs), venv/, apps/ (Heimdall's compiled
+# apps), forge/ (downloads, sources, builds, logs), stacks/<toolkit>/, and machine.sh (this machine's
+# shell lines, which setup.sh sources). Several checkouts of Heimdall may share one root.
+#
+# Each table is a layer over the shipped files (recipes/README.md §1): a list appends to the shipped
+# list unless the table names it in replace = ["key"]; anything else replaces. The toolkits asked for
+# and the command line come after it.
+
+# [settings]                      # recipes/settings.toml's keys, this machine's values
+# cores       = 20
+# root_cores  = 5
+# setup_extra = ["module load gcc/13"]      # more lines for machine.sh
+# pdf_sets    = ["NNPDF31_nnlo_as_0118"]    # one more PDF set
+
+# [env]                           # the build's environment variables
+# CC = "gcc-13"
+
+# [packages.root]                 # a recipe's keys (recipes/packages.toml), this machine's
+# extra   = ["-Dcuda=ON"]
+# replace = []
+
+# [cluster]                       # hep cluster's defaults for every work dir here (a work dir's hep.toml wins)
+# account   = "my-account"
+# partition = "standard"
+# setup     = ["module load gcc/13"]

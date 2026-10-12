@@ -28,7 +28,8 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]                  # Heimdall
 sys.path.insert(0, str(REPO / "framework"))
 
-SCRATCH = REPO / "forge" / "scratch"
+MACHINE = Path(os.environ.get("HEP_MACHINE") or "~/Himinbjorg").expanduser()
+SCRATCH = Path(os.environ.get("HEP_FORGE") or MACHINE / "forge") / "scratch"   # the machine root's, never the checkout
 FIXTURE = REPO / "tests" / "fixtures" / "work"
 WORK = SCRATCH / "work"
 

@@ -989,8 +989,9 @@ notes = """\
   A file without a map, or a map without a file, is an error."""
 
 # ── [cluster]: hep cluster, a run as Slurm jobs (V114) ───────────────────────────────────────────
-# Also a work dir's hep.toml [cluster] (the machine's defaults); the run TOML's is over it, a
-# configuration's ([run.cfgs.<cfg>].cluster) over that, --set cluster.<key>=… over all (04 §16).
+# Also the machine root's machine.toml [cluster] and a work dir's hep.toml [cluster] (the defaults, in
+# that order); the run TOML's is over them, a configuration's ([run.cfgs.<cfg>].cluster) over that,
+# --set cluster.<key>=… over all (04 §16).
 
 [cluster.scheduler]
 type    = "str"

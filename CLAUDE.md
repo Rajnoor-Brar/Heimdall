@@ -18,14 +18,17 @@ Heimdall is the framework **and** the machine's home: `$HEP` is this folder (V10
 | --- | --- |
 | `setup.sh` | the environment (`load_hep` = `source <Heimdall>/setup.sh`) |
 | `recipes/` | the stack's recipes: `build_stack.py`, `packages.toml`, `settings.toml`, `toolkits.toml` and `toolkits.d/`, `patches/`, `platforms/{mac,container}/` |
-| `env/` | `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py`; `venv/` (ignored), `machine.sh` (ignored) |
-| `framework/` | `bin/` (`hep`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders, backends, figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py`; `Apps/` (ignored: the compiled apps) |
+| `env/` | `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
+| `framework/` | `bin/` (`hep`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders, backends, figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py` |
 | `src/` | the C++ kits (`Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh`) and the apps' sources (`App_*.cc`, `Apps/Paint/`) |
 | `docs/` | the manual `01`–`07`, `reporter/`, `audit_2/`, `framework/` (the setup plans) |
 | `bots/` | `current_plan.md`, `intent.md`, `archive.md` |
 | `tests/` | `runner/`, `integration/`, `cxx/`, `reference/`, `fixtures/work/` (the frozen work dir the tests use) |
-| `stack/`, `forge/`, `stash/` | ignored: the installs; builds in progress (and the tests' scratch); downloads |
-| `stacks/<toolkit>/` | ignored: an isolated toolkit's own stack (another C++ standard; recipes/README.md §6) |
+
+What this machine built is in the **machine root**, `~/Himinbjorg` (`$HEP_MACHINE`), outside git:
+`stack/`, `venv/`, `apps/` (`$HEP_APPS`), `forge/` (`$HEP_FORGE`: downloads, sources, builds, logs,
+the tests' scratch), `stacks/<toolkit>/`, `machine.toml`, `machine.sh`. `recipes/machine.py adopt`
+moves an older in-checkout stack there.
 
 Work dirs (configs, modules, results) live elsewhere, one per workspace, made by `hep setup <dir>`.
 
@@ -34,8 +37,8 @@ Work dirs (configs, modules, results) live elsewhere, one per workspace, made by
 
 ## Never
 
-- **Never `git clean -x` here.** It would delete `stack/`, `stacks/`, `env/venv/` and `framework/Apps/`:
-  hours of building. `forge/` and `stash/` may be emptied by hand.
+- **Never `git clean -x` here** while a checkout still holds an un-adopted stack (`stack/`, `env/venv/`,
+  `framework/Apps/`): hours of building. The machine root's `forge/` may be emptied by hand.
 - Never `git commit -a`: stage named paths.
 
 ## Code design

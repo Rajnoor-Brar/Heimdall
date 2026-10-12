@@ -132,7 +132,7 @@ files (shown first), and the push of `work`.
    - It prints the template's `.gitignore` lines that High-Energy's `.gitignore` lacks. Add those
      to `.gitignore` by hand, and keep every existing line.
 5. **The user's files** (C65–C67, C77). Show the diffs, then ask (a **gate**):
-   - `hep migrate` (C65): `{repo}` → `{work}` (and `{hep}/framework/Apps/…`, `{hep}/src/…`);
+   - `hep migrate` (C65): `{repo}` → `{work}` (and `{apps}/…`, `{hep}/src/…`);
    - the Python module that put `utils/` on `sys.path` for hepkit: `sys.path.insert(0,
      os.environ["HEP"] + "/framework")`, as the fixture's `delphes_jets.py` has it (C66);
    - `Inproc/Analysis.hh:68` and the two in-process run TOMLs name `recipes/patches/…` (C67);

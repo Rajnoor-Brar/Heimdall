@@ -18,7 +18,7 @@ stack, one per machine; and your **work dirs**, where studies live.
 git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
 python3 recipes/build_stack.py packages=@primary     # the stack, from source, into stack/ (hours)
 source setup.sh                                      # the environment: alias load_hep='source ~/Github/Heimdall/setup.sh'
-hep build --framework                                # Heimdall's apps, into framework/Apps/
+hep build --framework                                # Heimdall's apps, into the machine root's apps/ ($HEP_APPS)
 ```
 
 The stack's recipes, its toolkits (`@primary` is the lab set plus MadAnalysis5; `--toolkits` lists
@@ -34,8 +34,8 @@ stack) a shell sees, and which work dir.
 The shell gives you `hep_status` (installed versions), `hep_cd PROJECT
 [configs|modules|results|output]` (in the current work dir), `quit` (leave the environment) and
 `hep_help`. **`hep refresh`** reloads the environment in the same shell, from scratch: `quit`, then the
-same `setup.sh` again. Use it after a stack's rebuild, an edit of `env/hep_env.sh` or
-`env/machine.sh`, or a `git pull` of Heimdall. It is the shell function `hep` that `setup.sh` defines
+same `setup.sh` again. Use it after a stack's rebuild, an edit of `env/hep_env.sh` or of the machine
+root's `machine.sh`, or a `git pull` of Heimdall. It is the shell function `hep` that `setup.sh` defines
 (also `hep_refresh`), since a program cannot change its shell's variables.
 
 ### 1.2 A work dir
@@ -82,8 +82,8 @@ make --framework …` in Heimdall); the output lands where the convention says:
 |---|---|---|
 | `modules/<P>/<X>.cc` | `make modules/<P>/<X>.exe` | `build/<P>/<X>.exe` |
 | `modules/<P>/Rivet/<x>.cc`, `modules/<P>/Rivet_<x>.cc` | `make modules/<P>/Rivet/<x>.so` | `build/Rivet/Rivet_<x>.so` + its `.info`, `.plot`, `.yoda` |
-| Heimdall's `src/App_<X>.cc` | `hep make --framework src/App_<X>.exe` | `framework/Apps/App_<X>.exe` |
-| Heimdall's `src/Apps/<X>/main.cc` | `hep make --framework src/Apps/<X>.exe` | `framework/Apps/<X>.exe` |
+| Heimdall's `src/App_<X>.cc` | `hep make --framework src/App_<X>.exe` | `$HEP_APPS/App_<X>.exe` |
+| Heimdall's `src/Apps/<X>/main.cc` | `hep make --framework src/Apps/<X>.exe` | `$HEP_APPS/<X>.exe` |
 
 A source says what it links in one line near the top: `// requires: pythia8 hepmc3 fastjet`. The
 names it may use are those of `env/stack.toml` (`pythia8 hepmc3 yoda root fastjet lhapdf rivet
@@ -715,11 +715,12 @@ values = [1001, 2001, 3001]
 
 Each job is an ordinary `hep run`, so it skips a complete point, writes where a run writes, and gives
 the same events as the same point run here. Run it on the cluster's login node, with Heimdall and
-the work dir on a filesystem the nodes see. The machine's settings go in the work dir's `hep.toml`,
-the study's in the run TOML:
+the work dir on a filesystem the nodes see. The machine's settings go in the machine root's
+`machine.toml` (every work dir there) or the work dir's `hep.toml` (this one, which wins), the
+study's in the run TOML:
 
 ```toml
-[cluster]                     # hep.toml: this machine's defaults
+[cluster]                     # machine.toml (or hep.toml): this machine's defaults
 account   = "my-group"
 partition = "standard"
 setup     = ["module load gcc/13"]
@@ -817,7 +818,7 @@ Common refusals, and what they mean:
 | `'…' is TLatex; labels are LaTeX` | write the LaTeX the hint gives, or `hep migrate` the file (§10) |
 | `[plot.overlay] is a figure now` | `[plot.figures.<name>] class = "overlay"`, or `hep migrate` |
 | `base config not found` | the card is not under `configs/<P>/` (write `./path` for elsewhere) |
-| `framework/Apps/App_Pythia.exe is not built` | `hep build --framework` |
+| `$HEP_APPS/App_Pythia.exe is not built` | `hep build --framework` |
 | `not inside a work dir` | `cd` into one, or `hep setup <dir>` (§1.2) |
 | `unknown section [schema]` | a v1 (hekit) run TOML: the schema is 04; `git show HEAD:<file>` has the current one |
 

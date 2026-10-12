@@ -23,7 +23,7 @@ P0 S1 records `apptainer` in `[machine]`. With it, propose A at P0's end.
 
 | | Way A | Way B |
 |---|---|---|
-| system packages | inside the image | modules: record the exact `module load` lines in `[choices]`, and put them in `env/machine.sh` through `settings.toml`'s `setup_extra` (`settings.toml`) |
+| system packages | inside the image | modules: record the exact `module load` lines in `[choices]`, and put them in the machine root's `machine.sh` through `settings.toml`'s `setup_extra` (`settings.toml`) |
 | overlay | none | `system=false graphics=OFF`; `geant4_data=OFF` if the build node has no network (Geant4 then runs only without its datasets) |
 | launching | `apptainer exec --bind <work>:<work> heimdall.sif bash -lc 'cd <work> && hep run …'` | `source $HEP/setup.sh` after the module loads |
 
@@ -32,7 +32,8 @@ P0 S1 records `apptainer` in `[machine]`. With it, propose A at P0's end.
 - **Slurm: `hep cluster`** (V114; the manual's 02 §7.5 and 05 §1.9). From the login node, with Heimdall
   and the work dirs on a filesystem the nodes see, it submits a configuration as a pre job, an array
   of points and a finish job, each an ordinary `hep run --stages …`. The machine's account,
-  partition and `module load` lines go in the work dir's `hep.toml` `[cluster]`; `time` (required),
+  partition and `module load` lines go in the machine root's `machine.toml` `[cluster]` (or a work
+  dir's `hep.toml`); `time` (required),
   `memory` and `max_running` in the run TOML's. Way A's image is not wired into it yet: its jobs run
   Heimdall from the shared filesystem (way B, or the image's Heimdall copied out to it).
 - **Another batch system** (HTCondor, PBS): not yet. Submit a job script that runs `hep run` inside
@@ -47,7 +48,7 @@ P0 S1 records `apptainer` in `[machine]`. With it, propose A at P0's end.
   `hep cluster --status` and the jobs' logs stand in.
 - **The nodes run the login node's binaries:** the same OS and architecture.
 - **`$HEP` shared by several users:** make it read-only for them. Each user needs their own work
-  dirs, and Heimdall's `framework/Apps/` is written only by `hep build --framework`.
+  dirs, and the machine root's `apps/` is written only by `hep build --framework`.
 
 ## Allowed adjustments (02 §7)
 

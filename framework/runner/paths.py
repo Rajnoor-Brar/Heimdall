@@ -1,9 +1,11 @@
 """Where things are, and how a name in a config becomes a path (rank 0).
 
-docs/04_Config_Reference.md §2; docs/framework/01_Target.md §5.2–5.3. Two roots:
+docs/04_Config_Reference.md §2; docs/framework/01_Target.md §5.2–5.3. Three roots:
 
-* **Heimdall** (`hep_root()`): the framework, the stack and its environment. Always the one this code
-  runs from; a `$HEP` that names another is refused.
+* **Heimdall** (`hep_root()`): the framework, as git has it. Always the one this code runs from; a
+  `$HEP` that names another is refused.
+* **the machine root** (`machine_root()`, `$HEP_MACHINE`, by default ~/Himinbjorg): what this machine
+  built — the stack, the venv, Heimdall's compiled apps, downloads and builds (docs/audit_3/02 §3).
 * **the work dir** (`work_root()`): configs, modules, datasets and what runs make. `$HEP_WORK`, or the
   first folder up from the working directory whose `hep.toml` has a `[work]` table (as git finds its
   repository). Markers under Heimdall's `tests/` are skipped: the tests' fixture is found only
@@ -183,33 +185,73 @@ def datasets_root() -> Path:
 
 
 STACK_VAR = "HEP_STACK"
+MACHINE_VAR = "HEP_MACHINE"
+#: The machine root when $HEP_MACHINE is not set (the user's choice, 2026-10-12: Heimdall's hall).
+DEFAULT_MACHINE = "~/Himinbjorg"
+
+
+def machine_root() -> Path:
+    """What this machine built, apart from the checkout: $HEP_MACHINE, else ~/Himinbjorg."""
+    return Path(os.environ.get(MACHINE_VAR) or DEFAULT_MACHINE).expanduser()
+
+
+def machine_file() -> Path:
+    """This machine's settings: <machine root>/machine.toml (recipes/machine.template.toml says what)."""
+    return machine_root() / "machine.toml"
+
+
+def machine_settings() -> dict:
+    """machine.toml's tables ({} when there is none): [settings], [env] and [packages.<name>] are the
+    stack build's (recipes/build_stack.py), [cluster] is hep cluster's defaults for every work dir."""
+    file = machine_file()
+    try:
+        return tomllib.loads(file.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise HepError(f"cannot read this machine's settings: {error}", where=str(file)) from None
 
 
 def stack_dir() -> Path:
-    """The loaded stack's folder: Heimdall itself, or stacks/<toolkit>/ for an isolated toolkit's
+    """The loaded stack's base: the machine root, or its stacks/<toolkit>/ for an isolated toolkit's
     (setup.sh sets $HEP_STACK; recipes/README.md §6). Its compiled apps and builds go with it: they
     are linked against that stack."""
     name = os.environ.get(STACK_VAR)
-    return hep_root() / "stacks" / name if name else hep_root()
+    return machine_root() / "stacks" / name if name else machine_root()
 
 
 def apps_dir() -> Path:
     """Heimdall's compiled apps (App_*.exe, Paint.exe) and Herwig's repository, for the loaded stack."""
-    return stack_dir() / "Apps" if os.environ.get(STACK_VAR) else hep_root() / "framework" / "Apps"
+    return Path(os.environ["HEP_APPS"]) if os.environ.get("HEP_APPS") else stack_dir() / "apps"
 
 
 def forge_dir() -> Path:
-    """Heimdall's builds in progress for the loaded stack: make/, tests/, scratch/."""
-    return stack_dir() / "forge"
+    """Builds in progress for the loaded stack: make/ (Heimdall's intermediates), tests/, scratch/."""
+    return Path(os.environ["HEP_FORGE"]) if os.environ.get("HEP_FORGE") else stack_dir() / "forge"
 
 
 def placeholders() -> dict[str, str]:
-    """The {hep} and {work} placeholders (docs/framework/01_Target.md §5.3); {work} only inside a work dir."""
-    out = {"hep": str(hep_root())}
+    """{hep}, {apps} and {work} (docs/framework/01_Target.md §5.3); {work} only inside a work dir."""
+    out = {"hep": str(hep_root()), "apps": str(apps_dir())}
     work = find_work()
     if work is not None:
         out["work"] = str(work)
     return out
+
+
+def portable(path) -> str:
+    """A path as an identity records it: under a known root, written with that root's placeholder, so
+    a point's identity does not change when Heimdall, the machine root or a work dir moves."""
+    text = str(path)
+    roots = [("{apps}", apps_dir()), ("{machine}", machine_root()), ("{hep}", hep_root())]
+    work = find_work()
+    if work is not None:
+        roots.insert(0, ("{work}", work))
+    for name, root in roots:
+        root = str(root)
+        if text == root or text.startswith(root + "/"):
+            return name + text[len(root):]
+    return text
 
 
 #: Keys whose root is the point's own directory: resolve() is always given it (`root=`).

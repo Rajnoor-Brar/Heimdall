@@ -13,9 +13,10 @@ points after the pre job succeeded (afterok), the finish job after every point e
 point is skipped in its job when its identity is complete, as anywhere. Nothing here enters an
 identity or a seed, so a point run as a job equals the same point run by hand.
 
-[cluster] comes in layers, lowest first: the work dir's hep.toml (the machine's defaults: account,
-partition, setup lines), the run TOML's (imports merge it key by key), the configuration's
-([run.cfgs.<cfg>].cluster), and --set cluster.<key>=…; `time` must be in one of them.
+[cluster] comes in layers, lowest first: the machine root's machine.toml (this machine's defaults for
+every work dir: account, partition, setup lines), the work dir's hep.toml, the run TOML's (imports merge
+it key by key), the configuration's ([run.cfgs.<cfg>].cluster), and --set cluster.<key>=…; `time`
+must be in one of them.
 
 The nodes see Heimdall and the work dir on a shared filesystem: each job sources Heimdall's setup.sh
 after the `setup` lines, and runs in the work dir.
@@ -38,7 +39,8 @@ from . import tools
 from .config import check_cluster
 from .errors import HepError
 from .execute import cores
-from .paths import MARKER_FILE, STACK_VAR, hep_root, output_root, work_meta, work_root
+from .paths import (MACHINE_VAR, MARKER_FILE, STACK_VAR, hep_root, machine_file, machine_root, machine_settings,
+                    output_root, work_meta, work_root)
 from .record import git_state, is_complete, write_atomic
 
 #: A job's resources, as sbatch takes them: [cluster] key → option.
@@ -66,12 +68,14 @@ def _deep(base: dict, over: dict) -> dict:
 
 
 def settings(configuration) -> dict:
-    """[cluster] for this configuration: the work dir's hep.toml under the run TOML's and the
-    configuration's (merged by config.py), checked whole; `time` is required."""
+    """[cluster] for this configuration: machine.toml's under the work dir's hep.toml, under the run
+    TOML's and the configuration's (merged by config.py), checked whole; `time` is required."""
     work = work_root()
-    machine = work_meta(work)["cluster"]
-    check_cluster(machine, f"{work / MARKER_FILE}: [cluster]")
-    merged = _deep(machine, configuration.cluster)
+    machine = machine_settings().get("cluster", {})
+    check_cluster(machine, f"{machine_file()}: [cluster]")
+    here = work_meta(work)["cluster"]
+    check_cluster(here, f"{work / MARKER_FILE}: [cluster]")
+    merged = _deep(_deep(machine, here), configuration.cluster)
     if not merged.get("time"):
         raise HepError("hep cluster needs each job's time limit", where="[cluster] time",
                        hint='[cluster] time = "02:00:00" in the run TOML (or the work dir\'s hep.toml): a site\'s default '
@@ -97,9 +101,10 @@ def directives(keys: dict, *, name: str, log: Path, cpus: int, array: str = "") 
 
 
 def loader() -> Path:
-    """The setup.sh a job sources: Heimdall's, or the loaded isolated stack's (recipes/README.md §6)."""
+    """The setup.sh a job sources: Heimdall's, or the loaded isolated stack's, in the machine root's
+    stacks/ (recipes/README.md §6)."""
     stack = os.environ.get(STACK_VAR)
-    return hep_root() / "stacks" / stack / "setup.sh" if stack else hep_root() / "setup.sh"
+    return machine_root() / "stacks" / stack / "setup.sh" if stack else hep_root() / "setup.sh"
 
 
 def script(directive_list: list[str], keys: dict, command: list[str], *, title: str, points: Path | None = None) -> str:
@@ -108,7 +113,7 @@ def script(directive_list: list[str], keys: dict, command: list[str], *, title: 
     lines = ["#!/bin/bash", f"# {title}: written by hep cluster (V114). A job is an ordinary hep run.",
              *(f"#SBATCH {d}" for d in directive_list), ""]
     lines += list(keys.get("setup", []))
-    lines += [f"source {q(str(loader()))}", "set -eo pipefail",
+    lines += [f"export {MACHINE_VAR}={q(str(machine_root()))}", f"source {q(str(loader()))}", "set -eo pipefail",
               f"export HEP_WORK={q(str(work_root()))}",
               *(f"export {var}={q(os.environ[var])}" for var in ROOTS if os.environ.get(var)),
               f"cd {q(str(work_root()))}"]

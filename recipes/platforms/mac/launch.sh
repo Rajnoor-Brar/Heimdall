@@ -10,7 +10,16 @@
 set -euo pipefail
 prefix=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 setup=$prefix/setup.sh
-[ -d "$prefix/stack" ] || { echo "no $prefix/stack: build the stack first (bash recipes/platforms/mac/build.sh)" >&2; exit 1; }
+machine=${HEP_MACHINE:-$HOME/Himinbjorg}
+if [ ! -d "$machine/stack" ]; then
+    if [ -e "$prefix/stack" ]; then                                # a checkout that still holds its stack
+        echo "the stack is still in $prefix: adopt it into $machine once (nothing rebuilt):" >&2
+        echo "  python3 $prefix/recipes/machine.py adopt" >&2
+    else
+        echo "no stack in $machine: build it first (bash recipes/platforms/mac/build.sh)" >&2
+    fi
+    exit 1
+fi
 
 if ! command -v brew >/dev/null; then
     for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -x "$b" ] && eval "$("$b" shellenv)" && break; done

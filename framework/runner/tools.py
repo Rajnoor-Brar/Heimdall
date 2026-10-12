@@ -30,7 +30,7 @@ from . import plugins
 from . import quantities as qmod
 from .config import Tool
 from .errors import HepError, did_you_mean
-from .paths import hep_root, output_root, placeholders, resolve, results_root
+from .paths import hep_root, output_root, placeholders, portable, resolve, results_root
 from .sweep import tag_of
 
 ENV = Path(__file__).resolve().parents[1] / "tools"       # framework/tools
@@ -801,7 +801,7 @@ def _check_connections(plan: PointPlan, run) -> None:
 def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
     """The point card (before seeds), extracted config values, flags and Rivet-style options."""
     folder, tool = step.folder, step.tool
-    step.identity_parts = {"tag": step.tag, "tool": tool.tool, "exe": str(step.exe)}
+    step.identity_parts = {"tag": step.tag, "tool": tool.tool, "exe": portable(step.exe)}
     if step.exe.is_file():
         step.identity_parts["exe_sha256"] = sha256_file(step.exe)
     style = folder.card_style
@@ -931,7 +931,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
                 for value in values:
                     path = Path(expand(pattern, {**placeholders(), "exe": str(step.exe), name: value}, folder.name))
                     if path.is_file():
-                        step.identity_parts.setdefault("files_sha256", {})[str(path)] = sha256_file(path)
+                        step.identity_parts.setdefault("files_sha256", {})[portable(path)] = sha256_file(path)
     step.flags = flags                                  # argv after [command] argv (V63)
 
 
@@ -1303,7 +1303,7 @@ _CHECKED: dict[str, list] = {}
 
 def check_cards(plan: PointPlan) -> None:
     """[checks] card (V59): the tool reads each card it is given and says which lines it rejects (Pythia:
-    framework/Apps/App_PythiaCheck.exe), so a key it does not know or a value of the wrong kind is refused before
+    {apps}/App_PythiaCheck.exe), so a key it does not know or a value of the wrong kind is refused before
     anything runs, with no list of keys of ours. The card checked is the base cards' settings and the
     point card before seeds; the answer is cached by its text, in output/<P>/.cache/checks/."""
     for step in plan.rendered.values():

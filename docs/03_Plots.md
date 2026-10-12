@@ -205,7 +205,7 @@ errors = "band"
 
 - **Misspelt keys:** an unknown key, or a value of another kind, is refused at plan time, with the
   nearest spelling.
-- **Seeing the merged style:** `framework/Apps/Paint.exe <page>.toml --dump-style` prints a page's whole
+- **Seeing the merged style:** `$HEP_APPS/Paint.exe <page>.toml --dump-style` prints a page's whole
   style; the page documents are in `output/…/plots/`.
 - **The reference:** every key and its default is [04 §12](04_Config_Reference.md#12-the-style).
 - **Ratio ticks:** denser or sparser ratio-pad ticks are `ratio = { divisions = 508 }` (0.2 apart)
@@ -434,7 +434,7 @@ in an overlay. To see a 2D object in 1D, project it with a derived figure.
 
 | `backend =` | Draws with | Pages in | Honours |
 |---|---|---|---|
-| `"root"` (default) | `framework/Apps/Paint.exe`, up to 200 pages per process | `plots/root/` | every `[plot]` key, every figure and type, the whole style |
+| `"root"` (default) | `$HEP_APPS/Paint.exe`, up to 200 pages per process | `plots/root/` | every `[plot]` key, every figure and type, the whole style |
 | `"mpl"` | matplotlib in this process, a pool of workers (`framework/tools/mpl/backend.py`, V71) | `plots/mpl/` + `index.html` | **mkhtml's pages, pixel for pixel** (until the user has verified it), about 18× faster than mkhtml; 1D pages only |
 | `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/tools/yoda/backend.py`) | `plots/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | the same pages with Paint's ranges and voids; frozen (V71) |
 | `["root", "mpl"]`, `"both"` | each, from the same page documents | each tree | as each; `"both"` is root and yoda |

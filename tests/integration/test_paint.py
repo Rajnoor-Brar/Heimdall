@@ -25,7 +25,7 @@ YD2RT = apps() / "App_yd2rt.exe"
 LEGACY = REPO / "tests" / "reference" / "legacy_run"
 OBJECTS = [f"d{n:02d}-x01-y01" for n in range(1, 18)]
 
-pytestmark = pytest.mark.skipif(not (PAINT.exists() and YD2RT.exists()), reason="make framework/Apps/Paint.exe framework/Apps/App_yd2rt.exe")
+pytestmark = pytest.mark.skipif(not (PAINT.exists() and YD2RT.exists()), reason="Paint.exe, App_yd2rt.exe not built (hep build --framework)")
 
 
 @pytest.fixture(scope="module")

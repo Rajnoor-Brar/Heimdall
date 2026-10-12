@@ -291,7 +291,7 @@ def convert(yoda: Path, target: Path) -> Path:
         return target
     app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
-        raise HepError("framework/Apps/App_yd2rt.exe is not built", hint="hep build --framework")
+        raise HepError(f"{app} is not built", hint="hep build --framework")
     target.parent.mkdir(parents=True, exist_ok=True)
     done = subprocess.run([str(app), str(yoda), str(target), "--keep-raw"], capture_output=True, text=True)
     if done.returncode != 0:
@@ -327,7 +327,7 @@ def merge(sources: dict[str, Path], target: Path, stamp: Path, points: Path | No
         return target
     app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
-        raise HepError("framework/Apps/App_yd2rt.exe is not built", hint="hep build --framework")
+        raise HepError(f"{app} is not built", hint="hep build --framework")
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.stem + ".partial" + target.suffix)
     argv = [str(app), "--merge", str(partial), *(f"{name}={path}" for name, path in sources.items()), "--keep-raw"]
@@ -1082,7 +1082,7 @@ def draw(run, configuration, plans, say, others=None) -> int:
         return 0
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
-        raise HepError("framework/Apps/Paint.exe is not built", hint="hep build --framework")
+        raise HepError(f"{paint} is not built", hint="hep build --framework")
     todo = pages(run, configuration, plans)
     failed = _draw(run, paint, todo, f"{run.name} · {configuration.label}", say) if todo else 0
     if not todo:
@@ -1236,7 +1236,7 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
         raise HepError(f"--labels gives {len(labels)} names for {len(paths)} files")
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
-        raise HepError("framework/Apps/Paint.exe is not built", hint="hep build --framework")
+        raise HepError(f"{paint} is not built", hint="hep build --framework")
     key = hashlib.sha256("\n".join(map(str, paths)).encode()).hexdigest()[:12]
     work = output_root() / "plots" / key
     outdir = (outdir or (results_root() / "plots" / paths[0].name.split(".")[0])).resolve()

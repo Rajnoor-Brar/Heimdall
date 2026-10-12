@@ -16,8 +16,9 @@
 ## Now
 
 **Heimdall (2026-10-10):** split from High-Energy at `split/base` (5e0a913) and built here, in its own
-repository at `~/Github/Heimdall`, on the old lab PC's stack (`stack` and `env/venv` are local links to
-`~/HEP/install` and `~/HEP/.venv`, excluded in `.git/info/exclude`, never committed).
+repository at `~/Github/Heimdall`, on the old lab PC's stack. Since V122 the machine root
+`~/Himinbjorg` holds it: `stack` and `venv` are links to `~/HEP/install` and `~/HEP/.venv`, and `apps/`
+and `forge/` are real folders there.
 - **Done:** the seed (`99da1d3`), the recipes and toolkits (`@primary` = the lab set plus
   MadAnalysis5; isolated C++20 stacks), the seam (two roots, `hep setup`/`hep where`, the build split
   on `framework/rules.mk`, provenance across both repositories, portability), the tests on the
@@ -64,13 +65,13 @@ Otherwise nothing is in progress. Waiting on the user:
 
 - **Commits:**
   - local, never pushed without the gate, with the Co-Authored-By line;
-  - stage named paths only, never `commit -a`; never `git clean -x` (the stack is in the tree).
+  - stage named paths only, never `commit -a`; the stack lives in `~/Himinbjorg`, outside the tree.
 - **Tests:**
-  - tests run in the fixture work dir's copy, `forge/scratch/work/` (V52, V112), never a real one;
+  - tests run in the fixture work dir's copy, `$HEP_FORGE/scratch/work/` (V52, V112), never a real one;
   - one pytest session at a time, and the slow suite not while the user's long runs share the cores;
   - `source setup.sh` (this Heimdall's) before make or pytest.
 - **Approvals:**
-  - the stack (`stack/`, `env/venv/`; here, links to `~/HEP`) and downloads need the user's
+  - the stack (`~/Himinbjorg`'s `stack/`, `venv/`; here, links to `~/HEP`) and downloads need the user's
     approval; never write into `~/HEP` or its venv;
   - a rebuilt App_Pythia, App_yd2rt, InprocJets or Rivet plugin changes the identity of every point
     that ran it, so ask before rebuilding (Paint is plot-only and safe).

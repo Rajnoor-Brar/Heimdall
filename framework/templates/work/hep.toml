@@ -7,8 +7,9 @@ name = "{{name}}"
 [framework]
 expects = "{{revision}}"
 
-# On a Slurm cluster, this machine's defaults for `hep cluster` (docs/04_Config_Reference.md §16); a
-# run TOML's [cluster] is over them. Uncomment what the site needs:
+# On a Slurm cluster, this work dir's defaults for `hep cluster` (docs/04_Config_Reference.md §16), over
+# the machine root's machine.toml [cluster]; a run TOML's [cluster] is over them. Uncomment what the
+# site needs:
 # [cluster]
 # account   = "my-group"
 # partition = "standard"

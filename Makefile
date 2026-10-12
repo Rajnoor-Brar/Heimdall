@@ -7,19 +7,18 @@
 #   make tests                  build the C++ tests       make test   build and run them, then pytest
 #   make clean                  remove the apps and the build's intermediates (never the stack's builds)
 #
-# Conventions (§5.1):
-#   src/App_<X>.cc              → framework/Apps/App_<X>.exe
-#   src/Apps/<X>/main.cc        → framework/Apps/<X>.exe      (the folder's other files are headers it includes)
-#   tests/cxx/<X>.cc            → forge/tests/<X>.exe
-#   <dir>/<X>.cc                → forge/make/<dir>/<X>.exe or forge/make/<dir>/lib<X>.so, only when named
-# Intermediates (flags.mk, flags.log, deps/) are in forge/make/. With an isolated toolkit's stack
-# loaded ($HEP_STACK), framework/Apps/ is stacks/<toolkit>/Apps/ and forge/ is stacks/<toolkit>/forge/:
-# the apps are linked against that stack.
+# Conventions (§5.1), into the loaded stack's part of the machine root (setup.sh sets HEP_APPS and
+# HEP_FORGE: ~/Himinbjorg/apps and ~/Himinbjorg/forge, or stacks/<toolkit>/… for an isolated toolkit's):
+#   src/App_<X>.cc              → $HEP_APPS/App_<X>.exe
+#   src/Apps/<X>/main.cc        → $HEP_APPS/<X>.exe           (the folder's other files are headers it includes)
+#   tests/cxx/<X>.cc            → $HEP_FORGE/tests/<X>.exe
+#   <dir>/<X>.cc                → $HEP_FORGE/make/<dir>/<X>.exe or …/lib<X>.so, only when named
+# Intermediates (flags.mk, flags.log, deps/) are in $HEP_FORGE/make/. The apps are linked against the
+# loaded stack, so they live beside it.
 
 HEP      ?= $(CURDIR)
-STACK    := $(if $(HEP_STACK),stacks/$(HEP_STACK)/,)
-APPS     := $(if $(STACK),$(STACK)Apps,framework/Apps)
-FORGE    := $(STACK)forge
+APPS     := $(or $(HEP_APPS),$(error load Heimdall's environment first (source setup.sh): HEP_APPS is not set))
+FORGE    := $(or $(HEP_FORGE),$(error load Heimdall's environment first (source setup.sh): HEP_FORGE is not set))
 MK       := $(FORGE)/make
 
 out_of   = $(strip \

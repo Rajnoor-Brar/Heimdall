@@ -45,13 +45,28 @@ def test_high_energys_variables_are_refused(monkeypatch, old, new):
         paths.check_retired()
 
 
-def test_apps_go_with_the_loaded_stack(monkeypatch):
-    monkeypatch.delenv("HEP_STACK", raising=False)
-    assert paths.apps_dir() == REPO / "framework" / "Apps"
-    assert paths.forge_dir() == REPO / "forge"
+def test_apps_go_with_the_loaded_stack_in_the_machine_root(monkeypatch, tmp_path):
+    for var in ("HEP_STACK", "HEP_APPS", "HEP_FORGE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("HEP_MACHINE", str(tmp_path))
+    assert paths.machine_root() == tmp_path
+    assert paths.apps_dir() == tmp_path / "apps" and paths.forge_dir() == tmp_path / "forge"
     monkeypatch.setenv("HEP_STACK", "gpu-sim")
-    assert paths.apps_dir() == REPO / "stacks" / "gpu-sim" / "Apps"
-    assert paths.forge_dir() == REPO / "stacks" / "gpu-sim" / "forge"
+    assert paths.apps_dir() == tmp_path / "stacks" / "gpu-sim" / "apps"
+    assert paths.forge_dir() == tmp_path / "stacks" / "gpu-sim" / "forge"
+    monkeypatch.setenv("HEP_APPS", "/elsewhere/apps")                   # setup.sh's own answer wins
+    assert paths.apps_dir() == Path("/elsewhere/apps")
+    monkeypatch.delenv("HEP_MACHINE")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    assert paths.machine_root() == tmp_path / "home" / "Himinbjorg"     # the default
+
+
+def test_an_identity_names_paths_by_their_root(monkeypatch, tmp_path):
+    monkeypatch.setenv("HEP_APPS", str(tmp_path / "apps"))
+    assert paths.portable(tmp_path / "apps" / "App_Pythia.exe") == "{apps}/App_Pythia.exe"
+    assert paths.portable(WORK / "build" / "Rivet" / "Rivet_x.so") == "{work}/build/Rivet/Rivet_x.so"
+    assert paths.portable(REPO / "framework" / "x") == "{hep}/framework/x"
+    assert paths.portable("/usr/bin/rivet") == "/usr/bin/rivet"
 
 
 # ── the work dir ────────────────────────────────────────────────────────────────────────────────
@@ -152,7 +167,7 @@ def test_config_lookup_makes_toml_optional():
 
 
 def test_tests_write_into_the_scratch():
-    scratch = REPO / "forge" / "scratch"
+    scratch = WORK.parent                                             # the machine root's forge/scratch
     assert paths.results_root() == scratch / "results"
     assert paths.output_root() == scratch / "output"
     assert paths.reports_root() == scratch / "reports"
@@ -169,11 +184,21 @@ def test_without_the_variables_the_work_dirs_folders(monkeypatch):
 # ── placeholders ────────────────────────────────────────────────────────────────────────────────
 
 def test_hep_and_work_are_the_placeholders():
-    assert paths.placeholders() == {"hep": str(REPO), "work": str(WORK)}
-    assert tools.expand("{hep}/framework/Apps/Paint.exe", paths.placeholders(), "t") == f"{REPO}/framework/Apps/Paint.exe"
+    assert paths.placeholders() == {"hep": str(REPO), "apps": str(paths.apps_dir()), "work": str(WORK)}
+    assert tools.expand("{apps}/Paint.exe", paths.placeholders(), "t") == f"{paths.apps_dir()}/Paint.exe"
     assert tools.expand("{work}/build/Rivet", paths.placeholders(), "t") == f"{WORK}/build/Rivet"
 
 
 def test_repo_is_retired_with_its_replacements_named():
     with pytest.raises(HepError, match=r"\{repo\} is retired: \{work\} for your files, \{hep\} for Heimdall's"):
         tools.expand("{repo}/modules/x.py", paths.placeholders(), "t")
+
+
+def test_machine_settings_are_read_from_the_machine_root(tmp_path, monkeypatch):
+    monkeypatch.setenv("HEP_MACHINE", str(tmp_path))
+    assert paths.machine_file() == tmp_path / "machine.toml" and paths.machine_settings() == {}
+    (tmp_path / "machine.toml").write_text('[cluster]\naccount = "lab"\n', encoding="utf-8")
+    assert paths.machine_settings() == {"cluster": {"account": "lab"}}
+    (tmp_path / "machine.toml").write_text('[cluster\n', encoding="utf-8")
+    with pytest.raises(HepError, match="this machine's settings"):
+        paths.machine_settings()

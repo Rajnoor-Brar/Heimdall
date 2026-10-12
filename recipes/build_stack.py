@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""recipes/build_stack.py — build the HEP stack from source into Heimdall, as packages.toml and settings.toml say.
+"""recipes/build_stack.py — build the HEP stack from source into the machine root, as packages.toml and settings.toml say.
 
-    python3 recipes/build_stack.py                          # the core stack into this Heimdall
+    python3 recipes/build_stack.py                          # the core stack into the machine root (~/Himinbjorg)
     python3 recipes/build_stack.py packages=all cores=8     # everything, 8 compilers at once
     python3 recipes/build_stack.py packages="rivet pythia8" root.release=6.40.06
     python3 recipes/build_stack.py --config my.toml         # settings, and package changes, from a file
@@ -12,7 +12,7 @@
     python3 recipes/build_stack.py --dry-run > build.sh     # the whole build as a bash script; nothing is run
     python3 recipes/build_stack.py --dry-run --resume       # … only what this prefix still lacks
     python3 recipes/build_stack.py --check-urls             # ask every chosen package's URLs; nothing is downloaded
-    python3 recipes/build_stack.py --sha256                 # the checksums of the archives in stash/, as recipe lines
+    python3 recipes/build_stack.py --sha256                 # the checksums of the archives downloaded, as recipe lines
     python3 recipes/build_stack.py --rebuild thepeg         # build it again, and what depends on it (Herwig)
     python3 recipes/build_stack.py --rebuild-broken         # after an OS upgrade: what links a library that is gone
     python3 recipes/build_stack.py thepeg.extra+=--foo env.CXXFLAGS="…"   # append to a list; one variable
@@ -21,11 +21,16 @@ A key=value sets; key+=value appends to a list. A list value is split like a she
 with spaces: thepeg.extra+="'LDFLAGS=-L/x -lc++'"), or on commas when it has no spaces.
 
 A setting is a key of settings.toml, given as key=value; a package's key as <package>.<key>=value.
-Where things go (docs/framework/01_Target.md §2): archives and their sources in stash/, build trees
-and logs in forge/, installs in stack/, the Python environment in env/venv/.
+The layers, lowest first: settings.toml and packages.toml; --config files; the machine root's
+machine.toml ([settings], [env], [packages.<name>]: this machine's, where a list appends unless its
+table says replace = ["key"]); the toolkits asked for; the command line.
+Where things go: the machine root ($HEP_MACHINE, or the `machine` setting; ~/Himinbjorg by default),
+apart from Heimdall's checkout (docs/audit_3/02_Organisation.md §3): downloads in forge/downloads/,
+unpacked sources in forge/src/, build trees in forge/build/, logs in forge/logs/, installs in stack/,
+the Python environment in venv/, this machine's shell lines in machine.sh.
 A toolkit (toolkits.toml, and your own in toolkits.d/*.toml) is a named set of packages. One that
-changes the C++ standard is isolated: it builds a whole stack of its own in stacks/<toolkit>/
-(installs, build trees, venv), loaded by stacks/<toolkit>/setup.sh; stash/ is shared.
+changes the C++ standard is isolated: it builds a whole stack of its own in the machine root's
+stacks/<toolkit>/ (installs, build trees, venv, apps), loaded by its setup.sh; downloads are shared.
 A finished package is stamped (stack/.stamps/<name>-<release>, holding a digest of the recipe it was
 built with) and skipped after, so a rerun resumes; --rebuild <package> builds it again, with what
 depends on it. A package installed some other way (its probe file there, no stamp) is used as it is.
@@ -87,16 +92,16 @@ MAGIC = (b"\x1f\x8b", b"BZh", b"\xfd7zXZ\x00", b"PK\x03\x04")
 #: A download's patience: attempts per URL, seconds between them (doubling), and a read's timeout.
 ATTEMPTS, BACKOFF, TIMEOUT = 5, 3, 60
 
-#: stacks/<toolkit>/setup.sh: an isolated stack's loader (`quit` the default environment first).
+#: <machine>/stacks/<toolkit>/setup.sh: an isolated stack's loader (`quit` the default environment first).
 STACK_SETUP = """#!/bin/bash
 # stacks/{stack}/setup.sh — the isolated stack of toolkit @{stack} (C++{cxx_std}), written by recipes/build_stack.py.
 # Load it instead of Heimdall's setup.sh, in a shell of its own (or after `quit`): its ABI differs.
-HEP_STACK_REQUEST={stack} source "{prefix}/setup.sh"
+HEP_MACHINE="{root}" HEP_STACK_REQUEST={stack} source "{repo}/setup.sh"
 """
 
-#: env/machine.sh: this machine's lines from settings.toml's setup_extra; setup.sh (tracked) sources it.
-MACHINE = """# env/machine.sh — this machine's lines for setup.sh, written by recipes/build_stack.py from
-# settings.toml's setup_extra (not in git).
+#: <machine>/machine.sh: this machine's lines from the setup_extra setting; setup.sh sources it.
+MACHINE = """# machine.sh — this machine's lines for Heimdall's setup.sh, written by recipes/build_stack.py from
+# the setup_extra setting.
 """
 
 
@@ -150,6 +155,56 @@ def merge(settings: dict, packages: dict, extra: dict) -> None:
             die(f"--config: no setting '{key}' (settings.toml)")
 
 
+#: machine.toml's tables (docs/audit_3/02_Organisation.md §3): the build reads the first three; [cluster] is
+#: hep cluster's (framework/runner/cluster.py).
+MACHINE_TABLES = ("settings", "env", "packages", "cluster")
+
+
+def root_of(machine: str) -> Path:
+    """The machine root: the `machine` setting, else $HEP_MACHINE, else ~/Himinbjorg."""
+    return Path(machine or os.environ.get("HEP_MACHINE") or "~/Himinbjorg").expanduser().resolve()
+
+
+def lay(target: dict, values: dict, where: str, known) -> None:
+    """One machine.toml table over what it changes: a list appends to the list it meets, unless the
+    table names its key in `replace`; anything else replaces. `known`: the keys it may set (None: any)."""
+    replace = values.get("replace", [])
+    if not isinstance(replace, list) or not all(isinstance(key, str) for key in replace):
+        die(f"{where}: replace is a list of key names")
+    for key, value in values.items():
+        if key == "replace":
+            continue
+        if known is not None and key not in known:
+            die(f"{where}: no key '{key}'")
+        old = target.get(key)
+        if isinstance(value, list) and old is not None and key not in replace:
+            target[key] = (shlex.split(old) if isinstance(old, str) else list(old)) + value
+        elif isinstance(value, dict) and isinstance(old, dict) and key not in replace:
+            old.update(value)
+        else:
+            target[key] = value
+
+
+def machine_layer(settings: dict, packages: dict, root: Path) -> None:
+    """The machine root's machine.toml: this machine's [settings], [env] and [packages.<name>], above the
+    shipped files and --config overlays, below the toolkits asked for and the command line
+    (recipes/README.md §1). A [packages.<name>] the recipes lack adds a package."""
+    file = root / "machine.toml"
+    if not file.is_file():
+        return
+    data = read(file)
+    if unknown := sorted(set(data) - set(MACHINE_TABLES)):
+        die(f"{file}: no table [{'], ['.join(unknown)}] (it has {', '.join(MACHINE_TABLES)})")
+    known = {key for key in settings if not key.startswith("_") and key not in ("machine", "env")}
+    lay(settings, data.get("settings", {}), f"{file}: [settings]", known)
+    lay(settings["env"], data.get("env", {}), f"{file}: [env]", None)
+    for name, fields in data.get("packages", {}).items():
+        if not isinstance(fields, dict):
+            die(f"{file}: [packages.{name}] is a table")
+        lay(packages.setdefault(name, {}), fields, f"{file}: [packages.{name}]", FIELDS)
+    settings.setdefault("_configs", []).append(str(file))
+
+
 def options(argv: list[str]) -> tuple[str, dict, dict]:
     settings, packages = read(HERE / "settings.toml"), read(HERE / "packages.toml")
     mode, given = "build", []
@@ -190,6 +245,8 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
                 settings["_packages_given"] = True
         else:
             die(f"unknown argument '{arg}' (see --help)")
+    machine = next((text for key, text, _ in reversed(given) if key == "machine"), settings["machine"])
+    machine_layer(settings, packages, root_of(machine))            # this machine's machine.toml, then …
     wanted = next((text for key, text, _ in reversed(given) if key == "packages"), settings["packages"])
     apply_toolkits(wanted, settings, packages)                     # the toolkits' own settings, then …
     for key, text, op in given:                                    # after --config: the command line wins
@@ -250,7 +307,7 @@ def ram_kb() -> int:
 
 def context(s: dict) -> dict:
     """The placeholders every package sees: the settings, and what follows from them."""
-    prefix = Path(s["prefix"] or REPO).expanduser().resolve()     # "": this Heimdall
+    prefix = root_of(s["machine"])
     stack = s.get("_stack", "")                                   # an isolated toolkit's: stacks/<it>/
     base = prefix / "stacks" / stack if stack else prefix
     python = shutil.which(s["python"]) or die(f"no {s['python']}: install Python 3, or set python=")
@@ -258,9 +315,9 @@ def context(s: dict) -> dict:
     cores = s["cores"] or (len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity")   # Linux: the
                            else os.cpu_count() or 4)                                       # CPUs it may use
     machine = os.uname().machine
-    return {**s, "prefix": str(prefix), "inst": str(base / "stack"),
-            "venv": str(base / "venv" if stack else prefix / "env" / "venv"),
-            "stash": str(prefix / "stash"), "forge": str(base / "forge"), "stack": stack,
+    return {**s, "prefix": str(prefix), "inst": str(base / "stack"), "venv": str(base / "venv"),
+            "stash": str(prefix / "forge" / "downloads"), "sources": str(prefix / "forge" / "src"),
+            "forge": str(base / "forge"), "stack": stack,
             "venv_prompt": f"HEP-{stack}" if stack else "HEP",
             "cores": cores, "root_cores": s["root_cores"] or max(1, min(cores, ram_kb() // 3_000_000)),
             "python": python, "py": py, "pyxy": py.replace(".", ""),
@@ -274,7 +331,7 @@ def scope(name: str, p: dict, c: dict) -> dict:
     """A package's own placeholders on top of the run's."""
     release = str(p.get("release", ""))
     return {**c, "release": release, "series": release.rpartition(".")[0] or release,
-            "src": f"{c['stash']}/{name}", "build": f"{c['forge']}/{name}",
+            "src": f"{c['sources']}/{name}", "build": f"{c['forge']}/build/{name}",
             "install": f"{c['inst']}/{p.get('install', name)}"}
 
 
@@ -758,7 +815,7 @@ def fetch(items: list[tuple[Path, list[str], str]], shell: Shell) -> None:
 
     with ThreadPoolExecutor(4) as pool:
         if errors := [error for error in pool.map(get, todo) if error]:
-            die("downloads failed (set <package>.url=…, or put the archive in stash/ yourself):\n  "
+            die(f"downloads failed (set <package>.url=…, or put the archive in {Path(todo[0][0]).parent} yourself):\n  "
                 + "\n  ".join(errors))
 
 
@@ -944,7 +1001,7 @@ def show_toolkits(packages: dict) -> None:
 
 
 def machine_text(c: dict) -> str:
-    """env/machine.sh: settings.toml's setup_extra lines (macOS: DYLD_LIBRARY_PATH, the GNU tools)."""
+    """The machine root's machine.sh: settings.toml's setup_extra lines (macOS: DYLD_LIBRARY_PATH, the GNU tools)."""
     return MACHINE + "".join(expand(line, c) + "\n" for line in c["setup_extra"])
 
 
@@ -1000,7 +1057,8 @@ def main(argv: list[str]) -> None:
         env[key] = ":".join([*items, *([env[key]] if env.get(key) else [])])
     shell = Shell(script, {**env, **fixed})
     prefix = Path(c["prefix"])
-    folders = [prefix / "stash", Path(c["forge"], "logs"), Path(c["inst"], ".stamps"), Path(c["venv"]).parent]
+    folders = [Path(c["stash"]), Path(c["sources"]), Path(c["forge"], "logs"), Path(c["inst"], ".stamps"),
+               Path(c["venv"]).parent]
     if script:
         print("#!/usr/bin/env bash\n# The HEP stack's build, as `build_stack.py --dry-run` printed it"
               + (" (--resume: what this prefix still lacks)." if not c["fresh"] else ": the whole build, for a fresh\n"
@@ -1073,16 +1131,19 @@ def main(argv: list[str]) -> None:
             if p["kind"] not in ("none", "external"):
                 record_links(name, p, c)
             say(f"{label}: done in {minutes(time.monotonic() - shell.started)}")
-    machine = prefix / "env" / "machine.sh"                        # setup.sh itself is tracked
-    if c["setup_extra"]:
+    machine = prefix / "machine.sh"                                # setup.sh itself is tracked
+    if c["setup_extra"] or machine.exists():                       # (lines taken out go too)
         if script:
             print(f"\ncat > {shlex.quote(str(machine))} <<'EOF'\n{machine_text(c)}EOF")
         else:
             machine.write_text(machine_text(c), encoding="utf-8")
-    load = prefix / "setup.sh"
+    if not script and not (prefix / "machine.toml").exists():      # this machine's settings: yours to edit
+        (prefix / "machine.toml").write_text((HERE / "machine.template.toml").read_text(encoding="utf-8"),
+                                             encoding="utf-8")
+    load = REPO / "setup.sh"
     if c["stack"]:                                                 # an isolated stack: its own loader
         load = prefix / "stacks" / c["stack"] / "setup.sh"
-        text = STACK_SETUP.format(stack=c["stack"], cxx_std=c["cxx_std"], prefix=prefix)
+        text = STACK_SETUP.format(stack=c["stack"], cxx_std=c["cxx_std"], root=prefix, repo=REPO)
         if script:
             print(f"\ncat > {shlex.quote(str(load))} <<'EOF'\n{text}EOF")
         else:

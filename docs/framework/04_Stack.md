@@ -1,11 +1,15 @@
 # 04 — P1: The stack
 
-**Goal.** Build the software stack into Heimdall itself: **`@primary`**, every package the lab PC
-had (`packages=all`: core and extra) plus MadAnalysis5. The places (V105, V109) are:
-- `stash/` for the downloads and their unpacked sources;
-- `forge/` for the build trees and logs;
-- `stack/` for the installs and their stamps;
-- `env/venv/` for the Python environment, with its `heimdall.pth`.
+**Goal.** Build the software stack into the machine root, `~/Himinbjorg` (`$HEP_MACHINE`, outside
+git): **`@primary`**, every package the lab PC had (`packages=all`: core and extra) plus MadAnalysis5.
+The places (V109, V122) are:
+- `forge/downloads/` and `forge/src/` for the downloads and their unpacked sources;
+- `forge/build/` and `forge/logs/` for the build trees and logs;
+- `stack/` for the installs and their stamps (installs only);
+- `venv/` for the Python environment, with its `heimdall.pth`.
+
+`setup.sh` cannot be sourced before the root exists, so this phase's shell sets
+`export HEP_MACHINE=~/Himinbjorg` (the default) for the rows below.
 
 The steps:
 - **S1:** the system packages.
@@ -17,7 +21,7 @@ The steps:
   packages), §6 (toolkits);
 - the annex `targets/<annex>.md`: the system packages and the allowed adjustments.
 
-**Writes:** `$HEP/{stash,forge,stack}`, `$HEP/env/venv`, `$HEP/env/machine.sh` (when the annex has
+**Writes:** `$HEP_MACHINE/{forge,stack,venv}`, `$HEP_MACHINE/machine.sh` (when the annex has
 `setup_extra` lines), `$HEP/.setup/`.
 
 **Gates:**
@@ -59,7 +63,7 @@ The steps:
 |---|---|---|
 | R1 | `cd $HEP && bash -n .setup/build.sh && echo ok` | `ok` |
 | R2 | `grep -c '^# == ' $HEP/.setup/build.sh` | `19` (python lhapdf hepmc3 fastjet fjcontrib root yoda rivet pythia8 thepeg herwig delphes sherpa madgraph whizard onnxruntime geant4 pdfsets madanalysis5) |
-| R3 | `grep -c "$HEP/stash/\|$HEP/forge/\|$HEP/stack/" $HEP/.setup/build.sh` | ≥ `100` (120 on the lab PC: every package's paths in Heimdall's folders) |
+| R3 | `grep -c "$HEP_MACHINE/forge/\|$HEP_MACHINE/stack/" $HEP/.setup/build.sh` | ≥ `100` (120 on the lab PC: every package's paths in the machine root) |
 | R4 | `grep -c "recipes/patches/fastjet" $HEP/.setup/build.sh` | `1` (the SISCone patch, L29) |
 | R5 | `wc -l < $HEP/.setup/apt.txt` | `51` (± the recorded adjustments) |
 | R6 | `for p in $(cat $HEP/.setup/apt.txt); do dpkg -s $p >/dev/null 2>&1 \|\| echo $p; done \| wc -l` | `0` (after the adjustments, which are recorded) |
@@ -77,7 +81,7 @@ The steps:
 
 **Tasks:**
 
-1. **Kept tarballs** (01 §8, optional). Copy them from `$HEP/.setup/kept/stash/` into `$HEP/stash/`
+1. **Kept tarballs** (01 §8, optional). Copy them from `$HEP/.setup/kept/downloads/` into `$HEP_MACHINE/forge/downloads/`
    under the names `build_stack.py` looks for, `<package>-<release><ending>`. An archive already
    there is used as it is, which saves about 555 MB of downloads:
 
@@ -101,7 +105,7 @@ The steps:
 2. **Cores.** `cores` = logical CPUs − 4. `root_cores` = RAM in GB ÷ 3, at most `cores`
    ([recipes/README.md](../../recipes/README.md) §1). On the lab PC (24 threads, 15 GB) that is 20 and 5.
    Record both in `[choices]`. The command line wins over `settings.toml`.
-3. **The downloads gate.** List what is still to fetch: the archives not in `stash/` (from the dry
+3. **The downloads gate.** List what is still to fetch: the archives not in `forge/downloads/` (from the dry
    run), Geant4's datasets (about 4 GB, during its build), the 21 PDF sets, MadAnalysis5's archive,
    and the pip packages. Give the total, and ask once.
 4. **Start the build** as the builder (02 §2):
@@ -119,14 +123,14 @@ The steps:
 
 | # | Command | Expected |
 |---|---|---|
-| R1 | `ls $HEP/stack/.stamps \| wc -l` | `20` (the 19 packages of S1's R2, and `cxx_std`) |
-| R2 | `cat $HEP/stack/.stamps/cxx_std` | `17` |
+| R1 | `ls $HEP_MACHINE/stack/.stamps \| wc -l` | `20` (the 19 packages of S1's R2, and `cxx_std`) |
+| R2 | `cat $HEP_MACHINE/stack/.stamps/cxx_std` | `17` |
 | R3 | `tail -1 $HEP/.setup/stack.log` | `done: source <HEP>/setup.sh` |
 | R4 | `grep -c 'failed' $HEP/.setup/stack.log` | `0` |
 | R5 | `git -C $HEP status --porcelain \| wc -l` | `0` (everything the build wrote is ignored) |
 
 **On failure:**
-- A package that fails twice is a gate (02 §5.2), with its log tail (`forge/logs/<pkg>.log`) and
+- A package that fails twice is a gate (02 §5.2), with its log tail (`$HEP_MACHINE/forge/logs/<pkg>.log`) and
   the probable cause. The known suspects on a newer Ubuntu are in the annex: a GCC or Python too
   new for ROOT, ThePEG, Herwig or Whizard.
 - **MadAnalysis5** is a new recipe: its first failure is a gate. Everything else of `@primary` is
@@ -165,15 +169,15 @@ of 2026-10-10 (`hep status --stack`, `lhapdf list --installed`).
 | R17 | `grep -rl thread_local $HEP_INSTALL/fastjet/include/siscone \| wc -l` | `1` (the SISCone patch, L29) |
 | R18 | `python -c "import ROOT, pythia8, yoda, rivet, lhapdf, pyHepMC3, uproot, tomli_w, yaml; print('ok')"` | `ok` |
 | R19 | `cat $(python -c "import site; print(site.getsitepackages()[0])")/heimdall.pth` | `<HEP>/framework`, expanded |
-| R20 | `which python; echo $HEP_INSTALL` | `<HEP>/env/venv/bin/python`, `<HEP>/stack` |
+| R20 | `which python; echo $HEP_INSTALL` | `<machine root>/venv/bin/python`, `<machine root>/stack` |
 | R21 | `hep where` | `hep=<HEP> <revision>` and `work=-`, and no warning about `heimdall.pth` |
-| R22 | `du -sh $HEP/stack \| cut -f1` | about `6.0G` (the lab set's; MadAnalysis5 adds little) |
+| R22 | `du -sh $HEP_MACHINE/stack/ \| cut -f1` | about `6.0G` (the lab set's; MadAnalysis5 adds little) |
 | R23 | `pkg-config --modversion tomlplusplus libzstd zlib` | the system's: `3.4.0 1.5.5 1.3` on 24.04; newer on a newer Ubuntu. Recorded, not compared |
 
 **On failure:**
 - R17 = 0: the patch was not applied, and InprocJets' `rivet_threads > 1` will refuse. Collect
-  `$HEP/forge/logs/fastjet.log`.
+  `$HEP_MACHINE/forge/logs/fastjet.log`.
 - R18: name the module that fails, and check its install's Python directory against `hep_env.sh`'s
   `PYTHONPATH` lines.
 - R19 or R21's warning: `recipes/pth.py` did not run (the `python` package's last step); run it by
-  hand, `env/venv/bin/python recipes/pth.py $HEP`, and record a deviation.
+  hand, `$HEP_VENV/bin/python recipes/pth.py $HEP`, and record a deviation.

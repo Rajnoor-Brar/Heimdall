@@ -10,28 +10,33 @@ conventions (§15–27). The principles behind both are [01](01_Overview.md#4-pr
 
 ## 1. Layout: Heimdall and work dirs
 
-Two roots ([01 §1](01_Overview.md#1-what-it-is)). **Heimdall** (`$HEP`) is a git repository that is
-also the machine's home: what it builds and installs sits in it, ignored.
+Three roots ([01 §1](01_Overview.md#1-what-it-is)). **Heimdall** (`$HEP`) is a git repository: what is
+authored, nothing built. The **machine root** (`$HEP_MACHINE`, `~/Himinbjorg`) holds what this machine
+built and installed, outside git. A **work dir** holds a study.
 
 | Heimdall's | Holds | In git |
 |---|---|---|
-| `setup.sh` | the environment: sets `HEP` from its own folder, the loaded stack (`HEP_INSTALL`, `HEP_VENV`, `HEP_STACK`), then sources `env/hep_env.sh` and `env/machine.sh` | yes |
-| `recipes/` | how the stack is built: `build_stack.py`, `packages.toml`, `settings.toml`, `toolkits.toml` and `toolkits.d/` (your own), `patches/`, `platforms/` (mac, container), `pth.py`, `build_by_hand.txt`; [recipes/README.md](../recipes/README.md) | yes |
-| `env/` | the environment's files: `hep_env.sh` (the shell), `flags.sh`, `stack.toml` and `stack.py` (the stack's libraries, versions and flags); `machine.sh` (this machine's lines, written by the build) | yes, but `machine.sh` |
+| `setup.sh` | the environment: sets `HEP` from its own folder, the machine root (`HEP_MACHINE`), the loaded stack (`HEP_INSTALL`, `HEP_VENV`, `HEP_APPS`, `HEP_FORGE`, `HEP_STACK`), then sources `env/hep_env.sh` and the machine root's `machine.sh` | yes |
+| `recipes/` | how the stack is built: `build_stack.py`, `machine.py` (`adopt`, `where`), `verify.py`, `packages.toml`, `settings.toml`, `toolkits.toml` and `toolkits.d/` (your own), `patches/`, `platforms/` (mac, container), `pth.py`, `build_by_hand.txt`; [recipes/README.md](../recipes/README.md) | yes |
+| `env/` | the environment's files: `hep_env.sh` (the shell), `flags.sh`, `stack.toml` and `stack.py` (the stack's libraries, versions and flags) | yes |
 | `framework/` | what runs: `bin/` (`hep`, `run`), `runner/`, `tools/<tool>/` (the tool folders, the plot backends `yoda/` and `mpl/`, `figures/`, the provider `lhapdf/`), `schema/` (`run.toml`, `deck.toml`, `quantities.toml` the vocabulary, `latex.toml`), `templates/work/` (what `hep setup` lays down), `rules.mk` and `work.mk` (the build's rules), `hepkit.py` | yes |
 | `src/` | what is compiled: the C++ kits `Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh` (§2.2), the single-file apps `App_*.cc`, the multi-file `Apps/Paint/` and its `base.toml` (the style) | yes |
 | `docs/` | this manual; `framework/` (setting Heimdall up on a fresh machine, for agents); `reporter/`, `audit_2/` | yes |
 | `tests/` | `runner/` (unit), `integration/` (real processes), `cxx/`, `fixtures/work/` (the frozen work dir the tests run in), `reference/` (data the gates compare against) | yes |
 | `bots/` | `intent.md` (ideas not built), the agents' plans | yes |
-| `framework/Apps/` | Heimdall's compiled apps: `App_*.exe`, `Paint.exe`, `Herwig/HerwigDefaults.rpo` | no |
-| `stack/` | the installed stack: a folder per package, `.stamps/` (what is built, and `cxx_std`) | no |
-| `env/venv/` | the Python environment; its `heimdall.pth` puts `framework/` on the path | no |
-| `forge/` | builds in progress: the stack's (`<pkg>/`, `logs/`), the framework's (`make/`: `flags.mk`, `deps/`), the C++ tests (`tests/`), the tests' scratch (`scratch/`) | no |
-| `stash/` | the stack's downloads and their extracted sources | no |
-| `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `venv/`, `forge/`, `Apps/` and `setup.sh` (another C++ standard) | no |
 
-**Never `git clean -x` in Heimdall**: it would delete the stack. `forge/` and `stash/` may be emptied
-by hand.
+| The machine root's | Holds |
+|---|---|
+| `stack/` | the installed stack: a folder per package, `.stamps/` (what is built, its recipe's digest, and `cxx_std`) |
+| `venv/` | the Python environment; its `heimdall.pth` puts `framework/` on the path |
+| `apps/` | Heimdall's compiled apps (`$HEP_APPS`): `App_*.exe`, `Paint.exe`, `Herwig/HerwigDefaults.rpo` |
+| `forge/` | `$HEP_FORGE`: the stack's `downloads/`, `src/`, `build/<pkg>/`, `logs/`; the framework's `make/` (`flags.mk`, `deps/`); the C++ tests (`tests/`); the tests' scratch (`scratch/`). May be emptied |
+| `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `venv/`, `forge/`, `apps/` and `setup.sh` (another C++ standard) |
+| `machine.toml`, `machine.sh` | this machine's settings; its extra lines for `setup.sh` (`setup_extra`), written by the build |
+
+Several checkouts may share one machine root. A record names a file under it as `{apps}/…` or
+`{machine}/…`, never by its absolute path, so moving the root changes no identity
+(`paths.portable`). `recipes/machine.py adopt` moves an older checkout's stack into it.
 
 A **work dir** holds a study. `hep setup <dir>` makes it from `framework/templates/work/`:
 
@@ -700,7 +705,7 @@ plan time (`check_style`). Keys a backend cannot honour are errors, never silent
 
 **In the work dir: technical files go in `output/`, products in `results/`, compiled modules in
 `build/`.** A run writes nothing else, and nothing in Heimdall; `hep deck` writes only into its deck's
-folder, under `reports/`. Heimdall's own builds are §1's: `framework/Apps/`, `forge/`.
+folder, under `reports/`. Heimdall's own builds go to the machine root (§1): `apps/`, `forge/`.
 
 ```
 output/<P>/<run>/<cfg>/
@@ -741,9 +746,10 @@ reports/<deck>/                       a deck (hep deck, V103, V104): yours, deck
 `make`, `env/flags.sh`, and `hep build` = `make all`. No CMake (V6). Two makefiles share one set of
 rules, `framework/rules.mk` (the flag cache, `// requires:`, the rule templates):
 - **Heimdall's `Makefile`** (`hep build --framework`) builds Heimdall's apps and C++ tests. Its
-  intermediates (`flags.mk`, `flags.log`, `deps/`) are in `forge/make/`. With an isolated toolkit's
-  stack loaded (`$HEP_STACK`), `framework/Apps/` is `stacks/<toolkit>/Apps/` and `forge/` is
-  `stacks/<toolkit>/forge/`: the apps are linked against the stack that runs them.
+  intermediates (`flags.mk`, `flags.log`, `deps/`) are in `forge/make/`. Its outputs follow the loaded
+  stack: `$HEP_APPS` and `$HEP_FORGE`, which are `stacks/<toolkit>/apps/` and `stacks/<toolkit>/forge/`
+  with an isolated toolkit's stack loaded (`$HEP_STACK`): the apps are linked against the stack that
+  runs them.
 - **A work dir's `Makefile`** is `include $(HEP)/framework/work.mk` (`hep build`): its module
   programs and Rivet plugins, everything in its `build/`.
 
@@ -753,8 +759,8 @@ The target is written the way the source is, and the output lands where the conv
 
 | Source | Target | Output | Include path |
 |---|---|---|---|
-| Heimdall's `src/App_<X>.cc` | `src/App_<X>.exe` | `framework/Apps/App_<X>.exe` | `-I $HEP/src` |
-| Heimdall's `src/Apps/<X>/main.cc` | `src/Apps/<X>.exe` | `framework/Apps/<X>.exe` | `-I $HEP/src -I src/Apps/<X>/` |
+| Heimdall's `src/App_<X>.cc` | `src/App_<X>.exe` | `$HEP_APPS/App_<X>.exe` | `-I $HEP/src` |
+| Heimdall's `src/Apps/<X>/main.cc` | `src/Apps/<X>.exe` | `$HEP_APPS/<X>.exe` | `-I $HEP/src -I src/Apps/<X>/` |
 | Heimdall's `tests/cxx/<X>.cc` | `tests/cxx/<X>.exe` | `forge/tests/<X>.exe` | `-I $HEP/src` |
 | a work dir's `modules/<P>/<X>.cc` | `modules/<P>/<X>.exe` | `build/<P>/<X>.exe` | `-I $HEP/src -I modules/<P>` |
 | a work dir's `modules/<P>/Rivet/<x>.cc`, `modules/<P>/Rivet_<x>.cc` | `….so`, or `rivet_<x>` | `build/Rivet/Rivet_<x>.so` + `<x>.info`, `.plot`, `.yoda` | `rivet-build … -I $HEP/src -I modules/<P>` |
@@ -773,7 +779,7 @@ The target is written the way the source is, and the output lands where the conv
   - a `.info` saying `Requires: ONNX` adds the ONNX flags (00/B37, L20).
 - **`make all`** builds, in a work dir, every non-parked `modules/<P>/*.cc` program and
   `modules/<P>/Rivet/` plugin (a subfolder of a project holds headers); in Heimdall, every app, and
-  `framework/Apps/Herwig/HerwigDefaults.rpo` (`Herwig init --repo=…`, when Herwig is on `PATH`; a
+  `$HEP_APPS/Herwig/HerwigDefaults.rpo` (`Herwig init --repo=…`, when Herwig is on `PATH`; a
   failure warns and leaves no file, L15).
 - **Other targets:** `configure`, `list` (everything `all` builds), `clean`; Heimdall's also `tests`
   (the C++ tests), `test` (build and run them, then pytest without the slow tests), `test-slow`,
@@ -857,7 +863,7 @@ Every section and key is checked when the folders load: an unknown one is an err
 | Section | Key | Means |
 |---|---|---|
 | `[tool]` | `category` | one of the ten (§4), for reading |
-| | `executable` | a command on `PATH`, or `{hep}/framework/Apps/…` for Heimdall's apps (must exist: "not built", `hep build --framework`) |
+| | `executable` | a command on `PATH`, or `{apps}/…` for Heimdall's apps (must exist: "not built", `hep build --framework`) |
 | | `streamable` | may read its input from a FIFO (default false) |
 | | `status` | `standard`, `filters`, `none` (default none) |
 | | `consumes_events` | its product's event count is checked against its input's producer sidecar |
@@ -1076,7 +1082,7 @@ overrides and every backend for free.
 - `Transform.hh`: void, align, normalise and the ranges;
 - `Draw.hh`: the canvases.
 
-It is built to `framework/Apps/Paint.exe`, with `// requires: root toml`. Its command line is
+It is built to `$HEP_APPS/Paint.exe`, with `// requires: root toml`. Its command line is
 [05 §18](05_Commands_and_Tools.md#18-paints-command-line).
 
 **A page, in this order** (inherited from v1, and load-bearing):
@@ -1122,7 +1128,7 @@ This is how the arithmetic is tested; `--ranges` writes the same beside each pag
 backends. **`--dump-style`** prints the merged style as TOML (base.toml's alone, without a page).
 
 The style is `src/Apps/Paint/base.toml`, found under `$HEP` (else, on Linux, from Paint's own
-folder: `framework/Apps/` or `stacks/<toolkit>/Apps/`), with the page's `[style]` merged over it. An unknown key, or a value of another kind, is an error.
+folder: the machine root's `apps/` or `stacks/<toolkit>/apps/`), with the page's `[style]` merged over it. An unknown key, or a value of another kind, is an error.
 
 ---
 

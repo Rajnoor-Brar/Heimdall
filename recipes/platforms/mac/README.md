@@ -60,7 +60,7 @@ Python 3.11+, and runs `build_stack.py` with `mac.toml`. Every `build_stack.py` 
 through and wins over `mac.toml`: `cores=8`, `root.release=6.40.06`,
 `packages="rivet pythia8"`. Stamps (`stack/.stamps/`), logs (`forge/logs/<package>.log`), resuming and
 `--list` are as on Linux ([../../README.md §1](../../README.md#1-quick-start)). `mac.toml`'s `setup_extra`
-lines go to `env/machine.sh`, which `setup.sh` sources.
+lines go to the machine root's `machine.sh`, which `setup.sh` sources.
 
 ---
 

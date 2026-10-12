@@ -22,7 +22,7 @@ target; P0 never picks it alone. Only what differs from the phase files is here 
 `recipes/platforms/container/Dockerfile`: the build context is Heimdall itself, and the image holds
 it at `/opt/heimdall`, which is `$HEP` inside. It builds the stack (`PACKAGES`, `@primary` by
 default; `CORES`, `ROOT_CORES`, `GRAPHICS`, `GEANT4_DATA` as build arguments) and Heimdall's apps,
-then removes `stash/` and `forge/` in the same layer, so the image keeps the installs only. Its
+then removes the machine root's `forge/` (`/opt/himinbjorg/forge`) in the same layer, so the image keeps the installs only. Its
 `Dockerfile.dockerignore` keeps the ignored trees of the context out, and `heimdall.def` makes an
 Apptainer `.sif` from a saved image (the commands are in each file's head). Read them; this annex
 does not copy them.
@@ -37,7 +37,7 @@ docker run --rm heimdall bash -lc 'root-config --version; lhapdf list --installe
 ```
 
 **P2's tests** run inside the image (`hep make --framework test`, with `/opt/heimdall` writable for
-`forge/scratch/`, or from a clone mounted at the same path).
+`$HEP_FORGE/scratch/`, or from a clone mounted at the same path).
 
 **P3's work dirs** are mounted at the same path inside as outside:
 

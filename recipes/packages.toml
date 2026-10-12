@@ -22,7 +22,7 @@
 #   pre, post commands run before configuring and after installing (in {src}; shell words, no shell)
 #   cores     how many compilers it runs at once, its make -j (default {cores})
 #
-# Placeholders: any setting ({cores}, {graphics}, …), and {prefix} {inst} {venv} {src} {build}
+# Placeholders: any setting ({cores}, {graphics}, …), and {prefix} (the machine root) {inst} {venv} {src} {build}
 # {install} {release} {series} {py} {pyxy} {pyinc} {cxxflags} {arch} {machine} {dylib} {repo}, and any
 # environment variable ({HOMEBREW_PREFIX}). A word that is only a list setting ({pdf_sets}) becomes its
 # words.

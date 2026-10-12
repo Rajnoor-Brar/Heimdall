@@ -9,7 +9,7 @@
 #                                         # (or sweep.yoda: one YODA file, the point as a path prefix)
 [tool]
 category   = "visualisation"
-executable = "{hep}/framework/Apps/App_yd2rt.exe"
+executable = "{apps}/App_yd2rt.exe"
 status     = "standard"
 
 [card]

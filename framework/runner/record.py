@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .errors import HepError
-from .paths import find_work, hep_root, work_meta
+from .paths import find_work, hep_root, portable, work_meta
 from .tools import DEFAULT_SEED_RANGE, PointPlan, version_of
 
 
@@ -274,7 +274,7 @@ def revision_changes(recorded: dict) -> list[str]:
 def provenance(plan: PointPlan, run, configuration, started: str, finished: str, results: dict) -> dict:
     tools = []
     for tag, step in plan.rendered.items():
-        entry = {"tag": tag, "tool": step.tool.tool, "exe": str(step.exe), "version": version_of(step.folder),
+        entry = {"tag": tag, "tool": step.tool.tool, "exe": portable(step.exe), "version": version_of(step.folder),
                  "argv": step.argv, "ran": step.group >= 0, "result": results.get(tag, {})}
         if step.exe.is_file():
             entry["exe_sha256"] = step.identity_parts.get("exe_sha256", "")

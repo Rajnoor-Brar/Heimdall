@@ -2,7 +2,7 @@
 #
 # `Herwig read` turns the card into a run file: a [prepare] step, cached by the card (events and
 # seed are flags, so every point and replica with the same physics shares it). It needs the
-# repository framework/Apps/Herwig/HerwigDefaults.rpo, which `hep build` makes (Herwig's own install did
+# repository {apps}/Herwig/HerwigDefaults.rpo, which `hep build` makes (Herwig's own install did
 # not: its defaults need CT14lo/CT14nlo). `Herwig run` then writes HepMC3 (HepMCFile) to a relative
 # name, in the point's directory. It writes exactly -N events or fails: the runner writes the
 # sidecar (written = "requested").
@@ -30,7 +30,7 @@ slots = ["lepton", "hadron"]
 argv = ["{exe}", "run", "{prepared}/point.run", "-N", "{events}", "-s", "{seed}", "-d", "0"]
 
 [prepare]
-argv   = ["{exe}", "read", "--repo={hep}/framework/Apps/Herwig/HerwigDefaults.rpo", "{card}"]
+argv   = ["{exe}", "read", "--repo={apps}/Herwig/HerwigDefaults.rpo", "{card}"]
 marker = "point.run"
 
 [outputs]
@@ -45,7 +45,7 @@ needs_prepare = true
 alias = "card"                      # herwig_in = herwig_card
 
 [checks]
-files = ["{hep}/framework/Apps/Herwig/HerwigDefaults.rpo"]
+files = ["{apps}/Herwig/HerwigDefaults.rpo"]
 
 [identity]
 version = "stack:herwig"                # env/stack.toml's (V78)

@@ -174,7 +174,8 @@ def shell(script: str) -> subprocess.CompletedProcess:
     return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, timeout=120)
 
 
-@pytest.mark.skipif(not (REPO / "env" / "venv" / "bin" / "activate").exists(), reason="no env/venv: build the stack")
+@pytest.mark.skipif(not Path(os.environ.get("HEP_VENV", "/nowhere"), "bin", "activate").exists(),
+                    reason="no venv in the machine root: build the stack")
 def test_hep_refresh_reloads_the_shell_in_place():
     out = shell(f"""set -e
         source {REPO}/setup.sh >/dev/null

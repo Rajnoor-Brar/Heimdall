@@ -8,8 +8,9 @@
 #   docker run --rm -it --user "$(id -u):$(id -g)" -v "$HOME/Github/Top-Quark:$HOME/Github/Top-Quark" -w "$HOME/Github/Top-Quark" heimdall
 #
 # The build takes hours (ROOT alone is 1–2 h) and ~25 GB of disk while it runs; give Docker 3 GB of
-# memory per ROOT core (root_cores). stash/ and forge/ are removed in the same layer, so the image
-# keeps the installs only (docs/framework/targets/container.md).
+# memory per ROOT core (root_cores). The machine root is /opt/himinbjorg (HEP_MACHINE); its forge/
+# (downloads, sources, builds) is removed in the same layer, so the image keeps the installs only
+# (docs/framework/targets/container.md).
 
 FROM ubuntu:24.04
 
@@ -19,7 +20,7 @@ ARG ROOT_CORES=0
 ARG GRAPHICS=OFF
 ARG GEANT4_DATA=ON
 
-ENV LANG=C.UTF-8
+ENV LANG=C.UTF-8 HEP_MACHINE=/opt/himinbjorg
 
 COPY . /opt/heimdall
 
@@ -27,10 +28,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 && \
     python3 /opt/heimdall/recipes/build_stack.py packages="$PACKAGES" \
         cores="$CORES" root_cores="$ROOT_CORES" graphics="$GRAPHICS" geant4_data="$GEANT4_DATA" && \
     bash -c 'source /opt/heimdall/setup.sh && make -C "$HEP" all' && \
-    rm -rf /opt/heimdall/stash /opt/heimdall/forge /var/lib/apt/lists/* /root/.cache/pip && \
-    chmod -R a+rX /opt/heimdall
+    rm -rf /opt/himinbjorg/forge /var/lib/apt/lists/* /root/.cache/pip && \
+    chmod -R a+rX /opt/heimdall /opt/himinbjorg
 
-RUN echo '[ -n "$BASH_VERSION" ] && . /opt/heimdall/setup.sh' > /etc/profile.d/hep.sh && \
+RUN echo '[ -n "$BASH_VERSION" ] && HEP_MACHINE=/opt/himinbjorg . /opt/heimdall/setup.sh' > /etc/profile.d/hep.sh && \
     echo 'source /etc/profile.d/hep.sh' >> /etc/bash.bashrc
 
 CMD ["bash"]

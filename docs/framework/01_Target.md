@@ -12,7 +12,16 @@ What exists when the plans are done, and the contract between its parts. This pa
 > a file `04`–`09` or a C-row's "Becomes" refers to the old set (`git show c6e7590:docs/framework/<file>`).
 >
 > Where the build differs from this page:
-> - per-machine lines go to `env/machine.sh`, not `stack/setup_extra.sh` (§5.8, D28);
+>
+> **The machine root (audit 3, phase 3.1; V122).** Everything this page puts in Heimdall's ignored
+> trees moved out of the checkout, to `~/Himinbjorg` (`$HEP_MACHINE`): `stack/`, `venv/` (was
+> `env/venv/`), `apps/` (was `framework/Apps/`, the placeholder `{apps}`), `forge/` with
+> `downloads/` and `src/` (was `stash/`) and `build/<pkg>/` (was `forge/<pkg>/`), `stacks/<toolkit>/`,
+> and `machine.sh` (was `env/machine.sh`). Read this page's paths through that map; Heimdall's
+> checkout holds what git has only.
+>
+> Earlier differences:
+> - per-machine lines go to `env/machine.sh` (now the machine root's), not `stack/setup_extra.sh` (§5.8, D28);
 > - the build's rules shared by both makefiles are `framework/rules.mk`; the C++ standard is the
 >   stack's, `stack/.stamps/cxx_std`; every output depends on `flags.mk` (§5.4);
 > - `[framework] expects` is checked with `git rev-list` (§4.2), and `hep reproduce` warns when a

@@ -1,8 +1,8 @@
-# framework/tools/yd2rt/tool.toml — YODA → ROOT: framework/Apps/App_yd2rt.exe (docs/05_Commands_and_Tools.md §17).
+# framework/tools/yd2rt/tool.toml — YODA → ROOT: App_yd2rt.exe in the machine root's apps/ ({apps}) (docs/05_Commands_and_Tools.md §17).
 # The ROOT file is a product (results/), non-temporary, as the brief asks (§Plotting).
 [tool]
 category = "visualisation"
-executable = "{hep}/framework/Apps/App_yd2rt.exe"
+executable = "{apps}/App_yd2rt.exe"
 status     = "standard"
 
 [card]

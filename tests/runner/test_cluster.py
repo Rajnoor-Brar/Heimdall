@@ -113,7 +113,8 @@ def work(scratch):
 @pytest.fixture
 def inside(work, monkeypatch):
     """The work dir as this process's, for the tests that call the runner directly."""
-    for var, value in (("HEP_WORK", work.root), ("HEP_OUTPUT", work.root / "output"), ("HEP_RESULTS", work.root / "results")):
+    for var, value in (("HEP_WORK", work.root), ("HEP_OUTPUT", work.root / "output"), ("HEP_RESULTS", work.root / "results"),
+                       ("HEP_MACHINE", work.root.parent / "machine")):   # no machine.toml but the test's
         monkeypatch.setenv(var, str(value))
     paths.reset()
     yield work
@@ -146,6 +147,29 @@ def test_the_layers_lowest_first(inside):
     assert merged == {"account": "lab", "partition": "long", "time": "00:10:00", "cpus": 4, "memory": "2G"}
 
 
+def test_the_machines_defaults_lie_under_the_work_dirs(inside):
+    """Audit 3, phase 3.1: machine.toml's [cluster] is every work dir's on this machine; hep.toml's wins."""
+    machine = Path(os.environ["HEP_MACHINE"])
+    machine.mkdir()
+    (machine / "machine.toml").write_text('[cluster]\naccount = "site"\npartition = "all"\nsetup = ["module load x"]\n',
+                                          encoding="utf-8")
+    inside.hep_toml('[work]\nname = "t"\n[cluster]\npartition = "short"\ntime = "00:05:00"\n')
+    inside.config(cluster_lines="cpus = 2")
+    merged = cluster.settings(plans().configuration)
+    assert merged == {"account": "site", "partition": "short", "setup": ["module load x"], "time": "00:05:00", "cpus": 2}
+    (machine / "machine.toml").write_text('[cluster]\nacount = "site"\n', encoding="utf-8")
+    with pytest.raises(HepError) as caught:
+        cluster.settings(plans().configuration)
+    assert "machine.toml" in str(caught.value.where)
+
+
+def test_an_isolated_stacks_jobs_load_it_from_the_machine_root(inside, monkeypatch):
+    monkeypatch.setenv("HEP_STACK", "kit")
+    assert cluster.loader() == Path(os.environ["HEP_MACHINE"]) / "stacks" / "kit" / "setup.sh"
+    monkeypatch.delenv("HEP_STACK")
+    assert cluster.loader() == paths.hep_root() / "setup.sh"
+
+
 def test_a_time_limit_is_required_in_some_layer(inside):
     inside.config(cluster_lines='cpus = 2')
     with pytest.raises(HepError, match="needs each job's time limit"):
@@ -172,6 +196,7 @@ def test_a_dry_run_writes_the_scripts_and_submits_nothing(work):
     text = (folder / "points.sbatch").read_text()
     for line in ("#SBATCH --array=1-3%2", "#SBATCH --cpus-per-task=3", "#SBATCH --time=00:10:00",
                  "#SBATCH --account=lab", "echo node", f"source {paths.hep_root() / 'setup.sh'}",
+                 f"export HEP_MACHINE={paths.machine_root()}",
                  f"export HEP_WORK={work.root}", '--points "$point" --stages points --plain'):
         assert line in text, line
     assert text.index("echo node") < text.index("source ")              # the setup lines first

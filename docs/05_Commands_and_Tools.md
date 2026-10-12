@@ -356,7 +356,7 @@ core by default:
 - in the **work dir** (found as every command finds it), by its `Makefile`, which includes
   `$HEP/framework/work.mk`: every module program and Rivet plugin, into `build/`;
 - with **`--framework`**, in **Heimdall**, by its own `Makefile`: the apps (`App_*.exe`, `Paint.exe`)
-  into `framework/Apps/`, and Herwig's repository;
+  into the machine root's `apps/` (`$HEP_APPS`), and Herwig's repository;
 - `--tests` adds the C++ tests (Heimdall's, into `forge/tests/`);
 - `--clean` empties the build first;
 - `--configure` probes the toolchain again.
@@ -403,9 +403,9 @@ runner discovers the folders and names none of them.
 
 | `tool =` | Category | Runs | Card | Streamable | Status | Count check | Prepare | Exports |
 |---|---|---|---|---|---|---|---|---|
-| `pythia` | event generator | `framework/Apps/App_Pythia.exe` | `.cmnd`, append | — (writes) | standard | produces: sidecar | — | `card`, `cmnd` |
+| `pythia` | event generator | `$HEP_APPS/App_Pythia.exe` | `.cmnd`, append | — (writes) | standard | produces: sidecar | — | `card`, `cmnd` |
 | `rivet` | analysis application | `rivet` (or K of them: `shards`) | none (flags) | yes | filters | `/RAW/_EVTCOUNT` | — | `analyses` |
-| `yd2rt` | visualisation | `framework/Apps/App_yd2rt.exe` | none | file | standard | — | — | — |
+| `yd2rt` | visualisation | `$HEP_APPS/App_yd2rt.exe` | none | file | standard | — | — | — |
 | `merge` | analysis application (post) | `rivet-merge` | none | files | none | — | — | — |
 | `plotmerge` | visualisation (post) | `App_yd2rt.exe --merge` | none | files | standard | — | — | — |
 | `custom` | any | your `executable` | none | per table | none (set it) | only if you set it | — | — |
@@ -443,7 +443,7 @@ baseconfig  = "ep.cmnd"        # configs/<P>/ep.cmnd
 output_file = "events.hepmc"         # a [prelim] FIFO or file; an array fans out (V16)
 ```
 
-- **Runs** `framework/Apps/App_Pythia.exe <outputs> <base cards…> <point card>` (§16): the base cards in
+- **Runs** `$HEP_APPS/App_Pythia.exe <outputs> <base cards…> <point card>` (§16): the base cards in
   order, then the point card, so its settings win.
 - **Card** (`cards/pythia.point.cmnd`, and `cards/pythia.cmnd` = base + point):
   - a header comment;
@@ -460,7 +460,7 @@ output_file = "events.hepmc"         # a [prelim] FIFO or file; an array fans ou
 - **Keys the runner sets** (`[card] owned`: `Main:numberOfEvents`, `Parallelism:numThreads`, the
   `Random:` seeds, `Parallelism:seeds`, `Beams:LHEF`): a base card's line for one of them is never
   used, and `--plan` and the run say so (V59).
-- **Checked** (`[checks] card`, V59): at plan time, `framework/Apps/App_PythiaCheck.exe` gives every line of
+- **Checked** (`[checks] card`, V59): at plan time, `$HEP_APPS/App_PythiaCheck.exe` gives every line of
   the card (base settings and point card, before seeds) to Pythia's own reader.
   - A line Pythia rejects (a key it does not know, a value of the wrong kind, a particle its table
     lacks) refuses the plan, with the line's source.
@@ -700,7 +700,7 @@ baseconfig  = "dis_ep.herwig.in"
 output_file = "events.hepmc"
 ```
 
-- **Prepare** (cached per card): `Herwig read --repo={hep}/framework/Apps/Herwig/HerwigDefaults.rpo <card>` →
+- **Prepare** (cached per card): `Herwig read --repo={apps}/Herwig/HerwigDefaults.rpo <card>` →
   `point.run` in the cache entry. The repository is made by `hep build --framework`: Herwig's own
   install could not make it, since its defaults need CT14lo/CT14nlo (L15). A plan without it is
   refused (C10), with `hep build --framework`.

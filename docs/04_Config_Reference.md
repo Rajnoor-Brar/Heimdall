@@ -761,7 +761,7 @@ The rules:
 | Placeholder | Is |
 |---|---|
 | `{work}` | the work dir (its root folder) |
-| `{hep}` | Heimdall (`$HEP`): its apps are `{hep}/framework/Apps/…` |
+| `{hep}` | Heimdall (`$HEP`): its apps are `{apps}/…` |
 | `{exe}` | the tool's executable |
 | `{out}`, `{res}` | the point's output and results directories |
 | `{config}` | the extracted config file (custom, module), or empty |
@@ -787,7 +787,7 @@ The rules:
 | `{<option>}` | every key of the folder's `[options]`: its value, empty when unset; `kind = "flag"` → the flag or nothing |
 
 `{repo}`, High-Energy's single root, is refused, naming `{work}` and `{hep}`; `hep migrate` rewrites
-it (`{repo}/build/App_*` → `{hep}/framework/Apps/App_*`, `{repo}/utils/` → `{hep}/src/`, any other
+it (`{repo}/build/App_*` → `{apps}/App_*`, `{repo}/utils/` → `{hep}/src/`, any other
 `{repo}` → `{work}`).
 
 **In the run TOML itself**, `{var:name}` is a `[config.vars]` value (§3), replaced when the file is
@@ -939,7 +939,7 @@ checked:
   palette;
 - the runner checks at plan time, and Paint checks again.
 
-**What a page holds.** A page's document holds only what the layers changed; `framework/Apps/Paint.exe
+**What a page holds.** A page's document holds only what the layers changed; `$HEP_APPS/Paint.exe
 PAGE.toml --dump-style` prints the whole merged style. Sizes are **points** (1/72 in) of the page,
 unless said otherwise.
 
@@ -1125,10 +1125,12 @@ if one did.
 
 `hep cluster` ([02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster), 05 §1.9) submits a configuration as
 Slurm jobs with these options (V114). They come in layers, lowest first:
-1. the work dir's `hep.toml` `[cluster]`: the machine's (account, partition, setup lines);
-2. the run TOML's `[cluster]`, into which an import's merges key by key, as `[plot]`;
-3. a configuration's `cluster` table, `[run.cfgs.<cfg>.cluster]`;
-4. `--set cluster.<key>=…`, for one submission.
+1. the machine root's `machine.toml` `[cluster]`: the machine's, for every work dir on it (account,
+   partition, setup lines);
+2. the work dir's `hep.toml` `[cluster]`: this work dir's;
+3. the run TOML's `[cluster]`, into which an import's merges key by key, as `[plot]`;
+4. a configuration's `cluster` table, `[run.cfgs.<cfg>.cluster]`;
+5. `--set cluster.<key>=…`, for one submission.
 
 `[cluster.pre]` and `[cluster.finish]` take the resource keys (`time`, `partition`, `account`, `qos`,
 `constraint`, `gres`, `memory`, `cpus`, `sbatch`) for those jobs only. Nothing here enters an

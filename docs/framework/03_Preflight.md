@@ -90,7 +90,7 @@ was kept before the wipe. After P0:
    `<path>`) into `$HEP/.setup/kept/`, keeping their layout:
    ```
    kept/datasets/  kept/literature/  kept/cross_machine/  kept/reports/       (the user's)
-   kept/stash/     (optional: the stack's tarballs, used by 04 S2)
+   kept/downloads/ (optional: the stack's tarballs, used by 04 S2)
    kept/memory/    (optional: the agents' notes, used by 07 S2)
    kept/reference/output/{cards,config,provenance.json}       (the reference point's output folder, 01 §8)
    kept/reference/results/{<its>.yoda,<its>.yoda.json,<its>.root}   (its results folder; used by 07 S1)

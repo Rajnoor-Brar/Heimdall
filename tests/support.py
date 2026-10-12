@@ -12,7 +12,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]                  # Heimdall
 HEP = REPO / "framework" / "bin" / "hep"
-WORK = REPO / "forge" / "scratch" / "work"
+WORK = Path(os.environ.get("HEP_FORGE") or Path(os.environ.get("HEP_MACHINE") or "~/Himinbjorg").expanduser() / "forge") / "scratch" / "work"
 BUILD = WORK / "build"
 
 

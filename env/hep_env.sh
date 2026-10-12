@@ -1,16 +1,20 @@
 #!/bin/bash
 # env/hep_env.sh — Heimdall's shell environment (docs/framework/01_Target.md §5.8; docs/06_Internals.md §1).
 #
-# Sourced by Heimdall's setup.sh (alias `load_hep`), which sets HEP (Heimdall's folder) and HEP_INSTALL
-# ($HEP/stack). It puts the stack and framework/bin (the `hep` command) on PATH, activates the venv
-# (env/venv), and defines the shell helpers below.
+# Sourced by Heimdall's setup.sh (alias `load_hep`), which sets HEP (Heimdall's folder), HEP_MACHINE (the
+# machine root, ~/Himinbjorg) and the loaded stack's HEP_INSTALL, HEP_VENV, HEP_APPS and HEP_FORGE. It puts
+# the stack and framework/bin (the `hep` command) on PATH, activates the venv, and defines the shell
+# helpers below.
 # Safe to source repeatedly: path variables are only ever prepended once, and never get empty elements
 # (an empty element means the CWD). `quit` removes exactly what was added here.
 
 : "${HEP:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-: "${HEP_INSTALL:=$HEP/stack}"
-: "${HEP_VENV:=$HEP/env/venv}"                     # an isolated toolkit's stack has its own (setup.sh)
-export HEP HEP_INSTALL HEP_VENV
+: "${HEP_MACHINE:=$HOME/Himinbjorg}"
+: "${HEP_INSTALL:=$HEP_MACHINE/stack}"
+: "${HEP_VENV:=$HEP_MACHINE/venv}"                 # an isolated toolkit's stack has its own (setup.sh)
+: "${HEP_APPS:=$HEP_MACHINE/apps}"
+: "${HEP_FORGE:=$HEP_MACHINE/forge}"
+export HEP HEP_MACHINE HEP_INSTALL HEP_VENV HEP_APPS HEP_FORGE
 if [ -n "${HEKIT_ROOT-}" ]; then                 # High-Energy's name for the checkout: retired (K15)
     echo "HEKIT_ROOT is retired: Heimdall uses HEP ($HEP)" >&2
     unset HEKIT_ROOT
@@ -143,9 +147,9 @@ hep() {
 # hep_status: the installed tool versions.
 hep_status() { _hep_status_probe "$@"; }
 
-hep_stash()   { cd "$HEP/stash"; }
-hep_forge()   { cd "$HEP/forge"; }
-hep_stack()   { cd "$HEP/stack"; }
+hep_stash()   { cd "$HEP_MACHINE/forge/downloads"; }   # the downloads (stash/ before the machine root)
+hep_forge()   { cd "$HEP_FORGE"; }
+hep_stack()   { cd "$HEP_INSTALL"; }
 # hep_cd PROJECT [configs|modules|results|output] — cd into a project folder of the current work dir.
 hep_cd() {
     [ -n "${1-}" ] || { echo "usage: hep_cd PROJECT [configs|modules|results|output]"; return 2; }
@@ -161,9 +165,9 @@ HEP environment commands:
   hep refresh            reload the environment from scratch (also hep_refresh)
   quit                   leave the HEP environment (restores paths, deactivates venv)
   hep_cd PROJECT [DIR]   cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|output)
-  hep_stash              cd to \$HEP/stash (downloads)
-  hep_forge              cd to \$HEP/forge (builds in progress)
-  hep_stack              cd to \$HEP/stack (the installs)
+  hep_stash              cd to the machine root's downloads
+  hep_forge              cd to the machine root's builds in progress
+  hep_stack              cd to the stack (the installs)
   hep_help               this message
 HLP
 }

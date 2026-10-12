@@ -27,7 +27,7 @@ Random:setSeed = on
 Random:seed = 4711
 """
 
-pytestmark = pytest.mark.skipif(not APP.exists(), reason="framework/Apps/App_Pythia.exe not built (make)")
+pytestmark = pytest.mark.skipif(not APP.exists(), reason="$HEP_APPS/App_Pythia.exe not built (hep build --framework)")
 
 
 def run(*args, cwd: Path) -> subprocess.CompletedProcess:

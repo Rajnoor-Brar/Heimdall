@@ -27,7 +27,7 @@ hand). Only what differs from the phase files is here (D11).
   stands in for P1 S2's command. It runs `recipes/build_stack.py` with `mac.toml`, with GNU make, sed and
   coreutils first on `PATH`.
 - **Launching:** `recipes/platforms/mac/launch.sh` opens a bash 5 with `$HEP/setup.sh` loaded, or runs one
-  command in it. `env/machine.sh`, written from `mac.toml`'s `setup_extra` and sourced by
+  command in it. The machine root's `machine.sh`, written from `mac.toml`'s `setup_extra` and sourced by
   `setup.sh`, adds `DYLD_LIBRARY_PATH` and the GNU tools.
 
 ## What the seam made portable (I15, D11, V113)

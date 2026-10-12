@@ -149,3 +149,13 @@ def test_master_becomes_config(scratch):
     new = migrate.config_text(text)
     assert new.startswith(f'[config]                           # how the file is read\nimport     = ["{common}"]\n')
     assert migrate.config_text(new) == new
+
+
+def test_the_apps_become_the_machine_roots():
+    """Audit 3, phase 3.1: the compiled apps left the checkout; High-Energy's {repo} paths go straight there."""
+    text = ('exe = "{hep}/framework/Apps/App_Pythia.exe"\nrpo = "{repo}/build/Herwig/HerwigDefaults.rpo"\n'
+            'kit = "{repo}/utils/Kit.hh"\ncard = "{repo}/configs/a.cmnd"\n')
+    new = migrate.placeholder_text(text)
+    assert new == ('exe = "{apps}/App_Pythia.exe"\nrpo = "{apps}/Herwig/HerwigDefaults.rpo"\n'
+                   'kit = "{hep}/src/Kit.hh"\ncard = "{work}/configs/a.cmnd"\n')
+    assert migrate.placeholder_text(new) == new

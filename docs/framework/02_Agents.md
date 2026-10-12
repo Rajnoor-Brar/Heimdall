@@ -117,7 +117,7 @@ folded = ""                     # the Heimdall commit that put it into the plan 
 **Resuming:**
 - Read `state.toml`, then take the first step that is not `done`.
 - Re-run that step's **preconditions**. They decide whether its partial work is reusable: the
-  stack's stamps (`$HEP/stack/.stamps/`) make P1 resumable on their own
+  stack's stamps (`$HEP_MACHINE/stack/.stamps/`) make P1 resumable on their own
   ([recipes/README.md](../../recipes/README.md) §1).
 - A `running` step found on resume means the session died. Treat it as `failed`, collect what is
   there (§5.2), and run it again.
@@ -180,7 +180,7 @@ Every step ends with rows of this shape (the phase files use it):
 ### 5.2 A failing row
 
 1. Collect: the command, its full output (to `verify/<phase>/` or the log), and the relevant log
-   tails: `$HEP/forge/logs/<package>.log`, pytest's summary.
+   tails: `$HEP_MACHINE/forge/logs/<package>.log`, pytest's summary.
 2. If the cause is plainly transient, run it once more: a network timeout, or a download the
    annex's caveats list (MadGraph and ONNX Runtime URLs, Geant4 data).
 3. A row that fails twice is a **gate**: report the two outputs and the probable cause, propose the
@@ -194,7 +194,7 @@ At a phase's end, the orchestrator starts the verifier with the prompt in §11.2
 name. The verifier:
 - **runs** every row of every step of that phase, exactly as written, from a clean shell
   (`load_hep` only);
-- **writes** to `verify/<phase>/` and to the scratch the rows name (the tests' `forge/scratch/`),
+- **writes** to `verify/<phase>/` and to the scratch the rows name (the tests' `$HEP_FORGE/scratch/`),
   and nowhere else;
 - **returns** a table: `# · command · expected · got · pass/fail`;
 - **adds** anything it noticed that no row covers, as a separate list;
@@ -216,7 +216,7 @@ gate instance, never the next one of the same kind.
 | a download, with its list and total size (asked once per phase: the stack's tarballs; Geant4's ~4 GB of data) | P1 |
 | a new recipe (`status = "new"`, MadAnalysis5 in `@primary`) that fails | P1 |
 | a change to the user's account or groups (joining the docker group is the user's own action) | container annex |
-| a deletion outside `$HEP/{stash,forge}` and `$HEP/.setup/verify` (V105); and `git clean -x` in Heimdall, never | any |
+| a deletion outside `$HEP_MACHINE/forge` and `$HEP/.setup/verify` (V105, V122); and `git clean -x` in a checkout that still holds a stack, never | any |
 | a write to a High-Energy clone, if one is on the machine (it is left alone) | any |
 | a change to the content of a work dir's `configs/` or `modules/` that the user made (Top-Quark's starter is `hep setup`'s) | any |
 | `git push`, publishing a repo or an image anywhere | P4 |
@@ -256,7 +256,7 @@ Everything else is a gate.
 
 **The rules:**
 - **One stack build at a time.** ROOT's compilers need about 3 GB each (`root_cores`).
-- **One pytest session at a time.** The basetemp `forge/scratch/pytest` is wiped per session.
+- **One pytest session at a time.** The basetemp `$HEP_FORGE/scratch/pytest` is wiped per session.
 - **During the build**, the orchestrator keeps CPU-heavy work off the machine: no compiles and no
   tests. P2 needs the stack, so it waits for P1.
 - **The slow suite (P2)** runs as the builder, in the background, after the fast suite passes.
@@ -289,7 +289,7 @@ what is needed. Nothing else is said between reports, except to answer the user.
 Heimdall's `CLAUDE.md` holds them; in short:
 
 - **Commits:** stage named paths, never `git commit -a`; never push without the gate.
-- **Tests** write only their scratch (`forge/scratch/`). They never read or write a real work dir.
+- **Tests** write only their scratch (`$HEP_FORGE/scratch/`). They never read or write a real work dir.
   The fixtures and `tests/reference/` are never regenerated.
 - **Text files** are read and written with `encoding="utf-8"` (L17: reading a YODA file resets the
   locale).
@@ -297,8 +297,10 @@ Heimdall's `CLAUDE.md` holds them; in short:
   (`docs/07_Record.md` §3).
 - **The user's files are the user's.** A work dir's `configs/` and `modules/` change only through
   listed, shown and approved diffs. High-Energy is not touched at all.
-- **Never `git clean -x` in Heimdall:** it would delete `stack/`, hours of building. `forge/` and
-  `stash/` may be emptied by hand.
+- **The stack lives in the machine root** (`$HEP_MACHINE`, `~/Himinbjorg`), outside git: `stack/`,
+  `venv/` and `apps/` are hours of building; its `forge/` may be emptied by hand. A checkout that
+  still holds a stack of its own (made before V122) is adopted once, `recipes/machine.py adopt`; never
+  `git clean -x` in it before that.
 - **The manual** stays generated where it is generated: after a schema `doc`/`notes`, `base.toml`
   comment or CLI help change, run `hep make --framework docs schema`.
 - **Plans are not code.** An agent following these files changes code only as a step's tasks say.

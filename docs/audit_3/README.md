@@ -85,6 +85,7 @@ Each finding gives:
 | U6 | 32 | process | Whizard is built without LHAPDF on both machines, with no error | 1 |
 | U9 | 32 | process | Stamps know name and release only: a changed flag, `python_packages` or `pdf_sets` is never applied; there is no `--rebuild` | 1 |
 | U58 | 32 | CLI | Shell environment: zsh half-loads; an exported guard makes child shells skip setup; `hep refresh` drops an isolated stack; `quit` leaves `machine.sh`'s lines | 3 |
+| U67 | 32 | layout | A work dir can't be made in a git repository as it comes: a fresh `git init` needs `--adopt`; a hosting site's new repo keeps its `.gitignore` without the runner's entries (outputs get committed); `--git` commits what the user had staged, and inits a nested repo inside a larger one (the user, 2026-10-13) | 5 |
 | U50 | 30 | config | Docs contradict the loader: `swept` documented but refused; `run.default` paths; `test_docs` loads no complete example; the import example ≠ the fixture | 7 |
 | U10 | 28 | process | Probes and stamps disagree: on the lab PC, `--list` would rebuild everything; ThePEG and Herwig share one folder | 1 |
 | U22 | 28 | layout | Deck sources (`deck.md`, `deck.toml`) live in the ignored `reports/` beside their outputs | 5 |

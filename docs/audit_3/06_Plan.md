@@ -284,8 +284,40 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 - `hep setup --refresh` updates the framework-written files (README, CLAUDE.md, Makefile,
   `.vscode`), showing the diff, and never touches the user's files.
 
+**5.3 A work dir in a git repository** (U67; the user, 2026-10-13)
+
+`hep setup` makes a work dir in a folder that is already a git repository: a fresh one (`git init`,
+or a hosting site's new repo with `README.md`, `LICENSE`, `.gitignore`), a clone, or a subfolder of a
+larger repo.
+- **What counts as empty:** a folder whose only entries are `.git/` and a fresh repo's files
+  (`README.md`, `LICENSE*`, `.gitignore`, `.gitattributes`, `.github/`) needs no `--adopt`. Anything
+  else still asks for it.
+- **Never overwrite; merge only the ignores:**
+  - `.gitignore`: the template's entries it lacks (`output/`, `results/`, `build/`, `logs/`, `.cache/`,
+    `reports/`) are appended in a marked block (`# Heimdall (hep setup)`), so nothing the runner writes
+    is committed by accident; `hep setup --refresh` keeps the block current (5.2);
+  - the repo's own `README.md` and `CLAUDE.md` are kept, and Heimdall's guide goes beside them as
+    `HEIMDALL.md`;
+  - `LICENSE`, `.github/`, the history, branches and remotes are untouched; nothing is pushed.
+- **Which repository:** `git rev-parse --show-toplevel` decides.
+  - At the repo's root, `--git` commits the added files only (`git commit -- <paths>`, so what the
+    user had staged stays staged); a repo with no commits yet gets its first.
+  - Inside a larger repo, there is no nested `git init`: `--git` commits the added files in the
+    enclosing repo (their paths from its root), and a repo of its own needs `--git=new`, after a
+    warning.
+  - With no repo, as today: `--git` runs `git init`.
+- **Provenance:** `git_state` finds the enclosing repo (a work dir in a subfolder is recorded, with the
+  subfolder), and a repo with no commits yet is recorded as such, not as no repo; `[framework]
+  expects` is unchanged.
+- `hep setup` says what it kept, what it merged, and the next commands (7.2), with `git add` and
+  `git commit` when `--git` was not given.
+
 | Row (phase 5) | Expected |
 |---|---|
+| `git init w && hep setup w --project P` | made without `--adopt`; `.git` untouched |
+| a hosting site's new repo, cloned, then `hep setup . --git` with a file staged | `README.md` and `LICENSE` kept, `HEIMDALL.md` added, `.gitignore` gains the marked block; one commit of the added files only; the staged file still staged |
+| `hep setup sub --git` inside a larger repo | no nested `.git`; the commit is in the enclosing repo |
+| a point run in a work dir in a repo's subfolder | its provenance names that repo's revision |
 | `rm -rf logs .cache` in a work dir | `hep status` still shows every point complete |
 | the same configuration started in two sessions | the second skips the points the first holds, naming them; no file is written twice |
 | a fresh clone of a work dir | `hep check` passes; data-backed pages draw |

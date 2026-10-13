@@ -55,5 +55,9 @@ the run TOML, extending, the CLI, and a remediation plan in seven phases. The fi
 (V52–V89) and the manual's rebuild plan (V90–V92) are in High-Energy's git: `git show 3a5ec16:docs/audit_1/README.md`,
 `git show 3a5ec16:docs/audit_2/02_Manual.md`.
 
+A design, not yet built: [conda/](conda/README.md) (2026-10-14), a conda-forge base in the machine
+root, managed by pixi. Compilers, system libraries and Python would come from one locked list instead
+of apt or Homebrew, and the HEP tools stay built from source.
+
 `tests/runner/test_docs.py` holds this manual to the code: its links resolve, its TOML parses, its
 complete examples load, its generated blocks are current, and every key the runner accepts is documented.

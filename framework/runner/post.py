@@ -146,7 +146,7 @@ def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.P
         name = "_".join(tag_of(run.quantities[q], choice[q]) for q in kept if not run.quantities[q].silent) or COMBINED
         if name in taken:
             raise HepError(f"the combined group '{name}' would share a directory with a point or stage", where=where,
-                           hint="give the swept quantities distinct tags (C11)")
+                           hint="give the swept quantities distinct tags (see C11)")
         found = [_yoda_product(m) for m in members]
         if not all(found):
             raise HepError("combine merges the points' YODA product, and these points have none", where=where)

@@ -157,7 +157,7 @@ def validate(run) -> None:
     data = settings.get("data", {})
     if data and not data.get("map"):
         raise HepError("[plot.data] names a file but no map", where=f"{where}.data",
-                       hint='reference data are matched only through an explicit map (L18): "d01-x01-y01" = "/REF/…/d01-x01-y01"')
+                       hint='reference data are matched only through an explicit map, "d01-x01-y01" = "/REF/…/d01-x01-y01" (see L18)')
     if data and "file" not in data:
         raise HepError("[plot.data] has a map but no file", where=f"{where}.data")
 

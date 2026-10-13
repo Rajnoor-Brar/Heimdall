@@ -369,7 +369,7 @@ larger repo.
 
 ## Phase 7 — The command line and the first run
 
-**7.1 One CLI** (U59, U60, U61, U62)
+**7.1 One CLI** (U59, U60, U61, U62) — **done, V134** (`hep cluster --status` stays; `hep setup` has no `--dry-run`)
 - One Python entry point (`build` and `make` included); descriptions; `hep help <command>`;
   did-you-mean for commands.
 - `--dry-run` everywhere (`--plan` kept as `run`'s alias); `--set` on every command that plans;

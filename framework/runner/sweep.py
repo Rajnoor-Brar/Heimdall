@@ -75,7 +75,7 @@ def points(run, configuration) -> list[Point]:
     clashes = sorted({n for n in names if names.count(n) > 1})
     if clashes:
         raise HepError(f"these points would share a directory: {', '.join(clashes)}", where=f"{run.path}",
-                       hint="give the swept quantities distinct tags (C11)")
+                       hint="give the swept quantities distinct tags (see C11)")
     return out
 
 

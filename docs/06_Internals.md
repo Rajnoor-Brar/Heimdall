@@ -78,7 +78,7 @@ Heimdall ($HEP)
 │   ├── hep_env.sh            the shell environment (the hep function: refresh, quit, cd; machine.sh, recorded); packages.sh, its install folders (generated)
 │   └── flags.sh, stack.toml  the stack: each library's flags and version, probed once → flags.mk
 ├── framework/                ─── shell and Python ───
-│   ├── bin/hep               the `hep` command: build, make → make (work dir or --framework); the rest → bin/run
+│   ├── bin/hep               the `hep` command: the venv's Python, by path, running bin/run (every command, U59)
 │   ├── bin/run               the runner's entry script
 │   ├── runner/               the runner: one flat Python package (§2.1)
 │   ├── tools/<tool>/         one folder per standard tool: tool.toml (+ quantities.toml, render.py, filters.toml)

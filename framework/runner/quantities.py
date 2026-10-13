@@ -259,8 +259,8 @@ def consumer_table(run, master: dict, active: list[str], tags: list[str],
         if not found:
             raise HepError(f"[quantities.{name}] is set but no tool in this chain consumes it",
                            where=f"{run.path}: [quantities.{name}]",
-                           hint=f"tools here: {', '.join(tags)}. Give it a target, a key = {{tool = ...}}, "
-                                "a master mapping, or drop it: a value that changes nothing is refused (C7)")
+                           hint=f"tools here: {', '.join(tags)}. Give it a `to` (v2: a target or key), a master mapping, "
+                                "or drop it: a value that changes nothing is refused (see C7)")
         table[name] = found
     return table
 

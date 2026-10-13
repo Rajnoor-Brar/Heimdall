@@ -118,8 +118,10 @@ MACHINE = """# machine.sh — this machine's lines for Heimdall's setup.sh, writ
 COLOUR = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
 
 
-def die(message: str) -> NoReturn:
-    sys.exit(f"\033[31merror: {message}\033[0m" if COLOUR else f"error: {message}")
+def die(message: str, hint: str = "") -> NoReturn:
+    """An error in hep's format (U62): `hep: what`, then `  hint:  what to do`."""
+    text = f"hep: {message}" + (f"\n  hint:  {hint}" if hint else "")
+    sys.exit(f"\033[31m{text}\033[0m" if COLOUR else text)
 
 
 def say(message: str) -> None:

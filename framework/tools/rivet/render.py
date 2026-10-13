@@ -93,5 +93,5 @@ def declared_options(rendered: list[str], dirs: list[Path], tag: str) -> dict[st
             if key not in declared:
                 raise HepError(f"'{name}' does not declare the option {key}", where=f"[tools.{tag}]",
                                hint=(f"declared: {', '.join(sorted(declared)) or 'none'} (in {info}). Rivet ignores "
-                                     "an undeclared option silently, so the curves would be identical (L19)"))
+                                     "an undeclared option silently, so the curves would be identical (see L19)"))
     return defaults

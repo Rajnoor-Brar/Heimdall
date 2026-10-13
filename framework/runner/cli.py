@@ -38,13 +38,15 @@ from .watch import follow_events, follow_file, view
 
 
 def parser() -> argparse.ArgumentParser:
-    top = argparse.ArgumentParser(prog="hep", description="the v2 runner")
-    commands = top.add_subparsers(dest="command", required=True)
+    top = argparse.ArgumentParser(prog="hep", description="Heimdall: plan, run, draw and record studies (docs/README.md). "
+                                                       "`hep help <command>` for one command.")
+    top.add_argument("--plain", action="store_true", help="plain lines instead of the live view (any command, anywhere)")
+    commands = top.add_subparsers(dest="command", required=True, metavar="<command>")
 
     run = commands.add_parser("run", help="plan and run a configuration")
     run.add_argument("config", help="configs/<Project>/<name>[.toml], or ./path from the work dir")
     run.add_argument("configuration", nargs="?", help="overrides [run].configuration; under [run].sweep_runs, runs only it")
-    run.add_argument("--plan", action="store_true", help="print the plan; run nothing")
+    run.add_argument("--plan", "--dry-run", dest="plan", action="store_true", help="print the plan; run nothing")
     run.add_argument("--why", action="store_true",
                      help="for each point that would run, what changed since it last completed; run nothing")
     run.add_argument("--show-config", action="store_true",
@@ -84,7 +86,8 @@ def parser() -> argparse.ArgumentParser:
 
     deck = commands.add_parser("deck", help="a deck of slides from drawn pages, in reports/<deck>/ (deck.toml, deck.md)")
     deck.add_argument("deck", help="decks/<deck> (built into reports/<deck>), or a path starting ./, ../ or /")
-    deck.add_argument("--list", action="store_true", help="each block, its panels and where they came from; nothing written")
+    deck.add_argument("--list", "--dry-run", dest="list", action="store_true",
+                      help="each block, its panels and where they came from; nothing written")
     deck.add_argument("--only", metavar="TARGETS", help="some of pdf, pptx, html, overleaf, viewer (comma-separated)")
     deck.add_argument("--init", action="store_true", help="write deck.md once: a title slide and a slide per block")
 
@@ -97,6 +100,7 @@ def parser() -> argparse.ArgumentParser:
     state = commands.add_parser("status", help="each configuration's points: complete, stale, incomplete or to run")
     state.add_argument("config", nargs="?", help="one config (default: every config)")
     state.add_argument("configuration", nargs="?", help="one configuration of it")
+    state.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as hep run's, for the view")
     state.add_argument("--stack", action="store_true", help="the loaded stack instead: each package installed, its release and state; the libraries' versions")
 
     move = commands.add_parser("migrate", help="rewrite run TOMLs and their cards in today's forms (a diff, or --apply)")
@@ -105,6 +109,7 @@ def parser() -> argparse.ArgumentParser:
     move.add_argument("--layout", action="store_true",
                       help="move the work dir's output/ into records/, logs/ and .cache/ (no configs are read)")
     move.add_argument("--apply", action="store_true", help="write the changes (default: print the diff)")
+    move.add_argument("--dry-run", action="store_true", help="print the diff, write nothing (the default)")
 
     again = commands.add_parser("reproduce", help="run a finished point again, from its provenance, beside it")
     again.add_argument("provenance", help="records/…/<point>/provenance.json")
@@ -114,6 +119,7 @@ def parser() -> argparse.ArgumentParser:
     clean = commands.add_parser("clean", help="remove what the runner made and no plan uses: logs/ and .cache/ (records/ with --records)")
     clean.add_argument("config", nargs="?", help="one config (default: every config, and the unused caches)")
     clean.add_argument("--dry-run", action="store_true", help="list only")
+    clean.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as hep run's: what the plans use")
     clean.add_argument("--yes", action="store_true", help="delete without asking")
     clean.add_argument("--records", action="store_true",
                        help="also the records no plan has (provenance, identities, completion): asked for even with --yes")
@@ -121,6 +127,7 @@ def parser() -> argparse.ArgumentParser:
     check = commands.add_parser("check", help="check run TOMLs: every configuration loaded, validated and planned")
     check.add_argument("configs", nargs="*", metavar="CONFIG",
                        help="configs to check (default: every configs/<Project>/*.toml with a [run])")
+    check.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as hep run's: check what that run would")
 
     watch = commands.add_parser("watch", help="attach the live view to a running job")
     watch.add_argument("config", nargs="?", help="the run config whose job to watch (default: the latest job)")
@@ -171,6 +178,26 @@ def parser() -> argparse.ArgumentParser:
     folders_.add_argument("what", nargs="*", metavar="NAME | new NAME", help="a folder to show, or new and a folder to make")
     folders_.add_argument("--from", dest="source", help="hep tools new: the folder it starts from (exec, module: a copy; "
                                                         "any other: extends it)")
+
+    build = commands.add_parser("build", help="compile the work dir's module programs and Rivet plugins (make all)")
+    build.add_argument("targets", nargs="*", help="make targets (default: all)")
+    build.add_argument("--framework", action="store_true", help="Heimdall's apps instead (framework/Apps/)")
+    build.add_argument("--tests", action="store_true", help="with --framework: the C++ tests too")
+    build.add_argument("--clean", action="store_true", help="empty the build first")
+    build.add_argument("--configure", action="store_true", help="probe the toolchain again (rewrite flags.mk)")
+    build.add_argument("-j", "--jobs", type=int, metavar="N", help="parallel jobs (default: every core)")
+    build.add_argument("--dry-run", action="store_true", help="what make would do (make -n); nothing built")
+
+    commands.add_parser("make", help="make one source of the work dir (or --framework, Heimdall's): <path>/<X>.exe, <path>/<x>.so",
+                        add_help=False)
+    commands.add_parser("stack", help="this machine's stack: hep stack build|list|status|doctor [options]", add_help=False)
+
+    helping = commands.add_parser("help", help="a command's help: hep help <command>")
+    helping.add_argument("topic", nargs="?", metavar="command")
+
+    for verb, what in (("refresh", "reload this shell's environment"), ("quit", "leave this shell's environment"),
+                       ("cd", "cd to a work dir's folder: hep cd PROJECT [configs|modules|results|records|logs]")):
+        commands.add_parser(verb, help=f"{what} (setup.sh's shell function)", add_help=False)
 
     where = commands.add_parser("where", help="which Heimdall and which work dir this shell sees")
     which = where.add_mutually_exclusive_group()
@@ -872,10 +899,11 @@ def cmd_check(args) -> int:
     failed = 0
     for name in names:
         try:
-            run = configmod.load(name)
+            sets = list(getattr(args, "set", []))
+            run = configmod.load(name, sets=sets)
             points = 0
             for key in run.configurations:
-                planned = build_plans(argparse.Namespace(config=name, set=[], points=None, rerun=False, only=None), key)
+                planned = build_plans(argparse.Namespace(config=name, set=sets, points=None, rerun=False, only=None), key)
                 points += len(planned.every)
             print(f"ok    {name}: {len(run.configurations)} configuration(s), {points} point(s)")
             for warning in [*tools.meta_notes(run), *house.unused_tools(run)]:   # said, never failed
@@ -916,14 +944,15 @@ def cmd_watch(args) -> int:
     return follow_events(connect(max(found)[1]), plain=args.plain)
 
 
-def _planned_all(names: list[str], configuration: str | None = None) -> tuple[list, list[str]]:
-    """Every configuration of these configs, planned as for a run: the plans, and what did not plan."""
+def _planned_all(names: list[str], configuration: str | None = None, sets=()) -> tuple[list, list[str]]:
+    """Every configuration of these configs, planned as for a run (with its --set's): the plans, and
+    what did not plan."""
     planned, failed = [], []
     for name in names:
         try:
-            run = configmod.load(name)
+            run = configmod.load(name, sets=list(sets))
             for key in ([configuration] if configuration else list(run.configurations)):
-                planned.append(build_plans(argparse.Namespace(config=name, set=[], points=None, rerun=False, only=None), key))
+                planned.append(build_plans(argparse.Namespace(config=name, set=list(sets), points=None, rerun=False, only=None), key))
         except HepError as error:
             failed.append(f"{name}: {error.message}")
     return planned, failed
@@ -938,7 +967,7 @@ def cmd_status(args) -> int:
             print(line)
         return 0
     names = [args.config] if args.config else house.config_names()
-    planned, failed = _planned_all(names, args.configuration)
+    planned, failed = _planned_all(names, args.configuration, getattr(args, "set", []))
     for line in house.status(planned, house.running_configs()):
         print(line)
     for line in failed:
@@ -953,7 +982,7 @@ def cmd_clean(args) -> int:
     if hubs():
         raise HepError("a job is running on this machine", hint="clean when it has ended (hep watch shows it)")
     names = [args.config] if args.config else house.config_names()
-    planned, failed = _planned_all(names)
+    planned, failed = _planned_all(names, sets=getattr(args, "set", []))
     if failed and not args.config:
         for line in failed:
             print(f"not planned: {line}")
@@ -1127,20 +1156,149 @@ def same_contents(a: Path, b: Path) -> str:
     return "differs"
 
 
+#: Commands whose arguments go on as they are: to make, to the stack's builder, to the shell function.
+PASSED_ON = ("make", "stack", "refresh", "quit", "cd")
+
+
+def _described(top: argparse.ArgumentParser) -> argparse._SubParsersAction:
+    """Each command's description is its help, said in full (`hep run --help`, `hep help run`)."""
+    commands = next(a for a in top._actions if isinstance(a, argparse._SubParsersAction))
+    helps = {a.dest: a.help for a in commands._choices_actions}
+    for name, sub_parser in commands.choices.items():
+        if not sub_parser.description and helps.get(name):
+            sub_parser.description = helps[name][:1].upper() + helps[name][1:] + "."
+    return commands
+
+
 def parse(argv: list[str]) -> argparse.Namespace:
     """The command line, with options and positionals in any order (`hep run jets --plain pdf`, V54):
-    argparse's intermixed parsing does not take subcommands, so the subcommand's own parser reads the rest."""
+    argparse's intermixed parsing does not take subcommands, so the subcommand's own parser reads the rest.
+    `--plain` may come anywhere, for any command; an unknown command gets the nearest (U59)."""
     top = parser()
-    commands = next(a for a in top._actions if isinstance(a, argparse._SubParsersAction))
-    if argv and argv[0] in commands.choices:
-        args = commands.choices[argv[0]].parse_intermixed_args(argv[1:])
-        args.command = argv[0]
-        return args
-    return top.parse_args(argv)                  # --help, or an unknown command: argparse's own message
+    commands = _described(top)
+    plain = "--plain" in argv
+    argv = [a for a in argv if a != "--plain"]
+    if not argv or argv[0] in ("-h", "--help"):
+        top.print_help()
+        raise SystemExit(0)
+    if argv[0] in PASSED_ON:
+        return argparse.Namespace(command=argv[0], rest=argv[1:], plain=plain)
+    if argv[0] not in commands.choices:
+        if argv[0].startswith("-"):
+            return top.parse_args(argv)
+        raise HepError(f"no command '{argv[0]}'", hint=did_you_mean(argv[0], commands.choices) or "hep help lists them")
+    args = commands.choices[argv[0]].parse_intermixed_args(argv[1:])
+    args.command = argv[0]
+    args.plain = plain or getattr(args, "plain", False)
+    return args
+
+
+def cmd_help(args) -> int:
+    """`hep help [command]`: that command's help, or every command's one line."""
+    top = parser()
+    commands = _described(top)
+    if not args.topic:
+        top.print_help()
+        return 0
+    if args.topic not in commands.choices:
+        raise HepError(f"no command '{args.topic}'", hint=did_you_mean(args.topic, commands.choices) or "hep help lists them")
+    if args.topic in PASSED_ON:
+        print(f"hep {args.topic}: {commands.choices[args.topic].description}")
+        if args.topic == "stack":
+            print("  hep stack build [packages=@kit] [key=value…] [--dry-run]   the stack's builder (recipes/build_stack.py)\n"
+                  "  hep stack list [@kit]                                       its recipes and what is installed\n"
+                  "  hep stack status                                            each package, its release and state\n"
+                  "  hep stack doctor [--quick]                                  what the stack can do, checked")
+        return 0
+    commands.choices[args.topic].print_help()
+    return 0
+
+
+def cmd_build(args) -> int:
+    """`hep build` (U61): make, in the work dir (or, --framework, Heimdall): the module programs and
+    Rivet plugins, or Heimdall's apps and (--tests) its C++ tests."""
+    from .paths import hep_root, work_root
+    if args.tests and not args.framework:
+        raise HepError("--tests builds Heimdall's C++ tests", hint="hep build --framework --tests")
+    where = hep_root() if args.framework else work_root()
+    make = ["make", "-C", str(where), "--no-print-directory"]
+    if shutil.which("make") is None:
+        raise HepError("make is not on PATH", hint="install it (build-essential; on macOS, Xcode's command line tools)")
+    for step in (["clean"] if args.clean else []) + (["configure"] if args.configure else []):
+        if subprocess.run(make + [step]).returncode:
+            return 1
+    goals = list(args.targets) or ["all"]
+    goals += ["tests"] if args.tests and "tests" not in goals else []
+    os.execvp("make", make + ["-j", str(args.jobs or os.cpu_count() or 1), *(["-n"] if args.dry_run else []), *goals])
+
+
+def cmd_make(args) -> int:
+    """`hep make [--framework] <path>/<X>.exe | <path>/<x>.so`: one source, through make."""
+    from .paths import hep_root, work_root
+    rest = list(args.rest)
+    framework = "--framework" in rest
+    rest = [a for a in rest if a != "--framework"]
+    if not rest or rest[0] in ("-h", "--help"):
+        print("usage: hep make [--framework] <path>/<X>.exe | <path>/<x>.so   (docs/06_Internals.md §15)")
+        return 0
+    os.execvp("make", ["make", "-C", str(hep_root() if framework else work_root()), "--no-print-directory", *rest])
+
+
+def _system_python() -> str:
+    """The first python3 on PATH that is not the machine's venv's: the stack's builder makes the venv."""
+    from .paths import machine_root
+    venvs = {str((machine_root() / "venv" / "bin").resolve())}
+    if os.environ.get("HEP_VENV"):
+        venvs.add(str((Path(os.environ["HEP_VENV"]) / "bin").resolve()))
+    for folder in os.environ.get("PATH", "").split(os.pathsep):
+        candidate = Path(folder) / "python3"
+        if folder and str(Path(folder).resolve()) not in venvs and candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return sys.executable
+
+
+def cmd_stack(args) -> int:
+    """`hep stack build|list|status|doctor` (U60): the stack's builder (recipes/build_stack.py; on macOS
+    recipes/platforms/mac/build.sh), and the stack's status and checks, under one noun."""
+    import platform
+    from .paths import hep_root
+    rest = list(args.rest)
+    action = rest.pop(0) if rest else "help"
+    if action in ("help", "-h", "--help"):
+        return cmd_help(argparse.Namespace(topic="stack"))
+    if action == "status":
+        from .doctor import stack_status
+        for line in stack_status():
+            print(line)
+        return 0
+    if action == "doctor":
+        return doctormod.main(quick="--quick" in rest, record_it="--record" in rest, show_matrix="--matrix" in rest)
+    if action not in ("build", "list"):
+        raise HepError(f"no 'hep stack {action}'", hint=did_you_mean(action, ("build", "list", "status", "doctor"))
+                       or "hep stack build|list|status|doctor")
+    root = hep_root()
+    if platform.system() == "Darwin" and action == "build":
+        argv = ["bash", str(root / "recipes" / "platforms" / "mac" / "build.sh"), *rest]
+    else:
+        argv = [_system_python(), str(root / "recipes" / "build_stack.py"), *(["--list"] if action == "list" else []), *rest]
+    os.execvp(argv[0], argv)
+
+
+def cmd_shell_verb(args) -> int:
+    """`hep refresh | quit | cd`: they change the shell they are typed in, which only setup.sh's shell
+    function can (env/hep_env.sh)."""
+    from .paths import hep_root
+    raise HepError(f"hep {args.command} changes the shell it is typed in, so it is setup.sh's shell function, "
+                   "and this shell does not have it (a script, or a shell started from one)",
+                   hint=f"source {hep_root() / 'setup.sh'}")
 
 
 def main(argv: list[str]) -> int:
-    args = parse(argv)
+    try:
+        args = parse(argv)
+    except HepError as error:
+        print(error.render(), file=sys.stderr)
+        return 2
     try:
         check_retired()                                            # a shell with High-Energy's names (K15)
         if args.command != "setup" and (work := find_work()) is not None:
@@ -1160,6 +1318,16 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "where":
             return setupmod.where(args.which)
+        if args.command == "help":
+            return cmd_help(args)
+        if args.command == "build":
+            return cmd_build(args)
+        if args.command == "make":
+            return cmd_make(args)
+        if args.command == "stack":
+            return cmd_stack(args)
+        if args.command in ("refresh", "quit", "cd"):
+            return cmd_shell_verb(args)
         if args.command == "doctor":
             return doctormod.main(quick=args.quick, record_it=args.record, show_matrix=args.matrix)
         if args.command == "tools":

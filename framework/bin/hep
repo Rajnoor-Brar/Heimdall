@@ -1,115 +1,14 @@
 #!/usr/bin/env bash
-# framework/bin/hep — the `hep` command (docs/05_Commands_and_Tools.md §1).
+# framework/bin/hep — the `hep` command (docs/05_Commands_and_Tools.md §1): every command is the runner's
+# (framework/bin/run, framework/runner/cli.py); `hep help` lists them, `hep help <command>` says one.
 #
-#   hep run <config> [<configuration>] [options]   the runner (framework/bin/run), in the current work dir
-#   hep plot <config> [<configuration>]            a configuration's pages
-#   hep overlay FILE…                              any YODA/ROOT files overlaid
-#   hep deck <deck>                                a deck of slides from drawn pages (reports/<deck>/)
-#   hep watch [<config>]                           attach the live view
-#   hep ls | explain | status | clean              housekeeping (docs/05_Commands_and_Tools.md §1)
-#   hep cluster <config> [<configuration>]          the run as Slurm jobs (sbatch), from a cluster's login node
-#   hep setup <dir> | where                        make a work dir; which Heimdall and work dir this shell sees
-#   hep refresh | quit | cd PROJECT [DIR]          this shell itself: setup.sh's `hep` function does them
-#                                                  (env/hep_env.sh); this script only explains that
-#   hep build [targets…] [--tests] [--clean] [--configure] [-j N]    make, in the work dir
-#   hep build --framework …                        make, in Heimdall: the framework's apps
-set -euo pipefail
-
-here=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
-hep=$(cd "$here/../.." && pwd)                                 # Heimdall: framework/bin/ is two levels down
 # The machine's venv Python, by path: `hep` works without the environment loaded (cron, scripts, Slurm,
-# env -i), where python3 may lack the runner's packages. ~ is found without $HOME too.
+# env -i), where python3 may lack the runner's packages. ~ is found without $HOME too. UTF-8 mode: text
+# is read and written as UTF-8 whatever the locale (a node with LANG=C; YODA 2.1's reader, which leaves
+# its thread in the "C" locale after yoda.read).
+set -euo pipefail
+here=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
 machine=${HEP_MACHINE:-~/Himinbjorg}
 py=${HEP_VENV:-$machine/venv}/bin/python
 [ -x "$py" ] || py=python3
-# UTF-8 mode: text is read and written as UTF-8 whatever the locale — a node with LANG=C, and YODA 2.1's
-# reader, which leaves its thread in the "C" locale after yoda.read (later reads would decode as ASCII).
-py=("$py" -X utf8)
-
-usage() {
-    cat <<EOF
-usage: hep <command> [options]
-
-  run <config> [<configuration>]   plan and run a configuration          (hep run --help)
-  plot <config> [<configuration>]  draw a configuration's pages from its complete points
-  overlay FILE…                    overlay any YODA/ROOT files (hep overlay --help)
-  deck <deck>                      a deck of slides from drawn pages, reports/<deck>/ (hep deck --help)
-  watch [<config>]                 attach the live view to a running job (hep watch --help)
-  check [<config>…]                check run TOMLs: every configuration planned, nothing run
-  ls [<project>]                   every config and its configurations
-  explain <key>                    a run TOML key: type, default and meaning (plot.y_gutter, …)
-  status [<config> [<cfg>]]        each configuration's points: complete, stale, incomplete, to run
-  clean [<config>] [--dry-run]     remove what the runner made and no plan uses (lists, then asks)
-  reproduce <provenance.json>      run a finished point again, beside it, and compare its products
-  migrate [<config>…] [--apply]    rewrite run TOMLs and cards in today's forms (a diff by default)
-  cluster <config> [<configuration>]   run it as Slurm jobs: --dry-run, --status, --cancel (hep cluster --help)
-  setup <dir> [--project P] [--git] [--adopt]    make a work dir     (hep setup --help)
-  where [--hep | --work]           which Heimdall and which work dir this shell sees
-  doctor [--quick] [--record]      what this machine's stack and Heimdall can do, checked
-  tools [<name>]                   every tool folder (the work dir's tools/, the machine root's, Heimdall's); one in full
-  tools new <name> --from <tool>   a tool folder of this work dir: a copy of exec/module, or one extending <tool>
-  refresh | quit                   reload this shell's environment (the same stack, from scratch); leave it
-  cd PROJECT [DIR]                 cd to the work dir's DIR/PROJECT (DIR: configs, modules, results, output)
-  build [targets…]                 compile the work dir's module programs and Rivet plugins (make all)
-        --framework                Heimdall's apps instead (framework/Apps/)
-        --tests                    also build the C++ tests (with --framework)
-        --clean                    empty the build first
-        --configure                probe the toolchain again (rewrite flags.mk)
-        -j N                       parallel jobs (default: all cores)
-
-  make [--framework] <path>/<X>.exe | <path>/<x>.so   compile one source (docs/06_Internals.md §15)
-EOF
-}
-
-cores() { "${py[@]}" -c 'import os; print(os.cpu_count() or 1)'; }  # nproc is not on macOS
-work() { "${py[@]}" "$here/run" where --work; }                      # the work dir, or exit 2 with why not
-
-cmd=${1-}
-[ $# -gt 0 ] && shift
-case "$cmd" in
-    run|watch|plot|overlay|deck|check|ls|explain|status|clean|reproduce|migrate|setup|where|cluster|doctor|tools)
-        exec "${py[@]}" "$here/run" "$cmd" "$@"
-        ;;
-    build)
-        goals=(all) jobs=(-j "$(cores)") dir="" clean=0 configure=0
-        while [ $# -gt 0 ]; do
-            case "$1" in
-                --framework) dir=$hep ;;
-                --tests)     goals+=(tests) ;;
-                --clean)     clean=1 ;;
-                --configure) configure=1 ;;
-                -j)          jobs=(-j "$2"); shift ;;
-                -j*)         jobs=("$1") ;;
-                -h|--help)   usage; exit 0 ;;
-                -*)          echo "hep build: unknown option '$1'" >&2; exit 2 ;;
-                *)           [ "${goals[0]}" = all ] && goals=(); goals+=("$1") ;;
-            esac
-            shift
-        done
-        [ -n "$dir" ] || dir=$(work) || exit 2
-        [ "$clean" = 0 ] || make -C "$dir" --no-print-directory clean
-        [ "$configure" = 0 ] || make -C "$dir" --no-print-directory configure
-        exec make -C "$dir" --no-print-directory "${jobs[@]}" "${goals[@]}"
-        ;;
-    make)
-        if [ "${1-}" = --framework ]; then
-            shift
-            exec make -C "$hep" --no-print-directory "$@"
-        fi
-        dir=$(work) || exit 2
-        exec make -C "$dir" --no-print-directory "$@"
-        ;;
-    refresh|quit|cd)
-        echo "hep $cmd: changes the shell it is typed in, so it is setup.sh's shell function," >&2
-        echo "  and this shell does not have it (a script, or a shell started from one): source $hep/setup.sh" >&2
-        exit 2
-        ;;
-    ""|-h|--help|help)
-        usage
-        ;;
-    *)
-        echo "hep: unknown command '$cmd'" >&2
-        usage >&2
-        exit 2
-        ;;
-esac
+exec "$py" -X utf8 "$here/run" "$@"

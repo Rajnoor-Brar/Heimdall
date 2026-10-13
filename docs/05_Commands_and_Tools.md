@@ -12,6 +12,20 @@ counted, what it puts in the context file, and the quirks that shaped it (the le
 
 ## 1. Commands
 
+Every command is one program's (`framework/bin/hep` runs `framework/runner/cli.py`, U59): `hep help`
+lists them, `hep help <command>` (or `hep <command> --help`) says one, and a misspelt command gets
+the nearest. Throughout:
+- **`--dry-run`** shows what a command would do and does nothing: `run` (also `--plan`), `deck` (also
+  `--list`), `clean`, `cluster`, `migrate` (its default: `--apply` writes), `build` (`make -n`) and
+  `stack build`.
+- **`--set KEY=VALUE`** works on every command that plans: `run`, `check`, `status`, `clean`, `cluster`.
+- **`--plain`** may come anywhere, for any command.
+- **Errors** are one shape: `hep: what`, then `where:` and `hint:`. A record id, when one helps, comes
+  last as "(see V93)".
+- **`hep stack build|list|status|doctor`** is the machine's stack: its builder
+  (`recipes/build_stack.py`, on macOS `recipes/platforms/mac/build.sh`), its recipes, its packages,
+  its checks.
+
 Every subcommand and its arguments (options and positionals may come in any order, V54):
 
 <!-- generated: commands -->
@@ -21,7 +35,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `config` | configs/<Project>/<name>[.toml], or ./path from the work dir |
 | `[configuration]` | overrides [run].configuration; under [run].sweep_runs, runs only it |
-| `--plan` | print the plan; run nothing |
+| `--plan, --dry-run` | print the plan; run nothing |
 | `--why` | for each point that would run, what changed since it last completed; run nothing |
 | `--show-config` | print each configuration's resolved values and where each came from; run nothing |
 | `--card TAG` | with --plan: that tool's card for the first point, each line with where its value comes from |
@@ -60,7 +74,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | Argument | Meaning |
 |---|---|
 | `deck` | decks/<deck> (built into reports/<deck>), or a path starting ./, ../ or / |
-| `--list` | each block, its panels and where they came from; nothing written |
+| `--list, --dry-run` | each block, its panels and where they came from; nothing written |
 | `--only TARGETS` | some of pdf, pptx, html, overleaf, viewer (comma-separated) |
 | `--init` | write deck.md once: a title slide and a slide per block |
 
@@ -82,6 +96,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `[config]` | one config (default: every config) |
 | `[configuration]` | one configuration of it |
+| `--set KEY=VALUE` | as hep run's, for the view |
 | `--stack` | the loaded stack instead: each package installed, its release and state; the libraries' versions |
 
 **`hep migrate`**: rewrite run TOMLs and their cards in today's forms (a diff, or --apply)
@@ -92,6 +107,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--v3` | into the run TOML's third form (03 §6, runner/v3.py) |
 | `--layout` | move the work dir's output/ into records/, logs/ and .cache/ (no configs are read) |
 | `--apply` | write the changes (default: print the diff) |
+| `--dry-run` | print the diff, write nothing (the default) |
 
 **`hep reproduce`**: run a finished point again, from its provenance, beside it
 
@@ -107,6 +123,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `[config]` | one config (default: every config, and the unused caches) |
 | `--dry-run` | list only |
+| `--set KEY=VALUE` | as hep run's: what the plans use |
 | `--yes` | delete without asking |
 | `--records` | also the records no plan has (provenance, identities, completion): asked for even with --yes |
 
@@ -115,6 +132,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | Argument | Meaning |
 |---|---|
 | `CONFIG…` | configs to check (default: every configs/<Project>/*.toml with a [run]) |
+| `--set KEY=VALUE` | as hep run's: check what that run would |
 
 **`hep watch`**: attach the live view to a running job
 
@@ -164,6 +182,49 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `NAME \| new NAME…` | a folder to show, or new and a folder to make |
 | `--from SOURCE` | hep tools new: the folder it starts from (exec, module: a copy; any other: extends it) |
+
+**`hep build`**: compile the work dir's module programs and Rivet plugins (make all)
+
+| Argument | Meaning |
+|---|---|
+| `targets…` | make targets (default: all) |
+| `--framework` | Heimdall's apps instead (framework/Apps/) |
+| `--tests` | with --framework: the C++ tests too |
+| `--clean` | empty the build first |
+| `--configure` | probe the toolchain again (rewrite flags.mk) |
+| `-j, --jobs N` | parallel jobs (default: every core) |
+| `--dry-run` | what make would do (make -n); nothing built |
+
+**`hep make`**: make one source of the work dir (or --framework, Heimdall's): <path>/<X>.exe, <path>/<x>.so
+
+| Argument | Meaning |
+|---|---|
+
+**`hep stack`**: this machine's stack: hep stack build|list|status|doctor [options]
+
+| Argument | Meaning |
+|---|---|
+
+**`hep help`**: a command's help: hep help <command>
+
+| Argument | Meaning |
+|---|---|
+| `[command]` |  |
+
+**`hep refresh`**: reload this shell's environment (setup.sh's shell function)
+
+| Argument | Meaning |
+|---|---|
+
+**`hep quit`**: leave this shell's environment (setup.sh's shell function)
+
+| Argument | Meaning |
+|---|---|
+
+**`hep cd`**: cd to a work dir's folder: hep cd PROJECT [configs|modules|results|records|logs] (setup.sh's shell function)
+
+| Argument | Meaning |
+|---|---|
 
 **`hep where`**: which Heimdall and which work dir this shell sees
 

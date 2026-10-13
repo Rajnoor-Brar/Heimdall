@@ -71,7 +71,7 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
         if owned:
             raise HepError(f"the base card sets {', '.join(owned)}, which the plan owns",
                            where=f"[tools.{context.get('tag', 'sherpa')}].baseconfig",
-                           hint="beams, energies, seed, events and outputs come from quantities and the runner (L12)")
+                           hint="beams, energies, seed, events and outputs come from quantities and the runner (see L12)")
         document = merge(document, loaded)
     for key, value, origin in overrides:               # the runner's Override, unpacked (L26)
         if key == "sqrts":                               # symmetric beams: Sherpa wants each beam's energy

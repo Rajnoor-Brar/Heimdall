@@ -651,8 +651,8 @@ def _resolve_chain(run, configuration, point) -> list[list[str]]:
                     index = qmod.select(quantity, configuration.static[name], f"static.{name}")
                 member = quantity.values[index]
                 if member not in run.tools:
-                    raise HepError(f"'@{name}' took the value '{member}', which is not a tool tag",
-                                   where=f"[quantities.{name}]", hint="its values must be [tools.<tag>] names (C5)")
+                    raise HepError(f"'@{name}' took the value '{member}', which is not a tool table",
+                                   where=f"[quantities.{name}]", hint="its values must be [tools.<name>] names (see C5)")
             resolved.append(member)
         groups.append(resolved)
     return groups
@@ -888,7 +888,7 @@ def _outputs(plan: PointPlan, step: Step, run) -> None:
                            hint="a post tool writes a new file; it reads the points' products with input = \"" + name + "\"")
         if name in plan.interfaces and plan.interfaces[name].producer:
             raise HepError(f"'{name}' is written by both {plan.interfaces[name].producer} and {step.tag}",
-                           where=f"[tools.{step.tag}].output_file", hint="every output has exactly one writer (C6)")
+                           where=f"[tools.{step.tag}].output_file", hint="every output has exactly one writer (see C6)")
         if name in plan.interfaces:
             interface = plan.interfaces[name]
         else:                                          # not an agreed interface: a product (04 §2)
@@ -928,18 +928,18 @@ def _check_connections(plan: PointPlan, run) -> None:
                                hint="name it in a tool's output (v2: output_file); a FIFO nobody writes blocks its reader for ever")
             if len(readers) != 1:
                 raise HepError(f"FIFO '{interface.name}' has {len(readers)} readers; a FIFO has exactly one",
-                               where=where, hint="fan out with a list output_file on the producer, one FIFO per reader (V16)")
+                               where=where, hint="fan out with a list output on the producer, one FIFO per reader (see V16)")
             reader = readers[0]
             if reader.group != interface.group:
                 raise HepError(f"FIFO '{interface.name}' connects {interface.producer} and {reader.tag} across groups",
                                where=where, hint=f"put them in one group, [\"{interface.producer}\", \"{reader.tag}\"], "
                                                   "or make it a file (v2: a [prelim] file): a later reader leaves the writer "
-                                                  "blocked (L8)")
+                                                  "blocked (see L8)")
             streamable = reader.tool.streamable if reader.tool.streamable is not None else reader.folder.get("tool", "streamable", False)
             if not streamable:
                 raise HepError(f"'{reader.tag}' cannot read a FIFO", where=where,
-                               hint="its tool folder says streamable = false (Delphes skips a zero-length input, L11); "
-                                    "put it in a later group, so it reads a file (v2: a [prelim] file there)")
+                               hint="its tool folder says streamable = false, as Delphes skips a zero-length input: "
+                                    "put it in a later group, so it reads a file; v2: a [prelim] file there (see L11)")
         else:
             for reader in readers:
                 if interface.producer:
@@ -977,7 +977,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
         normal = "".join(key.split()).lower()
         if normal in owners and owners[normal] != origin:
             raise HepError(f"'{key}' is set by both {owners[normal]} and {origin}", where=f"[tools.{step.tag}]",
-                           hint="one source per native key (C8): pin it in one place")
+                           hint="one source per native key: pin it in one place (see C8)")
         owners[normal] = origin
         step.card_origins[normal] = origin
         overrides.append(qmod.Override(key, value, origin))

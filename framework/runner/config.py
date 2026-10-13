@@ -248,7 +248,7 @@ def _inferred(groups: list[list[str]], tools: dict, keep: dict, base: dict, quan
             if same and later:
                 raise HepError(f"'{name}' is read in {tag}'s group ({', '.join(same)}) and after it ({', '.join(later)}): "
                                "a FIFO has one reader", where=f"[tools.{tag}].output",
-                               hint="write two outputs, one for each (fan-out, V16)")
+                               hint="write two outputs, one for each: fan-out (see V16)")
             if same and name not in fifo:
                 fifo.append(name)
             elif later and keep.get(tag) is False and name not in files:
@@ -554,7 +554,7 @@ def _imports(raw: dict, path: Path, project: str, chain: tuple[Path, ...]) -> tu
             raise HepError(f"imports go round in a circle: {circle}", where=where)
         part = _read(source)
         if "master" in part:
-            raise HepError("[master] is [config] now (V93): master_toml is master, include is import",
+            raise HepError("[master] is [config] now: master_toml is master, include is import (see V93)",
                            where=f"{source}: [master]", hint="hep migrate rewrites it")
         theirs = _project_of(source, part, project)
         part, inner, deeper = _imports(part, source, theirs, (*chain, source.resolve()))
@@ -802,7 +802,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     raw, form, keep, silent, families = _marks(raw)
     sections = schema.sections()
     if "master" in raw:                                    # break and migrate (V93)
-        raise HepError("[master] is [config] now (V93): master_toml is master, include is import", where=f"{where}: [master]",
+        raise HepError("[master] is [config] now: master_toml is master, include is import (see V93)", where=f"{where}: [master]",
                        hint="hep migrate rewrites it")
     for key in raw:
         if key not in sections:
@@ -818,13 +818,13 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
         raise HepError("missing [run]", where=where, hint="every run TOML has [run] name, project, configuration")
     if isinstance(run.get(DEFAULTS), dict):                         # V99: [run] gives what it gave
         if strict:
-            raise HepError(f"[run.{DEFAULTS}] is [run] now (V99): its keys go in [run] itself, which every configuration "
-                           "starts from", where=f"{where}: [run.{DEFAULTS}]", hint="hep migrate moves them")
+            raise HepError(f"[run.{DEFAULTS}] is [run] now: its keys go in [run] itself, which every configuration "
+                           "starts from (see V99)", where=f"{where}: [run.{DEFAULTS}]", hint="hep migrate moves them")
         run = {**{k: v for k, v in run.items() if k != DEFAULTS}, **run[DEFAULTS]}   # it was above [run]
         raw = {**raw, "run": run}
     old = [k for k, v in run.items() if isinstance(v, dict) and k != CFGS and k not in schema.keys("run")]
     if old and strict:                                                # break and migrate (V98)
-        raise HepError(f"[run.{old[0]}] is a configuration, and configurations are [run.{CFGS}.<cfg>] now (V98)",
+        raise HepError(f"[run.{old[0]}] is a configuration, and configurations are [run.{CFGS}.<cfg>] now (see V98)",
                        where=f"{where}: [run.{old[0]}]",
                        hint=f"write [run.{CFGS}.{old[0]}]; hep migrate rewrites the file")
     if old:                                      # hep migrate reads the old form it rewrites (V79, V98)
@@ -835,7 +835,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     if strict:                                  # V79: the forms hep migrate rewrites
         for key, table in run.get(CFGS, {}).items():
             if isinstance(table, dict) and "swept" in table:
-                raise HepError(f"[run.{CFGS}.{key}].swept is gone (V79): [run].sweep_runs lists the configurations it runs",
+                raise HepError(f"[run.{CFGS}.{key}].swept is gone: [run].sweep_runs lists the configurations it runs (see V79)",
                                where=f"{where}: [run.{CFGS}.{key}].swept",
                                hint="sweep_runs = [\"a\", \"b\"], in the order to run them; hep migrate rewrites this file")
     for required in ("name", "project") + (() if sweep_on else ("configuration",)):
@@ -1069,7 +1069,7 @@ def no_tlatex(value, where: str) -> None:
     from .labels import is_tlatex, natural
     for text in value if isinstance(value, list) else [value]:
         if isinstance(text, str) and is_tlatex(text):
-            raise HepError(f"'{text}' is TLatex; labels are LaTeX (V65, V79)", where=where,
+            raise HepError(f"'{text}' is TLatex; labels are LaTeX (see V65)", where=where,
                            hint=f"write '{natural(text)}', or run hep migrate on the file")
 
 
@@ -1114,7 +1114,7 @@ def check_plot(plot: dict, where: str, strict: bool = True) -> None:
     objects or a backend is plot.validate's and plot.pages'."""
     for old, new in FIGURE_TABLES.items():                 # break and migrate (V81)
         if old in plot:
-            raise HepError(f"[plot.{old}] is a figure now: {new} (V81)", where=f"{where}.{old}",
+            raise HepError(f"[plot.{old}] is a figure now: {new} (see V81)", where=f"{where}.{old}",
                            hint="hep migrate rewrites it")
     if strict:
         _plot_texts(plot, where)

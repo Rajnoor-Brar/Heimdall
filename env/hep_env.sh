@@ -186,20 +186,20 @@ hep_cd() {
     work=$(command hep where --work) || return 2
     cd "$work/${2:-configs}/$1"
 }
-# hep_status: the loaded stack's packages, from their recipes (`hep status --stack`).
-hep_status() { command hep status --stack "$@"; }
+# hep_status: the loaded stack's packages, from their recipes (`hep stack status`; kept for a release).
+hep_status() { command hep stack status "$@"; }
 
 hep_stash()   { cd "$HEP_MACHINE/forge/downloads"; }   # the downloads (shared by every stack)
 hep_forge()   { cd "$HEP_FORGE"; }
 hep_stack()   { cd "$HEP_INSTALL"; }
 hep_help() {
     cat << HLP
-hep run | plot | watch | build | …     the framework (hep --help)
+hep run | plot | watch | build | stack | …   every command (hep help; hep help <command>)
 In this shell:
   hep refresh            reload the environment from scratch, the same stack (also hep_refresh)
   hep quit               leave it: paths, venv and machine.sh's lines as before (also quit)
-  hep cd PROJECT [DIR]   cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|output; also hep_cd)
-  hep_status             the loaded stack: each package, its release and state (hep status --stack)
+  hep cd PROJECT [DIR]   cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|records|logs; also hep_cd)
+  hep_status             the loaded stack: each package, its release and state (hep stack status)
   hep_stash              cd to the machine root's downloads
   hep_forge              cd to the loaded stack's builds in progress
   hep_stack              cd to the loaded stack (the installs)

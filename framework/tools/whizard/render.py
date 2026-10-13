@@ -62,7 +62,7 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
     if owned:
         raise HepError(f"the base card sets {', '.join(owned)}, which the plan owns",
                        where=f"[tools.{context.get('tag')}].baseconfig",
-                       hint="SINDARIN runs the base after the point card, so it would replace the plan's value (L13)")
+                       hint="SINDARIN runs the base after the point card, so it would replace the plan's value (see L13)")
     lines = ["# SINDARIN runs in order: the plan's settings first, the base card (included last) after."]
     structure = STRUCTURE.search(base)
     for key, value, origin in overrides:               # the runner's Override (L26)

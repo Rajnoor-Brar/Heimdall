@@ -104,7 +104,7 @@ folder or file whose name starts with `_` is parked: `hep build` skips it.
 
 ```bash
 hep run Demo/jets single --plan    # what would run: cards, argv, connections; runs nothing
-hep run Demo/jets single --set run.event_count=50000
+hep run Demo/jets single --set run.events=50000
 ```
 
 `single` is one point:
@@ -139,52 +139,50 @@ hep plot Demo/jets energy_pdf      # redraw its pages from what is on disk
 
 ## 3. Anatomy of a run TOML
 
-A run TOML has seven sections. Here is a small, complete one:
+A run TOML has a table per concern: `[run]` (the run, and what every configuration starts from),
+`[cfgs.<name>]` (each configuration), `[tools.<name>]`, `[quantities.<name>]` and `[plot]`. Here is a
+small, complete one:
 
 ```toml
 # configs/Demo/mini.toml
 [run]
-name          = "mini"
-project       = "Demo"
-configuration = "pdf"             # what `hep run Demo/mini` runs
-event_count   = 100_000
-threads       = 8
+name    = "mini"
+project = "Demo"
+run     = "pdf"                   # what `hep run Demo/mini` runs
+events  = 100_000
+threads = 8
+chain   = [["pythia", "rivet"], "yd2rt"]   # group 1 runs together, then group 2
 
-[run.cfgs.pdf]                    # a configuration: one recipe
-description = "Two proton PDFs at the static beams"
-sweeps      = ["pdf"]             # 2 points
-tools       = [["pythia", "rivet"], "yd2rt"]   # group 1 runs together (FIFO), then group 2
+[cfgs.single]                     # a configuration: one recipe
+description = "One point, at the fixed beams and PDF"
 
-[prelim]
-fifo = ["events.hepmc"]           # made before the tools start, per point
-
-[static]                          # values of quantities that are not swept
-energies = "27x920"
+[cfgs.pdf]
+description = "Two proton PDFs at the fixed beams"
+vary        = ["pdf"]             # 2 points
 
 [quantities.energies]             # the vocabulary knows it: Pythia's Beams:eA, Beams:eB
-values = [[920, 27.5], [275, 18]]
-tags   = ["27x920", "18x275"]
+fixed  = "27x920"                 # the point a configuration that does not vary it takes
+points = [{ tag = "27x920", value = [920, 27.5] }, { tag = "18x275", value = [275, 18] }]
 
 [quantities.pdf]                  # PDF:pSet = <value>, as written
-values = ["LHAPDF6:MSTW2008lo68cl", "LHAPDF6:NNPDF23_lo_as_0130_qed"]   # or Pythia's own sets: 13, 14
-tags   = ["MSTW08lo", "NNPDF23lo"]
-labels = ["MSTW 2008 LO", "NNPDF 2.3 LO"]
+fixed  = "MSTW08lo"
+points = [
+  { tag = "MSTW08lo",  value = "LHAPDF6:MSTW2008lo68cl",         label = "MSTW 2008 LO" },
+  { tag = "NNPDF23lo", value = "LHAPDF6:NNPDF23_lo_as_0130_qed", label = "NNPDF 2.3 LO" },
+]                                 # or Pythia's own sets: value = 13
 
-[tools.pythia]
-tool        = "pythia"
-baseconfig  = "ep.cmnd"     # configs/Demo/ep.cmnd: the physics
-output_file = "events.hepmc"      # a [prelim] name: into the FIFO
+[tools.pythia]                    # the table's name is the tool
+card   = "ep.cmnd"                # configs/Demo/ep.cmnd: the physics
+output = "events.hepmc"           # rivet reads it in the same group: a FIFO
 
 [tools.rivet]
-tool        = "rivet"
-input       = "events.hepmc"
-analyses    = ["photo_eic"]
-output_file = "jets.yoda"        # not a [prelim] name: a product, in results/
+input    = "pythia"               # what pythia writes
+analyses = ["photo_eic"]
+output   = "jets.yoda"            # read by a later group: a product, in results/
 
 [tools.yd2rt]
-tool        = "yd2rt"
-input       = "jets.yoda"
-output_file = "jets.root"
+input  = "rivet"
+output = "jets.root"
 
 [plot]
 formats = ["pdf", "png"]
@@ -193,18 +191,24 @@ ratio   = true
 
 - **The physics is in the base card.** A quantity renders an override into the point card
   (`cards/pythia.point.cmnd`). It is read after the base, so it wins.
-- **Quantities reach tools** in one of three ways (04 §8.1):
+- **A quantity says everything about itself:** its points as rows (`tag`, `value`, `label`,
+  `style`), its `fixed` point, and where its value goes. It reaches tools in one of two ways
+  (04 §8.1):
   - through the tool folders' `quantities.toml` (`energies`, `pdf`, `sqrts`, `beams`, `beam_a`,
     `beam_b` for Pythia);
-  - through `key = { pythia = "…" }`;
-  - through a `target`.
+  - through `to = { pythia = "…" }` (a native key), `{ "rivet/photo_eic" = "R" }` (an analysis
+    option) or `{ "pythia/seed" = true }` (a replica).
 
   A quantity that is set but reaches no tool is refused (C7): a value that changes a directory name
-  and nothing else is the failure this framework is built to refuse.
-- **Connections are named**: `output_file` and `input` say what goes where. A FIFO connects tools in
-  one group; between groups the interface is a file (C6).
-- **Paths**: a bare name goes under its key's convention root (`baseconfig` under `configs/<P>/`),
-  `./x` is from the work dir, and `/x` is absolute (04 §2).
+  and nothing else is the failure this framework is built to refuse. So is one no configuration
+  varies or fixes.
+- **Connections follow from the chain**: `input` names what a tool reads, by its producer. A reader
+  in the producer's group reads a FIFO; a later group reads a file, a product in `results/` (04 §6).
+- **Paths**: a bare name goes under its key's convention root (`card` under `configs/<P>/`), `./x`
+  is from the work dir, and `/x` is absolute (04 §2).
+- **Folders**: a configuration's results go to `results/Demo/mini/01_pdf/`. The runner numbers the
+  folder, and a changed configuration gets a new number rather than overwriting; `serial = 3` makes
+  it yours (04 §2).
 - **Labels are LaTeX**, as a physicist writes them (`$p_{T}$ > 4 GeV`, `$\sqrt{s}$`). Words outside
   `$…$` are text, as written. A label in ROOT's TLatex (`#sqrt{s}`, `p_{T}` with no `$`) is refused
   with its LaTeX as the hint, and `hep migrate` rewrites old files (§10).
@@ -218,14 +222,13 @@ you can run them.
 
 ### 4.1 One point
 
-`sweeps = []`. Any active quantities come from `[static]`. → `jets single`.
+No `vary`: one point. Every active quantity takes its `fixed` point. → `jets single`.
 
 ### 4.2 A sweep: one quantity, one page
 
 ```toml
-[run.cfgs.pdf]
-sweeps = ["pdf"]
-tools  = [["pythia", "rivet"], "yd2rt"]
+[cfgs.pdf]
+vary = ["pdf"]                    # the chain is [run]'s
 ```
 
 One page per histogram, with a curve per PDF. → `jets pdf`, `validation default`.
@@ -233,44 +236,55 @@ One page per histogram, with a curve per PDF. → `jets pdf`, `validation defaul
 ### 4.3 A grid, split into pages
 
 ```toml
-[run.cfgs.energy_pdf]
-sweeps      = ["energies", "pdf"]     # 4 × 4 = 16 points
+[cfgs.energy_pdf]
+vary        = ["energies", "pdf"]     # 4 × 4 = 16 points
 plot_points = ["energies"]            # a page folder per energy; the PDFs are the curves
-tools       = [["pythia", "rivet"], "yd2rt"]
 ```
 
-`plot_points` names the quantities that make **pages**; every other swept quantity makes
+`plot_points` names the quantities that make **pages**; every other varied quantity makes
 **curves**. → `jets energy_pdf`, `jets mpi_grid`, `lambda cuts_grid`.
 
 ### 4.4 Quantities that move together
 
 ```toml
-sweeps = ["energies", ["pdf", "alphas"]]    # pdf and alphas zipped: value i with value i
+vary = ["energies", ["pdf", "alphas"]]    # pdf and alphas zipped: point i with point i
 ```
 
-An inner list is one axis whose quantities have equal value counts (a PDF with its matching αs).
-A quantity's `exclude = [N, …]` leaves values out of a sweep (1-based).
+An inner list is one axis whose quantities have equal point counts (a PDF with its matching αs).
+Quantities that only ever move together are better written as one, with fields: a row per point and
+a value per field (04 §8.4). A quantity's `exclude = [N, …]` leaves points out of a vary (1-based).
+
+```toml
+[quantities.collision]               # vary = ["collision"]: beams and nucleus together
+fields = { energies = "energies", nucleus = { pythia = "PDF:nPDFBeamA" } }
+fixed  = "p"
+points = [
+  { tag = "p",  energies = [130, 9], nucleus = 2212,       label = "$e$p" },
+  { tag = "Au", energies = [100, 9], nucleus = 1000791970, label = "$e$Au" },
+]
+```
 
 ### 4.5 A configuration's own fixed values
 
 ```toml
-[run.cfgs.mpi]
-sweeps = ["pt0ref"]
-tools  = [["pythia", "rivet"], "yd2rt"]
-static = { energies = "18x275" }      # over [static], for this configuration only
+[cfgs.mpi]
+vary  = ["pt0ref"]
+fixed = { energies = "18x275" }       # over the quantity's own fixed, for this configuration only
 ```
 
-→ `jets mpi`, `jets radius`. A static value is a tag, an exact value, or `"#N"`. `--set
-static.energies=10x100` changes it for one invocation.
+→ `jets mpi`, `jets radius`. A fixed point is a tag, an exact value, or `"#N"`. `--set
+cfgs.mpi.fixed.energies=10x100` changes it for one invocation.
 
 ### 4.6 A quantity Pythia does not know by name
 
 ```toml
 [quantities.pt0ref]
-key    = { pythia = "MultipartonInteractions:pT0Ref" }
-values = [3.0, 3.2, 3.4]
-tags   = ["pt30", "pt32", "pt34"]
-labels = ['$p_{T0}^{\mathrm{ref}}$ = 3.0 GeV', '$p_{T0}^{\mathrm{ref}}$ = 3.2 GeV', '$p_{T0}^{\mathrm{ref}}$ = 3.4 GeV']
+to     = { pythia = "MultipartonInteractions:pT0Ref" }
+points = [
+  { tag = "pt30", value = 3.0, label = '$p_{T0}^{\mathrm{ref}}$ = 3.0 GeV' },
+  { tag = "pt32", value = 3.2, label = '$p_{T0}^{\mathrm{ref}}$ = 3.2 GeV' },
+  { tag = "pt34", value = 3.4, label = '$p_{T0}^{\mathrm{ref}}$ = 3.4 GeV' },
+]
 ```
 
 - **Quoting:** write LaTeX labels in **single** quotes. In `"…"`, TOML reads a backslash as an
@@ -284,19 +298,17 @@ labels = ['$p_{T0}^{\mathrm{ref}}$ = 3.0 GeV', '$p_{T0}^{\mathrm{ref}}$ = 3.2 Ge
 
 ```toml
 [quantities.radius]
-target = "rivet/photo_eic"      # tool tag / analysis
-key    = "R"                    # the option, as the .info declares it
-values = [0.4, 0.7, 1.0]
-tags   = ["r04", "r07", "r10"]
+to     = { "rivet/photo_eic" = "R" }    # tool table / analysis = the option, as the .info declares it
+points = [{ tag = "r04", value = 0.4 }, { tag = "r07", value = 0.7 }, { tag = "r10", value = 1.0 }]
 ```
 
 Rivet runs `photo_eic:R=0.4`, and so on. An option the `.info` does not declare is refused (C9):
 Rivet would ignore it silently and give identical curves. Each variant is a curve on the object's
 page, labelled `… [R=0.4]`.
 
-**Each value is its own generation** (V9): a three-value option sweep runs Pythia three times. To
-avoid that, keep the events once as a `[prelim] files` entry and analyse them in another
-configuration (§5.1 shows the file interface). → `jets radius`, `lambda sets`.
+**Each value is its own generation** (V9): a three-point option vary runs Pythia three times. To
+avoid that, keep the events once as a file (the generator in a group of its own) and analyse them
+in another configuration (§5.1 shows the file interface). → `jets radius`, `lambda sets`.
 
 ### 4.8 Every configuration, one run after another
 
@@ -306,10 +318,10 @@ To run several of a TOML's configurations in one go, list them, or say `true` fo
 [run]
 sweep_runs = ["pdf", "energies"]   # hep run jets: these, in this order (true: every one, in file order)
 
-[run.cfgs.pdf]
+[cfgs.pdf]
 title = "Proton PDFs"              # the header line: run 01 - Proton PDFs -
 
-[run.cfgs.delphes]                 # not listed: hep run jets delphes still runs it
+[cfgs.delphes]                     # not listed: hep run jets delphes still runs it
 ```
 
 - **Each configuration is an ordinary run**, with its own title, blocks, verdict and folder, exactly
@@ -331,38 +343,40 @@ When a run shares most of another's set-up (its beams, tools, quantities, data a
 instead of copying it, and write only what differs:
 
 ```toml
-# configs/Demo/seed_sweep.toml
-[config]
-import = [{ from = "validation", only = ["prelim", "static", "tools", "quantities", "plot"] }]
+[file]
+import = [{ from = "validation", only = ["tools", "quantities", "plot"] }]
 drop   = ["quantities.mpi", "plot.backend"]     # its MPI scan, and its mpl+yoda pages: Paint's here
 
 [run]
-name       = "seed_sweep"                     # a file that imports always names its own run
+name       = "seed_study"                     # a file that imports always names its own run
 project    = "Demo"
 sweep_runs = ["default", "spread"]
+chain      = [["pythia", "rivet"]]
 
-[run.cfgs.default]
-sweeps  = ["pdf", "replica"]
+[cfgs.default]
+vary    = ["pdf", "replica"]
 combine = ["replica"]
-tools   = [["pythia", "rivet"]]
 
-[run.cfgs.spread]
-sweeps      = ["pdf", "replica"]
+[cfgs.spread]
+vary        = ["pdf", "replica"]
 plot_points = ["pdf"]
-tools       = [["pythia", "rivet"]]
+
+[tools.rivet]                                 # one key over validation's rivet table: the rest stays
+shards = 10
 
 [quantities.replica]                          # its own quantity, beside the imported ones
-target = "pythia/seed"
-values = [1, 2, 3, 4, 5]
-tags   = ["s1", "s2", "s3", "s4", "s5"]
+to     = { "pythia/seed" = true }
+points = [{ tag = "s1", value = 1 }, { tag = "s2", value = 2 }, { tag = "s3", value = 3 },
+          { tag = "s4", value = 4 }, { tag = "s5", value = 5 }]
 ```
 
-- **Taking a part:** `only` takes those sections or dotted keys (`run.default`, `plot.figures.eta`)
+- **Taking a part:** `only` takes those tables or dotted keys (`cfgs.default`, `plot.figures.eta`)
   and nothing else; without it, the whole file comes, its configurations too.
 - **Removing:** `drop` takes things back out, before this file's tables. A drop that names nothing
   an import gave is refused, so a typo never keeps what it meant to remove.
-- **Overriding:** this file's tables then win: its own quantity or tool replaces the imported one
-  whole, and its `[plot]` keys go over the imported `[plot]` one by one.
+- **Overriding:** this file's tables then win. Its own quantity or configuration replaces the
+  imported one whole; its tool table's keys go over the imported table's one by one (`shards`
+  above), as its `[plot]` keys go over the imported `[plot]`.
 - **Nesting:** imports nest, and `Other/run` imports another project's file, whose cards stay its
   own. The points of an unchanged tool keep their identities, so nothing reruns for being imported.
 - **Checking:** `hep run … --show-config` says where every value and table came from.
@@ -374,32 +388,31 @@ tags   = ["s1", "s2", "s3", "s4", "s5"]
 ### 5.1 A file chain: generator → Delphes → your analysis
 
 ```toml
-[run.cfgs.delphes]
-sweeps = []
-tools  = ["pythia_file", "delphes", "jets_reco"]    # three groups, strictly in order
-prelim = { files = ["showered.hepmc"] }             # a file: every hop crosses a group
+[cfgs.delphes]
+chain = ["pythia_file", "delphes", "jets_reco"]     # three groups, strictly in order: files between them
 
-[tools.pythia_file]
-tool        = "pythia"
-baseconfig  = "ep.cmnd"
-output_file = "showered.hepmc"
+[tools.pythia_file]                                 # a second pythia table
+uses   = "pythia"
+card   = "ep.cmnd"
+output = "showered.hepmc"
+keep   = false                                      # a scratch file of the point, in output/
 
-[tools.delphes]
-tool        = "delphes"                             # not streamable: a FIFO here is refused (L11)
-baseconfig  = "delphes_card_ATLAS.tcl"
-input       = "showered.hepmc"
-output_file = "delphes.root"
+[tools.delphes]                                     # not streamable: in pythia's group it is refused (L11)
+card   = "delphes_card_ATLAS.tcl"
+input  = "pythia_file"
+output = "delphes.root"
 
 [tools.jets_reco]
-tool        = "exec"
-executable  = "path:python3"
-arguments   = ["{work}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
-input       = "delphes.root"
-output_file = "jets_reco.json"
+uses       = "exec"
+executable = "path:python3"
+arguments  = ["{work}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
+input      = "delphes"
+output     = "jets_reco.json"
 ```
 
-Delphes' tree is count-checked against the generator's sidecar. The `[prelim]` file stays in
-`output/`, so another configuration can read it with `input = "./output/…/showered.hepmc"`.
+Delphes' tree is count-checked against the generator's sidecar. The scratch file stays in
+`output/`, so another configuration can read it with `input = "./output/…/showered.hepmc"`; without
+`keep = false` it would be a product in `results/`.
 → `jets delphes`.
 
 ### 5.2 Other generators
@@ -410,9 +423,8 @@ Whizard's integration, `Herwig read`, MadGraph's process directory) is cached pe
 
 ```toml
 [tools.sherpa]
-tool        = "sherpa"
-baseconfig  = "ep.sherpa.yaml"     # the plan owns BEAMS, EVENTS, RANDOM_SEED, EVENT_OUTPUT
-output_file = "events.hepmc"
+card   = "ep.sherpa.yaml"         # the plan owns BEAMS, EVENTS, RANDOM_SEED, EVENT_OUTPUT
+output = "events.hepmc"
 ```
 
 | Generator | Base card | Notes |
@@ -422,8 +434,8 @@ output_file = "events.hepmc"
 | `whizard` | `.sin` | one base card, included after the plan's settings; beams by the model's names; direct photoproduction only |
 | `madgraph` | proc card | writes an LHE **file**; shower it with a `pythia` table in a later group (its base card sets `Beams:frameType = 4`) |
 
-A MadGraph chain is `tools = ["madgraph", ["shower", "rivet"], "yd2rt"]`, with
-`[prelim] files = ["unweighted.lhe"]` and `fifo = ["events.hepmc"]` (05 §15).
+A MadGraph chain is `chain = ["madgraph", ["shower", "rivet"], "yd2rt"]`: the LHE file between
+the first two groups, a FIFO from the shower to Rivet (05 §15).
 
 Keep each generator's configurations in a run TOML of their own when their quantities differ:
 jets's `pt0ref` is a Pythia key, and in a Sherpa chain nothing would consume it (C7). The shipped
@@ -433,14 +445,16 @@ examples are in Heimdall's fixture work dir, `tests/fixtures/work/configs/Demo/`
 ### 5.3 The same study with several generators
 
 ```toml
-[run.cfgs.compare]
-sweeps = ["generator"]
-tools  = [["@generator", "spectra"], "yd2rt"]   # "@q": the tool tag the point's value names
+[cfgs.compare]
+vary  = ["generator"]
+chain = [["@generator", "spectra"], "yd2rt"]    # "@q": the tool table the point's value names
 
 [quantities.generator]
-values = ["pythia", "herwig", "sherpa"]          # tool tags
-tags   = ["py8", "hw7", "sh3"]
-labels = ["Pythia 8.317", "Herwig 7.3", "Sherpa 3.0.5"]
+points = [
+  { tag = "py8", value = "pythia", label = "Pythia 8.317" },     # values: tool tables
+  { tag = "hw7", value = "herwig", label = "Herwig 7.3" },
+  { tag = "sh3", value = "sherpa", label = "Sherpa 3.0.5" },
+]
 ```
 
 This needs a `[tools.pythia]`, a `[tools.herwig]` and a `[tools.sherpa]`, each writing
@@ -450,16 +464,15 @@ reaches a tool of the configuration. → `Generators/generators`.
 ### 5.4 Something every point needs, made once
 
 ```toml
-[run.cfgs.pdf]
-sweeps = ["pdf"]
-pre    = ["fetch"]                                # once, before every point
-tools  = [["pythia", "rivet"]]
+[cfgs.pdf]
+vary = ["pdf"]
+pre  = ["fetch"]                                  # once, before every point
 
 [tools.fetch]
-tool        = "exec"
-executable  = "./modules/Demo/fetch_lhe.sh"   # your script
-arguments   = ["{partial:output}"]
-output_file = "shared.lhe"                        # every point may name it: input = "shared.lhe"
+uses       = "exec"
+executable = "./modules/Demo/fetch_lhe.sh"        # your script
+arguments  = ["{partial:output}"]
+output     = "shared.lhe"                         # every point may name it: input = "shared.lhe"
 ```
 
 A changed pre stage reruns the points; a failed one stops the run.
@@ -474,34 +487,29 @@ When Rivet is not the right tool (candidate reconstruction, ML features, detecto
 program with the module kit ([06 §21](06_Internals.md#21-modulehh)):
 
 ```toml
-[run.cfgs.single]
-sweeps = []
-tools  = [["pythia", "decayriv", "decay"], "yd2rt"]
-
-[prelim]
-fifo = ["to_rivet.hepmc", "to_module.hepmc"]     # one FIFO per reader
+[cfgs.single]
+chain = [["pythia", "decayriv", "decay"], "yd2rt"]
 
 [tools.pythia]
-tool        = "pythia"
-baseconfig  = "decay.cmnd"
-output_file = ["to_rivet.hepmc", "to_module.hepmc"]   # fan-out: the same events to both
+card   = "decay.cmnd"
+output = ["to_rivet.hepmc", "to_module.hepmc"]   # fan-out: the same events to both, a FIFO each
 
 [tools.decay]
-tool        = "module"
-executable  = "Decay.exe"                        # build/Decay/Decay.exe
-input       = "to_module.hepmc"
-output_file = "decay.root"
+uses       = "module"
+executable = "Decay.exe"                         # build/Decay/Decay.exe
+input      = "to_module.hepmc"
+output     = "decay.root"
 
 [tools.decay.config]                              # its config: argument 1
 mass_tolerance = 0.15
 
-[quantities.masstol]                               # one quantity, two consumers
-target = ["decayriv/DecayRiv", "decay"]
-key    = { decayriv = "MASSTOL", decay = "mass_tolerance" }
-values = [0.05, 0.10, 0.15, 0.25]
+[quantities.masstol]                              # one quantity, two consumers
+to     = { "decayriv/DecayRiv" = "MASSTOL", decay = "mass_tolerance" }
+points = [{ tag = "0.05", value = 0.05 }, { tag = "0.10", value = 0.10 },
+          { tag = "0.15", value = 0.15 }, { tag = "0.25", value = 0.25 }]
 ```
 
-- **Sweeping its options:** a module's options can be swept; the value lands in its config
+- **Varying its options:** a module's options can be varied; the value lands in its config
   (`mass_tolerance`).
 - **Scaling:** fill with raw weights and scale **once** after the loop. Beside a Rivet histogram,
   scale as a density (`out.scale(σ/ΣW, "width")`, L21).
@@ -514,16 +522,14 @@ precision.
 One process that runs Pythia (and Rivet) itself, with the runner's sweeps and seeds:
 
 ```toml
-[run.cfgs.inproc]
-sweeps         = []
-tools          = ["jets", "yd2rt"]
+[cfgs.inproc]
+chain          = ["jets", "yd2rt"]                # no FIFO: the events never leave the process
 generate_cards = ["pythia", "rivet"]              # not run: their cards, in the point's context file
-prelim         = {}                               # no FIFO: the events never leave the process
 
 [tools.jets]
-tool           = "module"
-executable     = "InprocJets.exe"
-output_file    = "jets.yoda"
+uses       = "module"
+executable = "InprocJets.exe"
+output     = "jets.yoda"
 ```
 
 **What it gets:** the point's context file (`$HEP_CONTEXT`, 04 §9.4) lists every tool's card and
@@ -538,63 +544,60 @@ counting.
 about 1.5× faster than the sharded chain (§7.1). K above 1 needs the SISCone patch in the stack's FastJet (L29; `recipes/patches/`, applied by the build).
 
 **A whole study in one process** imports the chain's run TOML (§4.9) and writes only what differs: the
-program, the configurations that run it, and a run name of its own. The physics (statics, quantities,
-the pythia and rivet tables, plots) is the chain's, so an edit there is an edit here, and a point with
-the chain's `event_count` and `threads` gets the chain's seeds, so the same events:
+program, the configurations that run it, and a run name of its own. The physics (quantities, the
+pythia and rivet tables, plots) is the chain's, so an edit there is an edit here, and a point with
+the chain's event count and `threads` gets the chain's seeds, so the same events:
 
 ```toml
-# configs/Demo/inproc_validation.toml
-[config]
-import = [{ from = "validation", only = ["static", "quantities", "tools", "plot"] }]   # no [prelim]: no FIFO
+[file]
+import = [{ from = "validation", only = ["quantities", "tools", "plot"] }]
 
 [run]
-serial        = 1
-name          = "inproc_validation"
-project       = "Demo"
-configuration = "default"
-event_count   = 1_000_000
-threads       = 12
-tools         = ["inproc", "yd2rt"]   # every configuration's, unless it sets its own
+name           = "inproc_study"
+project        = "Demo"
+run            = "default"
+events         = 1_000_000
+threads        = 12
+chain          = ["inproc", "yd2rt"]
 generate_cards = ["pythia", "rivet"]   # validation's tables: configured, not run; their cards for inproc
 
-[run.cfgs.default]
-sweeps = ["pdf"]                  # the file has ptref, mpi and single too, each a sweep and nothing more
+[cfgs.default]
+vary = ["pdf"]
 
 [tools.inproc]
-tool           = "module"
-executable     = "InprocJets.exe"
-output_file    = "validation.yoda"
+uses       = "module"
+executable = "InprocJets.exe"
+output     = "validation.yoda"
 
 [tools.inproc.config]
 rivet_threads = 12
 ```
 
-→ `inproc_validation` (validation's), `inproc_jets` (jets's: it takes only the tables it uses, `only =
-["static", "quantities", "plot", "tools.pythia", "tools.rivet", "tools.yd2rt", "tools.merge"]`).
+→ `inproc_validation` and `inproc_jets` are the shipped ones, written out whole.
 How the program is built: [06 §21](06_Internals.md#21-modulehh).
 
 ### 6.3 An exec tool, and a Python one
 
 ```toml
 [tools.fit]
-tool        = "exec"                              # any executable (custom, before)
-executable  = "path:python3"                      # a command on PATH, asked for by name (V54)
-arguments   = ["./modules/Decay/fit_mass.py", "{in:decay.root}", "{partial:output}"]   # your script
-input       = "decay.root"
-output_file = "fit.json"
-consumes    = ["sqrts"]                           # → [quantities] in its config
+uses       = "exec"                               # any executable
+executable = "path:python3"                       # a command on PATH, asked for by name (V54)
+arguments  = ["./modules/Decay/fit_mass.py", "{in:decay.root}", "{partial:output}"]   # your script
+input      = "decay.root"
+output     = "fit.json"
+consumes   = ["sqrts"]                            # → [quantities] in its config
 
 [tools.fit.config]
 window = [1.09, 1.14]
 ```
 
 - **Its config:** the file `output/…/<point>/config/fit.toml` is the first argument. A quantity
-  with `target = "fit"` and `key = "window"` sweeps a key of it.
+  with `to = { fit = "window" }` varies a key of it.
 - **Its products:** write them to `{partial:output}`; the runner renames them after the checks.
 - **The other tools:** their cards and configs are in the point's context file, `$HEP_CONTEXT`
   (04 §9.4); a tool that is not in the chain goes in `generate_cards`.
 - **A tool of your own:** `hep tools new fit --from exec` makes `tools/fit/` in the work dir, a folder
-  you can give options, a card or a status of its own (`tool = "fit"`; 06 §16).
+  you can give options, a card or a status of its own, used as `[tools.fit]` (06 §16).
 - **Its status:** set `filters = "my_rules.toml"` for a progress bar from your prints
   ([06 §23](06_Internals.md#23-filterstoml)), or speak the status protocol with `framework/hepkit.py`
   ([06 §22](06_Internals.md#22-statushh-and-the-status-protocol)). `hepkit` also gives the exit
@@ -610,15 +613,14 @@ A Rivet process uses one core, so in a Pythia → Rivet chain it is the limit (a
 with ZEUS_2012), and more Pythia threads only wait for it. Split its events among several:
 
 ```toml
-[run.cfgs.default]
+[cfgs.default]
 threads = 12                     # Pythia's threads
 
 [tools.rivet]
-tool        = "rivet"
-input       = "events.hepmc"
-analyses    = ["ZEUS_2012_I1116258"]
-output_file = "validation.yoda"
-shards      = 10                 # 10 Rivet processes, each on a share, merged into validation.yoda
+input    = "pythia"
+analyses = ["ZEUS_2012_I1116258"]
+output   = "validation.yoda"
+shards   = 10                    # 10 Rivet processes, each on a share, merged into validation.yoda
 ```
 
 Nothing else changes: not the chain, not the file names, not what the later tools and the pages
@@ -628,7 +630,7 @@ merges them with `rivet-merge -e` ([05 §5.1](05_Commands_and_Tools.md#51-sharde
 - **The result:** the events are the same as unsharded, so the result is the same. The point
   reruns, since its commands changed.
 - **Cores:** keep `threads + shards` within the machine's cores.
-- **For one run only:** `--set tools.rivet.shards=10 --set run.cfgs.default.threads=12`.
+- **For one run only:** `--set tools.rivet.shards=10 --set cfgs.default.threads=12`.
 - **Analyses:** every analysis must be re-entrant (`Reentrant: true` in its `.info`).
 
 ### 7.2 Several points at once
@@ -652,38 +654,35 @@ parallelism = 4                  # 4 points at a time: ~4 × (5 + its Rivets) co
 ### 7.3 Replicas, merged
 
 ```toml
-[run.cfgs.replicas]
-sweeps = ["replica"]
-tools  = [["pythia", "rivet"]]
-post   = ["merge"]                   # once, after every point is complete
+[cfgs.replicas]
+vary  = ["replica"]
+chain = [["pythia", "rivet"]]
+post  = ["merge"]                    # once, after every point is complete
 
 [quantities.replica]
-target = "pythia/seed"               # only changes the seed
-values = [1, 2, 3]
-tags   = ["s1", "s2", "s3"]
+to     = { "pythia/seed" = true }    # only changes the seed
+points = [{ tag = "s1", value = 1 }, { tag = "s2", value = 2 }, { tag = "s3", value = 3 }]
 
-[tools.merge]
-tool        = "merge"                # rivet-merge -e
-input       = "jets.yoda"           # that product of every point
-output_file = "merged.yoda"          # → results/…/replicas/post/merged.yoda
+[tools.merge]                        # rivet-merge -e
+input  = "jets.yoda"                 # that product of every point
+output = "merged.yoda"               # → results/…/replicas/post/merged.yoda
 ```
 
 → `jets replicas`, `lambda replicas`. The post stage runs only when every point is complete, and
 reruns when any point changes.
 
-**Seeds per curve, merged** (`combine`, [04 §5.5](04_Config_Reference.md#55-combine)): sweep the
+**Seeds per curve, merged** (`combine`, [04 §5.5](04_Config_Reference.md#55-combine)): vary the
 replica beside the quantity you compare, and merge each value's seeds into one curve.
 
 ```toml
-[run.cfgs.default]
-sweeps  = ["pdf", "replica"]         # 4 PDFs × 5 seeds
+[cfgs.default]
+vary    = ["pdf", "replica"]         # 4 PDFs × 5 seeds
 combine = ["replica"]                # one curve per PDF: its 5 seeds merged, 5× the statistics
-tools   = [["pythia", "rivet"]]
 ```
 
 - **Where they go:** the merged YODAs are `results/…/default/<pdf>/validation.yoda`, beside the seeds'
   own folders, and the pages are drawn from them.
-- **The spread:** a second configuration with the same sweeps and no `combine` gets the same seeds,
+- **The spread:** a second configuration with the same vary and no `combine` gets the same seeds,
   and draws each as its own curve: how far one seed's result wanders. → `seed_sweep` (and its
   `spread`).
 - **For one figure only:** to merge for one figure while the run keeps the seeds apart, use a
@@ -697,16 +696,16 @@ choose the seeds yourself:
 
 ```toml
 [run]
-seed_type   = "manual"           # "identity" (default) | "manual" | "random"
-manual_seed = 3245364            # every point's seed; [run.cfgs.<cfg>] can set its own
+seed = 3245364                   # every point's seed: "identity" (the default), "random" or an integer;
+                                 # a configuration can say its own
 
-[quantities.seed]                # or one exact seed per point, swept like anything else
-target = "pythia/seed"
-values = [1001, 2001, 3001]
+[quantities.seed]                # or one exact seed per point, varied like anything else
+to     = { "pythia/seed" = true }
+points = [{ tag = "1001", value = 1001 }, { tag = "2001", value = 2001 }, { tag = "3001", value = 3001 }]
 ```
 
-- **`"manual"`:** a point gets exactly its seed; at `threads = 12` its threads get seed … seed + 11.
-  Space swept seeds by at least `threads`: two points with the same setup whose blocks overlap would
+- **An integer:** a point gets exactly its seed; at `threads = 12` its threads get seed … seed + 11.
+  Space varied seeds by at least `threads`: two points with the same setup whose blocks overlap would
   repeat events, so the plan refuses them. Points with different physics may share one seed.
 - **`"random"`:** a new seed is drawn each time a point runs. A complete point keeps its sample (it
   is skipped as usual), and `--rerun` draws again.
@@ -714,7 +713,7 @@ values = [1001, 2001, 3001]
   each point's seed.
   - `hep reproduce output/…/<point>/provenance.json` runs the point again exactly as it ran, beside
     the original, and compares the products (§10).
-  - Or set `seed_type = "manual"` and that seed.
+  - Or set `seed` to that seed.
 
 ### 7.5 On a Slurm cluster
 
@@ -764,7 +763,7 @@ hep cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
   `hep watch` cannot reach a node: the logs and `--status` stand in.
 - Each script's last line is the `hep run` it makes, which can be typed by hand: `hep run C cfg
   --points <name> --stages points`, then `hep run C cfg --stages combine,post,plot`.
-- `[prelim]`'s FIFOs and the prepare caches' locks are on the shared filesystem: NFSv4 and Lustre
+- The points' FIFOs and the prepare caches' locks are on the shared filesystem: NFSv4 and Lustre
   take both (a FIFO's two ends are on one node).
 
 ---
@@ -777,7 +776,7 @@ hep cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
 | what would rerun, and why | `--why` (what changed since each point last completed) |
 | each value and where it came from | `--show-config` |
 | a subset | `--points 27x920_MSTW08lo,pdf=NNPDF23lo,3` (names, tags, `q=tag`, indices) |
-| fewer events, once | `--set run.event_count=50000` (dotted keys into the TOML, repeatable) |
+| fewer events, once | `--set run.events=50000` (dotted keys into the TOML, in its own names; repeatable) |
 | a finished point again | `--rerun` (with `--points` for one) |
 | only the pages | `--only plot`, or `hep plot CONFIG CFG` |
 | only the post (or pre) tools | `--only post` / `--only pre` |
@@ -789,7 +788,9 @@ hep cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
 
 The identity covers cards, argv, binaries, analyses and their plugins, events and threads, and the
 seeds derive from it. So a rerun of an unchanged point does nothing, and a changed one reruns by
-itself. Threads are part of the identity: `--set run.cfgs.pdf.threads=8` makes every point "to run".
+itself. Threads are part of the identity: `--set cfgs.pdf.threads=8` makes every point "to run".
+A changed configuration under a serial you set is refused rather than overwrite its points: bump
+the serial, or `--rerun` (04 §2).
 
 ---
 
@@ -820,8 +821,8 @@ Common refusals, and what they mean:
 
 | Message | Means |
 |---|---|
-| `[quantities.X] is set but no tool in this chain consumes it` | nothing would change with X: give it a `key`, a `target`, or drop it (C7) |
-| `'delphes' cannot read a FIFO` | use a `[prelim] files` entry and put Delphes in a later group (C6) |
+| `[quantities.X] is set but no tool in this chain consumes it` | nothing would change with X: give it a `to`, or drop it (C7) |
+| `'delphes' cannot read a FIFO` | put Delphes in a later group, so it reads a file (C6) |
 | `FIFO 'x' connects A and B across groups` | put A and B in one group, or use a file (C6) |
 | `'photo_eic' does not declare the option X` | the option is not in the analysis's `.info` (C9) |
 | `the PDF set 'X' is not installed` | `lhapdf install X` (C10) |
@@ -831,6 +832,8 @@ Common refusals, and what they mean:
 | `$HEP_APPS/App_Pythia.exe is not built` | `hep build --framework` |
 | `not inside a work dir` | `cd` into one, or `hep setup <dir>` (§1.2) |
 | `unknown section [schema]` | a v1 (hekit) run TOML: the schema is 04; `git show HEAD:<file>` has the current one |
+| `'event_count' is the v2 form: this file is v3, where it is events` | a v2 name in a v3 file: write the v3 name, or `hep migrate --v3` (04 §17) |
+| `… made from other inputs; running would overwrite them` | your configuration changed under a serial you set: bump it, or `--rerun` (04 §2) |
 
 ---
 
@@ -851,13 +854,14 @@ hep reproduce output/…/<point>/provenance.json   # the point again, beside it,
   well.
 - **Clean:** `hep clean` never removes a result. It lists first and asks (`--yes` elsewhere), and it
   refuses while a job runs.
-- **Migrate:** `hep migrate` rewrites old forms by line, so comments and layout stay:
+- **Migrate:** `hep migrate` rewrites old forms by line, so comments and layout stay, and
+  `hep migrate --v3` rewrites a v2 file in v3 (04 §17):
   - TLatex labels;
   - `swept = false`;
   - `[plot.overlay]` and `[plot.object]`;
   - a bare `executable`;
   - base-card lines the runner owns.
-- **Which stack a study was made with:** `[config.meta] versions = { pythia8 = "8.317", … }`. A
+- **Which stack a study was made with:** `[file.meta] versions = { pythia8 = "8.317", … }`. A
   different stack is a warning in `hep check` and `--plan`, never a refusal (04 §3).
 - **Reproduce:** `hep reproduce` stops and says what changed when the setup is no longer the one the
   provenance records; `--anyway` runs today's setup with the recorded seed.
@@ -898,6 +902,6 @@ A new study that shares nothing with the others is a new work dir: `hep setup <d
 2. `modules/<Project>/`: Rivet plugins in `Rivet/<name>.cc` (with `.info`, `.plot`, `.yoda`), and
    programs as `<Name>.cc` with a `// requires:` line. Headers beside them are shared by both.
 3. `hep build`, then `hep check <Project>/<run>`, then `hep run <Project>/<run> --plan`.
-4. A quantity the vocabulary does not map gets a `key`. One your project uses everywhere can go in
-   `configs/<Project>/master.toml`, named by `[config] master = "master.toml"`.
-5. Tables several run TOMLs share can live in one file that each names in `[config] import` (04 §3).
+4. A quantity the vocabulary does not map gets a `to`. One your project uses everywhere can go in
+   `configs/<Project>/master.toml`, named by `[file] master = "master.toml"`.
+5. Tables several run TOMLs share can live in one file that each names in `[file] import` (04 §3).

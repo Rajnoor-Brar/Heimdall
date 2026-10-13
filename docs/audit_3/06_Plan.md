@@ -346,7 +346,7 @@ larger repo.
 - A native key set twice is an error naming both (`override = true` to allow).
 - `--plan --card <tool>` shows each line's origin.
 
-**6.3 Names, errors, help, migration** (U41, U45, U46, U47, U48, U49)
+**6.3 Names, errors, help, migration** (U41, U45, U46, U47, U48, U49) — **done, V130–V131** (`"default"`'s other meaning is `"native"`; `--set` and an import's `only`/`drop` take a v3 file's own names; 05's snippets and 01 moved too)
 - The renames of [03 §6](03_Configuration.md#6-schema-v3): `[file]`, `card`, `folder`, automatic
   serials optional (automatic unless `serial` is set; a changed identity under a set serial is
   refused), one meaning of `"default"`, and `[cfgs.<name>]` at the top level.

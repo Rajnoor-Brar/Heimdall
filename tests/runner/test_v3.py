@@ -386,3 +386,16 @@ def test_default_is_the_layer_below_and_native_the_tools_own(scratch):
     assert 'y_gutter = "native"' in migrate.v3_text(V2 + '\n[plot]\ny_gutter = "default"\n')
     with pytest.raises(HepError, match="'threads' must be"):
         load(scratch, V3.replace("threads = 1", 'threads = "native"'))
+
+
+def test_an_imports_only_and_drop_take_v3_names(scratch):
+    """A v3 file names what it takes and drops of an import in its own names: cfgs.<name>, file.vars."""
+    common = written(scratch, V3, "shared.toml")
+    mine = f'[file]\nimport = [{{ from = "{common}", only = ["cfgs.pdf", "tools", "quantities", "run.chain"] }}]\n\n' \
+           '[run]\nproject = "Demo"\nname = "taker"\nrun = "pdf"\nevents = 10\n'
+    run = load(scratch, mine, "taker.toml")
+    assert list(run.configurations) == ["pdf"] and run.configuration("pdf").sweeps == ["pdf"]
+    dropping = f'[file]\nimport = ["{common}"]\ndrop = ["cfgs.single"]\n\n[run]\nproject = "Demo"\nname = "dropper"\nrun = "pdf"\n'
+    assert "single" not in load(scratch, dropping, "dropper.toml").configurations
+    with pytest.raises(HepError, match="drop names"):
+        load(scratch, dropping.replace("cfgs.single", "cfgs.singel"), "dropper.toml")

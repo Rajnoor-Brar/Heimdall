@@ -73,7 +73,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `key` | e.g. plot.y_gutter, run.event_count, quantities.<q>.styles |
+| `key` | e.g. plot.y_gutter, run.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses |
 
 **`hep status`**: each configuration's points: complete, stale, incomplete or to run
 
@@ -184,14 +184,16 @@ the others.
 - **`--why`** gives, for each point and stage that would run, what changed since it last completed,
   from its `identity.json`: `events: 10 → 20`, `tools.pythia.card: + PDF:pSet = …` (V57).
 - **`--show-config`** prints each configuration's resolved values and the layer each came from (its
-  own, `extends`, `[run]`, default), and what `[config].import` gave (V56).
+  own, `extends`, `[run]`, default), what `[file].import` gave (V56), and the interfaces the chain
+  makes.
 - **`--points SEL`** takes comma-separated point names, single tags, 1-based indices, or
   `quantity=tag`. The other points keep their state, and `points.json` lists them all. It is
   refused under a sweep of several runs: name the configuration.
 - **`--set KEY=VALUE`** overrides one value of the TOML, by dotted key, before anything is checked.
-  The value is read as TOML, else as a string: `--set run.event_count=50000`, `--set
-  run.cfgs.pdf.threads=8`, `--set static.energies=18x275`, `--set 'plot.formats=["png"]'`, `--set
-  plot.min_entries=default`.
+  The keys are the file's own names. The value is read as TOML, else as a string: `--set
+  run.events=50000`, `--set cfgs.pdf.threads=8`, `--set quantities.energies.fixed=18x275`, `--set
+  'plot.formats=["png"]'`, `--set plot.min_entries=default` (a v2 file: `run.event_count`,
+  `run.cfgs.pdf.threads`, `static.energies`).
 - **`--rerun`** runs complete points (and the stages) again.
 - **`--only`:** `--only plot` draws the pages and runs nothing; `--only pre` and `--only post` run
   that stage whether or not it is complete.
@@ -237,8 +239,11 @@ This is housekeeping (V74).
 - **`ls`** lists every config and its configurations, with descriptions; a `*` marks what `hep run
   CONFIG` runs.
 - **`explain`** gives a key's type, default, choices, bounds, inheritance, doc and notes, from the
-  schema (`framework/schema/run.toml`): `plot.y_gutter`, `run.event_count`,
-  `quantities.<q>.styles`, `plot.figures.<f>.logy`, or a bare key looked up in every table.
+  schema (`framework/schema/run.toml`): `plot.y_gutter`, `run.events`, `cfgs.pdf.threads`,
+  `quantities.<q>.points`, `plot.figures.<f>.logy`, or a bare key looked up in every table. It also
+  answers for a table (`hep explain cfgs`), a v2 name (`run.event_count`), a tool folder's option
+  (`rivet.analyses`), a style key (`style.page.dpi`), a quantity of the vocabulary, `deck.toml` and
+  `machine.toml`.
 - **`status`** gives every configuration's points and stages, each **complete**, **stale** (complete
   for an earlier identity: it reruns), **incomplete** (begun, not done: failed, stopped or running)
   or **to run**. Each comes with when it finished and its results' size, and `[running]` marks a
@@ -451,9 +456,8 @@ Paint (`src/Apps/Paint/`) is driven by the plot stage, and is never named in `to
 
 ```toml
 [tools.pythia]
-tool        = "pythia"
-baseconfig  = "ep.cmnd"        # configs/<P>/ep.cmnd
-output_file = "events.hepmc"         # a [prelim] FIFO or file; an array fans out (V16)
+card   = "ep.cmnd"              # configs/<P>/ep.cmnd
+output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04 §6); an array fans out (V16)
 ```
 
 - **Runs** `$HEP_APPS/App_Pythia.exe <outputs> <base cards…> <point card>` (§16): the base cards in
@@ -494,11 +498,10 @@ output_file = "events.hepmc"         # a [prelim] FIFO or file; an array fans ou
 
 ```toml
 [tools.rivet]
-tool        = "rivet"
-input       = "events.hepmc"
-analyses    = ["photo_eic", "MC_JETS"]      # "NAME" or "NAME:OPT=V:OPT=V"
-options     = { R = 0.4 }                   # applied to every analysis (optional)
-output_file = "jets.yoda"
+input    = "pythia"                      # what the pythia table writes
+analyses = ["photo_eic", "MC_JETS"]      # "NAME" or "NAME:OPT=V:OPT=V"
+options  = { R = 0.4 }                   # applied to every analysis (optional)
+output   = "jets.yoda"
 ```
 
 | Option | Kind | Notes |
@@ -542,21 +545,20 @@ processes, each on a share of the events, and merges them (V31):
 
 ```toml
 [tools.rivet]
-tool        = "rivet"
-input       = "events.hepmc"          # a [prelim] FIFO (or file) written by pythia
-analyses    = ["ZEUS_2012_I1116258"]
-output_file = "validation.yoda"
-shards      = 10
+input    = "pythia"                      # a FIFO (or file) written by pythia
+analyses = ["ZEUS_2012_I1116258"]
+output   = "validation.yoda"
+shards   = 10
 ```
 
-- **The chain does not change** (`tools = [["pythia", "rivet"], "yd2rt"]`). For each point:
+- **The chain does not change** (`chain = [["pythia", "rivet"], "yd2rt"]`). For each point:
   - the runner makes the FIFOs `events.s1.hepmc` … `events.s10.hepmc` in place of `events.hepmc`;
   - App_Pythia deals the events among them (§16);
   - the steps `rivet.1` … `rivet.10` run in the group, each writing
     `output/…/<point>/shards/validation.s<i>.yoda`, and each is count-checked against **its own share**
     (`written_per_output` in the sidecar);
   - then `rivet.merge`, a step of its own in the next group, runs `rivet-merge -e` (the `merge`
-    folder) into the table's `output_file` (`validation.yoda`, in `results/`).
+    folder) into the table's `output` (`validation.yoda`, in `results/`).
 
   The logs are `logs/rivet.<i>.log` and `logs/rivet.merge.log`, and `--plan` shows every step.
 - **The events do not change.** Seeds follow the generator's cards, not its argv (V22), so a sharded
@@ -565,14 +567,14 @@ shards      = 10
   `shards` reruns it.
 - **Requirements**, refused at plan time otherwise:
   - the tool reads one input and writes one output;
-  - the input is a `[prelim]` FIFO or file with exactly one producer in the chain, whose folder can
-    deal (`pythia`);
+  - the input is a FIFO or file of the point with exactly one producer in the chain, whose folder
+    can deal (`pythia`);
   - every analysis is re-entrant (`Reentrant: true` in its `.info`), because `rivet-merge -e` runs
     `finalize()` again on the summed histograms.
 
   Other outputs of the producer (a module program's FIFO) still get every event.
-- **Quantities aimed at the table reach every shard**: `target = "rivet/photo_eic"` (jets's `radius`)
-  or `key = { rivet = … }` gives each `rivet.<i>` the same option, and `--plan` shows it as
+- **Quantities aimed at the table reach every shard**: `to = { "rivet/photo_eic" = "R" }` (jets's
+  `radius`) or `to = { rivet = … }` gives each `rivet.<i>` the same option, and `--plan` shows it as
   `rivet.1–10:R`.
 - **Choosing K.** Each shard is one core, and so is each Pythia thread: `threads + shards` should not
   exceed the machine. Measured on the lab PC (i7-13700K, 24 hardware threads), 200k ZEUS_2012
@@ -591,10 +593,9 @@ shards      = 10
 
 ```toml
 [tools.yd2rt]
-tool        = "yd2rt"
-input       = "jets.yoda"
-output_file = "jets.root"
-select      = ["/photo_eic/*"]              # optional: YODA path globs
+input  = "rivet"
+output = "jets.root"
+select = ["/photo_eic/*"]              # optional: YODA path globs
 ```
 
 | Option | Kind | Notes |
@@ -602,22 +603,21 @@ select      = ["/photo_eic/*"]              # optional: YODA path globs
 | `select` | array | YODA path globs to convert; default every object except `/RAW` and `/TMP` |
 
 It runs `App_yd2rt.exe <input> <partial output> <select…>` (§17). The ROOT file is a product, in
-`results/`. Like every tool in `tools`, it needs its `[tools.<tag>]` table (C5), because the table
+`results/`. Like every tool in the chain, it needs its `[tools.<name>]` table (C5), because the table
 says what it reads and writes.
 
 ## 7. `merge` — rivet-merge, in `post`
 
 ```toml
-[run.cfgs.replicas]
-sweeps = ["replica"]
-tools  = [["pythia", "rivet"]]
-post   = ["merge"]
+[cfgs.replicas]
+vary  = ["replica"]
+chain = [["pythia", "rivet"]]
+post  = ["merge"]
 
 [tools.merge]
-tool        = "merge"
-input       = "jets.yoda"       # that product of every point
-output_file = "merged.yoda"
-equivalent  = true               # default: -e, statistically equivalent runs
+input      = "jets.yoda"         # that product of every point
+output     = "merged.yoda"
+equivalent = true                # default: -e, statistically equivalent runs
 ```
 
 | Option | Kind | Default | Notes |
@@ -635,9 +635,9 @@ equivalent  = true               # default: -e, statistically equivalent runs
 
 ```toml
 [tools.bundle]
-tool        = "plotmerge"
-input       = "jets.yoda"
-output_file = "sweep.root"       # or sweep.yoda
+uses   = "plotmerge"
+input  = "jets.yoda"
+output = "sweep.root"            # or sweep.yoda
 ```
 
 It runs `App_yd2rt.exe --merge <partial output> <point>=<yoda>… --keep-raw --points points.json`
@@ -658,11 +658,11 @@ tool it finds the point's context file at `$HEP_CONTEXT`, or `{context}` in its 
 
 ```toml
 [tools.jets_reco]
-tool        = "exec"
-executable  = "path:python3"
-arguments   = ["{work}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
-input       = "delphes.root"
-output_file = "jets_reco.json"
+uses       = "exec"
+executable = "path:python3"
+arguments  = ["{work}/modules/Demo/delphes_jets.py", "{input}", "{partial:output}"]
+input      = "delphes"
+output     = "jets_reco.json"
 ```
 
 **An exec tool in Python** gets the kit's half that applies through `framework/hepkit.py` (V74):
@@ -695,10 +695,9 @@ The kit is [06 §21](06_Internals.md#21-modulehh).
 
 ```toml
 [tools.delphes]
-tool        = "delphes"
-baseconfig  = "delphes_card_ATLAS.tcl"
-input       = "showered.hepmc"       # a [prelim] FILE from an earlier group: never a FIFO
-output_file = "delphes.root"
+card   = "delphes_card_ATLAS.tcl"
+input  = "pythia_file"            # a file from an earlier group: never a FIFO
+output = "delphes.root"
 ```
 
 - **Runs** `DelphesHepMC3 <combined card> <partial output> <input>`.
@@ -714,9 +713,8 @@ output_file = "delphes.root"
 
 ```toml
 [tools.herwig]
-tool        = "herwig"
-baseconfig  = "dis_ep.herwig.in"
-output_file = "events.hepmc"
+card   = "dis_ep.herwig.in"
+output = "events.hepmc"
 ```
 
 - **Prepare** (cached per card): `Herwig read --repo={apps}/Herwig/HerwigDefaults.rpo <card>` →
@@ -740,9 +738,8 @@ output_file = "events.hepmc"
 
 ```toml
 [tools.sherpa]
-tool        = "sherpa"
-baseconfig  = "ep.sherpa.yaml"
-output_file = "events.hepmc"
+card   = "ep.sherpa.yaml"
+output = "events.hepmc"
 ```
 
 - **Card** (`render.py`): the base YAML files deep-merged in order, then each value assigned at its
@@ -774,9 +771,8 @@ output_file = "events.hepmc"
 
 ```toml
 [tools.whizard]
-tool        = "whizard"
-baseconfig  = "ep.sin"         # exactly one base card
-output_file = "events.hepmc"
+card   = "ep.sin"               # exactly one base card
+output = "events.hepmc"
 ```
 
 - **Card** (`render.py`): SINDARIN is a script, so the point card comes **first** and includes the
@@ -803,23 +799,19 @@ output_file = "events.hepmc"
 ## 15. `madgraph` — MadGraph5_aMC@NLO
 
 ```toml
-[run.cfgs.single]
-tools = ["madgraph", ["shower", "rivet"], "yd2rt"]
-
-[prelim]
-files = ["unweighted.lhe"]
-fifo  = ["events.hepmc"]
+[cfgs.single]
+chain = ["madgraph", ["shower", "rivet"], "yd2rt"]   # an LHE file, then a FIFO from the shower
 
 [tools.madgraph]
-tool        = "madgraph"
-baseconfig  = "dis_ep.proc_card.mg5"   # the proc card: processes only, no `output` or `launch`
-output_file = "unweighted.lhe"
+card   = "dis_ep.proc_card.mg5"   # the proc card: processes only, no `output` or `launch`
+output = "unweighted.lhe"
+keep   = false                    # a scratch file of the point (leave it out to keep it in results/)
 
 [tools.shower]
-tool        = "pythia"
-baseconfig  = "shower_lhe.cmnd"          # sets Beams:frameType = 4; the LHEF line is the footer
-input       = "unweighted.lhe"
-output_file = "events.hepmc"
+uses   = "pythia"
+card   = "shower_lhe.cmnd"        # sets Beams:frameType = 4; the LHEF line is the footer
+input  = "madgraph"
+output = "events.hepmc"
 ```
 
 - **Prepare** (keyed on the **proc card only**, `key = "base"`): the proc card plus

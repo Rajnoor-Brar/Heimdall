@@ -90,7 +90,7 @@ def parser() -> argparse.ArgumentParser:
     listing.add_argument("project", nargs="?", help="only this project's configs")
 
     explain = commands.add_parser("explain", help="a run TOML key: its type, default and meaning (the schema's)")
-    explain.add_argument("key", help="e.g. plot.y_gutter, run.event_count, quantities.<q>.styles")
+    explain.add_argument("key", help="e.g. plot.y_gutter, run.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses")
 
     state = commands.add_parser("status", help="each configuration's points: complete, stale, incomplete or to run")
     state.add_argument("config", nargs="?", help="one config (default: every config)")

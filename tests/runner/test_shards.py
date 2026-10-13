@@ -87,7 +87,7 @@ def test_an_output_path_with_a_separator_is_refused(scratch):
     ({"tools__rivet__shards": 2, "tools__pythia": {"tool": "exec", "executable": "/bin/true",
                                                    "output_file": "events.hepmc"}}, "cannot deal"),
     ({"tools__rivet__shards": 2, "prelim__fifo": [], "tools__rivet__input": "./tests/reference/legacy_run/x.hepmc"},
-     "not a \\[prelim\\] FIFO or file"),
+     "neither a FIFO nor a file of the point"),
 ])
 def test_what_cannot_be_sharded_is_refused(scratch, changes, message):
     with pytest.raises(HepError, match=message):

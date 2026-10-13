@@ -544,8 +544,10 @@ def _imports(raw: dict, path: Path, project: str, chain: tuple[Path, ...]) -> tu
     merged: dict = {}
     origins: dict[str, str] = {}
     located: list = []
+    named = v3.v2_path if raw.get(v3.MARK) else (lambda dotted: dotted)    # a v3 file names keys in its own names
     for entry in names:
         name, only = _entry(entry, where)
+        only = None if only is None else [named(k) for k in only]
         source = _import_path(name, project, where)
         if source.resolve() in chain:
             circle = " → ".join(p.name for p in (*chain, source.resolve()))
@@ -572,7 +574,7 @@ def _imports(raw: dict, path: Path, project: str, chain: tuple[Path, ...]) -> tu
         for key in [f"{s}.{k}" for s in ENTRIES for k in part.get(s, {})] + _run_entries(part):
             origins[key] = f"{source.name} ← {inner[key]}" if key in inner else source.name
         merged = _over(merged, part)
-    for dotted in _as_list(raw.get("config", {}).get("drop")):        # V95: out of what came in, before this file
+    for dotted in map(named, _as_list(raw.get("config", {}).get("drop"))):   # V95: out of what came in, before this file
         parts = _parts(dotted, f"{path}: [config].drop")
         if not _has(merged, parts):
             raise HepError(f"drop names '{dotted}', which no import gave", where=f"{path}: [config].drop",
@@ -1002,11 +1004,12 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
                     else _own_prelim(chain, prelim, origins)),                 # replaced whole: its chain's interfaces
             origins=origins, cluster=merged("cluster", cluster))
 
+    a_cfg = "[cfgs.<name>]" if form == 3 else "[run.cfgs.<cfg>]"   # in the file's own names
     if isinstance(run.get("sweep_runs"), list):            # V79: the members, in order
         listed = run["sweep_runs"]
         for name in listed:
             if name not in configurations:
-                raise HepError(f"[run].sweep_runs names '{name}', which is not a [run.cfgs.<cfg>] table",
+                raise HepError(f"[run].sweep_runs names '{name}', which is not a {a_cfg} table",
                                where=f"{where}: [run].sweep_runs", hint=did_you_mean(name, configurations) or
                                f"configurations: {', '.join(configurations)}")
         if len(set(listed)) != len(listed):
@@ -1015,8 +1018,8 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
         raise HepError("[run].sweep_runs is on but every configuration has swept = false", where=f"{where}: [run].sweep_runs",
                        hint="leave one in, or turn the sweep off")
     if "configuration" in run and run["configuration"] not in configurations:
-        raise HepError(f"[run].configuration is '{run['configuration']}', which is not a [run.cfgs.<cfg>] table",
-                       where=f"{where}: [run].configuration",
+        key = "run" if form == 3 else "configuration"
+        raise HepError(f"[run].{key} is '{run['configuration']}', which is not a {a_cfg} table", where=f"{where}: [run].{key}",
                        hint=did_you_mean(run["configuration"], configurations)
                        or f"configurations: {', '.join(configurations) or '(none)'}")
 

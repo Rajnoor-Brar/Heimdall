@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from runner import config, plot, tools
+from runner import config, plot, tools, v3
 
 REPO = Path(__file__).resolve().parents[2]
 DOCS = REPO / "docs"
@@ -88,6 +88,10 @@ def test_every_toml_block_parses_and_complete_runs_load(page, scratch):
             config.load(str(path))
         elif complete:                                   # a whole run TOML, not a fragment of one
             config.parse(data, scratch / "example.toml")   # C1–C5 on the example itself
+        elif v3.is_v3(data) and {"name", "project"} <= set(run) and data.get("cfgs") and not data.get("file", {}).get("import"):
+            path = scratch / "example.toml"              # a whole v3 file: read as `hep run` reads it (U50)
+            path.write_text(block, encoding="utf-8")
+            config.load(str(path))
 
 
 def test_every_key_the_loader_accepts_is_documented():

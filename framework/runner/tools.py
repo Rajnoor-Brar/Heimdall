@@ -703,7 +703,7 @@ def _shard(run, configuration, groups_tags: list[list[str]], out: Path):
         name = tool.input[0]
         kind = "fifo" if name in prelim.get("fifo", []) else "files" if name in prelim.get("files", []) else ""
         if not kind:
-            raise HepError(f"'{name}' is not a [prelim] FIFO or file", where=where,
+            raise HepError(f"'{name}' is neither a FIFO nor a file of the point (v2: [prelim])", where=where,
                            hint="a sharded tool reads its events through an agreed interface, which the producer deals")
         producers = [t for group in groups for t in group if name in tables[t].output_file]
         if len(producers) != 1:
@@ -925,7 +925,7 @@ def _check_connections(plan: PointPlan, run) -> None:
         if interface.kind == "fifo":
             if not interface.producer:
                 raise HepError(f"FIFO '{interface.name}' has no writer", where=where,
-                               hint="name it in a tool's output_file; a FIFO nobody writes blocks its reader for ever")
+                               hint="name it in a tool's output (v2: output_file); a FIFO nobody writes blocks its reader for ever")
             if len(readers) != 1:
                 raise HepError(f"FIFO '{interface.name}' has {len(readers)} readers; a FIFO has exactly one",
                                where=where, hint="fan out with a list output_file on the producer, one FIFO per reader (V16)")
@@ -933,12 +933,13 @@ def _check_connections(plan: PointPlan, run) -> None:
             if reader.group != interface.group:
                 raise HepError(f"FIFO '{interface.name}' connects {interface.producer} and {reader.tag} across groups",
                                where=where, hint=f"put them in one group, [\"{interface.producer}\", \"{reader.tag}\"], "
-                                                  "or use a [prelim] file: a later reader leaves the writer blocked (L8)")
+                                                  "or make it a file (v2: a [prelim] file): a later reader leaves the writer "
+                                                  "blocked (L8)")
             streamable = reader.tool.streamable if reader.tool.streamable is not None else reader.folder.get("tool", "streamable", False)
             if not streamable:
                 raise HepError(f"'{reader.tag}' cannot read a FIFO", where=where,
                                hint="its tool folder says streamable = false (Delphes skips a zero-length input, L11); "
-                                    "use a [prelim] file and put it in a later group")
+                                    "put it in a later group, so it reads a file (v2: a [prelim] file there)")
         else:
             for reader in readers:
                 if interface.producer:

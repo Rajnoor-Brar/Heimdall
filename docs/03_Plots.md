@@ -91,7 +91,7 @@ backend     = "root"              # "mpl", "yoda", or a list of them; "both" is 
 formats     = ["pdf", "png"]
 objects     = ["/photo_eic/d0*"]  # which objects get their own pages (default: every one)
 ratio       = true
-y_gutter    = 0.5                 # the y axis reaches 1.5 × the largest value; "default": ROOT decides
+y_gutter    = 0.5                 # the y axis reaches 1.5 × the largest value; "native": ROOT decides
 x_gutter    = "default"           # no x gutter; 0.1 widens x by 10 %
 auto_range  = true                # trim x to the filled bins …
 range_pad   = 1                   # … keeping one bin either side
@@ -110,10 +110,12 @@ root_style  = "talk"              # configs/<P>/talk.toml, over the base style
 A page text's placeholder must have one value across the page's curves; a curve label's is its own
 point's. A cited name the points don't have is refused at plan time.
 
-**`"default"` keeps it as it is.** In `[plot]` it sets nothing, and the drawing tool does what it
-does by itself: no gutter, no voiding, the `.plot`'s log axes and ratio. In a figure it is `[plot]`'s
-value. A key left out of `[plot]` takes the runner's default from the schema: a missing `y_gutter`
-is 0.5. The full table is [04 §11](04_Config_Reference.md#11-plot).
+**`"default"` is the layer below; `"native"` is the drawing tool's own.** A key left out of `[plot]`,
+or `"default"` there, takes the runner's default from the schema: a missing `y_gutter` is 0.5. In a
+figure, either is `[plot]`'s value. `"native"` sets nothing, in `[plot]` or a figure, and the drawing
+tool does what it does by itself: no gutter, no voiding, the `.plot`'s log axes and ratio. (A v2
+file wrote that as `"default"` in `[plot]` itself; `hep migrate --v3` rewrites it.) The full table is
+[04 §11](04_Config_Reference.md#11-plot).
 
 **The order on a page** (load-bearing, inherited from v1): void across the page → align the data to
 the MC bins → normalise → auto-range over curves and data → gutters → draw.
@@ -149,14 +151,22 @@ legend = "ZEUS 2012"
 
 ## 5. Curves: labels, looks and bands
 
-A curve is labelled by its quantities' `labels`, and drawn in the next colour of the style's
-palette. A quantity can give each of its values a look of its own, which it keeps on every page:
+A curve is labelled by its points' `label`s, and drawn in the next colour of the style's palette. A
+quantity can give each of its points a look of its own, its row's `style`, which it keeps on every
+page:
 
 ```toml
-[quantities.pdf]
-values = ["LHAPDF6:MSTW2008lo68cl", "LHAPDF6:NNPDF23_lo_as_0130_qed"]
-labels = ["MSTW 2008 LO", "NNPDF 2.3 LO"]
-styles = [{ colour = "#EE3311" }, { colour = "kBlue+1", line = "dashed", width = 1.5 }]
+[[quantities.pdf.points]]          # a row as a table of its own: the same as points = [{ … }, …]
+tag   = "MSTW08lo"
+value = "LHAPDF6:MSTW2008lo68cl"
+label = "MSTW 2008 LO"
+style = { colour = "#EE3311" }
+
+[[quantities.pdf.points]]
+tag   = "NNPDF23lo"
+value = "LHAPDF6:NNPDF23_lo_as_0130_qed"
+label = "NNPDF 2.3 LO"
+style = { colour = "kBlue+1", line = "dashed", width = 1.5 }
 ```
 
 **A band** folds a curve axis into an envelope:
@@ -167,7 +177,7 @@ band = ["scale"]          # per value of the other curve axes, one curve (the sc
                           # with the min–max of all its values shaded around it: the usual scale band
 ```
 
-The legend entry ends `(scale envelope)`. A band must be a curve axis of the configuration: swept,
+The legend entry ends `(scale envelope)`. A band must be a curve axis of the configuration: varied,
 not `plot_points`, and not combined. Every backend draws it.
 
 ---
@@ -237,7 +247,7 @@ objects = ["d04-*"]           # globs: the short name, the option-free path, or 
 - `use_data`, `band`.
 
 It also takes `x_label`, `y_label` and `style`. Each means what it means in `[plot]`, for the
-figure's pages only; left out, or `"default"`, it is `[plot]`'s. What concerns the whole run stays
+figure's pages only; left out, or `"default"`, it is `[plot]`'s, and `"native"` is the drawing tool's own. What concerns the whole run stays
 in `[plot]` alone: `backend`, `formats`, `objects`, `data`, `root_style`.
 
 **When it is checked.** A figure is checked twice:
@@ -317,7 +327,7 @@ and the figure may not also `band` them.
 class          = "compare"
 objects        = ["d0*"]
 configurations = ["default01", "default1", "default4"]   # default: the sweep_runs ones
-labels         = ["1M", "10M", "40M"]                    # default: each configuration's label
+labels         = ["1M", "10M", "40M"]                    # default: each configuration's folder name
 
 [plot.figures.chains]
 class          = "compare"
@@ -460,7 +470,7 @@ the two page sets would disagree about it.
 - `reference.yoda`: the mapped reference objects cut to their aligned span, renamed
   `/REF/<analysis>/<object>` (mkhtml's own reference lookup is off: explicit only, L18);
 - `pages.plot`, which per object holds:
-  - `XMin`/`XMax`/`YMin`/`YMax` (left out where a gutter of `"default"` leaves the range to the
+  - `XMin`/`XMax`/`YMin`/`YMax` (left out where a `"native"` gutter leaves the range to the
     tool);
   - `LogX`, `LogY`, `RatioPlot`;
   - the legend corner;

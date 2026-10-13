@@ -366,4 +366,30 @@ def translate(raw: dict, where: str) -> dict:
     return out
 
 
-__all__ = ["count_name", "is_v3", "translate"]
+_V2_OF_RUN = {"run": "configuration", "events": "event_count", "chain": "tools", "vary": "sweeps"}
+_V2_OF_CFG = {**_V2_OF_RUN, "folder": "label", "fixed": "static"}
+_V2_OF_TOOL = {"card": "baseconfig", "output": "output_file", "uses": "tool"}
+
+
+def v2_path(dotted: str) -> str:
+    """A dotted key in v3's names (an import's `only`, `drop`) as the tables read as v2 have it:
+    cfgs.pdf → run.cfgs.pdf, file.vars.x → config.vars.x, run.events → run.event_count, tools.rivet.output
+    → tools.rivet.output_file, cfgs.pdf.folder → run.cfgs.pdf.label, quantities.pdf.fixed → static.pdf."""
+    parts = dotted.strip().split(".")
+    head = parts[0]
+    if head == "file":
+        return ".".join(["config", *parts[1:]])
+    if head == "cfgs":
+        if len(parts) >= 3:
+            parts[2] = _V2_OF_CFG.get(parts[2], parts[2])
+        return ".".join(["run", *parts])
+    if head == "run" and len(parts) >= 2:
+        parts[1] = _V2_OF_RUN.get(parts[1], parts[1])
+    elif head == "tools" and len(parts) >= 3:
+        parts[2] = _V2_OF_TOOL.get(parts[2], parts[2])
+    elif head == "quantities" and len(parts) == 3 and parts[2] == "fixed":
+        return f"static.{parts[1]}"
+    return ".".join(parts)
+
+
+__all__ = ["count_name", "is_v3", "translate", "v2_path"]

@@ -246,6 +246,10 @@ def explain(key: str) -> list[str]:
     parts = [p for p in key.replace("[", "").replace("]", ".").split(".") if p]
     if not parts:
         raise HepError("explain which key?", hint="e.g. hep explain plot.y_gutter")
+    if parts[0] == "cfgs" and len(parts) >= 3:                          # v3's names: cfgs.pdf.threads, file.vars
+        parts = ["run", *parts]
+    elif parts[0] == "file":
+        parts[0] = "config"
     found = []
     if len(parts) >= 2 and parts[0] in TABLES:
         table = TABLES[parts[0]]
@@ -259,7 +263,7 @@ def explain(key: str) -> list[str]:
     if not found:
         every = sorted({k for t in schema.spec() if t != "sections" for k in schema.keys(t)})
         raise HepError(f"no key '{key}' in the schema", hint=did_you_mean(parts[-1], every) or
-                       "keys are written as plot.y_gutter, run.event_count, quantities.<q>.styles")
+                       "keys are written as plot.y_gutter, run.events, cfgs.<name>.threads, quantities.<q>.points")
     lines = []
     for table, name in found:
         entry = schema.keys(table)[name]

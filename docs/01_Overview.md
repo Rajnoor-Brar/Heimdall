@@ -23,7 +23,7 @@ It lives in two kinds of place:
 Its whole shape is one sentence of the brief ([07 §1](07_Record.md#1-the-brief)): **tools are
 processes, chained by a TOML**.
 
-- A run TOML names a configuration, and its sweeps expand into points.
+- A run TOML names a configuration, and what it varies expands into points.
 - For each point the runner writes each tool's native card, connects the tools with agreed files and
   FIFOs, runs them in order, watches them, checks what they made, and records it.
 - After all the points it draws the pages.
@@ -38,8 +38,8 @@ The runner decides and supervises. The tools do the physics.
 hep run Demo/jets energy_pdf                      framework/bin/hep → framework/bin/run → runner.cli
   │
   ├─ load     configs/Demo/jets.toml  (in the work dir; + framework/schema/quantities.toml, <tool>/quantities.toml)
-  ├─ resolve  [run.cfgs.energy_pdf]: sweeps, plot_points, tools, static, prelim
-  ├─ expand   sweeps = ["energies", "pdf"]  →  16 points   (a grid of axes; entangled groups zip)
+  ├─ resolve  [cfgs.energy_pdf]: vary, plot_points, chain, fixed; the interfaces from the chain
+  ├─ expand   vary = ["energies", "pdf"]  →  16 points   (a grid of axes; entangled groups zip)
   ├─ plan     per point: cards, config files, argv, connections, identity, seeds; every check (C1–C14)
   │
   ├─ pre      tools run once before every point (their products are inputs of every point)
@@ -72,7 +72,7 @@ These words carry the design. The full glossary is [07 §10](07_Record.md#10-glo
 | Word | Means |
 |---|---|
 | **run** | one TOML under `configs/<Project>/` |
-| **configuration** | a named recipe inside a run (`[run.cfgs.<name>]`): sweeps, tools, events, threads |
+| **configuration** | a named recipe inside a run (`[cfgs.<name>]`): what it varies and fixes, its chain, events, threads |
 | **quantity** | a named value that can be swept or held static (`[quantities.<q>]`) |
 | **point** | one combination of swept values: one chain of processes, one output directory |
 | **tool** | one process in the chain (`[tools.<tag>]`), of a kind a tool folder describes |
@@ -143,7 +143,7 @@ can read. v1 decided a quantity's effect with a nine-way type dispatch in code; 
 ### 4.5 Require the explicit statement; refuse the convenient inference
 
 Nothing is guessed:
-- connections are named (`input`, `output_file`);
+- connections are named (`input`, `output`), and FIFO or file follows from the chain;
 - reference data are matched through an explicit map, never by histogram name;
 - a quantity must be consumed by a tool, or it is refused;
 - a Rivet option must be declared by its analysis;

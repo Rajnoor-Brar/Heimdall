@@ -155,6 +155,8 @@ def parser() -> argparse.ArgumentParser:
                            "when it is in none; --git=new: a repository of its own even inside another")
     make.add_argument("--adopt", action="store_true", help="make a work dir of a folder that has files but no hep.toml")
     make.add_argument("--name", help="the work dir's name in hep.toml (default: the folder's)")
+    make.add_argument("--example", metavar="NAME", help="also a working example project to run first: jets "
+                                                        "(the guide's Demo project: Pythia → Rivet → pages against ZEUS data)")
     make.add_argument("--refresh", action="store_true",
                       help="bring the framework's own files (Makefile, README/HEIMDALL.md, CLAUDE.md, .vscode, the "
                            ".gitignore block) up to today's template, as a diff; never the user's files")
@@ -1312,8 +1314,10 @@ def main(argv: list[str]) -> int:
                 ask = input if sys.stdin.isatty() else None
                 setupmod.refresh(Path(args.dir), yes=args.yes, ask=ask)
                 return 0
-            added = setupmod.setup(Path(args.dir), project=args.project, git=args.git, adopt=args.adopt, name=args.name)
-            for line in setupmod.next_steps(Path(args.dir).expanduser().resolve(), added, args.project, args.git):
+            added = setupmod.setup(Path(args.dir), project=args.project, git=args.git, adopt=args.adopt, name=args.name,
+                                   example=args.example)
+            for line in setupmod.next_steps(Path(args.dir).expanduser().resolve(), added, args.project, args.git,
+                                            example=args.example):
                 print(line)
             return 0
         if args.command == "where":

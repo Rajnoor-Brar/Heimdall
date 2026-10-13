@@ -378,7 +378,7 @@ larger repo.
 - One error format, the builder's included.
 - Record ids only as "(see V93)" after an explanation.
 
-**7.2 The first run** (U63, U14)
+**7.2 The first run** (U63, U14) — **done, V135**
 - The README has one path per platform, ending at a drawn page, with `hep doctor` between build and
   first run.
 - `hep setup --example jets` copies the demo project into the user's work dir.

@@ -146,3 +146,20 @@ def test_a_deck_is_written_in_decks_and_built_in_reports(scratch, monkeypatch):
     moves = dict(migrate.deck_moves(work))
     assert moves == {old / "deck.toml": work / "decks" / "old" / "deck.toml",
                      old / "eta_one.png": work / "decks" / "old" / "eta_one.png"}       # the build's stay
+
+
+def test_an_example_is_a_working_project(scratch, quiet):
+    """7.2 (U63): `hep setup --example jets` copies the guide's Demo project into the reader's work dir,
+    and the next commands take it to a page."""
+    target = scratch / "study"
+    added = setup.setup(target, example="jets", out=quiet[0])
+    assert (target / "configs" / "Demo" / "jets.toml").is_file() and (target / "modules" / "Demo" / "Rivet" / "photo_eic.cc").is_file()
+    assert "configs/Demo/ep.cmnd" in added and any(a.startswith("datasets/") for a in added)
+    lines = setup.next_steps(target, added, None, None, example="jets")
+    assert "  hep check Demo/jets" in lines and any(l.startswith("  hep run Demo/jets single") for l in lines)
+    (target / "configs" / "Demo" / "jets.toml").write_text("mine\n", encoding="utf-8")
+    setup.setup(target, example="jets", out=quiet[0])                               # again: never over a file
+    assert (target / "configs" / "Demo" / "jets.toml").read_text(encoding="utf-8") == "mine\n"
+    with pytest.raises(HepError, match="no example 'jest'") as caught:
+        setup.setup(target, example="jest", out=quiet[0])
+    assert "jets" in caught.value.hint

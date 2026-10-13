@@ -165,6 +165,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--git yes\|new` | commit what was added (only that), in the git repository the folder is in, or a new one when it is in none; --git=new: a repository of its own even inside another |
 | `--adopt` | make a work dir of a folder that has files but no hep.toml |
 | `--name NAME` | the work dir's name in hep.toml (default: the folder's) |
+| `--example NAME` | also a working example project to run first: jets (the guide's Demo project: Pythia → Rivet → pages against ZEUS data) |
 | `--refresh` | bring the framework's own files (Makefile, README/HEIMDALL.md, CLAUDE.md, .vscode, the .gitignore block) up to today's template, as a diff; never the user's files |
 | `--yes` | with --refresh: write without asking |
 

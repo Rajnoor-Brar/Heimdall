@@ -45,6 +45,10 @@ GUIDE = "HEIMDALL.md"
 #: The marked block of ignores hep setup keeps in a .gitignore that is not the template's.
 BLOCK, BLOCK_END = "# Heimdall (hep setup): what the runner and the build make", "# /Heimdall"
 MANIFEST = "datasets.toml"
+#: `hep setup --example <name>` (U63): a working project of the tests' own work dir, which the suite
+#: keeps running, copied into the user's: name → (its project, what it says to run first).
+EXAMPLES = {"jets": ("Demo", "Demo/jets single")}
+EXAMPLE_WORK = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "work"
 #: The key folders every work dir has (framework/01 §4.1).
 FOLDERS = ("configs", "modules", "datasets", "decks", "results", "records", "reports", "build")
 
@@ -126,7 +130,7 @@ def _guide(values: dict[str, str], readme: bool, claude: bool) -> str:
 
 
 def setup(target: Path, *, project: str | None = None, git: bool = False, adopt: bool = False,
-          name: str | None = None, out=print) -> list[str]:
+          name: str | None = None, out=print, example: str | None = None) -> list[str]:
     """Lay the template down in `target`; never overwrite. Returns what was added (paths relative to it)."""
     target = target.expanduser().resolve()
     if target.exists() and not target.is_dir():
@@ -174,6 +178,8 @@ def setup(target: Path, *, project: str | None = None, git: bool = False, adopt:
             (target / folder).mkdir()
             added.append(folder + "/")
             out(f"added {folder}/")
+    if example is not None:
+        added += _example(target, example, out)
     if theirs and not (target / GUIDE).exists():
         (target / GUIDE).write_text(_guide(values, "README.md" in theirs, "CLAUDE.md" in theirs), encoding="utf-8")
         added.append(GUIDE)
@@ -192,6 +198,27 @@ def setup(target: Path, *, project: str | None = None, git: bool = False, adopt:
     if git:
         _commit(target, [a for a in added if not a.endswith("/")] + changed, values,
                 new=git == "new", out=out)
+    return added
+
+
+def _example(target: Path, name: str, out=print) -> list[str]:
+    """The example's project: its configs/, modules/ and the datasets they read, never over a file."""
+    if name not in EXAMPLES:
+        from .errors import did_you_mean
+        raise HepError(f"no example '{name}'", hint=did_you_mean(name, EXAMPLES) or f"examples: {', '.join(EXAMPLES)}")
+    project = EXAMPLES[name][0]
+    added = []
+    sources = [EXAMPLE_WORK / "configs" / project, EXAMPLE_WORK / "modules" / project, EXAMPLE_WORK / "datasets"]
+    for root in sources:
+        for src in sorted(p for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
+            rel = src.relative_to(EXAMPLE_WORK)
+            dest = target / rel
+            if dest.exists():
+                continue
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            added.append(str(rel))
+    out(f"added the example '{name}': configs/{project}/, modules/{project}/, datasets/ ({len(added)} files)")
     return added
 
 
@@ -219,12 +246,16 @@ def _commit(target: Path, files: list[str], values: dict[str, str], new: bool = 
                        hint="set git's user.name and user.email, then commit the added files yourself")
 
 
-def next_steps(target: Path, added: list[str], project: str | None, git) -> list[str]:
-    """What to type next (5.3): the commands that take the new work dir to a first plan, and git's when
-    --git was not given in a repository."""
+def next_steps(target: Path, added: list[str], project: str | None, git, example: str | None = None) -> list[str]:
+    """What to type next (5.3, 7.2): the commands that take the new work dir to a first page (an
+    example's) or a first plan, and git's when --git was not given in a repository."""
     here = os.path.relpath(target, Path.cwd())
     lines = ["next:", *([f"  cd {here}"] if here != "." else [])]
-    if project:
+    if example:
+        first = EXAMPLES[example][1]
+        lines += ["  hep build                      # its module programs and Rivet plugins",
+                  f"  hep check {first.split()[0]}", f"  hep run {first}         # then open results/…/plots/root/index.html"]
+    elif project:
         name = f"{project}/{project.lower()}"
         lines += [f"  hep check {name}", f"  hep run {name} --plan"]
     else:

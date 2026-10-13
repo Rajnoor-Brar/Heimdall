@@ -134,7 +134,14 @@ folder or file whose name starts with `_` is parked: `hep build` skips it.
 
 ## 2. A first run
 
+The examples from here on are the demo project, `Demo`. `hep setup --example jets` copies it into a
+work dir of your own (its run TOMLs, cards, Rivet analysis, module programs and reference data), and
+`hep setup` says the commands that follow:
+
 ```bash
+hep setup ~/Study --example jets   # a work dir with the demo project (or into one you have: hep setup . --example jets)
+cd ~/Study && hep build            # its Rivet analysis and module programs
+hep check Demo/jets                # every configuration planned; nothing run
 hep run Demo/jets single --plan    # what would run: cards, argv, connections; runs nothing
 hep run Demo/jets single --set run.events=50000
 ```

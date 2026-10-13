@@ -62,7 +62,7 @@ clone, say) and it adds only what is missing. `--project P` adds `configs/P/p.to
 starter that `hep check` accepts, and `modules/P/`; `--adopt` makes a work dir of a folder that
 already has files.
 
-**In a git repository** (U67). A fresh repository (`git init`, or a hosting site's new repo with its
+**In a git repository**. A fresh repository (`git init`, or a hosting site's new repo with its
 `README.md`, `LICENSE` and `.gitignore`) needs no `--adopt`:
 
 ```bash
@@ -79,7 +79,7 @@ hep setup . --project Jets --git                      # README.md and LICENSE ke
 - **Provenance** records the repository a work dir is in, with its subfolder, and a repository with
   no commit yet as one.
 
-**Data** (U23). Small reference files go in `datasets/`, tracked. Large ones are listed in
+**Data**. Small reference files go in `datasets/`, tracked. Large ones are listed in
 `datasets.toml`, and `hep setup .` (in a fresh clone, say) fetches each one missing, checking its
 sha256, and keeps them out of git (`datasets/.gitignore`):
 
@@ -89,10 +89,10 @@ url    = "https://example.org/data/ZEUS_2012.yoda"
 sha256 = "9f2c…"                 # sha256sum's: the file must be this one
 ```
 
-**Decks** (U22) are written in `decks/<deck>/` (`deck.md`, `deck.toml`), tracked, and built into
+**Decks** are written in `decks/<deck>/` (`deck.md`, `deck.toml`), tracked, and built into
 `reports/<deck>/` (03 §11). **`hep setup . --refresh`** brings the framework's own files (the
 `Makefile`, Heimdall's `README.md` or `HEIMDALL.md`, `CLAUDE.md`, `.vscode/`, the `.gitignore` block)
-up to today's template, showing each diff first; your files are never touched (U28).
+up to today's template, showing each diff first; your files are never touched.
 
 Every `hep` command finds its work dir by walking up from the working directory to a `hep.toml`
 with a `[work]` table; `$HEP_WORK` names one instead. Outside a work dir, `hep run` says so. A work
@@ -346,7 +346,7 @@ Rivet runs `photo_eic:R=0.4`, and so on. An option the `.info` does not declare 
 Rivet would ignore it silently and give identical curves. Each variant is a curve on the object's
 page, labelled `… [R=0.4]`.
 
-**Each value is its own generation** (V9): a three-point option vary runs Pythia three times. To
+**Each value is its own generation**: a three-point option vary runs Pythia three times. To
 avoid that, keep the events once as a file (the generator in a group of its own) and analyse them
 in another configuration (§5.1 shows the file interface). → `jets radius`, `lambda sets`.
 
@@ -438,7 +438,7 @@ card   = "ep.cmnd"
 output = "showered.hepmc"
 keep   = false                                      # a scratch file of the point, in logs/
 
-[tools.delphes]                                     # not streamable: in pythia's group it is refused (L11)
+[tools.delphes]                                     # not streamable: in pythia's group it is refused
 card   = "delphes_card_ATLAS.tcl"
 input  = "pythia_file"
 output = "delphes.root"
@@ -553,7 +553,7 @@ points = [{ tag = "0.05", value = 0.05 }, { tag = "0.10", value = 0.10 },
 - **Varying its options:** a module's options can be varied; the value lands in its config
   (`mass_tolerance`).
 - **Scaling:** fill with raw weights and scale **once** after the loop. Beside a Rivet histogram,
-  scale as a density (`out.scale(σ/ΣW, "width")`, L21).
+  scale as a density (`out.scale(σ/ΣW, "width")`).
 
 → `Decay/decay`: the Rivet analysis and the module on the same events, agreeing to YODA's
 precision.
@@ -582,7 +582,7 @@ counting.
 
 **Speed:** Pythia runs on the configuration's `threads`, and `rivet_threads = K` in
 `[tools.jets.config]` runs K Rivets on threads of their own, merged at the end. With 12 + 12 it is
-about 1.5× faster than the sharded chain (§7.1). K above 1 needs the SISCone patch in the stack's FastJet (L29; `recipes/patches/`, applied by the build).
+about 1.5× faster than the sharded chain (§7.1). K above 1 needs the SISCone patch in the stack's FastJet (`recipes/patches/`, applied by the build).
 
 **A whole study in one process** imports the chain's run TOML (§4.9) and writes only what differs: the
 program, the configurations that run it, and a run name of its own. The physics (quantities, the
@@ -622,7 +622,7 @@ How the program is built: [06 §21](06_Internals.md#21-modulehh).
 ```toml
 [tools.fit]
 uses       = "exec"                               # any executable
-executable = "path:python3"                       # a command on PATH, asked for by name (V54)
+executable = "path:python3"                       # a command on PATH, asked for by name
 arguments  = ["{work}/modules/Decay/fit_mass.py", "{in:decay.root}", "{partial:output}"]   # your script: {work}/…, as the tool runs in the point's folder
 input      = "decay.root"
 output     = "fit.json"
@@ -758,7 +758,7 @@ points = [{ tag = "1001", value = 1001 }, { tag = "2001", value = 2001 }, { tag 
 
 ### 7.5 On a Slurm cluster
 
-`hep cluster` runs a configuration as Slurm jobs (V114):
+`hep cluster` runs a configuration as Slurm jobs:
 - a **pre job** first, when there are pre tools to run;
 - a **points array**, a task per point to run;
 - a **finish job** after every point has ended: the combined groups, the post tools and the plots.
@@ -921,7 +921,7 @@ for point in results.load("Demo/jets", "energy_pdf"):
     print(point.name, point.values["pdf"].label, point.complete, point.yoda())
 ```
 
-`results.load(CONFIG, CONFIGURATION)` (V77) reads a configuration's `points.json` and returns its
+`results.load(CONFIG, CONFIGURATION)` reads a configuration's `points.json` and returns its
 points. Each has:
 - `name`;
 - `values` (quantity → its `tag`, `label`, `value`, `swept`);

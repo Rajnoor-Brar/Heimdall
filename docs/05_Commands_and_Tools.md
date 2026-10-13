@@ -4,7 +4,7 @@ Every `hep` command and its options, the build and the environment; then every s
 it runs, how its card is written, which quantities it consumes, what it writes, how its events are
 counted, what it puts in the context file, and the quirks that shaped it (the ledger rows,
 [07 §3](07_Record.md#3-the-knowledge-ledger)). Then the apps as you run them by hand.
-- **Generated:** the commands' options come from `hep`'s own parser (`make docs`, V91).
+- **Generated:** the commands' options come from `hep`'s own parser (`make docs`).
 - **Written by hand:** the tools' sections come from `framework/tools/<tool>/`.
 - **Writing a new tool folder:** [06 §16](06_Internals.md#16-the-tool-folder-contract).
 
@@ -12,7 +12,7 @@ counted, what it puts in the context file, and the quirks that shaped it (the le
 
 ## 1. Commands
 
-Every command is one program's (`framework/bin/hep` runs `framework/runner/cli.py`, U59): `hep help`
+Every command is one program's (`framework/bin/hep` runs `framework/runner/cli.py`): `hep help`
 lists them, `hep help <command>` (or `hep <command> --help`) says one, and a misspelt command gets
 the nearest. Throughout:
 - **`--dry-run`** shows what a command would do and does nothing: `run` (also `--plan`), `deck` (also
@@ -21,12 +21,12 @@ the nearest. Throughout:
 - **`--set KEY=VALUE`** works on every command that plans: `run`, `check`, `status`, `clean`, `cluster`.
 - **`--plain`** may come anywhere, for any command.
 - **Errors** are one shape: `hep: what`, then `where:` and `hint:`. A record id, when one helps, comes
-  last as "(see V93)".
+  last, as `(see V93)`.
 - **`hep stack build|list|status|doctor`** is the machine's stack: its builder
   (`recipes/build_stack.py`, on macOS `recipes/platforms/mac/build.sh`), its recipes, its packages,
   its checks.
 
-Every subcommand and its arguments (options and positionals may come in any order, V54):
+Every subcommand and its arguments (options and positionals may come in any order):
 
 <!-- generated: commands -->
 **`hep run`**: plan and run a configuration
@@ -249,9 +249,9 @@ the others.
   - the page count;
   - each point's seed.
 - **`--why`** gives, for each point and stage that would run, what changed since it last completed,
-  from its `identity.json`: `events: 10 → 20`, `tools.pythia.card: + PDF:pSet = …` (V57).
+  from its `identity.json`: `events: 10 → 20`, `tools.pythia.card: + PDF:pSet = …`.
 - **`--show-config`** prints each configuration's resolved values and the layer each came from (its
-  own, `extends`, `[run]`, default), what `[file].import` gave (V56), and the interfaces the chain
+  own, `extends`, `[run]`, default), what `[file].import` gave, and the interfaces the chain
   makes.
 - **`--points SEL`** takes comma-separated point names, single tags, 1-based indices, or
   `quantity=tag`. The other points keep their state, and `points.json` lists them all. It is
@@ -268,7 +268,7 @@ the others.
   what is unchanged (`--rerun` as usual): what `hep cluster`'s jobs run (§1.9). A run of the points
   alone writes no `points.json` and draws nothing; the points refuse to start without their pre
   stage complete.
-- **`--journal`** also writes the run's events to `logs/…/<cfg>/status.jsonl` (V72). Without it,
+- **`--journal`** also writes the run's events to `logs/…/<cfg>/status.jsonl`. Without it,
   nothing of the run's state is on disk.
 - **`--logs`** keeps every tool's whole output; without it, only a failed tool's last 200 lines are
   kept.
@@ -283,14 +283,14 @@ the others.
 | 6 | stopped by the user (Ctrl-C: SIGINT, then SIGTERM, then SIGKILL to the running tools; a second Ctrl-C is the default behaviour) |
 
 Under `[run].sweep_runs` (04 §4.1), the command exits 6 if a run was stopped, else 1 if any failed,
-else 0. With `[run] notify = "desktop"`, the end is also a desktop notification (V76).
+else 0. With `[run] notify = "desktop"`, the end is also a desktop notification.
 
 ### 1.2 `hep plot` and `hep overlay`
 
 - **`hep plot CONFIG [CFG]`** draws a config's pages, as after a run (`--only plot`). Under
   `[run].sweep_runs` it draws every swept configuration's, each under its `run NN - <title> -`
   line, and the compare figures whose configurations are all complete.
-- **`hep overlay FILE…`** (V74; `hep plot FILE…` is refused with the hint) takes files ending
+- **`hep overlay FILE…`** (`hep plot FILE…` is refused with the hint) takes files ending
   `.yoda`, `.yoda.gz` or `.root`:
   - one page per object any of them holds;
   - one curve per file, or one per point of a merged sweep file (labelled from the `points.json`
@@ -301,7 +301,7 @@ else 0. With `[run] notify = "desktop"`, the end is also a desktop notification 
 
 ### 1.3 `hep ls`, `hep explain`, `hep status`, `hep clean`
 
-This is housekeeping (V74).
+This is housekeeping.
 
 - **`ls`** lists every config and its configurations, with descriptions; a `*` marks what `hep run
   CONFIG` runs.
@@ -313,11 +313,11 @@ This is housekeeping (V74).
   `machine.toml`.
 - **`status`** gives every configuration's points and stages, each **complete**, **stale** (complete
   for an earlier identity: it reruns), **running** (a session holds its lock: `(pid N on <host>,
-  since …)`, U66), **incomplete** (begun, not done: failed or stopped) or **to run**. It reads the
+  since …)`), **incomplete** (begun, not done: failed or stopped) or **to run**. It reads the
   records and the locks, so deleting `logs/` or `.cache/` changes no state. Each comes with when it
   finished and its results' size, and `[running]` marks a configuration a job is running now. `status --stack` gives each package of
-  `env/stack.toml`, its version and where it is (V78).
-- **`clean`** removes, by lifecycle (U21), what the runner made and no plan uses:
+  `env/stack.toml`, its version and where it is.
+- **`clean`** removes, by lifecycle, what the runner made and no plan uses:
   - within each configuration's folder, the point folders no plan has (in `logs/`) and the
     `.partial` leftovers (in `logs/` and `results/`);
   - with no config named, every config is planned (all must plan), and the run folders of `logs/` no
@@ -329,7 +329,7 @@ This is housekeeping (V74).
   It never removes a result: an unused point's `results/` folder is listed as kept. It lists first,
   then asks on a terminal (`--yes` elsewhere); `--dry-run` only lists, and it refuses while a job is
   running.
-- **Two sessions, one point** (U66): a point another session is running is skipped, its block naming
+- **Two sessions, one point**: a point another session is running is skipped, its block naming
   who runs it (`running in another session (pid N on <host>, since …): skipped`); `hep run --wait`
   waits for it instead, and skips it if that session completed it. The lock is an `flock` on the
   point's `logs/…/<point>/.lock`, which the kernel frees when the holder ends, however it ends.
@@ -340,13 +340,13 @@ This is housekeeping (V74).
 
 `hep check` loads each config (with none given, every `configs/<Project>/*.toml` that has a
 `[run]`), validates its `[plot]` and its figures, and plans every configuration's points. That
-covers every C-rule, path, consumer, connection and card, with nothing run or written (V57). It
+covers every C-rule, path, consumer, connection and card, with nothing run or written. It
 prints one line per config, and the error of each that fails. It exits 0, or 2 when any failed: for
 a pre-commit hook, or before a long sweep.
 
 ### 1.5 `hep watch`
 
-`hep watch` follows a running job from another terminal (V72), through the watch socket its `hep
+`hep watch` follows a running job from another terminal, through the watch socket its `hep
 run` serves while it lives.
 - **Which job:** with no config, the latest job started on this machine; with one, the job running
   that config (and that configuration).
@@ -359,7 +359,7 @@ run` serves while it lives.
 ### 1.6 `hep migrate`
 
 `hep migrate` rewrites run TOMLs, and the base cards they name, in the forms the runner takes today
-(V79, V81). By default it prints a diff of each file; with `--apply` it writes the files (with no
+. By default it prints a diff of each file; with `--apply` it writes the files (with no
 config, every config). It works by line, so comments and layout stay. It rewrites:
 
 - **figures:** `[plot.overlay.<name>]` and `[plot.object."<glob>"]` → `[plot.figures.…]`, and in a
@@ -371,7 +371,7 @@ config, every config). It works by line, so comments and layout stay. It rewrite
 - **`swept = false`** → `sweep_runs = ["a", "b", …]`, the configurations the sweep ran, in its
   order;
 - **an exec tool's bare `executable`** that is not built but is a command on PATH → `"path:<name>"`
-  (V54);
+;
 - **a base card's lines for keys the runner sets** (its folder's `[card] owned`). This changes the
   card, so the points' identities: they rerun.
 
@@ -379,7 +379,7 @@ It reads each config leniently (the old forms included) before writing anything,
 
 ### 1.7 `hep reproduce`
 
-`hep reproduce` runs a finished point again (V77), exactly as it ran: its config, its configuration,
+`hep reproduce` runs a finished point again, exactly as it ran: its config, its configuration,
 its `--set` overrides (the provenance records them) and its seed.
 - **Where it runs:** into `logs/<P>/.reproduce/<identity>/`, with its own `records/`, `logs/` and
   `results/`, never over the original.
@@ -393,7 +393,7 @@ its `--set` overrides (the provenance records them) and its seed.
 
 ### 1.8 `hep deck`
 
-`hep deck <deck>` makes slides from pages already drawn (V103, V104), in `reports/<deck>/` (a path
+`hep deck <deck>` makes slides from pages already drawn, in `reports/<deck>/` (a path
 starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
 [03 §11](03_Plots.md#11-decks-talks-and-reports-hep-deck); its `deck.toml` keys are
 [04 §15](04_Config_Reference.md#15-a-decks-recipe-decktoml).
@@ -416,7 +416,7 @@ starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
 ### 1.9 `hep cluster`
 
 `hep cluster <config> [<configuration>]` runs a configuration as Slurm jobs, from the cluster's login
-node (V114; how to, [02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster); the keys,
+node (how to, [02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster); the keys,
 [04 §16](04_Config_Reference.md#16-cluster-running-on-slurm)). It plans as `hep run --plan` does, with
 every check, then writes three scripts into `records/<P>/<run>/<cfg>/cluster/<stamp>/` and submits
 them with `sbatch --parsable`:
@@ -452,7 +452,7 @@ core by default:
 - `--clean` empties the build first;
 - `--configure` probes the toolchain again.
 
-`hep make …` is `make …` in the work dir, wherever in it it is typed (V54); `hep make --framework …`
+`hep make …` is `make …` in the work dir, wherever in it it is typed; `hep make --framework …`
 is `make …` in Heimdall. The targets:
 - `<path>/<X>.exe`, `<path>/<x>.so`;
 - `all`, `configure`, `list`, `clean`;
@@ -511,7 +511,7 @@ comes from.
 | `plotmerge` | visualisation (post) | `App_yd2rt.exe --merge` | none | files | standard | — | — | — |
 | `exec` | any | your `executable` | none | per table | none (set it) | only if you set it | — | `config` |
 | `module` | analysis application | your `Module.hh` program | none | yes | standard | the report's `events` | — | `config` |
-| `delphes` | detector simulation | `DelphesHepMC3` | `.tcl`, append (`set`) | **no** (L11) | filters | the `Delphes` tree | — | `card` |
+| `delphes` | detector simulation | `DelphesHepMC3` | `.tcl`, append (`set`) | **no** | filters | the `Delphes` tree | — | `card` |
 | `herwig` | event generator | `Herwig run` | `.in`, append (`set`) | — (writes) | filters | produces: runner-written sidecar | `Herwig read` | `card`; product `run` |
 | `sherpa` | event generator | `Sherpa` | `.yaml`, render (merge) | — (writes) | none | produces: runner-written sidecar | integration | `card`; product `results` |
 | `whizard` | process generator | `whizard` | `.sin`, render | — (writes) | filters | produces: runner-written sidecar | integration | `card` |
@@ -526,7 +526,7 @@ Paint (`src/Apps/Paint/`) is driven by the plot stage, and is never named in `to
 **Not tools at all:**
 - **Providers** (LHAPDF, FeynRules, SARAH) are plan-time checks. A mapping with `check =
   "lhapdf:bare"` or `"lhapdf:pythia"` refuses an uninstalled PDF set (C10,
-  `framework/tools/lhapdf/provider.py`, V60).
+  `framework/tools/lhapdf/provider.py`).
 - **Analysis algorithms** (FastJet, ROOT libraries) are `// requires:` names in a source.
 - **A detector simulation with no command line of its own** (Geant4) is a module program with
   `// requires: geant4`.
@@ -539,7 +539,7 @@ Paint (`src/Apps/Paint/`) is driven by the plot stage, and is never named in `to
 ```toml
 [tools.pythia]
 card   = "ep.cmnd"              # configs/<P>/ep.cmnd
-output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04 §6); an array fans out (V16)
+output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04 §6); an array fans out
 ```
 
 - **Runs** `$HEP_APPS/App_Pythia.exe <outputs> <base cards…> <point card>` (§16): the base cards in
@@ -550,7 +550,7 @@ output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04
   - the footer;
   - then the seeds: `Random:setSeed = on`, `Random:seed = <seed>`, and at threads > 1
     `Parallelism:seeds = {…}`.
-- **`cards/pythia.cmnd` holds each key once** (V59, `[card] merge`): the base cards' settings without
+- **`cards/pythia.cmnd` holds each key once** (`[card] merge`): the base cards' settings without
   comments, less each key the point card sets, then the point card. The particle-data commands that
   add up (`id:onIfMatch` and the rest of `[card] repeatable`) are kept every time.
   - `cards/pythia.json` gives each key's value and where it came from (`ep.cmnd:34`,
@@ -558,8 +558,8 @@ output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04
   - App_Pythia still reads the base cards and the point card, which gives the same settings.
 - **Keys the runner sets** (`[card] owned`: `Main:numberOfEvents`, `Parallelism:numThreads`, the
   `Random:` seeds, `Parallelism:seeds`, `Beams:LHEF`): a base card's line for one of them is never
-  used, and `--plan` and the run say so (V59).
-- **Checked** (`[checks] card`, V59): at plan time, `$HEP_APPS/App_PythiaCheck.exe` gives every line of
+  used, and `--plan` and the run say so.
+- **Checked** (`[checks] card`): at plan time, `$HEP_APPS/App_PythiaCheck.exe` gives every line of
   the card (base settings and point card, before seeds) to Pythia's own reader.
   - A line Pythia rejects (a key it does not know, a value of the wrong kind, a particle its table
     lacks) refuses the plan, with the line's source.
@@ -574,7 +574,6 @@ output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04
   **deal** its events among a sharded tool's inputs (`[outputs] deal = true`, §5.1).
 - **In the context file** (04 §9.4): `card` (the combined card, seeds included) and `card_parts`.
 - **Identity** includes the binary's sha256; the **version** is the stack's (`stack:pythia8`).
-- Ledger: L1–L6, L25.
 
 ## 5. `rivet`
 
@@ -593,37 +592,36 @@ output   = "jets.yoda"
 
 - **Runs** `rivet -o <partial output> -a <analysis[:options]>… <input>`, with
   `RIVET_ANALYSIS_PATH = build/Rivet`.
-- **Options**, in increasing precedence (the parent→child rule, V54):
+- **Options**, in increasing precedence (the parent→child rule):
   1. `options` (every analysis);
   2. the analysis's own inline `NAME:OPT=V`;
   3. quantities targeting `"<tag>/<analysis>"`.
 
   Each analysis must have a `.info` (`build/Rivet/`, then `rivet-config --datadir`), and every option
-  it is given must be declared in the `.info`'s `Options:` (C9, L19). A quantity's option aimed at an
+  it is given must be declared in the `.info`'s `Options:` (C9). A quantity's option aimed at an
   analysis the tool does not run is an error.
-- **Consumes** nothing through the vocabulary: beams and energies come from the events (L9).
-- **σ** is the last event's `GenCrossSection` (L2): App_Pythia re-stamps it with the combined value.
-- **Count check**: `/RAW/_EVTCOUNT`'s entries against the producer's sidecar `written` (L7).
+- **Consumes** nothing through the vocabulary: beams and energies come from the events.
+- **σ** is the last event's `GenCrossSection`: App_Pythia re-stamps it with the combined value.
+- **Count check**: `/RAW/_EVTCOUNT`'s entries against the producer's sidecar `written`.
 - **Identity** includes each project plugin's `.so` (`build/Rivet/Rivet_<analysis>.so`); the
   version is the stack's.
 - **In the context file** (04 §9.4): `analyses` (with this point's options applied, e.g.
   `photo_eic:R=0.4`) and `plugin_path` (`build/Rivet`): its folder's `[context] values`.
-- **Its own code** is `framework/tools/rivet/render.py`'s `options` hook (V60). It handles:
+- **Its own code** is `framework/tools/rivet/render.py`'s `options` hook. It handles:
   - the analyses with their options;
   - the `.info` check;
   - `{analyses}` for the argv;
-  - the page texts `{opt:NAME}` (V66: each option at the point, the `.info`'s `(default X)` when
+  - the page texts `{opt:NAME}` (each option at the point, the `.info`'s `(default X)` when
     unset).
 - **Status** by filters: `Event N (` → progress, `ERROR`/`Exception` → error, `WARN` → warning (the
   "unvalidated" warning ignored).
-- Ledger: L7, L9, L10, L19.
 
 ### 5.1 Sharded Rivet: `shards = K`
 
 One Rivet process is one core: with ZEUS_2012_I1116258 about 1,500 events/s, a third of it reading
 the HepMC text and the rest clustering jets. It sets the pace of a Pythia → Rivet chain whatever
 Pythia's threads (measured 2026-09-29: 20 threads left the machine at 4%). `shards = K` runs K Rivet
-processes, each on a share of the events, and merges them (V31):
+processes, each on a share of the events, and merges them:
 
 ```toml
 [tools.rivet]
@@ -643,7 +641,7 @@ shards   = 10
     folder) into the table's `output` (`validation.yoda`, in `results/`).
 
   The logs are `logs/rivet.<i>.log` and `logs/rivet.merge.log`, and `--plan` shows every step.
-- **The events do not change.** Seeds follow the generator's cards, not its argv (V22), so a sharded
+- **The events do not change.** Seeds follow the generator's cards, not its argv, so a sharded
   point has the same events as the same point unsharded. The merged YODA is the same, up to the
   rounding of summing in another order. The point's identity does change (its argv), so changing
   `shards` reruns it.
@@ -747,7 +745,7 @@ input      = "delphes"
 output     = "jets_reco.json"
 ```
 
-**An exec tool in Python** gets the kit's half that applies through `framework/hepkit.py` (V74):
+**An exec tool in Python** gets the kit's half that applies through `framework/hepkit.py`:
 - `Exit`: Kit::Exit's table;
 - `Status`: the standard protocol, with a heartbeat, or plain lines on stderr when the fd is not
   given;
@@ -784,11 +782,11 @@ output = "delphes.root"
 
 - **Runs** `DelphesHepMC3 <combined card> <partial output> <input>`.
 - **Card**: Tcl, append style, `set {key} {value}` lines; the seed as `set RandomSeed <seed>`.
-- **Not streamable** (L11): Delphes sizes its input first and skips a zero-length one, which a FIFO
+- **Not streamable**: Delphes sizes its input first and skips a zero-length one, which a FIFO
   always is. A FIFO into it is refused at plan time (C6). It creates its ROOT file before reading the
   card, so it writes the partial name the runner gives.
 - **Count check**: the `Delphes` tree's entries (read with uproot) against the sidecar.
-- **Seeds**: Delphes is not an event producer, so it never moves the generator's seeds (V22).
+- **Seeds**: Delphes is not an event producer, so it never moves the generator's seeds.
 - **In the context file:** `card`.
 
 ## 12. `herwig` — Herwig 7
@@ -801,20 +799,19 @@ output = "events.hepmc"
 
 - **Prepare** (cached per card): `Herwig read --repo={apps}/Herwig/HerwigDefaults.rpo <card>` →
   `point.run` in the cache entry. The repository is made by `hep build --framework`: Herwig's own
-  install could not make it, since its defaults need CT14lo/CT14nlo (L15). A plan without it is
+  install could not make it, since its defaults need CT14lo/CT14nlo. A plan without it is
   refused (C10), with `hep build --framework`.
 - **Runs** `Herwig run <cache>/point.run -N <events> -s <seed> -d 0`. Events and seed are flags, so
   every point and replica with the same physics shares one read.
 - **Card**: ThePEG `set {key} {value}` lines (a later `set` wins). The footer reads HepMC output
   (`read snippets/HepMC.in`, the file name, `saverun point EventGenerator`), and must come last.
-- **Beams**: in Herwig's slots, `[beams] slots = ["lepton", "hadron"]` (V62): the snippet puts the
+- **Beams**: in Herwig's slots, `[beams] slots = ["lepton", "hadron"]`: the snippet puts the
   lepton on beam A, and the runner reorders the run's per-beam values for it.
 - **Consumes** `energies` (`Luminosity:BeamEMaxA`, `…B`) and `sqrts` (`Luminosity:Energy`).
 - **Sidecar** written by the runner after exit 0 (`written = "requested"`: Herwig makes exactly `-N`
   events or fails).
 - **In the context file:** `card`; the product `run` (`generate_cards = ["herwig:run"]`), the
   `.run` file, **prepared on demand** for a tool that asks.
-- Ledger: L15.
 
 ## 13. `sherpa` — Sherpa 3
 
@@ -828,7 +825,7 @@ output = "events.hepmc"
   **key path** (`EPA:Q2Max`, `PDF_SET[0]`: a list entry is replaced, never appended), written whole.
   - `sqrts` becomes `BEAM_ENERGIES = [√s/2, √s/2]`.
   - `MPI_PDF_SET` follows `PDF_SET` (it agreed before, or was absent): Sherpa's MPI reads its own key
-    and falls back to a PDF that is not installed (L12).
+    and falls back to a PDF that is not installed.
   - The footer is `EVENT_OUTPUT: HepMC3_GenEvent[<output name>]`, and the seed is `RANDOM_SEED:
     <seed>`.
 - **The plan owns** `BEAMS`, `BEAM_ENERGIES`, `RANDOM_SEED`, `EVENTS`, `EVENT_OUTPUT` and
@@ -838,7 +835,7 @@ output = "events.hepmc"
   Sherpa opens the FIFO at initialisation and waits for a reader that only the generation starts.
   The marker is `Results.zip`.
 - **Runs** `Sherpa -f <card> "RESULT_DIRECTORY: <cache>/Results"`, in the point's directory. Sherpa
-  prepends `./` to the output name (L12), so the name is relative.
+  prepends `./` to the output name, so the name is relative.
 - **Consumes** `energies`, `beams`, `sqrts`, `pdf` (checked) and `events`.
 - **Sidecar** written by the runner (`written = "requested"`).
 - **In the context file:** `card`; the product `results` (`"sherpa:results"`), the integration
@@ -847,7 +844,6 @@ output = "events.hepmc"
   - Sherpa writes a YODA variation per extra weight; the plot stage draws the nominal only.
   - With `MI_HANDLER: Amisic`, ep photoproduction made 0 events in 768 s (v1), so the committed card
     has MPI off.
-- Ledger: L12, L24.
 
 ## 14. `whizard` — Whizard 3
 
@@ -858,7 +854,7 @@ output = "events.hepmc"
 ```
 
 - **Card** (`render.py`): SINDARIN is a script, so the point card comes **first** and includes the
-  base **last** (L13). In order:
+  base **last**. In order:
   - the plan's assignments;
   - `seed = <seed>`, `sample_format = hepmc`;
   - `$sample = "<output without .hepmc>"` (Whizard appends `.hepmc`);
@@ -874,7 +870,7 @@ output = "events.hepmc"
 - **Consumes** `energies` (`beams_momentum`, in GeV), `beams` and `events` (`n_events`).
 - **σ**: Whizard writes none into its events, so Rivet has none; the integration log has it.
 - **Limits:** Whizard has no photon structure function, so it does direct photoproduction only
-  (L13). Its EPA record has no scattered lepton, so a Rivet analysis using `DISKinematics` cannot run
+. Its EPA record has no scattered lepton, so a Rivet analysis using `DISKinematics` cannot run
   on it.
 - **In the context file:** `card`.
 
@@ -900,7 +896,7 @@ output = "events.hepmc"
   `output <cache>/process -f` → the process directory, built once. The marker is
   `process/bin/generate_events`.
 - **Card** (the launch script), in order:
-  - `set automatic_html_opening False` (else it opens a browser, 00/B39);
+  - `set automatic_html_opening False` (else it opens a browser);
   - `launch <cache>/process -n r<seed>`;
   - shower, detector and analysis off;
   - then `set iseed <seed>`, and one `set <key> <value>` per value.
@@ -913,7 +909,6 @@ output = "events.hepmc"
 - **Sidecar** written by the runner (`written = "requested"`).
 - **In the context file:** `card`; the product `process` (`"madgraph:process"`), the process
   directory, prepared on demand.
-- Ledger: L14.
 
 ---
 
@@ -923,11 +918,10 @@ output = "events.hepmc"
 App_Pythia.exe [--threads N] [--events N] [--seeds S1,S2,…] [--sidecar FILE] OUTPUT[,OUTPUT…] CARD [CARD…]
 ```
 
-**Its rules.** Its Pythia rules (the σ combination, the stamping, the seed check, the chunking: L1,
-L2, L4, L6, L28) are `src/PythiaRun.hh`'s. The integrated programs (InprocJets) run them too
-(V63), so an integrated point's events and σ are the chain's by construction.
+**Its rules.** Its Pythia rules (the σ combination, the stamping, the seed check, the chunking) are `src/PythiaRun.hh`'s. The integrated programs (InprocJets) run them too
+, so an integrated point's events and σ are the chain's by construction.
 
-**Outputs.** Every comma-separated OUTPUT gets **every** event (fan-out, V16). An OUTPUT written
+**Outputs.** Every comma-separated OUTPUT gets **every** event (fan-out). An OUTPUT written
 **`A+B+C`** is a **deal group**: each event goes to **one** of its members, the first that is free,
 starting from a rotating index (so a slow consumer gets fewer). That is how a sharded Rivet gets its
 shares (§5.1). `events.s1.hepmc+events.s2.hepmc,to_module.hepmc` deals the events between two Rivet
@@ -936,26 +930,26 @@ shards, and still copies every one to a module program.
 **How the runner calls it.** `// requires: pythia8 hepmc3 zstd zlib`. The runner calls it as `{exe}
 {outputs} {cards}`: the threads, events and seeds are in the point card.
 
-| Behaviour | Ledger |
-|---|---|
-| Reads the cards in order (the point card last: last wins) | — |
-| `PythiaParallel` with `processAsync = on`: callbacks run concurrently, each instance converts with its **own** `Pythia8ToHepMC`, σ is combined under one small lock, and **each output has its own writer and lock**, so formatting the HepMC text is shared among the outputs. (With `processAsync = off` and one writer, the app was capped at ~2,200 events/s whatever its threads: 4 threads took 17.7 s and 20 threads 20.5 s for 40k events.) | L3 |
-| Checks the seed list before `init()`: one per thread, each in 1…9·10⁸ (Pythia does not) | L4 |
-| Opens the outputs only after `init()` succeeds: a bad card leaves no half-open FIFO | — |
-| Runs in chunks of a multiple of the thread count, so SIGINT takes effect within a chunk | L6 |
-| Catches in the callback and re-raises on the main thread | L3 |
-| σ combined over instances: the ΣW-weighted mean, errors in quadrature | L1 |
-| Once more than one instance has contributed, **re-stamps every event's `GenCrossSection` with the combination**, so the last event Rivet reads carries the final σ; at one thread the converter's numbers are untouched (bit for bit the legacy pipeline's) | L2 |
-| **Every output ends on the latest σ**: each writes its events one late, and at the end its held event takes the σ of the last event stamped, so every shard of a deal group (and every copy) normalises to the σ an unsharded Rivet would | L28 |
-| Several outputs: the same events to each (fan-out, V16), or one of a deal group's members each; a `.gz` or `.zst` suffix picks HepMC3's compressed writer | L25 |
-| Events are numbered once, from 0, across the threads; every event carries one shared run info | — |
-| Status on `$HEP_STATUS_FD` (06 §22) | — |
+| Behaviour |
+|---|
+| Reads the cards in order (the point card last: last wins) |
+| `PythiaParallel` with `processAsync = on`: callbacks run concurrently, each instance converts with its **own** `Pythia8ToHepMC`, σ is combined under one small lock, and **each output has its own writer and lock**, so formatting the HepMC text is shared among the outputs. (With `processAsync = off` and one writer, the app was capped at ~2,200 events/s whatever its threads: 4 threads took 17.7 s and 20 threads 20.5 s for 40k events.) |
+| Checks the seed list before `init()`: one per thread, each in 1…9·10⁸ (Pythia does not) |
+| Opens the outputs only after `init()` succeeds: a bad card leaves no half-open FIFO |
+| Runs in chunks of a multiple of the thread count, so SIGINT takes effect within a chunk |
+| Catches in the callback and re-raises on the main thread |
+| σ combined over instances: the ΣW-weighted mean, errors in quadrature |
+| Once more than one instance has contributed, **re-stamps every event's `GenCrossSection` with the combination**, so the last event Rivet reads carries the final σ; at one thread the converter's numbers are untouched (bit for bit the legacy pipeline's) |
+| **Every output ends on the latest σ**: each writes its events one late, and at the end its held event takes the σ of the last event stamped, so every shard of a deal group (and every copy) normalises to the σ an unsharded Rivet would |
+| Several outputs: the same events to each (fan-out), or one of a deal group's members each; a `.gz` or `.zst` suffix picks HepMC3's compressed writer |
+| Events are numbered once, from 0, across the threads; every event carries one shared run info |
+| Status on `$HEP_STATUS_FD` (06 §22) |
 
 **The sidecar**, `<first output>.json` (or `--sidecar`), is written after the outputs are closed. It
 holds:
 - `tool`, `pythia_version`;
 - `requested`, `attempted`, `accepted`;
-- **`written`**: what the count check compares; it can be below `requested` (L5);
+- **`written`**: what the count check compares; it can be below `requested`;
 - `write_failures`;
 - `sigma_pb`, `sigma_err_pb`, `sum_w`;
 - `threads`, `seeds`, `random_seed`;
@@ -1011,7 +1005,7 @@ Paint.exe PAGE.toml --dump-ranges
 Paint.exe [PAGE.toml] --dump-style
 ```
 
-Paint draws many pages in one ROOT process (V64; the plot stage sends up to 200 at a time).
+Paint draws many pages in one ROOT process (the plot stage sends up to 200 at a time).
 - **Several pages:** each page's outcome is a JSON line on stdout, `{"page", "ok", "error"}`, so one
   bad page does not stop the rest.
 - **`--ranges`** also writes each page's final ranges and voided bins beside its config
@@ -1044,8 +1038,8 @@ void_empty  = true
 min_entries = 10
 auto_range  = true
 range_pad   = 0
-# markers = true                   (a Scatter2D figure, V86)
-# heatmap = true, logz, z_label    (a HeatMap page: one [[curve]], V87)
+# markers = true                   (a Scatter2D figure)
+# heatmap = true, logz, z_label    (a HeatMap page: one [[curve]])
 
 [style]                            # only what the style layers changed (04 §12)
 page.dpi = 300
@@ -1055,8 +1049,8 @@ file   = "/…/plots/root/default.root"
 object = "MSTW08lo/ZEUS_2012_I1116258/d06-x01-y01"
 raw    = "MSTW08lo/RAW/ZEUS_2012_I1116258/d06-x01-y01"   # optional: for min_entries
 label  = "MSTW 2008 LO"
-style  = { colour = "#EE3311" }                         # optional: the value's look (V67)
-band   = [{ file = "/…/default.root", object = "…" }]   # optional: the envelope's members (V69)
+style  = { colour = "#EE3311" }                         # optional: the value's look
+band   = [{ file = "/…/default.root", object = "…" }]   # optional: the envelope's members
 
 [data]                             # optional
 file   = "/…/.cache/Demo/datasets/ZEUS_2012_I1116258.yoda.root"

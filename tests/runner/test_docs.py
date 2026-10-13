@@ -215,3 +215,14 @@ def test_the_rank_table_in_02_is_the_runners():
     rows = {m: int(r) for r, m in re.findall(r"^\| (\d) \| `(\w+)\.py` \|", section, re.M)}
     assert rows == RANKS
 
+
+def test_the_user_pages_need_no_record_to_be_read():
+    """V138: 00 and 02–05 say what they mean without the record's ids (V…, L…, F…, U…, 00/B…), in
+    prose, code comments and the generated tables; C1–C14 are 04 §13's own. Code spans may show one."""
+    left = []
+    for name in ("00", "02", "03", "04", "05"):
+        for n, line in enumerate(text(NUMBERED[name]).splitlines(), 1):
+            if re.search(r"\b(?:[VLFU]\d{1,3}[a-z]?|00/B\d+)\b", re.sub(r"`[^`\n]*`", "", line)):
+                left.append(f"{NUMBERED[name].name}:{n}: {line[:100]}")
+    assert not left, "record ids in the user pages:\n  " + "\n  ".join(left)
+

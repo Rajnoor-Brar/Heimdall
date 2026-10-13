@@ -1,7 +1,7 @@
 # 04 — Configuration reference
 
 Every key a run TOML accepts: its type, default and meaning, and what is checked. **The key tables
-are generated** from `framework/schema/run.toml` and `src/Apps/Paint/base.toml` (`make docs`, V91).
+are generated** from `framework/schema/run.toml` and `src/Apps/Paint/base.toml` (`make docs`).
 `hep explain KEY` and the editor schemas read the same source, so the tables cannot drift from the
 code. The prose around them says what a table cannot.
 - **Worked pipelines:** [02](02_User_Guide.md).
@@ -20,7 +20,7 @@ folders and identities. §17 maps its names, and `hep migrate --v3` rewrites a v
   --plan` run every check below.
 - **A quantity a file declares must be used:** varied in a configuration, fixed (its own `fixed`, or
   a configuration's), or choosing a tool (`"@<quantity>"`). One that changes nothing is refused,
-  with the fix (U36). An imported file's quantities may go unused.
+  with the fix. An imported file's quantities may go unused.
 - **Your editor can check a file as you type:** put `#:schema <Heimdall>/framework/schema/run.v3.schema.json`
   on its first line (Taplo, Even Better TOML). The schema knows every table and key, and each
   standard tool's own keys.
@@ -92,7 +92,7 @@ base.toml  <  machine style.toml  <  work dir style.toml  <  [plot].root_style f
 A run TOML has exactly these top-level tables, and any other is an error (C1): `[file]`, `[run]`,
 `[cfgs]`, `[tools]`, `[quantities]`, `[plot]`, `[cluster]`.
 
-**`"default"` means "the layer below's value"**, as if the key were left out (V55, 03 §6): in a
+**`"default"` means "the layer below's value"**, as if the key were left out (03 §6): in a
 configuration, `[run]`'s or the one it extends; in a figure, `[plot]`'s; in a style layer, the one
 below; at the top, the runner's default (the tables' *Default*). Only a key whose type says so takes
 it, and `--set key=default` works for one run.
@@ -112,7 +112,7 @@ up from the working directory (or `$HEP_WORK`), never the working directory itse
 | Written as | Resolves to |
 |---|---|
 | `name` or `sub/name` | the key's convention root (table below) + `name` |
-| `./sub/name` | the **work dir** + `sub/name` (never the working directory, V13) |
+| `./sub/name` | the **work dir** + `sub/name` (never the working directory) |
 | `/abs/path` | as written |
 | `../x`, `a/../b` | **an error** (C12): write `./…` or an absolute path |
 
@@ -121,7 +121,7 @@ up from the working directory (or `$HEP_WORK`), never the working directory itse
 | `hep run <config>`, `hep plot <config>` | `configs/`, `.toml` optional | `Demo/jets` → `configs/Demo/jets.toml` |
 | `[file].master`, `[file].import` | `configs/<project>/` | `master.toml` |
 | `[tools.*].card` | `configs/<project>/` | `ep.cmnd` |
-| `[tools.*].executable` | `build/<project>/`, which must exist; `path:<command>` asks for a command on `PATH` by name (V54) | `Decay.exe` → `build/Decay/Decay.exe`; `path:python3` |
+| `[tools.*].executable` | `build/<project>/`, which must exist; `path:<command>` asks for a command on `PATH` by name | `Decay.exe` → `build/Decay/Decay.exe`; `path:python3` |
 | `[tools.*].filters` | `configs/<project>/` | `fit_filters.toml` |
 | `[tools.*].input` | a tool table's name (what it writes), another tool's `output` by name, a pre product; otherwise a path under the point's output directory | `"pythia"`, `events.hepmc` |
 | `[tools.*].output` | a FIFO or a scratch file (§6) → the point's output directory; **anything else → the point's results directory** (a product) | `jets.yoda` → `results/…/<point>/jets.yoda` |
@@ -133,7 +133,7 @@ FIFO (its reader is in the producer's group) or a scratch file (its producer say
 both in `logs/` (§6). So a HepMC file kept for another configuration is a product: leave `keep`
 out.
 
-**Where a point lives** (V45, V46; by lifecycle, U21):
+**Where a point lives** (by lifecycle):
 
 ```
 results/<P>/<run>/<cfg>/<point>/    the products: yours
@@ -143,7 +143,7 @@ logs/<P>/<run>/<cfg>/<point>/       cards/  config/  logs/  FIFOs and scratch fi
 
 `.cache/<P>/` holds what is rebuilt on demand (prepare caches, card checks, converted data). Deleting
 `logs/` or `.cache/` reruns nothing; deleting `records/` makes every point "to run" again. A point
-another session is running is skipped, naming who runs it, unless `--wait` (U66).
+another session is running is skipped, naming who runs it, unless `--wait`.
 
 - `<run>` is `[run].name`, or the configuration's own `name`.
 - `<cfg>` is `NN_<folder>`. `<folder>` is the configuration's `folder`, or its table key when that is
@@ -181,14 +181,14 @@ master = "master.toml"           # optional: configs/<project>/master.toml overl
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `master` | a string |  | overlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an entry for a (tool, quantity) pair replaces the framework's. The file must exist. |
-| `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins** (V56): a quantity or configuration of the file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest (V94), depth-first; a circle is refused. Another project's file keeps its bare paths its own project's. The file that imports sets its own `[run].name` and `project` (V100). An entry may be `{ from = "<config>", only = ["quantities", "cfgs.default", …] }`: only those tables or dotted keys, each of which the file must have (V95) |
-| `drop` | a list (a string each) |  | dotted keys (`cfgs.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken out of what the imports brought in, before this file's own tables are laid over them (V95). Each must name something an import gave, so a misspelt drop is refused rather than keeping what it meant to remove; a file that imports nothing has nothing to drop. |
-| `vars` | a table |  | `name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result (V96). A string that is exactly one var takes its value as it is: `events = "{var:events}"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`"rivet:{var:ana}"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value; its own `[file.vars]` come with whatever is taken of it (V101), under this file's. `--set file.vars.<name>=…` changes one for a run |
-| `meta` | a table |  | descriptive: it never changes a run (V97). Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `hep check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
+| `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins**: a quantity or configuration of the file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest, depth-first; a circle is refused. Another project's file keeps its bare paths its own project's. The file that imports sets its own `[run].name` and `project`. An entry may be `{ from = "<config>", only = ["quantities", "cfgs.default", …] }`: only those tables or dotted keys, each of which the file must have |
+| `drop` | a list (a string each) |  | dotted keys (`cfgs.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken out of what the imports brought in, before this file's own tables are laid over them. Each must name something an import gave, so a misspelt drop is refused rather than keeping what it meant to remove; a file that imports nothing has nothing to drop. |
+| `vars` | a table |  | `name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result. A string that is exactly one var takes its value as it is: `events = "{var:events}"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`"rivet:{var:ana}"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value; its own `[file.vars]` come with whatever is taken of it, under this file's. `--set file.vars.<name>=…` changes one for a run |
+| `meta` | a table |  | descriptive: it never changes a run. Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `hep check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
 | `schema` | an integer |  | `3`, or `2` to keep a v2 file v2 for one release; a file with `[file]` is v3 without it |
 <!-- /generated -->
 
-**`import`** (V56, V94). The imported files are read in order, then this file's tables are laid over
+**`import`**. The imported files are read in order, then this file's tables are laid over
 them:
 - a quantity or configuration of the file replaces the imported one whole;
 - a **tool table merges key by key**: `[tools.rivet] analyses = ["photo_eic:R=0.7"]` changes that
@@ -207,11 +207,11 @@ Its rules:
 - **Location:** the file that imports sets its own `[run].name` and `project`; location is never
   imported. It may share an imported run's name, so its results sit beside the other's
   (`results/Demo/validation/03_PDFs_150M` beside validation's own `02_PDFs_150M`), but no
-  configuration of the two may have the same folder (V100), or their points would overwrite each
+  configuration of the two may have the same folder, or their points would overwrite each
   other's.
-- **Part of a file** (V95): an entry `{ from = "validation", only = ["tools", "quantities",
+- **Part of a file**: an entry `{ from = "validation", only = ["tools", "quantities",
   "cfgs.default"] }` takes only those tables or dotted keys, each of which the file must have.
-- **Taking out** (V95): `drop = ["cfgs.default4", "plot.figures.statistics"]` removes dotted keys
+- **Taking out**: `drop = ["cfgs.default4", "plot.figures.statistics"]` removes dotted keys
   from what the imports gave, before this file's tables. Each must name something an import gave,
   and a file that imports nothing has nothing to drop. An imported file's own `drop` applies to its
   own imports.
@@ -221,7 +221,7 @@ Its rules:
 `--show-config` lists where each quantity, tool and configuration came from, through every file
 (`run.cfgs.default from validation.toml ← validation_common.toml`).
 
-**`vars`** (V96). Names said once and cited anywhere in the file:
+**`vars`**. Names said once and cited anywhere in the file:
 
 ```toml
 [file.vars]
@@ -241,12 +241,12 @@ file = "rivet:{var:ana}"            # inside a longer string: a scalar, as text
 They are replaced when the file is read, after its imports and `--set` (`--set
 file.vars.events=50000`), so a point's identity is that of the same file written out. An imported
 file's `{var:…}` takes this file's value: a shared file can be written with parameters. An imported
-file's own `[file.vars]` come with whatever is taken of it, `only` included (V101), below this
+file's own `[file.vars]` come with whatever is taken of it, `only` included, below this
 file's, so the tables it gives always find the vars they cite. An unknown name is refused with the
 nearest. `{var:…}` is the run TOML's own; the page texts' placeholders (`{cell}`, `{q:…}`, `{opt:…}`,
 §10) are filled later, per page.
 
-**`meta`** (V97). About the file, for people; it never changes a run:
+**`meta`**. About the file, for people; it never changes a run:
 
 ```toml
 [file.meta]
@@ -260,7 +260,7 @@ another version, `--plan`, the run's start and `hep check` say so as a **warning
 ahead at your own risk. What is written is compared: `6.5` matches 6.5.6. A package stack.toml does
 not name is refused, since its warning could never come. Every other key is free.
 
-**The vocabulary** (`framework/schema/quantities.toml`, V58) says what each quantity name means for every
+**The vocabulary** (`framework/schema/quantities.toml`) says what each quantity name means for every
 tool:
 - its **shape**: `energies` is two numbers, `[beam A, beam B]`; `beams` is two PDG ids; `pdf` is a
   string or a set number;
@@ -295,9 +295,9 @@ seed_offset = { flag = "-x" }                         # a command-line argument 
 - **`check`** is a provider check (C10), giving the `lhapdf install <set>` line to type when a set is
   not under `LHAPDF_DATA_PATH`.
   - `"lhapdf:bare"` takes a bare set name, `<set>[/member]`, as Sherpa does.
-  - `"lhapdf:pythia"` takes the value exactly as Pythia's `PDF:pSet` reads it (V40: no prefix is
+  - `"lhapdf:pythia"` takes the value exactly as Pythia's `PDF:pSet` reads it (no prefix is
     added). That is `"LHAPDF6:<set>[/member]"`, whose set must be installed; one of Pythia's own set
-    numbers (`13`, checked against its `PDFSelection.xml`, V60); or a grid file.
+    numbers (`13`, checked against its `PDFSelection.xml`); or a grid file.
   - A bare name that is an installed LHAPDF set is refused with the `LHAPDF6:` spelling, since Pythia
     would read it as a file.
 - **A tool with a `render.py`** takes plain `key` mappings and interprets the keys itself: a YAML
@@ -315,7 +315,7 @@ seed_offset = { flag = "-x" }                         # a command-line argument 
 | `events` (built-in) | `Main:numberOfEvents` | `EVENTS` | (the `-N` flag) | `n_events` | `nevents` |
 | `threads` (built-in) | `Parallelism:numThreads` | — | — | — | — |
 
-**Beam order** (V62).
+**Beam order**.
 - `energies` and `beams` are lists in **the run's** beam order, `[beam A, beam B]`.
 - A point that gives `beams` (or `beam_a` and `beam_b`) names that order. One that gives none
   follows the convention `[hadron, lepton]`, which every card so far assumes.
@@ -354,10 +354,10 @@ description = "Inclusive jets in ep collisions"
 | `serial` | an integer |  | the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[run]`. |
 | `events` | an integer, ≥ 1 |  | every configuration's event count, unless it gives its own A configuration inherits it from `[run]`. |
 | `threads` | an integer, ≥ 0 | `1` | default for configurations. `0` means every core, **resolved to a number at plan time** A configuration inherits it from `[run]`. |
-| `parallelism` | an integer or a string: `"auto"`, ≥ 1 | `1` | default for configurations: how many points run at once (V36); `"auto"` (V75): as many as the cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never part of an identity or a seed, so changing it reruns nothing A configuration inherits it from `[run]`. |
+| `parallelism` | an integer or a string: `"auto"`, ≥ 1 | `1` | default for configurations: how many points run at once; `"auto"`: as many as the cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never part of an identity or a seed, so changing it reruns nothing A configuration inherits it from `[run]`. |
 | `description` | a string |  | what the run is for |
-| `sweep_runs` | true or false or a list (a string each) | `false` | `true`: `hep run <config>` runs every configuration, one after another, in the order of the file; `["a", "b"]` (V79): these, in this order (04 §4.1) |
-| `notify` | a string: `"none"`, `"desktop"` | `"none"` | `"desktop"` (V76): a desktop notification (`notify-send`) when `hep run` ends, with its verdict; never fails a run |
+| `sweep_runs` | true or false or a list (a string each) | `false` | `true`: `hep run <config>` runs every configuration, one after another, in the order of the file; `["a", "b"]`: these, in this order (04 §4.1) |
+| `notify` | a string: `"none"`, `"desktop"` | `"none"` | `"desktop"`: a desktop notification (`notify-send`) when `hep run` ends, with its verdict; never fails a run |
 | `chain` | a list |  | every configuration's tools, unless it gives its own (04 §5.3) A configuration inherits it from `[run]`. |
 | `vary` | a list |  | 04 §5.1; `[]` is one point A configuration inherits it from `[run]`. |
 | `plot_points` | a list (a string each) |  | 04 §5.2 A configuration inherits it from `[run]`. |
@@ -375,7 +375,7 @@ set. An event count must be set here or in every configuration. `serial` is opti
 ### 4.1 `sweep_runs`: every configuration, one run after another
 
 With `sweep_runs = true`, `hep run <config>` runs every configuration, in the order of the file.
-With a list, `sweep_runs = ["pdf", "energies"]` (V79), it runs those, in the list's order. A name
+With a list, `sweep_runs = ["pdf", "energies"]`, it runs those, in the list's order. A name
 that is not a configuration, or one named twice, is refused.
 
 Each one is **a run of its own**: exactly what `hep run <config> <cfg>` does, with its own title,
@@ -393,7 +393,7 @@ jets · pdf: 4 point(s), 1000000 events, 12 threads
 - **Every run is planned before the first starts**, so a config error in any of them exits 2 with
   nothing run. Each is planned again when its turn comes, so edits to the TOML made meanwhile
   count; a run an edit has broken fails alone.
-- **The runs are pipelined** (V75): a run starts once the one before has started all its points,
+- **The runs are pipelined**: a run starts once the one before has started all its points,
   and its points take the cores the earlier run's last points leave free.
   - Each run's own order (pre, points, combined, post, plots), folder, journal and verdict are kept.
   - While two runs overlap, a block's heading names its run: `── point 1/4 (energies): 5x41 ── ok
@@ -414,7 +414,7 @@ jets · pdf: 4 point(s), 1000000 events, 12 threads
 ## 5. `[cfgs.<name>]`
 
 A configuration is a table of `[cfgs]`, picked by `hep run <file> <name>`. It says only what differs
-from `[run]` (V99): what it varies, fixes and runs. Any name may be used, `threads` or `default`
+from `[run]`: what it varies, fixes and runs. Any name may be used, `threads` or `default`
 included. A configuration's dotted path is `cfgs.<name>.<key>`: `--set cfgs.pdf.threads=8`,
 `drop = ["cfgs.default4"]`, `hep explain cfgs.pdf.threads`.
 
@@ -445,7 +445,7 @@ A configuration's value is, in order:
 1. its own;
 2. else the one it `extends`'s, in turn;
 3. else `[run]`'s;
-4. else the default (V56).
+4. else the default.
 
 `[run]` takes every configuration key (the tables of §4 and §5 say which) but `folder`, `title`,
 `extends` and `fixed`, which belong to each configuration alone; a quantity's own `fixed` is the
@@ -458,13 +458,13 @@ from.
 |---|---|---|---|
 | `extends` | a string |  | another configuration this one starts from (chains are followed; a circle is refused) |
 | `serial` | an integer, or `"default"` |  | this configuration's `NN_`, over `[run]`'s; left out in both, the runner numbers it (04 §2) |
-| `name` | a string |  | the run folder above this configuration's: `<P>/<name>/NN_<label>/` (V46) |
+| `name` | a string |  | the run folder above this configuration's: `<P>/<name>/NN_<label>/` |
 | `folder` | a string |  | the configuration's folder, after the serial: `NN_<folder>`; empty means the table key |
 | `title` | a string |  | the header line of the run under `[run].sweep_runs`: `run 02 - <title> -` (04 §4.1) |
 | `description` | a string |  | what the configuration is for |
 | `events` | an integer, ≥ 1, or `"default"` |  | required here if `[run]` has none. A list is one configuration per count, `<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6) |
 | `threads` | an integer, ≥ 0, or `"default"` |  | `0` = every core |
-| `parallelism` | an integer or a string: `"auto"`, ≥ 1, or `"default"` |  | points at once (`"auto"`: cores ÷ a point's cores, V75); `--plan` and the run's title say about how many cores that is, and warn past the machine's |
+| `parallelism` | an integer or a string: `"auto"`, ≥ 1, or `"default"` |  | points at once (`"auto"`: cores ÷ a point's cores); `--plan` and the run's title say about how many cores that is, and warn past the machine's |
 | `vary` | a list |  | 04 §5.1; `[]` is one point |
 | `plot_points` | a list (a string each) |  | 04 §5.2 |
 | `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) |
@@ -511,7 +511,7 @@ Naming one member of an entangled group (or a compound quantity) selects the gro
   products passed their checks.
 - **The interfaces follow from it** (§6): what a tool writes for a reader in its own group is a
   FIFO; for a later group, a file.
-- **`"@<quantity>"`** is replaced, per point, by the tool table that quantity's value names (V19):
+- **`"@<quantity>"`** is replaced, per point, by the tool table that quantity's value names:
   `chain = [["@generator", "spectra"]]` with points whose values are `"pythia"`, `"herwig"` and
   `"sherpa"`. The quantity must be varied or fixed, and every value must be a tool table (C5).
 - **Cards for tools not run:** a table in `generate_cards` (§9.4) need not be in the chain; its card
@@ -533,7 +533,7 @@ The same form as `chain`, run **once**:
 
 ### 5.5 `combine`
 
-`combine = ["replica"]` (V35) merges the points that differ **only** in the combined quantities, so
+`combine = ["replica"]` merges the points that differ **only** in the combined quantities, so
 each group becomes one curve with their statistics added. The typical use is seed replicas, so that
 one PDF's five 1M-event seeds become one 5M-event curve:
 
@@ -660,11 +660,11 @@ points = [{ tag = "R04", value = 0.4 }, { tag = "R07", value = 0.7 }, { tag = "R
 <!-- generated: keys3 quantities -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `shape` | a string or a list |  | the values' shape, in the vocabulary's grammar (V76): `"pdg"`, `"float\|int"`, `["float", "float"]`; checked when the TOML is read. For a quantity of your own (one the vocabulary, `framework/schema/quantities.toml`, does not name); a vocabulary quantity has its own shape |
+| `shape` | a string or a list |  | the values' shape, in the vocabulary's grammar: `"pdg"`, `"float\|int"`, `["float", "float"]`; checked when the TOML is read. For a quantity of your own (one the vocabulary, `framework/schema/quantities.toml`, does not name); a vocabulary quantity has its own shape |
 | `to` | a string or a table |  | where the value goes: `{ pythia = "PDF:pSet" }` a native key per tool table or tool; `{ "rivet/photo_eic" = "R" }` an analysis option; `{ "pythia/seed" = true }` a replica. An entry with a `/` or `true` makes the entries the only consumers (04 §8.1) |
 | `format` | a string |  | a Python format for the value: `"{}*GeV"` |
 | `description` | a string |  | what the quantity is |
-| `exclude` | a list |  | points a vary leaves out, by their **1-based** place (as `fixed = "#2"` and `--points 2` count): `exclude = [2]` varies the others. The remaining points keep their names and identities and are numbered 1… over what is varied. In an entangled group, a point any member excludes leaves the group. `fixed` may still pick an excluded point. Refused: a place outside the points, or none left (V42) |
+| `exclude` | a list |  | points a vary leaves out, by their **1-based** place (as `fixed = "#2"` and `--points 2` count): `exclude = [2]` varies the others. The remaining points keep their names and identities and are numbered 1… over what is varied. In an entangled group, a point any member excludes leaves the group. `fixed` may still pick an excluded point. Refused: a place outside the points, or none left |
 | `points` | a list |  | the points, one row each: `{ tag, value, label, style }`; `value` is required, `tag` names the point's folder |
 | `fixed` | a string or an integer or a number |  | the point a configuration that does not vary the quantity takes: a tag, a value or `"#N"` (04 §7) |
 | `fields` | a table |  | a compound quantity: `{ <field> = <its binding> }`, each field a quantity of its own, its rows' values set together (04 §8.4) |
@@ -675,12 +675,12 @@ points = [{ tag = "R04", value = 0.4 }, { tag = "R07", value = 0.7 }, { tag = "R
   shape;
 - `tag` names the point's folder: keep it short and unique;
 - `label` is legend text, in **LaTeX** (`$e^-$`, `$\sqrt{s}$`), the one label language of every text
-  a run TOML gives a page (V65). Math goes in `$…$`; the rest is text, where a bare `_` or `^` is the
+  a run TOML gives a page. Math goes in `$…$`; the rest is text, where a bare `_` or `^` is the
   character (`"PDF4LHC21_40"`). A label in ROOT's TLatex (`#sqrt{s}`, `p_{T}` with no `$`) is
   refused, with its LaTeX as the hint. `\_`, `\^` and `\#` also give the character; in TOML write
   them in single quotes, `'PDF4LHC21\_40'`, since in `"…"` a backslash starts a TOML escape. Left
   out, the label is the tag;
-- `style` is its curves' look (V67), `{ colour, line, width }`:
+- `style` is its curves' look, `{ colour, line, width }`:
   - `colour` is `"#rrggbb"`, a ROOT name (`"kBlue+1"`) or a number (the yoda backend draws
     `#rrggbb` only);
   - `line` is `solid`, `dashed`, `dotted` or `dashdot`;
@@ -719,7 +719,7 @@ quantity anyway still does. A target not in this configuration's chain is skippe
 3. else the quantity is in the tool's `consumes` list (exec and module tools) → its config.
 
 **Zero consumers is an error** (C7): a value that changes a directory name and nothing else is what
-v1 kept finding (00/B14, 00/B40).
+v1 kept finding.
 - More than one consumer is fine, and `--plan` prints the table.
 - In an `@quantity` chain, a consumer among the configuration's alternatives is enough, and the
   selector quantity is consumed by the choice itself.
@@ -742,7 +742,7 @@ gets its own seed block. Seeds are never written by hand ([06 §8](06_Internals.
 
 `events` (the configuration's event count) and `threads` are provided by the runner. They reach a
 tool only through the master (the table in §3), and need no consumer. Declared as quantities, they
-can be varied or fixed (V56): each point then has that event count or thread count in place of the
+can be varied or fixed: each point then has that event count or thread count in place of the
 configuration's, and it reaches the tools as the built-in does.
 
 ```toml
@@ -812,20 +812,20 @@ output   = "jets_hard.yoda"
 | `uses` | a string |  | the tool folder, when it is not the table's name: a second table of one tool, `[tools.<name>] uses = "<folder>"` (05 §3; `hep tools` lists the folders) |
 | `card` | a string or a list |  | native base card(s), read in order (root `configs/<project>/`). Tools with a card only. |
 | `input` | a string or a list |  | what it reads: a producer's table name (`input = "pythia"`: what that tool writes), another tool's output by name, a pre product, (post) a product of every point, or a path. The first input is `{input}` |
-| `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in `logs/` (04 §6). An array is fan-out (V16); one writer per output (C6) |
+| `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in `logs/` (04 §6). An array is fan-out; one writer per output (C6) |
 | `timeout` | a number, ≥ 0 |  | the tool fails when it runs longer |
 | `stall_after` | a number, ≥ 0 |  | the tool fails when silent this long: no log line, status message or heartbeat (a prepare step waits at least 3600) |
 | `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEP_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
-| `filters` | a string |  | your own rules in place of the folder's, root `configs/<P>/`; implies `status = "filters"` (V61) |
+| `filters` | a string |  | your own rules in place of the folder's, root `configs/<P>/`; implies `status = "filters"` |
 | `executable` | a string |  | exec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH` |
 | `arguments` | a list |  | exec and module: argv after the config; placeholders (04 §10). Not paths: the tool runs in the point's folder, so a script of yours is `{work}/modules/…` |
 | `consumes` | a list (a string each) |  | exec and module: quantities written into the config |
 | `config` | a table |  | exec and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2) |
 | `streamable` | true or false |  | may it read a FIFO? |
 | `consumes_events` | true or false |  | is its event count checked against the producer's sidecar? |
-| `settings` | a table |  | native card settings as written, `"HeavyIon:mode" = 1`, with no base card needed: over the base card, refused when a quantity sets the same key (one source per key, C8); a tool with no card refuses them (V59) |
-| `cores` | an integer, ≥ 1 |  | how many cores it keeps busy, for `--plan`'s note and the crowded warning (V60); an integrated program is estimated as the generator's threads and one more |
-| `shards` | an integer, ≥ 1 | `1` | K > 1: K processes of this tool, each on a share of the events, merged into its `output` by the folder's merge tool (V31; rivet, 05 §5.1). The chain is unchanged. |
+| `settings` | a table |  | native card settings as written, `"HeavyIon:mode" = 1`, with no base card needed: over the base card, refused when a quantity sets the same key (one source per key, C8); a tool with no card refuses them |
+| `cores` | an integer, ≥ 1 |  | how many cores it keeps busy, for `--plan`'s note and the crowded warning; an integrated program is estimated as the generator's threads and one more |
+| `shards` | an integer, ≥ 1 | `1` | K > 1: K processes of this tool, each on a share of the events, merged into its `output` by the folder's merge tool (rivet, 05 §5.1). The chain is unchanged. |
 | `keep` | true or false | `true` | `false`: what it writes for a later group is a scratch file of the point (`logs/`), not a product (`results/`) |
 <!-- /generated -->
 
@@ -940,11 +940,11 @@ generate_cards = ["pythia", "rivet"]          # not run: their cards and configs
 | In a module program | `job.card("pythia")`, `job.tool("rivet").list("analyses")`: by table name, else by the one tool of that kind ([06 §21](06_Internals.md#21-modulehh)) |
 | Identity | the cards of every tool in it are part of the point's identity; so are the products asked for |
 
-The program then owns what the chain would have done: σ over threads (L1), the final σ to Rivet (L2),
-and catching at thread boundaries (L3). There is no FIFO, so the runner checks its exit code and its
+The program then owns what the chain would have done: σ over threads, the final σ to Rivet,
+and catching at thread boundaries. There is no FIFO, so the runner checks its exit code and its
 outputs.
 
-**Before (V21, C13):** a tool asked for one other tool at a time with `<tool>_<export> = true` keys
+**Before (C13):** a tool asked for one other tool at a time with `<tool>_<export> = true` keys
 (`pythia_cmnd`, `rivet_analyses`, `herwig_run`), and got `[standard.<key>]` tables in its config.
 Those keys are refused now; `hep migrate` turns them into `generate_cards` and `{std:<key>}` into
 `{context:<tag>.<key>}`.
@@ -998,7 +998,7 @@ it (`{repo}/build/App_*` → `{apps}/App_*`, `{repo}/utils/` → `{hep}/src/`, a
 **In the run TOML itself**, `{var:name}` is a `[file.vars]` value (§3), replaced when the file is
 read, everywhere, before any of these.
 
-**In page texts** (V66). These are the titles, `legend_header`, the axis labels, `[plot.data].legend`,
+**In page texts**. These are the titles, `legend_header`, the axis labels, `[plot.data].legend`,
 a figure's `labels`, the quantities' `labels` and the `.plot`'s own. They may cite the points:
 
 | Placeholder | Is |
@@ -1020,30 +1020,30 @@ The plot stage, and how to use it, is [03](03_Plots.md). A configuration whose r
 <!-- generated: keys plot -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `backend` | a string or a list (a string each): `"root"`, `"yoda"`, `"mpl"`, `"both"`, or `"default"` | `"root"` | `"root"` (Paint), `"yoda"` (rivet-mkhtml; frozen, V71), `"mpl"` (matplotlib, mkhtml's pages drawn in-process: V71), `"both"` (root and yoda, V28) or an array of them, from the same pages |
-| `formats` | a list (a string each): `"pdf"`, `"png"`, `"svg"`, `"eps"`, or `"default"` | `["pdf"]` | `pdf`, `png`, `svg`, `eps`. mkhtml writes pdf and png always. The root backend writes `plots/root/index.html` (V70): a section per `plot_points` cell, each page by its PNG or SVG, else an embedded PDF, linked to every format; add `png` for thumbnails a browser shows at once |
-| `band` | a list (a string each) |  | curve axes drawn as an envelope (V69): per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band |
+| `backend` | a string or a list (a string each): `"root"`, `"yoda"`, `"mpl"`, `"both"`, or `"default"` | `"root"` | `"root"` (Paint), `"yoda"` (rivet-mkhtml; frozen), `"mpl"` (matplotlib, mkhtml's pages drawn in-process), `"both"` (root and yoda) or an array of them, from the same pages |
+| `formats` | a list (a string each): `"pdf"`, `"png"`, `"svg"`, `"eps"`, or `"default"` | `["pdf"]` | `pdf`, `png`, `svg`, `eps`. mkhtml writes pdf and png always. The root backend writes `plots/root/index.html`: a section per `plot_points` cell, each page by its PNG or SVG, else an embedded PDF, linked to every format; add `png` for thumbnails a browser shows at once |
+| `band` | a list (a string each) |  | curve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band |
 | `objects` | a list (a string each), or `"default"` |  | matched against the option-free YODA path (`/photo_eic/d01-x01-y01`) or any variant's path. No object matching is an error. |
 | `ratio` | true or false, or `"default"` or `"native"` | `false` | a ratio pad: each curve over the data, or over the first curve when there are no data |
-| `y_gutter` | a number, ≥ 0, or `"default"` or `"native"` | `0.5` | the top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `"native"`: no gutter, the tool's own range (V29, V55; a v2 file's [plot] says `"default"`) |
+| `y_gutter` | a number, ≥ 0, or `"default"` or `"native"` | `0.5` | the top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `"native"`: no gutter, the tool's own range (a v2 file's [plot] says `"default"`) |
 | `x_gutter` | a number, ≥ 0, or `"default"` or `"native"` |  | widens x by g of its span, symmetrically (in decades on a log axis). `"default"`: the range the bins give |
 | `logy` | true or false, or `"default"` or `"native"` |  | log y (default: the .plot's) |
 | `logx` | true or false, or `"default"` or `"native"` |  | log x (default: the .plot's) |
-| `logz` | true or false, or `"default"` or `"native"` |  | a heat map's colour scale (V87) |
+| `logz` | true or false, or `"default"` or `"native"` |  | a heat map's colour scale |
 | `auto_range` | true or false, or `"default"` or `"native"` | `true` | trim x to the bins with content, in curves and data |
-| `normalise` | a string or true or false: `"area"`, `false`, or `"default"` or `"native"` | `false` | `"area"` (V68): every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `"$1/\sigma\,\mathrm{d}\sigma/\mathrm{d}E_T$"`) on the pages it applies to. A figure (04 §11.2) may set it for its own |
+| `normalise` | a string or true or false: `"area"`, `false`, or `"default"` or `"native"` | `false` | `"area"`: every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `"$1/\sigma\,\mathrm{d}\sigma/\mathrm{d}E_T$"`) on the pages it applies to. A figure (04 §11.2) may set it for its own |
 | `void_empty` | true or false, or `"default"` or `"native"` | `false` | blank a bin that is zero in **every** curve |
-| `use_data` | true or false | `true` | `false`: the `[plot.data]` table stays in the file but is not drawn, and a `ratio` divides each curve by the page's first curve, the first value of its curve axis (V44) |
+| `use_data` | true or false | `true` | `false`: the `[plot.data]` table stays in the file but is not drawn, and a `ratio` divides each curve by the page's first curve, the first value of its curve axis |
 | `min_entries` | an integer, ≥ 0, or `"default"` or `"native"` | `0` | blank a bin that fewer raw entries went into, in **any** curve (read from the `/RAW` twin; objects without one are not voided this way) |
 | `range_pad` | an integer, ≥ 0, or `"default"` or `"native"` | `0` | whole bins kept either side of the filled ones |
 | `root_style` | a string, or `"default"` |  | a style file over base.toml (04 §12). Refused by the yoda backend alone. |
-| `title` | a string, or `"default"` or `"native"` |  | the main title, centred above the frame (V51). Every page; a figure (04 §11.2) overrides it for its own |
-| `title_left` | a string, or `"default"` or `"native"` |  | small text just above the frame's top-left and top-right corners (V51), inherited the same way |
-| `title_right` | a string, or `"default"` or `"native"` |  | small text just above the frame's top-left and top-right corners (V51), inherited the same way |
-| `legend_header` | a string, or `"default"` or `"native"` |  | the legend's first line (V51), inherited the same way. Children inherit every key their parent has and a key means the same at both levels |
+| `title` | a string, or `"default"` or `"native"` |  | the main title, centred above the frame. Every page; a figure (04 §11.2) overrides it for its own |
+| `title_left` | a string, or `"default"` or `"native"` |  | small text just above the frame's top-left and top-right corners, inherited the same way |
+| `title_right` | a string, or `"default"` or `"native"` |  | small text just above the frame's top-left and top-right corners, inherited the same way |
+| `legend_header` | a string, or `"default"` or `"native"` |  | the legend's first line, inherited the same way. Children inherit every key their parent has and a key means the same at both levels |
 | `data` | a table |  | 04 §11.1 |
 | `style` | a table |  | 04 §12 |
-| `figures` | a table |  | `[plot.figures.<figure>]`: a recipe for pages, with every page key of `[plot]` for its own (04 §11.2, V80) |
+| `figures` | a table |  | `[plot.figures.<figure>]`: a recipe for pages, with every page key of `[plot]` for its own (04 §11.2) |
 <!-- /generated -->
 
 **What `"native"` gives** (what the drawing tool does by itself; v2 wrote it as `"default"` in
@@ -1075,7 +1075,7 @@ so.
 |---|---|---|---|
 | `file` | a string |  | `rivet:<Analysis>`: Rivet's own reference file (`build/Rivet/`, then `rivet-config --datadir`, `.yoda` or `.yoda.gz`); otherwise a path under `datasets/` (not in git) |
 | `legend` | a string | `"Data"` | the data's legend entry |
-| `map` | a table |  | MC object name (`d01-x01-y01`) → reference path. **Explicit only**, never matched by name (L18). A file without a map, or a map without a file, is an error. |
+| `map` | a table |  | MC object name (`d01-x01-y01`) → reference path. **Explicit only**, never matched by name. A file without a map, or a map without a file, is an error. |
 <!-- /generated -->
 
 A file without a map, or a map without a file, is an error. The reference is drawn on the pages its
@@ -1084,23 +1084,23 @@ edges, or dropped (with a warning) when none line up.
 
 ### 11.2 `[plot.figures.<figure>]`
 
-A figure is a recipe for pages (V80); its classes, each with an example, are
+A figure is a recipe for pages; its classes, each with an example, are
 [03 §7](03_Plots.md#7-figures). These are its own keys:
 
 <!-- generated: keys figure -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`hep plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`logs/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
-| `type` | a string: `"Hist1D"`, `"Scatter2D"`, `"HeatMap"` |  | what is drawn: `Hist1D`, steps per curve; `Scatter2D` (V86), a marker per bin at its centre with its y error, in the curve's colour (`data.marker`, `data.marker_size` of the style), as Paint draws data; the legend shows the marker. The page TOML says `markers = true`; mkhtml and mpl draw the curves as they draw points (`ConnectBins=0`, with their x bars). `HeatMap` (V87): a 2D object (a YODA `Histo2D` or `Estimate2D`), the default for one: a page per point of the cell, `<cell>/<object>/<point>`, coloured by value with its scale on the right (labels from the `.plot`, `ZLabel` and `LogZ` too; no ratio, data or voiding). Paint draws heat maps; mkhtml and mpl draw the 1D pages only, and the plot stage says so. A 1D object cannot be a HeatMap, a 2D object neither a Hist1D nor a Scatter2D, nor in an overlay |
+| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged`: the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet`: drawn pages laid out in a grid (`pages`, `columns`; below). `compare`: the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`hep plot` draws it too). `derived`: a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`logs/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan`: one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
+| `type` | a string: `"Hist1D"`, `"Scatter2D"`, `"HeatMap"` |  | what is drawn: `Hist1D`, steps per curve; `Scatter2D`, a marker per bin at its centre with its y error, in the curve's colour (`data.marker`, `data.marker_size` of the style), as Paint draws data; the legend shows the marker. The page TOML says `markers = true`; mkhtml and mpl draw the curves as they draw points (`ConnectBins=0`, with their x bars). `HeatMap`: a 2D object (a YODA `Histo2D` or `Estimate2D`), the default for one: a page per point of the cell, `<cell>/<object>/<point>`, coloured by value with its scale on the right (labels from the `.plot`, `ZLabel` and `LogZ` too; no ratio, data or voiding). Paint draws heat maps; mkhtml and mpl draw the 1D pages only, and the plot stage says so. A 1D object cannot be a HeatMap, a 2D object neither a Hist1D nor a Scatter2D, nor in an overlay |
 | `name` | a string |  | an overlay's page file stem, a merged figure's folder. A defined figure takes none: its pages are the objects' own |
 | `objects` | a list (a string each) |  | matched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob matching no object of the points is an error, at the plot stage |
 | `op` | a string: `"ratio"`, `"difference"`, `"sum"`, `"projection-x"`, `"projection-y"` |  | a derived figure's: `ratio`, `difference`, `sum` (two objects), `projection-x`, `projection-y` (one) |
 | `x` | a string |  | a scan figure's quantity (a numeric curve axis) and number (`sigma`, `entries`, `integral`, `mean`, `bin:N`); `sigma` and `entries` need no object |
 | `y` | a string |  | a scan figure's quantity (a numeric curve axis) and number (`sigma`, `entries`, `integral`, `mean`, `bin:N`); `sigma` and `entries` need no object |
-| `pages` | a list (a string each) |  | a sheet's (V89): the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match, in the globs' order, tiled `columns` wide into `plots/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm, V102). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet |
-| `columns` | an integer, ≥ 1 |  | a sheet's (V89): the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match, in the globs' order, tiled `columns` wide into `plots/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm, V102). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet |
+| `pages` | a list (a string each) |  | a sheet's: the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match, in the globs' order, tiled `columns` wide into `plots/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet |
+| `columns` | an integer, ≥ 1 |  | a sheet's: the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match, in the globs' order, tiled `columns` wide into `plots/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet |
 | `over` | a list (a string each) |  | a merged figure's: curve axes of the configuration (swept, not `plot_points`, not combined), checked at plan time; it may not also `band` them |
-| `configurations` | a list (a string each) |  | a compare figure's, two or more, in curve order; one at least of this file. `"<Project>/<config>:<cfg>"` (V88) names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `hep plot` |
+| `configurations` | a list (a string each) |  | a compare figure's, two or more, in curve order; one at least of this file. `"<Project>/<config>:<cfg>"` names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `hep plot` |
 | `labels` | a list (a string each) |  | an overlay's: one legend label per object; a compare figure's: one per configuration (default: each configuration's `label`) |
 | `x_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
 | `y_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
@@ -1116,7 +1116,7 @@ When each rule is checked:
 | at plan time | the axes a band, `over` or a scan's `x` names, the configurations a compare figure names |
 | at the plot stage | that its globs match objects, and that two defined figures do not claim one object |
 
-`[plot.overlay.<name>]` and `[plot.object."<glob>"]` are figures now (V81). They are refused with the
+`[plot.overlay.<name>]` and `[plot.object."<glob>"]` are figures now. They are refused with the
 figure to write, and `hep migrate` rewrites them:
 - an overlay becomes `[plot.figures.<name>]` with `class = "overlay"`;
 - an object table becomes `[plot.figures.<glob, as a name>]` with `objects = ["<glob>"]`;
@@ -1129,7 +1129,7 @@ overlap, which the plot stage refuses: merge them by hand.
 
 ## 12. The style
 
-The look of the ROOT pages is TOML (V27). **`src/Apps/Paint/base.toml`** holds every key with its
+The look of the ROOT pages is TOML. **`src/Apps/Paint/base.toml`** holds every key with its
 default (rivet-mkhtml's look); edit it to change every page. Over it, key by key:
 
 1. the machine root's `style.toml`: every work dir's on this machine;
@@ -1195,7 +1195,7 @@ unless said otherwise.
   the legend, and matplotlib chooses its own);
 - `text.legend` and `text.header`;
 - `ratio.divisions`;
-- `ratio.range` with `ratio.limits` (V48: each page's window by Paint's rule, so both show the same
+- `ratio.range` with `ratio.limits` (each page's window by Paint's rule, so both show the same
   window).
 
 **What they refuse.** Alone, they refuse `root_style` and every other style key. Beside the root
@@ -1221,7 +1221,7 @@ them, before anything runs.
 | **C6** | Connections (§6): a FIFO within one group only, one reader per FIFO, a writer for every FIFO, no FIFO into a non-streamable tool; every input made by someone or already on disk; one writer per output. | `'delphes' cannot read a FIFO` · `put it in a later group, so it reads a file` |
 | **C7** | Every active quantity has at least one consumer in the chain (in an `@q` chain: among the alternatives). | `[quantities.lepton] is set but no tool in this chain consumes it` |
 | **C8** | One source per native key in one card. | `'PDF:pSet' is set by both [quantities.pdf] = … and …` |
-| **C9** | A Rivet analysis has a `.info` (our plugins in `build/Rivet/`, or Rivet's), and every option it is given is declared there (L19). | `'photo_eic' does not declare the option RADIUS` · `declared: ETMIN, ETMIN2, R` |
+| **C9** | A Rivet analysis has a `.info` (our plugins in `build/Rivet/`, or Rivet's), and every option it is given is declared there. | `'photo_eic' does not declare the option RADIUS` · `declared: ETMIN, ETMIN2, R` |
 | **C10** | Providers: a PDF set named by a checked mapping is installed; base configs exist; executables are built; files a tool folder needs (`[checks] files`, e.g. Herwig's repository) exist. | `the PDF set 'CT14lo' is not installed` · `lhapdf install CT14lo` |
 | **C11** | Point directory names are unique. | `these points would share a directory: …` |
 | **C12** | Paths: no `../`; a missing file is reported under its convention root. | `'../cards/x.cmnd' climbs out of its root` |
@@ -1234,7 +1234,7 @@ The plot checks follow the same shape:
 - a style key a backend cannot honour;
 - a band or `over` that is not a curve axis;
 - a figure's class rules (§11.2);
-- a TLatex label (V79);
+- a TLatex label;
 - a page text citing a placeholder the points don't have.
 
 ---
@@ -1247,22 +1247,22 @@ The plot checks follow the same shape:
 |---|---|
 | `cards/<tag>.point.<ext>` | the overrides (append style) |
 | `cards/<tag>.<ext>` | base + point card in one file (what an export hands out); for render style, the whole card |
-| `cards/<tag>.json` | each key's value and where it came from (a folder with `[card] merge`: pythia, V59) |
+| `cards/<tag>.json` | each key's value and where it came from (a folder with `[card] merge`: pythia) |
 | `cards/<tag>.prepare.<ext>` | the card a prepare step reads, when the tool's `render.py` makes one |
 | `config/<tag>.toml` | an exec or module tool's extracted config |
 | `context.toml` | the point's context file (§9.4): every tool's card and config; there only while the point runs |
-| `logs/<tag>.log`, `logs/<tag>.prepare.log`, `logs/prelim.log` | a failed tool's last 200 lines of stdout and stderr (a failed `[run] commands` command's output); with `--logs`, every tool's whole output (V72) |
+| `logs/<tag>.log`, `logs/<tag>.prepare.log`, `logs/prelim.log` | a failed tool's last 200 lines of stdout and stderr (a failed `[run] commands` command's output); with `--logs`, every tool's whole output |
 | `provenance.json` | `point`, `run`, `project`, `configuration`, `config_file`, `sets`; `values` (each active quantity's index, tag and value); `identity`, `seed`, `threads`, `events`; per tool `tag`, `tool`, `exe`, `exe_sha256`, `version`, `argv`, `ran`, `card`, `card_sha256`, `config`, `result` (exit, seconds, note); `host`, `platform`, `user`, `git` (`revision`, `dirty`), `started`, `finished` |
-| `identity.json` | the parts the identity hashes (each tool's card lines, argv, binaries, options; threads, events, groups, prelim, the seed rule), written when the point completes, for `--why` (V57) |
+| `identity.json` | the parts the identity hashes (each tool's card lines, argv, binaries, options; threads, events, groups, prelim, the seed rule), written when the point completes, for `--why` |
 | `.complete` | the point's identity, written **last**; its absence means the point is not done |
-| `.lock` (in `logs/`) | held while a session runs the point (U66): `{host, pid, since}`, free when that process ends |
+| `.lock` (in `logs/`) | held while a session runs the point: `{host, pid, since}`, free when that process ends |
 
 **Per configuration**, in `records/…/<cfg>/` (`points.json`, `cluster/`) and `logs/…/<cfg>/` (the rest):
 
 | File | Holds |
 |---|---|
 | `points.json` | `run`, `project`, `configuration`, `config_file`, `plot_points`, and per point: `name`, `index`, `values` (tag, label, value, swept), `page`, `products` (name → path), `results`, `output`, `identity`, `seed`, `complete`. Every point, even under `--points` |
-| `status.jsonl` | only with `--journal` (V72): the run's events as `{"v", "point", "tool", "t", "k", …}`: every status message, plus the runner's own `run` (started, finished with a `verdict`), `point` (started, done / failed / stopped with `cause` and `msg`) and `exit` (`code`, `seconds`) records |
+| `status.jsonl` | only with `--journal`: the run's events as `{"v", "point", "tool", "t", "k", …}`: every status message, plus the runner's own `run` (started, finished with a `verdict`), `point` (started, done / failed / stopped with `cause` and `msg`) and `exit` (`code`, `seconds`) records |
 | `plots/[<cell>/][<figure>/]<object>.toml` | each page's document, as Paint reads it, and `<page>.toml.ranges.json` beside it for the other backends |
 | `plots/merged.sha256` | what the merged sweep file was built from |
 | `plots/derived/`, `plots/merged/<figure>/`, `plots/scan/<figure>/` | the figures' own YODAs and their stamps (03 §7) |
@@ -1338,7 +1338,7 @@ if one did.
 ## 16. `[cluster]`: running on Slurm
 
 `hep cluster` ([02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster), 05 §1.9) submits a configuration as
-Slurm jobs with these options (V114). They come in layers, lowest first:
+Slurm jobs with these options. They come in layers, lowest first:
 1. the machine root's `machine.toml` `[cluster]`: the machine's, for every work dir on it (account,
    partition, setup lines);
 2. the work dir's `hep.toml` `[cluster]`: this work dir's;

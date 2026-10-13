@@ -211,7 +211,36 @@ def commands() -> str:
     return "\n".join(out).rstrip("\n")
 
 
+#: A record id the user pages leave out (V138): V…, L…, F…, U… and 00/B…; C1–C14 stay (04 §13 defines them).
+_ID = r"(?:[VLFU]\d{1,3}[a-z]?|00/B\d+)"
+_IDS = rf"{_ID}(?:[ \t]*(?:,|–|-|and)[ \t]*{_ID})*"
+_PLAIN = [(re.compile(rf"[ \t]*\((?:see[ \t]+)?{_IDS}\)"), ""),             # (V45, V46): gone
+          (re.compile(rf"\((?:see[ \t]+)?{_IDS}[;,:][ \t]*"), "("),          # (V31; rivet, …): (rivet, …)
+          (re.compile(rf"[;,:][ \t]*(?:see[ \t]+)?{_IDS}\)"), ")")]          # (rivet, V31), (… in-process: V71)
+
+
+def plain(text: str) -> str:
+    """Text for the user pages: the record's ids taken out of its parentheses, code spans as they are.
+    The schema and the CLI keep them for developers (`hep explain`, 06, 07)."""
+    out, at = [], 0
+    for span in re.finditer(r"`[^`\n]*`", text):
+        out.append(_plain(text[at:span.start()]))
+        out.append(span.group(0))
+        at = span.end()
+    return "".join(out) + _plain(text[at:])
+
+
+def _plain(chunk: str) -> str:
+    for pattern, new in _PLAIN:
+        chunk = pattern.sub(new, chunk)
+    return chunk
+
+
 def render(what: str) -> str:
+    return plain(_render(what))
+
+
+def _render(what: str) -> str:
     kind, _, arg = what.strip().partition(" ")
     if kind == "keys" and arg in schema.TABLES + schema.DECK_TABLES:
         return keys(arg)

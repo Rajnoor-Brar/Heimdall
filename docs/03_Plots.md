@@ -132,7 +132,7 @@ ratio = true                              # MC/Data in a ratio pad
 file   = "rivet:ZEUS_2012_I1116258"       # Rivet's own reference data; a bare name is under datasets/
 legend = "ZEUS 2012"
 
-[plot.data.map]                           # explicit: never matched by name (L18)
+[plot.data.map]                           # explicit: never matched by name
 "d01-x01-y01" = "/REF/ZEUS_2012_I1116258/d01-x01-y01"
 "d09-x01-y01" = "/REF/ZEUS_2012_I1116258/d09-x01-y01"
 ```
@@ -414,7 +414,7 @@ columns = 3                                                         # default: u
   as it was drawn alone:
   - pdflatex places the PDFs, as vectors (a page's PNG where it has no PDF), in cells of the
     largest page's size;
-  - the `.png` is that PDF rendered by pdftoppm (V102), so no page needs a PNG of its own; when
+  - the `.png` is that PDF rendered by pdftoppm, so no page needs a PNG of its own; when
     every page has one, the sheet's PNG is as many of their pixels wide and high.
 - **Which backends:** Paint's and mpl's pages.
 - **What it takes:** a sheet takes no page keys; its pages' figures set those.
@@ -448,8 +448,8 @@ in an overlay. To see a 2D object in 1D, project it with a derived figure.
 | `backend =` | Draws with | Pages in | Honours |
 |---|---|---|---|
 | `"root"` (default) | `$HEP_APPS/Paint.exe`, up to 200 pages per process | `plots/root/` | every `[plot]` key, every figure and type, the whole style |
-| `"mpl"` | matplotlib in this process, a pool of workers (`framework/plot/mpl/backend.py`, V71) | `plots/mpl/` + `index.html` | **mkhtml's pages, pixel for pixel** (until the user has verified it), about 18× faster than mkhtml; 1D pages only |
-| `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/plot/yoda/backend.py`) | `plots/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | the same pages with Paint's ranges and voids; frozen (V71) |
+| `"mpl"` | matplotlib in this process, a pool of workers (`framework/plot/mpl/backend.py`) | `plots/mpl/` + `index.html` | **mkhtml's pages, pixel for pixel** (until the user has verified it), about 18× faster than mkhtml; 1D pages only |
+| `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/plot/yoda/backend.py`) | `plots/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | the same pages with Paint's ranges and voids; frozen |
 | `["root", "mpl"]`, `"both"` | each, from the same page documents | each tree | as each; `"both"` is root and yoda |
 
 **What the other backends honour.** They draw the same page documents with the ranges and voided
@@ -468,7 +468,7 @@ the two page sets would disagree about it.
 **How the yoda backend draws.** It writes per page set:
 - copies of the point YODAs, with the voided bins blanked;
 - `reference.yoda`: the mapped reference objects cut to their aligned span, renamed
-  `/REF/<analysis>/<object>` (mkhtml's own reference lookup is off: explicit only, L18);
+  `/REF/<analysis>/<object>` (mkhtml's own reference lookup is off: explicit only);
 - `pages.plot`, which per object holds:
   - `XMin`/`XMax`/`YMin`/`YMax` (left out where a `"native"` gutter leaves the range to the
     tool);
@@ -517,8 +517,8 @@ The pages are Paint's, with an `index.html` beside them. The options are in
 
 ## 11. Decks: talks and reports, `hep deck`
 
-A **deck** makes slides from pages already drawn (V103, V104). It is written in `decks/<deck>/`,
-which git tracks, and built into `reports/<deck>/`, which it does not (U22). `decks/<deck>/` holds two
+A **deck** makes slides from pages already drawn. It is written in `decks/<deck>/`,
+which git tracks, and built into `reports/<deck>/`, which it does not. `decks/<deck>/` holds two
 files of yours (and any pictures `deck.md` shows):
 - **`deck.toml`**, where its plots come from: blocks, each a grid of panels;
 - **`deck.md`**, the talk: your slides, in Markdown.

@@ -147,3 +147,38 @@ def test_migrate_layout_moves_output_by_lifecycle(scratch):
     assert migrate.apply_layout(list(moves.items()), work) == 0
     assert not (work / "output").exists() and (rec / "a" / ".complete").read_text() == "x\n"
     assert (work / ".cache" / "Demo" / "checks" / "pythia" / "x.json").exists()
+
+
+def test_moving_the_machine_root_and_the_work_dir_changes_no_fingerprint(trees, monkeypatch):
+    """V137: a fingerprint names its programs and cards under {apps}, {work} and the other roots, so a
+    work dir copied elsewhere, with its machine root (its apps) somewhere else too, plans to the same
+    identity at every point of every configuration."""
+    import os
+    from support import WORK
+    from runner import config, paths
+    names = ["Demo/jets", "Demo/validation", "Decay/decay"]
+
+    def identities() -> dict:
+        out = {}
+        for name in names:
+            for key in config.load(name).configurations:
+                for plan in planned(name, key).every:
+                    out[(name, key, plan.point.name)] = plan.identity
+        return out
+
+    here = identities()
+    moved = trees / "elsewhere"
+    shutil.copytree(WORK, moved / "work", symlinks=True)
+    (moved / "machine").mkdir()
+    (moved / "machine" / "apps").symlink_to(paths.apps_dir().resolve())
+    monkeypatch.setenv("HEP_WORK", str(moved / "work"))
+    monkeypatch.setenv("HEP_MACHINE", str(moved / "machine"))
+    monkeypatch.setenv("HEP_APPS", str(moved / "machine" / "apps"))
+    paths.reset()
+    try:
+        there = identities()
+        parts = json.dumps(record.identity_parts(planned("Demo/jets", "single").every[0]))
+    finally:
+        paths.reset()
+    assert there == here
+    assert str(moved) not in parts and str(WORK) not in parts and os.path.expanduser("~/Himinbjorg") not in parts

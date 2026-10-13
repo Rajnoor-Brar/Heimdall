@@ -34,10 +34,11 @@ built and installed, outside git. A **work dir** holds a study.
 | `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `venv/`, `forge/`, `apps/` and `setup.sh` (another C++ standard) |
 | `machine.toml`, `machine.sh` | this machine's settings; its extra lines for `setup.sh` (`setup_extra`), written by the build |
 
-Several checkouts may share one machine root. A provenance names a file under it as `{apps}/…` or
-`{machine}/…`, as an identity names a tool's executable and files (`paths.portable`); a tool's argv,
-which the identity also holds, still names its executable and base cards by their absolute paths, so
-moving the root or a work dir reruns its points once (V132). `recipes/machine.py adopt` moves an older checkout's stack into it.
+Several checkouts may share one machine root. A record names a file under a known root by that
+root's placeholder, never by its absolute path: `{apps}/…`, `{stack}/…` (the loaded stack's installs),
+`{work}/…`, `{machine}/…`, `{hep}/…`, and the point's own folders as `{out}` and `{res}`. A point's
+fingerprint does the same everywhere in it, its tools' argv and cards included (`paths.portable_texts`,
+V137), so moving the machine root, the stack or a work dir changes no identity and no seed. `recipes/machine.py adopt` moves an older checkout's stack into it.
 
 A **work dir** holds a study. `hep setup <dir>` makes it from `framework/templates/work/`:
 

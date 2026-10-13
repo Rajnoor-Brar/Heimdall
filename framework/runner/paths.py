@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import functools
 import os
+import re
 import tomllib
 from pathlib import Path
 
@@ -332,23 +333,49 @@ def placeholders() -> dict[str, str]:
 
 def portable(path) -> str:
     """A path as an identity records it: under a known root, written with that root's placeholder, so
-    a point's identity does not change when Heimdall, the machine root or a work dir moves."""
-    text = str(path)
-    roots = [("{apps}", apps_dir()), ("{machine}", machine_root()), ("{hep}", hep_root())]
+    a point's identity does not change when Heimdall, the machine root, the stack or a work dir moves."""
+    return portable_texts()(str(path))
+
+
+def portable_texts():
+    """A function writing every known root inside a string as its placeholder ({apps}, {stack}, {work},
+    {machine}, {hep}), the longest root first, as it is written and as it resolves: an argv's
+    `--input=/…/x`, a card's path, paths joined with commas. What a fingerprint holds (V137). {stack}
+    is the loaded stack's installs ($HEP_INSTALL), where a standard tool's program is found."""
     work = find_work()
-    if work is not None:
-        roots.insert(0, ("{work}", work))
+    return _portable_texts(str(apps_dir()), str(installs_dir()), str(machine_root()), str(hep_root()),
+                           str(work) if work is not None else "")
+
+
+def installs_dir() -> Path:
+    """The loaded stack's installs: $HEP_INSTALL, else <stack>/stack."""
+    return Path(os.environ["HEP_INSTALL"]) if os.environ.get("HEP_INSTALL") else stack_dir() / "stack"
+
+
+@functools.lru_cache(maxsize=8)
+def _portable_texts(apps: str, installs: str, machine: str, hep: str, work: str):
+    roots = [("{apps}", apps), ("{stack}", installs), ("{machine}", machine), ("{hep}", hep)]
+    if work:
+        roots.append(("{work}", work))
+    pairs = []
     for name, root in roots:
-        root = str(root)
-        if text == root or text.startswith(root + "/"):
-            return name + text[len(root):]
-    return text
+        for form in {str(Path(root).expanduser()), str(Path(root).expanduser().resolve())}:
+            if form not in ("", "/"):
+                pairs.append((form, name))
+    pairs.sort(key=lambda p: len(p[0]), reverse=True)
+    patterns = [(re.compile(re.escape(form) + r"(?=/|$|[^\w.\-])"), name) for form, name in pairs]
+
+    def portable_text(text: str) -> str:
+        for pattern, name in patterns:
+            text = pattern.sub(lambda _: name, text)
+        return text
+    return portable_text
 
 
 def unportable(text: str) -> str:
     """A path portable() wrote, under today's roots ({work}, {hep}, {apps}, {machine}); anything else as
     it is (a record written before, with absolute paths)."""
-    roots = {"{apps}": apps_dir, "{machine}": machine_root, "{hep}": hep_root, "{work}": work_root}
+    roots = {"{apps}": apps_dir, "{stack}": installs_dir, "{machine}": machine_root, "{hep}": hep_root, "{work}": work_root}
     for name, root in roots.items():
         if text == name or text.startswith(name + "/"):
             return str(root()) + text[len(name):]

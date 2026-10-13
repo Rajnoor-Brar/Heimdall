@@ -32,7 +32,8 @@ from . import plugins
 from . import quantities as qmod
 from .config import Tool
 from .errors import HepError, did_you_mean
-from .paths import cache_root, hep_root, logs_root, placeholders, portable, records_root, resolve, results_root, tool_chains
+from .paths import (cache_root, hep_root, logs_root, placeholders, portable, portable_texts, records_root, resolve,
+                    results_root, tool_chains)
 from .sweep import tag_of
 
 ENV = Path(__file__).resolve().parents[1] / "tools"       # framework/tools: the shipped folders (the search path's last)
@@ -863,7 +864,24 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
 
     plan.groups = [[plan.rendered[tag] for tag in group] for group in groups_tags]
     plan.seed_range = seed_range_of(plan.rendered.values())
+    text = portable_texts()                        # a fingerprint (and the seeds from it) names no folder (V137)
+    for step in plan.rendered.values():
+        step.identity_parts = _portable_parts(step.identity_parts, plan, text)
     return plan
+
+
+def _portable_parts(value, plan: PointPlan, text):
+    """A step's identity parts with the point's folders as {out} and {res}, and every other path under a
+    known root written with its placeholder: moving the machine root or a work dir changes no
+    fingerprint and no seed."""
+    if isinstance(value, str):
+        return text(value.replace(str(plan.out), "{out}").replace(str(plan.res), "{res}"))
+    if isinstance(value, list):
+        return [_portable_parts(v, plan, text) for v in value]
+    if isinstance(value, dict):
+        return {(_portable_parts(k, plan, text) if isinstance(k, str) else k): _portable_parts(v, plan, text)
+                for k, v in value.items()}
+    return value
 
 
 def seed_range_of(steps) -> tuple[int, int]:

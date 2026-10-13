@@ -34,15 +34,16 @@ built and installed, outside git. A **work dir** holds a study.
 | `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `venv/`, `forge/`, `apps/` and `setup.sh` (another C++ standard) |
 | `machine.toml`, `machine.sh` | this machine's settings; its extra lines for `setup.sh` (`setup_extra`), written by the build |
 
-Several checkouts may share one machine root. A record names a file under it as `{apps}/…` or
-`{machine}/…`, never by its absolute path, so moving the root changes no identity
-(`paths.portable`). `recipes/machine.py adopt` moves an older checkout's stack into it.
+Several checkouts may share one machine root. A provenance names a file under it as `{apps}/…` or
+`{machine}/…`, as an identity names a tool's executable and files (`paths.portable`); a tool's argv,
+which the identity also holds, still names its executable and base cards by their absolute paths, so
+moving the root or a work dir reruns its points once (V132). `recipes/machine.py adopt` moves an older checkout's stack into it.
 
 A **work dir** holds a study. `hep setup <dir>` makes it from `framework/templates/work/`:
 
 | A work dir's | Holds | In git |
 |---|---|---|
-| `hep.toml` | the marker: `[work] name`, `[framework] expects` (the Heimdall revision it was made by); any other key is refused | yes |
+| `hep.toml` | the marker: `[work] name`, `[framework] expects` (the Heimdall revision it was made by), and `[cluster]` (this work dir's Slurm defaults, 04 §16); any other key is refused | yes |
 | `Makefile` | one line: `include $(HEP)/framework/work.mk` | yes |
 | `configs/<Project>/` | run TOMLs and native base cards; optionally a project `master.toml` and style files | yes |
 | `modules/<Project>/` | programs (`<Name>.cc`), shared headers, Rivet plugins (`Rivet/<x>.{cc,info,plot,yoda}` or `Rivet_<x>.cc`); `_`-prefixed folders are parked | yes |

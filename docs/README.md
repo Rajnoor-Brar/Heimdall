@@ -12,9 +12,9 @@ Two places: **Heimdall** (`$HEP`: the framework, the stack it runs on, its compi
 
 ```bash
 source ~/Github/Heimdall/setup.sh                 # load_hep: the environment
-hep setup ~/Github/My-Study --project Jets --git  # a work dir, with a starter run TOML
+hep setup ~/Github/My-Study --project Jets --git  # a work dir, with a starter run TOML (--example jets: the demo)
 cd ~/Github/My-Study && hep build                 # its modules (none yet)
-hep run Jets/jets --plan                          # look
+hep run Jets/jets --dry-run                       # look
 hep run Jets/jets                                 # run: 2 points, a page per histogram
 ```
 
@@ -22,6 +22,7 @@ hep run Jets/jets                                 # run: 2 points, a page per hi
 
 | | For | |
 |---|---|---|
+| [00_Quick.md](00_Quick.md) | everyone | **one page**: the everyday commands, a whole run TOML and what to write for the common needs, where things go |
 | [01_Overview.md](01_Overview.md) | everyone | what it is, the model in one picture, the vocabulary (object, figure, page …), the principles and what each buys, what is refused, where it came from |
 | [02_User_Guide.md](02_User_Guide.md) | users | set up (Heimdall and work dirs), a first run, the anatomy of a run TOML, **the pipelines** as recipes (sweeps, generators and chains, your own programs, scale and seeds), reruns, failures, housekeeping, results from Python, a new project |
 | [03_Plots.md](03_Plots.md) | users | the plot stage, `[plot]` in practice, data and ratios, curves and bands, the style, **the seven figure classes** with examples, Hist1D/Scatter2D/HeatMap, the backends, `hep overlay`, **decks** for talks and reports (`hep deck`) |
@@ -30,7 +31,7 @@ hep run Jets/jets                                 # run: 2 points, a page per hi
 | [06_Internals.md](06_Internals.md) | developers | Heimdall's and a work dir's layout, components and ranks, the data model, a run in code, connections, identity and seeds, caches, events, failures, the plot stage inside, where files go; the build, the tool-folder contract, adding a tool, backend or figure class, Paint inside, the C++ kits and protocols, tests, conventions |
 | [07_Record.md](07_Record.md) | everyone | the brief, the decisions (V), the knowledge ledger (L), findings (F), v1's findings and decisions, risks, what has been verified, the budget, the glossary |
 
-**Reading paths.** To use it: 02 and 03, then 04 and 05 as references. To understand it: 01, 06.
+**Reading paths.** To start: 00. To use it: 02 and 03, then 04 and 05 as references. To understand it: 01, 06.
 To extend it: 06, then 05. The code cites these pages by section (`04 §9.4`) and the record by id
 (`L18`, `V22`, `C7`, `00/B5`). The key, style and command tables are generated: `make docs` (V91).
 The manual was rebuilt at V90–V92 (audit 2) and re-rooted for Heimdall at V105–V113.

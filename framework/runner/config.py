@@ -191,7 +191,8 @@ def _layers(run: dict, where: str) -> dict[str, list[tuple[str, dict]]]:
             raise HepError("a configuration is a table", where=f"{where}: [run.{CFGS}.{key}]")
     out = {}
     for key, table in tables.items():
-        schema.check(table, "configuration", f"{where}: [run.{CFGS}.{key}]")
+        # swept is refused in a strict load (V79); hep migrate's lenient one reads it to write sweep_runs
+        schema.check({k: v for k, v in table.items() if k != "swept"}, "configuration", f"{where}: [run.{CFGS}.{key}]")
         chain, seen, parent = [(f"[run.{CFGS}.{key}]", table)], {key}, table.get("extends")
         while parent:
             if parent not in tables:
@@ -995,7 +996,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             key=key, label=table.get("label") or key, serial=inherited("serial"),                     # V45
             serial_auto=form == 3 and inherited("serial") is None,
             run_folder=inherited("name") or run["name"],                                              # V46
-            swept=table.get("swept", schema.default("configuration", "swept")), title=table.get("title", key),
+            swept=table.get("swept", True), title=table.get("title", key),
             seed_type=inherited("seed_type"), manual_seed=inherited("manual_seed"),
             description=inherited("description", ""), event_count=int(event_count),
             threads=_resolved_threads(int(inherited("threads"))), parallelism=1 if inherited("parallelism") == "auto" else int(inherited("parallelism")),

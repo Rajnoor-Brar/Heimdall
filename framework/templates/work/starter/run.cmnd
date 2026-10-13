@@ -1,7 +1,8 @@
 ! {{p}}.cmnd — the starter's card: hard QCD 2 → 2 in pp collisions (Pythia's default beams).
 !
-! The energy, the PDF, the event count and the seed are not set here: the run TOML's quantities own
-! them, and hep appends each point's values. A card that sets them too is rejected, not overridden.
+! The energy and the PDF are not set here: the run TOML's quantities give them, after this card, so
+! a point's value wins over a line of this card. The event count and the seed are hep's own: a line
+! here that sets one is not used, and `hep run … --plan` says so (`--card pythia` shows every line's origin).
 
 HardQCD:all = on
 PhaseSpace:pTHatMin = 20.

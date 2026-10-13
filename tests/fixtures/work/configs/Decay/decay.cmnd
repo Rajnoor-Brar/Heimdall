@@ -4,8 +4,8 @@
 ! appends the per-point settings a sweep decided. Ported from
 ! an earlier standalone card.
 
-! Beams are NOT set here: [beams] in the TOML owns them, and hep appends them per point.
-! A card that sets them too is rejected rather than silently overridden.
+! Beams are not set here: the run TOML's quantities give them, after this card, per point
+! (`hep run … --plan --card pythia` shows where each line comes from).
 
 ! Inelastic, non-diffractive minimum bias — where the strangeness comes from.
 SoftQCD:nonDiffractive = on

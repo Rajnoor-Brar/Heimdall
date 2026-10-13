@@ -1,10 +1,9 @@
 ! ep.cmnd — shared physics for ep inclusive-jet photoproduction.
 !
-! Base for every Demo sweep. `hep` reads this file and appends
-! per-point overrides (later settings win), e.g.
-!   [sweep.cmnd.beams]  → Beams:frameType/eA/eB (or eCM)
-!   [sweep.cmnd.lepton] → Beams:idB (11 = EIC e-, -11 = HERA e+)
-!   [sweep.cmnd.pdf]    → PDF:pSet
+! Base for every Demo run. `hep` reads this file and appends each point's
+! values after it (later settings win), from the run TOML's quantities:
+!   energies → Beams:eA, Beams:eB      beams → Beams:idA, Beams:idB (11 = EIC e-, -11 = HERA e+)
+!   pdf      → PDF:pSet
 ! Defaults below correspond to the EIC 18x275 GeV configuration.
 
 ! Run control. Every sweep overrides these from the point cmnd (hep-run reads it after this

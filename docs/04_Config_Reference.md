@@ -182,7 +182,7 @@ master = "master.toml"           # optional: configs/<project>/master.toml overl
 |---|---|---|---|
 | `master` | a string |  | overlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an entry for a (tool, quantity) pair replaces the framework's. The file must exist. |
 | `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins** (V56): a quantity or configuration of the file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest (V94), depth-first; a circle is refused. Another project's file keeps its bare paths its own project's. The file that imports sets its own `[run].name` and `project` (V100). An entry may be `{ from = "<config>", only = ["quantities", "cfgs.default", …] }`: only those tables or dotted keys, each of which the file must have (V95) |
-| `drop` | a list (a string each) |  | dotted keys (`run.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken out of what the imports brought in, before this file's own tables are laid over them (V95). Each must name something an import gave, so a misspelt drop is refused rather than keeping what it meant to remove; a file that imports nothing has nothing to drop. |
+| `drop` | a list (a string each) |  | dotted keys (`cfgs.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken out of what the imports brought in, before this file's own tables are laid over them (V95). Each must name something an import gave, so a misspelt drop is refused rather than keeping what it meant to remove; a file that imports nothing has nothing to drop. |
 | `vars` | a table |  | `name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result (V96). A string that is exactly one var takes its value as it is: `events = "{var:events}"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`"rivet:{var:ana}"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value; its own `[file.vars]` come with whatever is taken of it (V101), under this file's. `--set file.vars.<name>=…` changes one for a run |
 | `meta` | a table |  | descriptive: it never changes a run (V97). Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `hep check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
 | `schema` | an integer |  | `3`, or `2` to keep a v2 file v2 for one release; a file with `[file]` is v3 without it |
@@ -465,7 +465,6 @@ from.
 | `events` | an integer, ≥ 1, or `"default"` |  | required here if `[run]` has none. A list is one configuration per count, `<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6) |
 | `threads` | an integer, ≥ 0, or `"default"` |  | `0` = every core |
 | `parallelism` | an integer or a string: `"auto"`, ≥ 1, or `"default"` |  | points at once (`"auto"`: cores ÷ a point's cores, V75); `--plan` and the run's title say about how many cores that is, and warn past the machine's |
-| `swept` | true or false | `true` | false: [run].sweep_runs leaves this configuration out |
 | `vary` | a list |  | 04 §5.1; `[]` is one point |
 | `plot_points` | a list (a string each) |  | 04 §5.2 |
 | `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) |
@@ -819,7 +818,7 @@ output   = "jets_hard.yoda"
 | `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEP_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
 | `filters` | a string |  | your own rules in place of the folder's, root `configs/<P>/`; implies `status = "filters"` (V61) |
 | `executable` | a string |  | exec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH` |
-| `arguments` | a list |  | exec and module: argv after the config; placeholders (04 §10) |
+| `arguments` | a list |  | exec and module: argv after the config; placeholders (04 §10). Not paths: the tool runs in the point's folder, so a script of yours is `{work}/modules/…` |
 | `consumes` | a list (a string each) |  | exec and module: quantities written into the config |
 | `config` | a table |  | exec and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2) |
 | `streamable` | true or false |  | may it read a FIFO? |
@@ -846,7 +845,7 @@ exec` copies the folder into the work dir's `tools/fit/`
 ```toml
 [tools.fit]
 uses        = "exec"
-executable  = "fit_peaks.py"                # build/<P>/fit_peaks.py (path:<command> for PATH); ./… from the repo
+executable  = "fit_peaks.py"                # build/<P>/fit_peaks.py (path:<command> for PATH; ./… from the work dir)
 arguments   = ["{in:lambda.yoda}", "{res}/fit.json"]
 input       = "lambda.yoda"
 output      = "fit.json"

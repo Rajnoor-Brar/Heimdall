@@ -385,12 +385,13 @@ instead of copying it, and write only what differs:
 ```toml
 [file]
 import = [{ from = "validation", only = ["tools", "quantities", "plot"] }]
-drop   = ["quantities.mpi", "plot.backend"]     # its MPI scan, and its mpl+yoda pages: Paint's here
+drop   = ["tools.yd2rt"]                      # its ROOT conversion: this study draws from the YODA
 
 [run]
 name       = "seed_study"                     # a file that imports always names its own run
 project    = "Demo"
 sweep_runs = ["default", "spread"]
+events     = 1_000_000                        # per seed
 chain      = [["pythia", "rivet"]]
 
 [cfgs.default]
@@ -510,7 +511,7 @@ pre  = ["fetch"]                                  # once, before every point
 
 [tools.fetch]
 uses       = "exec"
-executable = "./modules/Demo/fetch_lhe.sh"        # your script
+executable = "./modules/Demo/fetch_lhe.sh"        # your script: an executable's ./ is the work dir (04 §2)
 arguments  = ["{partial:output}"]
 output     = "shared.lhe"                         # every point may name it: input = "shared.lhe"
 ```
@@ -622,7 +623,7 @@ How the program is built: [06 §21](06_Internals.md#21-modulehh).
 [tools.fit]
 uses       = "exec"                               # any executable
 executable = "path:python3"                       # a command on PATH, asked for by name (V54)
-arguments  = ["./modules/Decay/fit_mass.py", "{in:decay.root}", "{partial:output}"]   # your script
+arguments  = ["{work}/modules/Decay/fit_mass.py", "{in:decay.root}", "{partial:output}"]   # your script: {work}/…, as the tool runs in the point's folder
 input      = "decay.root"
 output     = "fit.json"
 consumes   = ["sqrts"]                            # → [quantities] in its config

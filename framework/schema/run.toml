@@ -50,7 +50,7 @@ notes = """\
   (cards, filters, styles, executables) its own project's, so its tools plan as they do in it. The \
   file that imports sets its own `[run].name` and `project`; no folder of its configurations may be \
   an imported run's (V100). \
-  An entry may be `{ from = \"<config>\", only = [\"quantities\", \"run.default\", …] }`: only those \
+  An entry may be `{ from = \"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those \
   sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where \
   each quantity, tool and configuration came from."""
 
@@ -59,7 +59,7 @@ type  = "list"
 items = "str"
 doc   = "dotted keys taken out of what the imports gave, before this file's tables (V95)"
 notes = """\
-  dotted keys (`run.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken \
+  dotted keys (`cfgs.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken \
   out of what the imports brought in, before this file's own tables are laid over them (V95). Each \
   must name something an import gave, so a misspelt drop is refused rather than keeping what it \
   meant to remove; a file that imports nothing has nothing to drop."""
@@ -203,8 +203,8 @@ notes = """\
 
 # ── [run.cfgs.<cfg>] ──────────────────────────────────────────────────────────────────────────────
 # A configuration's value is its own, else the one it `extends` (and so on), else [run]'s (which takes
-# every key here but label, title, extends, swept, static and prelim: V99, it was [run.defaults]),
-# else the default here. label, title, extends and swept are each configuration's own.
+# every key here but label, title, extends, static and prelim: V99, it was [run.defaults]),
+# else the default here. label, title and extends are each configuration's own.
 
 [configuration.extends]
 type = "str"
@@ -267,11 +267,6 @@ doc        = "points run at once (else [run]'s); \"auto\": cores ÷ a point's co
 notes = """\
   points at once (`\"auto\"`: cores ÷ a point's cores, V75); `--plan` and the run's title say \
   about how many cores that is, and warn past the machine's"""
-
-[configuration.swept]
-type    = "bool"
-default = true
-doc     = "false: [run].sweep_runs leaves this configuration out"
 
 [configuration.seed_type]
 type       = "str"
@@ -540,7 +535,8 @@ notes = """\
 type = "list"
 doc  = "custom: its arguments"
 notes = """\
-  exec and module: argv after the config; placeholders (04 §10)"""
+  exec and module: argv after the config; placeholders (04 §10). Not paths: the tool runs in the \
+  point's folder, so a script of yours is `{work}/modules/…`"""
 
 [tool.consumes]
 type  = "list"

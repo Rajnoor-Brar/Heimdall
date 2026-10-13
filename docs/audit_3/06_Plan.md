@@ -385,7 +385,7 @@ larger repo.
 - `hep setup` prints the next three commands.
 - The guide runs on the example.
 
-**7.3 Docs that match the code** (U50, U32, U65)
+**7.3 Docs that match the code** (U50, U32, U65) — **done, V136** (the record ids in the pages' prose stay)
 - The contradictions of [03 §5](03_Configuration.md#5-contradictions-in-the-docs-schema-and-fixtures--u50-30):
   - `swept` out of the schema;
   - `run.cfgs` paths in examples;

@@ -71,54 +71,53 @@ There is one Heimdall per machine, and any number of work dirs, which share noth
 
 ## 2. Heimdall
 
+Today's layout (audit 3 phases 3–5 moved what a machine builds to its machine root, and split a work
+dir's records from its logs):
+
 ```
-~/Github/Heimdall/                  = $HEP
-  README.md  CLAUDE.md  .gitignore  Makefile  pytest.ini
-  setup.sh                          load_hep: tracked, finds its own folder (§5.8)
-  build_stack.py                    builds the stack into this folder (stack/ forge/ stash/)
-  packages.toml  settings.toml      what is built, and how
-  pth.py                            writes the venv's heimdall.pth (P2, §5.5)
-  patches/                          patches the stack's sources need (FastJet's SISCone, L29)
-  platforms/mac/                    Brewfile, mac.toml, build.sh, launch.sh, README.md
-  platforms/container/              Dockerfile, Dockerfile.dockerignore, heimdall.def
-  env/                              the HEP environment: hep_env.sh, flags.sh, stack.toml, stack.py
-    venv/          (ignored)        the Python environment (was ~/HEP/.venv), with heimdall.pth
+~/Github/Heimdall/                  = $HEP: what git has, nothing else
+  README.md  CLAUDE.md  LICENSE  .gitignore  Makefile  pytest.ini
+  setup.sh  launch.sh               the environment (bash; launch.sh from any shell), §5.8
+  recipes/                          how the stack is built: build_stack.py, machine.py (adopt), pth.py,
+                                    verify.py, settings.toml, machine.template.toml, toolkits/ (standard.toml,
+                                    every recipe; a file per toolkit), patches/, platforms/{mac,container}/,
+                                    helpers/, support/, README.md, build_by_hand.txt
+  env/                              hep_env.sh, flags.sh, packages.sh (generated), stack.toml, stack.py
   framework/
     bin/                            hep, run
-    runner/                         the Python package, its 25 modules
-    tools/<folder>/                 the 16 plugin folders: the tools custom delphes herwig madgraph merge module
-                                    plotmerge pythia rivet sherpa whizard yd2rt; the provider lhapdf; the
-                                    backends yoda, mpl; figures
-    schema/                         run.toml, run.schema.json, deck.toml, quantities.toml, latex.toml
+    runner/                         the Python package (`hep help` lists its commands)
+    tools/<folder>/                 delphes exec herwig lhapdf madgraph merge module plotmerge pythia rivet
+                                    sherpa whizard yd2rt
+    plot/                           the backends: yoda/, mpl/; figures/
+    schema/                         run.toml, run.schema.json, run.v3.schema.json, deck.toml, quantities.toml,
+                                    latex.toml
     templates/work/                 what `hep setup` lays down (§4.1), and starter/
-    work.mk                         the module and Rivet rules a work dir's Makefile includes (§5.4)
-    hepkit.py                       the kit for a custom tool in Python
-    Apps/          (ignored)        App_Pythia.exe App_PythiaCheck.exe App_yd2rt.exe Paint.exe Herwig/HerwigDefaults.rpo
+    work.mk  rules.mk               the module and Rivet rules a work dir's Makefile includes (§5.4)
+    hepkit.py                       the kit for an exec tool in Python
   src/                              Status.hh Kit.hh Module.hh PythiaRun.hh App_Pythia.cc App_PythiaCheck.cc
                                     App_yd2rt.cc Apps/Paint/ (main.cc, *.hh, base.toml)
-  docs/                             the manual 01–07, README.md, stack/ (README.md, build_by_hand.txt),
-                                    reporter/, audit_2/, framework/ (these plans)
+  docs/                             the manual 01–07, README.md, reporter/, audit_2/, audit_3/, framework/
   bots/                             current_plan.md intent.md archive.md
   tests/                            conftest.py support.py runner/ integration/ cxx/ reference/
                                     fixtures/work/{hep.toml,README.md,configs/,modules/,datasets/}
-  stack/           (ignored)        <pkg>/ the installs (LHAPDF hepmc3 fastjet root yoda rivet pythia8 herwig7
-                                    delphes sherpa madgraph whizard onnxruntime geant4), .stamps/,
-                                    setup_extra.sh (this machine's extra lines, §5.8)
-  forge/           (ignored)        <pkg>/ the stack's build trees; logs/<pkg>.log; make/ (the framework's
-                                    deps/, flags.mk, flags.log); tests/ (the C++ test binaries);
-                                    scratch/ (the tests' work copy, output, results, reports, pytest)
-  stash/           (ignored)        <pkg>-<release>.<ext> archives, and their unpacked sources
-  .setup/          (ignored)        the agents' state.toml, log.md, kept/, verify/ (02 §3)
+
+~/Himinbjorg/                       = $HEP_MACHINE: what this machine built (README.md, "What is where")
+  machine.toml  machine.sh          this machine's settings, and its extra lines for setup.sh
+  stack/  venv/  apps/              the installs (and .stamps/), the Python environment, Heimdall's apps
+  forge/                            downloads/ src/ build/ logs/; make/ and tests/ (the framework's);
+                                    scratch/ (what the tests write)
+  stacks/<toolkit>/                 an isolated toolkit's own stack, venv and apps
+  toolkits/  patches/  tools/       the machine's own
 ```
 
 **Who writes where:**
 
 | Writer | Writes |
 |---|---|
-| `build_stack.py` (P2) | `stash/`, `forge/<pkg>/`, `forge/logs/`, `stack/` (installs, `.stamps/`, `setup_extra.sh`), `env/venv/` |
-| `hep build --framework` | `framework/Apps/` (the apps, Herwig's repository) and `forge/make/`, `forge/tests/` |
-| the tests | `forge/scratch/` only |
-| the agents | `.setup/` |
+| `build_stack.py` (`hep stack build`) | the machine root's `forge/` and `stack/` (installs, `.stamps/`), `venv/`, `machine.sh` |
+| `hep build --framework` | the machine root's `apps/` (the apps, Herwig's repository) and `forge/make/`, `forge/tests/` |
+| the tests | the machine root's `forge/scratch/` only |
+| the agents | `.setup/` (ignored) |
 | a work dir's build | its own `build/`; never anything in Heimdall (D30) |
 
 ---
@@ -207,6 +206,7 @@ expects = "<Heimdall's revision when this file was made>"
   enforced. The runner warns once per command when `expects` is not an ancestor of Heimdall's
   `HEAD`, meaning the work dir was made with a newer Heimdall than the one running. A dirty or
   missing revision is not warned about.
+- **`[cluster]`**, this work dir's defaults for `hep cluster` (04 §16), over the machine root's.
 - Unknown keys are refused, as in every TOML the runner reads.
 
 ### 4.3 Top-Quark, the test work dir (D32)

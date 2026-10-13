@@ -53,8 +53,8 @@ def reference() -> str:
     return text(NUMBERED["04"]) + text(NUMBERED["05"])
 
 
-def test_the_manual_is_the_seven_pages_and_its_index():
-    assert sorted(NUMBERED) == ["01", "02", "03", "04", "05", "06", "07"]
+def test_the_manual_is_a_quick_page_seven_pages_and_its_index():
+    assert sorted(NUMBERED) == ["00", "01", "02", "03", "04", "05", "06", "07"]
     assert (DOCS / "README.md").exists()
 
 
@@ -88,8 +88,8 @@ def test_every_toml_block_parses_and_complete_runs_load(page, scratch):
             config.load(str(path))
         elif complete:                                   # a whole run TOML, not a fragment of one
             config.parse(data, scratch / "example.toml")   # C1–C5 on the example itself
-        elif v3.is_v3(data) and {"name", "project"} <= set(run) and data.get("cfgs") and not data.get("file", {}).get("import"):
-            path = scratch / "example.toml"              # a whole v3 file: read as `hep run` reads it (U50)
+        elif v3.is_v3(data) and {"name", "project"} <= set(run) and data.get("cfgs"):
+            path = scratch / "example.toml"              # a whole v3 file, its imports the fixture's: read as `hep run` reads it (U50)
             path.write_text(block, encoding="utf-8")
             config.load(str(path))
 

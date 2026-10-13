@@ -277,14 +277,14 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
   - `hep status` shows "running (pid N, host H)".
 - `hep migrate --layout` moves an existing work dir.
 
-**5.2 Deck sources, datasets, the template** (U22, U23, U28)
+**5.2 Deck sources, datasets, the template** (U22, U23, U28) — **done, V133** (`--refresh` asks before writing, or `--yes`)
 - `decks/<deck>/{deck.md,deck.toml}` (tracked) build into `reports/<deck>/` (ignored).
 - `datasets/` is tracked for small files. `datasets.toml` is a manifest (URL, sha256) for large
   ones, fetched by `hep setup`.
 - `hep setup --refresh` updates the framework-written files (README, CLAUDE.md, Makefile,
   `.vscode`), showing the diff, and never touches the user's files.
 
-**5.3 A work dir in a git repository** (U67; the user, 2026-10-13)
+**5.3 A work dir in a git repository** (U67; the user, 2026-10-13) — **done, V133** (a fresh repository needs its `.git/`: a plain folder with a `.gitignore` still asks for `--adopt`)
 
 `hep setup` makes a work dir in a folder that is already a git repository: a fresh one (`git init`,
 or a hosting site's new repo with `README.md`, `LICENSE`, `.gitignore`), a clone, or a subfolder of a

@@ -336,17 +336,26 @@ def held_by(who: dict) -> str:
 
 
 def git_state(root: Path) -> dict:
-    """A folder's git revision and whether its tracked files changed; {} when it is not a git repo."""
+    """The git state of the repository a folder is in (U67): its revision and whether the folder's
+    tracked files changed; `subfolder` when the folder is not the repository's top, `unborn` when the
+    repository has no commit yet. {} when the folder is in no repository."""
     def git(*args) -> str:
         try:
             return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True,
                                   timeout=10).stdout.strip()
         except (OSError, subprocess.SubprocessError):
             return ""
-    revision = git("rev-parse", "HEAD") if (root / ".git").exists() else ""
-    if not revision:
+    top = git("rev-parse", "--show-toplevel") if Path(root).is_dir() else ""
+    if not top:
         return {}
-    return {"revision": revision, "dirty": bool(git("status", "--porcelain", "--untracked-files=no"))}
+    revision = git("rev-parse", "--verify", "-q", "HEAD")
+    state = {"revision": revision, "dirty": bool(git("status", "--porcelain", "--untracked-files=no", "--", "."))}
+    if not revision:
+        state["unborn"] = True
+    sub = Path(root).resolve().relative_to(Path(top).resolve()).as_posix()
+    if sub != ".":
+        state["subfolder"] = sub
+    return state
 
 
 def work_record() -> dict:

@@ -332,8 +332,11 @@ def data_source(name: str, run) -> Path:
                        hint=f"looked for {analysis}.yoda[.gz] in {', '.join(map(str, places))}")
     source = resolve(name, "data", project=run.project, where=f"{run.path}: [plot.data].file")
     if not source.is_file():
+        from .paths import dataset_listed
         raise HepError("the reference data file does not exist", where=str(source),
-                       hint="datasets/ is not in git; `rivet:<Analysis>` names Rivet's own reference data")
+                       hint="datasets.toml lists it: `hep setup .` fetches it" if dataset_listed(source) else
+                       "put it in datasets/ (tracked), or list it in datasets.toml (url, sha256) for hep setup to fetch; "
+                       "`rivet:<Analysis>` names Rivet's own reference data")
     return source
 
 

@@ -36,7 +36,7 @@ from typing import Callable
 
 from . import hepfiles, plugins, schema, viewer
 from .errors import HepError, did_you_mean
-from .paths import hep_root, records_root, reports_root, results_root
+from .paths import decks_root, hep_root, records_root, reports_root, results_root
 
 RECIPE = "deck.toml"
 TALK = "deck.md"
@@ -69,10 +69,15 @@ class Block:
 
 @dataclass
 class Deck:
-    dir: Path
+    dir: Path                    # where it builds: reports/<deck>/ (panels/, figures/, build/, the outputs)
     settings: dict               # [deck], with the schema's defaults
     blocks: list[Block]
     recipe: bool                 # blocks from deck.toml, not from the folder's files
+    src: Path | None = None      # where it is written: decks/<deck>/ (deck.md, deck.toml, extras); dir when one folder
+
+    def __post_init__(self):
+        if self.src is None:
+            self.src = self.dir
 
 
 def natural(text: str) -> list:
@@ -96,12 +101,26 @@ def count(n: float) -> str:
     return f"{rounded:g}"
 
 
+def deck_dirs(name: str) -> tuple[Path, Path]:
+    """`hep deck <deck>`: where it is written and where it builds (U22): decks/<deck>/ and reports/<deck>/.
+    A path (./, ../ or /) is one folder for both, as is a deck still written in reports/<deck>/ (made
+    before decks/: `hep migrate --layout` moves its sources)."""
+    if name.startswith(("./", "../", "/")):
+        path = Path(name)
+        if not path.is_dir():
+            raise HepError(f"no deck folder {path}", hint="make the folder, and put a deck.toml or the plots' files in it")
+        return path.resolve(), path.resolve()
+    src, out = decks_root() / name, reports_root() / name
+    if src.is_dir():
+        return src.resolve(), out.resolve()
+    if out.is_dir():
+        return out.resolve(), out.resolve()
+    raise HepError(f"no deck {name}: no folder {src}", hint="make it, and put a deck.toml (or the plots' files) in it")
+
+
 def deck_dir(name: str) -> Path:
-    """`hep deck <deck>`: reports/<deck>, unless it starts with ./, ../ or / (a path)."""
-    path = Path(name) if name.startswith(("./", "../", "/")) else reports_root() / name
-    if not path.is_dir():
-        raise HepError(f"no deck folder {path}", hint="make the folder, and put a deck.toml or the plots' files in it")
-    return path.resolve()
+    """The folder a deck is written in (its sources)."""
+    return deck_dirs(name)[0]
 
 
 # ── the event count of a result folder ────────────────────────────────────────────────────────
@@ -319,7 +338,7 @@ def _folder_blocks(folder: Path, settings: dict, where: str) -> list[Block]:
 
 def load(name: str) -> Deck:
     """A deck: its settings and blocks, from deck.toml's blocks, else from the folder's files."""
-    folder = deck_dir(name)
+    folder, built = deck_dirs(name)
     recipe = folder / RECIPE
     data: dict = {}
     if recipe.is_file():
@@ -344,7 +363,7 @@ def load(name: str) -> Deck:
         if block.name in seen:
             raise HepError(f"two blocks are named {block.name}", where=str(recipe), hint="rename one of the [blocks] tables")
         seen.add(block.name)
-    return Deck(folder, settings, blocks, bool(named))
+    return Deck(built, settings, blocks, bool(named), src=folder)
 
 
 # ── collecting ─────────────────────────────────────────────────────────────────────────────────
@@ -362,7 +381,7 @@ def gather(deck: Deck) -> int:
     copied = 0
     for block in deck.blocks:
         for number, panel in enumerate(block.panels, 1):
-            if panel.source.resolve().is_relative_to(deck.dir):
+            if panel.source.resolve().is_relative_to(deck.dir) or panel.source.resolve().is_relative_to(deck.src):
                 continue
             target = root / slug(block.name) / f"{number:02d}_{slug(panel.label)}{panel.source.suffix.lower()}"
             wanted.add(target)
@@ -473,7 +492,7 @@ def _chosen(block: Block, wanted: str, where: str) -> list[Panel]:
 
 def talk(deck: Deck) -> Talk:
     """deck.md read (or generated), with its block references resolved into composites."""
-    path = deck.dir / TALK
+    path = deck.src / TALK
     own = path.is_file()
     made = Talk(path.read_text(encoding="utf-8") if own else generated(deck), own)
     blocks = {b.name: b for b in deck.blocks}
@@ -541,8 +560,13 @@ def _copy(made: Talk, deck: Deck, suffix: str) -> str:
     for found, figure in made.references:
         out.append(made.text[at:found.start()])
         at = found.end()
-        if figure is None:
-            out.append(found.group(0))
+        if figure is None:                     # the talk's own picture: from where the talk is written
+            target = found["target"]
+            mine = deck.src / target
+            if deck.src != deck.dir and "://" not in target and not target.startswith("/") and mine.exists():
+                out.append(f"![{found['alt']}]({mine})" + (found["attrs"] or ""))
+            else:
+                out.append(found.group(0))
             continue
         kept = [f"{k}={v}" for k, v in ATTRIBUTE.findall(found["attrs"] or "") if k not in OURS]
         path = figure.stem.with_name(figure.stem.name + suffix).relative_to(deck.dir).as_posix()
@@ -619,7 +643,7 @@ def build(deck: Deck, only: list[str] | None = None, say: Callable[[str], None] 
 def init(deck: Deck) -> list[Path]:
     """`hep deck --init`: deck.md, a title slide and a slide per block (a section per recipe table), and a
     starter deck.toml for a folder without one. Never over what is there."""
-    talk_file, recipe = deck.dir / TALK, deck.dir / RECIPE
+    talk_file, recipe = deck.src / TALK, deck.src / RECIPE
     if talk_file.exists():
         raise HepError(f"{talk_file} is there already", hint="--init writes it once: edit it, or remove it to start again")
     talk_file.write_text(generated(deck), encoding="utf-8")

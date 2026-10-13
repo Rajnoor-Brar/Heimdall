@@ -59,7 +59,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `deck` | reports/<deck>, or a path starting ./, ../ or / |
+| `deck` | decks/<deck> (built into reports/<deck>), or a path starting ./, ../ or / |
 | `--list` | each block, its panels and where they came from; nothing written |
 | `--only TARGETS` | some of pdf, pptx, html, overleaf, viewer (comma-separated) |
 | `--init` | write deck.md once: a title slide and a slide per block |
@@ -144,9 +144,11 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `dir` | the work dir's folder: new, empty, or a work dir to complete |
 | `--project P` | also configs/<P>/ with a starter run TOML and card, and modules/<P>/ |
-| `--git` | git init, and commit what was added |
+| `--git yes\|new` | commit what was added (only that), in the git repository the folder is in, or a new one when it is in none; --git=new: a repository of its own even inside another |
 | `--adopt` | make a work dir of a folder that has files but no hep.toml |
 | `--name NAME` | the work dir's name in hep.toml (default: the folder's) |
+| `--refresh` | bring the framework's own files (Makefile, README/HEIMDALL.md, CLAUDE.md, .vscode, the .gitignore block) up to today's template, as a diff; never the user's files |
+| `--yes` | with --refresh: write without asking |
 
 **`hep doctor`**: what this machine's stack and Heimdall can do, checked
 
@@ -406,7 +408,12 @@ function (a script, or a shell started from one), `framework/bin/hep refresh` (o
 runs the machine's venv Python by path (cron, scripts, Slurm).
 
 `hep setup <dir>` makes a work dir and `hep where` says which Heimdall and which work dir a shell
-sees ([02 §1](02_User_Guide.md#1-set-up-and-build); their options are in §1).
+sees ([02 §1](02_User_Guide.md#1-set-up-and-build); their options are in §1). In a git repository,
+`hep setup` keeps the repository's own `README.md`, `CLAUDE.md` and `LICENSE` (Heimdall's guide goes
+in `HEIMDALL.md`), merges a marked block into its `.gitignore`, and `--git` commits only the files it
+added, in the repository the folder is in (`--git=new`: a repository of its own). It fetches what
+`datasets.toml` lists (url, sha256) into `datasets/`; `--refresh` shows and writes (asked, or `--yes`)
+the framework's own files as today's template has them. `HEP_DECKS` replaces the work dir's `decks/`.
 
 | Variable | Set by | Means |
 |---|---|---|

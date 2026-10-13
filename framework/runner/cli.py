@@ -83,7 +83,7 @@ def parser() -> argparse.ArgumentParser:
     overlay.add_argument("--style", metavar="FILE", help="a style file over src/Apps/Paint/base.toml")
 
     deck = commands.add_parser("deck", help="a deck of slides from drawn pages, in reports/<deck>/ (deck.toml, deck.md)")
-    deck.add_argument("deck", help="reports/<deck>, or a path starting ./, ../ or /")
+    deck.add_argument("deck", help="decks/<deck> (built into reports/<deck>), or a path starting ./, ../ or /")
     deck.add_argument("--list", action="store_true", help="each block, its panels and where they came from; nothing written")
     deck.add_argument("--only", metavar="TARGETS", help="some of pdf, pptx, html, overleaf, viewer (comma-separated)")
     deck.add_argument("--init", action="store_true", help="write deck.md once: a title slide and a slide per block")
@@ -143,9 +143,15 @@ def parser() -> argparse.ArgumentParser:
     make = commands.add_parser("setup", help="make a work dir: the key folders, hep.toml and the template's files (never overwrites)")
     make.add_argument("dir", help="the work dir's folder: new, empty, or a work dir to complete")
     make.add_argument("--project", metavar="P", help="also configs/<P>/ with a starter run TOML and card, and modules/<P>/")
-    make.add_argument("--git", action="store_true", help="git init, and commit what was added")
+    make.add_argument("--git", nargs="?", const="yes", choices=["yes", "new"],
+                      help="commit what was added (only that), in the git repository the folder is in, or a new one "
+                           "when it is in none; --git=new: a repository of its own even inside another")
     make.add_argument("--adopt", action="store_true", help="make a work dir of a folder that has files but no hep.toml")
     make.add_argument("--name", help="the work dir's name in hep.toml (default: the folder's)")
+    make.add_argument("--refresh", action="store_true",
+                      help="bring the framework's own files (Makefile, README/HEIMDALL.md, CLAUDE.md, .vscode, the "
+                           ".gitignore block) up to today's template, as a diff; never the user's files")
+    make.add_argument("--yes", action="store_true", help="with --refresh: write without asking")
 
     doctor = commands.add_parser("doctor", help="what this machine's stack and Heimdall can do, checked",
                                  description="Every installed package's checks (its recipe's [[verify]]), a scan for "
@@ -804,6 +810,9 @@ def cmd_deck(args) -> int:
     """`hep deck DECK` (docs/reporter): the deck's blocks, their panels collected into panels/ (V103), then
     its composites and slides built (V104); --init writes deck.md once."""
     made = deckmod.load(args.deck)
+    if made.src == made.dir and made.dir.parent.name == "reports":
+        print(f"note: {made.dir} holds the deck's sources: decks/{made.dir.name}/ is their place now "
+              "(hep migrate --layout moves them)", file=sys.stderr)
     if args.list:
         for line in deckmod.listing(made):
             print(line)
@@ -1013,16 +1022,16 @@ def migrate_layout(args) -> int:
     if hubs():
         raise HepError("a job is running on this machine", hint="move the layout when it has ended")
     work = work_root()
-    moves = migrate.layout_moves(work)
+    moves = migrate.layout_moves(work) + migrate.deck_moves(work)
     if not moves:
-        print("nothing to move: no output/ (the layout is records/, logs/ and .cache/ already)")
+        print("nothing to move: no output/, and no deck written in reports/")
         return 0
     counts: dict[str, int] = {}
     for _, target in moves:
         root = target.relative_to(work).parts[0]
         counts[root] = counts.get(root, 0) + 1
     for root, n in sorted(counts.items()):
-        print(f"output/ → {root + '/':9s} {n} file(s)")
+        print(f"→ {root + '/':9s} {n} file(s) or folder(s)")
     if not args.apply:
         print(f"{len(moves)} file(s) to move (a dry run: --apply moves them)")
         return 0
@@ -1141,7 +1150,13 @@ def main(argv: list[str]) -> int:
                 print("note: this work dir has output/ from before records/, logs/ and .cache/: its points rerun "
                       "until `hep migrate --layout --apply` moves it", file=sys.stderr)
         if args.command == "setup":
-            setupmod.setup(Path(args.dir), project=args.project, git=args.git, adopt=args.adopt, name=args.name)
+            if args.refresh:
+                ask = input if sys.stdin.isatty() else None
+                setupmod.refresh(Path(args.dir), yes=args.yes, ask=ask)
+                return 0
+            added = setupmod.setup(Path(args.dir), project=args.project, git=args.git, adopt=args.adopt, name=args.name)
+            for line in setupmod.next_steps(Path(args.dir).expanduser().resolve(), added, args.project, args.git):
+                print(line)
             return 0
         if args.command == "where":
             return setupmod.where(args.which)

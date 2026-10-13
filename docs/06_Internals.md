@@ -46,13 +46,14 @@ A **work dir** holds a study. `hep setup <dir>` makes it from `framework/templat
 | `Makefile` | one line: `include $(HEP)/framework/work.mk` | yes |
 | `configs/<Project>/` | run TOMLs and native base cards; optionally a project `master.toml` and style files | yes |
 | `modules/<Project>/` | programs (`<Name>.cc`), shared headers, Rivet plugins (`Rivet/<x>.{cc,info,plot,yoda}` or `Rivet_<x>.cc`); `_`-prefixed folders are parked | yes |
-| `datasets/` | your own reference data | no |
+| `datasets/` | your own reference data: small files tracked; large ones in `datasets.toml` (url, sha256), fetched by `hep setup` and kept out by `datasets/.gitignore` | yes |
+| `decks/<deck>/` | a deck's sources: `deck.md`, `deck.toml`, its pictures | yes |
 | `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
 | `records/` | what runs recorded: provenance, identities, completion, `points.json`, cluster submissions | no |
 | `logs/` | each point's working folder (cards, configs, logs, FIFOs, scratch files), journals, page documents | no |
 | `.cache/` | prepare caches, card checks, converted reference data | no |
 | `results/` | products per project | no |
-| `reports/` | decks (`hep deck`) | no |
+| `reports/<deck>/` | a deck as `hep deck` builds it: panels, composites, the slides | no |
 
 **The roots** (`runner/paths.py`):
 - `hep_root()` is where the code is (`framework/runner/paths.py`, two levels up). A `$HEP` that names

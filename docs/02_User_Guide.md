@@ -54,13 +54,45 @@ hep build                                            # its module programs and R
 hep run Jets/jets                                    # the starter: Pythia → MC_JETS, two PDFs
 ```
 
-`hep setup <dir>` makes the folders every work dir has (`configs/ modules/ datasets/ results/
+`hep setup <dir>` makes the folders every work dir has (`configs/ modules/ datasets/ decks/ results/
 records/ reports/ build/`), its `hep.toml` (the marker: `[work] name`, and `[framework] expects`, the
 Heimdall revision it was made by), a `Makefile`, `.gitignore`, `README.md`, `CLAUDE.md` and editor
-settings. It never overwrites: run it again in a work dir (after a fresh clone, say) and it adds only
-what is missing. `--project P` adds `configs/P/p.toml` and `p.cmnd`, a starter that `hep check`
-accepts, and `modules/P/`; `--git` commits what it added; `--adopt` makes a work dir of a folder that
+settings, then says the next commands. It never overwrites: run it again in a work dir (after a fresh
+clone, say) and it adds only what is missing. `--project P` adds `configs/P/p.toml` and `p.cmnd`, a
+starter that `hep check` accepts, and `modules/P/`; `--adopt` makes a work dir of a folder that
 already has files.
+
+**In a git repository** (U67). A fresh repository (`git init`, or a hosting site's new repo with its
+`README.md`, `LICENSE` and `.gitignore`) needs no `--adopt`:
+
+```bash
+git clone git@github.com:me/my-study.git && cd my-study
+hep setup . --project Jets --git                      # README.md and LICENSE kept; one commit of what it added
+```
+
+- **Nothing of yours is overwritten.** Your `README.md` and `CLAUDE.md` stay, and Heimdall's guide
+  goes beside them as `HEIMDALL.md`. Your `.gitignore` gains a marked block (`# Heimdall (hep setup)`)
+  of the lines it lacks, so nothing the runner writes is committed by accident.
+- **`--git` commits only what it added** (`git commit -- <paths>`): what you had staged stays staged.
+  In a subfolder of a larger repository the commit is that repository's; `--git=new` makes the
+  folder a repository of its own (nested) instead. With no repository, `--git` runs `git init`.
+- **Provenance** records the repository a work dir is in, with its subfolder, and a repository with
+  no commit yet as one.
+
+**Data** (U23). Small reference files go in `datasets/`, tracked. Large ones are listed in
+`datasets.toml`, and `hep setup .` (in a fresh clone, say) fetches each one missing, checking its
+sha256, and keeps them out of git (`datasets/.gitignore`):
+
+```toml
+[files."ZEUS_2012.yoda"]
+url    = "https://example.org/data/ZEUS_2012.yoda"
+sha256 = "9f2c…"                 # sha256sum's: the file must be this one
+```
+
+**Decks** (U22) are written in `decks/<deck>/` (`deck.md`, `deck.toml`), tracked, and built into
+`reports/<deck>/` (03 §11). **`hep setup . --refresh`** brings the framework's own files (the
+`Makefile`, Heimdall's `README.md` or `HEIMDALL.md`, `CLAUDE.md`, `.vscode/`, the `.gitignore` block)
+up to today's template, showing each diff first; your files are never touched (U28).
 
 Every `hep` command finds its work dir by walking up from the working directory to a `hep.toml`
 with a `[work]` table; `$HEP_WORK` names one instead. Outside a work dir, `hep run` says so. A work

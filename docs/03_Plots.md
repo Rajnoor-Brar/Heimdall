@@ -517,12 +517,13 @@ The pages are Paint's, with an `index.html` beside them. The options are in
 
 ## 11. Decks: talks and reports, `hep deck`
 
-A **deck** is a folder, `reports/<deck>/`, that makes slides from pages already drawn (V103, V104). It
-holds two files of yours:
+A **deck** makes slides from pages already drawn (V103, V104). It is written in `decks/<deck>/`,
+which git tracks, and built into `reports/<deck>/`, which it does not (U22). `decks/<deck>/` holds two
+files of yours (and any pictures `deck.md` shows):
 - **`deck.toml`**, where its plots come from: blocks, each a grid of panels;
 - **`deck.md`**, the talk: your slides, in Markdown.
 
-`hep deck <deck>` copies the panels into the folder, draws each block as one figure (its composite,
+`hep deck <deck>` copies the panels into `reports/<deck>/`, draws each block as one figure (its composite,
 the same picture in every target), and turns `deck.md` into:
 
 | File | What it is | Opens in |
@@ -540,7 +541,7 @@ remakes the slides.
 ### 11.1 A talk from result folders
 
 ```toml
-# reports/batch_1/deck.toml
+# decks/batch_1/deck.toml
 [blocks.validation]                                        # a block per page: validation-d01, validation-d02, …
 from    = "Demo/validation"                     # results/Demo/validation/
 folders = ["01_PDFs_010M", "01_PDFs_025M", "01_PDFs_050M", "03_PDFs_150M", "03_PDFs_200M"]

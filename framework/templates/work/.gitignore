@@ -4,8 +4,8 @@ records/
 logs/
 .cache/
 results/
-# Inputs and decks: too large, or not for git (hep setup . makes the folders again)
-datasets/*
+# Built decks (their sources are decks/, tracked); large inputs are listed in datasets.toml and
+# kept out by datasets/.gitignore (hep setup . fetches them)
 reports/*
 __pycache__/
 *.exe

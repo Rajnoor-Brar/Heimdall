@@ -1289,7 +1289,9 @@ Where everything goes, as a tree, is [06 §14](06_Internals.md#14-where-files-go
 
 ## 15. A deck's recipe: `deck.toml`
 
-A deck is a folder, `reports/<deck>/`, made by `hep deck <deck>` (05). Its `deck.toml` says where its
+A deck is written in `decks/<deck>/` and built into `reports/<deck>/` by `hep deck <deck>` (05; a deck
+still written in `reports/<deck>/` is read there, and `hep migrate --layout` moves its sources). Its
+`deck.toml` says where its
 plots come from; `framework/schema/deck.toml` holds every key, as below. A recipe has `[deck]` and
 `[blocks.<name>]` tables, and nothing else; with no block, the deck takes the folder's own PDF and PNG
 files (folder mode, grouped by `[deck].group`).

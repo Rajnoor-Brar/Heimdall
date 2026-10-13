@@ -40,6 +40,7 @@ RESULTS_VAR = "HEP_RESULTS"
 RECORDS_VAR = "HEP_RECORDS"
 LOGS_VAR = "HEP_LOGS"
 CACHE_VAR = "HEP_CACHE"
+DECKS_VAR = "HEP_DECKS"
 CONFIGS_VAR = "HEP_CONFIGS"
 REPORTS_VAR = "HEP_REPORTS"
 
@@ -186,6 +187,24 @@ def cache_root() -> Path:
 def reports_root() -> Path:
     """Where decks go (docs/reporter): $HEP_REPORTS (tests set it) or <work>/reports."""
     return _rooted(REPORTS_VAR, "reports")
+
+
+def dataset_listed(path: Path) -> bool:
+    """Whether the work dir's datasets.toml lists this file of datasets/ (U23: hep setup fetches it)."""
+    import tomllib
+    work = find_work()
+    manifest = work / "datasets.toml" if work is not None else None
+    try:
+        files = tomllib.loads(manifest.read_text(encoding="utf-8")).get("files", {}) if manifest and manifest.is_file() else {}
+        return Path(path).resolve().relative_to((work / "datasets").resolve()).as_posix() in files
+    except (ValueError, OSError, tomllib.TOMLDecodeError):
+        return False
+
+
+def decks_root() -> Path:
+    """Where decks are written (U22): decks/<deck>/{deck.md, deck.toml, extras}, tracked; they build into
+    reports/<deck>/. $HEP_DECKS (tests set it) or <work>/decks."""
+    return _rooted(DECKS_VAR, "decks")
 
 
 def configs_root() -> Path:

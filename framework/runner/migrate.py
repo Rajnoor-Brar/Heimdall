@@ -723,6 +723,22 @@ def layout_moves(work: Path) -> list[tuple[Path, Path]]:
     return moves
 
 
+def deck_moves(work: Path) -> list[tuple[Path, Path]]:
+    """A deck written in reports/<deck>/ (before decks/, U22): its sources to decks/<deck>/, everything but
+    what `hep deck` builds there (panels/, figures/, build/ and the outputs)."""
+    from .deck import BUILD, FIGURES, OUTPUTS, PANELS
+    moves = []
+    reports = work / "reports"
+    for folder in sorted(p for p in reports.iterdir() if p.is_dir()) if reports.is_dir() else ():
+        if not any((folder / name).is_file() for name in ("deck.toml", "deck.md")):
+            continue
+        for path in sorted(folder.iterdir()):
+            if path.name in (PANELS, FIGURES, BUILD, *OUTPUTS) or path.name.endswith(".sha256"):
+                continue
+            moves.append((path, work / "decks" / folder.name / path.name))
+    return moves
+
+
 def apply_layout(moves: list[tuple[Path, Path]], work: Path) -> int:
     """The moves made (renames, so nothing is copied); a file already where it goes is left in output/,
     and named. output/ goes when nothing is left in it."""

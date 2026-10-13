@@ -697,6 +697,52 @@ def v3_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text)
 
 
+#: What a point's or a configuration's folder of output/ recorded: it goes to records/ (U21).
+RECORDED = ("provenance.json", "identity.json", ".complete", "points.json")
+
+
+def layout_moves(work: Path) -> list[tuple[Path, Path]]:
+    """`hep migrate --layout` (5.1): every file of a work dir's output/ and where it goes now. Records
+    (provenance, identity, .complete, points.json, cluster submissions) to records/; prepare caches,
+    card checks and converted data (output/<P>/.cache/) to .cache/<P>/; everything else (cards, configs,
+    logs, scratch files, journals, page documents, reproductions) to logs/."""
+    output = work / "output"
+    moves = []
+    for path in sorted(output.rglob("*")) if output.is_dir() else ():
+        if path.is_dir() and not path.is_symlink():
+            continue
+        rel = path.relative_to(output)
+        parts = rel.parts
+        if len(parts) > 2 and parts[1] == ".cache":
+            target = work / ".cache" / parts[0] / Path(*parts[2:])
+        elif path.name in RECORDED or (len(parts) > 4 and parts[3] == "cluster"):
+            target = work / "records" / rel
+        else:
+            target = work / "logs" / rel
+        moves.append((path, target))
+    return moves
+
+
+def apply_layout(moves: list[tuple[Path, Path]], work: Path) -> int:
+    """The moves made (renames, so nothing is copied); a file already where it goes is left in output/,
+    and named. output/ goes when nothing is left in it."""
+    left = 0
+    for source, target in moves:
+        if target.exists() or target.is_symlink():
+            print(f"left    {source}: {target} exists")
+            left += 1
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        source.rename(target)
+    output = work / "output"
+    for folder in sorted((p for p in output.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True):
+        if not any(folder.iterdir()):
+            folder.rmdir()
+    if output.is_dir() and not any(output.iterdir()):
+        output.rmdir()
+    return left
+
+
 def plan(names: list[str], v3: bool = False) -> dict[Path, tuple[str, str]]:
     """Every file the configs touch: path → (its text, its migrated text), only those that change. With
     v3, a file then takes the third form (v3_text)."""

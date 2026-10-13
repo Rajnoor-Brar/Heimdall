@@ -75,5 +75,5 @@ def test_a_sharded_point_equals_the_same_point_unsharded(scratch):
         if not path.startswith("/RAW/photo_eic/") or not hasattr(histo, "sumW"):
             continue
         assert histo.sumW() == pytest.approx(four[path].sumW(), rel=1e-9), path    # the same events, summed
-    shards = sorted((scratch / "output/Demo/shards/four/point/shards").glob("jets.s*.yoda"))
+    shards = sorted((scratch / "logs/Demo/shards/four/point/shards").glob("jets.s*.yoda"))
     assert len(shards) == 4

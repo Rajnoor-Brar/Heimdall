@@ -75,7 +75,7 @@ def plan_pre(run, configuration, master: dict, points: list) -> tools.PointPlan 
     if not configuration.pre:
         return None
     _reserved(run, configuration, {p.name for p in points}, PRE, "pre")
-    manifest = tools.point_dirs(run, configuration, Point(index=-1, name=PRE))[0].parent / "points.json"
+    manifest = record.records_of(tools.point_dirs(run, configuration, Point(index=-1, name=PRE))[0].parent) / "points.json"
     return _plan_stage(run, configuration, master, Point(index=-1, name=PRE), configuration.pre, {}, manifest)
 
 
@@ -98,7 +98,7 @@ def plan(run, configuration, master: dict, plans: list) -> tools.PointPlan | Non
             if interface.kind == "product" and not interface.shard:
                 products.setdefault(interface.name, []).append((p.point.name, interface.path))
     return _plan_stage(run, configuration, master, Point(index=0, name=NAME), configuration.post, products,
-                       plans[0].out.parent / "points.json", upstream=[p.identity for p in plans])
+                       record.manifest_file(plans), upstream=[p.identity for p in plans])
 
 
 def run(post: tools.PointPlan | None, every: list, run_config, configuration, *, bus=None, stopper, logs: bool = False,
@@ -139,7 +139,7 @@ def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.P
     for p in plans:
         groups.setdefault(tuple(p.point.choice[name] for name in kept), []).append(p)
     taken = {p.point.name for p in plans} | {NAME, PRE}
-    manifest = plans[0].out.parent / "points.json"
+    manifest = record.manifest_file(plans)
     out = []
     for number, (key, members) in enumerate(groups.items(), start=1):
         choice = dict(zip(kept, key))

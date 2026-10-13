@@ -102,7 +102,7 @@ type     = "str"
 required = true
 doc      = "the project; a config under configs/<X>/ belongs to X"
 notes = """\
-  the subfolder of `configs/`, `modules/`, `output/`, `results/`; must equal the folder the file \
+  the subfolder of `configs/`, `modules/`, `records/`, `logs/`, `results/`; must equal the folder the file \
   is in, when it is under `configs/`"""
 
 [run.cfgs]
@@ -830,11 +830,11 @@ notes = """\
   when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' \
   pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the \
   other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics \
-  add, σ averaged), once per change of a member's YODA, into `output/…/plots/merged/<name>/`. The \
+  add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The \
   run keeps its points apart; the figure alone merges them (`combine` merges them for the whole \
   configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). \
   `compare` (V83): the objects' pages across configurations, \
-  `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `output/` and \
+  `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and \
   `results/`, a folder per backend). A curve per configuration and point (or combined group), \
   labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The \
   configurations must have the same page and curve axes (checked at plan time); the figure is \
@@ -845,7 +845,7 @@ notes = """\
   binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D \
   object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a \
   Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA \
-  (`output/…/plots/derived/`, remade when the product or the figures change, by \
+  (`logs/…/plots/derived/`, remade when the product or the figures change, by \
   `framework/plot/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: \
   its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or \
   a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a \

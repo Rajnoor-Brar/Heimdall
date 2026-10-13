@@ -107,7 +107,9 @@ def toml(data: dict) -> str:
 
 @pytest.fixture
 def sweep_file(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
+    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     path = scratch / "sw.toml"
     path.write_text(toml(several()), encoding="utf-8")
     return path
@@ -170,7 +172,7 @@ def test_a_run_that_cannot_be_planned_at_its_turn_fails_alone(sweep_file, monkey
     assert cli.cmd_run(args_for(sweep_file)) == 1
     assert [c[0] for c in calls] == ["a", "b", "d"]
     assert "run 02 - Bee -" in capsys.readouterr().out
-    journal = sweep_file.parent / "output" / "Demo" / "t" / "b" / "status.jsonl"
+    journal = sweep_file.parent / "logs" / "Demo" / "t" / "b" / "status.jsonl"
     finished = json.loads(journal.read_text(encoding="utf-8").splitlines()[-1])
     assert finished["verdict"] == "not run: the TOML changed" and Path(finished["next"]).parent.name == "d"
 

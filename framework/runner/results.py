@@ -6,7 +6,7 @@
     for point in results.load("Demo/jets", "pdf"):
         print(point.name, point.values["pdf"].label, point.complete, point.yoda())
 
-It reads what a run wrote, its `points.json` manifest (output/<P>/<run>/<cfg>/points.json, every point
+It reads what a run wrote, its `points.json` manifest (records/<P>/<run>/<cfg>/points.json, every point
 even under --points), and plans nothing, so it is quick and needs no tool installed. `complete` is the
 manifest's, as of the run that wrote it.
 """
@@ -19,7 +19,7 @@ from pathlib import Path
 
 from . import config as configmod
 from .errors import HepError
-from .paths import output_root
+from .paths import records_root
 from .tools import run_dir
 
 
@@ -55,7 +55,7 @@ class Point:
 def manifest(config: str, configuration: str | None = None) -> Path:
     """Where a configuration's points.json is."""
     run = configmod.load(config)
-    return output_root() / run_dir(run, run.configuration(configuration)) / "points.json"
+    return records_root() / run_dir(run, run.configuration(configuration)) / "points.json"
 
 
 def load(config: str, configuration: str | None = None) -> list[Point]:

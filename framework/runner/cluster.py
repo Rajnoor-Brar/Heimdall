@@ -8,7 +8,7 @@ does exactly what the same command does when typed:
     finish job     hep run C cfg --stages combine,post,plot         after the array, whatever its outcome
 
 `hep cluster` plans everything first (every check of `hep run --plan`), writes the scripts into
-output/<P>/<run>/<cfg>/cluster/<stamp>/ and submits them with sbatch, chained by dependencies: the
+records/<P>/<run>/<cfg>/cluster/<stamp>/ and submits them with sbatch, chained by dependencies: the
 points after the pre job succeeded (afterok), the finish job after every point ended (afterany). A
 point is skipped in its job when its identity is complete, as anywhere. Nothing here enters an
 identity or a seed, so a point run as a job equals the same point run by hand.
@@ -40,7 +40,7 @@ from .config import check_cluster
 from .errors import HepError
 from .execute import cores
 from .paths import (MACHINE_VAR, MARKER_FILE, STACK_VAR, hep_root, machine_file, machine_root, machine_settings,
-                    output_root, work_meta, work_root)
+                    records_root, work_meta, work_root)
 from .record import git_state, is_complete, write_atomic
 
 #: A job's resources, as sbatch takes them: [cluster] key → option.
@@ -51,7 +51,7 @@ FOLDER = "cluster"
 RECORD = "jobs.toml"
 POINTS = "points.txt"
 #: The roots a job keeps from the shell that submitted it, when set there (the tests set them).
-ROOTS = ("HEP_OUTPUT", "HEP_RESULTS", "HEP_REPORTS", "HEP_CONFIGS")
+ROOTS = ("HEP_RECORDS", "HEP_LOGS", "HEP_CACHE", "HEP_RESULTS", "HEP_REPORTS", "HEP_CONFIGS")
 #: What squeue and sacct are asked for: a job's (or array task's) id, state, time and reason or node; and
 #: id, state, exit code and elapsed time.
 SQUEUE = "%i|%T|%M|%R"
@@ -139,8 +139,8 @@ def hep_run(planned, args, stages: str, point: bool = False) -> list[str]:
 
 
 def base(planned) -> Path:
-    """output/<P>/<run>/<cfg>/cluster: every submission's folder."""
-    return output_root() / tools.run_dir(planned.run, planned.configuration) / FOLDER
+    """records/<P>/<run>/<cfg>/cluster: every submission's folder."""
+    return records_root() / tools.run_dir(planned.run, planned.configuration) / FOLDER
 
 
 def _stamp(folder: Path) -> Path:

@@ -259,7 +259,7 @@ Phase 7.3's doc fixes can go first at any time: they help today's users.
 
 ## Phase 5 — The work dir's lifecycle
 
-**5.1 Records apart from logs and caches; a point lock** (U21, U30, U29, U66)
+**5.1 Records apart from logs and caches; a point lock** (U21, U30, U29, U66) — **done, V132** (`.cache/` per project, `.cache/<P>/`; reserved names narrowed to what clashes; identities keep their absolute exe and card paths, since changing them reruns everything)
 - `output/` splits by lifecycle into:
   - `records/` (provenance, identity, `.complete`, `points.json`, `cluster/<time>/`);
   - `logs/` (point logs, FIFOs);

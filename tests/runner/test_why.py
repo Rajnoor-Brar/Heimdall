@@ -15,7 +15,9 @@ from helpers import plan, raw
 @pytest.fixture(autouse=True)
 def own_output(scratch, monkeypatch):
     """Each test's points under its own output/: a completed point must not be another test's."""
-    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
+    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
 
 
 def completed(data, scratch):

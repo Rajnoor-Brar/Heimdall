@@ -17,12 +17,13 @@ docs/06_Internals.md §8 and §12.
     repeat some of each other's events;
   - "random": drawn from the OS when the point runs (disjoint as above); a complete point keeps the
     seed its provenance.json records.
-* A point is complete when output/…/<point>/.complete holds its identity. It is written last,
+* A point is complete when records/…/<point>/.complete holds its identity. It is written last,
   after the count checks, so a half-written point is never skipped.
 """
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -31,6 +32,7 @@ import secrets
 import socket
 import subprocess
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -64,7 +66,7 @@ def identity_parts(plan: PointPlan) -> dict:
 
 
 def identity_record(plan: PointPlan) -> Path:
-    return plan.out / "identity.json"
+    return record_dir(plan) / "identity.json"
 
 
 def write_identity(plan: PointPlan) -> None:
@@ -220,13 +222,33 @@ def _recorded_seed(plan: PointPlan) -> int:
     if not is_complete(plan):
         return 0
     try:
-        return int(json.loads((plan.out / "provenance.json").read_text(encoding="utf-8"))["seed"])
+        return int(json.loads(provenance_file(plan).read_text(encoding="utf-8"))["seed"])
     except (OSError, ValueError, KeyError, TypeError):
         return 0
 
 
+def records_of(folder: Path) -> Path:
+    """The records of a folder of logs/ (a point's, a stage's, a configuration's): the same place under
+    records/ (U21), so deleting logs/ or .cache/ reruns nothing."""
+    from .paths import logs_root, records_root
+    return records_root() / folder.relative_to(logs_root())
+
+
+def record_dir(plan: PointPlan) -> Path:
+    return records_of(plan.out)
+
+
+def provenance_file(plan: PointPlan) -> Path:
+    return record_dir(plan) / "provenance.json"
+
+
+def manifest_file(plans: list) -> Path:
+    """A configuration's points.json: in its records, beside its points' folders."""
+    return records_of(plans[0].out.parent) / "points.json"
+
+
 def complete_marker(plan: PointPlan) -> Path:
-    return plan.out / ".complete"             # technical: beside the cards and logs, not the products
+    return record_dir(plan) / ".complete"     # recorded: beside the provenance, never with the logs
 
 
 def is_complete(plan: PointPlan) -> bool:
@@ -247,6 +269,70 @@ def overwritten(stages) -> list:
     """The stages that completed with other inputs than they are planned with now: running one replaces
     what it made (v3's serials, 03 §6)."""
     return [s for s in stages if (old := recorded_identity(s)) is not None and old != s.identity]
+
+
+LOCK_FILE = ".lock"
+
+
+class PointLock:
+    """U66: one session runs a point at a time. An flock on the point's `.lock` (in its logs folder),
+    which says who holds it ({host, pid, since}); the kernel lets it go when that process ends, however
+    it ends, so a lock is never stale on this host."""
+
+    def __init__(self, plan: PointPlan):
+        self.path = plan.out / LOCK_FILE
+        self.fd: int | None = None
+
+    def acquire(self, wait: bool = False, stopper=None) -> bool:
+        """True once this process holds it. Without `wait`, False at once when another does; with it,
+        polled until free (a stop request ends the wait with False)."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if not wait or (stopper is not None and stopper.requested):
+                    os.close(fd)
+                    return False
+                time.sleep(1.0)
+        os.ftruncate(fd, 0)
+        os.write(fd, json.dumps({"host": socket.gethostname(), "pid": os.getpid(), "since": now()}).encode("utf-8"))
+        self.fd = fd
+        return True
+
+    def release(self) -> None:
+        if self.fd is not None:
+            os.ftruncate(self.fd, 0)
+            fcntl.flock(self.fd, fcntl.LOCK_UN)
+            os.close(self.fd)
+            self.fd = None
+
+
+def holder(plan: PointPlan) -> dict | None:
+    """Who runs this point now, from its lock ({host, pid, since}); None when no process does."""
+    path = plan.out / LOCK_FILE
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return None
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        except BlockingIOError:
+            try:
+                return json.loads(path.read_text(encoding="utf-8") or "{}") or {"pid": "?", "host": "?"}
+            except (OSError, ValueError):
+                return {"pid": "?", "host": "?"}
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return None
+    finally:
+        os.close(fd)
+
+
+def held_by(who: dict) -> str:
+    return f"pid {who.get('pid', '?')} on {who.get('host', '?')}" + (f", since {who['since']}" if who.get("since") else "")
 
 
 def git_state(root: Path) -> dict:
@@ -292,19 +378,19 @@ def provenance(plan: PointPlan, run, configuration, started: str, finished: str,
     tools = []
     for tag, step in plan.rendered.items():
         entry = {"tag": tag, "tool": step.tool.tool, "exe": portable(step.exe), "version": version_of(step.folder),
-                 "argv": step.argv, "ran": step.group >= 0, "result": results.get(tag, {})}
+                 "argv": [portable(a) for a in step.argv], "ran": step.group >= 0, "result": results.get(tag, {})}
         if step.exe.is_file():
             entry["exe_sha256"] = step.identity_parts.get("exe_sha256", "")
         if step.card_combined:
-            entry["card"] = str(step.card_combined)
+            entry["card"] = portable(step.card_combined)
             entry["card_sha256"] = hashlib.sha256(plan.writes.get(step.card_combined, "").encode("utf-8")).hexdigest()
         if step.config_path:
-            entry["config"] = str(step.config_path)
+            entry["config"] = portable(step.config_path)
         tools.append(entry)
     return {
         "point": plan.point.name,
         "run": run.name, "project": run.project, "configuration": configuration.key,
-        "config_file": str(run.path), "sets": list(getattr(run, "sets", [])),    # what reproduces it (V77)
+        "config_file": portable(run.path), "sets": list(getattr(run, "sets", [])),    # what reproduces it (V77)
         "values": {name: {"index": index, "tag": _tag(run, name, index), "value": run.quantities[name].values[index]}
                    for name, index in plan.values.items()},
         "identity": plan.identity, "seed": plan.seed, "threads": plan.threads, "events": plan.events,

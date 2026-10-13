@@ -130,15 +130,20 @@ up from the working directory (or `$HEP_WORK`), never the working directory itse
 
 **The one judgement:** what a tool writes is a product, in `results/`, unless it is technical: a
 FIFO (its reader is in the producer's group) or a scratch file (its producer says `keep = false`),
-both in `output/` (§6). So a HepMC file kept for another configuration is a product: leave `keep`
+both in `logs/` (§6). So a HepMC file kept for another configuration is a product: leave `keep`
 out.
 
-**Where a point lives** (V45, V46):
+**Where a point lives** (V45, V46; by lifecycle, U21):
 
 ```
-output/<P>/<run>/<cfg>/<point>/     cards/  config/  logs/  FIFOs and scratch files  provenance.json  .complete
-results/<P>/<run>/<cfg>/<point>/    the products
+results/<P>/<run>/<cfg>/<point>/    the products: yours
+records/<P>/<run>/<cfg>/<point>/    provenance.json  identity.json  .complete: what the run recorded, kept
+logs/<P>/<run>/<cfg>/<point>/       cards/  config/  logs/  FIFOs and scratch files  .lock: safe to delete
 ```
+
+`.cache/<P>/` holds what is rebuilt on demand (prepare caches, card checks, converted data). Deleting
+`logs/` or `.cache/` reruns nothing; deleting `records/` makes every point "to run" again. A point
+another session is running is skipped, naming who runs it, unless `--wait` (U66).
 
 - `<run>` is `[run].name`, or the configuration's own `name`.
 - `<cfg>` is `NN_<folder>`. `<folder>` is the configuration's `folder`, or its table key when that is
@@ -344,7 +349,7 @@ description = "Inclusive jets in ep collisions"
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `name` | a string | **required** | the run's directory name |
-| `project` | a string | **required** | the subfolder of `configs/`, `modules/`, `output/`, `results/`; must equal the folder the file is in, when it is under `configs/` |
+| `project` | a string | **required** | the subfolder of `configs/`, `modules/`, `records/`, `logs/`, `results/`; must equal the folder the file is in, when it is under `configs/` |
 | `run` | a string |  | the configuration `hep run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may be left out |
 | `serial` | an integer |  | the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[run]`. |
 | `events` | an integer, ≥ 1 |  | every configuration's event count, unless it gives its own A configuration inherits it from `[run]`. |
@@ -808,7 +813,7 @@ output   = "jets_hard.yoda"
 | `uses` | a string |  | the tool folder, when it is not the table's name: a second table of one tool, `[tools.<name>] uses = "<folder>"` (05 §3; `hep tools` lists the folders) |
 | `card` | a string or a list |  | native base card(s), read in order (root `configs/<project>/`). Tools with a card only. |
 | `input` | a string or a list |  | what it reads: a producer's table name (`input = "pythia"`: what that tool writes), another tool's output by name, a pre product, (post) a product of every point, or a path. The first input is `{input}` |
-| `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in `output/` (04 §6). An array is fan-out (V16); one writer per output (C6) |
+| `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in `logs/` (04 §6). An array is fan-out (V16); one writer per output (C6) |
 | `timeout` | a number, ≥ 0 |  | the tool fails when it runs longer |
 | `stall_after` | a number, ≥ 0 |  | the tool fails when silent this long: no log line, status message or heartbeat (a prepare step waits at least 3600) |
 | `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEP_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
@@ -822,7 +827,7 @@ output   = "jets_hard.yoda"
 | `settings` | a table |  | native card settings as written, `"HeavyIon:mode" = 1`, with no base card needed: over the base card, refused when a quantity sets the same key (one source per key, C8); a tool with no card refuses them (V59) |
 | `cores` | an integer, ≥ 1 |  | how many cores it keeps busy, for `--plan`'s note and the crowded warning (V60); an integrated program is estimated as the generator's threads and one more |
 | `shards` | an integer, ≥ 1 | `1` | K > 1: K processes of this tool, each on a share of the events, merged into its `output` by the folder's merge tool (V31; rivet, 05 §5.1). The chain is unchanged. |
-| `keep` | true or false | `true` | `false`: what it writes for a later group is a scratch file of the point (`output/`), not a product (`results/`) |
+| `keep` | true or false | `true` | `false`: what it writes for a later group is a scratch file of the point (`logs/`), not a product (`results/`) |
 <!-- /generated -->
 
 Every other key is **tool-specific**. It is checked against the tool folder's `[options]` (type and
@@ -848,12 +853,12 @@ output      = "fit.json"
 consumes    = ["energy"]                    # written under [quantities] in its config
 filters     = "fit_filters.toml"
 
-[tools.fit.config]                          # written verbatim to output/…/<point>/config/fit.toml
+[tools.fit.config]                          # written verbatim to logs/…/<point>/config/fit.toml
 model  = "gauss+poly2"
 window = [1.09, 1.14]
 ```
 
-The runner writes `output/…/<point>/config/<name>.toml` when the table has a `config` or consumes a
+The runner writes `logs/…/<point>/config/<name>.toml` when the table has a `config` or consumes a
 quantity. It passes it as the **first argument** (the folder's argv is
 `{exe} {config} {arguments}`). The file holds:
 
@@ -893,7 +898,7 @@ before the first event, with the nearest name, instead of running with its defau
 
 ### 9.4 The context file: every tool's card and config
 
-When a point starts, the runner writes **one context file** for it, `output/…/<point>/context.toml`,
+When a point starts, the runner writes **one context file** for it, `logs/…/<point>/context.toml`,
 and removes it when the point ends. Every tool of the point finds it through `$HEP_CONTEXT` (set in
 each tool's environment, never in your shell), or `{context}` in its arguments. It lists, by table
 name:
@@ -1086,7 +1091,7 @@ A figure is a recipe for pages (V80); its classes, each with an example, are
 <!-- generated: keys figure -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `output/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `output/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`hep plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`output/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
+| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`hep plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`logs/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
 | `type` | a string: `"Hist1D"`, `"Scatter2D"`, `"HeatMap"` |  | what is drawn: `Hist1D`, steps per curve; `Scatter2D` (V86), a marker per bin at its centre with its y error, in the curve's colour (`data.marker`, `data.marker_size` of the style), as Paint draws data; the legend shows the marker. The page TOML says `markers = true`; mkhtml and mpl draw the curves as they draw points (`ConnectBins=0`, with their x bars). `HeatMap` (V87): a 2D object (a YODA `Histo2D` or `Estimate2D`), the default for one: a page per point of the cell, `<cell>/<object>/<point>`, coloured by value with its scale on the right (labels from the `.plot`, `ZLabel` and `LogZ` too; no ratio, data or voiding). Paint draws heat maps; mkhtml and mpl draw the 1D pages only, and the plot stage says so. A 1D object cannot be a HeatMap, a 2D object neither a Hist1D nor a Scatter2D, nor in an overlay |
 | `name` | a string |  | an overlay's page file stem, a merged figure's folder. A defined figure takes none: its pages are the objects' own |
 | `objects` | a list (a string each) |  | matched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob matching no object of the points is an error, at the plot stage |
@@ -1237,7 +1242,7 @@ The plot checks follow the same shape:
 
 ## 14. Files the runner writes
 
-**Per point** (`output/…/<point>/`):
+**Per point**, in `logs/…/<point>/` (its working folder) and, the last three, `records/…/<point>/`:
 
 | File | Holds |
 |---|---|
@@ -1251,8 +1256,9 @@ The plot checks follow the same shape:
 | `provenance.json` | `point`, `run`, `project`, `configuration`, `config_file`, `sets`; `values` (each active quantity's index, tag and value); `identity`, `seed`, `threads`, `events`; per tool `tag`, `tool`, `exe`, `exe_sha256`, `version`, `argv`, `ran`, `card`, `card_sha256`, `config`, `result` (exit, seconds, note); `host`, `platform`, `user`, `git` (`revision`, `dirty`), `started`, `finished` |
 | `identity.json` | the parts the identity hashes (each tool's card lines, argv, binaries, options; threads, events, groups, prelim, the seed rule), written when the point completes, for `--why` (V57) |
 | `.complete` | the point's identity, written **last**; its absence means the point is not done |
+| `.lock` (in `logs/`) | held while a session runs the point (U66): `{host, pid, since}`, free when that process ends |
 
-**Per configuration** (`output/…/<cfg>/`):
+**Per configuration**, in `records/…/<cfg>/` (`points.json`, `cluster/`) and `logs/…/<cfg>/` (the rest):
 
 | File | Holds |
 |---|---|
@@ -1261,6 +1267,7 @@ The plot checks follow the same shape:
 | `plots/[<cell>/][<figure>/]<object>.toml` | each page's document, as Paint reads it, and `<page>.toml.ranges.json` beside it for the other backends |
 | `plots/merged.sha256` | what the merged sweep file was built from |
 | `plots/derived/`, `plots/merged/<figure>/`, `plots/scan/<figure>/` | the figures' own YODAs and their stamps (03 §7) |
+| `cluster/<stamp>/` | `hep cluster`'s submissions: the scripts, `points.txt`, `jobs.toml`, the jobs' logs |
 
 **Beside products:**
 - an event producer's **sidecar** `<first output>.json`: App_Pythia's, or `{"written": N, "source":
@@ -1269,10 +1276,12 @@ The plot checks follow the same shape:
   with its product when it is renamed.
 
 **Caches:**
-- **prepare caches:** `output/<P>/.cache/<tool>/<key>/`, with a `.prepared` stamp once the step
-  succeeded and left its marker;
-- **card checks:** `output/<P>/.cache/checks/`;
-- **reference data converted for Paint:** `output/<P>/.cache/datasets/<name>.root`.
+- **prepare caches:** `.cache/<P>/<tool>/<key>/`, with a `.prepared` stamp once the step succeeded
+  and left its marker;
+- **card checks:** `.cache/<P>/checks/`;
+- **reference data converted for Paint:** `.cache/<P>/datasets/<name>.root`.
+
+A work dir made before the split has `output/`: `hep migrate --layout` moves it (a dry run first).
 
 Where everything goes, as a tree, is [06 §14](06_Internals.md#14-where-files-go).
 

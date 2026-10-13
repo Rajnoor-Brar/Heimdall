@@ -140,7 +140,7 @@ class State:
                 return []
             if state == "skipped":
                 prefix, name = self._heading(event)
-                return [("say", f"{prefix}{name}: complete, skipped (--rerun to run it again)")]
+                return [("say", f"{prefix}{name}: {event.get('msg') or 'complete, skipped (--rerun to run it again)'}")]
             part = self.points.pop(key, None) or _Point("── ", point, event.get("t", time.time()))
             seconds = event.get("t", time.time()) - part.started
             if state == "done":

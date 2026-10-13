@@ -60,7 +60,7 @@ level = 2
 tool       = "exec"
 executable = "/bin/true"
 """, encoding="utf-8")
-    for var, value in (("HEP_WORK", root), ("HEP_OUTPUT", root / "output"), ("HEP_RESULTS", root / "results")):
+    for var, value in (("HEP_WORK", root), ("HEP_RECORDS", root / "records"), ("HEP_LOGS", root / "logs"), ("HEP_CACHE", root / "cache"), ("HEP_RESULTS", root / "results")):
         monkeypatch.setenv(var, str(value))
     paths.reset()
     yield root
@@ -76,7 +76,7 @@ def test_every_tool_reads_the_context_file_which_goes_when_the_point_ends(work):
     assert set(context) == {"copy", "spare"}                        # the chain's and generate_cards'
     assert tomllib.loads(Path(context["spare"]["config"]).read_text()) == {"level": 2}
     assert tomllib.loads(Path(context["copy"]["config"]).read_text()) == {"level": 1}
-    assert not list((work / "output").rglob("context.toml"))        # removed when the point ended
+    assert not list((work / "logs").rglob("context.toml"))          # removed when the point ended
     assert "HEP_CONTEXT" not in os.environ                           # never the user's shell's
 
 

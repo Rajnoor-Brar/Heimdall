@@ -19,8 +19,8 @@ from . import config as configmod
 from . import schema, tools
 from .errors import HepError, did_you_mean
 from .events import greeting, hubs
-from .paths import configs_root, find_work, output_root, results_root
-from .record import is_complete, complete_marker
+from .paths import cache_root, configs_root, find_work, logs_root, records_root, results_root
+from .record import complete_marker, held_by, holder, is_complete, provenance_file, record_dir
 
 TABLES = {"run": "run", "config": "config", "prelim": "prelim", "plot": "plot", "data": "data",
           "configuration": "configuration", "quantity": "quantity", "quantities": "quantity", "tool": "tool",
@@ -116,7 +116,7 @@ def module_settings(key: str) -> list[str]:
             raise HepError(f"no program {exe.name} built in this work dir", hint="hep build makes it (build/<project>/)")
         exe = found[0]
     try:
-        done = subprocess.run([str(exe), "--describe"], capture_output=True, text=True, timeout=60)
+        done = subprocess.run([str(exe), "--describe"], capture_output=True, text=True, encoding="utf-8", timeout=60)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise HepError(f"{exe.name} --describe did not answer: {error}") from None
     rows = [json.loads(line) for line in done.stdout.splitlines() if line.startswith("{")]
@@ -320,13 +320,17 @@ def running_configs() -> dict[str, list[str]]:
 
 
 def point_state(plan) -> str:
-    """complete; stale (complete for an earlier identity: a changed setup reruns it); incomplete (begun,
-    not done: failed, stopped or running); to run (never begun)."""
+    """complete; stale (complete for an earlier identity: a changed setup reruns it); running (a
+    session holds its lock, U66); incomplete (begun, not done: failed or stopped); to run (never begun,
+    or its logs are gone). From its records and its lock: deleting logs/ or .cache/ changes no state
+    but incomplete's."""
+    if holder(plan) is not None:
+        return "running"
     if is_complete(plan):
         return "complete"
     if complete_marker(plan).exists():
         return "stale"
-    if plan.out.exists() and any(plan.out.iterdir()):
+    if (plan.out.exists() and any(p.name != ".lock" for p in plan.out.iterdir())) or record_dir(plan).exists():
         return "incomplete"
     return "to run"
 
@@ -338,20 +342,27 @@ def status(planned: list, running: dict[str, list[str]]) -> list[str]:
         stages = [*([p.pre] if p.pre else []), *p.every, *p.combined, *([p.post] if p.post else [])]
         states = [point_state(s) for s in stages]
         live = p.configuration.key in running.get(str(p.run.path), [])
-        counts = ", ".join(f"{states.count(s)} {s}" for s in ("complete", "stale", "incomplete", "to run") if states.count(s))
+        counts = ", ".join(f"{states.count(s)} {s}" for s in ("complete", "stale", "running", "incomplete", "to run")
+                           if states.count(s))
         lines.append(f"{p.run.name} · {p.configuration.key} ({tools.run_dir(p.run, p.configuration)}): {counts}"
                      + ("   [running]" if live else ""))
         for stage, state in zip(stages, states):
             when = ""
-            provenance = stage.out / "provenance.json"
+            provenance = provenance_file(stage)
             if state == "complete" and provenance.exists():
                 when = time.strftime("%Y-%m-%d %H:%M", time.localtime(provenance.stat().st_mtime))
+            elif state == "running" and (who := holder(stage)):
+                when = f"({held_by(who)})"
             size = _human(_size(stage.res)) if stage.res.exists() else ""
-            lines.append(f"  {stage.point.name:24s} {state:10s} {when:16s} {size}")
+            lines.append(f"  {stage.point.name:24s} {state:10s} {when:16s} {size}".rstrip())
     return lines
 
 
 # ── hep clean ──────────────────────────────────────────────────────────────────────────────────
+
+def outs_stages(planned) -> list:
+    return [s for p in planned for s in [*([p.pre] if p.pre else []), *p.every, *p.combined, *([p.post] if p.post else [])]]
+
 
 def _stage_dirs(planned) -> tuple[set[Path], set[Path]]:
     outs, ress = set(), set()
@@ -362,23 +373,33 @@ def _stage_dirs(planned) -> tuple[set[Path], set[Path]]:
     return outs, ress
 
 
-def clean_targets(planned: list, everything: bool) -> tuple[list[Path], list[Path]]:
-    """What `hep clean` removes, and the results it only lists. Within each planned configuration's
-    folder: point folders no plan has (output side), and `.partial` leftovers (both sides). With
-    `everything` (no config named: every config was planned): also a project's run folders no
-    configuration has, and prepare cache entries no plan references."""
+#: Folders of a configuration's that are no point's: the stages, the pages, the submissions (U30).
+KEEP_NAMES = {"plots", "pre", "post", "cluster", "compare"}
+
+
+def clean_targets(planned: list, everything: bool, records: bool = False) -> tuple[list[Path], list[Path]]:
+    """What `hep clean` removes, and the results it only lists, by lifecycle (U21): within each planned
+    configuration's folder of logs/ (ephemeral), the point folders no plan has, and `.partial` leftovers
+    there and in results/. With `everything` (no config named: every config was planned): also a
+    project's run folders of logs/ no configuration has, and the prepare caches of .cache/ (derived) no
+    plan references. records/ only with `records`: the record folders no plan has (never a
+    configuration's cluster/ submissions). results/ is never removed, only listed."""
     remove: list[Path] = []
     kept: list[Path] = []
     outs, ress = _stage_dirs(planned)
-    keep_names = {"plots", "pre", "post"}
+    recs = {record_dir(s) for s in outs_stages(planned)}
     for p in planned:
-        base_out = output_root() / tools.run_dir(p.run, p.configuration)
+        base_out = logs_root() / tools.run_dir(p.run, p.configuration)
         base_res = results_root() / tools.run_dir(p.run, p.configuration)
+        base_rec = records_root() / tools.run_dir(p.run, p.configuration)
         for folder in sorted(base_out.iterdir()) if base_out.is_dir() else ():
-            if folder.is_dir() and folder not in outs and folder.name not in keep_names:
+            if folder.is_dir() and folder not in outs and folder.name not in KEEP_NAMES:
+                remove.append(folder)
+        for folder in sorted(base_rec.iterdir()) if records and base_rec.is_dir() else ():
+            if folder.is_dir() and folder not in recs and folder.name not in KEEP_NAMES:
                 remove.append(folder)
         for folder in sorted(base_res.iterdir()) if base_res.is_dir() else ():
-            if folder.is_dir() and folder not in ress and folder.name not in keep_names:
+            if folder.is_dir() and folder not in ress and folder.name not in KEEP_NAMES:
                 kept.append(folder)
         for root in (base_out, base_res):
             if root.is_dir():
@@ -387,20 +408,20 @@ def clean_targets(planned: list, everything: bool) -> tuple[list[Path], list[Pat
         used_runs: dict[str, set[Path]] = {}
         referenced: set[Path] = set()
         for p in planned:
-            used_runs.setdefault(p.run.project, set()).add(output_root() / tools.run_dir(p.run, p.configuration))
+            used_runs.setdefault(p.run.project, set()).add(logs_root() / tools.run_dir(p.run, p.configuration))
             for stage in [*p.every, *p.combined, *([p.pre] if p.pre else []), *([p.post] if p.post else [])]:
                 for step in stage.rendered.values():
                     if step.prepare_dir is not None:
                         referenced.add(step.prepare_dir)
         for project, used in used_runs.items():
-            root = output_root() / project
+            root = logs_root() / project
             for run_folder in sorted(root.iterdir()) if root.is_dir() else ():
                 if run_folder.name.startswith(".") or not run_folder.is_dir():
                     continue
                 for cfg in sorted(run_folder.iterdir()):
                     if cfg.is_dir() and cfg not in used and not any(u.is_relative_to(cfg) or cfg.is_relative_to(u) for u in used):
                         remove.append(cfg)
-            cache = root / ".cache"
+            cache = cache_root() / project
             for tool_dir in sorted(cache.iterdir()) if cache.is_dir() else ():
                 if tool_dir.name in ("checks", "datasets") or not tool_dir.is_dir():
                     continue

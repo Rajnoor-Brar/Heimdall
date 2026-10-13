@@ -79,7 +79,11 @@ def hep(config: Path, where: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def base(where: Path) -> Path:
-    return where / "output" / "Demo" / "sw"
+    return where / "logs" / "Demo" / "sw"                                    # the journals: logs/
+
+
+def recorded(where: Path) -> Path:
+    return where / "records" / "Demo" / "sw"                                 # the .complete markers: records/
 
 
 def records(journal: Path) -> list[dict]:
@@ -94,7 +98,7 @@ def test_the_swept_configurations_run_one_after_another(scratch):
     assert out.index("run 01 - a -") < out.index("run 02 - Bee -") < out.index("run 03 - d -")
     assert "FAILED [check]" in out and "run 04" not in out
     assert not (base(scratch) / "c").exists()                          # swept = false
-    assert [p.parent.parent.name for p in sorted(base(scratch).glob("*/*/.complete"))] == ["a", "d"]
+    assert [p.parent.parent.name for p in sorted(recorded(scratch).glob("*/*/.complete"))] == ["a", "d"]
     first = records(base(scratch) / "a" / "status.jsonl")
     assert first[-1]["k"] == "run" and first[-1]["next"] == str(base(scratch) / "b" / "status.jsonl")
     assert records(base(scratch) / "b" / "status.jsonl")[-1]["next"] == str(base(scratch) / "d" / "status.jsonl")
@@ -107,7 +111,7 @@ def test_a_config_error_anywhere_runs_nothing(scratch):
     done = hep(sweep_config(scratch, d_static='{ fail = "nosuch" }'), scratch)
     assert done.returncode == 2, done.stdout[-2000:]
     assert "configuration 'd'" in done.stderr
-    assert not base(scratch).exists() or not list(base(scratch).glob("*/*/.complete"))
+    assert not recorded(scratch).exists() or not list(recorded(scratch).glob("*/*/.complete"))
 
 
 def test_points_belong_to_one_configuration(scratch):
@@ -185,7 +189,7 @@ def test_a_sweep_of_runs_is_pipelined(scratch):
     config.write_text(PIPE.format(script=script), encoding="utf-8")
     done = hep(config, scratch)
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
-    root = scratch / "output" / "Demo" / "pipe"
+    root = scratch / "logs" / "Demo" / "pipe"
     x, y = (records(next(root.glob(f"*{k}/status.jsonl"))) for k in ("x", "y"))
     assert all(r.get("run") == "x" for r in x) and all(r.get("run") == "y" for r in y)   # each journal its own run's
     x_last_end = max(r["t"] for r in x if r.get("k") == "point" and r.get("state") == "done")

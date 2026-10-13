@@ -311,8 +311,10 @@ def _planned(path: str, key: str, sets=(), rerun: bool = False):
 
 @pytest.fixture
 def trees_of_its_own(scratch, monkeypatch):
-    """output/ and results/ of this test alone: a folder's number depends on what is on disk."""
-    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
+    """records/, logs/ and results/ of this test alone: a folder's number depends on what is on disk."""
+    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
+    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     monkeypatch.setenv("HEP_RESULTS", str(scratch / "results"))
     return scratch
 

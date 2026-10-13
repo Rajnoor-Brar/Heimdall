@@ -44,7 +44,7 @@ hep run Demo/jets energy_pdf                      framework/bin/hep → framewor
   │
   ├─ pre      tools run once before every point (their products are inputs of every point)
   ├─ for each point ──────────────────────────────────────────────────────────────────────────────┐
-  │    skip?     output/…/<point>/.complete holds this identity  →  next point                      │
+  │    skip?     records/…/<point>/.complete holds this identity  →  next point                     │
   │    prelim    mkfifo events.hepmc, touch agreed files, run prelim commands                       │
   │    prepare   cached slow steps (Sherpa's integration, Herwig's read), once per card             │
   │    group 1   App_Pythia ══FIFO══► rivet          together, one process group each, supervised   │

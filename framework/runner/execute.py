@@ -44,7 +44,8 @@ from pathlib import Path
 from . import hepfiles
 from .errors import HepError
 from .paths import placeholders
-from .record import complete_marker, is_complete, now, provenance, write_atomic, write_identity
+from .record import (PointLock, complete_marker, held_by, holder, is_complete, now, provenance, provenance_file,
+                     write_atomic, write_identity)
 from .status import Reader, ToolState
 from .tools import CONTEXT_FILE, PointPlan, Step, expand
 
@@ -73,6 +74,7 @@ class ToolResult:
 class PointResult:
     ok: bool
     stopped: bool = False
+    held: bool = False                   # another session runs it (U66): skipped, neither done nor failed
     cause: str = ""                      # the tag to blame
     message: str = ""
     tools: dict[str, ToolResult] = field(default_factory=dict)
@@ -112,12 +114,13 @@ class Budget:
 
 def run_points(plans: list[PointPlan], run, configuration, *, bus=None, stopper: Stopper,
                rerun: bool, logs: bool = False, budget: Budget | None = None,
-               started_all=None) -> tuple[int, int, bool]:
+               started_all=None, wait_held: bool = False) -> tuple[int, int, bool]:
     """Every point not already complete, `configuration.parallelism` at a time, in order: (done,
     failed, stopped). A stop (Ctrl-C) starts nothing more and stops the running points through
     their groups' stop ladder. An error of the runner itself is raised once the running points
     have ended. In a pipelined sweep (V75) a point also waits for its cores in the shared `budget`, and
-    `started_all()` is called once every point has started (the next run may then start)."""
+    `started_all()` is called once every point has started (the next run may then start). A point another
+    session runs is skipped, or with `wait_held` waited for (U66)."""
     bus = _bus(bus)
     todo = []
     for plan in plans:
@@ -141,10 +144,10 @@ def run_points(plans: list[PointPlan], run, configuration, *, bus=None, stopper:
         for i, plan in enumerate(todo):
             if i == len(todo) - 1:
                 all_started()
-            result = run_point(plan, run, configuration, bus=bus, stopper=stopper, logs=logs)
+            result = run_point(plan, run, configuration, bus=bus, stopper=stopper, logs=logs, wait=wait_held)
             if result.stopped or stopper.requested:
                 return done, failed, True
-            failed += not result.ok
+            failed += not result.ok and not result.held
             done += result.ok
         all_started()
         return done, failed, False
@@ -159,7 +162,7 @@ def run_points(plans: list[PointPlan], run, configuration, *, bus=None, stopper:
                 if budget is not None and not budget.take(need):
                     break                             # its cores are another run's for now
                 todo.pop(0)
-                future = pool.submit(run_point, plan, run, configuration, bus=bus, stopper=stopper, logs=logs)
+                future = pool.submit(run_point, plan, run, configuration, bus=bus, stopper=stopper, logs=logs, wait=wait_held)
                 held[future] = need
                 running.add(future)
             if not todo:
@@ -179,7 +182,7 @@ def run_points(plans: list[PointPlan], run, configuration, *, bus=None, stopper:
                     error = error or caught
                     continue
                 stopped |= result.stopped
-                failed += not result.ok and not result.stopped
+                failed += not result.ok and not result.stopped and not result.held
                 done += result.ok
     all_started()
     if error is not None:
@@ -276,7 +279,7 @@ def prepare(plan: PointPlan, logs: bool = False) -> None:
         write_atomic(path, text)
     for step in plan.rendered.values():  # a product left by an earlier attempt must not pass for this one's
         for final, partial in step.products:
-            final.parent.mkdir(parents=True, exist_ok=True)          # a shard's is under output/…/shards/
+            final.parent.mkdir(parents=True, exist_ok=True)          # a shard's is under logs/…/shards/
             for path in (final, partial, report_of(final), report_of(partial)):
                 path.unlink(missing_ok=True)
     for interface in plan.interfaces.values():
@@ -444,9 +447,30 @@ def _describe(code: int) -> str:
 # ── one point ──────────────────────────────────────────────────────────────────────────────────
 
 def run_point(plan: PointPlan, run, configuration, *, bus=None, stopper: Stopper | None = None,
-              logs: bool = False) -> PointResult:
+              logs: bool = False, wait: bool = False) -> PointResult:
+    """One point, under its lock (U66): a point another session runs is skipped, naming who runs it,
+    or (`wait`) waited for, then skipped if that session completed it."""
     bus = _bus(bus)
     stopper = stopper or Stopper()
+    lock = PointLock(plan)
+    stage = {"stage": plan.point.stage} if plan.point.stage else {}
+    if not lock.acquire(wait=wait, stopper=stopper):
+        if stopper.requested:
+            return PointResult(False, stopped=True)
+        who = holder(plan)
+        message = f"running in another session ({held_by(who)}): skipped" if who else "running in another session: skipped"
+        bus.emit(plan.point.name, "", {"k": "point", "state": "skipped", "index": plan.point.index, "msg": message, **stage})
+        return PointResult(False, held=True, message=message)
+    try:
+        if wait and is_complete(plan):                # the other session completed it meanwhile
+            bus.emit(plan.point.name, "", {"k": "point", "state": "skipped", "index": plan.point.index, **stage})
+            return PointResult(False, held=True)
+        return _run_point(plan, run, configuration, bus=bus, stopper=stopper, logs=logs)
+    finally:
+        lock.release()
+
+
+def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, logs: bool) -> PointResult:
     started = now()
     results: dict[str, ToolResult] = {}
     bus.emit(plan.point.name, "", {"k": "point", "state": "started", "index": plan.point.index,
@@ -482,7 +506,7 @@ def run_point(plan: PointPlan, run, configuration, *, bus=None, stopper: Stopper
     _cleanup(plan)
     record = provenance(plan, run, configuration, started, now(),
                         {tag: {"exit": r.exit, "seconds": round(r.seconds, 3), "note": r.message} for tag, r in results.items()})
-    write_atomic(plan.out / "provenance.json", json.dumps(record, indent=1, default=str) + "\n")
+    write_atomic(provenance_file(plan), json.dumps(record, indent=1, default=str) + "\n")
     write_identity(plan)                          # what it ran with, for --why (V57)
     write_atomic(complete_marker(plan), plan.identity + "\n")
     result = PointResult(True, tools=results)

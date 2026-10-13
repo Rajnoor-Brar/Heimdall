@@ -638,7 +638,13 @@ def _clash(one: str, other: str) -> bool:
 
 def _own_folders(run) -> None:
     """A configuration the runner numbers has its folder to itself: another of this file with its label
-    would share the numbers."""
+    would share the numbers. A run with compare figures keeps the folder `compare` for them (U30)."""
+    figures = (run.plot or {}).get("figures") or {}
+    if any(isinstance(f, dict) and f.get("class") == "compare" for f in figures.values()):
+        for key, c in run.configurations.items():
+            if c.serial is None and not c.serial_auto and c.label == "compare":
+                raise HepError(f"configuration '{key}' would write the folder 'compare', where this run's compare "
+                               "figures go", where=f"{run.path}", hint="give it another folder (label), or a serial")
     mine = _folder_list(run)
     for i, (folder, key) in enumerate(mine):
         for other, other_key in mine[i + 1:]:

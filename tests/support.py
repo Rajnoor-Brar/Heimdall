@@ -23,8 +23,9 @@ def apps() -> Path:
 
 
 def env(where: Path) -> dict:
-    """The environment of a run whose output/ and results/ are under `where`."""
-    return dict(os.environ, HEP_OUTPUT=str(where / "output"), HEP_RESULTS=str(where / "results"))
+    """The environment of a run whose records/, logs/, cache/ and results/ are under `where`."""
+    return dict(os.environ, HEP_RECORDS=str(where / "records"), HEP_LOGS=str(where / "logs"),
+                HEP_CACHE=str(where / "cache"), HEP_RESULTS=str(where / "results"))
 
 
 def hep(where: Path, *args: str, command: str = "run", plain: bool = True, timeout: float = 1800,
@@ -46,9 +47,28 @@ def hep_ok(where: Path, *args: str, timeout: float = 1800) -> str:
     return done.stdout
 
 
-def folder(config: str, configuration: str | None = None) -> Path:
+def folder(config: str, configuration: str | None = None, where: Path | None = None) -> Path:
     """<project>/<run name>/<NN_label> of a configuration, as the runner names it (tools.run_dir, V45):
-    tests never spell the layout out."""
+    tests never spell the layout out. A v3 configuration without a serial is numbered by the runner
+    (V131): its newest folder under `where`'s records/ or results/, else 01, its first."""
     from runner import config as configmod, tools
     run = configmod.load(config)
-    return tools.run_dir(run, run.configuration(configuration))
+    c = run.configuration(configuration)
+    if c.serial_auto:
+        taken = set()
+        for root in ((where / "records", where / "results") if where is not None else ()):
+            parent = root / run.project / (c.run_folder or run.name)
+            taken |= {int(p.name.split("_", 1)[0]) for p in (parent.iterdir() if parent.is_dir() else ())
+                      if p.name.split("_", 1)[0].isdigit() and p.name.split("_", 1)[-1] == c.label}
+        c.serial = max(taken, default=1)
+    return tools.run_dir(run, c)
+
+
+def records(where: Path) -> Path:
+    """`where`'s records/: provenance, identity, .complete, points.json, cluster submissions (U21)."""
+    return where / "records"
+
+
+def logs(where: Path) -> Path:
+    """`where`'s logs/: each point's cards, configs, logs and FIFOs; journals; page documents."""
+    return where / "logs"

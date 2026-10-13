@@ -31,7 +31,8 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--only pre\|post\|plot` | rerun only the pre tools, the post tools or the plots |
 | `--stages LIST` | run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; hep cluster's jobs) |
 | `--plain` | plain lines instead of the live view |
-| `--journal` | also write every status event to output/…/status.jsonl (for hep watch --file and replay) |
+| `--wait` | a point another session is running: wait for it (default: skip it, naming who runs it) |
+| `--journal` | also write every status event to logs/…/status.jsonl (for hep watch --file and replay) |
 | `--logs` | keep every tool's whole output in logs/<tag>.log (default: only a failed tool's last lines) |
 
 **`hep plot`**: draw a configuration's pages from its complete points
@@ -89,23 +90,25 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `CONFIG…` | configs to migrate (default: every config) |
 | `--v3` | into the run TOML's third form (03 §6, runner/v3.py) |
+| `--layout` | move the work dir's output/ into records/, logs/ and .cache/ (no configs are read) |
 | `--apply` | write the changes (default: print the diff) |
 
 **`hep reproduce`**: run a finished point again, from its provenance, beside it
 
 | Argument | Meaning |
 |---|---|
-| `provenance` | output/…/<point>/provenance.json |
+| `provenance` | records/…/<point>/provenance.json |
 | `--anyway` | run it even though the setup changed since |
 | `--plain` | plain lines instead of the live view |
 
-**`hep clean`**: remove what the runner made and no plan uses (output/ only)
+**`hep clean`**: remove what the runner made and no plan uses: logs/ and .cache/ (records/ with --records)
 
 | Argument | Meaning |
 |---|---|
 | `[config]` | one config (default: every config, and the unused caches) |
 | `--dry-run` | list only |
 | `--yes` | delete without asking |
+| `--records` | also the records no plan has (provenance, identities, completion): asked for even with --yes |
 
 **`hep check`**: check run TOMLs: every configuration loaded, validated and planned
 
@@ -201,7 +204,7 @@ the others.
   what is unchanged (`--rerun` as usual): what `hep cluster`'s jobs run (§1.9). A run of the points
   alone writes no `points.json` and draws nothing; the points refuse to start without their pre
   stage complete.
-- **`--journal`** also writes the run's events to `output/…/<cfg>/status.jsonl` (V72). Without it,
+- **`--journal`** also writes the run's events to `logs/…/<cfg>/status.jsonl` (V72). Without it,
   nothing of the run's state is on disk.
 - **`--logs`** keeps every tool's whole output; without it, only a failed tool's last 200 lines are
   kept.
@@ -245,19 +248,29 @@ This is housekeeping (V74).
   (`rivet.analyses`), a style key (`style.page.dpi`), a quantity of the vocabulary, `deck.toml` and
   `machine.toml`.
 - **`status`** gives every configuration's points and stages, each **complete**, **stale** (complete
-  for an earlier identity: it reruns), **incomplete** (begun, not done: failed, stopped or running)
-  or **to run**. Each comes with when it finished and its results' size, and `[running]` marks a
-  configuration a job is running now. `status --stack` gives each package of
+  for an earlier identity: it reruns), **running** (a session holds its lock: `(pid N on <host>,
+  since …)`, U66), **incomplete** (begun, not done: failed or stopped) or **to run**. It reads the
+  records and the locks, so deleting `logs/` or `.cache/` changes no state. Each comes with when it
+  finished and its results' size, and `[running]` marks a configuration a job is running now. `status --stack` gives each package of
   `env/stack.toml`, its version and where it is (V78).
-- **`clean`** removes what the runner made and no plan uses:
-  - within each configuration's folder, the point folders no plan has (in `output/`) and the
-    `.partial` leftovers (in `output/` and `results/`);
-  - with no config named, every config is planned (all must plan), and the run folders no
-    configuration has and the prepare cache entries no plan references go too.
+- **`clean`** removes, by lifecycle (U21), what the runner made and no plan uses:
+  - within each configuration's folder, the point folders no plan has (in `logs/`) and the
+    `.partial` leftovers (in `logs/` and `results/`);
+  - with no config named, every config is planned (all must plan), and the run folders of `logs/` no
+    configuration has and the prepare cache entries of `.cache/` no plan references go too;
+  - with `--records`, also the record folders no plan has (`records/`: provenance, identity,
+    completion), never a configuration's `cluster/` submissions. Removing records is asked for by
+    name on a terminal (type `records`), even with `--yes`.
 
   It never removes a result: an unused point's `results/` folder is listed as kept. It lists first,
   then asks on a terminal (`--yes` elsewhere); `--dry-run` only lists, and it refuses while a job is
   running.
+- **Two sessions, one point** (U66): a point another session is running is skipped, its block naming
+  who runs it (`running in another session (pid N on <host>, since …): skipped`); `hep run --wait`
+  waits for it instead, and skips it if that session completed it. The lock is an `flock` on the
+  point's `logs/…/<point>/.lock`, which the kernel frees when the holder ends, however it ends.
+- **`migrate --layout`** moves a work dir made before the split from `output/` into `records/`,
+  `logs/` and `.cache/` (a dry run that counts the files first; `--apply` moves them, by rename).
 
 ### 1.4 `hep check`
 
@@ -304,7 +317,7 @@ It reads each config leniently (the old forms included) before writing anything,
 
 `hep reproduce` runs a finished point again (V77), exactly as it ran: its config, its configuration,
 its `--set` overrides (the provenance records them) and its seed.
-- **Where it runs:** into `output/<P>/.reproduce/<identity>/`, with its own `output/` and
+- **Where it runs:** into `logs/<P>/.reproduce/<identity>/`, with its own `records/`, `logs/` and
   `results/`, never over the original.
 - **The comparison:** each product against the original's, giving `identical`, `the same values` or
   `differs`, with exit 1 if any differs:
@@ -341,7 +354,7 @@ starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
 `hep cluster <config> [<configuration>]` runs a configuration as Slurm jobs, from the cluster's login
 node (V114; how to, [02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster); the keys,
 [04 §16](04_Config_Reference.md#16-cluster-running-on-slurm)). It plans as `hep run --plan` does, with
-every check, then writes three scripts into `output/<P>/<run>/<cfg>/cluster/<stamp>/` and submits
+every check, then writes three scripts into `records/<P>/<run>/<cfg>/cluster/<stamp>/` and submits
 them with `sbatch --parsable`:
 
 | Job | Runs | Waits for |
@@ -401,7 +414,7 @@ sees ([02 §1](02_User_Guide.md#1-set-up-and-build); their options are in §1).
 | `HEP_INSTALL`, `HEP_VENV` | `setup.sh` | the loaded stack (`stack/`, or `stacks/<toolkit>/stack`) and its Python environment |
 | `HEP_STACK` | `stacks/<toolkit>/setup.sh` | an isolated toolkit's stack is loaded: Heimdall's apps are `stacks/<toolkit>/Apps/` (built against it) |
 | `HEP_WORK` | you, tests | the work dir, instead of the walk up from the working directory (it must have a `hep.toml` with `[work]`) |
-| `HEP_OUTPUT`, `HEP_RESULTS`, `HEP_REPORTS` | you, tests | replace the work dir's `output/`, `results/` and `reports/` (the tests point them into `forge/scratch/`) |
+| `HEP_RECORDS`, `HEP_LOGS`, `HEP_CACHE`, `HEP_RESULTS`, `HEP_REPORTS` | you, tests | replace the work dir's `records/`, `logs/`, `.cache/`, `results/` and `reports/` (the tests point them into `forge/scratch/`) |
 | `HEP_CONFIGS` | you | replaces the work dir's `configs/` as the root of run TOMLs and their cards |
 | `HEP_STATUS_FD` | the runner, per tool | the status pipe of a `status = "standard"` tool |
 | `RIVET_ANALYSIS_PATH` | the rivet and merge folders, per run | the work dir's `build/Rivet` (not set in the shell on purpose) |
@@ -483,7 +496,7 @@ output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04
     lacks) refuses the plan, with the line's source.
   - No list of keys is kept: a nucleus or an `id:new` particle earlier in the card is read as Pythia
     reads it.
-  - Answers are cached by the card's text, in `output/<P>/.cache/checks/`.
+  - Answers are cached by the card's text, in `.cache/<P>/checks/`.
 - **Footer** `Beams:LHEF = <input>`, only when the tool has an input: a shower of an LHE file from an
   earlier group (MadGraph). The base card sets `Beams:frameType = 4`.
 - **Consumes** through the vocabulary: `energies`, `sqrts`, `beam_a`, `beam_b`, `beams`, `pdf`
@@ -555,7 +568,7 @@ shards   = 10
   - the runner makes the FIFOs `events.s1.hepmc` … `events.s10.hepmc` in place of `events.hepmc`;
   - App_Pythia deals the events among them (§16);
   - the steps `rivet.1` … `rivet.10` run in the group, each writing
-    `output/…/<point>/shards/validation.s<i>.yoda`, and each is count-checked against **its own share**
+    `logs/…/<point>/shards/validation.s<i>.yoda`, and each is count-checked against **its own share**
     (`written_per_output` in the sidecar);
   - then `rivet.merge`, a step of its own in the next group, runs `rivet-merge -e` (the `merge`
     folder) into the table's `output` (`validation.yoda`, in `results/`).
@@ -940,7 +953,7 @@ Paint draws many pages in one ROOT process (V64; the plot stage sends up to 200 
 - **Exit codes**: 0 ok, 1 page config or style (with several pages: any failed), 2 usage, 4 input,
   5 output.
 
-**The page document**, written by the runner to `output/…/plots/[<cell>/]<object>.toml`. Its labels
+**The page document**, written by the runner to `logs/…/plots/[<cell>/]<object>.toml`. Its labels
 are LaTeX converted to TLatex, which Paint draws:
 
 ```toml
@@ -977,7 +990,7 @@ style  = { colour = "#EE3311" }                         # optional: the value's 
 band   = [{ file = "/…/default.root", object = "…" }]   # optional: the envelope's members (V69)
 
 [data]                             # optional
-file   = "/…/output/Demo/.cache/datasets/ZEUS_2012_I1116258.yoda.root"
+file   = "/…/.cache/Demo/datasets/ZEUS_2012_I1116258.yoda.root"
 object = "REF/ZEUS_2012_I1116258/d06-x01-y01"
 label  = "ZEUS 2012"
 ```

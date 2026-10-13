@@ -55,6 +55,7 @@ def completed(run, configuration) -> list:
     for plan in plans:
         shutil.rmtree(plan.res, ignore_errors=True)
         shutil.rmtree(plan.out, ignore_errors=True)
+        shutil.rmtree(record.record_dir(plan), ignore_errors=True)
         source = LEGACY / ("mini_27x920_ep_MSTW.yoda" if "MSTW" in plan.point.name else "mini_27x920_ep_NNLO.yoda")
         product = plot.yoda_of(plan)
         product.parent.mkdir(parents=True, exist_ok=True)
@@ -131,7 +132,7 @@ def test_the_sweep_is_merged_once_into_the_file_the_pages_read(stage):
     uproot = pytest.importorskip("uproot")
     with uproot.open(merged) as f:
         assert {k.split("/")[0] for k in f.keys() if "/" in k} == {p.point.name for p in plans}
-        assert "points.json" in {k.split(";")[0] for k in f.keys()} or not (plans[0].out.parent / "points.json").exists()
+        assert "points.json" in {k.split(";")[0] for k in f.keys()} or not record.manifest_file(plans).exists()
 
 
 def test_figures_are_recipes_for_pages(stage):
@@ -411,6 +412,7 @@ def test_a_swept_analysis_option_is_a_curve_not_a_page(scratch):
     for plan, r in zip(plans, ("0.4", "0.7")):
         shutil.rmtree(plan.res, ignore_errors=True)
         shutil.rmtree(plan.out, ignore_errors=True)
+        shutil.rmtree(record.record_dir(plan), ignore_errors=True)
         text = (LEGACY / "mini_27x920_ep_MSTW.yoda").read_text()
         text = text.replace("/photo_eic/", f"/photo_eic:R={r}/")
         product = plot.yoda_of(plan)

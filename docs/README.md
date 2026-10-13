@@ -8,7 +8,7 @@ it; after all points it draws the pages with ROOT (Paint) or rivet-mkhtml.
 
 Two places: **Heimdall** (`$HEP`: the framework, the stack it runs on, its compiled apps) and your
 **work dirs**, as many as you like (`configs/`, `modules/`, `datasets/`, and what runs make:
-`output/` for technical files, `results/` for products, `build/` for your compiled modules).
+`records/` for what runs recorded, `logs/` and `.cache/` for what can go, `results/` for products, `build/` for your compiled modules).
 
 ```bash
 source ~/Github/Heimdall/setup.sh                 # load_hep: the environment

@@ -45,7 +45,7 @@ def test_the_scheduler_keeps_k_points_running_in_order(monkeypatch):
     live, peak, started = [0], [0], []
     lock = threading.Lock()
 
-    def run_point(plan, run, configuration, *, bus, stopper, logs):
+    def run_point(plan, run, configuration, *, bus, stopper, logs, wait=False):
         with lock:
             live[0] += 1
             peak[0] = max(peak[0], live[0])
@@ -67,7 +67,7 @@ def test_the_scheduler_keeps_k_points_running_in_order(monkeypatch):
 def test_a_stop_starts_nothing_more(monkeypatch):
     stopper, started = Stopper(), []
 
-    def run_point(plan, run, configuration, *, bus, stopper, logs):
+    def run_point(plan, run, configuration, *, bus, stopper, logs, wait=False):
         started.append(plan.point.name)
         time.sleep(0.05)
         stopper.requested = True                                     # Ctrl-C while the first ones run
@@ -169,7 +169,7 @@ def test_a_pipelined_run_says_when_every_point_has_started(monkeypatch):
     """V75: the gate opens once the last point has started, not when it ends; the budget is shared."""
     events, gate = [], threading.Event()
 
-    def run_point(plan, run, configuration, *, bus, stopper, logs):
+    def run_point(plan, run, configuration, *, bus, stopper, logs, wait=False):
         events.append(("start", plan.point.name, gate.is_set()))
         time.sleep(0.05)
         return PointResult(True)

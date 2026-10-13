@@ -17,15 +17,15 @@ def test_a_misspelt_setting_is_refused_before_the_first_event(work_built, scratc
     exe = WORK / "build" / "Decay" / "Decay.exe"
     config = scratch / "config.toml"
     config.write_text("bins = 10\nmas_tolerance = 0.1\n[quantities]\nsqrts = 100\n", encoding="utf-8")
-    done = subprocess.run([str(exe), str(config), "--input=/nowhere.hepmc"], capture_output=True, text=True, timeout=60)
+    done = subprocess.run([str(exe), str(config), "--input=/nowhere.hepmc"], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert done.returncode == 1                                          # Kit::Config, not an input error
     assert "unknown setting 'mas_tolerance' (did you mean 'mass_tolerance'?)" in done.stdout + done.stderr
 
 
 def test_the_settings_are_described(work_built):
     exe = WORK / "build" / "Decay" / "Decay.exe"
-    described = subprocess.run([str(exe), "--describe"], capture_output=True, text=True, timeout=60)
+    described = subprocess.run([str(exe), "--describe"], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert described.returncode == 0 and '"name": "mass_tolerance"' in described.stdout
     shown = subprocess.run([str(HEP), "explain", "Decay.exe.mass_tolerance"], cwd=WORK, capture_output=True,
-                           text=True, timeout=60)
+                           text=True, encoding="utf-8", timeout=60)
     assert shown.returncode == 0 and "mass_tolerance" in shown.stdout and "0.15" in shown.stdout

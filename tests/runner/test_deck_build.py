@@ -50,7 +50,9 @@ def talk(tmp_path, monkeypatch):
     """A deck over two result folders of P/validation, each with a drawn page d01."""
     results = tmp_path / "results"
     monkeypatch.setenv("HEP_RESULTS", str(results))
-    monkeypatch.setenv("HEP_OUTPUT", str(tmp_path / "output"))
+    monkeypatch.setenv("HEP_RECORDS", str(tmp_path / "records"))
+    monkeypatch.setenv("HEP_LOGS", str(tmp_path / "logs"))
+    monkeypatch.setenv("HEP_CACHE", str(tmp_path / "cache"))
     for folder, colour in (("01_PDFs_010M", "lightblue"), ("01_PDFs_050M", "lightgreen")):
         plot(results / "P" / "validation" / folder / "plots" / "root" / "d01-x01-y01.pdf", colour)
     folder = tmp_path / "talk"

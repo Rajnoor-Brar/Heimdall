@@ -37,13 +37,16 @@ MARKER_FILE = "hep.toml"
 HEP_VAR = "HEP"
 WORK_VAR = "HEP_WORK"
 RESULTS_VAR = "HEP_RESULTS"
-OUTPUT_VAR = "HEP_OUTPUT"
+RECORDS_VAR = "HEP_RECORDS"
+LOGS_VAR = "HEP_LOGS"
+CACHE_VAR = "HEP_CACHE"
 CONFIGS_VAR = "HEP_CONFIGS"
 REPORTS_VAR = "HEP_REPORTS"
 
 #: High-Energy's variables (K15): a shell that still sets one is refused, with its replacement named.
-RETIRED = {"HEKIT_ROOT": "HEP", "HEKIT_CONFIGS": "HEP_CONFIGS", "HEKIT_OUTPUT": "HEP_OUTPUT",
-           "HEKIT_RESULTS": "HEP_RESULTS", "HEKIT_REPORTS": "HEP_REPORTS"}
+RETIRED = {"HEKIT_ROOT": "HEP", "HEKIT_CONFIGS": "HEP_CONFIGS", "HEKIT_OUTPUT": "HEP_RECORDS and HEP_LOGS",
+           "HEKIT_RESULTS": "HEP_RESULTS", "HEKIT_REPORTS": "HEP_REPORTS",
+           "HEP_OUTPUT": "HEP_RECORDS, HEP_LOGS and HEP_CACHE: output/ is split by lifecycle"}
 
 
 def check_retired() -> None:
@@ -161,9 +164,23 @@ def results_root() -> Path:
     return _rooted(RESULTS_VAR, "results")
 
 
-def output_root() -> Path:
-    """Where technical files go: $HEP_OUTPUT (tests set it) or <work>/output."""
-    return _rooted(OUTPUT_VAR, "output")
+def records_root() -> Path:
+    """What runs recorded, precious (U21): each point's provenance, identity and .complete, a
+    configuration's points.json and cluster submissions. $HEP_RECORDS (tests set it) or <work>/records;
+    `hep clean` leaves it unless told --records."""
+    return _rooted(RECORDS_VAR, "records")
+
+
+def logs_root() -> Path:
+    """Ephemeral: each point's working folder (cards, configs, logs, FIFOs, scratch files, the context
+    file), journals, page documents. $HEP_LOGS (tests set it) or <work>/logs."""
+    return _rooted(LOGS_VAR, "logs")
+
+
+def cache_root() -> Path:
+    """Derived, rebuilt on demand: prepare caches, card checks, converted reference data. $HEP_CACHE
+    (tests set it) or <work>/.cache."""
+    return _rooted(CACHE_VAR, ".cache")
 
 
 def reports_root() -> Path:
@@ -306,6 +323,16 @@ def portable(path) -> str:
         root = str(root)
         if text == root or text.startswith(root + "/"):
             return name + text[len(root):]
+    return text
+
+
+def unportable(text: str) -> str:
+    """A path portable() wrote, under today's roots ({work}, {hep}, {apps}, {machine}); anything else as
+    it is (a record written before, with absolute paths)."""
+    roots = {"{apps}": apps_dir, "{machine}": machine_root, "{hep}": hep_root, "{work}": work_root}
+    for name, root in roots.items():
+        if text == name or text.startswith(name + "/"):
+            return str(root()) + text[len(name):]
     return text
 
 

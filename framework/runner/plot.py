@@ -11,7 +11,7 @@ docs/04_Config_Reference.md §11, docs/05_Commands_and_Tools.md §18. After the 
   a figure's own ([plot.figures.<figure>], V80); every text is LaTeX (V65), and may cite the points (V66):
   {cell}, {q:<quantity>} (a value's label), and what the tools' folders give ({opt:ETMIN}: Rivet's);
 * reference data are drawn only through the explicit [plot.data].map (L18);
-* one Paint config per page, output/…/plots/[<page>/]<object>.toml, drawn to
+* one Paint config per page, logs/…/plots/[<page>/]<object>.toml, drawn to
   results/…/plots/root/[<page>/]<object>.<fmt>; the yoda backend writes results/…/plots/yoda/, and
   backend = ["root", "yoda"] (or "both") writes both from the same pages;
 * the style is src/Apps/Paint/base.toml, which Paint reads itself; a page's [style] holds only
@@ -37,8 +37,8 @@ import tomli_w
 from . import hepfiles, plugins, schema
 from .errors import HepError, did_you_mean
 from .labels import canonical, labels_of, lines_of, macros, root_text, tlatex  # noqa: F401 (tlatex et al. re-exported)
-from .paths import apps_dir, hep_root, output_root, resolve, results_root
-from .record import is_complete
+from .paths import apps_dir, cache_root, hep_root, logs_root, resolve, results_root
+from .record import is_complete, manifest_file
 from .tools import merge_files, sha256_file
 from .sweep import axes, label_of, tag_of
 
@@ -381,7 +381,7 @@ def pages(run, configuration, plans) -> list[Page]:
     page_groups, curve_groups = axes_of(configuration)
     sources = point_yodas(run, complete)
     root = merge(sources, res_dir / f"{configuration.label}.root", out_dir / "merged.sha256",
-                 complete[0].out.parent / "points.json")
+                 manifest_file(complete))
     drawn = [f for f in declared if f.kind in ("defined", "overlay")] + derived_figures(declared)
     made = _pages(run, complete, sources, root, drawn, page_groups, curve_groups, out_dir, res_dir, implicit=True,
                   labels_from=_labels_from(declared, sources))
@@ -457,7 +457,7 @@ def compare_pages(run, figure: Figure, sets: list[tuple]) -> list[Page]:
     """A compare figure's pages (V83): its objects' pages, one per page cell of the configurations, whose
     curves are every configuration's points (or combined groups), labelled by the configuration first.
     `sets`: (configuration, its complete plans) in the figure's order. Into
-    output/…/<run>/compare/<name>/ and results/…/<run>/compare/<name>/<backend>/."""
+    logs/…/<run>/compare/<name>/ and results/…/<run>/compare/<name>/<backend>/."""
     members, yodas = [], {}
     for number, (c, plans) in enumerate(sets):
         label = figure.labels[number] if figure.labels else c.configuration.label if c.own \
@@ -495,7 +495,7 @@ def _labels_from(declared: list, sources: dict) -> dict[str, str]:
 
 def point_yodas(run, complete: list) -> dict[str, Path]:
     """Each complete point's YODA, as the pages read it: its product, or with a derived figure (V84) a
-    copy with the derived objects after its own (output/…/plots/derived/<point>.yoda), made by
+    copy with the derived objects after its own (logs/…/plots/derived/<point>.yoda), made by
     framework/plot/figures/derive.py and remade only when the product or the figures changed."""
     plain = {p.point.name: yoda_of(p) for p in complete}
     derived = [f for f in figures(run) if f.kind == "derived"]
@@ -645,7 +645,7 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
             reference = drawn.get("map", {}).get(short) if drawn else None
             if reference and data_file is None:                # converted once, when a page draws it
                 source = data_source(data["file"], run)
-                data_file = convert(source, output_root() / run.project / ".cache" / "datasets" / f"{source.stem}.root")
+                data_file = convert(source, cache_root() / run.project / "datasets" / f"{source.stem}.root")
             band = band_of(override)
             line_groups = [g for g in curve_groups if not set(g) & set(band)]     # what tells a band curve from another
             curves = [(plan, full) for plan in members for full in variants.get(plan.point.name, {}).get(path, [])]
@@ -1257,7 +1257,7 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
     if not paint.exists():
         raise HepError(f"{paint} is not built", hint="hep build --framework")
     key = hashlib.sha256("\n".join(map(str, paths)).encode()).hexdigest()[:12]
-    work = output_root() / "plots" / key
+    work = logs_root() / "plots" / key
     outdir = (outdir or (results_root() / "plots" / paths[0].name.split(".")[0])).resolve()
 
     yodas = [(i, p) for i, p in enumerate(paths) if p.name.endswith((".yoda", ".yoda.gz"))]

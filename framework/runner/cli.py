@@ -31,7 +31,7 @@ from . import execute, house, plot, post, record, sweep, tools
 from . import doctor as doctormod
 from . import setup as setupmod
 from .errors import HepError, did_you_mean
-from .paths import check_retired, find_work, output_root, results_root
+from .paths import check_retired, find_work, logs_root, records_root, results_root
 from .quantities import load_master
 from .events import Bus, Hub, Journal, RunBus, greeting, connect, hubs
 from .watch import follow_events, follow_file, view
@@ -61,8 +61,10 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--stages", metavar="LIST",
                      help="run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; hep cluster's jobs)")
     run.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
+    run.add_argument("--wait", action="store_true",
+                     help="a point another session is running: wait for it (default: skip it, naming who runs it)")
     run.add_argument("--journal", action="store_true",
-                     help="also write every status event to output/…/status.jsonl (for hep watch --file and replay)")
+                     help="also write every status event to logs/…/status.jsonl (for hep watch --file and replay)")
     run.add_argument("--logs", action="store_true",
                      help="keep every tool's whole output in logs/<tag>.log (default: only a failed tool's last lines)")
 
@@ -100,17 +102,21 @@ def parser() -> argparse.ArgumentParser:
     move = commands.add_parser("migrate", help="rewrite run TOMLs and their cards in today's forms (a diff, or --apply)")
     move.add_argument("configs", nargs="*", metavar="CONFIG", help="configs to migrate (default: every config)")
     move.add_argument("--v3", action="store_true", help="into the run TOML's third form (03 §6, runner/v3.py)")
+    move.add_argument("--layout", action="store_true",
+                      help="move the work dir's output/ into records/, logs/ and .cache/ (no configs are read)")
     move.add_argument("--apply", action="store_true", help="write the changes (default: print the diff)")
 
     again = commands.add_parser("reproduce", help="run a finished point again, from its provenance, beside it")
-    again.add_argument("provenance", help="output/…/<point>/provenance.json")
+    again.add_argument("provenance", help="records/…/<point>/provenance.json")
     again.add_argument("--anyway", action="store_true", help="run it even though the setup changed since")
     again.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
 
-    clean = commands.add_parser("clean", help="remove what the runner made and no plan uses (output/ only)")
+    clean = commands.add_parser("clean", help="remove what the runner made and no plan uses: logs/ and .cache/ (records/ with --records)")
     clean.add_argument("config", nargs="?", help="one config (default: every config, and the unused caches)")
     clean.add_argument("--dry-run", action="store_true", help="list only")
     clean.add_argument("--yes", action="store_true", help="delete without asking")
+    clean.add_argument("--records", action="store_true",
+                       help="also the records no plan has (provenance, identities, completion): asked for even with --yes")
 
     check = commands.add_parser("check", help="check run TOMLs: every configuration loaded, validated and planned")
     check.add_argument("configs", nargs="*", metavar="CONFIG",
@@ -278,8 +284,8 @@ def others_of(args):
 
 
 def journal_path(run, configuration) -> Path:
-    """output/<P>/<run>/<cfg>/status.jsonl: a --journal run's events, which hep watch --file follows."""
-    return output_root() / tools.run_dir(run, configuration) / "status.jsonl"
+    """logs/<P>/<run>/<cfg>/status.jsonl: a --journal run's events, which hep watch --file follows."""
+    return logs_root() / tools.run_dir(run, configuration) / "status.jsonl"
 
 
 def header(number: int, configuration) -> str:
@@ -694,7 +700,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         bus.say(f"   warning: {warning}")
     def manifest() -> None:                  # a points-only run (a cluster job) leaves it to the finish job
         if base and stages != {"points"}:
-            record.write_atomic(base / "points.json",
+            record.write_atomic(record.manifest_file(every),
                                 json.dumps(record.points_manifest(every, run, configuration), indent=1, default=str) + "\n")
     manifest()
     failed = done = 0
@@ -711,7 +717,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         if "points" in stages:
             done, failed, stopped = execute.run_points(plans, run, configuration, bus=bus, stopper=stopper,
                                                        rerun=args.rerun, logs=logs, budget=budget,
-                                                       started_all=gate.set if gate is not None else None)
+                                                       started_all=gate.set if gate is not None else None,
+                                                       wait_held=getattr(args, "wait", False))
             if stopped:
                 return 6
         verdict = f"{done} done, {failed} failed, {len(plans) - done - failed} skipped" if "points" in stages else ""
@@ -896,7 +903,7 @@ def cmd_watch(args) -> int:
     if not found:
         raise HepError("no running job to watch" + (f" for {wanted.path}" if wanted else ""),
                        hint="start one with hep run; a finished run's events: hep run … --journal, then hep watch --file "
-                            "output/<P>/<run>/<cfg>/status.jsonl")
+                            "logs/<P>/<run>/<cfg>/status.jsonl")
     return follow_events(connect(max(found)[1]), plain=args.plain)
 
 
@@ -945,7 +952,8 @@ def cmd_clean(args) -> int:
                        hint="fix it, or clean one config: hep clean CONFIG")
     if failed:
         raise HepError(failed[0])
-    targets, kept = house.clean_targets(planned, everything=not args.config)
+    records = getattr(args, "records", False)
+    targets, kept = house.clean_targets(planned, everything=not args.config, records=records)
     for path in targets:
         print(f"remove  {path}")
     for path in kept:
@@ -956,7 +964,15 @@ def cmd_clean(args) -> int:
     if args.dry_run:
         print(f"{len(targets)} to remove (dry run)")
         return 0
-    if not args.yes:
+    from .paths import records_root
+    gone = [t for t in targets if t.is_relative_to(records_root())]
+    if gone:                                  # records are precious: always asked for, by name (U21)
+        if not sys.stdin.isatty():
+            raise HepError(f"{len(gone)} record folders to remove: not deleted", hint="run it on a terminal, which asks")
+        if input(f"remove {len(gone)} record folders (their points' provenance and completion)? type 'records': ").strip() != "records":
+            print("nothing removed")
+            return 0
+    elif not args.yes:
         if not sys.stdin.isatty():
             raise HepError(f"{len(targets)} to remove: not deleted", hint="--yes to delete, --dry-run to only list")
         if input(f"remove these {len(targets)}? [y/N] ").strip().lower() not in ("y", "yes"):
@@ -971,6 +987,8 @@ def cmd_migrate(args) -> int:
     """`hep migrate [CONFIG…] [--apply]` (V79): the diff of each file today's forms change, or (--apply)
     the files rewritten. Configs are read as they are (the forms the runner now refuses included)."""
     from . import migrate
+    if getattr(args, "layout", False):
+        return migrate_layout(args)
     names = list(args.configs) or house.config_names()
     changes = migrate.plan(names, v3=getattr(args, "v3", False))   # every one must read, leniently, first
     for path, (old, new) in changes.items():
@@ -988,9 +1006,34 @@ def cmd_migrate(args) -> int:
     return 0
 
 
+def migrate_layout(args) -> int:
+    """`hep migrate --layout [--apply]` (5.1): output/ by lifecycle, counted (a dry run), or moved."""
+    from . import migrate
+    from .paths import work_root
+    if hubs():
+        raise HepError("a job is running on this machine", hint="move the layout when it has ended")
+    work = work_root()
+    moves = migrate.layout_moves(work)
+    if not moves:
+        print("nothing to move: no output/ (the layout is records/, logs/ and .cache/ already)")
+        return 0
+    counts: dict[str, int] = {}
+    for _, target in moves:
+        root = target.relative_to(work).parts[0]
+        counts[root] = counts.get(root, 0) + 1
+    for root, n in sorted(counts.items()):
+        print(f"output/ → {root + '/':9s} {n} file(s)")
+    if not args.apply:
+        print(f"{len(moves)} file(s) to move (a dry run: --apply moves them)")
+        return 0
+    left = migrate.apply_layout(moves, work)
+    print(f"moved {len(moves) - left} file(s)" + (f"; {left} left in output/ (already there)" if left else ""))
+    return 0
+
+
 def cmd_reproduce(args) -> int:
-    """`hep reproduce output/…/<point>/provenance.json` (V77, F10): the point again, exactly as it ran,
-    into output/<P>/.reproduce/<identity>/ (its own output/ and results/), never over the original; then
+    """`hep reproduce records/…/<point>/provenance.json` (V77, F10): the point again, exactly as it ran,
+    into logs/<P>/.reproduce/<identity>/ (its own records/, logs/ and results/), never over the original; then
     each product compared with the original's. The setup must still be the one that ran (the identity
     the provenance records), else it says what changed (--why) and stops, unless --anyway. A random
     seed is the recorded one; any other seed follows from the identity, as it did."""
@@ -1002,7 +1045,8 @@ def cmd_reproduce(args) -> int:
         record_ = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         raise HepError(f"cannot read {path}: {error}", hint="give a finished point's provenance.json")
-    config_file, key, name = record_["config_file"], record_["configuration"], record_["point"]
+    from .paths import unportable
+    config_file, key, name = unportable(record_["config_file"]), record_["configuration"], record_["point"]
     for line in record.revision_changes(record_.get("git", {})):    # the code may differ, though the setup does not
         print(f"warning: {line}", file=sys.stderr)
     given = list(record_.get("sets", []))                     # the --set overrides it ran with
@@ -1016,14 +1060,15 @@ def cmd_reproduce(args) -> int:
             print(f"  {line}")
         if not args.anyway:
             raise HepError("not reproduced: this would be a different point", hint="--anyway runs today's setup with its seed")
-    where = output_root() / record_["project"] / ".reproduce" / record_["identity"][:12]
+    where = logs_root() / record_["project"] / ".reproduce" / record_["identity"][:12]
     sets = []
-    if planned.configuration.seed_type == "random":
-        sets = ["--set", f'run.cfgs.{key}.seed_type="manual"', "--set", f"run.cfgs.{key}.manual_seed={record_['seed']}"]   # V98's form
+    if planned.configuration.seed_type == "random":                      # in the file's own names
+        sets = (["--set", f"cfgs.{key}.seed={record_['seed']}"] if planned.run.form == 3 else
+                ["--set", f'run.cfgs.{key}.seed_type="manual"', "--set", f"run.cfgs.{key}.manual_seed={record_['seed']}"])
     argv = [sys.executable, str(Path(__file__).resolve().parents[1] / "bin" / "run"), "run", config_file, key,
             "--points", name, "--rerun", *[x for item in given for x in ("--set", item)], *sets,
             *(["--plain"] if args.plain else [])]
-    env = dict(os.environ, HEP_OUTPUT=str(where / "output"), HEP_RESULTS=str(where / "results"))
+    env = dict(os.environ, HEP_RECORDS=str(where / "records"), HEP_LOGS=str(where / "logs"), HEP_RESULTS=str(where / "results"))
     print(f"reproducing {record_['run']} · {key} · {name} (seed {record_['seed']}) in {where}", flush=True)
     code = subprocess.run(argv, env=env).returncode
     if code != 0:
@@ -1092,6 +1137,9 @@ def main(argv: list[str]) -> int:
         if args.command != "setup" and (work := find_work()) is not None:
             if warning := setupmod.expects_warning(work):          # once per command (framework/01 §4.2)
                 print(warning, file=sys.stderr)
+            if (work / "output").is_dir() and not getattr(args, "layout", False):   # made before 5.1's split
+                print("note: this work dir has output/ from before records/, logs/ and .cache/: its points rerun "
+                      "until `hep migrate --layout --apply` moves it", file=sys.stderr)
         if args.command == "setup":
             setupmod.setup(Path(args.dir), project=args.project, git=args.git, adopt=args.adopt, name=args.name)
             return 0

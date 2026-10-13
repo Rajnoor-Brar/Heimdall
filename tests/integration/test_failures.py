@@ -52,7 +52,12 @@ output_file = "jets.yoda"
 
 def point_dirs(where: Path) -> tuple[Path, Path]:
     tail = Path("Demo") / "fail" / "one" / "point"
-    return where / "output" / tail, where / "results" / tail
+    return where / "logs" / tail, where / "results" / tail
+
+
+def marker(out: Path) -> Path:
+    """The point's .complete: in its records, beside its logs folder (U21)."""
+    return Path(str(out).replace("/logs/", "/records/", 1)) / ".complete"
 
 
 def start(config: str, where: Path) -> subprocess.Popen:
@@ -88,7 +93,7 @@ def test_the_producer_killed_mid_stream_fails_the_point_and_keeps_partial(scratc
     assert runner.returncode == 1, text
     assert time.monotonic() - killed < 30
     assert "FAILED [pythia]" in text and "SIGKILL" in text
-    assert not (out / ".complete").exists() and not (res / "jets.yoda").exists()
+    assert not marker(out).exists() and not (res / "jets.yoda").exists()
 
 
 def test_init_failure_with_the_reader_blocked_at_open_does_not_hang(scratch):
@@ -101,7 +106,7 @@ def test_init_failure_with_the_reader_blocked_at_open_does_not_hang(scratch):
     assert "FAILED [pythia]" in text and "exit code 3" in text
     assert time.monotonic() - started < 60                     # init + grace + SIGTERM, never "for ever"
     out, res = point_dirs(scratch)
-    assert not (out / ".complete").exists()
+    assert not marker(out).exists()
 
 
 def test_the_consumer_killed_is_blamed_not_the_producer(scratch):
@@ -112,7 +117,7 @@ def test_the_consumer_killed_is_blamed_not_the_producer(scratch):
     text, _ = runner.communicate(timeout=120)
     assert runner.returncode == 1, text
     assert "FAILED [rivet]" in text
-    assert not (out / ".complete").exists()
+    assert not marker(out).exists()
 
 
 def test_ctrl_c_stops_with_6_and_the_next_run_resumes(scratch):
@@ -124,4 +129,4 @@ def test_ctrl_c_stops_with_6_and_the_next_run_resumes(scratch):
     text, _ = runner.communicate(timeout=120)
     assert runner.returncode == 6, text
     assert "stopped" in text
-    assert not (out / ".complete").exists() and not (res / "jets.yoda").exists()
+    assert not marker(out).exists() and not (res / "jets.yoda").exists()

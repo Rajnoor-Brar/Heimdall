@@ -125,12 +125,14 @@ def test_random_seeds_are_drawn_again_and_disjoint(scratch):
 
 
 def test_a_complete_random_point_keeps_the_seed_it_ran_with(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
+    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     data = raw(run__seed_type="random", run__cfgs__one__sweeps=["pdf"])
     done = build(data, scratch)[0]
-    done.out.mkdir(parents=True)
-    (done.out / ".complete").write_text(done.identity + "\n", encoding="utf-8")
-    (done.out / "provenance.json").write_text(json.dumps({"seed": 777}), encoding="utf-8")
+    record.record_dir(done).mkdir(parents=True)
+    record.complete_marker(done).write_text(done.identity + "\n", encoding="utf-8")
+    record.provenance_file(done).write_text(json.dumps({"seed": 777}), encoding="utf-8")
     again = build(data, scratch)
     assert again[0].seed == 777 and again[0].seed_kept and "Random:seed = 777" in card(again[0])
     assert again[1].seed != 777 and not again[1].seed_kept

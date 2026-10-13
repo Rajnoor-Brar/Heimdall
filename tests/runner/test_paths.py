@@ -169,15 +169,17 @@ def test_config_lookup_makes_toml_optional():
 def test_tests_write_into_the_scratch():
     scratch = WORK.parent                                             # the machine root's forge/scratch
     assert paths.results_root() == scratch / "results"
-    assert paths.output_root() == scratch / "output"
+    assert paths.records_root() == scratch / "records" and paths.logs_root() == scratch / "logs"
+    assert paths.cache_root() == scratch / "cache"
     assert paths.reports_root() == scratch / "reports"
 
 
 def test_without_the_variables_the_work_dirs_folders(monkeypatch):
-    for var in ("HEP_RESULTS", "HEP_OUTPUT", "HEP_REPORTS"):
+    for var in ("HEP_RESULTS", "HEP_RECORDS", "HEP_LOGS", "HEP_CACHE", "HEP_REPORTS"):
         monkeypatch.delenv(var)
     assert paths.results_root() == WORK / "results"
-    assert paths.output_root() == WORK / "output"
+    assert paths.records_root() == WORK / "records" and paths.logs_root() == WORK / "logs"
+    assert paths.cache_root() == WORK / ".cache"
     assert paths.reports_root() == WORK / "reports"
 
 

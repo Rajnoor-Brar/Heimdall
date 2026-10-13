@@ -23,7 +23,7 @@ from .paths import MARKER_FILE, STACK_VAR, find_work, hep_root, is_work, machine
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "work"
 STARTER = "starter"
 #: The key folders every work dir has (framework/01 §4.1).
-FOLDERS = ("configs", "modules", "datasets", "results", "output", "reports", "build")
+FOLDERS = ("configs", "modules", "datasets", "results", "records", "reports", "build")
 
 
 def revision(root: Path | None = None) -> str:

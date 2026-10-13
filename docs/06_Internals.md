@@ -48,7 +48,9 @@ A **work dir** holds a study. `hep setup <dir>` makes it from `framework/templat
 | `modules/<Project>/` | programs (`<Name>.cc`), shared headers, Rivet plugins (`Rivet/<x>.{cc,info,plot,yoda}` or `Rivet_<x>.cc`); `_`-prefixed folders are parked | yes |
 | `datasets/` | your own reference data | no |
 | `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
-| `output/` | technical files per project | no |
+| `records/` | what runs recorded: provenance, identities, completion, `points.json`, cluster submissions | no |
+| `logs/` | each point's working folder (cards, configs, logs, FIFOs, scratch files), journals, page documents | no |
+| `.cache/` | prepare caches, card checks, converted reference data | no |
 | `results/` | products per project | no |
 | `reports/` | decks (`hep deck`) | no |
 
@@ -98,7 +100,7 @@ a work dir
 ├── hep.toml, Makefile        the marker; include $(HEP)/framework/work.mk
 ├── configs/<Project>/        run TOMLs and native base cards (the physics)
 ├── modules/<Project>/        your C++: programs (<Name>.cc) and Rivet plugins (Rivet/<x>.cc, Rivet_<x>.cc)
-└── build/  output/  results/ compiled modules; technical files; products
+└── build/ records/ logs/ .cache/ results/   compiled modules; records; working files; caches; products
 ```
 
 ### 2.1 The runner
@@ -114,7 +116,7 @@ layering was not had nine cycles.)
 | Rank | Module | Owns |
 |---|---|---|
 | 0 | `errors.py` | `HepError(message, where, hint)`, `did_you_mean` |
-| 0 | `paths.py` | the two roots: Heimdall (`hep_root`, where the code is) and the work dir (`work_root`: `$HEP_WORK` or the walk up to a `hep.toml`), `hep.toml` read (`work_meta`); the `configs/`, `output/`, `results/` and `reports/` roots; the loaded stack's apps (`apps_dir`); `{hep}` and `{work}`; the path rules (04 §2); the retired `HEKIT_*` |
+| 0 | `paths.py` | the two roots: Heimdall (`hep_root`, where the code is) and the work dir (`work_root`: `$HEP_WORK` or the walk up to a `hep.toml`), `hep.toml` read (`work_meta`); the `configs/`, `records/`, `logs/`, `.cache/`, `results/` and `reports/` roots; the loaded stack's apps (`apps_dir`); `{hep}` and `{work}`; the path rules (04 §2); the retired `HEKIT_*` |
 | 0 | `schema.py` | the run TOML's schema, `framework/schema/run.toml`: every key's type, choices, bounds, default, inheritance, doc and notes; checking a table against it; the editor schema (V55, V90); a deck's, `deck.toml` (V103) |
 | 0 | `hepfiles.py` | reading YODA text (1D and 2D objects, `/RAW` twins, counters; `.gz` too) and Rivet's data directories, once (V60) |
 | 0 | `plugins.py` | loading a folder's Python by path, once: `render.py`, `backend.py`, `provider.py`, the figures' plugins (V61) |
@@ -380,7 +382,7 @@ for each point, before anything else is planned:
 [["pythia", "rivet"], "yd2rt"]         with [tools.rivet] shards = 3
   → [["pythia", "rivet.1", "rivet.2", "rivet.3"], ["rivet.merge"], ["yd2rt"]]
      pythia writes  events.s1.hepmc+events.s2.hepmc+events.s3.hepmc   (a deal group: one each)
-     rivet.<i>      reads events.s<i>.hepmc, writes output/…/shards/jets.s<i>.yoda
+     rivet.<i>      reads events.s<i>.hepmc, writes logs/…/shards/jets.s<i>.yoda
      rivet.merge    rivet-merge -e the three → results/…/jets.yoda
 ```
 
@@ -475,7 +477,7 @@ refused: they would repeat some of each other's events. The pre, post and combin
 identity rule. Every mode records the seed in `provenance.json` and `points.json`, so any point can
 be repeated with `seed_type = "manual"` and its seed, or by `hep reproduce`.
 
-**Skip-unchanged.** A point is complete when `output/…/<point>/.complete` holds its identity; it is
+**Skip-unchanged.** A point is complete when `records/…/<point>/.complete` holds its identity; it is
 then skipped (`--rerun` runs it anyway). `.complete` is written last, after the count checks, so a
 half-written point is never skipped. Change anything the identity covers and the points it affects
 run again; change a serial and the location is new.
@@ -494,7 +496,7 @@ or the event count. Examples are Sherpa's and Whizard's integrations, `Herwig re
 process directory.
 
 - **Where it runs:** before the point's groups, as its own supervised step (with at least an hour
-  before it counts as stalled), in a cache entry `output/<P>/.cache/<tool>/<key>/`.
+  before it counts as stalled), in a cache entry `.cache/<P>/<tool>/<key>/`.
 - **The key:** the tool, its binary's sha256, the base cards' sha256 and the card lines, without the
   lines the folder says to ignore (the event count, the seed). With `key = "base"`, it is the base
   cards alone (MadGraph builds from the proc card only). So every point, replica, rerun and event
@@ -519,7 +521,7 @@ process directory.
 - **One reader thread per tool** (V72) reads both pipes, so a tool that prints fast never waits on a
   full pipe.
 - **Runtime state stays off disk** (the user's decision). A tool's output is kept in memory (its
-  last 200 lines) and written to `output/…/<point>/logs/<tag>.log` only when it fails; `--logs`
+  last 200 lines) and written to `logs/…/<point>/logs/<tag>.log` only when it fails; `--logs`
   writes every tool's whole output there as it comes.
 - **A filter rule never fails a run.** The exit code does that.
 - **The event stream** (`events.py`, V72). The executor, the stages and the CLI emit versioned
@@ -537,7 +539,7 @@ process directory.
     `<tmp>/hep-watch/hep-watch-<pid>`, removed at exit; a dead process's is cleared by the next
     `hep watch`). It sends a greeting, the current run's events so far, then every
     event live for the life of the process: a sweep of runs is one stream.
-  - **the journal** `output/…/<cfg>/status.jsonl`, only with `--journal`: one file per run, for
+  - **the journal** `logs/…/<cfg>/status.jsonl`, only with `--journal`: one file per run, for
     `hep watch --file` and replay.
 - **The views.** A view is one reducer of events (`watch.State`) and a renderer on its own thread,
   the same in the run, in `hep watch` and over a journal.
@@ -618,7 +620,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
 
 ## 12. Provenance and manifests
 
-- **`output/…/<point>/provenance.json`** (V23):
+- **`records/…/<point>/provenance.json`** (V23):
   - the point's values;
   - its identity, seed, threads and events;
   - per tool: the binary's path, sha256 and version, the argv, the card and its sha256, the config,
@@ -631,7 +633,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
 
   `hep reproduce` runs a point again from it, and warns first when either revision moved, or was
   dirty when it ran: the setup may be the same while the code is not.
-- **`output/…/<cfg>/points.json`**: every point's values (tag, label, value), page, products,
+- **`records/…/<cfg>/points.json`**: every point's values (tag, label, value), page, products,
   directories, identity, seed and whether it is complete. Post tools, the plot stage and
   `runner.results` read it, so none of them has to know the layout. It is also stored inside the
   merged sweep file.
@@ -654,7 +656,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
    (`dataclasses.replace` of a real plan, renamed by the tags it stands for), each with a YODA of its
    own made once per change of its inputs:
    - **derived** (`point_yodas`, `derive.py`): a copy of each point's YODA with `/FIGURES/<name>`
-     appended, in `output/…/plots/derived/`;
+     appended, in `logs/…/plots/derived/`;
    - **merged** (`_merged`): per value of the kept axes, the members' YODAs merged by the combine
      folder's command (`tools.merge_files`), in `plots/merged/<name>/`;
    - **scan** (`_scanned`, `derive.scan_value`): per value of the other curve axes, a Scatter2D, a
@@ -669,7 +671,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
    ROOT file, with a directory per member, raw entries and `points.json`. The configuration's file
    is `results/…/plots/root/<cfg>.root`; a figure with members of its own has its own file. The
    file is rebuilt only when a member's YODA changed. Reference data are converted once, into
-   `output/<P>/.cache/datasets/`.
+   `.cache/<P>/datasets/`.
 4. **Page documents** (`_pages`):
    - **Objects:** the objects of the members' YODAs (`hepfiles.objects`, `objects_2d`: not `/RAW`,
      `/TMP`, the counters or weight variations). They are keyed by the option-free path, so a swept
@@ -683,7 +685,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
      curve's own).
    - **Its curves:** each with its label and look, and with a band folded by `_banded`.
    - **Written:** the style layers' changes and the mapped data. Each document goes to
-     `output/…/plots/[<cell>/][<folder>/]<object>.toml` (labels through `for_root`: LaTeX → TLatex)
+     `logs/…/plots/[<cell>/][<folder>/]<object>.toml` (labels through `for_root`: LaTeX → TLatex)
      and is kept in memory as a `Page`.
 5. **Draw** (`_draw`):
    - **Paint:** one `Paint.exe` per `PAINT_BATCH` (200) pages, each page's outcome a JSON line;
@@ -707,22 +709,27 @@ plan time (`check_style`). Keys a backend cannot honour are errors, never silent
 
 ## 14. Where files go
 
-**In the work dir: technical files go in `output/`, products in `results/`, compiled modules in
-`build/`.** A run writes nothing else, and nothing in Heimdall; `hep deck` writes only into its deck's
+**In the work dir, by lifecycle (U21): what runs recorded goes in `records/`, working files in
+`logs/`, rebuildable caches in `.cache/`, products in `results/`, compiled modules in `build/`.** A run writes nothing else, and nothing in Heimdall; `hep deck` writes only into its deck's
 folder, under `reports/`. Heimdall's own builds go to the machine root (§1): `apps/`, `forge/`.
 
 ```
-output/<P>/<run>/<cfg>/
-  points.json   [status.jsonl: --journal]
-  <point>/      cards/  config/  logs/  FIFOs, [prelim] files  provenance.json  identity.json  .complete
+records/<P>/<run>/<cfg>/
+  points.json
+  <point>/      provenance.json  identity.json  .complete
+  pre/, post/, <combined group>/      the same, for the stages
+  cluster/<stamp>/                    hep cluster's submissions: *.sbatch, points.txt, jobs.toml, logs/
+logs/<P>/<run>/<cfg>/
+  [status.jsonl: --journal]
+  <point>/      cards/  config/  logs/  FIFOs, scratch files  context.toml (while it runs)  .lock
   pre/, post/, <combined group>/      the same, for the stages
   plots/        [<cell>/]<object>.toml (page configs, + .ranges.json), merged.sha256
                 derived/<point>.yoda   merged/<figure>/   scan/<figure>/   yoda/ (mkhtml's work files)
-output/<P>/<run>/compare/<figure>/    a compare figure's page configs
-output/<P>/.cache/<tool>/<key>/       prepare caches
-output/<P>/.cache/datasets/           reference data converted for Paint
-output/<P>/<run>/<cfg>/cluster/<stamp>/   hep cluster's submissions: *.sbatch, points.txt, jobs.toml, logs/
-forge/scratch/ (in Heimdall)          everything tests write: work/ (the fixture's copy), output/, results/, reports/, pytest/
+logs/<P>/<run>/compare/<figure>/      a compare figure's page configs
+logs/<P>/.reproduce/<identity>/       hep reproduce's run, beside the original
+.cache/<P>/<tool>/<key>/              prepare caches
+.cache/<P>/checks/  .cache/<P>/datasets/   card checks; reference data converted for Paint
+$HEP_MACHINE/forge/scratch/           everything tests write: work/ (the fixture's copy), records/, logs/, cache/, results/, reports/, pytest/
 
 results/<P>/<run>/<cfg>/
   <point>/                            the products only

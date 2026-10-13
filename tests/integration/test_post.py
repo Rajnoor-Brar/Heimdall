@@ -56,6 +56,7 @@ def stage(scratch, name="poststage", **changes):
         plans.append(plan)
     shutil.rmtree(plans[0].res.parent, ignore_errors=True)
     shutil.rmtree(plans[0].out.parent, ignore_errors=True)
+    shutil.rmtree(record.records_of(plans[0].out.parent), ignore_errors=True)
     return run, configuration, master, plans
 
 
@@ -66,9 +67,7 @@ def complete(plans, run, configuration):
         product.write_text(f"yoda of {plan.point.name}\n")
         record.complete_marker(plan).parent.mkdir(parents=True, exist_ok=True)
         record.complete_marker(plan).write_text(plan.identity + "\n")
-    base = plans[0].out.parent
-    base.mkdir(parents=True, exist_ok=True)
-    record.write_atomic(base / "points.json", json.dumps(record.points_manifest(plans, run, configuration), default=str))
+    record.write_atomic(record.manifest_file(plans), json.dumps(record.points_manifest(plans, run, configuration), default=str))
 
 
 def run_post(post_plan, plans, run, configuration, rerun=False):
@@ -165,6 +164,7 @@ def test_a_pre_product_is_an_input_every_point_may_name(scratch):
     assert other[0].identity != plans[0].identity                     # a changed pre reruns the points
     shutil.rmtree(pre.res, ignore_errors=True)
     shutil.rmtree(pre.out, ignore_errors=True)
+    shutil.rmtree(record.record_dir(pre), ignore_errors=True)
     ok = post.run_pre(pre, run, configuration, stopper=execute.Stopper(), rerun=False)
     assert ok and shared.read_text() == "made before every point\n" and record.is_complete(pre)
 
@@ -173,6 +173,7 @@ def test_a_failing_pre_stops_the_run(scratch):
     run, configuration, pre, plans = pre_stage(scratch)
     pre.rendered["fetch"].argv = [sys.executable, "-c", "raise SystemExit(3)"]
     shutil.rmtree(pre.out, ignore_errors=True)
+    shutil.rmtree(record.record_dir(pre), ignore_errors=True)
     out = io.StringIO()
     view, bus = PlainView(stream=out), Bus()
     bus.subscribe(view)

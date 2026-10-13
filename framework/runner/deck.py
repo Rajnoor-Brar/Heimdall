@@ -36,7 +36,7 @@ from typing import Callable
 
 from . import hepfiles, plugins, schema, viewer
 from .errors import HepError, did_you_mean
-from .paths import hep_root, output_root, reports_root, results_root
+from .paths import hep_root, records_root, reports_root, results_root
 
 RECIPE = "deck.toml"
 TALK = "deck.md"
@@ -108,7 +108,7 @@ def deck_dir(name: str) -> Path:
 
 def requested(output: Path) -> float | None:
     """The events a result folder's points were run with: its first point's provenance `events`, in
-    output/ while it is kept."""
+    its records."""
     if output.is_dir():
         for point in sorted((p for p in output.iterdir() if p.is_dir()), key=lambda p: natural(p.name)):
             record = point / "provenance.json"
@@ -190,7 +190,7 @@ def _labels(run_dir: Path, project_run: str, folders: list[str], how: str, where
     else:
         labels = {}
         for folder in folders:                  # the events asked for; what Rivet counted only when nothing says
-            n = requested(output_root() / project_run / folder)
+            n = requested(records_root() / project_run / folder)
             named = NAMED.search(folder)
             if n is not None:
                 labels[folder] = count(n)
@@ -200,7 +200,7 @@ def _labels(run_dir: Path, project_run: str, folders: list[str], how: str, where
                 labels[folder] = count(n)
             else:
                 raise HepError(f"no event count for {folder}", where=where,
-                               hint='no provenance in output/, no count in its name, no YODA with /RAW/_EVTCOUNT; '
+                               hint='no provenance in records/, no count in its name, no YODA with /RAW/_EVTCOUNT; '
                                     'label = "folder" labels it by its name')
     seen: dict[str, str] = {}
     for folder, label in labels.items():

@@ -32,7 +32,7 @@ from . import plugins
 from . import quantities as qmod
 from .config import Tool
 from .errors import HepError, did_you_mean
-from .paths import hep_root, output_root, placeholders, portable, resolve, results_root, tool_chains
+from .paths import cache_root, hep_root, logs_root, placeholders, portable, records_root, resolve, results_root, tool_chains
 from .sweep import tag_of
 
 ENV = Path(__file__).resolve().parents[1] / "tools"       # framework/tools: the shipped folders (the search path's last)
@@ -539,12 +539,12 @@ def run_dir(run, configuration) -> Path:
 
 
 def serials_taken(run, configuration) -> set[int]:
-    """The numbers of a configuration's folders on disk, <project>/<name>/NN_<label>, in output/ and
-    results/: where a v3 configuration without a serial may already have run (03 §6)."""
+    """The numbers of a configuration's folders on disk, <project>/<name>/NN_<label>, in records/,
+    results/ and logs/: where a v3 configuration without a serial may already have run (03 §6)."""
     parent = Path(run.project) / (configuration.run_folder or run.name)
     numbered = re.compile(r"(\d{2,})_" + re.escape(configuration.label))
     found = set()
-    for root in (output_root(), results_root()):
+    for root in (records_root(), results_root(), logs_root()):
         if (root / parent).is_dir():
             found |= {int(m[1]) for entry in (root / parent).iterdir() if entry.is_dir() and (m := numbered.fullmatch(entry.name))}
     return found
@@ -552,7 +552,7 @@ def serials_taken(run, configuration) -> set[int]:
 
 def point_dirs(run, configuration, point) -> tuple[Path, Path]:
     tail = run_dir(run, configuration) / point.name
-    return output_root() / tail, results_root() / tail
+    return logs_root() / tail, results_root() / tail
 
 
 def _check_options(tool, folder: Folder, where: str) -> None:
@@ -674,7 +674,7 @@ def _builtin_value(run, name: str, index: int) -> int:
 def _shard(run, configuration, groups_tags: list[list[str]], out: Path):
     """`shards = K` on a table (V31): the table becomes K copies in its group, each reading a share of
     the events (`events.s1.hepmc` … `events.sK.hepmc`) and writing its product under the point's
-    output/…/shards/; the folder's merge tool ([shard] merge) runs as its own group right after,
+    logs/…/shards/; the folder's merge tool ([shard] merge) runs as its own group right after,
     reading the K products and writing the table's own output_file. The producer deals its events
     among the K interfaces instead of copying them to each (its folder says [outputs] deal = true).
 
@@ -1124,7 +1124,7 @@ def beam_order(plan: PointPlan, run, folder: Folder) -> tuple[int, int] | None:
 
 
 def _prepare_key(plan: PointPlan, step: Step, run) -> None:
-    """[prepare]: a cache entry per card, output/<P>/.cache/<tool>/<key>/. The key is the card before
+    """[prepare]: a cache entry per card, .cache/<P>/<tool>/<key>/. The key is the card before
     seeds, the base cards and the binary, without the lines setting `ignore` keys (the event count,
     say), so every point, replica and rerun with the same physics shares one integration."""
     spec = step.folder.spec.get("prepare")
@@ -1141,7 +1141,7 @@ def _prepare_key(plan: PointPlan, step: Step, run) -> None:
              if not line.startswith(comment) and not (pattern and pattern.match(line))]
     text = "\n".join([step.folder.name, step.identity_parts.get("exe_sha256", str(step.exe)),
                       *step.identity_parts["base_sha256"], *keyed])
-    step.prepare_dir = output_root() / run.project / ".cache" / step.folder.name / hashlib.sha256(text.encode()).hexdigest()[:16]
+    step.prepare_dir = cache_root() / run.project / step.folder.name / hashlib.sha256(text.encode()).hexdigest()[:16]
     step.identity_parts["prepare"] = step.prepare_dir.name
     if step.folder.card_style == "render" and hasattr(step.folder.plugin, "prepare_card"):
         ext = step.folder.get("card", "ext", "txt")
@@ -1473,7 +1473,7 @@ def check_cards(plan: PointPlan) -> None:
     """[checks] card (V59): the tool reads each card it is given and says which lines it rejects (Pythia:
     {apps}/App_PythiaCheck.exe), so a key it does not know or a value of the wrong kind is refused before
     anything runs, with no list of keys of ours. The card checked is the base cards' settings and the
-    point card before seeds; the answer is cached by its text, in output/<P>/.cache/checks/."""
+    point card before seeds; the answer is cached by its text, in .cache/<P>/checks/."""
     for step in plan.rendered.values():
         command = step.folder.get("checks", "card")
         if not command or step.card_combined is None:
@@ -1487,7 +1487,7 @@ def check_cards(plan: PointPlan) -> None:
             lines.append((line, step.card_origins.get(parsed[0], "the point card") if parsed else "the point card"))
         text = "\n".join(line for line, _ in lines) + "\n"
         key = hashlib.sha256((step.folder.name + str(step.identity_parts.get("exe_sha256")) + text).encode()).hexdigest()[:16]
-        cache = output_root() / plan.out.relative_to(output_root()).parts[0] / ".cache" / "checks" / step.folder.name / f"{key}.json"
+        cache = cache_root() / plan.out.relative_to(logs_root()).parts[0] / "checks" / step.folder.name / f"{key}.json"
         if key not in _CHECKED:
             if cache.is_file():
                 _CHECKED[key] = json.loads(cache.read_text(encoding="utf-8"))

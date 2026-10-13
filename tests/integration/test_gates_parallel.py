@@ -114,13 +114,13 @@ def test_a_failing_point_leaves_the_others_to_finish(scratch):
     done = run(checker(scratch, "fail"), scratch)
     assert done.returncode == 1, done.stdout[-2000:]
     assert "3 done, 1 failed" in done.stdout and "FAILED [check]" in done.stdout
-    base = scratch / "output" / "Demo" / "chk" / "one"
+    base = scratch / "records" / "Demo" / "chk" / "one"
     assert sorted(p.name for p in base.glob("*/.complete") for p in [p.parent]) == ["a", "c", "d"]
 
 
 def test_ctrl_c_stops_the_running_points_and_starts_no_more(scratch):
     runner = run(checker(scratch, "fail", extra="[tools.check.config]\nsleep = 60\n"), scratch, wait=False)
-    journal = scratch / "output" / "Demo" / "chk" / "one" / "status.jsonl"
+    journal = scratch / "logs" / "Demo" / "chk" / "one" / "status.jsonl"
     deadline = time.monotonic() + 60
     started: list[str] = []
     while time.monotonic() < deadline and len(started) < 3:
@@ -136,7 +136,7 @@ def test_ctrl_c_stops_the_running_points_and_starts_no_more(scratch):
     assert runner.returncode == 6, text
     assert time.monotonic() - stopped < 20
     assert text.count(" ── stopped after ") == 3
-    base = scratch / "output" / "Demo" / "chk" / "one"
+    base = scratch / "records" / "Demo" / "chk" / "one"
     assert not list(base.glob("*/.complete"))
     assert "d" not in started                                 # the fourth never started
 
@@ -160,6 +160,6 @@ def test_hep_watch_follows_a_run_over_its_socket_and_nothing_runtime_is_on_disk(
     runner.communicate(timeout=120)
     assert watcher.returncode == 0, text
     assert "FAILED [check]" in text and "3 done, 1 failed" in text
-    base = scratch / "output" / "Demo" / "chk" / "one"
+    base = scratch / "logs" / "Demo" / "chk" / "one"
     assert not (base / "status.jsonl").exists()
     assert (base / "b" / "logs" / "check.log").exists() and not (base / "a" / "logs" / "check.log").exists()

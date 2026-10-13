@@ -50,6 +50,10 @@ def kept(run, group: list[str]) -> list[int]:
     return indices
 
 
+#: Names a point may not have: what lives beside the points in a configuration's folder (U30).
+RESERVED = ("plots", "pre", "post", "cluster")
+
+
 def points(run, configuration) -> list[Point]:
     groups = axes(configuration)
     ranges = [kept(run, group) for group in groups]
@@ -62,6 +66,12 @@ def points(run, configuration) -> list[Point]:
         page = tuple(combination[i] for i in page_axes)
         out.append(Point(index=number, name="_".join(tags) or "point", choice=choice, page=page))
     names = [p.name for p in out]
+    for name in names:
+        if name in RESERVED:
+            raise HepError(f"a point is named '{name}', which is where the configuration's "
+                           + {"plots": "pages", "pre": "pre stage", "post": "post stage", "cluster": "cluster submissions"}[name]
+                           + " live", where=f"{run.path}",
+                           hint=f"give that value another tag; {', '.join(RESERVED)} are reserved")
     clashes = sorted({n for n in names if names.count(n) > 1})
     if clashes:
         raise HepError(f"these points would share a directory: {', '.join(clashes)}", where=f"{run.path}",

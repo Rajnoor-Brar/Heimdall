@@ -55,7 +55,7 @@ hep run Jets/jets                                    # the starter: Pythia → M
 ```
 
 `hep setup <dir>` makes the folders every work dir has (`configs/ modules/ datasets/ results/
-output/ reports/ build/`), its `hep.toml` (the marker: `[work] name`, and `[framework] expects`, the
+records/ reports/ build/`), its `hep.toml` (the marker: `[work] name`, and `[framework] expects`, the
 Heimdall revision it was made by), a `Makefile`, `.gitignore`, `README.md`, `CLAUDE.md` and editor
 settings. It never overwrites: run it again in a work dir (after a fresh clone, say) and it adds only
 what is missing. `--project P` adds `configs/P/p.toml` and `p.cmnd`, a starter that `hep check`
@@ -124,7 +124,8 @@ The terminal shows the running tools, then one block:
 |---|---|
 | `results/Demo/jets/03_single/point/` | `jets.yoda`, `jets.root`: the products |
 | `results/Demo/jets/03_single/plots/root/` | the pages (`d01-x01-y01.pdf`, …), `index.html`, and `single.root`, the sweep in one file |
-| `output/Demo/jets/03_single/point/` | `cards/`, `logs/`, `provenance.json`, `.complete` |
+| `records/Demo/jets/03_single/point/` | `provenance.json`, `identity.json`, `.complete`: what the run recorded |
+| `logs/Demo/jets/03_single/point/` | `cards/`, `logs/`: safe to delete (`hep clean`) |
 
 Run the same command again and nothing happens: the point is complete with the same identity. Change
 anything that decides the result (a card, an event count, a binary) and it runs again.
@@ -395,7 +396,7 @@ chain = ["pythia_file", "delphes", "jets_reco"]     # three groups, strictly in 
 uses   = "pythia"
 card   = "ep.cmnd"
 output = "showered.hepmc"
-keep   = false                                      # a scratch file of the point, in output/
+keep   = false                                      # a scratch file of the point, in logs/
 
 [tools.delphes]                                     # not streamable: in pythia's group it is refused (L11)
 card   = "delphes_card_ATLAS.tcl"
@@ -411,7 +412,7 @@ output     = "jets_reco.json"
 ```
 
 Delphes' tree is count-checked against the generator's sidecar. The scratch file stays in
-`output/`, so another configuration can read it with `input = "./output/…/showered.hepmc"`; without
+`logs/`, so another configuration can read it with `input = "./logs/…/showered.hepmc"`; without
 `keep = false` it would be a product in `results/`.
 → `jets delphes`.
 
@@ -419,7 +420,7 @@ Delphes' tree is count-checked against the generator's sidecar. The scratch file
 
 The chain is the same; only the generator's table changes. Their slow preparation (Sherpa's and
 Whizard's integration, `Herwig read`, MadGraph's process directory) is cached per card under
-`output/<P>/.cache/`, so a rerun, a replica or another event count reuses it.
+`.cache/<P>/`, so a rerun, a replica or another event count reuses it.
 
 ```toml
 [tools.sherpa]
@@ -591,7 +592,7 @@ consumes   = ["sqrts"]                            # → [quantities] in its conf
 window = [1.09, 1.14]
 ```
 
-- **Its config:** the file `output/…/<point>/config/fit.toml` is the first argument. A quantity
+- **Its config:** the file `logs/…/<point>/config/fit.toml` is the first argument. A quantity
   with `to = { fit = "window" }` varies a key of it.
 - **Its products:** write them to `{partial:output}`; the runner renames them after the checks.
 - **The other tools:** their cards and configs are in the point's context file, `$HEP_CONTEXT`
@@ -711,7 +712,7 @@ points = [{ tag = "1001", value = 1001 }, { tag = "2001", value = 2001 }, { tag 
   is skipped as usual), and `--rerun` draws again.
 - **Repeating a run:** every point's `provenance.json` records the seed it used, and `--plan` shows
   each point's seed.
-  - `hep reproduce output/…/<point>/provenance.json` runs the point again exactly as it ran, beside
+  - `hep reproduce records/…/<point>/provenance.json` runs the point again exactly as it ran, beside
     the original, and compares the products (§10).
   - Or set `seed` to that seed.
 
@@ -759,7 +760,7 @@ hep cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
   counts it. `parallelism` is not used: `max_running` is how many points run at once.
 - A second submission of a configuration waits until the first's jobs have ended (`--status`,
   `--cancel`).
-- The scripts, the job ids and the jobs' logs are in `output/<P>/<run>/<cfg>/cluster/<stamp>/`.
+- The scripts, the job ids and the jobs' logs are in `records/<P>/<run>/<cfg>/cluster/<stamp>/`.
   `hep watch` cannot reach a node: the logs and `--status` stand in.
 - Each script's last line is the `hep run` it makes, which can be typed by hand: `hep run C cfg
   --points <name> --stages points`, then `hep run C cfg --stages combine,post,plot`.
@@ -798,7 +799,7 @@ the serial, or `--rerun` (04 §2).
 
 The run goes on to the next point, and the point's block names the tool to blame. Then:
 
-1. Read `output/…/<point>/logs/<tool>.log` (and `<tool>.prepare.log`, `prelim.log`): a failed tool's
+1. Read `logs/…/<point>/logs/<tool>.log` (and `<tool>.prepare.log`, `prelim.log`): a failed tool's
    last 200 lines. For a tool's whole output, run again with `--logs`.
 2. A product that failed its checks keeps its `.partial` name, and the point has no `.complete`, so
    it runs again next time.
@@ -808,7 +809,7 @@ The run goes on to the next point, and the point's block names the tool to blame
 5. Fix it, then `hep run … --points <that point>`. Complete points are skipped anyway.
 6. More to look at:
    - `--plan` shows the exact argv and cards;
-   - `--journal` writes the job's every event to `output/…/<cfg>/status.jsonl`;
+   - `--journal` writes the job's every event to `logs/…/<cfg>/status.jsonl`;
    - `provenance.json` records every binary and card of a finished point.
 
 Ctrl-C stops the job cleanly: the running tools get SIGINT, then SIGTERM, then SIGKILL. The exit is
@@ -845,9 +846,9 @@ hep ls Demo                      # every config and its configurations (* = what
 hep explain plot.y_gutter                   # a key's type, default and meaning
 hep status Demo/jets              # each point: complete, stale, incomplete or to run
 hep status --stack                          # each package's version
-hep clean Demo/jets --dry-run     # what the runner made and no plan uses (output/ only)
+hep clean Demo/jets --dry-run     # what the runner made and no plan uses (logs/ and .cache/)
 hep migrate Demo/jets             # a diff of the file in today's forms; --apply writes it
-hep reproduce output/…/<point>/provenance.json   # the point again, beside it, compared
+hep reproduce records/…/<point>/provenance.json  # the point again, beside it, compared
 ```
 
 - **Before a long sweep, or as a pre-commit hook:** `hep check` exits 2 when any config is not

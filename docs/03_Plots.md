@@ -50,7 +50,7 @@ anything. A configuration whose run TOML has no `[plot]` draws nothing.
 1. **The sweep in one file.** Every complete point's YODA is merged into
    `results/…/plots/root/<cfg>.root`, with a directory per point and the raw entries. It is rebuilt
    only when a point's YODA changed.
-2. **One page document per page**, in `output/…/plots/[<cell>/]<object>.toml`. It holds:
+2. **One page document per page**, in `logs/…/plots/[<cell>/]<object>.toml`. It holds:
    - the labels from the analysis's Rivet `.plot` file;
    - the `[plot]` values and the page's figure's own;
    - the curves;
@@ -219,7 +219,7 @@ errors = "band"
 - **Misspelt keys:** an unknown key, or a value of another kind, is refused at plan time, with the
   nearest spelling.
 - **Seeing the merged style:** `$HEP_APPS/Paint.exe <page>.toml --dump-style` prints a page's whole
-  style; the page documents are in `output/…/plots/`.
+  style; the page documents are in `logs/…/plots/`.
 - **The reference:** every key and its default is [04 §12](04_Config_Reference.md#12-the-style).
 - **Ratio ticks:** denser or sparser ratio-pad ticks are `ratio = { divisions = 508 }` (0.2 apart)
   or `515`.
@@ -314,7 +314,7 @@ title   = "five seeds merged"
 The objects' pages, under the figure's folder (`<cell>/avg/<object>`). For each value of the other
 curve axes, the points' YODAs are merged by the combine folder's command (`rivet-merge -e`:
 statistics add, σ averaged). That happens once per change of a member's YODA, into
-`output/…/plots/merged/avg/`.
+`logs/…/plots/merged/avg/`.
 
 The run keeps its points apart, and only this figure merges them; `combine` merges them for the
 whole configuration ([02 §7.3](02_User_Guide.md#73-replicas-merged)). `over` must name curve axes,
@@ -369,7 +369,7 @@ analysis-option variant.
   - `projection-x` and `projection-y` of one 2D object: summed over the other axis, as a Scatter2D
     whose x ranges are the bins.
 - **Where it is written:** it is appended to a copy of each point's YODA
-  (`output/…/plots/derived/`), remade when the product or the figures change, by
+  (`logs/…/plots/derived/`), remade when the product or the figures change, by
   `framework/plot/figures/derive.py` with YODA's Python (`load_hep`).
 
 **Using it.** It is then an object like any other:
@@ -558,7 +558,7 @@ hep deck batch_1 --only pdf  # one target
 ```
 
 **What a panel is labelled:** the events its folder was run with (`10M`), from the folder's
-provenance while `output/` keeps it, else from the count its name ends in (`_010M`), else from
+provenance in `records/`, else from the count its name ends in (`_010M`), else from
 what its YODA counted; or the folder's name, with `label = "folder"`. No run TOML is read: result
 folders are taken as they are on disk, whichever config file made them.
 

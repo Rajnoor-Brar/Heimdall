@@ -56,7 +56,11 @@ def config(scratch: Path, seed_type: str) -> Path:
 
 def point(where: Path) -> tuple[Path, Path]:
     tail = Path("Demo") / "seeds" / "one" / "point"
-    return where / "output" / tail, where / "results" / tail
+    return where / "logs" / tail, where / "results" / tail
+
+
+def provenance(where: Path) -> dict:
+    return json.loads((where / "records" / "Demo" / "seeds" / "one" / "point" / "provenance.json").read_text(encoding="utf-8"))
 
 
 def histograms(where: Path) -> dict:
@@ -70,7 +74,7 @@ def test_a_manual_seed_is_exact_and_gives_the_same_histograms_anywhere(scratch):
     assert first.returncode == 0 and second.returncode == 0, first.stdout[-2000:] + first.stderr[-2000:]
     out, _ = point(scratch / "a")
     assert "Random:seed = 4242" in (out / "cards" / "pythia.point.cmnd").read_text(encoding="utf-8")
-    assert json.loads((out / "provenance.json").read_text(encoding="utf-8"))["seed"] == 4242
+    assert provenance(scratch / "a")["seed"] == 4242
     assert histograms(scratch / "a") == histograms(scratch / "b")
 
 
@@ -81,10 +85,10 @@ def test_a_random_seed_is_new_each_time_the_point_runs_and_recorded(scratch):
         done = run(toml, scratch, *args)
         assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
         out, _ = point(scratch)
-        seeds.append(json.loads((out / "provenance.json").read_text(encoding="utf-8"))["seed"])
+        seeds.append(provenance(scratch)["seed"])
         assert f"Random:seed = {seeds[-1]}" in (out / "cards" / "pythia.point.cmnd").read_text(encoding="utf-8")
         shapes.append(histograms(scratch))
     assert seeds[0] != seeds[1] and shapes[0] != shapes[1]
     again = run(toml, scratch)                                   # complete: kept, not drawn again
     assert again.returncode == 0 and "complete, skipped" in again.stdout
-    assert json.loads((point(scratch)[0] / "provenance.json").read_text(encoding="utf-8"))["seed"] == seeds[1]
+    assert provenance(scratch)["seed"] == seeds[1]

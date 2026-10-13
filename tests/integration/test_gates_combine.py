@@ -68,7 +68,7 @@ def test_each_pdf_is_its_seeds_merged_and_drawn_as_one_curve(scratch):
         seeds = [yoda.read(str(results / f"{pdf}_{s}" / "jets.yoda"))["/RAW/_EVTCOUNT"].numEntries() for s in ("s1", "s2")]
         merged = yoda.read(str(results / pdf / "jets.yoda"))["/RAW/_EVTCOUNT"].numEntries()
         assert merged == sum(seeds) and min(seeds) > 900
-    page = tomllib.loads(next((scratch / "output" / "Demo" / "seeds" / "one" / "plots").glob("*d01*.toml"))
+    page = tomllib.loads(next((scratch / "logs" / "Demo" / "seeds" / "one" / "plots").glob("*d01*.toml"))
                          .read_text(encoding="utf-8"))
     assert [c["label"] for c in page["curve"]] == ["MSTW 2008 LO", "NNPDF 2.3 NLO"]
     assert [c["object"].split("/")[0] for c in page["curve"]] == ["MSTW08lo", "NNPDF23nlo"]   # the groups, not the seeds

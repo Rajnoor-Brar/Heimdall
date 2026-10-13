@@ -254,14 +254,16 @@ def test_a_tcl_comment_line_inside_braces_is_kept(scratch):
 def test_pythia_reads_the_card_and_a_rejected_line_names_its_source(scratch, monkeypatch):
     """V59: [checks] card. Pythia's own reader, so a nucleus or an id:new particle needs no list of ours."""
     from runner import tools
-    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
+    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     _, _, good = plan(raw(tools__pythia__settings={"9999999:new": "x void 1 0 0 1.0", "9999999:m0": 2.0,
                                                     "HeavyIon:mode": 1}), scratch)
     tools.check_cards(good)                                                 # no error: every line read
     _, _, bad = plan(raw(tools__pythia__settings={"PDF:pSett": 13}), scratch)
     with pytest.raises(HepError, match=r"rejects 1 line.*'PDF:pSett = 13' \(\[tools.pythia\].settings\)"):
         tools.check_cards(bad)
-    assert list((scratch / "output").glob("*/.cache/checks/pythia/*.json"))   # cached by the card's text
+    assert list((scratch / "cache").glob("*/checks/pythia/*.json"))    # cached by the card's text
 
 
 def test_a_tables_own_filters_file_replaces_the_folders(scratch, monkeypatch):

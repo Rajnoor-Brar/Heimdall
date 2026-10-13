@@ -18,7 +18,7 @@ Runtime state stays off disk (the user, 2026-10-03). Who hears the bus:
   file <tmp>/hep-watch/hep-watch-<pid>, removed when the process ends. The watcher gets a greeting, the current run's events so far
   (a tool's progress only as its latest), then every event live. A sweep of runs is one process, so
   the stream follows from run to run by itself;
-* the **Journal**, only with `--journal`: the same events in output/…/status.jsonl, one file per run,
+* the **Journal**, only with `--journal`: the same events in logs/…/status.jsonl, one file per run,
   for replay (`hep watch --file`) and tests.
 
 A subscriber is called on the emitting thread and must not block; the Hub queues for each client and

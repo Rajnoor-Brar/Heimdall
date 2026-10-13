@@ -21,7 +21,7 @@ def roots(scratch, monkeypatch):
     (work / "configs" / "P").mkdir(parents=True)
     (work / "hep.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
     machine.mkdir()
-    for var, value in (("HEP_WORK", work), ("HEP_OUTPUT", work / "output"), ("HEP_RESULTS", work / "results"),
+    for var, value in (("HEP_WORK", work), ("HEP_RECORDS", work / "records"), ("HEP_LOGS", work / "logs"), ("HEP_CACHE", work / "cache"), ("HEP_RESULTS", work / "results"),
                        ("HEP_MACHINE", machine)):
         monkeypatch.setenv(var, str(value))
     paths.reset()

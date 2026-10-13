@@ -49,14 +49,14 @@ def test_a_point_run_as_a_job_equals_the_same_point_run_here(scratch):
     with (work / "configs" / "Starter" / "starter.toml").open("a", encoding="utf-8") as toml:
         toml.write('\n[cluster]\ntime = "00:20:00"\n')
     env = {**{k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, "HEP_WORK": str(work),
-           "HEP_OUTPUT": str(work / "output"), "HEP_RESULTS": str(work / "results"),
+           "HEP_RECORDS": str(work / "records"), "HEP_LOGS": str(work / "logs"), "HEP_CACHE": str(work / "cache"), "HEP_RESULTS": str(work / "results"),
            "PATH": f"{stubs}{os.pathsep}{os.environ['PATH']}", "STUBLOG": str(scratch / "stub.log")}
 
     done = subprocess.run([str(HEP), "cluster", "Starter/starter"], cwd=work, env=env, capture_output=True, text=True,
                           timeout=1800)
     assert done.returncode == 0, done.stdout + done.stderr
     assert "points: job 201 (an array of 2)" in done.stdout and "finish: job 202" in done.stdout
-    [folder] = sorted((work / "output" / "Starter" / "starter" / "pdf" / "cluster").glob("*/jobs.toml"))
+    [folder] = sorted((work / "records" / "Starter" / "starter" / "01_pdf" / "cluster").glob("*/jobs.toml"))
     logs = folder.parent / "logs"
     assert sorted(p.name for p in logs.iterdir()) == ["finish-202.log", "points-201_1.log", "points-201_2.log"]
     assert "combine, post, plot done" in (logs / "finish-202.log").read_text()
@@ -67,10 +67,10 @@ def test_a_point_run_as_a_job_equals_the_same_point_run_here(scratch):
 
     ref = scratch / "ref"
     here = subprocess.run([str(HEP), "run", "Starter/starter", "--plain"], cwd=work, capture_output=True, text=True,
-                          env={**env, "HEP_OUTPUT": str(ref / "output"), "HEP_RESULTS": str(ref / "results")}, timeout=1800)
+                          env={**env, "HEP_RECORDS": str(ref / "records"), "HEP_LOGS": str(ref / "logs"), "HEP_CACHE": str(ref / "cache"), "HEP_RESULTS": str(ref / "results")}, timeout=1800)
     assert here.returncode == 0, here.stdout + here.stderr
     for point in ("nnpdf23", "cteq6l1"):
-        job = work / "results" / "Starter" / "starter" / "pdf" / point / "jets.yoda"
-        assert job.read_bytes() == (ref / "results" / "Starter" / "starter" / "pdf" / point / "jets.yoda").read_bytes()
-    pages = sorted(p.name for p in (work / "results" / "Starter" / "starter" / "pdf" / "plots" / "root").glob("*.png"))
-    assert pages and pages == sorted(p.name for p in (ref / "results" / "Starter" / "starter" / "pdf" / "plots" / "root").glob("*.png"))
+        job = work / "results" / "Starter" / "starter" / "01_pdf" / point / "jets.yoda"
+        assert job.read_bytes() == (ref / "results" / "Starter" / "starter" / "01_pdf" / point / "jets.yoda").read_bytes()
+    pages = sorted(p.name for p in (work / "results" / "Starter" / "starter" / "01_pdf" / "plots" / "root").glob("*.png"))
+    assert pages and pages == sorted(p.name for p in (ref / "results" / "Starter" / "starter" / "01_pdf" / "plots" / "root").glob("*.png"))

@@ -86,7 +86,7 @@ V3_TABLES = {
                                "static": "fixed"}, {"seed": _SEED}, ("seed_type", "manual_seed", "prelim")),
     "tools": ("tool", {"tool": "uses", "baseconfig": "card", "output_file": "output"},
               {"keep": {"type": "bool", "default": True, "doc": "`false`: what it writes for a later group is a scratch "
-                                                              "file of the point (`output/`), not a product (`results/`)"}},
+                                                              "file of the point (`logs/`), not a product (`results/`)"}},
               ()),
     "quantities": ("quantity", {"key": "to"},
                    {"points": {"type": "list", "doc": "the points, one row each: `{ tag, value, label, style }`; "
@@ -123,7 +123,7 @@ V3_DOCS = {
                         "another tool's output by name, a pre product, (post) a product of every point, or a path. "
                         "The first input is `{input}`",
     ("tools", "output"): "what it writes. Read in its own group, a FIFO; in a later group, a file: a product in "
-                         "`results/`, or with `keep = false` a scratch file in `output/` (04 §6). An array is "
+                         "`results/`, or with `keep = false` a scratch file in `logs/` (04 §6). An array is "
                          "fan-out (V16); one writer per output (C6)",
     ("quantities", "to"): "where the value goes: `{ pythia = \"PDF:pSet\" }` a native key per tool table or tool; "
                           "`{ \"rivet/photo_eic\" = \"R\" }` an analysis option; `{ \"pythia/seed\" = true }` a replica. "

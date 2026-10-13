@@ -59,7 +59,7 @@ def test_a_project_gets_the_starter(scratch, quiet):
     target = scratch / "w"
     setup.setup(target, project="Jets", name="My study", out=quiet[0])
     toml = (target / "configs" / "Jets" / "jets.toml").read_text(encoding="utf-8")
-    assert 'project       = "Jets"' in toml and 'baseconfig  = "jets.cmnd"' in toml
+    assert 'project = "Jets"' in toml and 'card   = "jets.cmnd"' in toml          # the v3 starter (03 §6)
     assert (target / "configs" / "Jets" / "jets.cmnd").is_file() and (target / "modules" / "Jets").is_dir()
     assert paths.work_meta(target)["name"] == "My study"
 

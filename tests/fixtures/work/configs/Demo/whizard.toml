@@ -11,45 +11,34 @@
 serial        = 6
 name          = "whizard"
 project       = "Demo"
-configuration = "single"
-event_count   = 2_000
+run           = "single"
+events        = 2_000
 threads       = 1
 
-[run.cfgs.single]
+[cfgs.single]
 description = "Direct photoproduction at 18x275 e+p"
-sweeps      = []
-tools       = [["whizard", "rivet"], "yd2rt"]
-
-[prelim]
-fifo = ["events.hepmc"]
-
-[static]
-energies = "18x275"
-beams    = "ep"
+chain       = [["whizard", "rivet"], "yd2rt"]
 
 [tools.whizard]
-tool        = "whizard"
-baseconfig  = "ep.sin"
-output_file = "events.hepmc"
+card        = "ep.sin"
+output      = "events.hepmc"
 
 [tools.rivet]
-tool        = "rivet"
-input       = "events.hepmc"
+input       = "whizard"
 analyses    = ["MC_XS", "MC_JETS"]
-output_file = "jets.yoda"
+output      = "jets.yoda"
 
 [tools.yd2rt]
-tool        = "yd2rt"
-input       = "jets.yoda"
-output_file = "jets.root"
+input       = "rivet"
+output      = "jets.root"
 
 [quantities.energies]
-values = [[275, 18]]              # [E_p, E_e]: beam A is the proton
-tags   = ["18x275"]
+fixed  = "18x275"
+points = [{ tag = "18x275", value = [275, 18] }]
 
 [quantities.beams]
-values = [[2212, -11]]
-tags   = ["ep"]
+fixed  = "ep"
+points = [{ tag = "ep", value = [2212, -11] }]
 
 [plot]
 formats = ["png"]

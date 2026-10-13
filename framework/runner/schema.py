@@ -49,6 +49,32 @@ def spec(name: str = "run") -> dict:
 RUN_GIVES = ("tools", "sweeps", "plot_points", "combine", "pre", "post", "generate_cards")
 
 
+#: How a table is named in an error that sends a key to it.
+HOMES = {"run": "[run] (or a configuration)", "configuration": "a configuration ([cfgs.<name>], v2's [run.cfgs.<name>])",
+         "quantity": "[quantities.<q>]", "tool": "[tools.<tag>]", "plot": "[plot]", "figure": "a figure ([plot.figures.<f>])",
+         "data": "[plot.data]", "cluster": "[cluster]", "config": "[file] (v2's [config])", "prelim": "[prelim] (v2)"}
+#: v3's own keys (runner/v3.py), where they belong.
+V3_HOMES = {"events": "[run] (or a configuration)", "chain": "[run] (or a configuration)", "vary": "a configuration (or [run])",
+            "seed": "[run] (or a configuration)", "run": "[run]", "commands": "[run]", "folder": "a configuration",
+            "fixed": "a quantity, or a configuration's fixed = { q = tag }", "points": "[quantities.<q>]",
+            "to": "[quantities.<q>]", "fields": "[quantities.<q>]", "card": "[tools.<tag>]", "output": "[tools.<tag>]",
+            "uses": "[tools.<tag>]", "keep": "[tools.<tag>]"}
+
+
+def home_of(key: str, here: str) -> str:
+    """Where a key that is unknown in table `here` belongs: "threads belongs in [run] (or a configuration)",
+    or "" when no other table has it."""
+    tables = [t for t in spec() if t not in ("sections", here) and key in keys(t)]
+    if here in ("run", "configuration"):
+        tables = [t for t in tables if t not in ("run", "configuration")]
+    if "run" in tables and "configuration" in tables:
+        tables.remove("configuration")
+    homes = [HOMES.get(t, f"[{t}]") for t in tables]
+    if not homes and key in V3_HOMES:
+        homes = [V3_HOMES[key]]
+    return f"'{key}' belongs in {' or '.join(homes)}" if homes else ""
+
+
 def keys(table: str) -> dict[str, dict]:
     """The keys of one schema table: name → its entry. A figure's are every [plot] key marked `page`, as
     a child has them ("default" is [plot]'s value; no default of its own), then its own."""
@@ -102,7 +128,7 @@ def check(values: dict, table: str, where: str, *, subtables: bool = False, extr
                 extras[key] = value
                 continue
             raise HepError(f"unknown key '{key}'", where=where,
-                           hint=did_you_mean(key, known) or f"known keys: {', '.join(known)}")
+                           hint=home_of(key, table) or did_you_mean(key, known) or f"known keys: {', '.join(known)}")
         if subtables and isinstance(value, dict) and "table" not in entry["type"].split("|"):
             continue                                       # a configuration named like a key ([run.threads])
         check_value(key, value, entry, f"{where}.{key}" if not where.endswith("]") else f"{where}.{key}")

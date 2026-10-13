@@ -9,51 +9,41 @@
 serial        = 7
 name          = "madgraph"
 project       = "Demo"
-configuration = "single"
-event_count   = 1_000
+run           = "single"
+events        = 1_000
 threads       = 1                   # Pythia reads one LHE: one instance (no PythiaParallel split)
 
-[run.cfgs.single]
+[cfgs.single]
 description = "MadGraph ep DIS at 18x275, showered by Pythia, analysed by Rivet"
-sweeps      = []
-tools       = ["madgraph", ["shower", "rivet"], "yd2rt"]
-
-[prelim]
-files = ["unweighted.lhe"]
-fifo  = ["events.hepmc"]
-
-[static]
-energies = "18x275"
-beams    = "pe"
+chain       = ["madgraph", ["shower", "rivet"], "yd2rt"]
 
 [tools.madgraph]
-tool        = "madgraph"
-baseconfig  = "dis_ep.proc_card.mg5"
-output_file = "unweighted.lhe"
+card        = "dis_ep.proc_card.mg5"
+output      = "unweighted.lhe"
+keep        = false              # a scratch file of the point, not a product
 
 [tools.shower]
-tool        = "pythia"
-baseconfig  = "shower_lhe.cmnd"
-input       = "unweighted.lhe"
-output_file = "events.hepmc"
+uses        = "pythia"
+card        = "shower_lhe.cmnd"
+input       = "madgraph"
+output      = "events.hepmc"
 
 [tools.rivet]
-tool        = "rivet"
-input       = "events.hepmc"
+input       = "shower"
 analyses    = ["photo_eic"]
-output_file = "jets.yoda"
+output      = "jets.yoda"
 
 [tools.yd2rt]
-tool        = "yd2rt"
-input       = "jets.yoda"
-output_file = "jets.root"
+input       = "rivet"
+output      = "jets.root"
 
 [quantities.energies]
-values = [[275, 18]]                # [E_p, E_e]: beam 1 is the proton (the proc card's order)
-tags   = ["18x275"]
-target = "madgraph"                 # the shower's beams are the LHE header's, not a second opinion
+to     = { madgraph = true }
+fixed  = "18x275"
+points = [{ tag = "18x275", value = [275, 18] }]
 
 [quantities.beams]
-values = [[2212, 11]]
-tags   = ["pe"]
-target = "madgraph"
+to     = { madgraph = true }
+fixed  = "pe"
+points = [{ tag = "pe", value = [2212, 11] }]
+

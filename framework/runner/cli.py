@@ -97,6 +97,7 @@ def parser() -> argparse.ArgumentParser:
 
     move = commands.add_parser("migrate", help="rewrite run TOMLs and their cards in today's forms (a diff, or --apply)")
     move.add_argument("configs", nargs="*", metavar="CONFIG", help="configs to migrate (default: every config)")
+    move.add_argument("--v3", action="store_true", help="into the run TOML's third form (03 §6, runner/v3.py)")
     move.add_argument("--apply", action="store_true", help="write the changes (default: print the diff)")
 
     again = commands.add_parser("reproduce", help="run a finished point again, from its provenance, beside it")
@@ -866,7 +867,7 @@ def cmd_migrate(args) -> int:
     the files rewritten. Configs are read as they are (the forms the runner now refuses included)."""
     from . import migrate
     names = list(args.configs) or house.config_names()
-    changes = migrate.plan(names)            # every one must read, leniently, before anything is written
+    changes = migrate.plan(names, v3=getattr(args, "v3", False))   # every one must read, leniently, first
     for path, (old, new) in changes.items():
         sys.stdout.write(migrate.diff(path, old, new))
     if not changes:

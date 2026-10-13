@@ -88,6 +88,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | Argument | Meaning |
 |---|---|
 | `CONFIG…` | configs to migrate (default: every config) |
+| `--v3` | into the run TOML's third form (03 §6, runner/v3.py) |
 | `--apply` | write the changes (default: print the diff) |
 
 **`hep reproduce`**: run a finished point again, from its provenance, beside it

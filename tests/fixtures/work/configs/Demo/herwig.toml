@@ -10,53 +10,43 @@
 serial        = 5
 name          = "herwig"
 project       = "Demo"
-configuration = "single"
-event_count   = 2_000
+run           = "single"
+events        = 2_000
 threads       = 1
 
-[run.cfgs.single]
+[cfgs.single]
 description = "Herwig ep DIS at 18x275, analysed by Rivet"
-sweeps      = []
-tools       = [["herwig", "rivet"], "yd2rt"]
+chain       = [["herwig", "rivet"], "yd2rt"]
 
-[run.cfgs.export]
+[cfgs.export]
 description = "An exec tool asks for herwig:run: Herwig's read runs once (cached), the tool gets the path"
-sweeps      = []
-tools       = ["probe"]
-prelim      = {}
+chain       = ["probe"]
 generate_cards = ["herwig:run"]   # Herwig's run file, made for probe (HEP_CONTEXT)
 
-[prelim]
-fifo = ["events.hepmc"]
-
-[static]
-energies = "18x275"
-
 [tools.herwig]
-tool        = "herwig"
-baseconfig  = "dis_ep.herwig.in"
-output_file = "events.hepmc"
+card        = "dis_ep.herwig.in"
+output      = "events.hepmc"
 
 [tools.rivet]
-tool        = "rivet"
-input       = "events.hepmc"
+input       = "herwig"
 analyses    = ["photo_eic"]
-output_file = "jets.yoda"
+output      = "jets.yoda"
 
 [tools.yd2rt]
-tool        = "yd2rt"
-input       = "jets.yoda"
-output_file = "jets.root"
+input       = "rivet"
+output      = "jets.root"
 
 [tools.probe]                     # stands in for an integrated program that runs Herwig itself
-tool        = "exec"
+uses        = "exec"
 executable  = "/bin/ls"
 arguments   = ["-l", "{context:herwig.run}"]
 
 [quantities.energies]
-values = [[275, 18], [920, 27.5]]   # [E_p, E_e]
-tags   = ["18x275", "27x920"]
-labels = ["18x275 GeV", "27x920 GeV"]
+fixed  = "18x275"
+points = [
+  { tag = "18x275", value = [275, 18], label = "18x275 GeV" },
+  { tag = "27x920", value = [920, 27.5], label = "27x920 GeV" },
+]
 
 [plot]
 formats = ["png"]

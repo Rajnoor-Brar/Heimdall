@@ -53,7 +53,7 @@ def identity_parts(plan: PointPlan) -> dict:
         "events": plan.events,
         "tools": [plan.rendered[tag].identity_parts for tag in sorted(plan.rendered)],
         "groups": [[s.tag for s in group] for group in plan.groups],
-        "prelim": plan.prelim,
+        "prelim": {k: v for k, v in plan.prelim.items() if v},   # an empty list is none (v3 infers, V130)
         "seeds": seed_rule(plan),        # the seed rule: changing it must rerun what it decided
     }
     if plan.upstream:                    # post: it changes when any point does

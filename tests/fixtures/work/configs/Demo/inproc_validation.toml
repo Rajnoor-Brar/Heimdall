@@ -25,98 +25,96 @@
 serial        = 1
 name          = "inproc_validation"
 project       = "Demo"
-configuration = "default"
-event_count   = 1_000_000
+run           = "default"
+events        = 1_000_000
 threads       = 12            # Pythia's; 12 + 12 Rivets fill the 24 hardware threads
 generate_cards = ["pythia", "rivet"]   # not run: their cards, for inproc (HEP_CONTEXT)
+chain         = ["inproc", "yd2rt"]   # every configuration's, unless it says its own
 
-[run.cfgs.default]
+[cfgs.default]
 description = "Proton-PDF comparison at 27.5x920 GeV e+p against ZEUS 2012, in one process"
-sweeps      = ["pdf"]
-tools       = ["inproc", "yd2rt"]
+vary        = ["pdf"]
 
-[run.cfgs.ptref]
+[cfgs.ptref]
 description = "MPI pT0Ref scan, 2.8–3.4 GeV, at 27.5x920 GeV e+p, in one process"
-sweeps      = ["pt0ref"]
-tools       = ["inproc", "yd2rt"]
+vary        = ["pt0ref"]
 
-[run.cfgs.mpi]
+[cfgs.mpi]
 description = "Multiparton interactions on vs off, at the static pT0Ref, in one process"
-sweeps      = ["mpi"]
-tools       = ["inproc", "yd2rt"]
+vary        = ["mpi"]
 
-[run.cfgs.single]
+[cfgs.single]
 description = "One run at the static point, in one process"
-sweeps      = []
-tools       = ["inproc", "yd2rt"]
 
 # No [prelim]: the events never leave the process.
 
-[static]
-energies = "27x920"
-lepton   = "ep"
-pt0ref   = "pt34"
-
-# ── tools ──────────────────────────────────────────────────────────────────────────────────────────
-
 [tools.inproc]                # the integrated program (V21, V33)
-tool           = "module"
+uses           = "module"
 executable     = "InprocJets.exe"
-output_file    = "validation.yoda"
+output         = "validation.yoda"
 
 [tools.inproc.config]
 engine        = "parallel"    # PythiaParallel as App_Pythia runs it; "serial": one Pythia8::Pythia
 rivet_threads = 12            # Rivets on threads of their own, merged at the end (V34, L29)
 
 [tools.pythia]                # configured, not run: its point card goes to inproc (generate_cards)
-tool        = "pythia"
-baseconfig  = "ep_validation.cmnd"
-output_file = "events.hepmc"
+card        = "ep_validation.cmnd"
+output      = "events.hepmc"
 
 [tools.rivet]                 # configured, not run: its analyses go to inproc (generate_cards)
-tool        = "rivet"
-input       = "events.hepmc"
+input       = "pythia"
 analyses    = ["ZEUS_2012_I1116258"]
-output_file = "validation.yoda"
+output      = "validation.yoda"
 
 [tools.yd2rt]
-tool        = "yd2rt"
 input       = "validation.yoda"
-output_file = "validation.root"
+output      = "validation.root"
 
 # ── quantities (as validation.toml) ───────────────────────────────────────────────────────────
 
 [quantities.pdf]
-values = ["LHAPDF6:MSTW2008lo68cl", "LHAPDF6:NNPDF23_lo_as_0130_qed", "LHAPDF6:NNPDF23_nlo_as_0119_qed", "LHAPDF6:PDF4LHC21_40"]
-tags   = ["MSTW08lo", "NNPDF23lo", "NNPDF23nlo", "PDF4LHC21"]
-labels = ["MSTW 2008 LO", "NNPDF 2.3 QCD+QED LO", "NNPDF 2.3 QCD+QED NLO", "PDF4LHC21"]
+points = [
+  { tag = "MSTW08lo", value = "LHAPDF6:MSTW2008lo68cl", label = "MSTW 2008 LO" },
+  { tag = "NNPDF23lo", value = "LHAPDF6:NNPDF23_lo_as_0130_qed", label = "NNPDF 2.3 QCD+QED LO" },
+  { tag = "NNPDF23nlo", value = "LHAPDF6:NNPDF23_nlo_as_0119_qed", label = "NNPDF 2.3 QCD+QED NLO" },
+  { tag = "PDF4LHC21", value = "LHAPDF6:PDF4LHC21_40", label = "PDF4LHC21" },
+]
 
 [quantities.pt0ref]
-key    = { pythia = "MultipartonInteractions:pT0Ref" }
-values = [2.8, 3.0, 3.2, 3.4]
-tags   = ["pt28", "pt30", "pt32", "pt34"]
-labels = ['$p_{T0}^{\mathrm{ref}}$ = 2.8 GeV', '$p_{T0}^{\mathrm{ref}}$ = 3.0 GeV',
-          '$p_{T0}^{\mathrm{ref}}$ = 3.2 GeV', '$p_{T0}^{\mathrm{ref}}$ = 3.4 GeV']
+to     = { pythia = "MultipartonInteractions:pT0Ref" }
+fixed  = "pt34"
+points = [
+  { tag = "pt28", value = 2.8, label = '$p_{T0}^{\mathrm{ref}}$ = 2.8 GeV' },
+  { tag = "pt30", value = 3.0, label = '$p_{T0}^{\mathrm{ref}}$ = 3.0 GeV' },
+  { tag = "pt32", value = 3.2, label = '$p_{T0}^{\mathrm{ref}}$ = 3.2 GeV' },
+  { tag = "pt34", value = 3.4, label = '$p_{T0}^{\mathrm{ref}}$ = 3.4 GeV' },
+]
 
 [quantities.mpi]
-key    = { pythia = "PartonLevel:MPI" }
-values = [true, false]
-tags   = ["mpi", "nompi"]
-labels = ["MPI on", "MPI off"]
+to     = { pythia = "PartonLevel:MPI" }
+points = [
+  { tag = "mpi", value = true, label = "MPI on" },
+  { tag = "nompi", value = false, label = "MPI off" },
+]
 
 [quantities.energies]
-values = [[41, 5], [100, 10], [275, 18], [920, 27.5]]
-tags   = ["5x41", "10x100", "18x275", "27x920"]
-labels = ['5x41 GeV ($\sqrt{s}$ = 28.6 GeV)', '10x100 GeV ($\sqrt{s}$ = 63.2 GeV)',
-          '18x275 GeV ($\sqrt{s}$ = 140.7 GeV)', '27.5x920 GeV ($\sqrt{s}$ = 318.1 GeV)']
+fixed  = "27x920"
+points = [
+  { tag = "5x41", value = [41, 5], label = '5x41 GeV ($\sqrt{s}$ = 28.6 GeV)' },
+  { tag = "10x100", value = [100, 10], label = '10x100 GeV ($\sqrt{s}$ = 63.2 GeV)' },
+  { tag = "18x275", value = [275, 18], label = '18x275 GeV ($\sqrt{s}$ = 140.7 GeV)' },
+  { tag = "27x920", value = [920, 27.5], label = '27.5x920 GeV ($\sqrt{s}$ = 318.1 GeV)' },
+]
 
 [quantities.lepton]
-key    = { pythia = "Beams:idB" }
-values = [11, -11]
-tags   = ["em", "ep"]
-labels = ["$e^{-}$", "$e^{+}$"]
 
 # ── plot (as validation.toml) ─────────────────────────────────────────────────────────────────
+to     = { pythia = "Beams:idB" }
+fixed  = "ep"
+points = [
+  { tag = "em", value = 11, label = "$e^{-}$" },
+  { tag = "ep", value = -11, label = "$e^{+}$" },
+]
 
 [plot]
 backend     = ["root", "yoda"]

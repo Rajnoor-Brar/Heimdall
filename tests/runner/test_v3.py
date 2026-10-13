@@ -228,3 +228,48 @@ def test_the_card_shows_where_each_line_comes_from(scratch, capsys):
     assert "pythia's card for point NNPDF23lo" in shown
     assert "← [quantities.pdf] = NNPDF23lo" in shown and "ep.cmnd:" in shown and "set again below" in shown
     assert "← the runner (seeds, the footer)" in shown
+
+
+def _identities(run) -> dict:
+    from runner import record
+    master = quantities.load_master(run.project, run.master_toml)
+    out = {}
+    for key, conf in run.configurations.items():
+        plans = [tools.plan_point(run, conf, p, master) for p in sweep.points(run, conf)]
+        out[key] = [(p.point.name, conf.prelim, record.identity(p)) for p in plans]
+    return out
+
+
+def test_every_fixture_config_is_its_v2_text_in_v3():
+    """06_Plan's phase-6 row: the fixture's configs were migrated by hep migrate --v3; their v2 texts
+    (tests/reference/v2_configs/) and they plan every point to the same name and identity, and the v2
+    text migrates to the file as it is."""
+    from runner import house, migrate
+    from support import REPO
+    for name in house.config_names():
+        v2 = (REPO / "tests" / "reference" / "v2_configs" / f"{name}.toml").read_text(encoding="utf-8")
+        mine = _identities(config.load(name))
+        theirs = _identities(config.load(name, text=v2))
+        assert {k: [(n, i) for n, _, i in v] for k, v in mine.items()} == \
+               {k: [(n, i) for n, _, i in v] for k, v in theirs.items()}, name
+        assert migrate.v3_text(config.config_file(name).read_text(encoding="utf-8")) == \
+               config.config_file(name).read_text(encoding="utf-8"), name           # v3 stays as it is
+
+
+def test_the_migration_says_each_fact_once(scratch):
+    from runner import migrate
+    new = migrate.v3_text(V2)
+    assert new.count("chain") == 1 and "[prelim]" not in new and "[static]" not in new and "tool " not in new
+    assert 'fixed  = "MSTW08lo"' in new and 'input       = "pythia"' in new and "[cfgs.pdf]" in new
+
+
+@pytest.mark.parametrize("change, message", [
+    (('analyses = ["photo_eic"]', 'analyses = ["photo_eic"]\nthreads  = 4'), "'threads' belongs in \\[run\\] \\(or a configuration\\)"),
+    (('[cfgs.pdf]\nvary = ["pdf"]', '[cfgs.pdf]\nvary = ["pdf"]\nformats = ["png"]'), "'formats' belongs in \\[plot\\]"),
+    (('analyses = ["photo_eic"]', 'analyses = ["photo_eic"]\nvary = ["pdf"]'), "'vary' belongs in a configuration"),
+])
+def test_a_key_in_the_wrong_table_names_its_table(scratch, change, message):
+    """03 §3, 06_Plan's row: `threads = 4` in a tool table says where threads goes."""
+    with pytest.raises(HepError) as caught:
+        plans_of(written(scratch, V3.replace(*change)), "pdf")
+    assert caught.value.hint and __import__("re").search(message, caught.value.hint), caught.value.hint

@@ -38,6 +38,8 @@ import shutil
 import tomllib
 from pathlib import Path
 
+import tomli_w
+
 from . import config as configmod
 from . import tools
 from .errors import HepError
@@ -348,11 +350,12 @@ def _block_end(lines: list[str], header: int) -> int:
     return end
 
 
-def exports_text(text: str) -> str:
+def exports_text(text: str, imported: dict | None = None) -> str:
     """An exec or module table's export keys (`pythia_cmnd = true`, C13) as generate_cards (audit 3,
     phase 4.2): the table each one named, as "<tag>:<product>" when its folder makes it on demand, in
     every configuration whose chain runs the asking table (in [run] when every configuration does), and
-    `{std:<key>}` as `{context:<tag>.<card or product>}`. By line; the rest of the file is kept."""
+    `{std:<key>}` as `{context:<tag>.<card or product>}`. By line; the rest of the file is kept. `imported`
+    ({tag: tool}) names the tables the file's imports give, which an export key may name too."""
     try:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError:
@@ -375,7 +378,8 @@ def exports_text(text: str) -> str:
             if value is False:
                 continue
             kind, export = m["tool"], m["export"]
-            same = [t for t, other in tables.items() if other.get("tool") == kind]
+            same = [t for t, other in tables.items() if other.get("tool") == kind] or \
+                   [t for t, other in (imported or {}).items() if other == kind]
             target = value if isinstance(value, str) else kind if kind in same else same[0] if len(same) == 1 else None
             if target is None:
                 drop[tag].discard(key)                     # ambiguous: left for the plan to name
@@ -426,14 +430,279 @@ def exports_text(text: str) -> str:
     return text
 
 
-def plan(names: list[str]) -> dict[Path, tuple[str, str]]:
-    """Every file the configs touch: path → (its text, its migrated text), only those that change."""
+# ── v3 (audit 3, phase 6.3; runner/v3.py) ──────────────────────────────────────────────────────
+
+RUN_V3 = {"configuration": "run", "event_count": "events", "tools": "chain", "sweeps": "vary"}
+CFG_V3 = {**RUN_V3, "label": "folder", "static": "fixed"}
+TOOL_V3 = {"baseconfig": "card", "output_file": "output"}
+
+
+def _depth(text: str) -> int:
+    """Brackets opened and not closed on a line, outside strings and comments."""
+    depth, quote, i = 0, "", 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            if c == "\\" and quote == '"':
+                i += 2
+                continue
+            if c == quote:
+                quote = ""
+        elif c in "\"'":
+            quote = c
+        elif c == "#":
+            break
+        elif c in "[{":
+            depth += 1
+        elif c in "]}":
+            depth -= 1
+        i += 1
+    return depth
+
+
+def _blocks(text: str) -> list[dict]:
+    """A file's tables: each {name, header, lead, entries}; an entry is (key or None, its lines). The
+    comment lines right above a header (no blank line between) are that table's lead."""
+    blocks = [{"name": None, "header": None, "lead": [], "entries": []}]
+    pending: list[str] = []
+    lines = text.splitlines(keepends=True)
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        table = _TABLE.match(line)
+        if table and not line.lstrip().startswith("#"):
+            lead = []
+            while blocks[-1]["entries"] and blocks[-1]["entries"][-1][0] is None \
+                    and blocks[-1]["entries"][-1][1][0].lstrip().startswith("#"):
+                lead.insert(0, blocks[-1]["entries"].pop()[1][0])
+            blocks.append({"name": table[1].strip(), "header": line, "lead": lead, "entries": []})
+            i += 1
+            continue
+        key = _KEY.match(line.rstrip("\n"))
+        if key and not line.lstrip().startswith("#"):
+            chunk, depth = [line], _depth(key[4])
+            while depth > 0 and i + 1 < len(lines):
+                i += 1
+                chunk.append(lines[i])
+                depth += _depth(lines[i])
+            blocks[-1]["entries"].append((key[2].strip('"'), chunk))
+        else:
+            blocks[-1]["entries"].append((None, [line]))
+        i += 1
+    return blocks
+
+
+def _renamed(chunk: list[str], new: str) -> list[str]:
+    """An entry under a new key, its `=` where it was (an aligned table stays aligned)."""
+    match = _KEY.match(chunk[0].rstrip("\n"))
+    before, after = match[3].split("=", 1)
+    column = len(match[2]) + len(before)
+    first = f"{match[1]}{new}{' ' * max(1, column - len(new))}={after}{match[4]}" + ("\n" if chunk[0].endswith("\n") else "")
+    return [first, *chunk[1:]]
+
+
+def _tv(value) -> str:
+    """A TOML value as written: a string with backslashes in single quotes (labels' LaTeX)."""
+    if isinstance(value, str) and "\\" in value and "'" not in value and "\n" not in value:
+        return f"'{value}'"
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{_tk(k)} = {_tv(v)}" for k, v in value.items()) + " }"
+    if isinstance(value, list):
+        return "[" + ", ".join(_tv(v) for v in value) + "]"
+    return tomli_w.dumps({"v": value}).split("=", 1)[1].strip()
+
+
+def _tk(key: str) -> str:
+    return key if re.fullmatch(r"[A-Za-z0-9_-]+", key) else f'"{key}"'
+
+
+def _seed_entry(table: dict, chunk: list[str]) -> list[str]:
+    seed = table.get("manual_seed") if table.get("seed_type") == "manual" else table.get("seed_type")
+    match = _KEY.match(chunk[0].rstrip("\n"))
+    return [f"{match[1]}seed = {_tv(seed)}\n"]
+
+
+def _quantity_v3(name: str, block: dict, q: dict, fixed) -> list[str]:
+    """A v2 quantity's table as v3's: its other keys as they were, then to, fixed and its points as rows."""
+    from .sweep import tag_of
+    from .config import Quantity
+    moved = ("values", "tags", "labels", "styles", "key", "target")
+    out = [line for key, chunk in block["entries"] if key not in moved for line in chunk]
+    while out and not out[-1].strip():
+        out.pop()
+    target = q.get("target")
+    key = q.get("key")
+    if target is not None or key is not None:
+        targets = [target] if isinstance(target, str) else list(target or [])
+        if targets:
+            to = {}
+            for entry in targets:
+                tag = entry.split("/")[0]
+                given = key if isinstance(key, str) else (key or {}).get(tag)
+                to[entry] = given if given is not None else True
+        else:
+            to = dict(key)
+        out.append(f"to     = {_tv(to)}\n")
+    if fixed is not None:
+        out.append(f"fixed  = {_tv(fixed)}\n")
+    values = q.get("values", [])
+    probe = Quantity(name=name, values=values, tags=[str(x) for x in q.get("tags", [])])
+    rows = []
+    for i, value in enumerate(values):
+        row = {"tag": tag_of(probe, i), "value": value}
+        if q.get("labels"):
+            row["label"] = q["labels"][i]
+        if q.get("styles") and q["styles"][i]:
+            row["style"] = q["styles"][i]
+        rows.append("{ " + ", ".join(f"{k} = {_tv(v)}" for k, v in row.items()) + " }")
+    if len(rows) == 1 and len(rows[0]) < 80:
+        out.append(f"points = [{rows[0]}]\n")
+    else:
+        out += ["points = [\n", *(f"  {r},\n" for r in rows), "]\n"]
+    return out
+
+
+def v3_text(text: str) -> str:
+    """A v2 run TOML in v3's form (03 §6), by table, comments kept: [config] → [file], [run.cfgs.<name>] →
+    [cfgs.<name>], keys renamed, tools typed by their table's name, [prelim] inferred (keep = false on a
+    scratch file's producer; its commands to [run]), [static] into each quantity's fixed, quantities as
+    rows. A v3 file is left as it is."""
+    from .v3 import is_v3
+    data = tomllib.loads(text)
+    if is_v3(data):
+        return text
+    run, prelim, static = data.get("run", {}), data.get("prelim", {}), data.get("static", {})
+    cfgs, tool_tables, quantities = run.get("cfgs", {}), data.get("tools", {}), data.get("quantities", {})
+    scratch = set(prelim.get("files", []))
+    for cfg in cfgs.values():
+        if isinstance(cfg, dict) and isinstance(cfg.get("prelim"), dict):
+            scratch |= set(cfg["prelim"].get("files", []))
+    def outputs(tb) -> list:
+        given = tb.get("output_file", []) if isinstance(tb, dict) else []
+        return given if isinstance(given, list) else [given]
+    unkept = {tag for tag, tb in tool_tables.items() if set(outputs(tb)) & scratch}
+    writers: dict[str, list[str]] = {}
+    for tag, tb in tool_tables.items():
+        for name in outputs(tb):
+            writers.setdefault(name, []).append(tag)
+    producer = {name: tags[0] for name, tags in writers.items()        # input = "<producer>" where it is clear
+                if len(tags) == 1 and len(outputs(tool_tables[tags[0]])) == 1 and name not in tool_tables}
+    chains = [repr(cfg["tools"]) for cfg in cfgs.values() if isinstance(cfg, dict) and "tools" in cfg]
+    hoisted = None                                                  # the chain most configurations share: [run]'s
+    if "tools" not in run and chains:
+        common = max(set(chains), key=chains.count)
+        if chains.count(common) >= 2:
+            hoisted = next(cfg["tools"] for cfg in cfgs.values() if isinstance(cfg, dict) and repr(cfg.get("tools")) == common)
+    out: list[str] = []
+    for block in _blocks(text):
+        name, entries = block["name"], block["entries"]
+        lines: list[str] = []
+        if name is None:
+            out += [l for _, chunk in entries for l in chunk]
+            continue
+        if name in ("prelim", "static") or (name.startswith("run.cfgs.") and name.endswith(".prelim")):
+            continue                                                    # inferred, and into fixed
+        if name == "config" or name.startswith("config."):
+            header = block["header"].replace("[config", "[file", 1)
+            lines = [l for _, chunk in entries for l in chunk]
+        elif name == "run":
+            header = block["header"]
+            for key, chunk in entries:
+                if key in RUN_V3:
+                    lines += _renamed(chunk, RUN_V3[key])
+                elif key == "seed_type":
+                    lines += _seed_entry(run, chunk)
+                elif key == "manual_seed":
+                    continue
+                else:
+                    lines += chunk
+            tail = []
+            while lines and not lines[-1].strip():
+                tail.insert(0, lines.pop())
+            if hoisted is not None:
+                lines.append(f"chain         = {_tv(hoisted)}   # every configuration's, unless it says its own\n")
+            if prelim.get("commands"):
+                lines.append(f"commands      = {_tv(prelim['commands'])}   # in each point's folder, before its tools\n")
+            lines += tail
+        elif name.startswith("run.cfgs."):
+            rest = name[len("run.cfgs."):]
+            cfg_name, _, sub = rest.partition(".")
+            sub = "fixed" if sub == "static" else sub
+            header = block["header"].replace(f"[{name}]", f"[cfgs.{cfg_name}{'.' + sub if sub else ''}]", 1)
+            cfg = cfgs.get(cfg_name.strip('"'), {})
+            for key, chunk in entries:
+                if sub:
+                    lines += chunk
+                elif key == "prelim":
+                    continue
+                elif key == "tools" and hoisted is not None and repr(cfg.get("tools")) == repr(hoisted):
+                    continue                                            # [run]'s chain
+                elif key == "sweeps" and cfg.get("sweeps") == [] and "extends" not in cfg and "sweeps" not in run:
+                    continue                                            # the default
+                elif key in CFG_V3:
+                    lines += _renamed(chunk, CFG_V3[key])
+                elif key == "seed_type":
+                    lines += _seed_entry(cfg, chunk)
+                elif key == "manual_seed":
+                    continue
+                else:
+                    lines += chunk
+        elif name.startswith("tools.") and name.count(".") == 1:
+            tag = name[len("tools."):].strip('"')
+            table = tool_tables.get(tag, {})
+            header, placed = block["header"], False
+            for key, chunk in entries:
+                if key == "tool":
+                    if table.get("tool") != tag:
+                        lines += _renamed(chunk, "uses")
+                    continue
+                if key == "input" and isinstance(table.get("input"), str) and table["input"] in producer:
+                    match = _KEY.match(chunk[0].rstrip("\n"))
+                    comment = match[4].split("#", 1)[1] if "#" in match[4] else ""
+                    lines.append(f"{match[1]}input{match[3]}\"{producer[table['input']]}\"" + (f"   #{comment}" if comment else "") + "\n")
+                    continue
+                if key in TOOL_V3:
+                    lines += _renamed(chunk, TOOL_V3[key])
+                    if key == "output_file" and tag in unkept:
+                        lines.append("keep        = false              # a scratch file of the point, not a product\n")
+                        placed = True
+                    continue
+                lines += chunk
+            if tag in unkept and not placed:
+                lines.append("keep = false\n")
+        elif name.startswith("quantities.") and name.count(".") == 1:
+            qname = name[len("quantities."):].strip('"')
+            header = block["header"]
+            fixed = static.get(qname)
+            lines = _quantity_v3(qname, block, quantities.get(qname, {}), None if fixed == "default" else fixed)
+            lines.append("\n")
+        else:
+            header = block["header"]
+            lines = [l for _, chunk in entries for l in chunk]
+        out += [*block["lead"], header, *lines]
+    for qname, fixed in static.items():                               # an imported quantity, fixed here
+        if qname not in quantities and fixed != "default":
+            out += [f"\n[quantities.{_tk(qname)}]                # the imported quantity, fixed here\n",
+                    f"fixed = {_tv(fixed)}\n"]
+    text = "".join(out)
+    if "[cfgs." not in text and "chain" not in run and "[file]" not in text:
+        text = "[file]\nschema = 3                     # the run TOML's third form (hep migrate --v3)\n\n" + text
+    return re.sub(r"\n{3,}", "\n\n", text)
+
+
+def plan(names: list[str], v3: bool = False) -> dict[Path, tuple[str, str]]:
+    """Every file the configs touch: path → (its text, its migrated text), only those that change. With
+    v3, a file then takes the third form (v3_text)."""
     changes: dict[Path, tuple[str, str]] = {}
     for name in names:
         text = config_file(name).read_text(encoding="utf-8")
-        first = exports_text(formerly_text(defaults_text(cfgs_text(config_text(figure_text(placeholder_text(text)))))))
+        first = formerly_text(defaults_text(cfgs_text(config_text(figure_text(placeholder_text(text))))))
+        given = configmod.load(name, strict=False, text=first)          # the tables its imports give, too
+        first = exports_text(first, {tag: tool.tool for tag, tool in given.tools.items()})
         run = configmod.load(name, strict=False, text=first)
         new = toml_text(first, run, run.project)
+        if v3:
+            new = v3_text(new)
         if new != text:
             changes[run.path] = (text, new)
         cards: dict[Path, object] = {}

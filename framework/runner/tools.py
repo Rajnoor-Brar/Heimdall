@@ -553,9 +553,10 @@ def _check_options(tool, folder: Folder, where: str) -> None:
                            hint=f"a tool that is not in the chain goes in generate_cards = [\"<tag>\"] (or \"<tag>:<product>\"); "
                                 "the program reads $HEP_CONTEXT. hep migrate rewrites it")
         if key not in schema:
+            from .schema import home_of
             raise HepError(f"unknown key '{key}' for a {folder.name} tool", where=where,
-                           hint=did_you_mean(key, schema) or (f"{folder.name} takes: {', '.join(schema)}"
-                                                              if schema else f"{folder.name} takes no extra keys"))
+                           hint=home_of(key, "tool") or did_you_mean(key, schema)
+                           or (f"{folder.name} takes: {', '.join(schema)}" if schema else f"{folder.name} takes no extra keys"))
         kind = schema[key].get("kind")
         types = {"list": list, "table": dict, "str": str, "int": int, "float": (int, float), "bool": bool, "flag": bool}
         if kind in types and not isinstance(value, types[kind]):

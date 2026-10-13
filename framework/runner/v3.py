@@ -41,7 +41,8 @@ RUN_RENAMED = {"configuration": "run", "event_count": "events", "tools": "chain"
                "seed_type": "seed", "manual_seed": "seed"}
 CFG_RENAMED = {**RUN_RENAMED, "label": "folder", "static": "fixed", "prelim": "(nothing: inferred from the chain)"}
 TOOL_RENAMED = {"tool": "(the table's name; uses = for a second instance)", "baseconfig": "card", "output_file": "output"}
-QUANTITY_RENAMED = {"tags": "points", "labels": "points", "styles": "points", "key": "to", "static": "fixed"}
+QUANTITY_RENAMED = {"tags": "points", "labels": "points", "styles": "points", "key": "to", "target": "to",
+                    "static": "fixed"}
 #: Private keys the translation leaves for the parser (stripped there).
 MARK, FAMILY, KEEP, SILENT = "_v3", "_family", "_keep", "_silent"
 
@@ -185,12 +186,7 @@ def _quantity(name: str, table: dict, where: str) -> tuple[dict[str, dict], dict
         rows = table["points"]
     common = {k: v for k, v in table.items() if k not in ("points", "fixed", "to", "fields")}
     if "to" in table:
-        if isinstance(table["to"], dict):
-            common["key"] = table["to"]
-        elif isinstance(table["to"], (str, list)):
-            common["target"] = table["to"]
-        else:
-            raise HepError('to is { tool = "key" }, or a target: "tool" or "tool/analysis"', where=f"{where}.to")
+        common.update(_to(table["to"], f"{where}.to"))
     if rows is None:
         if "fields" in table:
             raise HepError("a quantity with fields has points: one row per point, a value per field", where=where)
@@ -249,6 +245,23 @@ def _quantity(name: str, table: dict, where: str) -> tuple[dict[str, dict], dict
         if "fixed" in table:
             fixed[qname] = table["fixed"]
     return out, fixed
+
+
+def _to(to, where: str) -> dict:
+    """to = { <target> = "<key>" or true }: v2's target and key. An entry is a tool table ("pythia"), an
+    analysis option ("rivet/photo_eic") or a seed ("pythia/seed"); its value is the native key, or true for
+    none. When any entry names a target (a "/", or true), the entries are the target list, as v2's
+    target was; else only keys, for the tools that consume the quantity anyway (v2's key table)."""
+    if not isinstance(to, dict) or not to or not all(isinstance(v, (str, bool)) and v is not False for v in to.values()):
+        raise HepError('to is a table: { pythia = "PDF:pSet" }, { "rivet/photo_eic" = "R" }, { "pythia/seed" = true }',
+                       where=where)
+    keys = {name.split("/")[0]: value for name, value in to.items() if isinstance(value, str)}
+    out: dict = {}
+    if any("/" in name or value is True for name, value in to.items()):
+        out["target"] = list(to)
+    if keys:
+        out["key"] = keys
+    return out
 
 
 def _beams(table: dict, where: str) -> dict:

@@ -33,9 +33,7 @@ def test_delphes_reads_a_file_from_an_earlier_group_and_is_count_checked():
 @pytest.mark.skipif(not NEEDS["delphes"], reason="load_hep: DelphesHepMC3")
 def test_a_fifo_into_delphes_is_refused():
     with pytest.raises(HepError, match="'delphes' cannot read a FIFO"):
-        plans("Demo/jets", "delphes", sets=["run.cfgs.delphes.prelim.fifo=['showered.hepmc']",
-                                                       "run.cfgs.delphes.prelim.files=[]",
-                                                       "run.cfgs.delphes.tools=[['pythia_file', 'delphes'], 'jets_reco']"])
+        plans("Demo/jets", "delphes", sets=["cfgs.delphes.chain=[['pythia_file', 'delphes'], 'jets_reco']"])   # one group: a FIFO
 
 
 def test_the_root_count_reader_needs_the_file(scratch):
@@ -83,7 +81,7 @@ def test_render_refuses_what_the_plan_owns_and_missing_entries():
 
 @pytest.mark.skipif(not NEEDS["sherpa"], reason="load_hep: Sherpa")
 def test_sherpa_integration_is_keyed_by_the_card_without_its_event_count():
-    few, many = plans("Demo/sherpa", sets=["run.event_count=100"]), plans("Demo/sherpa", sets=["run.event_count=9000"])
+    few, many = plans("Demo/sherpa", sets=["run.events=100"]), plans("Demo/sherpa", sets=["run.events=9000"])
     assert few[0].rendered["sherpa"].prepare_dir == many[0].rendered["sherpa"].prepare_dir
     assert few[0].identity != many[0].identity
     by_pdf = plans("Demo/sherpa", "pdf")

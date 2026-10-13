@@ -299,3 +299,90 @@ def test_the_editor_schemas_take_the_fixture_and_catch_a_typo():
     assert any("analysis" in e.message for e in jsonschema.Draft7Validator(v3).iter_errors(wrong))
     for name in ("run.schema.json", "run.v3.schema.json"):                     # make schema keeps them current
         assert json.loads((REPO / "framework" / "schema" / name).read_text(encoding="utf-8")) == (v2 if "v3" not in name else v3), name
+
+
+# ── serials and "default" (6.3) ────────────────────────────────────────────────────────────────────────
+
+def _planned(path: str, key: str, sets=(), rerun: bool = False):
+    import argparse
+    from runner import cli
+    return cli.build_plans(argparse.Namespace(config=path, set=list(sets), points=None, rerun=rerun, only=None), key)
+
+
+@pytest.fixture
+def trees_of_its_own(scratch, monkeypatch):
+    """output/ and results/ of this test alone: a folder's number depends on what is on disk."""
+    monkeypatch.setenv("HEP_OUTPUT", str(scratch / "output"))
+    monkeypatch.setenv("HEP_RESULTS", str(scratch / "results"))
+    return scratch
+
+
+def _complete(planned) -> None:
+    """Each point as a finished run leaves it: its .complete marker, holding its identity."""
+    from runner import record
+    for plan in planned.plans:
+        plan.out.mkdir(parents=True, exist_ok=True)
+        record.write_atomic(record.complete_marker(plan), plan.identity + "\n")
+
+
+def test_the_runner_numbers_a_folder_without_a_serial(scratch, trees_of_its_own):
+    """03 §6: no serial, so the runner picks the number: the newest folder made from these inputs; a change
+    gets a new number and never overwrites; undoing the change finds its folder again."""
+    path = written(scratch, V3.replace('name    = "pair"', 'name    = "numbered"'), "numbered.toml")
+    first = _planned(path, "pdf")
+    assert first.configuration.serial == 1 and first.plans[0].out.parent.name == "01_pdf"
+    assert "the first" in first.configuration.serial_note
+    _complete(first)
+    assert _planned(path, "pdf").configuration.serial == 1                     # made from these inputs
+    changed = _planned(path, "pdf", sets=["run.events=20"])                     # --set in v3's own names
+    assert changed.configuration.event_count == 20 and changed.configuration.serial == 2
+    assert "01 holds other inputs" in changed.configuration.serial_note
+    _complete(changed)
+    assert _planned(path, "pdf").configuration.serial == 1                     # the change undone: its folder
+    assert _planned(path, "pdf", sets=["run.events=20"]).configuration.serial == 2
+
+
+def test_a_set_serial_refuses_to_overwrite_other_inputs(scratch, trees_of_its_own, capsys):
+    """03 §6: a serial the file sets keeps its folder, and a changed configuration is refused there, with
+    the bump as the hint; --rerun says to overwrite. A v2 file runs as ever."""
+    import argparse
+    from runner import cli
+    path = written(scratch, V3.replace('name    = "pair"', 'name    = "kept"\nserial  = 3'), "kept.toml")
+    _complete(_planned(path, "pdf"))
+    same = _planned(path, "pdf")
+    assert same.configuration.serial == 3 and not same.configuration.serial_auto and cli.overwrites(same) == []
+    changed = _planned(path, "pdf", sets=["run.events=20"])
+    with pytest.raises(HepError, match="would overwrite them") as error:
+        cli.refuse_overwrites(changed, argparse.Namespace(rerun=False))
+    assert "serial = 4" in error.value.hint and "--rerun" in error.value.hint and "[run]" in error.value.where
+    cli.refuse_overwrites(changed, argparse.Namespace(rerun=True))
+    cli.refuse_overwrites(changed, argparse.Namespace(rerun=False), frozenset({"post", "plot"}))   # no point runs
+    cli.print_plan(changed.run, changed.configuration, changed.plans, pre_plan=changed.pre)
+    assert "running refuses to overwrite them (serial = 4, or --rerun)" in capsys.readouterr().out
+    v2 = written(scratch, V2.replace('name          = "pair"', 'name          = "kept2"\nserial        = 3'), "kept2.toml")
+    _complete(_planned(v2, "pdf"))
+    assert cli.overwrites(_planned(v2, "pdf", sets=["run.event_count=20"])) == []
+
+
+def test_a_numbered_folder_is_one_configurations(scratch):
+    text = V3 + '\n[cfgs.other]\nfolder = "pdf"\nserial = 1\nvary   = ["pdf"]\n'
+    with pytest.raises(HepError, match="'pdf' and 'other' would both write Demo/pair/NN_pdf"):
+        load(scratch, text)
+    with pytest.raises(HepError, match="would both write Demo/pair/01_pdf"):                 # either form
+        twice = V2.replace("[run.cfgs.pdf]", "[run.cfgs.pdf]\nserial = 1").replace(
+            "[prelim]", '[run.cfgs.other]\nlabel  = "pdf"\nserial = 1\nsweeps = ["pdf"]\ntools  = ["pythia"]\n\n[prelim]')
+        load(scratch, twice, "two.toml")
+
+
+def test_default_is_the_layer_below_and_native_the_tools_own(scratch):
+    """03 §6: in v3, [plot] y_gutter = "default" is as if absent (the schema's 0.5); "native" is the drawing
+    tool's own, at any level: v2's [plot]-level "default", which the migration rewrites so."""
+    from runner import migrate, plot
+    assert "y_gutter" not in load(scratch, V3 + '\n[plot]\ny_gutter = "default"\n').plot
+    assert load(scratch, V3 + '\n[plot]\ny_gutter = "native"\n').plot["y_gutter"] == "native"
+    assert plot.chosen("y_gutter", 0.5, "tool's", ({}, {"y_gutter": "native"})) == "tool's"
+    assert plot.chosen("y_gutter", 0.5, "tool's", ({"y_gutter": "native"}, {"y_gutter": 0.3})) == "tool's"
+    assert plot.chosen("y_gutter", 0.5, "tool's", ({"y_gutter": "default"}, {"y_gutter": 0.3})) == 0.3
+    assert 'y_gutter = "native"' in migrate.v3_text(V2 + '\n[plot]\ny_gutter = "default"\n')
+    with pytest.raises(HepError, match="'threads' must be"):
+        load(scratch, V3.replace("threads = 1", 'threads = "native"'))

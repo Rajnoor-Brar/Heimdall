@@ -538,6 +538,18 @@ def run_dir(run, configuration) -> Path:
     return Path(run.project) / (configuration.run_folder or run.name) / location(configuration.serial, configuration.label)
 
 
+def serials_taken(run, configuration) -> set[int]:
+    """The numbers of a configuration's folders on disk, <project>/<name>/NN_<label>, in output/ and
+    results/: where a v3 configuration without a serial may already have run (03 §6)."""
+    parent = Path(run.project) / (configuration.run_folder or run.name)
+    numbered = re.compile(r"(\d{2,})_" + re.escape(configuration.label))
+    found = set()
+    for root in (output_root(), results_root()):
+        if (root / parent).is_dir():
+            found |= {int(m[1]) for entry in (root / parent).iterdir() if entry.is_dir() and (m := numbered.fullmatch(entry.name))}
+    return found
+
+
 def point_dirs(run, configuration, point) -> tuple[Path, Path]:
     tail = run_dir(run, configuration) / point.name
     return output_root() / tail, results_root() / tail

@@ -277,7 +277,9 @@ def explain(key: str) -> list[str]:
         if entry.get("inherit"):
             lines.append("  a configuration inherits it from [run]")
         if entry.get("default_ok"):
-            lines.append('  "default": in a child, the parent\'s value; at the top level, set nothing (the tool decides)')
+            lines.append('  "default": the layer below\'s value, as if left out (v2\'s [plot] itself: the drawing tool\'s own)')
+        if entry.get("native_ok"):
+            lines.append('  "native": what the drawing tool does by itself, at any level')
         if entry.get("doc"):
             lines.append(f"  {entry['doc']}")
         if entry.get("notes"):

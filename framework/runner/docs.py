@@ -45,6 +45,8 @@ def _type(entry: dict) -> str:
         out += f", ≥ {entry['min']}"
     if entry.get("default_ok"):
         out += ', or `"default"`'
+    if entry.get("native_ok"):
+        out += ' or `"native"`'
     return out
 
 

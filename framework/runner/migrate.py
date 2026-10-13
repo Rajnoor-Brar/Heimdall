@@ -41,7 +41,7 @@ from pathlib import Path
 import tomli_w
 
 from . import config as configmod
-from . import tools
+from . import schema, tools
 from .errors import HepError
 from .labels import is_tlatex, natural
 from .paths import config_file, resolve
@@ -670,6 +670,13 @@ def v3_text(text: str) -> str:
                 lines += chunk
             if tag in unkept and not placed:
                 lines.append("keep = false\n")
+        elif name == "plot":                                            # v2's [plot]-level "default": v3's "native"
+            header = block["header"]
+            native = {k for k, e in schema.keys("plot").items() if e.get("native_ok")}
+            for key, chunk in entries:
+                if key in native and data.get("plot", {}).get(key) == schema.DEFAULT:
+                    chunk = [chunk[0].replace('"default"', '"native"', 1), *chunk[1:]]
+                lines += chunk
         elif name.startswith("quantities.") and name.count(".") == 1:
             qname = name[len("quantities."):].strip('"')
             header = block["header"]

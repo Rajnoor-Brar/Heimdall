@@ -101,7 +101,7 @@ backend     = ["root", "yoda"]
 void_empty  = false
 min_entries = 0
 auto_range  = false
-y_gutter    = "default"
+y_gutter    = "native"
 ratio       = true
 
 [plot.data]

@@ -29,7 +29,7 @@ def hep_run(scratch: Path, *args: str) -> tuple[Path, Path]:
 
 
 def test_lambda_module_and_rivet_agree_on_the_same_events(scratch):
-    _, results = hep_run(scratch, "Decay/decay", "single", "--set", "run.event_count=200", "--set", "run.threads=2")
+    _, results = hep_run(scratch, "Decay/decay", "single", "--set", "run.events=200", "--set", "run.threads=2")
     point = results / "Decay" / "decay" / "single" / "point"
     report = json.loads((point / "decay.root.json").read_text(encoding="utf-8", errors="replace"))
     assert report["events"] == json.loads((scratch / "output" / "Decay" / "decay" / "single" / "point" /
@@ -51,7 +51,7 @@ def test_lambda_module_and_rivet_agree_on_the_same_events(scratch):
 
 def test_inproc_equals_the_chain_at_one_thread(scratch):
     for configuration in ("single", "inproc"):
-        hep_run(scratch, "Demo/jets", configuration, "--set", "run.event_count=2000", "--set", "run.threads=1")
+        hep_run(scratch, "Demo/jets", configuration, "--set", "run.events=2000", "--set", "run.threads=1")
     chain, inproc = (scratch / "results" / folder("Demo/jets", c) / "point" for c in ("single", "inproc"))
     seeds = [json.loads((scratch / "output" / folder("Demo/jets", c) / "point" / "provenance.json")
                         .read_text(encoding="utf-8"))["seed"] for c in ("single", "inproc")]
@@ -67,7 +67,7 @@ def test_inproc_equals_the_chain_at_one_thread(scratch):
 
 def test_inproc_sigma_equals_the_sidecar_at_four_threads(scratch):
     for configuration in ("single", "inproc"):
-        output, results = hep_run(scratch, "Demo/jets", configuration, "--set", "run.event_count=4000",
+        output, results = hep_run(scratch, "Demo/jets", configuration, "--set", "run.events=4000",
                                   "--set", "run.threads=4")
     point = output / folder("Demo/jets", "single") / "point"
     sidecar = json.loads(min(point.glob("events*.hepmc.json")).read_text(encoding="utf-8", errors="replace"))  # sharded: .s1
@@ -84,7 +84,7 @@ def test_rivet_threads_equal_one_rivet(scratch, config, product):
     change or FastJet stops with an internal error."""
     results = []
     for k in (1, 4):
-        _, res = hep_run(scratch / f"k{k}", config, "single", "--set", "run.event_count=4000", "--set", "run.threads=4",
+        _, res = hep_run(scratch / f"k{k}", config, "single", "--set", "run.events=4000", "--set", "run.threads=4",
                          "--set", f"tools.inproc.config.rivet_threads={k}")
         results.append(yoda.read(str(next(res.rglob(product)))))
     one, four = results
@@ -103,7 +103,7 @@ def test_rivet_threads_equal_one_rivet(scratch, config, product):
 def test_the_serial_engine_is_reproducible(scratch):
     runs = []
     for attempt in range(2):
-        _, results = hep_run(scratch, "Demo/jets", "inproc", "--rerun", "--set", "run.event_count=1000",
+        _, results = hep_run(scratch, "Demo/jets", "inproc", "--rerun", "--set", "run.events=1000",
                              "--set", "run.threads=1", "--set", "tools.jets.config.engine=serial")
         runs.append((results / folder("Demo/jets", "inproc") / "point" / "jets.yoda").read_bytes())
     assert runs[0] == runs[1]

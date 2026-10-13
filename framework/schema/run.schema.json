@@ -674,12 +674,15 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ],
      "default": false
     },
     "y_gutter": {
-     "description": "the top of the y axis at (1 + g) × the largest value\n\nthe top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `\"default\"`: no gutter, the tool's own range (V29, V55)",
+     "description": "the top of the y axis at (1 + g) × the largest value\n\nthe top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `\"native\"`: no gutter, the tool's own range (V29, V55; a v2 file's [plot] says `\"default\"`)",
      "anyOf": [
       {
        "type": "number",
@@ -687,6 +690,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ],
      "default": 0.5
@@ -700,6 +706,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ]
     },
@@ -711,6 +720,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ]
     },
@@ -722,6 +734,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ]
     },
@@ -733,6 +748,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ]
     },
@@ -744,6 +762,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ],
      "default": true
@@ -763,6 +784,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ],
      "default": false
@@ -775,6 +799,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ],
      "default": false
@@ -793,6 +820,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ],
      "default": 0
@@ -806,6 +836,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ],
      "default": 0
@@ -829,6 +862,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ]
     },
@@ -840,6 +876,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ]
     },
@@ -851,6 +890,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ]
     },
@@ -862,6 +904,9 @@
       },
       {
        "const": "default"
+      },
+      {
+       "const": "native"
       }
      ]
     },
@@ -917,11 +962,14 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
        "y_gutter": {
-        "description": "as [plot].y_gutter, for these pages\n\nthe top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `\"default\"`: no gutter, the tool's own range (V29, V55)",
+        "description": "as [plot].y_gutter, for these pages\n\nthe top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `\"native\"`: no gutter, the tool's own range (V29, V55; a v2 file's [plot] says `\"default\"`)",
         "anyOf": [
          {
           "type": "number",
@@ -929,6 +977,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -941,6 +992,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -952,6 +1006,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -963,6 +1020,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -974,6 +1034,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -985,6 +1048,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -1003,6 +1069,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -1014,6 +1083,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -1037,6 +1109,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -1049,6 +1124,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -1060,6 +1138,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -1071,6 +1152,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -1082,6 +1166,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },
@@ -1093,6 +1180,9 @@
          },
          {
           "const": "default"
+         },
+         {
+          "const": "native"
          }
         ]
        },

@@ -26,19 +26,19 @@ def hep_run(scratch: Path, *args: str) -> str:
 
 @pytest.mark.skipif(not shutil.which("mg5_aMC"), reason="load_hep: mg5_aMC")
 def test_madgraph_to_pythia_to_rivet(scratch):
-    out = hep_run(scratch, "Demo/madgraph", "--set", "run.event_count=300", "--logs")   # its log is read (V72)
+    out = hep_run(scratch, "Demo/madgraph", "--set", "run.events=300", "--logs")   # its log is read (V72)
     assert "count ok: 300 events" in (scratch / "output" / folder("Demo/madgraph") / "point/provenance.json").read_text(encoding="utf-8", errors="replace")
     log = (scratch / "output" / folder("Demo/madgraph") / "point/logs/madgraph.log").read_text(encoding="utf-8", errors="replace")
     stated = float(re.findall(r"Cross-section :\s+([\d.eE+-]+)", log)[-1])
     rivet = yoda.read(str(scratch / "results" / folder("Demo/madgraph") / "point/jets.yoda"))["/RAW/_XSEC"].val()
     assert rivet == pytest.approx(stated, rel=1e-3)
-    again = hep_run(scratch, "Demo/madgraph", "--set", "run.event_count=300", "--rerun")
+    again = hep_run(scratch, "Demo/madgraph", "--set", "run.events=300", "--rerun")
     assert "madgraph:prepare: cached" in again and "madgraph:prepare" in out
 
 
 @pytest.mark.skipif(not shutil.which("whizard"), reason="load_hep: whizard")
 def test_whizard_direct_photoproduction_runs(scratch):
-    hep_run(scratch, "Demo/whizard", "--set", "run.event_count=500", "--logs")
+    hep_run(scratch, "Demo/whizard", "--set", "run.events=500", "--logs")
     point = scratch / "output" / folder("Demo/whizard") / "point"
     assert "count ok: 500 events" in (point / "provenance.json").read_text(encoding="utf-8", errors="replace")
     integration = (scratch / "output" / folder("Demo/whizard") / "point/logs/whizard.prepare.log").read_text(encoding="utf-8", errors="replace")
@@ -51,7 +51,7 @@ def test_whizard_direct_photoproduction_runs(scratch):
 @pytest.mark.skipif(not (shutil.which("Herwig") and shutil.which("Sherpa")) or
                     not (apps() / "Herwig" / "HerwigDefaults.rpo").exists(), reason="load_hep and hep build --framework")
 def test_three_generators_one_page_per_spectrum(scratch):
-    out = hep_run(scratch, "Generators/generators", "--set", "run.event_count=500")
+    out = hep_run(scratch, "Generators/generators", "--set", "run.events=500")
     assert "3 done, 0 failed" in out and "plot: 4 of 4 page(s) drawn" in out
     page = (scratch / "output/Generators/generators/compare/plots/nch.toml").read_text(encoding="utf-8", errors="replace")
     assert page.count("[[curve]]") == 3

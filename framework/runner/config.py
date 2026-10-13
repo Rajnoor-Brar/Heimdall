@@ -114,6 +114,8 @@ class Configuration:
     manual_seed: int | None = None                      # seed_type = "manual": every point's seed
     origins: dict = field(default_factory=dict)         # key → where its value came from (--show-config, V56)
     cluster: dict = field(default_factory=dict)         # [cluster], this configuration's over the run's (V114); never in an identity
+    serial_auto: bool = False                           # v3 without a serial: the runner numbers its folder (03 §6)
+    serial_note: str = ""                               # why the runner chose the number it did (--plan)
 
 
 @dataclass
@@ -338,7 +340,8 @@ def _literal(text: str):
 
 
 def apply_sets(raw: dict, sets: list[str]) -> None:
-    """`--set static.energies=18x275`, `--set run.cfgs.pdf.threads=4`: override one value (dotted keys)."""
+    """`--set static.energies=18x275`, `--set run.cfgs.pdf.threads=4`: override one value (dotted keys);
+    a v3 file's in its own names, before it is read as v2: `--set run.events=100`, `--set cfgs.pdf.vary=[]`."""
     for item in sets:
         key, sep, value = item.partition("=")
         if not sep or not key:
@@ -605,13 +608,42 @@ def _with_imports(raw: dict, path: Path) -> tuple[dict, dict, list]:
     return merged, origins, sorted({source for *_, source in located})
 
 
-def _folders(run) -> dict[str, str]:
-    """Each configuration's folder, <project>/<run>/<NN_><label> (as tools.run_dir makes it) → its key."""
-    out = {}
+def _folder_list(run) -> list[tuple[str, str]]:
+    """Each configuration's folder, <project>/<run>/<NN_><label> (as tools.run_dir makes it; NN_ literally
+    when the runner numbers it), with its key."""
+    out = []
     for key, c in run.configurations.items():
-        folder = f"{c.serial:02d}_{c.label}" if c.serial is not None else c.label
-        out[f"{run.project}/{c.run_folder or run.name}/{folder}"] = key
+        folder = f"{c.serial:02d}_{c.label}" if c.serial is not None else f"NN_{c.label}" if c.serial_auto else c.label
+        out.append((f"{run.project}/{c.run_folder or run.name}/{folder}", key))
     return out
+
+
+def _folders(run) -> dict[str, str]:
+    return dict(_folder_list(run))
+
+
+def _clash(one: str, other: str) -> bool:
+    """Two folders are one: the same, or a folder the runner numbers (NN_<label>) and any numbered one
+    of its label."""
+    if one == other:
+        return True
+    a, b = one.rsplit("/", 1), other.rsplit("/", 1)
+    if a[0] != b[0] or not (a[1].startswith("NN_") or b[1].startswith("NN_")):
+        return False
+    label = lambda name: name.split("_", 1)[1] if "_" in name and (name[:2] == "NN" or name.split("_", 1)[0].isdigit()) else None
+    return label(a[1]) is not None and label(a[1]) == label(b[1])
+
+
+def _own_folders(run) -> None:
+    """A configuration the runner numbers has its folder to itself: another of this file with its label
+    would share the numbers."""
+    mine = _folder_list(run)
+    for i, (folder, key) in enumerate(mine):
+        for other, other_key in mine[i + 1:]:
+            if _clash(folder, other):
+                shown = folder if folder == other else f"{folder.rsplit('/', 1)[0]}/NN_{folder.rsplit('/', 1)[1].split('_', 1)[1]}"
+                raise HepError(f"configurations '{key}' and '{other_key}' would both write {shown}", where=f"{run.path}",
+                               hint="give one of them another folder (or name); a folder the runner numbers is one configuration's")
 
 
 def _shared_folders(run, imported: list[Path]) -> None:
@@ -623,8 +655,9 @@ def _shared_folders(run, imported: list[Path]) -> None:
             theirs = _folders(load(str(source), strict=False))
         except HepError:                                     # a file that cannot run on its own writes nothing
             continue
-        for folder in sorted(set(mine) & set(theirs)):
-            raise HepError(f"[run.cfgs.{mine[folder]}] and {source.name}'s [run.cfgs.{theirs[folder]}] would both write "
+        for folder in sorted(f for f in mine if any(_clash(f, t) for t in theirs)):
+            other = next(theirs[t] for t in theirs if _clash(folder, t))
+            raise HepError(f"[run.cfgs.{mine[folder]}] and {source.name}'s [run.cfgs.{other}] would both write "
                            f"{folder}", where=f"{run.path}: [run]",
                            hint="give one of them another serial, label or name: a folder belongs to one configuration")
 
@@ -686,16 +719,21 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
     `text` (hep migrate's, V81) is read in place of the file's."""
     path = config_file(name)
     if text is None:
-        first = _read(path)
+        given = _toml(path)
     else:
         try:
-            first = _form(tomllib.loads(text), path)
+            given = tomllib.loads(text)
         except tomllib.TOMLDecodeError as error:
             raise HepError(f"not valid TOML, even migrated: {error}", where=str(path)) from None
-    raw, included, imported = _with_imports(first, path)
-    apply_sets(raw, list(sets))
+    own_names = v3.is_v3(given)                 # a v3 file takes --set in its own names: run.events, cfgs.pdf.vary
+    if own_names:
+        apply_sets(given, list(sets))
+    raw, included, imported = _with_imports(_form(given, path), path)
+    if not own_names:
+        apply_sets(raw, list(sets))
     raw = with_vars(raw, path)
     run = parse(raw, path, strict=strict)
+    _own_folders(run)
     _shared_folders(run, imported)
     run.included = included
     run.sets = list(sets)
@@ -947,6 +985,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
         static_values = {k: v for k, v in _deep(static, local_static).items() if v != DEFAULT}   # top-level "default": unset
         configurations[key] = Configuration(
             key=key, label=table.get("label") or key, serial=inherited("serial"),                     # V45
+            serial_auto=form == 3 and inherited("serial") is None,
             run_folder=inherited("name") or run["name"],                                              # V46
             swept=table.get("swept", schema.default("configuration", "swept")), title=table.get("title", key),
             seed_type=inherited("seed_type"), manual_seed=inherited("manual_seed"),

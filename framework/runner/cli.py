@@ -53,8 +53,10 @@ def parser() -> argparse.ArgumentParser:
                                                    "where its value comes from")
     run.add_argument("--points", metavar="SEL", help="run a subset: tags, indices or quantity=tag")
     run.add_argument("--set", metavar="KEY=VALUE", action="append", default=[],
-                     help="override one value for this invocation (repeatable)")
-    run.add_argument("--rerun", action="store_true", help="ignore skip-unchanged")
+                     help="override one value for this invocation (repeatable), in the file's own names: "
+                          "run.events=100 (v3), run.event_count=100 (v2)")
+    run.add_argument("--rerun", action="store_true", help="ignore skip-unchanged; under a serial the file sets, "
+                                                          "overwrite points made from other inputs")
     run.add_argument("--only", choices=["pre", "post", "plot"], help="rerun only the pre tools, the post tools or the plots")
     run.add_argument("--stages", metavar="LIST",
                      help="run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; hep cluster's jobs)")
@@ -184,12 +186,10 @@ def build_plans(args, key: str | None) -> Planned:
     master = load_master(run.project, run.master_toml)
     points = sweep.points(run, configuration)
     chosen = {p.index for p in sweep.select_points(run, configuration, points, args.points)}
-    pre_plan = post.plan_pre(run, configuration, master, points)
-    plans = []
-    for point in points:
-        plan = tools.plan_point(run, configuration, point, master, pre=pre_plan)
-        plan.identity = record.identity(plan)
-        plans.append(plan)
+    if configuration.serial_auto:
+        pre_plan, plans = _numbered(run, configuration, master, points)
+    else:
+        pre_plan, plans = _planned_points(run, configuration, master, points)
     again = getattr(args, "rerun", False) and getattr(args, "only", None) is None   # the points run anew
     record.assign_seeds(plans, frozenset(p.point.name for p in plans if again and p.point.index in chosen))
     for plan in plans:
@@ -202,6 +202,68 @@ def build_plans(args, key: str | None) -> Planned:
     return Planned(run, configuration, plans, [p for p in plans if p.point.index in chosen],
                    post.plan(run, configuration, master, plans), pre_plan,
                    post.plan_combined(run, configuration, master, plans))
+
+
+def _planned_points(run, configuration, master, points):
+    """The pre stage and every point, planned in the configuration's folder, with their identities."""
+    pre_plan = post.plan_pre(run, configuration, master, points)
+    plans = []
+    for point in points:
+        plan = tools.plan_point(run, configuration, point, master, pre=pre_plan)
+        plan.identity = record.identity(plan)
+        plans.append(plan)
+    return pre_plan, plans
+
+
+def _numbered(run, configuration, master, points):
+    """A v3 configuration without a serial (03 §6): the runner numbers its folder. The newest folder its
+    points completed in as it stands now (an older one, when a change was undone); else the newest, when
+    nothing in it was made from other inputs (a run under way, or one never begun); else a new number,
+    so that a change never overwrites what was made."""
+    taken = tools.serials_taken(run, configuration)
+    newest = None
+    for number in sorted(taken, reverse=True):
+        configuration.serial = number
+        pre_plan, plans = _planned_points(run, configuration, master, points)
+        stages = [s for s in (pre_plan, *plans) if s is not None]
+        clash = record.overwritten(stages)
+        if newest is None:
+            newest = (number, pre_plan, plans, clash)
+        if not clash and any(record.is_complete(s) for s in stages):
+            configuration.serial_note = f"folder {number:02d}: made from these inputs"
+            return pre_plan, plans
+    if newest is not None and not newest[3]:
+        configuration.serial, configuration.serial_note = newest[0], f"folder {newest[0]:02d}: nothing in it made yet"
+        return newest[1], newest[2]
+    configuration.serial = max(taken, default=0) + 1
+    held = ", ".join(f"{n:02d}" for n in sorted(taken))
+    configuration.serial_note = (f"folder {configuration.serial:02d}: new ({held} {'holds' if len(taken) == 1 else 'hold'} "
+                                 "other inputs)" if taken else f"folder {configuration.serial:02d}: the first")
+    return _planned_points(run, configuration, master, points)
+
+
+def overwrites(planned: Planned, stages=None) -> list:
+    """What running would replace that was made from other inputs, under a serial the file sets (v3,
+    03 §6): the pre stage and the chosen points, as the stages run them."""
+    if planned.run.form != 3 or planned.configuration.serial_auto:
+        return []
+    stages = STAGES if stages is None else stages
+    return record.overwritten([s for s in ([planned.pre] if "pre" in stages and planned.pre is not None else [])
+                               + (planned.plans if "points" in stages else [])])
+
+
+def refuse_overwrites(planned: Planned, args, stages=None) -> None:
+    """A set serial's promise: a changed configuration never overwrites what it made, unless --rerun says to."""
+    changed = [] if getattr(args, "rerun", False) else overwrites(planned, stages)
+    if changed:
+        c = planned.configuration
+        names = ", ".join(s.point.name if hasattr(s, "point") else "pre" for s in changed[:4]) + (", …" if len(changed) > 4 else "")
+        where = c.origins.get("serial", "[run]").replace("[run.cfgs.", "[cfgs.")   # a v3 file: its own names
+        raise HepError(f"configuration '{c.key}': {len(changed)} of its points in {tools.run_dir(planned.run, c)} were "
+                       f"made from other inputs ({names}); running would overwrite them",
+                       where=f"{planned.run.path}: {where}",
+                       hint=f"serial = {c.serial + 1} gives a fresh folder; or leave serial out and the runner numbers it; "
+                            f"--rerun replaces them; --why says what changed")
 
 
 def others_of(args):
@@ -260,6 +322,13 @@ def print_plan(run, configuration, plans, post_plan=None, pre_plan=None, combine
         print(f"note: {note}")
     for warning in tools.meta_notes(run):                       # V97
         print(f"warning: {warning}")
+    if configuration.serial_note:
+        print(f"note: {configuration.serial_note} (no serial set: the runner numbers the folder)")
+    if run.form == 3 and not configuration.serial_auto:
+        changed = record.overwritten([s for s in (pre_plan, *plans) if s is not None])
+        if changed:
+            print(f"warning: {len(changed)} of these were made from other inputs: running refuses to overwrite them "
+                  f"(serial = {configuration.serial + 1}, or --rerun)")
     if configuration.seed_type != "identity":
         print(f"seeds: {configuration.seed_type}")
     if configuration.manual_seed is not None and configuration.seed_type != "manual":
@@ -593,6 +662,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     if "points" in stages and "pre" not in stages and pre_plan is not None and not record.is_complete(pre_plan):
         raise HepError(f"configuration '{configuration.key}': the pre stage is not complete, and the points need it",
                        hint="run --stages pre first (hep cluster's pre job does), or leave --stages out")
+    refuse_overwrites(planned, args, stages)
     if stopper.requested:                    # Ctrl-C while this run was being planned
         return 6
 
@@ -688,6 +758,9 @@ def cmd_cluster(args) -> int:
         raise HepError("--points picks points of one configuration, and this sweep runs several",
                        where=f"{run.path}: [run].sweep_runs", hint=f"name it: hep cluster {args.config} <configuration> --points …")
     planned = {key: build_plans(argparse.Namespace(**{**vars(args), "only": None, "stages": None}), key) for key in keys}
+    if not (args.status or args.cancel):
+        for key in keys:
+            refuse_overwrites(planned[key], args)
     code = 0
     for number, key in enumerate(keys, 1):
         if number > 1:

@@ -15,6 +15,8 @@ in several places comes out as v2 had it:
   [quantities.<name>]     → points rows → values, tags, labels, styles; fixed → [static]; to → key
                             (a table) or target; fields → one quantity per field, swept together
   [quantities.beams]      → rows with a = {id, energy} and b = {…}: beams and energies, together
+  [plot]                  → [plot], its own "default" values left out: "default" is only ever the layer
+                            below; "native" (v2's [plot]-level "default") is the drawing tool's own
 
 What only the merged file can say is the parser's (config.parse, for a file marked "_v3"): an input
 that names a tool table reads its output, and each configuration's FIFOs and scratch files are
@@ -357,9 +359,10 @@ def translate(raw: dict, where: str) -> dict:
         out["static"] = static
     if prelim:
         out["prelim"] = prelim
-    for table in ("plot", "cluster"):
-        if table in raw:
-            out[table] = raw[table]
+    if "plot" in raw:                                   # "default" is the layer below: as if absent
+        out["plot"] = {k: v for k, v in raw["plot"].items() if v != "default"}
+    if "cluster" in raw:
+        out["cluster"] = raw["cluster"]
     return out
 
 

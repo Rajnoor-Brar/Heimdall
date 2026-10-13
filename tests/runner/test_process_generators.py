@@ -59,7 +59,7 @@ def test_madgraph_launch_script_and_proc_card():
 
 @pytest.mark.skipif(not shutil.which("mg5_aMC"), reason="load_hep: mg5_aMC")
 def test_madgraph_is_built_once_per_proc_card_and_showered_from_a_file():
-    few, many = plans("Demo/madgraph", sets=["run.event_count=10"]), plans("Demo/madgraph")
+    few, many = plans("Demo/madgraph", sets=["run.events=10"]), plans("Demo/madgraph")
     mg = few[0].rendered["madgraph"]
     assert mg.prepare_dir == many[0].rendered["madgraph"].prepare_dir      # key = "base": the proc card only
     assert f"r{few[0].seed}" in mg.argv[-2] and mg.argv[-1] == str(few[0].interfaces["unweighted.lhe"].path)

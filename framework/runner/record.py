@@ -234,6 +234,21 @@ def is_complete(plan: PointPlan) -> bool:
     return marker.is_file() and marker.read_text(encoding="utf-8").strip() == plan.identity
 
 
+def recorded_identity(plan: PointPlan) -> str | None:
+    """The identity a stage last completed with; None when it never did (or a run of it is under way)."""
+    marker = complete_marker(plan)
+    try:
+        return marker.read_text(encoding="utf-8").strip() if marker.is_file() else None
+    except OSError:
+        return None
+
+
+def overwritten(stages) -> list:
+    """The stages that completed with other inputs than they are planned with now: running one replaces
+    what it made (v3's serials, 03 §6)."""
+    return [s for s in stages if (old := recorded_identity(s)) is not None and old != s.identity]
+
+
 def git_state(root: Path) -> dict:
     """A folder's git revision and whether its tracked files changed; {} when it is not a git repo."""
     def git(*args) -> str:

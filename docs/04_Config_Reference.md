@@ -911,23 +911,23 @@ The plot stage, and how to use it, is [03](03_Plots.md). A configuration whose r
 | `formats` | a list (a string each): `"pdf"`, `"png"`, `"svg"`, `"eps"`, or `"default"` | `["pdf"]` | `pdf`, `png`, `svg`, `eps`. mkhtml writes pdf and png always. The root backend writes `plots/root/index.html` (V70): a section per `plot_points` cell, each page by its PNG or SVG, else an embedded PDF, linked to every format; add `png` for thumbnails a browser shows at once |
 | `band` | a list (a string each) |  | curve axes drawn as an envelope (V69): per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band |
 | `objects` | a list (a string each), or `"default"` |  | matched against the option-free YODA path (`/photo_eic/d01-x01-y01`) or any variant's path. No object matching is an error. |
-| `ratio` | true or false, or `"default"` | `false` | a ratio pad: each curve over the data, or over the first curve when there are no data |
-| `y_gutter` | a number, ≥ 0, or `"default"` | `0.5` | the top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `"default"`: no gutter, the tool's own range (V29, V55) |
-| `x_gutter` | a number, ≥ 0, or `"default"` |  | widens x by g of its span, symmetrically (in decades on a log axis). `"default"`: the range the bins give |
-| `logy` | true or false, or `"default"` |  | log y (default: the .plot's) |
-| `logx` | true or false, or `"default"` |  | log x (default: the .plot's) |
-| `logz` | true or false, or `"default"` |  | a heat map's colour scale (V87) |
-| `auto_range` | true or false, or `"default"` | `true` | trim x to the bins with content, in curves and data |
-| `normalise` | a string or true or false: `"area"`, `false`, or `"default"` | `false` | `"area"` (V68): every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `"$1/\sigma\,\mathrm{d}\sigma/\mathrm{d}E_T$"`) on the pages it applies to. A figure (04 §11.2) may set it for its own |
-| `void_empty` | true or false, or `"default"` | `false` | blank a bin that is zero in **every** curve |
+| `ratio` | true or false, or `"default"` or `"native"` | `false` | a ratio pad: each curve over the data, or over the first curve when there are no data |
+| `y_gutter` | a number, ≥ 0, or `"default"` or `"native"` | `0.5` | the top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `"native"`: no gutter, the tool's own range (V29, V55; a v2 file's [plot] says `"default"`) |
+| `x_gutter` | a number, ≥ 0, or `"default"` or `"native"` |  | widens x by g of its span, symmetrically (in decades on a log axis). `"default"`: the range the bins give |
+| `logy` | true or false, or `"default"` or `"native"` |  | log y (default: the .plot's) |
+| `logx` | true or false, or `"default"` or `"native"` |  | log x (default: the .plot's) |
+| `logz` | true or false, or `"default"` or `"native"` |  | a heat map's colour scale (V87) |
+| `auto_range` | true or false, or `"default"` or `"native"` | `true` | trim x to the bins with content, in curves and data |
+| `normalise` | a string or true or false: `"area"`, `false`, or `"default"` or `"native"` | `false` | `"area"` (V68): every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `"$1/\sigma\,\mathrm{d}\sigma/\mathrm{d}E_T$"`) on the pages it applies to. A figure (04 §11.2) may set it for its own |
+| `void_empty` | true or false, or `"default"` or `"native"` | `false` | blank a bin that is zero in **every** curve |
 | `use_data` | true or false | `true` | `false`: the `[plot.data]` table stays in the file but is not drawn, and a `ratio` divides each curve by the page's first curve, the first value of its curve axis (V44) |
-| `min_entries` | an integer, ≥ 0, or `"default"` | `0` | blank a bin that fewer raw entries went into, in **any** curve (read from the `/RAW` twin; objects without one are not voided this way) |
-| `range_pad` | an integer, ≥ 0, or `"default"` | `0` | whole bins kept either side of the filled ones |
+| `min_entries` | an integer, ≥ 0, or `"default"` or `"native"` | `0` | blank a bin that fewer raw entries went into, in **any** curve (read from the `/RAW` twin; objects without one are not voided this way) |
+| `range_pad` | an integer, ≥ 0, or `"default"` or `"native"` | `0` | whole bins kept either side of the filled ones |
 | `root_style` | a string, or `"default"` |  | a style file over base.toml (04 §12). Refused by the yoda backend alone. |
-| `title` | a string, or `"default"` |  | the main title, centred above the frame (V51). Every page; a figure (04 §11.2) overrides it for its own |
-| `title_left` | a string, or `"default"` |  | small text just above the frame's top-left and top-right corners (V51), inherited the same way |
-| `title_right` | a string, or `"default"` |  | small text just above the frame's top-left and top-right corners (V51), inherited the same way |
-| `legend_header` | a string, or `"default"` |  | the legend's first line (V51), inherited the same way. Children inherit every key their parent has and a key means the same at both levels |
+| `title` | a string, or `"default"` or `"native"` |  | the main title, centred above the frame (V51). Every page; a figure (04 §11.2) overrides it for its own |
+| `title_left` | a string, or `"default"` or `"native"` |  | small text just above the frame's top-left and top-right corners (V51), inherited the same way |
+| `title_right` | a string, or `"default"` or `"native"` |  | small text just above the frame's top-left and top-right corners (V51), inherited the same way |
+| `legend_header` | a string, or `"default"` or `"native"` |  | the legend's first line (V51), inherited the same way. Children inherit every key their parent has and a key means the same at both levels |
 | `data` | a table |  | 04 §11.1 |
 | `style` | a table |  | 04 §12 |
 | `figures` | a table |  | `[plot.figures.<figure>]`: a recipe for pages, with every page key of `[plot]` for its own (04 §11.2, V80) |

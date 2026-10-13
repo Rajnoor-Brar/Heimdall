@@ -5,8 +5,10 @@ docs/04_Config_Reference.md. Every key's type, allowed values, smallest value, d
 whether it takes "default" is written once, in run.toml (V55); config.py and plot.py check their tables
 here, and the editor schema (`make schema`) and the reference's key lists come from the same file.
 
-"default" means "keep it as it is": in a child it is the parent's value, at the top level nothing is set
-and the tool decides. Only a key whose entry says `default_ok` takes it.
+"default" means "keep it as it is": the layer below's value, as if the key were absent. Only a key whose
+entry says `default_ok` takes it. In a v2 file, [plot]'s own "default" sets nothing, and the drawing tool
+decides; v3 gives that its own word, "native" (03 §6: "default" has one meaning), which a page key
+(`native_ok`: marked `page` and `default_ok`) takes at any level.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from .errors import HepError, did_you_mean
 from .paths import hep_root
 
 DEFAULT = "default"
+NATIVE = "native"           # a page key: what the drawing tool does by itself (v2: [plot]'s own "default")
 TYPES = {"int": int, "float": (int, float), "str": str, "bool": bool, "list": list, "table": dict}
 NAMES = {"int": "an integer", "float": "a number", "str": "a string", "bool": "true or false", "list": "a list",
          "table": "a table"}
@@ -81,9 +84,12 @@ def keys(table: str) -> dict[str, dict]:
     a child has them ("default" is [plot]'s value; no default of its own), then its own."""
     if table == "figure":
         inherited = {k: {f: v for f, v in e.items() if f not in ("default", "page")} | {"default_ok": True,
-                         "doc": f"as [plot].{k}, for these pages"}
+                         "native_ok": bool(e.get("default_ok")), "doc": f"as [plot].{k}, for these pages"}
                      for k, e in spec().get("plot", {}).items() if e.get("page")}
         return inherited | spec().get(table, {})
+    if table == "plot":
+        return {k: e | {"native_ok": True} if e.get("page") and e.get("default_ok") else e
+                for k, e in spec().get("plot", {}).items()}
     if table == "run":
         given = {k: {**spec()["configuration"][k], "inherit": True} for k in RUN_GIVES}
         return spec().get("run", {}) | given
@@ -138,7 +144,7 @@ def check(values: dict, table: str, where: str, *, subtables: bool = False, extr
 
 def check_value(key: str, value, entry: dict, where: str) -> None:
     kinds = entry["type"]
-    if value == DEFAULT and entry.get("default_ok"):
+    if value == DEFAULT and entry.get("default_ok") or value == NATIVE and entry.get("native_ok"):
         return
     if value == DEFAULT and "str" not in kinds.split("|"):
         raise HepError(f"'{key}' does not take \"default\"", where=where,
@@ -181,7 +187,8 @@ def _json_key(entry: dict) -> dict:
         one["enum"] = entry["choices"]
     if entry.get("items"):
         one["items"] = {"type": _json_type(entry["items"])[0], **({"enum": entry["choices"]} if entry.get("choices") else {})}
-    out.update(one if not entry.get("default_ok") else {"anyOf": [one, {"const": DEFAULT}]})
+    words = [{"const": DEFAULT}] * bool(entry.get("default_ok")) + [{"const": NATIVE}] * bool(entry.get("native_ok"))
+    out.update({"anyOf": [one, *words]} if words else one)
     if "default" in entry:
         out["default"] = entry["default"]
     return out

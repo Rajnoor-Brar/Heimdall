@@ -963,11 +963,12 @@ def override_of(child: dict | None) -> dict:
 def chosen(name: str, ours, native, tables: tuple):
     """V55: the most specific table that sets a value wins. "default" keeps it as it is: in a child
     (an object's or an overlay's table) it is the parent's value, as if the key were absent; in the
-    last table (the top level) it is `native`, set nothing: what the drawing tool does by itself.
-    Nothing set anywhere is `ours`, the runner's default (the schema's)."""
+    last table (the top level) of a v2 file it is `native`, set nothing: what the drawing tool does by
+    itself (a v3 file drops it: there, "default" is only the layer below). "native" (03 §6) is `native`
+    at any level. Nothing set anywhere is `ours`, the runner's default (the schema's)."""
     for table in tables:
         if name in table and table[name] != DEFAULT:
-            return table[name]
+            return native if table[name] == schema.NATIVE else table[name]
     return native if tables[-1].get(name) == DEFAULT else ours
 
 

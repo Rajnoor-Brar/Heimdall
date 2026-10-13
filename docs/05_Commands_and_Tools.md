@@ -26,8 +26,8 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--show-config` | print each configuration's resolved values and where each came from; run nothing |
 | `--card TAG` | with --plan: that tool's card for the first point, each line with where its value comes from |
 | `--points SEL` | run a subset: tags, indices or quantity=tag |
-| `--set KEY=VALUE` | override one value for this invocation (repeatable) |
-| `--rerun` | ignore skip-unchanged |
+| `--set KEY=VALUE` | override one value for this invocation (repeatable), in the file's own names: run.events=100 (v3), run.event_count=100 (v2) |
+| `--rerun` | ignore skip-unchanged; under a serial the file sets, overwrite points made from other inputs |
 | `--only pre\|post\|plot` | rerun only the pre tools, the post tools or the plots |
 | `--stages LIST` | run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; hep cluster's jobs) |
 | `--plain` | plain lines instead of the live view |

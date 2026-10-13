@@ -35,7 +35,7 @@ def xsec(path: Path) -> tuple[float, float]:
 
 @pytest.mark.skipif(not shutil.which("DelphesHepMC3"), reason="load_hep: DelphesHepMC3")
 def test_delphes_file_chain_counts_every_event(scratch):
-    hep_run(scratch, "Demo/jets", "delphes", "--set", "run.event_count=1000", "--set", "run.threads=2")
+    hep_run(scratch, "Demo/jets", "delphes", "--set", "run.events=1000", "--set", "run.threads=2")
     point = str(folder("Demo/jets", "delphes") / "point")
     written = json.loads((scratch / "output" / point / "showered.hepmc.json").read_text(encoding="utf-8", errors="replace"))["written"]
     assert uproot.open(scratch / "results" / point / "delphes.root")["Delphes"].num_entries == written
@@ -55,7 +55,7 @@ def test_sherpa_sigma_matches_v1_and_the_integration_is_cached(scratch):
 @pytest.mark.skipif(not shutil.which("Herwig") or not (apps() / "Herwig" / "HerwigDefaults.rpo").exists(),
                     reason="load_hep and hep build --framework: Herwig and its repository")
 def test_herwig_sigma_is_its_own_and_the_run_file_is_shared(scratch):
-    hep_run(scratch, "Demo/herwig", "--set", "run.event_count=500")
+    hep_run(scratch, "Demo/herwig", "--set", "run.events=500")
     point = scratch / "output" / folder("Demo/herwig") / "point"
     report = next(point.glob("point-S*.out")).read_text(encoding="utf-8", errors="replace")
     stated = re.search(r"Total \(from generated events\):\s+(\d+)\s+\d+\s+([\d.]+)\((\d+)\)e([+-]\d+)", report)
@@ -73,10 +73,10 @@ def test_herwig_sigma_is_its_own_and_the_run_file_is_shared(scratch):
 def test_a_point_is_reproduced_from_its_provenance(scratch):
     """V77: hep reproduce runs a finished point again (its --set overrides too) beside it, and its
     products hold the same values (a sharded Rivet's bytes differ: merge order)."""
-    hep_run(scratch, "Demo/jets", "single", "--set", "run.event_count=400", "--set", "run.threads=2")
+    hep_run(scratch, "Demo/jets", "single", "--set", "run.events=400", "--set", "run.threads=2")
     provenance = scratch / "output" / folder("Demo/jets", "single") / "point" / "provenance.json"
     import support
-    assert json.loads(provenance.read_text(encoding="utf-8"))["sets"] == ["run.event_count=400", "run.threads=2"]
+    assert json.loads(provenance.read_text(encoding="utf-8"))["sets"] == ["run.events=400", "run.threads=2"]
     done = support.hep(scratch, provenance, command="reproduce")
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     assert "jets.yoda: the same values" in done.stdout or "jets.yoda: identical" in done.stdout

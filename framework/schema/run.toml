@@ -658,7 +658,8 @@ default_ok = true
 doc        = "the top of the y axis at (1 + g) × the largest value"
 notes = """\
   the top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades \
-  shown); `0`: no headroom. `\"default\"`: no gutter, the tool's own range (V29, V55)"""
+  shown); `0`: no headroom. `\"native\"`: no gutter, the tool's own range (V29, V55; a v2 file's \
+  [plot] says `\"default\"`)"""
 
 [plot.x_gutter]
 page       = true

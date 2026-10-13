@@ -401,3 +401,25 @@ def test_an_imports_only_and_drop_take_v3_names(scratch):
     assert "single" not in load(scratch, dropping, "dropper.toml").configurations
     with pytest.raises(HepError, match="drop names"):
         load(scratch, dropping.replace("cfgs.single", "cfgs.singel"), "dropper.toml")
+
+
+def test_a_commented_out_configuration_is_migrated_to_uncomment():
+    """A configuration commented out in a v2 file stays one to uncomment in v3: header and keys renamed."""
+    from runner import migrate
+    text = V2 + '\n# [run.cfgs.pthatmin]\n# serial      = 7\n# sweeps      = ["pdf"]\n# static      = { energies = "18x275" }\n'
+    new = migrate.v3_text(text)
+    assert '# [cfgs.pthatmin]' in new and '# vary        = ["pdf"]' in new and '# fixed       = { energies' in new
+    assert "# serial      = 7" in new and "[run.cfgs" not in new
+
+
+
+def test_an_input_is_its_producer_only_where_they_run_together():
+    """A table no configuration runs beside its producer (one an importer takes alone) keeps the file's
+    name, which whatever the importer runs may write."""
+    from runner import migrate
+    text = V2 + '\n[tools.late]\ntool        = "yd2rt"\ninput       = "jets.yoda"\noutput_file = "late.root"\n'
+    new = migrate.v3_text(text)
+    yd2rt = new[new.index("[tools.yd2rt]"):].split("\n\n")[0]
+    late = new[new.index("[tools.late]"):].split("\n\n")[0]
+    assert '"rivet"' in yd2rt and "jets.yoda" not in yd2rt                        # it runs with rivet
+    assert '"jets.yoda"' in late and '"rivet"' not in late                         # it runs with nothing here

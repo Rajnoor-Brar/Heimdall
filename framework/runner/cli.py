@@ -911,13 +911,23 @@ def cmd_check(args) -> int:
             for warning in [*tools.meta_notes(run), *house.unused_tools(run)]:   # said, never failed
                 print(f"      warning: {warning}")
         except HepError as error:
-            if importers.get(name) and not args.configs:
+            if importers.get(name) and not args.configs and not _has_configurations(name):
                 print(f"ok    {name}: shared, imported by {', '.join(importers[name])} (checked through them)")
                 continue
             failed += 1
             print(f"FAIL  {name}")
             print("      " + error.render().replace("\n", "\n      "))
     return 2 if failed else 0
+
+
+def _has_configurations(name: str) -> bool:
+    """A run TOML with configurations of its own is a study, checked on its own even when imported; one
+    without (a shared file of tools and quantities) is checked through the files that import it."""
+    try:
+        data = tomllib.loads(configmod.config_file(name).read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError, HepError):
+        return True
+    return bool(data.get("cfgs") or data.get("run", {}).get("cfgs"))
 
 
 def cmd_watch(args) -> int:

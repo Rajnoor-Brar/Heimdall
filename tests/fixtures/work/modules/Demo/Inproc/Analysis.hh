@@ -10,7 +10,7 @@
 //
 // More than one Rivet needs SISCone's process-wide state per thread (L29): stock FastJet keeps one
 // random generator and one eta range for the process, and threads clustering at once then get
-// different jets (L16) or a FastJet internal error. The patch is utils/Env/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch; without it,
+// different jets (L16) or a FastJet internal error. The patch is Heimdall's recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch; without it,
 // `rivet_threads` above 1 is refused. Before the threads start, one SISCone clustering on the
 // constructing thread prints FastJet's and SISCone's banners and sets their first-use flags.
 
@@ -65,7 +65,7 @@ namespace Inproc {
                 if (!sisconePerThread())
                     job.fail(Module::Config, "rivet_threads = " + std::to_string(threads) +
                                                  " needs SISCone's random generator per thread (L29): apply "
-                                                 "utils/Env/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch "
+                                                 "Heimdall's recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch "
                                                  "and rebuild FastJet, or set rivet_threads = 1");
                 warmUp();
             }

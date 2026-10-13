@@ -93,6 +93,37 @@ def _blocked(path: Path, wanted: list[str]) -> list[str]:
     return missing
 
 
+def _kept(path: Path) -> list[str]:
+    """The `!` lines of a file's marked block: what hep setup un-ignored there (U67)."""
+    lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
+    if BLOCK not in lines:
+        return []
+    start = lines.index(BLOCK)
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].strip() == BLOCK_END), len(lines))
+    return [line for line in lines[start + 1:end] if line.startswith("!")]
+
+
+def _unignore(target: Path, files: list[str], out=print) -> bool:
+    """A repository that ignores a file hep setup wrote (GitHub's C++ template ignores `Makefile`): `!`
+    lines for them in the .gitignore's marked block, so the work dir's own files are tracked. True when
+    the block changed."""
+    if not files or toplevel(target) is None:
+        return False
+    done = subprocess.run(["git", "check-ignore", "--", *files], cwd=target, capture_output=True, text=True)
+    ignored = [line.strip() for line in done.stdout.splitlines() if line.strip()]
+    if not ignored:
+        return False
+    negations = []
+    for path in ignored:
+        parts = Path(path).parts
+        negations += [f"!/{'/'.join(parts[:i])}/" for i in range(1, len(parts))] + [f"!/{path}"]
+    gitignore = target / ".gitignore"
+    wanted = _ignores(TEMPLATE / ".gitignore") + _kept(gitignore) + list(dict.fromkeys(negations))
+    _blocked(gitignore, list(dict.fromkeys(wanted)))
+    out(f"the repository ignores {', '.join(ignored)}: un-ignored in .gitignore's marked block (a work dir tracks them)")
+    return True
+
+
 def _ignores(template: Path) -> list[str]:
     return [line.strip() for line in template.read_text(encoding="utf-8").splitlines()
             if line.strip() and not line.startswith("#")]
@@ -195,6 +226,8 @@ def setup(target: Path, *, project: str | None = None, git: bool = False, adopt:
     for name in fetch_datasets(target, out):
         if name not in changed:
             changed.append(name)
+    if _unignore(target, [a for a in added if not a.endswith("/")], out) and ".gitignore" not in changed + added:
+        changed.append(".gitignore")
     if git:
         _commit(target, [a for a in added if not a.endswith("/")] + changed, values,
                 new=git == "new", out=out)
@@ -238,7 +271,10 @@ def _commit(target: Path, files: list[str], values: dict[str, str], new: bool = 
         out(f"committing in the repository {top}, which {target.name}/ is in (--git=new for one of its own)")
     if not files:
         return
-    run("add", "--", *files)
+    done = run("add", "--", *files)
+    if done.returncode:
+        raise HepError(f"git add failed in {target}: {done.stderr.strip() or done.stdout.strip()}",
+                       hint="the files are written; add and commit them yourself (git add -- <paths>)")
     done = run("commit", "-q", "-m", f"hep setup: the work dir {values['name']} (Heimdall {values['revision'][:12] or 'unknown'})",
                "--", *files)
     if done.returncode:
@@ -370,7 +406,7 @@ def refresh(target: Path, *, yes: bool = False, out=print, ask=None) -> int:
         out(f"refreshed {path.relative_to(target)}")
     gitignore = target / ".gitignore"
     if gitignore.exists() and BLOCK in gitignore.read_text(encoding="utf-8").splitlines():
-        if (missing := _blocked(gitignore, _ignores(TEMPLATE / ".gitignore"))):
+        if (missing := _blocked(gitignore, _ignores(TEMPLATE / ".gitignore") + _kept(gitignore))):
             out(f"merged .gitignore: {' '.join(missing)}")
     if not changes:
         out("the framework's files are today's template's")

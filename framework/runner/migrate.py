@@ -562,6 +562,31 @@ def _quantity_v3(name: str, block: dict, q: dict, fixed) -> list[str]:
     return out
 
 
+_COMMENTED_CFG = re.compile(r"^(\s*#\s*)\[run\.cfgs\.([^\]]+)\](.*)$")
+_COMMENTED_KEY = re.compile(r"^(\s*#\s*)([A-Za-z_]+)(\s*)=(.*)$")
+
+
+def _commented_cfgs(text: str) -> str:
+    """A configuration commented out stays one to uncomment (as V98's did): its header and its commented
+    keys in v3's names (`# [cfgs.<name>]`, `# vary`, `# fixed`, `# chain`, `# folder`, `# events`), the
+    `=` column kept."""
+    out, inside = [], False
+    for line in text.splitlines(keepends=True):
+        bare, end = line.rstrip("\n"), ("\n" if line.endswith("\n") else "")
+        if (head := _COMMENTED_CFG.match(bare)):
+            out.append(f"{head[1]}[cfgs.{head[2]}]{head[3]}{end}")
+            inside = True
+            continue
+        if inside and (key := _COMMENTED_KEY.match(bare)) and key[2] in CFG_V3:
+            new, column = CFG_V3[key[2]], len(key[2]) + len(key[3])
+            out.append(f"{key[1]}{new}{' ' * max(1, column - len(new))}={key[4]}{end}")
+            continue
+        if inside and not bare.lstrip().startswith("#"):
+            inside = False
+        out.append(line)
+    return "".join(out)
+
+
 def v3_text(text: str) -> str:
     """A v2 run TOML in v3's form (03 §6), by table, comments kept: [config] → [file], [run.cfgs.<name>] →
     [cfgs.<name>], keys renamed, tools typed by their table's name, [prelim] inferred (keep = false on a
@@ -588,6 +613,17 @@ def v3_text(text: str) -> str:
     producer = {name: tags[0] for name, tags in writers.items()        # input = "<producer>" where it is clear
                 if len(tags) == 1 and len(outputs(tool_tables[tags[0]])) == 1 and name not in tool_tables}
     chains = [repr(cfg["tools"]) for cfg in cfgs.values() if isinstance(cfg, dict) and "tools" in cfg]
+
+    def tags_of(layer: dict) -> set:
+        return {t for key in ("tools", "pre", "post", "generate_cards") for g in layer.get(key, []) or []
+                for t in (g if isinstance(g, list) else [g]) if isinstance(t, str)}
+    runs = [tags_of(run) | tags_of(cfg) for cfg in cfgs.values() if isinstance(cfg, dict)] or [tags_of(run)]
+
+    def together(reader: str, writer: str) -> bool:
+        """An input is written as its producer only where they run together in this file: a file
+        imported in part (only its rivet and merge tables, say) keeps the file's name, which whatever
+        the importer runs may write."""
+        return any(reader in tags and writer in tags for tags in runs)
     hoisted = None                                                  # the chain most configurations share: [run]'s
     if "tools" not in run and chains:
         common = max(set(chains), key=chains.count)
@@ -656,7 +692,8 @@ def v3_text(text: str) -> str:
                     if table.get("tool") != tag:
                         lines += _renamed(chunk, "uses")
                     continue
-                if key == "input" and isinstance(table.get("input"), str) and table["input"] in producer:
+                if (key == "input" and isinstance(table.get("input"), str) and table["input"] in producer
+                        and together(tag, producer[table["input"]])):
                     match = _KEY.match(chunk[0].rstrip("\n"))
                     comment = match[4].split("#", 1)[1] if "#" in match[4] else ""
                     lines.append(f"{match[1]}input{match[3]}\"{producer[table['input']]}\"" + (f"   #{comment}" if comment else "") + "\n")
@@ -694,7 +731,7 @@ def v3_text(text: str) -> str:
     text = "".join(out)
     if "[cfgs." not in text and "chain" not in run and "[file]" not in text:
         text = "[file]\nschema = 3                     # the run TOML's third form (hep migrate --v3)\n\n" + text
-    return re.sub(r"\n{3,}", "\n\n", text)
+    return re.sub(r"\n{3,}", "\n\n", _commented_cfgs(text))
 
 
 #: What a point's or a configuration's folder of output/ recorded: it goes to records/ (U21).

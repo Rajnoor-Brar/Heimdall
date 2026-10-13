@@ -70,6 +70,21 @@ def test_a_hosting_sites_repo_keeps_its_files_and_commits_only_what_was_added(sc
     assert any(line.startswith("kept README.md") for line in quiet[1])
 
 
+def test_a_repository_that_ignores_a_work_dirs_file_tracks_it(scratch, quiet, git_identity):
+    """GitHub's C++ .gitignore ignores `Makefile`, which a work dir needs: hep setup un-ignores what it
+    wrote, in its marked block, and the commit takes it."""
+    target = fresh_repo(scratch / "cpp")
+    (target / ".gitignore").write_text("*.o\nMakefile\n.vscode/\n", encoding="utf-8")
+    git(target, "commit", "-qam", "a C++ template")
+    setup.setup(target, git="yes", out=quiet[0])
+    committed = git(target, "show", "--name-only", "--format=", "HEAD").split()
+    assert "Makefile" in committed and ".vscode/settings.json" in committed
+    ignore = (target / ".gitignore").read_text(encoding="utf-8")
+    assert "!/Makefile" in ignore and "!/.vscode/" in ignore and ignore.startswith("*.o\nMakefile\n")
+    assert any("un-ignored" in line for line in quiet[1])
+    assert setup.refresh(target, yes=True, out=quiet[0]) == 0 and "!/Makefile" in (target / ".gitignore").read_text()
+
+
 def test_inside_a_larger_repo_no_nested_git(scratch, quiet, git_identity):
     outer = fresh_repo(scratch / "big")
     setup.setup(outer / "analysis", git="yes", out=quiet[0])

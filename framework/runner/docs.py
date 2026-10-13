@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import re
-import tomllib
 from pathlib import Path
 
 from . import cli, schema
@@ -33,15 +32,7 @@ def _cell(text: str) -> str:
     return " ".join(str(text).split()).replace("|", "\\|")
 
 
-def _value(value) -> str:
-    """A value as the TOML that writes it."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, str):
-        return f'"{value}"'
-    if isinstance(value, list):
-        return "[" + ", ".join(_value(v) for v in value) + "]"
-    return str(value)
+_value = schema.toml_value
 
 
 def _type(entry: dict) -> str:
@@ -74,40 +65,9 @@ def keys(table: str) -> str:
     return "\n".join(rows)
 
 
-def _style_entries() -> list[tuple[str, str, str]]:
-    """base.toml's keys in file order: (dotted key, default as written, comment). A comment-only line
-    under a key, indented to its comment, continues that key's comment; a key without one has its
-    table's (`[page.margins]   # fractions of the page`)."""
-    path = hep_root() / "src" / "Apps" / "Paint" / "base.toml"
-    text = path.read_text(encoding="utf-8")
-    values = tomllib.loads(text)
-    out: list[list[str]] = []
-    table, column, about = "", None, ""
-    for line in text.splitlines():
-        if (head := re.match(r"\[([\w.]+)\]", line)):
-            table, column = head.group(1), None
-            about = found.group(1).strip() if (found := re.search(r"\s#\s?(.*)$", line)) else ""
-            continue
-        if (key := re.match(r"(\w+)\s*=", line)):
-            name = f"{table}.{key.group(1)}" if table else key.group(1)
-            comment = about
-            if (found := re.search(r"\s#\s?(.*)$", line)):
-                comment, column = found.group(1).strip(), found.start() + 1
-            value = values
-            for part in name.split("."):
-                value = value[part]
-            out.append([name, _value(value), comment])
-            continue
-        if out and column is not None and line.strip().startswith("#") and line.index("#") == column:
-            out[-1][2] += " " + line.strip()[1:].strip()
-        else:
-            column = None
-    return [tuple(e) for e in out]
-
-
 def style() -> str:
     rows = ["| Key | Default | Means |", "|---|---|---|"]
-    rows += [f"| `{name}` | `{_cell(value)}` | {_cell(comment)} |" for name, value, comment in _style_entries()]
+    rows += [f"| `{name}` | `{_cell(value)}` | {_cell(comment)} |" for name, value, comment in schema.style_entries()]
     return "\n".join(rows)
 
 

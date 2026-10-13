@@ -273,3 +273,29 @@ def test_a_key_in_the_wrong_table_names_its_table(scratch, change, message):
     with pytest.raises(HepError) as caught:
         plans_of(written(scratch, V3.replace(*change)), "pdf")
     assert caught.value.hint and __import__("re").search(message, caught.value.hint), caught.value.hint
+
+
+def test_hep_check_names_tool_tables_nothing_uses(scratch):
+    from runner import house
+    run = load(scratch, V3.replace("[tools.yd2rt]", '[tools.spare]\nuses = "yd2rt"\ninput = "rivet"\noutput = "x.root"\n\n[tools.yd2rt]'))
+    assert house.unused_tools(run) == ["[tools.spare] is defined but no configuration runs it or names it in generate_cards"]
+    assert house.unused_tools(load(scratch, V3)) == []
+
+
+def test_the_editor_schemas_take_the_fixture_and_catch_a_typo():
+    """U49: run.schema.json (v2) and run.v3.schema.json take every fixture config; a shipped tool's table
+    is closed in v3, so a misspelt key is flagged in the editor."""
+    jsonschema = pytest.importorskip("jsonschema")
+    import json
+    import tomllib
+    from support import REPO
+    from runner import schema
+    v2, v3 = schema.json_schema(), schema.json_schema_v3()
+    for path in (REPO / "tests" / "fixtures" / "work" / "configs").rglob("*.toml"):
+        assert not list(jsonschema.Draft7Validator(v3).iter_errors(tomllib.loads(path.read_text(encoding="utf-8")))), path.name
+    for path in (REPO / "tests" / "reference" / "v2_configs").rglob("*.toml"):
+        assert not list(jsonschema.Draft7Validator(v2).iter_errors(tomllib.loads(path.read_text(encoding="utf-8")))), path.name
+    wrong = tomllib.loads(V3.replace('analyses = ["photo_eic"]', 'analysis = ["photo_eic"]'))
+    assert any("analysis" in e.message for e in jsonschema.Draft7Validator(v3).iter_errors(wrong))
+    for name in ("run.schema.json", "run.v3.schema.json"):                     # make schema keeps them current
+        assert json.loads((REPO / "framework" / "schema" / name).read_text(encoding="utf-8")) == (v2 if "v3" not in name else v3), name

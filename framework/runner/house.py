@@ -29,6 +29,43 @@ TABLES = {"run": "run", "config": "config", "prelim": "prelim", "plot": "plot", 
 
 # ── hep ls ─────────────────────────────────────────────────────────────────────────────────────
 
+def importers() -> dict[str, list[str]]:
+    """Every config another one imports ([config] or [file] import), with the configs that import it:
+    <Project>/<name> → [<Project>/<name>, …]."""
+    root = configs_root()
+    out: dict[str, list[str]] = {}
+    for path in sorted(root.glob("*/*.toml")):
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        given = (data.get("file") or data.get("config") or {}).get("import", [])
+        for entry in given if isinstance(given, list) else [given]:
+            name = entry.get("from") if isinstance(entry, dict) else entry
+            if not isinstance(name, str):
+                continue
+            name = name.removesuffix(".toml")
+            full = name if "/" in name else f"{path.parent.name}/{name}"
+            out.setdefault(full, []).append(str(path.relative_to(root).with_suffix("")))
+    return out
+
+
+def unused_tools(run) -> list[str]:
+    """This file's own tool tables that no configuration runs (tools, pre, post, an @quantity's choice)
+    or names in generate_cards: likely left over (an import's spare tables are its own business)."""
+    used: set[str] = set()
+    for configuration in run.configurations.values():
+        for groups in (configuration.tools, configuration.pre, configuration.post):
+            for group in groups:
+                for entry in group:
+                    if entry.startswith("@") and entry[1:] in run.quantities:
+                        used |= {v for v in run.quantities[entry[1:]].values if isinstance(v, str)}
+                    used.add(entry)
+        used |= {entry.partition(":")[0] for entry in configuration.generate_cards}
+    return [f"[tools.{tag}] is defined but no configuration runs it or names it in generate_cards"
+            for tag in run.tools if tag not in used and f"tools.{tag}" not in run.included]
+
+
 def config_names(project: str | None = None) -> list[str]:
     """Every configs/<Project>/<name>.toml that has a [run], as <Project>/<name>."""
     root = configs_root()
@@ -120,6 +157,78 @@ def _quantity_lines(key: str) -> list[str]:
     return lines
 
 
+#: v3's names (runner/v3.py): the v2 key each stands for, and what v3 adds.
+V3_NAMES = {
+    "events": ("run", "event_count", "a configuration's may be a list: one configuration per count, <name>_<count>"),
+    "chain": ("run", "tools", "[run]'s is every configuration's, unless one gives its own"),
+    "vary": ("configuration", "sweeps", "a compound quantity's name sweeps its fields together"),
+    "fixed": ("configuration", "static", "a quantity's own fixed = \"<tag>\" ([static] in v2), or a configuration's "
+                                          "fixed = { quantity = \"<tag>\" }"),
+    "points": ("quantity", "values", "rows { tag, value, label, style }: v2's values, tags, labels and styles"),
+    "to": ("quantity", "key", "{ <target> = \"<key>\" or true }: v2's key and target in one table"),
+    "card": ("tool", "baseconfig", ""), "output": ("tool", "output_file", ""),
+    "uses": ("tool", "tool", "the tool folder of a second table of one tool; else the table's name is the tool"),
+    "folder": ("configuration", "label", ""),
+    "seed": ("run", "seed_type", "\"identity\", \"random\" or an integer (v2's seed_type and manual_seed)"),
+    "commands": ("prelim", "commands", "[run] commands: run in each point's folder before its tools"),
+}
+#: What a table is, for `hep explain <table>`.
+TABLE_TEXT = {
+    "config": "[file] (v2's [config]): how the file is read: imports, a master, vars, meta",
+    "run": "[run]: the run's name, project and defaults, which every configuration starts from",
+    "configuration": "[cfgs.<name>] (v2's [run.cfgs.<name>]): one configuration: what it varies, fixes and runs",
+    "quantity": "[quantities.<q>]: a quantity: its points, fixed point and bindings",
+    "tool": "[tools.<tag>]: a tool table; its folder's own keys are `hep tools <folder>`",
+    "plot": "[plot]: the pages", "figure": "[plot.figures.<f>]: one figure's pages", "data": "[plot.data]: reference data",
+    "cluster": "[cluster]: hep cluster's Slurm keys (machine.toml, hep.toml, the run TOML, a configuration)",
+    "prelim": "[prelim] (v2 only; v3 infers it): FIFOs, files and commands of each point",
+}
+
+
+def _special(key: str) -> list[str] | None:
+    """What explain answers beyond a key of the schema: a table, a v3 name, a tool folder's option, a
+    style key, deck.toml, machine.toml, [static]."""
+    from . import tools as toolsmod
+    word = key.strip("[]")
+    table = TABLES.get(word, {"file": "config", "cfgs": "configuration"}.get(word))
+    if table and "." not in word:
+        entries = schema.keys(table)
+        return [TABLE_TEXT.get(table, f"[{table}]"), *(f"  {k:16} {e.get('doc', '')}" for k, e in entries.items()),
+                "  (hep explain <table>.<key> for one in full)"]
+    last = word.rsplit(".", 1)[-1]                                       # events, run.events, tools.<tag>.card
+    if last in V3_NAMES and (word == last or word.split(".")[0] in ("run", "cfgs", "quantities", "tools")):
+        word = last
+        table, old, note = V3_NAMES[word]
+        entry = schema.keys(table).get(old, {})
+        return [f"{word} (v3; v2's {'[' + table + '].' + old})", *([f"  {note}"] if note else []),
+                *([f"  {entry['doc']}"] if entry.get("doc") else [])]
+    if word in ("static",):
+        return ["[static] (v2; v3: each quantity's fixed): quantity = tag, the point of a quantity no configuration varies"]
+    if word in ("machine.toml", "machine"):
+        return ["machine.toml (the machine root's; recipes/machine.template.toml): this machine's layer",
+                "  [settings] [env] [packages.<name>]  the stack's build: over the recipes and toolkits (recipes/README.md §1)",
+                "  [cluster]                            hep cluster's defaults for every work dir here (04 §16)"]
+    if word in ("deck", "deck.toml"):
+        return ["deck.toml: a deck's recipe (04 §15)",
+                *(f"  {k:16} {e.get('doc', '')}" for t in schema.DECK_TABLES for k, e in schema.keys(t).items())]
+    style = word.removeprefix("style.")
+    for dotted, default, comment in schema.style_entries():
+        if dotted == style:
+            return [f"style {dotted} (src/Apps/Paint/base.toml; a style layer's key, 04 §12)",
+                    f"  default  {default}", *([f"  {comment}"] if comment else [])]
+    parts = word.split(".")
+    if parts[0] == "tools":
+        parts = parts[1:]
+    if len(parts) == 2 and parts[0] in toolsmod.folders():
+        option = toolsmod.folders()[parts[0]].spec.get("options", {}).get(parts[1])
+        if option is not None:
+            return [f"{parts[0]}'s option {parts[1]} (its tool folder's [options])",
+                    f"  kind     {option.get('kind', 'any')}" + (", required" if option.get("required") else ""),
+                    *([f"  default  {option['default']}"] if "default" in option else []),
+                    *([f"  {option['doc']}"] if option.get("doc") else [])]
+    return None
+
+
 def explain(key: str) -> list[str]:
     """A key's type, default, choices, bounds, inheritance and doc, from framework/schema/run.toml.
     `plot.y_gutter`, `[plot].y_gutter`, `run.event_count`, `quantities.<q>.styles`, `tools.<tag>.shards`,
@@ -127,6 +236,9 @@ def explain(key: str) -> list[str]:
     up in every table."""
     if ".exe" in key:                                                   # a module program's own settings
         return module_settings(key)
+    special = _special(key)
+    if special is not None:
+        return special
     vocab = _quantity_lines(key)                                        # a quantity's name too (V58)
     if vocab and not any(key in schema.keys(t) for t in schema.spec() if t != "sections"):
         return vocab

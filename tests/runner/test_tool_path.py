@@ -69,7 +69,7 @@ def test_a_work_dirs_folder_is_a_tool_and_hep_tools_says_so(roots):
 def test_extends_lays_a_folder_over_the_shipped_one(roots):
     work, _ = roots
     folder(work, "sherpa", 'extends = "sherpa"\n[tool]\nexecutable = "/bin/true"\n')
-    mine, shipped = tools.folders()["sherpa"], tomllib.loads((SHIPPED / "sherpa" / "tool.toml").read_text())
+    mine, shipped = tools.folders()["sherpa"], tomllib.loads((SHIPPED / "sherpa" / "tool.toml").read_text(encoding="utf-8"))
     assert mine.origin == "work" and mine.get("tool", "executable") == "/bin/true"
     assert mine.get("tool", "category") == shipped["tool"]["category"] and mine.spec["card"] == shipped["card"]
     assert "extends" not in mine.spec
@@ -148,8 +148,8 @@ values = [1, 2]
 tags   = ["a", "b"]
 """, encoding="utf-8")
     before = sorted(p for p in SHIPPED.rglob("*") if "__pycache__" not in p.parts)
-    done = subprocess.run([str(HEP), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, timeout=300,
-                          env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"})
+    done = subprocess.run([str(HEP), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, encoding="utf-8",
+                          timeout=300, env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"})
     assert done.returncode == 0, done.stdout + done.stderr
     assert len(list((work / "results").rglob("x.txt"))) == 2
     assert sorted(p for p in SHIPPED.rglob("*") if "__pycache__" not in p.parts) == before

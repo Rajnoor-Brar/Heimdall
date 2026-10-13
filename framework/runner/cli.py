@@ -482,35 +482,63 @@ def _pipelined(args, run, keys: list[str], stopper: execute.Stopper, bus: Bus, a
 
 
 def show_config(run, keys: list[str]) -> list[str]:
-    """--show-config (V56): every resolved value of each configuration with the layer it came from: its
-    own table, one it extends, [run], or the schema's default; and what [config].import
-    gave the file."""
+    """--show-config (V56): every resolved value of each configuration with the layer it came from (its
+    own table, one it extends, [run], the schema's default), each fixed quantity with where it was
+    fixed, the interfaces (inferred from the chain in a v3 file), then every quantity and tool table
+    with the file it came from. A v3 file is shown in v3's names."""
     from . import schema
-    order = [k for k in schema.keys("configuration") if k not in ("extends",)]
+    v3 = run.form == 3
+    names = {"event_count": "events", "tools": "chain", "sweeps": "vary", "label": "folder", "prelim": "interfaces"} if v3 else {}
+    order = [k for k in schema.keys("configuration") if k not in ("extends", "static", "manual_seed")]
     lines = []
+
+    def place(origin: str) -> str:
+        return origin.replace("[run.cfgs.", "[cfgs.") if v3 else origin
+
     for key in keys:
         configuration = run.configurations[key]
         lines.append(f"run {run.name} ({run.path}) · configuration {key}")
+        seed = configuration.manual_seed if configuration.seed_type == "manual" else configuration.seed_type
         fields = {"serial": configuration.serial, "name": configuration.run_folder, "label": configuration.label,
                   "title": configuration.title, "description": configuration.description,
                   "event_count": configuration.event_count, "threads": configuration.threads,
                   "parallelism": "auto" if configuration.parallelism_auto else configuration.parallelism,
-                  "swept": configuration.swept,
-                  "seed_type": configuration.seed_type, "manual_seed": configuration.manual_seed,
+                  "swept": configuration.swept, "seed_type": seed,
                   "sweeps": configuration.sweeps, "plot_points": configuration.plot_points,
                   "combine": configuration.combine, "tools": configuration.tools, "pre": configuration.pre,
-                  "post": configuration.post, "static": configuration.static, "prelim": configuration.prelim}
-        width = max(map(len, order))
+                  "post": configuration.post, "generate_cards": configuration.generate_cards,
+                  "prelim": configuration.prelim, "cluster": configuration.cluster}
+        width = max(len(names.get(n, "seed" if n == "seed_type" and v3 else n)) for n in order) + 2
+        own = run.raw.get("run", {}).get("cfgs", {}).get(key, {})
         for name in order:
             value = fields.get(name)
             if value in (None, [], {}, "") and name not in configuration.origins:
                 continue
-            own = run.raw.get("run", {}).get("cfgs", {}).get(key, {})
-            origin = configuration.origins.get(name, f"[run.cfgs.{key}]" if name in own else "default")
-            lines.append(f"  {name:{width}s} = {json.dumps(value, default=str):40s} {origin}")
-    for entry, source in sorted(run.included.items()):
-        lines.append(f"  included {entry} from {source}")
+            shown = names.get(name, "seed" if name == "seed_type" and v3 else name)
+            if name == "prelim" and v3:
+                origin = "inferred from the chain"
+            else:
+                origin = place(configuration.origins.get(name, f"[run.cfgs.{key}]" if name in own else "default"))
+            lines.append(f"  {shown:{width}s} = {json.dumps(value, default=str):40s} {origin}")
+        mine = own.get("static", {}) if isinstance(own.get("static"), dict) else {}
+        for quantity, tag in configuration.static.items():
+            if quantity in mine:
+                origin = f"[cfgs.{key}].fixed" if v3 else f"[run.cfgs.{key}].static"
+            elif f"quantities.{quantity}" in run.included and quantity not in run.raw.get("static", {}):
+                origin = f"included from {run.included[f'quantities.{quantity}']}"
+            else:
+                origin = f"[quantities.{quantity}].fixed" if v3 else "[static]"
+            label = f"fixed {quantity}" if v3 else f"static.{quantity}"
+            lines.append(f"  {label:{width}s} = {json.dumps(tag, default=str):40s} {origin}")
+    for quantity, q in run.quantities.items():
+        source = f"included from {run.included[f'quantities.{quantity}']}" if f"quantities.{quantity}" in run.included else "this file"
+        lines.append(f"  quantity {quantity}: {len(q.values)} point(s){' (a compound field)' if q.silent else ''}   {source}")
+    for tag, tool in run.tools.items():
+        source = f"included from {run.included[f'tools.{tag}']}" if f"tools.{tag}" in run.included else "this file"
+        lines.append(f"  tool {tag} ({tool.tool})   {source}")
     return lines
+
+
 
 
 def not_run(path: Path | None, title: str, message: str, following: Path | None, bus=None) -> None:
@@ -751,6 +779,7 @@ def cmd_check(args) -> int:
                 has_run = True                                   # a broken file is checked, and fails
             if has_run:
                 names.append(str(path.relative_to(root).with_suffix("")))
+    importers = house.importers()                              # a shared file: checked through them
     failed = 0
     for name in names:
         try:
@@ -760,9 +789,12 @@ def cmd_check(args) -> int:
                 planned = build_plans(argparse.Namespace(config=name, set=[], points=None, rerun=False, only=None), key)
                 points += len(planned.every)
             print(f"ok    {name}: {len(run.configurations)} configuration(s), {points} point(s)")
-            for warning in tools.meta_notes(run):               # V97: said, never failed
+            for warning in [*tools.meta_notes(run), *house.unused_tools(run)]:   # said, never failed
                 print(f"      warning: {warning}")
         except HepError as error:
+            if importers.get(name) and not args.configs:
+                print(f"ok    {name}: shared, imported by {', '.join(importers[name])} (checked through them)")
+                continue
             failed += 1
             print(f"FAIL  {name}")
             print("      " + error.render().replace("\n", "\n      "))

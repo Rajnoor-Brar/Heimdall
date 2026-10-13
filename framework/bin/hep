@@ -22,6 +22,9 @@ hep=$(cd "$here/../.." && pwd)                                 # Heimdall: frame
 machine=${HEP_MACHINE:-~/Himinbjorg}
 py=${HEP_VENV:-$machine/venv}/bin/python
 [ -x "$py" ] || py=python3
+# UTF-8 mode: text is read and written as UTF-8 whatever the locale — a node with LANG=C, and YODA 2.1's
+# reader, which leaves its thread in the "C" locale after yoda.read (later reads would decode as ASCII).
+py=("$py" -X utf8)
 
 usage() {
     cat <<EOF
@@ -58,14 +61,14 @@ usage: hep <command> [options]
 EOF
 }
 
-cores() { "$py" -c 'import os; print(os.cpu_count() or 1)'; }     # nproc is not on macOS
-work() { "$py" "$here/run" where --work; }                         # the work dir, or exit 2 with why not
+cores() { "${py[@]}" -c 'import os; print(os.cpu_count() or 1)'; }  # nproc is not on macOS
+work() { "${py[@]}" "$here/run" where --work; }                      # the work dir, or exit 2 with why not
 
 cmd=${1-}
 [ $# -gt 0 ] && shift
 case "$cmd" in
     run|watch|plot|overlay|deck|check|ls|explain|status|clean|reproduce|migrate|setup|where|cluster|doctor|tools)
-        exec "$py" "$here/run" "$cmd" "$@"
+        exec "${py[@]}" "$here/run" "$cmd" "$@"
         ;;
     build)
         goals=(all) jobs=(-j "$(cores)") dir="" clean=0 configure=0

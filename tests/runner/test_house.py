@@ -35,7 +35,10 @@ def test_ls_lists_every_configuration_and_marks_what_runs():
     ("plot.y_gutter", "default  0.5"), ("[plot].normalise", "choices  area, false"),
     ("quantities.pdf.styles", "(a table each)"), ("run.cfgs.one.event_count", "[configuration].event_count"),
     ("event_count", "[run].event_count"), ("tools.rivet.shards", "min      1"),
-    ("plot.band", "(<q> envelope)")])                                        # V90: a key's notes
+    ("plot.band", "(<q> envelope)"),                                          # V90: a key's notes
+    ("run.events", "v2's [run].event_count"), ("tools.pythia.card", "card (v3"), ("cfgs", "[cfgs.<name>]"),
+    ("tools.rivet.analyses", "kind     list, required"), ("style.page.dpi", "default  300"),
+    ("machine.toml", "[cluster]"), ("deck", "deck.toml"), ("static", "fixed")])  # U47: every table and name
 def test_explain_reads_the_schema(key, shown):
     assert any(shown in line for line in house.explain(key))
 

@@ -210,9 +210,6 @@
         "type": "object"
        }
       },
-      "required": [
-       "tools"
-      ],
       "additionalProperties": false
      }
     },
@@ -326,8 +323,7 @@
    },
    "required": [
     "name",
-    "project",
-    "tools"
+    "project"
    ],
    "additionalProperties": false
   },
@@ -357,7 +353,15 @@
   },
   "static": {
    "type": "object",
-   "description": "quantity = a tag, a value or \"#N\""
+   "description": "quantity = a tag, a value or \"#N\"",
+   "additionalProperties": {
+    "type": [
+     "string",
+     "number",
+     "boolean",
+     "array"
+    ]
+   }
   },
   "tools": {
    "type": "object",
@@ -458,7 +462,73 @@
     "required": [
      "tool"
     ],
-    "additionalProperties": true
+    "additionalProperties": true,
+    "allOf": [
+     {
+      "if": {
+       "properties": {
+        "tool": {
+         "const": "merge"
+        }
+       },
+       "required": [
+        "tool"
+       ]
+      },
+      "then": {
+       "properties": {
+        "equivalent": {
+         "description": "the inputs are replicas of one process (-e): averaged σ",
+         "type": "boolean"
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "tool": {
+         "const": "rivet"
+        }
+       },
+       "required": [
+        "tool"
+       ]
+      },
+      "then": {
+       "properties": {
+        "analyses": {
+         "description": "the analyses to run, with options: \"photo_eic:R=0.4\"",
+         "type": "array"
+        },
+        "options": {
+         "description": "analysis options applied to every analysis: { R = 0.4 }",
+         "type": "object"
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "tool": {
+         "const": "yd2rt"
+        }
+       },
+       "required": [
+        "tool"
+       ]
+      },
+      "then": {
+       "properties": {
+        "select": {
+         "description": "YODA path globs to convert (default: everything but /RAW, /TMP)",
+         "type": "array"
+        }
+       }
+      }
+     }
+    ]
    }
   },
   "quantities": {

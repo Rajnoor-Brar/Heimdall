@@ -7,10 +7,10 @@
 #   flags.sh --key     print what the cache depends on, cheaply: no probe runs
 #
 # framework/rules.mk compares FLAGS_KEY in the cache with `--key` on every invocation and rewrites the
-# cache only when they differ. A cache keyed on less than everything it reads is a correctness bug
+# cache only when they differ; a rewrite whose flags are unchanged keeps the cache's time (no rebuild). A cache keyed on less than everything it reads is a correctness bug
 # waiting for an unusual environment (ledger L22, v1's 00/B38), so the key holds the resolved path
-# of every tool probed, plus the two directories the non-config libraries come from, and the stack
-# file itself. What is probed is env/stack.toml's (V78): TOOLS, NAMES and probes() come from it.
+# of every tool probed, the directories the non-config libraries come from, pkg-config's search path,
+# and the stack file itself. What is probed is env/stack.toml's (V78): TOOLS, NAMES and probes() come from it.
 set -u
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -19,7 +19,8 @@ eval "$(python3 "$here/stack.py" --bash)" || { echo "flags.sh: cannot read env/s
 key() {
     local t
     for t in "${TOOLS[@]}"; do printf '%s=%s;' "$t" "$(command -v "$t" || echo -)"; done
-    printf 'HEP_INSTALL=%s;ONNXRUNTIME_DIR=%s;STACK=%s' "${HEP_INSTALL-}" "${ONNXRUNTIME_DIR-}" "$STACK"
+    printf 'HEP_INSTALL=%s;ONNXRUNTIME_DIR=%s;DELPHES_DIR=%s;PKG_CONFIG_PATH=%s;STACK=%s' "${HEP_INSTALL-}" \
+        "${ONNXRUNTIME_DIR-}" "${DELPHES_DIR-}" "${PKG_CONFIG_PATH-}" "$STACK"
 }
 
 if [ "${1-}" = "--key" ]; then key; exit 0; fi
@@ -58,7 +59,12 @@ dir_lib() {                                 # dir_lib NAME DIR LIB — a library
     echo "KNOWN := ${NAMES[*]}"
     probes
     echo "FOUND := ${found[*]}"
-} > "$OUT.tmp" && mv "$OUT.tmp" "$OUT"
+} > "$OUT.tmp" || exit 1
+# The same flags under a new key (env/stack.toml edited, a tool moved to an equal one): the cache keeps
+# its time, so what was built with those flags is not rebuilt (every output depends on it, rules.mk).
+same() { sed '1,2d;/^FLAGS_KEY := /d' "$1"; }
+if [ -f "$OUT" ] && [ "$(same "$OUT")" = "$(same "$OUT.tmp")" ]; then touch -r "$OUT" "$OUT.tmp"; fi
+mv "$OUT.tmp" "$OUT"
 
 # One line per probe run, so "the second make probed nothing" is checkable (P0 S2, row 3).
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) probed: ${found[*]}" >> "$(dirname "$OUT")/flags.log"

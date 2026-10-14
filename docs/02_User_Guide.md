@@ -16,7 +16,7 @@ stack, one per machine; and your **work dirs**, where studies live.
 
 ```bash
 git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
-python3 recipes/build_stack.py packages=@primary     # the stack, from source, into stack/ (hours)
+python3 recipes/build_stack.py packages=@primary     # a conda base, then the stack from source (hours)
 source setup.sh                                      # the environment, in bash (any shell: ~/Github/Heimdall/launch.sh)
 hep build --framework                                # Heimdall's apps, into the machine root's apps/ ($HEP_APPS)
 ```
@@ -25,10 +25,15 @@ The stack's recipes, its toolkits (one file each in `recipes/toolkits/`: `@prima
 MadAnalysis5; `--toolkits` lists the others, and your own go in the machine root's `toolkits/`) and the
 isolated stacks of another C++ standard
 are [recipes/README.md](../recipes/README.md). On macOS use `recipes/platforms/mac/`; for an image,
-`recipes/platforms/container/`.
+`recipes/platforms/container/`. Everything goes into the machine root, `~/Himinbjorg`: first the
+**base**, a conda-forge environment pixi makes (the compilers, the libraries the stack links, Python and
+its packages; no apt, no sudo), then the stack, built from source inside it. `packages=@primary-conda`
+takes the tools ready-made from conda-forge instead, in minutes; `base=system` builds on apt (or
+Homebrew) and a venv, as before.
 
 `source setup.sh` sets `HEP` to Heimdall's folder, puts the stack and `hep` on `PATH`, activates the
-Python environment and adds this machine's lines (the machine root's `machine.sh`). It is bash: from
+base (its compilers and Python; or the venv) and adds this machine's lines (the machine root's
+`machine.sh`). It is bash: from
 zsh, or any other shell, `launch.sh` (in Heimdall's folder) opens a bash with it loaded, or runs one
 command in it (`launch.sh hep run …`); make that your `load_hep` alias. Another shell sourcing
 `setup.sh` is turned away before anything changes. An isolated toolkit's stack is loaded by its own
@@ -37,7 +42,7 @@ stack) a shell sees, and which work dir.
 
 Three verbs change the shell itself, so they are the shell function `hep` that `setup.sh` defines:
 `hep cd PROJECT [configs|modules|results|output]` (in the current work dir), `hep quit` (leave the
-environment: `PATH`, the venv and `machine.sh`'s lines as they were) and **`hep refresh`**, which
+environment: `PATH`, the base (or the venv) and `machine.sh`'s lines as they were) and **`hep refresh`**, which
 reloads the environment in the same shell, from scratch: `quit`, then the same stack again (an
 isolated toolkit's included). `hep_status` lists the stack's packages (`hep status --stack`) and
 `hep_help` the rest; `quit`, `hep_cd` and `hep_refresh` are the old names. Sourcing another stack's

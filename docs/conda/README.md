@@ -5,8 +5,17 @@ a proper environment in the machine root, instead of today's Python venv? The us
 the tools can still be built from source. What conda adds is that its environments hold more than
 Python: the compilers, utilities and libraries now taken from apt (or Homebrew).
 
-This set answers it and designs that model. **Status: design only. Nothing is installed or built.**
-Implementation waits for the user's order, phase by phase ([03_Plan.md](03_Plan.md)).
+This set answers it and designs that model.
+
+**Status (2026-10-14): implemented, and the default for a new machine root** (record V140, V141). The
+user ordered it the same day: the base is how a machine root is built, the tools are still built from
+source inside it, separate `@…-conda` toolkits take conda-forge's ready-made packages, and existing
+stacks are not converted (a root with a `venv/` and no `base/` stays `base = "system"`). Phase 2 was
+done directly; phase 1's hand build was replaced by the verification of the implementation in two
+scratch roots; phase 3 (the slow suite on a base stack, physics against today's stack, the Mac) is
+pending. [03_Plan.md](03_Plan.md)'s Log says what was found. Not done yet: the tracked
+multi-platform lock ([02 §2](02_Design.md#2-the-package-list-and-its-lock); each machine solves its
+own `base/pixi.lock`), and a bootstrap for clusters whose Python is older than 3.11.
 
 **The user's decisions (2026-10-14):**
 - **Design first:** this set, before any install.

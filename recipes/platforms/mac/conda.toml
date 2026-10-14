@@ -1,0 +1,11 @@
+# recipes/platforms/mac/conda.toml — macOS with base = "conda" (the default; docs/conda/): no Homebrew, the
+# base's clang, GSL and GNU tools. Laid after mac.toml (build_stack.py, by itself). Not yet proven by a
+# build on a Mac: the Xcode command-line tools' SDK is still needed (xcode-select --install).
+
+# ThePEG and Herwig: the -lc++ link line mac.toml explains, with the base's rpath (a link line given to
+# configure replaces LDFLAGS); their GSL is the base's (recipes/base.toml).
+[packages.thepeg]
+extra = ["LDFLAGS={ldflags} -lc++"]
+
+[packages.herwig]
+extra = ["LDFLAGS={ldflags} -lc++"]

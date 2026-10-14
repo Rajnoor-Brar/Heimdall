@@ -60,7 +60,7 @@ dir = "${ONNXRUNTIME_DIR:-${HEP_INSTALL-}/onnxruntime}"
 lib = "onnxruntime"
 
 [delphes]
-dir = "${HEP_INSTALL-}/delphes"
+dir = "${DELPHES_DIR:-${HEP_INSTALL-}/delphes}"     # DELPHES_DIR: a ready-made Delphes, in the base (hep_env.sh)
 lib = "Delphes"
 
 # programs: no flags, a version only

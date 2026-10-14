@@ -467,7 +467,16 @@ else. `refresh` is `quit`, then the same stack again (`$HEP_STACK`: an isolated 
 `quit` takes out everything the environment added, `machine.sh`'s lines too. In a shell without that
 function (a script, or a shell started from one), `framework/bin/hep refresh` (or `quit`, `cd`) exits
 2 and says to source `setup.sh`. Everything else works without the environment: `framework/bin/hep`
-runs the machine's venv Python by path (cron, scripts, Slurm).
+runs the machine's Python by path, the base's (or the venv's), for cron, scripts and Slurm.
+
+**The base.** A machine root built on a conda base (`base/`, the default; [recipes/README.md
+§4](../recipes/README.md#4-the-base-or-the-systems-packages)) is activated first: `setup.sh` sources its
+`activate.sh` (recorded, so `quit` takes it out), which puts its `bin/` first on `PATH` and sets `CC`,
+`CXX` and `FC` to its compilers. Its `lib/` never joins `LD_LIBRARY_PATH`: what is built on it (the stack,
+Heimdall's apps, a work dir's modules and plugins) finds the base's libraries by rpath, which
+`framework/rules.mk` adds for `$HEP_BASE`, and the OS's own programs (git, ssh) keep the OS's libraries.
+A package taken ready-made from conda-forge lives in the base, so `LHAPDF_DATA_PATH`, `ONNXRUNTIME_DIR`
+and `DELPHES_DIR` point there when the stack has none of its own.
 
 `hep setup <dir>` makes a work dir and `hep where` says which Heimdall and which work dir a shell
 sees ([02 §1](02_User_Guide.md#1-set-up-and-build); their options are in §1). In a git repository,
@@ -480,14 +489,15 @@ the framework's own files as today's template has them. `HEP_DECKS` replaces the
 | Variable | Set by | Means |
 |---|---|---|
 | `HEP` | `setup.sh` | Heimdall's folder. The runner always runs from its own Heimdall and refuses a `$HEP` that names another ("two Heimdalls") |
-| `HEP_INSTALL`, `HEP_VENV` | `setup.sh` | the loaded stack (`stack/`, or `stacks/<toolkit>/stack`) and its Python environment |
+| `HEP_INSTALL`, `HEP_VENV` | `setup.sh` | the loaded stack (`stack/`, or `stacks/<toolkit>/stack`) and its Python environment (the base, or `venv/`) |
+| `HEP_BASE` | `setup.sh` | the conda base's environment, `<machine root>/base/.pixi/envs/default`; unset with `base=system` |
 | `HEP_STACK` | `stacks/<toolkit>/setup.sh` | an isolated toolkit's stack is loaded: Heimdall's apps are `stacks/<toolkit>/Apps/` (built against it) |
 | `HEP_WORK` | you, tests | the work dir, instead of the walk up from the working directory (it must have a `hep.toml` with `[work]`) |
 | `HEP_RECORDS`, `HEP_LOGS`, `HEP_CACHE`, `HEP_RESULTS`, `HEP_REPORTS` | you, tests | replace the work dir's `records/`, `logs/`, `.cache/`, `results/` and `reports/` (the tests point them into `forge/scratch/`) |
 | `HEP_CONFIGS` | you | replaces the work dir's `configs/` as the root of run TOMLs and their cards |
 | `HEP_STATUS_FD` | the runner, per tool | the status pipe of a `status = "standard"` tool |
 | `RIVET_ANALYSIS_PATH` | the rivet and merge folders, per run | the work dir's `build/Rivet` (not set in the shell on purpose) |
-| `LHAPDF_DATA_PATH`, `GEANT4_DATA_DIR`, `ONNXRUNTIME_DIR` | `env/hep_env.sh` | the toolchain's data |
+| `LHAPDF_DATA_PATH`, `GEANT4_DATA_DIR`, `ONNXRUNTIME_DIR`, `DELPHES_DIR` | `env/hep_env.sh` | the toolchain's data; the base's, for a package taken ready-made |
 
 High-Energy's variables (`HEKIT_ROOT`, `HEKIT_OUTPUT`, …) are retired: a shell that still sets one is
 refused, naming its replacement, and `setup.sh` unsets `HEKIT_ROOT` with a warning.

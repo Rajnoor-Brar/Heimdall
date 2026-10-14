@@ -5,23 +5,29 @@
 # the recipes (recipes/toolkits/standard.toml). The command line wins over the file. The platform's fixes,
 # the toolkits, and the machine root's machine.toml are layers between (recipes/README.md §1).
 
-machine     = ""           # the machine root: "": $HEP_MACHINE, else ~/Himinbjorg (forge/ stack/ venv/ apps/ machine.sh)
+machine     = ""           # the machine root: "": $HEP_MACHINE, else ~/Himinbjorg (forge/ base/ stack/ apps/ machine.sh)
+base        = "conda"      # what the stack is built with: "conda", a conda-forge base made by pixi (recipes/base.toml:
+                           # compilers, libraries, Python; no root needed); "system", apt_packages (or Homebrew) and a venv
+base_python = "3.12"       # the base's Python, which the stack's bindings are built against
+base_gcc    = "15"         # the base's GCC on Linux (a major version)
+base_packages = []         # more conda-forge packages for the base (scipy, pandas, "gsl 2.8.*", …)
 packages    = "core"       # "core", "all", or names: "rivet pythia8" (what they need is added)
 cores       = 0            # how many compilers run at once (make -j<cores>, cmake --build -j<cores>);
                            # 0: every CPU this process may use (hyper-threads count: 24 on the lab PC)
-root_cores  = 0            # the same for ROOT; 0: one per 3 GB of RAM, at most cores (its LLVM/Cling
-                           # needs ~3 GB a compiler, or cc1plus is OOM-killed)
+root_cores  = 0            # the same for ROOT and Rivet; 0: one per 3 GB of RAM, at most cores (ROOT's
+                           # LLVM/Cling, Rivet's analysis libraries: ~3 GB a compiler, or memory runs out)
 cxx_std     = 17           # one C++ standard for the whole stack: ROOT, Rivet and Pythia8 share ABIs
 opt_flags   = "-O2"
-python      = "python3"    # the interpreter the venv is made from
-system      = true         # apt-get install apt_packages first (sudo when not root); false: they are there
+python      = "python3"    # base = "system": the interpreter the venv is made from (with "conda": the base's)
+system      = true         # base = "system": apt-get install apt_packages first (sudo when not root); false: they are there
 graphics    = "ON"         # ROOT's x11/opengl/webgui/asimage and Geant4's OpenGL; "OFF" when headless
 geant4_data = "ON"         # Geant4's datasets (~4 GB), downloaded during its build
 cuda_arch   = "native"     # CMAKE_CUDA_ARCHITECTURES for the GPU packages (@gpu-sim): "native", or e.g. "86;89"
 setup_extra = []           # this machine's lines, written to <machine root>/machine.sh, which setup.sh sources
 verify      = true         # run a package's checks ([[<pkg>.verify]]) right after it installs; a failed check fails it
 
-# The venv's packages: the framework's. Add the analysis ones you want (scipy, pandas, pyhf, …).
+# The Python packages (in the base, from conda-forge; or in the venv, from pip): the framework's. Add the
+# analysis ones you want (scipy, pandas, pyhf, …).
 python_packages = ["numpy", "cython", "tomli_w", "rich", "pyyaml", "pillow", "matplotlib", "uproot",
                    "awkward", "pytest"]
 
@@ -36,7 +42,7 @@ pdf_sets = ["CT14lo", "CT14nlo", "CT10", "CT18NLO", "CT18NNLO", "cteq6l1", "MSHT
             "NNPDF23_lo_as_0130_qed", "NNPDF23_nlo_as_0119_qed", "NNPDF40_nlo_as_01180", "PDF4LHC21_40",
             "PDF4LHC21_40_pdfas", "nNNPDF30_nlo_as_0118_A208_Z82"]
 
-# The system packages (Ubuntu 24.04 names), by what needs them.
+# base = "system": the system packages (Ubuntu 24.04 names), by what needs them. (base = "conda": recipes/base.toml.)
 apt_packages = [
   # build
   "build-essential", "gfortran", "cmake", "git", "curl", "ca-certificates", "patch", "pkg-config",
@@ -60,9 +66,10 @@ apt_packages = [
 ]
 
 # The build's environment. Besides these, every install's bin/, lib/ and Python directory is put on
-# PATH, LD_LIBRARY_PATH (DYLD_LIBRARY_PATH on macOS) and PYTHONPATH, the venv's bin/ first: what
-# setup.sh gives later.
+# PATH, LD_LIBRARY_PATH (DYLD_LIBRARY_PATH on macOS) and PYTHONPATH, the venv's (the base's) bin/ first:
+# what setup.sh gives later. With base = "conda", recipes/base.toml's [env] is laid over these. A value
+# "" leaves the variable unset.
 [env]
 CXXFLAGS         = "{cxxflags}"
 VIRTUAL_ENV      = "{venv}"
-LHAPDF_DATA_PATH = "{inst}/LHAPDF/share/LHAPDF"
+LHAPDF_DATA_PATH = "{dir_lhapdf}/share/LHAPDF"

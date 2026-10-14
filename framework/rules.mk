@@ -10,7 +10,8 @@
 #
 # Linking (§5.2): a source names its libraries in a `// requires: pythia8 hepmc3 …` line near the
 # top (`none` for none; a trailing `(…)` is a note). Without the line it gets every library that
-# was found. Including "Module.hh" adds hepmc3 and toml. Flags come from $(MK)/flags.mk (§5.3).
+# was found. Including "Module.hh" adds hepmc3 and toml (and root, when ROOT is ready-made in the base).
+# Flags come from $(MK)/flags.mk (§5.3).
 
 ifndef HEP
   $(error HEP is not set: load Heimdall's environment first (source <Heimdall>/setup.sh))
@@ -25,7 +26,15 @@ CXX      ?= g++
 CXXFLAGS ?= -O2
 # The loaded stack's C++ standard, as recipes/build_stack.py built it: an isolated toolkit's may be 20
 CXX_STD  := $(or $(shell cat $(HEP_INSTALL)/.stamps/cxx_std 2>/dev/null),17)
-BASE      = -std=c++$(CXX_STD) $(CXXFLAGS) -I $(HEP)/src
+BASE      = -std=c++$(CXX_STD) $(CXXFLAGS) -I $(HEP)/src $(ON_BASE)
+# A stack built on a conda base (docs/conda/): CXX is its compiler (base/activate.sh), and what is built
+# here finds the base's libraries (its libstdc++ first) by rpath, never through LD_LIBRARY_PATH. ($(comma):
+# a bare comma would end $(if)'s argument.)
+comma    := ,
+ON_BASE   = $(if $(HEP_BASE),-isystem $(HEP_BASE)/include -L$(HEP_BASE)/lib -Wl$(comma)-rpath$(comma)$(HEP_BASE)/lib)
+# The standard again after a library's flags, which may name their own (conda-forge's pythia8-config says
+# -std=c++11): the last -std wins, and it is the stack's.
+STD_LAST  = -std=c++$(CXX_STD)
 
 # ── flags: probed once, rewritten only when what they depend on changes (L22) ──────────────────
 FLAGS_MK := $(MK)/flags.mk
@@ -42,7 +51,10 @@ endif
 
 open     := (
 req_line  = $(shell sed -n 's#^[[:space:]]*//[[:space:]]*requires:[[:space:]]*##p' $(1) | head -n1 | sed 's#[[:space:]]*$(open).*##')
-uses_kit  = $(if $(shell grep -ls 'include[[:space:]]*"Module.hh"' $(1)),hepmc3 toml)
+# Module.hh writes ROOT histograms when it sees ROOT's headers. A ready-made ROOT's are in the base's include/,
+# which every source sees: a source using the kit then links ROOT too.
+uses_kit  = $(if $(shell grep -ls 'include[[:space:]]*"Module.hh"' $(1)),hepmc3 toml \
+              $(if $(and $(HEP_BASE),$(wildcard $(HEP_BASE)/include/TFile.h)),root))
 libs_of   = $(sort $(call uses_kit,$(1)) $(filter-out none,$(or $(call req_line,$(1)),$(FOUND))))
 lib_flags = $(if $(filter $(2),$(FOUND)),$(FLAGS_$(2)),$(error $(1): requires '$(2)', $(if \
               $(filter $(2),$(KNOWN)),which env/flags.sh did not find (see $(FLAGS_MK)),\
@@ -70,7 +82,7 @@ RIVETS     := $(sort $(RIVET_SRCS) $(foreach s,$(GOAL_SRCS),$(if $(call is_rivet
 define exe_rule
 $(call out_of,$(1)): $(1) $(FLAGS_MK)
 	@mkdir -p $$(@D) $(MK)/deps
-	$$(CXX) $$(BASE) $(call incs_of,$(1)) -MMD -MP -MF $(call depfile,$(1)) $(1) -o $$@ $$(call flags_of,$(1))
+	$$(CXX) $$(BASE) $(call incs_of,$(1)) -MMD -MP -MF $(call depfile,$(1)) $(1) -o $$@ $$(call flags_of,$(1)) $$(STD_LAST)
 .PHONY: $(call alias_of,$(1))
 $(call alias_of,$(1)): $(call out_of,$(1))
 endef
@@ -78,7 +90,7 @@ endef
 define so_rule
 $(call lib_of,$(1)): $(1) $(FLAGS_MK)
 	@mkdir -p $$(@D) $(MK)/deps
-	$$(CXX) $$(BASE) -fPIC -shared $(call incs_of,$(1)) -MMD -MP -MF $(call depfile,$(1)) $(1) -o $$@ $$(call flags_of,$(1))
+	$$(CXX) $$(BASE) -fPIC -shared $(call incs_of,$(1)) -MMD -MP -MF $(call depfile,$(1)) $(1) -o $$@ $$(call flags_of,$(1)) $$(STD_LAST)
 .PHONY: $(basename $(1)).so
 $(basename $(1)).so: $(call lib_of,$(1))
 endef

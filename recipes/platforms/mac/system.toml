@@ -1,0 +1,33 @@
+# recipes/platforms/mac/system.toml — macOS with base = "system": Homebrew's packages (the Brewfile, which
+# build.sh installs) instead of apt, and a venv. Laid after mac.toml (build_stack.py, by itself).
+# {HOMEBREW_PREFIX} is the environment variable `brew shellenv` sets (/opt/homebrew, or /usr/local on
+# an Intel Mac).
+
+[settings]
+system = false                    # Homebrew instead of apt: build.sh runs `brew bundle` (Brewfile)
+
+# GNU make, sed and coreutils ahead of Apple's for the framework (after mac.toml's DYLD_LIBRARY_PATH line).
+setup_extra = [
+  "for _g in make gnu-sed coreutils; do PATH={HOMEBREW_PREFIX}/opt/$_g/libexec/gnubin:$PATH; done",
+  "unset _g; export PATH",
+]
+
+# Homebrew's headers and libraries for the configure scripts (Boost, GSL for ThePEG and Herwig), and its
+# prefix for CMake's find_package (GSL, FFTW, Xerces-C, libzip).
+[env]
+CPPFLAGS          = "-I{HOMEBREW_PREFIX}/include"
+LDFLAGS           = "-L{HOMEBREW_PREFIX}/lib"
+CMAKE_PREFIX_PATH = "{HOMEBREW_PREFIX}"
+BOOST_ROOT        = "{HOMEBREW_PREFIX}"
+OPENSSL_ROOT_DIR  = "{HOMEBREW_PREFIX}/opt/openssl@3"
+
+# OpenSSL is keg-only in Homebrew, so ROOT and its builtin xrootd are told where it is.
+[packages.root]
+extra = ["-DOPENSSL_ROOT_DIR={HOMEBREW_PREFIX}/opt/openssl@3"]
+
+# --with-gsl: its default, "system", expects GSL on the compiler's own path; -lc++: mac.toml says why.
+[packages.thepeg]
+extra = ["--with-gsl={HOMEBREW_PREFIX}/opt/gsl", "LDFLAGS=-L{HOMEBREW_PREFIX}/lib -lc++"]
+
+[packages.herwig]
+extra = ["--with-gsl={HOMEBREW_PREFIX}/opt/gsl", "LDFLAGS=-L{HOMEBREW_PREFIX}/lib -lc++"]

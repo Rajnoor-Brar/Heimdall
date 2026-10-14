@@ -16,8 +16,8 @@ built and installed, outside git. A **work dir** holds a study.
 
 | Heimdall's | Holds | In git |
 |---|---|---|
-| `setup.sh`, `launch.sh` | the environment, bash only (any other shell is turned away first): sets `HEP` from its own folder, the machine root (`HEP_MACHINE`), the loaded stack (`HEP_INSTALL`, `HEP_VENV`, `HEP_APPS`, `HEP_FORGE`, `HEP_STACK`), then sources `env/hep_env.sh`, which also sources the machine root's `machine.sh`, recording what it changes for `quit`; `launch.sh` is it from any shell | yes |
-| `recipes/` | how the stack is built: `build_stack.py`, `machine.py` (`adopt`, `where`), `verify.py`, `toolkits/` (`standard.toml`, every recipe; one file per toolkit; your own in the machine root's `toolkits/`), `settings.toml`, `patches/`, `platforms/` (mac, container), `pth.py`, `build_by_hand.txt`; [recipes/README.md](../recipes/README.md) | yes |
+| `setup.sh`, `launch.sh` | the environment, bash only (any other shell is turned away first): sets `HEP` from its own folder, the machine root (`HEP_MACHINE`), the loaded stack (`HEP_INSTALL`, `HEP_VENV`, `HEP_BASE`, `HEP_APPS`, `HEP_FORGE`, `HEP_STACK`), then sources `env/hep_env.sh`, which activates the base (its `activate.sh`) or the venv and sources the machine root's `machine.sh`, recording what both change for `quit`; `launch.sh` is it from any shell | yes |
+| `recipes/` | how the stack is built: `build_stack.py`, `machine.py` (`adopt`, `where`), `verify.py`, `toolkits/` (`standard.toml`, every recipe; one file per toolkit; your own in the machine root's `toolkits/`), `settings.toml`, `base.toml` (the conda base: pixi, its packages, the layer its builds get), `patches/`, `platforms/` (mac, container), `pth.py`, `build_by_hand.txt`; [recipes/README.md](../recipes/README.md) | yes |
 | `env/` | the environment's files: `hep_env.sh` (the shell), `flags.sh`, `stack.toml` and `stack.py` (the stack's libraries, versions and flags) | yes |
 | `framework/` | what runs: `bin/` (`hep`, `run`), `runner/`, `tools/<tool>/` (the tool folders, the plot backends `yoda/` and `mpl/`, `figures/`, the provider `lhapdf/`), `schema/` (`run.toml`, `deck.toml`, `quantities.toml` the vocabulary, `latex.toml`), `templates/work/` (what `hep setup` lays down), `rules.mk` and `work.mk` (the build's rules), `hepkit.py` | yes |
 | `src/` | what is compiled: the C++ kits `Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh` (§2.2), the single-file apps `App_*.cc`, the multi-file `Apps/Paint/` and its `base.toml` (the style) | yes |
@@ -27,11 +27,12 @@ built and installed, outside git. A **work dir** holds a study.
 
 | The machine root's | Holds |
 |---|---|
-| `stack/` | the installed stack: a folder per package, `.stamps/` (what is built, its recipe's digest, and `cxx_std`) |
-| `venv/` | the Python environment; its `heimdall.pth` puts `framework/` on the path |
+| `base/` | the conda base (`base = "conda"`, the default; [docs/conda/](conda/README.md)): `pixi.toml` (written from `recipes/base.toml`), `pixi.lock`, `.pixi/envs/default/` (`$HEP_BASE`: the compilers, the libraries the stack links, Python with `heimdall.pth`, and the packages taken ready-made), `activate.sh`, `pkgconfig/` (the `.pc` files conda-forge's packages lack) |
+| `stack/` | the installed stack: a folder per package, `.stamps/` (what is built, its recipe's digest and the base's libraries, and `cxx_std`) |
+| `venv/` | with `base = "system"` (and in a root made before the base): the Python environment; its `heimdall.pth` puts `framework/` on the path |
 | `apps/` | Heimdall's compiled apps (`$HEP_APPS`): `App_*.exe`, `Paint.exe`, `Herwig/HerwigDefaults.rpo` |
-| `forge/` | `$HEP_FORGE`: the stack's `downloads/`, `src/`, `build/<pkg>/`, `logs/`; the framework's `make/` (`flags.mk`, `deps/`); the C++ tests (`tests/`); the tests' scratch (`scratch/`). May be emptied |
-| `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `venv/`, `forge/`, `apps/` and `setup.sh` (another C++ standard) |
+| `forge/` | `$HEP_FORGE`: the stack's `downloads/` (`conda/`: pixi's package cache), `pixi/` (pixi itself), `src/`, `build/<pkg>/`, `logs/`; the framework's `make/` (`flags.mk`, `deps/`); the C++ tests (`tests/`); the tests' scratch (`scratch/`). May be emptied |
+| `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `base/` (or `venv/`), `forge/`, `apps/` and `setup.sh` (another C++ standard) |
 | `machine.toml`, `machine.sh` | this machine's settings; its extra lines for `setup.sh` (`setup_extra`), written by the build |
 
 Several checkouts may share one machine root. A record names a file under a known root by that
@@ -80,7 +81,7 @@ Heimdall ($HEP)
 │   ├── hep_env.sh            the shell environment (the hep function: refresh, quit, cd; machine.sh, recorded); packages.sh, its install folders (generated)
 │   └── flags.sh, stack.toml  the stack: each library's flags and version, probed once → flags.mk
 ├── framework/                ─── shell and Python ───
-│   ├── bin/hep               the `hep` command: the venv's Python, by path, running bin/run (every command, U59)
+│   ├── bin/hep               the `hep` command: the machine's Python (the base's or the venv's), by path, running bin/run (every command, U59)
 │   ├── bin/run               the runner's entry script
 │   ├── runner/               the runner: one flat Python package (§2.1)
 │   ├── tools/<tool>/         one folder per standard tool: tool.toml (+ quantities.toml, render.py, filters.toml)
@@ -786,7 +787,8 @@ The target is written the way the source is, and the output lands where the conv
   Heimdall's `forge/make/deps/`). Editing `Reconstruction.hh` rebuilds `Decay.exe` and
   `Rivet_DecayRiv.so`.
 - **The flags are a dependency:** every output depends on `flags.mk`, so a re-probe (another stack
-  loaded, a tool moved) rebuilds what was linked against the old one.
+  loaded, a tool moved) rebuilds what was linked against the old one. A re-probe that finds the same
+  flags (only the key changed: `env/stack.toml` edited) keeps the cache's time, and rebuilds nothing.
 - **Rivet plugins:**
   - a plugin's `.info`, `.plot` and `.yoda` copies are real targets: editing one re-copies it
     (00/B44);
@@ -826,7 +828,8 @@ A source names its libraries in a comment near the top; a trailing `(…)` is a 
 - `none` links nothing.
 - **No line** links every library that was found: a quick manual compile keeps working, just slower
   to link.
-- `#include "Module.hh"` adds `hepmc3 toml`.
+- `#include "Module.hh"` adds `hepmc3 toml`, and `root` when ROOT is ready-made in the base: its headers are
+  then in the base's `include/`, which every source sees, so `Module.hh` offers ROOT output (`RootOut`).
 - An unknown name, or a name whose `*-config` was not found, is a make error saying which.
 
 ### 15.3 The flag cache
@@ -846,10 +849,12 @@ A new library is one entry there. `env/stack.py` reads it:
 `flags.mk` (a work dir's `build/flags.mk`, Heimdall's `forge/make/flags.mk`) holds every library's
 flags, `FOUND` and `KNOWN` (the stack's libraries: what a `// requires:` line may name).
 - It is written by `env/flags.sh`, which runs each `*-config` once.
-- It records a key: the resolved path of every `*-config` it used, the two install directories, and
-  the stack file's checksum.
+- It records a key: the resolved path of every `*-config` it used, the install directories of the
+  libraries without one (`HEP_INSTALL`, `ONNXRUNTIME_DIR`, `DELPHES_DIR`), `PKG_CONFIG_PATH`, and the
+  stack file's checksum.
 - Make recomputes the key on every call and rewrites the cache when it differs (L22: a cache keyed on
-  less than it reads is a correctness bug). `hep build --configure` forces it.
+  less than it reads is a correctness bug). `hep build --configure` forces it. When the flags come out
+  the same, the rewritten cache keeps its old time, so nothing that depends on it is rebuilt.
 - `flags.log`, beside it, records each probe.
 
 **Run make with the environment loaded** (`load_hep`): without it, `framework/rules.mk` stops, since
@@ -1164,7 +1169,7 @@ folder: the machine root's `apps/` or `stacks/<toolkit>/apps/`), with the page's
 
 A module is a plain program in `modules/<P>/<Name>.cc` with its own `main()`, built to
 `build/<P>/<Name>.exe`. `#include "Module.hh"` adds `hepmc3 toml` to its libraries; add `root` for
-`RootOut`.
+`RootOut` (with ROOT ready-made in the base, it is added already).
 
 ```cpp
 // modules/Decay/Decay.cc          requires: root   (Module.hh adds hepmc3 toml)

@@ -4,9 +4,9 @@ A framework for Monte Carlo studies in high-energy physics, and the home of the 
 runs on. Tools are processes, chained by a run TOML: Pythia, Herwig, Sherpa, Whizard and MadGraph,
 Rivet, Delphes, your own programs, and the pages drawn with ROOT.
 
-This folder is `$HEP`. It holds the stack's recipes and, once they have run, the stack itself, the
-Python environment, the framework, and its compiled apps. Your studies live elsewhere, in **work
-dirs** (`configs/`, `modules/`, `results/`, …), as many as you like.
+This folder is `$HEP`. It holds the stack's recipes and the framework; what they build (the base, the
+stack, the compiled apps) goes to the machine root, `~/Himinbjorg`. Your studies live elsewhere, in
+**work dirs** (`configs/`, `modules/`, `results/`, …), as many as you like.
 
 ## From nothing to a drawn page
 
@@ -14,7 +14,7 @@ dirs** (`configs/`, `modules/`, `results/`, …), as many as you like.
 
 ```bash
 git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
-python3 recipes/build_stack.py packages=@primary   # the stack, from source, into ~/Himinbjorg (hours; recipes/README.md)
+python3 recipes/build_stack.py packages=@primary   # a conda base, then the stack from source in it, into ~/Himinbjorg (hours; recipes/README.md)
 source setup.sh                                    # the environment, in bash (any other shell: ./launch.sh)
 hep build --framework                              # Heimdall's apps, into the machine root's apps/
 hep doctor                                         # what the stack can do, checked: every row ok?
@@ -25,8 +25,8 @@ hep run Demo/jets single                           # one point: Pythia → Rivet
 xdg-open results/Demo/jets/03_single/plots/root/index.html
 ```
 
-**macOS**: the same, but the stack is built through Homebrew's tools first, and the environment is
-`launch.sh`'s bash (macOS's own shell is zsh):
+**macOS**: the same, but the build goes through `build.sh` (it fetches pixi, which makes the base), and
+the environment is `launch.sh`'s bash (macOS's own shell is zsh):
 
 ```bash
 git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
@@ -43,6 +43,13 @@ Then: [docs/02_User_Guide.md](docs/02_User_Guide.md) walks through the example a
 `hep help` lists the commands. Later rebuilds are `hep stack build` (`hep stack list @primary` says
 what is installed); other sets for a kind of work are `python3 recipes/build_stack.py --toolkits`.
 
+**The base.** The build first makes the machine root's `base/` with pixi, from conda-forge: the
+compilers, the build tools, the libraries the stack links, Python and its packages. No apt, no sudo, no
+Homebrew; an OS upgrade no longer reaches the stack. The HEP tools are still built from source, inside
+it. `packages=@primary-conda` (or `@core-conda`, `@lab-conda`) takes them ready-made from conda-forge
+instead, in minutes; `base=system` is the way before, apt (or Homebrew) and a venv
+([recipes/README.md](recipes/README.md) §4, [docs/conda/](docs/conda/README.md)).
+
 `@primary` is the lab PC's set (ROOT, Pythia8, Rivet, YODA, HepMC3, FastJet, LHAPDF and its PDF
 sets, Herwig, Sherpa, MadGraph, Whizard, Delphes, Geant4, ONNX Runtime) plus MadAnalysis5. On macOS
 use `recipes/platforms/mac/`. For an image, use `recipes/platforms/container/`. An agent setting up a
@@ -52,7 +59,7 @@ fresh machine follows [docs/framework/](docs/framework/README.md), step by step.
 
 | Folder | Holds |
 |---|---|
-| `setup.sh` | the environment: `HEP`, the stack on `PATH`, the venv, `hep` |
+| `setup.sh` | the environment: `HEP`, the base (or the venv), the stack on `PATH`, `hep` |
 | `recipes/` | how the stack is built: `build_stack.py`, `toolkits/` (`standard.toml`, every recipe; one file per toolkit), `settings.toml`, `patches/`, `platforms/` |
 | `env/` | the environment's files: `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
 | `framework/` | what runs: `bin/hep`, the runner, the tool folders, the schema, the work-dir template, the build's rules |
@@ -65,10 +72,11 @@ The checkout holds only what git has. What this machine built lives in the **mac
 
 | Machine root | Holds |
 |---|---|
+| `base/` | the base: a pixi workspace (`pixi.toml`, `pixi.lock`), its environment in `.pixi/envs/default/` (`$HEP_BASE`: compilers, libraries, Python with `heimdall.pth`), `activate.sh` |
 | `stack/` | the installed stack: a folder per package, `.stamps/` |
-| `venv/` | the Python environment, with `heimdall.pth` |
+| `venv/` | with `base=system` (or a root made before the base): the Python environment, with `heimdall.pth` |
 | `apps/` | Heimdall's compiled apps (`$HEP_APPS`) |
-| `forge/` | `downloads/`, `src/`, `build/`, `logs/`; the framework's `make/` and `tests/`; the tests' `scratch/`. May be emptied |
+| `forge/` | `downloads/` (`conda/`: pixi's package cache), `pixi/`, `src/`, `build/`, `logs/`; the framework's `make/` and `tests/`; the tests' `scratch/`. May be emptied (the next build fetches pixi again) |
 | `stacks/<toolkit>/` | an isolated toolkit's own stack (another C++ standard), loaded by its `setup.sh` |
 | `machine.toml`, `machine.sh` | this machine's settings, and its extra lines for `setup.sh` |
 

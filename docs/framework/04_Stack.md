@@ -5,34 +5,34 @@ git): **`@primary`**, every package the lab PC had (`packages=all`: core and ext
 The places (V109, V122) are:
 - `forge/downloads/` and `forge/src/` for the downloads and their unpacked sources;
 - `forge/build/` and `forge/logs/` for the build trees and logs;
-- `stack/` for the installs and their stamps (installs only);
-- `venv/` for the Python environment, with its `heimdall.pth`.
+- `base/` for the conda base: the compilers, the libraries the stack links, and the Python environment
+  with its `heimdall.pth` (pixi makes it from conda-forge; `forge/pixi/` holds pixi itself);
+- `stack/` for the installs and their stamps (installs only).
 
 `setup.sh` cannot be sourced before the root exists, so this phase's shell sets
 `export HEP_MACHINE=~/Himinbjorg` (the default) for the rows below.
 
 The steps:
-- **S1:** the system packages.
+- **S1:** the base (no sudo).
 - **S2:** the build, in the background, for hours.
 - **S3:** the result checked against the lab PC's numbers.
 
 **Reads:**
-- [recipes/README.md](../../recipes/README.md): §1 (resuming, cores), §3 (why each flag), §4 (system
-  packages), §6 (toolkits);
-- the annex `targets/<annex>.md`: the system packages and the allowed adjustments.
+- [recipes/README.md](../../recipes/README.md): §1 (resuming, cores, the base), §3 (why each flag), §4
+  (the base, or the system's packages), §6 (toolkits);
+- the annex `targets/<annex>.md`: the allowed adjustments (and its system packages, with `base=system`).
 
-**Writes:** `$HEP_MACHINE/{forge,stack,venv}`, `$HEP_MACHINE/machine.sh` (when the annex has
+**Writes:** `$HEP_MACHINE/{forge,base,stack}`, `$HEP_MACHINE/machine.sh` (when the annex has
 `setup_extra` lines), `$HEP/.setup/`.
 
 **Gates:**
-- sudo, for the system packages;
-- downloads (S2, once);
+- downloads: pixi and the base's packages (S1, once), the sources (S2, once);
 - a package that fails twice; MadAnalysis5 failing at all (its recipe is `status = "new"`: not yet
   proven by a build).
 
 ---
 
-## S1: the system packages
+## S1: the base
 
 **Preconditions:**
 - P0 is verified.
@@ -42,36 +42,37 @@ The steps:
 
 1. **The dry run,** which also checks the recipes on this machine:
    ```bash
-   cd $HEP && python3 recipes/build_stack.py --dry-run packages=@primary system=false 2>/dev/null > .setup/build.sh
+   cd $HEP && python3 recipes/build_stack.py --dry-run packages=@primary 2>/dev/null > .setup/build.sh
    ```
-2. **The list** (the annex says where it comes from; on `ubuntu`, `recipes/settings.toml`):
+2. **The gate:** the base's downloads, asked once: pixi (about 34 MB, from github.com/prefix-dev/pixi,
+   checked against `recipes/base.toml`'s sha256) and the base's conda-forge packages (about 1 GB of
+   downloads, 2.3 GB installed: the compilers, the libraries, Python and its packages).
+3. **The base**, alone, before the long build:
    ```bash
-   python3 -c "import tomllib; print(*tomllib.load(open('$HEP/recipes/settings.toml','rb'))['apt_packages'])" | tr ' ' '\n' > $HEP/.setup/apt.txt
-   for p in $(cat $HEP/.setup/apt.txt); do
-     c=$(apt-cache policy "$p" | awk '/Candidate:/ {print $2}'); [ -z "$c" ] || [ "$c" = "(none)" ] && echo "missing: $p"
-   done
+   cd $HEP && python3 recipes/build_stack.py --base packages=@primary > .setup/base.log 2>&1
    ```
-   - Each missing package goes through the annex's **allowed adjustments** (02 §7). Anything not
-     covered there is a gate.
-3. **The gate:** `sudo apt-get install -y --no-install-recommends $(cat $HEP/.setup/apt.txt)`, with
-   the count and apt's "Need to get" size. The build itself then runs with `system=false`: the
-   builder never asks for sudo (02 §2).
+   It needs no sudo, and nothing outside the machine root changes (pixi's settings and cache are in
+   `forge/`). On the user's word, or where conda-forge cannot be reached, `base=system` is the way
+   before: the annex's apt list (`recipes/settings.toml`'s `apt_packages`, through the annex's
+   allowed adjustments, 02 §7), installed with sudo as a gate, then `base=system system=false` in S2.
 
 **Verification:**
 
 | # | Command | Expected |
 |---|---|---|
 | R1 | `cd $HEP && bash -n .setup/build.sh && echo ok` | `ok` |
-| R2 | `grep -c '^# == ' $HEP/.setup/build.sh` | `19` (python lhapdf hepmc3 fastjet fjcontrib root yoda rivet pythia8 thepeg herwig delphes sherpa madgraph whizard onnxruntime geant4 pdfsets madanalysis5) |
-| R3 | `grep -c "$HEP_MACHINE/forge/\|$HEP_MACHINE/stack/" $HEP/.setup/build.sh` | ≥ `100` (120 on the lab PC: every package's paths in the machine root) |
+| R2 | `grep -c '^# == ' $HEP/.setup/build.sh` | `20` (python lhapdf hepmc3 fastjet fjcontrib root hdf5 yoda rivet pythia8 thepeg herwig delphes pdfsets sherpa madgraph whizard onnxruntime geant4 madanalysis5) |
+| R3 | `grep -c "$HEP_MACHINE/forge/\|$HEP_MACHINE/stack/" $HEP/.setup/build.sh` | ≥ `100` (131 in a scratch root, 2026-10-14: every package's paths in the machine root) |
 | R4 | `grep -c "recipes/patches/fastjet" $HEP/.setup/build.sh` | `1` (the SISCone patch, L29) |
-| R5 | `wc -l < $HEP/.setup/apt.txt` | `51` (± the recorded adjustments) |
-| R6 | `for p in $(cat $HEP/.setup/apt.txt); do dpkg -s $p >/dev/null 2>&1 \|\| echo $p; done \| wc -l` | `0` (after the adjustments, which are recorded) |
+| R5 | `ls $HEP_MACHINE/base/.pixi/envs/default/conda-meta/*.json \| wc -l` | about `206` (a scratch root's, 2026-10-14) |
+| R6 | `source $HEP_MACHINE/base/activate.sh && $CXX --version \| head -1` | conda-forge's GCC `15.x` |
+| R7 | `source $HEP_MACHINE/base/activate.sh && echo \| $CXX -x c++ -E -v - 2>&1 \| grep -c '^ /usr/include'` | `0`: the base's compiler never reads the OS's headers |
 
 **On failure:**
 - R1–R4: the recipes do not plan here. Collect the dry run's stderr; this is a gate (the recipes
   are Heimdall's code).
-- R6: an install failed. Collect apt's output; this is a gate.
+- R5–R7: the base did not install. Collect `$HEP_MACHINE/forge/logs/base.log` (pixi's solve and
+  download); this is a gate.
 
 ---
 
@@ -106,13 +107,15 @@ The steps:
    ([recipes/README.md](../../recipes/README.md) §1). On the lab PC (24 threads, 15 GB) that is 20 and 5.
    Record both in `[choices]`. The command line wins over `settings.toml`.
 3. **The downloads gate.** List what is still to fetch: the archives not in `forge/downloads/` (from the dry
-   run), Geant4's datasets (about 4 GB, during its build), the 21 PDF sets, MadAnalysis5's archive,
-   and the pip packages. Give the total, and ask once.
-4. **Start the build** as the builder (02 §2):
+   run), Geant4's datasets (about 4 GB, during its build), the 21 PDF sets and MadAnalysis5's archive.
+   Give the total, and ask once.
+4. **Start the build** as the builder (02 §2), detached from the shell that starts it:
    ```bash
-   cd $HEP && nohup python3 recipes/build_stack.py packages=@primary system=false \
-       cores=<cores> root_cores=<root_cores> > .setup/stack.log 2>&1 &
+   cd $HEP && setsid nohup python3 recipes/build_stack.py packages=@primary \
+       cores=<cores> root_cores=<root_cores> > .setup/stack.log 2>&1 < /dev/null &
    ```
+   - `root_cores` bounds ROOT's and Rivet's compilers, each about 3 GB: more than RAM ÷ 3 of them
+     exhausts the memory, and can take the machine down.
    - Watch `stack.log`: one line per package ("<name>: done in N min"), and a failure's last 30
      lines.
    - On a failure: 02 §5.2. **Resuming** is the same command; the stamps in `stack/.stamps/` skip
@@ -123,7 +126,7 @@ The steps:
 
 | # | Command | Expected |
 |---|---|---|
-| R1 | `ls $HEP_MACHINE/stack/.stamps \| wc -l` | `20` (the 19 packages of S1's R2, and `cxx_std`) |
+| R1 | `ls $HEP_MACHINE/stack/.stamps \| grep -v '\.libs$\|^folders$' \| wc -l` | `21` (the 20 packages of S1's R2, and `cxx_std`) |
 | R2 | `cat $HEP_MACHINE/stack/.stamps/cxx_std` | `17` |
 | R3 | `tail -1 $HEP/.setup/stack.log` | `done: source <HEP>/setup.sh` |
 | R4 | `grep -c 'failed' $HEP/.setup/stack.log` | `0` |
@@ -134,7 +137,7 @@ The steps:
   the probable cause. The known suspects on a newer Ubuntu are in the annex: a GCC or Python too
   new for ROOT, ThePEG, Herwig or Whizard.
 - **MadAnalysis5** is a new recipe: its first failure is a gate. Everything else of `@primary` is
-  the lab set, and does not need it: the user may say to go on without it (then R1 expects `19`,
+  the lab set, and does not need it: the user may say to go on without it (then R1 expects `20`,
   recorded as a deviation), while its recipe is fixed and folded back.
 
 ---
@@ -169,10 +172,11 @@ of 2026-10-10 (`hep status --stack`, `lhapdf list --installed`).
 | R17 | `grep -rl thread_local $HEP_INSTALL/fastjet/include/siscone \| wc -l` | `1` (the SISCone patch, L29) |
 | R18 | `python -c "import ROOT, pythia8, yoda, rivet, lhapdf, pyHepMC3, uproot, tomli_w, yaml; print('ok')"` | `ok` |
 | R19 | `cat $(python -c "import site; print(site.getsitepackages()[0])")/heimdall.pth` | `<HEP>/framework`, expanded |
-| R20 | `which python; echo $HEP_INSTALL` | `<machine root>/venv/bin/python`, `<machine root>/stack` |
+| R20 | `which python; echo $HEP_BASE; echo $HEP_INSTALL` | `<machine root>/base/.pixi/envs/default/bin/python`, `<machine root>/base/.pixi/envs/default`, `<machine root>/stack` |
 | R21 | `hep where` | `hep=<HEP> <revision>` and `work=-`, and no warning about `heimdall.pth` |
 | R22 | `du -sh $HEP_MACHINE/stack/ \| cut -f1` | about `6.0G` (the lab set's; MadAnalysis5 adds little) |
-| R23 | `pkg-config --modversion tomlplusplus libzstd zlib` | the system's: `3.4.0 1.5.5 1.3` on 24.04; newer on a newer Ubuntu. Recorded, not compared |
+| R23 | `pkg-config --modversion tomlplusplus libzstd zlib` | the base's: `3.4.0 1.5.7 1.3.2` (2026-10-14). Recorded, not compared |
+| R24 | `ldd $HEP_INSTALL/rivet/lib/libRivet.so \| grep '=> /usr/lib\|=> /lib' \| grep -v 'libc\.\|libm\.\|libdl\.\|libpthread\.\|librt\.\|ld-linux'` | nothing: every library but glibc's from the base or the stack |
 
 **On failure:**
 - R17 = 0: the patch was not applied, and InprocJets' `rivet_threads > 1` will refuse. Collect

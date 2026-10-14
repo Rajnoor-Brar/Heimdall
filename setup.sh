@@ -7,8 +7,8 @@
 #                                       asks for it through HEP_STACK_REQUEST; the other stack is taken out first
 #   launch.sh                           the same from any shell (zsh included): a bash with this loaded
 #
-# The checkout ($HEP) holds what git has; everything this machine built (the stack, the venv, Heimdall's
-# apps, downloads, builds) is in the machine root (docs/audit_3/02_Organisation.md §3).
+# The checkout ($HEP) holds what git has; everything this machine built (the base or the venv, the stack,
+# Heimdall's apps, downloads, builds) is in the machine root (docs/audit_3/02_Organisation.md §3).
 
 # bash only: any other shell is turned away here, before anything is changed (docs/audit_3/05_CLI.md §5)
 if [ -z "${BASH_VERSION-}" ]; then
@@ -43,7 +43,14 @@ else
     unset HEP_STACK
     _hep_base=$HEP_MACHINE
 fi
-export HEP_INSTALL=$_hep_base/stack HEP_VENV=$_hep_base/venv HEP_APPS=$_hep_base/apps HEP_FORGE=$_hep_base/forge
+export HEP_INSTALL=$_hep_base/stack HEP_APPS=$_hep_base/apps HEP_FORGE=$_hep_base/forge
+if [ -f "$_hep_base/base/activate.sh" ]; then        # a conda base (docs/conda/): it is the Python environment too
+    export HEP_BASE=$_hep_base/base/.pixi/envs/default
+    export HEP_VENV=$HEP_BASE
+else                                                 # base = "system": a venv
+    unset HEP_BASE
+    export HEP_VENV=$_hep_base/venv
+fi
 unset _hep_base
-source "$HEP/env/hep_env.sh"                  # the paths, the venv, the helpers; then the machine's machine.sh
+source "$HEP/env/hep_env.sh"                  # the base (or venv), the paths, the helpers; then machine.sh
 return 0 2>/dev/null || true

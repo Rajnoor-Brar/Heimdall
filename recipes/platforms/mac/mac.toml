@@ -1,36 +1,20 @@
-# recipes/platforms/mac/mac.toml — what build_stack.py does differently on macOS (Apple clang, Homebrew).
+# recipes/platforms/mac/mac.toml — what build_stack.py does differently on macOS (Apple's libc++).
 # A platform's fixes: build_stack.py lays it on macOS by itself, under every toolkit (--platform mac shows
-# it anywhere, for a dry run). The recipes are recipes/toolkits/standard.toml's; this changes them as a
-# toolkit would: a list appends to the recipe's (so root's extra comes after its args), a table merges.
-# {HOMEBREW_PREFIX} is the environment variable `brew shellenv` sets (/opt/homebrew, or /usr/local on
-# an Intel Mac).
+# it anywhere, for a dry run), then this folder's file for the base: system.toml (Homebrew, a venv) or
+# conda.toml (the conda base, docs/conda/). The recipes are recipes/toolkits/standard.toml's; this changes
+# them as a toolkit would: a list appends to the recipe's (so root's extra comes after its args), a table
+# merges.
 
 [settings]
-system   = false                  # Homebrew instead of apt: build.sh runs `brew bundle` (Brewfile)
 graphics = "OFF"                  # no X11 on macOS: Geant4 without its OpenGL/X11 viewer; ROOT: Cocoa below
 
-# The machine root's machine.sh, which setup.sh sources after hep_env.sh: the libraries on DYLD_LIBRARY_PATH too (hep_env.sh sets LD_LIBRARY_PATH,
-# which macOS ignores), and GNU make, sed and coreutils ahead of Apple's for the framework.
-setup_extra = [
-  "export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH",
-  "for _g in make gnu-sed coreutils; do PATH={HOMEBREW_PREFIX}/opt/$_g/libexec/gnubin:$PATH; done",
-  "unset _g; export PATH",
-]
+# The machine root's machine.sh, which setup.sh sources after hep_env.sh: the libraries on
+# DYLD_LIBRARY_PATH too (hep_env.sh sets LD_LIBRARY_PATH, which macOS ignores).
+setup_extra = ["export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH"]
 
-# Homebrew's headers and libraries for the configure scripts (Boost, GSL for ThePEG and Herwig), and its
-# prefix for CMake's find_package (GSL, FFTW, Xerces-C, libzip).
-[env]
-CPPFLAGS          = "-I{HOMEBREW_PREFIX}/include"
-LDFLAGS           = "-L{HOMEBREW_PREFIX}/lib"
-CMAKE_PREFIX_PATH = "{HOMEBREW_PREFIX}"
-BOOST_ROOT        = "{HOMEBREW_PREFIX}"
-OPENSSL_ROOT_DIR  = "{HOMEBREW_PREFIX}/opt/openssl@3"
-
-# ROOT's graphics through Cocoa (after standard.toml's -Dx11=OFF …: CMake takes the last of an option);
-# OpenSSL is keg-only in Homebrew, so ROOT and its builtin xrootd are told where it is.
+# ROOT's graphics through Cocoa (after standard.toml's -Dx11=OFF …: CMake takes the last of an option).
 [packages.root]
-extra = ["-Dcocoa=ON", "-Dopengl=ON", "-Dwebgui=ON", "-Dasimage=ON",
-         "-DOPENSSL_ROOT_DIR={HOMEBREW_PREFIX}/opt/openssl@3"]
+extra = ["-Dcocoa=ON", "-Dopengl=ON", "-Dwebgui=ON", "-Dasimage=ON"]
 
 # Absolute install names for the CMake-built libraries whose *-config gives no rpath: a program linked
 # against them finds them without DYLD_LIBRARY_PATH, which macOS drops for its own programs (/usr/bin/env,
@@ -54,17 +38,14 @@ url = "https://github.com/microsoft/onnxruntime/releases/download/v{release}/onn
 #   THEPEG_DYNAMIC_TYPE_INFO_BUG    ThePEG keys class descriptions by type_info address, which is not
 #                                   one object across its plugin libraries on arm64 macOS: a class lost
 #                                   its base's interfaces ("AlphaQCDISR:ScaleFactor was not found")
-#   --with-gsl                      its default, "system", expects GSL on the compiler's own path
-#   LDFLAGS … -lc++                 libtool links them -flat_namespace, so libThePEG recorded no libc++
-#                                   dependency and its static initialisers ran before libc++'s (macOS 27
-#                                   aborted: "typed operator new … before its static initializer")
+# (system.toml and conda.toml give each the GSL and the -lc++ link line: libtool links them
+# -flat_namespace, so libThePEG recorded no libc++ dependency and its static initialisers ran before
+# libc++'s; macOS 27 aborted: "typed operator new … before its static initializer".)
 [packages.thepeg]
 env   = { CXXFLAGS = "{cxxflags} -D_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -D_LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -DTHEPEG_DYNAMIC_TYPE_INFO_BUG" }
-extra = ["--with-gsl={HOMEBREW_PREFIX}/opt/gsl", "LDFLAGS=-L{HOMEBREW_PREFIX}/lib -lc++"]
 
 [packages.herwig]
 env   = { CXXFLAGS = "{cxxflags} -D_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS -D_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION -D_LIBCPP_ENABLE_CXX17_REMOVED_RANDOM_SHUFFLE -D_LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR -DTHEPEG_DYNAMIC_TYPE_INFO_BUG" }
-extra = ["--with-gsl={HOMEBREW_PREFIX}/opt/gsl", "LDFLAGS=-L{HOMEBREW_PREFIX}/lib -lc++"]
 
 # Whizard 3.1.8: its configure copies clang++'s link line into CXXLIBS and keeps a bare -lto_library;
 # it filters that only when it can read Xcode's version, which the Command Line Tools alone don't give.

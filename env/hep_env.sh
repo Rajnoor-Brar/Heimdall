@@ -2,9 +2,11 @@
 # env/hep_env.sh — Heimdall's shell environment (docs/framework/01_Target.md §5.8; docs/06_Internals.md §1).
 #
 # Sourced by Heimdall's setup.sh (alias `load_hep`), which sets HEP (Heimdall's folder), HEP_MACHINE (the
-# machine root, ~/Himinbjorg) and the loaded stack's HEP_INSTALL, HEP_VENV, HEP_APPS and HEP_FORGE. It puts
-# the stack and framework/bin (the `hep` command) on PATH, activates the venv, sources the machine root's
-# machine.sh, and defines the shell helpers below.
+# machine root, ~/Himinbjorg) and the loaded stack's HEP_INSTALL, HEP_VENV, HEP_APPS and HEP_FORGE, and
+# HEP_BASE when the stack is built on a conda base (docs/conda/). It activates the base (its
+# base/activate.sh) or the venv, puts the stack and framework/bin (the `hep` command) on PATH, sources the
+# machine root's machine.sh, and defines the shell helpers below. The base's lib/ never joins
+# LD_LIBRARY_PATH: what was built on it finds it by rpath, and the OS's own programs keep the OS's libraries.
 # Safe to source repeatedly: path variables are only ever prepended once, and never get empty elements
 # (an empty element means the CWD). `quit` removes exactly what was added here, machine.sh's lines too.
 
@@ -25,7 +27,7 @@ if [ -n "${HEKIT_ROOT-}" ]; then                 # High-Energy's name for the ch
 fi
 unset HEP_SETUP                                   # retired: hep refresh reloads $HEP/setup.sh with $HEP_STACK
 
-_HEP_SCALARS="LHAPDF_DATA_PATH ONNXRUNTIME_DIR GEANT4_DATA_DIR"
+_HEP_SCALARS="LHAPDF_DATA_PATH ONNXRUNTIME_DIR GEANT4_DATA_DIR DELPHES_DIR"
 
 # _hep_prepend VAR DIR — prepend DIR if it exists and is not already present; record the addition.
 _hep_prepend() {
@@ -80,7 +82,8 @@ _hep_record_path() {
     done
 }
 
-# _hep_source_recorded FILE — source FILE (machine.sh: setup_extra's lines, a `module load` …) and record
+# _hep_source_recorded FILE — source FILE (machine.sh: setup_extra's lines, a `module load` …; the base's
+# activate.sh) and record
 # what it changed, so quit takes it out again: each element it added to a *PATH* variable, and every
 # other exported variable's value before (_HEP_MACHINE_ADDED, _HEP_RESTORE).
 _hep_source_recorded() {
@@ -156,7 +159,7 @@ quit() {
         return 0
     fi
     _hep_unload
-    unset HEP_STACK HEP_INSTALL HEP_VENV HEP_APPS HEP_FORGE
+    unset HEP_STACK HEP_INSTALL HEP_VENV HEP_BASE HEP_APPS HEP_FORGE
 }
 # hep_refresh: quit, then the same stack again (an isolated toolkit's included), from scratch.
 hep_refresh() {
@@ -197,7 +200,7 @@ hep_help() {
 hep run | plot | watch | build | stack | …   every command (hep help; hep help <command>)
 In this shell:
   hep refresh            reload the environment from scratch, the same stack (also hep_refresh)
-  hep quit               leave it: paths, venv and machine.sh's lines as before (also quit)
+  hep quit               leave it: paths, the base (or venv) and machine.sh's lines as before (also quit)
   hep cd PROJECT [DIR]   cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|records|logs; also hep_cd)
   hep_status             the loaded stack: each package, its release and state (hep stack status)
   hep_stash              cd to the machine root's downloads
@@ -218,8 +221,12 @@ if [ -n "${HEP_ENV_LOADED-}" ]; then
     _hep_unload
 fi
 
-# Activate the Python venv
-source "$HEP_VENV/bin/activate"
+# The base (conda: its compilers, libraries and Python; recorded, so quit takes it out), or the venv
+if [ -n "${HEP_BASE-}" ]; then
+    _hep_source_recorded "${HEP_BASE%/.pixi/envs/default}/activate.sh"
+else
+    source "$HEP_VENV/bin/activate"
+fi
 
 # The stack's install folders: every shipped recipe's (env/packages.sh, generated from recipes/toolkits/),
 # and what this stack's builds made (a machine toolkit's own recipes); only folders that are there count.
@@ -246,10 +253,21 @@ for _hep_var in $_HEP_SCALARS; do
     export "_HEP_SAVED_$_hep_var=${!_hep_var-}"
 done
 unset _hep_var
-export LHAPDF_DATA_PATH="$HEP_INSTALL/LHAPDF/share/LHAPDF"
+# Each where the stack has it, else where a ready-made one is (in the base, from conda-forge)
+if [ -d "$HEP_INSTALL/LHAPDF" ] || [ -z "${HEP_BASE-}" ]; then
+    export LHAPDF_DATA_PATH="$HEP_INSTALL/LHAPDF/share/LHAPDF"
+else
+    export LHAPDF_DATA_PATH="$HEP_BASE/share/LHAPDF"
+fi
 # Geant4 11 finds every data set under one directory (what its geant4.sh exports)
 [ -d "$HEP_INSTALL/geant4/share/Geant4/data" ] && export GEANT4_DATA_DIR="$HEP_INSTALL/geant4/share/Geant4/data"
-export ONNXRUNTIME_DIR="$HEP_INSTALL/onnxruntime"
+if [ -d "$HEP_INSTALL/onnxruntime" ] || [ -z "${HEP_BASE-}" ]; then
+    export ONNXRUNTIME_DIR="$HEP_INSTALL/onnxruntime"
+else
+    export ONNXRUNTIME_DIR="$HEP_BASE"
+fi
+[ -n "${HEP_BASE-}" ] && [ ! -d "$HEP_INSTALL/delphes" ] && [ -f "$HEP_BASE/include/classes/DelphesClasses.h" ] \
+    && export DELPHES_DIR="$HEP_BASE"
 # RIVET_ANALYSIS_PATH is deliberately not set: the rivet tool sets build/Rivet per run.
 
 # This machine's lines (macOS: DYLD_LIBRARY_PATH and the GNU tools; a cluster: module load …), last, and

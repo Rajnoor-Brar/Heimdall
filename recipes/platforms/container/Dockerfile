@@ -9,8 +9,11 @@
 #
 # The build takes hours (ROOT alone is 1–2 h) and ~25 GB of disk while it runs; give Docker 3 GB of
 # memory per ROOT core (root_cores). The machine root is /opt/himinbjorg (HEP_MACHINE); its forge/
-# (downloads, sources, builds) is removed in the same layer, so the image keeps the installs only
-# (docs/framework/targets/container.md).
+# (downloads, sources, builds, pixi and its package cache) is removed in the same layer, so the image
+# keeps the installs only (docs/framework/targets/container.md). The stack is built on a conda base
+# (docs/conda/): apt gives only the Python that runs the builder, the certificates it downloads with,
+# and bzip2 and xz for its archive checks (tar -t).
+# --build-arg PACKAGES=@core-conda: the core ready-made from conda-forge, in minutes.
 
 FROM ubuntu:24.04
 
@@ -24,7 +27,7 @@ ENV LANG=C.UTF-8 HEP_MACHINE=/opt/himinbjorg
 
 COPY . /opt/heimdall
 
-RUN apt-get update && apt-get install -y --no-install-recommends python3 && \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 ca-certificates bzip2 xz-utils && \
     python3 /opt/heimdall/recipes/build_stack.py packages="$PACKAGES" \
         cores="$CORES" root_cores="$ROOT_CORES" graphics="$GRAPHICS" geant4_data="$GEANT4_DATA" && \
     bash -c 'source /opt/heimdall/setup.sh && make -C "$HEP" all' && \

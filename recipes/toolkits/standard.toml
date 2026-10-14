@@ -41,9 +41,20 @@
 #   status    "new": a recipe no build has proven yet
 #   verify    [[packages.<name>.verify]]: what it must be able to do, checked after it installs and by
 #             `hep doctor` (recipes/verify.py says how)
+#   apt       base = "system": the system packages it needs besides apt_packages
+#   base      base = "conda": the conda-forge packages it needs in the base besides recipes/base.toml's
+#   conda     its conda-forge package, when it is taken ready-made ("fastjet-cxx"; a version spec may follow),
+#             or a list: the package, then specs that pin its build ("root_base * cxx{cxx_std}*")
+#   conda_std the C++ standards conda-forge builds it for, when only some: taken ready-made, it sets the
+#             stack's (cxx_std; the first, unless a layer set one of them)
+#   from      "source" (the default: built here), or "conda-forge": installed ready-made into the base
+#             instead (base = "conda" only; the @…-conda toolkits). What it needs must then be ready-made
+#             too, or there would be two of it: conda-forge's and the stack's.
 #
 # Placeholders: any setting ({cores}, {graphics}, …), and {prefix} (the machine root) {inst} {venv} {src} {build}
-# {install} {release} {series} {py} {pyxy} {pyinc} {cxxflags} {arch} {machine} {dylib} {repo}, and any
+# {install} {release} {series} {py} {pyxy} {pyinc} {cxxflags} {cflags} {ldflags} {arch} {machine} {dylib}
+# {repo}; {base}, the base's prefix (base = "conda"; {venv} is the same there); {dir_<package>}, where a
+# package is installed: stack/<its install>, or the base when it is ready-made ({dir_lhapdf}); and any
 # environment variable ({HOMEBREW_PREFIX}). A word that is only a list setting ({pdf_sets}) becomes its
 # words.
 
@@ -65,6 +76,7 @@ pre   = ["{python} -m venv --prompt {venv_prompt} {venv}",
 release = "6.5.6"
 url     = "https://lhapdf.hepforge.org/downloads/?f=LHAPDF-{release}.tar.gz"
 kind    = "autotools"
+conda   = "lhapdf"
 group   = "core"
 needs   = ["python"]
 install = "LHAPDF"
@@ -73,6 +85,7 @@ install = "LHAPDF"
 release = "3.3.1"
 url     = "https://hepmc.web.cern.ch/hepmc/releases/HepMC3-{release}.tar.gz"
 kind    = "cmake"
+conda   = "hepmc3"
 group   = "core"
 needs   = ["python"]
 # The Python directory is HEPMC3_Python_SITEARCH<XY> (HEPMC3_PYTHON_INSTALL_DIR is ignored); LTO strips
@@ -88,6 +101,7 @@ args = [
 release = "3.5.0"
 url     = "https://fastjet.fr/repo/fastjet-{release}.tar.gz"
 kind    = "autotools"
+conda   = "fastjet-cxx"
 group   = "core"
 # SISCone's random-number state is one per process: threads clustering at once get other jets (L29).
 # The patch makes it per thread. fastjet.patch="" builds without it.
@@ -98,17 +112,20 @@ args    = ["--enable-shared", "--enable-allcxxplugins"]
 release = "1.104"
 url     = "https://fastjet.hepforge.org/contrib/downloads/fjcontrib-{release}.tar.gz"
 kind    = "autotools"
+conda   = "fastjet-contrib"
 group   = "core"
 needs   = ["fastjet"]
 install = "fastjet"                                   # into FastJet's prefix, as the lab PC has it
 probe   = "{install}/lib/libfastjetcontribfragile.{dylib}"
-args    = ["--fastjet-config={inst}/fastjet/bin/fastjet-config", "CXXFLAGS={cxxflags} -fPIC"]
+args    = ["--fastjet-config={dir_fastjet}/bin/fastjet-config", "CXXFLAGS={cxxflags} -fPIC"]
 post    = ["make fragile-shared-install"]             # libfastjetcontribfragile.so (.dylib), which Rivet links
 
 [packages.root]
 release = "6.40.04"                                   # not 6.40.00: its rootcling_stage1 does not link
 url     = "https://root.cern/download/root_v{release}.source.tar.gz"
 kind    = "cmake"
+conda   = ["root", "root_base * cxx{cxx_std}*"]       # conda-forge builds it for C++20 and 23 only:
+conda_std = [20, 23]                                   # ready-made, the stack follows it (README.md §3)
 group   = "core"
 needs   = ["python"]
 cores   = "{root_cores}"
@@ -124,6 +141,7 @@ args = [
 release = "2.2.0"                                     # 2.x builds with CMake only
 url     = "https://github.com/HDFGroup/hdf5/releases/download/{release}/hdf5-{release}.tar.gz"
 kind    = "cmake"
+conda   = "hdf5"
 group   = "extra"
 strip   = 2                                           # its paths start with ./hdf5-<release>/
 args = [
@@ -139,51 +157,58 @@ release = "2.1.4"
 url     = ["https://cedar-tools.web.cern.ch/downloads/YODA-{release}.tar.gz",     # CEDAR: the releases' home now
            "https://yoda.hepforge.org/downloads?f=YODA-{release}.tar.gz"]
 kind    = "autotools"
+conda   = "yoda"
 group   = "core"
 needs   = ["python"]
 # HDF5 support (.yoda.h5) only with the stack's HDF5: never one the system happens to have (the Mac's
 # Homebrew HDF5 broke the link, docs/audit_3/01_Process.md §5). The later --enable-h5 wins.
 args     = ["--disable-h5"]
-optional = { hdf5 = ["--enable-h5", "--with-hdf5={inst}/hdf5/bin/h5cc-plain", "--enable-h5-rpath"] }
+optional = { hdf5 = ["--enable-h5", "--with-hdf5={dir_hdf5}/bin/h5cc-plain", "--enable-h5-rpath"] }
 
 [packages.rivet]
 release = "4.1.4"
 url     = "https://cedar-tools.web.cern.ch/downloads/Rivet-{release}.tar.gz"      # HepForge stops at 4.1.3
 kind    = "autotools"
+conda   = "rivet"
 group   = "core"
 needs   = ["python", "hepmc3", "yoda", "fastjet", "fjcontrib"]
-args    = ["--with-hepmc3={inst}/hepmc3", "--with-yoda={inst}/yoda", "--with-fastjet={inst}/fastjet"]
+cores   = "{root_cores}"                              # an experiment's analyses are one compiler run of several GB:
+                                                      # at every core, 14 GB of RAM ran out (2026-10-14)
+args    = ["--with-hepmc3={dir_hepmc3}", "--with-yoda={dir_yoda}", "--with-fastjet={dir_fastjet}"]
 
 [packages.pythia8]
 release = "8318"
 url     = "https://pythia.org/releases/pythia83/pythia{release}.tgz"     # /download/ is gone (404) since 2026
 kind    = "autotools"
+conda   = "pythia8"
 group   = "core"
 needs   = ["python", "lhapdf", "hepmc3", "fastjet"]
 args = [
-  "--with-lhapdf6={inst}/LHAPDF", "--with-hepmc3={inst}/hepmc3", "--with-fastjet3={inst}/fastjet",
+  "--with-lhapdf6={dir_lhapdf}", "--with-hepmc3={dir_hepmc3}", "--with-fastjet3={dir_fastjet}",
   "--with-python-bin={venv}/bin/", "--with-python-lib={venv}/lib/python{py}",
   "--with-python-include={pyinc}", "--cxx-common={cxxflags} -fPIC",
 ]
 # Its ROOT and Rivet plugins (Pythia8Plugins/RivetHooks.h) exist only when built after them.
-optional = { root = ["--with-root={inst}/root"], rivet = ["--with-rivet={inst}/rivet"] }
+optional = { root = ["--with-root={dir_root}"], rivet = ["--with-rivet={dir_rivet}"] }
 
 [packages.thepeg]
 release = "2.3.0"
 url     = "https://thepeg.hepforge.org/downloads/?f=ThePEG-{release}.tar.bz2"
 kind    = "autotools"
+conda   = "thepeg"
 group   = "core"
 needs   = ["lhapdf", "hepmc3", "fastjet"]
 install = "herwig7"
 probe   = "{install}/bin/setupThePEG"
 # --with-hepmcversion=3: else ThePEG looks for HepMC2 under the HepMC3 prefix.
-args    = ["--with-hepmc={inst}/hepmc3", "--with-hepmcversion=3", "--with-fastjet={inst}/fastjet",
-           "--with-lhapdf={inst}/LHAPDF"]
+args    = ["--with-hepmc={dir_hepmc3}", "--with-hepmcversion=3", "--with-fastjet={dir_fastjet}",
+           "--with-lhapdf={dir_lhapdf}"]
 
 [packages.herwig]
 release = "7.3.0"
 url     = "https://herwig.hepforge.org/downloads/?f=Herwig-{release}.tar.bz2"
 kind    = "autotools"
+conda   = "herwig"
 group   = "core"
 needs   = ["thepeg", "lhapdf", "fastjet"]
 install = "herwig7"
@@ -192,7 +217,7 @@ pre     = ["lhapdf install CT14lo CT14nlo"]           # its defaults read them: 
 # Looptools needs 8-byte default integers; Herwig's m4/herwig.m4 adds -fdefault-integer-8 only for x86_64
 # and old Intel Macs, so an arm64 machine (an M-series Mac, an ARM Linux) fails at D0funcC.F. Given here
 # for every platform (x86_64 Linux gets the same flags from its configure anyway).
-args    = ["--with-thepeg={inst}/herwig7", "--with-fastjet={inst}/fastjet", "--with-lhapdf={inst}/LHAPDF",
+args    = ["--with-thepeg={dir_thepeg}", "--with-fastjet={dir_fastjet}", "--with-lhapdf={dir_lhapdf}",
            "FFLAGS=-O2 -std=legacy -ffixed-line-length-none -fdefault-integer-8",
            "FCFLAGS=-O2 -std=legacy -ffixed-line-length-none -fdefault-integer-8"]
 
@@ -200,10 +225,11 @@ args    = ["--with-thepeg={inst}/herwig7", "--with-fastjet={inst}/fastjet", "--w
 release = "3.5.1"
 url     = "https://github.com/delphes/delphes/archive/refs/tags/{release}.tar.gz"
 kind    = "cmake"
+conda   = "delphes"
 group   = "core"
 needs   = ["root"]
-env     = { PYTHIA8 = "{inst}/pythia8" }              # DelphesPythia8 too, when Pythia8 is there
-args    = ["-DROOT_DIR={inst}/root/cmake"]
+env     = { PYTHIA8 = "{dir_pythia8}" }              # DelphesPythia8 too, when Pythia8 is there
+args    = ["-DROOT_DIR={dir_root}/cmake"]
 
 [packages.pdfsets]
 kind  = "none"
@@ -215,14 +241,15 @@ post  = ["lhapdf install {pdf_sets}"]                 # a set already there is s
 release = "3.0.5"
 url     = "https://gitlab.com/sherpa-team/sherpa/-/archive/v{release}/sherpa-v{release}.tar.gz"
 kind    = "cmake"
+conda   = "sherpa"
 group   = "extra"
 needs   = ["hepmc3", "lhapdf", "rivet", "fastjet"]
 # The _DIR spellings are Sherpa's own; HepMC3_DIR is the CMake config directory.
 args = [
-  "-DSHERPA_ENABLE_HEPMC3=ON", "-DHepMC3_DIR={inst}/hepmc3/share/HepMC3/cmake",
-  "-DSHERPA_ENABLE_RIVET=ON", "-DRIVET_DIR={inst}/rivet",
-  "-DSHERPA_ENABLE_FASTJET=ON", "-DFASTJET_DIR={inst}/fastjet",
-  "-DSHERPA_ENABLE_LHAPDF=ON", "-DLHAPDF_DIR={inst}/LHAPDF",
+  "-DSHERPA_ENABLE_HEPMC3=ON", "-DHepMC3_DIR={dir_hepmc3}/share/HepMC3/cmake",
+  "-DSHERPA_ENABLE_RIVET=ON", "-DRIVET_DIR={dir_rivet}",
+  "-DSHERPA_ENABLE_FASTJET=ON", "-DFASTJET_DIR={dir_fastjet}",
+  "-DSHERPA_ENABLE_LHAPDF=ON", "-DLHAPDF_DIR={dir_lhapdf}",
   "-DSHERPA_ENABLE_INTERNAL_PDFS=ON", "-DSHERPA_ENABLE_EXAMPLES=ON",
 ]
 
@@ -233,8 +260,8 @@ kind    = "unpack"                                    # a Python/Fortran tree, p
 group   = "extra"
 needs   = ["lhapdf", "pythia8"]
 post = ["""sed -i.orig
-  -e 's|^#* *lhapdf *=.*|lhapdf = {inst}/LHAPDF/bin/lhapdf-config|'
-  -e 's|^#* *pythia8_path *=.*|pythia8_path = {inst}/pythia8|'
+  -e 's|^#* *lhapdf *=.*|lhapdf = {dir_lhapdf}/bin/lhapdf-config|'
+  -e 's|^#* *pythia8_path *=.*|pythia8_path = {dir_pythia8}|'
   -e 's|^#* *automatic_html_opening *=.*|automatic_html_opening = False|'
   {install}/input/mg5_configuration.txt"""]
 
@@ -247,8 +274,8 @@ needs   = ["hepmc3", "fastjet", "lhapdf", "pythia8", "pdfsets"]
 # pdfsets first: Whizard's configure turns LHAPDF off unless CT10 and cteq6l1 are installed (m4/lhapdf.m4),
 # silently (it was built without LHAPDF on both machines before this). --enable-hepmc takes HepMC3 (there are no *hepmc3 options); O'Mega needs OCaml.
 args = [
-  "--enable-lhapdf", "--enable-hepmc", "--with-hepmc={inst}/hepmc3", "--enable-fastjet",
-  "--with-fastjet={inst}/fastjet", "--enable-pythia8", "--with-pythia8={inst}/pythia8",
+  "--enable-lhapdf", "--enable-hepmc", "--with-hepmc={dir_hepmc3}", "--enable-fastjet",
+  "--with-fastjet={dir_fastjet}", "--enable-pythia8", "--with-pythia8={dir_pythia8}",
   "--disable-dependency-tracking", "FC=gfortran",
 ]
 
@@ -256,12 +283,14 @@ args = [
 release = "1.29.0"
 url     = "https://github.com/microsoft/onnxruntime/releases/download/v{release}/onnxruntime-linux-{arch}-{release}.tgz"
 kind    = "unpack"                                    # a released binary: no ABI to match
+conda   = "onnxruntime-cpp"
 group   = "extra"
 
 [packages.geant4]
 release = "11.4.2"
 url     = "https://github.com/Geant4/geant4/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
+conda   = "geant4"
 group   = "extra"
 args = [
   "-DGEANT4_BUILD_MULTITHREADED=ON", "-DGEANT4_INSTALL_DATA={geant4_data}", "-DGEANT4_USE_GDML=ON",
@@ -281,7 +310,7 @@ url     = "https://photospp.web.cern.ch/photospp/resources/PHOTOS.{release}/PHOT
 kind    = "autotools"
 status  = "new"
 needs   = ["hepmc3"]
-args    = ["--with-hepmc3={inst}/hepmc3"]
+args    = ["--with-hepmc3={dir_hepmc3}"]
 
 [packages.tauolapp]
 release = "1.1.8"                                     # HepMC3 support since 1.1.8 (EvtGen's minimum)
@@ -289,19 +318,20 @@ url     = "https://tauolapp.web.cern.ch/tauolapp/resources/TAUOLA.{release}/TAUO
 kind    = "autotools"
 status  = "new"
 needs   = ["hepmc3", "lhapdf"]
-args    = ["--with-hepmc3={inst}/hepmc3", "--with-lhapdf={inst}/LHAPDF"]
+args    = ["--with-hepmc3={dir_hepmc3}", "--with-lhapdf={dir_lhapdf}"]
 
 [packages.evtgen]
 release = "R03-00-01"
 url     = "https://gitlab.cern.ch/evtgen/evtgen/-/archive/{release}/evtgen-{release}.tar.gz"
 kind    = "cmake"
+conda   = "evtgen"
 status  = "new"
 needs   = ["hepmc3", "pythia8", "photospp", "tauolapp"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args = [
   "-DEVTGEN_HEPMC3=ON", "-DEVTGEN_PYTHIA=ON", "-DEVTGEN_PHOTOS=ON", "-DEVTGEN_TAUOLA=ON",
-  "-DHEPMC3_ROOT_DIR={inst}/hepmc3", "-DPYTHIA8_ROOT_DIR={inst}/pythia8",
-  "-DPHOTOSPP_ROOT_DIR={inst}/photospp", "-DTAUOLAPP_ROOT_DIR={inst}/tauolapp",
+  "-DHEPMC3_ROOT_DIR={dir_hepmc3}", "-DPYTHIA8_ROOT_DIR={dir_pythia8}",
+  "-DPHOTOSPP_ROOT_DIR={dir_photospp}", "-DTAUOLAPP_ROOT_DIR={dir_tauolapp}",
 ]
 
 [packages.superchic]
@@ -327,7 +357,7 @@ url     = "https://github.com/JETSCAPE/JETSCAPE/archive/refs/tags/v{release}.tar
 kind    = "cmake"
 status  = "new"
 needs   = ["pythia8", "hepmc3", "root", "hdf5"]
-env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}", HDF5_ROOT = "{inst}/hdf5" }
+env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}", HDF5_ROOT = "{dir_hdf5}" }
 
 [packages.madanalysis5]
 release = "1.11.1"                                    # recasting; it finds ROOT, FastJet, Delphes at first start
@@ -340,6 +370,7 @@ probe   = "{install}/bin/ma5"
 [packages.contur]
 release = "3.1.3"                                     # model interpretation on Rivet's measurements (Rivet 4)
 kind    = "none"
+conda   = "contur"
 status  = "new"
 needs   = ["rivet", "yoda"]
 probe   = "{venv}/bin/contur"
@@ -349,9 +380,11 @@ pre     = ["{venv}/bin/pip install contur=={release}"]
 release = "2.5.2"                                     # tuning: parametrise, then fit (Eigen, iminuit)
 url     = "https://professor.hepforge.org/downloads/?f=Professor-{release}.tar.gz"
 kind    = "unpack"
+conda   = "professor"
 status  = "new"
 needs   = ["yoda"]
 apt     = ["libeigen3-dev"]
+base    = ["eigen"]
 post    = ["{venv}/bin/pip install cython iminuit", "{venv}/bin/pip install {install}"]
 
 [packages.hepdata]
@@ -365,16 +398,18 @@ pre     = ["{venv}/bin/pip install hepdata-lib hepdata-cli"]
 release = "3.3.0"                                     # header-only C++ for HDF5 (the stack's)
 url     = "https://github.com/highfive-devs/highfive/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
+conda   = "highfive"
 status  = "new"
 needs   = ["hdf5"]
-args    = ["-DHIGHFIVE_UNIT_TESTS=OFF", "-DHIGHFIVE_EXAMPLES=OFF", "-DHDF5_ROOT={inst}/hdf5"]
-env     = { HDF5_DIR = "{inst}/hdf5" }                # h5py built against the stack's HDF5
+args    = ["-DHIGHFIVE_UNIT_TESTS=OFF", "-DHIGHFIVE_EXAMPLES=OFF", "-DHDF5_ROOT={dir_hdf5}"]
+env     = { HDF5_DIR = "{dir_hdf5}" }                # h5py built against the stack's HDF5
 post    = ["{venv}/bin/python -m pip install --no-binary=h5py h5py"]
 
 [packages.dd4hep]
 release = "01-38"                                     # C++17 since v01-35: the stack's standard
 url     = "https://github.com/AIDASoft/DD4hep/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
+conda   = "dd4hep"
 status  = "new"
 needs   = ["root", "geant4", "hepmc3"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
@@ -384,9 +419,11 @@ args    = ["-DDD4HEP_USE_GEANT4=ON", "-DDD4HEP_USE_XERCESC=ON", "-DDD4HEP_USE_HE
 release = "6.27.0"                                    # with ATLAS FullSimLight (now part of GeoModel)
 url     = "https://gitlab.cern.ch/GeoModelDev/GeoModel/-/archive/{release}/GeoModel-{release}.tar.gz"
 kind    = "cmake"
+conda   = "geomodel"
 status  = "new"
 needs   = ["geant4"]
 apt     = ["libeigen3-dev", "nlohmann-json3-dev"]
+base    = ["eigen", "nlohmann_json"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-DGEOMODEL_BUILD_FULLSIMLIGHT=ON", "-DGEOMODEL_BUILD_TOOLS=ON"]
 
@@ -419,7 +456,7 @@ status  = "new"
 needs   = ["madgraph"]
 probe   = ""
 pre     = ["""bash -c 'for u in {ufo_models}; do f={stash}/$(basename "$u"); [ -s "$f" ] || curl -fL -o "$f" "$u";
-  case "$f" in *.zip) unzip -oq "$f" -d {inst}/madgraph/models ;; *) tar xf "$f" -C {inst}/madgraph/models ;; esac; done'"""]
+  case "$f" in *.zip) unzip -oq "$f" -d {dir_madgraph}/models ;; *) tar xf "$f" -C {dir_madgraph}/models ;; esac; done'"""]
 
 [packages.mathematica]
 kind    = "external"
@@ -467,9 +504,11 @@ args    = ["-DBUILD_TESTING=OFF"]
 release = "v40r6"                                     # C++20 since v39r0
 url     = "https://gitlab.cern.ch/gaudi/Gaudi/-/archive/{release}/Gaudi-{release}.tar.gz"
 kind    = "cmake"
+conda   = "gaudi"
 status  = "new"
 needs   = ["root", "python"]
 apt     = ["libtbb-dev", "librange-v3-dev", "libfmt-dev", "libmsgsl-dev", "nlohmann-json3-dev", "libunwind-dev"]
+base    = ["tbb-devel", "range-v3", "fmt", "ms-gsl", "nlohmann_json", "libunwind"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args = [
   "-DBUILD_TESTING=OFF", "-DGAUDI_USE_AIDA=OFF", "-DGAUDI_USE_CPPUNIT=OFF", "-DGAUDI_USE_GPERFTOOLS=OFF",
@@ -485,6 +524,7 @@ how     = "NVIDIA's CUDA Toolkit (12 or newer) and a CUDA GPU with its driver, n
 release = "0.8.2"                                     # SIMD abstraction under VecGeom
 url     = "https://github.com/root-project/veccore/archive/refs/tags/v{release}.tar.gz"
 kind    = "cmake"
+conda   = "veccore"
 status  = "new"
 args    = ["-DBUILD_TESTING=OFF"]
 
@@ -492,9 +532,11 @@ args    = ["-DBUILD_TESTING=OFF"]
 release = "v2.1.1"                                    # the 2.x line AdePT needs (>= 2.0.0-rc.4)
 url     = "https://gitlab.cern.ch/VecGeom/VecGeom/-/archive/{release}/VecGeom-{release}.tar.gz"
 kind    = "cmake"
+conda   = "vecgeom"
 status  = "new"
 needs   = ["veccore", "cuda"]
 apt     = ["libxerces-c-dev"]
+base    = ["xerces-c"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}" }
 args    = ["-DVECGEOM_ENABLE_CUDA=ON", "-DVECGEOM_GDML=ON", "-DVECGEOM_USE_NAVINDEX=ON", "-DBUILD_TESTING=OFF",
            "-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}"]

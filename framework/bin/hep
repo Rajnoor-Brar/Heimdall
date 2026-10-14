@@ -2,13 +2,15 @@
 # framework/bin/hep — the `hep` command (docs/05_Commands_and_Tools.md §1): every command is the runner's
 # (framework/bin/run, framework/runner/cli.py); `hep help` lists them, `hep help <command>` says one.
 #
-# The machine's venv Python, by path: `hep` works without the environment loaded (cron, scripts, Slurm,
-# env -i), where python3 may lack the runner's packages. ~ is found without $HOME too. UTF-8 mode: text
-# is read and written as UTF-8 whatever the locale (a node with LANG=C; YODA 2.1's reader, which leaves
-# its thread in the "C" locale after yoda.read).
+# The machine's Python (the loaded one, else the base's, else the venv's), by path: `hep` works without the
+# environment loaded (cron, scripts, Slurm, env -i), where python3 may lack the runner's packages. ~ is
+# found without $HOME too. UTF-8 mode: text is read and written as UTF-8 whatever the locale (a node with
+# LANG=C; YODA 2.1's reader, which leaves its thread in the "C" locale after yoda.read).
 set -euo pipefail
 here=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
 machine=${HEP_MACHINE:-~/Himinbjorg}
-py=${HEP_VENV:-$machine/venv}/bin/python
-[ -x "$py" ] || py=python3
+py=python3
+for env in ${HEP_VENV:+"$HEP_VENV"} "$machine/base/.pixi/envs/default" "$machine/venv"; do
+    [ -x "$env/bin/python" ] && { py=$env/bin/python; break; }
+done
 exec "$py" -X utf8 "$here/run" "$@"

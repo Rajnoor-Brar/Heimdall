@@ -10,7 +10,8 @@ was kept before the wipe. After P0:
 
 **Writes:** `$HEP/.setup/` only.
 
-**Gates:** sudo, only if `git`, `python3-venv` or `curl` are missing.
+**Gates:** sudo, only if `git` or `curl` is missing. The stack's build needs no sudo: it makes a conda
+base first (the compilers, the libraries, Python; [recipes/README.md](../../recipes/README.md) §4).
 
 ---
 
@@ -52,10 +53,10 @@ was kept before the wipe. After P0:
    `container` is only ever chosen by the user, because it is a way of shipping Heimdall, not a kind
    of machine.
 4. Read `targets/<annex>.md`. Its **prerequisites** must hold before S2: the tools P0 and P1 need
-   before the stack exists (`git`, `curl`, `python3` ≥ 3.11 with `venv`). A missing one on
-   `ubuntu` is a **gate**:
+   before the stack exists (`git`, `curl`, `python3` ≥ 3.11; `venv` only for `base=system`). A
+   missing one on `ubuntu` is a **gate**:
    ```bash
-   sudo apt-get install -y git curl python3-venv
+   sudo apt-get install -y git curl
    ```
 
 **Verification:**
@@ -64,7 +65,7 @@ was kept before the wipe. After P0:
 |---|---|---|
 | R1 | `python3 -c "import tomllib; m = tomllib.load(open('$HEP/.setup/state.toml','rb'))['machine']; print(len(m))"` | `12` (the keys of 02 §3.1) |
 | R2 | `python3 -c 'import sys; print(sys.version_info >= (3, 11))'` | `True` |
-| R3 | `df -BG --output=avail "$HEP" \| tail -1 \| tr -dc 0-9` | ≥ `60`: the lab set used 19.9 GB on the lab PC (installs 6.0, sources 5.6, build trees 6.8, venv 1.5), plus MadAnalysis5 and room for results |
+| R3 | `df -BG --output=avail "$HEP" \| tail -1 \| tr -dc 0-9` | ≥ `60`: the lab set used 19.9 GB on the lab PC (installs 6.0, sources 5.6, build trees 6.8, venv 1.5), plus the base (about 2.3 GB, and 0.3 GB of pixi's cache), MadAnalysis5 and room for results |
 | R4 | `test -f $HEP/docs/framework/targets/$(python3 -c "import tomllib; print(tomllib.load(open('$HEP/.setup/state.toml','rb'))['machine']['annex'])").md && echo ok` | `ok` |
 | R5 | `python3 -c 'import os; print(os.cpu_count())'` and the RAM, against the lab PC before the wipe: 24 logical CPUs, 15 GB | recorded; a smaller machine is not a failure, but P1's `cores` and `root_cores` follow it |
 

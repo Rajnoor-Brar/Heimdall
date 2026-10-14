@@ -3,23 +3,28 @@
 `build_stack.py` builds, from source, the software stack Heimdall runs on, **into the machine root**
 (`~/Himinbjorg`):
 the lab PC's stack (Ubuntu 24.04, GCC 13), with the same versions, the same features and the fixes its
-build needed. It runs on a Linux machine with apt, in a Docker container, or on macOS with Homebrew
-([platforms/mac/](platforms/mac/README.md)). It needs only `python3` (3.11+, or older with `tomli`):
-its standard library, no other packages.
+build needed. It builds on a **conda base** by default (`base = "conda"`, [docs/conda/](../docs/conda/README.md)):
+pixi makes the machine root's `base/` from conda-forge first (the compilers, the build tools, the
+libraries the stack links, Python and its packages), so it needs no apt, no sudo and no Homebrew, and an
+OS upgrade no longer reaches the stack. The HEP tools are still built here, from source, inside it; the
+`@…-conda` toolkits take them ready-made instead (§6). `base=system` is the way before: apt (or Homebrew,
+[platforms/mac/](platforms/mac/README.md)) and a venv. It runs on Linux, in a Docker container, or on
+macOS. It needs only `python3` (3.11+, or older with `tomli`): its standard library, no other packages.
 
 | File | Is |
 |---|---|
 | [toolkits/standard.toml](toolkits/standard.toml) | every recipe: release, tarball, how it is built, what it needs, its checks; `@standard` |
 | [toolkits/](toolkits/) | one file per toolkit (`lab.toml` is `@lab`): which recipes it takes, and what it changes (§6) |
-| [settings.toml](settings.toml) | the run's settings, each with its default: cores, features, the apt, pip and PDF lists |
+| [settings.toml](settings.toml) | the run's settings, each with its default: the base, cores, features, the apt, Python and PDF lists |
+| [base.toml](base.toml) | the base (§4): pixi's release, the conda-forge packages by what needs them, and the layer its builds get |
 | [build_stack.py](build_stack.py) | the engine: reads them, then fetches, builds, stamps and logs |
 | [verify.py](verify.py) | a package's checks, after it installs and in `hep doctor` |
 | [machine.py](machine.py), [machine.template.toml](machine.template.toml) | the machine root: `where`, `adopt`; a new root's `machine.toml` |
-| [pth.py](pth.py) | writes the venv's `heimdall.pth`, so Python finds `framework/` |
+| [pth.py](pth.py) | writes `heimdall.pth` into the base's (or the venv's) site-packages, so Python finds `framework/` |
 | [patches/](patches/) | patches the stack's sources need (FastJet's SISCone, L29) |
 | [platforms/container/](platforms/container/Dockerfile) | the same build in an Ubuntu 24.04 image (Dockerfile, Apptainer definition) |
 | [build_by_hand.txt](build_by_hand.txt) | the same build as commands to paste into a terminal, step by step (Ubuntu 24.04) |
-| [platforms/mac/](platforms/mac/README.md) | macOS: a Brewfile, `mac.toml` (the platform's fixes, laid by themselves on macOS), `build.sh` and `launch.sh`, and the steps by hand |
+| [platforms/mac/](platforms/mac/README.md) | macOS: `mac.toml` (the platform's fixes, laid by themselves on macOS), `conda.toml` or `system.toml` (with a Brewfile) for the base, `build.sh` and `launch.sh`, and the steps by hand |
 
 The data says what is built; the engine knows only five steps (fetch, unpack, configure or cmake,
 install, stamp) and four kinds of package. A version bump, a new flag or a new package is a TOML
@@ -30,10 +35,12 @@ settings), outside git. Sources and builds stay in `forge/`; `stack/` holds inst
 
 | Folder | Holds |
 |---|---|
-| `forge/downloads/` | the downloaded archives (`<package>-<release>.<ext>`) |
+| `forge/downloads/` | the downloaded archives (`<package>-<release>.<ext>`); `conda/`, pixi's package cache |
+| `forge/pixi/` | pixi itself (`bin/pixi`), the release `base.toml` names |
+| `base/` | the base: `pixi.toml` (written from `base.toml`), `pixi.lock`, `.pixi/envs/default/` (the prefix: compilers, libraries, Python), `activate.sh` |
 | `forge/src/`, `forge/build/<package>/`, `forge/logs/` | the unpacked sources; the build trees (CMake's); one log per package |
 | `stack/<dir>/`, `stack/.stamps/` | the installs; what is built |
-| `venv/` | the Python environment, with `heimdall.pth` |
+| `venv/` | `base=system`: the Python environment, with `heimdall.pth` (on the base, the base is it) |
 | `apps/` | Heimdall's compiled apps (`hep build --framework`) |
 | `machine.sh` | this machine's extra lines for `setup.sh` (`setup_extra`; macOS's DYLD and GNU tools) |
 
@@ -49,15 +56,27 @@ shell environment is `env/hep_env.sh`, which `setup.sh` sources
 
 ## 1. Quick start
 
-**On a machine** (sudo for the system packages, or `system=false` if they are installed), from
-Heimdall's folder:
+**On a machine** (no sudo: the base comes first, from conda-forge), from Heimdall's folder:
 
 ```bash
 python3 recipes/build_stack.py --list                 # each package: release, state, what this run builds
-python3 recipes/build_stack.py                        # the core stack (hours: ROOT alone is 1–2 h)
+python3 recipes/build_stack.py                        # the base, then the core stack (hours: ROOT alone is 1–2 h)
 python3 recipes/build_stack.py packages=all           # and Sherpa, MadGraph, Whizard, ONNX Runtime, Geant4
+python3 recipes/build_stack.py packages=@core-conda   # or: the core ready-made from conda-forge, in minutes (§6)
 source setup.sh && hep build --framework              # the environment, then the framework's apps
 ```
+
+**The base** (`base = "conda"`, the default; [docs/conda/](../docs/conda/README.md)). Before any package,
+pixi (fetched once into `forge/pixi/`, checked against `base.toml`'s sha256) makes `base/` from
+`base.toml`: Python (`base_python`), GCC (`base_gcc`; clang on macOS), the build tools, the libraries the
+stack links, `python_packages` and `base_packages` (yours: `base_packages = ["scipy"]` in `machine.toml`).
+Every build runs inside it: its compilers, whose sysroot keeps `/usr/include` and `/usr/lib` out, its
+headers and an rpath to its libraries (`{cflags}`, `{cxxflags}`, `{ldflags}`). Its `lib/` never joins
+`LD_LIBRARY_PATH`, so the OS's own programs keep the OS's libraries. `--base` makes (or brings up to date)
+the base alone; `--update-base` takes its packages to their newest first. A stamp holds what the base's
+libraries were: an update that changes one marks what was built on it "changed" (`--rebuild` it), a
+tool's update (pandoc, cmake) nothing. A machine root made before the base (a `venv/`, no `base/`) stays
+on `base = "system"` until told otherwise; `base=system` builds as before, with apt and a venv.
 
 **Settings.** Any key of `settings.toml` is `key=value` on the command line (`cores=8
 graphics=OFF`); any key of a package is `<package>.<key>=value` (`root.release=6.40.06`,
@@ -74,10 +93,11 @@ one (`pdf_sets = ["NNPDF31_nnlo_as_0118"]` adds a set; `setup_extra` adds lines 
 its table says `replace = ["pdf_sets"]`; anything else replaces. `[cluster]` is `hep cluster`'s
 defaults for every work dir on the machine.
 
-**The layers, lowest first:** the recipes (`toolkits/standard.toml`) and `settings.toml`; the
-platform's fixes (`platforms/mac/mac.toml` on macOS; `--platform mac` shows them anywhere); the
-toolkits asked for, each after what it extends (§6); `machine.toml`; `--config` files; the command
-line. `--list @<toolkit>` says which layer changed which value.
+**The layers, lowest first:** the recipes (`toolkits/standard.toml`) and `settings.toml`; the base's
+(`base.toml`'s `[settings]`, `[env]` and `[packages.*]`, with `base = "conda"`); the platform's fixes
+(`platforms/mac/mac.toml` on macOS, then `platforms/mac/<base>.toml`; `--platform mac` shows them
+anywhere); the toolkits asked for, each after what it extends (§6); `machine.toml`; `--config` files;
+the command line. `--list @<toolkit>` says which layer changed which value.
 
 ```toml
 [settings]
@@ -91,8 +111,10 @@ args = ["-Dcuda=ON"]          # after ROOT's own arguments
 **Cores.** `cores` is how many compilers run at once: each package's build gets it as
 `make -j<cores>` (autotools) or `cmake --build <build> -j<cores>` (CMake); one compiler keeps one CPU
 busy. `cores = 0` takes every CPU the build may run on: logical CPUs, so hyper-threads count (the
-lab PC's i7-13700K has 16 cores and 24 threads: 24). ROOT has its own, `root_cores`, because each of
-its LLVM/Cling compilers needs ~3 GB: `0` gives one per 3 GB of RAM, at most `cores` (5 on 15 GB).
+lab PC's i7-13700K has 16 cores and 24 threads: 24). ROOT and Rivet have their own, `root_cores`,
+because each of ROOT's LLVM/Cling compilers, and each of Rivet's analysis libraries (one compiler run
+per experiment), needs ~3 GB: `0` gives one per 3 GB of RAM, at most `cores` (4 on 14 GB). At every
+core, Rivet's took a 14 GB machine down.
 `make install`, pip and the downloads do not use it.
 
 **Choosing packages.** `packages = "core"` (the default), `"all"` (core and extra), a toolkit
@@ -151,7 +173,7 @@ What a machine needs beyond it (`setup_extra`) goes to the machine root's `machi
 
 | Package | Release | Kind | For |
 |---|---|---|---|
-| `python` | your `python3` | a venv in the machine root's `venv/`, `python_packages`, `heimdall.pth` | every Python binding; the framework's `tomli_w`, `rich`, `uproot`, Pillow, matplotlib, pytest |
+| `python` | the base's (`base_python`); `base=system`: your `python3` | the base is the Python environment: `heimdall.pth` into it; `base=system`: a venv in `venv/`, `python_packages`, `heimdall.pth` | every Python binding; the framework's `tomli_w`, `rich`, `uproot`, Pillow, matplotlib, pytest |
 | `lhapdf` | 6.5.6 | autotools | PDFs for Pythia8, Herwig, Sherpa, Whizard, MadGraph |
 | `hepmc3` | 3.3.1 | CMake | the event format between the tools |
 | `fastjet` | 3.5.0 | autotools, the SISCone patch | jets for Rivet, Pythia8, Sherpa, Whizard and module programs |
@@ -175,7 +197,7 @@ The installs go to `stack/<dir>` (a recipe's `install`, else its name). `env/pac
 from the recipes (`make registry`; a test keeps it current), lists them for `env/hep_env.sh`, with
 what this stack's own builds made (`stack/.stamps/folders`). `hep status --stack` (or `hep_status`)
 shows what is installed, from the recipes. More Python packages (scipy, pandas, scikit-learn, pyhf, …)
-go into `python_packages`.
+go into `python_packages` (from conda-forge in the base; from pip in a venv).
 
 **A new package** is a `[packages.<name>]` table: in a toolkit of your own (§6), which builds it, or in
 `machine.toml` or a `--config` file:
@@ -186,7 +208,8 @@ release = "1.2"
 url     = "https://example.org/mytool-{release}.tar.gz"
 kind    = "cmake"
 needs   = ["root", "hepmc3"]
-args    = ["-DWITH_ROOT={inst}/root"]
+args    = ["-DWITH_ROOT={dir_root}"]     # where ROOT is: stack/root, or the base when it is ready-made
+base    = ["boost-cpp"]                 # what it needs in the base (conda-forge's names); apt = [...] for base=system
 ```
 
 ---
@@ -198,7 +221,14 @@ Each of these was hit on the lab PC; the TOML files do what is in the right colu
 | Package | Problem | What is done |
 |---|---|---|
 | all | ROOT, Rivet, Pythia8 and the module programs pass C++ types across libraries: mixed standards are ABI trouble | one standard for everything: `CXXFLAGS="-O2 -std=c++17"` for every build, and `CMAKE_CXX_STANDARD=17` |
-| all | the build of one package needs the ones before it on its paths | the venv first on `PATH`, and every install on `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`, as `setup.sh` gives them later (`settings.toml [env]` for the rest) |
+| all | the build of one package needs the ones before it on its paths | the base's (or venv's) `bin/` first on `PATH`, and every install on `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`, as `setup.sh` gives them later (`settings.toml [env]` for the rest) |
+| all, on the base | conda's GCC searches its own sysroot, not `/usr`; a program built on the base needs the base's `libstdc++` at run time | every build inside the base's activation, `-isystem <base>/include` and `-Wl,-rpath,<base>/lib` (`{cflags}`, `{cxxflags}`, `{ldflags}`); `<base>/lib` never on `LD_LIBRARY_PATH` |
+| YODA, Rivet, ThePEG, Herwig | on the base, their configure looks for zlib in `/usr/local /usr` (adding `-I/usr/include`: the OS's glibc headers among the base's, "bits/timesize.h: No such file") and for GSL on "the system" | `--with-zlib=<base>`, `--with-gsl=<base>` (`base.toml`) |
+| the base | conda-forge's ROOT is built against glibc 2.17's headers and pins that sysroot; the compilers alone get 2.28 | the sysroot unpinned in `base.toml`: the newest the solve allows |
+| the base | conda-forge's toml++ (header-only) ships a CMake config and no pkg-config file, which `env/stack.toml`'s probe asks for: Paint, App_Pythia and the module kit do not build | `base/pkgconfig/tomlplusplus.pc`, written for the installed version (`[base.pkgconfig]`), on `PKG_CONFIG_PATH` by `activate.sh` |
+| ready-made ROOT | conda-forge builds it for C++20 and 23 only; at the stack's C++17, every source including it warns that the standards differ | a ready-made ROOT makes the stack C++20, and the base asks for that build (`conda_std`; `root_base * cxx20*`); a C++17 `cxx_std` set with it is refused |
+| ready-made Pythia8 | its `pythia8-config --cxxflags` says `-std=c++11`, after the stack's own on the compile line | `framework/rules.mk` puts the stack's `-std` last |
+| ready-made ROOT | its headers are in the base's `include/`, which every source sees, so `Module.hh` turns its ROOT output on in modules that do not link ROOT (`TVersionCheck` undefined) | `rules.mk`: a source using the kit links ROOT too when ROOT's headers are in the base |
 | HepMC3 | `pyHepMC3` built but not installed; `GenEvent` missing from it | `-DHEPMC3_Python_SITEARCH<XY>=<venv site-packages>` (`HEPMC3_PYTHON_INSTALL_DIR` is ignored), and `-fno-lto`: LTO strips the pybind11 symbols |
 | FastJet | several Rivets in one process (InprocJets, `rivet_threads`) cluster SISCone jets with one shared random state: other jets, or a FastJet internal error (L16, L29) | `fastjet.patch`: `recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch`, the state per thread; one thread draws exactly what it drew before |
 | fjcontrib | `make install` gives only static contrib libraries | `make fragile-shared-install` as well: `libfastjetcontribfragile.so`, as the lab PC has it |
@@ -212,23 +242,27 @@ Each of these was hit on the lab PC; the TOML files do what is in the right colu
 | Herwig | `make install` writes `HerwigDefaults.rpo`, which needs CT14lo/CT14nlo | `lhapdf install CT14lo CT14nlo` first, `LHAPDF_DATA_PATH` set |
 | Delphes | DelphesPythia8 is built only when Pythia8 is found | `PYTHIA8=<install>` in its environment, `-DROOT_DIR=<root>/cmake` |
 | Sherpa | its `_DIR` options are spelled per package (`HepMC3_DIR`, `RIVET_DIR`, `FASTJET_DIR`, `LHAPDF_DIR`) | as Sherpa spells them; `HepMC3_DIR` is the CMake config directory |
-| Whizard | HepMC3 is `--enable-hepmc --with-hepmc` (no `*hepmc3` options); O'Mega needs OCaml | so; `ocaml ocaml-findlib libgc-dev` are system packages |
+| Whizard | HepMC3 is `--enable-hepmc --with-hepmc` (no `*hepmc3` options); O'Mega needs OCaml | so; OCaml from the base (`ocaml`, `ocaml-findlib`, `bdw-gc`), or apt's `ocaml ocaml-findlib libgc-dev` |
 | MadGraph | not built: a tree that finds LHAPDF and Pythia8 through its configuration file | unpacked into `stack/madgraph`; `lhapdf`, `pythia8_path` and `automatic_html_opening = False` set |
 | Python | pip wheels of FastJet or HepMC3 do not match the stack's symbols | every compiled HEP library is built here; pip installs only pure-Python and ML packages |
 
 ---
 
-## 4. System packages
+## 4. The base, or the system's packages
 
-With `system = true` (the default), the run first installs `settings.toml`'s `apt_packages` with
-apt-get, through sudo when not root (its password is asked before anything is logged), and stamps
-`system`. The list is grouped there by what needs each package: the build tools, Python, ROOT,
-ThePEG and Herwig, LHAPDF, Sherpa, Whizard (OCaml), Geant4, and the framework itself (toml++,
-zstd, zlib for Paint, App_Pythia and the module kit; pdflatex for sheet figures; pandoc, poppler
-and the Beamer class for decks and sheets, `hep deck`).
+**The base** (`base = "conda"`, the default): `base.toml` lists the conda-forge packages by what needs
+them, as `apt_packages` does: the libraries ROOT, ThePEG and Herwig, LHAPDF, Sherpa, Whizard (OCaml) and
+Geant4 link, and the framework's own (toml++, zstd, zlib), then the tools (make, cmake, autotools, pandoc,
+poppler), then each platform's compilers. A recipe's own go in its `base = [...]`; yours in
+`base_packages`. pixi solves them for this machine's platform into `base/pixi.lock`. What the base cannot
+hold stays the OS's: glibc and the kernel, the GPU and GL drivers, and TeX (pdflatex for sheet figures,
+the Beamer class for decks: `texlive-latex-recommended` and `-extra` on Ubuntu) until conda-forge's is
+proven (docs/conda/01 §7).
 
-On a distribution without apt, install the same packages under its names and run with
-`system=false`.
+**`base=system`** (and a machine root made before the base): the run first installs `settings.toml`'s
+`apt_packages` with apt-get, through sudo when not root (its password is asked before anything is
+logged), and stamps `system`. The list is grouped there the same way. On a distribution without apt,
+install the same packages under its names and run with `system=false`.
 
 ---
 
@@ -257,8 +291,9 @@ recorded run says; a recipe change is proven when a machine records it again. Th
 `.github/workflows/stack.yml` (started by hand) builds the container on a clean Ubuntu, then runs
 `hep doctor --quick` and the fast tests in it.
 
-**After an OS upgrade.** An upgrade can replace a system library under the stack's feet (Ubuntu
-26.04: libgsl, libzip, libxml2). `hep doctor` names what no longer resolves; `build_stack.py
+**After an OS upgrade.** On the base, nothing the stack links comes from the OS but glibc, so an
+upgrade leaves it alone. With `base=system`, an upgrade can replace a system library under the stack's
+feet (Ubuntu 26.04: libgsl, libzip, libxml2). `hep doctor` names what no longer resolves; `build_stack.py
 --rebuild-broken` rebuilds exactly those packages and what needs them (`--dry-run` first). Each build
 records the system libraries it linked, beside its stamp (`.libs`).
 
@@ -333,6 +368,8 @@ replaced: a machine changes recipes in `machine.toml` or in a toolkit of its own
 | `@heavy-ion` | heavy-ion collisions | JETSCAPE, HDF5 (YODA with `.yoda.h5`) |
 | `@data` | data formats and publishing | HDF5 with HighFive (and h5py), the HEPData clients |
 | `@key4hep`, `@cms`, `@fluka` | external stacks | nothing built: the run says where they come from |
+| `@core-conda`, `@lab-conda`, `@primary-conda`, `@generators-conda` | the same sets, **ready-made from conda-forge** where it carries a package: minutes, not hours | as `@standard`, `@lab`, `@primary`, `@generators`; MadGraph, Whizard and MadAnalysis 5 still built here |
+| `@conda` | a layer: every recipe conda-forge carries, ready-made | nothing of its own: `extends = ["detector", "conda"]` makes another set ready-made |
 | `@key4hep-src` | Key4hep's data model and framework, from source | **isolated, C++20:** ROOT, HepMC3, Geant4, podio, EDM4hep, Gaudi |
 | `@gpu-sim` | Geant4 EM showers on the GPU | **isolated, C++20:** Geant4, VecCore, VecGeom, G4HepEm, AdePT; CUDA (external) |
 
@@ -359,7 +396,20 @@ build a whole stack of its own:
   container of its own and never mixed with `setup.sh`'s. FLUKA comes behind its licence, and
   Mathematica behind its own. Their `how` says where each comes from.
 - **`apt = [...]`**: a package's own system packages, installed with `settings.toml`'s for the run
-  that builds it.
+  that builds it (`base=system`); **`base = [...]`**, the same in the base, by conda-forge's names.
+
+**Ready-made from conda-forge.** A recipe with `from = "conda-forge"` (its `conda` names the package) is
+installed into the base with it, not built; `{dir_<package>}` then points its dependents at the base, and
+its checks run, with what conda-forge's build lacks said rather than fatal. `@conda` sets it for every
+recipe conda-forge carries (`toolkits/conda.toml` says which, and what differs: FastJet without the
+SISCone patch, so InprocJets refuses `rivet_threads > 1`; Pythia 8.312; Sherpa 3.0.0 without Rivet's
+interface). What a ready-made package needs must be ready-made too, or there would be two of it
+(conda-forge's and the stack's): the run refuses that, naming the package. A recipe's `conda` may pin
+the build it takes (`conda = ["root", "root_base * cxx{cxx_std}*"]`), and `conda_std` names the C++
+standards conda-forge builds it for: taken ready-made, it sets the stack's. A machine root remembers
+what it took ready-made without being told again: a recipe that no layer gives a `from`, whose package
+is in the base and which the stack has not built, is the base's (`hep doctor`, `hep stack status` and a
+later `hep stack build` see it so).
 
 ### What was asked for, and what came of it
 

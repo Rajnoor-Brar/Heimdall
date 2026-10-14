@@ -6,7 +6,7 @@
 #   alias load_hep="$HOME/Github/Heimdall/launch.sh"       in ~/.zshrc or ~/.bashrc
 #
 # The environment (setup.sh, env/hep_env.sh) is bash. In a bash already, `source setup.sh` loads it into
-# that shell itself instead. On macOS this runs Homebrew's bash (the system's is 3.2).
+# that shell itself instead. On macOS this runs the base's bash, or Homebrew's (the system's is 3.2).
 
 set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -25,14 +25,17 @@ if [ ! -d "$machine/stack" ]; then
 fi
 
 bash=$(command -v bash)
-if [ "$(uname -s)" = Darwin ]; then
-    if ! command -v brew >/dev/null; then
-        for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -x "$b" ] && eval "$("$b" shellenv)" && break; done
+if [ "$(uname -s)" = Darwin ]; then                           # macOS's own bash is 3.2: the base's, else Homebrew's
+    bash=$machine/base/.pixi/envs/default/bin/bash
+    if [ ! -x "$bash" ]; then
+        if ! command -v brew >/dev/null; then
+            for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -x "$b" ] && eval "$("$b" shellenv)" && break; done
+        fi
+        command -v brew >/dev/null || { echo "no bash 4 or newer: no base in $machine, and no Homebrew (recipes/platforms/mac/README.md)" >&2; exit 1; }
+        eval "$(brew shellenv)"
+        bash=$HOMEBREW_PREFIX/bin/bash
+        [ -x "$bash" ] || { echo "no Homebrew bash: brew install bash" >&2; exit 1; }
     fi
-    command -v brew >/dev/null || { echo "no Homebrew (recipes/platforms/mac/README.md step 2)" >&2; exit 1; }
-    eval "$(brew shellenv)"
-    bash=$HOMEBREW_PREFIX/bin/bash
-    [ -x "$bash" ] || { echo "no Homebrew bash: brew install bash" >&2; exit 1; }
 fi
 
 if [ $# -eq 0 ]; then                                         # a shell: your ~/.bashrc, then the stack

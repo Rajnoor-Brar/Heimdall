@@ -1,0 +1,4 @@
+# recipes/toolkits/generators-conda.toml — @generators-conda (README.md §6)
+
+description = "@generators, ready-made from conda-forge where it carries the package (MadGraph, Whizard built here)"
+extends     = ["generators", "conda"]

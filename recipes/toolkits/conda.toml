@@ -1,0 +1,71 @@
+# recipes/toolkits/conda.toml — @conda (README.md §6)
+#
+# A layer, not a set: every recipe conda-forge carries, taken ready-made into the base instead of built
+# (from = "conda-forge"; its package is the recipe's `conda`). It adds no package: extend it with the set you
+# want (`extends = ["lab", "conda"]`), as the @…-conda toolkits do; a recipe left out below, or put back
+# with from = "source", is built here as before. Its checks still run: what conda-forge's build lacks is
+# said, not fatal. Not ready-made, for they are not on conda-forge: MadGraph, Whizard, MadAnalysis 5,
+# PHOTOS++, TAUOLA++, SuperChic, MCFM, JETSCAPE, Garfield++, the PDF sets (`lhapdf install`, as always).
+#
+# What differs from the recipes (conda-forge, 2026-10-14; docs/conda/01_Assessment.md §4):
+#   fastjet   3.5.2, without the SISCone patch: InprocJets refuses rivet_threads > 1
+#   fjcontrib 1.105, without the separate contrib libraries (libRecursiveTools …): its check says so
+#   root      built for C++20 or 23 only: ready-made, it makes the stack C++20 (the recipe's conda_std)
+#   pythia8   8.312 (the recipe 8318); sherpa 3.0.0 (3.0.5), without Rivet's interface
+
+description = "a layer: every recipe conda-forge carries, ready-made instead of built (add it to a set)"
+note        = "FastJet comes without the SISCone patch; ROOT makes the stack C++20; Pythia 8.312, Sherpa 3.0.0 (docs/conda/)"
+
+[packages.lhapdf]
+from = "conda-forge"
+
+[packages.hepmc3]
+from = "conda-forge"
+
+[packages.fastjet]
+from = "conda-forge"
+
+[packages.fjcontrib]
+from = "conda-forge"
+
+[packages.root]
+from = "conda-forge"
+
+[packages.hdf5]
+from = "conda-forge"
+
+[packages.yoda]
+from = "conda-forge"
+
+[packages.rivet]
+from = "conda-forge"
+
+[packages.pythia8]
+from = "conda-forge"
+
+[packages.thepeg]
+from = "conda-forge"
+
+[packages.herwig]
+from = "conda-forge"
+
+[packages.delphes]
+from = "conda-forge"
+
+[packages.sherpa]
+from = "conda-forge"
+
+[packages.onnxruntime]
+from = "conda-forge"
+
+[packages.geant4]
+from = "conda-forge"
+
+[packages.highfive]
+from = "conda-forge"
+
+[packages.professor]
+from = "conda-forge"
+
+[packages.contur]
+from = "conda-forge"

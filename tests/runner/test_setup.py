@@ -286,6 +286,53 @@ def test_quit_undoes_machine_sh_and_refresh_never_piles_it_up(scratch):
     assert out.stdout.split("\n")[:4] == ["machine changed gone", "1", "2", "as-before"], out.stdout
 
 
+def a_base_machine(root: Path) -> Path:
+    """A machine root on a conda base, for the test: the real venv's Python dressed as the base's prefix
+    (its pyvenv.cfg copied, bin/python and lib/ linked), an activate.d script as a compiler's, and the
+    activate.sh the build writes (recipes/build_stack.py)."""
+    from runner import plugins
+    bs = plugins.load(REPO / "recipes" / "build_stack.py", "build_stack")
+    env = root / "base" / ".pixi" / "envs" / "default"
+    (env / "bin").mkdir(parents=True)
+    venv = Path(os.environ["HEP_VENV"])
+    (env / "pyvenv.cfg").write_text((venv / "pyvenv.cfg").read_text(encoding="utf-8"), encoding="utf-8")
+    (env / "bin" / "python").symlink_to(venv / "bin" / "python")
+    (env / "lib").symlink_to(venv / "lib", target_is_directory=True)
+    (env / "etc" / "conda" / "activate.d").mkdir(parents=True)
+    (env / "etc" / "conda" / "activate.d" / "activate-gxx.sh").write_text(
+        "export CXX=x86_64-conda-linux-gnu-c++ CXXFLAGS='-march=nocona' CMAKE_ARGS=-DX=1\n", encoding="utf-8")
+    (root / "base" / "activate.sh").write_text(bs.activate_text({"base": str(env), "base_dir": str(root / "base")}),
+                                               encoding="utf-8")
+    for sub in ("root/bin", "root/lib"):
+        (root / "stack" / sub).mkdir(parents=True)
+    return root
+
+
+@NEEDS_VENV
+def test_a_conda_base_is_loaded_kept_off_ld_library_path_and_quit_takes_it_out(scratch):
+    """docs/conda/02 §5: setup.sh sources base/activate.sh (the compilers, not their flags), the base is
+    the Python environment, its lib/ never joins LD_LIBRARY_PATH, and quit leaves the shell as it was."""
+    root = a_base_machine(scratch / "machine")
+    env = root / "base" / ".pixi" / "envs" / "default"
+    keep = "grep -v -e '^_=' -e '^HEP=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD=' -e '^PS1=' | sort"
+    out = shell(f"""set -e
+        export HEP_MACHINE={root} CXXFLAGS=-O1
+        before=$(env | {keep})
+        source {REPO}/setup.sh >/dev/null
+        echo "$HEP_BASE|$HEP_VENV|$CONDA_PREFIX|$CXX|${{CXXFLAGS-unset}}|$CMAKE_ARGS"
+        tr ':' '\n' <<< "$PATH" | grep -c '^{env}/bin$'
+        tr ':' '\n' <<< "${{LD_LIBRARY_PATH-}}" | grep -c '^{env}' || true
+        tr ':' '\n' <<< "$LD_LIBRARY_PATH" | grep -c '^{root}/stack/root/lib$'
+        hep refresh >/dev/null
+        tr ':' '\n' <<< "$PATH" | grep -c '^{env}/bin$'
+        hep quit
+        after=$(env | {keep})
+        [ "$before" = "$after" ] && echo as-before || diff <(echo "$before") <(echo "$after")""")
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.split("\n")[:6] == [f"{env}|{env}|{env}|x86_64-conda-linux-gnu-c++|unset|-DX=1",
+                                           "1", "0", "1", "1", "as-before"], out.stdout
+
+
 def test_hep_cd_goes_to_a_project_folder_of_the_work_dir():
     out = shell(f"""set -e
         source {REPO}/setup.sh >/dev/null

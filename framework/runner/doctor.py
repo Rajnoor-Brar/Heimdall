@@ -44,14 +44,19 @@ def stack_status() -> list[str]:
     bs = builder()
     _, packages, c = loaded(bs)
     out = [f"the stack: {c['inst']}" + (f" (@{c['stack']}, C++{c['cxx_std']})" if c["stack"] else ""),
+           bs.base_line(c).replace("base:    ", "the base:  ", 1),
            f"  {'package':13} {'release':10} {'state':18} folder"]
     for name, p in packages.items():
         now = "" if p.get("kind") == "external" else bs.state(name, p, c)
         if now:
-            folder = "venv" if name == "python" else p.get("install", name) if p.get("kind") != "none" else "-"
+            ready = bs.ready_made(p)
+            folder = ("base" if ready or (name == "python" and c["base"]) else "venv" if name == "python"
+                      else p.get("install", name) if p.get("kind") != "none" else "-")
             release = "?" if now == "installed" else str(p.get("release", "—"))   # not built here: below
+            if ready:                                              # conda-forge's version
+                release = c["conda_meta"].get(bs.conda_name(p), "?").split("-")[0]
             out.append(f"  {name:13} {release:10} {now:18} {folder}")
-    if len(out) == 2:
+    if len(out) == 3:
         out.append("  (nothing installed: python3 recipes/build_stack.py)")
     if any(" installed " in line for line in out[2:]):
         out.append("  (installed: there, but not built by build_stack.py here; its version is below, or in hep doctor)")

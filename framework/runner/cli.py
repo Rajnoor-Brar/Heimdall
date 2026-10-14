@@ -1217,7 +1217,10 @@ def cmd_help(args) -> int:
     if args.topic in PASSED_ON:
         print(f"hep {args.topic}: {commands.choices[args.topic].description}")
         if args.topic == "stack":
-            print("  hep stack build [packages=@kit] [key=value…] [--dry-run]   the stack's builder (recipes/build_stack.py)\n"
+            print("  hep stack build [packages=@kit] [key=value…] [--dry-run]   the stack's builder (recipes/build_stack.py),\n"
+                  "                                                              on a conda base (base=system: apt, a venv)\n"
+                  "  hep stack build --base | --update-base                     the base only; its packages to their newest\n"
+                  "  hep stack build packages=@core-conda                       the core ready-made from conda-forge\n"
                   "  hep stack list [@kit]                                       its recipes and what is installed\n"
                   "  hep stack status                                            each package, its release and state\n"
                   "  hep stack doctor [--quick]                                  what the stack can do, checked")
@@ -1257,7 +1260,7 @@ def cmd_make(args) -> int:
 
 
 def _system_python() -> str:
-    """The first python3 on PATH that is not the machine's venv's: the stack's builder makes the venv."""
+    """The first python3 on PATH that is not the machine's venv's or base's: the stack's builder makes them."""
     from .paths import machine_root
     venvs = {str((machine_root() / "venv" / "bin").resolve())}
     if os.environ.get("HEP_VENV"):

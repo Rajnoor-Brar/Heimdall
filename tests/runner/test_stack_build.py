@@ -130,28 +130,59 @@ def test_the_templates_examples_are_the_tables_the_build_reads(bs, tmp_path):
     assert s["cores"] == 20 and packages["root"]["extra"][-1] == "-Dcuda=ON"
 
 def test_the_dry_run_is_a_bash_script_and_writes_nothing(bs, tmp_path, capsys):
+    """The default: the conda base first (pixi fetched and checked, the manifest, `pixi install`, the
+    activation), then every build inside it (docs/conda/)."""
     prefix = tmp_path / "hep"
-    bs.main(["--dry-run", f"machine={prefix}", "packages=all", "system=false", "root_cores=2"])
+    bs.main(["--dry-run", f"machine={prefix}", "packages=all", "root_cores=2"])
     script = capsys.readouterr().out
     assert not prefix.exists()
     assert script.isascii()                                         # any locale can print and save it
     assert subprocess.run(["bash", "-n"], input=script, text=True).returncode == 0
+    env = prefix / "base" / ".pixi" / "envs" / "default"
     for line in ("set -euo pipefail", "-p0 -i " + str(REPO / "recipes/patches"), "--with-hepmcversion=3",
                  "make fragile-shared-install", f"cmake --build {prefix}/forge/build/root -j2",
-                 f"-m venv --prompt HEP {prefix}/venv", f"{prefix}/venv/bin/python {REPO}/recipes/pth.py",
+                 f"{prefix}/forge/downloads/pixi-0.81.0-", "sha256sum -c -", f"cat > {prefix}/base/pixi.toml <<'EOF'",
+                 f"{prefix}/forge/pixi/bin/pixi install --manifest-path {prefix}/base/pixi.toml",
+                 f"source {prefix}/base/activate.sh", f"{env}/bin/python {REPO}/recipes/pth.py",
+                 f"-DPython3_EXECUTABLE={env}/bin/python", f"--with-zlib={env}", f"export LDFLAGS='-L{env}/lib -Wl,-rpath,{env}/lib",
                  f"--with-root={prefix}/stack/root", "lhapdf install CT14lo CT14nlo", f"{prefix}/forge/downloads/root-6.40.04.tar.gz"):
         assert line in script, line
+    assert "apt-get" not in script and "-m venv" not in script and "unset VIRTUAL_ENV" in script
+    assert script.index("pixi install") < script.index("source ") < script.index("# == python")
     assert "setup.sh <<" not in script and "machine.sh" not in script   # setup.sh is tracked; no extra lines on Linux
     assert script.index("# == root") < script.index("# == pythia8")
 
 
+def test_the_old_way_is_apt_and_a_venv(bs, tmp_path, capsys):
+    """base=system: apt_packages and a venv, as before the base."""
+    prefix = tmp_path / "hep"
+    bs.main(["--dry-run", f"machine={prefix}", "packages=all", "base=system", "root_cores=2"])
+    script = capsys.readouterr().out
+    for line in (f"-m venv --prompt HEP {prefix}/venv", f"{prefix}/venv/bin/python {REPO}/recipes/pth.py",
+                 "apt-get install", f"--with-root={prefix}/stack/root", f"-DPython3_EXECUTABLE={prefix}/venv/bin/python"):
+        assert line in script, line
+    assert "pixi" not in script and "-isystem" not in script and "--with-zlib" not in script
+
+
+def test_a_machine_root_made_before_the_base_stays_on_the_system(bs, tmp_path):
+    """Nothing is converted (the user, 2026-10-14): a root with a venv/ and no base/ builds as it did,
+    unless base= says otherwise; a new root gets the base."""
+    (tmp_path / "old" / "venv").mkdir(parents=True)
+    assert bs.options([f"machine={tmp_path / 'old'}"])[1]["base"] == "system"
+    assert bs.options([f"machine={tmp_path / 'old'}", "base=conda"])[1]["base"] == "conda"
+    assert bs.options([f"machine={tmp_path / 'new'}"])[1]["base"] == "conda"
+    with pytest.raises(SystemExit, match="base is"):
+        bs.options([f"machine={tmp_path}", "base=brew"])
+
+
 def test_the_mac_overlay(bs, tmp_path, monkeypatch, capsys):
-    """recipes/platforms/mac/mac.toml, laid by itself with macOS switched on: no apt, Homebrew's paths,
-    ROOT through Cocoa, absolute install names, DYLD_LIBRARY_PATH, the macOS ONNX Runtime."""
+    """recipes/platforms/mac/mac.toml, laid by itself with macOS switched on, and system.toml with
+    base=system: no apt, Homebrew's paths, ROOT through Cocoa, absolute install names, DYLD_LIBRARY_PATH,
+    the macOS ONNX Runtime."""
     monkeypatch.setattr(bs, "MAC", True)
     monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
     prefix = tmp_path / "hep"
-    bs.main(["--dry-run", f"machine={prefix}", "packages=all"])
+    bs.main(["--dry-run", f"machine={prefix}", "packages=all", "base=system"])
     script = capsys.readouterr().out
     root = next(line for line in script.splitlines() if line.startswith(f"cmake -S {prefix}/forge/src/root "))
     assert root.index("-Dx11=OFF") < root.index("-Dcocoa=ON")        # the overlay's come last, and win
@@ -165,6 +196,21 @@ def test_the_mac_overlay(bs, tmp_path, monkeypatch, capsys):
         assert line in script, line
     assert "apt-get" not in script and "export LD_LIBRARY_PATH=" not in script
     assert subprocess.run(["bash", "-n"], input=script, text=True, encoding="utf-8").returncode == 0
+
+
+def test_the_mac_on_the_conda_base_needs_no_homebrew(bs, tmp_path, monkeypatch, capsys):
+    """mac.toml and conda.toml: no {HOMEBREW_PREFIX} anywhere (it is not set), the base's GSL and rpath."""
+    monkeypatch.setattr(bs, "MAC", True)
+    monkeypatch.delenv("HOMEBREW_PREFIX", raising=False)
+    monkeypatch.setattr(bs.os, "uname", lambda: type("U", (), {"sysname": "Darwin", "machine": "arm64"})())
+    prefix = tmp_path / "hep"
+    bs.main(["--dry-run", f"machine={prefix}", "packages=@primary"])
+    script = capsys.readouterr().out
+    env = prefix / "base" / ".pixi" / "envs" / "default"
+    thepeg = next(line for line in script.splitlines() if "./configure" in line and "/thepeg " in line)
+    assert f"--with-gsl={env}" in thepeg and f"'LDFLAGS=-L{env}/lib -Wl,-rpath,{env}/lib -lc++'" in thepeg
+    assert "homebrew" not in script.lower() and "-rpath-link" not in script and "aarch64-apple-darwin" in script
+    assert 'platforms = ["osx-arm64"]' in script and "clangxx_osx-arm64" in script and "gcc_linux-64" not in script
 
 
 def test_the_system_packages_carry_what_decks_need(bs, tmp_path):
@@ -181,7 +227,7 @@ def test_every_toolkit_plans_and_names_only_packages(bs, tmp_path):
     assert {"standard", "lab", "bsm-recast", "heavy-flavour", "detector", "key4hep"} <= set(kits)
     for name in kits:
         (order, _), _, _ = planned(bs, tmp_path, f"packages=@{name}")
-        assert order, name
+        assert order or name == "conda", name                       # @conda is a layer: it adds no package
         for package in order:                                        # each after what it needs
             assert all(order.index(n) < order.index(package) for n in packages[package].get("needs", []) if n in order)
     (lab, _), _, _ = planned(bs, tmp_path, "packages=@lab")
@@ -224,10 +270,13 @@ def test_every_stack_toml_library_is_a_recipe_or_the_systems(bs):
     stack = tomllib.loads((REPO / "env" / "stack.toml").read_text(encoding="utf-8"))
     recipes = bs.read(REPO / "recipes" / "toolkits" / "standard.toml")["packages"]
     system = {"toml": "libtomlplusplus-dev", "zstd": "libzstd-dev", "zlib": "zlib1g-dev"}
+    conda = {"toml": "tomlplusplus", "zstd": "zstd", "zlib": "zlib"}             # the same, in the base
+    base = {e for group in bs.read(bs.BASE_FILE)["base"]["libraries"].values() for e in group}
     named = {"onnx": "onnxruntime"}
     for entry in stack:
         if entry in system:
             assert system[entry] in bs.read(REPO / "recipes" / "settings.toml")["apt_packages"], entry
+            assert conda[entry] in base, entry
         else:
             assert named.get(entry, entry) in recipes, entry
 
@@ -250,7 +299,7 @@ def test_an_unknown_toolkit_is_refused(bs, tmp_path, arg):
 
 def test_external_packages_are_never_built(bs, tmp_path, capsys):
     prefix = tmp_path / "hep"
-    bs.main(["--dry-run", f"machine={prefix}", "packages=@key4hep @cms @fluka", "system=false"])
+    bs.main(["--dry-run", f"machine={prefix}", "packages=@key4hep @cms @fluka", "base=system", "system=false"])
     out = capsys.readouterr()
     assert "# == key4hep" not in out.out and "curl" not in out.out   # nothing fetched, nothing run
     for name in ("key4hep", "cmssw", "fluka"):
@@ -261,11 +310,14 @@ def test_external_packages_are_never_built(bs, tmp_path, capsys):
 
 def test_new_recipes_say_so_and_bring_their_system_packages(bs, tmp_path, capsys):
     prefix = tmp_path / "hep"
-    bs.main(["--dry-run", f"machine={prefix}", "packages=@detector"])
+    bs.main(["--dry-run", f"machine={prefix}", "packages=@detector", "base=system"])
     out = capsys.readouterr()
     assert "dd4hep 01-38  (a recipe not yet proven by a build)" in out.err
     install = next(line for line in out.out.splitlines() if "apt-get install" in line)
     assert "libeigen3-dev" in install and "nlohmann-json3-dev" in install and "libxerces-c-dev" in install
+    bs.main(["--dry-run", f"machine={prefix}", "packages=@detector"])           # the base: conda-forge's names
+    manifest = capsys.readouterr().out
+    assert 'eigen = "*"' in manifest and 'nlohmann_json = "*"' in manifest and 'xerces-c = "*"' in manifest
     _, _, packages = bs.options([f"machine={tmp_path}"])
     proven = [n for n, p in packages.items() if p.get("group") in ("core", "extra")]
     assert not [n for n in proven if packages[n].get("status")]          # the lab PC's recipes are proven
@@ -275,12 +327,13 @@ def test_new_recipes_say_so_and_bring_their_system_packages(bs, tmp_path, capsys
 
 def test_an_isolated_toolkit_builds_a_stack_of_its_own(bs, tmp_path, capsys):
     prefix = tmp_path / "hep"
-    bs.main(["--dry-run", f"machine={prefix}", "packages=@key4hep-src", "system=false"])
+    bs.main(["--dry-run", f"machine={prefix}", "packages=@key4hep-src"])
     script = capsys.readouterr().out
     base = prefix / "stacks" / "key4hep-src"
     root = next(line for line in script.splitlines() if line.startswith(f"cmake -S {prefix}/forge/src/root "))  # forge/src/ is shared
     assert f"-DCMAKE_INSTALL_PREFIX={base}/stack/root" in root and "-DCMAKE_CXX_STANDARD=20" in root
-    assert f"-m venv --prompt HEP-key4hep-src {base}/venv" in script
+    assert f"pixi install --manifest-path {base}/base/pixi.toml" in script      # a base of its own
+    assert f"{prefix}/forge/pixi/bin/pixi" in script                            # one pixi per machine
     assert "-DGEANT4_BUILD_CXXSTD=20" in script                     # the toolkit's [packages.geant4]
     assert f"cat > {base}/setup.sh" in script and "HEP_STACK_REQUEST=key4hep-src" in script
     assert f"{prefix}/stack/" not in script                           # the default stack is not touched
@@ -601,7 +654,7 @@ def test_overrides_append_and_reach_the_environment(bs, tmp_path, monkeypatch):
                                  "delphes.env.EXTRA=1", "env.MY_FLAG=yes", "pdf_sets=CT10,cteq6l1"])
     assert packages["root"]["extra"][-1] == "-Dfoo=ON" and "-Dcocoa=ON" in packages["root"]["extra"]
     assert packages["thepeg"]["extra"][-1] == "LDFLAGS=-L/x -lc++"
-    assert packages["delphes"]["env"] == {"PYTHIA8": "{inst}/pythia8", "EXTRA": "1"}
+    assert packages["delphes"]["env"] == {"PYTHIA8": "{dir_pythia8}", "EXTRA": "1"}
     assert s["env"]["MY_FLAG"] == "yes" and s["pdf_sets"] == ["CT10", "cteq6l1"]
 
 
@@ -619,7 +672,7 @@ def test_the_macs_fixes_are_recipe_lines(bs, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(bs, "MAC", True)
     monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
     prefix = tmp_path / "hep"
-    bs.main(["--dry-run", f"machine={prefix}", "packages=@primary"])
+    bs.main(["--dry-run", f"machine={prefix}", "packages=@primary", "base=system"])
     lines = capsys.readouterr().out.splitlines()
     thepeg = next(line for line in lines if "./configure" in line and "/thepeg " in line)
     for part in ("THEPEG_DYNAMIC_TYPE_INFO_BUG", "_LIBCPP_ENABLE_CXX17_REMOVED_BINDERS", "--with-gsl=/opt/homebrew/opt/gsl",
@@ -664,3 +717,160 @@ def test_rebuild_broken_takes_what_lost_a_library_and_what_needs_it(bs, tmp_path
     out = capsys.readouterr()
     assert "root: needs libgsl.so.27" in out.err
     assert "# == root" in out.out and "# == delphes" in out.out and "# == rivet" not in out.out
+
+
+# ── the conda base (docs/conda/) ───────────────────────────────────────────────────────────────
+
+def a_base(c, **installed):
+    """A base as pixi leaves it, for the tests: conda-meta/<name>-<version>-<build>.json for each."""
+    meta = Path(c["base"]) / "conda-meta"
+    meta.mkdir(parents=True, exist_ok=True)
+    for file in meta.glob("*.json"):
+        file.unlink()
+    for name, version in installed.items():
+        (meta / f"{name.replace('_', '-') if name in ('lz4_c', 'fastjet_cxx') else name}-{version}-h0_0.json").write_text("{}")
+
+
+def test_the_manifest_is_the_base_list_the_python_packages_and_the_runs_recipes(bs, tmp_path):
+    (order, _), packages, c = planned(bs, tmp_path, "packages=@tuning", "base_packages=scipy 'gsl 2.8.*'",
+                                      "python_packages+=pandas")
+    text = bs.manifest_text(order, packages, c)
+    import tomllib
+    manifest = tomllib.loads(text)
+    deps = manifest["dependencies"]
+    assert manifest["workspace"]["channels"] == ["conda-forge"] and manifest["workspace"]["platforms"] == [c["conda_platform"]]
+    assert list(deps)[0] == "python" and deps["python"] == "3.12.*"
+    assert deps["gxx_linux-64"] == "15.*" and deps["sysroot_linux-64"] == "*"    # this platform's compilers;
+    # the sysroot the newest the solve allows: a ready-made ROOT pins 2.17
+    assert deps["tomli-w"] == "*" and deps["matplotlib-base"] == "*" and deps["pandas"] == "*"   # conda-forge's names
+    assert deps["eigen"] == "*"                                                # professor's own (`base`)
+    assert deps["scipy"] == "*" and deps["gsl"] == "2.8.*"                     # base_packages; a spec wins over "*"
+    assert "clangxx_osx-arm64" not in deps and "rivet" not in deps            # rivet is built here
+    assert text.isascii() and text.startswith("# base/pixi.toml")
+
+
+def test_a_conda_toolkit_takes_what_conda_forge_carries_ready_made(bs, tmp_path, capsys):
+    prefix = tmp_path / "hep"
+    bs.main(["--dry-run", f"machine={prefix}", "packages=@lab-conda"])
+    out = capsys.readouterr()
+    import tomllib
+    deps = tomllib.loads(out.out.split("pixi.toml <<'EOF'\n")[1].split("EOF\n")[0])["dependencies"]
+    for name in ("root", "rivet", "yoda", "hepmc3", "lhapdf", "fastjet-cxx", "fastjet-contrib", "pythia8", "herwig",
+                 "thepeg", "sherpa", "delphes", "geant4", "hdf5", "onnxruntime-cpp"):
+        assert name in deps, name
+    for name in ("root", "rivet", "pythia8", "herwig"):
+        assert f"{name}: ready-made from conda-forge" in out.err and f"# == {name}" not in out.out, name
+    for name in ("madgraph", "whizard", "pdfsets"):                           # not on conda-forge: built here
+        assert f"# == {name}" in out.out, name
+    whizard = next(line for line in out.out.splitlines() if "./configure" in line and "/whizard " in line)
+    env = prefix / "base" / ".pixi" / "envs" / "default"
+    assert f"--with-hepmc={env}" in whizard and f"--with-pythia8={env}" in whizard   # {dir_…}: the base's
+    assert "fastjet-3.5.0" not in out.out and "root_v6.40.04" not in out.out           # nothing ready-made is fetched
+    bs.main(["--list", "@core-conda", f"machine={prefix}"])
+    listing = capsys.readouterr().out
+    assert any(line.startswith("root ") and " conda " in line for line in listing.splitlines())
+    assert "base:    conda-forge, not made yet" in listing
+
+
+def test_a_ready_made_package_brings_what_it_needs_ready_made_too(bs, tmp_path):
+    """Two FastJets, conda-forge's under a ready-made Rivet and the stack's, would be one too many."""
+    with pytest.raises(SystemExit, match="rivet from conda-forge brings its own fastjet-cxx, and fastjet would be built"):
+        bs.main(["--dry-run", f"machine={tmp_path}", "packages=rivet", "rivet.from=conda-forge",
+                 "yoda.from=conda-forge", "hepmc3.from=conda-forge"])
+    with pytest.raises(SystemExit, match="names no conda package"):
+        bs.options([f"machine={tmp_path}", "whizard.from=conda-forge"])
+    with pytest.raises(SystemExit, match='needs base = "conda"'):
+        bs.options([f"machine={tmp_path}", "base=system", "root.from=conda-forge"])
+    with pytest.raises(SystemExit, match="from is"):
+        bs.options([f"machine={tmp_path}", "root.from=brew"])
+
+
+def test_a_ready_made_package_is_where_conda_forge_put_it(bs, tmp_path):
+    (order, _), packages, c = planned(bs, tmp_path, "packages=@core-conda")
+    assert c["dir_root"] == c["base"] == c["venv"] and c["dir_rivet"] == c["base"]
+    assert bs.state("root", packages["root"], c) == ""                       # not in the base yet
+    a_base(c, root="6.40.04", python="3.12.15")
+    c = bs.context(bs.options([f"machine={tmp_path}", "packages=@core-conda"])[1])
+    assert bs.state("root", packages["root"], c) == "ready-made" and bs.present("root", packages["root"], c)
+    assert bs.scope("root", packages["root"], c)["install"] == c["base"]
+    (order, _), packages, c = planned(bs, tmp_path, "packages=rivet")
+    assert c["dir_fastjet"] == f"{c['inst']}/fastjet" and c["dir_lhapdf"] == f"{c['inst']}/LHAPDF"
+
+
+def test_a_change_in_the_bases_libraries_marks_what_was_built_on_them(bs, tmp_path):
+    """A stamp holds the base's libraries (docs/conda/02 §4): gsl's build changing makes every package built
+    here "changed"; pandoc's (a tool) changes nothing; the system base never had any."""
+    _, s, packages = bs.options([f"machine={tmp_path}"])
+    c = bs.context(s)
+    a_base(c, python="3.12.15", gsl="2.8", pandoc="3.12.1", libstdcxx="15.3.0")
+    c = bs.context(s)
+    stamped(bs, tmp_path, "fastjet", packages=packages, c=c)
+    assert c["base_hash"] and bs.state("fastjet", packages["fastjet"], c) == "built"
+    a_base(c, python="3.12.15", gsl="2.8", pandoc="3.13.0", libstdcxx="15.3.0")
+    assert bs.state("fastjet", packages["fastjet"], bs.context(s)) == "built"
+    a_base(c, python="3.12.15", gsl="2.9", pandoc="3.13.0", libstdcxx="15.3.0")
+    assert bs.state("fastjet", packages["fastjet"], bs.context(s)) == "changed"
+    _, old, _ = bs.options([f"machine={tmp_path / 'old'}", "base=system"])
+    assert bs.context(old)["base_hash"] == "" and bs.context(old)["base"] == ""
+
+
+def test_the_activation_is_conda_s_less_the_compile_flags(bs, tmp_path):
+    """base/activate.sh runs the base's activate.d (the compilers' CC, CXX …) and leaves CFLAGS & co. unset:
+    the build and rules.mk set their own. setup.sh sources it; quit takes it out (test_setup.py)."""
+    _, s, _ = bs.options([f"machine={tmp_path}"])
+    c = bs.context(s)
+    hook = Path(c["base"]) / "etc" / "conda" / "activate.d"
+    hook.mkdir(parents=True)
+    (hook / "activate-gxx.sh").write_text("export CXX=x86_64-conda-linux-gnu-c++ CXXFLAGS='-march=nocona'\n")
+    Path(c["base_dir"], "activate.sh").write_text(bs.activate_text(c))
+    env = bs.activation(c, {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "CFLAGS": "-O3"})
+    assert env["CONDA_PREFIX"] == c["base"] and env["PATH"].startswith(f"{c['base']}/bin:")
+    assert env["CXX"] == "x86_64-conda-linux-gnu-c++" and "CXXFLAGS" not in env and "CFLAGS" not in env
+    assert subprocess.run(["bash", "-n", str(Path(c["base_dir"], "activate.sh"))]).returncode == 0
+
+
+def test_a_ready_made_root_sets_the_stacks_standard_and_pins_its_build(bs, tmp_path):
+    """conda-forge builds ROOT for C++20 and 23 only: taken ready-made, it makes the stack C++20, so what is
+    built here against it matches, and the base asks for that build; a standard set otherwise is refused."""
+    import tomllib
+    (order, _), packages, c = planned(bs, tmp_path, "packages=@core-conda")
+    assert c["cxx_std"] == 20 and bs.ORIGINS["cxx_std"] == ["root from conda-forge (built for C++20 or C++23)"]
+    deps = tomllib.loads(bs.manifest_text(order, packages, c))["dependencies"]
+    assert deps["root"] == "*" and deps["root_base"] == {"version": "*", "build": "cxx20*"}
+    (order, _), packages, c = planned(bs, tmp_path, "packages=@core-conda", "cxx_std=23")      # one of them
+    assert tomllib.loads(bs.manifest_text(order, packages, c))["dependencies"]["root_base"]["build"] == "cxx23*"
+    with pytest.raises(SystemExit, match=r"root from conda-forge is built for C\+\+20 or C\+\+23, and cxx_std = 17"):
+        bs.options([f"machine={tmp_path}", "packages=@core-conda", "cxx_std=17"])
+    assert planned(bs, tmp_path, "packages=@standard")[2]["cxx_std"] == 17            # built here: the stack's own
+
+
+def test_what_the_base_holds_ready_made_stays_so(bs, tmp_path):
+    """A root made with an @…-conda toolkit is read without it (hep doctor, hep stack status, a later build):
+    a recipe whose package is in the base, and which the stack did not build, is the base's."""
+    _, s, _ = bs.options([f"machine={tmp_path}"])
+    a_base(bs.context(s), python="3.12.15", root="6.40.04", fastjet_cxx="3.5.2")
+    _, s, packages = bs.options([f"machine={tmp_path}"])
+    assert bs.ready_made(packages["root"]) and bs.ready_made(packages["fastjet"]) and not bs.ready_made(packages["rivet"])
+    assert bs.ORIGINS["root.from"] == ["the base (ready-made there)"] and s["cxx_std"] == 20
+    (tmp_path / "stack" / "fastjet").mkdir(parents=True)                        # built here: the stack's
+    _, s, packages = bs.options([f"machine={tmp_path}", "root.from=source"])    # a layer's `from` wins
+    assert not bs.ready_made(packages["fastjet"]) and not bs.ready_made(packages["root"]) and s["cxx_std"] == 17
+    _, s, packages = bs.options([f"machine={tmp_path}", "base=system"])
+    assert not bs.ready_made(packages["root"])
+
+
+def test_the_base_gets_the_pkg_config_files_conda_forge_lacks(bs, tmp_path):
+    """conda-forge's toml++ ships no tomlplusplus.pc, which env/stack.toml's probe asks pkg-config for: the
+    base gets one in base/pkgconfig/, which activate.sh puts on PKG_CONFIG_PATH."""
+    _, s, _ = bs.options([f"machine={tmp_path}"])
+    c = bs.context(s)
+    a_base(c, python="3.12.15")
+    assert bs.pkgconfig_files(bs.context(s)) == {}
+    a_base(c, python="3.12.15", tomlplusplus="3.4.0")
+    files = bs.pkgconfig_files(bs.context(s))
+    assert list(files) == ["tomlplusplus"] and "Version: 3.4.0\n" in files["tomlplusplus"]
+    assert f"Cflags: -I{c['base']}/include\n" in files["tomlplusplus"]
+    Path(c["base_dir"], "activate.sh").write_text(bs.activate_text(c))
+    env = bs.activation(c, {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "PKG_CONFIG_PATH": "/x"})
+    assert env["PKG_CONFIG_PATH"] == f"{c['base_dir']}/pkgconfig:/x"
+

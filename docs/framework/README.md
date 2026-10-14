@@ -29,8 +29,8 @@ the design the code cites by section (`framework/01 §5.2`).
 
 | Phase | File | Does | Background | Gates expected |
 |---|---|---|---|---|
-| P0 | [03_Preflight.md](03_Preflight.md) | survey the machine and choose the annex; clone Heimdall; `.setup/`; bring back what was kept | — | sudo, if `git`, `curl` or `python3-venv` are missing |
-| P1 | [04_Stack.md](04_Stack.md) | the system packages; `recipes/build_stack.py packages=@primary` into the machine root (`~/Himinbjorg`: `stack/ forge/ venv/`); the stack's checks | the build (hours) | sudo/apt, downloads, a new recipe (MadAnalysis5) that fails |
+| P0 | [03_Preflight.md](03_Preflight.md) | survey the machine and choose the annex; clone Heimdall; `.setup/`; bring back what was kept | — | sudo, if `git` or `curl` is missing |
+| P1 | [04_Stack.md](04_Stack.md) | the conda base (no sudo); `recipes/build_stack.py packages=@primary` into the machine root (`~/Himinbjorg`: `base/ stack/ forge/`); the stack's checks | the build (hours) | downloads, a new recipe (MadAnalysis5) that fails; sudo/apt only with `base=system` |
 | P2 | [05_Framework.md](05_Framework.md) | `hep build --framework`; the C++ tests and the fast suite; the slow suite and its physics gates; the manual's checks | the slow suite | a gate row that differs twice |
 | P3 | [06_Workdirs.md](06_Workdirs.md) | Top-Quark made by `hep setup --project Starter --git`, built, checked and run; a throwaway second work dir, and independence | — | none |
 | P4 | [07_Verify.md](07_Verify.md) | the reference point on its seed against the lab PC's kept products; the handover: report, memory, publishing | — | push / publish |
@@ -51,7 +51,7 @@ loop, verification, gates, deviations and reports. **A fresh machine starts at 0
   src/                              the kits (*.hh), App_*.cc, Apps/Paint/
   docs/  bots/  tests/
   .setup/                           (ignored) the agents' state
-~/Himinbjorg/  ($HEP_MACHINE)      outside git: stack/ venv/ apps/ forge/ stacks/ machine.toml machine.sh
+~/Himinbjorg/  ($HEP_MACHINE)      outside git: base/ stack/ apps/ forge/ stacks/ machine.toml machine.sh
 
 ~/Github/Top-Quark/                 a work dir, made by `hep setup` (V107); others anywhere
   hep.toml Makefile .gitignore README.md CLAUDE.md .vscode/
@@ -72,7 +72,7 @@ The user's, through round 2c (2026-10-08 to 10-10), as built. Each is a V-row of
 | # | Decision | V |
 |---|---|---|
 | D26 | Heimdall is `~/Github/Heimdall`, and it **is** `$HEP`: the recipes, the environment, the framework, the kits and, ignored, the stack and its builds | V105 |
-| D27 | in the machine root: `forge/` downloads, sources, builds in progress and logs; `stack/` installs; `venv/`; `apps/` the ready apps | V105, V109, V122 |
+| D27 | in the machine root: `forge/` downloads, sources, builds in progress and logs; `base/` the conda base (compilers, libraries, Python); `stack/` installs; `apps/` the ready apps | V105, V109, V122, V140 |
 | D3, D4 | a work dir is marked by `hep.toml` (`[work]`), found by walking up; work dirs are independent and share only Heimdall | V106 |
 | D14 | `hep setup <dir>` makes a work dir, never overwriting | V107 |
 | D8 | provenance records both repositories' revisions | V111 |

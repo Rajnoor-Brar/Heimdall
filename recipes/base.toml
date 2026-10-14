@@ -1,0 +1,106 @@
+# recipes/base.toml — the base: what the stack is built with and runs on, from conda-forge (docs/conda/).
+#
+# With base = "conda" (settings.toml; the default), build_stack.py makes <machine root>/base/ a pixi
+# workspace from this file before it builds anything: the compilers, the build tools, the libraries the
+# stack links, Python and its packages (settings.toml's python_packages), the utilities Heimdall runs.
+# The OS gives only glibc, the kernel, the drivers and TeX. The stack is still built from source, inside
+# the base (its compilers; /usr/include and /usr/lib are not searched), into stack/ as before; a
+# recipe taken ready-made (from = "conda-forge", the @…-conda toolkits) is installed into the base instead.
+# With base = "system", apt_packages (settings.toml) or Homebrew (platforms/mac/) instead, and a venv.
+#
+# More packages: base_packages = [...] in machine.toml's [settings] (or on the command line); a recipe's
+# own, `base = [...]` in its table. Each entry is a conda-forge name, optionally with a version spec
+# ("gsl 2.8.*"); {placeholders} are the settings'.
+
+# pixi, which makes the base: fetched into the machine root's forge/pixi/ (its archive in forge/downloads/)
+[pixi]
+release = "0.81.0"
+url     = "https://github.com/prefix-dev/pixi/releases/download/v{release}/pixi-{target}.tar.gz"
+
+[pixi.sha256]                            # each platform's archive, from the release's digests
+x86_64-unknown-linux-musl  = "7aa3ec39aecceff9062fa2ed4d42cbaa0bdc25ddea727d048e061cf188d434f6"
+aarch64-unknown-linux-musl = "9f8d2113fe9dc01788a65f5c2acec34fa56b1193461a5c3e9a775d6d2d621bcb"
+aarch64-apple-darwin       = "f4e32ea91970d4e11739488817979a5f2c6ebbb9cedb0d6dea74b2b790b272dc"
+
+[base]
+channels = ["conda-forge"]
+
+# What the stack links, by what needs it: a change in what is installed of these (or of the compilers,
+# the C++ runtime, Python) marks every package built on them "changed" (docs/conda/02_Design.md §4).
+[base.libraries]
+root      = ["libxml2", "fftw", "libsqlite", "liblzma-devel", "lz4-c", "xxhash", "zstd", "zlib", "openssl",
+             "libcurl", "libuuid", "krb5", "tbb-devel", "xorg-libx11", "xorg-libxpm", "xorg-libxft",
+             "xorg-libxext", "glew", "ftgl", "giflib", "libpng", "libjpeg-turbo"]
+herwig    = ["gsl", "libboost-devel"]        # and ThePEG
+lhapdf    = ["yaml-cpp"]
+sherpa    = ["libzip", "bzip2"]
+whizard   = ["ocaml", "bdw-gc"]
+geant4    = ["xerces-c"]
+framework = ["tomlplusplus"]                 # Paint, App_Pythia, the module kit (zstd, zlib: above)
+
+# What the build and Heimdall run, not link: a change rebuilds nothing.
+[base.tools]
+build = ["make", "cmake", "pkg-config", "autoconf", "automake", "libtool", "patch", "pip"]
+decks = ["pandoc", "poppler"]                # hep deck, sheets; TeX stays the OS's (docs/conda/01 §7)
+
+# pkg-config files a conda-forge package lacks and Heimdall's build asks for (env/stack.toml's probes): each
+# is written into base/pkgconfig/ for the version installed, and activate.sh puts that folder on
+# PKG_CONFIG_PATH. conda-forge's toml++ (header-only) ships a CMake config and no .pc file.
+[base.pkgconfig.tomlplusplus]
+package = "tomlplusplus"
+cflags  = "-I{base}/include"
+
+# Each platform's own: the compilers (Linux: GCC {base_gcc}, the OS's own major on the lab PC; macOS: clang)
+# and what exists there only. The sysroot (the glibc the base builds against) is the newest the solve
+# allows: 2.28, pixi's floor for linux; 2.17 when a ready-made ROOT is in the base, which was built
+# against it and pins it (its interpreter reads those headers).
+[base.platform.linux-64]
+libraries = ["gcc_linux-64 {base_gcc}.*", "gxx_linux-64 {base_gcc}.*", "gfortran_linux-64 {base_gcc}.*",
+             "gcc {base_gcc}.*", "gxx {base_gcc}.*", "gfortran {base_gcc}.*", "sysroot_linux-64",
+             "libstdcxx", "libgcc", "libgfortran5",
+             "libgl-devel", "libglu", "xorg-libxmu", "xorg-libxi", "ocaml-findlib"]
+
+[base.platform.linux-aarch64]
+libraries = ["gcc_linux-aarch64 {base_gcc}.*", "gxx_linux-aarch64 {base_gcc}.*",
+             "gfortran_linux-aarch64 {base_gcc}.*", "gcc {base_gcc}.*", "gxx {base_gcc}.*",
+             "gfortran {base_gcc}.*", "sysroot_linux-aarch64", "libstdcxx", "libgcc", "libgfortran5",
+             "libgl-devel", "libglu", "xorg-libxmu", "xorg-libxi", "ocaml-findlib"]
+
+[base.platform.osx-arm64]                    # untested: the Xcode command-line tools' SDK is still needed
+libraries = ["clang_osx-arm64", "clangxx_osx-arm64", "gfortran_osx-arm64", "libcxx", "libgfortran5"]
+tools     = ["sed", "coreutils", "bash"]     # GNU sed and coreutils, a bash of today: what Homebrew gave
+
+# ── the build inside the base: a layer laid under the platform's fixes (as a toolkit's tables) ─────
+# {base} is the base's prefix; {cflags}, {cxxflags} and {ldflags} carry its headers and an rpath to its
+# libraries (a program finds the base's libstdc++ without LD_LIBRARY_PATH, which the base never joins).
+# The activation (base/activate.sh) gives the rest: CC, CXX, FC (conda's GCC, whose sysroot keeps /usr out),
+# CMAKE_PREFIX_PATH (the base and its sysroot).
+[settings]
+system = false                               # no apt-get: the base is the system
+
+[env]
+CPPFLAGS    = "-isystem {base}/include"
+CFLAGS      = "{cflags}"
+LDFLAGS     = "{ldflags}"
+VIRTUAL_ENV = ""                             # "": not set (the base is no venv)
+
+# The base is the Python environment: no venv to make, only heimdall.pth in its site-packages.
+[packages.python]
+probe   = "{venv}/lib/python{py}/site-packages/heimdall.pth"
+replace = ["pre"]
+pre     = ["{venv}/bin/python {repo}/recipes/pth.py {repo}"]
+
+# Configure scripts that look for a library in /usr/local and /usr (the zlib check of YODA, Rivet and
+# ThePEG adds -I/usr/include, which mixes the OS's glibc headers into the base's), or "on the system"
+# (GSL, for ThePEG and Herwig), are told the base's.
+[packages.yoda]
+extra = ["--with-zlib={base}"]
+
+[packages.rivet]
+extra = ["--with-zlib={base}"]
+
+[packages.thepeg]
+extra = ["--with-zlib={base}", "--with-gsl={base}"]
+
+[packages.herwig]
+extra = ["--with-gsl={base}"]

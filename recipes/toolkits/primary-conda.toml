@@ -1,0 +1,4 @@
+# recipes/toolkits/primary-conda.toml — @primary-conda (README.md §6)
+
+description = "@primary, ready-made from conda-forge where it carries the package (MadGraph, Whizard, MadAnalysis 5 built here)"
+extends     = ["primary", "conda"]

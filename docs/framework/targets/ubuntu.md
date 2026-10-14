@@ -5,11 +5,16 @@ differs from the phase files is here (D11).
 
 ## Prerequisites (P0 S1)
 
-- `git`, `curl`, `python3` ≥ 3.11 with `venv` (`python3-venv`).
-- `sudo`. A password is fine: the gates ask before every `sudo`.
+- `git`, `curl`, `python3` ≥ 3.11 (with `venv`, `python3-venv`, only for `base=system`).
+- `sudo`, only for those and for `base=system`'s system packages: the conda base needs none. A
+  password is fine: the gates ask before every `sudo`.
 - 60 GB free where `$HEP` goes.
 
-## System packages (P1 S1)
+## System packages (P1 S1, `base=system` only)
+
+With the conda base (the default) P1 S1 installs none: TeX alone stays the OS's
+(`texlive-latex-recommended` and `-extra`, for the sheets and the decks; a gate when they are missing).
+With `base=system`:
 
 `settings.toml`'s `apt_packages`: 51 at 9cb907a, grouped there by what needs each one. That
 includes `pandoc`, `poppler-utils` and `texlive-latex-recommended` for decks (V102–V104). They are

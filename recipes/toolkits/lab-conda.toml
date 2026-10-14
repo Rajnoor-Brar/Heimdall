@@ -1,0 +1,4 @@
+# recipes/toolkits/lab-conda.toml — @lab-conda (README.md §6)
+
+description = "@lab, ready-made from conda-forge where it carries the package (MadGraph, Whizard built here)"
+extends     = ["lab", "conda"]

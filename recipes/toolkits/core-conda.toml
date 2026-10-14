@@ -1,0 +1,4 @@
+# recipes/toolkits/core-conda.toml — @core-conda (README.md §6)
+
+description = "the core, ready-made from conda-forge: minutes instead of hours (@conda says what differs)"
+extends     = ["standard", "conda"]

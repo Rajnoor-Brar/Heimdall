@@ -83,7 +83,7 @@ def adopt(dry: bool) -> int:
 def where() -> int:
     r = root()
     print(f"machine root  {r}{'' if r.exists() else '  (not made yet)'}")
-    for name in ("stack", "venv", "apps", "forge", "stacks", "machine.toml", "machine.sh"):
+    for name in ("base", "stack", "venv", "apps", "forge", "stacks", "machine.toml", "machine.sh"):
         path = r / name
         state = ("→ " + str(path.resolve())) if path.is_symlink() else ("" if path.exists() else "(none)")
         print(f"  {name:12} {state}")

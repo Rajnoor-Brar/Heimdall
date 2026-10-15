@@ -1,5 +1,5 @@
 # framework/work.mk — a work dir's build (docs/06_Internals.md §15). The work dir's Makefile includes
-# it (`include $(HEP)/framework/work.mk`, from framework/templates/work/); `hep build` is `make all`
+# it (`include $(HEP)/framework/work.mk`, from framework/templates/work/); `heimdall build` is `make all`
 # there. The rules it shares with Heimdall's Makefile are framework/rules.mk.
 #
 #   make                        every module program and Rivet plugin

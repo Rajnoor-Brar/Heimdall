@@ -235,7 +235,7 @@ def json_schema() -> dict:
     plot["properties"]["data"]["properties"]["map"] = {"type": "object", "additionalProperties": {"type": "string"}}
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "hep run TOML (generated from framework/schema/run.toml)",
+        "title": "heimdall run TOML (generated from framework/schema/run.toml)",
         "type": "object",
         "properties": {
             "config": _object("config"), "run": run, "prelim": _object("prelim"),
@@ -288,7 +288,7 @@ def json_schema_v3() -> dict:
     v2 = json_schema()
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "hep run TOML, the third form (generated from framework/schema/run.toml)",
+        "title": "heimdall run TOML, the third form (generated from framework/schema/run.toml)",
         "type": "object",
         "properties": {
             "file": {**_object("config"), "properties": {**_object("config")["properties"],

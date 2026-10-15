@@ -17,8 +17,8 @@ stack, one per machine; and your **work dirs**, where studies live.
 ```bash
 git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
 python3 recipes/build_stack.py packages=@primary     # a conda base, then the stack from source (hours)
-source setup.sh                                      # the environment, in bash (any shell: ~/Github/Heimdall/launch.sh)
-hep build --framework                                # Heimdall's apps, into the machine root's apps/ ($HEP_APPS)
+source gjallarhorn.sh                                      # the environment, in bash (any shell: ~/Github/Heimdall/launch.sh)
+heimdall build --framework                                # Heimdall's apps, into the machine root's apps/ ($HEP_APPS)
 ```
 
 The stack's recipes, its toolkits (one file each in `recipes/toolkits/`: `@primary` is the lab set plus
@@ -29,42 +29,54 @@ are [recipes/README.md](../recipes/README.md). On macOS use `recipes/platforms/m
 **base**, a conda-forge environment pixi makes (the compilers, the libraries the stack links, Python and
 its packages; no apt, no sudo), then the stack, built from source inside it. `packages=@primary-conda`
 takes the tools ready-made from conda-forge instead, in minutes; `base=system` builds on apt (or
-Homebrew) and a venv, as before.
+Homebrew) and a venv, as before. Packages for your own analyses go into it with **`bifrost`**: `bifrost
+scipy pandas` (from conda-forge), `bifrost -python <pkg>` (from PyPI), `bifrost --drop <pkg>`; `bifrost`
+alone shows the base, what you added and whether `gjallarhorn` is in your shell.
 
-`source setup.sh` sets `HEP` to Heimdall's folder, puts the stack and `hep` on `PATH`, activates the
+`source gjallarhorn.sh` sets `HEP` to Heimdall's folder, puts the stack and `heimdall` on `PATH`, activates the
 base (its compilers and Python; or the venv) and adds this machine's lines (the machine root's
-`machine.sh`). It is bash: from
-zsh, or any other shell, `launch.sh` (in Heimdall's folder) opens a bash with it loaded, or runs one
-command in it (`launch.sh hep run …`); make that your `load_hep` alias. Another shell sourcing
-`setup.sh` is turned away before anything changes. An isolated toolkit's stack is loaded by its own
-`stacks/<toolkit>/setup.sh` instead, in a shell of its own. `hep where` says which Heimdall (and which
+`machine.sh`). The stack's build writes the shell function **`gjallarhorn`** into your `~/.bashrc` (and
+`~/.zshrc`), in a marked block: in a new terminal, `gjallarhorn` loads the environment, and
+**`gjallarhorn <title>`** also goes to that work dir (`heimdall setup` records each work dir it makes under
+its name; `heimdall recognise` records others; tab completes the titles). `bifrost --shell remove` takes
+the block out, `shell_rc = false` (machine.toml) never writes it. The environment is bash: in zsh,
+`gjallarhorn` opens a bash with it loaded (`launch.sh`, in Heimdall's folder, which also runs one command
+in it: `launch.sh heimdall run …`). Another shell sourcing `gjallarhorn.sh` is turned away before
+anything changes. An isolated toolkit's stack is loaded by its own
+`stacks/<toolkit>/gjallarhorn.sh` instead, in a shell of its own. `heimdall where` says which Heimdall (and which
 stack) a shell sees, and which work dir.
 
-Three verbs change the shell itself, so they are the shell function `hep` that `setup.sh` defines:
-`hep cd PROJECT [configs|modules|results|output]` (in the current work dir), `hep quit` (leave the
-environment: `PATH`, the base (or the venv) and `machine.sh`'s lines as they were) and **`hep refresh`**, which
+**In an Apptainer image**, Heimdall and a whole machine root travel as one read-only file, for a
+cluster or another PC: `heimdall image build packages=@core-conda` makes `<machine root>/images/core-conda.sif`
+(it needs the system's `apptainer`), and `gjallarhorn --image core-conda <title>` opens a shell in it, in
+that work dir, which stays outside and is bound at its own path. [docs/framework/targets/container.md](framework/targets/container.md)
+has the rest.
+
+Three verbs change the shell itself, so they are the shell function `heimdall` that `gjallarhorn.sh` defines:
+`heimdall cd PROJECT [configs|modules|results|records|logs]` (in the current work dir), `heimdall quit` (leave the
+environment: `PATH`, the base (or the venv) and `machine.sh`'s lines as they were) and **`heimdall refresh`**, which
 reloads the environment in the same shell, from scratch: `quit`, then the same stack again (an
-isolated toolkit's included). `hep_status` lists the stack's packages (`hep status --stack`) and
-`hep_help` the rest; `quit`, `hep_cd` and `hep_refresh` are the old names. Sourcing another stack's
-`setup.sh` takes the loaded one out first. Use it after a stack's rebuild, an edit of `env/hep_env.sh` or of the machine
-root's `machine.sh`, or a `git pull` of Heimdall. It is the shell function `hep` that `setup.sh` defines
-(also `hep_refresh`), since a program cannot change its shell's variables.
+isolated toolkit's included). `heimdall_status` lists the stack's packages (`heimdall status --stack`) and
+`heimdall_help` the rest; `quit`, `heimdall_cd` and `heimdall_refresh` are the old names. Sourcing another stack's
+`gjallarhorn.sh` takes the loaded one out first. Use it after a stack's rebuild, an edit of `env/hep_env.sh` or of the machine
+root's `machine.sh`, or a `git pull` of Heimdall. It is the shell function `heimdall` that `gjallarhorn.sh` defines
+(also `heimdall_refresh`), since a program cannot change its shell's variables.
 
 ### 1.2 A work dir
 
 ```bash
-hep setup ~/Github/My-Study --project Jets --git     # the folders, hep.toml, a starter, one commit
+heimdall setup ~/Github/My-Study --project Jets --git     # the folders, hep.toml, a starter, one commit
 cd ~/Github/My-Study
-hep build                                            # its module programs and Rivet plugins
-hep run Jets/jets                                    # the starter: Pythia → MC_JETS, two PDFs
+heimdall build                                            # its module programs and Rivet plugins
+heimdall run Jets/jets                                    # the starter: Pythia → MC_JETS, two PDFs
 ```
 
-`hep setup <dir>` makes the folders every work dir has (`configs/ modules/ datasets/ decks/ results/
+`heimdall setup <dir>` makes the folders every work dir has (`configs/ modules/ datasets/ decks/ results/
 records/ reports/ build/`), its `hep.toml` (the marker: `[work] name`, and `[framework] expects`, the
 Heimdall revision it was made by), a `Makefile`, `.gitignore`, `README.md`, `CLAUDE.md` and editor
 settings, then says the next commands. It never overwrites: run it again in a work dir (after a fresh
 clone, say) and it adds only what is missing. `--project P` adds `configs/P/p.toml` and `p.cmnd`, a
-starter that `hep check` accepts, and `modules/P/`; `--adopt` makes a work dir of a folder that
+starter that `heimdall check` accepts, and `modules/P/`; `--adopt` makes a work dir of a folder that
 already has files.
 
 **In a git repository**. A fresh repository (`git init`, or a hosting site's new repo with its
@@ -72,11 +84,11 @@ already has files.
 
 ```bash
 git clone git@github.com:me/my-study.git && cd my-study
-hep setup . --project Jets --git                      # README.md and LICENSE kept; one commit of what it added
+heimdall setup . --project Jets --git                      # README.md and LICENSE kept; one commit of what it added
 ```
 
 - **Nothing of yours is overwritten.** Your `README.md` and `CLAUDE.md` stay, and Heimdall's guide
-  goes beside them as `HEIMDALL.md`. Your `.gitignore` gains a marked block (`# Heimdall (hep setup)`)
+  goes beside them as `HEIMDALL.md`. Your `.gitignore` gains a marked block (`# Heimdall (heimdall setup)`)
   of the lines it lacks, so nothing the runner writes is committed by accident.
 - **`--git` commits only what it added** (`git commit -- <paths>`): what you had staged stays staged.
   In a subfolder of a larger repository the commit is that repository's; `--git=new` makes the
@@ -85,7 +97,7 @@ hep setup . --project Jets --git                      # README.md and LICENSE ke
   no commit yet as one.
 
 **Data**. Small reference files go in `datasets/`, tracked. Large ones are listed in
-`datasets.toml`, and `hep setup .` (in a fresh clone, say) fetches each one missing, checking its
+`datasets.toml`, and `heimdall setup .` (in a fresh clone, say) fetches each one missing, checking its
 sha256, and keeps them out of git (`datasets/.gitignore`):
 
 ```toml
@@ -95,60 +107,62 @@ sha256 = "9f2c…"                 # sha256sum's: the file must be this one
 ```
 
 **Decks** are written in `decks/<deck>/` (`deck.md`, `deck.toml`), tracked, and built into
-`reports/<deck>/` (03 §11). **`hep setup . --refresh`** brings the framework's own files (the
+`reports/<deck>/` (03 §11). **`heimdall setup . --refresh`** brings the framework's own files (the
 `Makefile`, Heimdall's `README.md` or `HEIMDALL.md`, `CLAUDE.md`, `.vscode/`, the `.gitignore` block)
 up to today's template, showing each diff first; your files are never touched.
 
-Every `hep` command finds its work dir by walking up from the working directory to a `hep.toml`
-with a `[work]` table; `$HEP_WORK` names one instead. Outside a work dir, `hep run` says so. A work
+Every `heimdall` command finds its work dir by walking up from the working directory to a `hep.toml`
+with a `[work]` table; `$HEP_WORK` names one instead. Outside a work dir, `heimdall run` says so. A work
 dir made by a newer Heimdall than the one running (its `expects` is not in Heimdall's history) is
 warned about, once per command.
 
 ### 1.3 Building
 
-**First, is the machine ready?** `hep doctor` checks what every installed package of the stack can
+**First, is the machine ready?** `heimdall doctor` checks what every installed package of the stack can
 do (its recipe's checks: versions, compiled-in features, Python modules, short runs), scans every
 program and library for libraries that no longer resolve (after an OS upgrade, say), and checks
 Heimdall's own: one row each, ok / MISSING / FAIL / n/a, exit 1 on a FAIL. `--quick` skips the
-slow runs; `--record` adds this machine to the support matrix (`hep doctor --matrix`).
+slow runs; `--record` adds this machine to the support matrix (`heimdall doctor --matrix`).
 
-`hep build` compiles the work dir's sources (`make all`, by `$HEP/framework/work.mk`); `hep build
+`heimdall build` compiles the work dir's sources (`make all`, by `$HEP/framework/work.mk`); `heimdall build
 --framework` compiles Heimdall's own (its `Makefile`). Both take:
 - `--tests` (with `--framework`) also builds the C++ tests;
 - `--configure` probes the toolchain again (after installing a library);
 - `--clean` empties the build first;
 - `-j N` limits the jobs.
 
-To build one source, `make` it by its path (`hep make …` works from anywhere in the work dir, `hep
+To build one source, `make` it by its path (`heimdall make …` works from anywhere in the work dir, `heimdall
 make --framework …` in Heimdall); the output lands where the convention says:
 
 | Source | `make` | Output |
 |---|---|---|
 | `modules/<P>/<X>.cc` | `make modules/<P>/<X>.exe` | `build/<P>/<X>.exe` |
 | `modules/<P>/Rivet/<x>.cc`, `modules/<P>/Rivet_<x>.cc` | `make modules/<P>/Rivet/<x>.so` | `build/Rivet/Rivet_<x>.so` + its `.info`, `.plot`, `.yoda` |
-| Heimdall's `src/App_<X>.cc` | `hep make --framework src/App_<X>.exe` | `$HEP_APPS/App_<X>.exe` |
-| Heimdall's `src/Apps/<X>/main.cc` | `hep make --framework src/Apps/<X>.exe` | `$HEP_APPS/<X>.exe` |
+| Heimdall's `src/App_<X>.cc` | `heimdall make --framework src/App_<X>.exe` | `$HEP_APPS/App_<X>.exe` |
+| Heimdall's `src/Apps/<X>/main.cc` | `heimdall make --framework src/Apps/<X>.exe` | `$HEP_APPS/<X>.exe` |
 
 A source says what it links in one line near the top: `// requires: pythia8 hepmc3 fastjet`. The
 names it may use are those of `env/stack.toml` (`pythia8 hepmc3 yoda root fastjet lhapdf rivet
-geant4 toml zstd zlib onnx delphes`), or `none`. Without the line it links everything that was found.
+geant4 toml zstd zlib onnx delphes`), `pkg:<name>` for any other library pkg-config knows (one you added
+with `bifrost`, say: `// requires: root pkg:eigen3`), or `none`. Without the line it links everything
+that was found.
 Heimdall's headers (`Module.hh`, `Kit.hh`, `Status.hh`, `PythiaRun.hh`) are on the include path. A
-folder or file whose name starts with `_` is parked: `hep build` skips it.
+folder or file whose name starts with `_` is parked: `heimdall build` skips it.
 
 ---
 
 ## 2. A first run
 
-The examples from here on are the demo project, `Demo`. `hep setup --example jets` copies it into a
+The examples from here on are the demo project, `Demo`. `heimdall setup --example jets` copies it into a
 work dir of your own (its run TOMLs, cards, Rivet analysis, module programs and reference data), and
-`hep setup` says the commands that follow:
+`heimdall setup` says the commands that follow:
 
 ```bash
-hep setup ~/Study --example jets   # a work dir with the demo project (or into one you have: hep setup . --example jets)
-cd ~/Study && hep build            # its Rivet analysis and module programs
-hep check Demo/jets                # every configuration planned; nothing run
-hep run Demo/jets single --plan    # what would run: cards, argv, connections; runs nothing
-hep run Demo/jets single --set run.events=50000
+heimdall setup ~/Study --example jets   # a work dir with the demo project (or into one you have: heimdall setup . --example jets)
+cd ~/Study && heimdall build            # its Rivet analysis and module programs
+heimdall check Demo/jets                # every configuration planned; nothing run
+heimdall run Demo/jets single --plan    # what would run: cards, argv, connections; runs nothing
+heimdall run Demo/jets single --set run.events=50000
 ```
 
 `single` is one point:
@@ -169,15 +183,15 @@ The terminal shows the running tools, then one block:
 | `results/Demo/jets/03_single/point/` | `jets.yoda`, `jets.root`: the products |
 | `results/Demo/jets/03_single/plots/root/` | the pages (`d01-x01-y01.pdf`, …), `index.html`, and `single.root`, the sweep in one file |
 | `records/Demo/jets/03_single/point/` | `provenance.json`, `identity.json`, `.complete`: what the run recorded |
-| `logs/Demo/jets/03_single/point/` | `cards/`, `logs/`: safe to delete (`hep clean`) |
+| `logs/Demo/jets/03_single/point/` | `cards/`, `logs/`: safe to delete (`heimdall clean`) |
 
 Run the same command again and nothing happens: the point is complete with the same identity. Change
 anything that decides the result (a card, an event count, a binary) and it runs again.
 
 ```bash
-hep run Demo/jets energy_pdf       # 16 points: 4 beam energies × 4 PDFs
-hep watch                                    # from another terminal: follow the latest job
-hep plot Demo/jets energy_pdf      # redraw its pages from what is on disk
+heimdall run Demo/jets energy_pdf       # 16 points: 4 beam energies × 4 PDFs
+heimdall watch                                    # from another terminal: follow the latest job
+heimdall plot Demo/jets energy_pdf      # redraw its pages from what is on disk
 ```
 
 ---
@@ -193,7 +207,7 @@ small, complete one:
 [run]
 name    = "mini"
 project = "Demo"
-run     = "pdf"                   # what `hep run Demo/mini` runs
+run     = "pdf"                   # what `heimdall run Demo/mini` runs
 events  = 100_000
 threads = 8
 chain   = [["pythia", "rivet"], "yd2rt"]   # group 1 runs together, then group 2
@@ -256,7 +270,7 @@ ratio   = true
   it yours (04 §2).
 - **Labels are LaTeX**, as a physicist writes them (`$p_{T}$ > 4 GeV`, `$\sqrt{s}$`). Words outside
   `$…$` are text, as written. A label in ROOT's TLatex (`#sqrt{s}`, `p_{T}` with no `$`) is refused
-  with its LaTeX as the hint, and `hep migrate` rewrites old files (§10).
+  with its LaTeX as the hint, and `heimdall migrate` rewrites old files (§10).
 
 ---
 
@@ -361,25 +375,25 @@ To run several of a TOML's configurations in one go, list them, or say `true` fo
 
 ```toml
 [run]
-sweep_runs = ["pdf", "energies"]   # hep run jets: these, in this order (true: every one, in file order)
+sweep_runs = ["pdf", "energies"]   # heimdall run jets: these, in this order (true: every one, in file order)
 
 [cfgs.pdf]
 title = "Proton PDFs"              # the header line: run 01 - Proton PDFs -
 
-[cfgs.delphes]                     # not listed: hep run jets delphes still runs it
+[cfgs.delphes]                     # not listed: heimdall run jets delphes still runs it
 ```
 
 - **Each configuration is an ordinary run**, with its own title, blocks, verdict and folder, exactly
-  as `hep run jets <cfg>` would make it.
+  as `heimdall run jets <cfg>` would make it.
 - **They are all checked before the first starts**, so a typo in the last one costs nothing.
 - **They are pipelined**: a run starts once the run before has started all its points, and they
   share the machine's cores.
 - **A failed run lets the next one start**; Ctrl-C stops everything.
-- **`hep watch` follows the whole sweep**, from one run to the next.
+- **`heimdall watch` follows the whole sweep**, from one run to the next.
 
-That is what a shell loop can't do. In `for c in …; do hep run jets $c; done`, a Ctrl-C only ends the
-current run (hep exits 6 and bash carries on), and a typo in a later configuration shows up hours in.
-`hep run jets pdf` still runs only `pdf`, and `--set run.sweep_runs=false` turns the sweep off for one
+That is what a shell loop can't do. In `for c in …; do heimdall run jets $c; done`, a Ctrl-C only ends the
+current run (heimdall exits 6 and bash carries on), and a typo in a later configuration shows up hours in.
+`heimdall run jets pdf` still runs only `pdf`, and `--set run.sweep_runs=false` turns the sweep off for one
 call.
 
 ### 4.9 A study built on another
@@ -425,7 +439,7 @@ points = [{ tag = "s1", value = 1 }, { tag = "s2", value = 2 }, { tag = "s3", va
   above), as its `[plot]` keys go over the imported `[plot]`.
 - **Nesting:** imports nest, and `Other/run` imports another project's file, whose cards stay its
   own. The points of an unchanged tool keep their identities, so nothing reruns for being imported.
-- **Checking:** `hep run … --show-config` says where every value and table came from.
+- **Checking:** `heimdall run … --show-config` says where every value and table came from.
 
 ---
 
@@ -475,7 +489,7 @@ output = "events.hepmc"
 
 | Generator | Base card | Notes |
 |---|---|---|
-| `herwig` | `.in` | `hep build --framework` makes its repository; seed and events are flags |
+| `herwig` | `.in` | `heimdall build --framework` makes its repository; seed and events are flags |
 | `sherpa` | `.yaml` | keys are paths into the YAML (`PDF_SET[0]`, `EPA:Q2Max`); `MPI_PDF_SET` follows `PDF_SET` |
 | `whizard` | `.sin` | one base card, included after the plan's settings; beams by the model's names; direct photoproduction only |
 | `madgraph` | proc card | writes an LHE **file**; shower it with a `pythia` table in a later group (its base card sets `Beams:frameType = 4`) |
@@ -488,12 +502,15 @@ jets's `pt0ref` is a Pythia key, and in a Sherpa chain nothing would consume it 
 examples are in Heimdall's fixture work dir, `tests/fixtures/work/configs/Demo/` (`herwig.toml`, `sherpa.toml`,
 `whizard.toml`, `madgraph.toml`).
 
-### 5.3 The same study with several generators
+### 5.3 Comparing generators and tool setups
+
+One configuration compares them: a quantity whose values are tool tables chooses the tool each point
+runs, and everything else (the analysis, the energies, the seeds, the pages) is shared.
 
 ```toml
 [cfgs.compare]
 vary  = ["generator"]
-chain = [["@generator", "spectra"], "yd2rt"]    # "@q": the tool table the point's value names
+chain = [["@generator", "spectra"], "yd2rt"]    # "@q": what the point's value names
 
 [quantities.generator]
 points = [
@@ -504,8 +521,38 @@ points = [
 ```
 
 This needs a `[tools.pythia]`, a `[tools.herwig]` and a `[tools.sherpa]`, each writing
-`events.hepmc`. A value that only one of them consumes (Sherpa's `BEAMS`) is accepted, since it
-reaches a tool of the configuration. → `Generators/generators`.
+`events.hepmc`. → `Generators/generators`.
+
+- **Setups of one tool** are tables of their own: `[tools.monash]` and `[tools.a14]`, both
+  `uses = "pythia"`, each with its card, chosen by `@tune`.
+- **Chains of different shapes:** a value may be a piece of chain, spliced where `@q` stands.
+  `value = ["madgraph", "pythia"]` runs MadGraph, then Pythia on its events, beside `value = "sherpa"`;
+  `[["pythia", "rivet"]]` is a group of its own; `[]` leaves the step out (with and without Delphes).
+  A piece that would put a group inside a group, or a tool twice, is refused with the file.
+- **One PDF for every generator:** write the set's name (`"CT14lo"`, or `"LHAPDF6:CT14lo"`). Each
+  generator gets its own spelling: Pythia's `LHAPDF6:` prefix, Sherpa's bare name, Herwig's four LO PDF
+  objects (hard process, shower, MPI, remnant). A tune was fitted with its PDF: a fair comparison
+  matches PDFs, and changing one changes what the tune means, for every generator alike.
+- **A setting only some generators read:** a fixed one is fine (Herwig's pp snippet sets its own
+  beams). A varied one must be read by every point's tools: `vary = ["generator", "pt0ref"]` with a
+  Pythia-only pT0Ref would give Herwig points that differ only by their seeds, so the plan is refused.
+  List the combinations instead, leaving the setting out where it means nothing:
+
+  ```toml
+  vary = [{ points = [
+    { generator = "py8", pt0ref = "p30" },
+    { generator = "py8", pt0ref = "p34" },
+    { generator = "hw7" },                   # Herwig at its own card's MPI
+  ] }]
+  ```
+
+  `plot_points = ["generator"]` then gives a page per generator, `["pdf"]` (with PDFs listed) a page per
+  PDF with a curve for each generator that ran it.
+- **Tools chosen together** (a generator and the analysis that suits it): a quantity with fields, one
+  field per selector, `chain = [["@gen", "@ana"]]` (04 §8.4).
+- **Results from elsewhere**, or configurations with other axes: a `compare` figure puts
+  configurations side by side, another run TOML's too (03 §7.5), and `heimdall overlay` any files
+  (03 §10).
 
 ### 5.4 Something every point needs, made once
 
@@ -642,8 +689,10 @@ window = [1.09, 1.14]
 - **Its products:** write them to `{partial:output}`; the runner renames them after the checks.
 - **The other tools:** their cards and configs are in the point's context file, `$HEP_CONTEXT`
   (04 §9.4); a tool that is not in the chain goes in `generate_cards`.
-- **A tool of your own:** `hep tools new fit --from exec` makes `tools/fit/` in the work dir, a folder
-  you can give options, a card or a status of its own, used as `[tools.fit]` (06 §16).
+- **A tool of your own:** `heimdall tools new fit --from exec` makes `tools/fit/` in the work dir, a folder
+  you can give options, a card or a status of its own, used as `[tools.fit]` (06 §16). A program you
+  installed (`bifrost <package>`) is named by `--runs <command> --package <package>` (05 §9); the machine
+  root's `tools/` holds folders every work dir sees.
 - **Its status:** set `filters = "my_rules.toml"` for a progress bar from your prints
   ([06 §23](06_Internals.md#23-filterstoml)), or speak the status protocol with `framework/hepkit.py`
   ([06 §22](06_Internals.md#22-statushh-and-the-status-protocol)). `hepkit` also gives the exit
@@ -757,18 +806,18 @@ points = [{ tag = "1001", value = 1001 }, { tag = "2001", value = 2001 }, { tag 
   is skipped as usual), and `--rerun` draws again.
 - **Repeating a run:** every point's `provenance.json` records the seed it used, and `--plan` shows
   each point's seed.
-  - `hep reproduce records/…/<point>/provenance.json` runs the point again exactly as it ran, beside
+  - `heimdall reproduce records/…/<point>/provenance.json` runs the point again exactly as it ran, beside
     the original, and compares the products (§10).
   - Or set `seed` to that seed.
 
 ### 7.5 On a Slurm cluster
 
-`hep cluster` runs a configuration as Slurm jobs:
+`heimdall cluster` runs a configuration as Slurm jobs:
 - a **pre job** first, when there are pre tools to run;
 - a **points array**, a task per point to run;
 - a **finish job** after every point has ended: the combined groups, the post tools and the plots.
 
-Each job is an ordinary `hep run`, so it skips a complete point, writes where a run writes, and gives
+Each job is an ordinary `heimdall run`, so it skips a complete point, writes where a run writes, and gives
 the same events as the same point run here. Run it on the cluster's login node, with Heimdall and
 the work dir on a filesystem the nodes see. The machine's settings go in the machine root's
 `machine.toml` (every work dir there) or the work dir's `hep.toml` (this one, which wins), the
@@ -792,10 +841,10 @@ time = "00:30:00"
 ```
 
 ```bash
-hep cluster Demo/jets energy_pdf --dry-run   # write the job scripts, print the sbatch lines
-hep cluster Demo/jets energy_pdf             # submit: pre → points (an array) → finish
-hep cluster Demo/jets energy_pdf --status    # each point: complete, running, pending, failed (its log)
-hep cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
+heimdall cluster Demo/jets energy_pdf --dry-run   # write the job scripts, print the sbatch lines
+heimdall cluster Demo/jets energy_pdf             # submit: pre → points (an array) → finish
+heimdall cluster Demo/jets energy_pdf --status    # each point: complete, running, pending, failed (its log)
+heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
 ```
 
 - A configuration's own `cluster = { time = "08:00:00" }` is over the run's, and `--set
@@ -806,11 +855,14 @@ hep cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
 - A second submission of a configuration waits until the first's jobs have ended (`--status`,
   `--cancel`).
 - The scripts, the job ids and the jobs' logs are in `records/<P>/<run>/<cfg>/cluster/<stamp>/`.
-  `hep watch` cannot reach a node: the logs and `--status` stand in.
-- Each script's last line is the `hep run` it makes, which can be typed by hand: `hep run C cfg
-  --points <name> --stages points`, then `hep run C cfg --stages combine,post,plot`.
+  `heimdall watch` cannot reach a node: the logs and `--status` stand in.
+- Each script's last line is the `heimdall run` it makes, which can be typed by hand: `heimdall run C cfg
+  --points <name> --stages points`, then `heimdall run C cfg --stages combine,post,plot`.
 - The points' FIFOs and the prepare caches' locks are on the shared filesystem: NFSv4 and Lustre
   take both (a FIFO's two ends are on one node).
+- `[cluster] image = "<name>"` runs every job in an Apptainer image (§1.1), with `setup = ["module load
+  apptainer"]` where the site needs it. Only the jobs move into it: `heimdall cluster` itself plans every
+  point on the login node, outside the image, so the login node still needs Heimdall's environment.
 
 ---
 
@@ -818,16 +870,16 @@ hep cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
 
 | You want | Type |
 |---|---|
-| to look before running | `hep run CONFIG CFG --plan` |
+| to look before running | `heimdall run CONFIG CFG --plan` |
 | what would rerun, and why | `--why` (what changed since each point last completed) |
 | each value and where it came from | `--show-config` |
 | a subset | `--points 27x920_MSTW08lo,pdf=NNPDF23lo,3` (names, tags, `q=tag`, indices) |
 | fewer events, once | `--set run.events=50000` (dotted keys into the TOML, in its own names; repeatable) |
 | a finished point again | `--rerun` (with `--points` for one) |
-| only the pages | `--only plot`, or `hep plot CONFIG CFG` |
+| only the pages | `--only plot`, or `heimdall plot CONFIG CFG` |
 | only the post (or pre) tools | `--only post` / `--only pre` |
 | plain lines (logs, CI) | `--plain` (automatic when not a terminal) |
-| to follow a job elsewhere | `hep watch [CONFIG [CFG]]` (a `--journal` run's file: `hep watch --file …`) |
+| to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]` (a `--journal` run's file: `heimdall watch --file …`) |
 | a desktop notification at the end | `[run] notify = "desktop"` |
 | a point faster | `shards = K` on the Rivet table (§7.1); more Pythia `threads` alone do not help |
 | many points faster | `parallelism = K` or `"auto"` (§7.2) |
@@ -851,14 +903,16 @@ The run goes on to the next point, and the point's block names the tool to blame
 3. *"rivet analysed N events; the producer wrote M"*: the chain broke mid-stream. Look at the
    generator's log first.
 4. *"… was silent for 300 s"*: a stall. Raise `stall_after` on the tool if it is legitimately quiet.
-5. Fix it, then `hep run … --points <that point>`. Complete points are skipped anyway.
+5. Fix it, then `heimdall run … --points <that point>`. Complete points are skipped anyway.
 6. More to look at:
    - `--plan` shows the exact argv and cards;
    - `--journal` writes the job's every event to `logs/…/<cfg>/status.jsonl`;
+   - `--keep work` keeps a finished point's whole working folder (its scratch files and shards), which
+     otherwise goes when the point completes; a failed point's stays anyway;
    - `provenance.json` records every binary and card of a finished point.
 
 Ctrl-C stops the job cleanly: the running tools get SIGINT, then SIGTERM, then SIGKILL. The exit is
-6, and the same command resumes. `hep run` exits:
+6, and the same command resumes. `heimdall run` exits:
 - 0 when everything is done;
 - 1 when a point, a stage or a page failed;
 - 2 for a config error (nothing ran).
@@ -872,13 +926,13 @@ Common refusals, and what they mean:
 | `FIFO 'x' connects A and B across groups` | put A and B in one group, or use a file (C6) |
 | `'photo_eic' does not declare the option X` | the option is not in the analysis's `.info` (C9) |
 | `the PDF set 'X' is not installed` | `lhapdf install X` (C10) |
-| `'…' is TLatex; labels are LaTeX` | write the LaTeX the hint gives, or `hep migrate` the file (§10) |
-| `[plot.overlay] is a figure now` | `[plot.figures.<name>] class = "overlay"`, or `hep migrate` |
+| `'…' is TLatex; labels are LaTeX` | write the LaTeX the hint gives, or `heimdall migrate` the file (§10) |
+| `[plot.overlay] is a figure now` | `[plot.figures.<name>] class = "overlay"`, or `heimdall migrate` |
 | `base config not found` | the card is not under `configs/<P>/` (write `./path` for elsewhere) |
-| `$HEP_APPS/App_Pythia.exe is not built` | `hep build --framework` |
-| `not inside a work dir` | `cd` into one, or `hep setup <dir>` (§1.2) |
+| `$HEP_APPS/App_Pythia.exe is not built` | `heimdall build --framework` |
+| `not inside a work dir` | `cd` into one, or `heimdall setup <dir>` (§1.2) |
 | `unknown section [schema]` | a v1 (hekit) run TOML: the schema is 04; `git show HEAD:<file>` has the current one |
-| `'event_count' is the v2 form: this file is v3, where it is events` | a v2 name in a v3 file: write the v3 name, or `hep migrate --v3` (04 §17) |
+| `'event_count' is the v2 form: this file is v3, where it is events` | a v2 name in a v3 file: write the v3 name, or `heimdall migrate --v3` (04 §17) |
 | `… made from other inputs; running would overwrite them` | your configuration changed under a serial you set: bump it, or `--rerun` (04 §2) |
 
 ---
@@ -886,30 +940,30 @@ Common refusals, and what they mean:
 ## 10. Housekeeping: check, status, clean, migrate, reproduce
 
 ```bash
-hep check                                   # every config: loaded, validated, every point planned; runs nothing
-hep ls Demo                      # every config and its configurations (* = what hep run runs)
-hep explain plot.y_gutter                   # a key's type, default and meaning
-hep status Demo/jets              # each point: complete, stale, incomplete or to run
-hep status --stack                          # each package's version
-hep clean Demo/jets --dry-run     # what the runner made and no plan uses (logs/ and .cache/)
-hep migrate Demo/jets             # a diff of the file in today's forms; --apply writes it
-hep reproduce records/…/<point>/provenance.json  # the point again, beside it, compared
+heimdall check                                   # every config: loaded, validated, every point planned; runs nothing
+heimdall ls Demo                      # every config and its configurations (* = what heimdall run runs)
+heimdall explain plot.y_gutter                   # a key's type, default and meaning
+heimdall status Demo/jets              # each point: complete, stale, incomplete or to run
+heimdall status --stack                          # each package's version
+heimdall clean Demo/jets --dry-run     # what the runner made and no plan uses (logs/ and .cache/)
+heimdall migrate Demo/jets             # a diff of the file in today's forms; --apply writes it
+heimdall reproduce records/…/<point>/provenance.json  # the point again, beside it, compared
 ```
 
-- **Before a long sweep, or as a pre-commit hook:** `hep check` exits 2 when any config is not
+- **Before a long sweep, or as a pre-commit hook:** `heimdall check` exits 2 when any config is not
   well.
-- **Clean:** `hep clean` never removes a result. It lists first and asks (`--yes` elsewhere), and it
+- **Clean:** `heimdall clean` never removes a result. It lists first and asks (`--yes` elsewhere), and it
   refuses while a job runs.
-- **Migrate:** `hep migrate` rewrites old forms by line, so comments and layout stay, and
-  `hep migrate --v3` rewrites a v2 file in v3 (04 §17):
+- **Migrate:** `heimdall migrate` rewrites old forms by line, so comments and layout stay, and
+  `heimdall migrate --v3` rewrites a v2 file in v3 (04 §17):
   - TLatex labels;
   - `swept = false`;
   - `[plot.overlay]` and `[plot.object]`;
   - a bare `executable`;
   - base-card lines the runner owns.
 - **Which stack a study was made with:** `[file.meta] versions = { pythia8 = "8.317", … }`. A
-  different stack is a warning in `hep check` and `--plan`, never a refusal (04 §3).
-- **Reproduce:** `hep reproduce` stops and says what changed when the setup is no longer the one the
+  different stack is a warning in `heimdall check` and `--plan`, never a refusal (04 §3).
+- **Reproduce:** `heimdall reproduce` stops and says what changed when the setup is no longer the one the
   provenance records; `--anyway` runs today's setup with the recorded seed.
 
 Each command is in [05 §1](05_Commands_and_Tools.md#1-commands).
@@ -941,13 +995,13 @@ installed: for notebooks and statistics tools.
 
 ## 12. A new project
 
-A new study that shares nothing with the others is a new work dir: `hep setup <dir> --project
+A new study that shares nothing with the others is a new work dir: `heimdall setup <dir> --project
 <Project> --git` (§1.2). A new project in a work dir:
 
 1. `configs/<Project>/`: the native base card(s) and a run TOML with `project = "<Project>"`.
 2. `modules/<Project>/`: Rivet plugins in `Rivet/<name>.cc` (with `.info`, `.plot`, `.yoda`), and
    programs as `<Name>.cc` with a `// requires:` line. Headers beside them are shared by both.
-3. `hep build`, then `hep check <Project>/<run>`, then `hep run <Project>/<run> --plan`.
+3. `heimdall build`, then `heimdall check <Project>/<run>`, then `heimdall run <Project>/<run> --plan`.
 4. A quantity the vocabulary does not map gets a `to`. One your project uses everywhere can go in
    `configs/<Project>/master.toml`, named by `[file] master = "master.toml"`.
 5. Tables several run TOMLs share can live in one file that each names in `[file] import` (04 §3).

@@ -244,16 +244,24 @@ def builtin_mappings(master: dict, run, tags: list[str], name: str) -> list[Mapp
 
 
 def consumer_table(run, master: dict, active: list[str], tags: list[str],
-                   alternatives: list[str] = (), configured: set = frozenset()) -> dict[str, list[Mapping]]:
+                   alternatives: list[str] = (), configured: set = frozenset(), varied: frozenset = frozenset(),
+                   point: str = "") -> dict[str, list[Mapping]]:
     """quantity → mappings, and rule C7: an active quantity must reach at least one tool.
 
-    In a chain that chooses a tool by a quantity (`"@generator"`, V19), a value that only another
+    In a chain that chooses a tool by a quantity (`"@generator"`, V19), a fixed value that only another
     alternative consumes (Sherpa's BEAMS, say, on a Herwig point) is accepted with no mapping here:
-    it reaches a tool in this configuration, just not in this point's chain."""
+    it reaches a tool in this configuration, just not in this point's chain. A varied one is refused
+    (V151): the points it makes would differ only by their seeds."""
     table = {}
     for name in active:
         found = mappings(run, master, name, tags, configured)
         if not found and alternatives and mappings(run, master, name, list(alternatives), configured):
+            if name in varied:
+                raise HepError(f"{point}: [quantities.{name}] is varied, but no tool of this point reads it "
+                               f"({', '.join(tags)}): its points would differ only by their seeds",
+                               where=f"{run.path}: [quantities.{name}]",
+                               hint=f"list the combinations, leaving {name} out of this point's row (vary = [{{ points = "
+                                    "[...] }}], 04 §5.1), or vary it in a configuration of its own")
             table[name] = []
             continue
         if not found:
@@ -328,14 +336,16 @@ def _provider(name: str):
     """<name>/provider.py (V60): a provider's checks, loaded by name, from the nearest folder that has one."""
     path = next((d / "provider.py" for _, d in tool_chains().get(name, []) if (d / "provider.py").is_file()), None)
     if path is None:
-        raise HepError(f"no provider '{name}': no {name}/provider.py on the tool search path (hep tools)")
+        raise HepError(f"no provider '{name}': no {name}/provider.py on the tool search path (heimdall tools)")
     return plugins.load(path, "provider")
 
 
-def check_provider(kind: str, value, where: str) -> None:
+def check_provider(kind: str, value, where: str):
     """Refuse at plan time a value whose provider is missing (C10): `check = "<provider>:<form>"` in a tool
-    folder's quantities.toml, e.g. "lhapdf:pythia" (framework/tools/lhapdf/provider.py)."""
+    folder's quantities.toml, e.g. "lhapdf:pythia" (framework/tools/lhapdf/provider.py). Returns the value as
+    that tool writes it: the provider's spelling of it (V152), else the value given."""
     provider, _, form = kind.partition(":")
     if not form:
         raise HepError(f"a provider check is '<provider>:<form>', not '{kind}'", where=where)
-    _provider(provider).check(form, value, where)
+    written = _provider(provider).check(form, value, where)
+    return value if written is None else written

@@ -300,7 +300,7 @@ def _finish(page, outdir: Path, say) -> bool:
     best = page.style["legend"]["position"] == "best" and best_legend(script)
     named = titles(script, page)
     if ticks or best or named:
-        again = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, cwd=script.parent)
+        again = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, cwd=script.parent, encoding="utf-8")
         if again.returncode != 0:
             say(f"plot: {script.name} rewritten (ratio ticks, best legend, titles): {again.stderr.strip()[-200:]}")
             return False
@@ -312,7 +312,7 @@ def _mkhtml(argv: list, work: Path, outdir: Path, pages: list, plot_text: str, p
     plot_file.write_text(plot_text, encoding="utf-8")
     env = dict(os.environ, RIVET_ANALYSIS_PATH=str(work_build() / "Rivet"),
                RIVET_DATA_PATH=os.pathsep.join(filter(None, [str(work_build() / "Rivet"), os.environ.get("RIVET_DATA_PATH")])))
-    done = subprocess.run(argv, capture_output=True, text=True, env=env, cwd=work)
+    done = subprocess.run(argv, capture_output=True, text=True, env=env, cwd=work, encoding="utf-8")
     log = work / f"{plot_file.stem}.log"
     log.write_text(" ".join(argv) + "\n" + done.stdout + done.stderr, encoding="utf-8")
     drawn = [p for p in pages if (outdir / base_path(p.object).split("/")[1] / f"{p.object.rsplit('/', 1)[-1]}.pdf").exists()]

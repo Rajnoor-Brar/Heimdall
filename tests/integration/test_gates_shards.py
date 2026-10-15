@@ -63,7 +63,7 @@ def test_a_sharded_point_equals_the_same_point_unsharded(scratch):
     config = scratch / "shards.toml"
     config.write_text(RUN, encoding="utf-8")
     hep_run(scratch, str(config), "one")
-    hep_run(scratch, str(config), "four")
+    hep_run(scratch, str(config), "four", "--keep", "work")                 # its shards are read (V149)
     one = yoda.read(str(scratch / "results/Demo/shards/one/point/jets.yoda"))
     four = yoda.read(str(scratch / "results/Demo/shards/four/point/jets.yoda"))
     assert set(one) == set(four)

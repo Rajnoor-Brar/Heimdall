@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# framework/bin/bifrost — `bifrost`, the environment's packages: `heimdall bifrost` (framework/runner/bifrost.py).
+#   bifrost                         the base, the packages you added, the shell's block
+#   bifrost <pkg>…  |  -python <pkg>…  |  --drop …  |  --shell install|remove
+exec "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/heimdall" bifrost "$@"

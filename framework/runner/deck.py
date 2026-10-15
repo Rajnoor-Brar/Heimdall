@@ -1,4 +1,4 @@
-"""`hep deck` (docs/reporter): a deck of slides from drawn pages, in reports/<deck>/.
+"""`heimdall deck` (docs/reporter): a deck of slides from drawn pages, in reports/<deck>/.
 
 A deck's folder holds the user's deck.md (the talk) and deck.toml (where its plots come from:
 framework/schema/deck.toml). The plots are blocks, each a grid of panels:
@@ -102,9 +102,9 @@ def count(n: float) -> str:
 
 
 def deck_dirs(name: str) -> tuple[Path, Path]:
-    """`hep deck <deck>`: where it is written and where it builds (U22): decks/<deck>/ and reports/<deck>/.
+    """`heimdall deck <deck>`: where it is written and where it builds (U22): decks/<deck>/ and reports/<deck>/.
     A path (./, ../ or /) is one folder for both, as is a deck still written in reports/<deck>/ (made
-    before decks/: `hep migrate --layout` moves its sources)."""
+    before decks/: `heimdall migrate --layout` moves its sources)."""
     if name.startswith(("./", "../", "/")):
         path = Path(name)
         if not path.is_dir():
@@ -283,7 +283,7 @@ def _recipe_blocks(folder: Path, name: str, spec, settings: dict, where: str) ->
         if absent:
             other = elsewhere(absent[0], [f])
             raise HepError(f"{f} has no page {absent[0]} in plots/{'|'.join(backends)}/", where=where,
-                           hint=use(other) if other else f"draw it there (hep plot), or leave {f} out of folders")
+                           hint=use(other) if other else f"draw it there (heimdall plot), or leave {f} out of folders")
     shorts = _shorts(names)
     labels = _labels(run_dir, project_run, folders, spec.get("label", "events"), where)
     blocks = []
@@ -400,7 +400,7 @@ def gather(deck: Deck) -> int:
 
 
 def listing(deck: Deck) -> list[str]:
-    """`hep deck --list`: each block, its panels, labels and where each came from."""
+    """`heimdall deck --list`: each block, its panels, labels and where each came from."""
     kind = "deck.toml's blocks" if deck.recipe else "the folder's files"
     lines = [f"deck {deck.dir}: {len(deck.blocks)} block(s), from {kind}"]
     for block in deck.blocks:
@@ -540,7 +540,7 @@ def draw(figure: Figure, dpi: int) -> bool:
     stamp = figure.stem.with_name(figure.stem.name + ".sha256")
     key = _key(figure, dpi)
     pdf, png = (figure.stem.with_name(figure.stem.name + e) for e in (".pdf", ".png"))
-    if stamp.is_file() and stamp.read_text().strip() == key and pdf.is_file() and png.is_file():
+    if stamp.is_file() and stamp.read_text(encoding="utf-8").strip() == key and pdf.is_file() and png.is_file():
         return False
     block = figure.block
     try:
@@ -549,7 +549,7 @@ def draw(figure: Figure, dpi: int) -> bool:
                             title=block.title if block.titles else "", dpi=dpi)
     except ValueError as error:
         raise HepError(f"composite {figure.stem.name}: {error}") from None
-    stamp.write_text(key + "\n")
+    stamp.write_text(key + "\n", encoding="utf-8")
     return True
 
 
@@ -577,13 +577,13 @@ def _copy(made: Talk, deck: Deck, suffix: str) -> str:
 
 def _embed_flag() -> str:
     """pandoc's flag for one self-contained HTML file: --embed-resources from 2.19, --self-contained before."""
-    done = subprocess.run(["pandoc", "--version"], capture_output=True, text=True)
+    done = subprocess.run(["pandoc", "--version"], capture_output=True, text=True, encoding="utf-8")
     found = re.search(r"pandoc\S*\s+(\d+)\.(\d+)", done.stdout)
     return "--embed-resources" if found and (int(found[1]), int(found[2])) >= (2, 19) else "--self-contained"
 
 
 def _pandoc(deck: Deck, args: list[str], target: str) -> None:
-    done = subprocess.run(["pandoc", *args], cwd=deck.dir, capture_output=True, text=True)
+    done = subprocess.run(["pandoc", *args], cwd=deck.dir, capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0:
         tail = "\n".join((done.stderr or done.stdout).strip().splitlines()[-6:])
         raise HepError(f"pandoc could not make {target}", where=str(deck.dir), hint=tail or f"exit {done.returncode}")
@@ -641,7 +641,7 @@ def build(deck: Deck, only: list[str] | None = None, say: Callable[[str], None] 
 
 
 def init(deck: Deck) -> list[Path]:
-    """`hep deck --init`: deck.md, a title slide and a slide per block (a section per recipe table), and a
+    """`heimdall deck --init`: deck.md, a title slide and a slide per block (a section per recipe table), and a
     starter deck.toml for a folder without one. Never over what is there."""
     talk_file, recipe = deck.src / TALK, deck.src / RECIPE
     if talk_file.exists():

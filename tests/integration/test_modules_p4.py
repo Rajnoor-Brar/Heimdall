@@ -20,7 +20,7 @@ BUILT = [apps() / "App_Pythia.exe"]          # the module programs: work_built (
 uproot = pytest.importorskip("uproot")
 yoda = pytest.importorskip("yoda")
 
-pytestmark = [pytest.mark.slow, pytest.mark.skipif(not all(p.exists() for p in BUILT), reason="hep build --framework")]
+pytestmark = [pytest.mark.slow, pytest.mark.skipif(not all(p.exists() for p in BUILT), reason="heimdall build --framework")]
 
 
 def hep_run(scratch: Path, *args: str) -> tuple[Path, Path]:
@@ -29,7 +29,8 @@ def hep_run(scratch: Path, *args: str) -> tuple[Path, Path]:
 
 
 def test_lambda_module_and_rivet_agree_on_the_same_events(scratch):
-    _, results = hep_run(scratch, "Decay/decay", "single", "--set", "run.events=200", "--set", "run.threads=2")
+    _, results = hep_run(scratch, "Decay/decay", "single", "--set", "run.events=200", "--set", "run.threads=2",
+                         "--keep", "work")                                # its working files are read (V149)
     point = results / folder("Decay/decay", "single", scratch) / "point"
     report = json.loads((point / "decay.root.json").read_text(encoding="utf-8", errors="replace"))
     assert report["events"] == json.loads((scratch / "logs" / folder("Decay/decay", "single", scratch) / "point" /
@@ -68,7 +69,7 @@ def test_inproc_equals_the_chain_at_one_thread(scratch):
 def test_inproc_sigma_equals_the_sidecar_at_four_threads(scratch):
     for configuration in ("single", "inproc"):
         output, results = hep_run(scratch, "Demo/jets", configuration, "--set", "run.events=4000",
-                                  "--set", "run.threads=4")
+                                  "--set", "run.threads=4", "--keep", "work")   # the sidecar is read (V149)
     point = output / folder("Demo/jets", "single") / "point"
     sidecar = json.loads(min(point.glob("events*.hepmc.json")).read_text(encoding="utf-8", errors="replace"))  # sharded: .s1
     report = json.loads((results / folder("Demo/jets", "inproc") / "point" / "jets.yoda.json").read_text(encoding="utf-8", errors="replace"))

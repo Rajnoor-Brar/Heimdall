@@ -24,7 +24,7 @@ from helpers import parse, raw  # noqa: E402
 LEGACY = REPO / "tests" / "reference" / "legacy_run"
 BUILT = all((apps() / name).exists() for name in ("Paint.exe", "App_yd2rt.exe"))
 
-pytestmark = pytest.mark.skipif(not BUILT, reason="hep build --framework")
+pytestmark = pytest.mark.skipif(not BUILT, reason="heimdall build --framework")
 
 
 @pytest.fixture
@@ -44,6 +44,14 @@ def stage(scratch, request):
     return run, configuration, completed(run, configuration)
 
 
+
+@pytest.fixture(autouse=True)
+def keeps_the_working_files():
+    """These tests read the plot stage's working files (derived and merged YODAs, mkhtml's), and its skip
+    markers: they ask to keep them, as heimdall run --keep cache does (V149)."""
+    from runner import paths
+    paths.ask_keep(["cache"])
+
 def completed(run, configuration) -> list:
     """The configuration's points planned, each with a legacy mini YODA as its product, complete."""
     master = quantities.load_master(run.project, run.master_toml)
@@ -61,7 +69,7 @@ def completed(run, configuration) -> list:
         product.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(source, product)
         record.complete_marker(plan).parent.mkdir(parents=True, exist_ok=True)
-        record.complete_marker(plan).write_text(plan.identity + "\n")
+        record.complete_marker(plan).write_text(plan.identity + "\n", encoding="utf-8")
     shutil.rmtree(plans[0].res.parent / "plots", ignore_errors=True)
     return plans
 
@@ -71,20 +79,20 @@ def test_pages_are_plot_points_by_objects(stage):
     pages = plot.pages(run, configuration, plans)
     assert len(pages) == 2 * 17
     assert {p.name.split("/")[0] for p in pages} == {"em", "ep"}
-    first = tomllib.loads(pages[0].config.read_text())
+    first = tomllib.loads(pages[0].config.read_text(encoding="utf-8"))
     assert [c["label"] for c in first["curve"]] == ["MSTW 2008 LO", "NNPDF 2.3 LO"]
     assert first["page"]["min_entries"] == 10 and first["page"]["range_pad"] == 1
 
 
 def test_data_only_where_the_map_says(stage):
     run, configuration, plans = stage
-    with_data = {p.name for p in plot.pages(run, configuration, plans) if "data" in tomllib.loads(p.config.read_text())}
+    with_data = {p.name for p in plot.pages(run, configuration, plans) if "data" in tomllib.loads(p.config.read_text(encoding="utf-8"))}
     assert with_data == {"em/d01-x01-y01", "ep/d01-x01-y01"}
 
 
 def test_object_overrides_and_rivet_labels(stage):
     run, configuration, plans = stage
-    pages = {p.name: tomllib.loads(p.config.read_text())["page"] for p in plot.pages(run, configuration, plans)}
+    pages = {p.name: tomllib.loads(p.config.read_text(encoding="utf-8"))["page"] for p in plot.pages(run, configuration, plans)}
     assert pages["em/d04-x01-y01"]["logy"] is True and pages["em/d04-x01-y01"]["y_gutter"] == 3.0
     assert pages["em/d04-x01-y01"]["title"] == "override"
     assert pages["em/d02-x01-y01"]["y_gutter"] == 0.5 and pages["em/d02-x01-y01"]["x_gutter"] == "default"
@@ -98,9 +106,9 @@ def test_object_overrides_and_rivet_labels(stage):
 def test_a_page_carries_only_the_style_it_changes(stage):
     run, configuration, plans = stage
     by = {p.name: p for p in plot.pages(run, configuration, plans)}
-    assert tomllib.loads(by["em/d04-x01-y01"].config.read_text())["style"] == {
+    assert tomllib.loads(by["em/d04-x01-y01"].config.read_text(encoding="utf-8"))["style"] == {
         "page": {"dpi": 100}, "legend": {"position": "top-left"}}
-    assert tomllib.loads(by["em/d02-x01-y01"].config.read_text())["style"] == {"page": {"dpi": 100}}
+    assert tomllib.loads(by["em/d02-x01-y01"].config.read_text(encoding="utf-8"))["style"] == {"page": {"dpi": 100}}
     assert by["em/d02-x01-y01"].style["legend"]["position"] == "top-right"     # base.toml's
     assert by["em/d02-x01-y01"].style["page"]["size"] == [4.67, 4.21]
 
@@ -108,7 +116,7 @@ def test_a_page_carries_only_the_style_it_changes(stage):
 def test_incomplete_points_are_not_drawn(stage):
     run, configuration, plans = stage
     record.complete_marker(plans[0]).unlink()
-    first = tomllib.loads(plot.pages(run, configuration, plans)[0].config.read_text())
+    first = tomllib.loads(plot.pages(run, configuration, plans)[0].config.read_text(encoding="utf-8"))
     assert len(first["curve"]) == 1
 
 
@@ -125,7 +133,7 @@ def test_the_sweep_is_merged_once_into_the_file_the_pages_read(stage):
     run, configuration, plans = stage
     pages = plot.pages(run, configuration, plans)
     merged = plans[0].res.parent / "plots" / "root" / f"{configuration.label}.root"
-    assert {c["file"] for p in pages for c in tomllib.loads(p.config.read_text())["curve"]} == {str(merged)}
+    assert {c["file"] for p in pages for c in tomllib.loads(p.config.read_text(encoding="utf-8"))["curve"]} == {str(merged)}
     before = merged.stat().st_mtime_ns
     plot.pages(run, configuration, plans)
     assert merged.stat().st_mtime_ns == before                         # nothing changed: not rebuilt
@@ -142,12 +150,12 @@ def test_figures_are_recipes_for_pages(stage):
     cuts = {"class": "overlay", "objects": ["d02-x01-y01", "d03-x01-y01"], "labels": ["$E_T > 5$", "$E_T > 10$"], "ratio": False}
     run.plot.update({"objects": ["/photo_eic/d01*"]})
     run.plot["figures"] = {"cuts": cuts}
-    before = {p.name: p.config.read_text() for p in plot.pages(run, configuration, plans)}
+    before = {p.name: p.config.read_text(encoding="utf-8") for p in plot.pages(run, configuration, plans)}
     run.plot["figures"]["tails"] = {"objects": ["d05-*"], "min_entries": 0, "auto_range": False, "style": {"page": {"dpi": 50}}}
     after = {p.name: p for p in plot.pages(run, configuration, plans)}
     assert set(after) == set(before) | {"em/d05-x01-y01", "ep/d05-x01-y01"} and "em/d04-x01-y01" not in after
-    assert all(after[name].config.read_text() == text for name, text in before.items())   # the same page TOMLs
-    d05 = tomllib.loads(after["em/d05-x01-y01"].config.read_text())
+    assert all(after[name].config.read_text(encoding="utf-8") == text for name, text in before.items())   # the same page TOMLs
+    d05 = tomllib.loads(after["em/d05-x01-y01"].config.read_text(encoding="utf-8"))
     assert (d05["page"]["min_entries"], d05["page"]["auto_range"], d05["style"]["page"]["dpi"]) == (0, False, 50)
     run.plot["figures"]["more"] = {"objects": ["d0[5-6]-*"]}
     with pytest.raises(plot.HepError, match="'tails' and 'more' both make the pages of /photo_eic/d05-x01-y01"):
@@ -162,7 +170,7 @@ def test_an_overlay_figure_folds_a_band(stage):
     run, configuration, plans = stage
     run.plot["figures"] = {"cuts": {"class": "overlay", "objects": ["d02-x01-y01", "d03-x01-y01"], "band": ["pdf"]}}
     page = next(p for p in plot.pages(run, configuration, plans) if p.name == "em/cuts")
-    curves = tomllib.loads(page.config.read_text())["curve"]
+    curves = tomllib.loads(page.config.read_text(encoding="utf-8"))["curve"]
     assert [c["label"] for c in curves] == ["d02-x01-y01 (pdf envelope)", "d03-x01-y01 (pdf envelope)"]
     assert [len(c["band"]) for c in curves] == [1, 1] and [len(b) for b in page.bands] == [1, 1]
     assert plot.draw(run, configuration, plans, lambda line: None) == 0
@@ -177,13 +185,13 @@ def test_a_derived_figure_is_an_object_of_every_point(stage):
                                         "y_label": "d01 / d05", "ratio": False},
                                 "both": {"class": "overlay", "objects": ["r15", "d01-x01-y01"]}})
     by = {p.name: p for p in plot.pages(run, configuration, plans)}
-    page = tomllib.loads(by["em/r15"].config.read_text())
+    page = tomllib.loads(by["em/r15"].config.read_text(encoding="utf-8"))
     assert page["page"]["y_label"] == "d01 / d05" and page["page"]["x_label"] == tomllib.loads(
-        by["em/d01-x01-y01"].config.read_text())["page"]["x_label"]
+        by["em/d01-x01-y01"].config.read_text(encoding="utf-8"))["page"]["x_label"]
     assert [c["object"] for c in page["curve"]][0].endswith("/FIGURES/r15")
     assert by["em/both"].variants == ["/FIGURES/r15", "/photo_eic/d01-x01-y01"] * 2
     copy = plans[0].out.parent / "plots" / "derived" / f"{plans[0].point.name}.yoda"
-    assert "BEGIN YODA_ESTIMATE1D_V3 /FIGURES/r15" in copy.read_text()
+    assert "BEGIN YODA_ESTIMATE1D_V3 /FIGURES/r15" in copy.read_text(encoding="utf-8")
     when = copy.stat().st_mtime_ns
     assert plot.draw(run, configuration, plans, lambda line: None) == 0
     assert copy.stat().st_mtime_ns == when
@@ -242,7 +250,7 @@ def test_a_2d_object_is_a_heat_map_per_point(stage):
     yoda.write([h], str(extra))
     for plan in plans:                                           # each point's YODA gains the 2D object
         product = plot.yoda_of(plan)
-        product.write_text(product.read_text() + "\n" + extra.read_text())
+        product.write_text(product.read_text(encoding="utf-8") + "\n" + extra.read_text(encoding="utf-8"), encoding="utf-8")
     run.plot["figures"]["px"] = {"class": "derived", "op": "projection-x", "objects": ["d90-x01-y01"], "ratio": False}
     by = {p.name: p for p in plot.pages(run, configuration, plans)}
     maps = sorted(n for n in by if "/d90-x01-y01/" in n)
@@ -296,7 +304,7 @@ def test_a_compare_figure_draws_configurations_together(stage):
     assert plot.draw(run, two, others, said.append, others=lambda key: plans) == 0, said
     compare = plans[0].res.parent.parent / "compare" / "stats"
     assert (compare / "root" / "em" / "d01-x01-y01.png").is_file() and (compare / "root" / "index.html").is_file()
-    page = tomllib.loads((plans[0].out.parent.parent / "compare" / "stats" / "em" / "d01-x01-y01.toml").read_text())
+    page = tomllib.loads((plans[0].out.parent.parent / "compare" / "stats" / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
     assert [c["label"] for c in page["curve"]] == ["1M, MSTW 2008 LO", "1M, NNPDF 2.3 LO", "10M, MSTW 2008 LO", "10M, NNPDF 2.3 LO"]
     assert "data" in page
     run.plot["figures"]["stats"]["configurations"] = ["one", "nope"]
@@ -323,7 +331,7 @@ def test_a_compare_figure_reaches_another_run_toml(stage, scratch):
     said = []
     assert plot.draw(run, configuration, plans, said.append, others=lambda ref: asked.append(ref) or their_plans) == 0, said
     assert asked == [f"{path}:one"]
-    page = tomllib.loads((plans[0].out.parent.parent / "compare" / "chains" / "em" / "d01-x01-y01.toml").read_text())
+    page = tomllib.loads((plans[0].out.parent.parent / "compare" / "chains" / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
     assert [c["label"] for c in page["curve"]] == ["one, MSTW 2008 LO", "one, NNPDF 2.3 LO",
                                                    "plotstage_other one, MSTW", "plotstage_other one, NNPDF"]
     other["quantities"]["lepton"]["tags"] = ["e-", "e+"]
@@ -335,7 +343,7 @@ def test_a_compare_figure_reaches_another_run_toml(stage, scratch):
         plot.check_figures(run, configuration)
 
 
-@pytest.mark.skipif(not shutil.which("rivet-merge"), reason="load_hep: rivet-merge")
+@pytest.mark.skipif(not shutil.which("rivet-merge"), reason="gjallarhorn: rivet-merge")
 def test_a_merged_figure_merges_the_points_for_itself(stage):
     """V82: per plot_points cell, the pdf points merged (rivet-merge -e) into one curve, on the objects'
     pages under the figure's folder; the other pages keep the points apart; a second draw merges nothing."""
@@ -343,9 +351,9 @@ def test_a_merged_figure_merges_the_points_for_itself(stage):
     run.plot["figures"]["avg"] = {"class": "merged", "objects": ["d01-*", "d05-*"], "over": ["pdf"], "title": "both PDFs"}
     by = {p.name: p for p in plot.pages(run, configuration, plans)}
     assert {n for n in by if "/avg/" in n} == {"em/avg/d01-x01-y01", "em/avg/d05-x01-y01", "ep/avg/d01-x01-y01", "ep/avg/d05-x01-y01"}
-    page = tomllib.loads(by["em/avg/d01-x01-y01"].config.read_text())
+    page = tomllib.loads(by["em/avg/d01-x01-y01"].config.read_text(encoding="utf-8"))
     assert [c["object"].split("/")[0] for c in page["curve"]] == ["em"] and page["page"]["title"] == "both PDFs"
-    assert "data" in page and len(tomllib.loads(by["em/d01-x01-y01"].config.read_text())["curve"]) == 2
+    assert "data" in page and len(tomllib.loads(by["em/d01-x01-y01"].config.read_text(encoding="utf-8"))["curve"]) == 2
     merged = plans[0].out.parent / "plots" / "merged" / "avg" / "em.yoda"
     stamp = merged.stat().st_mtime_ns
     assert plot.draw(run, configuration, plans, lambda line: None) == 0
@@ -354,7 +362,7 @@ def test_a_merged_figure_merges_the_points_for_itself(stage):
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not shutil.which("rivet-mkhtml"), reason="load_hep: rivet-mkhtml")
+@pytest.mark.skipif(not shutil.which("rivet-mkhtml"), reason="gjallarhorn: rivet-mkhtml")
 @pytest.mark.parametrize("stage", ["yoda"], indirect=True)
 def test_the_yoda_backend_draws_the_same_pages(stage):
     """S3 row 1 in miniature: the pages of the ROOT backend, drawn by rivet-mkhtml, one set per cell."""
@@ -365,7 +373,7 @@ def test_the_yoda_backend_draws_the_same_pages(stage):
     for cell in ("em", "ep"):
         assert len(list((plots / cell / "photo_eic").glob("*.pdf"))) == 17
     work = plans[0].out.parent / "plots" / "em" / "yoda"
-    blocks = (work / "pages.plot").read_text()
+    blocks = (work / "pages.plot").read_text(encoding="utf-8")
     assert blocks.count("# BEGIN PLOT") == 17 and "XMin=" in blocks and "LogY=1" in blocks
     yoda = pytest.importorskip("yoda")
     references = yoda.read(str(work / "reference.yoda"))
@@ -377,12 +385,12 @@ def test_pages_are_paints_and_another_backend_moves_only_the_output(stage):
     page = plot.pages(run, configuration, plans)[0]
     plots = plans[0].res.parent / "plots"
     assert page.output == plots / "root" / page.name
-    assert tomllib.loads(page.config.read_text())["page"]["output"] == str(page.output)   # Paint's
+    assert tomllib.loads(page.config.read_text(encoding="utf-8"))["page"]["output"] == str(page.output)   # Paint's
     assert plot.for_backend(page, "yoda").output == plots / "yoda" / page.name
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not shutil.which("rivet-mkhtml"), reason="load_hep: rivet-mkhtml")
+@pytest.mark.skipif(not shutil.which("rivet-mkhtml"), reason="gjallarhorn: rivet-mkhtml")
 @pytest.mark.parametrize("stage", ["both"], indirect=True)
 def test_both_backends_draw_both_trees(stage):
     run, configuration, plans = stage
@@ -413,16 +421,16 @@ def test_a_swept_analysis_option_is_a_curve_not_a_page(scratch):
         shutil.rmtree(plan.res, ignore_errors=True)
         shutil.rmtree(plan.out, ignore_errors=True)
         shutil.rmtree(record.record_dir(plan), ignore_errors=True)
-        text = (LEGACY / "mini_27x920_ep_MSTW.yoda").read_text()
+        text = (LEGACY / "mini_27x920_ep_MSTW.yoda").read_text(encoding="utf-8")
         text = text.replace("/photo_eic/", f"/photo_eic:R={r}/")
         product = plot.yoda_of(plan)
         product.parent.mkdir(parents=True, exist_ok=True)
-        product.write_text(text)
+        product.write_text(text, encoding="utf-8")
         record.complete_marker(plan).parent.mkdir(parents=True, exist_ok=True)
-        record.complete_marker(plan).write_text(plan.identity + "\n")
+        record.complete_marker(plan).write_text(plan.identity + "\n", encoding="utf-8")
     pages = plot.pages(run, configuration, plans)
     assert len(pages) == 17 and {p.name for p in pages} == {f"d{n:02d}-x01-y01" for n in range(1, 18)}
-    first = tomllib.loads(pages[0].config.read_text())
+    first = tomllib.loads(pages[0].config.read_text(encoding="utf-8"))
     assert [c["object"] for c in first["curve"]] == ["r04/photo_eic__R-0.4/" + pages[0].name, "r07/photo_eic__R-0.7/" + pages[0].name]
     assert [c["raw"] for c in first["curve"]] == [c["object"].replace("/", "/RAW/", 1) for c in first["curve"]]
     said = []
@@ -435,7 +443,7 @@ def test_use_data_false_draws_no_data_and_divides_by_the_first_curve(stage):
     run, configuration, plans = stage
     run.plot["use_data"] = False
     pages = plot.pages(run, configuration, plans)
-    documents = {p.name: tomllib.loads(p.config.read_text()) for p in pages}
+    documents = {p.name: tomllib.loads(p.config.read_text(encoding="utf-8")) for p in pages}
     assert not any("data" in d for d in documents.values())
     d01 = documents["em/d01-x01-y01"]
     assert d01["page"]["ratio"] is True and d01["page"]["ratio_label"] == "Ratio"
@@ -460,23 +468,23 @@ def test_titles_and_overlays(stage):
                                           "title": "#eta by cut", "title_left": "k_{T}"}}})
     run.plot["figures"]["d04"]["legend_header"] = "d04's own"
     by = {p.name: p for p in plot.pages(run, configuration, plans)}
-    d01, d04, cuts = (tomllib.loads(by[n].config.read_text())["page"] for n in ("em/d01-x01-y01", "em/d04-x01-y01", "em/cuts"))
+    d01, d04, cuts = (tomllib.loads(by[n].config.read_text(encoding="utf-8"))["page"] for n in ("em/d01-x01-y01", "em/d04-x01-y01", "em/cuts"))
     assert (d01["title"], d01["title_right"], d01["legend_header"]) == ("All pages", "Pythia 8", "header for all")
     assert d04["legend_header"] == "d04's own" and d04["title"] == "override"        # the child's own title
     assert (cuts["title"], cuts["title_left"], cuts["title_right"]) == ("#eta by cut", "k_{T}", "Pythia 8")
-    labels = [c["label"] for c in tomllib.loads(by["em/cuts"].config.read_text())["curve"]]
+    labels = [c["label"] for c in tomllib.loads(by["em/cuts"].config.read_text(encoding="utf-8"))["curve"]]
     assert labels == ["E_{T} > 5, MSTW 2008 LO", "E_{T} > 10, MSTW 2008 LO", "E_{T} > 5, NNPDF 2.3 LO", "E_{T} > 10, NNPDF 2.3 LO"]
     assert plot.draw(run, configuration, plans, lambda line: None) == 0
 
     if run.plot["backend"] == "yoda":
         plots = plans[0].res.parent / "plots" / "yoda"
         assert (plots / "em" / "overlay" / "cuts.png").exists()
-        script = (plots / "em" / "photo_eic" / "d01-x01-y01.py").read_text()
+        script = (plots / "em" / "photo_eic" / "d01-x01-y01.py").read_text(encoding="utf-8")
         assert "'All pages'" in script and "'Pythia 8'" in script and "bbox_inches='tight'" in script
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not shutil.which("rivet-mkhtml"), reason="load_hep: rivet-mkhtml")
+@pytest.mark.skipif(not shutil.which("rivet-mkhtml"), reason="gjallarhorn: rivet-mkhtml")
 @pytest.mark.parametrize("stage", ["yoda"], indirect=True)
 def test_the_mpl_backend_draws_mkhtml_s_pages_pixel_for_pixel(stage):
     """V71 (B4c, option B): until the user has verified it, mpl's pages are mkhtml's: every page and

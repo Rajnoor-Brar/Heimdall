@@ -33,7 +33,7 @@ def _yoda():
     try:
         import yoda
     except ImportError:
-        raise ValueError("derived and scan figures need YODA's Python (load_hep)") from None
+        raise ValueError("derived and scan figures need YODA's Python (gjallarhorn)") from None
     return yoda
 
 

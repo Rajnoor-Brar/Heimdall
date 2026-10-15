@@ -10,7 +10,8 @@ base        = "conda"      # what the stack is built with: "conda", a conda-forg
                            # compilers, libraries, Python; no root needed); "system", apt_packages (or Homebrew) and a venv
 base_python = "3.12"       # the base's Python, which the stack's bindings are built against
 base_gcc    = "15"         # the base's GCC on Linux (a major version)
-base_packages = []         # more conda-forge packages for the base (scipy, pandas, "gsl 2.8.*", …)
+base_packages = []         # more conda-forge packages for the base (scipy, pandas, "gsl 2.8.*", …): bifrost <pkg>
+base_pypi   = []           # PyPI packages for the base, by their pip names ("iminuit >=2.30"): bifrost -python <pkg>
 packages    = "core"       # "core", "all", or names: "rivet pythia8" (what they need is added)
 cores       = 0            # how many compilers run at once (make -j<cores>, cmake --build -j<cores>);
                            # 0: every CPU this process may use (hyper-threads count: 24 on the lab PC)
@@ -23,8 +24,10 @@ system      = true         # base = "system": apt-get install apt_packages first
 graphics    = "ON"         # ROOT's x11/opengl/webgui/asimage and Geant4's OpenGL; "OFF" when headless
 geant4_data = "ON"         # Geant4's datasets (~4 GB), downloaded during its build
 cuda_arch   = "native"     # CMAKE_CUDA_ARCHITECTURES for the GPU packages (@gpu-sim): "native", or e.g. "86;89"
-setup_extra = []           # this machine's lines, written to <machine root>/machine.sh, which setup.sh sources
+setup_extra = []           # this machine's lines, written to <machine root>/machine.sh, which gjallarhorn.sh sources
 verify      = true         # run a package's checks ([[<pkg>.verify]]) right after it installs; a failed check fails it
+shell_rc    = true         # after a build: `gjallarhorn` and `bifrost` into ~/.bashrc and ~/.zshrc (a marked block;
+                           # one for another checkout or machine root is left alone). false: never
 
 # The Python packages (in the base, from conda-forge; or in the venv, from pip): the framework's. Add the
 # analysis ones you want (scipy, pandas, pyhf, …).
@@ -61,13 +64,13 @@ apt_packages = [
   "libxerces-c-dev", "libgl1-mesa-dev", "libglu1-mesa-dev", "libxmu-dev", "libxi-dev",
   # the framework: Paint, App_Pythia, the module kit; pdflatex for sheet figures
   "libtomlplusplus-dev", "libzstd-dev", "zlib1g-dev", "texlive-latex-base", "texlive-latex-extra",
-  # decks and sheets (hep deck, docs/reporter): pandoc, poppler's pdftoppm and pdfinfo, the Beamer class
+  # decks and sheets (heimdall deck, docs/reporter): pandoc, poppler's pdftoppm and pdfinfo, the Beamer class
   "pandoc", "poppler-utils", "texlive-latex-recommended",
 ]
 
 # The build's environment. Besides these, every install's bin/, lib/ and Python directory is put on
 # PATH, LD_LIBRARY_PATH (DYLD_LIBRARY_PATH on macOS) and PYTHONPATH, the venv's (the base's) bin/ first:
-# what setup.sh gives later. With base = "conda", recipes/base.toml's [env] is laid over these. A value
+# what gjallarhorn.sh gives later. With base = "conda", recipes/base.toml's [env] is laid over these. A value
 # "" leaves the variable unset.
 [env]
 CXXFLAGS         = "{cxxflags}"

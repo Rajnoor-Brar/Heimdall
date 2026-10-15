@@ -62,7 +62,7 @@ def load(config: str, configuration: str | None = None) -> list[Point]:
     """The points of one configuration, as its last run recorded them."""
     path = manifest(config, configuration)
     if not path.is_file():
-        raise HepError("this configuration has no results yet", where=str(path), hint="hep run it first")
+        raise HepError("this configuration has no results yet", where=str(path), hint="heimdall run it first")
     data = json.loads(path.read_text(encoding="utf-8"))
     out = []
     for entry in data.get("points", []):

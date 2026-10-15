@@ -19,7 +19,7 @@ from helpers import parse, plans, raw, render_context
 WHIZARD_BASE = "# hep: beam_structure = pdf_builtin, epa\nmodel = SM\nintegrate (x)\nsimulate (x)\n"
 
 
-@pytest.mark.skipif(not shutil.which("whizard"), reason="load_hep: whizard (its model file names the beams)")
+@pytest.mark.skipif(not shutil.which("whizard"), reason="gjallarhorn: whizard (its model file names the beams)")
 def test_whizard_card_sets_everything_before_it_includes_the_base():
     plugin = tools.folders()["whizard"].plugin
     text = plugin.card([WHIZARD_BASE], [Override("beams", [2212, -11], "q"), Override("beams_momentum", [275, 18], "q"),
@@ -57,7 +57,7 @@ def test_madgraph_launch_script_and_proc_card():
         plugin.card([PROC + "output here\n"], [], render_context("madgraph", tag="madgraph"))
 
 
-@pytest.mark.skipif(not shutil.which("mg5_aMC"), reason="load_hep: mg5_aMC")
+@pytest.mark.skipif(not shutil.which("mg5_aMC"), reason="gjallarhorn: mg5_aMC")
 def test_madgraph_is_built_once_per_proc_card_and_showered_from_a_file():
     few, many = plans("Demo/madgraph", sets=["run.events=10"]), plans("Demo/madgraph")
     mg = few[0].rendered["madgraph"]
@@ -76,12 +76,12 @@ def test_a_pythia_card_without_an_input_has_no_lhef_line(scratch):
 
 # ── @generator (V19) and C7 ───────────────────────────────────────────────────────────────────
 
-@pytest.mark.skipif(not (shutil.which("Herwig") and shutil.which("Sherpa")), reason="load_hep: Herwig and Sherpa")
+@pytest.mark.skipif(not (shutil.which("Herwig") and shutil.which("Sherpa")), reason="gjallarhorn: Herwig and Sherpa")
 def test_each_point_runs_its_own_generator_and_takes_what_it_consumes():
     try:
         by = {p.point.name: p for p in plans("Generators/generators")}
     except HepError as error:
-        pytest.skip(error.message)                                    # Herwig's repository: hep build
+        pytest.skip(error.message)                                    # Herwig's repository: heimdall build
     assert [s.tag for s in by["hw7"].groups[0]] == ["herwig", "spectra"]
     assert by["hw7"].consumers["beams"] == []                           # Herwig's snippet fixes its beams
     assert [m.tag for m in by["sh3"].consumers["beams"]] == ["sherpa"]
@@ -107,6 +107,6 @@ def test_weight_variations_and_estimate_raws_are_not_pages_or_entries(scratch):
                     "BEGIN YODA_ESTIMATE1D_V3 /A/x[EXTRA__NTrials]\nEND YODA_ESTIMATE1D_V3\n"
                     "BEGIN YODA_HISTO1D_V3 /RAW/A/x\nEND YODA_HISTO1D_V3\n"
                     "BEGIN YODA_ESTIMATE1D_V3 /A/ratio\nEND YODA_ESTIMATE1D_V3\n"
-                    "BEGIN YODA_ESTIMATE1D_V3 /RAW/A/ratio\nEND YODA_ESTIMATE1D_V3\n")
+                    "BEGIN YODA_ESTIMATE1D_V3 /RAW/A/ratio\nEND YODA_ESTIMATE1D_V3\n", encoding="utf-8")
     assert plot.objects_of(yoda) == ["/A/x", "/A/ratio"]
     assert plot.raws_of(yoda) == {"/RAW/A/x"}

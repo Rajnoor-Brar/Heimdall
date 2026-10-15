@@ -25,7 +25,7 @@ YD2RT = apps() / "App_yd2rt.exe"
 LEGACY = REPO / "tests" / "reference" / "legacy_run"
 OBJECTS = [f"d{n:02d}-x01-y01" for n in range(1, 18)]
 
-pytestmark = pytest.mark.skipif(not (PAINT.exists() and YD2RT.exists()), reason="Paint.exe, App_yd2rt.exe not built (hep build --framework)")
+pytestmark = pytest.mark.skipif(not (PAINT.exists() and YD2RT.exists()), reason="Paint.exe, App_yd2rt.exe not built (heimdall build --framework)")
 
 
 @pytest.fixture(scope="module")
@@ -50,7 +50,7 @@ def page(inputs, obj: str, *, data: str | None = None, **keys) -> Path:
     if data:
         document["data"] = {"file": str(inputs["data"]), "object": f"REF/photo_eic/{data}", "label": "data"}
     path = inputs["dir"] / f"{obj}.{abs(hash(json.dumps(keys, sort_keys=True, default=str)))}.toml"
-    path.write_text(tomli_w.dumps(document))
+    path.write_text(tomli_w.dumps(document), encoding="utf-8")
     return path
 
 
@@ -61,14 +61,14 @@ def dump(path: Path) -> dict:
 
 
 def legacy_ranges() -> dict[str, tuple[float, float]]:
-    text = (LEGACY / "ydmrg" / "auto_range.plot").read_text()
+    text = (LEGACY / "ydmrg" / "auto_range.plot").read_text(encoding="utf-8")
     return {m[0]: (float(m[1]), float(m[2]))
             for m in re.findall(r"# BEGIN PLOT /photo_eic/(\S+)\nXMin=(\S+)\nXMax=(\S+)", text)}
 
 
 def legacy_voids(name: str) -> dict[str, list[int]]:
     """1-based indices of the NaN bins of every Estimate1D in a legacy voided YODA."""
-    text = (LEGACY / "ydmrg" / name).read_text()
+    text = (LEGACY / "ydmrg" / name).read_text(encoding="utf-8")
     out = {}
     for obj, body in re.findall(r"BEGIN YODA_ESTIMATE1D_V3 /photo_eic/(\S+)\n(.*?)END YODA", text, re.S):
         rows = [line.split()[0] for line in body.split("# value", 1)[1].splitlines()[1:] if line.strip()]
@@ -164,7 +164,7 @@ def test_a_page_is_saved_in_every_format(inputs):
 def test_exit_codes(inputs):
     usage = subprocess.run([str(PAINT)], capture_output=True, text=True, encoding="utf-8")
     bad = inputs["dir"] / "bad.toml"
-    bad.write_text("[page]\nname = 'x'\n")                                   # no output, no curves
+    bad.write_text("[page]\nname = 'x'\n", encoding="utf-8")                                   # no output, no curves
     missing = page(inputs, "d99-x01-y01")
     assert usage.returncode == 2
     assert subprocess.run([str(PAINT), str(bad)], capture_output=True).returncode == 1
@@ -201,7 +201,7 @@ def v1_page(where: Path, curves: list[Path], *, data: Path | None = None, **keys
     if data:
         document["data"] = {"file": str(data), "object": "photo_eic/d01-x01-y01", "label": "data"}
     path = where / f"v1.{len(list(where.glob('v1.*.toml')))}.toml"
-    path.write_text(tomli_w.dumps(document))
+    path.write_text(tomli_w.dumps(document), encoding="utf-8")
     return dump(path)
 
 
@@ -266,9 +266,9 @@ def test_the_base_style_is_base_toml():
 
 def test_a_page_style_merges_over_the_base_and_is_checked(inputs):
     config = page(inputs, "d01-x01-y01", formats=["png"])
-    document = tomllib.loads(config.read_text())
+    document = tomllib.loads(config.read_text(encoding="utf-8"))
     document["style"] = {"page": {"dpi": 100}, "legend": {"position": [0.4, 0.9]}}
-    config.write_text(tomli_w.dumps(document))
+    config.write_text(tomli_w.dumps(document), encoding="utf-8")
     merged = tomllib.loads(dump_style(config).stdout)
     assert merged["page"]["dpi"] == 100 and merged["legend"]["position"] == [0.4, 0.9]
     assert merged["text"] == tomllib.loads((REPO / "src/Apps/Paint/base.toml").read_text(encoding="utf-8"))["text"]
@@ -279,7 +279,7 @@ def test_a_page_style_merges_over_the_base_and_is_checked(inputs):
     for bad, message in (({"legend": {"place": 1}}, "legend.place"), ({"page": {"dpi": "x"}}, "page.dpi"),
                          ({"curves": {"errors": "dots"}}, "curves.errors")):
         document["style"] = bad
-        config.write_text(tomli_w.dumps(document))
+        config.write_text(tomli_w.dumps(document), encoding="utf-8")
         done = subprocess.run([str(PAINT), str(config)], capture_output=True, text=True, encoding="utf-8")
         assert done.returncode == 1 and message in done.stderr + done.stdout
 
@@ -296,7 +296,7 @@ def test_many_pages_in_one_paint_each_with_its_outcome_and_ranges(inputs):
     assert done.returncode == 1 and [l["ok"] for l in lines] == [True, False, True]
     assert "curve" in lines[1]["error"]
     for config in (good, other):
-        written = json.loads(Path(str(config) + ".ranges.json").read_text())
+        written = json.loads(Path(str(config) + ".ranges.json").read_text(encoding="utf-8"))
         assert written == dump(config)
 
 
@@ -325,7 +325,7 @@ def test_normalise_is_area_or_false(v1):
     where, curves = v1
     path = where / "bad_normalise.toml"
     path.write_text(tomli_w.dumps({"page": {"name": "v1", "output": str(where / "v1"), "normalise": "peak"},
-                                   "curve": [{"file": str(curves[0]), "object": "photo_eic/d01-x01-y01", "label": "a"}]}))
+                                   "curve": [{"file": str(curves[0]), "object": "photo_eic/d01-x01-y01", "label": "a"}]}), encoding="utf-8")
     done = subprocess.run([str(PAINT), str(path), "--dump-ranges"], capture_output=True, text=True, encoding="utf-8")
     assert done.returncode == 1 and "normalise" in done.stdout + done.stderr
 
@@ -338,6 +338,6 @@ def test_a_band_curve_spans_its_members(v1):
     document = {"page": {"name": "v1", "output": str(where / "band"), "auto_range": True},
                 "curve": [{"file": str(b), "object": "photo_eic/d01-x01-y01", "label": "b",
                            "band": [{"file": str(a), "object": "photo_eic/d01-x01-y01"}]}]}
-    path.write_text(tomli_w.dumps(document))
+    path.write_text(tomli_w.dumps(document), encoding="utf-8")
     assert alone["largest"] == pytest.approx(4.0) and dump(path)["largest"] == pytest.approx(5.0)
     assert subprocess.run([str(PAINT), str(path)], capture_output=True).returncode == 0

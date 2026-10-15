@@ -89,7 +89,7 @@ def test_every_toml_block_parses_and_complete_runs_load(page, scratch):
         elif complete:                                   # a whole run TOML, not a fragment of one
             config.parse(data, scratch / "example.toml")   # C1–C5 on the example itself
         elif v3.is_v3(data) and {"name", "project"} <= set(run) and data.get("cfgs"):
-            path = scratch / "example.toml"              # a whole v3 file, its imports the fixture's: read as `hep run` reads it (U50)
+            path = scratch / "example.toml"              # a whole v3 file, its imports the fixture's: read as `heimdall run` reads it (U50)
             path.write_text(block, encoding="utf-8")
             config.load(str(path))
 
@@ -156,7 +156,7 @@ CODE = [p for top in ("framework", "src", "tests") for p in (REPO / top).rglob("
         if p.is_file() and p.suffix in (".py", ".hh", ".cc", ".toml", ".sh", ".in", ".cmnd", ".yaml", ".sin", ".mg5", ".mk")
         and "reference/legacy_run" not in str(p) and "/_" not in str(p.relative_to(REPO))
         and not {"Apps", "venv"} & set(p.relative_to(REPO).parts)]                         # (V52, V92)
-CODE += [REPO / "Makefile", REPO / "setup.sh", REPO / "framework" / "bin" / "hep", REPO / "framework" / "bin" / "run",
+CODE += [REPO / "Makefile", REPO / "gjallarhorn.sh", REPO / "framework" / "bin" / "heimdall", REPO / "framework" / "bin" / "run",
          *(p for p in (REPO / "env").glob("*") if p.is_file())]                    # the venv is in the machine root
 
 

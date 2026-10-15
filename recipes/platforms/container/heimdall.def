@@ -1,11 +1,38 @@
-# recipes/platforms/container/heimdall.def — an Apptainer image from the Docker image, saved as a file
-# (docker save heimdall -o heimdall.tar), so a cluster needs no Docker:
-#   apptainer build heimdall.sif recipes/platforms/container/heimdall.def      # where heimdall.tar is
-Bootstrap: docker-archive
-From: heimdall.tar
+# recipes/platforms/container/heimdall.def — an Apptainer (or SingularityCE) image of Heimdall and a machine root
+# built inside it: /opt/heimdall and /opt/himinbjorg, read-only. No Docker: Apptainer pulls the stock Ubuntu.
+# `heimdall image build` fills the {{ … }} below and runs the build (docs/05_Commands_and_Tools.md §2):
+#   heimdall image build packages=@core-conda       # → <machine root>/images/core-conda.sif
+# By hand (Apptainer 1.2+, which fills them from --build-arg; every one is needed), from a clean copy of Heimdall:
+#   apptainer build --fakeroot --build-arg HEIMDALL=/tmp/heimdall --build-arg PACKAGES=@primary --build-arg CORES=0 \
+#       --build-arg ROOT_CORES=0 --build-arg REVISION=$(git rev-parse --short=12 HEAD) --build-arg BUILT=$(date +%F) \
+#       primary.sif heimdall.def
+# Run it: `gjallarhorn --image <name> [title]` (a shell, in a work dir), `launch.sh --image <name> <command…>`, or
+# `[cluster] image` for heimdall cluster's jobs. Work dirs stay outside, bound at their own paths.
+Bootstrap: docker
+From: ubuntu:24.04
+
+%files
+    {{ HEIMDALL }} /opt/heimdall
+
+%post
+    export DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
+    apt-get update
+    apt-get install -y --no-install-recommends python3 ca-certificates bzip2 xz-utils
+    rm -rf /var/lib/apt/lists/*
+    python3 /opt/heimdall/recipes/build_stack.py machine=/opt/himinbjorg packages="{{ PACKAGES }}" \
+        cores={{ CORES }} root_cores={{ ROOT_CORES }} shell_rc=false
+    HEP_MACHINE=/opt/himinbjorg /opt/heimdall/launch.sh heimdall build --framework
+    rm -rf /opt/himinbjorg/forge
+    chmod -R a+rX /opt/heimdall /opt/himinbjorg
 
 %environment
-    . /opt/heimdall/setup.sh
+    export HEP_MACHINE=/opt/himinbjorg
+    export PYTHONDONTWRITEBYTECODE=1
 
 %runscript
-    exec bash "$@"
+    exec /opt/heimdall/launch.sh "$@"
+
+%labels
+    heimdall.revision {{ REVISION }}
+    heimdall.packages {{ PACKAGES }}
+    heimdall.built {{ BUILT }}

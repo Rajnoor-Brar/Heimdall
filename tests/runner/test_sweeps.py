@@ -105,22 +105,30 @@ def one_pdf(value):
                                          ("LHAPDF6:MSTW2008lo68cl/3", "PDF:pSet = LHAPDF6:MSTW2008lo68cl/3"),
                                          (14, "PDF:pSet = 14")])
 def test_pythia_gets_the_pdf_value_as_written(scratch, value, line):
-    """No prefix is added: the value is LHAPDF6:<set>[/member], or one of Pythia's own sets."""
+    """A prefixed value and one of Pythia's own set numbers are written as given (V40: a number is never prefixed)."""
     _, _, p = plan(one_pdf(value), scratch)
     assert line in p.writes[p.rendered["pythia"].card_combined].splitlines()
 
 
-def test_a_bare_lhapdf_set_name_for_pythia_is_refused(scratch):
-    with pytest.raises(HepError, match="Pythia reads only as LHAPDF6:MSTW2008lo68cl") as caught:
-        plan(one_pdf("MSTW2008lo68cl"), scratch)
-    assert 'LHAPDF6:MSTW2008lo68cl' in caught.value.hint
+def test_a_bare_lhapdf_set_name_is_written_with_its_prefix_for_pythia(scratch):
+    """V152: one spelling of a set feeds every generator; Pythia reads a bare name as a file, so it gets the
+    prefix, and the card line (so the identity) is the prefixed value's."""
+    _, _, bare = plan(one_pdf("MSTW2008lo68cl"), scratch)
+    _, _, prefixed = plan(one_pdf("LHAPDF6:MSTW2008lo68cl"), scratch)
+    assert "PDF:pSet = LHAPDF6:MSTW2008lo68cl" in bare.writes[bare.rendered["pythia"].card_combined].splitlines()
+    assert record.identity(bare) == record.identity(prefixed)
 
 
-def test_sherpa_takes_the_bare_set_name():
+def test_sherpa_and_herwig_take_the_set_s_name():
     from runner.quantities import check_provider
-    check_provider("lhapdf:bare", "MSTW2008lo68cl", "x")
-    with pytest.raises(HepError, match="takes the bare LHAPDF set name"):
-        check_provider("lhapdf:bare", "LHAPDF6:MSTW2008lo68cl", "x")
+    assert check_provider("lhapdf:bare", "MSTW2008lo68cl", "x") == "MSTW2008lo68cl"
+    assert check_provider("lhapdf:bare", "LHAPDF6:MSTW2008lo68cl/3", "x") == "MSTW2008lo68cl/3"
+    assert check_provider("lhapdf:set", "LHAPDF6:MSTW2008lo68cl", "x") == "MSTW2008lo68cl"
+    with pytest.raises(HepError, match="a set's name, not a member") as caught:
+        check_provider("lhapdf:set", "MSTW2008lo68cl/3", "x")
+    assert "card" in caught.value.hint
+    with pytest.raises(HepError, match="not installed"):
+        check_provider("lhapdf:set", "LHAPDF6:NoSuchSet", "x")
 
 
 def test_an_override_equal_to_the_base_card_does_not_change_the_identity(scratch):

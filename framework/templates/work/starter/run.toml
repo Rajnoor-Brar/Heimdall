@@ -1,17 +1,17 @@
 # {{p}}.toml — the starter: Pythia's dijets through Rivet's MC_JETS, for two proton PDFs.
 #
-#   hep check {{P}}/{{p}}             is it valid? (plans every configuration, runs nothing)
-#   hep run {{P}}/{{p}} --plan        what would run, and where it would go
-#   hep run {{P}}/{{p}}               two points of 500 events, and a page per histogram
+#   heimdall check {{P}}/{{p}}             is it valid? (plans every configuration, runs nothing)
+#   heimdall run {{P}}/{{p}} --plan        what would run, and where it would go
+#   heimdall run {{P}}/{{p}}               two points of 500 events, and a page per histogram
 #
 # Pythia writes events and Rivet reads them in the same group (a FIFO, inferred), writing jets.yoda;
 # yd2rt converts that to ROOT. Physics lives in the card ({{p}}.cmnd); this file says what varies and
-# what runs. The run TOML's keys: docs/04_Config_Reference.md, or `hep explain <key>`.
+# what runs. The run TOML's keys: docs/04_Config_Reference.md, or `heimdall explain <key>`.
 
 [run]
 project = "{{P}}"
 name    = "{{p}}"
-run     = "pdf"                        # the configuration `hep run` picks
+run     = "pdf"                        # the configuration `heimdall run` picks
 events  = 500
 threads = 2
 chain   = [["pythia", "rivet"], "yd2rt"]

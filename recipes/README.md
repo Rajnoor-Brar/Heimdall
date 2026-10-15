@@ -8,7 +8,7 @@ pixi makes the machine root's `base/` from conda-forge first (the compilers, the
 libraries the stack links, Python and its packages), so it needs no apt, no sudo and no Homebrew, and an
 OS upgrade no longer reaches the stack. The HEP tools are still built here, from source, inside it; the
 `@…-conda` toolkits take them ready-made instead (§6). `base=system` is the way before: apt (or Homebrew,
-[platforms/mac/](platforms/mac/README.md)) and a venv. It runs on Linux, in a Docker container, or on
+[platforms/mac/](platforms/mac/README.md)) and a venv. It runs on Linux, in an Apptainer image, or on
 macOS. It needs only `python3` (3.11+, or older with `tomli`): its standard library, no other packages.
 
 | File | Is |
@@ -18,11 +18,11 @@ macOS. It needs only `python3` (3.11+, or older with `tomli`): its standard libr
 | [settings.toml](settings.toml) | the run's settings, each with its default: the base, cores, features, the apt, Python and PDF lists |
 | [base.toml](base.toml) | the base (§4): pixi's release, the conda-forge packages by what needs them, and the layer its builds get |
 | [build_stack.py](build_stack.py) | the engine: reads them, then fetches, builds, stamps and logs |
-| [verify.py](verify.py) | a package's checks, after it installs and in `hep doctor` |
-| [machine.py](machine.py), [machine.template.toml](machine.template.toml) | the machine root: `where`, `adopt`; a new root's `machine.toml` |
+| [verify.py](verify.py) | a package's checks, after it installs and in `heimdall doctor` |
+| [machine.py](machine.py), [machine.template.toml](machine.template.toml), [recipes.template.toml](recipes.template.toml) | the machine root: `where`, `adopt`; a new root's `machine.toml` (settings) and `recipes.toml` (its own recipes) |
 | [pth.py](pth.py) | writes `heimdall.pth` into the base's (or the venv's) site-packages, so Python finds `framework/` |
 | [patches/](patches/) | patches the stack's sources need (FastJet's SISCone, L29) |
-| [platforms/container/](platforms/container/Dockerfile) | the same build in an Ubuntu 24.04 image (Dockerfile, Apptainer definition) |
+| [platforms/container/](platforms/container/heimdall.def) | the same build in an Ubuntu 24.04 Apptainer image: `heimdall.def` (`heimdall image build`); the Dockerfile is the CI workflow's |
 | [build_by_hand.txt](build_by_hand.txt) | the same build as commands to paste into a terminal, step by step (Ubuntu 24.04) |
 | [platforms/mac/](platforms/mac/README.md) | macOS: `mac.toml` (the platform's fixes, laid by themselves on macOS), `conda.toml` or `system.toml` (with a Brewfile) for the base, `build.sh` and `launch.sh`, and the steps by hand |
 
@@ -41,15 +41,15 @@ settings), outside git. Sources and builds stay in `forge/`; `stack/` holds inst
 | `forge/src/`, `forge/build/<package>/`, `forge/logs/` | the unpacked sources; the build trees (CMake's); one log per package |
 | `stack/<dir>/`, `stack/.stamps/` | the installs; what is built |
 | `venv/` | `base=system`: the Python environment, with `heimdall.pth` (on the base, the base is it) |
-| `apps/` | Heimdall's compiled apps (`hep build --framework`) |
-| `machine.sh` | this machine's extra lines for `setup.sh` (`setup_extra`; macOS's DYLD and GNU tools) |
+| `apps/` | Heimdall's compiled apps (`heimdall build --framework`) |
+| `machine.sh` | this machine's extra lines for `gjallarhorn.sh` (`setup_extra`; macOS's DYLD and GNU tools) |
 
 `python3 recipes/machine.py where` prints them; `python3 recipes/machine.py adopt` moves a stack built
 inside a checkout (`stack/`, `env/venv/`, `stash/`, `framework/Apps/`) into the machine root, by links
 and moves only.
 
 The framework's own view of the stack (each library's flags and version) is `env/stack.toml`; the
-shell environment is `env/hep_env.sh`, which `setup.sh` sources
+shell environment is `env/hep_env.sh`, which `gjallarhorn.sh` sources
 ([06 §15.3](../docs/06_Internals.md#153-the-flag-cache)).
 
 ---
@@ -63,19 +63,26 @@ python3 recipes/build_stack.py --list                 # each package: release, s
 python3 recipes/build_stack.py                        # the base, then the core stack (hours: ROOT alone is 1–2 h)
 python3 recipes/build_stack.py packages=all           # and Sherpa, MadGraph, Whizard, ONNX Runtime, Geant4
 python3 recipes/build_stack.py packages=@core-conda   # or: the core ready-made from conda-forge, in minutes (§6)
-source setup.sh && hep build --framework              # the environment, then the framework's apps
+source gjallarhorn.sh && heimdall build --framework              # the environment, then the framework's apps
 ```
 
 **The base** (`base = "conda"`, the default; [docs/conda/](../docs/conda/README.md)). Before any package,
 pixi (fetched once into `forge/pixi/`, checked against `base.toml`'s sha256) makes `base/` from
 `base.toml`: Python (`base_python`), GCC (`base_gcc`; clang on macOS), the build tools, the libraries the
-stack links, `python_packages` and `base_packages` (yours: `base_packages = ["scipy"]` in `machine.toml`).
+stack links, `python_packages` and `base_packages` (yours: `bifrost scipy`, which records `base_packages =
+["scipy"]` in `machine.toml` and makes the base again), and PyPI's `base_pypi` (`bifrost -python <pkg>`,
+through pixi's `[pypi-dependencies]`, solved against the conda packages). A later run of another set keeps
+what the base holds: the packages taken ready-made, and what a recipe built here needs.
 Every build runs inside it: its compilers, whose sysroot keeps `/usr/include` and `/usr/lib` out, its
 headers and an rpath to its libraries (`{cflags}`, `{cxxflags}`, `{ldflags}`). Its `lib/` never joins
 `LD_LIBRARY_PATH`, so the OS's own programs keep the OS's libraries. `--base` makes (or brings up to date)
 the base alone; `--update-base` takes its packages to their newest first. A stamp holds what the base's
 libraries were: an update that changes one marks what was built on it "changed" (`--rebuild` it), a
-tool's update (pandoc, cmake) nothing. A machine root made before the base (a `venv/`, no `base/`) stays
+tool's update (pandoc, cmake) nothing. `bifrost <pkg>` refuses a package whose recipe the stack has built
+(two copies would clash): `bifrost -c <recipe>` takes the recipe ready-made instead, `bifrost -b <recipe>`
+builds it, each recorded in `machine.toml` as `[packages.<recipe>] from`. `heimdall stack status` shows
+each recipe installed and how (`--toml` for scripts); nothing keeps a file of it: the stamps, the base's
+`conda-meta` and `machine.toml` are the record. A machine root made before the base (a `venv/`, no `base/`) stays
 on `base = "system"` until told otherwise; `base=system` builds as before, with apt and a venv.
 
 **Settings.** Any key of `settings.toml` is `key=value` on the command line (`cores=8
@@ -90,10 +97,11 @@ machine root than `$HEP_MACHINE` (`~/Himinbjorg`); the tests use it.
 the checkout clean). `[settings]`, `[env]` and `[packages.<name>]` are a layer over the recipes, the
 platform's fixes and the toolkits asked for, under `--config` files and the command line. A list appends to the shipped
 one (`pdf_sets = ["NNPDF31_nnlo_as_0118"]` adds a set; `setup_extra` adds lines to `machine.sh`), unless
-its table says `replace = ["pdf_sets"]`; anything else replaces. `[cluster]` is `hep cluster`'s
+its table says `replace = ["pdf_sets"]`; anything else replaces. `[cluster]` is `heimdall cluster`'s
 defaults for every work dir on the machine.
 
-**The layers, lowest first:** the recipes (`toolkits/standard.toml`) and `settings.toml`; the base's
+**The layers, lowest first:** the recipes (`toolkits/standard.toml`, then the machine root's
+`recipes.toml`) and `settings.toml`; the base's
 (`base.toml`'s `[settings]`, `[env]` and `[packages.*]`, with `base = "conda"`); the platform's fixes
 (`platforms/mac/mac.toml` on macOS, then `platforms/mac/<base>.toml`; `--platform mac` shows them
 anywhere); the toolkits asked for, each after what it extends (§6); `machine.toml`; `--config` files;
@@ -125,16 +133,16 @@ it is not installed; they are always built in `standard.toml`'s order.
 read first, or saved and run where you want plain commands (`--dry-run > build.sh; bash build.sh`).
 It is the same commands, without stamps or logs: run it on a fresh Heimdall.
 
-**In Docker** (from Heimdall's folder; [docs/framework/targets/container.md](../docs/framework/targets/container.md)):
+**In an Apptainer image** ([docs/framework/targets/container.md](../docs/framework/targets/container.md)):
 
 ```bash
-docker build -f recipes/platforms/container/Dockerfile -t heimdall .
-docker build -f recipes/platforms/container/Dockerfile --build-arg PACKAGES=core --build-arg ROOT_CORES=2 -t heimdall:core .
-docker run --rm -it --user "$(id -u):$(id -g)" -v "$HOME/Github/Top-Quark:$HOME/Github/Top-Quark" -w "$HOME/Github/Top-Quark" heimdall
+heimdall image build packages=@core-conda root_cores=2   # → <machine root>/images/core-conda.sif
+gjallarhorn --image core-conda Top-Quark                 # a shell in it, in that work dir
 ```
 
-The image is headless (`graphics=OFF`) and holds Heimdall, with its stack, at `/opt/heimdall`. Work
-dirs are mounted into it.
+The image is Ubuntu 24.04, headless, read-only, and holds Heimdall at `/opt/heimdall` and a machine root
+built inside it at `/opt/himinbjorg`. Work dirs are bound into it at their own paths. The Dockerfile
+beside `heimdall.def` builds the same for the CI workflow only.
 
 **Resuming.** A package that finishes is stamped (`stack/.stamps/<name>-<release>`, holding a digest
 of the recipe it was built with) and skipped next time, so the same command resumes after a failure,
@@ -162,8 +170,8 @@ copied tarballs.
 **Logs.** Each package writes `forge/logs/<name>.log`. A failure stops the build at once, prints
 the last 30 lines and names the log.
 
-**setup.sh** is tracked at Heimdall's root and finds its own folder; the build writes nothing to it.
-What a machine needs beyond it (`setup_extra`) goes to the machine root's `machine.sh`, which `setup.sh` sources.
+**gjallarhorn.sh** is tracked at Heimdall's root and finds its own folder; the build writes nothing to it.
+What a machine needs beyond it (`setup_extra`) goes to the machine root's `machine.sh`, which `gjallarhorn.sh` sources.
 
 ---
 
@@ -195,22 +203,33 @@ What a machine needs beyond it (`setup_extra`) goes to the machine root's `machi
 
 The installs go to `stack/<dir>` (a recipe's `install`, else its name). `env/packages.sh`, generated
 from the recipes (`make registry`; a test keeps it current), lists them for `env/hep_env.sh`, with
-what this stack's own builds made (`stack/.stamps/folders`). `hep status --stack` (or `hep_status`)
+what this stack's own builds made (`stack/.stamps/folders`). `heimdall status --stack` (or `heimdall_status`)
 shows what is installed, from the recipes. More Python packages (scipy, pandas, scikit-learn, pyhf, …)
 go into `python_packages` (from conda-forge in the base; from pip in a venv).
 
-**A new package** is a `[packages.<name>]` table: in a toolkit of your own (§6), which builds it, or in
-`machine.toml` or a `--config` file:
+**A new package** is a `[packages.<name>]` table, best in the machine root's **`recipes.toml`** (made from
+`recipes.template.toml` by the first build): laid right after `standard.toml`, a recipe there is as one of
+standard's, for every toolkit (`[standard] mytool = true` takes it; `bifrost -b mytool` builds it, `bifrost
+-c mytool` takes it ready-made when it names a `conda` package). A toolkit of your own (§6) may hold one
+too (it joins that toolkit's set), and `machine.toml` or a `--config` file change any recipe last:
 
 ```toml
 [packages.mytool]
-release = "1.2"
-url     = "https://example.org/mytool-{release}.tar.gz"
-kind    = "cmake"
-needs   = ["root", "hepmc3"]
-args    = ["-DWITH_ROOT={dir_root}"]     # where ROOT is: stack/root, or the base when it is ready-made
-base    = ["boost-cpp"]                 # what it needs in the base (conda-forge's names); apt = [...] for base=system
+release  = "1.2"
+url      = "https://example.org/mytool-{release}.tar.gz"
+kind     = "cmake"
+needs    = ["root", "hepmc3"]
+args     = ["-DWITH_ROOT={dir_root}"]    # where ROOT is: stack/root, or the base when it is ready-made
+base     = ["boost-cpp"]                # what it needs in the base (conda-forge's names); apt = [...] for base=system
+optional = { "root >=6.30" = ["-DWITH_RNTUPLE=ON"], hdf5 = ["-DWITH_HDF5={dir_hdf5}"] }
 ```
+
+**Flags that depend on other packages.** `optional`'s keys are a package and, after a space, a version
+spec it must meet (comparisons joined by commas, `">=6.30,<7"`, or `"6.40.*"`): the arguments are added
+when that package is installed or in the run, at such a version. The version is the recipe's `release`,
+or the base's installed one when the package is ready-made (unknown, so no gate passes, until the base has
+it; the base is made before any build). `{dir_<pkg>}`, `{bin_<pkg>}` and `{version_<pkg>}` name another
+package's folder, programs and version in any argument, `env`, `pre` or `post`.
 
 ---
 
@@ -221,7 +240,7 @@ Each of these was hit on the lab PC; the TOML files do what is in the right colu
 | Package | Problem | What is done |
 |---|---|---|
 | all | ROOT, Rivet, Pythia8 and the module programs pass C++ types across libraries: mixed standards are ABI trouble | one standard for everything: `CXXFLAGS="-O2 -std=c++17"` for every build, and `CMAKE_CXX_STANDARD=17` |
-| all | the build of one package needs the ones before it on its paths | the base's (or venv's) `bin/` first on `PATH`, and every install on `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`, as `setup.sh` gives them later (`settings.toml [env]` for the rest) |
+| all | the build of one package needs the ones before it on its paths | the base's (or venv's) `bin/` first on `PATH`, and every install on `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`, as `gjallarhorn.sh` gives them later (`settings.toml [env]` for the rest) |
 | all, on the base | conda's GCC searches its own sysroot, not `/usr`; a program built on the base needs the base's `libstdc++` at run time | every build inside the base's activation, `-isystem <base>/include` and `-Wl,-rpath,<base>/lib` (`{cflags}`, `{cxxflags}`, `{ldflags}`); `<base>/lib` never on `LD_LIBRARY_PATH` |
 | YODA, Rivet, ThePEG, Herwig | on the base, their configure looks for zlib in `/usr/local /usr` (adding `-I/usr/include`: the OS's glibc headers among the base's, "bits/timesize.h: No such file") and for GSL on "the system" | `--with-zlib=<base>`, `--with-gsl=<base>` (`base.toml`) |
 | the base | conda-forge's ROOT is built against glibc 2.17's headers and pins that sysroot; the compilers alone get 2.28 | the sysroot unpinned in `base.toml`: the newest the solve allows |
@@ -269,31 +288,31 @@ install the same packages under its names and run with `system=false`.
 ## 5. After the build
 
 ```bash
-source setup.sh                       # in Heimdall's folder, in bash (from any shell: ./launch.sh, alias load_hep)
-hep doctor                            # what every package can do, checked; libraries that no longer resolve
-hep build --framework && make test    # the framework's apps and tests, against the new stack
+source gjallarhorn.sh                       # in Heimdall's folder, in bash (a new shell: gjallarhorn; any shell: ./launch.sh)
+heimdall doctor                            # what every package can do, checked; libraries that no longer resolve
+heimdall build --framework && make test    # the framework's apps and tests, against the new stack
 ```
 
 **What is checked.**
 - **Each package, as it is built:** its recipe's `[[<package>.verify]]` checks run right after it
   installs (versions, compiled-in features, Python modules, a short run), and a failed check fails
-  the package. `hep doctor` runs them all whenever asked, with a scan of every program and library for
+  the package. `heimdall doctor` runs them all whenever asked, with a scan of every program and library for
   libraries that no longer resolve (after an OS upgrade).
 - `tests/runner/test_stack_build.py`: the plans (order, added needs, overrides, `--config`,
   refusals), the full dry run (valid bash, writing nothing), and the downloader against a local
   server (mirrors, web pages, cut-off files, resumes).
 - `--check-urls`: every chosen package's URL answers with an archive.
 
-**The support matrix.** Each machine that ran `hep doctor --record` has a file in
+**The support matrix.** Each machine that ran `heimdall doctor --record` has a file in
 [support/](support/): its platform, date, Heimdall revision, the versions and every check that didn't
-pass. `hep doctor --matrix` prints them side by side. A platform is supported as far as its last
+pass. `heimdall doctor --matrix` prints them side by side. A platform is supported as far as its last
 recorded run says; a recipe change is proven when a machine records it again. The CI workflow
 `.github/workflows/stack.yml` (started by hand) builds the container on a clean Ubuntu, then runs
-`hep doctor --quick` and the fast tests in it.
+`heimdall doctor --quick` and the fast tests in it.
 
 **After an OS upgrade.** On the base, nothing the stack links comes from the OS but glibc, so an
 upgrade leaves it alone. With `base=system`, an upgrade can replace a system library under the stack's
-feet (Ubuntu 26.04: libgsl, libzip, libxml2). `hep doctor` names what no longer resolves; `build_stack.py
+feet (Ubuntu 26.04: libgsl, libzip, libxml2). `heimdall doctor` names what no longer resolves; `build_stack.py
 --rebuild-broken` rebuilds exactly those packages and what needs them (`--dry-run` first). Each build
 records the system libraries it linked, beside its stamp (`.libs`).
 
@@ -383,8 +402,8 @@ build a whole stack of its own:
   package's keys for it (Geant4's own C++ switch).
 - **A toolkit that changes `cxx_std` or `opt_flags` must be isolated**: the engine refuses it
   otherwise. **One isolated stack per run.**
-- `source stacks/<toolkit>/setup.sh`, which the build writes, loads it instead of `setup.sh`, in a
-  shell of its own (or after `quit`). `hep where` and the prompt (`HEP-<toolkit>`) say which stack
+- `source stacks/<toolkit>/gjallarhorn.sh`, which the build writes, loads it instead of `gjallarhorn.sh`, in a
+  shell of its own (or after `quit`). `heimdall where` and the prompt (`HEP-<toolkit>`) say which stack
   is loaded.
 
 **Three kinds of package beyond the lab PC's:**
@@ -393,7 +412,7 @@ build a whole stack of its own:
   its first failure is a gate (docs/framework/02_Agents.md §6). Once a build proves it, the status
   goes.
 - **`kind = "external"`**: never built here. Key4hep and CMSSW come from CVMFS, each in a shell or
-  container of its own and never mixed with `setup.sh`'s. FLUKA comes behind its licence, and
+  container of its own and never mixed with `gjallarhorn.sh`'s. FLUKA comes behind its licence, and
   Mathematica behind its own. Their `how` says where each comes from.
 - **`apt = [...]`**: a package's own system packages, installed with `settings.toml`'s for the run
   that builds it (`base=system`); **`base = [...]`**, the same in the base, by conda-forge's names.
@@ -408,8 +427,8 @@ interface). What a ready-made package needs must be ready-made too, or there wou
 the build it takes (`conda = ["root", "root_base * cxx{cxx_std}*"]`), and `conda_std` names the C++
 standards conda-forge builds it for: taken ready-made, it sets the stack's. A machine root remembers
 what it took ready-made without being told again: a recipe that no layer gives a `from`, whose package
-is in the base and which the stack has not built, is the base's (`hep doctor`, `hep stack status` and a
-later `hep stack build` see it so).
+is in the base and which the stack has not built, is the base's (`heimdall doctor`, `heimdall stack status` and a
+later `heimdall stack build` see it so).
 
 ### What was asked for, and what came of it
 

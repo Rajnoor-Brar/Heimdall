@@ -13,7 +13,7 @@ differs ("run `make docs`"). What a block may name:
   inheritance, doc and notes, V90); `keys figure` lists a figure's own keys, then the [plot] keys it
   inherits;
 * `style`: src/Apps/Paint/base.toml's keys, their defaults and their comments;
-* `commands`: `hep`'s subcommands and their options, from cli.parser()'s help.
+* `commands`: `heimdall`'s subcommands and their options, from cli.parser()'s help.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ V3_TABLES = {
                    ("values", "tags", "labels", "styles", "target")),
 }
 V3_DOCS = {
-    ("run", "run"): "the configuration `hep run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may "
+    ("run", "run"): "the configuration `heimdall run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may "
                     "be left out",
     ("run", "events"): "every configuration's event count, unless it gives its own",
     ("run", "chain"): "every configuration's tools, unless it gives its own (04 §5.3)",
@@ -117,7 +117,7 @@ V3_DOCS = {
     ("cfgs", "fixed"): "`{ quantity = \"tag\" }`: this configuration's fixed points, over each quantity's own "
                        "`fixed` (04 §7)",
     ("tools", "uses"): "the tool folder, when it is not the table's name: a second table of one tool, "
-                       "`[tools.<name>] uses = \"<folder>\"` (05 §3; `hep tools` lists the folders)",
+                       "`[tools.<name>] uses = \"<folder>\"` (05 §3; `heimdall tools` lists the folders)",
     ("tools", "card"): "native base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
     ("tools", "input"): "what it reads: a producer's table name (`input = \"pythia\"`: what that tool writes), "
                         "another tool's output by name, a pre product, (post) a product of every point, or a path. "
@@ -135,7 +135,7 @@ V3_DOCS = {
                                "excluded point. Refused: a place outside the points, or none left (V42)",
     ("tools", "shards"): "K > 1: K processes of this tool, each on a share of the events, merged into its `output` "
                          "by the folder's merge tool (V31; rivet, 05 §5.1). The chain is unchanged.",
-    ("file", "import"): "run TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this "
+    ("file", "import"): "run TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this "
                         "project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from "
                         "the work dir; `.toml` optional. **This file wins** (V56): a quantity or configuration of the "
                         "file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[run]`'s own "
@@ -200,7 +200,7 @@ def commands() -> str:
     helps = {a.dest: a.help for a in sub._choices_actions}
     out = []
     for name, parser in sub.choices.items():
-        out.append(f"**`hep {name}`**: {helps.get(name, '')}\n")
+        out.append(f"**`heimdall {name}`**: {helps.get(name, '')}\n")
         rows = ["| Argument | Meaning |", "|---|---|"]
         for action in parser._actions:
             if isinstance(action, argparse._HelpAction):
@@ -221,7 +221,7 @@ _PLAIN = [(re.compile(rf"[ \t]*\((?:see[ \t]+)?{_IDS}\)"), ""),             # (V
 
 def plain(text: str) -> str:
     """Text for the user pages: the record's ids taken out of its parentheses, code spans as they are.
-    The schema and the CLI keep them for developers (`hep explain`, 06, 07)."""
+    The schema and the CLI keep them for developers (`heimdall explain`, 06, 07)."""
     out, at = [], 0
     for span in re.finditer(r"`[^`\n]*`", text):
         out.append(_plain(text[at:span.start()]))

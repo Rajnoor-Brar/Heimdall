@@ -9,7 +9,7 @@ The places (V109, V122) are:
   with its `heimdall.pth` (pixi makes it from conda-forge; `forge/pixi/` holds pixi itself);
 - `stack/` for the installs and their stamps (installs only).
 
-`setup.sh` cannot be sourced before the root exists, so this phase's shell sets
+`gjallarhorn.sh` cannot be sourced before the root exists, so this phase's shell sets
 `export HEP_MACHINE=~/Himinbjorg` (the default) for the rows below.
 
 The steps:
@@ -128,7 +128,7 @@ The steps:
 |---|---|---|
 | R1 | `ls $HEP_MACHINE/stack/.stamps \| grep -v '\.libs$\|^folders$' \| wc -l` | `21` (the 20 packages of S1's R2, and `cxx_std`) |
 | R2 | `cat $HEP_MACHINE/stack/.stamps/cxx_std` | `17` |
-| R3 | `tail -1 $HEP/.setup/stack.log` | `done: source <HEP>/setup.sh` |
+| R3 | `tail -1 $HEP/.setup/stack.log` | `done: source <HEP>/gjallarhorn.sh` |
 | R4 | `grep -c 'failed' $HEP/.setup/stack.log` | `0` |
 | R5 | `git -C $HEP status --porcelain \| wc -l` | `0` (everything the build wrote is ignored) |
 
@@ -146,8 +146,8 @@ The steps:
 
 **Preconditions:** S2 `done`.
 
-Every row runs in a fresh shell after `source $HEP/setup.sh`. The expected values are the lab PC's
-of 2026-10-10 (`hep status --stack`, `lhapdf list --installed`).
+Every row runs in a fresh shell after `source $HEP/gjallarhorn.sh`. The expected values are the lab PC's
+of 2026-10-10 (`heimdall status --stack`, `lhapdf list --installed`).
 
 **Verification:**
 
@@ -173,7 +173,7 @@ of 2026-10-10 (`hep status --stack`, `lhapdf list --installed`).
 | R18 | `python -c "import ROOT, pythia8, yoda, rivet, lhapdf, pyHepMC3, uproot, tomli_w, yaml; print('ok')"` | `ok` |
 | R19 | `cat $(python -c "import site; print(site.getsitepackages()[0])")/heimdall.pth` | `<HEP>/framework`, expanded |
 | R20 | `which python; echo $HEP_BASE; echo $HEP_INSTALL` | `<machine root>/base/.pixi/envs/default/bin/python`, `<machine root>/base/.pixi/envs/default`, `<machine root>/stack` |
-| R21 | `hep where` | `hep=<HEP> <revision>` and `work=-`, and no warning about `heimdall.pth` |
+| R21 | `heimdall where` | `hep=<HEP> <revision>` and `work=-`, and no warning about `heimdall.pth` |
 | R22 | `du -sh $HEP_MACHINE/stack/ \| cut -f1` | about `6.0G` (the lab set's; MadAnalysis5 adds little) |
 | R23 | `pkg-config --modversion tomlplusplus libzstd zlib` | the base's: `3.4.0 1.5.7 1.3.2` (2026-10-14). Recorded, not compared |
 | R24 | `ldd $HEP_INSTALL/rivet/lib/libRivet.so \| grep '=> /usr/lib\|=> /lib' \| grep -v 'libc\.\|libm\.\|libdl\.\|libpthread\.\|librt\.\|ld-linux'` | nothing: every library but glibc's from the base or the stack |

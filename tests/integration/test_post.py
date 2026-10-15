@@ -36,7 +36,7 @@ json.dump({"inputs": inputs, "points": [{"name": p["name"], "pdf": p["values"]["
 
 def stage(scratch, name="poststage", **changes):
     script = scratch / "summary.py"
-    script.write_text(SCRIPT)
+    script.write_text(SCRIPT, encoding="utf-8")
     changes = {"run__name": name, "run__cfgs__one__sweeps": ["pdf"], "run__cfgs__one__post": ["summary"],
                "tools__summary": {"tool": "exec", "executable": sys.executable, "input": "jets.yoda",
                                   "output_file": "summary.json",
@@ -64,9 +64,9 @@ def complete(plans, run, configuration):
     for plan in plans:
         product = next(i.path for i in plan.interfaces.values() if i.kind == "product")
         product.parent.mkdir(parents=True, exist_ok=True)
-        product.write_text(f"yoda of {plan.point.name}\n")
+        product.write_text(f"yoda of {plan.point.name}\n", encoding="utf-8")
         record.complete_marker(plan).parent.mkdir(parents=True, exist_ok=True)
-        record.complete_marker(plan).write_text(plan.identity + "\n")
+        record.complete_marker(plan).write_text(plan.identity + "\n", encoding="utf-8")
     record.write_atomic(record.manifest_file(plans), json.dumps(record.points_manifest(plans, run, configuration), default=str))
 
 
@@ -85,7 +85,7 @@ def test_a_post_tool_gets_every_point_and_its_products(scratch):
     post_plan = post.plan(run, configuration, master, plans)
     ok, said = run_post(post_plan, plans, run, configuration)
     assert ok, said
-    got = json.loads((post_plan.res / "summary.json").read_text())
+    got = json.loads((post_plan.res / "summary.json").read_text(encoding="utf-8"))
     products = [str(next(i.path for i in p.interfaces.values() if i.kind == "product")) for p in plans]
     assert got["inputs"] == products                                  # {inputs}: every point, in point order
     assert [p["pdf"] for p in got["points"]] == ["MSTW08lo", "NNPDF23lo"]
@@ -136,7 +136,7 @@ open(sys.argv[1], "w").write("made before every point\\n")
 
 def pre_stage(scratch, marker="first"):
     script = scratch / "pre.py"
-    script.write_text(PRE_SCRIPT)
+    script.write_text(PRE_SCRIPT, encoding="utf-8")
     data = raw(run__name="prestage", run__cfgs__one__sweeps=["pdf"], run__cfgs__one__pre=["fetch"],
                run__cfgs__one__tools=[["pythia", "rivet"], "use"],
                tools__fetch={"tool": "exec", "executable": sys.executable, "output_file": "shared.txt",
@@ -166,7 +166,7 @@ def test_a_pre_product_is_an_input_every_point_may_name(scratch):
     shutil.rmtree(pre.out, ignore_errors=True)
     shutil.rmtree(record.record_dir(pre), ignore_errors=True)
     ok = post.run_pre(pre, run, configuration, stopper=execute.Stopper(), rerun=False)
-    assert ok and shared.read_text() == "made before every point\n" and record.is_complete(pre)
+    assert ok and shared.read_text(encoding="utf-8") == "made before every point\n" and record.is_complete(pre)
 
 
 def test_a_failing_pre_stops_the_run(scratch):
@@ -197,7 +197,7 @@ def test_a_point_may_not_be_named_pre(scratch):
 LEGACY = REPO / "tests" / "reference" / "legacy_run"
 
 
-@pytest.mark.skipif(not (apps() / "App_yd2rt.exe").exists(), reason="hep build --framework")
+@pytest.mark.skipif(not (apps() / "App_yd2rt.exe").exists(), reason="heimdall build --framework")
 @pytest.mark.parametrize("target", ["sweep.root", "sweep.yoda"])
 def test_plotmerge_puts_every_point_in_one_file(scratch, target):
     run, configuration, master, plans = stage(scratch, name=f"plotmerge_{target.split('.')[1]}", run__cfgs__one__post=["bundle"],
@@ -217,5 +217,5 @@ def test_plotmerge_puts_every_point_in_one_file(scratch, target):
             assert {k.split("/")[0] for k in f.keys() if "/" in k} == {"MSTW08lo", "NNPDF23lo"}
             assert f["MSTW08lo/photo_eic/d01-x01-y01"].values().sum() > 0 and "points.json;1" in f.keys()
     else:
-        text = merged.read_text()
+        text = merged.read_text(encoding="utf-8")
         assert "/MSTW08lo/photo_eic/d01-x01-y01" in text and "/NNPDF23lo/photo_eic/d01-x01-y01" in text

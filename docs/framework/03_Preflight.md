@@ -37,8 +37,8 @@ base first (the compilers, the libraries, Python; [recipes/README.md](../../reci
    df -BG --output=avail "$HEP" | tail -1            # disk_free_gb
    sudo -n true 2>/dev/null && echo yes || echo "ask"                # sudo: "ask" means a password is needed (fine)
    curl -sI --max-time 10 https://root.cern | head -1                # network
-   docker info >/dev/null 2>&1 && echo usable || { command -v docker >/dev/null && echo "installed, no group" || echo absent; }
-   command -v apptainer && apptainer --version
+   { command -v apptainer || command -v singularity; } >/dev/null && { apptainer --version || singularity --version; } 2>/dev/null || echo absent   # apptainer
+   grep -q "^$USER:" /etc/subuid && echo yes || echo no           # fakeroot: an image builds without sudo
    python3 --version; git --version
    ```
 3. **Choose the annex** by the first rule that holds, and record it as `annex`:

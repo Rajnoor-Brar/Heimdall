@@ -6,22 +6,25 @@ it in full.
 ## Every day
 
 ```bash
-hep setup ~/Study --example jets      # a work dir, with the demo project (--project P: a starter; --git: commit)
-hep build                             # the work dir's Rivet analyses and module programs
-hep check                             # every config: loaded, validated, every point planned; nothing run
-hep run Demo/jets pdf --dry-run       # the plan: cards, argv, connections (also --why, --show-config)
-hep run Demo/jets pdf                 # run what is not complete, then draw the pages
-hep run Demo/jets pdf --set run.events=50000 --points 2   # one value changed, one point, for this run
-hep status Demo/jets                  # each point: complete, stale, running, incomplete, to run
-hep plot Demo/jets pdf                # redraw from what is on disk
-hep watch                             # follow a run from another terminal
-hep explain run.events                # any key, table, tool option or style key
-hep help run                          # any command
+gjallarhorn Study                          # Heimdall's environment, and cd to the work dir titled Study (from anywhere)
+heimdall recognise ~/Github                # record the work dirs found there, by title (--list: every one this machine knows)
+bifrost scipy                              # a package into the environment (-python <pkg>: from PyPI; bifrost: what is there)
+heimdall setup ~/Study --example jets      # a work dir, with the demo project (--project P: a starter; --git: commit)
+heimdall build                             # the work dir's Rivet analyses and module programs
+heimdall check                             # every config: loaded, validated, every point planned; nothing run
+heimdall run Demo/jets pdf --dry-run       # the plan: cards, argv, connections (also --why, --show-config)
+heimdall run Demo/jets pdf                 # run what is not complete, then draw the pages
+heimdall run Demo/jets pdf --set run.events=50000 --points 2   # one value changed, one point, for this run
+heimdall status Demo/jets                  # each point: complete, stale, running, incomplete, to run
+heimdall plot Demo/jets pdf                # redraw from what is on disk
+heimdall watch                             # follow a run from another terminal
+heimdall explain run.events                # any key, table, tool option or style key
+heimdall help run                          # any command
 ```
 
-Housekeeping: `hep clean` (logs and caches nothing uses), `hep migrate --v3` (a v2 file in v3),
-`hep migrate --layout` (a work dir from before `records/`), `hep reproduce records/…/provenance.json`,
-`hep cluster CONFIG CFG` (Slurm), `hep deck <deck>` (slides), `hep stack build|list|status|doctor`
+Housekeeping: `heimdall clean` (logs and caches nothing uses), `heimdall migrate --v3` (a v2 file in v3),
+`heimdall migrate --layout` (a work dir from before `records/`), `heimdall reproduce records/…/provenance.json`,
+`heimdall cluster CONFIG CFG` (Slurm), `heimdall deck <deck>` (slides), `heimdall stack build|list|status|doctor`
 (the machine's stack). [05 §1](05_Commands_and_Tools.md#1-commands).
 
 ## A run TOML
@@ -31,7 +34,7 @@ Housekeeping: `hep clean` (logs and caches nothing uses), `hep migrate --v3` (a 
 [run]
 project = "Demo"
 name    = "mini"
-run     = "pdf"                           # what `hep run Demo/mini` runs
+run     = "pdf"                           # what `heimdall run Demo/mini` runs
 events  = 100_000
 threads = 8
 chain   = [["pythia", "rivet"], "yd2rt"]  # group 1 together (a FIFO between), then group 2 (a file)
@@ -84,10 +87,10 @@ ratio   = true
 | Folder of a work dir | Holds | git |
 |---|---|---|
 | `configs/<P>/`, `modules/<P>/`, `decks/<deck>/` | yours: run TOMLs and cards; programs and Rivet analyses; decks | tracked |
-| `datasets/` | reference data (large ones listed in `datasets.toml`, fetched by `hep setup .`) | tracked |
+| `datasets/` | reference data (large ones listed in `datasets.toml`, fetched by `heimdall setup .`) | tracked |
 | `results/<P>/<run>/<NN_cfg>/<point>/` | the products, and `plots/` (the pages) | no |
 | `records/…` | each point's provenance, identity and `.complete`: delete it and everything reruns | no |
-| `logs/…`, `.cache/` | cards, logs, FIFOs; prepare caches: safe to delete (`hep clean`) | no |
+| `logs/…`, `.cache/` | each point's cards and configs, a failed tool's last lines; prepare caches: safe to delete (`heimdall clean`). More with `--keep` | no |
 | `build/`, `reports/<deck>/` | compiled modules; built decks | no |
 
 When something fails: read `logs/…/<point>/logs/<tool>.log`, fix, run again (complete points are

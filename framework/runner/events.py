@@ -14,12 +14,12 @@ the time `t`, and its kind `k`:
 Runtime state stays off disk (the user, 2026-10-03). Who hears the bus:
 * the view, always (watch.py);
 * the **Hub**, while the process lives: an abstract Unix socket `@hep-watch-<pid>` (no file, no path
-  limit) on Linux, which `hep watch` finds in /proc/net/unix; elsewhere (macOS has neither) a socket
+  limit) on Linux, which `heimdall watch` finds in /proc/net/unix; elsewhere (macOS has neither) a socket
   file <tmp>/hep-watch/hep-watch-<pid>, removed when the process ends. The watcher gets a greeting, the current run's events so far
   (a tool's progress only as its latest), then every event live. A sweep of runs is one process, so
   the stream follows from run to run by itself;
 * the **Journal**, only with `--journal`: the same events in logs/…/status.jsonl, one file per run,
-  for replay (`hep watch --file`) and tests.
+  for replay (`heimdall watch --file`) and tests.
 
 A subscriber is called on the emitting thread and must not block; the Hub queues for each client and
 drops a client that stops reading. In a sweep of runs, each run emits through a `RunBus`, which adds

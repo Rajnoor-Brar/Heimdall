@@ -4,3 +4,7 @@
 # slots reorders the run's values to match (V62)
 energies = { keys = ["/Herwig/EventHandlers/Luminosity:BeamEMaxA", "/Herwig/EventHandlers/Luminosity:BeamEMaxB"], format = "{}*GeV" }
 sqrts    = { key = "/Herwig/EventHandlers/Luminosity:Energy" }                # snippets/PPCollider.in's FixedCMSLuminosity
+# the proton's PDF, for the four objects Herwig's own defaults set (share/Herwig/defaults/PDF.in: CT14lo each),
+# as Pythia's PDF:pSet covers its hard process, shower and MPI; the NLO objects stay the card's (V152)
+pdf      = { keys = ["/Herwig/Partons/HardLOPDF:PDFName", "/Herwig/Partons/ShowerLOPDF:PDFName",
+                     "/Herwig/Partons/MPIPDF:PDFName", "/Herwig/Partons/RemnantPDF:PDFName"], check = "lhapdf:set" }

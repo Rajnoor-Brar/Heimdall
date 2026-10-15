@@ -1,5 +1,5 @@
 # Makefile — Heimdall's own build: the framework's apps and the C++ tests (docs/06_Internals.md §15).
-# `hep build --framework` is `make all` here. A work dir's build is framework/work.mk; the rules
+# `heimdall build --framework` is `make all` here. A work dir's build is framework/work.mk; the rules
 # both share are framework/rules.mk.
 #
 #   make                        every app, and Herwig's repository
@@ -7,7 +7,7 @@
 #   make tests                  build the C++ tests       make test   build and run them, then pytest
 #   make clean                  remove the apps and the build's intermediates (never the stack's builds)
 #
-# Conventions (§5.1), into the loaded stack's part of the machine root (setup.sh sets HEP_APPS and
+# Conventions (§5.1), into the loaded stack's part of the machine root (gjallarhorn.sh sets HEP_APPS and
 # HEP_FORGE: ~/Himinbjorg/apps and ~/Himinbjorg/forge, or stacks/<toolkit>/… for an isolated toolkit's):
 #   src/App_<X>.cc              → $HEP_APPS/App_<X>.exe
 #   src/Apps/<X>/main.cc        → $HEP_APPS/<X>.exe           (the folder's other files are headers it includes)
@@ -17,8 +17,8 @@
 # loaded stack, so they live beside it.
 
 HEP      ?= $(CURDIR)
-APPS     := $(or $(HEP_APPS),$(error load Heimdall's environment first (source setup.sh): HEP_APPS is not set))
-FORGE    := $(or $(HEP_FORGE),$(error load Heimdall's environment first (source setup.sh): HEP_FORGE is not set))
+APPS     := $(or $(HEP_APPS),$(error load Heimdall's environment first (source gjallarhorn.sh): HEP_APPS is not set))
+FORGE    := $(or $(HEP_FORGE),$(error load Heimdall's environment first (source gjallarhorn.sh): HEP_FORGE is not set))
 MK       := $(FORGE)/make
 
 out_of   = $(strip \

@@ -1,10 +1,14 @@
 #!/bin/bash
-# setup.sh — Heimdall's environment: source it once per session, in bash. Tracked; it finds its own
+# gjallarhorn.sh — Heimdall's environment: source it once per session, in bash. Tracked; it finds its own
 # folder, so a clone anywhere works (docs/framework/01_Target.md §5.8).
 #
-#   source setup.sh                     the default stack, in the machine root ($HEP_MACHINE, ~/Himinbjorg)
-#   source <machine>/stacks/<toolkit>/setup.sh    an isolated toolkit's stack (recipes/README.md §6), which
-#                                       asks for it through HEP_STACK_REQUEST; the other stack is taken out first
+#   source gjallarhorn.sh               the default stack, in the machine root ($HEP_MACHINE, ~/Himinbjorg)
+#   source gjallarhorn.sh <title>       and then cd to the work dir recorded under that title (heimdall
+#                                       recognise); `gjallarhorn [title]`, the shell function Heimdall's
+#                                       build writes into ~/.bashrc and ~/.zshrc, is this (bifrost --shell)
+#   source <machine>/stacks/<toolkit>/gjallarhorn.sh
+#                                       an isolated toolkit's stack (recipes/README.md §6), which asks for it
+#                                       through HEP_STACK_REQUEST; the other stack is taken out first
 #   launch.sh                           the same from any shell (zsh included): a bash with this loaded
 #
 # The checkout ($HEP) holds what git has; everything this machine built (the base or the venv, the stack,
@@ -12,7 +16,7 @@
 
 # bash only: any other shell is turned away here, before anything is changed (docs/audit_3/05_CLI.md §5)
 if [ -z "${BASH_VERSION-}" ]; then
-    echo "Heimdall's environment needs bash, and this shell is not bash: run launch.sh (beside this setup.sh) from any shell, or start bash and source setup.sh there" >&2
+    echo "Heimdall's environment needs bash, and this shell is not bash: run launch.sh (beside this gjallarhorn.sh) from any shell, or start bash and source gjallarhorn.sh there" >&2
     return 1 2>/dev/null || exit 1
 fi
 
@@ -53,4 +57,10 @@ else                                                 # base = "system": a venv
 fi
 unset _hep_base
 source "$HEP/env/hep_env.sh"                  # the base (or venv), the paths, the helpers; then machine.sh
+# A title: go to the work dir recorded under it (an unknown one is said, and the environment stays loaded)
+if [ -n "${1-}" ]; then
+    _hep_where=$(command heimdall recognise --path "$1") && cd "$_hep_where" || {
+        unset _hep_where; return 1 2>/dev/null || exit 1; }
+    unset _hep_where
+fi
 return 0 2>/dev/null || true

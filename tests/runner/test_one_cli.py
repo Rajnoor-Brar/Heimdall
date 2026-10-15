@@ -16,7 +16,7 @@ from runner import cli
 from runner.errors import HepError
 
 REPO = Path(__file__).resolve().parents[2]
-HEP = REPO / "framework" / "bin" / "hep"
+HEP = REPO / "framework" / "bin" / "heimdall"
 
 
 def run(*args, **env) -> subprocess.CompletedProcess:
@@ -34,7 +34,7 @@ def test_every_command_has_a_description_and_hep_help_shows_it(capsys):
     commands = cli._described(top)
     assert all(p.description for p in commands.choices.values())
     assert cli.main(["help", "run"]) == 0 and "Plan and run a configuration." in capsys.readouterr().out
-    assert cli.main(["help", "stack"]) == 0 and "hep stack build" in capsys.readouterr().out
+    assert cli.main(["help", "stack"]) == 0 and "heimdall stack build" in capsys.readouterr().out
     assert cli.main(["help", "rn"]) == 2 and "did you mean 'run'" in capsys.readouterr().err
 
 
@@ -49,7 +49,7 @@ def test_build_parses_its_own_options():
 
 def test_the_shell_verbs_say_to_source_setup():
     done = run("refresh", HEP_ENV_LOADED="")
-    assert done.returncode == 2 and "setup.sh's shell function" in done.stderr and "source " in done.stderr
+    assert done.returncode == 2 and "gjallarhorn.sh's shell function" in done.stderr and "source " in done.stderr
 
 
 def test_plain_and_dry_run_anywhere():

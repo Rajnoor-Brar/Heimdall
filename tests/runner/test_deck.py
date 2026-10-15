@@ -41,10 +41,10 @@ def trees(tmp_path, monkeypatch):
         (run / folder / "plots" / "root" / "sheets").mkdir()
         (run / folder / "plots" / "root" / "sheets" / "grid.pdf").write_bytes(b"%PDF sheet")
         (run / folder / "MSTW08lo").mkdir()
-        (run / folder / "MSTW08lo" / "validation.yoda").write_text(YODA.format(n=n))
+        (run / folder / "MSTW08lo" / "validation.yoda").write_text(YODA.format(n=n), encoding="utf-8")
     point = output / "P" / "validation" / "03_PDFs_150M" / "MSTW08lo"
     point.mkdir(parents=True)
-    (point / "provenance.json").write_text(json.dumps({"events": 150_000_000}))
+    (point / "provenance.json").write_text(json.dumps({"events": 150_000_000}), encoding="utf-8")
     folder = tmp_path / "talk"
     (folder / "extras").mkdir(parents=True)
     for short in ("d01", "d02"):
@@ -53,7 +53,7 @@ def trees(tmp_path, monkeypatch):
 
 
 def recipe(folder: Path, text: str) -> Path:
-    (folder / "deck.toml").write_text(text)
+    (folder / "deck.toml").write_text(text, encoding="utf-8")
     return folder
 
 
@@ -164,7 +164,7 @@ def test_folder_mode_groups_files_by_name(tmp_path):
         deck.load(str(folder))
 
 
-def test_hep_deck_list_writes_nothing(trees, capsys, monkeypatch):
+def test_heimdall_deck_list_writes_nothing(trees, capsys, monkeypatch):
     folder, _ = trees
     recipe(folder, ZEUS)
     monkeypatch.setenv("HEP_REPORTS", str(folder.parent))

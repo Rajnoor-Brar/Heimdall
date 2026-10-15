@@ -37,14 +37,14 @@ def test_a_module_in_a_later_group_gets_the_producer_sidecar(scratch):
 
 def test_the_count_check_reads_the_report_and_it_follows_its_product(scratch):
     partial, final = scratch / "decay.partial.root", scratch / "decay.root"
-    partial.write_text("root")
-    execute.report_of(partial).write_text(json.dumps({"events": 12, "sum_w": 12.0}))
+    partial.write_text("root", encoding="utf-8")
+    execute.report_of(partial).write_text(json.dumps({"events": 12, "sum_w": 12.0}), encoding="utf-8")
     assert execute.read_count(partial, "json:events") == 12
     assert execute.read_count(scratch / "missing.root", "json:events") is None
     step = Step(tag="decay", tool=None, folder=None, group=0, exe=scratch)
     step.products = [(final, partial)]
     assert execute._settle([step], {}) is None
-    assert final.exists() and json.loads(execute.report_of(final).read_text())["events"] == 12
+    assert final.exists() and json.loads(execute.report_of(final).read_text(encoding="utf-8"))["events"] == 12
     assert not execute.report_of(partial).exists()
 
 

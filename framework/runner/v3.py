@@ -62,7 +62,7 @@ def _refuse_renamed(table: dict, renamed: dict, where: str) -> None:
     for old, new in renamed.items():
         if old in table:
             raise HepError(f"'{old}' is the v2 form: this file is v3, where it is {new}", where=f"{where}.{old}",
-                           hint="hep migrate --v3 rewrites a v2 file; [file] schema = 2 keeps one v2 for now")
+                           hint="heimdall migrate --v3 rewrites a v2 file; [file] schema = 2 keeps one v2 for now")
 
 
 def _seed(table: dict, out: dict, where: str) -> None:
@@ -291,6 +291,9 @@ def _compounds(out: dict, compound: dict[str, list[str]]) -> None:
                 result.append(list(compound[entry]))
             elif isinstance(entry, list):
                 result.append([m for e in entry for m in (compound.get(e, [e]) if isinstance(e, str) else [e])])
+            elif isinstance(entry, dict) and isinstance(entry.get("points"), list):   # listed points (V154): each field
+                result.append({**entry, "points": [{f: ref for k, ref in row.items() for f in compound.get(k, [k])}
+                                                   if isinstance(row, dict) else row for row in entry["points"]]})
             else:
                 result.append(entry)
         return result
@@ -310,7 +313,7 @@ def translate(raw: dict, where: str) -> dict:
     for table in raw:
         if table in V2_TABLES:
             raise HepError(f"[{table}] is the v2 form: this file is v3, where it is {V2_TABLES[table]}",
-                           where=f"{where}: [{table}]", hint="hep migrate --v3 rewrites a v2 file")
+                           where=f"{where}: [{table}]", hint="heimdall migrate --v3 rewrites a v2 file")
         if table not in TABLES:
             raise HepError(f"unknown table [{table}]", where=where, hint=did_you_mean(table, TABLES) or ", ".join(TABLES))
     out: dict = {MARK: True}

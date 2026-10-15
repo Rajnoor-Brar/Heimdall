@@ -1,13 +1,13 @@
-"""`hep cluster`: a run as Slurm jobs (rank 4, V114).
+"""`heimdall cluster`: a run as Slurm jobs (rank 4, V114).
 
-docs/04_Config_Reference.md §16, docs/02_User_Guide.md §7.5. A job is an ordinary `hep run`, so each one
+docs/04_Config_Reference.md §16, docs/02_User_Guide.md §7.5. A job is an ordinary `heimdall run`, so each one
 does exactly what the same command does when typed:
 
-    pre job        hep run C cfg --stages pre                       when there are pre tools to run
-    points array   hep run C cfg --points <name> --stages points    a task per point to run
-    finish job     hep run C cfg --stages combine,post,plot         after the array, whatever its outcome
+    pre job        heimdall run C cfg --stages pre                       when there are pre tools to run
+    points array   heimdall run C cfg --points <name> --stages points    a task per point to run
+    finish job     heimdall run C cfg --stages combine,post,plot         after the array, whatever its outcome
 
-`hep cluster` plans everything first (every check of `hep run --plan`), writes the scripts into
+`heimdall cluster` plans everything first (every check of `heimdall run --plan`), writes the scripts into
 records/<P>/<run>/<cfg>/cluster/<stamp>/ and submits them with sbatch, chained by dependencies: the
 points after the pre job succeeded (afterok), the finish job after every point ended (afterany). A
 point is skipped in its job when its identity is complete, as anywhere. Nothing here enters an
@@ -18,7 +18,7 @@ every work dir: account, partition, setup lines), the work dir's hep.toml, the r
 it key by key), the configuration's ([run.cfgs.<cfg>].cluster), and --set cluster.<key>=…; `time`
 must be in one of them.
 
-The nodes see Heimdall and the work dir on a shared filesystem: each job sources Heimdall's setup.sh
+The nodes see Heimdall and the work dir on a shared filesystem: each job sources Heimdall's gjallarhorn.sh
 after the `setup` lines, and runs in the work dir.
 """
 
@@ -39,6 +39,7 @@ from . import tools
 from .config import check_cluster
 from .errors import HepError
 from .execute import cores
+from .image import image_path
 from .paths import (MACHINE_VAR, MARKER_FILE, STACK_VAR, hep_root, machine_file, machine_root, machine_settings,
                     records_root, work_meta, work_root)
 from .record import git_state, is_complete, write_atomic
@@ -77,7 +78,7 @@ def settings(configuration) -> dict:
     check_cluster(here, f"{work / MARKER_FILE}: [cluster]")
     merged = _deep(_deep(machine, here), configuration.cluster)
     if not merged.get("time"):
-        raise HepError("hep cluster needs each job's time limit", where="[cluster] time",
+        raise HepError("heimdall cluster needs each job's time limit", where="[cluster] time",
                        hint='[cluster] time = "02:00:00" in the run TOML (or the work dir\'s hep.toml): a site\'s default '
                             'limit is a surprise TIMEOUT')
     return merged
@@ -101,40 +102,54 @@ def directives(keys: dict, *, name: str, log: Path, cpus: int, array: str = "") 
 
 
 def loader() -> Path:
-    """The setup.sh a job sources: Heimdall's, or the loaded isolated stack's, in the machine root's
+    """The gjallarhorn.sh a job sources: Heimdall's, or the loaded isolated stack's, in the machine root's
     stacks/ (recipes/README.md §6)."""
     stack = os.environ.get(STACK_VAR)
-    return machine_root() / "stacks" / stack / "setup.sh" if stack else hep_root() / "setup.sh"
+    return machine_root() / "stacks" / stack / "gjallarhorn.sh" if stack else hep_root() / "gjallarhorn.sh"
 
 
 def script(directive_list: list[str], keys: dict, command: list[str], *, title: str, points: Path | None = None) -> str:
-    """A job script: the directives; the setup lines and Heimdall's environment; the work dir; the hep run."""
+    """A job script: the directives; the setup lines and Heimdall's environment; the work dir; the heimdall run."""
     q = shlex.quote
-    lines = ["#!/bin/bash", f"# {title}: written by hep cluster (V114). A job is an ordinary hep run.",
+    lines = ["#!/bin/bash", f"# {title}: written by heimdall cluster (V114). A job is an ordinary heimdall run.",
              *(f"#SBATCH {d}" for d in directive_list), ""]
     lines += list(keys.get("setup", []))
-    lines += [f"export {MACHINE_VAR}={q(str(machine_root()))}", f"source {q(str(loader()))}", "set -eo pipefail",
-              f"export HEP_WORK={q(str(work_root()))}",
-              *(f"export {var}={q(os.environ[var])}" for var in ROOTS if os.environ.get(var)),
-              f"cd {q(str(work_root()))}"]
+    if keys.get("image"):                                         # an Apptainer image (V150): its Heimdall, its stack
+        sif = image_path(keys["image"])
+        roots = {var: os.environ[var] for var in ROOTS if os.environ.get(var)}
+        binds = [str(work_root()), *(str(Path(v)) for v in roots.values())]
+        lines += ["set -eo pipefail",
+                  'runtime=$(command -v apptainer || command -v singularity) || '
+                  '{ echo "heimdall cluster: no apptainer on $(hostname)" >&2; exit 127; }',
+                  f"cd {q(str(work_root()))}"]
+        command = ['"$runtime" exec --cleanenv', *(f"--bind {q(b)}" for b in dict.fromkeys(binds)),
+                   f"--env HEP_WORK={q(str(work_root()))}", *(f"--env {var}={q(v)}" for var, v in roots.items()),
+                   q(str(sif)), "/opt/heimdall/launch.sh", "heimdall", *command[1:]]
+    else:
+        lines += [f"export {MACHINE_VAR}={q(str(machine_root()))}", f"source {q(str(loader()))}", "set -eo pipefail",
+                  f"export HEP_WORK={q(str(work_root()))}",
+                  *(f"export {var}={q(os.environ[var])}" for var in ROOTS if os.environ.get(var)),
+                  f"cd {q(str(work_root()))}"]
     if points is not None:
         lines += [f'point=$(sed -n "${{SLURM_ARRAY_TASK_ID}}p" {q(str(points))})',
-                  'echo "hep cluster: point $point (task ${SLURM_ARRAY_TASK_ID} of job ${SLURM_ARRAY_JOB_ID:-?}) on $(hostname)"']
+                  'echo "heimdall cluster: point $point (task ${SLURM_ARRAY_TASK_ID} of job ${SLURM_ARRAY_JOB_ID:-?}) on $(hostname)"']
     else:
-        lines.append(f'echo "hep cluster: {title} (job ${{SLURM_JOB_ID:-?}}) on $(hostname)"')
+        lines.append(f'echo "heimdall cluster: {title} (job ${{SLURM_JOB_ID:-?}}) on $(hostname)"')
     lines.append("exec " + " ".join(command))
     return "\n".join(lines) + "\n"
 
 
 def hep_run(planned, args, stages: str, point: bool = False) -> list[str]:
-    """The hep run a job makes: the same config file, configuration and --set's as the submission."""
+    """The heimdall run a job makes: the same config file, configuration and --set's as the submission."""
     q = shlex.quote
-    argv = [q(str(hep_root() / "framework" / "bin" / "hep")), "run", q(str(planned.run.path)), q(planned.configuration.key)]
+    argv = [q(str(hep_root() / "framework" / "bin" / "heimdall")), "run", q(str(planned.run.path)), q(planned.configuration.key)]
     if point:
         argv += ["--points", '"$point"']
     argv += ["--stages", stages, "--plain"]
     for item in getattr(args, "set", None) or []:
         argv += ["--set", q(item)]
+    for item in getattr(args, "keep", None) or []:              # what the submission keeps, each job keeps (V149)
+        argv += ["--keep", q(item)]
     return argv + (["--rerun"] if getattr(args, "rerun", False) else [])
 
 
@@ -160,8 +175,8 @@ def latest(planned) -> Path | None:
 
 def _need(command: str) -> None:
     if not shutil.which(command):
-        raise HepError(f"no {command} here: hep cluster submits to Slurm", hint="run it on the cluster's login node, "
-                       "with Heimdall loaded (source <Heimdall>/setup.sh)")
+        raise HepError(f"no {command} here: heimdall cluster submits to Slurm", hint="run it on the cluster's login node, "
+                       "with Heimdall loaded (source <Heimdall>/gjallarhorn.sh)")
 
 
 def _sbatch(argv: list[str]) -> str:
@@ -207,7 +222,7 @@ def submit(planned, args, out=print) -> int:
             if ids and shutil.which("squeue") and active(ids):
                 raise HepError(f"{run.name} · {configuration.key}: the submission {last.name} still has jobs pending or "
                                "running, and a second would run the same points in the same folders",
-                               where=str(last), hint=f"hep cluster {args.config} {configuration.key} --status, or --cancel")
+                               where=str(last), hint=f"heimdall cluster {args.config} {configuration.key} --status, or --cancel")
     folder = _stamp(base(planned))
     (folder / "logs").mkdir(parents=True)              # a dry run's folder has no record: never a submission
     name = f"hep-{run.name}-{configuration.key}"
@@ -271,7 +286,7 @@ def submit(planned, args, out=print) -> int:
               "work": str(work_root()), "heimdall": git_state(hep_root()), "points": [p.point.name for p in todo],
               "jobs": ids, "sbatch": {job: argv for job, (_, argv) in jobs.items()}}
     write_atomic(folder / RECORD, tomli_w.dumps(record))
-    out(f"hep cluster {args.config} {configuration.key} --status: where they are")
+    out(f"heimdall cluster {args.config} {configuration.key} --status: where they are")
     return 0
 
 

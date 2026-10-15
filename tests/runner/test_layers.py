@@ -63,13 +63,13 @@ def test_extends_chains_and_refuses_a_circle_or_a_missing_parent(scratch):
 
 def test_run_cannot_set_a_configurations_own_keys_and_run_defaults_is_gone(scratch):
     """V99: label, title and extends are each configuration's own; [run.defaults] is refused, read
-    leniently (hep migrate's) as keys of [run], and `defaults` may now name a configuration."""
+    leniently (heimdall migrate's) as keys of [run], and `defaults` may now name a configuration."""
     with pytest.raises(HepError, match="unknown key 'label'"):
         parse(configurations(run={"label": "x"}, a={"tools": [["pythia", "rivet"]]}), scratch)
     data = raw(run__defaults={"threads": 3})
     with pytest.raises(HepError, match=r"\[run.defaults\] is \[run\] now") as error:
         parse(data, scratch)
-    assert "hep migrate" in error.value.hint
+    assert "heimdall migrate" in error.value.hint
     assert config.parse(data, scratch / "t.toml", strict=False).configuration(None).threads == 3
     assert "defaults" in parse(configurations(defaults={"tools": [["pythia", "rivet"]]}), scratch).configurations
 
@@ -296,7 +296,7 @@ def test_master_is_config_now(scratch):
     """V93 (break and migrate): [master] is refused with what to write."""
     with pytest.raises(HepError, match=r"\[master\] is \[config\] now") as error:
         parse(raw(master={"master_toml": "m.toml"}), scratch)
-    assert "hep migrate" in error.value.hint
+    assert "heimdall migrate" in error.value.hint
 
 
 def test_events_swept_as_a_quantity_set_each_points_count(scratch):

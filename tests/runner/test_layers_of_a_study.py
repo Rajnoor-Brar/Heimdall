@@ -116,7 +116,7 @@ values = [[1.0, 2.0], [3.0, 4.0]]
 tags   = ["low", "high"]
 """, encoding="utf-8")
     done = subprocess.run([str(HEP), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, timeout=300,
-                          env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"})
+                          env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, encoding="utf-8")
     assert done.returncode == 0, done.stdout + done.stderr
-    written = sorted(tomllib.loads(p.read_text())["cuts"]["window"] for p in (work / "results").rglob("config.txt"))
+    written = sorted(tomllib.loads(p.read_text(encoding="utf-8"))["cuts"]["window"] for p in (work / "results").rglob("config.txt"))
     assert written == [[1.0, 2.0], [3.0, 4.0]]

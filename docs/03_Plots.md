@@ -44,12 +44,12 @@ style.ratio.range = [0.8, 1.1]        # any [plot] page key or style key, for th
 ## 2. The plot stage
 
 The plot stage runs after the points and the stages, from the **complete** points only. It also
-runs on `hep run … --only plot` and on `hep plot CONFIG [CFG]`, which redraw without running
+runs on `heimdall run … --only plot` and on `heimdall plot CONFIG [CFG]`, which redraw without running
 anything. A configuration whose run TOML has no `[plot]` draws nothing.
 
 1. **The sweep in one file.** Every complete point's YODA is merged into
-   `results/…/plots/root/<cfg>.root`, with a directory per point and the raw entries. It is rebuilt
-   only when a point's YODA changed.
+   `results/…/plots/root/<cfg>.root`, with a directory per point and the raw entries. With `--keep cache`
+   it is rebuilt only when a point's YODA changed; otherwise each plot stage merges again (04 §14).
 2. **One page document per page**, in `logs/…/plots/[<cell>/]<object>.toml`. It holds:
    - the labels from the analysis's Rivet `.plot` file;
    - the `[plot]` values and the page's figure's own;
@@ -114,7 +114,7 @@ point's. A cited name the points don't have is refused at plan time.
 or `"default"` there, takes the runner's default from the schema: a missing `y_gutter` is 0.5. In a
 figure, either is `[plot]`'s value. `"native"` sets nothing, in `[plot]` or a figure, and the drawing
 tool does what it does by itself: no gutter, no voiding, the `.plot`'s log axes and ratio. (A v2
-file wrote that as `"default"` in `[plot]` itself; `hep migrate --v3` rewrites it.) The full table is
+file wrote that as `"default"` in `[plot]` itself; `heimdall migrate --v3` rewrites it.) The full table is
 [04 §11](04_Config_Reference.md#11-plot).
 
 **The order on a page** (load-bearing, inherited from v1): void across the page → align the data to
@@ -256,7 +256,7 @@ in `[plot]` alone: `backend`, `formats`, `objects`, `data`, `root_style`.
 
 A glob that matches no object of the points is refused at the plot stage. The old
 `[plot.overlay.<name>]` and `[plot.object."<glob>"]` tables are refused with the figure to write,
-and `hep migrate` rewrites them.
+and `heimdall migrate` rewrites them.
 
 | Class | Built from | Pages |
 |---|---|---|
@@ -313,8 +313,8 @@ title   = "five seeds merged"
 
 The objects' pages, under the figure's folder (`<cell>/avg/<object>`). For each value of the other
 curve axes, the points' YODAs are merged by the combine folder's command (`rivet-merge -e`:
-statistics add, σ averaged). That happens once per change of a member's YODA, into
-`logs/…/plots/merged/avg/`.
+statistics add, σ averaged), into `logs/…/plots/merged/avg/`, which the plot stage removes once the
+pages are drawn (with `--keep cache`, it stays, and a merge happens once per change of a member's YODA).
 
 The run keeps its points apart, and only this figure merges them; `combine` merges them for the
 whole configuration ([02 §7.3](02_User_Guide.md#73-replicas-merged)). `over` must name curve axes,
@@ -348,7 +348,7 @@ a combined group), labelled by the configuration first, then the point's curve a
 
 **When it is drawn.** It is drawn by the plot stage of each of this file's configurations it names,
 once every configuration has complete points; until then the stage says what it waits for.
-`hep plot` draws it too.
+`heimdall plot` draws it too.
 
 ### 7.6 `derived`: a new object per point
 
@@ -369,8 +369,9 @@ analysis-option variant.
   - `projection-x` and `projection-y` of one 2D object: summed over the other axis, as a Scatter2D
     whose x ranges are the bins.
 - **Where it is written:** it is appended to a copy of each point's YODA
-  (`logs/…/plots/derived/`), remade when the product or the figures change, by
-  `framework/plot/figures/derive.py` with YODA's Python (`load_hep`).
+  (`logs/…/plots/derived/`, removed after the draw unless `--keep cache`), remade when the product or
+  the figures change, by
+  `framework/plot/figures/derive.py` with YODA's Python (`gjallarhorn`).
 
 **Using it.** It is then an object like any other:
 - its pages are `<cell>/r15`;
@@ -495,11 +496,11 @@ Writing a backend is [06 §18](06_Internals.md#18-adding-a-plot-backend).
 
 ---
 
-## 10. Any files, overlaid: `hep overlay`
+## 10. Any files, overlaid: `heimdall overlay`
 
 ```bash
-hep overlay a.yoda b.yoda --labels "Tune A,Tune B" --ratio --objects "/MC_JETS/*"
-hep overlay results/Demo/jets/01_pdf/plots/root/pdf.root      # a sweep: a curve per point
+heimdall overlay a.yoda b.yoda --labels "Tune A,Tune B" --ratio --objects "/MC_JETS/*"
+heimdall overlay results/Demo/jets/01_pdf/plots/root/pdf.root      # a sweep: a curve per point
 ```
 
 **No run TOML is needed.** You get one page per object any file holds, with one curve per file, or
@@ -511,11 +512,11 @@ one per point of a merged sweep file, labelled from its `points.json`.
 - `--style FILE`: a style file over base.toml.
 
 The pages are Paint's, with an `index.html` beside them. The options are in
-[05 §1.2](05_Commands_and_Tools.md#12-hep-plot-and-hep-overlay).
+[05 §1.2](05_Commands_and_Tools.md#12-heimdall-plot-and-heimdall-overlay).
 
 ---
 
-## 11. Decks: talks and reports, `hep deck`
+## 11. Decks: talks and reports, `heimdall deck`
 
 A **deck** makes slides from pages already drawn. It is written in `decks/<deck>/`,
 which git tracks, and built into `reports/<deck>/`, which it does not. `decks/<deck>/` holds two
@@ -523,7 +524,7 @@ files of yours (and any pictures `deck.md` shows):
 - **`deck.toml`**, where its plots come from: blocks, each a grid of panels;
 - **`deck.md`**, the talk: your slides, in Markdown.
 
-`hep deck <deck>` copies the panels into `reports/<deck>/`, draws each block as one figure (its composite,
+`heimdall deck <deck>` copies the panels into `reports/<deck>/`, draws each block as one figure (its composite,
 the same picture in every target), and turns `deck.md` into:
 
 | File | What it is | Opens in |
@@ -535,7 +536,7 @@ the same picture in every target), and turns `deck.md` into:
 | `index.html` | the viewer: every block's panels, sizes 2 \| 3 \| 4 columns, ← → | a browser, for choosing |
 
 **A rebuild refreshes the plots and keeps your words.** `deck.md` is only read. After new runs,
-`hep deck <deck>` again copies what changed, redraws only the composites whose panels changed, and
+`heimdall deck <deck>` again copies what changed, redraws only the composites whose panels changed, and
 remakes the slides.
 
 ### 11.1 A talk from result folders
@@ -552,10 +553,10 @@ title   = "ZEUS {short} · PDFs"
 ```
 
 ```bash
-hep deck batch_1 --list      # the blocks, their panels, labels, and where each came from
-hep deck batch_1 --init      # deck.md, once: a title slide, a section per table, a slide per block
-hep deck batch_1             # everything: panels/, figures/, deck.pdf, deck.pptx, deck.html, overleaf.zip, index.html
-hep deck batch_1 --only pdf  # one target
+heimdall deck batch_1 --list      # the blocks, their panels, labels, and where each came from
+heimdall deck batch_1 --init      # deck.md, once: a title slide, a section per table, a slide per block
+heimdall deck batch_1             # everything: panels/, figures/, deck.pdf, deck.pptx, deck.html, overleaf.zip, index.html
+heimdall deck batch_1 --only pdf  # one target
 ```
 
 **What a panel is labelled:** the events its folder was run with (`10M`), from the folder's
@@ -608,4 +609,4 @@ With no block in `deck.toml` (or no `deck.toml`), a deck takes the PDF and PNG f
 `[deck].group` is the regex (04 §15).
 
 The keys are [04 §15](04_Config_Reference.md#15-a-decks-recipe-decktoml); the command is
-[05 §1.8](05_Commands_and_Tools.md#18-hep-deck).
+[05 §1.8](05_Commands_and_Tools.md#18-heimdall-deck).

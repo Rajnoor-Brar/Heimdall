@@ -142,7 +142,7 @@ def test_ctrl_c_stops_the_running_points_and_starts_no_more(scratch):
 
 
 def test_hep_watch_follows_a_run_over_its_socket_and_nothing_runtime_is_on_disk(scratch):
-    """V72: no --journal, no status.jsonl; `hep watch CONFIG` attaches to the running process's socket,
+    """V72: no --journal, no status.jsonl; `heimdall watch CONFIG` attaches to the running process's socket,
     shows the run so far and what follows, and ends with the run. Only the failed tool's last lines
     are on disk."""
     config = checker(scratch, "fail", extra="[tools.check.config]\nsleep = 4\n")

@@ -1,5 +1,5 @@
-"""Housekeeping (V74): `hep ls`, `hep explain`, `hep status`, `hep clean`, and `hep overlay` split from
-`hep plot`. Everything under the test's own output/ and results/."""
+"""Housekeeping (V74): `heimdall ls`, `heimdall explain`, `heimdall status`, `heimdall clean`, and `heimdall overlay` split from
+`heimdall plot`. Everything under the test's own output/ and results/."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def test_status_says_what_each_point_is(trees):
     second.out.mkdir(parents=True)
     (second.out / "logs").mkdir()                                       # begun, not done
     record.record_dir(third).mkdir(parents=True)
-    record.complete_marker(third).write_text("an older identity\n")     # complete once, since changed
+    record.complete_marker(third).write_text("an older identity\n", encoding="utf-8")     # complete once, since changed
     lines = house.status([p], {})
     assert lines[0].startswith("jets · pdf (Demo/jets/01_pdf): 1 stale, 1 incomplete, 2 to run")
     states = {line.split()[0]: line[27:37].strip() for line in lines[1:]}     # "  <name:24> <state:10> …"
@@ -73,8 +73,8 @@ def test_clean_takes_only_what_no_plan_uses_and_never_results(trees):
     (base_out / "oldtag" / "logs").mkdir(parents=True)                  # a point a quantity's tags no longer make
     (base_res / "oldtag").mkdir(parents=True)
     point.res.mkdir(parents=True)
-    (point.res / "jets.partial.yoda").write_text("x")                  # an attempt's leftover
-    (point.res / "jets.yoda").write_text("kept")
+    (point.res / "jets.partial.yoda").write_text("x", encoding="utf-8")                  # an attempt's leftover
+    (point.res / "jets.yoda").write_text("kept", encoding="utf-8")
     (base_out / "plots").mkdir()
     old_run = trees / "logs" / "Demo" / "old" / "01_x"
     old_run.mkdir(parents=True)
@@ -89,7 +89,7 @@ def test_clean_takes_only_what_no_plan_uses_and_never_results(trees):
     everything, _ = house.clean_targets([p], everything=True)
     assert old_run in everything and (point.res / "jets.yoda") not in everything
     house.remove(targets)
-    assert not (base_out / "oldtag").exists() and (point.res / "jets.yoda").read_text() == "kept"
+    assert not (base_out / "oldtag").exists() and (point.res / "jets.yoda").read_text(encoding="utf-8") == "kept"
     assert (base_res / "oldtag").exists() and (base_out / "plots").exists()
 
 
@@ -108,7 +108,7 @@ def test_clean_asks_unless_told(trees, monkeypatch, capsys):
 
 
 def test_plot_takes_a_config_and_overlay_takes_files():
-    with pytest.raises(HepError, match="overlaid by hep overlay"):
+    with pytest.raises(HepError, match="overlaid by heimdall overlay"):
         cli.cmd_plot(argparse.Namespace(config="a.yoda", configuration=None, set=[]))
     with pytest.raises(HepError, match="is not a YODA or ROOT file"):
         cli.cmd_overlay(argparse.Namespace(files=["a.yoda", "notes.txt"], output=None, labels=None, objects=[],
@@ -123,7 +123,7 @@ def test_results_load_reads_the_manifest(trees):
     from runner import record
     path = record.manifest_file(p.every)
     path.parent.mkdir(parents=True)
-    path.write_text(json.dumps(record.points_manifest(p.every, p.run, p.configuration), default=str))
+    path.write_text(json.dumps(record.points_manifest(p.every, p.run, p.configuration), default=str), encoding="utf-8")
     points = results.load("Demo/jets", "pdf")
     assert [q.name for q in points] == [q.point.name for q in p.every]
     first = points[0]
@@ -142,7 +142,7 @@ def test_reproduce_refuses_a_setup_that_changed(trees, capsys):
     record.record_dir(point).mkdir(parents=True)
     record.provenance_file(point).write_text(json.dumps({
         "config_file": str(p.run.path), "configuration": "single", "point": point.point.name, "run": "jets",
-        "project": "Demo", "identity": "0" * 64, "seed": 1, "sets": []}))
+        "project": "Demo", "identity": "0" * 64, "seed": 1, "sets": []}), encoding="utf-8")
     with pytest.raises(HepError, match="not reproduced"):
         cli.cmd_reproduce(argparse.Namespace(provenance=str(record.record_dir(point)), anyway=False, plain=True))
     assert "changed since it ran" in capsys.readouterr().out

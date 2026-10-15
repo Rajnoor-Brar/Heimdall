@@ -1,6 +1,6 @@
 """The point's context file (docs/audit_3/06_Plan.md, phase 4.2; 04 §9.4): every tool's card and config,
 written when the point starts, at $HEP_CONTEXT for every tool, removed when it ends; generate_cards for
-tools not in the chain; `hep tools new`."""
+tools not in the chain; `heimdall tools new`."""
 
 from __future__ import annotations
 
@@ -69,18 +69,18 @@ executable = "/bin/true"
 
 def test_every_tool_reads_the_context_file_which_goes_when_the_point_ends(work):
     done = subprocess.run([str(HEP), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, timeout=300,
-                          env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"})
+                          env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, encoding="utf-8")
     assert done.returncode == 0, done.stdout + done.stderr
     [copied] = (work / "results").rglob("context.txt")
     context = tomllib.loads(copied.read_text(encoding="utf-8"))["tools"]
     assert set(context) == {"copy", "spare"}                        # the chain's and generate_cards'
-    assert tomllib.loads(Path(context["spare"]["config"]).read_text()) == {"level": 2}
-    assert tomllib.loads(Path(context["copy"]["config"]).read_text()) == {"level": 1}
+    assert tomllib.loads(Path(context["spare"]["config"]).read_text(encoding="utf-8")) == {"level": 2}
+    assert tomllib.loads(Path(context["copy"]["config"]).read_text(encoding="utf-8")) == {"level": 1}
     assert not list((work / "logs").rglob("context.toml"))          # removed when the point ended
     assert "HEP_CONTEXT" not in os.environ                           # never the user's shell's
 
 
-def test_hep_tools_new_copies_a_template_or_extends_a_tool(work):
+def test_heimdall_tools_new_copies_a_template_or_extends_a_tool(work):
     made = tools.new_folder("fit", "exec")
     text = made.joinpath("tool.toml").read_text(encoding="utf-8")
     assert "extends" not in text and "config_file" in text and tools.folders()["fit"].origin == "work"
@@ -95,12 +95,23 @@ def test_hep_tools_new_copies_a_template_or_extends_a_tool(work):
     assert any("product results" in line for line in tools.folder_lines("sherpa"))
 
 
+def test_a_tool_of_ones_own_names_its_program_and_package(work):
+    made = tools.new_folder("unfold", "exec", ["root"], "unfold-it")
+    spec = tools.folders()["unfold"]
+    assert spec.get("tool", "executable") == "unfold-it" and spec.get("tool", "packages") == ["root"]
+    assert "config_file" in made.joinpath("tool.toml").read_text(encoding="utf-8")
+    made = tools.new_folder("rivet", "rivet", ["rivet", "yoda", "hdf5"])                 # extending: a [tool] of its own
+    assert tools.folders()["rivet"].get("tool", "packages") == ["rivet", "yoda", "hdf5"]
+    with pytest.raises(HepError, match="no recipe nosuch"):
+        tools.new_folder("other", "exec", ["nosuch"])
+
+
 def test_an_unknown_product_or_table_is_named(work):
     from runner import cli
     text = (work / "configs" / "P" / "c.toml").read_text(encoding="utf-8")
     (work / "configs" / "P" / "c.toml").write_text(text.replace('generate_cards = ["spare"]', 'generate_cards = ["spare:run"]'),
                                                    encoding="utf-8")
-    done = subprocess.run([str(HEP), "check", "P/c"], cwd=work, capture_output=True, text=True, timeout=120)
+    done = subprocess.run([str(HEP), "check", "P/c"], cwd=work, capture_output=True, text=True, timeout=120, encoding="utf-8")
     assert done.returncode != 0 and "exec makes no product 'run'" in done.stdout + done.stderr
 
 
@@ -108,5 +119,5 @@ def test_a_renamed_folder_says_its_new_name(work):
     text = (work / "configs" / "P" / "c.toml").read_text(encoding="utf-8")
     (work / "configs" / "P" / "c.toml").write_text(text.replace('tool        = "exec"', 'tool        = "custom"'),
                                                    encoding="utf-8")
-    done = subprocess.run([str(HEP), "check", "P/c"], cwd=work, capture_output=True, text=True, timeout=120)
-    assert 'tool = "custom" is tool = "exec" now' in done.stdout + done.stderr and "hep migrate" in done.stdout + done.stderr
+    done = subprocess.run([str(HEP), "check", "P/c"], cwd=work, capture_output=True, text=True, timeout=120, encoding="utf-8")
+    assert 'tool = "custom" is tool = "exec" now' in done.stdout + done.stderr and "heimdall migrate" in done.stdout + done.stderr

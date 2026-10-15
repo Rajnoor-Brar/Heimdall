@@ -1,4 +1,6 @@
 # recipes/platforms/container/Dockerfile — Heimdall and its stack in one image (Ubuntu 24.04, as the lab PC).
+# This is the CI workflow's (.github/workflows/stack.yml). A machine's own image is Apptainer's: heimdall.def,
+# made by `heimdall image build` (docs/framework/targets/container.md).
 #
 # From the Heimdall folder (the context; Dockerfile.dockerignore keeps its ignored trees out):
 #   docker build -f recipes/platforms/container/Dockerfile -t heimdall .
@@ -29,12 +31,12 @@ COPY . /opt/heimdall
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3 ca-certificates bzip2 xz-utils && \
     python3 /opt/heimdall/recipes/build_stack.py packages="$PACKAGES" \
-        cores="$CORES" root_cores="$ROOT_CORES" graphics="$GRAPHICS" geant4_data="$GEANT4_DATA" && \
-    bash -c 'source /opt/heimdall/setup.sh && make -C "$HEP" all' && \
+        cores="$CORES" root_cores="$ROOT_CORES" graphics="$GRAPHICS" geant4_data="$GEANT4_DATA" shell_rc=false && \
+    bash -c 'source /opt/heimdall/gjallarhorn.sh && make -C "$HEP" all' && \
     rm -rf /opt/himinbjorg/forge /var/lib/apt/lists/* /root/.cache/pip && \
     chmod -R a+rX /opt/heimdall /opt/himinbjorg
 
-RUN echo '[ -n "$BASH_VERSION" ] && HEP_MACHINE=/opt/himinbjorg . /opt/heimdall/setup.sh' > /etc/profile.d/hep.sh && \
-    echo 'source /etc/profile.d/hep.sh' >> /etc/bash.bashrc
+RUN echo '[ -n "$BASH_VERSION" ] && HEP_MACHINE=/opt/himinbjorg . /opt/heimdall/gjallarhorn.sh' > /etc/profile.d/heimdall.sh && \
+    echo 'source /etc/profile.d/heimdall.sh' >> /etc/bash.bashrc
 
 CMD ["bash"]

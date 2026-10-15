@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -30,9 +31,9 @@ import tomli_w
 
 from . import plugins
 from . import quantities as qmod
-from .config import Tool
+from .config import Tool, chain_prelim, fragment_tags, resolve_chain
 from .errors import HepError, did_you_mean
-from .paths import (cache_root, hep_root, logs_root, placeholders, portable, portable_texts, records_root, resolve,
+from .paths import (cache_root, keeping, hep_root, logs_root, placeholders, portable, portable_texts, records_root, resolve,
                     results_root, tool_chains)
 from .sweep import tag_of
 
@@ -40,7 +41,7 @@ ENV = Path(__file__).resolve().parents[1] / "tools"       # framework/tools: the
 
 FOLDER_SECTIONS = {
     "tool": {"category", "executable", "streamable", "status", "consumes_events", "produces_events", "config_file",
-             "config_always", "formerly", "template"},
+             "config_always", "formerly", "template", "packages"},
     "card": {"style", "ext", "comment", "bools", "seed", "seed_parallel", "seed_range", "line", "footer",
              "drop", "trailing", "drop_inside_braces", "merge", "repeatable", "owned"},
     "command": {"argv", "env", "cwd"},
@@ -127,6 +128,9 @@ def _spec(path: Path) -> dict:
                 if key not in allowed:
                     raise HepError(f"unknown key [{section}].{key}", where=where,
                                    hint=did_you_mean(key, allowed))
+    named = spec.get("tool", {}).get("packages", [])
+    if not isinstance(named, list) or not all(isinstance(n, str) for n in named):
+        raise HepError("[tool].packages is a list of recipe names (the packages it runs)", where=where)
     return spec
 
 
@@ -162,30 +166,35 @@ def folders() -> dict[str, Folder]:
 
 
 def folder_rows() -> list[str]:
-    """`hep tools`: every tool folder, where the nearest comes from and what it extends, and what it is."""
+    """`heimdall tools`: every tool folder, where the nearest comes from and what it extends, and what it is."""
     known = folders()
     rows = []
     for name in sorted(known):
         folder = known[name]
         origin = folder.origin + "".join(f", extends {d.name} ({o})" for o, d in folder.chain[1:])
-        rows.append((name, origin, folder.get("tool", "category", ""), folder.get("tool", "status", ""), str(folder.dir)))
-    widths = [max(len(r[i]) for r in rows + [("tool", "from", "category", "status", "")]) for i in range(4)]
-    head = ("tool", "from", "category", "status", "folder")
-    return [" ".join(f"{cell:{widths[i]}}" if i < 4 else cell for i, cell in enumerate(row)).rstrip()
+        named = folder.get("tool", "packages", [])
+        installed = package_states(named)
+        rows.append((name, origin, folder.get("tool", "category", ""), folder.get("tool", "status", ""),
+                     ", ".join(f"{n} ({installed[n]})" for n in named) or "-", str(folder.dir)))
+    head = ("tool", "from", "category", "status", "packages", "folder")
+    widths = [max(len(r[i]) for r in rows + [head]) for i in range(5)]
+    return [" ".join(f"{cell:{widths[i]}}" if i < 5 else cell for i, cell in enumerate(row)).rstrip()
             for row in [head, *rows]]
 
 
 def folder_lines(name: str) -> list[str]:
-    """`hep tools <name>`: one folder: where it is and what it extends, what it runs, its options (with
+    """`heimdall tools <name>`: one folder: where it is and what it extends, what it runs, its options (with
     their docs) and what the context file gives of it."""
     known = folders()
     if name not in known:
-        raise HepError(f"no tool folder '{name}'", hint=did_you_mean(name, known) or "hep tools lists them")
+        raise HepError(f"no tool folder '{name}'", hint=did_you_mean(name, known) or "heimdall tools lists them")
     folder = known[name]
     lines = [f"{name}: {folder.get('tool', 'category', '')}, from {folder.origin}"
-             + (" (a template: hep tools new <name> --from " + name + " copies it)" if folder.get("tool", "template") else ""),
+             + (" (a template: heimdall tools new <name> --from " + name + " copies it)" if folder.get("tool", "template") else ""),
              *(f"  folder   {d}  ({o})" for o, d in folder.chain or (("", folder.dir),)),
              "  runs     " + (folder.get("tool", "executable") or "the table's executable"),
+             "  packages " + (", ".join(f"{n}: {s}" for n, s in package_states(folder.get("tool", "packages", [])).items())
+                              or "- (none named: [tool] packages)"),
              f"  argv     {' '.join(folder.get('command', 'argv', ['{exe}']))}"]
     if folder.get("card", "style", "none") != "none":
         lines.append(f"  card     {folder.get('card', 'ext', '')} ({folder.get('card', 'style')})")
@@ -201,21 +210,25 @@ def folder_lines(name: str) -> list[str]:
     return lines
 
 
-def new_folder(name: str, source: str) -> Path:
-    """`hep tools new <name> --from <tool>`: <work>/tools/<name>/tool.toml. From a template folder ([tool]
-    template = true: exec, module) a copy, to make a tool of your own; from any other tool a folder that
-    extends it, its tool.toml below as comments, so the keys you change override it and the rest stays
-    Heimdall's."""
+def new_folder(name: str, source: str, packages: list[str] | None = None, runs: str = "") -> Path:
+    """`heimdall tools new <name> --from <tool> [--package <recipe>…] [--runs <command>]`: <work>/tools/<name>/
+    tool.toml. From a template folder ([tool] template = true: exec, module) a copy, to make a tool of your own;
+    from any other tool a folder that extends it, its tool.toml below as comments, so the keys you change
+    override it and the rest stays Heimdall's. `packages` and `runs` fill [tool] packages and executable."""
+    unknown = [n for n, s in package_states(packages or []).items() if s == "unknown"]
+    if unknown:
+        raise HepError(f"no recipe {', '.join(unknown)}", where="heimdall tools new --package",
+                       hint="python3 recipes/build_stack.py --list; your own go in the machine root's recipes.toml")
     from .paths import find_work
     work = find_work()
     if work is None:
-        raise HepError("hep tools new makes a folder in a work dir's tools/: not inside a work dir",
-                       hint="cd into one (hep where --work)")
+        raise HepError("heimdall tools new makes a folder in a work dir's tools/: not inside a work dir",
+                       hint="cd into one (heimdall where --work)")
     if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
-        raise HepError(f"'{name}' is not a tool name: lower case letters, digits and _", where="hep tools new")
+        raise HepError(f"'{name}' is not a tool name: lower case letters, digits and _", where="heimdall tools new")
     known = folders()
     if source not in known:
-        raise HepError(f"no tool folder '{source}' to start from", hint=did_you_mean(source, known) or "hep tools lists them")
+        raise HepError(f"no tool folder '{source}' to start from", hint=did_you_mean(source, known) or "heimdall tools lists them")
     target = work / "tools" / name
     if target.exists():
         raise HepError(f"{target} exists already", hint="edit it, or remove it first")
@@ -223,15 +236,25 @@ def new_folder(name: str, source: str) -> Path:
     text = (origin.find("tool.toml") or origin.dir / "tool.toml").read_text(encoding="utf-8")
     target.mkdir(parents=True)
     if origin.get("tool", "template"):                              # [tool] template = true: copied whole
-        body = (f"# tools/{name}/tool.toml — a tool of this work dir, made from Heimdall's {source} folder (hep tools new).\n"
+        body = (f"# tools/{name}/tool.toml — a tool of this work dir, made from Heimdall's {source} folder (heimdall tools new).\n"
                 f"# Tables use it as tool = \"{name}\"; give it [options], a [card], a [context] … (docs/06_Internals.md §16).\n\n"
                 + "\n".join(line for line in text.splitlines() if not line.startswith(f"# framework/tools/{source}/"))
                 + "\n")
     else:
-        body = (f"# tools/{name}/tool.toml — this work dir's {source}, laid over Heimdall's (hep tools new): the keys here\n"
+        body = (f"# tools/{name}/tool.toml — this work dir's {source}, laid over Heimdall's (heimdall tools new): the keys here\n"
                 f"# win, the rest is {source}'s (docs/06_Internals.md §16). Its tool.toml, for reference:\n#\n"
                 + "".join(f"#   {line}\n" if line else "#\n" for line in text.splitlines())
                 + f"\nextends = \"{source}\"\n")
+    filled = ([f"executable = {json.dumps(runs)}"] if runs else []) + \
+             ([f"packages = [{', '.join(json.dumps(n) for n in packages)}]   # the recipes it runs"] if packages else [])
+    if filled:                                                     # under [tool], or a [tool] of its own
+        lines = body.splitlines()
+        at = next((i for i, line in enumerate(lines) if line.strip() == "[tool]"), None)
+        if at is None:
+            lines += ["", "[tool]", *filled]
+        else:
+            lines[at + 1:at + 1] = filled
+        body = "\n".join(lines) + "\n"
     (target / "tool.toml").write_text(body, encoding="utf-8")
     from .paths import reset
     reset()
@@ -243,10 +266,10 @@ def folder_of(tool) -> Folder:
     renamed = next((name for name, f in known.items() if tool.tool in f.get("tool", "formerly", [])), None)
     if tool.tool not in known and renamed:                          # a folder's old name ([tool] formerly)
         raise HepError(f'tool = "{tool.tool}" is tool = "{renamed}" now', where=f"[tools.{tool.tag}]",
-                       hint="hep migrate rewrites it")
+                       hint="heimdall migrate rewrites it")
     if tool.tool not in known:
         raise HepError(f"tool = \"{tool.tool}\" is no tool folder", where=f"[tools.{tool.tag}]",
-                       hint=did_you_mean(tool.tool, known) or f"tool folders (hep tools): {', '.join(known)}")
+                       hint=did_you_mean(tool.tool, known) or f"tool folders (heimdall tools): {', '.join(known)}")
     return known[tool.tool]
 
 
@@ -283,7 +306,7 @@ def _lookup(name: str, context: dict, where: str):
         return table[arg]
     if name == "repo":                                               # High-Energy's, retired (framework/01 §5.3)
         raise HepError("{repo} is retired: {work} for your files, {hep} for Heimdall's", where=where,
-                       hint="hep migrate rewrites it in a run TOML")
+                       hint="heimdall migrate rewrites it in a run TOML")
     raise HepError(f"unknown placeholder {{{name}}}", where=where,
                    hint=did_you_mean(name, [k for k in context if not k.endswith(":")]))
 
@@ -351,7 +374,7 @@ def merge_files(sources: list[Path], target: Path) -> Path:
     env = {**os.environ, **{k: expand(v, context, f"{name}/tool.toml [command].env")
                             for k, v in folder.get("command", "env", {}).items()}}
     target.parent.mkdir(parents=True, exist_ok=True)
-    done = subprocess.run(argv, capture_output=True, text=True, env=env)
+    done = subprocess.run(argv, capture_output=True, text=True, env=env, encoding="utf-8")
     if done.returncode != 0 or not partial.exists():
         raise HepError(f"merging {len(sources)} files failed: {(done.stderr or done.stdout).strip()[-300:]}",
                        where=str(target), hint=" ".join(argv)[:300])
@@ -369,7 +392,7 @@ def executable_of(tool, folder: Folder, project: str) -> Path:
             command = tool.executable[len("path:"):]
             found = shutil.which(command)
             if not found:
-                raise HepError(f"'{command}' is not a command on PATH", where=where, hint="load_hep first")
+                raise HepError(f"'{command}' is not a command on PATH", where=where, hint="gjallarhorn first")
             return Path(found)
         candidate = resolve(tool.executable, "executable", project=project, where=where)
         if candidate.exists():
@@ -387,12 +410,59 @@ def executable_of(tool, folder: Folder, project: str) -> Path:
         if not path.exists():
             rel = path.relative_to(hep_root()) if path.is_relative_to(hep_root()) else path
             raise HepError(f"{rel} is not built", where=f"tool '{folder.name}'",
-                           hint="hep build --framework" if path.is_relative_to(hep_root()) else "hep build")
+                           hint="heimdall build --framework" if path.is_relative_to(hep_root()) else "heimdall build")
         return path
     found = shutil.which(text)
     if not found:
-        raise HepError(f"'{text}' is not on PATH", where=f"tool '{folder.name}'", hint="load_hep first")
+        raise HepError(f"'{text}' is not on PATH", where=f"tool '{folder.name}'", hint=missing_hint(folder))
     return Path(found)
+
+
+# ── the packages a tool folder runs ([tool] packages; task D) ────────────────────────────────────
+
+@functools.lru_cache(maxsize=1)
+def _installed():
+    """recipes/build_stack.py's view of the loaded stack (the machine root's, or an isolated toolkit's):
+    (the module, its recipes, its placeholders); None when it cannot be read."""
+    try:
+        bs = plugins.load(hep_root() / "recipes" / "build_stack.py", "build_stack")
+        stack = os.environ.get("HEP_STACK", "")
+        _, settings, packages = bs.options([f"packages=@{stack}"] if stack else [])
+        return bs, packages, bs.context(settings)
+    except (SystemExit, Exception):                                # build_stack dies with SystemExit
+        return None
+
+
+def package_states(names: list[str]) -> dict[str, str]:
+    """How each package is installed: "built 3.0.5", "ready-made 3.0.0" (from conda-forge, in the base),
+    "installed" (there, not by the build), "missing", or "unknown" (no such recipe)."""
+    view = _installed()
+    out = {}
+    for name in names:
+        if view is None or name not in view[1]:
+            out[name] = "unknown"
+            continue
+        bs, packages, c = view
+        now = bs.state(name, packages[name], c)
+        version = c.get("version_" + name.replace("-", "_"), "")
+        out[name] = ("missing" if not now else f"built {version}".strip() if now.startswith("built") else
+                     f"built {version}, its recipe changed since".replace("  ", " ") if now == "changed" else
+                     f"ready-made {version}".strip() if now == "ready-made" else now)
+    return out
+
+
+def missing_hint(folder) -> str:
+    """What to do about a tool whose program is not there: its packages, and the two ways to get them."""
+    named = folder.get("tool", "packages", [])
+    states = package_states(named)
+    gone = [n for n, s in states.items() if s == "missing"]
+    if gone:
+        names = " ".join(gone)
+        return (f"its package{'s' if len(gone) > 1 else ''} {', '.join(gone)}: not installed: bifrost -b {names} "
+                f"(built from the recipe) or bifrost -c {names} (from conda-forge)")
+    if named:
+        return f"its packages: {'; '.join(f'{n} {s}' for n, s in states.items())}; is the environment loaded? gjallarhorn"
+    return "gjallarhorn first (the environment puts the stack on PATH)"
 
 
 _VERSIONS: dict[str, str] = {}                      # a folder's version command → its first line
@@ -408,7 +478,7 @@ def version_of(folder: Folder) -> str:
     key = " ".join(command)
     if key not in _VERSIONS:
         try:
-            out = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            out = subprocess.run(command, capture_output=True, text=True, timeout=30, encoding="utf-8")
             _VERSIONS[key] = (out.stdout or out.stderr).strip().splitlines()[0] if (out.stdout or out.stderr) else ""
         except (OSError, subprocess.SubprocessError):
             _VERSIONS[key] = "?"
@@ -564,7 +634,7 @@ def _check_options(tool, folder: Folder, where: str) -> None:
             raise HepError(f"'{key}' is retired: the point's context file gives every tool's card and config",
                            where=f"{where}.{key}",
                            hint=f"a tool that is not in the chain goes in generate_cards = [\"<tag>\"] (or \"<tag>:<product>\"); "
-                                "the program reads $HEP_CONTEXT. hep migrate rewrites it")
+                                "the program reads $HEP_CONTEXT. heimdall migrate rewrites it")
         if key not in schema:
             from .schema import home_of
             raise HepError(f"unknown key '{key}' for a {folder.name} tool", where=where,
@@ -637,26 +707,18 @@ def context_text(plan: PointPlan) -> str:
 
 
 def _resolve_chain(run, configuration, point) -> list[list[str]]:
-    """Groups with `@quantity` entries replaced by the tool tag the point's value names (V19)."""
-    groups = []
-    for group in configuration.tools:
-        resolved = []
-        for member in group:
-            if member.startswith("@"):
-                name = member[1:]
-                if name not in point.choice and name not in configuration.static:
-                    raise HepError(f"'{member}' needs {name} swept or static", where=f"[run.cfgs.{configuration.key}].tools")
-                quantity = run.quantities[name]
-                index = point.choice.get(name)
-                if index is None:
-                    index = qmod.select(quantity, configuration.static[name], f"static.{name}")
-                member = quantity.values[index]
-                if member not in run.tools:
-                    raise HepError(f"'@{name}' took the value '{member}', which is not a tool table",
-                                   where=f"[quantities.{name}]", hint="its values must be [tools.<name>] names (see C5)")
-            resolved.append(member)
-        groups.append(resolved)
-    return groups
+    """Groups with `@quantity` entries replaced by the point's value of that quantity: a tool tag, or a piece of
+    chain spliced in (V19, V153; config.resolve_chain)."""
+    def choose(name: str):
+        if name not in point.choice and name not in configuration.static:
+            raise HepError(f"'@{name}' needs {name} swept or static", where=f"[run.cfgs.{configuration.key}].tools")
+        quantity = run.quantities[name]
+        index = point.choice.get(name)
+        if index is None:
+            index = qmod.select(quantity, configuration.static[name], f"static.{name}")
+        tag = quantity.tags[index] if index < len(quantity.tags) else str(quantity.values[index])
+        return quantity.values[index], f"[quantities.{name}] {tag}"
+    return resolve_chain(configuration.tools, choose, run.tools)
 
 
 def _builtin_value(run, name: str, index: int) -> int:
@@ -768,6 +830,8 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
     part of the point's."""
     out, res = point_dirs(run, configuration, point)
     groups_tags = _resolve_chain(run, configuration, point)
+    if groups_tags != configuration.tools:                           # chosen by a quantity: its own interfaces (V153)
+        configuration = replace(configuration, prelim=chain_prelim(configuration, groups_tags, run.tools, run.quantities))
     run, configuration, groups_tags, deal, shard_products = _shard(run, configuration, groups_tags, out)
     chain = [tag for group in groups_tags for tag in group]
     for tag in chain:                                  # every table names a standard tool (or refuses)
@@ -782,12 +846,12 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
     for name, index in ({} if post else qmod.static_values(run, configuration)).items():
         values.setdefault(name, index)
     selectors = [m[1:] for group in configuration.tools for m in group if m.startswith("@")]
-    alternatives = [v for name in selectors if name in run.quantities for v in run.quantities[name].values
-                    if isinstance(v, str) and v in run.tools]
+    alternatives = [t for name in selectors if name in run.quantities for v in run.quantities[name].values
+                    for t in fragment_tags(v) if t in run.tools]
     builtin = {name: _builtin_value(run, name, values[name]) for name in qmod.BUILTIN if name in values}   # V56
     configured = {t for t in rendered_tags if folder_of(run.tools[t]).get("tool", "config_file")}
     consumers = qmod.consumer_table(run, master, [n for n in values if n not in selectors and n not in builtin],
-                                    rendered_tags, alternatives, configured)
+                                    rendered_tags, alternatives, configured, frozenset(point.choice), point.name)
     consumers.update({name: [] for name in selectors if name in values})   # it chooses the tool itself
     consumers.update({name: [] for name in builtin})                        # it is the point's events or threads
 
@@ -826,7 +890,7 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
             needed = Path(expand(pattern, placeholders(), f"{folder.name}/tool.toml [checks].files"))
             if not needed.exists():
                 raise HepError(f"{folder.name} needs {needed}, which does not exist", where=where,
-                               hint=("hep build --framework" if needed.is_relative_to(hep_root()) else "hep build")
+                               hint=("heimdall build --framework" if needed.is_relative_to(hep_root()) else "heimdall build")
                                     + f" (see framework/tools/{folder.name}/tool.toml)")
         step = Step(tag=tag, tool=tool, folder=folder, group=group_of.get(tag, -1),
                     exe=executable_of(tool, folder, run.project))
@@ -1006,11 +1070,13 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
 
     def apply(mapping, value: Any, origin: str) -> None:
         if mapping.check:
-            qmod.check_provider(mapping.check, value, origin)
+            value = qmod.check_provider(mapping.check, value, origin)     # the tool's spelling (V152)
         if mapping.form == "key":
             claim(mapping.key, value, origin, mapping.format)
         elif mapping.form == "keys":
-            if not isinstance(value, list) or len(value) != len(mapping.key):
+            if not isinstance(value, list):                              # one value, every key (V152)
+                value = [value] * len(mapping.key)
+            if len(value) != len(mapping.key):
                 raise HepError(f"{origin}: expected {len(mapping.key)} values for {', '.join(mapping.key)}",
                                where=f"[tools.{step.tag}]")
             for key, item in zip(mapping.key, value):
@@ -1064,7 +1130,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
                           "input": str(step.inputs[0].path) if step.inputs else ""}
         footer = [expand(line, footer_context, where_footer) for line in folder.get("card", "footer", [])
                   if not all(footer_context.get(n, "x") == "" for n in re.findall(r"\{([a-z_]+)\}", line) or ["-"])]
-        header = f"{comment} point card for [tools.{step.tag}], point {plan.point.name}, written by hep run"
+        header = f"{comment} point card for [tools.{step.tag}], point {plan.point.name}, written by heimdall run"
         if style == "append":
             step.card_lines = [header, *lines, *footer]
             step.card_point = plan.out / "cards" / f"{step.tag}.point.{ext}"
@@ -1212,7 +1278,7 @@ def _info_dirs(folder: Folder) -> list[Path]:
         key = " ".join(command)
         if key not in _OUTPUTS:
             try:
-                _OUTPUTS[key] = subprocess.run(command, capture_output=True, text=True, timeout=30).stdout.strip()
+                _OUTPUTS[key] = subprocess.run(command, capture_output=True, text=True, timeout=30, encoding="utf-8").stdout.strip()
             except (OSError, subprocess.SubprocessError):
                 _OUTPUTS[key] = ""
         dirs += [Path(d) for d in _OUTPUTS[key].split(":") if d]
@@ -1454,7 +1520,7 @@ def clean_base(base: Path, folder: Folder) -> list[str]:
 
 
 def card_view(plan: PointPlan, tag: str) -> list[str]:
-    """`hep run --plan --card <tag>` (audit 3, 04 §4): the tool's card for this point as the tool reads it,
+    """`heimdall run --plan --card <tag>` (audit 3, 04 §4): the tool's card for this point as the tool reads it,
     each line with where its value comes from: a base card's line (and whether the point card sets it
     again), a setting, a quantity, the vocabulary, a built-in, or the runner (seeds, the footer)."""
     if tag not in plan.rendered:
@@ -1491,7 +1557,8 @@ def check_cards(plan: PointPlan) -> None:
     """[checks] card (V59): the tool reads each card it is given and says which lines it rejects (Pythia:
     {apps}/App_PythiaCheck.exe), so a key it does not know or a value of the wrong kind is refused before
     anything runs, with no list of keys of ours. The card checked is the base cards' settings and the
-    point card before seeds; the answer is cached by its text, in .cache/<P>/checks/."""
+    point card before seeds; the answer is kept by its text for the process, and in .cache/<P>/checks/ when the
+    run keeps `cache` (a file there is read either way)."""
     for step in plan.rendered.values():
         command = step.folder.get("checks", "card")
         if not command or step.card_combined is None:
@@ -1507,29 +1574,37 @@ def check_cards(plan: PointPlan) -> None:
         key = hashlib.sha256((step.folder.name + str(step.identity_parts.get("exe_sha256")) + text).encode()).hexdigest()[:16]
         cache = cache_root() / plan.out.relative_to(logs_root()).parts[0] / "checks" / step.folder.name / f"{key}.json"
         if key not in _CHECKED:
+            kept = keeping("cache")                                    # on disk only when kept (V149)
             if cache.is_file():
                 _CHECKED[key] = json.loads(cache.read_text(encoding="utf-8"))
             else:
-                card = cache.with_suffix(f".{os.getpid()}.card")          # this process's: jobs may check at once
+                scratch = None if kept else tempfile.TemporaryDirectory(prefix="heimdall-check-")
+                card = (cache.with_suffix(f".{os.getpid()}.card") if kept  # this process's: jobs may check at once
+                        else Path(scratch.name) / f"{key}.card")
                 argv = [expand(a, {**placeholders(), "card": str(card)}, f"{step.folder.name}/tool.toml [checks].card")
                         for a in command]
                 checker = Path(argv[0])
                 if not checker.is_file():
-                    plan.notes.append(f"{step.tag}'s card is not checked: {checker.name} is not built (hep build --framework)")
+                    plan.notes.append(f"{step.tag}'s card is not checked: {checker.name} is not built (heimdall build --framework)")
                     continue
-                cache.parent.mkdir(parents=True, exist_ok=True)
-                card.write_text(text, encoding="utf-8")
-                done = subprocess.run(argv, capture_output=True, text=True,
-                                      encoding="utf-8", errors="replace", timeout=120)
-                if done.returncode not in (0, 1):
-                    plan.notes.append(f"{step.tag}'s card check failed to run: {done.stderr.strip()[-160:]}")
-                    continue
-                rejected = [json.loads(l) for l in done.stdout.splitlines() if l.startswith("{")]
-                _CHECKED[key] = rejected
-                partial = cache.with_suffix(f".{os.getpid()}.tmp")
-                partial.write_text(json.dumps(rejected) + "\n", encoding="utf-8")
-                partial.replace(cache)
-                card.unlink(missing_ok=True)
+                try:
+                    card.parent.mkdir(parents=True, exist_ok=True)
+                    card.write_text(text, encoding="utf-8")
+                    done = subprocess.run(argv, capture_output=True, text=True,
+                                          encoding="utf-8", errors="replace", timeout=120)
+                    if done.returncode not in (0, 1):
+                        plan.notes.append(f"{step.tag}'s card check failed to run: {done.stderr.strip()[-160:]}")
+                        continue
+                    rejected = [json.loads(l) for l in done.stdout.splitlines() if l.startswith("{")]
+                    _CHECKED[key] = rejected                       # this process's memo, kept or not
+                    if kept:
+                        partial = cache.with_suffix(f".{os.getpid()}.tmp")
+                        partial.write_text(json.dumps(rejected) + "\n", encoding="utf-8")
+                        partial.replace(cache)
+                finally:
+                    card.unlink(missing_ok=True)
+                    if scratch is not None:
+                        scratch.cleanup()
         rejected = _CHECKED[key]
         if rejected:
             shown = [f"{lines[r['line'] - 1][0]!r} ({lines[r['line'] - 1][1]})" for r in rejected[:4]]

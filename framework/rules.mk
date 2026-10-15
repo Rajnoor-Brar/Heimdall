@@ -9,12 +9,12 @@
 #   goal_src    the source of a goal named on the command line (<path>/<X>.exe, <path>/<x>.so)
 #
 # Linking (§5.2): a source names its libraries in a `// requires: pythia8 hepmc3 …` line near the
-# top (`none` for none; a trailing `(…)` is a note). Without the line it gets every library that
+# top (`none` for none; `pkg:<name>` for any library pkg-config knows; a trailing `(…)` is a note). Without the line it gets every library that
 # was found. Including "Module.hh" adds hepmc3 and toml (and root, when ROOT is ready-made in the base).
 # Flags come from $(MK)/flags.mk (§5.3).
 
 ifndef HEP
-  $(error HEP is not set: load Heimdall's environment first (source <Heimdall>/setup.sh))
+  $(error HEP is not set: load Heimdall's environment first (source <Heimdall>/gjallarhorn.sh))
 endif
 
 SHELL := /bin/bash
@@ -56,9 +56,14 @@ req_line  = $(shell sed -n 's#^[[:space:]]*//[[:space:]]*requires:[[:space:]]*##
 uses_kit  = $(if $(shell grep -ls 'include[[:space:]]*"Module.hh"' $(1)),hepmc3 toml \
               $(if $(and $(HEP_BASE),$(wildcard $(HEP_BASE)/include/TFile.h)),root))
 libs_of   = $(sort $(call uses_kit,$(1)) $(filter-out none,$(or $(call req_line,$(1)),$(FOUND))))
-lib_flags = $(if $(filter $(2),$(FOUND)),$(FLAGS_$(2)),$(error $(1): requires '$(2)', $(if \
+lib_flags = $(if $(filter pkg:%,$(2)),$(call pkg_flags,$(1),$(patsubst pkg:%,%,$(2))),\
+            $(if $(filter $(2),$(FOUND)),$(FLAGS_$(2)),$(error $(1): requires '$(2)', $(if \
               $(filter $(2),$(KNOWN)),which env/flags.sh did not find (see $(FLAGS_MK)),\
-              which is not a known library (known: $(KNOWN)))))
+              which is not a known library (known: $(KNOWN); any library pkg-config knows: pkg:<name>)))))
+# `// requires: pkg:<name>`: a library pkg-config knows (the base's .pc files, a package's lib/pkgconfig, both
+# on PKG_CONFIG_PATH), asked when the source is built; env/stack.toml is the stack's own registry.
+pkg_flags = $(if $(shell pkg-config --exists $(2) 2>/dev/null && echo yes),$(shell pkg-config --cflags --libs $(2)),\
+              $(error $(1): requires 'pkg:$(2)', which pkg-config does not know (PKG_CONFIG_PATH=$(PKG_CONFIG_PATH))))
 flags_of  = $(foreach l,$(call libs_of,$(1)),$(call lib_flags,$(1),$(l)))
 
 # ── naming ──────────────────────────────────────────────────────────────────────────────────────

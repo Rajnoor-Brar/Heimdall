@@ -92,7 +92,7 @@ elif [ "${BREW_BUNDLE:-1}" != 0 ]; then
     brew bundle --file "$HERE/Brewfile"
 fi
 
-# GNU make, sed and coreutils ahead of Apple's, as setup.sh has them later
+# GNU make, sed and coreutils ahead of Apple's, as gjallarhorn.sh has them later
 for g in make gnu-sed coreutils; do PATH="$HOMEBREW_PREFIX/opt/$g/libexec/gnubin:$PATH"; done
 export PATH
 

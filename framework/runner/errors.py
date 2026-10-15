@@ -19,7 +19,7 @@ class HepError(Exception):
         self.hint = hint
 
     def render(self) -> str:
-        lines = [f"hep: {self.message}"]
+        lines = [f"heimdall: {self.message}"]
         if self.where:
             lines.append(f"  where: {self.where}")
         if self.hint:

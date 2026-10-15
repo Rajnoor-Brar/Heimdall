@@ -2,6 +2,7 @@
 [tool]
 category        = "event-generator"
 executable      = "{apps}/App_Pythia.exe"
+packages        = ["pythia8", "hepmc3"] # the recipes it runs (bifrost -b|-c, heimdall tools)
 status          = "standard"
 produces_events = true
 

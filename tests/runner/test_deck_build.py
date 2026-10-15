@@ -57,18 +57,18 @@ def talk(tmp_path, monkeypatch):
         plot(results / "P" / "validation" / folder / "plots" / "root" / "d01-x01-y01.pdf", colour)
     folder = tmp_path / "talk"
     folder.mkdir()
-    (folder / "deck.toml").write_text('[blocks.validation]\nfrom = "P/validation"\nfolders = ["01_PDFs_*"]\npages = ["d01-*"]\n')
+    (folder / "deck.toml").write_text('[blocks.validation]\nfrom = "P/validation"\nfolders = ["01_PDFs_*"]\npages = ["d01-*"]\n', encoding="utf-8")
     return folder
 
 
 def pages(pdf: Path) -> int:
-    info = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True).stdout
+    info = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True, encoding="utf-8").stdout
     return int(info.split("Pages:")[1].split()[0])
 
 
 @needs_pandoc
 def test_a_deck_builds_every_target_and_leaves_deck_md(talk):
-    (talk / "deck.md").write_text(TALK)
+    (talk / "deck.md").write_text(TALK, encoding="utf-8")
     before = (talk / "deck.md").read_bytes()
     made = deck.load(str(talk))
     deck.gather(made)
@@ -81,13 +81,13 @@ def test_a_deck_builds_every_target_and_leaves_deck_md(talk):
         names = pptx.namelist()
         assert "ppt/slides/slide4.xml" in names and any(n.startswith("ppt/media/") for n in names)
         assert 'cx="9144000" cy="5143500"' in pptx.read("ppt/presentation.xml").decode()   # 16:9
-    html = (talk / "deck.html").read_text()
+    html = (talk / "deck.html").read_text(encoding="utf-8")
     assert "http://" not in html and "https://" not in html and html.count("data:image/png;base64") >= 2
     with zipfile.ZipFile(talk / "overleaf.zip") as bundle:
         names = bundle.namelist()
         assert "deck.tex" in names and "figures/validation-d01.pdf" in names
         assert "figures/validation-d01.pdf" in bundle.read("deck.tex").decode()
-    built = (talk / "build" / "deck.vector.md").read_text()
+    built = (talk / "build" / "deck.vector.md").read_text(encoding="utf-8")
     assert "![](figures/validation-d01.pdf)" in built and "panels=" not in built   # our attributes are taken out
     assert (talk / "deck.md").read_bytes() == before
     said.clear()
@@ -104,7 +104,7 @@ def test_the_viewer_needs_no_pandoc_and_slides_without_deck_md(talk, monkeypatch
     monkeypatch.setattr(deck.shutil, "which", lambda name: None if name == "pandoc" else real(name))
     index = deck.build(made, ["viewer"], lambda _: None)
     assert [p.name for p in index] == ["index.html"]
-    text = index[0].read_text()
+    text = index[0].read_text(encoding="utf-8")
     assert 'href="figures/validation-d01.pdf"' in text and "panels/validation-d01/01_10M.pdf" in text
     with pytest.raises(HepError, match="pandoc, which is not on PATH"):
         deck.build(made, ["pdf"], lambda _: None)
@@ -113,29 +113,29 @@ def test_the_viewer_needs_no_pandoc_and_slides_without_deck_md(talk, monkeypatch
 @needs_tools
 def test_references_name_blocks_and_panels(talk):
     made = deck.load(str(talk))
-    (talk / "deck.md").write_text("## x\n![](validation-d1)\n")
+    (talk / "deck.md").write_text("## x\n![](validation-d1)\n", encoding="utf-8")
     with pytest.raises(HepError, match="no block validation-d1") as refused:
         deck.talk(made)
     assert "validation-d01" in refused.value.hint
-    (talk / "deck.md").write_text('## x\n![](validation-d01){panels="10M 100M"}\n')
+    (talk / "deck.md").write_text('## x\n![](validation-d01){panels="10M 100M"}\n', encoding="utf-8")
     with pytest.raises(HepError, match="validation-d01 has no panel '100M'"):
         deck.talk(made)
-    (talk / "deck.md").write_text("## x\n![](validation-d01){size=huge}\n")
+    (talk / "deck.md").write_text("## x\n![](validation-d01){size=huge}\n", encoding="utf-8")
     with pytest.raises(HepError, match="size must be one of"):
         deck.talk(made)
-    (talk / "deck.md").write_text("## x\n![](extras/jets.png){width=50%}\n")
+    (talk / "deck.md").write_text("## x\n![](extras/jets.png){width=50%}\n", encoding="utf-8")
     assert deck.talk(made).references[0][1] is None                            # a path is passed as it is
 
 
 def test_init_writes_deck_md_once(talk, monkeypatch, capsys):
     monkeypatch.setenv("HEP_REPORTS", str(talk.parent))
     assert cli.main(["deck", talk.name, "--init"]) == 0
-    assert "![](validation-d01)" in (talk / "deck.md").read_text()
+    assert "![](validation-d01)" in (talk / "deck.md").read_text(encoding="utf-8")
     assert cli.main(["deck", talk.name, "--init"]) == 2                          # there already: refused
     assert "is there already" in capsys.readouterr().err
     loose = talk.parent / "loose"
     loose.mkdir()
     plot(loose / "eta_algorithms.pdf", "white")
     assert cli.main(["deck", "loose", "--init"]) == 0
-    assert (loose / "deck.toml").read_text().startswith("# deck.toml") and (loose / "deck.md").is_file()
+    assert (loose / "deck.toml").read_text(encoding="utf-8").startswith("# deck.toml") and (loose / "deck.md").is_file()
     assert cli.main(["deck", talk.name, "--only", "slides"]) == 2

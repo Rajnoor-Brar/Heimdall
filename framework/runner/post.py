@@ -137,13 +137,13 @@ def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.P
             if name not in combined]
     groups: dict[tuple, list] = {}
     for p in plans:
-        groups.setdefault(tuple(p.point.choice[name] for name in kept), []).append(p)
+        groups.setdefault(tuple(p.point.choice.get(name, -1) for name in kept), []).append(p)   # a listed row may leave one out
     taken = {p.point.name for p in plans} | {NAME, PRE}
     manifest = record.manifest_file(plans)
     out = []
     for number, (key, members) in enumerate(groups.items(), start=1):
-        choice = dict(zip(kept, key))
-        name = "_".join(tag_of(run.quantities[q], choice[q]) for q in kept if not run.quantities[q].silent) or COMBINED
+        choice = {q: i for q, i in zip(kept, key) if i != -1}
+        name = "_".join(tag_of(run.quantities[q], choice[q]) for q in kept if q in choice and not run.quantities[q].silent) or COMBINED
         if name in taken:
             raise HepError(f"the combined group '{name}' would share a directory with a point or stage", where=where,
                            hint="give the swept quantities distinct tags (see C11)")

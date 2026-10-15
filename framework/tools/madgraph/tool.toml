@@ -7,6 +7,7 @@
 [tool]
 category        = "process-generator"
 executable      = "mg5_aMC"
+packages        = ["madgraph"]      # the recipes it runs (bifrost -b|-c, heimdall tools)
 status          = "filters"
 produces_events = true
 

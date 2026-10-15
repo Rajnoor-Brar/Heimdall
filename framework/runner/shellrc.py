@@ -1,12 +1,13 @@
-"""`bifrost` in the user's shell: the block Heimdall keeps in ~/.bashrc and ~/.zshrc (rank 0).
+"""Heimdall in the user's shell: the block it keeps in ~/.bashrc and ~/.zshrc (rank 0).
 
-The block defines `bifrost`, which loads Heimdall's environment (bifrost.sh) and, given a title, goes to that
-work dir (`heimdall recognise` records them in <machine root>/workdirs.toml). In bash it sources bifrost.sh
-into the shell itself; in zsh, whose shell cannot hold the environment (it is bash), it opens launch.sh's
-bash. The block sits between two marker lines: written again in place, taken out whole, the rest of the
-file left as it was. recipes/build_stack.py writes it at the end of a build (unless shell_rc = false) and
-loads this file by its path, so it uses the standard library only; `heimdall bifrost` shows, writes or
-removes it.
+The block defines `gjallarhorn`, which loads Heimdall's environment (gjallarhorn.sh) and, given a title, goes
+to that work dir (`heimdall recognise` records them in <machine root>/workdirs.toml), and `bifrost`, the
+environment's packages (framework/bin/bifrost), reachable before the environment is loaded. In bash,
+gjallarhorn sources gjallarhorn.sh into the shell itself; in zsh, which cannot hold the environment (it is
+bash), it opens launch.sh's bash. The block sits between two marker lines: written again in place, taken out
+whole, the rest of the file left as it was. recipes/build_stack.py writes it at the end of a build (unless
+shell_rc = false) and loads this file by its path, so it uses the standard library only; `bifrost --shell
+install|remove` writes or removes it.
 """
 
 from __future__ import annotations
@@ -15,34 +16,41 @@ import os
 import shlex
 from pathlib import Path
 
-BEGIN = "# >>> Heimdall: bifrost >>>"
-END = "# <<< Heimdall: bifrost <<<"
+BEGIN = "# >>> Heimdall >>>"
+END = "# <<< Heimdall <<<"
 DEFAULT_MACHINE = "~/Himinbjorg"
 #: The titles' headers in workdirs.toml (["<title>"]), for the shells' completion.
 TITLES = r"""sed -n 's/^\["\(.*\)"\]$/\1/p'"""
 
 
 def block(shell: str, hep: Path, machine: Path) -> str:
-    """The block for `shell` ("bash" or "zsh"): `bifrost` for the checkout `hep` and the machine root
-    `machine` (named in it only when it is not the default)."""
+    """The block for `shell` ("bash" or "zsh"): `gjallarhorn` and `bifrost` for the checkout `hep` and the
+    machine root `machine` (named in it only when it is not the default)."""
     machine = Path(machine).expanduser().resolve()
     own = machine != Path(DEFAULT_MACHINE).expanduser().resolve()
     registry = shlex.quote(str(machine / "workdirs.toml"))
     lines = [BEGIN,
-             "# Written by Heimdall (heimdall bifrost --install; --remove takes it out). `bifrost` loads Heimdall's",
-             "# environment; `bifrost <title>` also goes to that work dir (heimdall recognise --list shows them)."]
+             "# Written by Heimdall (bifrost --shell install; --shell remove takes it out). `gjallarhorn` loads",
+             "# Heimdall's environment; `gjallarhorn <title>` also goes to that work dir (heimdall recognise --list",
+             "# shows them). `bifrost` adds packages to the environment (bifrost --help)."]
+    bifrost = shlex.quote(str(hep / "framework" / "bin" / "bifrost"))
     if shell == "bash":
         export = f"export HEP_MACHINE={shlex.quote(str(machine))}; " if own else ""
-        lines += [f"bifrost() {{ {export}source {shlex.quote(str(hep / 'bifrost.sh'))} \"$@\"; }}",
-                  f"_bifrost_titles() {{ {TITLES} {registry} 2>/dev/null; }}",
-                  "complete -W '$(_bifrost_titles)' bifrost"]
+        env = f"HEP_MACHINE={shlex.quote(str(machine))} " if own else ""
+        launch = shlex.quote(str(hep / "launch.sh"))
+        lines += [f"gjallarhorn() {{ if [ \"${{1-}}\" = --image ]; then {env}{launch} --gjallarhorn \"$@\"; "
+                  f"else {export}source {shlex.quote(str(hep / 'gjallarhorn.sh'))} \"$@\"; fi; }}",
+                  f"_gjallarhorn_titles() {{ {TITLES} {registry} 2>/dev/null; }}",
+                  "complete -W '$(_gjallarhorn_titles)' gjallarhorn",
+                  f"bifrost() {{ {env}{bifrost} \"$@\"; }}"]
     elif shell == "zsh":
         env = f"HEP_MACHINE={shlex.quote(str(machine))} " if own else ""
-        lines += [f"bifrost() {{ {env}{shlex.quote(str(hep / 'launch.sh'))} --bifrost \"$@\"; }}",
-                  f"_bifrost() {{ compadd -- ${{(f)\"$({TITLES} {registry} 2>/dev/null)\"}}; }}",
-                  "(( $+functions[compdef] )) && compdef _bifrost bifrost"]
+        lines += [f"gjallarhorn() {{ {env}{shlex.quote(str(hep / 'launch.sh'))} --gjallarhorn \"$@\"; }}",
+                  f"_gjallarhorn() {{ compadd -- ${{(f)\"$({TITLES} {registry} 2>/dev/null)\"}}; }}",
+                  "(( $+functions[compdef] )) && compdef _gjallarhorn gjallarhorn",
+                  f"bifrost() {{ {env}{bifrost} \"$@\"; }}"]
     else:
-        raise ValueError(f"no bifrost block for the shell {shell!r}")
+        raise ValueError(f"no block for the shell {shell!r}")
     return "\n".join([*lines, END]) + "\n"
 
 

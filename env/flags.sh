@@ -54,7 +54,7 @@ dir_lib() {                                 # dir_lib NAME DIR LIB — a library
 
 {
     echo "# flags.mk — written by env/flags.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ). Do not edit:"
-    echo "# delete it, or run \`hep build --configure\`, to probe again."
+    echo "# delete it, or run \`heimdall build --configure\`, to probe again."
     echo "FLAGS_KEY := $(key)"
     echo "KNOWN := ${NAMES[*]}"
     probes

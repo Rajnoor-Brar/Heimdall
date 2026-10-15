@@ -24,7 +24,7 @@ def hep_run(scratch: Path, *args: str) -> str:
     return hep_ok(scratch, *args, timeout=3600)
 
 
-@pytest.mark.skipif(not shutil.which("mg5_aMC"), reason="load_hep: mg5_aMC")
+@pytest.mark.skipif(not shutil.which("mg5_aMC"), reason="gjallarhorn: mg5_aMC")
 def test_madgraph_to_pythia_to_rivet(scratch):
     out = hep_run(scratch, "Demo/madgraph", "--set", "run.events=300", "--logs")   # its log is read (V72)
     assert "count ok: 300 events" in (scratch / "records" / folder("Demo/madgraph") / "point/provenance.json").read_text(encoding="utf-8", errors="replace")
@@ -36,7 +36,7 @@ def test_madgraph_to_pythia_to_rivet(scratch):
     assert "madgraph:prepare: cached" in again and "madgraph:prepare" in out
 
 
-@pytest.mark.skipif(not shutil.which("whizard"), reason="load_hep: whizard")
+@pytest.mark.skipif(not shutil.which("whizard"), reason="gjallarhorn: whizard")
 def test_whizard_direct_photoproduction_runs(scratch):
     hep_run(scratch, "Demo/whizard", "--set", "run.events=500", "--logs")
     point = scratch / "logs" / folder("Demo/whizard") / "point"
@@ -49,7 +49,7 @@ def test_whizard_direct_photoproduction_runs(scratch):
 
 
 @pytest.mark.skipif(not (shutil.which("Herwig") and shutil.which("Sherpa")) or
-                    not (apps() / "Herwig" / "HerwigDefaults.rpo").exists(), reason="load_hep and hep build --framework")
+                    not (apps() / "Herwig" / "HerwigDefaults.rpo").exists(), reason="gjallarhorn and heimdall build --framework")
 def test_three_generators_one_page_per_spectrum(scratch):
     out = hep_run(scratch, "Generators/generators", "--set", "run.events=500")
     assert "3 done, 0 failed" in out and "plot: 4 of 4 page(s) drawn" in out

@@ -4,6 +4,357 @@ Moved out of `current_plan.md` on 2026-10-03 (audit 1, P0 S2), unchanged: every 
 audit, the rework v2 plan, and v1's working plan as it stood at `rework/v1`. The decisions themselves are
 in docs/07_Record.md; this is the working history.
 
+
+## The conda base, `heimdall`, `bifrost`, Apptainer and what a run keeps (tasks A–E) — **DONE 2026-10-14** as V140–V150
+
+Moved out of `current_plan.md` on 2026-10-14, unchanged but for links to drafts since removed.
+
+
+**Task A, the conda base (V140, V141; docs/conda/), committed, not pushed.** The machine root is built on
+a pixi/conda-forge base by default; the tools still from source inside it; `@core-conda`, `@lab-conda`,
+`@primary-conda`, `@generators-conda` take conda-forge's ready-made packages; old roots (a `venv/`, no
+`base/`) stay `base = "system"`. Proven: the base and LHAPDF, HepMC3, FastJet, fjcontrib, YODA from
+source in a scratch root; `@core-conda` whole (apps built, doctor, the guide's example run). Open:
+- Rivet (and ROOT, Pythia 8, the rest) from source on the base: never finished here (the machine went
+  down once at -j24; the user stopped the last try before the reinstall). On the new machine, the
+  first `@primary` build proves them;
+- the slow suite was not run on this commit (the fast suite was: 790 passed, 2 skipped);
+- docs/conda/03_Plan.md phase 3 (physics against the old stack, the Mac), the tracked multi-platform
+  lock, a bootstrap for clusters with Python < 3.11.
+
+**Task B: done (2026-10-14, V142–V144, five commits), as below.** Left: the user's real ~/.bashrc has no block yet (asked before writing; the build writes it on the new machine); `src/Module.hh` and `App_yd2rt.cc` still say `hep` (held, below); the frozen fixture's Makefile still says setup.sh in an error string.
+
+**Task B (the user's orders, 2026-10-14; decided, then built):**
+
+> have terminal call be "heimdall" not "hep". when setting up, have heimdall put in bashrc or zshrc
+> "bifrost" command. bifrost loads the env (setup.sh/bifrost.sh), and "heimdall recognise" which
+> recognises work dirs and if not in Himinbjorg states files, records/log it as a work dir in a toml
+> file which tracks existence of work dirs. then "bifrost <work_dir_title>" loads env and cd to dit
+> location
+
+then: "add support for commands heimdall bifrost <package>, or heimdall bifrost -python <package>",
+then: "or simply bifrost, and rename environment loading command to gjallarhorn". So, decided:
+
+| Command | What it is |
+|---|---|
+| `heimdall …` | the program (framework/bin/heimdall), every command; `hep` goes, no alias |
+| `gjallarhorn [title]` | loads the environment (`source gjallarhorn.sh`, formerly setup.sh); with a title, also goes to that work dir |
+| `bifrost …` | the environment's packages, and the shell's way in (the rc block); also `heimdall bifrost …` |
+| `heimdall recognise …` | the work dirs this machine knows, by title, in `<machine root>/workdirs.toml` |
+
+Steps, each a commit by path with the fast suite passing (light: `taskset -c 0-5 nice`); the slow suite
+once at the end; V142 (the program `heimdall`, `gjallarhorn.sh`), V143 (`recognise`, `workdirs.toml`,
+`gjallarhorn [title]`, the rc block), V144 (`bifrost`: the environment's packages).
+
+1. **The program is `heimdall`; the loader is `gjallarhorn.sh`.** `git mv framework/bin/hep
+   framework/bin/heimdall`, `git mv setup.sh gjallarhorn.sh`, then a one-off rename script (since removed)
+   (regexes over the tracked files; history excluded: 07's old rows, audit_2/3, reporter/,
+   framework/01_Target.md, bots/, tests/reference/, docs/conda/01–03), then by hand: `prog`, the error
+   prefix `hep: ` (errors.py, build_stack.py `die()`), the shell function `hep()` → `heimdall()` and its
+   `hep_*` helpers → `heimdall_*` (env/hep_env.sh), notify-send's app name, `stacks/<kit>/setup.sh` →
+   `gjallarhorn.sh` (build_stack's STACK_SETUP; cluster.py's loader), the commit message `heimdall
+   setup: …` (tests: test_setup, test_workdir_repo), `make docs` (the generated CLI and schema blocks).
+   Keep: the `HEP*` variables, `hep.toml`, `hepkit`, `HepError`, `where --hep`. Every `source
+   …/gjallarhorn.sh` that could inherit positional parameters passes none explicitly (launch.sh's
+   one-command form: `source "$0" ""`), since gjallarhorn.sh will read `$1` as a title.
+2. **`heimdall recognise [PATH] [--as TITLE] [--list] [--forget TITLE] [--path TITLE]`**, the registry
+   `<machine root>/workdirs.toml` (`$HEP_WORKDIRS` replaces it; the tests' conftest points it into
+   forge/scratch). a draft → `framework/runner/workdirs.py`, rank 1
+   (RANKS in runner/__init__.py; 06 §2.1). One table per title (`["<title>"] path, recognised`); the
+   title is `[work] name`, else the folder's. PATH a work dir or inside one: record it; else scan below
+   it (4 deep; not hidden folders, results/ records/ logs/ build/, Heimdall's checkout, the machine
+   root). Known path: "known"; a title whose path is gone: replaced ("moved"); a title another existing
+   work dir holds: refused, hint `--as`. `--list`: title, path, state. `heimdall setup` records what it
+   makes (a clash is said, not fatal).
+3. **`gjallarhorn [title]` and the rc block.** `source gjallarhorn.sh [title]`: the environment, then
+   `cd "$(command heimdall recognise --path "$1")"` (after hep_env.sh, before the last `return 0`; an
+   unknown title: did-you-mean, return 1, the environment kept). a draft
+   → `framework/runner/shellrc.py`, rank 0, standard library only (build_stack.py loads it by path,
+   as verify.py): the block `# >>> Heimdall >>>` … `# <<< Heimdall <<<`, in ~/.bashrc
+   (`gjallarhorn() { source <HEP>/gjallarhorn.sh "$@"; }`, completion of titles from workdirs.toml's
+   headers; `bifrost() { <HEP>/framework/bin/bifrost "$@"; }`) and in ~/.zshrc (`gjallarhorn() {
+   <HEP>/launch.sh --gjallarhorn "$@"; }`, the same `bifrost`); `HEP_MACHINE` named only for a root
+   that is not the default. `launch.sh --gjallarhorn [title]`: an interactive bash that sources
+   ~/.bashrc, then gjallarhorn.sh with the title (zsh cannot hold the environment, which is bash).
+   Written at the end of a real build (setting `shell_rc`, default true; a block for another checkout
+   or root is left, and said), and by `bifrost --shell install|remove`. Files: ~/.bashrc when the
+   login shell is bash or it exists; ~/.zshrc likewise. **Ask the user, showing the block, before
+   writing the machine's real rc files.** Tests: HOME a temp dir; install twice gives one block;
+   remove leaves the rest; a shell test `gjallarhorn Demo` → `pwd` in the work dir, the environment
+   loaded.
+4. **`bifrost`: the environment's packages** (`framework/runner/bifrost.py`, rank 5, as doctor.py: it
+   loads build_stack.py; `framework/bin/bifrost` is `heimdall bifrost "$@"`, so it is on PATH once the
+   environment is loaded, and the rc block's function reaches it before):
+   - `bifrost`: the state: the base (its prefix, Python, package count), the user's packages
+     (`base_packages`, `base_pypi`) each with the version installed, the rc block in each rc file
+     (installed / another checkout's or root's / absent).
+   - `bifrost <pkg>…`: conda-forge packages (a spec allowed: `gsl=2.8`, `"gsl 2.8.*"`), added to
+     machine.toml's `[settings] base_packages` (deduplicated; machine.toml's comments kept: the key's
+     line edited in place, or `[settings]` added at the end when only the template's commented one is
+     there), then the base made again (build_stack.py `--base`, loaded by path; pixi install); says
+     what was added, with versions.
+   - `bifrost -python <pkg>…` (also `--python`; argparse takes the single-dash form as an option
+     string): PyPI packages by their pip names, into a new setting `base_pypi = []`, written into
+     base/pixi.toml's `[pypi-dependencies]` (pixi resolves them with uv against the conda packages:
+     no second numpy). Not hashed into stamps (the stack links none of them). On a `base = "system"`
+     root: pip into the venv, recorded in `python_packages`; `<pkg>` without -python there is refused
+     (no conda base; the hint names apt or the conda base).
+   - `bifrost --drop <pkg>…` (with -python for PyPI): out of machine.toml, the base made again.
+   - `bifrost --shell install|remove`: step 3's rc block.
+   - Refused: a package a recipe builds here (its `conda` name: `root`, `fastjet-cxx`, …), pointing at
+     `<recipe>.from=conda-forge` or an `@…-conda` toolkit (two copies otherwise); a name pixi cannot
+     solve is said with pixi's reason, and the hint `-python` when it may be a PyPI name.
+   - It downloads: run by the user, that is their approval; an agent asks first, as always.
+   - Tests: machine.toml edits (append, dedupe, drop, comments kept, a missing [settings]); the
+     manifest's `[pypi-dependencies]`; the refusals; the state lines; the base=system path's plan.
+5. **Docs:** 00, 02 (setting up: gjallarhorn; packages: bifrost), 05 (heimdall recognise, bifrost,
+   gjallarhorn), 06 (workdirs.toml, gjallarhorn.sh, the rc block), recipes/README §1 "The base",
+   settings.toml, README, CLAUDE.md, the template's HEIMDALL.md/README; 07 V142–V144.
+
+**Task C (the user's order, 2026-10-14): done with task D (V145, V147).**
+
+> Make "bifrost -<flag> <tool>" install from conda-forge if flag=c|conda and build as per recipe if
+> flag=b|build|b@toolkit|build@toolkit. If there isn't any, have a toml contain cumulative recipes of all
+> tools currently recognised by standard, and a standard toml where user can dump their Custom recipes. If
+> not yet supported, let there be gated build flags based on tool/packages availability version and ability
+> to use basic info in flag like tool path and stuff. Thus, it may or may not be convenient to have a toml
+> contain state/info of stack/environment like it does of work dirs. Check if this arrangement is worth it
+> or there's better cleaner way
+
+What exists: `recipes/toolkits/standard.toml` is already every recipe (the cumulative file). Custom recipes
+can go in a toolkit of the machine's (`<root>/toolkits/<name>.toml`, its own set) or in machine.toml's
+`[packages.<name>]` (laid last, over every toolkit). Gating exists for presence only: `optional = { pkg =
+[args] }` (when that package is installed or in the run); `{dir_<pkg>}` gives another package's place
+(stack/<install>, or the base when ready-made), `{release}` only a recipe's own version.
+
+Decided:
+1. **Tools by flag** (`bifrost` = `heimdall bifrost`; cli.parse rewrites the flags before argparse):
+   - `bifrost -c|-conda <tool>…`: the recipe taken ready-made: machine.toml gets `[packages.<tool>] from =
+     "conda-forge"` (the machine's lasting choice: every later build, any toolkit, keeps it), then
+     `build_stack.py packages=<tool>…` (the base with it, its checks; nothing built). What it needs goes
+     ready-made too, said (`-c rivet` takes hepmc3, yoda, fastjet, fjcontrib) — unless one of them is built
+     here: refused, naming it (two copies otherwise). A tool built here is refused too, naming what was
+     built on it (switching means rebuilding those: `-b` them after, or keep it).
+   - `bifrost -b|-build <tool>…`: built from its recipe: `build_stack.py packages=<tool>…` (what it needs
+     is added, as always). A tool the base holds ready-made gets `from = "source"` in machine.toml first;
+     a ready-made tool that needs it stays a refusal (check_ready_made's rule: build that one too).
+   - `bifrost -b@<toolkit> <tool>…`: the same, built with that toolkit's changes laid (its chain's
+     settings, env and `[packages.<tool>]`) but only `<tool>` and what it needs, not the toolkit's set:
+     build_stack.py learns the word `<tool>@<toolkit>` in `packages`. An isolated toolkit builds into its
+     own `stacks/<toolkit>/`.
+   - A bare `bifrost <name>` that is a recipe's name (not only a conda package) is refused with both
+     choices (`-c <name>` or `-b <name>`); bare names stay plain conda-forge packages (`base_packages`).
+   - Every change to machine.toml is put back when the build or the solve fails (as `bifrost <pkg>` does).
+2. **Custom recipes: `<machine root>/recipes.toml`** (new; from a commented template, as machine.toml):
+   the same `[packages.<name>]` tables as standard.toml, laid right after it, before the base, the
+   platform and the toolkits; so a recipe there is as standard's (a toolkit may borrow it in
+   `[standard]`, `bifrost -b <name>` builds it, `--list` shows "recipes.toml"). machine.toml keeps
+   settings and this machine's overrides, laid last. Why a file, not machine.toml: recipes are data that
+   toolkits build on; overrides must win over toolkits. Two roles, two layers.
+3. **Gated flags, by version and with other tools' facts** (recipe keys, documented in standard.toml):
+   - `optional`'s keys may carry a version spec: `optional = { "root >=6.30" = [...], hdf5 = [...] }`; the
+     version is the recipe's `release` when built here, the installed one when ready-made (conda-meta).
+   - placeholders `{version_<pkg>}` (that version), `{dir_<pkg>}` (exists), `{bin_<pkg>}` (its `bin/`),
+     usable in args, env, pre and post; an absent package's placeholder is an error naming the recipe
+     (gate it with `optional`).
+   - tests: a gate on and off by version, a ready-made version read from conda-meta, the placeholders.
+4. **No state TOML for the stack** (assessed). workdirs.toml exists because work dirs live anywhere and
+   cannot be found cheaply; the stack's facts are all in the machine root already and are derived:
+   stamps (`stack/.stamps`: what was built, from which recipe digest, on which base libraries), the base
+   (`base/pixi.lock`, `conda-meta`: every installed version), and the choices in machine.toml (what is
+   taken ready-made or built, the added packages). A second file would be a cache that goes stale (a
+   hand build, `pixi update`, a deleted stack/ folder) and two truths to reconcile. Instead:
+   - the choices stay in machine.toml, which `bifrost` writes (copy it to give another machine the same);
+   - `bifrost` (alone) also lists the tools: each installed recipe, how (built / ready-made / installed),
+     its version and folder (doctor's stack_status);
+   - `heimdall stack status --toml` prints that view as TOML for scripts, generated each time.
+5. Docs: 05 (bifrost's flags), recipes/README §1 (recipes.toml, the gates), standard.toml's header,
+   06 (layout: recipes.toml), the template machine.toml's pointer; V145 (tools by flag, recipes.toml),
+   V146 (gates, the status view). Tests light (`taskset -c 0-5 nice`), commits by path.
+
+**Task D, done (V146–V148) (the user's questions, 2026-10-14: how built or ready-made tools reach configs; how Heimdall tells tools, dependencies and packages apart; approved, after task C):** three nouns, linked by name only today: a package (a recipe), a library (env/stack.toml, for `// requires:`), a tool (a tool folder, whose executable is found on PATH, which holds both stack/*/bin and base/bin: built or ready-made is the same to a config). Standard tools are the shipped folders; a user's command-line program is `exec`, or a folder of theirs (`heimdall tools new <name> --from exec`); a header library is used by a module program. The links to add:
+
+
+1. **A tool names its packages.** `tool.toml [tool] packages = ["sherpa"]`: the recipes whose installs it
+   needs at run time (checked to be recipes of some layer when the folders load; tools.py's folder
+   check). Shipped: sherpa→sherpa; herwig→herwig; whizard→whizard; madgraph→madgraph; delphes→delphes;
+   rivet, merge, plotmerge→rivet, yoda; pythia→pythia8, hepmc3 (App_Pythia, `{apps}`); yd2rt→root, yoda;
+   lhapdf→lhapdf; exec and module: none (the user's). Uses:
+   - `executable_of`'s "not on PATH" error names the package and both ways: `bifrost -b sherpa` or
+     `bifrost -c sherpa` (task C). No build_stack load at plan time unless the program is missing.
+   - `heimdall tools` lists each folder's packages and how each is installed (built 3.0.5 / ready-made
+     3.0.0 / missing): `doctor.stack_status`'s rows, reused.
+   - provenance (`record.py`, each step's entry beside `exe_sha256`): `packages = {sherpa = "conda-forge
+     3.0.0 <build>"}` or `"built 3.0.5 <recipe digest>"`. Not identity: the binary's sha256 already is.
+2. **Any pkg-config library for modules.** `// requires: pkg:<name>` in a source: `rules.mk`'s
+   `lib_flags` takes `pkg:` names to `pkg-config --cflags --libs <name>` (the base's `.pc` files, and
+   every `stack/<pkg>/lib/pkgconfig`, already on PKG_CONFIG_PATH by hep_env.sh and base/activate.sh). An
+   unknown name's error lists `env/stack.toml`'s names and says `pkg:<name>`. env/stack.toml stays the
+   registry of the stack's own (versions for provenance, the probes).
+3. **The user's own command-line tool, in one step.** `heimdall tools new <name> --from exec [--package
+   <recipe>]`: the folder with `executable` and `packages` filled; 05 §9 gets a short walk-through (card
+   style none/append/render, argv placeholders, `[outputs]`, `status`/`filters.toml`, `[identity] files`).
+4. **A switch says what it costs, and asks** (task C's `bifrost -c|-b` on an installed package):
+   - points: the recognised work dirs (workdirs.toml) are read for `records/**/provenance.json` whose
+     steps ran that package's tools (by folder `packages`, else by exe path under its install): "12
+     points in 2 work dirs ran sherpa: they will run again (new identities and seeds)";
+   - builds: the apps and modules that link it rebuild on their next build (flags change), named;
+   - asks y/N on a terminal; `--yes` otherwise; refuses without it when not interactive (the rule:
+     rebuilt binaries change identities, ask first).
+5. **Docs and record:** 05 (tools: `packages`; `pkg:` requires; `tools new --package`), 06 §16.1 (the
+   key), §15 (`pkg:`), 02 (your own tool), V147 (tools name packages, provenance), V148 (`pkg:`, the
+   switch's warning).
+
+**Task E (the user's order, 2026-10-14: "plan for apptainer support and make sure logging and cache creation by heimdall run is minimal unless explicitly told otherwise"; approved; done, V149, V150):**
+
+The user (2026-10-14) asked for Apptainer support, as discussed: the runtime is the system's (`apptainer`,
+or SingularityCE's `singularity`, which this machine has at /usr/local/bin), the image holds Heimdall and a
+frozen machine root, work dirs stay outside, bind-mounted. And: "make sure logging and cache creation by
+heimdall run is minimal unless explicitly told otherwise". Answers to the questions asked:
+- after a point succeeds its working folder keeps **cards/ and config/** only;
+- caches by default: **prepare caches only** (integrations: Sherpa, Whizard, MadGraph);
+- "told otherwise": **flags, plus a work-dir default (hep.toml) and a machine default (machine.toml)**;
+- images: **Apptainer only (no Docker needed), used explicitly** (`gjallarhorn --image`, `[cluster] image`).
+
+Today (read from the code): tool output is already kept only when a tool fails (its last 200 lines),
+`--logs` keeps all (V72); `status.jsonl` only with `--journal`; `[prelim]` output only on failure. What a
+successful run still leaves: each point's working folder `logs/<P>/<run>/<cfg>/<point>/` (cards/, config/,
+an empty logs/, scratch files of `keep = false` producers, shards, tools' stray files), its `.lock`; the
+plot stage's `logs/…/plots/` (page configs, merged/derived YODAs, mkhtml work files, `*.sha256` skip
+markers, `*.ranges.json`); `.cache/<P>/checks/` (card checks), `.cache/<P>/datasets/` (reference data
+converted for Paint). Nothing reads a point's working folder after it completes (`reproduce` re-plans;
+records/identity.json holds the card lines).
+
+
+**1. What a run keeps: one vocabulary, three places**
+- `keep` words: `logs` (every tool's whole output: today's `--logs`), `journal` (`status.jsonl`: today's
+  `--journal`), `work` (a successful point's whole working folder, scratch included), `cache` (card checks,
+  converted reference data, the plot stage's working files and skip markers).
+- Said by: `heimdall run --keep logs,work` (`--logs`, `--journal` stay as its short forms); a work dir's
+  `hep.toml [run] keep = [...]`; the machine's `machine.toml [run] keep = [...]`. The union applies.
+- Code: `paths.keep(flags) -> set[str]` (rank 0; reads `work_meta` and `machine_settings`);
+  `paths.WORK_KEYS` gains `"run": ("keep",)` with a list value (work_meta's type check widened for it);
+  `recipes/build_stack.py MACHINE_TABLES` gains `"run"` (ignored by the build); `cli.py` run parser and
+  `cmd_run` pass the set down where `logs=` goes today (`execute.run_points`, `post.run_pre`, plot).
+- Unknown words are refused naming the four.
+
+**2. A successful point keeps cards/ and config/ only (unless `work`)**
+- `execute._cleanup(plan)`, after `.complete` is written and only on success: remove everything in
+  `plan.out` but `cards/` and `config/` (and `logs/` when a tool's tail or `--keep logs` wrote there), and
+  the point's `.lock` beside it. A failed or stopped point keeps everything (debugging), as today.
+- `prepare()` stops making an empty `logs/`: `status.Reader.keep_tail` and the prepare log already make
+  their folder when they write.
+- `cluster` (finish job) and `post` read products from `results/`, not working folders (checked:
+  `post.py`, `cluster.py` never read `plan.out`).
+
+**3. Caches: prepare caches only (unless `cache`)**
+- Card checks (`tools.py`, `.cache/<P>/checks/`): kept in a per-process memo by the same key; written to
+  disk only with `cache`. Plans in one process (a sweep, `heimdall check`) still run each distinct card once.
+- Converted reference data (`plot.py` `convert`, `.cache/<P>/datasets/`): converted into the plot stage's
+  working folder for the draw; into `.cache` only with `cache`.
+- The plot stage's working folder (`logs/…/plots/`, `compare/`): after the pages are drawn, its
+  intermediates go (derived/merged/scan YODAs, mkhtml's `yoda/`, `*.sha256`, `*.ranges.json`); the page
+  configs stay (text, as cards do). Each file's readers are checked before it is removed; with `cache` the
+  folder stays whole (skip-unchanged merges).
+- Prepare caches (`.cache/<P>/<tool>/<key>/`) stay: functional, shared by every point and seed.
+  `heimdall clean` (house.py) is unchanged.
+
+**4. Apptainer: building an image**
+- `recipes/platforms/container/heimdall.def` rewritten for Apptainer alone: `Bootstrap: docker`, `From:
+  ubuntu:24.04` (pulled by Apptainer; no Docker daemon); `%files` a clean copy of Heimdall (from `git
+  archive HEAD`, so no ignored trees) to `/opt/heimdall`; `%post`: apt `python3 ca-certificates bzip2
+  xz-utils`, `build_stack.py machine=/opt/himinbjorg packages={{ PACKAGES }} cores={{ CORES }} root_cores={{
+  ROOT_CORES }} shell_rc=false`, `heimdall build --framework`, `rm -rf /opt/himinbjorg/forge`;
+  `%environment`: `HEP_MACHINE=/opt/himinbjorg`, `PYTHONDONTWRITEBYTECODE=1` (sh syntax only: today's
+  `. gjallarhorn.sh` there cannot work, %environment is read by /bin/sh); `%runscript`: `exec
+  /opt/heimdall/launch.sh "$@"`; `%labels`: Heimdall's revision, the toolkit, the date.
+- `heimdall image build [packages=@kit] [cores=N root_cores=N] [--name NAME]` (new module
+  `framework/runner/image.py`, rank 5): finds `apptainer`, else `singularity`; refuses a checkout with
+  uncommitted changes (the image would not say what it holds) unless `--dirty`; runs `<cmd> build
+  --fakeroot --build-arg … <machine root>/images/<name>.sif <def>`; its hint names `sudo` when fakeroot is
+  not set up. `heimdall image` lists `<machine root>/images/*.sif` with their labels (`<cmd> inspect`).
+  The Dockerfile stays, for the CI workflow only.
+
+**5. Apptainer: using an image (explicitly)**
+- `gjallarhorn --image [NAME|PATH] [title]` (`launch.sh --image`, from the rc block's function): the title
+  is resolved on the host (`heimdall recognise --path`), then `<cmd> exec --bind <work dir> --pwd <work
+  dir> <sif> /opt/heimdall/launch.sh` (an interactive bash with the image's environment, in the work dir).
+  `--dev` also binds the host's checkout over `/opt/heimdall` (today's code on the frozen stack).
+  NAME is a file of `<machine root>/images/`.
+- `heimdall cluster`: `[cluster] image = "NAME|PATH"`; then `cluster.script` writes `<cmd> exec --bind <work
+  dir> <sif> /opt/heimdall/framework/bin/heimdall run …` instead of sourcing the loader (the `setup` lines
+  still first: `module load apptainer`).
+- Provenance (`record.py`): inside an image (`APPTAINER_CONTAINER` or `SINGULARITY_CONTAINER` set) a point
+  records `image = {path, labels}` (labels from `/.singularity.d/labels.json`). Not identity: the tools'
+  binaries' sha256 already are.
+- Inside the image nothing writes under /opt: runs write only the work dir (checked by a test that runs
+  with the machine root read-only, see Verification).
+
+**6. Docs and record**
+
+05 (run's `--keep`; `heimdall image`; `gjallarhorn --image`; cluster `image`), 06 §14 (what a run leaves),
+04 (hep.toml `[run] keep`), docs/framework/targets/container.md and cluster.md (the Apptainer route),
+recipes/README (platforms/container), V149 (what a run keeps), V150 (Apptainer images). Plan text into
+bots/current_plan.md as task E on approval.
+
+**Held (identities):** `src/Module.hh` says `hep run` in an error string and `hep explain` in a comment, `src/App_yd2rt.cc` `hep plot` in a comment. Editing Module.hh changes every module binary, so every point that ran one; ask the user before renaming them (with the next deliberate rebuild).
+
+**Lessons of 2026-10-14:** start a long build detached (`setsid nohup … < /dev/null &`), or a session's
+end kills it; ROOT's and Rivet's compilers take ~3 GB each (`root_cores`, now Rivet's too): at every
+core a 14 GB machine went down; run tests light (`taskset -c 0-5 nice`), and pytest directly rather
+than `make test` (its `make all` rebuilds the machine's apps).
+
+## Heimdall's split, the runbook and audit 3 (2026-10-10 to 2026-10-13) — **DONE** as V105–V139
+
+Moved out of `current_plan.md` on 2026-10-14, unchanged.
+
+
+**Heimdall (2026-10-10):** split from High-Energy at `split/base` (5e0a913) and built here, in its own
+repository at `~/Github/Heimdall`, on the old lab PC's stack. Since V122 the machine root
+`~/Himinbjorg` holds it: `stack` and `venv` are links to `~/HEP/install` and `~/HEP/.venv`, and `apps/`
+and `forge/` are real folders there.
+- **Done:** the seed (`99da1d3`), the recipes and toolkits (`@primary` = the lab set plus
+  MadAnalysis5; isolated C++20 stacks), the seam (two roots, `hep setup`/`hep where`, the build split
+  on `framework/rules.mk`, provenance across both repositories, portability), the tests on the
+  fixture work dir, the manual re-rooted (V105–V113), and
+  [docs/framework/](../docs/framework/README.md) rewritten as the fresh-machine runbook (P0 Preflight,
+  P1 Stack `@primary`, P2 Framework, P3 Work dirs, P4 Verify).
+- **Numbers here:** `hep build --framework` 4 s; 3 C++ tests pass; fast suite 629 passed; slow suite
+  37 passed (about 9 min, the byte-identical legacy gate and the emulated cluster included); `test_stack_build` 27; the
+  starter in a scratch Top-Quark: 2 points, 35 pages, 9 s.
+- **Next, the user's:**
+  - publish Heimdall (a gate: a private `Rajnoor-Brar/Heimdall`), or keep a bundle;
+  - before the reinstall, 01 §8's checklist (Heimdall's bundle or push; High-Energy pushed; the
+    kept files and the reference point);
+  - on the new machine, the runbook from 02 §1.
+- **`hep cluster` (2026-10-11, V114):** a configuration as Slurm jobs (pre job → points array →
+  finish job, each an ordinary `hep run --stages …`), `[cluster]` in hep.toml, the run TOML, the
+  configuration, `--set`. Tested against an emulated Slurm only: the first real submission (on a
+  cluster the user has) is a by-hand check, `--dry-run` first.
+- **The fixture holds no study by name:** the projects are `Demo` (ep jets, the
+  validation against ZEUS 2012, the generators), `Decay` (Λ → p π⁻) and `Generators`; the physics
+  and the frozen references are as they were.
+- High-Energy itself is untouched (only the tag `split/base` was added); its conversion to a work
+  dir is parked (06's appendix).
+
+Otherwise nothing is in progress. Waiting on the user:
+
+- **Audit 3** (2026-10-12, [docs/audit_3/](../docs/audit_3/README.md)): a user-experience audit after the
+  first Mac build (U1–U66). Remediation in seven phases (06_Plan.md: build reliability,
+  verification/`hep doctor`, the machine root `$HEP_MACHINE` and the shell, one tool system, the work
+  dir's lifecycle, schema v3, the CLI and first run). Nothing built until the user orders a phase.
+  The Mac build's notes and `check_stack.sh` are in the ignored `.setup/`.
+- **R0:** verify the mpl pages against mkhtml's, after which the yoda backend goes (H11).
+- **R1–R3** of the health check: quick fixes (a compare figure drawn once, H2), then structure
+  (`runner/figures.py`, the figure-class rules in the schema), then sheets, tests and docs.
+- **`hep migrate --stamp`** (the [config] plan's optional C3 S3): it would write the stack's versions into `[config.meta].versions`. Only if wanted.
+- **Later**, on the user's word:
+  - F8 `--more`;
+  - HTCondor and PBS for `hep cluster` (Slurm is V114); an Apptainer image for its jobs;
+  - Paint's PDF line widths (about 2× too thick);
+  - the held C++/Rivet items (K3, K4, K7, K8, K10, yd2rt's dead parameter);
+  - `extends`/`common.toml` for validation ("not now").
+
 ## Titles, legend header, overlays, parent→child options — **DONE 2026-10-03** as V51 (ordered 2026-10-03)
 
 - `[plot].title`, `.title_left`, `.title_right`, `.legend_header` for every page; `[plot.<hist>].<same>`

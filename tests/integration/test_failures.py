@@ -21,7 +21,7 @@ import pytest
 from support import apps, hep
 
 pytestmark = [pytest.mark.slow,
-              pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="hep build --framework")]
+              pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="heimdall build --framework")]
 
 
 def write_config(where: Path, *, events: int, extra_base: str = "") -> str:

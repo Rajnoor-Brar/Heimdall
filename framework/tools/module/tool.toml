@@ -5,7 +5,7 @@
 config_file     = true             # its table's config and consumed quantities, written to config/<tag>.toml (its
                                    # first argument); the context file comes through $HEP_CONTEXT (Module::Job::tool)
 config_always   = true             # a Module.hh program takes its config even when it is empty
-template        = true             # hep tools new <name> --from module copies it
+template        = true             # heimdall tools new <name> --from module copies it
 category        = "analysis-application"
 streamable      = true
 status          = "standard"

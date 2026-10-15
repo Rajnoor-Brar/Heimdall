@@ -1,5 +1,5 @@
 # .github/workflows/stack.yml — the stack built in the container recipe on a clean Ubuntu, then
-# `hep doctor` and the fast tests in it: a second machine in the loop (docs/audit_3/06_Plan.md, 2.2).
+# `heimdall doctor` and the fast tests in it: a second machine in the loop (docs/audit_3/06_Plan.md, 2.2).
 # It runs only when started by hand (Actions → stack → Run workflow): a core build takes hours.
 name: stack
 
@@ -23,7 +23,7 @@ jobs:
           docker build -f recipes/platforms/container/Dockerfile
           --build-arg PACKAGES="${{ inputs.packages }}" --build-arg ROOT_CORES=2 --build-arg GEANT4_DATA=OFF
           -t heimdall:ci .
-      - name: hep doctor
-        run: docker run --rm heimdall:ci bash -lc 'hep doctor --quick'
+      - name: heimdall doctor
+        run: docker run --rm heimdall:ci bash -lc 'heimdall doctor --quick'
       - name: The fast tests
         run: docker run --rm heimdall:ci bash -lc 'cd /opt/heimdall && python3 -m pytest -q -m "not slow"'

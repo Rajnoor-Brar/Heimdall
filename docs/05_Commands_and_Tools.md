@@ -1,10 +1,10 @@
 # 05 — Commands and tools
 
-Every `hep` command and its options, the build and the environment; then every standard tool: what
+Every `heimdall` command and its options, the build and the environment; then every standard tool: what
 it runs, how its card is written, which quantities it consumes, what it writes, how its events are
 counted, what it puts in the context file, and the quirks that shaped it (the ledger rows,
 [07 §3](07_Record.md#3-the-knowledge-ledger)). Then the apps as you run them by hand.
-- **Generated:** the commands' options come from `hep`'s own parser (`make docs`).
+- **Generated:** the commands' options come from `heimdall`'s own parser (`make docs`).
 - **Written by hand:** the tools' sections come from `framework/tools/<tool>/`.
 - **Writing a new tool folder:** [06 §16](06_Internals.md#16-the-tool-folder-contract).
 
@@ -12,24 +12,24 @@ counted, what it puts in the context file, and the quirks that shaped it (the le
 
 ## 1. Commands
 
-Every command is one program's (`framework/bin/hep` runs `framework/runner/cli.py`): `hep help`
-lists them, `hep help <command>` (or `hep <command> --help`) says one, and a misspelt command gets
+Every command is one program's (`framework/bin/heimdall` runs `framework/runner/cli.py`): `heimdall help`
+lists them, `heimdall help <command>` (or `heimdall <command> --help`) says one, and a misspelt command gets
 the nearest. Throughout:
 - **`--dry-run`** shows what a command would do and does nothing: `run` (also `--plan`), `deck` (also
   `--list`), `clean`, `cluster`, `migrate` (its default: `--apply` writes), `build` (`make -n`) and
   `stack build`.
 - **`--set KEY=VALUE`** works on every command that plans: `run`, `check`, `status`, `clean`, `cluster`.
 - **`--plain`** may come anywhere, for any command.
-- **Errors** are one shape: `hep: what`, then `where:` and `hint:`. A record id, when one helps, comes
+- **Errors** are one shape: `heimdall: what`, then `where:` and `hint:`. A record id, when one helps, comes
   last, as `(see V93)`.
-- **`hep stack build|list|status|doctor`** is the machine's stack: its builder
+- **`heimdall stack build|list|status|doctor`** is the machine's stack: its builder
   (`recipes/build_stack.py`, on macOS `recipes/platforms/mac/build.sh`), its recipes, its packages,
   its checks.
 
 Every subcommand and its arguments (options and positionals may come in any order):
 
 <!-- generated: commands -->
-**`hep run`**: plan and run a configuration
+**`heimdall run`**: plan and run a configuration
 
 | Argument | Meaning |
 |---|---|
@@ -43,21 +43,23 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--set KEY=VALUE` | override one value for this invocation (repeatable), in the file's own names: run.events=100 (v3), run.event_count=100 (v2) |
 | `--rerun` | ignore skip-unchanged; under a serial the file sets, overwrite points made from other inputs |
 | `--only pre\|post\|plot` | rerun only the pre tools, the post tools or the plots |
-| `--stages LIST` | run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; hep cluster's jobs) |
+| `--stages LIST` | run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; heimdall cluster's jobs) |
 | `--plain` | plain lines instead of the live view |
 | `--wait` | a point another session is running: wait for it (default: skip it, naming who runs it) |
-| `--journal` | also write every status event to logs/…/status.jsonl (for hep watch --file and replay) |
+| `--journal` | also write every status event to logs/…/status.jsonl (for heimdall watch --file and replay) |
 | `--logs` | keep every tool's whole output in logs/<tag>.log (default: only a failed tool's last lines) |
+| `--keep WHAT` | also keep (comma-separated): logs, journal, work (a finished point's whole working folder), cache (card checks, converted data, the plot stage's working files); also hep.toml's and machine.toml's [run] keep |
 
-**`hep plot`**: draw a configuration's pages from its complete points
+**`heimdall plot`**: draw a configuration's pages from its complete points
 
 | Argument | Meaning |
 |---|---|
 | `config` | the run config |
+| `--keep WHAT` | cache: keep the plot stage's working files and converted data (as heimdall run --keep) |
 | `[configuration]` | overrides [run].configuration; under sweep_runs, only it |
-| `--set KEY=VALUE` | as for hep run |
+| `--set KEY=VALUE` | as for heimdall run |
 
-**`hep overlay`**: overlay any YODA/ROOT files through Paint, with no run TOML
+**`heimdall overlay`**: overlay any YODA/ROOT files through Paint, with no run TOML
 
 | Argument | Meaning |
 |---|---|
@@ -69,7 +71,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--ratio` | a ratio panel against the first curve |
 | `--style FILE` | a style file over src/Apps/Paint/base.toml |
 
-**`hep deck`**: a deck of slides from drawn pages, in reports/<deck>/ (deck.toml, deck.md)
+**`heimdall deck`**: a deck of slides from drawn pages, in reports/<deck>/ (deck.toml, deck.md)
 
 | Argument | Meaning |
 |---|---|
@@ -78,28 +80,28 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--only TARGETS` | some of pdf, pptx, html, overleaf, viewer (comma-separated) |
 | `--init` | write deck.md once: a title slide and a slide per block |
 
-**`hep ls`**: every config and its configurations
+**`heimdall ls`**: every config and its configurations
 
 | Argument | Meaning |
 |---|---|
 | `[project]` | only this project's configs |
 
-**`hep explain`**: a run TOML key: its type, default and meaning (the schema's)
+**`heimdall explain`**: a run TOML key: its type, default and meaning (the schema's)
 
 | Argument | Meaning |
 |---|---|
 | `key` | e.g. plot.y_gutter, run.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses |
 
-**`hep status`**: each configuration's points: complete, stale, incomplete or to run
+**`heimdall status`**: each configuration's points: complete, stale, incomplete or to run
 
 | Argument | Meaning |
 |---|---|
 | `[config]` | one config (default: every config) |
 | `[configuration]` | one configuration of it |
-| `--set KEY=VALUE` | as hep run's, for the view |
+| `--set KEY=VALUE` | as heimdall run's, for the view |
 | `--stack` | the loaded stack instead: each package installed, its release and state; the libraries' versions |
 
-**`hep migrate`**: rewrite run TOMLs and their cards in today's forms (a diff, or --apply)
+**`heimdall migrate`**: rewrite run TOMLs and their cards in today's forms (a diff, or --apply)
 
 | Argument | Meaning |
 |---|---|
@@ -109,7 +111,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--apply` | write the changes (default: print the diff) |
 | `--dry-run` | print the diff, write nothing (the default) |
 
-**`hep reproduce`**: run a finished point again, from its provenance, beside it
+**`heimdall reproduce`**: run a finished point again, from its provenance, beside it
 
 | Argument | Meaning |
 |---|---|
@@ -117,24 +119,24 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--anyway` | run it even though the setup changed since |
 | `--plain` | plain lines instead of the live view |
 
-**`hep clean`**: remove what the runner made and no plan uses: logs/ and .cache/ (records/ with --records)
+**`heimdall clean`**: remove what the runner made and no plan uses: logs/ and .cache/ (records/ with --records)
 
 | Argument | Meaning |
 |---|---|
 | `[config]` | one config (default: every config, and the unused caches) |
 | `--dry-run` | list only |
-| `--set KEY=VALUE` | as hep run's: what the plans use |
+| `--set KEY=VALUE` | as heimdall run's: what the plans use |
 | `--yes` | delete without asking |
 | `--records` | also the records no plan has (provenance, identities, completion): asked for even with --yes |
 
-**`hep check`**: check run TOMLs: every configuration loaded, validated and planned
+**`heimdall check`**: check run TOMLs: every configuration loaded, validated and planned
 
 | Argument | Meaning |
 |---|---|
 | `CONFIG…` | configs to check (default: every configs/<Project>/*.toml with a [run]) |
-| `--set KEY=VALUE` | as hep run's: check what that run would |
+| `--set KEY=VALUE` | as heimdall run's: check what that run would |
 
-**`hep watch`**: attach the live view to a running job
+**`heimdall watch`**: attach the live view to a running job
 
 | Argument | Meaning |
 |---|---|
@@ -143,20 +145,21 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--plain` | plain lines instead of the live view |
 | `--file STATUS.JSONL` | follow a --journal run's status file instead |
 
-**`hep cluster`**: run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job
+**`heimdall cluster`**: run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job
 
 | Argument | Meaning |
 |---|---|
-| `config` | the run config, as hep run names it |
+| `config` | the run config, as heimdall run names it |
 | `[configuration]` | overrides [run].configuration; under [run].sweep_runs, submits only it |
 | `--points SEL` | submit a subset: tags, indices or quantity=tag |
 | `--set KEY=VALUE` | override one value for this submission (repeatable; cluster.time=… too); the jobs get it |
+| `--keep WHAT` | what each job's run also keeps (as heimdall run --keep) |
 | `--rerun` | submit complete points too, and rerun them |
 | `--dry-run` | write the job scripts and print the sbatch lines; submit nothing |
 | `--status` | the latest submission: each point's state (sacct, squeue) |
 | `--cancel` | scancel the latest submission's jobs |
 
-**`hep setup`**: make a work dir: the key folders, hep.toml and the template's files (never overwrites)
+**`heimdall setup`**: make a work dir: the key folders, hep.toml and the template's files (never overwrites)
 
 | Argument | Meaning |
 |---|---|
@@ -169,7 +172,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--refresh` | bring the framework's own files (Makefile, README/HEIMDALL.md, CLAUDE.md, .vscode, the .gitignore block) up to today's template, as a diff; never the user's files |
 | `--yes` | with --refresh: write without asking |
 
-**`hep doctor`**: what this machine's stack and Heimdall can do, checked
+**`heimdall doctor`**: what this machine's stack and Heimdall can do, checked
 
 | Argument | Meaning |
 |---|---|
@@ -177,14 +180,16 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--record` | write this machine's summary to recipes/support/<platform>-<host>.toml (the support matrix) |
 | `--matrix` | the support matrix: every machine's recorded summary |
 
-**`hep tools`**: every tool folder: the work dir's tools/, the machine root's, Heimdall's
+**`heimdall tools`**: every tool folder: the work dir's tools/, the machine root's, Heimdall's
 
 | Argument | Meaning |
 |---|---|
 | `NAME \| new NAME…` | a folder to show, or new and a folder to make |
-| `--from SOURCE` | hep tools new: the folder it starts from (exec, module: a copy; any other: extends it) |
+| `--package RECIPE` | heimdall tools new: a recipe the tool runs ([tool] packages; again for more) |
+| `--runs COMMAND` | heimdall tools new: its program ([tool] executable) |
+| `--from SOURCE` | heimdall tools new: the folder it starts from (exec, module: a copy; any other: extends it) |
 
-**`hep build`**: compile the work dir's module programs and Rivet plugins (make all)
+**`heimdall build`**: compile the work dir's module programs and Rivet plugins (make all)
 
 | Argument | Meaning |
 |---|---|
@@ -196,38 +201,70 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `-j, --jobs N` | parallel jobs (default: every core) |
 | `--dry-run` | what make would do (make -n); nothing built |
 
-**`hep make`**: make one source of the work dir (or --framework, Heimdall's): <path>/<X>.exe, <path>/<x>.so
+**`heimdall make`**: make one source of the work dir (or --framework, Heimdall's): <path>/<X>.exe, <path>/<x>.so
 
 | Argument | Meaning |
 |---|---|
 
-**`hep stack`**: this machine's stack: hep stack build|list|status|doctor [options]
+**`heimdall stack`**: this machine's stack: heimdall stack build|list|status|doctor [options]
 
 | Argument | Meaning |
 |---|---|
 
-**`hep help`**: a command's help: hep help <command>
+**`heimdall help`**: a command's help: heimdall help <command>
 
 | Argument | Meaning |
 |---|---|
 | `[command]` |  |
 
-**`hep refresh`**: reload this shell's environment (setup.sh's shell function)
+**`heimdall refresh`**: reload this shell's environment (gjallarhorn.sh's shell function)
 
 | Argument | Meaning |
 |---|---|
 
-**`hep quit`**: leave this shell's environment (setup.sh's shell function)
+**`heimdall quit`**: leave this shell's environment (gjallarhorn.sh's shell function)
 
 | Argument | Meaning |
 |---|---|
 
-**`hep cd`**: cd to a work dir's folder: hep cd PROJECT [configs|modules|results|records|logs] (setup.sh's shell function)
+**`heimdall cd`**: cd to a work dir's folder: heimdall cd PROJECT [configs|modules|results|records|logs] (gjallarhorn.sh's shell function)
 
 | Argument | Meaning |
 |---|---|
 
-**`hep where`**: which Heimdall and which work dir this shell sees
+**`heimdall recognise`**: record work dirs by title, in the machine root's workdirs.toml (gjallarhorn <title> goes to one)
+
+| Argument | Meaning |
+|---|---|
+| `[path]` | a work dir, or a folder to search below (default: here) |
+| `--as TITLE` | record the work dir under this title instead |
+| `--list` | every title, its path, and whether it is still a work dir |
+| `--forget TITLE` | take a title out of the record |
+| `--path TITLE` | print the work dir of TITLE (gjallarhorn asks this) |
+
+**`heimdall bifrost`**: the environment's packages (conda-forge; -python: PyPI), added, dropped or shown; --shell: gjallarhorn's block in ~/.bashrc and ~/.zshrc
+
+| Argument | Meaning |
+|---|---|
+| `PACKAGE…` | conda-forge packages ("gsl=2.8", "gsl 2.8.*"), or PyPI ones with -python |
+| `-python, --python` | PyPI packages, by their pip names |
+| `--drop` | take the packages out |
+| `--shell install\|remove` | write (or take out) gjallarhorn and bifrost in ~/.bashrc and ~/.zshrc |
+| `--conda` | -c, -conda: the tools (recipes) ready-made from conda-forge, what they need too |
+| `--build` | -b, -build: the tools built here from their recipes; -b@<toolkit>: with its changes |
+| `--toolkit KIT` | ==SUPPRESS== |
+| `--yes` | switch without asking (it reruns points and rebuilds) |
+
+**`heimdall image`**: Apptainer images of Heimdall and a machine root: list them, or build one
+
+| Argument | Meaning |
+|---|---|
+| `[action]` |  |
+| `KEY=VALUE…` | build: packages=@kit (default @primary), cores=N, root_cores=N |
+| `--name NAME` | build: the image's name (default: the toolkit's) |
+| `--dirty` | build: take uncommitted changes as they are |
+
+**`heimdall where`**: which Heimdall and which work dir this shell sees
 
 | Argument | Meaning |
 |---|---|
@@ -235,7 +272,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--work` | only the work dir (exit 2 outside one) |
 <!-- /generated -->
 
-### 1.1 `hep run`
+### 1.1 `heimdall run`
 
 The order is: the pre stage → every point not complete (in point order, `parallelism` at a time) →
 `points.json` → the combined groups → the post stage → the plot stage. A failed point does not stop
@@ -265,13 +302,19 @@ the others.
 - **`--only`:** `--only plot` draws the pages and runs nothing; `--only pre` and `--only post` run
   that stage whether or not it is complete.
 - **`--stages LIST`** runs only the named stages of `pre, points, combine, post, plot`, each skipping
-  what is unchanged (`--rerun` as usual): what `hep cluster`'s jobs run (§1.9). A run of the points
+  what is unchanged (`--rerun` as usual): what `heimdall cluster`'s jobs run (§1.9). A run of the points
   alone writes no `points.json` and draws nothing; the points refuse to start without their pre
   stage complete.
 - **`--journal`** also writes the run's events to `logs/…/<cfg>/status.jsonl`. Without it,
   nothing of the run's state is on disk.
 - **`--logs`** keeps every tool's whole output; without it, only a failed tool's last 200 lines are
   kept.
+- **`--keep WORD,…`** keeps more than the default, which is the records, the results, each finished
+  point's cards and configs, a failed tool's last lines and the prepare caches. The words: `logs` (as
+  `--logs`), `journal` (as `--journal`), `work` (a finished point's whole working folder), `cache` (card
+  checks, converted reference data, the plot stage's working files and skip markers). The work dir's
+  `hep.toml` and the machine's `machine.toml` may say the same as `[run] keep = ["…"]`; the three
+  add up (04 §14).
 
 **Exit codes:**
 
@@ -285,12 +328,12 @@ the others.
 Under `[run].sweep_runs` (04 §4.1), the command exits 6 if a run was stopped, else 1 if any failed,
 else 0. With `[run] notify = "desktop"`, the end is also a desktop notification.
 
-### 1.2 `hep plot` and `hep overlay`
+### 1.2 `heimdall plot` and `heimdall overlay`
 
-- **`hep plot CONFIG [CFG]`** draws a config's pages, as after a run (`--only plot`). Under
+- **`heimdall plot CONFIG [CFG]`** draws a config's pages, as after a run (`--only plot`). Under
   `[run].sweep_runs` it draws every swept configuration's, each under its `run NN - <title> -`
   line, and the compare figures whose configurations are all complete.
-- **`hep overlay FILE…`** (`hep plot FILE…` is refused with the hint) takes files ending
+- **`heimdall overlay FILE…`** (`heimdall plot FILE…` is refused with the hint) takes files ending
   `.yoda`, `.yoda.gz` or `.root`:
   - one page per object any of them holds;
   - one curve per file, or one per point of a merged sweep file (labelled from the `points.json`
@@ -299,16 +342,16 @@ else 0. With `[run] notify = "desktop"`, the end is also a desktop notification.
   `-o` defaults to `results/plots/<first file's stem>/`; `--labels` gives one label per file; and
   `--style` is a style file over base.toml.
 
-### 1.3 `hep ls`, `hep explain`, `hep status`, `hep clean`
+### 1.3 `heimdall ls`, `heimdall explain`, `heimdall status`, `heimdall clean`
 
 This is housekeeping.
 
-- **`ls`** lists every config and its configurations, with descriptions; a `*` marks what `hep run
+- **`ls`** lists every config and its configurations, with descriptions; a `*` marks what `heimdall run
   CONFIG` runs.
 - **`explain`** gives a key's type, default, choices, bounds, inheritance, doc and notes, from the
   schema (`framework/schema/run.toml`): `plot.y_gutter`, `run.events`, `cfgs.pdf.threads`,
   `quantities.<q>.points`, `plot.figures.<f>.logy`, or a bare key looked up in every table. It also
-  answers for a table (`hep explain cfgs`), a v2 name (`run.event_count`), a tool folder's option
+  answers for a table (`heimdall explain cfgs`), a v2 name (`run.event_count`), a tool folder's option
   (`rivet.analyses`), a style key (`style.page.dpi`), a quantity of the vocabulary, `deck.toml` and
   `machine.toml`.
 - **`status`** gives every configuration's points and stages, each **complete**, **stale** (complete
@@ -330,23 +373,23 @@ This is housekeeping.
   then asks on a terminal (`--yes` elsewhere); `--dry-run` only lists, and it refuses while a job is
   running.
 - **Two sessions, one point**: a point another session is running is skipped, its block naming
-  who runs it (`running in another session (pid N on <host>, since …): skipped`); `hep run --wait`
+  who runs it (`running in another session (pid N on <host>, since …): skipped`); `heimdall run --wait`
   waits for it instead, and skips it if that session completed it. The lock is an `flock` on the
   point's `logs/…/<point>/.lock`, which the kernel frees when the holder ends, however it ends.
 - **`migrate --layout`** moves a work dir made before the split from `output/` into `records/`,
   `logs/` and `.cache/` (a dry run that counts the files first; `--apply` moves them, by rename).
 
-### 1.4 `hep check`
+### 1.4 `heimdall check`
 
-`hep check` loads each config (with none given, every `configs/<Project>/*.toml` that has a
+`heimdall check` loads each config (with none given, every `configs/<Project>/*.toml` that has a
 `[run]`), validates its `[plot]` and its figures, and plans every configuration's points. That
 covers every C-rule, path, consumer, connection and card, with nothing run or written. It
 prints one line per config, and the error of each that fails. It exits 0, or 2 when any failed: for
 a pre-commit hook, or before a long sweep.
 
-### 1.5 `hep watch`
+### 1.5 `heimdall watch`
 
-`hep watch` follows a running job from another terminal, through the watch socket its `hep
+`heimdall watch` follows a running job from another terminal, through the watch socket its `heimdall
 run` serves while it lives.
 - **Which job:** with no config, the latest job started on this machine; with one, the job running
   that config (and that configuration).
@@ -356,9 +399,9 @@ run` serves while it lives.
 - **`--file`** follows a `--journal` run's status file instead (a finished run's too). It leaves when
   the run finishes, or follows on to the next run's journal in a sweep.
 
-### 1.6 `hep migrate`
+### 1.6 `heimdall migrate`
 
-`hep migrate` rewrites run TOMLs, and the base cards they name, in the forms the runner takes today
+`heimdall migrate` rewrites run TOMLs, and the base cards they name, in the forms the runner takes today
 . By default it prints a diff of each file; with `--apply` it writes the files (with no
 config, every config). It works by line, so comments and layout stay. It rewrites:
 
@@ -377,9 +420,9 @@ config, every config). It works by line, so comments and layout stay. It rewrite
 
 It reads each config leniently (the old forms included) before writing anything, and strictly after.
 
-### 1.7 `hep reproduce`
+### 1.7 `heimdall reproduce`
 
-`hep reproduce` runs a finished point again, exactly as it ran: its config, its configuration,
+`heimdall reproduce` runs a finished point again, exactly as it ran: its config, its configuration,
 its `--set` overrides (the provenance records them) and its seed.
 - **Where it runs:** into `logs/<P>/.reproduce/<identity>/`, with its own `records/`, `logs/` and
   `results/`, never over the original.
@@ -391,11 +434,11 @@ its `--set` overrides (the provenance records them) and its seed.
 - **A changed setup:** if the identity is not the one the provenance records, it prints what changed,
   as `--why` does, and stops. `--anyway` runs today's setup with the recorded seed.
 
-### 1.8 `hep deck`
+### 1.8 `heimdall deck`
 
-`hep deck <deck>` makes slides from pages already drawn, in `reports/<deck>/` (a path
+`heimdall deck <deck>` makes slides from pages already drawn, in `reports/<deck>/` (a path
 starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
-[03 §11](03_Plots.md#11-decks-talks-and-reports-hep-deck); its `deck.toml` keys are
+[03 §11](03_Plots.md#11-decks-talks-and-reports-heimdall-deck); its `deck.toml` keys are
 [04 §15](04_Config_Reference.md#15-a-decks-recipe-decktoml).
 - **What a run does, in order:**
   1. reads `deck.toml`'s blocks, or the folder's own files;
@@ -413,21 +456,21 @@ starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
 
 ---
 
-### 1.9 `hep cluster`
+### 1.9 `heimdall cluster`
 
-`hep cluster <config> [<configuration>]` runs a configuration as Slurm jobs, from the cluster's login
+`heimdall cluster <config> [<configuration>]` runs a configuration as Slurm jobs, from the cluster's login
 node (how to, [02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster); the keys,
-[04 §16](04_Config_Reference.md#16-cluster-running-on-slurm)). It plans as `hep run --plan` does, with
+[04 §16](04_Config_Reference.md#16-cluster-running-on-slurm)). It plans as `heimdall run --plan` does, with
 every check, then writes three scripts into `records/<P>/<run>/<cfg>/cluster/<stamp>/` and submits
 them with `sbatch --parsable`:
 
 | Job | Runs | Waits for |
 |---|---|---|
-| pre (when there are pre tools to run) | `hep run C cfg --stages pre` | — |
-| points: an array, a task per point to run | `hep run C cfg --points <name> --stages points` | the pre job's success (`afterok`) |
-| finish | `hep run C cfg --stages combine,post,plot` | every point's end (`afterany`) |
+| pre (when there are pre tools to run) | `heimdall run C cfg --stages pre` | — |
+| points: an array, a task per point to run | `heimdall run C cfg --points <name> --stages points` | the pre job's success (`afterok`) |
+| finish | `heimdall run C cfg --stages combine,post,plot` | every point's end (`afterany`) |
 
-- Each job sources Heimdall's `setup.sh` (or the loaded isolated stack's) after `[cluster] setup`,
+- Each job sources Heimdall's `gjallarhorn.sh` (or the loaded isolated stack's) after `[cluster] setup`,
   exports `HEP_WORK` (and the output roots set at submission), and runs in the work dir.
 - `points.txt` lists the points, `jobs.toml` the job ids and each `sbatch` line, `logs/` the jobs'
   output (`points-<job>_<task>.log`).
@@ -440,9 +483,9 @@ them with `sbatch --parsable`:
 
 ---
 
-## 2. The environment, `hep build` and `make`
+## 2. The environment, `heimdall build` and `make`
 
-`hep build [TARGET…] [--framework] [--tests] [--clean] [--configure] [-j N]` is `make all`, on every
+`heimdall build [TARGET…] [--framework] [--tests] [--clean] [--configure] [-j N]` is `make all`, on every
 core by default:
 - in the **work dir** (found as every command finds it), by its `Makefile`, which includes
   `$HEP/framework/work.mk`: every module program and Rivet plugin, into `build/`;
@@ -452,25 +495,26 @@ core by default:
 - `--clean` empties the build first;
 - `--configure` probes the toolchain again.
 
-`hep make …` is `make …` in the work dir, wherever in it it is typed; `hep make --framework …`
+`heimdall make …` is `make …` in the work dir, wherever in it it is typed; `heimdall make --framework …`
 is `make …` in Heimdall. The targets:
 - `<path>/<X>.exe`, `<path>/<x>.so`;
 - `all`, `configure`, `list`, `clean`;
 - Heimdall's only: `tests`, `test`, `test-slow`, `schema`, `docs`.
 
 The make rules are in [06 §15](06_Internals.md#15-the-build). Run them with the environment loaded
-(`source <Heimdall>/setup.sh` in bash, or `launch.sh` from any shell: the alias `load_hep`).
+(`gjallarhorn`, the shell function the build writes into `~/.bashrc`; `source <Heimdall>/gjallarhorn.sh`
+in bash; or `launch.sh` from any shell).
 
-`hep refresh`, `hep quit` and `hep cd PROJECT [DIR]` change the shell they are typed in. `setup.sh`
-defines `hep` as a shell function that does them there, and runs `framework/bin/hep` for everything
+`heimdall refresh`, `heimdall quit` and `heimdall cd PROJECT [DIR]` change the shell they are typed in. `gjallarhorn.sh`
+defines `heimdall` as a shell function that does them there, and runs `framework/bin/heimdall` for everything
 else. `refresh` is `quit`, then the same stack again (`$HEP_STACK`: an isolated toolkit's included);
 `quit` takes out everything the environment added, `machine.sh`'s lines too. In a shell without that
-function (a script, or a shell started from one), `framework/bin/hep refresh` (or `quit`, `cd`) exits
-2 and says to source `setup.sh`. Everything else works without the environment: `framework/bin/hep`
+function (a script, or a shell started from one), `framework/bin/heimdall refresh` (or `quit`, `cd`) exits
+2 and says to source `gjallarhorn.sh`. Everything else works without the environment: `framework/bin/heimdall`
 runs the machine's Python by path, the base's (or the venv's), for cron, scripts and Slurm.
 
 **The base.** A machine root built on a conda base (`base/`, the default; [recipes/README.md
-§4](../recipes/README.md#4-the-base-or-the-systems-packages)) is activated first: `setup.sh` sources its
+§4](../recipes/README.md#4-the-base-or-the-systems-packages)) is activated first: `gjallarhorn.sh` sources its
 `activate.sh` (recorded, so `quit` takes it out), which puts its `bin/` first on `PATH` and sets `CC`,
 `CXX` and `FC` to its compilers. Its `lib/` never joins `LD_LIBRARY_PATH`: what is built on it (the stack,
 Heimdall's apps, a work dir's modules and plugins) finds the base's libraries by rpath, which
@@ -478,21 +522,89 @@ Heimdall's apps, a work dir's modules and plugins) finds the base's libraries by
 A package taken ready-made from conda-forge lives in the base, so `LHAPDF_DATA_PATH`, `ONNXRUNTIME_DIR`
 and `DELPHES_DIR` point there when the stack has none of its own.
 
-`hep setup <dir>` makes a work dir and `hep where` says which Heimdall and which work dir a shell
+`heimdall setup <dir>` makes a work dir and `heimdall where` says which Heimdall and which work dir a shell
 sees ([02 §1](02_User_Guide.md#1-set-up-and-build); their options are in §1). In a git repository,
-`hep setup` keeps the repository's own `README.md`, `CLAUDE.md` and `LICENSE` (Heimdall's guide goes
+`heimdall setup` keeps the repository's own `README.md`, `CLAUDE.md` and `LICENSE` (Heimdall's guide goes
 in `HEIMDALL.md`), merges a marked block into its `.gitignore`, and `--git` commits only the files it
 added, in the repository the folder is in (`--git=new`: a repository of its own). It fetches what
 `datasets.toml` lists (url, sha256) into `datasets/`; `--refresh` shows and writes (asked, or `--yes`)
 the framework's own files as today's template has them. `HEP_DECKS` replaces the work dir's `decks/`.
 
+**`gjallarhorn [title]`.** At the end of a build (setting `shell_rc`, default true), `recipes/build_stack.py`
+writes a block into `~/.bashrc` (when the login shell is bash or the file is there) and `~/.zshrc`
+(likewise), between `# >>> Heimdall >>>` and `# <<< Heimdall <<<`: `gjallarhorn`, which sources
+`gjallarhorn.sh` (in zsh: opens `launch.sh --gjallarhorn`'s bash), and `bifrost` (§2's packages). It names
+`HEP_MACHINE` only for a machine root not at `~/Himinbjorg`. A block another checkout's or machine root's
+is left (the build says so); `bifrost --shell install` writes this one over it, `bifrost --shell remove`
+takes it out, the rest of the file as it was. `gjallarhorn <title>` loads the environment, then goes to
+the work dir `heimdall recognise --path <title>` names; an unknown title is said with the nearest, and the
+environment stays loaded.
+
+**`bifrost`: the environment's packages** (also `heimdall bifrost`; `framework/bin/bifrost`, and the shell
+function of the block above, so it works before the environment is loaded).
+- `bifrost <pkg>…` adds conda-forge packages to the base (`scipy`, `gsl=2.8` for 2.8.*, `"gsl >=2.8"`);
+  `bifrost -python <pkg>…` (or `--python`) adds PyPI packages by their pip names, which pixi installs with
+  the conda ones (no second numpy). They are recorded in the machine root's `machine.toml`,
+  `[settings] base_packages` and `base_pypi` (its comments kept), then the base is made again
+  (`build_stack.py --base`), so a later build keeps them and another machine can be given the same list.
+- `bifrost --drop [-python] <pkg>…` takes them out; `bifrost` alone shows the base, each package added with
+  the version installed, the tools (each recipe installed, its version, built or ready-made) and the block in
+  each rc file; `bifrost --shell install|remove` writes or removes that block.
+- **Tools, by recipe.** `bifrost -c <tool>…` (`-conda`) takes a recipe ready-made from conda-forge, and what
+  it needs too (`-c rivet`: HepMC3, YODA, FastJet, fjcontrib), said; `bifrost -b <tool>…` (`-build`) builds
+  it from its recipe (what it needs is added); `bifrost -b@<toolkit> <tool>…` builds it with that toolkit's
+  changes laid, not the toolkit's set. The machine's choice goes into machine.toml (`[packages.<tool>] from =
+  "conda-forge"` or `"source"`), so every later build and toolkit keeps it; then `build_stack.py` runs for
+  those tools. A bare `bifrost <name>` that is a recipe's asks which (`-c` or `-b`).
+- **A switch** (a built tool taken ready-made, or a ready-made one built) changes the programs: `bifrost`
+  says which tool folders run them, how many recorded points of the recognised work dirs ran them (they run
+  again, with new identities and seeds), and that Heimdall's apps and the modules that require them
+  rebuild; it asks (y/N), or takes `--yes`, and is refused unasked when not in a terminal. The built copy
+  is set aside in `forge/retired/` (never deleted; it may be emptied), and what was built on it is built
+  again in the same run. A ready-made tool that needs one being built is refused (two copies): build it
+  too. A failure puts machine.toml and the stack back.
+- Refused: a package whose recipe the stack built (two copies would clash: `<recipe>.from=conda-forge`
+  takes it ready-made); one the base cannot take leaves `machine.toml` as it was, with pixi's reason. A
+  package the base holds as a ready-made recipe is said, not recorded twice.
+- On a machine root made before the base (`base = "system"`), `-python` packages go into the venv by pip,
+  recorded in `python_packages`; others are refused (apt or Homebrew's).
+- It downloads: an agent asks first.
+
+**Apptainer images.** An image holds a clean copy of this Heimdall and a machine root built inside it
+(`/opt/heimdall`, `/opt/himinbjorg`), read-only; it lives in the machine root's `images/`, and work dirs
+stay outside, bound at their own paths. The runtime is the system's: `apptainer`, else `singularity`.
+- `heimdall image build [packages=@kit cores=N root_cores=N] [--name NAME]` builds
+  `images/<name>.sif` from `recipes/platforms/container/heimdall.def` (a stock Ubuntu; `--fakeroot`, so no
+  sudo where the user has subordinate ids); a checkout with uncommitted changes is refused (`--dirty`).
+  `heimdall image` lists the images and their labels (Heimdall's revision, the toolkit, the date).
+- `gjallarhorn --image <name> [title]` opens a shell in the image, in that work dir; `launch.sh --image
+  <name> <command…>` runs one command in it; `--dev` binds this checkout over the image's `/opt/heimdall`.
+  The host's environment never reaches it (`--cleanenv`).
+- `heimdall cluster`: `[cluster] image = "<name>"` runs every job in the image (`setup` still runs first,
+  on the node).
+- A point run in an image records it in its provenance (the path and labels); the identity is the tools'
+  binaries', as always.
+
+**The work dirs this machine knows.** `heimdall recognise [PATH]` records a work dir by its title, its
+`hep.toml`'s `[work] name` (else its folder's name), in the machine root's `workdirs.toml`, so that
+`gjallarhorn <title>` loads the environment and goes there from anywhere. PATH (default: here) is a work
+dir or a folder inside one: that one is recorded. Any other folder is searched, 4 folders deep, for work
+dirs to record; hidden folders, a work dir's `results/`, `records/`, `logs/` and `build/`, Heimdall's
+checkout and the machine root are not entered. `heimdall setup` records the work dir it makes.
+- A path already recorded is "known"; a title whose work dir is gone is given to the new one ("moved
+  from …"); a title another existing work dir holds is refused: `--as TITLE` records it under another.
+- `--list` shows each title, its path, and whether it is "missing" or "no longer a work dir";
+  `--forget TITLE` takes one out; `--path TITLE` prints its work dir (what `gjallarhorn` asks).
+- `$HEP_WORKDIRS` replaces the file (the tests point it into `forge/scratch/`).
+
 | Variable | Set by | Means |
 |---|---|---|
-| `HEP` | `setup.sh` | Heimdall's folder. The runner always runs from its own Heimdall and refuses a `$HEP` that names another ("two Heimdalls") |
-| `HEP_INSTALL`, `HEP_VENV` | `setup.sh` | the loaded stack (`stack/`, or `stacks/<toolkit>/stack`) and its Python environment (the base, or `venv/`) |
-| `HEP_BASE` | `setup.sh` | the conda base's environment, `<machine root>/base/.pixi/envs/default`; unset with `base=system` |
-| `HEP_STACK` | `stacks/<toolkit>/setup.sh` | an isolated toolkit's stack is loaded: Heimdall's apps are `stacks/<toolkit>/Apps/` (built against it) |
+| `HEP` | `gjallarhorn.sh` | Heimdall's folder. The runner always runs from its own Heimdall and refuses a `$HEP` that names another ("two Heimdalls") |
+| `HEP_INSTALL`, `HEP_VENV` | `gjallarhorn.sh` | the loaded stack (`stack/`, or `stacks/<toolkit>/stack`) and its Python environment (the base, or `venv/`) |
+| `HEP_BASE` | `gjallarhorn.sh` | the conda base's environment, `<machine root>/base/.pixi/envs/default`; unset with `base=system` |
+| `HEP_STACK` | `stacks/<toolkit>/gjallarhorn.sh` | an isolated toolkit's stack is loaded: Heimdall's apps are `stacks/<toolkit>/Apps/` (built against it) |
 | `HEP_WORK` | you, tests | the work dir, instead of the walk up from the working directory (it must have a `hep.toml` with `[work]`) |
+| `HEP_WORKDIRS` | you, tests | replaces `<machine root>/workdirs.toml`, the work dirs `heimdall recognise` records |
 | `HEP_RECORDS`, `HEP_LOGS`, `HEP_CACHE`, `HEP_RESULTS`, `HEP_REPORTS` | you, tests | replace the work dir's `records/`, `logs/`, `.cache/`, `results/` and `reports/` (the tests point them into `forge/scratch/`) |
 | `HEP_CONFIGS` | you | replaces the work dir's `configs/` as the root of run TOMLs and their cards |
 | `HEP_STATUS_FD` | the runner, per tool | the status pipe of a `status = "standard"` tool |
@@ -500,7 +612,7 @@ the framework's own files as today's template has them. `HEP_DECKS` replaces the
 | `LHAPDF_DATA_PATH`, `GEANT4_DATA_DIR`, `ONNXRUNTIME_DIR`, `DELPHES_DIR` | `env/hep_env.sh` | the toolchain's data; the base's, for a package taken ready-made |
 
 High-Energy's variables (`HEKIT_ROOT`, `HEKIT_OUTPUT`, …) are retired: a shell that still sets one is
-refused, naming its replacement, and `setup.sh` unsets `HEKIT_ROOT` with a warning.
+refused, naming its replacement, and `gjallarhorn.sh` unsets `HEKIT_ROOT` with a warning.
 
 ---
 
@@ -509,8 +621,20 @@ refused, naming its replacement, and `setup.sh` unsets `HEKIT_ROOT` with a warni
 A **standard tool** is a folder `framework/tools/<tool>/`, and its name is the value of `tool = …`. The
 runner discovers the folders and names none of them. A work dir's `tools/<tool>/` and the machine
 root's come first, and may replace or extend (`extends = "<tool>"`) a shipped one
-([06 §16](06_Internals.md#16-the-tool-folder-contract)); `hep tools` lists them all, with where each
+([06 §16](06_Internals.md#16-the-tool-folder-contract)); `heimdall tools` lists them all, with where each
 comes from.
+
+**Tools, packages and libraries.** A tool folder says how a run drives a program; the program comes from a
+**package** (a recipe of `recipes/toolkits/standard.toml` or the machine root's `recipes.toml`), built into
+`stack/` or taken ready-made into the base; and a **library** of `env/stack.toml` is what a module program
+links (`// requires:`). A config never sees how a package was installed: the program is found on `PATH`,
+which holds both `stack/<package>/bin` and the base's `bin/`. A folder names its packages (`[tool] packages
+= ["sherpa"]`): `heimdall tools` shows how each is installed ("built 3.0.5", "ready-made 3.0.0" from
+conda-forge, "installed" another way, "missing"); a program that is not there says which package to get
+(`bifrost -b sherpa` builds it, `bifrost -c sherpa` takes it ready-made); and each point's provenance
+records it. Switching a package between built and ready-made changes its programs' bytes, so the points
+that ran them run again (their identities and seeds follow the binaries). A program of your own with no
+folder runs through `exec` (§9), or a folder of yours: `heimdall tools new <name> --from exec`.
 
 | `tool =` | Category | Runs | Card | Streamable | Status | Count check | Prepare | In the context file |
 |---|---|---|---|---|---|---|---|---|
@@ -535,8 +659,8 @@ Paint (`src/Apps/Paint/`) is driven by the plot stage, and is never named in `to
 
 **Not tools at all:**
 - **Providers** (LHAPDF, FeynRules, SARAH) are plan-time checks. A mapping with `check =
-  "lhapdf:bare"` or `"lhapdf:pythia"` refuses an uninstalled PDF set (C10,
-  `framework/tools/lhapdf/provider.py`).
+  "lhapdf:bare"`, `"lhapdf:set"` or `"lhapdf:pythia"` refuses an uninstalled PDF set (C10,
+  `framework/tools/lhapdf/provider.py`) and writes the set in that tool's spelling.
 - **Analysis algorithms** (FastJet, ROOT libraries) are `// requires:` names in a source.
 - **A detector simulation with no command line of its own** (Geant4) is a module program with
   `// requires: geant4`.
@@ -575,7 +699,7 @@ output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04
     lacks) refuses the plan, with the line's source.
   - No list of keys is kept: a nucleus or an `id:new` particle earlier in the card is read as Pythia
     reads it.
-  - Answers are cached by the card's text, in `.cache/<P>/checks/`.
+  - Answers are kept by the card's text for the process, and in `.cache/<P>/checks/` with `keep cache`.
 - **Footer** `Beams:LHEF = <input>`, only when the tool has an input: a shower of an LHE file from an
   earlier group (MadGraph). The base card sets `Beams:frameType = 4`.
 - **Consumes** through the vocabulary: `energies`, `sqrts`, `beam_a`, `beam_b`, `beams`, `pdf`
@@ -744,7 +868,7 @@ It is not a statistical merge (that is `merge`). The plot stage makes the same f
 Any executable (it was `custom`): its argv is `{exe} {config} {arguments}` (04 §9.2). Its status is
 `none` unless the table sets it, and `HEP_STATUS_FD` is passed when `status = "standard"`. Like every
 tool it finds the point's context file at `$HEP_CONTEXT`, or `{context}` in its arguments (04 §9.4).
-`hep tools new <name> --from exec` copies the folder into the work dir's `tools/`, as a tool of its own.
+`heimdall tools new <name> --from exec` copies the folder into the work dir's `tools/`, as a tool of its own.
 
 ```toml
 [tools.jets_reco]
@@ -765,6 +889,20 @@ output     = "jets_reco.json"
 `delphes_jets.py` is its first user, so its table may say `status = "standard"`
 ([06 §22](06_Internals.md#22-statushh-and-the-status-protocol)).
 
+**A command-line program as a tool of your own.** `exec` runs any program as it is. To give one a card, its
+products and an identity, make it a folder: `heimdall tools new unfold --from exec --runs unfold-it --package
+root` writes `tools/unfold/tool.toml` in the work dir (copy the folder to the machine root's `tools/` for
+every work dir), with `[tool] executable` and `packages` filled. Then, in it ([06 §16](06_Internals.md#16-the-tool-folder-contract)):
+- `[card] style`: `none` (values become arguments or the config file), `append` (base cards, then the
+  point's lines, written with `line = "{key} = {value}"`), or `render` (a `render.py` writes the whole card);
+- `[command] argv`: `{exe}`, `{card}`, `{config}`, `{input}`, `{output}` or `{partial:output}`, `{events}`,
+  `{seed}` and the table's `[options]`;
+- `[outputs]`: the kinds it writes, how its event count is read back (`event_count`), a producer's sidecar;
+- `status`: `standard` (it speaks the status protocol, as hepkit.py and Module.hh do), `filters` (a
+  `filters.toml` reads its stdout), or `none` (its log's last line is shown);
+- `[identity] files = ["{exe}"]`: what of it makes a point's identity, beside its card and argv.
+A library used from C++ is not a tool: a module program links it (`// requires:`, 06 §15).
+
 ## 10. `module` — a Module.hh program
 
 - **argv:** `{exe} {config} --input={input} --output={partial:output} --events={events}
@@ -777,7 +915,7 @@ output     = "jets_reco.json"
   which `generate_cards` fills (04 §9.4).
 - **Settings:** every key of its config must be one the program reads; a misspelt one is refused
   before the first event, with the nearest name. `<Name>.exe --describe` lists them (name, type,
-  default, doc), and `hep explain <Name>.exe` shows them.
+  default, doc), and `heimdall explain <Name>.exe` shows them.
 
 The kit is [06 §21](06_Internals.md#21-modulehh).
 
@@ -808,16 +946,18 @@ output = "events.hepmc"
 ```
 
 - **Prepare** (cached per card): `Herwig read --repo={apps}/Herwig/HerwigDefaults.rpo <card>` →
-  `point.run` in the cache entry. The repository is made by `hep build --framework`: Herwig's own
+  `point.run` in the cache entry. The repository is made by `heimdall build --framework`: Herwig's own
   install could not make it, since its defaults need CT14lo/CT14nlo. A plan without it is
-  refused (C10), with `hep build --framework`.
+  refused (C10), with `heimdall build --framework`.
 - **Runs** `Herwig run <cache>/point.run -N <events> -s <seed> -d 0`. Events and seed are flags, so
   every point and replica with the same physics shares one read.
 - **Card**: ThePEG `set {key} {value}` lines (a later `set` wins). The footer reads HepMC output
   (`read snippets/HepMC.in`, the file name, `saverun point EventGenerator`), and must come last.
 - **Beams**: in Herwig's slots, `[beams] slots = ["lepton", "hadron"]`: the snippet puts the
   lepton on beam A, and the runner reorders the run's per-beam values for it.
-- **Consumes** `energies` (`Luminosity:BeamEMaxA`, `…B`) and `sqrts` (`Luminosity:Energy`).
+- **Consumes** `energies` (`Luminosity:BeamEMaxA`, `…B`), `sqrts` (`Luminosity:Energy`) and `pdf`
+  (`HardLOPDF`, `ShowerLOPDF`, `MPIPDF` and `RemnantPDF`'s `PDFName`, the four Herwig's defaults set;
+  its NLO objects and a member stay the card's).
 - **Sidecar** written by the runner after exit 0 (`written = "requested"`: Herwig makes exactly `-N`
   events or fails).
 - **In the context file:** `card`; the product `run` (`generate_cards = ["herwig:run"]`), the
@@ -1063,7 +1203,7 @@ style  = { colour = "#EE3311" }                         # optional: the value's 
 band   = [{ file = "/…/default.root", object = "…" }]   # optional: the envelope's members
 
 [data]                             # optional
-file   = "/…/.cache/Demo/datasets/ZEUS_2012_I1116258.yoda.root"
+file   = "/…/plots/datasets/ZEUS_2012_I1116258.yoda.root"   # .cache/<P>/datasets/ with keep cache
 object = "REF/ZEUS_2012_I1116258/d06-x01-y01"
 label  = "ZEUS 2012"
 ```

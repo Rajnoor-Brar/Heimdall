@@ -16,7 +16,7 @@ It lives in two kinds of place:
   software stack, the stack itself, the Python environment, the runner and its tool folders, and the
   compiled apps. One per machine (or per toolkit's isolated stack).
 - **Work dirs** hold your studies: run TOMLs and cards, your programs and Rivet plugins, data, and
-  what runs make. As many as you like, each its own git repository, independent of each other. `hep
+  what runs make. As many as you like, each its own git repository, independent of each other. `heimdall
   setup <dir>` makes one; a `hep.toml` marks it, and the runner finds it from the working directory,
   as git finds a repository.
 
@@ -35,7 +35,7 @@ The runner decides and supervises. The tools do the physics.
 ## 2. The model in one picture
 
 ```
-hep run Demo/jets energy_pdf                      framework/bin/hep → framework/bin/run → runner.cli
+heimdall run Demo/jets energy_pdf                      framework/bin/heimdall → framework/bin/run → runner.cli
   │
   ├─ load     configs/Demo/jets.toml  (in the work dir; + framework/schema/quantities.toml, <tool>/quantities.toml)
   ├─ resolve  [cfgs.energy_pdf]: vary, plot_points, chain, fixed; the interfaces from the chain
@@ -163,7 +163,7 @@ in a config, and errors you have to read.
 Every check runs at plan time, before any process starts: the schema, the connections, the
 consumers, the analyses' options, the providers, the paths, the styles and the figures. Every
 refusal names the file and key, and gives a hint, with the nearest spelling for a misspelt name.
-`hep check` runs them all over every config and runs nothing.
+`heimdall check` runs them all over every config and runs nothing.
 
 **Buys:** a sixteen-point sweep never fails at point nine because of a typo.
 
@@ -216,8 +216,8 @@ A rule a test enforces is a rule; a rule in a document is a hope.
 ### 4.12 Small by surface area
 
 The surface stays small:
-- one `hep` command with a few subcommands ([05 §1](05_Commands_and_Tools.md#1-commands)), plus
-  `hep build` and `make`; `hep cluster` runs the same `hep run` as Slurm jobs;
+- one `heimdall` command with a few subcommands ([05 §1](05_Commands_and_Tools.md#1-commands)), plus
+  `heimdall build` and `make`; `heimdall cluster` runs the same `heimdall run` as Slurm jobs;
 - one marker file, `hep.toml`, between a work dir and the framework;
 - seven sections in a run TOML;
 - a few C++ headers;
@@ -251,10 +251,10 @@ Anything a user does not ask for is not there (v1 had 19 commands).
 | **v1** (`rework/v1-final`) | a Python orchestrator (`hekit`, 17k lines, 19 commands) over one in-process C++ event loop (`hep-run`, 6.8k lines, 11 namespaces), CMake, and 33k lines of tests. It worked and was measured and well evidenced, but its pipeline was *derived* (stage chains from roles, phases inferred, a nine-way quantity dispatch), and it had two ways of doing most things |
 | **v2** (2026-09-26/27) | the user's own design (the brief): tools as processes, one run TOML, conventions for where things live. v1's code was deleted and its knowledge kept. It was built in five phases, each gated by numbers (07 §8) |
 | **after** | the user's additions (V23–V51): a pre stage, the sweep in one file, the mkhtml look and the style in TOML, shards, combine, sweeps of runs, seeds by choice, other generators, integrated programs |
-| **audit 1** (V52–V79) | the schema, frozen test fixtures, the tool folders as data, labels in LaTeX, the event stream and `hep watch`, the mpl backend, `hep check`, `migrate` and `reproduce` |
+| **audit 1** (V52–V79) | the schema, frozen test fixtures, the tool folders as data, labels in LaTeX, the event stream and `heimdall watch`, the mpl backend, `heimdall check`, `migrate` and `reproduce` |
 | **figures** (V80–V89) | `[plot.figures]`: seven ways to build a page and three things to draw |
 | **audit 2** (V90–) | this manual, rebuilt on generated reference tables |
-| **decks** (V102–V104) | `hep deck`: talks and reports from drawn pages |
-| **Heimdall** (V105–V113) | the framework split from High-Energy (`split/base`) into its own repository, which is also the machine's home: the stack's recipes and toolkits, `hep setup` for work dirs, two roots, provenance across both repositories |
+| **decks** (V102–V104) | `heimdall deck`: talks and reports from drawn pages |
+| **Heimdall** (V105–V113) | the framework split from High-Energy (`split/base`) into its own repository, which is also the machine's home: the stack's recipes and toolkits, `heimdall setup` for work dirs, two roots, provenance across both repositories |
 
 The decisions and what each gave up are in [07 §2](07_Record.md#2-decisions).

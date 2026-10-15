@@ -1,5 +1,5 @@
-"""V38, the gate (slow: real `hep run` processes): under `[run].sweep_runs = true` the swept
-configurations run one after another, each exactly the run `hep run CONFIG <cfg>` makes, after a
+"""V38, the gate (slow: real `heimdall run` processes): under `[run].sweep_runs = true` the swept
+configurations run one after another, each exactly the run `heimdall run CONFIG <cfg>` makes, after a
 `run NN - <title> -` line; `swept = false` leaves one out; a failed run leaves the next to start; a
 config error anywhere stops everything before it starts; Ctrl-C starts no more runs."""
 
@@ -103,7 +103,7 @@ def test_the_swept_configurations_run_one_after_another(scratch):
     assert first[-1]["k"] == "run" and first[-1]["next"] == str(base(scratch) / "b" / "status.jsonl")
     assert records(base(scratch) / "b" / "status.jsonl")[-1]["next"] == str(base(scratch) / "d" / "status.jsonl")
     assert "next" not in records(base(scratch) / "d" / "status.jsonl")[-1]
-    alone = hep(config, scratch, "d")                                  # the very run `hep run sw d` makes
+    alone = hep(config, scratch, "d")                                  # the very run `heimdall run sw d` makes
     assert alone.returncode == 0 and "complete, skipped" in alone.stdout and "run 0" not in alone.stdout
 
 

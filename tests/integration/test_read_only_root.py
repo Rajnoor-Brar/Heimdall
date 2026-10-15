@@ -1,0 +1,53 @@
+"""A run where the machine root is read-only, as it is inside an Apptainer image (V149, V150): it writes only the
+work dir's records/, logs/ and results/, nothing in the machine root or in Heimdall, and a finished point keeps
+its cards and configs only.
+
+The machine root here is an empty folder of the test's own, made read-only, with the forge inside it (so it
+cannot be made); the loaded stack (HEP_INSTALL, HEP_APPS, the base) is the real one's, read as an image's is.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from support import HEP, REPO, WORK, apps, env, folder
+
+pytestmark = [pytest.mark.slow,
+              pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="heimdall build --framework")]
+
+
+def checkout_state() -> list[str]:
+    """Heimdall's changed, untracked and ignored paths: a run must add none (no __pycache__ either)."""
+    done = subprocess.run(["git", "-C", str(REPO), "status", "--porcelain", "--ignored", "--untracked-files=all"],
+                          capture_output=True, text=True, encoding="utf-8", check=True)
+    return sorted(done.stdout.splitlines())
+
+
+def test_a_run_writes_only_its_work_dir(scratch):
+    root = scratch / "Himinbjorg"
+    root.mkdir()
+    environment = dict(env(scratch), HEP_MACHINE=str(root), HEP_FORGE=str(root / "forge"), PYTHONDONTWRITEBYTECODE="1")
+    before = checkout_state()
+    root.chmod(0o555)
+    try:
+        done = subprocess.run([str(HEP), "run", "Demo/jets", "single", "--set", "run.events=200", "--set", "run.threads=1",
+                               "--plain"], cwd=WORK, env=environment, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=1800)
+    finally:
+        root.chmod(0o755)
+    assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
+    assert list(root.iterdir()) == []
+    assert checkout_state() == before
+    assert sorted(p.name for p in scratch.iterdir()) == ["Himinbjorg", "logs", "records", "results"]   # no cache/
+
+    run = scratch / "logs" / folder("Demo/jets", "single", scratch)
+    kept = {p.name for p in (run / "point").iterdir()}
+    assert "cards" in kept and kept <= {".lock", "cards", "config"}         # config/: an exec or module tool's
+    left = [p.relative_to(run / "plots") for p in (run / "plots").rglob("*") if p.is_file()]
+    assert left and all(p.suffix == ".toml" for p in left)                  # the page configs only
+    assert not [p for p in (scratch / "logs").rglob("*") if p.is_fifo() or p.name == "status.jsonl"]
+    assert os.access(scratch / "results" / folder("Demo/jets", "single", scratch) / "point" / "jets.yoda", os.R_OK)

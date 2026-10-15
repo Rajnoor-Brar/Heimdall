@@ -184,7 +184,7 @@ def test_no_gutter_leaves_mkhtml_its_own_range(yoda_backend, scratch):
 def test_both_backends_draw_the_same_pages_and_the_style_is_paints(scratch):
     assert plot.backends({}) == ["root"] and plot.backends({"backend": "yoda"}) == ["yoda"]
     assert plot.backends({"backend": "both"}) == plot.backends({"backend": ["yoda", "root", "yoda"]}) == ["root", "yoda"]
-    (scratch / "talk.toml").write_text("[text]\ntitle = 12\n")
+    (scratch / "talk.toml").write_text("[text]\ntitle = 12\n", encoding="utf-8")
     validated(scratch, backend="both", root_style=str(scratch / "talk.toml"),       # Paint honours these
               style={"text": {"legend": 9}, "legend": {"position": "top-left"}})
     with pytest.raises(HepError, match="legend.position"):                         # the pages would disagree
@@ -197,7 +197,7 @@ def test_both_backends_draw_the_same_pages_and_the_style_is_paints(scratch):
 # ── the style layers ──────────────────────────────────────────────────────────────────────────
 
 def test_a_root_style_file_goes_under_the_inline_style(scratch):
-    (scratch / "talk.toml").write_text('[text]\ntitle = 14\nlegend = 12\n[page]\ndpi = 300\n')
+    (scratch / "talk.toml").write_text('[text]\ntitle = 14\nlegend = 12\n[page]\ndpi = 300\n', encoding="utf-8")
     run = validated(scratch, root_style=str(scratch / "talk"), style={"text": {"legend": 9}})   # .toml optional
     assert plot.run_style(run) == {"text": {"title": 14, "legend": 9}, "page": {"dpi": 300}}
     whole = plot.merge_style(plot.base_style(), plot.run_style(run))
@@ -205,7 +205,7 @@ def test_a_root_style_file_goes_under_the_inline_style(scratch):
 
 
 def test_a_style_file_is_checked_like_the_inline_style(scratch):
-    (scratch / "bad.toml").write_text('[legend]\nplace = "top-left"\n')
+    (scratch / "bad.toml").write_text('[legend]\nplace = "top-left"\n', encoding="utf-8")
     with pytest.raises(HepError, match="place") as error:
         validated(scratch, root_style=str(scratch / "bad.toml"))
     assert "position" in error.value.hint                                  # the nearest spelling
@@ -244,7 +244,7 @@ def test_the_yoda_backend_gives_the_ratio_the_divisions_paint_has(scratch):
     assert text.index("MultipleLocator(0.1)") > text.index("set_yscale") and text.index("MultipleLocator(0.1)") < text.index("plt.savefig")
     assert "AutoMinorLocator(5)" in text
     assert not yoda_backend.ratio_ticks(script, 512)                    # already so: no second run
-    assert yoda_backend.ratio_ticks(script, 508) and "MultipleLocator(0.2))\nratio0_ax.yaxis.set_minor" in script.read_text()
+    assert yoda_backend.ratio_ticks(script, 508) and "MultipleLocator(0.2))\nratio0_ax.yaxis.set_minor" in script.read_text(encoding="utf-8")
     assert script.read_text(encoding="utf-8").count(yoda_backend.MARK) == 1
 
 
@@ -369,10 +369,10 @@ def test_a_figure_is_checked_when_the_file_is_read(scratch, figure, message):
 
 @pytest.mark.parametrize("old", ["overlay", "object"])
 def test_the_tables_figures_replaced_are_refused_with_the_figure_to_write(scratch, old):
-    """V81, break and migrate: hep migrate rewrites them."""
+    """V81, break and migrate: heimdall migrate rewrites them."""
     with pytest.raises(HepError, match=rf"\[plot.{old}\] is a figure now") as error:
         validated(scratch, **{old: {"d01-*": {"objects": ["d01-*"]}}})
-    assert error.value.hint == "hep migrate rewrites it"
+    assert error.value.hint == "heimdall migrate rewrites it"
 
 
 def test_the_figures_of_a_run_in_file_order(scratch):
@@ -422,7 +422,7 @@ def test_a_best_legend_lets_matplotlib_choose(yoda_backend, scratch):
     script = scratch / "page.py"
     script.write_text("ax.add_artist(ax.legend(legend_items,\n    loc='upper right',\n"
                       "    bbox_to_anchor=(0.97, 0.97),markerfirst=False))\n", encoding="utf-8")
-    assert yoda_backend.best_legend(script) and "loc='best',markerfirst=False))" in script.read_text()
+    assert yoda_backend.best_legend(script) and "loc='best',markerfirst=False))" in script.read_text(encoding="utf-8")
     assert not yoda_backend.best_legend(script)                          # once only
 
 
@@ -578,7 +578,7 @@ def test_a_tlatex_label_in_a_run_toml_is_refused_with_its_latex(scratch):
     """V79 (B5, break and migrate)."""
     with pytest.raises(HepError, match="is TLatex") as error:
         parse(raw(quantities__pdf__labels=["E_{T} > 4", "b"]), scratch)
-    assert "$E_{T}$ > 4" in error.value.hint and "hep migrate" in error.value.hint
+    assert "$E_{T}$ > 4" in error.value.hint and "heimdall migrate" in error.value.hint
     with pytest.raises(HepError, match="is TLatex"):
         validated(scratch, figures={"o": {"class": "overlay", "objects": ["d01-*"], "labels": ["k_{T}"]}})
     validated(scratch, title="$E_T$ jets", data={"file": "jets_data.yoda", "legend": "ZEUS", "map": {"d01-x01-y01": "/REF/X/d01"}})

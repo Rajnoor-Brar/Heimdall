@@ -24,7 +24,7 @@ REPO = Path(__file__).resolve().parents[2]
 REF = REPO / "tests" / "reference" / "legacy_run"
 
 pytestmark = [pytest.mark.slow,
-              pytest.mark.skipif(not APP.exists(), reason="App_Pythia.exe not built (hep build --framework)")]
+              pytest.mark.skipif(not APP.exists(), reason="App_Pythia.exe not built (heimdall build --framework)")]
 
 
 def chain(workdir: Path, cards: list[Path], plugin_dir: Path, name: str) -> tuple[Path, dict]:

@@ -1,4 +1,4 @@
-"""Housekeeping: `hep ls`, `hep explain`, `hep status`, `hep clean` (rank 5, V74).
+"""Housekeeping: `heimdall ls`, `heimdall explain`, `heimdall status`, `heimdall clean` (rank 5, V74).
 
 docs/05_Commands_and_Tools.md §1, audit 1 F5. Nothing here runs a tool; `clean` is the only command
 that deletes, and only what the runner made and no plan uses (it never deletes from results/ but a
@@ -27,7 +27,7 @@ TABLES = {"run": "run", "config": "config", "prelim": "prelim", "plot": "plot", 
           "tools": "tool", "figure": "figure", "figures": "figure"}
 
 
-# ── hep ls ─────────────────────────────────────────────────────────────────────────────────────
+# ── heimdall ls ─────────────────────────────────────────────────────────────────────────────────────
 
 def importers() -> dict[str, list[str]]:
     """Every config another one imports ([config] or [file] import), with the configs that import it:
@@ -59,7 +59,7 @@ def unused_tools(run) -> list[str]:
             for group in groups:
                 for entry in group:
                     if entry.startswith("@") and entry[1:] in run.quantities:
-                        used |= {v for v in run.quantities[entry[1:]].values if isinstance(v, str)}
+                        used |= {t for v in run.quantities[entry[1:]].values for t in configmod.fragment_tags(v)}
                     used.add(entry)
         used |= {entry.partition(":")[0] for entry in configuration.generate_cards}
     return [f"[tools.{tag}] is defined but no configuration runs it or names it in generate_cards"
@@ -101,10 +101,10 @@ def ls(project: str | None = None) -> list[str]:
     return lines
 
 
-# ── hep explain ────────────────────────────────────────────────────────────────────────────────
+# ── heimdall explain ────────────────────────────────────────────────────────────────────────────────
 
 def module_settings(key: str) -> list[str]:
-    """`hep explain <Name>.exe[.<setting>]`: a module program's settings, as it lists them itself
+    """`heimdall explain <Name>.exe[.<setting>]`: a module program's settings, as it lists them itself
     (`<Name>.exe --describe`, src/Module.hh): name, type, default, doc. Found in the work dir's build/."""
     name, _, setting = key.partition(".exe")
     setting = setting.lstrip(".")
@@ -113,7 +113,7 @@ def module_settings(key: str) -> list[str]:
         work = find_work()
         found = sorted((work / "build").rglob(f"{exe.name}")) if work is not None else []
         if not found:
-            raise HepError(f"no program {exe.name} built in this work dir", hint="hep build makes it (build/<project>/)")
+            raise HepError(f"no program {exe.name} built in this work dir", hint="heimdall build makes it (build/<project>/)")
         exe = found[0]
     try:
         done = subprocess.run([str(exe), "--describe"], capture_output=True, text=True, encoding="utf-8", timeout=60)
@@ -139,7 +139,7 @@ def module_settings(key: str) -> list[str]:
 
 
 def _quantity_lines(key: str) -> list[str]:
-    """`hep explain <quantity>`: a vocabulary name's shape, unit, doc, who declared it, and how each tool
+    """`heimdall explain <quantity>`: a vocabulary name's shape, unit, doc, who declared it, and how each tool
     maps it; [] for a name the vocabulary lacks."""
     from . import quantities as qmod
     entry = qmod.vocabulary().get(key) if "." not in key else None
@@ -172,15 +172,15 @@ V3_NAMES = {
     "seed": ("run", "seed_type", "\"identity\", \"random\" or an integer (v2's seed_type and manual_seed)"),
     "commands": ("prelim", "commands", "[run] commands: run in each point's folder before its tools"),
 }
-#: What a table is, for `hep explain <table>`.
+#: What a table is, for `heimdall explain <table>`.
 TABLE_TEXT = {
     "config": "[file] (v2's [config]): how the file is read: imports, a master, vars, meta",
     "run": "[run]: the run's name, project and defaults, which every configuration starts from",
     "configuration": "[cfgs.<name>] (v2's [run.cfgs.<name>]): one configuration: what it varies, fixes and runs",
     "quantity": "[quantities.<q>]: a quantity: its points, fixed point and bindings",
-    "tool": "[tools.<tag>]: a tool table; its folder's own keys are `hep tools <folder>`",
+    "tool": "[tools.<tag>]: a tool table; its folder's own keys are `heimdall tools <folder>`",
     "plot": "[plot]: the pages", "figure": "[plot.figures.<f>]: one figure's pages", "data": "[plot.data]: reference data",
-    "cluster": "[cluster]: hep cluster's Slurm keys (machine.toml, hep.toml, the run TOML, a configuration)",
+    "cluster": "[cluster]: heimdall cluster's Slurm keys (machine.toml, hep.toml, the run TOML, a configuration)",
     "prelim": "[prelim] (v2 only; v3 infers it): FIFOs, files and commands of each point",
 }
 
@@ -194,7 +194,7 @@ def _special(key: str) -> list[str] | None:
     if table and "." not in word:
         entries = schema.keys(table)
         return [TABLE_TEXT.get(table, f"[{table}]"), *(f"  {k:16} {e.get('doc', '')}" for k, e in entries.items()),
-                "  (hep explain <table>.<key> for one in full)"]
+                "  (heimdall explain <table>.<key> for one in full)"]
     last = word.rsplit(".", 1)[-1]                                       # events, run.events, tools.<tag>.card
     if last in V3_NAMES and (word == last or word.split(".")[0] in ("run", "cfgs", "quantities", "tools")):
         word = last
@@ -207,7 +207,7 @@ def _special(key: str) -> list[str] | None:
     if word in ("machine.toml", "machine"):
         return ["machine.toml (the machine root's; recipes/machine.template.toml): this machine's layer",
                 "  [settings] [env] [packages.<name>]  the stack's build: over the recipes and toolkits (recipes/README.md §1)",
-                "  [cluster]                            hep cluster's defaults for every work dir here (04 §16)"]
+                "  [cluster]                            heimdall cluster's defaults for every work dir here (04 §16)"]
     if word in ("deck", "deck.toml"):
         return ["deck.toml: a deck's recipe (04 §15)",
                 *(f"  {k:16} {e.get('doc', '')}" for t in schema.DECK_TABLES for k, e in schema.keys(t).items())]
@@ -245,7 +245,7 @@ def explain(key: str) -> list[str]:
 
     parts = [p for p in key.replace("[", "").replace("]", ".").split(".") if p]
     if not parts:
-        raise HepError("explain which key?", hint="e.g. hep explain plot.y_gutter")
+        raise HepError("explain which key?", hint="e.g. heimdall explain plot.y_gutter")
     if parts[0] == "cfgs" and len(parts) >= 3:                          # v3's names: cfgs.pdf.threads, file.vars
         parts = ["run", *parts]
     elif parts[0] == "file":
@@ -291,7 +291,7 @@ def explain(key: str) -> list[str]:
     return lines + ([""] + vocab if vocab else [])
 
 
-# ── hep status ─────────────────────────────────────────────────────────────────────────────────
+# ── heimdall status ─────────────────────────────────────────────────────────────────────────────────
 
 def _size(path: Path) -> int:
     if not path.exists():
@@ -358,7 +358,7 @@ def status(planned: list, running: dict[str, list[str]]) -> list[str]:
     return lines
 
 
-# ── hep clean ──────────────────────────────────────────────────────────────────────────────────
+# ── heimdall clean ──────────────────────────────────────────────────────────────────────────────────
 
 def outs_stages(planned) -> list:
     return [s for p in planned for s in [*([p.pre] if p.pre else []), *p.every, *p.combined, *([p.post] if p.post else [])]]
@@ -378,7 +378,7 @@ KEEP_NAMES = {"plots", "pre", "post", "cluster", "compare"}
 
 
 def clean_targets(planned: list, everything: bool, records: bool = False) -> tuple[list[Path], list[Path]]:
-    """What `hep clean` removes, and the results it only lists, by lifecycle (U21): within each planned
+    """What `heimdall clean` removes, and the results it only lists, by lifecycle (U21): within each planned
     configuration's folder of logs/ (ephemeral), the point folders no plan has, and `.partial` leftovers
     there and in results/. With `everything` (no config named: every config was planned): also a
     project's run folders of logs/ no configuration has, and the prepare caches of .cache/ (derived) no

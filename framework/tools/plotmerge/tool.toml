@@ -10,6 +10,7 @@
 [tool]
 category   = "visualisation"
 executable = "{apps}/App_yd2rt.exe"
+packages        = ["root", "yoda"]  # the recipes it runs (bifrost -b|-c, heimdall tools)
 status     = "standard"
 
 [card]

@@ -78,7 +78,7 @@ def test_mistakes_are_refused(bs, tmp_path, arg):
 def test_a_config_file_changes_and_adds_packages(bs, tmp_path):
     extra = tmp_path / "my.toml"
     extra.write_text('[settings]\ncores = 3\n[packages.root]\nrelease = "6.40.06"\n'
-                     '[packages.mine]\nrelease = "1"\nurl = "https://x/mine-{release}.tgz"\nkind = "cmake"\nneeds = ["root"]\n')
+                     '[packages.mine]\nrelease = "1"\nurl = "https://x/mine-{release}.tgz"\nkind = "cmake"\nneeds = ["root"]\n', encoding="utf-8")
     (order, added), packages, c = planned(bs, tmp_path, "--config", str(extra), "packages=mine", "cores=2")
     assert order == ["python", "root", "mine"] and added == ["python", "root"]
     assert c["cores"] == 2 and packages["root"]["release"] == "6.40.06"   # the command line wins over the file
@@ -137,7 +137,7 @@ def test_the_dry_run_is_a_bash_script_and_writes_nothing(bs, tmp_path, capsys):
     script = capsys.readouterr().out
     assert not prefix.exists()
     assert script.isascii()                                         # any locale can print and save it
-    assert subprocess.run(["bash", "-n"], input=script, text=True).returncode == 0
+    assert subprocess.run(["bash", "-n"], input=script, text=True, encoding="utf-8").returncode == 0
     env = prefix / "base" / ".pixi" / "envs" / "default"
     for line in ("set -euo pipefail", "-p0 -i " + str(REPO / "recipes/patches"), "--with-hepmcversion=3",
                  "make fragile-shared-install", f"cmake --build {prefix}/forge/build/root -j2",
@@ -149,7 +149,7 @@ def test_the_dry_run_is_a_bash_script_and_writes_nothing(bs, tmp_path, capsys):
         assert line in script, line
     assert "apt-get" not in script and "-m venv" not in script and "unset VIRTUAL_ENV" in script
     assert script.index("pixi install") < script.index("source ") < script.index("# == python")
-    assert "setup.sh <<" not in script and "machine.sh" not in script   # setup.sh is tracked; no extra lines on Linux
+    assert "gjallarhorn.sh <<" not in script and "machine.sh" not in script   # gjallarhorn.sh is tracked; no extra lines on Linux
     assert script.index("# == root") < script.index("# == pythia8")
 
 
@@ -214,7 +214,7 @@ def test_the_mac_on_the_conda_base_needs_no_homebrew(bs, tmp_path, monkeypatch, 
 
 
 def test_the_system_packages_carry_what_decks_need(bs, tmp_path):
-    """hep deck (docs/reporter): pandoc for the slides, poppler for a figure's PNG, the Beamer class."""
+    """heimdall deck (docs/reporter): pandoc for the slides, poppler for a figure's PNG, the Beamer class."""
     _, s, _ = bs.options([f"machine={tmp_path}"])
     assert {"pandoc", "poppler-utils", "texlive-latex-recommended"} <= set(s["apt_packages"])
 
@@ -335,7 +335,7 @@ def test_an_isolated_toolkit_builds_a_stack_of_its_own(bs, tmp_path, capsys):
     assert f"pixi install --manifest-path {base}/base/pixi.toml" in script      # a base of its own
     assert f"{prefix}/forge/pixi/bin/pixi" in script                            # one pixi per machine
     assert "-DGEANT4_BUILD_CXXSTD=20" in script                     # the toolkit's [packages.geant4]
-    assert f"cat > {base}/setup.sh" in script and "HEP_STACK_REQUEST=key4hep-src" in script
+    assert f"cat > {base}/gjallarhorn.sh" in script and "HEP_STACK_REQUEST=key4hep-src" in script
     assert f"{prefix}/stack/" not in script                           # the default stack is not touched
 
 
@@ -591,9 +591,9 @@ def test_h5cc_plain_answers_in_one_line_each(tmp_path):
     (install / "bin").mkdir(parents=True)
     subprocess.run(["python3", str(REPO / "recipes/helpers/h5cc_plain.py"), str(install), "2.2.0"], check=True,
                    capture_output=True)
-    show = subprocess.run([str(install / "bin/h5cc-plain"), "-showconfig"], capture_output=True, text=True).stdout
+    show = subprocess.run([str(install / "bin/h5cc-plain"), "-showconfig"], capture_output=True, text=True, encoding="utf-8").stdout
     assert show.splitlines() == ["HDF5 Version: 2.2.0", f"Installation point: {install}", "Extra libraries: -lz"]
-    assert subprocess.run([str(install / "bin/h5cc-plain"), "-show"], capture_output=True, text=True).stdout.strip() \
+    assert subprocess.run([str(install / "bin/h5cc-plain"), "-show"], capture_output=True, text=True, encoding="utf-8").stdout.strip() \
         == f"cc -I{install}/include -L{install}/lib -lhdf5"
 
 
@@ -662,7 +662,7 @@ def test_another_cxx_standard_on_a_built_stack_is_refused(bs, tmp_path):
     prefix = tmp_path / "hep"
     stamps = prefix / "stack" / ".stamps"
     stamps.mkdir(parents=True)
-    (stamps / "cxx_std").write_text("17\n")
+    (stamps / "cxx_std").write_text("17\n", encoding="utf-8")
     with pytest.raises(SystemExit) as stop:
         bs.main([f"machine={prefix}", "cxx_std=20", "system=false", "packages=fastjet"])
     assert "would mix ABIs" in str(stop.value)
@@ -688,7 +688,7 @@ def test_a_failure_shows_its_errors_first(bs, tmp_path):
     log = tmp_path / "x.log"
     log.write_text("\n".join(["checking things", *(f"warning: noise {i}" for i in range(200)),
                                "../include/ThePEG/Repository/RandomGenerator.h:15:10: fatal error: 'gsl/gsl_rng.h' file not found",
-                               *(f"warning: more noise {i}" for i in range(50)), "make: *** [Makefile:444: all-recursive] Error 1"]))
+                               *(f"warning: more noise {i}" for i in range(50)), "make: *** [Makefile:444: all-recursive] Error 1"]), encoding="utf-8")
     excerpt = bs.failure_excerpt(log)
     assert excerpt.startswith("the first errors:") and "gsl/gsl_rng.h" in excerpt
     assert excerpt.index("gsl/gsl_rng.h") < excerpt.index("the log's end:")
@@ -728,7 +728,7 @@ def a_base(c, **installed):
     for file in meta.glob("*.json"):
         file.unlink()
     for name, version in installed.items():
-        (meta / f"{name.replace('_', '-') if name in ('lz4_c', 'fastjet_cxx') else name}-{version}-h0_0.json").write_text("{}")
+        (meta / f"{name.replace('_', '-') if name in ('lz4_c', 'fastjet_cxx') else name}-{version}-h0_0.json").write_text("{}", encoding="utf-8")
 
 
 def test_the_manifest_is_the_base_list_the_python_packages_and_the_runs_recipes(bs, tmp_path):
@@ -816,13 +816,13 @@ def test_a_change_in_the_bases_libraries_marks_what_was_built_on_them(bs, tmp_pa
 
 def test_the_activation_is_conda_s_less_the_compile_flags(bs, tmp_path):
     """base/activate.sh runs the base's activate.d (the compilers' CC, CXX …) and leaves CFLAGS & co. unset:
-    the build and rules.mk set their own. setup.sh sources it; quit takes it out (test_setup.py)."""
+    the build and rules.mk set their own. gjallarhorn.sh sources it; quit takes it out (test_setup.py)."""
     _, s, _ = bs.options([f"machine={tmp_path}"])
     c = bs.context(s)
     hook = Path(c["base"]) / "etc" / "conda" / "activate.d"
     hook.mkdir(parents=True)
-    (hook / "activate-gxx.sh").write_text("export CXX=x86_64-conda-linux-gnu-c++ CXXFLAGS='-march=nocona'\n")
-    Path(c["base_dir"], "activate.sh").write_text(bs.activate_text(c))
+    (hook / "activate-gxx.sh").write_text("export CXX=x86_64-conda-linux-gnu-c++ CXXFLAGS='-march=nocona'\n", encoding="utf-8")
+    Path(c["base_dir"], "activate.sh").write_text(bs.activate_text(c), encoding="utf-8")
     env = bs.activation(c, {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "CFLAGS": "-O3"})
     assert env["CONDA_PREFIX"] == c["base"] and env["PATH"].startswith(f"{c['base']}/bin:")
     assert env["CXX"] == "x86_64-conda-linux-gnu-c++" and "CXXFLAGS" not in env and "CFLAGS" not in env
@@ -845,7 +845,7 @@ def test_a_ready_made_root_sets_the_stacks_standard_and_pins_its_build(bs, tmp_p
 
 
 def test_what_the_base_holds_ready_made_stays_so(bs, tmp_path):
-    """A root made with an @…-conda toolkit is read without it (hep doctor, hep stack status, a later build):
+    """A root made with an @…-conda toolkit is read without it (heimdall doctor, heimdall stack status, a later build):
     a recipe whose package is in the base, and which the stack did not build, is the base's."""
     _, s, _ = bs.options([f"machine={tmp_path}"])
     a_base(bs.context(s), python="3.12.15", root="6.40.04", fastjet_cxx="3.5.2")
@@ -870,7 +870,84 @@ def test_the_base_gets_the_pkg_config_files_conda_forge_lacks(bs, tmp_path):
     files = bs.pkgconfig_files(bs.context(s))
     assert list(files) == ["tomlplusplus"] and "Version: 3.4.0\n" in files["tomlplusplus"]
     assert f"Cflags: -I{c['base']}/include\n" in files["tomlplusplus"]
-    Path(c["base_dir"], "activate.sh").write_text(bs.activate_text(c))
+    Path(c["base_dir"], "activate.sh").write_text(bs.activate_text(c), encoding="utf-8")
     env = bs.activation(c, {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "PKG_CONFIG_PATH": "/x"})
     assert env["PKG_CONFIG_PATH"] == f"{c['base_dir']}/pkgconfig:/x"
 
+
+
+def test_the_base_keeps_what_it_holds_whatever_the_run_s_set(bs, tmp_path):
+    """A later run of another set (a plain --base, `bifrost`) keeps a ready-made package the base holds and a
+    library a recipe built here needs; a toolkit's ready-made package outside its set is not added."""
+    import tomllib
+    (order, _), packages, c = planned(bs, tmp_path, "packages=@core-conda")
+    deps = tomllib.loads(bs.manifest_text(order, packages, c))["dependencies"]
+    assert "root" in deps and "sherpa" not in deps and "geant4" not in deps         # @conda's, outside @core
+    a_base(c, python="3.12.15", sherpa="3.0.0", root="6.40.04")
+    stamped(bs, tmp_path, "professor", packages=packages, c=c)                     # built here, on eigen
+    (order, _), packages, c = planned(bs, tmp_path, "packages=fastjet")
+    deps = tomllib.loads(bs.manifest_text(order, packages, c))["dependencies"]
+    assert "sherpa" in deps and "root" in deps and "eigen" in deps
+
+
+def test_pypi_packages_are_pixi_s_pypi_dependencies(bs, tmp_path):
+    import tomllib
+    (order, _), packages, c = planned(bs, tmp_path, "base_pypi=iminuit 'pyhf >=0.7'")
+    manifest = tomllib.loads(bs.manifest_text(order, packages, c))
+    assert manifest["pypi-dependencies"] == {"iminuit": "*", "pyhf": ">=0.7"}
+    (order, _), packages, c = planned(bs, tmp_path)
+    assert "pypi-dependencies" not in tomllib.loads(bs.manifest_text(order, packages, c))
+
+
+def test_the_machine_s_recipes_are_as_standard_s(bs, tmp_path, capsys):
+    """<machine root>/recipes.toml: new recipes and changes to standard's, laid right after standard.toml."""
+    (tmp_path / "recipes.toml").write_text(
+        '[packages.mytool]\nrelease = "1.2"\nurl = "https://example.org/mytool-{release}.tar.gz"\nkind = "cmake"\n'
+        'needs = ["hepmc3"]\nargs = ["-DHEPMC3={dir_hepmc3}", "-DTOOL={version_hepmc3}", "-DBIN={bin_hepmc3}"]\n'
+        '\n[packages.fastjet]\nextra = ["--enable-mine"]\n', encoding="utf-8")
+    (order, _), packages, c = planned(bs, tmp_path, "packages=mytool fastjet")
+    assert order[-1] == "mytool" and "hepmc3" in order and bs.ORIGINS["mytool.release"] == ["recipes.toml"]
+    bs.main(["--dry-run", f"machine={tmp_path}", "packages=mytool fastjet", "base=system", "system=false"])
+    script = capsys.readouterr().out
+    assert f"-DHEPMC3={tmp_path}/stack/hepmc3" in script and "-DTOOL=3.3.1" in script
+    assert f"-DBIN={tmp_path}/stack/hepmc3/bin" in script and "--enable-mine" in script
+    (tmp_path / "recipes.toml").write_text("[settings]\ncores = 2\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match=r"no table \[settings\]"):
+        bs.options([f"machine={tmp_path}"])
+
+
+def test_optional_flags_are_gated_by_the_package_and_its_version(bs, tmp_path, capsys):
+    (tmp_path / "recipes.toml").write_text(
+        '[packages.mytool]\nrelease = "1"\nurl = "https://example.org/m-{release}.tgz"\nkind = "autotools"\n'
+        'needs = ["root"]\noptional = { "root >=6.30" = ["--new-root"], "root <6.30" = ["--old-root"], '
+        '"hdf5" = ["--h5={dir_hdf5}"] }\n', encoding="utf-8")
+    bs.main(["--dry-run", f"machine={tmp_path}", "packages=mytool", "base=system", "system=false"])
+    configure = next(l for l in capsys.readouterr().out.splitlines() if "./configure" in l and "/mytool" in l)
+    assert "--new-root" in configure and "--old-root" not in configure and "--h5" not in configure
+    bs.main(["--dry-run", f"machine={tmp_path}", "packages=mytool hdf5", "root.release=6.28.12", "base=system",
+             "system=false"])
+    configure = next(l for l in capsys.readouterr().out.splitlines() if "./configure" in l and "/mytool" in l)
+    assert "--old-root" in configure and "--new-root" not in configure and f"--h5={tmp_path}/stack/hdf5" in configure
+    for version, spec, ok in (("6.40.04", ">=6.30,<7", True), ("3.03.01", "3.3.*", True), ("8318", ">8312", True),
+                              ("1.104", "==1.105", False), ("", ">=1", False)):
+        assert bs.version_ok(version, spec) is ok, (version, spec)
+
+
+def test_a_ready_made_package_s_version_is_the_base_s(bs, tmp_path):
+    (order, _), packages, c = planned(bs, tmp_path, "packages=@core-conda")
+    a_base(c, python="3.12.15", root="6.40.04", fastjet_cxx="3.5.2")
+    c = bs.context(bs.options([f"machine={tmp_path}", "packages=@core-conda"])[1])
+    assert c["version_root"] == "6.40.04" and c["version_fastjet"] == "3.5.2" and c["bin_root"] == f"{c['base']}/bin"
+    assert c["version_pythia8"] == ""             # ready-made, not in the base yet: unknown (the base comes first)
+    assert c["version_lhapdf"] == "" and bs.context(bs.options([f"machine={tmp_path}"])[1])["version_sherpa"] == "3.0.5"
+
+
+def test_a_tool_is_built_with_a_toolkit_s_changes_but_not_its_set(bs, tmp_path, capsys):
+    write_kit(tmp_path, "mine", '[standard]\nall = true\n\n[packages.rivet]\nextra = ["--enable-mine"]\n')
+    (order, _), packages, c = planned(bs, tmp_path, "packages=rivet@mine", "base=system")
+    assert "rivet" in order and "sherpa" not in order and "geant4" not in order
+    assert packages["rivet"]["extra"] == ["--enable-mine"]
+    (order, _), packages, c = planned(bs, tmp_path, "packages=geant4@gpu-sim", "base=system")
+    assert c["stack"] == "gpu-sim" and "geant4" in order and "adept" not in order       # isolated: its own stack
+    with pytest.raises(SystemExit):
+        planned(bs, tmp_path, "packages=rivet@")

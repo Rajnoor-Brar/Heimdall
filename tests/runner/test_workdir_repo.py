@@ -1,5 +1,5 @@
 """A work dir's sources and its git repository (audit 3, phase 5.2 and 5.3): decks/ apart from reports/
-(U22), datasets.toml (U23), `hep setup --refresh` (U28), and a work dir made in a git repository (U67)."""
+(U22), datasets.toml (U23), `heimdall setup --refresh` (U28), and a work dir made in a git repository (U67)."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def git_identity(monkeypatch):
 
 
 def git(where, *args) -> str:
-    return subprocess.run(["git", *args], cwd=where, capture_output=True, text=True).stdout.strip()
+    return subprocess.run(["git", *args], cwd=where, capture_output=True, text=True, encoding="utf-8").stdout.strip()
 
 
 def fresh_repo(where):
@@ -61,7 +61,7 @@ def test_a_hosting_sites_repo_keeps_its_files_and_commits_only_what_was_added(sc
     assert setup.GUIDE in added and "A Heimdall work dir" in (target / setup.GUIDE).read_text(encoding="utf-8")
     ignore = (target / ".gitignore").read_text(encoding="utf-8")
     assert ignore.startswith("*.pyc\n") and setup.BLOCK in ignore and "records/" in ignore and "logs/" in ignore
-    assert git(target, "log", "--format=%s").splitlines()[0].startswith("hep setup: the work dir study")
+    assert git(target, "log", "--format=%s").splitlines()[0].startswith("heimdall setup: the work dir study")
     assert len(git(target, "log", "--format=%s").splitlines()) == 2
     committed = git(target, "show", "--name-only", "--format=", "HEAD").split()
     assert "hep.toml" in committed and ".gitignore" in committed and "README.md" not in committed
@@ -71,7 +71,7 @@ def test_a_hosting_sites_repo_keeps_its_files_and_commits_only_what_was_added(sc
 
 
 def test_a_repository_that_ignores_a_work_dirs_file_tracks_it(scratch, quiet, git_identity):
-    """GitHub's C++ .gitignore ignores `Makefile`, which a work dir needs: hep setup un-ignores what it
+    """GitHub's C++ .gitignore ignores `Makefile`, which a work dir needs: heimdall setup un-ignores what it
     wrote, in its marked block, and the commit takes it."""
     target = fresh_repo(scratch / "cpp")
     (target / ".gitignore").write_text("*.o\nMakefile\n.vscode/\n", encoding="utf-8")
@@ -82,7 +82,7 @@ def test_a_repository_that_ignores_a_work_dirs_file_tracks_it(scratch, quiet, gi
     ignore = (target / ".gitignore").read_text(encoding="utf-8")
     assert "!/Makefile" in ignore and "!/.vscode/" in ignore and ignore.startswith("*.o\nMakefile\n")
     assert any("un-ignored" in line for line in quiet[1])
-    assert setup.refresh(target, yes=True, out=quiet[0]) == 0 and "!/Makefile" in (target / ".gitignore").read_text()
+    assert setup.refresh(target, yes=True, out=quiet[0]) == 0 and "!/Makefile" in (target / ".gitignore").read_text(encoding="utf-8")
 
 
 def test_inside_a_larger_repo_no_nested_git(scratch, quiet, git_identity):
@@ -108,7 +108,7 @@ def test_next_steps_say_git_add_when_not_committed(scratch, quiet):
     target = fresh_repo(scratch / "r")
     added = setup.setup(target, project="P", out=quiet[0])
     lines = setup.next_steps(target, added, "P", None)
-    assert "  hep check P/p" in lines and any(l.startswith("  git add -- ") for l in lines)
+    assert "  heimdall check P/p" in lines and any(l.startswith("  git add -- ") for l in lines)
 
 
 def test_datasets_are_fetched_from_the_manifest_and_checked(scratch, quiet):
@@ -119,9 +119,9 @@ def test_datasets_are_fetched_from_the_manifest_and_checked(scratch, quiet):
     setup.setup(target, out=quiet[0])
     (target / "datasets.toml").write_text(f'[files."zeus/2012.yoda"]\nurl = "{source.as_uri()}"\nsha256 = "{good}"\n',
                                           encoding="utf-8")
-    setup.setup(target, out=quiet[0])                                             # hep setup . in a clone
-    assert (target / "datasets" / "zeus" / "2012.yoda").read_text() == "BEGIN YODA\n"
-    assert "/zeus/2012.yoda" in (target / "datasets" / ".gitignore").read_text()
+    setup.setup(target, out=quiet[0])                                             # heimdall setup . in a clone
+    assert (target / "datasets" / "zeus" / "2012.yoda").read_text(encoding="utf-8") == "BEGIN YODA\n"
+    assert "/zeus/2012.yoda" in (target / "datasets" / ".gitignore").read_text(encoding="utf-8")
     assert any(l.startswith("fetched datasets/zeus/2012.yoda") for l in quiet[1])
     (target / "datasets.toml").write_text(f'[files."b.yoda"]\nurl = "{source.as_uri()}"\nsha256 = "{"0" * 64}"\n',
                                           encoding="utf-8")
@@ -164,14 +164,14 @@ def test_a_deck_is_written_in_decks_and_built_in_reports(scratch, monkeypatch):
 
 
 def test_an_example_is_a_working_project(scratch, quiet):
-    """7.2 (U63): `hep setup --example jets` copies the guide's Demo project into the reader's work dir,
+    """7.2 (U63): `heimdall setup --example jets` copies the guide's Demo project into the reader's work dir,
     and the next commands take it to a page."""
     target = scratch / "study"
     added = setup.setup(target, example="jets", out=quiet[0])
     assert (target / "configs" / "Demo" / "jets.toml").is_file() and (target / "modules" / "Demo" / "Rivet" / "photo_eic.cc").is_file()
     assert "configs/Demo/ep.cmnd" in added and any(a.startswith("datasets/") for a in added)
     lines = setup.next_steps(target, added, None, None, example="jets")
-    assert "  hep check Demo/jets" in lines and any(l.startswith("  hep run Demo/jets single") for l in lines)
+    assert "  heimdall check Demo/jets" in lines and any(l.startswith("  heimdall run Demo/jets single") for l in lines)
     (target / "configs" / "Demo" / "jets.toml").write_text("mine\n", encoding="utf-8")
     setup.setup(target, example="jets", out=quiet[0])                               # again: never over a file
     assert (target / "configs" / "Demo" / "jets.toml").read_text(encoding="utf-8") == "mine\n"

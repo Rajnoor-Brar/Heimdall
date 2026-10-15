@@ -1,4 +1,4 @@
-"""Status: the fd protocol, the filter rules, the event bus and its listeners, and `hep watch` (V72)."""
+"""Status: the fd protocol, the filter rules, the event bus and its listeners, and `heimdall watch` (V72)."""
 
 from __future__ import annotations
 

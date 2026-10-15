@@ -1,4 +1,4 @@
-# linux-pp-exphep.toml — `hep doctor --record` on this machine; the support matrix's row (recipes/README.md)
+# linux-pp-exphep.toml — `heimdall doctor --record` on this machine; the support matrix's row (recipes/README.md)
 date     = "2026-10-12"
 platform = "Ubuntu 26.04.1 LTS x86_64"
 heimdall = "06afd05"

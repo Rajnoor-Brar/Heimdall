@@ -46,7 +46,7 @@ def test_without_the_fd_it_prints_plain_lines(monkeypatch, capsys):
 
 def test_a_report_is_written_whole(scratch):
     path = hepkit.report(scratch / "jets.json", events=3)
-    assert path.name == "jets.json.json" and json.loads(path.read_text())["events"] == 3
+    assert path.name == "jets.json.json" and json.loads(path.read_text(encoding="utf-8"))["events"] == 3
     assert not list(scratch.glob("*.part"))
 
 

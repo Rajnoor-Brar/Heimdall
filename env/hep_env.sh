@@ -1,23 +1,23 @@
 #!/bin/bash
 # env/hep_env.sh — Heimdall's shell environment (docs/framework/01_Target.md §5.8; docs/06_Internals.md §1).
 #
-# Sourced by Heimdall's setup.sh (alias `load_hep`), which sets HEP (Heimdall's folder), HEP_MACHINE (the
+# Sourced by Heimdall's gjallarhorn.sh (the shell function `gjallarhorn`), which sets HEP (Heimdall's folder), HEP_MACHINE (the
 # machine root, ~/Himinbjorg) and the loaded stack's HEP_INSTALL, HEP_VENV, HEP_APPS and HEP_FORGE, and
 # HEP_BASE when the stack is built on a conda base (docs/conda/). It activates the base (its
-# base/activate.sh) or the venv, puts the stack and framework/bin (the `hep` command) on PATH, sources the
+# base/activate.sh) or the venv, puts the stack and framework/bin (the `heimdall` command) on PATH, sources the
 # machine root's machine.sh, and defines the shell helpers below. The base's lib/ never joins
 # LD_LIBRARY_PATH: what was built on it finds it by rpath, and the OS's own programs keep the OS's libraries.
 # Safe to source repeatedly: path variables are only ever prepended once, and never get empty elements
 # (an empty element means the CWD). `quit` removes exactly what was added here, machine.sh's lines too.
 
-if [ -z "${BASH_VERSION-}" ]; then                # bash only (setup.sh says so first; this is for a direct source)
-    echo "env/hep_env.sh needs bash: run launch.sh, or bash and then source setup.sh" >&2
+if [ -z "${BASH_VERSION-}" ]; then                # bash only (gjallarhorn.sh says so first; this is for a direct source)
+    echo "env/hep_env.sh needs bash: run launch.sh, or bash and then source gjallarhorn.sh" >&2
     return 1 2>/dev/null || exit 1
 fi
 : "${HEP:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 : "${HEP_MACHINE:=$HOME/Himinbjorg}"
 : "${HEP_INSTALL:=$HEP_MACHINE/stack}"
-: "${HEP_VENV:=$HEP_MACHINE/venv}"                 # an isolated toolkit's stack has its own (setup.sh)
+: "${HEP_VENV:=$HEP_MACHINE/venv}"                 # an isolated toolkit's stack has its own (gjallarhorn.sh)
 : "${HEP_APPS:=$HEP_MACHINE/apps}"
 : "${HEP_FORGE:=$HEP_MACHINE/forge}"
 export HEP HEP_MACHINE HEP_INSTALL HEP_VENV HEP_APPS HEP_FORGE
@@ -25,7 +25,7 @@ if [ -n "${HEKIT_ROOT-}" ]; then                 # High-Energy's name for the ch
     echo "HEKIT_ROOT is retired: Heimdall uses HEP ($HEP)" >&2
     unset HEKIT_ROOT
 fi
-unset HEP_SETUP                                   # retired: hep refresh reloads $HEP/setup.sh with $HEP_STACK
+unset HEP_SETUP                                   # retired: heimdall refresh reloads $HEP/gjallarhorn.sh with $HEP_STACK
 
 _HEP_SCALARS="LHAPDF_DATA_PATH ONNXRUNTIME_DIR GEANT4_DATA_DIR DELPHES_DIR"
 
@@ -151,62 +151,62 @@ _hep_unload() {
 }
 
 # --- routine commands ---
-# quit: leave the environment. Everything setup.sh and machine.sh added goes; HEP and HEP_MACHINE stay
-# (where Heimdall and the machine root are, for `source $HEP/setup.sh`). A no-op when not loaded.
+# quit: leave the environment. Everything gjallarhorn.sh and machine.sh added goes; HEP and HEP_MACHINE stay
+# (where Heimdall and the machine root are, for `source $HEP/gjallarhorn.sh`). A no-op when not loaded.
 quit() {
     if [ -z "${HEP_ENV_LOADED-}" ]; then
-        echo "HEP env not loaded"
+        echo "Heimdall's environment is not loaded"
         return 0
     fi
     _hep_unload
     unset HEP_STACK HEP_INSTALL HEP_VENV HEP_BASE HEP_APPS HEP_FORGE
 }
-# hep_refresh: quit, then the same stack again (an isolated toolkit's included), from scratch.
-hep_refresh() {
+# heimdall_refresh: quit, then the same stack again (an isolated toolkit's included), from scratch.
+heimdall_refresh() {
     local stack=${HEP_STACK-}
     quit >/dev/null
     export HEP_STACK_REQUEST=$stack
-    source "$HEP/setup.sh"
+    source "$HEP/gjallarhorn.sh" ""
 }
-# hep: the command (framework/bin/hep), except what changes this shell itself, which a program cannot:
-# `hep refresh`, `hep quit` and `hep cd`.
-hep() {
+# heimdall: the program (framework/bin/heimdall), except what changes this shell itself, which a program
+# cannot: `heimdall refresh`, `heimdall quit` and `heimdall cd`.
+heimdall() {
     case "${1-}" in
         refresh|quit)
-            [ $# -eq 1 ] || { echo "hep $1: takes no arguments" >&2; return 2; }
-            if [ "$1" = refresh ]; then hep_refresh; else quit; fi ;;
+            [ $# -eq 1 ] || { echo "heimdall $1: takes no arguments" >&2; return 2; }
+            if [ "$1" = refresh ]; then heimdall_refresh; else quit; fi ;;
         cd)
             shift
-            hep_cd "$@" ;;
+            heimdall_cd "$@" ;;
         *)
-            command hep "$@" ;;
+            command heimdall "$@" ;;
     esac
 }
-# hep cd PROJECT [configs|modules|results|output] — cd into a project folder of the current work dir.
-hep_cd() {
-    [ -n "${1-}" ] || { echo "usage: hep cd PROJECT [configs|modules|results|output]" >&2; return 2; }
+# heimdall cd PROJECT [configs|modules|results|records|logs] — cd into a project folder of the current work dir.
+heimdall_cd() {
+    [ -n "${1-}" ] || { echo "usage: heimdall cd PROJECT [configs|modules|results|records|logs]" >&2; return 2; }
     local work
-    work=$(command hep where --work) || return 2
+    work=$(command heimdall where --work) || return 2
     cd "$work/${2:-configs}/$1"
 }
-# hep_status: the loaded stack's packages, from their recipes (`hep stack status`; kept for a release).
-hep_status() { command hep stack status "$@"; }
+# heimdall_status: the loaded stack's packages, from their recipes (`heimdall stack status`; kept for a release).
+heimdall_status() { command heimdall stack status "$@"; }
 
-hep_stash()   { cd "$HEP_MACHINE/forge/downloads"; }   # the downloads (shared by every stack)
-hep_forge()   { cd "$HEP_FORGE"; }
-hep_stack()   { cd "$HEP_INSTALL"; }
-hep_help() {
+heimdall_stash()   { cd "$HEP_MACHINE/forge/downloads"; }   # the downloads (shared by every stack)
+heimdall_forge()   { cd "$HEP_FORGE"; }
+heimdall_stack()   { cd "$HEP_INSTALL"; }
+heimdall_help() {
     cat << HLP
-hep run | plot | watch | build | stack | …   every command (hep help; hep help <command>)
+heimdall run | plot | watch | build | stack | …   every command (heimdall help; heimdall help <command>)
 In this shell:
-  hep refresh            reload the environment from scratch, the same stack (also hep_refresh)
-  hep quit               leave it: paths, the base (or venv) and machine.sh's lines as before (also quit)
-  hep cd PROJECT [DIR]   cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|records|logs; also hep_cd)
-  hep_status             the loaded stack: each package, its release and state (hep stack status)
-  hep_stash              cd to the machine root's downloads
-  hep_forge              cd to the loaded stack's builds in progress
-  hep_stack              cd to the loaded stack (the installs)
-  hep_help               this message
+  heimdall refresh           reload the environment from scratch, the same stack (also heimdall_refresh)
+  heimdall quit              leave it: paths, the base (or venv) and machine.sh's lines as before (also quit)
+  heimdall cd PROJECT [DIR]  cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|records|logs; also heimdall_cd)
+  heimdall_status            the loaded stack: each package, its release and state (heimdall stack status)
+  heimdall_stash             cd to the machine root's downloads
+  heimdall_forge             cd to the loaded stack's builds in progress
+  heimdall_stack             cd to the loaded stack (the installs)
+  heimdall_help              this message
 HLP
 }
 
@@ -215,7 +215,7 @@ HLP
 # first, so two stacks never share PATH (an isolated toolkit's C++20 beside the C++17 one).
 if [ -n "${HEP_ENV_LOADED-}" ]; then
     if [ "$HEP_ENV_LOADED" = "$HEP_INSTALL" ]; then
-        [[ $- == *i* ]] && echo "HEP env already loaded — $HEP${HEP_STACK:+ (stack: $HEP_STACK)} (hep_help for commands)"
+        [[ $- == *i* ]] && echo "Heimdall's environment already loaded — $HEP${HEP_STACK:+ (stack: $HEP_STACK)} (heimdall_help for commands)"
         return 0
     fi
     _hep_unload
@@ -245,8 +245,8 @@ done
 _hep_prepend PYTHONPATH "$HEP_INSTALL/root/lib"
 _hep_prepend PYTHONPATH "$HEP_INSTALL/pythia8/lib"
 unset pkg _hep_pyver _HEP_PACKAGES
-# framework/bin last, so it sits in front of everything, including the venv's bin/: the `hep` command
-# is framework/bin/hep.
+# framework/bin last, so it sits in front of everything, including the venv's bin/: the `heimdall` command
+# is framework/bin/heimdall.
 _hep_prepend PATH "$HEP/framework/bin"
 
 for _hep_var in $_HEP_SCALARS; do
@@ -276,5 +276,5 @@ fi
 export HEP_ENV_LOADED=$HEP_INSTALL
 hash -r
 
-[[ $- == *i* ]] && echo "HEP env loaded — $HEP${HEP_STACK:+ (stack: $HEP_STACK)} (hep_status for versions, hep_help for commands)"
+[[ $- == *i* ]] && echo "Heimdall's environment loaded — $HEP${HEP_STACK:+ (stack: $HEP_STACK)} (heimdall_status for versions, heimdall_help for commands)"
 return 0

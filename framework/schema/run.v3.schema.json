@@ -1,6 +1,6 @@
 {
  "$schema": "http://json-schema.org/draft-07/schema#",
- "title": "hep run TOML, the third form (generated from framework/schema/run.toml)",
+ "title": "heimdall run TOML, the third form (generated from framework/schema/run.toml)",
  "type": "object",
  "properties": {
   "file": {
@@ -11,7 +11,7 @@
      "type": "string"
     },
     "import": {
-     "description": "run TOMLs whose tables this one starts from, in order; this file wins (V56, V93, V94)\n\nrun TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own imports come first, depth-first; a circle is refused. Another project's file keeps its bare paths (cards, filters, styles, executables) its own project's, so its tools plan as they do in it. The file that imports sets its own `[run].name` and `project`; no folder of its configurations may be an imported run's (V100). An entry may be `{ from = \"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where each quantity, tool and configuration came from.",
+     "description": "run TOMLs whose tables this one starts from, in order; this file wins (V56, V93, V94)\n\nrun TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own imports come first, depth-first; a circle is refused. Another project's file keeps its bare paths (cards, filters, styles, executables) its own project's, so its tools plan as they do in it. The file that imports sets its own `[run].name` and `project`; no folder of its configurations may be an imported run's (V100). An entry may be `{ from = \"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where each quantity, tool and configuration came from.",
      "type": [
       "string",
       "array"
@@ -32,7 +32,7 @@
      "type": "object"
     },
     "meta": {
-     "description": "about the file, for people; versions: the stack it was run with, warned about, never enforced (V97)\n\ndescriptive: it never changes a run (V97). Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = \"8.317\", rivet = \"4.1.3\" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `hep check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come.",
+     "description": "about the file, for people; versions: the stack it was run with, warned about, never enforced (V97)\n\ndescriptive: it never changes a run (V97). Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = \"8.317\", rivet = \"4.1.3\" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `heimdall check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come.",
      "type": "object"
     },
     "schema": {
@@ -54,7 +54,7 @@
      "type": "string"
     },
     "run": {
-     "description": "the configuration hep run runs (required unless sweep_runs)\n\nmust name a `[run.cfgs.<cfg>]` table (C2). Under `sweep_runs` it may be left out; `hep run <config>` then ignores it",
+     "description": "the configuration heimdall run runs (required unless sweep_runs)\n\nmust name a `[run.cfgs.<cfg>]` table (C2). Under `sweep_runs` it may be left out; `heimdall run <config>` then ignores it",
      "type": "string"
     },
     "serial": {
@@ -92,7 +92,7 @@
      "type": "string"
     },
     "sweep_runs": {
-     "description": "hep run runs every configuration in turn (true), or these, in this order (V79: [\"a\", \"b\"])\n\n`true`: `hep run <config>` runs every configuration, one after another, in the order of the file; `[\"a\", \"b\"]` (V79): these, in this order (04 §4.1)",
+     "description": "heimdall run runs every configuration in turn (true), or these, in this order (V79: [\"a\", \"b\"])\n\n`true`: `heimdall run <config>` runs every configuration, one after another, in the order of the file; `[\"a\", \"b\"]` (V79): these, in this order (04 §4.1)",
      "type": [
       "boolean",
       "array"
@@ -103,7 +103,7 @@
      "default": false
     },
     "notify": {
-     "description": "\"desktop\": a notify-send when hep run ends, with its verdict (V76)\n\n`\"desktop\"` (V76): a desktop notification (`notify-send`) when `hep run` ends, with its verdict; never fails a run",
+     "description": "\"desktop\": a notify-send when heimdall run ends, with its verdict (V76)\n\n`\"desktop\"` (V76): a desktop notification (`notify-send`) when `heimdall run` ends, with its verdict; never fails a run",
      "type": "string",
      "enum": [
       "none",
@@ -116,7 +116,7 @@
      "type": "array"
     },
     "vary": {
-     "description": "swept quantities: a name is an axis, an inner list an entangled group\n\n04 §5.1; `[]` is one point",
+     "description": "swept quantities: a name is an axis, an inner list an entangled group, { points = [...] } listed combinations\n\n04 §5.1; `[]` is one point",
      "type": "array"
     },
     "plot_points": {
@@ -237,7 +237,7 @@
       ]
      },
      "vary": {
-      "description": "swept quantities: a name is an axis, an inner list an entangled group\n\n04 §5.1; `[]` is one point",
+      "description": "swept quantities: a name is an axis, an inner list an entangled group, { points = [...] } listed combinations\n\n04 §5.1; `[]` is one point",
       "type": "array"
      },
      "plot_points": {
@@ -278,7 +278,7 @@
       "type": "object"
      },
      "cluster": {
-      "description": "this configuration's [cluster] keys, over the run's (hep cluster, V114)\n\nmerged over the run TOML's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys (04 §16)",
+      "description": "this configuration's [cluster] keys, over the run's (heimdall cluster, V114)\n\nmerged over the run TOML's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys (04 §16)",
       "type": "object"
      },
      "seed": {
@@ -299,7 +299,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -399,7 +399,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -499,7 +499,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -599,7 +599,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -699,7 +699,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -803,7 +803,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -903,7 +903,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1003,7 +1003,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1103,7 +1103,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1211,7 +1211,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1311,7 +1311,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1411,7 +1411,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1516,7 +1516,7 @@
     "type": "object",
     "properties": {
      "uses": {
-      "description": "a tool folder: shipped, the machine's or the work dir's (hep tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+      "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
       "type": "string"
      },
      "card": {
@@ -2281,7 +2281,7 @@
         ]
        },
        "class": {
-        "description": "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid)\n\nhow the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`hep plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = \"ratio\"`, `\"difference\"` or `\"sum\"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`logs/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = \"Scatter2D\"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet",
+        "description": "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid)\n\nhow the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = \"ratio\"`, `\"difference\"` or `\"sum\"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`logs/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = \"Scatter2D\"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet",
         "type": "string",
         "enum": [
          "defined",
@@ -2353,7 +2353,7 @@
         }
        },
        "configurations": {
-        "description": "a compare figure's configurations (default: the sweep_runs ones), each a curve per point (V83)\n\na compare figure's, two or more, in curve order; one at least of this file. `\"<Project>/<config>:<cfg>\"` (V88) names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `hep plot`",
+        "description": "a compare figure's configurations (default: the sweep_runs ones), each a curve per point (V83)\n\na compare figure's, two or more, in curve order; one at least of this file. `\"<Project>/<config>:<cfg>\"` (V88) names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `heimdall plot`",
         "type": "array",
         "items": {
          "type": "string"
@@ -2403,7 +2403,7 @@
    "type": "object",
    "properties": {
     "scheduler": {
-     "description": "the batch system: slurm (sbatch)\n\nthe batch system `hep cluster` submits to: `\"slurm\"` (`sbatch`, `squeue`, `sacct`, `scancel`), the only one so far",
+     "description": "the batch system: slurm (sbatch)\n\nthe batch system `heimdall cluster` submits to: `\"slurm\"` (`sbatch`, `squeue`, `sacct`, `scancel`), the only one so far",
      "type": "string",
      "enum": [
       "slurm"
@@ -2455,12 +2455,16 @@
      "type": "string"
     },
     "setup": {
-     "description": "shell lines each job runs before Heimdall's setup.sh (module loads)\n\nshell lines each job runs first, before it sources Heimdall's `setup.sh` (`\"module load gcc/13\"`): what the nodes need that the login shell had",
+     "description": "shell lines each job runs before Heimdall's gjallarhorn.sh (module loads)\n\nshell lines each job runs first, before it sources Heimdall's `gjallarhorn.sh` (`\"module load gcc/13\"`): what the nodes need that the login shell had",
      "type": "array",
      "items": {
       "type": "string"
      },
      "default": []
+    },
+    "image": {
+     "description": "run each job in this Apptainer image: a name of <machine root>/images, or a .sif's path\n\nthe image's own Heimdall and stack run the job (`apptainer exec --cleanenv`, or `singularity`), with the work dir bound at its own path; `setup` still runs first, on the node (`\"module load apptainer\"`). `heimdall image build` makes one (V150)",
+     "type": "string"
     },
     "sbatch": {
      "description": "any other sbatch options, as written\n\nany other `sbatch` options, each as written (`\"--exclusive\"`, `\"--export=NONE\"`, `\"--reservation=r\"`), after the ones the keys above give",

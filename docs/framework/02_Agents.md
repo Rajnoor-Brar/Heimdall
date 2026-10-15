@@ -77,8 +77,8 @@ ram_gb = 31
 disk_free_gb = 412              # where $HEP is
 sudo = true
 network = true
-docker = "absent"               # "usable", "installed, no group", "absent"
-apptainer = "absent"            # its version, or "absent"
+apptainer = "absent"            # its (or SingularityCE's) version, or "absent"
+fakeroot = true                 # the user in /etc/subuid: `heimdall image build` without sudo
 python = "3.13.2"
 annex = "ubuntu"                # targets/<annex>.md
 
@@ -148,7 +148,7 @@ The orchestrator repeats, until P4 is verified:
 4. **Tasks:** do them as written, in order. Commands are copied, not paraphrased.
 5. **Commit** only what a step says to commit (a deviation folded into these files, a fix to the
    template): stage by path, never `-a`. The message is `setup P<n>.S<m>: <what>`, with the
-   attribution line the session is configured for. Top-Quark's first commit is `hep setup --git`'s.
+   attribution line the session is configured for. Top-Quark's first commit is `heimdall setup --git`'s.
 6. **Verify:** run the step's rows (§5) and record each number in `state.toml`.
 7. **Record** `done`, with a log line. Then go to 1.
 
@@ -167,11 +167,11 @@ Every step ends with rows of this shape (the phase files use it):
 |---|---|---|
 | R1 | `root-config --version` | `6.40.04` |
 | R2 | `lhapdf list --installed \| wc -l` | `21` |
-| R3 | `hep where --work` (from `~/Github/Top-Quark/configs`) | `/home/<user>/Github/Top-Quark`, exit 0 |
+| R3 | `heimdall where --work` (from `~/Github/Top-Quark/configs`) | `/home/<user>/Github/Top-Quark`, exit 0 |
 
 **The rules:**
-- The **command** is exact and runs from a stated directory, with `load_hep` (`source
-  $HEP/setup.sh`) done unless the row says otherwise.
+- The **command** is exact and runs from a stated directory, with `gjallarhorn` (`source
+  $HEP/gjallarhorn.sh`) done unless the row says otherwise.
 - The **expected** value is a number, an exact text, or a stated tolerance (`σ within 3 % of
   12.4 nb`). "Works" or "looks right" is never expected.
 - A row that cannot be run (a tool missing) is a **fail**, not a skip. Only a phase file may mark a
@@ -193,7 +193,7 @@ Every step ends with rows of this shape (the phase files use it):
 At a phase's end, the orchestrator starts the verifier with the prompt in §11.2 and the phase file's
 name. The verifier:
 - **runs** every row of every step of that phase, exactly as written, from a clean shell
-  (`load_hep` only);
+  (`gjallarhorn` only);
 - **writes** to `verify/<phase>/` and to the scratch the rows name (the tests' `$HEP_FORGE/scratch/`),
   and nowhere else;
 - **returns** a table: `# · command · expected · got · pass/fail`;
@@ -215,10 +215,10 @@ gate instance, never the next one of the same kind.
 | `sudo`, or any system package install or removal | P0, P1 (annex: system packages) |
 | a download, with its list and total size (asked once per phase: the stack's tarballs; Geant4's ~4 GB of data) | P1 |
 | a new recipe (`status = "new"`, MadAnalysis5 in `@primary`) that fails | P1 |
-| a change to the user's account or groups (joining the docker group is the user's own action) | container annex |
+| a change to the user's account or groups (an `/etc/subuid` line for `--fakeroot` is the user's own action) | container annex |
 | a deletion outside `$HEP_MACHINE/forge` and `$HEP/.setup/verify` (V105, V122); and `git clean -x` in a checkout that still holds a stack, never | any |
 | a write to a High-Energy clone, if one is on the machine (it is left alone) | any |
-| a change to the content of a work dir's `configs/` or `modules/` that the user made (Top-Quark's starter is `hep setup`'s) | any |
+| a change to the content of a work dir's `configs/` or `modules/` that the user made (Top-Quark's starter is `heimdall setup`'s) | any |
 | `git push`, publishing a repo or an image anywhere | P4 |
 | a verification row failing twice | any |
 | anything the plan files do not decide, or decide in a way that cannot be done here | any |
@@ -302,7 +302,7 @@ Heimdall's `CLAUDE.md` holds them; in short:
   still holds a stack of its own (made before V122) is adopted once, `recipes/machine.py adopt`; never
   `git clean -x` in it before that.
 - **The manual** stays generated where it is generated: after a schema `doc`/`notes`, `base.toml`
-  comment or CLI help change, run `hep make --framework docs schema`.
+  comment or CLI help change, run `heimdall make --framework docs schema`.
 - **Plans are not code.** An agent following these files changes code only as a step's tasks say.
   Ideas found on the way go to `bots/intent.md`, not into the code.
 
@@ -336,7 +336,7 @@ install, commit or delete anything. You may write only to $HEP/.setup/verify/<P>
 scratch locations a row itself names.
 
 Read $HEP/docs/framework/02_Agents.md §5 and the phase file <file>. Open a fresh shell,
-run `source $HEP/setup.sh`, then run every verification row of every step of <P> exactly as written,
+run `source $HEP/gjallarhorn.sh`, then run every verification row of every step of <P> exactly as written,
 from the directory it states. Do not read $HEP/.setup/log.md or state.toml to decide a row.
 
 Return a table: row · command · expected · got · pass/fail, and save it as

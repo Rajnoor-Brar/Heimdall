@@ -20,7 +20,7 @@
 
 **Gates:**
 - a reference setup that differs from the kept one (S1);
-- publishing, the agents' memory, the shell's `load_hep` alias (S2).
+- publishing, the agents' memory, the shell's `gjallarhorn` (S2).
 
 ---
 
@@ -51,14 +51,14 @@ lab PC says:
    (frozen copies of the study's configs and modules, and `jets_data.yoda`, V112),
    so no High-Energy clone is needed:
    ```bash
-   R=$HEP/.setup/verify/P4/ref && hep setup $R
+   R=$HEP/.setup/verify/P4/ref && heimdall setup $R
    cp -r $HEP/tests/fixtures/work/{configs,modules,datasets} $R/
-   cd $R && hep build && touch $R/stamp
+   cd $R && heimdall build && touch $R/stamp
    ```
 2. **Plan it** with its seed pinned (the fixture's `inproc_validation.toml` already asks for 12 threads):
    ```bash
    SETS=(--set 'run.cfgs.default.threads=12' --set 'run.cfgs.default.seed_type="manual"' --set 'run.cfgs.default.manual_seed=246223968')
-   hep run Demo/inproc_validation default --points NNPDF23lo "${SETS[@]}" --plan
+   heimdall run Demo/inproc_validation default --points NNPDF23lo "${SETS[@]}" --plan
    ```
    **The setup is the same:** diff the point card and the program's config against the kept ones.
    Comment lines are skipped, and the config's paths differ by place:
@@ -161,11 +161,11 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
    - S1's table;
    - **"how to work now"** in five lines:
      ```bash
-     source ~/Github/Heimdall/setup.sh     # load_hep
-     cd ~/Github/Top-Quark && hep run Starter/starter --plan
-     hep setup ~/Github/<new> --project <P> --git     # another work dir
-     hep build --framework                 # after changing Heimdall's apps (identities change, 06 §27)
-     hep where                             # which Heimdall and work dir this shell sees
+     source ~/Github/Heimdall/gjallarhorn.sh     # gjallarhorn
+     cd ~/Github/Top-Quark && heimdall run Starter/starter --plan
+     heimdall setup ~/Github/<new> --project <P> --git     # another work dir
+     heimdall build --framework                 # after changing Heimdall's apps (identities change, 06 §27)
+     heimdall where                             # which Heimdall and work dir this shell sees
      ```
 3. **Clean the stack's build trees.** The stack's trees in `$HEP_MACHINE/forge/build/` (6.8 GB on the
    lab PC) and the unpacked sources in `forge/src/` go. The archives in `forge/downloads/`, and
@@ -176,7 +176,9 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
      `Rajnoor-Brar/Heimdall` (the user creates it, or approves `gh repo create --private`), then
      `git push -u origin main`; otherwise push the commits these phases made;
    - **Top-Quark:** keep it local, or give it a remote (the user's choice; it is a test);
-   - **`load_hep`:** add `alias load_hep="$HOME/Github/Heimdall/launch.sh"` to the shell's rc file (or, in bash, `alias load_hep='source ~/Github/Heimdall/setup.sh'`);
+   - **`gjallarhorn` and `bifrost`:** the stack's build wrote them into `~/.bashrc` (and `~/.zshrc`)
+     unless `shell_rc = false`; `bifrost` (no arguments) says whether they are there, and
+     `bifrost --shell install` writes them (it edits the user's rc files: show the block, and ask);
    - **the agents' memory:** copy `$HEP/.setup/kept/memory/` (if it was kept, 01 §8) back to
      the agents' memory folder for `~/Github/Heimdall`, and update its lab-PC entries to the new
      install (Heimdall at `~/Github/Heimdall`, Top-Quark, High-Energy left alone);
@@ -192,5 +194,5 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
 | R3 | `git -C $HEP status --porcelain \| wc -l` | `0` |
 | R4 | `test -s $HEP/.setup/report.md && grep -c '^## ' $HEP/.setup/report.md` | ≥ `5` |
 | R5 | `ls -d $HEP_MACHINE/forge/build/root $HEP_MACHINE/forge/build/geant4 2>/dev/null \| wc -l` | `0` (the stack's trees are gone) |
-| R6 | `bash -lc 'source ~/Github/Heimdall/setup.sh >/dev/null; cd ~/Github/Top-Quark && hep where'` | two lines: `hep=…/Github/Heimdall <revision>`, `work=…/Github/Top-Quark` |
+| R6 | `bash -lc 'source ~/Github/Heimdall/gjallarhorn.sh >/dev/null; cd ~/Github/Top-Quark && heimdall where'` | two lines: `hep=…/Github/Heimdall <revision>`, `work=…/Github/Top-Quark` |
 | R7 | `ls $HEP_MACHINE/stack/.stamps \| wc -l` | `20` (the cleaning left the installs) |

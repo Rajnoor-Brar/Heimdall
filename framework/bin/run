@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """framework/bin/run — the runner's entry point (docs/06_Internals.md §2).
 
-`hep run …`, `hep watch …` and the other runner commands land here. Everything else is in the
+`heimdall run …`, `heimdall watch …` and the other runner commands land here. Everything else is in the
 `runner` package (framework/runner/) and the tool folders (framework/tools/<tool>/).
 """
 

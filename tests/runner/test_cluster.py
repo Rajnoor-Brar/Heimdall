@@ -1,5 +1,5 @@
-"""hep cluster (V114): [cluster] in its layers, the Slurm scripts, the chain of submissions, --status and
---cancel, with stub sbatch, squeue, sacct and scancel on PATH; and hep run's --stages, which the jobs
+"""heimdall cluster (V114): [cluster] in its layers, the Slurm scripts, the chain of submissions, --status and
+--cancel, with stub sbatch, squeue, sacct and scancel on PATH; and heimdall run's --stages, which the jobs
 are. Every test has a work dir of its own, with a custom tool that writes its config: no generator."""
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ tags   = ["a", "b", "c"]
 
 
 class Work:
-    """A work dir in the test's scratch, its stubs first on PATH, and `hep` run in it."""
+    """A work dir in the test's scratch, its stubs first on PATH, and `heimdall` run in it."""
 
     def __init__(self, root: Path, **toml):
         self.root, self.log = root / "W", root / "stub.log"
@@ -130,7 +130,7 @@ def plans(name: str = "P/c", sets=()):
 def test_an_unknown_cluster_key_is_refused_with_its_nearest(work):
     work.config(cluster_lines='tme = "00:10:00"')
     done = work.hep("check", "P/c")
-    said = done.stdout + done.stderr                                    # hep check reports on stdout
+    said = done.stdout + done.stderr                                    # heimdall check reports on stdout
     assert done.returncode == 2 and "unknown key 'tme'" in said and "did you mean 'time'?" in said
 
 
@@ -165,9 +165,9 @@ def test_the_machines_defaults_lie_under_the_work_dirs(inside):
 
 def test_an_isolated_stacks_jobs_load_it_from_the_machine_root(inside, monkeypatch):
     monkeypatch.setenv("HEP_STACK", "kit")
-    assert cluster.loader() == Path(os.environ["HEP_MACHINE"]) / "stacks" / "kit" / "setup.sh"
+    assert cluster.loader() == Path(os.environ["HEP_MACHINE"]) / "stacks" / "kit" / "gjallarhorn.sh"
     monkeypatch.delenv("HEP_STACK")
-    assert cluster.loader() == paths.hep_root() / "setup.sh"
+    assert cluster.loader() == paths.hep_root() / "gjallarhorn.sh"
 
 
 def test_a_time_limit_is_required_in_some_layer(inside):
@@ -192,16 +192,16 @@ def test_a_dry_run_writes_the_scripts_and_submits_nothing(work):
     assert "dry run: nothing submitted" in done.stdout and work.calls() == []
     [folder] = work.submissions()
     assert not (folder / cluster.RECORD).exists()                       # a dry run is never a submission
-    assert (folder / "points.txt").read_text() == "a\nb\nc\n"
-    text = (folder / "points.sbatch").read_text()
+    assert (folder / "points.txt").read_text(encoding="utf-8") == "a\nb\nc\n"
+    text = (folder / "points.sbatch").read_text(encoding="utf-8")
     for line in ("#SBATCH --array=1-3%2", "#SBATCH --cpus-per-task=3", "#SBATCH --time=00:10:00",
-                 "#SBATCH --account=lab", "echo node", f"source {paths.hep_root() / 'setup.sh'}",
+                 "#SBATCH --account=lab", "echo node", f"source {paths.hep_root() / 'gjallarhorn.sh'}",
                  f"export HEP_MACHINE={paths.machine_root()}",
                  f"export HEP_WORK={work.root}", '--points "$point" --stages points --plain'):
         assert line in text, line
     assert text.index("echo node") < text.index("source ")              # the setup lines first
-    assert "--stages combine,post,plot" in (folder / "finish.sbatch").read_text()
-    assert "#SBATCH --cpus-per-task=1" in (folder / "finish.sbatch").read_text()
+    assert "--stages combine,post,plot" in (folder / "finish.sbatch").read_text(encoding="utf-8")
+    assert "#SBATCH --cpus-per-task=1" in (folder / "finish.sbatch").read_text(encoding="utf-8")
 
 
 def test_the_points_then_the_finish_after_any(work):
@@ -210,7 +210,7 @@ def test_the_points_then_the_finish_after_any(work):
     calls = [c for c in work.calls() if c.startswith("sbatch")]
     assert len(calls) == 2 and calls[0].startswith("sbatch --parsable ") and calls[0].endswith("points.sbatch")
     assert "--dependency=afterany:101 --kill-on-invalid-dep=yes" in calls[1] and calls[1].endswith("finish.sbatch")
-    saved = tomllib.loads((work.submissions()[-1] / cluster.RECORD).read_text())
+    saved = tomllib.loads((work.submissions()[-1] / cluster.RECORD).read_text(encoding="utf-8"))
     assert saved["jobs"] == {"points": "101", "finish": "102"} and saved["points"] == ["a", "b", "c"]
 
 
@@ -226,7 +226,7 @@ def test_a_pre_job_comes_first_and_the_points_need_it_done(work):
 def test_complete_points_are_not_submitted(work):
     assert work.hep("run", "P/c", "--points", "a,b", "--stages", "points", "--plain").returncode == 0
     assert work.hep("cluster", "P/c", "--dry-run").returncode == 0
-    assert (work.submissions()[-1] / "points.txt").read_text() == "c\n"
+    assert (work.submissions()[-1] / "points.txt").read_text(encoding="utf-8") == "c\n"
 
 
 def test_nothing_to_run_submits_the_finish_job_alone(work):
@@ -277,7 +277,7 @@ def test_array_task_ids(given, expected):
     assert cluster.tasks_of(given) == expected
 
 
-# ── hep run --stages: what a job is ─────────────────────────────────────────────────────────────
+# ── heimdall run --stages: what a job is ─────────────────────────────────────────────────────────────
 
 def test_a_points_stage_runs_its_points_alone(work):
     done = work.hep("run", "P/c", "--points", "b", "--stages", "points", "--plain")
@@ -324,4 +324,19 @@ def test_writers_on_one_file_never_rename_each_others(scratch):
     for worker in workers:
         worker.join()
     assert all(w.exitcode == 0 for w in workers)
-    assert target.read_text() in texts and not list(scratch.glob("*.tmp"))
+    assert target.read_text(encoding="utf-8") in texts and not list(scratch.glob("*.tmp"))
+
+
+def test_jobs_run_in_an_image_when_the_work_dir_names_one(work):
+    sif = work.root / "stack.sif"
+    sif.write_text("an image", encoding="utf-8")
+    work.hep_toml(f'[work]\nname = "t"\n[cluster]\nsetup = ["module load apptainer"]\nimage = "{sif}"\n')
+    work.config(cluster_lines='time = "00:10:00"')
+    done = work.hep("cluster", "P/c", "--dry-run")
+    assert done.returncode == 0, done.stderr
+    [folder] = work.submissions()
+    text = (folder / "points.sbatch").read_text(encoding="utf-8")
+    assert "module load apptainer" in text and "source " not in text             # the image's own environment
+    assert 'runtime=$(command -v apptainer || command -v singularity)' in text
+    assert f'exec "$runtime" exec --cleanenv --bind {work.root}' in text and f"--env HEP_WORK={work.root}" in text
+    assert f"{sif} /opt/heimdall/launch.sh heimdall run " in text and '--points "$point"' in text

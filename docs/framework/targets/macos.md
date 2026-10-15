@@ -26,17 +26,17 @@ hand). Only what differs from the phase files is here (D11).
 - **The build:** `bash $HEP/recipes/platforms/mac/build.sh packages=@primary cores=… root_cores=…`
   stands in for P1 S2's command. It runs `recipes/build_stack.py`, which lays `mac.toml` itself, with GNU
   make, sed and coreutils first on `PATH`.
-- **Launching:** `$HEP/launch.sh` (every platform's; the Mac's old path passes on to it) opens a bash 5 with `$HEP/setup.sh` loaded, or runs one
+- **Launching:** `$HEP/launch.sh` (every platform's; the Mac's old path passes on to it) opens a bash 5 with `$HEP/gjallarhorn.sh` loaded, or runs one
   command in it. The machine root's `machine.sh`, written from `mac.toml`'s `setup_extra` and sourced by
-  `setup.sh`, adds `DYLD_LIBRARY_PATH` and the GNU tools.
+  `gjallarhorn.sh`, adds `DYLD_LIBRARY_PATH` and the GNU tools.
 
 ## What the seam made portable (I15, D11, V113)
 
 | Spot | On macOS |
 |---|---|
-| `runner/events.py` (the watch socket) | a socket file `hep-watch-<pid>` in `$TMPDIR/hep-watch/` (per user on macOS), removed at exit; a dead process's is cleared by the next `hep watch`. This is the one place where runtime state touches the disk (the user's rule of 2026-10-03 cannot hold without abstract sockets) |
-| Paint's `basePath()` (C76) | `$HEP/src/Apps/Paint/base.toml`; `setup.sh` exports `HEP` |
-| `bin/hep`'s core count | `os.cpu_count()` |
+| `runner/events.py` (the watch socket) | a socket file `hep-watch-<pid>` in `$TMPDIR/hep-watch/` (per user on macOS), removed at exit; a dead process's is cleared by the next `heimdall watch`. This is the one place where runtime state touches the disk (the user's rule of 2026-10-03 cannot hold without abstract sockets) |
+| Paint's `basePath()` (C76) | `$HEP/src/Apps/Paint/base.toml`; `gjallarhorn.sh` exports `HEP` |
+| `bin/heimdall`'s core count | `os.cpu_count()` |
 | `framework/rules.mk`'s `sed -i` | `sed -i.tmp`, then the `.tmp` removed |
 
 ## Rows that differ (P1 S3)

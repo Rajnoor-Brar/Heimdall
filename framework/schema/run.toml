@@ -15,9 +15,9 @@
 #   page     a [plot] key a figure ([plot.figures.<figure>]) may override
 #   path     a path key: its convention root (paths.ROOTS); an imported file of another project has
 #            these made absolute against its own project (V94)
-#   doc      one line, for `hep explain` and the editor
+#   doc      one line, for `heimdall explain` and the editor
 #   notes    what a line cannot say: the reference's text for the key (docs/04_Config_Reference.md is
-#            generated from doc and notes, `make docs`), shown by `hep explain` and the editor too
+#            generated from doc and notes, `make docs`), shown by `heimdall explain` and the editor too
 #
 # Tables: config, run, configuration ([run.cfgs.<cfg>]), prelim, quantity ([quantities.<q>]), tool
 # ([tools.<tag>]: the keys every tool table may carry; a folder's [options] add its own), plot,
@@ -41,7 +41,7 @@ type  = "str|list"
 items = "str|table"
 doc   = "run TOMLs whose tables this one starts from, in order; this file wins (V56, V93, V94)"
 notes = """\
-  run TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this \
+  run TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this \
   project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the \
   work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or \
   configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and \
@@ -85,7 +85,7 @@ notes = """\
   `references`, …) except `versions = { pythia8 = \"8.317\", rivet = \"4.1.3\" }`: the packages of \
   `env/stack.toml` the file was run with, each version a string. A version the stack does \
   not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in \
-  `hep check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does \
+  `heimdall check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does \
   not name is refused, since its warning could never come."""
 
 # ── [run] ────────────────────────────────────────────────────────────────────────────────────
@@ -110,15 +110,15 @@ type  = "table"
 doc   = "the configurations: [run.cfgs.<cfg>], each a table of the keys below (V98)"
 notes = """\
   the configurations, each `[run.cfgs.<cfg>]` (V98; they were `[run.<cfg>]`, which is refused \
-  with the form to write, and `hep migrate` rewrites it). A configuration's key is its name for \
-  `hep run <config> <cfg>`, `sweep_runs`, `extends` and compare figures, and its folder unless it \
+  with the form to write, and `heimdall migrate` rewrites it). A configuration's key is its name for \
+  `heimdall run <config> <cfg>`, `sweep_runs`, `extends` and compare figures, and its folder unless it \
   sets a `label`. Any name may be used, a [run] key's included."""
 
 [run.configuration]
 type = "str"
-doc  = "the configuration hep run runs (required unless sweep_runs)"
+doc  = "the configuration heimdall run runs (required unless sweep_runs)"
 notes = """\
-  must name a `[run.cfgs.<cfg>]` table (C2). Under `sweep_runs` it may be left out; `hep run <config>` \
+  must name a `[run.cfgs.<cfg>]` table (C2). Under `sweep_runs` it may be left out; `heimdall run <config>` \
   then ignores it"""
 
 [run.serial]
@@ -167,18 +167,18 @@ doc  = "what the run is for"
 type    = "bool|list"
 items   = "str"
 default = false
-doc     = "hep run runs every configuration in turn (true), or these, in this order (V79: [\"a\", \"b\"])"
+doc     = "heimdall run runs every configuration in turn (true), or these, in this order (V79: [\"a\", \"b\"])"
 notes = """\
-  `true`: `hep run <config>` runs every configuration, one after another, in the order of the \
+  `true`: `heimdall run <config>` runs every configuration, one after another, in the order of the \
   file; `[\"a\", \"b\"]` (V79): these, in this order (04 §4.1)"""
 
 [run.notify]
 type    = "str"
 choices = ["none", "desktop"]
 default = "none"
-doc     = "\"desktop\": a notify-send when hep run ends, with its verdict (V76)"
+doc     = "\"desktop\": a notify-send when heimdall run ends, with its verdict (V76)"
 notes = """\
-  `\"desktop\"` (V76): a desktop notification (`notify-send`) when `hep run` ends, with its \
+  `\"desktop\"` (V76): a desktop notification (`notify-send`) when `heimdall run` ends, with its \
   verdict; never fails a run"""
 
 [run.seed_type]
@@ -288,7 +288,7 @@ notes = """\
 
 [configuration.sweeps]
 type = "list"
-doc  = "swept quantities: a name is an axis, an inner list an entangled group"
+doc  = "swept quantities: a name is an axis, an inner list an entangled group, { points = [...] } listed combinations"
 notes = """\
   04 §5.1; `[]` is one point"""
 
@@ -352,7 +352,7 @@ notes = """\
 
 [configuration.cluster]
 type = "table"
-doc  = "this configuration's [cluster] keys, over the run's (hep cluster, V114)"
+doc  = "this configuration's [cluster] keys, over the run's (heimdall cluster, V114)"
 notes = """\
   merged over the run TOML's `[cluster]`, key by key, for this configuration's jobs (a longer \
   `time` for its many events, say); the same keys (04 §16)"""
@@ -405,7 +405,7 @@ notes = """\
   legend text, in **LaTeX** (`$e^-$`, `$\\sqrt{s}$`), the one label language of every text a run \
   TOML gives a page (V65): math in `$…$`, the rest text, where a bare `_` or `^` is the character \
   (`\"PDF4LHC21_40\"`). A label written in ROOT's TLatex (`#sqrt{s}`, `p_{T}` with no `$`) is \
-  refused, with its LaTeX as the hint; `hep migrate` rewrites it (V79). `\\_`, `\\^` and `\\#` \
+  refused, with its LaTeX as the hint; `heimdall migrate` rewrites it (V79). `\\_`, `\\^` and `\\#` \
   also give the character, even before a brace; in TOML write them in single quotes, \
   `'PDF4LHC21\\_40'`, since in `\"…\"` a backslash starts a TOML escape"""
 
@@ -467,10 +467,10 @@ notes = """\
 [tool.tool]
 type     = "str"
 required = true
-doc      = "a tool folder: shipped, the machine's or the work dir's (hep tools)"
+doc      = "a tool folder: shipped, the machine's or the work dir's (heimdall tools)"
 notes = """\
   a tool folder's name (05 §3): Heimdall's `framework/tools/`, the machine root's or the work \
-  dir's `tools/` (`hep tools` lists them); `\"exec\"` runs any executable, `\"module\"` a \
+  dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a \
   `Module.hh` program"""
 
 [tool.baseconfig]
@@ -835,14 +835,14 @@ notes = """\
   labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The \
   configurations must have the same page and curve axes (checked at plan time); the figure is \
   drawn by the plot stage of each of them once all have complete points, and says what it waits \
-  for otherwise (`hep plot` draws it too). `derived` (V84): a new object per point, \
+  for otherwise (`heimdall plot` draws it too). `derived` (V84): a new object per point, \
   `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = \"ratio\"`, \
   `\"difference\"` or `\"sum\"` of its two objects (histograms made estimates first; the same \
   binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D \
   object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a \
   Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA \
   (`logs/…/plots/derived/`, remade when the product or the figures change, by \
-  `framework/plot/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: \
+  `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: \
   its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or \
   a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a \
   swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), \
@@ -945,7 +945,7 @@ notes = """\
   `\"<Project>/<config>:<cfg>\"` (V88) names a configuration of another run TOML: its points (as \
   its last run left them) are curves beside this run's, labelled `<its run> <its label>` by \
   default and by its own quantities; its page axes must have this run's tags. The pages are this \
-  run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `hep plot`"""
+  run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `heimdall plot`"""
 
 [figure.labels]
 type  = "list"
@@ -998,7 +998,7 @@ notes = """\
   MC object name (`d01-x01-y01`) → reference path. **Explicit only**, never matched by name (L18). \
   A file without a map, or a map without a file, is an error."""
 
-# ── [cluster]: hep cluster, a run as Slurm jobs (V114) ───────────────────────────────────────────
+# ── [cluster]: heimdall cluster, a run as Slurm jobs (V114) ───────────────────────────────────────────
 # Also the machine root's machine.toml [cluster] and a work dir's hep.toml [cluster] (the defaults, in
 # that order); the run TOML's is over them, a configuration's ([run.cfgs.<cfg>].cluster) over that,
 # --set cluster.<key>=… over all (04 §16).
@@ -1009,7 +1009,7 @@ choices = ["slurm"]
 default = "slurm"
 doc     = "the batch system: slurm (sbatch)"
 notes = """\
-  the batch system `hep cluster` submits to: `\"slurm\"` (`sbatch`, `squeue`, `sacct`, `scancel`), \
+  the batch system `heimdall cluster` submits to: `\"slurm\"` (`sbatch`, `squeue`, `sacct`, `scancel`), \
   the only one so far"""
 
 [cluster.time]
@@ -1084,10 +1084,18 @@ notes = """\
 type    = "list"
 items   = "str"
 default = []
-doc     = "shell lines each job runs before Heimdall's setup.sh (module loads)"
+doc     = "shell lines each job runs before Heimdall's gjallarhorn.sh (module loads)"
 notes = """\
-  shell lines each job runs first, before it sources Heimdall's `setup.sh` (`\"module load \
+  shell lines each job runs first, before it sources Heimdall's `gjallarhorn.sh` (`\"module load \
   gcc/13\"`): what the nodes need that the login shell had"""
+
+[cluster.image]
+type = "str"
+doc  = "run each job in this Apptainer image: a name of <machine root>/images, or a .sif's path"
+notes = """\
+  the image's own Heimdall and stack run the job (`apptainer exec --cleanenv`, or `singularity`), with the \
+  work dir bound at its own path; `setup` still runs first, on the node (`\"module load apptainer\"`). \
+  `heimdall image build` makes one (V150)"""
 
 [cluster.sbatch]
 type    = "list"

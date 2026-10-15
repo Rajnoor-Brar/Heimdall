@@ -38,7 +38,8 @@ from pathlib import Path
 
 from .errors import HepError
 from .paths import find_work, hep_root, portable, work_meta
-from .tools import DEFAULT_SEED_RANGE, PointPlan, version_of
+from .image import inside
+from .tools import DEFAULT_SEED_RANGE, PointPlan, package_states, version_of
 
 
 
@@ -342,7 +343,7 @@ def git_state(root: Path) -> dict:
     def git(*args) -> str:
         try:
             return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True,
-                                  timeout=10).stdout.strip()
+                                  timeout=10, encoding="utf-8").stdout.strip()
         except (OSError, subprocess.SubprocessError):
             return ""
     top = git("rev-parse", "--show-toplevel") if Path(root).is_dir() else ""
@@ -368,7 +369,7 @@ def work_record() -> dict:
 
 def revision_changes(recorded: dict) -> list[str]:
     """How a provenance's git states ({"heimdall": …, "work": …}) differ from today's: a line for each
-    repo whose revision moved, or that had uncommitted changes then (`hep reproduce` warns, V77)."""
+    repo whose revision moved, or that had uncommitted changes then (`heimdall reproduce` warns, V77)."""
     now = {"heimdall": git_state(hep_root()), "work": git_state(Path(w["root"])) if (w := work_record()) else {}}
     out = []
     for repo in ("heimdall", "work"):
@@ -390,6 +391,8 @@ def provenance(plan: PointPlan, run, configuration, started: str, finished: str,
                  "argv": [portable(a) for a in step.argv], "ran": step.group >= 0, "result": results.get(tag, {})}
         if step.exe.is_file():
             entry["exe_sha256"] = step.identity_parts.get("exe_sha256", "")
+        if named := step.folder.get("tool", "packages", []):            # how they were installed (not identity)
+            entry["packages"] = package_states(named)
         if step.card_combined:
             entry["card"] = portable(step.card_combined)
             entry["card_sha256"] = hashlib.sha256(plan.writes.get(step.card_combined, "").encode("utf-8")).hexdigest()
@@ -408,6 +411,7 @@ def provenance(plan: PointPlan, run, configuration, started: str, finished: str,
         "git": {"heimdall": git_state(hep_root()),                # two repos (framework/01 §5.6)
                 "work": git_state(Path(work["root"])) if (work := work_record()) else {}},
         "hep": str(hep_root()), "work": work, "stack": os.environ.get("HEP_STACK", ""),
+        **({"image": held} if (held := inside()) else {}),         # an Apptainer image's path and labels (V150)
         "started": started, "finished": finished,
     }
 
@@ -432,9 +436,8 @@ def write_atomic(path: Path, text: str) -> None:
 
 def points_manifest(plans: list[PointPlan], run, configuration) -> dict:
     """points.json (06 §7): every point's values, page, products and state, for plot and post tools."""
-    from .sweep import label_of, tag_of
-    page_names = [name for entry in configuration.sweeps for name in (entry if isinstance(entry, list) else [entry])
-                  if (set(entry) if isinstance(entry, list) else {entry}) & set(configuration.plot_points)]
+    from .sweep import label_of, split_axes, tag_of
+    page_names = [name for group in split_axes(configuration)[0] for name in group]    # a listed group's paged members (V154)
     points = []
     for plan in plans:
         quantity = run.quantities

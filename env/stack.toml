@@ -5,7 +5,7 @@
 #            source asks for by `// requires: <name>` (env/flags.sh reads this file)
 #   dir      a library with no *-config: its install directory (shell text, expanded) …
 #   lib      … and the library to link (-l<lib>), from <dir>/include and <dir>/lib
-#   version  the command that prints its version: `hep status --stack`, and a tool folder's
+#   version  the command that prints its version: `heimdall status --stack`, and a tool folder's
 #            `[identity] version = "stack:<name>"`; or { file = "<shell path>" }: the file's first
 #            line that holds "version"
 # Read by env/stack.py. env/hep_env.sh (sourced at login) keeps its own list, on purpose:

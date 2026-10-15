@@ -3,6 +3,7 @@
 [tool]
 category   = "analysis-application"
 executable = "rivet-merge"
+packages        = ["rivet", "yoda"] # the recipes it runs (bifrost -b|-c, heimdall tools)
 status     = "none"
 
 [card]

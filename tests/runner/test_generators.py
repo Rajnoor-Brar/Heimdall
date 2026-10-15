@@ -21,7 +21,7 @@ NEEDS = {"sherpa": shutil.which("Sherpa"), "herwig": shutil.which("Herwig"), "de
 
 # ── Delphes (L11) ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.skipif(not NEEDS["delphes"], reason="load_hep: DelphesHepMC3")
+@pytest.mark.skipif(not NEEDS["delphes"], reason="gjallarhorn: DelphesHepMC3")
 def test_delphes_reads_a_file_from_an_earlier_group_and_is_count_checked():
     [p] = plans("Demo/jets", "delphes")
     step = p.rendered["delphes"]
@@ -30,7 +30,7 @@ def test_delphes_reads_a_file_from_an_earlier_group_and_is_count_checked():
     assert p.writes[step.card_combined].rstrip().endswith(f"set RandomSeed {p.seed}")
 
 
-@pytest.mark.skipif(not NEEDS["delphes"], reason="load_hep: DelphesHepMC3")
+@pytest.mark.skipif(not NEEDS["delphes"], reason="gjallarhorn: DelphesHepMC3")
 def test_a_fifo_into_delphes_is_refused():
     with pytest.raises(HepError, match="'delphes' cannot read a FIFO"):
         plans("Demo/jets", "delphes", sets=["cfgs.delphes.chain=[['pythia_file', 'delphes'], 'jets_reco']"])   # one group: a FIFO
@@ -79,7 +79,7 @@ def test_render_refuses_what_the_plan_owns_and_missing_entries():
         render().card([BASE], [Override("PDF_SET[2]", "X", "x")], render_context("sherpa"))
 
 
-@pytest.mark.skipif(not NEEDS["sherpa"], reason="load_hep: Sherpa")
+@pytest.mark.skipif(not NEEDS["sherpa"], reason="gjallarhorn: Sherpa")
 def test_sherpa_integration_is_keyed_by_the_card_without_its_event_count():
     few, many = plans("Demo/sherpa", sets=["run.events=100"]), plans("Demo/sherpa", sets=["run.events=9000"])
     assert few[0].rendered["sherpa"].prepare_dir == many[0].rendered["sherpa"].prepare_dir
@@ -94,12 +94,12 @@ def test_sherpa_integration_is_keyed_by_the_card_without_its_event_count():
 
 # ── Herwig (L15) ──────────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.skipif(not NEEDS["herwig"], reason="load_hep: Herwig")
+@pytest.mark.skipif(not NEEDS["herwig"], reason="gjallarhorn: Herwig")
 def test_herwig_reads_once_and_runs_with_flag_seeds():
     try:
         [p] = plans("Demo/herwig")
     except HepError as error:
-        pytest.skip(error.message)                                 # no repository: hep build
+        pytest.skip(error.message)                                 # no repository: heimdall build
     step = p.rendered["herwig"]
     assert step.argv[-6:] == ["-N", "2000", "-s", str(p.seed), "-d", "0"]
     assert "{seed}" in step.identity_parts["argv"]                # the identity is seed-free
@@ -108,7 +108,7 @@ def test_herwig_reads_once_and_runs_with_flag_seeds():
     assert step.sidecar_written == 2000
 
 
-@pytest.mark.skipif(not NEEDS["herwig"], reason="load_hep: Herwig")
+@pytest.mark.skipif(not NEEDS["herwig"], reason="gjallarhorn: Herwig")
 def test_an_export_that_needs_a_prepare_runs_it_for_a_tool_herwig_is_not_in():
     try:
         [p] = plans("Demo/herwig", "export")
@@ -123,7 +123,7 @@ def test_a_runner_written_sidecar_says_what_was_asked_for(scratch):
     step = tools.Step(tag="sherpa", tool=None, folder=None, group=0, exe=scratch)
     step.sidecar, step.sidecar_written = scratch / "events.hepmc.json", 500
     assert execute._settle([step], {}) is None
-    assert json.loads(step.sidecar.read_text())["written"] == 500
+    assert json.loads(step.sidecar.read_text(encoding="utf-8"))["written"] == 500
 
 
 # ── V62: beam order, the run's [A, B] into a card's fixed slots ───────────────────────────────
@@ -148,7 +148,7 @@ def test_the_runs_beam_order_is_reordered_into_herwigs_slots(scratch):
 
 def test_herwigs_card_puts_the_lepton_energy_on_beam_a():
     if not NEEDS["herwig"]:
-        pytest.skip("load_hep: Herwig")
+        pytest.skip("gjallarhorn: Herwig")
     [p] = plans("Demo/herwig")
     lines = [l for l in p.rendered["herwig"].card_lines if "BeamEMax" in l]
     assert lines == ["set /Herwig/EventHandlers/Luminosity:BeamEMaxA 18*GeV",

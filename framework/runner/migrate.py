@@ -1,4 +1,4 @@
-"""`hep migrate [CONFIG…] [--apply]` (rank 5, V79): run TOMLs and their cards in today's forms.
+"""`heimdall migrate [CONFIG…] [--apply]` (rank 5, V79): run TOMLs and their cards in today's forms.
 
 audit 1's final phase, "break and migrate": what the runner now refuses, rewritten in what it takes.
 A dry run (the default) prints a diff per file; `--apply` writes them. Only these, by line, so comments
@@ -730,7 +730,7 @@ def v3_text(text: str) -> str:
                     f"fixed = {_tv(fixed)}\n"]
     text = "".join(out)
     if "[cfgs." not in text and "chain" not in run and "[file]" not in text:
-        text = "[file]\nschema = 3                     # the run TOML's third form (hep migrate --v3)\n\n" + text
+        text = "[file]\nschema = 3                     # the run TOML's third form (heimdall migrate --v3)\n\n" + text
     return re.sub(r"\n{3,}", "\n\n", _commented_cfgs(text))
 
 
@@ -739,7 +739,7 @@ RECORDED = ("provenance.json", "identity.json", ".complete", "points.json")
 
 
 def layout_moves(work: Path) -> list[tuple[Path, Path]]:
-    """`hep migrate --layout` (5.1): every file of a work dir's output/ and where it goes now. Records
+    """`heimdall migrate --layout` (5.1): every file of a work dir's output/ and where it goes now. Records
     (provenance, identity, .complete, points.json, cluster submissions) to records/; prepare caches,
     card checks and converted data (output/<P>/.cache/) to .cache/<P>/; everything else (cards, configs,
     logs, scratch files, journals, page documents, reproductions) to logs/."""
@@ -762,7 +762,7 @@ def layout_moves(work: Path) -> list[tuple[Path, Path]]:
 
 def deck_moves(work: Path) -> list[tuple[Path, Path]]:
     """A deck written in reports/<deck>/ (before decks/, U22): its sources to decks/<deck>/, everything but
-    what `hep deck` builds there (panels/, figures/, build/ and the outputs)."""
+    what `heimdall deck` builds there (panels/, figures/, build/ and the outputs)."""
     from .deck import BUILD, FIGURES, OUTPUTS, PANELS
     moves = []
     reports = work / "reports"

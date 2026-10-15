@@ -5,7 +5,7 @@ logs/
 .cache/
 results/
 # Built decks (their sources are decks/, tracked); large inputs are listed in datasets.toml and
-# kept out by datasets/.gitignore (hep setup . fetches them)
+# kept out by datasets/.gitignore (heimdall setup . fetches them)
 reports/*
 __pycache__/
 *.exe

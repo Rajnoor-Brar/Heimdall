@@ -15,13 +15,13 @@ stack, the compiled apps) goes to the machine root, `~/Himinbjorg`. Your studies
 ```bash
 git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
 python3 recipes/build_stack.py packages=@primary   # a conda base, then the stack from source in it, into ~/Himinbjorg (hours; recipes/README.md)
-source setup.sh                                    # the environment, in bash (any other shell: ./launch.sh)
-hep build --framework                              # Heimdall's apps, into the machine root's apps/
-hep doctor                                         # what the stack can do, checked: every row ok?
-hep setup ~/Study --example jets                   # a work dir, with the guide's demo project
-cd ~/Study && hep build                            # its Rivet plugin and module programs
-hep check Demo/jets                                # every configuration planned, nothing run
-hep run Demo/jets single                           # one point: Pythia → Rivet → ROOT, then the pages
+source gjallarhorn.sh                               # the environment (in a new terminal: gjallarhorn, which the build put in ~/.bashrc)
+heimdall build --framework                          # Heimdall's apps, into the machine root's apps/
+heimdall doctor                                     # what the stack can do, checked: every row ok?
+heimdall setup ~/Study --example jets               # a work dir, with the guide's demo project (gjallarhorn Study: there, from anywhere)
+cd ~/Study && heimdall build                        # its Rivet plugin and module programs
+heimdall check Demo/jets                            # every configuration planned, nothing run
+heimdall run Demo/jets single                       # one point: Pythia → Rivet → ROOT, then the pages
 xdg-open results/Demo/jets/03_single/plots/root/index.html
 ```
 
@@ -31,16 +31,16 @@ the environment is `launch.sh`'s bash (macOS's own shell is zsh):
 ```bash
 git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
 bash recipes/platforms/mac/build.sh packages=@primary   # (recipes/platforms/mac/README.md)
-./launch.sh                                             # a bash with the environment; then as on Linux,
-hep build --framework && hep doctor                     # from hep build --framework to the page,
-hep setup ~/Study --example jets                        # with `open` for xdg-open
+./launch.sh                                             # a bash with the environment (a new terminal: gjallarhorn);
+heimdall build --framework && heimdall doctor           # then as on Linux, from heimdall build --framework to
+heimdall setup ~/Study --example jets                   # the page, with `open` for xdg-open
 ```
 
 **A container**: `recipes/platforms/container/` builds an image with the stack in it.
 
 Then: [docs/02_User_Guide.md](docs/02_User_Guide.md) walks through the example and your own study
-(`hep setup ~/Github/My-Study --project Jets --git`: a work dir with a starter, in a git repository);
-`hep help` lists the commands. Later rebuilds are `hep stack build` (`hep stack list @primary` says
+(`heimdall setup ~/Github/My-Study --project Jets --git`: a work dir with a starter, in a git repository);
+`heimdall help` lists the commands. Later rebuilds are `heimdall stack build` (`heimdall stack list @primary` says
 what is installed); other sets for a kind of work are `python3 recipes/build_stack.py --toolkits`.
 
 **The base.** The build first makes the machine root's `base/` with pixi, from conda-forge: the
@@ -48,7 +48,9 @@ compilers, the build tools, the libraries the stack links, Python and its packag
 Homebrew; an OS upgrade no longer reaches the stack. The HEP tools are still built from source, inside
 it. `packages=@primary-conda` (or `@core-conda`, `@lab-conda`) takes them ready-made from conda-forge
 instead, in minutes; `base=system` is the way before, apt (or Homebrew) and a venv
-([recipes/README.md](recipes/README.md) §4, [docs/conda/](docs/conda/README.md)).
+([recipes/README.md](recipes/README.md) §4, [docs/conda/](docs/conda/README.md)). Packages for your own
+work go in with **`bifrost`**: `bifrost scipy pandas` (conda-forge), `bifrost -python <pkg>` (PyPI),
+`bifrost --drop <pkg>`; `bifrost` alone shows what is there.
 
 `@primary` is the lab PC's set (ROOT, Pythia8, Rivet, YODA, HepMC3, FastJet, LHAPDF and its PDF
 sets, Herwig, Sherpa, MadGraph, Whizard, Delphes, Geant4, ONNX Runtime) plus MadAnalysis5. On macOS
@@ -59,10 +61,10 @@ fresh machine follows [docs/framework/](docs/framework/README.md), step by step.
 
 | Folder | Holds |
 |---|---|
-| `setup.sh` | the environment: `HEP`, the base (or the venv), the stack on `PATH`, `hep` |
+| `gjallarhorn.sh` | the environment: `HEP`, the base (or the venv), the stack on `PATH`, `heimdall` |
 | `recipes/` | how the stack is built: `build_stack.py`, `toolkits/` (`standard.toml`, every recipe; one file per toolkit), `settings.toml`, `patches/`, `platforms/` |
 | `env/` | the environment's files: `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
-| `framework/` | what runs: `bin/hep`, the runner, the tool folders, the schema, the work-dir template, the build's rules |
+| `framework/` | what runs: `bin/heimdall`, the runner, the tool folders, the schema, the work-dir template, the build's rules |
 | `src/` | what is compiled: the C++ kits and the apps' sources |
 | `docs/` | the manual ([docs/README.md](docs/README.md)); `framework/`, the plans that set Heimdall up on a fresh machine |
 | `tests/` | the tests, and the frozen work dir they run in |
@@ -77,8 +79,10 @@ The checkout holds only what git has. What this machine built lives in the **mac
 | `venv/` | with `base=system` (or a root made before the base): the Python environment, with `heimdall.pth` |
 | `apps/` | Heimdall's compiled apps (`$HEP_APPS`) |
 | `forge/` | `downloads/` (`conda/`: pixi's package cache), `pixi/`, `src/`, `build/`, `logs/`; the framework's `make/` and `tests/`; the tests' `scratch/`. May be emptied (the next build fetches pixi again) |
-| `stacks/<toolkit>/` | an isolated toolkit's own stack (another C++ standard), loaded by its `setup.sh` |
-| `machine.toml`, `machine.sh` | this machine's settings, and its extra lines for `setup.sh` |
+| `stacks/<toolkit>/` | an isolated toolkit's own stack (another C++ standard), loaded by its `gjallarhorn.sh` |
+| `machine.toml`, `machine.sh` | this machine's settings, and its extra lines for `gjallarhorn.sh` |
+| `workdirs.toml` | the work dirs this machine knows, by title (`heimdall recognise`; `gjallarhorn <title>`) |
+| `recipes.toml` | this machine's own recipes, as `recipes/toolkits/standard.toml`'s (the first build writes its template) |
 
 A checkout made before the machine root moves its stack there once, by links and moves only:
 `python3 recipes/machine.py adopt` (`--dry-run` lists what it would do).

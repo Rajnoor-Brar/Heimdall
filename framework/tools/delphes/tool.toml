@@ -6,6 +6,7 @@
 [tool]
 category        = "detector-simulation"
 executable      = "DelphesHepMC3"
+packages        = ["delphes"]       # the recipes it runs (bifrost -b|-c, heimdall tools)
 streamable      = false
 status          = "filters"
 consumes_events = true

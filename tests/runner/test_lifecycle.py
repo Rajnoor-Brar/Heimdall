@@ -1,5 +1,5 @@
 """The work dir's lifecycle (audit 3, phase 5.1): records/ apart from logs/ and .cache/ (U21), a point lock
-(U66), reserved names (U30), portable records (U29) and `hep migrate --layout`."""
+(U66), reserved names (U30), portable records (U29) and `heimdall migrate --layout`."""
 
 from __future__ import annotations
 
@@ -111,7 +111,7 @@ def test_a_reserved_name_is_refused(scratch):
 
 def test_the_provenance_is_portable(trees):
     """U29: paths in a record are written under their roots ({work}, {apps}), so a moved work dir or
-    machine root still reads; hep reproduce turns them back."""
+    machine root still reads; heimdall reproduce turns them back."""
     from runner.paths import unportable
     p = planned("Demo/jets", "single")
     made = record.provenance(p.every[0], p.run, p.configuration, "a", "b", {})
@@ -122,7 +122,7 @@ def test_the_provenance_is_portable(trees):
 
 
 def test_migrate_layout_moves_output_by_lifecycle(scratch):
-    """`hep migrate --layout`: records to records/, caches to .cache/<P>/, the rest to logs/."""
+    """`heimdall migrate --layout`: records to records/, caches to .cache/<P>/, the rest to logs/."""
     work = scratch / "w"
     point = work / "output" / "Demo" / "jets" / "01_pdf" / "a"
     cache = work / "output" / "Demo" / ".cache"
@@ -145,7 +145,7 @@ def test_migrate_layout_moves_output_by_lifecycle(scratch):
     assert moves[point.parent / "plots" / "d01.toml"] == log / "plots" / "d01.toml"
     assert moves[cache / "herwig" / "k" / "point.run"] == work / ".cache" / "Demo" / "herwig" / "k" / "point.run"
     assert migrate.apply_layout(list(moves.items()), work) == 0
-    assert not (work / "output").exists() and (rec / "a" / ".complete").read_text() == "x\n"
+    assert not (work / "output").exists() and (rec / "a" / ".complete").read_text(encoding="utf-8") == "x\n"
     assert (work / ".cache" / "Demo" / "checks" / "pythia" / "x.json").exists()
 
 

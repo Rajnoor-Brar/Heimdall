@@ -18,7 +18,8 @@ from pathlib import Path
 from . import plugins, schema, v3
 from .errors import HepError, did_you_mean
 from .paths import config_file, configs_root, hep_root, resolve
-from .quantities import check_shapes
+from .quantities import check_shapes, select
+from .sweep import Listed
 
 #: How a point's seeds are chosen (V39, 06 §8); the schema's [run.seed_type].choices.
 SEED_TYPES = tuple(schema.keys("run")["seed_type"]["choices"])
@@ -116,6 +117,7 @@ class Configuration:
     cluster: dict = field(default_factory=dict)         # [cluster], this configuration's over the run's (V114); never in an identity
     serial_auto: bool = False                           # v3 without a serial: the runner numbers its folder (03 §6)
     serial_note: str = ""                               # why the runner chose the number it did (--plan)
+    inference: dict | None = None                       # v3: what infers a resolved chain's interfaces per point (V153)
 
 
 @dataclass
@@ -133,7 +135,7 @@ class RunConfig:
     plot: dict
     master_toml: str | None
     raw: dict
-    sweep_runs: bool = False                            # `hep run` executes every swept configuration (V38)
+    sweep_runs: bool = False                            # `heimdall run` executes every swept configuration (V38)
     sweep_list: list = field(default_factory=list)      # sweep_runs = ["a", "b"]: these, in this order (V79)
     sets: list = field(default_factory=list)            # the --set overrides it was loaded with (V77: provenance)
     included: dict = field(default_factory=dict)        # "<section>.<name>" → the [config].import file it came from
@@ -145,7 +147,7 @@ class RunConfig:
         wanted = name or self.default_configuration
         if wanted in self.families:
             raise HepError(f"'{wanted}' is several configurations, one per event count: {', '.join(self.families[wanted])}",
-                           where=f"{self.path}", hint=f"hep run runs them in turn; name one, e.g. {self.families[wanted][0]}")
+                           where=f"{self.path}", hint=f"heimdall run runs them in turn; name one, e.g. {self.families[wanted][0]}")
         if wanted is None:
             raise HepError("[run] runs every configuration (sweep_runs) and names none", where=f"{self.path}: [run]",
                            hint=f"name one: configurations {', '.join(self.configurations)}")
@@ -156,7 +158,7 @@ class RunConfig:
         return self.configurations[wanted]
 
     def runs(self, name: str | None) -> list[str]:
-        """The configurations `hep run` executes, in order (V38): the one named on the command line,
+        """The configurations `heimdall run` executes, in order (V38): the one named on the command line,
         even under sweep_runs; else, under [run].sweep_runs, every configuration not `swept = false`, in the
         order of the file; else [run].configuration."""
         if name in self.families:                       # v3: one configuration per event count
@@ -191,7 +193,7 @@ def _layers(run: dict, where: str) -> dict[str, list[tuple[str, dict]]]:
             raise HepError("a configuration is a table", where=f"{where}: [run.{CFGS}.{key}]")
     out = {}
     for key, table in tables.items():
-        # swept is refused in a strict load (V79); hep migrate's lenient one reads it to write sweep_runs
+        # swept is refused in a strict load (V79); heimdall migrate's lenient one reads it to write sweep_runs
         schema.check({k: v for k, v in table.items() if k != "swept"}, "configuration", f"{where}: [run.{CFGS}.{key}]")
         chain, seen, parent = [(f"[run.{CFGS}.{key}]", table)], {key}, table.get("extends")
         while parent:
@@ -236,7 +238,7 @@ def _inferred(groups: list[list[str]], tools: dict, keep: dict, base: dict, quan
     product, as any output); [run] commands as written. "@<quantity>" stands for each tool it may choose."""
     def members(entry: str) -> list[str]:
         if entry.startswith("@") and entry[1:] in quantities:
-            return [v for v in quantities[entry[1:]].values if isinstance(v, str) and v in tools]
+            return [t for v in quantities[entry[1:]].values for t in fragment_tags(v) if t in tools]
         return [entry] if entry in tools else []
     group_of = {tag: g for g, group in enumerate(groups) for entry in group for tag in members(entry)}
     fifo: list[str] = []
@@ -303,11 +305,141 @@ def _groups(entries: list, where: str, tools: dict) -> list[list[str]]:
     return groups
 
 
+def resolve_chain(groups: list[list[str]], choose, tools: dict) -> list[list[str]]:
+    """Groups with each `@<quantity>` replaced by what `choose(name)` gives, (value, where) (V19, V153): a tool tag,
+    or a fragment of chain, spliced where the entry stands. `@q` alone in its group (`"@q"` or `["@q"]`) is a
+    chain entry: a fragment's items become entries there (a tag a group of one, a list a group), so
+    ["@q", "D"] with ["A", ["B", "C"]] is ["A", ["B", "C"], "D"]. Beside other members, a fragment's tags join
+    that group, and a group inside it is refused (groups nest one level). [] splices nothing. The result is
+    checked as a written chain is: each tag a [tools.<tag>] table (C5), no empty group, a tool once."""
+    def items(name: str) -> tuple[list, str]:
+        value, where = choose(name)
+        if isinstance(value, str):
+            return [value], where
+        if isinstance(value, list):
+            return value, where
+        raise HepError(f"@{name} took {value!r}: a selector's value is a tool tag or a list of them (a piece of chain)",
+                       where=where, hint='value = "pythia", or ["madgraph", "pythia"], or ["a", ["b", "c"]]')
+
+    out: list[list[str]] = []
+    for group in groups:
+        if len(group) == 1 and group[0].startswith("@"):                  # an entry of its own: splice entries
+            name = group[0][1:]
+            fragment, where = items(name)
+            for item in fragment:
+                members = item if isinstance(item, list) else [item]
+                if any(isinstance(m, list) for m in members):
+                    raise HepError(f"@{name}'s value nests a group two deep", where=where,
+                                   hint='a piece of chain is tags and groups of tags: ["A", ["B", "C"]]')
+                if not members:
+                    raise HepError(f"@{name}'s value holds an empty group", where=where)
+                out.append([(m, where) for m in members])
+            continue
+        resolved = []
+        for member in group:
+            if not member.startswith("@"):
+                resolved.append((member, ""))
+                continue
+            name = member[1:]
+            fragment, where = items(name)
+            if any(isinstance(item, list) for item in fragment):
+                raise HepError(f"@{name}'s value puts a group inside the group of @{name}", where=where,
+                               hint=f"groups nest one level: write @{name} as a chain entry of its own")
+            resolved += [(item, where) for item in fragment]
+        if not resolved:
+            raise HepError("a group of the chain is empty once its @ entries are chosen",
+                           where=next((w for m in group if m.startswith("@") for _, w in [items(m[1:])]), ""))
+        out.append(resolved)
+    seen: dict[str, str] = {}
+    for group in out:
+        for tag, where in group:
+            if not isinstance(tag, str) or tag not in tools:
+                raise HepError(f"'{tag}' is not a [tools.<tag>] table", where=where,
+                               hint=did_you_mean(str(tag), tools) or "a selector's values name tool tables (see C5)")
+            if tag in seen:
+                raise HepError(f"'{tag}' is twice in the chain", where=where or seen[tag] or "the chain",
+                               hint="a tool table runs once per point: give the second its own table (uses = …)")
+            seen[tag] = where
+    return [[tag for tag, _ in group] for group in out]
+
+
+def fragment_tags(value) -> list[str]:
+    """The tool tags a selector's value names: itself, or a fragment's, flattened (V153)."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [tag for item in value for tag in fragment_tags(item)]
+    return []
+
+
+def chain_prelim(configuration: "Configuration", groups: list[list[str]], tools: dict, quantities: dict) -> dict:
+    """A resolved chain's interfaces (V153): v3 infers them from that chain, so an alternative that reads an output in
+    its own group has a FIFO where another reads it later from a file; a v2 [prelim] is written, and kept."""
+    if configuration.inference is None:
+        return configuration.prelim
+    return _inferred(groups, tools, configuration.inference["keep"], configuration.inference["base"], quantities)
+
+
+def check_selectors(configuration: "Configuration", quantities: dict, tools: dict, where: str) -> None:
+    """Every value of every quantity that chooses a tool here splices into a valid chain (V153), the values no
+    point runs included: checked with the file, the others' selectors as nothing."""
+    names = {m[1:] for group in configuration.tools for m in group if m.startswith("@")}
+    for name in sorted(names):
+        if name not in quantities:
+            raise HepError(f"@{name} names no [quantities.{name}]", where=where, hint=did_you_mean(name, quantities))
+        quantity = quantities[name]
+        for value, tag in zip(quantity.values, quantity.tags or [str(v) for v in quantity.values]):
+            def choose(asked: str, value=value, tag=tag):
+                return (value, f"[quantities.{name}] {tag}") if asked == name else ([], "")
+            try:
+                resolve_chain(configuration.tools, choose, tools)
+            except HepError as error:
+                if "empty once" in error.message:                  # another selector, left out here, fills it
+                    continue
+                raise
+
+
+def _listed(entry, where: str, quantities: dict) -> Listed:
+    """`{ points = [{ generator = "py8", pdf = "nn23" }, { generator = "hw7" }] }`: listed combinations (V154), each
+    row naming one point of each quantity it sets, by tag, value or "#N"; a quantity left out of a row is not set
+    there. Equal rows are refused; a quantity's exclude does not apply (the rows are explicit)."""
+    form = 'vary = [{ points = [{ <quantity> = "<tag>", … }, …] }]'
+    if not isinstance(entry, dict) or set(entry) != {"points"} or not isinstance(entry["points"], list) or not entry["points"]:
+        raise HepError("a table in vary lists combinations: { points = [...] }, a row of quantities each", where=where,
+                       hint=form)
+    members: list[str] = []
+    rows: list[dict[str, int]] = []
+    for number, row in enumerate(entry["points"], start=1):
+        if not isinstance(row, dict) or not row:
+            raise HepError(f"listed point {number} is not a table naming a point of each quantity it sets", where=where,
+                           hint=form)
+        indices = {}
+        for name, ref in row.items():
+            if name not in quantities:
+                raise HepError(f"listed point {number} sets '{name}', which is not a [quantities.<q>] table", where=where,
+                               hint=did_you_mean(name, quantities) or f"declare [quantities.{name}]")
+            indices[name] = select(quantities[name], ref, f"{where}: listed point {number}")
+            if name not in members:
+                members.append(name)
+        if indices in rows:
+            raise HepError(f"listed points {rows.index(indices) + 1} and {number} are the same point", where=where)
+        rows.append(indices)
+    return Listed(members, rows)
+
+
 def _sweeps(entries: list, where: str, quantities: dict) -> list:
-    """C3: every entry names a declared quantity; an inner list is one entangled group."""
+    """C3: every entry names a declared quantity; an inner list is one entangled group; a table lists
+    combinations (V154). No quantity is in two entries."""
     seen: set[str] = set()
     out = []
     for entry in entries:
+        if isinstance(entry, dict):
+            listed = _listed(entry, where, quantities)
+            if twice := sorted(set(listed) & seen):
+                raise HepError(f"'{twice[0]}' is swept twice", where=where)
+            seen |= set(listed)
+            out.append(listed)
+            continue
         members = entry if isinstance(entry, list) else [entry]
         for name in members:
             if not isinstance(name, str):
@@ -423,7 +555,7 @@ def _over(base: dict, over: dict) -> dict:
 
 
 def _import_path(name, project: str, where: str) -> Path:
-    """An import, named as `hep run` names a config (V94): `name` is this project's file
+    """An import, named as `heimdall run` names a config (V94): `name` is this project's file
     (configs/<project>/), `<Project>/<name>` another project's, `./…` from the repository root, `/…`
     absolute; `.toml` optional."""
     if not isinstance(name, str) or not name:
@@ -556,7 +688,7 @@ def _imports(raw: dict, path: Path, project: str, chain: tuple[Path, ...]) -> tu
         part = _read(source)
         if "master" in part:
             raise HepError("[master] is [config] now: master_toml is master, include is import (see V93)",
-                           where=f"{source}: [master]", hint="hep migrate rewrites it")
+                           where=f"{source}: [master]", hint="heimdall migrate rewrites it")
         theirs = _project_of(source, part, project)
         part, inner, deeper = _imports(part, source, theirs, (*chain, source.resolve()))
         if only is not None:                     # V101: a file's vars come with whatever is taken of it
@@ -724,8 +856,8 @@ def with_vars(raw: dict, path: Path) -> dict:
 
 
 def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | None = None) -> RunConfig:
-    """A run TOML, checked. `strict=False` (hep migrate only, V79) still reads the forms it rewrites;
-    `text` (hep migrate's, V81) is read in place of the file's."""
+    """A run TOML, checked. `strict=False` (heimdall migrate only, V79) still reads the forms it rewrites;
+    `text` (heimdall migrate's, V81) is read in place of the file's."""
     path = config_file(name)
     if text is None:
         given = _toml(path)
@@ -804,7 +936,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     sections = schema.sections()
     if "master" in raw:                                    # break and migrate (V93)
         raise HepError("[master] is [config] now: master_toml is master, include is import (see V93)", where=f"{where}: [master]",
-                       hint="hep migrate rewrites it")
+                       hint="heimdall migrate rewrites it")
     for key in raw:
         if key not in sections:
             raise HepError(f"unknown section [{key}]", where=where,
@@ -820,25 +952,25 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     if isinstance(run.get(DEFAULTS), dict):                         # V99: [run] gives what it gave
         if strict:
             raise HepError(f"[run.{DEFAULTS}] is [run] now: its keys go in [run] itself, which every configuration "
-                           "starts from (see V99)", where=f"{where}: [run.{DEFAULTS}]", hint="hep migrate moves them")
+                           "starts from (see V99)", where=f"{where}: [run.{DEFAULTS}]", hint="heimdall migrate moves them")
         run = {**{k: v for k, v in run.items() if k != DEFAULTS}, **run[DEFAULTS]}   # it was above [run]
         raw = {**raw, "run": run}
     old = [k for k, v in run.items() if isinstance(v, dict) and k != CFGS and k not in schema.keys("run")]
     if old and strict:                                                # break and migrate (V98)
         raise HepError(f"[run.{old[0]}] is a configuration, and configurations are [run.{CFGS}.<cfg>] now (see V98)",
                        where=f"{where}: [run.{old[0]}]",
-                       hint=f"write [run.{CFGS}.{old[0]}]; hep migrate rewrites the file")
-    if old:                                      # hep migrate reads the old form it rewrites (V79, V98)
+                       hint=f"write [run.{CFGS}.{old[0]}]; heimdall migrate rewrites the file")
+    if old:                                      # heimdall migrate reads the old form it rewrites (V79, V98)
         run = {**{k: v for k, v in run.items() if k not in old}, CFGS: {**{k: run[k] for k in old}, **run.get(CFGS, {})}}
         raw = {**raw, "run": run}
     schema.check(run, "run", f"{where}: [run]")
     sweep_on = run.get("sweep_runs") is True or (isinstance(run.get("sweep_runs"), list) and bool(run["sweep_runs"]))
-    if strict:                                  # V79: the forms hep migrate rewrites
+    if strict:                                  # V79: the forms heimdall migrate rewrites
         for key, table in run.get(CFGS, {}).items():
             if isinstance(table, dict) and "swept" in table:
                 raise HepError(f"[run.{CFGS}.{key}].swept is gone: [run].sweep_runs lists the configurations it runs (see V79)",
                                where=f"{where}: [run.{CFGS}.{key}].swept",
-                               hint="sweep_runs = [\"a\", \"b\"], in the order to run them; hep migrate rewrites this file")
+                               hint="sweep_runs = [\"a\", \"b\"], in the order to run them; heimdall migrate rewrites this file")
     for required in ("name", "project") + (() if sweep_on else ("configuration",)):
         if required not in run:
             raise HepError(f"[run] needs '{required}'", where=f"{where}: [run]")
@@ -891,7 +1023,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             raise HepError("a tool is a table", where=at)
         extras = schema.check(table, "tool", at, extra=True)
         if "tool" not in table:
-            raise HepError("a tool table needs tool = \"<tool folder>\" (hep tools lists them)", where=at)
+            raise HepError("a tool table needs tool = \"<tool folder>\" (heimdall tools lists them)", where=at)
         tools[tag] = Tool(tag=tag, tool=table["tool"], baseconfig=_as_list(table.get("baseconfig")),
                           input=_as_list(table.get("input")), output_file=_as_list(table.get("output_file")),
                           timeout=float(table.get("timeout", 0)), stall_after=float(table.get("stall_after", 0)),
@@ -968,6 +1100,10 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             if name not in swept:
                 raise HepError(f"plot_points names '{name}', which is not swept here", where=f"{at}.plot_points",
                                hint="pages are cells of the grid of swept quantities (04 §5.2)")
+            for entry in (e for e in sweeps if isinstance(e, Listed) and name in e):     # V154
+                if missing := [n for n, row in enumerate(entry.rows, start=1) if name not in row]:
+                    raise HepError(f"plot_points names '{name}', which listed point {missing[0]} leaves out",
+                                   where=f"{at}.plot_points", hint=f"set {name} in every listed point, or page by another")
         combine = inherited("combine", [])
         axes = {entry for entry in sweeps if isinstance(entry, str)}
         for name in combine:                                                # C14
@@ -1009,7 +1145,9 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             static=static_values,
             prelim=(_inferred(groups, tools, keep, prelim, quantities) if form == 3     # v3: from the chain
                     else _own_prelim(chain, prelim, origins)),                 # replaced whole: its chain's interfaces
-            origins=origins, cluster=merged("cluster", cluster))
+            origins=origins, cluster=merged("cluster", cluster),
+            inference={"keep": keep, "base": prelim} if form == 3 else None)
+        check_selectors(configurations[key], quantities, tools, f"{at}.tools")
 
     a_cfg = "[cfgs.<name>]" if form == 3 else "[run.cfgs.<cfg>]"   # in the file's own names
     if isinstance(run.get("sweep_runs"), list):            # V79: the members, in order
@@ -1066,12 +1204,12 @@ def check_meta(meta: dict, where: str) -> None:
 
 def no_tlatex(value, where: str) -> None:
     """V79 (B5, break and migrate): a label is LaTeX. One written in TLatex is refused, with the LaTeX
-    for it (labels.natural, what hep migrate writes)."""
+    for it (labels.natural, what heimdall migrate writes)."""
     from .labels import is_tlatex, natural
     for text in value if isinstance(value, list) else [value]:
         if isinstance(text, str) and is_tlatex(text):
             raise HepError(f"'{text}' is TLatex; labels are LaTeX (see V65)", where=where,
-                           hint=f"write '{natural(text)}', or run hep migrate on the file")
+                           hint=f"write '{natural(text)}', or run heimdall migrate on the file")
 
 
 def _plot_texts(table: dict, where: str) -> None:
@@ -1116,7 +1254,7 @@ def check_plot(plot: dict, where: str, strict: bool = True) -> None:
     for old, new in FIGURE_TABLES.items():                 # break and migrate (V81)
         if old in plot:
             raise HepError(f"[plot.{old}] is a figure now: {new} (see V81)", where=f"{where}.{old}",
-                           hint="hep migrate rewrites it")
+                           hint="heimdall migrate rewrites it")
     if strict:
         _plot_texts(plot, where)
     schema.check(plot, "plot", where)

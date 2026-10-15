@@ -1,12 +1,12 @@
-"""`hep setup` and `hep where`: make a work dir, and say which Heimdall and work dir a shell sees (rank 5).
+"""`heimdall setup` and `heimdall where`: make a work dir, and say which Heimdall and work dir a shell sees (rank 5).
 
 docs/framework/01_Target.md §4–§5 (D3, D14). What a work dir gets is framework/templates/work/: a
 new file there is a template edit, never a code change. In the template, `{{name}}`, `{{revision}}`,
 `{{date}}`, `{{P}}` and `{{p}}` are filled in; nothing else is touched (JSON keeps its braces).
 
-    hep setup <dir> [--project P] [--git[=new]] [--adopt] [--name N]
-    hep setup <dir> --refresh [--yes]
-    hep where [--hep | --work]
+    heimdall setup <dir> [--project P] [--git[=new]] [--adopt] [--name N]
+    heimdall setup <dir> --refresh [--yes]
+    heimdall where [--hep | --work]
 
 A work dir may be made in a git repository (U67): a fresh one (only .git/ and a hosting site's
 README, LICENSE, .gitignore) needs no --adopt; its own README.md and CLAUDE.md are kept, Heimdall's
@@ -23,6 +23,7 @@ import difflib
 import hashlib
 import os
 import re
+import shlex
 import shutil
 import site
 import subprocess
@@ -42,10 +43,10 @@ FRESH = (".git", "README.md", "README", "COPYING", ".gitignore", ".gitattributes
 #: The guide's names: a repository's own are kept, and Heimdall's goes in GUIDE beside them.
 GUIDES = ("README.md", "CLAUDE.md")
 GUIDE = "HEIMDALL.md"
-#: The marked block of ignores hep setup keeps in a .gitignore that is not the template's.
-BLOCK, BLOCK_END = "# Heimdall (hep setup): what the runner and the build make", "# /Heimdall"
+#: The marked block of ignores heimdall setup keeps in a .gitignore that is not the template's.
+BLOCK, BLOCK_END = "# Heimdall (heimdall setup): what the runner and the build make", "# /Heimdall"
 MANIFEST = "datasets.toml"
-#: `hep setup --example <name>` (U63): a working project of the tests' own work dir, which the suite
+#: `heimdall setup --example <name>` (U63): a working project of the tests' own work dir, which the suite
 #: keeps running, copied into the user's: name → (its project, what it says to run first).
 EXAMPLES = {"jets": ("Demo", "Demo/jets single")}
 EXAMPLE_WORK = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "work"
@@ -59,7 +60,7 @@ def revision(root: Path | None = None) -> str:
 
     def git(*args) -> str:
         try:
-            return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=10).stdout.strip()
+            return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=10, encoding="utf-8").stdout.strip()
         except (OSError, subprocess.SubprocessError):
             return ""
     if not (root / ".git").exists() or git("status", "--porcelain", "--untracked-files=no"):
@@ -94,7 +95,7 @@ def _blocked(path: Path, wanted: list[str]) -> list[str]:
 
 
 def _kept(path: Path) -> list[str]:
-    """The `!` lines of a file's marked block: what hep setup un-ignored there (U67)."""
+    """The `!` lines of a file's marked block: what heimdall setup un-ignored there (U67)."""
     lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
     if BLOCK not in lines:
         return []
@@ -104,12 +105,12 @@ def _kept(path: Path) -> list[str]:
 
 
 def _unignore(target: Path, files: list[str], out=print) -> bool:
-    """A repository that ignores a file hep setup wrote (GitHub's C++ template ignores `Makefile`): `!`
+    """A repository that ignores a file heimdall setup wrote (GitHub's C++ template ignores `Makefile`): `!`
     lines for them in the .gitignore's marked block, so the work dir's own files are tracked. True when
     the block changed."""
     if not files or toplevel(target) is None:
         return False
-    done = subprocess.run(["git", "check-ignore", "--", *files], cwd=target, capture_output=True, text=True)
+    done = subprocess.run(["git", "check-ignore", "--", *files], cwd=target, capture_output=True, text=True, encoding="utf-8")
     ignored = [line.strip() for line in done.stdout.splitlines() if line.strip()]
     if not ignored:
         return False
@@ -136,14 +137,14 @@ def _fresh(target: Path) -> bool:
 
 
 def _heimdalls(path: Path) -> bool:
-    """A guide hep setup wrote (README.md, CLAUDE.md), not the repository's own."""
+    """A guide heimdall setup wrote (README.md, CLAUDE.md), not the repository's own."""
     return "heimdall work dir" in path.read_text(encoding="utf-8", errors="replace").lower()
 
 
 def toplevel(folder: Path) -> Path | None:
     """The git repository a folder is in (its top), or None."""
     try:
-        done = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=folder, capture_output=True, text=True, timeout=10)
+        done = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=folder, capture_output=True, text=True, timeout=10, encoding="utf-8")
     except (OSError, subprocess.SubprocessError):
         return None
     return Path(done.stdout.strip()).resolve() if done.returncode == 0 and done.stdout.strip() else None
@@ -153,7 +154,7 @@ def _guide(values: dict[str, str], readme: bool, claude: bool) -> str:
     """HEIMDALL.md: the template's README, and its CLAUDE.md's rules for coding agents, for a repository
     that keeps its own."""
     parts = [_fill((TEMPLATE / "README.md").read_text(encoding="utf-8"), values)] if readme else \
-        [f"# {values['name']}: Heimdall\n\nA Heimdall work dir (made by `hep setup` on {values['date']}).\n"]
+        [f"# {values['name']}: Heimdall\n\nA Heimdall work dir (made by `heimdall setup` on {values['date']}).\n"]
     if claude:
         body = _fill((TEMPLATE / "CLAUDE.md").read_text(encoding="utf-8"), values).split("\n", 1)[-1].strip()
         parts.append("## For coding agents\n\n" + body + "\n")
@@ -165,7 +166,7 @@ def setup(target: Path, *, project: str | None = None, git: bool = False, adopt:
     """Lay the template down in `target`; never overwrite. Returns what was added (paths relative to it)."""
     target = target.expanduser().resolve()
     if target.exists() and not target.is_dir():
-        raise HepError(f"{target} is a file", hint="hep setup makes a work dir: give a folder")
+        raise HepError(f"{target} is a file", hint="heimdall setup makes a work dir: give a folder")
     if target.is_dir() and any(target.iterdir()) and not is_work(target) and not adopt and not _fresh(target):
         raise HepError(f"{target} is not empty and not a work dir",
                        hint="give an empty or new folder (a fresh git repository is one), or --adopt to make a work dir of this one")
@@ -178,7 +179,7 @@ def setup(target: Path, *, project: str | None = None, git: bool = False, adopt:
     making = not is_work(target)                                    # not completing a work dir: making one
     target.mkdir(parents=True, exist_ok=True)
     added: list[str] = []
-    changed: list[str] = []                                         # files of the user's that hep setup added to
+    changed: list[str] = []                                         # files of the user's that heimdall setup added to
     theirs: list[str] = []                                          # the repository's own guides, kept
 
     def put(src: Path, rel: Path) -> None:
@@ -231,7 +232,21 @@ def setup(target: Path, *, project: str | None = None, git: bool = False, adopt:
     if git:
         _commit(target, [a for a in added if not a.endswith("/")] + changed, values,
                 new=git == "new", out=out)
+    _recognise(target, out)
     return added
+
+
+def _recognise(target: Path, out=print) -> None:
+    """The work dir made, recorded in the machine's workdirs.toml (V143): `gjallarhorn <title>` goes to it. A
+    title another work dir holds is said, not fatal."""
+    from .workdirs import record
+    try:
+        title, happened = record(target)
+    except HepError as error:
+        out(f"not recognised: {error.message}" + (f" ({error.hint})" if error.hint else ""))
+        return
+    if happened != "known":
+        out(f"recognised as {shlex.quote(title)} ({happened}): gjallarhorn {shlex.quote(title)} goes here")
 
 
 def _example(target: Path, name: str, out=print) -> list[str]:
@@ -256,11 +271,11 @@ def _example(target: Path, name: str, out=print) -> list[str]:
 
 
 def _commit(target: Path, files: list[str], values: dict[str, str], new: bool = False, out=print) -> None:
-    """`--git` (U67): the files hep setup added or merged, committed alone (`git commit -- <paths>`: what
+    """`--git` (U67): the files heimdall setup added or merged, committed alone (`git commit -- <paths>`: what
     the user had staged stays staged), in the repository the folder is in; `git init` first when it is
     in none. Inside a larger repository, a repository of its own only with --git=new."""
     def run(*args) -> subprocess.CompletedProcess:
-        return subprocess.run(["git", *args], cwd=target, capture_output=True, text=True)
+        return subprocess.run(["git", *args], cwd=target, capture_output=True, text=True, encoding="utf-8")
     top = toplevel(target)
     if top is None or (new and top != target):
         if top is not None:
@@ -275,7 +290,7 @@ def _commit(target: Path, files: list[str], values: dict[str, str], new: bool = 
     if done.returncode:
         raise HepError(f"git add failed in {target}: {done.stderr.strip() or done.stdout.strip()}",
                        hint="the files are written; add and commit them yourself (git add -- <paths>)")
-    done = run("commit", "-q", "-m", f"hep setup: the work dir {values['name']} (Heimdall {values['revision'][:12] or 'unknown'})",
+    done = run("commit", "-q", "-m", f"heimdall setup: the work dir {values['name']} (Heimdall {values['revision'][:12] or 'unknown'})",
                "--", *files)
     if done.returncode:
         raise HepError(f"git commit failed in {target}: {done.stderr.strip() or done.stdout.strip()}",
@@ -289,17 +304,17 @@ def next_steps(target: Path, added: list[str], project: str | None, git, example
     lines = ["next:", *([f"  cd {here}"] if here != "." else [])]
     if example:
         first = EXAMPLES[example][1]
-        lines += ["  hep build                      # its module programs and Rivet plugins",
-                  f"  hep check {first.split()[0]}", f"  hep run {first}         # then open results/…/plots/root/index.html"]
+        lines += ["  heimdall build                      # its module programs and Rivet plugins",
+                  f"  heimdall check {first.split()[0]}", f"  heimdall run {first}         # then open results/…/plots/root/index.html"]
     elif project:
         name = f"{project}/{project.lower()}"
-        lines += [f"  hep check {name}", f"  hep run {name} --plan"]
+        lines += [f"  heimdall check {name}", f"  heimdall run {name} --plan"]
     else:
-        lines += ["  hep setup . --project <Project>     # a starter run TOML and card"]
+        lines += ["  heimdall setup . --project <Project>     # a starter run TOML and card"]
     files = [a for a in added if not a.endswith("/")]
     if not git and toplevel(target) is not None and files:
         lines += [f"  git add -- {' '.join(files[:6])}{' …' if len(files) > 6 else ''}",
-                  '  git commit -m "hep setup" -- <the same paths>    # or: hep setup --git, next time']
+                  '  git commit -m "heimdall setup" -- <the same paths>    # or: heimdall setup --git, next time']
     return lines
 
 
@@ -314,7 +329,7 @@ def _sha256(path: Path) -> str:
 def fetch_datasets(target: Path, out=print) -> list[str]:
     """datasets.toml (U23): `[files."<name>"] url = …, sha256 = …`, each fetched into datasets/<name>
     when it is not there, its sha256 checked, and kept out of git by datasets/.gitignore's marked block
-    (small files are tracked as they are). Returns the files hep setup changed (the .gitignore)."""
+    (small files are tracked as they are). Returns the files heimdall setup changed (the .gitignore)."""
     manifest = target / MANIFEST
     if not manifest.is_file():
         return []
@@ -334,7 +349,7 @@ def fetch_datasets(target: Path, out=print) -> list[str]:
         if dest.is_file():
             if _sha256(dest) != entry["sha256"].lower():
                 raise HepError(f"datasets/{rel} is not the file {MANIFEST} names (its sha256 differs)", where=where,
-                               hint="remove it, and hep setup fetches it again; or correct the manifest")
+                               hint="remove it, and heimdall setup fetches it again; or correct the manifest")
             continue
         dest.parent.mkdir(parents=True, exist_ok=True)
         partial = dest.with_name(dest.name + ".partial")
@@ -359,13 +374,13 @@ REFRESHED = ("Makefile", "README.md", "CLAUDE.md", GUIDE)
 
 
 def refresh(target: Path, *, yes: bool = False, out=print, ask=None) -> int:
-    """`hep setup <dir> --refresh` (U28): each framework-written file (the Makefile, .vscode/, Heimdall's
+    """`heimdall setup <dir> --refresh` (U28): each framework-written file (the Makefile, .vscode/, Heimdall's
     README.md and CLAUDE.md or HEIMDALL.md) that differs from today's template, as a diff, then written
     (asked on a terminal unless --yes); the .gitignore's marked block brought up to date. The user's
     files are never touched: a README or CLAUDE.md that is not Heimdall's stays. Returns how many changed."""
     target = target.expanduser().resolve()
     if not is_work(target):
-        raise HepError(f"{target} is not a work dir", hint="hep setup <dir> makes one")
+        raise HepError(f"{target} is not a work dir", hint="heimdall setup <dir> makes one")
     meta = work_meta(target)
     values = {"name": meta["name"], "revision": revision(), "date": datetime.date.today().isoformat(), "P": "", "p": ""}
     changes: dict[Path, str] = {}
@@ -423,7 +438,7 @@ def expects_warning(work: Path) -> str:
         return ""
     try:                                                            # its commits that HEAD lacks: none, if an ancestor
         done = subprocess.run(["git", "rev-list", "--max-count=1", expects, "^HEAD"], cwd=root,
-                              capture_output=True, text=True, timeout=10)
+                              capture_output=True, text=True, timeout=10, encoding="utf-8")
     except (OSError, subprocess.SubprocessError):
         return ""
     if done.returncode == 0 and not done.stdout.strip():
@@ -453,7 +468,7 @@ def where(which: str | None = None, out=print, err=None) -> int:
         return 0
     if which == "work":
         if work is None:
-            err("not inside a work dir (hep setup <dir> makes one)")
+            err("not inside a work dir (heimdall setup <dir> makes one)")
             return 2
         out(str(work))
         return 0

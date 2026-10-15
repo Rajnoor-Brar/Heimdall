@@ -73,7 +73,7 @@ def adopt(dry: bool) -> int:
             new.symlink_to(old, target_is_directory=old.is_dir())
         else:
             shutil.move(str(old), str(new))
-    print(f"adopted into {target}; load Heimdall again (source {REPO}/setup.sh, or launch.sh on macOS)")
+    print(f"adopted into {target}; load Heimdall again (source {REPO}/gjallarhorn.sh, or launch.sh on macOS)")
     if any(how == "link" and REPO in old.parents for how, old, _ in plan):
         print("note: the stack still lives inside the checkout (linked from the root): `git clean -x` there "
               "would delete it; a rebuild into the root ends that")

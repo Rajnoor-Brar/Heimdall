@@ -2,13 +2,14 @@
 #
 # `Herwig read` turns the card into a run file: a [prepare] step, cached by the card (events and
 # seed are flags, so every point and replica with the same physics shares it). It needs the
-# repository {apps}/Herwig/HerwigDefaults.rpo, which `hep build` makes (Herwig's own install did
+# repository {apps}/Herwig/HerwigDefaults.rpo, which `heimdall build` makes (Herwig's own install did
 # not: its defaults need CT14lo/CT14nlo). `Herwig run` then writes HepMC3 (HepMCFile) to a relative
 # name, in the point's directory. It writes exactly -N events or fails: the runner writes the
 # sidecar (written = "requested").
 [tool]
 category        = "event-generator"
 executable      = "Herwig"
+packages        = ["herwig"]        # the recipes it runs (bifrost -b|-c, heimdall tools)
 status          = "filters"
 produces_events = true
 

@@ -31,7 +31,7 @@ def names(model: str = "SM") -> dict[int, str]:
     exe = shutil.which("whizard")
     path = Path(exe).resolve().parent.parent / "share" / "whizard" / "models" / f"{model}.mdl" if exe else None
     if path is None or not path.is_file():
-        raise HepError(f"no Whizard model file for {model}", hint="load_hep: whizard on PATH")
+        raise HepError(f"no Whizard model file for {model}", hint="gjallarhorn: whizard on PATH")
     found: dict[int, str] = {}
     code = None
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():

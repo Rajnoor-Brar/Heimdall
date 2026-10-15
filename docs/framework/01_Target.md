@@ -13,6 +13,10 @@ What exists when the plans are done, and the contract between its parts. This pa
 >
 > Where the build differs from this page:
 >
+> **The names (V142, V143).** The command is `heimdall` (`framework/bin/heimdall`); `hep` is gone. Read
+> `hep <verb>` below as `heimdall <verb>`, `setup.sh` as `gjallarhorn.sh` and `load_hep` as `gjallarhorn`.
+> The work dir's marker keeps its name, `hep.toml`, and so do `$HEP` and `hep_root()`.
+>
 > **The machine root (audit 3, phase 3.1; V122).** Everything this page puts in Heimdall's ignored
 > trees moved out of the checkout, to `~/Himinbjorg` (`$HEP_MACHINE`): `stack/`, `venv/` (was
 > `env/venv/`), `apps/` (was `framework/Apps/`, the placeholder `{apps}`), `forge/` with

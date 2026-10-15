@@ -2,7 +2,7 @@
 
 docs/06_Internals.md §10, V72. A view hears the run's events (events.py) and nothing else: one
 reducer, `State`, turns them into points and their tools, and the views render it, the same whether the
-events come from the run in this process, from its watch socket (`hep watch`), or from a --journal file.
+events come from the run in this process, from its watch socket (`heimdall watch`), or from a --journal file.
 
 * `LiveView` (rich, on a terminal): each running point under its heading and time so far, one line
   per running tool — tool, phase, a bar, the count, rate and ETA, and the last warning — with each
@@ -433,7 +433,7 @@ def view(plain: bool = False) -> PlainView:
     return PlainView()
 
 
-# ── hep watch ─────────────────────────────────────────────────────────────────────────────────
+# ── heimdall watch ─────────────────────────────────────────────────────────────────────────────────
 
 def follow_events(events, *, plain: bool = False) -> int:
     """Drive a view from an iterator of events (a watch socket's) until it ends."""
@@ -452,7 +452,7 @@ def follow_events(events, *, plain: bool = False) -> int:
 
 
 def follow_file(journal: Path, *, plain: bool = False, idle_exit: float = 0.0) -> int:
-    """`hep watch --file`: a --journal run's status.jsonl, followed until the run says it finished (or
+    """`heimdall watch --file`: a --journal run's status.jsonl, followed until the run says it finished (or
     `idle_exit` seconds of silence). A run of a sweep of runs names the next one's journal when it
     finishes: follow on to it."""
     shown = view(plain)

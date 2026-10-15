@@ -4,7 +4,7 @@
   `support` (the shared helpers).
 * The tests run in a work dir of their own: tests/fixtures/work/ (frozen) is synced into
   forge/scratch/work/, which HEP_WORK names; HEP_RESULTS, HEP_RECORDS, HEP_LOGS, HEP_CACHE and HEP_REPORTS point into
-  forge/scratch/. So a test reads and writes no real work dir, whatever the shell has set, and fails
+  forge/scratch/, and HEP_WORKDIRS (the registry of work dirs) too. So a test reads and writes no real work dir, whatever the shell has set, and fails
   only when the code changed. $HEP is this Heimdall; a shell's retired HEKIT_* are dropped (the
   tests of their refusal set them).
 * The basetemp is forge/scratch/pytest, wherever pytest is started.
@@ -63,6 +63,7 @@ os.environ["HEP_RECORDS"] = str(SCRATCH / "records")
 os.environ["HEP_LOGS"] = str(SCRATCH / "logs")
 os.environ["HEP_CACHE"] = str(SCRATCH / "cache")
 os.environ["HEP_REPORTS"] = str(SCRATCH / "reports")
+os.environ["HEP_WORKDIRS"] = str(SCRATCH / "workdirs.toml")     # what heimdall recognise and setup record
 
 OURS = (REPO / "tests" / "fixtures", REPO / "tests" / "reference")         # must not change: content hashes
 
@@ -109,7 +110,7 @@ def _make_work() -> subprocess.CompletedProcess | None:
         return None
     if not _made:
         _made.append(subprocess.run(["make", "-C", str(WORK), "--no-print-directory", "-j", str(os.cpu_count() or 1),
-                                     "all"], capture_output=True, text=True))
+                                     "all"], capture_output=True, text=True, encoding="utf-8"))
     return _made[0]
 
 
@@ -123,10 +124,19 @@ def work_built() -> Path:
     """The scratch work's build/ (module programs, Rivet/), made by framework/work.mk."""
     done = _make_work()
     if done is None:
-        pytest.skip("the stack is not loaded (source Heimdall's setup.sh)")
+        pytest.skip("the stack is not loaded (source Heimdall's gjallarhorn.sh)")
     if done.returncode:
         pytest.fail("make in the scratch work failed:\n" + done.stdout[-3000:] + done.stderr[-3000:])
     return WORK / "build"
+
+
+@pytest.fixture(autouse=True)
+def an_empty_registry():
+    """Each test starts with no work dir recorded ($HEP_WORKDIRS, which heimdall setup writes too), and with
+    no keep word asked (paths.ask_keep: what a run keeps, V149)."""
+    Path(os.environ["HEP_WORKDIRS"]).unlink(missing_ok=True)
+    from runner import paths
+    paths.ask_keep([])
 
 
 @pytest.fixture

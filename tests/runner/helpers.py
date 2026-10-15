@@ -64,7 +64,7 @@ def plans_of(name: str, configuration: str | None = None, sets=()):
 
 
 def plans(name: str, configuration: str | None = None, sets=()):
-    """The finalised plans of a config's points (seeds written), as `hep run --plan` makes them."""
+    """The finalised plans of a config's points (seeds written), as `heimdall run --plan` makes them."""
     *_, out = plans_of(name, configuration, sets)
     for p in out:
         tools.finalise(p, p.seed)

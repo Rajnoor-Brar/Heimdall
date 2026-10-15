@@ -28,7 +28,7 @@ import re
 import tomllib
 from pathlib import Path
 
-from .errors import HepError
+from .errors import HepError, did_you_mean
 
 #: A folder is Heimdall when it holds all of these.
 MARKERS = ("framework/runner", "framework/tools", "framework/schema/run.toml")
@@ -72,13 +72,19 @@ def hep_root() -> Path:
     given = os.environ.get(HEP_VAR)
     if given and Path(given).expanduser().resolve() != root:
         raise HepError(f"two Heimdalls: ${HEP_VAR} is {given}, this is {root}",
-                       hint="source the setup.sh of the one you mean")
+                       hint="source the gjallarhorn.sh of the one you mean")
     return root
 
 
 #: hep.toml's tables and keys (docs/framework/01_Target.md §4.2): any other is refused. [cluster] is the
-#: machine's defaults for hep cluster (V114): its keys are the run TOML's, checked by cluster.py.
-WORK_KEYS = {"work": ("name",), "framework": ("expects",)}
+#: machine's defaults for heimdall cluster (V114): its keys are the run TOML's, checked by cluster.py.
+WORK_KEYS = {"work": ("name",), "framework": ("expects",), "run": ("keep",)}
+#: What a run keeps beyond records/ and results/ (V149); by default nothing more than a finished point's cards
+#: and configs, a failed tool's last lines, and the prepare caches.
+KEEP_WORDS = {"logs": "every tool's whole output (logs/<tag>.log)",
+              "journal": "every status event (status.jsonl, for heimdall watch --file)",
+              "work": "a finished point's whole working folder (scratch files, shards, what its tools left)",
+              "cache": "card checks, converted reference data, the plot stage's working files and skip markers"}
 WORK_TABLES = ("cluster",)
 
 
@@ -100,11 +106,50 @@ def work_meta(root: Path) -> dict:
         for key, item in value.items():
             if key not in WORK_KEYS[table]:
                 raise HepError(f"unknown key '{table}.{key}'", where=str(marker), hint=f"hep.toml has {known}")
-            if not isinstance(item, str):
+            if (table, key) == ("run", "keep"):
+                keep_words(item, f"{marker}: [run] keep")
+            elif not isinstance(item, str):
                 raise HepError(f"'{table}.{key}' must be a string, got {item!r}", where=str(marker))
     return {"name": data.get("work", {}).get("name") or root.name,
             "expects": data.get("framework", {}).get("expects", ""),
-            "cluster": dict(data.get("cluster", {}))}
+            "cluster": dict(data.get("cluster", {})),
+            "keep": sorted(keep_words(data.get("run", {}).get("keep", []), f"{marker}: [run] keep"))}
+
+
+def keep_words(given, where: str = "--keep") -> set[str]:
+    """`keep` words, from a list or "logs,work": each one of KEEP_WORDS."""
+    words = given.split(",") if isinstance(given, str) else given
+    if not isinstance(words, list) or not all(isinstance(w, str) for w in words):
+        raise HepError(f"{where}: a list of words ({', '.join(KEEP_WORDS)})", where=where)
+    out = {w.strip() for w in words if w.strip()}
+    if unknown := sorted(out - set(KEEP_WORDS)):
+        raise HepError(f"nothing called {', '.join(repr(u) for u in unknown)} to keep", where=where,
+                       hint=did_you_mean(unknown[0], KEEP_WORDS) or "; ".join(f"{w}: {d}" for w, d in KEEP_WORDS.items()))
+    return out
+
+
+_KEEP_ASKED: set[str] = set()                     # this command's own (--keep, --logs, --journal)
+
+
+def ask_keep(words) -> None:
+    """The command line's keep words, for this process (cli.main)."""
+    _KEEP_ASKED.clear()
+    _KEEP_ASKED.update(keep_words(list(words)))
+
+
+def keep() -> set[str]:
+    """What this run keeps: the command line's words, the work dir's hep.toml [run] keep and the machine's
+    machine.toml [run] keep, together."""
+    words = set(_KEEP_ASKED) | keep_words(machine_settings().get("run", {}).get("keep", []), f"{machine_file()}: [run] keep")
+    try:
+        work = find_work()
+    except HepError:
+        work = None
+    return words | (set(work_meta(work)["keep"]) if work is not None else set())
+
+
+def keeping(word: str) -> bool:
+    return word in keep()
 
 
 def is_work(path: Path) -> bool:
@@ -136,7 +181,7 @@ def find_work(start: Path | None = None) -> Path | None:
         root = Path(given).expanduser().resolve()
         if not is_work(root):
             raise HepError(f"${WORK_VAR} = {root} is not a work dir",
-                           hint=f"a work dir has a {MARKER_FILE} with a [work] table: hep setup <dir>")
+                           hint=f"a work dir has a {MARKER_FILE} with a [work] table: heimdall setup <dir>")
         return root
     return _search(str((start or Path.cwd()).resolve()))
 
@@ -145,7 +190,7 @@ def work_root() -> Path:
     root = find_work()
     if root is None:
         raise HepError("not inside a work dir", where=str(Path.cwd()),
-                       hint="cd into one, or make one: hep setup <dir>")
+                       hint="cd into one, or make one: heimdall setup <dir>")
     return root
 
 
@@ -169,7 +214,7 @@ def results_root() -> Path:
 def records_root() -> Path:
     """What runs recorded, precious (U21): each point's provenance, identity and .complete, a
     configuration's points.json and cluster submissions. $HEP_RECORDS (tests set it) or <work>/records;
-    `hep clean` leaves it unless told --records."""
+    `heimdall clean` leaves it unless told --records."""
     return _rooted(RECORDS_VAR, "records")
 
 
@@ -191,7 +236,7 @@ def reports_root() -> Path:
 
 
 def dataset_listed(path: Path) -> bool:
-    """Whether the work dir's datasets.toml lists this file of datasets/ (U23: hep setup fetches it)."""
+    """Whether the work dir's datasets.toml lists this file of datasets/ (U23: heimdall setup fetches it)."""
     import tomllib
     work = find_work()
     manifest = work / "datasets.toml" if work is not None else None
@@ -240,7 +285,7 @@ def machine_file() -> Path:
 
 def machine_settings() -> dict:
     """machine.toml's tables ({} when there is none): [settings], [env] and [packages.<name>] are the
-    stack build's (recipes/build_stack.py), [cluster] is hep cluster's defaults for every work dir."""
+    stack build's (recipes/build_stack.py), [cluster] is heimdall cluster's defaults for every work dir."""
     file = machine_file()
     try:
         return tomllib.loads(file.read_text(encoding="utf-8"))
@@ -252,7 +297,7 @@ def machine_settings() -> dict:
 
 def stack_dir() -> Path:
     """The loaded stack's base: the machine root, or its stacks/<toolkit>/ for an isolated toolkit's
-    (setup.sh sets $HEP_STACK; recipes/README.md §6). Its compiled apps and builds go with it: they
+    (gjallarhorn.sh sets $HEP_STACK; recipes/README.md §6). Its compiled apps and builds go with it: they
     are linked against that stack."""
     name = os.environ.get(STACK_VAR)
     return machine_root() / "stacks" / name if name else machine_root()
@@ -424,7 +469,7 @@ def resolve(value: str, key: str, *, project: str = "", root: Path | None = None
 
 
 def config_file(name: str) -> Path:
-    """`hep run <config>`: configs/<config>, `.toml` optional, unless it starts with ./ or /."""
+    """`heimdall run <config>`: configs/<config>, `.toml` optional, unless it starts with ./ or /."""
     path = resolve(name, "config")
     if path.suffix != ".toml" and not path.exists():
         path = path.with_name(path.name + ".toml")

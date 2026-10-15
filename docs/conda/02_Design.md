@@ -6,6 +6,8 @@ are at `864c0f4`.
 
 "Base" here is Heimdall's word for this layer. It is not conda's own `base` environment: pixi has none.
 
+Written before the rename (V142): read `hep <verb>` as `heimdall <verb>`.
+
 ## 1. Layout in the machine root
 
 ```

@@ -2,12 +2,15 @@
 
 A provider is the first of the tool categories (01 §5): it gives other tools data. A tool folder's
 quantity mapping names a check, `check = "lhapdf:<form>"` (framework/tools/<tool>/quantities.toml), and the
-runner calls `check(form, value, where)` at plan time, so a missing set is refused before anything runs.
+runner calls `check(form, value, where)` at plan time, so a missing set is refused before anything runs. It
+returns the value as that tool writes it (None: as given), so one spelling of a set feeds every generator (V152):
+"CT14lo" and "LHAPDF6:CT14lo" are the same set.
 
-* "bare": the value is a bare set name, `<set>[/member]` (Sherpa's PDF_SET).
-* "pythia": Pythia's PDF:pSet as written (V40: no prefix is added): one of Pythia's own sets (a number its
-  documentation lists, PDFSelection.xml), "LHAPDF6:<set>[/member]" (the set must be installed), or a grid
-  file. A bare name that is an installed LHAPDF set is refused: Pythia would read it as a file.
+* "bare": the bare set name, `<set>[/member]` (Sherpa's PDF_SET); a prefix is taken off.
+* "set": the set's name alone (Herwig's PDFName; its member is the card's `:Member`); a prefix is taken off.
+* "pythia": Pythia's PDF:pSet: an installed LHAPDF set is written "LHAPDF6:<set>[/member]"; one of Pythia's own
+  sets (a number its documentation lists, PDFSelection.xml) and a grid file as written (V40: a number is
+  never prefixed).
 """
 
 from __future__ import annotations
@@ -41,7 +44,7 @@ def require(name: str, where: str) -> None:
 def pythia_sets() -> tuple[int, ...]:
     """Pythia's own proton PDF sets, from its documentation (PDF:pSet's options); () when not found."""
     try:
-        xmldoc = subprocess.run(["pythia8-config", "--xmldoc"], capture_output=True, text=True, timeout=30).stdout.strip()
+        xmldoc = subprocess.run(["pythia8-config", "--xmldoc"], capture_output=True, text=True, timeout=30, encoding="utf-8").stdout.strip()
         text = (Path(xmldoc) / "PDFSelection.xml").read_text(encoding="utf-8", errors="replace")
     except (OSError, subprocess.SubprocessError):
         return ()
@@ -49,24 +52,28 @@ def pythia_sets() -> tuple[int, ...]:
     return tuple(int(v) for v in re.findall(r'<option value="(\d+)"', block.group(0))) if block else ()
 
 
-def check(form: str, value, where: str) -> None:
+def check(form: str, value, where: str):
+    """Refuse a set that is not installed; return the value as the tool writes it (None: as given, V152). One
+    spelling feeds every generator: "CT14lo" and "LHAPDF6:CT14lo" are the same set."""
     text = str(value)
-    if form == "bare":
-        if text.startswith(PREFIXES):
-            raise HepError(f"'{text}': this tool takes the bare LHAPDF set name", where=where,
-                           hint=f"write '{text.split(':', 1)[1]}'")
-        require(text.split("/")[0], where)
-    elif form == "pythia":
+    if form in ("bare", "set"):
+        name = text.split(":", 1)[1] if text.startswith(PREFIXES) else text
+        if form == "set" and "/" in name:
+            raise HepError(f"'{text}': this tool takes a set's name, not a member", where=where,
+                           hint=f"write '{name.split('/')[0]}', and choose the member in the tool's card")
+        require(name.split("/")[0], where)
+        return name if name != text else None
+    if form == "pythia":
         if (isinstance(value, int) and not isinstance(value, bool)) or text.isdigit():
             sets = pythia_sets()
             if sets and int(text) not in sets:
                 raise HepError(f"PDF:pSet = {text} is not one of Pythia's own sets", where=where,
-                               hint=f"Pythia's sets: {sets[0]}–{sets[-1]} (PDFSelection.xml); an LHAPDF set is \"LHAPDF6:<set>\"")
-            return
+                               hint=f"Pythia's sets: {sets[0]}–{sets[-1]} (PDFSelection.xml); an LHAPDF set by its name")
+            return None                                    # Pythia's own set: never prefixed (V40)
         if text.startswith(PREFIXES):
             require(text.split(":", 1)[1].split("/")[0], where)
-        elif installed(text.split("/")[0]):
-            raise HepError(f"PDF:pSet = '{text}' is an LHAPDF set, which Pythia reads only as LHAPDF6:{text}",
-                           where=where, hint=f"write the value as \"LHAPDF6:{text}\"")
-    else:
-        raise HepError(f"lhapdf has no check '{form}'", where=where, hint="bare or pythia")
+            return None
+        if installed(text.split("/")[0]):
+            return f"LHAPDF6:{text}"                       # Pythia reads a bare name as a file
+        return None                                        # a grid file, as written
+    raise HepError(f"lhapdf has no check '{form}'", where=where, hint="bare, set or pythia")

@@ -2,7 +2,7 @@
 // src/Apps/Paint/Style.hh — a page's style: base.toml, with the page's [style] merged over it.
 //
 // base.toml (beside this file) is the one place a default lives. Paint finds it under $HEP
-// (Heimdall's checkout, which setup.sh exports and the runner passes on). The fallback from its own
+// (Heimdall's checkout, which gjallarhorn.sh exports and the runner passes on). The fallback from its own
 // executable on Linux only finds it when the apps sit in the checkout (the layout before the machine
 // root, ~/Himinbjorg/apps). A page's
 // [style] names only what it changes, in base.toml's tables; a key base.toml does not have, or a
@@ -118,7 +118,7 @@ namespace Paint {
             for (const fs::path& root : {apps.parent_path().parent_path(), apps.parent_path().parent_path().parent_path()})
                 if (fs::exists(root / rel)) return root / rel;
         }
-        throw std::runtime_error("cannot find src/Apps/Paint/base.toml: set $HEP to Heimdall's folder (setup.sh does)");
+        throw std::runtime_error("cannot find src/Apps/Paint/base.toml: set $HEP to Heimdall's folder (gjallarhorn.sh does)");
     }
 
     inline Style readStyle(const toml::table* over) {

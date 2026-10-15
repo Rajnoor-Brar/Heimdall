@@ -54,7 +54,7 @@ def test_apps_go_with_the_loaded_stack_in_the_machine_root(monkeypatch, tmp_path
     monkeypatch.setenv("HEP_STACK", "gpu-sim")
     assert paths.apps_dir() == tmp_path / "stacks" / "gpu-sim" / "apps"
     assert paths.forge_dir() == tmp_path / "stacks" / "gpu-sim" / "forge"
-    monkeypatch.setenv("HEP_APPS", "/elsewhere/apps")                   # setup.sh's own answer wins
+    monkeypatch.setenv("HEP_APPS", "/elsewhere/apps")                   # gjallarhorn.sh's own answer wins
     assert paths.apps_dir() == Path("/elsewhere/apps")
     monkeypatch.delenv("HEP_MACHINE")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -98,7 +98,7 @@ def test_outside_a_work_dir_is_an_error_naming_hep_setup(monkeypatch, scratch, f
     monkeypatch.chdir(scratch)
     with pytest.raises(HepError, match="not inside a work dir") as caught:
         paths.work_root()
-    assert "hep setup" in caught.value.hint
+    assert "heimdall setup" in caught.value.hint
 
 
 def test_markers_under_heimdalls_tests_are_skipped(monkeypatch, fresh):
@@ -126,7 +126,7 @@ def test_hep_toml_refuses_what_it_does_not_know(scratch):
 def test_a_work_dirs_name_is_its_folders_unless_given(scratch):
     work = make_work(scratch / "Top-Quark")
     (work / "hep.toml").write_text("[work]\n", encoding="utf-8")
-    assert paths.work_meta(work) == {"name": "Top-Quark", "expects": "", "cluster": {}}
+    assert paths.work_meta(work) == {"name": "Top-Quark", "expects": "", "cluster": {}, "keep": []}
 
 
 # ── resolution ──────────────────────────────────────────────────────────────────────────────────

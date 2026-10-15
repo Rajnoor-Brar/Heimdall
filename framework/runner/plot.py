@@ -37,10 +37,10 @@ import tomli_w
 from . import hepfiles, plugins, schema
 from .errors import HepError, did_you_mean
 from .labels import canonical, labels_of, lines_of, macros, root_text, tlatex  # noqa: F401 (tlatex et al. re-exported)
-from .paths import apps_dir, cache_root, hep_root, logs_root, resolve, results_root
+from .paths import apps_dir, cache_root, hep_root, keeping, logs_root, resolve, results_root
 from .record import is_complete, manifest_file
 from .tools import merge_files, sha256_file
-from .sweep import axes, label_of, tag_of
+from .sweep import Listed, axes, group_key, group_labels, group_tag, label_of, split_axes, tag_of
 
 BACKENDS = tuple(b for b in schema.keys("plot")["backend"]["choices"] if b != "both")
 FORMATS = tuple(schema.keys("plot")["formats"]["choices"])
@@ -222,7 +222,7 @@ def merge_style(*layers: dict) -> dict:
 
 
 def style_file(value: str, project: str = "", where: str = "") -> dict:
-    """A style layer from a file: [plot].root_style (configs/<Project>/…), or `hep plot --style`."""
+    """A style layer from a file: [plot].root_style (configs/<Project>/…), or `heimdall plot --style`."""
     path = resolve(value, "root_style", project=project, where=where) if project else Path(value).resolve()
     if path.suffix != ".toml":
         path = path.with_name(path.name + ".toml")
@@ -305,16 +305,16 @@ def convert(yoda: Path, target: Path) -> Path:
     """App_yd2rt --keep-raw, once per content: the stamp beside the target holds the YODA's sha256."""
     stamp = target.with_name(target.name + ".sha256")
     digest = _sha(yoda)
-    if target.exists() and stamp.exists() and stamp.read_text().strip() == digest:
+    if target.exists() and stamp.exists() and stamp.read_text(encoding="utf-8").strip() == digest:
         return target
     app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
-        raise HepError(f"{app} is not built", hint="hep build --framework")
+        raise HepError(f"{app} is not built", hint="heimdall build --framework")
     target.parent.mkdir(parents=True, exist_ok=True)
-    done = subprocess.run([str(app), str(yoda), str(target), "--keep-raw"], capture_output=True, text=True)
+    done = subprocess.run([str(app), str(yoda), str(target), "--keep-raw"], capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0:
         raise HepError(f"converting {yoda.name} failed: {done.stderr.strip()[-300:]}", where=str(yoda))
-    stamp.write_text(digest + "\n")
+    stamp.write_text(digest + "\n", encoding="utf-8")
     return target
 
 
@@ -334,8 +334,8 @@ def data_source(name: str, run) -> Path:
     if not source.is_file():
         from .paths import dataset_listed
         raise HepError("the reference data file does not exist", where=str(source),
-                       hint="datasets.toml lists it: `hep setup .` fetches it" if dataset_listed(source) else
-                       "put it in datasets/ (tracked), or list it in datasets.toml (url, sha256) for hep setup to fetch; "
+                       hint="datasets.toml lists it: `heimdall setup .` fetches it" if dataset_listed(source) else
+                       "put it in datasets/ (tracked), or list it in datasets.toml (url, sha256) for heimdall setup to fetch; "
                        "`rivet:<Analysis>` names Rivet's own reference data")
     return source
 
@@ -348,13 +348,13 @@ def merge(sources: dict[str, Path], target: Path, stamp: Path, points: Path | No
         return target
     app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
-        raise HepError(f"{app} is not built", hint="hep build --framework")
+        raise HepError(f"{app} is not built", hint="heimdall build --framework")
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.stem + ".partial" + target.suffix)
     argv = [str(app), "--merge", str(partial), *(f"{name}={path}" for name, path in sources.items()), "--keep-raw"]
     if points is not None and points.is_file():
         argv += ["--points", str(points)]
-    done = subprocess.run(argv, capture_output=True, text=True)
+    done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0:
         raise HepError(f"merging the sweep failed: {done.stderr.strip()[-300:]}", where=str(target))
     partial.replace(target)
@@ -420,12 +420,12 @@ def _scanned(run, figure: Figure, complete: list, sources: dict, groups: list, w
     kept = [g for g in groups if figure.x not in g]
     by: dict[tuple, list] = {}
     for plan in complete:
-        by.setdefault(tuple(plan.point.choice[g[0]] for g in kept), []).append(plan)
+        by.setdefault(tuple(group_key(g, plan.point.choice) for g in kept), []).append(plan)
     where.mkdir(parents=True, exist_ok=True)
     glob = figure.objects[0] if figure.objects else ""
     members, yodas = [], {}
     for key, plans in by.items():
-        name = "_".join(tag_of(run.quantities[g[0]], i) for g, i in zip(kept, key)) or "scan"
+        name = "_".join(group_tag(run.quantities, g, plans[0].point.choice) for g in kept) or "scan"
         plans = sorted(plans, key=lambda p: float(quantity.values[p.values[figure.x]]))
         target, stamp = where / f"{name}.yoda", where / f"{name}.sha256"
         xs = [float(quantity.values[p.values[figure.x]]) for p in plans]
@@ -532,10 +532,10 @@ def _merged(run, figure: Figure, complete: list, sources: dict, groups: list, wh
     kept = [g for g in groups if not set(g) & set(figure.over)]
     by: dict[tuple, list] = {}
     for plan in complete:
-        by.setdefault(tuple(plan.point.choice[g[0]] for g in kept), []).append(plan)
+        by.setdefault(tuple(group_key(g, plan.point.choice) for g in kept), []).append(plan)
     members, yodas = [], {}
     for key, plans in by.items():
-        name = "_".join(tag_of(run.quantities[g[0]], i) for g, i in zip(kept, key)) or "merged"
+        name = "_".join(group_tag(run.quantities, g, plans[0].point.choice) for g in kept) or "merged"
         target = where / f"{name}.yoda"
         stamp = where / f"{name}.sha256"
         digest = "\n".join(f"{p.point.name} {_sha(sources[p.point.name])}" for p in plans)
@@ -604,12 +604,12 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
 
     by_page: dict[str, list] = {}
     for plan in complete:                                  # a member of another run reads its own quantities (V88)
-        key = "_".join(tag_of(_run_of(run, plan).quantities[g[0]], plan.point.choice[g[0]]) for g in page_groups)
+        key = "_".join(group_tag(_run_of(run, plan).quantities, g, plan.point.choice) for g in page_groups)
         by_page.setdefault(key, []).append(plan)
 
     style, base = run_style(run), base_style()
     known = {plan.point.name: texts_of(_run_of(run, plan), plan, ", ".join(
-                 label_of(_run_of(run, plan).quantities[g[0]], plan.point.choice[g[0]]) for g in page_groups))
+                 label for g in page_groups for label in group_labels(_run_of(run, plan).quantities, g, plan.point.choice)))
              for plan in complete}
     where = f"{run.path}: [plot]"
 
@@ -648,7 +648,8 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
             reference = drawn.get("map", {}).get(short) if drawn else None
             if reference and data_file is None:                # converted once, when a page draws it
                 source = data_source(data["file"], run)
-                data_file = convert(source, cache_root() / run.project / "datasets" / f"{source.stem}.root")
+                data_file = convert(source, (cache_root() / run.project / "datasets" if keeping("cache")   # V149
+                                             else out_dir / "datasets") / f"{source.stem}.root")
             band = band_of(override)
             line_groups = [g for g in curve_groups if not set(g) & set(band)]     # what tells a band curve from another
             curves = [(plan, full) for plan in members for full in variants.get(plan.point.name, {}).get(path, [])]
@@ -771,15 +772,16 @@ def texts_of(run, plan, cell: str) -> dict[str, str]:
 def axes_of(configuration) -> tuple[list, list]:
     """The sweep's axes that make pages (plot_points) and those that make curves; a combined axis is
     merged away (V35) and is neither."""
-    groups = [g for g in axes(configuration) if not set(g) & set(configuration.combine)]
-    pages_ = [g for g in groups if set(g) & set(configuration.plot_points)]
-    return pages_, [g for g in groups if g not in pages_]
+    pages_, curves = split_axes(configuration)                    # a listed group split between them (V154)
+    combined = set(configuration.combine)
+    return [g for g in pages_ if not set(g) & combined], [g for g in curves if not set(g) & combined]
 
 
 def check_figures(run, configuration) -> None:
     """At plan time too: a band (V69), [plot]'s or a figure's, and a merged figure's `over` (V82) name
     curve axes of the configuration, and a figure does not band what it merges."""
     curve_groups = axes_of(configuration)[1]
+    listed = {name for group in axes(configuration) if isinstance(group, Listed) for name in group}
     settings = run.plot or {}
     hint = f"curve axes: {', '.join(g[0] for g in curve_groups) or 'none'} (swept, not plot_points or combined)"
     tables = [("[plot]", settings, ())] + [(f.where.split(": ", 1)[1], f.table, f.over) for f in figures(run)]
@@ -790,6 +792,10 @@ def check_figures(run, configuration) -> None:
                 if not any(name in g for g in curve_groups):
                     raise HepError(f"{at}.{key} names {name}, which is not a curve axis of {configuration.key}",
                                    where=f"{run.path}: {at}.{key}", hint=hint)
+                if name in listed:
+                    raise HepError(f"{at}.{key} names {name}, a quantity of listed points (vary's {{ points = … }})",
+                                   where=f"{run.path}: {at}.{key}",
+                                   hint="listed points are not a grid to band or merge across: sweep it as an axis of its own")
         if set(band if isinstance(band, list) else []) & set(over):
             raise HepError(f"{at} both merges and bands {sorted(set(band) & set(over))[0]}", where=f"{run.path}: {at}.band",
                            hint="a merged axis is one curve already: band another, or merge less")
@@ -797,9 +803,9 @@ def check_figures(run, configuration) -> None:
         compared(run, figure)
     for figure in (f for f in figures(run) if f.kind == "scan"):                    # V85
         at = f"{run.path}: {figure.where.split(': ', 1)[1]}.x"
-        if not any(figure.x in g for g in curve_groups):
-            raise HepError(f"a scan figure's x names {figure.x}, which is not a curve axis of {configuration.key}",
-                           where=at, hint=hint)
+        if not any(figure.x in g for g in curve_groups) or figure.x in listed:
+            raise HepError(f"a scan figure's x names {figure.x}, which is not a curve axis of {configuration.key}"
+                           + (" of its own (it is in listed points)" if figure.x in listed else ""), where=at, hint=hint)
         if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in run.quantities[figure.x].values):
             raise HepError(f"a scan figure's x, {figure.x}, has values that are not numbers", where=at,
                            hint="its values are the x axis: a quantity of numbers (a scan of named values is not drawn yet)")
@@ -856,10 +862,11 @@ def compared(run, figure: Figure) -> list[Compared]:
                            hint="compared configurations sweep the same quantities, with the same plot_points and combine")
     for c in (c for c in out if not c.own):              # another run's page cells must be this run's
         for group in shapes[c.ref][0]:
-            mine, theirs = run.quantities[group[0]], c.run.quantities[group[0]]
-            if [tag_of(mine, i) for i in range(len(mine.values))] != [tag_of(theirs, i) for i in range(len(theirs.values))]:
-                raise HepError(f"'{c.ref}' has other values of {group[0]}, a page axis, than this file", where=at,
-                               hint="its pages pair with this run's by the page axes' tags")
+            for name in (group if isinstance(group, Listed) else group[:1]):
+                mine, theirs = run.quantities[name], c.run.quantities[name]
+                if [tag_of(mine, i) for i in range(len(mine.values))] != [tag_of(theirs, i) for i in range(len(theirs.values))]:
+                    raise HepError(f"'{c.ref}' has other values of {name}, a page axis, than this file", where=at,
+                                   hint="its pages pair with this run's by the page axes' tags")
     if figure.labels and len(figure.labels) != len(out):
         raise HepError(f"a compare figure's labels give one label per configuration ({len(out)})", where=f"{figure.where}.labels")
     return out
@@ -989,11 +996,11 @@ def _banded(curves: list, curve_groups: list, band: list, of_plan) -> list:
     rest = [g for g in curve_groups if g not in banded]
     groups: dict = {}
     for plan, full in curves:
-        key = (tuple(plan.point.choice[g[0]] for g in rest), of_plan(plan, full))
+        key = (tuple(group_key(g, plan.point.choice) for g in rest), of_plan(plan, full))
         groups.setdefault(key, []).append((plan, full))
     out = []
     for members in groups.values():
-        members.sort(key=lambda pf: tuple(pf[0].point.choice[g[0]] for g in banded))
+        members.sort(key=lambda pf: tuple(group_key(g, pf[0].point.choice) for g in banded))
         out.append((*members[0], members[1:]))
     return out
 
@@ -1010,7 +1017,7 @@ def _curve_look(run, plan, curve_groups) -> dict:
     look: dict = {}
     for group in curve_groups:
         for name in group:
-            if name in run.quantities and run.quantities[name].styles:
+            if name in run.quantities and run.quantities[name].styles and name in plan.point.choice:
                 look.update(run.quantities[name].styles[plan.point.choice[name]])
     return look
 
@@ -1020,8 +1027,8 @@ def _curve_label(run, plan, curve_groups, fill=lambda text: text) -> str:
     name when it has neither."""
     run = _run_of(run, plan)
     own = [canonical(fill(plan.context["curve_label"]))] if plan.context.get("curve_label") else []
-    labels = [canonical(fill(label_of(run.quantities[g[0]], plan.point.choice[g[0]]))) for g in curve_groups
-              if g[0] in run.quantities]
+    labels = [canonical(fill(label)) for g in curve_groups if g[0] in run.quantities
+              for label in group_labels(run.quantities, g, plan.point.choice)]
     return ", ".join(own + labels) or run.name
 
 
@@ -1030,7 +1037,7 @@ def _paint(paint: Path, configs: list[Path], mode: list[str] = ()) -> dict[str, 
     outcomes: dict[str, tuple[bool, str]] = {}
     for start in range(0, len(configs), PAINT_BATCH):
         batch = [str(c) for c in configs[start:start + PAINT_BATCH]]
-        done = subprocess.run([str(paint), *batch, *mode], capture_output=True, text=True)
+        done = subprocess.run([str(paint), *batch, *mode], capture_output=True, text=True, encoding="utf-8")
         if len(batch) == 1:
             outcomes[batch[0]] = (done.returncode == 0, _why(done) if done.returncode else "")
             continue
@@ -1104,9 +1111,11 @@ def draw(run, configuration, plans, say, others=None) -> int:
         return 0
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
-        raise HepError(f"{paint} is not built", hint="hep build --framework")
+        raise HepError(f"{paint} is not built", hint="heimdall build --framework")
     todo = pages(run, configuration, plans)
     failed = _draw(run, paint, todo, f"{run.name} · {configuration.label}", say) if todo else 0
+    if todo:
+        tidy(plans[0].out.parent / "plots")
     if not todo:
         say("plot: no complete point has a YODA product to draw")
     for figure in (f for f in figures(run) if f.kind == "sheet") if todo else ():
@@ -1129,7 +1138,22 @@ def draw(run, configuration, plans, say, others=None) -> int:
         made = compare_pages(run, figure, sets)
         say(f"plot: compare {figure.name}, {len(named)} configurations")
         failed += _draw(run, paint, made, f"{run.name} · {figure.name}", say)
+        first = next(plans[0] for c, plans in sets if c.own)
+        tidy(first.out.parent.parent / "compare" / figure.name)
     return failed
+
+
+def tidy(folder: Path) -> None:
+    """The plot stage's working folder once its pages are drawn: the page configs stay (text, as a point's
+    cards do); the merged and derived YODAs, converted data, mkhtml's files, ranges and skip markers go,
+    unless the run keeps `cache` (V149). Never outside logs/."""
+    if keeping("cache") or not folder.is_dir() or not folder.resolve().is_relative_to(logs_root().resolve()):
+        return
+    for path in sorted(folder.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if path.is_file() and path.suffix != ".toml":
+            path.unlink()
+        elif path.is_dir() and not path.is_symlink() and not any(path.iterdir()):
+            path.rmdir()
 
 
 def sheet(run, figure: Figure, todo: list[Page], say) -> int:
@@ -1176,7 +1200,7 @@ def _draw(run, paint: Path, todo: list[Page], title: str, say) -> int:
             failed += 1
             say(f"plot: {page.name} failed: {why}")
         elif others:
-            page.ranges = json.loads(page.config.with_name(page.config.name + ".ranges.json").read_text())
+            page.ranges = json.loads(page.config.with_name(page.config.name + ".ranges.json").read_text(encoding="utf-8"))
     if "root" in names:
         where = todo[0].config.parent if "/" not in todo[0].name else todo[0].config.parent.parent
         say(f"plot: {len(todo) - failed} of {len(todo)} page(s) drawn; configs in {where}")
@@ -1203,7 +1227,7 @@ def _draw(run, paint: Path, todo: list[Page], title: str, say) -> int:
     return failed
 
 
-# ── hep plot FILE…: pages from any YODA or ROOT files, no run TOML ────────────────────────────
+# ── heimdall plot FILE…: pages from any YODA or ROOT files, no run TOML ────────────────────────────
 
 def _is_plot_file(path: str) -> bool:
     return path.endswith((".yoda", ".yoda.gz", ".root"))
@@ -1258,7 +1282,7 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
         raise HepError(f"--labels gives {len(labels)} names for {len(paths)} files")
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
-        raise HepError(f"{paint} is not built", hint="hep build --framework")
+        raise HepError(f"{paint} is not built", hint="heimdall build --framework")
     key = hashlib.sha256("\n".join(map(str, paths)).encode()).hexdigest()[:12]
     work = logs_root() / "plots" / key
     outdir = (outdir or (results_root() / "plots" / paths[0].name.split(".")[0])).resolve()
@@ -1305,6 +1329,7 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
         else:
             drawn.append(("", written[config], outdir / written[config]))
     if drawn:
-        write_index(outdir, "hep plot", drawn)                 # V70
+        write_index(outdir, "heimdall plot", drawn)                 # V70
+    tidy(work)
     say(f"plot: {len(pages_of) - failed} of {len(pages_of)} page(s), {len(curves)} curve(s) → {outdir}")
     return failed

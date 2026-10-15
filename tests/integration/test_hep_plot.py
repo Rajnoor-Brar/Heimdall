@@ -1,4 +1,4 @@
-"""`hep overlay FILE…` (V74; was `hep plot FILE…`): any YODA or ROOT files overlaid through Paint, with no run TOML; and the merged
+"""`heimdall overlay FILE…` (V74; was `heimdall plot FILE…`): any YODA or ROOT files overlaid through Paint, with no run TOML; and the merged
 sweep file (App_yd2rt --merge) read back as one curve per point."""
 
 from __future__ import annotations
@@ -20,11 +20,11 @@ LEGACY = REPO / "tests" / "reference" / "legacy_run"
 YODAS = [LEGACY / "mini_27x920_ep_MSTW.yoda", LEGACY / "mini_27x920_ep_NNLO.yoda"]
 BUILT = all((apps() / n).exists() for n in ("Paint.exe", "App_yd2rt.exe"))
 
-pytestmark = pytest.mark.skipif(not BUILT, reason="hep build --framework")
+pytestmark = pytest.mark.skipif(not BUILT, reason="heimdall build --framework")
 
 
 def configs(scratch_output: Path) -> list[dict]:
-    return [tomllib.loads(p.read_text()) for p in sorted(scratch_output.glob("plots/*/photo_eic/*.toml"))]
+    return [tomllib.loads(p.read_text(encoding="utf-8")) for p in sorted(scratch_output.glob("plots/*/photo_eic/*.toml"))]
 
 
 def test_two_yoda_files_one_page_per_object(scratch, monkeypatch):
@@ -48,7 +48,7 @@ def test_a_merged_sweep_is_one_curve_per_point(scratch, monkeypatch):
     points = scratch / "points.json"
     points.write_text(json.dumps({"points": [
         {"name": "a", "values": {"pdf": {"label": "MSTW 2008 LO", "swept": True}}},
-        {"name": "b", "values": {"pdf": {"label": "NNPDF 2.3 LO", "swept": True}}}]}))
+        {"name": "b", "values": {"pdf": {"label": "NNPDF 2.3 LO", "swept": True}}}]}), encoding="utf-8")
     sweep = scratch / "sweep.root"
     done = subprocess.run([str(apps() / "App_yd2rt.exe"), "--merge", str(sweep), f"a={YODAS[0]}", f"b={YODAS[1]}",
                            "--keep-raw", "--points", str(points)], capture_output=True, text=True, encoding="utf-8")

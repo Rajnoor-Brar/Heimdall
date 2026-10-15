@@ -73,31 +73,28 @@ and coreutils first on `PATH`, picks Homebrew's Python 3.11+, and runs `build_st
 `build_stack.py` argument passes through and wins over `mac.toml`: `cores=8`, `root.release=6.40.06`,
 `packages="rivet pythia8"`. Stamps (`stack/.stamps/`), logs (`forge/logs/<package>.log`), resuming and
 `--list` are as on Linux ([../../README.md §1](../../README.md#1-quick-start)). `mac.toml`'s `setup_extra`
-lines go to the machine root's `machine.sh`, which `setup.sh` sources.
+lines go to the machine root's `machine.sh`, which `gjallarhorn.sh` sources.
 
 ---
 
 ## 3. Launch
 
 ```bash
-~/Github/Heimdall/launch.sh                    # a bash with Heimdall's setup.sh loaded (hep_status shows the stack)
+~/Github/Heimdall/launch.sh                    # a bash with Heimdall's gjallarhorn.sh loaded (heimdall_status shows the stack)
 ~/Github/Heimdall/launch.sh root -l            # one command in that environment
 ```
 
 The environment (`env/hep_env.sh`) is bash, and macOS's login shell is zsh, with a bash 3.2:
 `launch.sh` runs the base's bash 5 (or Homebrew's, with `base=system`) with your `~/.bashrc` and
-`setup.sh`. Inside a bash already,
-`source ~/Github/Heimdall/setup.sh` does the same; zsh sourcing it is turned away. For a zsh
-shortcut, in `~/.zshrc` (an older alias to `recipes/platforms/mac/launch.sh` still works):
-
-```bash
-alias load_hep="$HOME/Github/Heimdall/launch.sh"
-```
+`gjallarhorn.sh`. Inside a bash already,
+`source ~/Github/Heimdall/gjallarhorn.sh` does the same; zsh sourcing it is turned away. The build writes
+`gjallarhorn` into `~/.zshrc`: in a new terminal, `gjallarhorn` opens `launch.sh`'s bash with the
+environment, and `gjallarhorn <title>` opens it in that work dir (`bifrost --shell remove` takes it out).
 
 Then, in the launched shell, the framework against the new stack:
 
 ```bash
-hep build --framework && make -C "$HEP" test
+heimdall build --framework && make -C "$HEP" test
 ```
 
 ---
@@ -118,8 +115,8 @@ today, pandoc and poppler) and `conda.toml` holds the one fix it needs; the tabl
 | libraries found by | `LD_LIBRARY_PATH` | absolute install names: libtool's own (LHAPDF, YODA, Rivet, ThePEG, Herwig, Whizard) and `CMAKE_INSTALL_NAME_DIR` for HepMC3, Delphes, Geant4; rpaths from `root-config`, `fastjet-config`, `pythia8-config`; `DYLD_LIBRARY_PATH` as well |
 | fjcontrib's shared library | `libfastjetcontribfragile.so` | `.dylib` (the `{dylib}` placeholder) |
 | ONNX Runtime | `onnxruntime-linux-<arch>` | `onnxruntime-osx-<arm64 or x86_64>` |
-| setup.sh | the stub | the stub, then `DYLD_LIBRARY_PATH` and GNU make, sed, coreutils first on `PATH` (`setup_extra`) |
-| decks (`hep deck`) | `pandoc`, `poppler-utils`, `texlive-latex-recommended` (apt) | `pandoc`, `poppler` (Brewfile); the Beamer class comes with BasicTeX or MacTeX |
+| gjallarhorn.sh | the stub | the stub, then `DYLD_LIBRARY_PATH` and GNU make, sed, coreutils first on `PATH` (`setup_extra`) |
+| decks (`heimdall deck`) | `pandoc`, `poppler-utils`, `texlive-latex-recommended` (apt) | `pandoc`, `poppler` (Brewfile); the Beamer class comes with BasicTeX or MacTeX |
 
 ---
 
@@ -130,10 +127,10 @@ today, pandoc and poppler) and `conda.toml` holds the one fix it needs; the tabl
   (libc++, GSL, `-lc++`, type_info across plugins) and Whizard (`CXXLIBS`). Herwig's 8-byte Fortran
   integers and Whizard's PDF sets are in `recipes/toolkits/standard.toml`, for every platform. The whole story:
   `docs/audit_3/01_Process.md`.
-- **Your shell is zsh; the environment is bash.** Load it with `launch.sh` (above); `source setup.sh`
-  in zsh is turned away, with nothing changed. `hep quit` takes `DYLD_LIBRARY_PATH` and the GNU tools
+- **Your shell is zsh; the environment is bash.** Load it with `launch.sh` (above); `source gjallarhorn.sh`
+  in zsh is turned away, with nothing changed. `heimdall quit` takes `DYLD_LIBRARY_PATH` and the GNU tools
   out again (`machine.sh`'s lines are recorded when they are sourced).
-- **`hep run`'s watch socket** (`framework/runner/events.py`) uses Linux's abstract socket namespace;
+- **`heimdall run`'s watch socket** (`framework/runner/events.py`) uses Linux's abstract socket namespace;
   on macOS it falls back to a socket file in `$TMPDIR` (docs/framework/06_Seam.md, S2).
 - **DYLD_LIBRARY_PATH** is dropped by macOS (System Integrity Protection) whenever one of Apple's own
   programs starts, `/usr/bin/env` and `/bin/sh` among them, and so for most scripts. The stack does

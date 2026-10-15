@@ -241,7 +241,7 @@ def _identities(run) -> dict:
 
 
 def test_every_fixture_config_is_its_v2_text_in_v3():
-    """06_Plan's phase-6 row: the fixture's configs were migrated by hep migrate --v3; their v2 texts
+    """06_Plan's phase-6 row: the fixture's configs were migrated by heimdall migrate --v3; their v2 texts
     (tests/reference/v2_configs/) and they plan every point to the same name and identity, and the v2
     text migrates to the file as it is."""
     from runner import house, migrate
@@ -275,7 +275,7 @@ def test_a_key_in_the_wrong_table_names_its_table(scratch, change, message):
     assert caught.value.hint and __import__("re").search(message, caught.value.hint), caught.value.hint
 
 
-def test_hep_check_names_tool_tables_nothing_uses(scratch):
+def test_heimdall_check_names_tool_tables_nothing_uses(scratch):
     from runner import house
     run = load(scratch, V3.replace("[tools.yd2rt]", '[tools.spare]\nuses = "yd2rt"\ninput = "rivet"\noutput = "x.root"\n\n[tools.yd2rt]'))
     assert house.unused_tools(run) == ["[tools.spare] is defined but no configuration runs it or names it in generate_cards"]

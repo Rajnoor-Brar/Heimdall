@@ -1,4 +1,4 @@
-"""--why and hep check (V57): what changed since a point completed; every configuration planned."""
+"""--why and heimdall check (V57): what changed since a point completed; every configuration planned."""
 
 from __future__ import annotations
 

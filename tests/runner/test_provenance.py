@@ -1,5 +1,5 @@
 """Provenance across two repos (docs/framework/01_Target.md §5.6): a point records Heimdall's git state
-and its work dir's, which `hep reproduce` compares with today's."""
+and its work dir's, which `heimdall reproduce` compares with today's."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ needs_git = pytest.mark.skipif(not shutil.which("git") or not (REPO / ".git").ex
 
 
 def head(folder) -> str:
-    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=folder, capture_output=True, text=True).stdout.strip()
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=folder, capture_output=True, text=True, encoding="utf-8").stdout.strip()
 
 
 def provenance_of(scratch):

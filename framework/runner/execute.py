@@ -31,6 +31,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import shutil
 import signal
 import stat
 import subprocess
@@ -43,8 +44,8 @@ from pathlib import Path
 
 from . import hepfiles
 from .errors import HepError
-from .paths import placeholders
-from .record import (PointLock, complete_marker, held_by, holder, is_complete, now, provenance, provenance_file,
+from .paths import keeping, logs_root, placeholders
+from .record import (LOCK_FILE, PointLock, complete_marker, held_by, holder, is_complete, now, provenance, provenance_file,
                      write_atomic, write_identity)
 from .status import Reader, ToolState
 from .tools import CONTEXT_FILE, PointPlan, Step, expand
@@ -226,12 +227,12 @@ _PREPARE_GUARD = threading.Lock()
 @contextmanager
 def _prepare_lock(directory: Path):
     """One point at a time in a prepare cache entry: a lock per entry in this process, and flock on
-    <entry>.lock beside it across processes (two hep runs), so the entry's own folder stays the tool's."""
+    <entry>.lock beside it across processes (two heimdall runs), so the entry's own folder stays the tool's."""
     with _PREPARE_GUARD:
         lock = _PREPARE_LOCKS.setdefault(directory, threading.Lock())
     with lock:
         directory.parent.mkdir(parents=True, exist_ok=True)
-        with open(directory.with_name(directory.name + ".lock"), "w") as handle:
+        with open(directory.with_name(directory.name + ".lock"), "w", encoding="utf-8") as handle:
             fcntl.flock(handle, fcntl.LOCK_EX)
             try:
                 yield
@@ -270,7 +271,7 @@ def report_of(product: Path) -> Path:
 # ── [prelim] ───────────────────────────────────────────────────────────────────────────────────
 
 def prepare(plan: PointPlan, logs: bool = False) -> None:
-    for directory in (plan.out, plan.out / "logs", plan.res):
+    for directory in (plan.out, plan.res):        # logs/ is made by what writes there (V149)
         directory.mkdir(parents=True, exist_ok=True)
     marker = complete_marker(plan)
     if marker.exists():
@@ -295,8 +296,9 @@ def prepare(plan: PointPlan, logs: bool = False) -> None:
         context = {**placeholders(), "out": str(plan.out), "res": str(plan.res),
                    "file:": {n: str(i.path) for n, i in plan.interfaces.items()}}
         argv = [x for a in command for x in ([expand(str(a), context, "[prelim].commands")])]
-        done = subprocess.run(argv, cwd=plan.out, capture_output=True, text=True)
+        done = subprocess.run(argv, cwd=plan.out, capture_output=True, text=True, encoding="utf-8")
         if done.returncode != 0 or logs:              # its output is on disk when it failed, or with --logs (V72)
+            (plan.out / "logs").mkdir(exist_ok=True)
             (plan.out / "logs" / "prelim.log").open("a", encoding="utf-8").write(
                 f"$ {' '.join(argv)}\n{done.stdout}{done.stderr}")
         if done.returncode != 0:
@@ -509,6 +511,7 @@ def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, lo
     write_atomic(provenance_file(plan), json.dumps(record, indent=1, default=str) + "\n")
     write_identity(plan)                          # what it ran with, for --why (V57)
     write_atomic(complete_marker(plan), plan.identity + "\n")
+    _tidy(plan)
     result = PointResult(True, tools=results)
     _finished(plan, result, bus)
     return result
@@ -596,6 +599,21 @@ def _settle(group: list[Step], results: dict[str, ToolResult]) -> PointResult | 
 def _finished(plan: PointPlan, result: PointResult, bus) -> None:
     bus.emit(plan.point.name, "", {"k": "point", "state": "done" if result.ok else "stopped" if result.stopped else "failed",
                                    "cause": result.cause, "msg": result.message, "res": str(plan.res)})
+
+
+def _tidy(plan: PointPlan) -> None:
+    """A finished point's working folder keeps its cards/ and config/ (and logs/ when something was written
+    there); its scratch files, shards and what its tools left go, unless the run keeps `work` (V149). The lock
+    stays: another session may hold it. Never outside logs/."""
+    if keeping("work") or not plan.out.is_relative_to(logs_root()) or not plan.out.is_dir():
+        return
+    for entry in plan.out.iterdir():
+        if entry.name in ("cards", "config", LOCK_FILE) or (entry.name == "logs" and entry.is_dir() and any(entry.iterdir())):
+            continue
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink(missing_ok=True)
 
 
 def _cleanup(plan: PointPlan) -> None:

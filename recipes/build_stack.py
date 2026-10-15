@@ -40,13 +40,13 @@ this machine's shell lines in machine.sh.
 The base (base = "conda", the default; docs/conda/): before any build, pixi (fetched into forge/pixi/)
 makes base/ a conda-forge environment from recipes/base.toml: the compilers, the build tools, the
 libraries the stack links, Python and its packages. The stack is built inside it, from source, into
-stack/; a recipe taken ready-made (from = "conda-forge") is installed into the base instead. setup.sh
+stack/; a recipe taken ready-made (from = "conda-forge") is installed into the base instead. gjallarhorn.sh
 loads the base through base/activate.sh. base = "system": apt_packages (sudo) or Homebrew, and a venv in
 venv/, as before.
 A toolkit is one file (recipes/toolkits/<name>.toml, and your own in <machine root>/toolkits/, which
 come first): which recipes it takes ([standard]), what it extends, what it changes. One that
 changes the C++ standard is isolated: it builds a whole stack of its own in the machine root's
-stacks/<toolkit>/ (installs, build trees, venv, apps), loaded by its setup.sh; downloads are shared.
+stacks/<toolkit>/ (installs, build trees, venv, apps), loaded by its gjallarhorn.sh; downloads are shared.
 A finished package is stamped (stack/.stamps/<name>-<release>, holding a digest of the recipe it was
 built with) and skipped after, so a rerun resumes; --rebuild <package> builds it again, with what
 depends on it. A package installed some other way (its probe file there, no stamp) is used as it is.
@@ -122,16 +122,16 @@ MAGIC = (b"\x1f\x8b", b"BZh", b"\xfd7zXZ\x00", b"PK\x03\x04")
 #: A download's patience: attempts per URL, seconds between them (doubling), and a read's timeout.
 ATTEMPTS, BACKOFF, TIMEOUT = 5, 3, 60
 
-#: <machine>/stacks/<toolkit>/setup.sh: an isolated stack's loader (`quit` the default environment first).
+#: <machine>/stacks/<toolkit>/gjallarhorn.sh: an isolated stack's loader (`quit` the default environment first).
 STACK_SETUP = """#!/bin/bash
-# stacks/{stack}/setup.sh — the isolated stack of toolkit @{stack} (C++{cxx_std}), written by recipes/build_stack.py.
-# Load it instead of Heimdall's setup.sh, in a shell of its own (or after `quit`): its ABI differs.
+# stacks/{stack}/gjallarhorn.sh — the isolated stack of toolkit @{stack} (C++{cxx_std}), written by recipes/build_stack.py.
+# Load it instead of Heimdall's gjallarhorn.sh, in a shell of its own (or after `quit`): its ABI differs.
 export HEP_MACHINE="{root}" HEP_STACK_REQUEST={stack}
-source "{repo}/setup.sh"
+source "{repo}/gjallarhorn.sh" "$@"
 """
 
-#: <machine>/machine.sh: this machine's lines from the setup_extra setting; setup.sh sources it.
-MACHINE = """# machine.sh — this machine's lines for Heimdall's setup.sh, written by recipes/build_stack.py from
+#: <machine>/machine.sh: this machine's lines from the setup_extra setting; gjallarhorn.sh sources it.
+MACHINE = """# machine.sh — this machine's lines for Heimdall's gjallarhorn.sh, written by recipes/build_stack.py from
 # the setup_extra setting.
 """
 
@@ -140,8 +140,8 @@ COLOUR = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
 
 
 def die(message: str, hint: str = "") -> NoReturn:
-    """An error in hep's format (U62): `hep: what`, then `  hint:  what to do`."""
-    text = f"hep: {message}" + (f"\n  hint:  {hint}" if hint else "")
+    """An error in heimdall's format (U62): `heimdall: what`, then `  hint:  what to do`."""
+    text = f"heimdall: {message}" + (f"\n  hint:  {hint}" if hint else "")
     sys.exit(f"\033[31m{text}\033[0m" if COLOUR else text)
 
 
@@ -175,9 +175,9 @@ def coerce(text: str, like):
 
 
 #: The tables a layer may have (a toolkit's, a platform's, machine.toml's, a --config file's); machine.toml's
-#: [cluster] is hep cluster's (framework/runner/cluster.py).
+#: [cluster] is heimdall cluster's (framework/runner/cluster.py).
 LAYER_TABLES = ("settings", "env", "packages")
-MACHINE_TABLES = (*LAYER_TABLES, "cluster")
+MACHINE_TABLES = (*LAYER_TABLES, "cluster", "run")             # [cluster], [run]: heimdall's, not the build's
 #: What changed each value, for --list: "root.extra" → ["platform mac", "@gpu-sim"]; "cores" → ["machine.toml"].
 ORIGINS: dict[str, list[str]] = {}
 #: Each toolkit file read, once per run (options() empties it).
@@ -293,6 +293,41 @@ def members(key: str, packages: dict, where: str) -> list[str]:
     die(f"{where}: no group or package '{key}' (the groups: {', '.join(GROUPS)}; the packages: --list)")
 
 
+def kit_of(word: str) -> str:
+    """The toolkit a `packages` word lays: "@lab" (its set too), or "rivet@lab" (only its changes); "" for none."""
+    return word[1:] if word.startswith("@") else word.partition("@")[2]
+
+
+def gate(key: str) -> tuple[str, str]:
+    """An `optional` key: a package, then a version spec it must meet ("root >=6.30", "hdf5")."""
+    name, _, spec = key.strip().partition(" ")
+    return name, spec.strip()
+
+
+def version_ok(version: str, spec: str) -> bool:
+    """`version` meets `spec`: comparisons joined by commas (">=6.30,<7"), "6.40.*", "==6.40.04"; "" any.
+    Versions compare by their numbers (8.318 > 8.312; "3.03.01" is 3.3.1)."""
+    if not spec:
+        return True
+    have = tuple(int(n) for n in re.findall(r"\d+", version))
+    if not have:
+        return False
+    for part in (s.strip() for s in spec.split(",") if s.strip()):
+        op, number = re.fullmatch(r"(>=|<=|==|!=|>|<|=)?\s*([\d.*]+)", part).groups()
+        if number.endswith(".*") or op in (None, "=") and "*" in number:
+            prefix = tuple(int(n) for n in re.findall(r"\d+", number))
+            ok = have[:len(prefix)] == prefix
+            ok = not ok if op == "!=" else ok
+        else:
+            want = tuple(int(n) for n in re.findall(r"\d+", number))
+            width = max(len(have), len(want))
+            a, b = have + (0,) * (width - len(have)), want + (0,) * (width - len(want))
+            ok = {">=": a >= b, "<=": a <= b, ">": a > b, "<": a < b, "!=": a != b}.get(op, a == b)
+        if not ok:
+            return False
+    return True
+
+
 def kit_set(chain: list[tuple[str, Path]], packages: dict) -> dict[str, str]:
     """The packages a toolkit builds, each with why it is in: [standard]'s trues, then its own recipes,
     then [standard]'s falses take out, file by file (what a package needs is added later, by plan)."""
@@ -395,6 +430,12 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
         die(f"base is {' or '.join(repr(b) for b in BASES)}, not {base!r}")
     settings["base"] = base
     files = kit_files(root)
+    custom = root / "recipes.toml"                                 # 0. the machine's own recipes, as standard's
+    if custom.is_file():
+        data = read(custom)
+        if unknown := sorted(set(data) - {"packages"}):
+            die(f"{custom}: no table [{'], ['.join(unknown)}] (it holds [packages.<name>], as standard.toml)")
+        layer(settings, packages, data, str(custom), "recipes.toml", set())
     if base == "conda":                                            # 1. the base's layer (recipes/base.toml)
         data = read(BASE_FILE)
         layer(settings, packages, {k: v for k, v in data.items() if k in LAYER_TABLES}, str(BASE_FILE),
@@ -412,7 +453,7 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             layer(settings, packages, data, str(file), f"platform {platform}" + ("" if file.stem == platform
                                                                                else f" ({file.stem})"),
                   settable(settings, "base"))
-    chains = {w[1:]: kit_chain(w[1:], files) for w in settings["_want"] if w.startswith("@")}
+    chains = {kit_of(w): kit_chain(kit_of(w), files) for w in settings["_want"] if "@" in w}
     isolated = [kit for kit, chain in chains.items() if any(kit_load(f).get("isolated") for _, f in chain)]
     if len(isolated) > 1:
         die(f"one isolated stack per run: {', '.join('@' + k for k in isolated)}")
@@ -464,15 +505,18 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
         if key not in ("packages", "machine"):
             ORIGINS.setdefault(key, []).append("command line")
     if base == "conda":                                            # 7. what the base holds ready-made stays so
-        # (a later run without the toolkit, hep doctor, hep stack status): a recipe no layer gave a `from`,
+        # (a later run without the toolkit, heimdall doctor, heimdall stack status): a recipe no layer gave a `from`,
         # whose conda-forge package is in the base and which the stack has not built, is taken from there.
         own = root / "stacks" / settings["_stack"] if settings["_stack"] else root
         held = conda_meta(own / "base" / ".pixi" / "envs" / "default")
+        settings["_held"] = []                                     # what the base keeps, whatever the run's set
         for name, p in packages.items():
-            if ("from" not in p and p.get("conda") and conda_name(p) in held
+            if (p.get("from", "conda-forge") == "conda-forge" and p.get("conda") and conda_name(p) in held
                     and not (own / "stack" / p.get("install", name)).exists()):
-                p["from"] = "conda-forge"
-                ORIGINS.setdefault(f"{name}.from", []).append("the base (ready-made there)")
+                settings["_held"].append(name)
+                if "from" not in p:
+                    p["from"] = "conda-forge"
+                    ORIGINS.setdefault(f"{name}.from", []).append("the base (ready-made there)")
     for name, p in packages.items():
         if unknown := sorted(set(p) - FIELDS):
             die(f"[packages.{name}] has no key {', '.join(unknown)}")
@@ -484,7 +528,7 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
             die(f"[packages.{name}] is external: it needs a 'how' (where it comes from)")
         if p.get("group") not in (None, *GROUPS) or p.get("group") == "all":
             die(f"[packages.{name}].group is \"core\" or \"extra\", or none (joins only by name)")
-        for other in [*p.get("needs", []), *p.get("optional", {})]:
+        for other in [*p.get("needs", []), *(gate(key)[0] for key in p.get("optional", {}))]:
             if other not in packages:
                 die(f"[packages.{name}] names '{other}', which is not a package")
         if "verify" in p and (wrong := checker().problems(name, p["verify"])):
@@ -509,13 +553,15 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
     # Where each package is, for {dir_<name>}: built here (stack/<install>), or ready-made in the base.
     settings["_ready"] = sorted(n for n, p in packages.items() if p.get("from") == "conda-forge")
     settings["_installs"] = {n: p.get("install", n) for n, p in packages.items()}
+    settings["_releases"] = {n: (str(p.get("release", "")), conda_name(p) if p.get("conda") else "")
+                             for n, p in packages.items()}
     return mode, settings, packages
 
 
 # ── placeholders ───────────────────────────────────────────────────────────────────────────────
 
 def probe(command: list[str]) -> str:
-    return subprocess.run(command, capture_output=True, text=True, check=True).stdout.strip()
+    return subprocess.run(command, capture_output=True, text=True, check=True, encoding="utf-8").stdout.strip()
 
 
 def ram_kb() -> int:
@@ -614,8 +660,12 @@ def context(s: dict) -> dict:
         die(f"base = \"conda\" knows no conda platform for {system} {machine}: set base=system")
     c["base_hash"] = base_hash(c)
     ready = set(s.get("_ready", []))
-    for name, install in s.get("_installs", {}).items():           # {dir_<package>}: where it is installed
-        c["dir_" + name.replace("-", "_")] = venv if name in ready else f"{c['inst']}/{install}"
+    for name, install in s.get("_installs", {}).items():           # {dir_<package>}: where it is installed,
+        key = name.replace("-", "_")                               # {bin_<package>} its programs, and
+        c["dir_" + key] = venv if name in ready else f"{c['inst']}/{install}"
+        c["bin_" + key] = f"{c['dir_' + key]}/bin"                 # {version_<package>}: the recipe's release,
+        release, conda = s.get("_releases", {}).get(name, ("", ""))   # or the base's when it is ready-made
+        c["version_" + key] = c["conda_meta"].get(conda, "").split("-")[0] if name in ready and conda else release
     return c
 
 
@@ -721,7 +771,10 @@ def chosen_of(want: list[str], packages: dict, s: dict) -> list[str]:
     """Groups, names and @toolkits (options() resolved them), as package names."""
     out: list[str] = []
     for word in want:
-        out += list(kit_set(s["_chains"][word[1:]], packages)) if word.startswith("@") else members(word, packages, "packages")
+        if word.startswith("@"):
+            out += list(kit_set(s["_chains"][word[1:]], packages))
+        else:                                                      # <tool>@<toolkit>: the tool, the kit's changes
+            out += members(word.partition("@")[0], packages, "packages")
     return list(dict.fromkeys(out))
 
 
@@ -734,6 +787,27 @@ def checker():
     return module
 
 
+def shellrc():
+    """framework/runner/shellrc.py: the block of `gjallarhorn` and `bifrost` in the user's rc files."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("heimdall_shellrc", REPO / "framework" / "runner" / "shellrc.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def shell_block(prefix: Path) -> None:
+    """Once a build has set the machine up: `gjallarhorn` and `bifrost` in ~/.bashrc (and ~/.zshrc), for this
+    checkout and machine root. A block another checkout's or root's is left, and said (V143)."""
+    rc = shellrc()
+    for shell, file in rc.rc_files(Path.home(), os.environ.get("SHELL", "")):
+        happened = rc.install(file, rc.block(shell, REPO, prefix), replace=False)
+        if happened == "written":
+            say(f"{file}: gjallarhorn [title] and bifrost written in, for a new shell (bifrost --shell remove takes them out)")
+        elif happened == "another":
+            say(f"{file}: its Heimdall block is another checkout's or machine root's; bifrost --shell install points it here")
+
+
 def checks(name: str, p: dict, c: dict, env: dict[str, str], quick: bool = False, slow_ok: bool = True) -> list:
     """A package's [[verify]] rows (recipes/verify.py)."""
     k = scope(name, p, c)
@@ -742,7 +816,7 @@ def checks(name: str, p: dict, c: dict, env: dict[str, str], quick: bool = False
 
 
 def doctor_rows(packages: dict, c: dict, env: dict[str, str], quick: bool = False) -> list:
-    """--verify (and `hep doctor`): every installed package's checks, then each install folder's scan."""
+    """--verify (and `heimdall doctor`): every installed package's checks, then each install folder's scan."""
     rows, scanned = [], set()
     v = checker()
     for name, p in packages.items():
@@ -835,7 +909,7 @@ def plan(s: dict, packages: dict, c: dict) -> tuple[list[str], list[str]]:
         for need in packages[name].get("needs", []):
             if need in chosen or not present(need, packages[need], c):
                 visit(need, [*chain, name])
-        for other in packages[name].get("optional", {}):           # an optional one in the run goes first,
+        for other in (gate(key)[0] for key in packages[name].get("optional", {})):   # one in the run goes first,
             if other in chosen:                                    # so its flags apply (YODA after HDF5)
                 visit(other, [*chain, name])
         order.append(name)
@@ -983,7 +1057,7 @@ def archive_problem(file: Path, sha256: str = "", full: bool = True) -> str | No
         return f"sha256 differs from the recipe's ({sha256[:12]}…)"
     if full:
         listing = (["unzip", "-tq", str(file)] if head.startswith(b"PK") else ["tar", "-tf", str(file)])
-        check = subprocess.run(listing, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        check = subprocess.run(listing, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding="utf-8")
         if check.returncode:
             return "cut off or damaged: " + (check.stderr.strip().splitlines() or ["tar -t failed"])[-1]
     return None
@@ -1113,8 +1187,9 @@ def build(name: str, p: dict, c: dict, shell: Shell, have: set[str]) -> None:
         shell.run(words(shlex.split(text), k), where, env)
     extra = p.get("extra", [])
     args = words([*p.get("args", []), *(shlex.split(extra) if isinstance(extra, str) else extra)], k)
-    for other, extra in p.get("optional", {}).items():
-        if other in have:
+    for key, extra in p.get("optional", {}).items():               # "<package> [version spec]": its args when it
+        other, spec = gate(key)                                    # is installed or in the run, at such a version
+        if other in have and version_ok(k.get("version_" + other.replace("-", "_"), ""), spec):
             args += words(extra, k)
     jobs = f"-j{expand(str(p.get('cores', '{cores}')), k)}"                 # make's and cmake's: compilers at once
     if kind == "autotools":
@@ -1170,14 +1245,19 @@ def check_ready_made(order: list[str], packages: dict) -> None:
 
 def base_entries(order: list[str], packages: dict, c: dict) -> dict[str, str]:
     """The base's packages for this run, by name, each with its version spec ("*": any): Python, then
-    recipes/base.toml's libraries and tools, the Python packages, what the run's recipes need in the base,
-    the ready-made recipes, and base_packages. A later entry's spec wins over an earlier "*". A spec may
+    recipes/base.toml's libraries and tools, the Python packages, what the run's recipes (and those built
+    here before) need in the base, the ready-made recipes (the run's, and those the base holds), and
+    base_packages. A later entry's spec wins over an earlier "*". A spec may
     name a build after its version ("root_base * cxx20*")."""
     entries = [f"python {c['py']}.*", *base_lists(c, "libraries"), *base_lists(c, "tools"),
                *(CONDA_NAMES.get(n, n) for n in c["python_packages"])]
-    for name in order:
-        p = packages[name]
-        entries += conda_specs(p, c) if ready_made(p) else [expand(e, c) for e in p.get("base", [])]
+    # The run's recipes, and what the base and the stack hold already: a run of another set (a later
+    # --base, `bifrost`) must not take out a ready-made package, or a library a built one needs.
+    for name, p in packages.items():
+        if ready_made(p) and (name in order or name in c.get("_held", ())):
+            entries += conda_specs(p, c)
+        elif not ready_made(p) and p.get("base") and (name in order or stamp(name, p, c).exists()):
+            entries += [expand(e, c) for e in p["base"]]
     entries += [expand(e, c) for e in c["base_packages"]]
     out: dict[str, str] = {}
     for entry in entries:
@@ -1202,16 +1282,23 @@ def manifest_text(order: list[str], packages: dict, c: dict) -> str:
         value = (f"{{ version = {json.dumps(version)}, build = {json.dumps(build.strip())} }}" if build.strip()
                  else json.dumps(spec))
         lines.append(f"{json.dumps(name) if not re.fullmatch(r'[A-Za-z0-9_-]+', name) else name} = {value}")
+    pypi = [expand(e, c) for e in c.get("base_pypi", [])]
+    if pypi:                                                       # PyPI's, solved by pixi (uv) against the above
+        lines += ["", "[pypi-dependencies]"]
+        for entry in pypi:
+            name, _, spec = entry.strip().partition(" ")
+            lines.append(f"{json.dumps(name) if not re.fullmatch(r'[A-Za-z0-9_.-]+', name) else name} = "
+                         f"{json.dumps(spec.strip() or '*')}")
     return "\n".join(lines) + "\n"
 
 
 def activate_text(c: dict) -> str:
     """base/activate.sh: the base in a shell, as conda activates an environment (its activate.d scripts:
     the compilers' CC, CXX, FC …), less the compile flags, which the build and rules.mk set themselves.
-    setup.sh sources it (recorded, so `hep quit` takes it out); the build reads what it sets. base/pkgconfig/
+    gjallarhorn.sh sources it (recorded, so `heimdall quit` takes it out); the build reads what it sets. base/pkgconfig/
     (pkgconfig_files) is on PKG_CONFIG_PATH."""
     pc = shlex.quote(str(Path(c["base_dir"], "pkgconfig")))
-    return (f"# base/activate.sh: the base's environment, written by recipes/build_stack.py; setup.sh sources it.\n"
+    return (f"# base/activate.sh: the base's environment, written by recipes/build_stack.py; gjallarhorn.sh sources it.\n"
             f"export CONDA_PREFIX={shlex.quote(c['base'])}\n"
             'case ":${PATH-}:" in *":$CONDA_PREFIX/bin:"*) ;; *) export PATH="$CONDA_PREFIX/bin${PATH:+:$PATH}" ;; esac\n'
             f'case ":${{PKG_CONFIG_PATH-}}:" in *":"{pc}":"*) ;; '
@@ -1264,7 +1351,7 @@ def make_base(s: dict, c: dict, packages: dict, order: list[str], shell: Shell) 
     binary, mark = Path(c["pixi"]), Path(c["pixi"]).with_name(".release")
     shell.name, shell.log = "base", Path(c["forge"], "logs", "base.log")
     say(f"the base (conda-forge, made by pixi {release}) → {c['base_dir']}")
-    if shell.script or not (binary.is_file() and mark.is_file() and mark.read_text().strip() == release):
+    if shell.script or not (binary.is_file() and mark.is_file() and mark.read_text(encoding="utf-8").strip() == release):
         fetch([(archive, [expand(conf["url"], {"release": release, "target": target})], conf["sha256"][target])], shell)
         if shell.script:
             print(f"mkdir -p {shlex.quote(str(binary.parent))} && tar -xzf {shlex.quote(str(archive))} -O pixi "
@@ -1278,7 +1365,7 @@ def make_base(s: dict, c: dict, packages: dict, order: list[str], shell: Shell) 
                     die(f"{archive.name} holds no pixi program")
                 binary.write_bytes(tar.extractfile(member).read())
             binary.chmod(0o755)
-            mark.write_text(release + "\n")
+            mark.write_text(release + "\n", encoding="utf-8")
     manifest = Path(c["base_dir"], "pixi.toml")
     text = manifest_text(order, packages, c)
     if shell.script:
@@ -1367,7 +1454,7 @@ def preflight(s: dict, c: dict, order: list[str]) -> None:
         notes.append(f"ROOTSYS={os.environ['ROOTSYS']} is set by your shell: the build leaves it out "
                      "(remove it from your shell's startup file, or ROOT's own builds may trip on it)")
     if shutil.which("brew"):
-        listed = subprocess.run(["brew", "list", "--formula", "-1"], capture_output=True, text=True).stdout.split()
+        listed = subprocess.run(["brew", "list", "--formula", "-1"], capture_output=True, text=True, encoding="utf-8").stdout.split()
         clash = sorted(set(listed) & {"root", "hepmc3", "fastjet", "lhapdf", "pythia", "yoda", "rivet", "herwig",
                                        "thepeg", "sherpa", "geant4", "delphes"})
         if clash:
@@ -1387,7 +1474,8 @@ def show(order: list[str], added: list[str], packages: dict, c: dict, s: dict) -
     why = {}
     for word in s["_want"]:
         why.update({n: r for n, r in kit_set(s["_chains"][word[1:]], packages).items() if n not in why}
-                   if word.startswith("@") else {n: word for n in members(word, packages, "packages") if n not in why})
+                   if word.startswith("@") else {n: word for n in members(word.partition("@")[0], packages, "packages")
+                                                 if n not in why})
     shown = order if s.get("_list_kit") else list(packages)
     print(f"{'package':13} {'release':10} {'group':6} {'state':18} {'this run':9} " + ("why" if s.get("_list_kit") else "needs"))
     for name in shown:
@@ -1557,7 +1645,7 @@ def main(argv: list[str]) -> None:
         else:
             env = activation(c, env)
         if mode == "base":
-            say(f"done: the base is {c['base']}" + (f"; source {REPO / 'setup.sh'}" if not script else ""))
+            say(f"done: the base is {c['base']}" + (f"; source {REPO / 'gjallarhorn.sh'}" if not script else ""))
             return
     elif mode == "base":
         die("--base makes a conda base: base = \"conda\" (this build's is \"system\")")
@@ -1633,24 +1721,27 @@ def main(argv: list[str]) -> None:
             if p["kind"] not in ("none", "external"):
                 record_links(name, p, c)
             say(f"{label}: done in {minutes(time.monotonic() - shell.started)}")
-    machine = prefix / "machine.sh"                                # setup.sh itself is tracked
+    machine = prefix / "machine.sh"                                # gjallarhorn.sh itself is tracked
     if c["setup_extra"] or machine.exists():                       # (lines taken out go too)
         if script:
             print(f"\ncat > {shlex.quote(str(machine))} <<'EOF'\n{machine_text(c)}EOF")
         else:
             machine.write_text(machine_text(c), encoding="utf-8")
-    if not script and not (prefix / "machine.toml").exists():      # this machine's settings: yours to edit
-        (prefix / "machine.toml").write_text((HERE / "machine.template.toml").read_text(encoding="utf-8"),
-                                             encoding="utf-8")
-    load = REPO / "setup.sh"
+    for mine in ("machine", "recipes"):                            # this machine's settings and recipes: yours
+        if not script and not (prefix / f"{mine}.toml").exists():
+            (prefix / f"{mine}.toml").write_text((HERE / f"{mine}.template.toml").read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
+    load = REPO / "gjallarhorn.sh"
     if c["stack"]:                                                 # an isolated stack: its own loader
-        load = prefix / "stacks" / c["stack"] / "setup.sh"
+        load = prefix / "stacks" / c["stack"] / "gjallarhorn.sh"
         text = STACK_SETUP.format(stack=c["stack"], cxx_std=c["cxx_std"], root=prefix, repo=REPO)
         if script:
             print(f"\ncat > {shlex.quote(str(load))} <<'EOF'\n{text}EOF")
         else:
             load.write_text(text, encoding="utf-8")
-    say(f"done: source {load}")
+    say(f"done: source {load}" + ("" if c["stack"] else " (or gjallarhorn, in a new shell)"))
+    if not script and s.get("shell_rc", True) and not c["stack"]:
+        shell_block(prefix)
 
 
 if __name__ == "__main__":

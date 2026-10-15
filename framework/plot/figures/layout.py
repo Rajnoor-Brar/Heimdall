@@ -81,7 +81,7 @@ def size_of(path: Path) -> tuple[float, float]:
         return _png_size(path)
     if not shutil.which("pdfinfo"):
         raise ValueError("a page's size is read by pdfinfo (poppler), which is not on PATH")
-    done = subprocess.run(["pdfinfo", str(path)], capture_output=True, text=True)
+    done = subprocess.run(["pdfinfo", str(path)], capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0:
         raise ValueError(f"pdfinfo cannot read {path.name}: {done.stderr.strip()}")
     return _pdf_size(done.stdout)
@@ -141,11 +141,11 @@ def _draw(panels: list[tuple[Path, str]], target: Path, box: tuple[float, float]
             f"\\begin{{picture}}({width:.2f},{height:.2f})\n" + "\n".join(lines) + "\n\\end{picture}\n\\end{document}\n",
             encoding="utf-8")
         done = subprocess.run(["pdflatex", "-interaction=batchmode", "-halt-on-error", "layout.tex"],
-                              cwd=work, capture_output=True, text=True)
+                              cwd=work, capture_output=True, text=True, encoding="utf-8")
         made = Path(work) / "layout.pdf"
         if done.returncode != 0 or not made.is_file():
             log = Path(work) / "layout.log"
-            text = log.read_text(errors="replace") if log.is_file() else done.stdout
+            text = log.read_text(errors="replace", encoding="utf-8") if log.is_file() else done.stdout
             errors = [line for line in text.splitlines() if line.startswith("!")]
             raise ValueError(f"pdflatex could not lay out {target.name}: "
                              f"{errors[0] if errors else (text.strip().splitlines() or [done.returncode])[-1]}")
@@ -159,7 +159,7 @@ def png(pdf: Path, target: Path, dpi: float = 200, pixels: tuple[int, int] | Non
         raise ValueError("a layout's PNG is rendered by pdftoppm (poppler), which is not on PATH")
     scale = ["-scale-to-x", str(pixels[0]), "-scale-to-y", str(pixels[1])] if pixels else ["-r", f"{dpi:g}"]
     done = subprocess.run(["pdftoppm", "-png", "-singlefile", *scale, str(pdf), str(target)[:-len(".png")]],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0 or not target.is_file():
         raise ValueError(f"pdftoppm could not render {pdf.name}: {done.stderr.strip() or done.returncode}")
 

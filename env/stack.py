@@ -2,7 +2,7 @@
 """env/stack.py — env/stack.toml read (audit 1 B7, V78).
 
     stack.py --bash      the probes for env/flags.sh: TOOLS=(…), STACK=<sha>, probe/dir_lib lines
-    stack.py --versions  each entry's version, as `hep status --stack` prints it
+    stack.py --versions  each entry's version, as `heimdall status --stack` prints it
 
 Importable too (the runner's `[identity] version = "stack:<name>"`): `entries()`, `version(name)`.
 Standard library only.
@@ -27,7 +27,7 @@ def entries() -> dict[str, dict]:
 
 def expand(text: str) -> str:
     """Shell text (`${A:-${B-}/x}`) as bash expands it."""
-    done = subprocess.run(["bash", "-c", f'printf %s "{text}"'], capture_output=True, text=True)
+    done = subprocess.run(["bash", "-c", f'printf %s "{text}"'], capture_output=True, text=True, encoding="utf-8")
     return done.stdout
 
 
@@ -48,7 +48,7 @@ def version(name: str) -> str:
     if not command:
         return ""
     try:
-        done = subprocess.run(command, capture_output=True, text=True, timeout=30)
+        done = subprocess.run(command, capture_output=True, text=True, timeout=30, encoding="utf-8")
     except (OSError, subprocess.SubprocessError):
         return "?"
     text = (done.stdout or done.stderr).strip()

@@ -41,7 +41,7 @@ framework = ["tomlplusplus"]                 # Paint, App_Pythia, the module kit
 # What the build and Heimdall run, not link: a change rebuilds nothing.
 [base.tools]
 build = ["make", "cmake", "pkg-config", "autoconf", "automake", "libtool", "patch", "pip"]
-decks = ["pandoc", "poppler"]                # hep deck, sheets; TeX stays the OS's (docs/conda/01 §7)
+decks = ["pandoc", "poppler"]                # heimdall deck, sheets; TeX stays the OS's (docs/conda/01 §7)
 
 # pkg-config files a conda-forge package lacks and Heimdall's build asks for (env/stack.toml's probes): each
 # is written into base/pkgconfig/ for the version installed, and activate.sh puts that folder on

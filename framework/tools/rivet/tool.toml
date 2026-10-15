@@ -2,6 +2,7 @@
 [tool]
 category        = "analysis-application"
 executable      = "rivet"
+packages        = ["rivet", "yoda"] # the recipes it runs (bifrost -b|-c, heimdall tools)
 streamable      = true
 status          = "filters"
 consumes_events = true

@@ -1,7 +1,7 @@
 """recipes/verify.py — what a built package can do, checked: the `verify` entries of the recipes, and a
 scan of every program and library for libraries that no longer resolve (docs/audit_3/01_Process.md E, I).
 
-build_stack.py runs a package's checks right after it installs it; `hep doctor` runs them all. Standard
+build_stack.py runs a package's checks right after it installs it; `heimdall doctor` runs them all. Standard
 library only, like build_stack.py. Each check gives one row: (package, check, result, note), with result
 ok, MISSING, FAIL or n/a.
 
@@ -55,7 +55,7 @@ def problems(name: str, entries) -> list[str]:
 def _output(argv: list[str], env: dict[str, str], cwd: str, timeout: float) -> tuple[int, str]:
     try:
         done = subprocess.run(argv, capture_output=True, text=True, env=env, cwd=cwd, timeout=timeout,
-                              stdin=subprocess.DEVNULL)
+                              stdin=subprocess.DEVNULL, encoding="utf-8")
         return done.returncode, (done.stdout + done.stderr)
     except FileNotFoundError:
         return 127, f"{argv[0]}: not found"
@@ -68,7 +68,7 @@ def _output(argv: list[str], env: dict[str, str], cwd: str, timeout: float) -> t
 def links_of(path: str) -> str:
     argv = ["otool", "-L", path] if MAC else ["ldd", path]
     try:
-        return subprocess.run(argv, capture_output=True, text=True, timeout=30).stdout
+        return subprocess.run(argv, capture_output=True, text=True, timeout=30, encoding="utf-8").stdout
     except (OSError, subprocess.TimeoutExpired):
         return ""
 
@@ -124,7 +124,7 @@ def run(package: str, entries: list[dict], expand: Callable[[str], str], python:
         for entry in entries:
             name = entry["name"]
             if entry.get("slow") and (quick or not slow_ok):
-                rows.append((package, name, "n/a", "slow: skipped (--quick)" if quick else "slow: hep doctor runs it"))
+                rows.append((package, name, "n/a", "slow: skipped (--quick)" if quick else "slow: heimdall doctor runs it"))
                 continue
             if "files" in entry:
                 lost = [pattern for pattern in entry["files"] if not glob.glob(expand(pattern))]

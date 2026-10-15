@@ -21,17 +21,17 @@ The baselines are the lab PC's of 2026-10-10: Heimdall at `c6e7590` and after, a
 
 **Preconditions:**
 - P1 is verified.
-- `source $HEP/setup.sh`.
+- `source $HEP/gjallarhorn.sh`.
 - `git -C $HEP status --porcelain` is empty.
 
 **Tasks:**
 
-1. `hep build --framework --tests`: the apps (`App_Pythia`, `App_PythiaCheck`, `App_yd2rt`, `Paint`),
+1. `heimdall build --framework --tests`: the apps (`App_Pythia`, `App_PythiaCheck`, `App_yd2rt`, `Paint`),
    Herwig's repository and the C++ tests.
-2. `hep make --framework test`: runs the C++ tests, then `pytest -m "not slow"`, which first builds
+2. `heimdall make --framework test`: runs the C++ tests, then `pytest -m "not slow"`, which first builds
    the fixture work dir's modules and plugins in `$HEP_FORGE/scratch/work/` (V112). Collect the summary
    line and every skip with its reason (`-rs`).
-3. Check that the generated parts of the manual are current: `hep make --framework docs schema`.
+3. Check that the generated parts of the manual are current: `heimdall make --framework docs schema`.
 
 **Verification:**
 

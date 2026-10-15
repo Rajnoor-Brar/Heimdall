@@ -1,14 +1,14 @@
 """The work dirs this machine knows: <machine root>/workdirs.toml (rank 1; docs/05_Commands_and_Tools.md §2).
 
 `heimdall recognise` records a work dir there under a title, its hep.toml's [work] name (else its folder's
-name), and `bifrost <title>` goes to it. `heimdall setup` records the work dir it makes. One table per title:
+name), and `gjallarhorn <title>` goes to it. `heimdall setup` records the work dir it makes. One table per title:
 
     ["Study"]
     path = "/home/me/Github/Study"
     recognised = "2026-10-14"
 
 `$HEP_WORKDIRS` replaces the file (the tests point it into forge/scratch/). Standard library only: the shell
-reads the titles with sed (bifrost's completion), so the file is written by hand, one title per header.
+reads the titles with sed (gjallarhorn's completion), so the file is written by hand, one title per header.
 """
 
 from __future__ import annotations
@@ -51,10 +51,10 @@ def load() -> dict[str, dict]:
 
 
 def save(entries: dict[str, dict]) -> Path:
-    """The registry, written whole: titles in order, each a quoted header (bifrost's completion reads them)."""
+    """The registry, written whole: titles in order, each a quoted header (gjallarhorn's completion reads them)."""
     file = registry_file()
     lines = ["# workdirs.toml: the work dirs this machine knows, written by `heimdall recognise` and",
-             "# `heimdall setup`; `bifrost <title>` goes to one. Edit with heimdall recognise --as / --forget."]
+             "# `heimdall setup`; `gjallarhorn <title>` goes to one. Edit with heimdall recognise --as / --forget."]
     for title in sorted(entries, key=str.casefold):
         entry = entries[title]
         lines += ["", f"[{json.dumps(title, ensure_ascii=False)}]", f"path = {json.dumps(entry['path'], ensure_ascii=False)}",
@@ -132,7 +132,7 @@ def scan(start: Path, depth: int = DEPTH) -> list[Path]:
 
 
 def path_of(title: str) -> Path:
-    """Where the work dir of `title` is (bifrost's question); an unknown title or a gone path is refused."""
+    """Where the work dir of `title` is (gjallarhorn's question); an unknown title or a gone path is refused."""
     entries = load()
     if title not in entries:
         raise HepError(f"no work dir titled '{title}'",

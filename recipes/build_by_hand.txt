@@ -240,14 +240,14 @@ lhapdf list --installed | wc -l
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
-# STEP 15 — the environment for every later session: Heimdall's setup.sh (tracked; nothing to write)
+# STEP 15 — the environment for every later session: Heimdall's gjallarhorn.sh (tracked; nothing to write)
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
-echo "alias load_hep='source $HEP/setup.sh'" >> ~/.bashrc
+"$HEP/framework/bin/bifrost" --shell install      # gjallarhorn [title] and bifrost, into ~/.bashrc (a marked block)
 # check, in a NEW terminal:
-#   load_hep && hep_status
+#   gjallarhorn && heimdall_status
 # then the framework's apps and tests:
-#   hep build --framework && make -C "$HEP" test
+#   heimdall build --framework && make -C "$HEP" test
 
 # ── The core stack is done here. The rest is optional (packages = "all"). ────────────────────────
 

@@ -1,7 +1,8 @@
 """Points and pages from `sweeps` and `plot_points` (rank 1).
 
 docs/04_Config_Reference.md §5.1–5.2. A string entry of `sweeps` is an independent axis; a list
-entry is an entangled group that moves together (value i with value i). The points are the grid of
+entry is an entangled group that moves together (value i with value i); a `Listed` entry is listed
+combinations of quantities, a row each, a row setting some of them (V154). The points are the grid of
 the axes, in `sweeps` order. Pages are the grid of the `plot_points` axes, and every other swept
 quantity becomes the curves on a page.
 """
@@ -35,8 +36,57 @@ def label_of(quantity, index: int) -> str:
     return quantity.labels[index] if quantity.labels else tag_of(quantity, index)
 
 
+class Listed(list):
+    """A `vary` entry of listed combinations (V154): the quantities it sets, in the order they first appear in
+    its rows (the list itself, so the code that reads a group as its names reads this too), and its rows, each
+    {quantity: value index} for the quantities that row sets. A row may leave a quantity out: that point sets
+    nothing for it."""
+    def __init__(self, members, rows: list[dict[str, int]]):
+        super().__init__(members)
+        self.rows = rows
+
+
 def axes(configuration) -> list[list[str]]:
     return [entry if isinstance(entry, list) else [entry] for entry in configuration.sweeps]
+
+
+def split_axes(configuration) -> tuple[list, list]:
+    """(page groups, curve groups): a group with a member in plot_points makes pages, as a whole; a listed group is
+    split, the members plot_points names making pages and the others curves (V154)."""
+    pages_, curves = [], []
+    for group in axes(configuration):
+        named = [m for m in group if m in configuration.plot_points]
+        if not named:
+            curves.append(group)
+        elif isinstance(group, Listed):
+            pages_.append(Listed(named, group.rows))
+            if rest := [m for m in group if m not in named]:
+                curves.append(Listed(rest, group.rows))
+        else:
+            pages_.append(group)
+    return pages_, curves
+
+
+def group_key(group, choice: dict):
+    """What tells a group's points apart: its value index (an entangled group moves together), or a listed
+    group's members' indices (-1 where a row leaves one out)."""
+    if isinstance(group, Listed):
+        return tuple(choice.get(m, -1) for m in group)
+    return choice[group[0]]
+
+
+def group_tag(quantities: dict, group, choice: dict) -> str:
+    """A group's tag at a point: its first quantity's, or a listed group's present members' joined."""
+    if isinstance(group, Listed):
+        return "_".join(tag_of(quantities[m], choice[m]) for m in group if m in choice)
+    return tag_of(quantities[group[0]], choice[group[0]])
+
+
+def group_labels(quantities: dict, group, choice: dict) -> list[str]:
+    """A group's labels at a point: its first quantity's, or a listed group's present members'."""
+    if isinstance(group, Listed):
+        return [label_of(quantities[m], choice[m]) for m in group if m in choice]
+    return [label_of(quantities[group[0]], choice[group[0]])]
 
 
 def kept(run, group: list[str]) -> list[int]:
@@ -56,14 +106,16 @@ RESERVED = ("plots", "pre", "post", "cluster")
 
 def points(run, configuration) -> list[Point]:
     groups = axes(configuration)
-    ranges = [kept(run, group) for group in groups]
-    page_axes = [i for i, group in enumerate(groups) if set(group) & set(configuration.plot_points)]
+    ranges = [range(len(group.rows)) if isinstance(group, Listed) else kept(run, group) for group in groups]
+    page_groups = split_axes(configuration)[0]
     out: list[Point] = []
     for number, combination in enumerate(itertools.product(*ranges), start=1):
-        choice = {name: index for group, index in zip(groups, combination) for name in group}
+        choice: dict[str, int] = {}
+        for group, index in zip(groups, combination):
+            choice.update(group.rows[index] if isinstance(group, Listed) else {name: index for name in group})
         tags = [tag_of(run.quantities[name], choice[name]) for group in groups for name in group
-                if not run.quantities[name].silent]                # a compound quantity's later fields (v3)
-        page = tuple(combination[i] for i in page_axes)
+                if name in choice and not run.quantities[name].silent]   # a compound quantity's later fields (v3)
+        page = tuple(group_key(group, choice) for group in page_groups)
         out.append(Point(index=number, name="_".join(tags) or "point", choice=choice, page=page))
     names = [p.name for p in out]
     for name in names:
@@ -89,7 +141,7 @@ def pages(configuration, point_list: list[Point]) -> dict[tuple, list[Point]]:
 
 def select_points(run, configuration, point_list: list[Point], selector: str | None) -> list[Point]:
     """--points: comma-separated tags, 1-based indices, point names or quantity=tag filters. A whole
-    point name picks that point alone (hep cluster's jobs name theirs, V114), before any tag match."""
+    point name picks that point alone (heimdall cluster's jobs name theirs, V114), before any tag match."""
     if not selector:
         return point_list
     chosen = []

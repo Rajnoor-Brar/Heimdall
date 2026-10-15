@@ -1,4 +1,4 @@
-"""`hep doctor`: what this machine's stack and Heimdall can do, checked (docs/audit_3/06_Plan.md, phase 2).
+"""`heimdall doctor`: what this machine's stack and Heimdall can do, checked (docs/audit_3/06_Plan.md, phase 2).
 
 The packages' checks are their recipes' (`[[packages.<name>.verify]]` in recipes/toolkits/, run by
 recipes/verify.py through recipes/build_stack.py), with a scan of every program and library for
@@ -38,28 +38,54 @@ def loaded(bs):
     return settings, packages, bs.context(settings)
 
 
+def stack_rows() -> list[dict]:
+    """Every recipe installed in the loaded stack: its name, version, how ("built", "changed" since, "ready-made"
+    from conda-forge, "installed" another way, "failed"), its folder. Derived each time (stamps, the base's
+    conda-meta, machine.toml's choices): there is no file of it to go stale."""
+    bs = builder()
+    _, packages, c = loaded(bs)
+    rows = []
+    for name, p in packages.items():
+        now = "" if p.get("kind") == "external" else bs.state(name, p, c)
+        if not now:
+            continue
+        ready = bs.ready_made(p)
+        folder = (c["base"] if ready or (name == "python" and c["base"]) else c["venv"] if name == "python"
+                  else f"{c['inst']}/{p.get('install', name)}" if p.get("kind") != "none" else "")
+        version = "?" if now == "installed" else str(p.get("release", "—"))    # not built here: unknown
+        if ready:                                                  # conda-forge's version
+            version = c["conda_meta"].get(bs.conda_name(p), "?").split("-")[0]
+        rows.append({"package": name, "version": version, "how": "built" if now.startswith("built") else now,
+                     "folder": folder})
+    return rows
+
+
+def stack_toml() -> str:
+    """`heimdall stack status --toml`: stack_rows as TOML, for scripts (generated each time)."""
+    import tomli_w
+    bs = builder()
+    _, _, c = loaded(bs)
+    return tomli_w.dumps({"stack": c["inst"], "base": c["base"],
+                          "packages": {r["package"]: {k: v for k, v in r.items() if k != "package"} for r in stack_rows()}})
+
+
 def stack_status() -> list[str]:
-    """`hep status --stack`: every recipe installed in the loaded stack (its release, its state, its
+    """`heimdall status --stack`: every recipe installed in the loaded stack (its release, its state, its
     folder), then the libraries a module may require (env/stack.toml) with their versions."""
     bs = builder()
     _, packages, c = loaded(bs)
     out = [f"the stack: {c['inst']}" + (f" (@{c['stack']}, C++{c['cxx_std']})" if c["stack"] else ""),
            bs.base_line(c).replace("base:    ", "the base:  ", 1),
            f"  {'package':13} {'release':10} {'state':18} folder"]
-    for name, p in packages.items():
-        now = "" if p.get("kind") == "external" else bs.state(name, p, c)
-        if now:
-            ready = bs.ready_made(p)
-            folder = ("base" if ready or (name == "python" and c["base"]) else "venv" if name == "python"
-                      else p.get("install", name) if p.get("kind") != "none" else "-")
-            release = "?" if now == "installed" else str(p.get("release", "—"))   # not built here: below
-            if ready:                                              # conda-forge's version
-                release = c["conda_meta"].get(bs.conda_name(p), "?").split("-")[0]
-            out.append(f"  {name:13} {release:10} {now:18} {folder}")
+    for row in stack_rows():
+        folder = row["folder"]
+        shown = ("base" if c["base"] and folder == c["base"] else "venv" if folder == c["venv"]
+                 else Path(folder).name if folder else "-")
+        out.append(f"  {row['package']:13} {row['version']:10} {row['how']:18} {shown}")
     if len(out) == 3:
         out.append("  (nothing installed: python3 recipes/build_stack.py)")
     if any(" installed " in line for line in out[2:]):
-        out.append("  (installed: there, but not built by build_stack.py here; its version is below, or in hep doctor)")
+        out.append("  (installed: there, but not built by build_stack.py here; its version is below, or in heimdall doctor)")
     out += ["", "libraries a module may require (env/stack.toml), and the programs' versions:"]
     out += ["  " + line for line in plugins.load(hep_root() / "env" / "stack.py", "stack").versions()]
     return out
@@ -67,7 +93,7 @@ def stack_status() -> list[str]:
 
 def first_line(argv: list[str]) -> str:
     try:
-        out = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=30, encoding="utf-8")
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return ((out.stdout or out.stderr).strip().splitlines() or [""])[0][:70]
@@ -78,7 +104,7 @@ def system_rows() -> list[tuple[str, str, str, str]]:
         os_name = f"macOS {platform.mac_ver()[0]}"
     else:
         try:
-            os_name = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text().splitlines()
+            os_name = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text(encoding="utf-8").splitlines()
                            if "=" in line).get("PRETTY_NAME", "Linux").strip('"')
         except OSError:
             os_name = platform.system()
@@ -94,10 +120,10 @@ def heimdall_rows() -> list[tuple[str, str, str, str]]:
     work = find_work()
     rows = [("heimdall", "where", "ok", f"hep={hep_root()} work={work or '-'}")]
     if not os.environ.get("HEP_ENV_LOADED"):
-        rows.append(("heimdall", "environment", "MISSING", "not loaded: source setup.sh (or launch.sh on macOS)"))
+        rows.append(("heimdall", "environment", "MISSING", "not loaded: source gjallarhorn.sh (or launch.sh on macOS)"))
     apps = sorted(apps_dir().glob("*.exe")) if apps_dir().is_dir() else []
     rows.append(("heimdall", "framework apps", "ok" if apps else "n/a",
-                 f"{len(apps)} built" if apps else "not built yet: hep build --framework"))
+                 f"{len(apps)} built" if apps else "not built yet: heimdall build --framework"))
     return rows
 
 
@@ -133,7 +159,7 @@ def record(rows: list[tuple[str, str, str, str]]) -> Path:
     """This machine's row of the support matrix: when, what, and what did not pass."""
     revision = first_line(["git", "-C", str(hep_root()), "rev-parse", "--short", "HEAD"])
     versions = {package: note for package, check, result, note in rows if check == "version" and result == "ok"}
-    lines = [f"# {support_file().name} — `hep doctor --record` on this machine; the support matrix's row (recipes/README.md)",
+    lines = [f"# {support_file().name} — `heimdall doctor --record` on this machine; the support matrix's row (recipes/README.md)",
              f'date     = "{datetime.date.today().isoformat()}"',
              f'platform = "{next((n for p, c, r, n in rows if c == "os"), "")}"',
              f'heimdall = "{revision}"',
@@ -151,7 +177,7 @@ def record(rows: list[tuple[str, str, str, str]]) -> Path:
 def matrix() -> list[str]:
     files = sorted((hep_root() / "recipes" / "support").glob("*.toml"))
     if not files:
-        return ["no machine has recorded its checks yet: hep doctor --record"]
+        return ["no machine has recorded its checks yet: heimdall doctor --record"]
     out = [f"{'machine':28} {'date':11} {'heimdall':9} {'ok':>4} {'FAIL':>5} {'MISSING':>8}  platform"]
     for file in files:
         data = tomllib.loads(file.read_text(encoding="utf-8"))

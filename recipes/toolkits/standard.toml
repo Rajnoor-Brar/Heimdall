@@ -12,8 +12,8 @@
 #   [settings] [env]    settings.toml's keys, and the build's environment, for this toolkit's builds
 #   [packages.<name>]   a recipe's keys changed (a list appends, unless replace = ["key"] names it), or
 #                       a recipe of its own, which joins its set
-# What a package needs is added to any set. The layers, lowest first: this file and settings.toml;
-# the platform's fixes (platforms/<platform>/<platform>.toml); the toolkits asked for, each after what
+# What a package needs is added to any set. The layers, lowest first: this file, then the machine root's
+# recipes.toml (the machine's own recipes, as this file's), and settings.toml; the platform's fixes (platforms/<platform>/<platform>.toml); the toolkits asked for, each after what
 # it extends; the machine root's machine.toml; --config files; the command line.
 #
 # A recipe, [packages.<name>]:
@@ -32,7 +32,9 @@
 #   args      configure or cmake arguments
 #   extra     more of them, after args: for a toolkit or the command line (root.extra="-Droofit=OFF"),
 #             without repeating args (CMake and configure take the last of a repeated option)
-#   optional  { package = [args] }: added when that package is installed or in the run
+#   optional  { "package [version spec]" = [args] }: added when that package is installed or in the run, at
+#             a version meeting the spec (">=6.30,<7", "6.40.*"; none: any): its release, or the base's
+#             installed version when it is ready-made
 #   patch     a patch (-p0) for the unpacked source; a path from Heimdall's root
 #   strip     the folder levels a tarball's paths carry before the source (default 1)
 #   env       environment for its commands
@@ -40,7 +42,7 @@
 #   cores     how many compilers it runs at once, its make -j (default {cores})
 #   status    "new": a recipe no build has proven yet
 #   verify    [[packages.<name>.verify]]: what it must be able to do, checked after it installs and by
-#             `hep doctor` (recipes/verify.py says how)
+#             `heimdall doctor` (recipes/verify.py says how)
 #   apt       base = "system": the system packages it needs besides apt_packages
 #   base      base = "conda": the conda-forge packages it needs in the base besides recipes/base.toml's
 #   conda     its conda-forge package, when it is taken ready-made ("fastjet-cxx"; a version spec may follow),
@@ -54,7 +56,8 @@
 # Placeholders: any setting ({cores}, {graphics}, …), and {prefix} (the machine root) {inst} {venv} {src} {build}
 # {install} {release} {series} {py} {pyxy} {pyinc} {cxxflags} {cflags} {ldflags} {arch} {machine} {dylib}
 # {repo}; {base}, the base's prefix (base = "conda"; {venv} is the same there); {dir_<package>}, where a
-# package is installed: stack/<its install>, or the base when it is ready-made ({dir_lhapdf}); and any
+# package is installed: stack/<its install>, or the base when it is ready-made ({dir_lhapdf}); {bin_<package>},
+# its programs' folder; {version_<package>}, its version (as optional's specs read it); and any
 # environment variable ({HOMEBREW_PREFIX}). A word that is only a list setting ({pdf_sets}) becomes its
 # words.
 
@@ -466,12 +469,12 @@ how     = "a Mathematica (Wolfram) licence and installation, on PATH as `math` o
 [packages.key4hep]
 kind    = "external"
 probe   = "/cvmfs/sw.hsf.org/key4hep"
-how     = "CVMFS (https://cvmfs.readthedocs.io; sudo) with sw.hsf.org, then `source /cvmfs/sw.hsf.org/key4hep/setup.sh` in a shell of its own (an AlmaLinux 9 container on other systems). It brings EDM4hep, podio, DD4hep, Gaudi and k4FWCore, built with C++20: never in the same shell as setup.sh"
+how     = "CVMFS (https://cvmfs.readthedocs.io; sudo) with sw.hsf.org, then `source /cvmfs/sw.hsf.org/key4hep/setup.sh` in a shell of its own (an AlmaLinux 9 container on other systems). It brings EDM4hep, podio, DD4hep, Gaudi and k4FWCore, built with C++20: never in the same shell as gjallarhorn.sh"
 
 [packages.cmssw]
 kind    = "external"
 probe   = "/cvmfs/cms.cern.ch"
-how     = "CVMFS with cms.cern.ch, then `/cvmfs/cms.cern.ch/common/cmssw-el9` (an el9 container) and `cmsrel CMSSW_<release>` inside it: never in the same shell as setup.sh"
+how     = "CVMFS with cms.cern.ch, then `/cvmfs/cms.cern.ch/common/cmssw-el9` (an el9 container) and `cmsrel CMSSW_<release>` inside it: never in the same shell as gjallarhorn.sh"
 
 [packages.fluka]
 kind    = "external"
@@ -561,9 +564,9 @@ args    = ["-DCMAKE_CUDA_ARCHITECTURES={cuda_arch}", "-DBUILD_TESTING=OFF"]
 
 # ── What each package must be able to do: its checks (recipes/verify.py) ─────────────────────────────
 # build_stack.py runs a package's checks right after installing it (a failed check fails the build);
-# `hep doctor` runs them all, with a scan for libraries that no longer resolve. Each [[<pkg>.verify]]:
+# `heimdall doctor` runs them all, with a scan for libraries that no longer resolve. Each [[<pkg>.verify]]:
 # name, and one of command (+ expect, has), python (+ expect, has), files (globs), links (globs + has);
-# slow = true for a run of minutes (hep doctor only; --quick skips it).
+# slow = true for a run of minutes (heimdall doctor only; --quick skips it).
 
 [[packages.python.verify]]
 name   = "venv packages"

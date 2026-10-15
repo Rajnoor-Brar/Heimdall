@@ -33,7 +33,7 @@ def page(path: Path, size=(336, 303), colour="white") -> Path:
 
 
 def pdf_size(path: Path) -> tuple[float, float]:
-    info = subprocess.run(["pdfinfo", str(path)], capture_output=True, text=True).stdout
+    info = subprocess.run(["pdfinfo", str(path)], capture_output=True, text=True, encoding="utf-8").stdout
     w, h = info.split("Page size:")[1].split("pts")[0].split("x")
     return float(w), float(h)
 

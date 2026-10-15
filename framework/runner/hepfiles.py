@@ -72,7 +72,7 @@ def rivet_dirs() -> tuple[Path, ...]:
     """Where analyses' .info, .plot and reference .yoda files are: build/Rivet, then Rivet's own."""
     places = [work_build() / "Rivet"]
     try:
-        found = subprocess.run(["rivet-config", "--datadir"], capture_output=True, text=True, timeout=30)
+        found = subprocess.run(["rivet-config", "--datadir"], capture_output=True, text=True, timeout=30, encoding="utf-8")
         places += [Path(p) for p in found.stdout.strip().split(":") if p]
     except (OSError, subprocess.SubprocessError):
         pass

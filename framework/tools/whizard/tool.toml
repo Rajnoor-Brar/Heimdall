@@ -6,6 +6,7 @@
 [tool]
 category        = "process-generator"
 executable      = "whizard"
+packages        = ["whizard"]       # the recipes it runs (bifrost -b|-c, heimdall tools)
 status          = "filters"
 produces_events = true
 

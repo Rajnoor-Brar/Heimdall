@@ -4,7 +4,7 @@
 #
 # The machine root holds what this machine built: stack/ (installs), venv/, apps/ (Heimdall's compiled
 # apps), forge/ (downloads, sources, builds, logs), stacks/<toolkit>/, and machine.sh (this machine's
-# shell lines, which setup.sh sources). Several checkouts of Heimdall may share one root.
+# shell lines, which gjallarhorn.sh sources). Several checkouts of Heimdall may share one root.
 #
 # Each table is a layer over the recipes, the platform's fixes and the toolkits asked for
 # (recipes/README.md §1): a list appends to the list below it unless the table names it in
@@ -24,7 +24,10 @@
 # extra   = ["-Dcuda=ON"]
 # replace = []
 
-# [cluster]                       # hep cluster's defaults for every work dir here (a work dir's hep.toml wins)
+# [cluster]                       # heimdall cluster's defaults for every work dir here (a work dir's hep.toml wins)
 # account   = "my-account"
 # partition = "standard"
 # setup     = ["module load gcc/13"]
+
+# [run]                           # what every heimdall run here keeps beyond records/ and results/ (with a
+# keep = ["logs"]                 # work dir's hep.toml [run] keep, and --keep): logs, journal, work, cache

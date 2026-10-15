@@ -169,7 +169,7 @@ def test_the_export_keys_are_retired_with_a_way_on(scratch, key):
     data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={**CUSTOM, key: True})
     with pytest.raises(HepError, match=f"'{key}' is retired") as caught:
         plan(data, scratch)
-    assert "generate_cards" in caught.value.hint and "hep migrate" in caught.value.hint
+    assert "generate_cards" in caught.value.hint and "heimdall migrate" in caught.value.hint
 
 
 def test_a_custom_tool_gets_its_config_and_consumed_quantities(scratch):
@@ -244,13 +244,13 @@ def test_settings_reach_the_card_and_a_second_source_is_refused(scratch):
 def test_a_tcl_comment_line_inside_braces_is_kept(scratch):
     from runner import tools
     card = scratch / "c.tcl"
-    card.write_text("# top\nset ExecutionPath {\n  A\n#  B\n}\n\n# end\nset X 1  # not a comment in Tcl\n")
+    card.write_text("# top\nset ExecutionPath {\n  A\n#  B\n}\n\n# end\nset X 1  # not a comment in Tcl\n", encoding="utf-8")
     folder = tools.folders()["delphes"]
     assert tools.clean_base(card, folder) == [f"# from {card}", "set ExecutionPath {", "  A", "#  B", "}",
                                               "set X 1  # not a comment in Tcl"]
 
 
-@pytest.mark.skipif(not (apps() / "App_PythiaCheck.exe").exists(), reason="hep build --framework")
+@pytest.mark.skipif(not (apps() / "App_PythiaCheck.exe").exists(), reason="heimdall build --framework")
 def test_pythia_reads_the_card_and_a_rejected_line_names_its_source(scratch, monkeypatch):
     """V59: [checks] card. Pythia's own reader, so a nucleus or an id:new particle needs no list of ours."""
     from runner import tools
@@ -263,7 +263,12 @@ def test_pythia_reads_the_card_and_a_rejected_line_names_its_source(scratch, mon
     _, _, bad = plan(raw(tools__pythia__settings={"PDF:pSett": 13}), scratch)
     with pytest.raises(HepError, match=r"rejects 1 line.*'PDF:pSett = 13' \(\[tools.pythia\].settings\)"):
         tools.check_cards(bad)
-    assert list((scratch / "cache").glob("*/checks/pythia/*.json"))    # cached by the card's text
+    assert not list((scratch / "cache").glob("*/checks/pythia/*.json"))   # V149: on disk only when kept
+    from runner import paths
+    tools._CHECKED.clear()
+    paths.ask_keep(["cache"])
+    tools.check_cards(good)
+    assert list((scratch / "cache").glob("*/checks/pythia/*.json"))    # kept: cached by the card's text
 
 
 def test_a_tables_own_filters_file_replaces_the_folders(scratch, monkeypatch):

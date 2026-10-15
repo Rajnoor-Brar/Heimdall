@@ -8,6 +8,7 @@
 [tool]
 category        = "event-generator"
 executable      = "Sherpa"
+packages        = ["sherpa"]        # the recipes it runs (bifrost -b|-c, heimdall tools)
 status          = "none"            # no filters.toml yet: its log's last line is shown
 produces_events = true
 

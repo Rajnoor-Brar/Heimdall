@@ -46,7 +46,7 @@ def test_configurations_are_run_cfgs_and_run_holds_only_its_own_keys(scratch):
     data = raw(); data["run"]["pdf"] = data["run"]["cfgs"].pop("one"); data["run"]["configuration"] = "pdf"
     with pytest.raises(HepError, match=r"\[run.pdf\] is a configuration, and configurations are \[run.cfgs.<cfg>\] now") as error:
         parse(data, scratch)
-    assert "[run.cfgs.pdf]" in error.value.hint and "hep migrate" in error.value.hint
+    assert "[run.cfgs.pdf]" in error.value.hint and "heimdall migrate" in error.value.hint
     with pytest.raises(HepError, match=r"\[run.defualts\] is a configuration") as error:
         parse(raw(run__defualts={"event_count": 5}), scratch)
     assert "[run.cfgs.defualts]" in error.value.hint

@@ -1,4 +1,4 @@
-"""`hep migrate` (V79): run TOMLs and cards rewritten in today's forms, by line, comments kept."""
+"""`heimdall migrate` (V79): run TOMLs and cards rewritten in today's forms, by line, comments kept."""
 
 from __future__ import annotations
 

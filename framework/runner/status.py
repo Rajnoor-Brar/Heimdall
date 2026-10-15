@@ -59,6 +59,8 @@ class Reader:
         self._status_fd, self._out_fd = fd, out
         self._partial = {f: b"" for f in self._fds}
         self._line_at = 0.0
+        if keep and log is not None:
+            log.parent.mkdir(parents=True, exist_ok=True)
         self._handle = open(log, "ab") if keep and log is not None else None
         self._thread = threading.Thread(target=self._loop, name=f"hep-read-{state.tag}", daemon=True)
         if self._fds:

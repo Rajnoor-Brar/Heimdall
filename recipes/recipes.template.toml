@@ -1,0 +1,26 @@
+# recipes.toml — this machine's own recipes, in its machine root (~/Himinbjorg, or $HEP_MACHINE). Written
+# once from recipes/recipes.template.toml (by build_stack.py); yours to edit; never in git.
+#
+# The same [packages.<name>] tables as recipes/toolkits/standard.toml (its header says every key), laid
+# right after it: a recipe here is as one of standard's. A toolkit may take it in its [standard] table,
+# `bifrost -b <name>` builds it, `bifrost -c <name>` takes it from conda-forge when it names a `conda`
+# package, and `python3 recipes/build_stack.py --list` shows it. A table of one of standard's names changes
+# that recipe for every toolkit (a list appends, unless replace = ["key"] names it). machine.toml's
+# [packages.<name>] is laid last, over every toolkit: this machine's overrides go there.
+#
+# A recipe's flags may depend on other packages and their versions, and name where they are:
+#   optional = { "root >=6.30" = ["-DWITH_ROOT=ON"], hdf5 = ["-DWITH_HDF5={dir_hdf5}"] }
+#             an entry's arguments are added when that package is installed or in the run, at a version
+#             meeting the spec (comparisons joined by commas: ">=6.30,<7"; "6.40.*"; none: any version)
+#   {dir_<pkg>}      where a package is: stack/<its install>, or the base when it is ready-made
+#   {bin_<pkg>}      its programs' folder
+#   {version_<pkg>}  its version: the recipe's release, or the base's installed one when ready-made
+#
+# [packages.mytool]
+# release = "1.2"
+# url     = "https://example.org/mytool-{release}.tar.gz"
+# kind    = "cmake"
+# needs   = ["root", "hepmc3"]
+# args    = ["-DROOT_DIR={dir_root}/cmake", "-DHEPMC3_DIR={dir_hepmc3}"]
+# optional = { "root >=6.30" = ["-DWITH_RNTUPLE=ON"] }
+# conda   = "mytool"               # its conda-forge package, when there is one (bifrost -c mytool)

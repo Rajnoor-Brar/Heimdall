@@ -1,4 +1,4 @@
-"""Helpers the integration tests share: run `hep` in the scratch work, with its outputs under a scratch folder.
+"""Helpers the integration tests share: run `heimdall` in the scratch work, with its outputs under a scratch folder.
 
 The work dir is forge/scratch/work, the fixture's synced copy (HEP_WORK, set by conftest.py and inherited
 here): configs resolve under its configs/, module programs and plugins are in its build/ (`work_built`).
@@ -11,13 +11,13 @@ import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]                  # Heimdall
-HEP = REPO / "framework" / "bin" / "hep"
+HEP = REPO / "framework" / "bin" / "heimdall"
 WORK = Path(os.environ.get("HEP_FORGE") or Path(os.environ.get("HEP_MACHINE") or "~/Himinbjorg").expanduser() / "forge") / "scratch" / "work"
 BUILD = WORK / "build"
 
 
 def apps() -> Path:
-    """Heimdall's compiled apps, for the loaded stack (`hep build --framework`)."""
+    """Heimdall's compiled apps, for the loaded stack (`heimdall build --framework`)."""
     from runner.paths import apps_dir
     return apps_dir()
 
@@ -30,7 +30,7 @@ def env(where: Path) -> dict:
 
 def hep(where: Path, *args: str, command: str = "run", plain: bool = True, timeout: float = 1800,
         wait: bool = True):
-    """`hep <command> ARGS [--plain]` with outputs under `where`: the finished process, or (wait=False) the
+    """`heimdall <command> ARGS [--plain]` with outputs under `where`: the finished process, or (wait=False) the
     running one, its output merged into stdout."""
     argv = [str(HEP), command, *map(str, args), *(["--plain"] if plain else [])]
     if not wait:
@@ -41,7 +41,7 @@ def hep(where: Path, *args: str, command: str = "run", plain: bool = True, timeo
 
 
 def hep_ok(where: Path, *args: str, timeout: float = 1800) -> str:
-    """`hep run ARGS --plain`, which must succeed; its stdout."""
+    """`heimdall run ARGS --plain`, which must succeed; its stdout."""
     done = hep(where, *args, timeout=timeout)
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     return done.stdout
@@ -70,5 +70,6 @@ def records(where: Path) -> Path:
 
 
 def logs(where: Path) -> Path:
-    """`where`'s logs/: each point's cards, configs, logs and FIFOs; journals; page documents."""
+    """`where`'s logs/: each point's cards and configs (its working files while it runs, or with --keep work);
+    a failed tool's last lines; journals; page documents."""
     return where / "logs"

@@ -26,7 +26,7 @@ static int failures = 0;
     } while (0)
 
 namespace fs = std::filesystem;
-// The machine root's scratch ($HEP_FORGE, setup.sh's), wherever the test is started from; never the checkout.
+// The machine root's scratch ($HEP_FORGE, gjallarhorn.sh's), wherever the test is started from; never the checkout.
 static const fs::path HERE = fs::path(std::getenv("HEP_FORGE") ? std::getenv("HEP_FORGE") : "/nowhere") / "scratch/cxx/module_kit";
 
 // Ten events: event i has weight 1 + i/10 and σ = 100 + i pb; a beam proton in, one pion of pT = i + 0.5 out.
@@ -65,7 +65,7 @@ int main() {
     const fs::path events = HERE / "ten.hepmc", config = HERE / "config.toml", output = HERE / "out.partial.root",
                    context = HERE / "context.toml";
     if (!std::getenv("HEP_FORGE")) {
-        std::fprintf(stderr, "test_module_kit: HEP_FORGE is not set: source setup.sh first\n");
+        std::fprintf(stderr, "test_module_kit: HEP_FORGE is not set: source gjallarhorn.sh first\n");
         return 2;
     }
     writeEvents(events, 10);

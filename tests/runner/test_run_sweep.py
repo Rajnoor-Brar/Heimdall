@@ -1,8 +1,8 @@
-"""`[run].sweep_runs = true` (V38): `hep run` executes every configuration not `swept = false`, in the
+"""`[run].sweep_runs = true` (V38): `heimdall run` executes every configuration not `swept = false`, in the
 order of the file, each as a run of its own after a `run NN - <title> -` line. All are planned
 before the first starts; a failed run leaves the next to start, a stop starts no more; each run's
-journal (--journal) names the next, so `hep watch --file` follows on; the watch socket is the process's,
-so `hep watch` follows on by itself (V72)."""
+journal (--journal) names the next, so `heimdall watch --file` follows on; the watch socket is the process's,
+so `heimdall watch` follows on by itself (V72)."""
 
 from __future__ import annotations
 
@@ -194,7 +194,7 @@ def test_the_header_line():
     assert cli.header(2, SimpleNamespace(title="Beam energies")) == "run 02 - Beam energies -"
 
 
-# ── hep watch follows on ───────────────────────────────────────────────────────────────────────
+# ── heimdall watch follows on ───────────────────────────────────────────────────────────────────────
 
 def test_watch_follows_one_run_to_the_next(scratch, monkeypatch):
     first, second = scratch / "a" / "status.jsonl", scratch / "b" / "status.jsonl"

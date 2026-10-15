@@ -1,4 +1,4 @@
-"""`hep doctor` and recipes/verify.py (docs/audit_3/06_Plan.md, phase 2.1): a package's checks from its
+"""`heimdall doctor` and recipes/verify.py (docs/audit_3/06_Plan.md, phase 2.1): a package's checks from its
 recipe, the scan for libraries that no longer resolve, the report and the support matrix."""
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ def test_the_scan_finds_a_library_that_no_longer_resolves(verify, tmp_path, monk
     lib = tmp_path / "pkg" / "lib"
     lib.mkdir(parents=True)
     (lib / "libA.so").write_bytes(b"\x7fELF" + b"\0" * 60)
-    (lib / "readme.txt").write_text("not a binary")
+    (lib / "readme.txt").write_text("not a binary", encoding="utf-8")
     monkeypatch.setattr(verify, "links_of", lambda path: "\tlibgsl.so.27 => not found\n\tlibpython3.12.so.1.0 => not found\n")
     monkeypatch.setattr(verify, "MAC", False)
     checked, lost = verify.scan(tmp_path / "pkg")
@@ -90,7 +90,7 @@ def test_the_report_and_the_support_matrix(tmp_path, monkeypatch):
 
 
 def test_the_stack_status_comes_from_the_recipes(tmp_path, monkeypatch):
-    """Audit 3, phase 3.2: `hep status --stack` lists every recipe installed in the loaded stack, with no
+    """Audit 3, phase 3.2: `heimdall status --stack` lists every recipe installed in the loaded stack, with no
     list of its own; a package not built here shows no release (its version is the libraries' block's)."""
     monkeypatch.setenv("HEP_MACHINE", str(tmp_path))
     monkeypatch.delenv("HEP_STACK", raising=False)

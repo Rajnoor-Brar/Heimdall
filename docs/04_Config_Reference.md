@@ -2,7 +2,7 @@
 
 Every key a run TOML accepts: its type, default and meaning, and what is checked. **The key tables
 are generated** from `framework/schema/run.toml` and `src/Apps/Paint/base.toml` (`make docs`).
-`hep explain KEY` and the editor schemas read the same source, so the tables cannot drift from the
+`heimdall explain KEY` and the editor schemas read the same source, so the tables cannot drift from the
 code. The prose around them says what a table cannot.
 - **Worked pipelines:** [02](02_User_Guide.md).
 - **Plots and figures:** [03](03_Plots.md).
@@ -10,13 +10,13 @@ code. The prose around them says what a table cannot.
 
 **The form.** This page writes the run TOML's third form (v3, audit 3 phase 6), which says each fact
 once. The second form (v2) is still read, for one release, and is the same run: the same points,
-folders and identities. §17 maps its names, and `hep migrate --v3` rewrites a v2 file.
+folders and identities. §17 maps its names, and `heimdall migrate --v3` rewrites a v2 file.
 
 **Conventions.**
 - *Type* uses TOML's words: a string, an integer, a number (an integer or a float), true or false,
   a list, a table.
 - A key marked **required** has no default. A key that may take `"default"` or `"native"` says so.
-- Everything is checked **at plan time**, before any process starts: `hep check` and `hep run …
+- Everything is checked **at plan time**, before any process starts: `heimdall check` and `heimdall run …
   --plan` run every check below.
 - **A quantity a file declares must be used:** varied in a configuration, fixed (its own `fixed`, or
   a configuration's), or choosing a tool (`"@<quantity>"`). One that changes nothing is refused,
@@ -31,7 +31,7 @@ A whole file, to see the tables together:
 [run]
 project = "Demo"
 name    = "pair"
-run     = "pdf"                          # the configuration `hep run Demo/pair` runs
+run     = "pdf"                          # the configuration `heimdall run Demo/pair` runs
 events  = 500
 threads = 2
 chain   = [["pythia", "rivet"], "yd2rt"] # every configuration's tools, unless it says its own
@@ -99,7 +99,7 @@ it, and `--set key=default` works for one run.
 
 **`"native"` means "what the drawing tool does by itself"**, for the page keys of `[plot]` and a
 figure that say so: no gutter, the `.plot`'s log axes, the tool's own range (§11). v2 wrote this as
-`"default"` in `[plot]` itself, and `hep migrate --v3` rewrites it.
+`"default"` in `[plot]` itself, and `heimdall migrate --v3` rewrites it.
 
 ---
 
@@ -118,7 +118,7 @@ up from the working directory (or `$HEP_WORK`), never the working directory itse
 
 | Key | Root of a bare name | Example |
 |---|---|---|
-| `hep run <config>`, `hep plot <config>` | `configs/`, `.toml` optional | `Demo/jets` → `configs/Demo/jets.toml` |
+| `heimdall run <config>`, `heimdall plot <config>` | `configs/`, `.toml` optional | `Demo/jets` → `configs/Demo/jets.toml` |
 | `[file].master`, `[file].import` | `configs/<project>/` | `master.toml` |
 | `[tools.*].card` | `configs/<project>/` | `ep.cmnd` |
 | `[tools.*].executable` | `build/<project>/`, which must exist; `path:<command>` asks for a command on `PATH` by name | `Decay.exe` → `build/Decay/Decay.exe`; `path:python3` |
@@ -138,10 +138,11 @@ out.
 ```
 results/<P>/<run>/<cfg>/<point>/    the products: yours
 records/<P>/<run>/<cfg>/<point>/    provenance.json  identity.json  .complete: what the run recorded, kept
-logs/<P>/<run>/<cfg>/<point>/       cards/  config/  logs/  FIFOs and scratch files  .lock: safe to delete
+logs/<P>/<run>/<cfg>/<point>/       cards/  config/  [logs/]  .lock (scratch files while it runs): safe to delete
 ```
 
-`.cache/<P>/` holds what is rebuilt on demand (prepare caches, card checks, converted data). Deleting
+`.cache/<P>/` holds what is rebuilt on demand (prepare caches; card checks and converted data when a run
+keeps `cache`). What a run keeps beyond records and results is little unless asked (§14). Deleting
 `logs/` or `.cache/` reruns nothing; deleting `records/` makes every point "to run" again. A point
 another session is running is skipped, naming who runs it, unless `--wait`.
 
@@ -159,7 +160,7 @@ another session is running is skipped, naming who runs it, unless `--wait`.
   which folder and why (`note: folder 02: new (01 holds other inputs)`).
 - **Set** (`serial = 3`, the configuration's or `[run]`'s), the folder is yours: `03_<folder>`. A
   run that would overwrite points made there from other inputs is refused, with the bump as the
-  hint (`serial = 4`). `--rerun` overwrites them, and `--why` says what changed. `hep cluster`
+  hint (`serial = 4`). `--rerun` overwrites them, and `--why` says what changed. `heimdall cluster`
   checks before it submits.
 
 Two configurations of a file may not write one folder, and a numbered folder is one configuration's:
@@ -181,10 +182,10 @@ master = "master.toml"           # optional: configs/<project>/master.toml overl
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `master` | a string |  | overlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an entry for a (tool, quantity) pair replaces the framework's. The file must exist. |
-| `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `hep run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins**: a quantity or configuration of the file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest, depth-first; a circle is refused. Another project's file keeps its bare paths its own project's. The file that imports sets its own `[run].name` and `project`. An entry may be `{ from = "<config>", only = ["quantities", "cfgs.default", …] }`: only those tables or dotted keys, each of which the file must have |
+| `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins**: a quantity or configuration of the file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest, depth-first; a circle is refused. Another project's file keeps its bare paths its own project's. The file that imports sets its own `[run].name` and `project`. An entry may be `{ from = "<config>", only = ["quantities", "cfgs.default", …] }`: only those tables or dotted keys, each of which the file must have |
 | `drop` | a list (a string each) |  | dotted keys (`cfgs.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken out of what the imports brought in, before this file's own tables are laid over them. Each must name something an import gave, so a misspelt drop is refused rather than keeping what it meant to remove; a file that imports nothing has nothing to drop. |
 | `vars` | a table |  | `name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result. A string that is exactly one var takes its value as it is: `events = "{var:events}"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`"rivet:{var:ana}"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value; its own `[file.vars]` come with whatever is taken of it, under this file's. `--set file.vars.<name>=…` changes one for a run |
-| `meta` | a table |  | descriptive: it never changes a run. Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `hep check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
+| `meta` | a table |  | descriptive: it never changes a run. Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `heimdall check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
 | `schema` | an integer |  | `3`, or `2` to keep a v2 file v2 for one release; a file with `[file]` is v3 without it |
 <!-- /generated -->
 
@@ -197,7 +198,7 @@ them:
 - `"default"` in this file keeps the imported value.
 
 Its rules:
-- **Names:** an import is named as `hep run` names a config: `validation_common` is this project's,
+- **Names:** an import is named as `heimdall run` names a config: `validation_common` is this project's,
   `Demo/validation` another project's, and `./…` is from the work dir.
 - **Nesting:** an imported file is read the same way first, so its own imports come before it,
   depth-first. A circle is refused, naming it.
@@ -256,7 +257,7 @@ versions   = { pythia8 = "8.317", rivet = "4.1.3", lhapdf = "6.5" }   # the stac
 ```
 
 `versions` names packages of `env/stack.toml`, each with a version string. When the stack has
-another version, `--plan`, the run's start and `hep check` say so as a **warning**, and the run goes
+another version, `--plan`, the run's start and `heimdall check` say so as a **warning**, and the run goes
 ahead at your own risk. What is written is compared: `6.5` matches 6.5.6. A package stack.toml does
 not name is refused, since its warning could never come. Every other key is free.
 
@@ -272,7 +273,7 @@ through its `to` (§8.1), unless a tool folder declares it: an entry of a folder
 for a new name, with a `shape` (and `unit`, `doc`), adds that word to the vocabulary (a study's own
 tool, `tools/fit/quantities.toml`: `window = { config = "cuts.window", shape = ["float", "float"], doc
 = "the fit window" }`; `config` is a key of an exec or module tool's config, dotted keys nesting). It
-then binds like Heimdall's words, with no `to`; `hep explain <name>` describes any of them, and how
+then binds like Heimdall's words, with no `to`; `heimdall explain <name>` describes any of them, and how
 each tool maps it. A folder cannot redefine Heimdall's words.
 
 **Each tool folder** says how that tool consumes the vocabulary, in
@@ -291,15 +292,16 @@ seed_offset = { flag = "-x" }                         # a command-line argument 
 ```
 
 - **One form per entry:** each entry takes **exactly one** of `key`, `keys` and `flag`; `format` and
-  `check` are additions.
+  `check` are additions. `keys` spreads a list over its keys in order, and writes one value to each.
 - **`check`** is a provider check (C10), giving the `lhapdf install <set>` line to type when a set is
-  not under `LHAPDF_DATA_PATH`.
-  - `"lhapdf:bare"` takes a bare set name, `<set>[/member]`, as Sherpa does.
-  - `"lhapdf:pythia"` takes the value exactly as Pythia's `PDF:pSet` reads it (no prefix is
-    added). That is `"LHAPDF6:<set>[/member]"`, whose set must be installed; one of Pythia's own set
-    numbers (`13`, checked against its `PDFSelection.xml`); or a grid file.
-  - A bare name that is an installed LHAPDF set is refused with the `LHAPDF6:` spelling, since Pythia
-    would read it as a file.
+  not under `LHAPDF_DATA_PATH`. It also writes the value in its tool's spelling, so one `pdf`
+  quantity feeds every generator: `"CT14lo"` and `"LHAPDF6:CT14lo"` are the same set.
+  - `"lhapdf:bare"`: `<set>[/member]`, as Sherpa takes it (a prefix is taken off).
+  - `"lhapdf:set"`: the set's name alone, as Herwig takes it (a prefix is taken off; a `/member` is
+    refused, since Herwig's member is set in its card).
+  - `"lhapdf:pythia"`: an installed set is written `LHAPDF6:<set>[/member]` (Pythia reads a bare name
+    as a file); one of Pythia's own set numbers (`13`, checked against its `PDFSelection.xml`) and a
+    grid file are written as given.
 - **A tool with a `render.py`** takes plain `key` mappings and interprets the keys itself: a YAML
   path for Sherpa, a SINDARIN variable for Whizard.
 
@@ -311,7 +313,7 @@ seed_offset = { flag = "-x" }                         # a command-line argument 
 | `sqrts` | `Beams:eCM` | `BEAM_ENERGIES = [√s/2, √s/2]` | `Luminosity:Energy` | — | — |
 | `beam_a`, `beam_b` | `Beams:idA`, `Beams:idB` | — | — | — | — |
 | `beams` `[id_A, id_B]` | `Beams:idA`, `Beams:idB` | `BEAMS` | — | `beams` (model names) | `lpp1`, `lpp2` |
-| `pdf` (checked, C10) | `PDF:pSet = <value>`: write `"LHAPDF6:<set>"`, or a Pythia set number | `PDF_SET[0]` (and `MPI_PDF_SET`): the bare `<set>` | — | — | — |
+| `pdf` (checked, C10): a set's name (or `LHAPDF6:<set>`) | `PDF:pSet = LHAPDF6:<set>`, or a Pythia set number as given | `PDF_SET[0]` (and `MPI_PDF_SET`): `<set>` | `HardLOPDF`, `ShowerLOPDF`, `MPIPDF`, `RemnantPDF` `:PDFName` (the set's name; the NLO objects stay the card's) | — | — |
 | `events` (built-in) | `Main:numberOfEvents` | `EVENTS` | (the `-N` flag) | `n_events` | `nevents` |
 | `threads` (built-in) | `Parallelism:numThreads` | — | — | — | — |
 
@@ -337,7 +339,7 @@ What the run is, and what every configuration starts from.
 [run]
 name    = "jets"
 project = "Demo"
-run     = "pdf"                     # the default; `hep run <config> <configuration>` picks another
+run     = "pdf"                     # the default; `heimdall run <config> <configuration>` picks another
 events  = 1_000_000                 # every configuration's, unless it says its own
 threads = 20
 chain   = [["pythia", "rivet"], "yd2rt"]
@@ -350,14 +352,14 @@ description = "Inclusive jets in ep collisions"
 |---|---|---|---|
 | `name` | a string | **required** | the run's directory name |
 | `project` | a string | **required** | the subfolder of `configs/`, `modules/`, `records/`, `logs/`, `results/`; must equal the folder the file is in, when it is under `configs/` |
-| `run` | a string |  | the configuration `hep run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may be left out |
+| `run` | a string |  | the configuration `heimdall run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may be left out |
 | `serial` | an integer |  | the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[run]`. |
 | `events` | an integer, ≥ 1 |  | every configuration's event count, unless it gives its own A configuration inherits it from `[run]`. |
 | `threads` | an integer, ≥ 0 | `1` | default for configurations. `0` means every core, **resolved to a number at plan time** A configuration inherits it from `[run]`. |
 | `parallelism` | an integer or a string: `"auto"`, ≥ 1 | `1` | default for configurations: how many points run at once; `"auto"`: as many as the cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never part of an identity or a seed, so changing it reruns nothing A configuration inherits it from `[run]`. |
 | `description` | a string |  | what the run is for |
-| `sweep_runs` | true or false or a list (a string each) | `false` | `true`: `hep run <config>` runs every configuration, one after another, in the order of the file; `["a", "b"]`: these, in this order (04 §4.1) |
-| `notify` | a string: `"none"`, `"desktop"` | `"none"` | `"desktop"`: a desktop notification (`notify-send`) when `hep run` ends, with its verdict; never fails a run |
+| `sweep_runs` | true or false or a list (a string each) | `false` | `true`: `heimdall run <config>` runs every configuration, one after another, in the order of the file; `["a", "b"]`: these, in this order (04 §4.1) |
+| `notify` | a string: `"none"`, `"desktop"` | `"none"` | `"desktop"`: a desktop notification (`notify-send`) when `heimdall run` ends, with its verdict; never fails a run |
 | `chain` | a list |  | every configuration's tools, unless it gives its own (04 §5.3) A configuration inherits it from `[run]`. |
 | `vary` | a list |  | 04 §5.1; `[]` is one point A configuration inherits it from `[run]`. |
 | `plot_points` | a list (a string each) |  | 04 §5.2 A configuration inherits it from `[run]`. |
@@ -374,11 +376,11 @@ set. An event count must be set here or in every configuration. `serial` is opti
 
 ### 4.1 `sweep_runs`: every configuration, one run after another
 
-With `sweep_runs = true`, `hep run <config>` runs every configuration, in the order of the file.
+With `sweep_runs = true`, `heimdall run <config>` runs every configuration, in the order of the file.
 With a list, `sweep_runs = ["pdf", "energies"]`, it runs those, in the list's order. A name
 that is not a configuration, or one named twice, is refused.
 
-Each one is **a run of its own**: exactly what `hep run <config> <cfg>` does, with its own title,
+Each one is **a run of its own**: exactly what `heimdall run <config> <cfg>` does, with its own title,
 blocks, verdict, journal, `points.json` and plots, in its own folder. Each starts after one header
 line of its `title`:
 
@@ -401,7 +403,7 @@ jets · pdf: 4 point(s), 1000000 events, 12 threads
 - **A failed run lets the next start.** Ctrl-C stops the running runs (exit 6) and **starts no
   more**.
 - **The exit code** is 6 if a run was stopped, else 1 if any failed, else 0.
-- **Running one:** `hep run <config> <cfg>` runs just that one, whether or not the sweep lists it.
+- **Running one:** `heimdall run <config> <cfg>` runs just that one, whether or not the sweep lists it.
 - **Options:**
   - `--plan` prints every run's plan under its header;
   - `--rerun`, `--set` and `--only plot` apply to each;
@@ -413,10 +415,10 @@ jets · pdf: 4 point(s), 1000000 events, 12 threads
 
 ## 5. `[cfgs.<name>]`
 
-A configuration is a table of `[cfgs]`, picked by `hep run <file> <name>`. It says only what differs
+A configuration is a table of `[cfgs]`, picked by `heimdall run <file> <name>`. It says only what differs
 from `[run]`: what it varies, fixes and runs. Any name may be used, `threads` or `default`
 included. A configuration's dotted path is `cfgs.<name>.<key>`: `--set cfgs.pdf.threads=8`,
-`drop = ["cfgs.default4"]`, `hep explain cfgs.pdf.threads`.
+`drop = ["cfgs.default4"]`, `heimdall explain cfgs.pdf.threads`.
 
 ```toml
 [run]                                        # what every configuration starts from …
@@ -450,7 +452,7 @@ A configuration's value is, in order:
 `[run]` takes every configuration key (the tables of §4 and §5 say which) but `folder`, `title`,
 `extends` and `fixed`, which belong to each configuration alone; a quantity's own `fixed` is the
 file-wide one. `"default"` in a layer is the next layer's value. A chain of `extends` is followed,
-and a circle is refused. `hep run CONFIG --show-config` prints every value with the layer it came
+and a circle is refused. `heimdall run CONFIG --show-config` prints every value with the layer it came
 from.
 
 <!-- generated: keys3 cfgs -->
@@ -486,16 +488,33 @@ from.
 - The order decides the point names (tags joined in `vary` order) and the running order.
 - Every name must be a declared quantity, and none may appear twice (C3).
 - A quantity's `exclude = [i, …]` (1-based) leaves those points out of every vary of it (§8).
+- A **table** `{ points = [...] }` **lists combinations**: each row names one point of each quantity it
+  sets (by tag, value or `"#N"`), keeping that quantity's label and style. The rows are one axis of the
+  grid. A row may leave a quantity out: that point sets nothing for it, and the card's own value stands.
+  The point's name joins the row's tags, in the order the quantities first appear. Equal rows are
+  refused; `exclude` does not apply (the rows are explicit). A row may name a compound quantity (§8.4),
+  by tag or `"#N"`: every field is set.
 
 ```toml
 vary = ["energies", ["pdf", "alphas"], "mpi"]    # 4 × 3 × 2 = 24 points: pdf and alphas zipped
+```
+
+```toml
+vary = [{ points = [                               # 3 points: Herwig at its own card's PDF
+  { generator = "py8", pdf = "nn23" },
+  { generator = "py8", pdf = "ct14" },
+  { generator = "hw7" },
+] }]
 ```
 
 ### 5.2 `plot_points`
 
 Each name must be varied here (C4). The **pages** are the grid of their points, and every other
 varied quantity becomes the **curves** on a page. `[]` is one page, with every point as a curve.
-Naming one member of an entangled group (or a compound quantity) selects the group.
+Naming one member of an entangled group (or a compound quantity) selects the group. Naming a quantity
+of listed points pages by it alone: `plot_points = ["pdf"]` gives a page per PDF, with a curve for each
+row on it, labelled by the row's other quantities. Every row must set it. Such a quantity cannot be
+banded, merged (`over`) or a scan's `x`, and `combine` names an axis of its own only.
 
 | `vary` | `plot_points` | Page folders | Curves per page |
 |---|---|---|---|
@@ -511,9 +530,18 @@ Naming one member of an entangled group (or a compound quantity) selects the gro
   products passed their checks.
 - **The interfaces follow from it** (§6): what a tool writes for a reader in its own group is a
   FIFO; for a later group, a file.
-- **`"@<quantity>"`** is replaced, per point, by the tool table that quantity's value names:
-  `chain = [["@generator", "spectra"]]` with points whose values are `"pythia"`, `"herwig"` and
-  `"sherpa"`. The quantity must be varied or fixed, and every value must be a tool table (C5).
+- **`"@<quantity>"`** is replaced, per point, by that quantity's value: a tool table's name
+  (`chain = [["@generator", "spectra"]]` with values `"pythia"`, `"herwig"`, `"sherpa"`), or a
+  **piece of chain**, spliced where the entry stands. The quantity must be varied or fixed.
+  - `@q` as an entry of its own (`"@q"` or `["@q"]`): a piece's items become entries there, a name
+    one tool and a list a group. `["@q", "D"]` with `value = ["A", ["B", "C"]]` runs A, then B and
+    C together, then D: MadGraph → Pythia beside Sherpa alone is one quantity.
+  - `@q` beside other members of a group (`[["@q", "D"]]`): a piece's names join that group; a
+    group inside it is refused (groups nest one level).
+  - `[]` splices nothing: an alternative without that step (with and without Delphes).
+  - Every value, those no point runs included, must make a valid chain when the file is read: each
+    name a tool table (C5), no empty group, no tool twice. Each point's FIFOs and files follow from
+    its own chain (§6).
 - **Cards for tools not run:** a table in `generate_cards` (§9.4) need not be in the chain; its card
   and config are rendered for the point's context file, and it is not run.
 
@@ -570,8 +598,8 @@ events = [100_000, 1_000_000, 10_000_000]
 ```
 
 A list of event counts makes one configuration per count, named `<name>_<count>` (`pdf_100k`,
-`pdf_1M`, `pdf_10M`), each in its own folder (`<folder>_<count>`). `hep run <file> pdf` runs them
-in turn, as a sweep of runs (§4.1), and `hep run <file> pdf_1M` runs one. A configuration cannot
+`pdf_1M`, `pdf_10M`), each in its own folder (`<folder>_<count>`). `heimdall run <file> pdf` runs them
+in turn, as a sweep of runs (§4.1), and `heimdall run <file> pdf_1M` runs one. A configuration cannot
 `extends` such a family: extend one of its counts. To vary the count within one configuration, with
 the counts as curves, declare `events` as a quantity (§8.3).
 
@@ -605,7 +633,7 @@ keep   = false                                    # a scratch file of the point,
 - `[run] commands`, argv arrays, run in each point's output directory before its first group, in
   order. Their output goes to `logs/prelim.log`, and a nonzero exit fails the point.
 
-`hep run … --show-config` lists each configuration's interfaces, "inferred from the chain". v2
+`heimdall run … --show-config` lists each configuration's interfaces, "inferred from the chain". v2
 declared them in `[prelim]` (`fifo`, `files`), which a v3 file refuses.
 
 ---
@@ -641,7 +669,7 @@ fixed = { energies = "18x275" }   # this configuration's, over the quantity's ow
 A quantity is a table of its points, one row each, its fixed point, and where its value goes.
 
 ```toml
-[quantities.pdf]                     # in the vocabulary: no `to` needed; Pythia reads the value as written
+[quantities.pdf]                     # in the vocabulary: no `to` needed; each generator gets its own spelling
 fixed  = "MSTW08lo"
 points = [
   { tag = "MSTW08lo",  value = "LHAPDF6:MSTW2008lo68cl",         label = "MSTW 2008 LO" },
@@ -721,7 +749,10 @@ quantity anyway still does. A target not in this configuration's chain is skippe
 **Zero consumers is an error** (C7): a value that changes a directory name and nothing else is what
 v1 kept finding.
 - More than one consumer is fine, and `--plan` prints the table.
-- In an `@quantity` chain, a consumer among the configuration's alternatives is enough, and the
+- In an `@quantity` chain, a **fixed** value needs a consumer among the configuration's alternatives
+  (Herwig's pp snippet sets its own beams, so a fixed `beams` reaches Pythia and Sherpa only). A
+  **varied** one needs a consumer among **each point's** own tools: otherwise the points it makes for
+  that alternative would differ only by their seeds, and the plan is refused, naming the point. The
   selector quantity is consumed by the choice itself.
 
 **Two sources for one native key** in one card (a quantity and a built-in, or two quantities) is an
@@ -775,6 +806,21 @@ points = [
 - `vary = ["collision"]` varies the fields together; `fixed`, `plot_points`, `combine` and
   `exclude` name the compound quantity. The point's name is its row's tag, and the label and style
   are the row's.
+- **A field may choose a tool**: bound by a name of its own, which the chain then uses as `@<name>`.
+  Tools chosen together, as the points [A,E] [B,E] [B,G] [C,F]:
+
+  ```toml
+  chain = [["@gen", "@ana"]]
+
+  [quantities.setup]
+  fields = { gen = "gen", ana = "ana" }
+  points = [
+    { tag = "AE", gen = "pythia", ana = "jets" },
+    { tag = "BE", gen = "herwig", ana = "jets" },
+    { tag = "BG", gen = "herwig", ana = "spectra" },
+    { tag = "CF", gen = "sherpa", ana = "flow" },
+  ]
+  ```
 - **Beams** are written so: in `[quantities.beams]`, rows with `a = { id, energy }` and `b = { … }`
   set the `beams` and `energies` of a point together, beam A and beam B.
 
@@ -809,7 +855,7 @@ output   = "jets_hard.yoda"
 <!-- generated: keys3 tools -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `uses` | a string |  | the tool folder, when it is not the table's name: a second table of one tool, `[tools.<name>] uses = "<folder>"` (05 §3; `hep tools` lists the folders) |
+| `uses` | a string |  | the tool folder, when it is not the table's name: a second table of one tool, `[tools.<name>] uses = "<folder>"` (05 §3; `heimdall tools` lists the folders) |
 | `card` | a string or a list |  | native base card(s), read in order (root `configs/<project>/`). Tools with a card only. |
 | `input` | a string or a list |  | what it reads: a producer's table name (`input = "pythia"`: what that tool writes), another tool's output by name, a pre product, (post) a product of every point, or a path. The first input is `{input}` |
 | `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in `logs/` (04 §6). An array is fan-out; one writer per output (C6) |
@@ -833,12 +879,12 @@ Every other key is **tool-specific**. It is checked against the tool folder's `[
 `required`, 05 §4–15). An unknown key is an error that lists the keys the tool takes (C1), or names
 the table it belongs in (`'threads' belongs in [run] (or a configuration)`); an old export key
 (`pythia_cmnd = true`) is refused with the way on (§9.4). A tool table no configuration's chain,
-`pre`, `post` or `generate_cards` names is reported by `hep check`. In your editor, the schema
+`pre`, `post` or `generate_cards` names is reported by `heimdall check`. In your editor, the schema
 (`run.v3.schema.json`) knows each standard tool's keys.
 
 ### 9.2 Exec tools
 
-Any executable, as `uses = "exec"`. To make one a tool folder of its own, `hep tools new fit --from
+Any executable, as `uses = "exec"`. To make one a tool folder of its own, `heimdall tools new fit --from
 exec` copies the folder into the work dir's `tools/fit/`
 ([06 §16](06_Internals.md#16-the-tool-folder-contract)), and the table is then `[tools.fit]` alone.
 
@@ -893,7 +939,7 @@ A module tool works as an exec tool does, for a program built with `src/Module.h
 --sidecar={input_sidecar} {arguments}`. Its count is checked from its report (`<output>.json`, key
 `events`). **Every key of its config must be one the program reads:** a misspelt setting is refused
 before the first event, with the nearest name, instead of running with its default.
-`hep explain <Name>.exe` lists the settings a program reads (`<Name>.exe --describe`).
+`heimdall explain <Name>.exe` lists the settings a program reads (`<Name>.exe --describe`).
 
 ### 9.4 The context file: every tool's card and config
 
@@ -946,7 +992,7 @@ outputs.
 
 **Before (C13):** a tool asked for one other tool at a time with `<tool>_<export> = true` keys
 (`pythia_cmnd`, `rivet_analyses`, `herwig_run`), and got `[standard.<key>]` tables in its config.
-Those keys are refused now; `hep migrate` turns them into `generate_cards` and `{std:<key>}` into
+Those keys are refused now; `heimdall migrate` turns them into `generate_cards` and `{std:<key>}` into
 `{context:<tag>.<key>}`.
 
 ---
@@ -991,7 +1037,7 @@ The rules:
 | `{points}` | pre and post: `points.json` |
 | `{<option>}` | every key of the folder's `[options]`: its value, empty when unset; `kind = "flag"` → the flag or nothing |
 
-`{repo}`, High-Energy's single root, is refused, naming `{work}` and `{hep}`; `hep migrate` rewrites
+`{repo}`, High-Energy's single root, is refused, naming `{work}` and `{hep}`; `heimdall migrate` rewrites
 it (`{repo}/build/App_*` → `{apps}/App_*`, `{repo}/utils/` → `{hep}/src/`, any other
 `{repo}` → `{work}`).
 
@@ -1090,7 +1136,7 @@ A figure is a recipe for pages; its classes, each with an example, are
 <!-- generated: keys figure -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged`: the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet`: drawn pages laid out in a grid (`pages`, `columns`; below). `compare`: the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`hep plot` draws it too). `derived`: a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`logs/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `load_hep`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan`: one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
+| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged`: the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet`: drawn pages laid out in a grid (`pages`, `columns`; below). `compare`: the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived`: a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`logs/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan`: one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
 | `type` | a string: `"Hist1D"`, `"Scatter2D"`, `"HeatMap"` |  | what is drawn: `Hist1D`, steps per curve; `Scatter2D`, a marker per bin at its centre with its y error, in the curve's colour (`data.marker`, `data.marker_size` of the style), as Paint draws data; the legend shows the marker. The page TOML says `markers = true`; mkhtml and mpl draw the curves as they draw points (`ConnectBins=0`, with their x bars). `HeatMap`: a 2D object (a YODA `Histo2D` or `Estimate2D`), the default for one: a page per point of the cell, `<cell>/<object>/<point>`, coloured by value with its scale on the right (labels from the `.plot`, `ZLabel` and `LogZ` too; no ratio, data or voiding). Paint draws heat maps; mkhtml and mpl draw the 1D pages only, and the plot stage says so. A 1D object cannot be a HeatMap, a 2D object neither a Hist1D nor a Scatter2D, nor in an overlay |
 | `name` | a string |  | an overlay's page file stem, a merged figure's folder. A defined figure takes none: its pages are the objects' own |
 | `objects` | a list (a string each) |  | matched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob matching no object of the points is an error, at the plot stage |
@@ -1100,7 +1146,7 @@ A figure is a recipe for pages; its classes, each with an example, are
 | `pages` | a list (a string each) |  | a sheet's: the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match, in the globs' order, tiled `columns` wide into `plots/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet |
 | `columns` | an integer, ≥ 1 |  | a sheet's: the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match, in the globs' order, tiled `columns` wide into `plots/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet |
 | `over` | a list (a string each) |  | a merged figure's: curve axes of the configuration (swept, not `plot_points`, not combined), checked at plan time; it may not also `band` them |
-| `configurations` | a list (a string each) |  | a compare figure's, two or more, in curve order; one at least of this file. `"<Project>/<config>:<cfg>"` names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `hep plot` |
+| `configurations` | a list (a string each) |  | a compare figure's, two or more, in curve order; one at least of this file. `"<Project>/<config>:<cfg>"` names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `heimdall plot` |
 | `labels` | a list (a string each) |  | an overlay's: one legend label per object; a compare figure's: one per configuration (default: each configuration's `label`) |
 | `x_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
 | `y_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
@@ -1117,7 +1163,7 @@ When each rule is checked:
 | at the plot stage | that its globs match objects, and that two defined figures do not claim one object |
 
 `[plot.overlay.<name>]` and `[plot.object."<glob>"]` are figures now. They are refused with the
-figure to write, and `hep migrate` rewrites them:
+figure to write, and `heimdall migrate` rewrites them:
 - an overlay becomes `[plot.figures.<name>]` with `class = "overlay"`;
 - an object table becomes `[plot.figures.<glob, as a name>]` with `objects = ["<glob>"]`;
 - in a figure, a style key written bare (`ratio.range = …`) becomes `style.ratio.range`.
@@ -1135,7 +1181,7 @@ default (rivet-mkhtml's look); edit it to change every page. Over it, key by key
 1. the machine root's `style.toml`: every work dir's on this machine;
 2. the work dir's `style.toml`: its studies' house style;
 3. `[plot].root_style`: a style file (a bare name under `configs/<project>/`, `.toml` optional);
-   `hep overlay FILE… --style FILE` for files;
+   `heimdall overlay FILE… --style FILE` for files;
 4. `[plot.style]`;
 5. a figure's `style` (`[plot.figures.<figure>]`), for its pages.
 
@@ -1208,7 +1254,7 @@ the y range drawn, so give it headroom with a numeric `y_gutter`.
 ## 13. Validation rules
 
 All of these are checked at plan time. Every error names **where** (the file and key) and gives a
-**hint** (what to do), and a misspelt name gets the nearest spelling. `hep run` exits 2 on any of
+**hint** (what to do), and a misspelt name gets the nearest spelling. `heimdall run` exits 2 on any of
 them, before anything runs.
 
 | # | Rule | Example message |
@@ -1217,9 +1263,9 @@ them, before anything runs.
 | **C2** | `[run].run`, and a configuration named on the command line, must name a `[cfgs.<name>]`. | `no configuration 'energy-pdf'` |
 | **C3** | Every `vary` entry names a declared quantity; entangled quantities have equal point counts; no quantity is varied twice. | `entangled quantities need equal value counts` · `pdf: 4, alphas: 3` |
 | **C4** | `plot_points` names only quantities varied in this configuration. | `plot_points names 'mpi', which is not swept here` |
-| **C5** | Every `chain`/`pre`/`post` entry is a `[tools.<name>]` table; groups nest one level; an `@q` entry's values are tool tables. | `'pythya' is not a [tools.<tag>] table` · `did you mean 'pythia'?` |
+| **C5** | Every `chain`/`pre`/`post` entry is a `[tools.<name>]` table; groups nest one level; an `@q` entry's values are tool tables or pieces of chain that splice into a valid chain (no tool twice). | `'pythya' is not a [tools.<tag>] table` · `did you mean 'pythia'?` |
 | **C6** | Connections (§6): a FIFO within one group only, one reader per FIFO, a writer for every FIFO, no FIFO into a non-streamable tool; every input made by someone or already on disk; one writer per output. | `'delphes' cannot read a FIFO` · `put it in a later group, so it reads a file` |
-| **C7** | Every active quantity has at least one consumer in the chain (in an `@q` chain: among the alternatives). | `[quantities.lepton] is set but no tool in this chain consumes it` |
+| **C7** | Every active quantity has at least one consumer in the chain (in an `@q` chain: a fixed one among the alternatives, a varied one among each point's own tools). | `[quantities.lepton] is set but no tool in this chain consumes it` |
 | **C8** | One source per native key in one card. | `'PDF:pSet' is set by both [quantities.pdf] = … and …` |
 | **C9** | A Rivet analysis has a `.info` (our plugins in `build/Rivet/`, or Rivet's), and every option it is given is declared there. | `'photo_eic' does not declare the option RADIUS` · `declared: ETMIN, ETMIN2, R` |
 | **C10** | Providers: a PDF set named by a checked mapping is installed; base configs exist; executables are built; files a tool folder needs (`[checks] files`, e.g. Herwig's repository) exist. | `the PDF set 'CT14lo' is not installed` · `lhapdf install CT14lo` |
@@ -1241,7 +1287,10 @@ The plot checks follow the same shape:
 
 ## 14. Files the runner writes
 
-**Per point**, in `logs/…/<point>/` (its working folder) and, the last three, `records/…/<point>/`:
+**Per point**, in `logs/…/<point>/` (its working folder) and, the last three, `records/…/<point>/`. Once
+the point completes, its working folder keeps `cards/`, `config/`, `logs/` (when a log was written) and
+`.lock`; scratch files, shards and what its tools left go, unless the run keeps `work` (below). A failed
+point's folder stays whole.
 
 | File | Holds |
 |---|---|
@@ -1263,10 +1312,11 @@ The plot checks follow the same shape:
 |---|---|
 | `points.json` | `run`, `project`, `configuration`, `config_file`, `plot_points`, and per point: `name`, `index`, `values` (tag, label, value, swept), `page`, `products` (name → path), `results`, `output`, `identity`, `seed`, `complete`. Every point, even under `--points` |
 | `status.jsonl` | only with `--journal`: the run's events as `{"v", "point", "tool", "t", "k", …}`: every status message, plus the runner's own `run` (started, finished with a `verdict`), `point` (started, done / failed / stopped with `cause` and `msg`) and `exit` (`code`, `seconds`) records |
-| `plots/[<cell>/][<figure>/]<object>.toml` | each page's document, as Paint reads it, and `<page>.toml.ranges.json` beside it for the other backends |
-| `plots/merged.sha256` | what the merged sweep file was built from |
-| `plots/derived/`, `plots/merged/<figure>/`, `plots/scan/<figure>/` | the figures' own YODAs and their stamps (03 §7) |
-| `cluster/<stamp>/` | `hep cluster`'s submissions: the scripts, `points.txt`, `jobs.toml`, the jobs' logs |
+| `plots/[<cell>/][<figure>/]<object>.toml` | each page's document, as Paint reads it |
+| `plots/…/<page>.toml.ranges.json` | with `keep cache`: each page's ranges, for the other backends |
+| `plots/merged.sha256` | with `keep cache`: what the merged sweep file was built from (else it is merged again) |
+| `plots/derived/`, `plots/merged/<figure>/`, `plots/scan/<figure>/`, `plots/datasets/` | with `keep cache`: the figures' own YODAs and their stamps (03 §7), the converted reference data |
+| `cluster/<stamp>/` | `heimdall cluster`'s submissions: the scripts, `points.txt`, `jobs.toml`, the jobs' logs |
 
 **Beside products:**
 - an event producer's **sidecar** `<first output>.json`: App_Pythia's, or `{"written": N, "source":
@@ -1277,10 +1327,20 @@ The plot checks follow the same shape:
 **Caches:**
 - **prepare caches:** `.cache/<P>/<tool>/<key>/`, with a `.prepared` stamp once the step succeeded
   and left its marker;
-- **card checks:** `.cache/<P>/checks/`;
-- **reference data converted for Paint:** `.cache/<P>/datasets/<name>.root`.
+- **card checks:** `.cache/<P>/checks/`, with `keep cache` (otherwise each process checks a card once);
+- **reference data converted for Paint:** `.cache/<P>/datasets/<name>.root`, with `keep cache`.
 
-A work dir made before the split has `output/`: `hep migrate --layout` moves it (a dry run first).
+**What a run keeps** beyond these, by `keep` word: `logs` (every tool's whole output), `journal`
+(`status.jsonl`), `work` (a finished point's whole working folder), `cache` (card checks, converted data,
+the plot stage's working files). They come from `heimdall run --keep WORD,…` (`--logs` and `--journal`
+are two of them), the work dir's `hep.toml` and the machine's `machine.toml`, together:
+
+```toml
+[run]
+keep = ["logs", "cache"]
+```
+
+A work dir made before the split has `output/`: `heimdall migrate --layout` moves it (a dry run first).
 
 Where everything goes, as a tree, is [06 §14](06_Internals.md#14-where-files-go).
 
@@ -1288,8 +1348,8 @@ Where everything goes, as a tree, is [06 §14](06_Internals.md#14-where-files-go
 
 ## 15. A deck's recipe: `deck.toml`
 
-A deck is written in `decks/<deck>/` and built into `reports/<deck>/` by `hep deck <deck>` (05; a deck
-still written in `reports/<deck>/` is read there, and `hep migrate --layout` moves its sources). Its
+A deck is written in `decks/<deck>/` and built into `reports/<deck>/` by `heimdall deck <deck>` (05; a deck
+still written in `reports/<deck>/` is read there, and `heimdall migrate --layout` moves its sources). Its
 `deck.toml` says where its
 plots come from; `framework/schema/deck.toml` holds every key, as below. A recipe has `[deck]` and
 `[blocks.<name>]` tables, and nothing else; with no block, the deck takes the folder's own PDF and PNG
@@ -1337,7 +1397,7 @@ if one did.
 
 ## 16. `[cluster]`: running on Slurm
 
-`hep cluster` ([02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster), 05 §1.9) submits a configuration as
+`heimdall cluster` ([02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster), 05 §1.9) submits a configuration as
 Slurm jobs with these options. They come in layers, lowest first:
 1. the machine root's `machine.toml` `[cluster]`: the machine's, for every work dir on it (account,
    partition, setup lines);
@@ -1353,7 +1413,7 @@ identity or a seed: changing it reruns nothing. `time` is required in one of the
 <!-- generated: keys cluster -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `scheduler` | a string: `"slurm"` | `"slurm"` | the batch system `hep cluster` submits to: `"slurm"` (`sbatch`, `squeue`, `sacct`, `scancel`), the only one so far |
+| `scheduler` | a string: `"slurm"` | `"slurm"` | the batch system `heimdall cluster` submits to: `"slurm"` (`sbatch`, `squeue`, `sacct`, `scancel`), the only one so far |
 | `time` | a string |  | each job's wall-time limit, as `sbatch --time` takes it (`"02:00:00"`, `"1-00:00:00"`): one point's, for the points; **required** in one of the layers, because a site's default limit is a surprise `TIMEOUT` |
 | `partition` | a string |  | `sbatch --partition`; unset: the site's default |
 | `account` | a string |  | `sbatch --account`; unset: the user's default |
@@ -1364,7 +1424,8 @@ identity or a seed: changing it reruns nothing. `time` is required in one of the
 | `cpus` | an integer, ≥ 0 | `0` | `sbatch --cpus-per-task`; `0`: the costliest point's cores, as `--plan` counts them (its generator's `threads`, a sharded tool's shards, an integrated program's threads and one more) |
 | `max_running` | an integer, ≥ 0 | `0` | the points array's throttle, `--array=1-N%K`; `0`: as many as the scheduler gives. `parallelism` is not used: each job is one point |
 | `mail` | a string |  | `sbatch --mail-user`, with `--mail-type=END,FAIL` |
-| `setup` | a list (a string each) | `[]` | shell lines each job runs first, before it sources Heimdall's `setup.sh` (`"module load gcc/13"`): what the nodes need that the login shell had |
+| `setup` | a list (a string each) | `[]` | shell lines each job runs first, before it sources Heimdall's `gjallarhorn.sh` (`"module load gcc/13"`): what the nodes need that the login shell had |
+| `image` | a string |  | the image's own Heimdall and stack run the job (`apptainer exec --cleanenv`, or `singularity`), with the work dir bound at its own path; `setup` still runs first, on the node (`"module load apptainer"`). `heimdall image build` makes one |
 | `sbatch` | a list (a string each) | `[]` | any other `sbatch` options, each as written (`"--exclusive"`, `"--export=NONE"`, `"--reservation=r"`), after the ones the keys above give |
 | `pre` | a table |  | the resource keys (`time`, `partition`, `account`, `qos`, `constraint`, `gres`, `memory`, `cpus`, `sbatch`) for the pre job only, over the others |
 | `finish` | a table |  | the resource keys for the finish job only (the combined groups, the post tools and the plots), over the others; its `cpus` default to 1 |
@@ -1378,9 +1439,9 @@ A file is **v3** when it has `[file]` (unless it says `schema = 2`), `[cfgs]`, o
 `chain`; any other file is read as **v2**, for one release. `[file] schema = 2` keeps a file v2
 while you migrate. Both forms are the same run: the same points, folders and identities.
 
-`hep migrate --v3` shows the rewrite of a v2 file as a diff, and `--apply` writes it, comments kept.
-Each v2 name is refused in a v3 file, naming its v3 name, and `hep explain` answers either
-(`hep explain run.event_count`, `hep explain events`).
+`heimdall migrate --v3` shows the rewrite of a v2 file as a diff, and `--apply` writes it, comments kept.
+Each v2 name is refused in a v3 file, naming its v3 name, and `heimdall explain` answers either
+(`heimdall explain run.event_count`, `heimdall explain events`).
 
 | v2 | v3 |
 |---|---|

@@ -34,7 +34,7 @@ def test_core_and_all_follow_the_file(bs, tmp_path):
     (core, added), packages, _ = planned(bs, tmp_path)
     assert added == []
     assert core == [n for n, p in packages.items() if p.get("group") == "core"]
-    assert core[0] == "python" and core[-1] == "pdfsets"
+    assert core[0] == "python" and core.index("pdfsets") == core.index("lhapdf") + 1    # Pythia8's check reads a set
     (everything, _), _, _ = planned(bs, tmp_path, "packages=all")
     assert everything == [n for n, p in packages.items() if p.get("group") in ("core", "extra")]
     assert "evtgen" in packages and "evtgen" not in everything        # the toolkits' join only by name or @kit
@@ -191,7 +191,7 @@ def test_the_mac_overlay(bs, tmp_path, monkeypatch, capsys):
     assert "-DCMAKE_INSTALL_NAME_DIR" not in next(line for line in script.splitlines()
                                                   if line.startswith(f"cmake -S {prefix}/forge/src/sherpa "))
     for line in ("export DYLD_LIBRARY_PATH=", "export CPPFLAGS=-I/opt/homebrew/include", "onnxruntime-osx-",
-                 "sed -i.orig", "export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH",
+                 "recipes/madgraph.py configure", "export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH",
                  "PATH=/opt/homebrew/opt/$_g/libexec/gnubin:$PATH", f"cat > {prefix}/machine.sh"):
         assert line in script, line
     assert "apt-get" not in script and "export LD_LIBRARY_PATH=" not in script
@@ -234,7 +234,8 @@ def test_every_toolkit_plans_and_names_only_packages(bs, tmp_path):
     (everything, _), _, _ = planned(bs, tmp_path, "packages=all")
     assert lab == everything and "hdf5" in lab                       # HDF5 in the lab set (the user's decision)
     (primary, _), _, _ = planned(bs, tmp_path, "packages=@primary")
-    assert primary == everything + ["madanalysis5"]                  # the primary workflow: ~/HEP's and MadAnalysis 5
+    assert primary == [n for n in packages if n in {*everything, "hepmc2", "madanalysis5"}]   # the primary workflow:
+                                                                    # ~/HEP's, MadAnalysis 5 and HepMC2, in the file's order
     (standard, _), _, _ = planned(bs, tmp_path, "packages=@standard")
     (core, _), _, _ = planned(bs, tmp_path, "packages=core")
     assert standard == core
@@ -581,7 +582,8 @@ def test_yoda_takes_hdf5_only_from_the_stack(bs, tmp_path, capsys):
     assert script.index("# == hdf5") < script.index("# == yoda")    # the optional one first
     yoda = next(line for line in script.splitlines() if "./configure" in line and "/yoda " in line)
     assert yoda.index("--disable-h5") < yoda.index("--enable-h5")   # the later wins
-    assert f"--with-hdf5={prefix}/stack/hdf5/bin/h5cc-plain" in yoda
+    assert f"--with-hdf5={prefix}/stack/hdf5/bin/plain-h5cc" in yoda
+    assert "plain-h5cc".endswith("h5cc")          # YODA's ax_lib_hdf5.m4: the name says "serial", else h5 is off
     assert "hdf5-2.2.0.tar.gz -C" in script and "--strip-components=2" in script
     assert "recipes/helpers/h5cc_plain.py" in script
 
@@ -591,9 +593,9 @@ def test_h5cc_plain_answers_in_one_line_each(tmp_path):
     (install / "bin").mkdir(parents=True)
     subprocess.run(["python3", str(REPO / "recipes/helpers/h5cc_plain.py"), str(install), "2.2.0"], check=True,
                    capture_output=True)
-    show = subprocess.run([str(install / "bin/h5cc-plain"), "-showconfig"], capture_output=True, text=True, encoding="utf-8").stdout
+    show = subprocess.run([str(install / "bin/plain-h5cc"), "-showconfig"], capture_output=True, text=True, encoding="utf-8").stdout
     assert show.splitlines() == ["HDF5 Version: 2.2.0", f"Installation point: {install}", "Extra libraries: -lz"]
-    assert subprocess.run([str(install / "bin/h5cc-plain"), "-show"], capture_output=True, text=True, encoding="utf-8").stdout.strip() \
+    assert subprocess.run([str(install / "bin/plain-h5cc"), "-show"], capture_output=True, text=True, encoding="utf-8").stdout.strip() \
         == f"cc -I{install}/include -L{install}/lib -lhdf5"
 
 

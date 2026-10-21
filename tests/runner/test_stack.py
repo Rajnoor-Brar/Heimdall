@@ -68,7 +68,7 @@ def test_the_bases_flags_survive_make(tmp_path):
     def flags(**env):
         return subprocess.run(["make", "-s", "-f", str(mk)], env={"PATH": os.environ["PATH"], **env},
                               capture_output=True, text=True, encoding="utf-8").stdout.split()
-    assert flags(HEP_BASE="/b") == ["-isystem", "/b/include", "-L/b/lib", "-Wl,-rpath,/b/lib"]
+    assert flags(HEP_BASE="/b") == ["-isystem/b/include", "-L/b/lib", "-Wl,-rpath,/b/lib"]
     assert flags() == []
 
 

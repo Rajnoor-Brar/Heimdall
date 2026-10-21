@@ -171,6 +171,132 @@ Order: F3 (small, a safety net), F4, F1, F2, F5; a commit each, the fast suite l
 - The slow suite once at the end (the generators' tests need a machine whose Herwig and Sherpa run:
   the new one).
 
+## Notes from the fresh stack build (2026-10-15)
+
+The reinstall is postponed (the USB would not boot: TPM/encryption). The user builds a fresh stack on this
+machine instead, in a terminal of their own. What they say while it runs, to act on when ordered:
+
+- **N1. A progress indicator while downloading.** Today `build_stack.download` copies the response in 1 MB
+  chunks (`shutil.copyfileobj`) with no progress shown; a large tarball (ROOT, Geant4's data) looks like a hang.
+  Wanted: bytes so far / total (`Content-Length`), the rate and an ETA, on the live line `Progress` already
+  draws (`self.live`); one line per finished file when plain (`HEP_PLAIN`, no tty); the same for `fetch`'s
+  downloads and pixi's (its own output, passed through).
+
+- **N2. ROOT from source on the base: fixed (2026-10-15).** Its configure stopped on `gl2ps` (needed with
+  `opengl`), and found libxml2's headers but not its library, so it turned `xml` off (conda-forge split
+  `libxml2-devel` off `libxml2`). Both added to `base.toml`'s `[base.libraries] root`. CFITSIO is found the same
+  half way, but ROOT does not ask for it.
+
+- **N3. A test that reads the machine's Python path.** `test_stack_build.py::test_the_old_way_is_apt_and_a_venv`
+  asserts the `base=system` script never says "pixi"; its venv is made from the running Python, which on a
+  machine root with a conda base is `base/.pixi/envs/default/bin/python3`, so it fails there (not a change in
+  behaviour). Fix: assert on the script's pixi commands, not on any path containing the word.
+
+- **N4. CMake took the OS's headers on the base: fixed (2026-10-15).** ROOT's configure found gl2ps, libxml2,
+  nlohmann/json, OpenGL, X11's Xinerama/Xrandr, VDT and CFITSIO in `/usr/include`, which conda's compiler never
+  searches, so `TBufferJSON.cxx` failed on `nlohmann/json.hpp`. And a retry kept `forge/build/<pkg>/`, whose
+  CMake cache still held those paths. Now: a CMake build starts from an empty build folder; on a Linux base,
+  CMake ignores `/usr` and `/usr/local` (`build_stack.BASE_CMAKE`); the base gives ROOT `nlohmann_json` and
+  OpenGL (`libgl-devel`, `libopengl-devel`, `libglx-devel`, `libglu`). The base changed, so every package built
+  on it rebuilds once. A test that a CMake build on the base names those prefixes is still to write.
+
+- **N5. YODA's HDF5 support was off: fixed (2026-10-15).** YODA's `m4/ax_lib_hdf5.m4` takes the HDF5 type from
+  the wrapper's name (`*h5cc` serial, `*h5pcc` parallel, else "neither" and `.yoda.h5` off), and ours was
+  `h5cc-plain`; YODA's headers still include HDF5's, so it failed on `H5Ipublic.h`. The wrapper is now
+  `plain-h5cc` (`recipes/helpers/h5cc_plain.py`, the hdf5 and yoda recipes).
+
+- **N6. A helper script's change rebuilds nothing.** `digest` hashes a recipe's fields, not the files its
+  `pre`/`post` run (`recipes/helpers/h5cc_plain.py`), so N5's rename needed the helper run by hand or
+  `--rebuild hdf5`. Wanted: a recipe's helpers hashed with it, as its patch is (`patch_sha256`).
+  And YODA's configure keeps `.yoda.h5` on when the wrapper it is given does not exist ("HDF5 libraries... no",
+  then the same compile error), so the yoda recipe should check `{dir_hdf5}/bin/plain-h5cc` exists first.
+- **N7. ROOT built at `root_cores = 12` on this machine (14 GB of RAM, the conda base, 2026-10-15)**, the user's
+  setting: the "3 GB a compiler" rule behind `root_cores = 0` (one per 3 GB) is cautious for ROOT here. Rivet
+  built at 12 too. The rule may be loosened (or measured: peak memory per compiler).
+
+- **N8. Rivet's analyses could not link on the base: fixed (2026-10-15).** `rivet-build` dedups its flags word
+  by word (`xargs -n1 | sort -u`), which split `-isystem <base>/include` and left the bare folder on the
+  linker's line ("ld: …/include: read: Is a directory"). `-isystem` is now joined to its path (`base.toml`'s
+  `CPPFLAGS`, `build_stack`'s `{cflags}`, `rules.mk`'s `ON_BASE`), which GCC takes as one word.
+
+- **N9. Pythia8's check read a PDF set not yet installed: fixed (2026-10-15).** Its check runs 100 events with
+  `LHAPDF6:CT14lo`, and `pdfsets` came last in the build, so on a fresh root init failed ("unknown PDF CT14lo");
+  the old machine had the sets already. `pdfsets` now comes right after `lhapdf` (in `standard.toml`, so the file
+  is the order) and `pythia8` needs it.
+
+- **N10. ThePEG took the OS's Boost: fixed (2026-10-15).** Its `boost.m4` found Boost 1.90 in `/usr/include`
+  (unseen by conda's compiler) before the base's 1.92, so its unit-test check failed. `--with-boost={base}` for
+  ThePEG and Herwig in `base.toml`, as zlib and GSL already were. Autotools packages have no CMake-style switch
+  to keep out of `/usr` (N4): each macro that searches the OS needs pointing at the base.
+
+- **N11. ThePEG's libraries lost crtendS.o: fixed (2026-10-15).** conda-forge's GCC 15 specs add `-L <dir>` with a
+  space; the libtool in ThePEG's and Herwig's `configure` tests `x-L = "$p"` (never true; fixed in libtool 2.4.7 as
+  `"x$p"`), so `postdeps` got two bare `-L`s, and `-L crtendS.o` took the end file for a folder ("undefined
+  reference to __TMC_END__"). A `pre` step in `base.toml` makes the upstream fix to their `configure`. Checked: the
+  other packages downloaded (LHAPDF, HepMC3, FastJet, YODA, Rivet, Pythia8, Sherpa, Whizard, Delphes, Geant4,
+  MadGraph) do not carry that line.
+
+- **N12. Whizard found OCaml 4.06: fixed (2026-10-15).** `ocaml-findlib` (in the base's Linux lists) holds OCaml at
+  4.14.x, whose conda-forge builds need GCC 13 or 14; beside the base's GCC 15 the solve fell back to OCaml 4.06.1,
+  too old for Whizard 3.1.8 ("found version 4.06.1, too old"). Whizard does not use findlib: dropped, and the solve
+  gives OCaml 5.4.0 with GCC 15.3. But the base's lock kept 4.06.1, which `ocaml = "*"` still allows: OCaml is
+  now asked for as `ocaml >=4.08` (Whizard's floor), and as a base tool, not a library (a compiler: its version
+  rebuilds nothing). Whizard on OCaml 5 is yet to be built.
+- **N13. Any change of the base marks the whole stack.** `base_hash` covers the versions of every library the
+  base lists, and every package built on the base records it, so N12's change names ROOT and the rest as changed
+  since built (not rebuilt on its own: `--rebuild` does it). The notice is noise for a package the change does not
+  touch. Wanted: each
+  package's digest takes the compilers and runtime, plus the base libraries it builds against (its own list and
+  what its recipe names), so OCaml's change rebuilds Whizard alone.
+
+- **N14. Whizard's OCaml build took conda's GPROF: fixed (2026-10-15).** conda's activation exports `GPROF` (its
+  gprof's name); Whizard's Makefiles put `$(GPROF)` in `OCAMLOPTFLAGS` as a profiling flag and never set it, so
+  ocamlopt got "x86_64-conda-linux-gnu-gprof" ("Don't know what to do with …"). `base.toml` gives Whizard
+  `GPROF = ""`. The base's activation exports other tool names too (AR, NM, LD, …): a package that uses one
+  of those names for something else will meet the same.
+
+- **N15. Whizard's mcfio wanted `rpc/types.h`: fixed (2026-10-15).** glibc no longer ships SunRPC; Whizard asks
+  pkg-config for `libtirpc`, which the base now gives (Whizard's list in `base.toml`).
+
+- **N16. Whizard built without LHAPDF, as on both machines before: fixed (2026-10-15).** Its configure tests LHAPDF
+  with `lhapdf-config --cxxflags` (LHAPDF 6.5: the build flags, no `-I`) and `--ldflags` (`-L` alone, no `-lLHAPDF`),
+  so the test could not compile and Whizard built a dummy; the recipe's "linked" check caught it. Whizard's recipe
+  now sets `CPATH` (the headers) and `LIBS` (`-lLHAPDF`, with its rpath); its configure then says "LHAPDF: yes,
+  v6.5.6" (checked in the built tree).
+
+- **N17. Geant4's data downloads inside its build, all or nothing (2026-10-15).** `geant4_data = ON` has CMake fetch
+  ~2 GB of datasets during `cmake --build`; one truncated transfer (G4EMLOW 8.8, "Transferred a partial file")
+  failed the package, and since N4 a retry recompiles Geant4 from an empty build folder (~20 min) before fetching
+  again. Wanted: the datasets fetched by `build_stack`'s own downloader (resumed, checked, kept in forge/downloads,
+  N1's progress) and given to CMake (`GEANT4_INSTALL_DATADIR` or unpacked into place), with the code built once.
+
+- **N18. `@primary` built from source on the conda base, whole (2026-10-15)**, after N2–N17: every package and its
+  checks, Geant4 on the second try (N17), MadAnalysis5 (a `status = "new"` recipe) installed. G11's first proof.
+  The build's last step wrote the shell block into the real ~/.bashrc (`shell_rc` defaults on), which the user had
+  asked to be asked about first: an agent running a build here passes `shell_rc=false` unless told otherwise.
+  Next: `heimdall build --framework` (the apps against the new stack: identities change, the user's call) and the
+  suites.
+
+- **N19. Heimdall's apps built on the base (2026-10-15).** `App_Pythia` failed to link (`pthread_join`): the base's
+  glibc 2.28 keeps threads in libpthread, which nothing linked; `rules.mk`'s `BASE` now has `-pthread`. The C++ tests
+  pass. The fast suite then showed a point identity that moved with the machine root: the Delphes chain's script
+  runs the base's Python, written `{machine}/base/…`, so a base kept where it was while the root's name moved
+  changed it (V137's test). `paths` gains `{base}` ($HEP_BASE), longest-first like the others.
+- **N20. Tests a conda-base root skips.** Seven shell tests (`test_setup.py`, `test_shellrc.py`) skip "no venv in
+  the machine root": they know the venv only, so on the base they never run. The editor-schema test (`test_v3.py`)
+  skips without `jsonschema`, which the venv had and the base lacks (`base_pypi` or the base's Python list).
+- **N21. MadGraph made whole (2026-10-21).** The user: Pythia with HepMC2 too, for MadGraph's showers; HepMC2 in
+  `@primary`; MadAnalysis 5 used by MadGraph without `install MadAnalysis5`; QCDLoop, Ninja, OneLOop, CutTools,
+  IREGI, COLLIER. `hepmc2` and `qcdloop` recipes; Pythia `--with-hepmc2` (optional) and `--with-gzip` (MadGraph
+  hands it `.lhe.gz`), `main164` built in its post (HepMC2 output: MadGraph's Delphes step is `DelphesHepMC2`);
+  `recipes/madgraph.py` (the options, the loop libraries through MadGraph's offline installer and the tarballs
+  it ships) and `recipes/madanalysis5.py` (`version.txt`, the base's zlib, SampleAnalyzer); `HEPTools/lib` on
+  `LD_LIBRARY_PATH`. Seen: e+e- → μ+μ- at LO with MA5 at parton level, the shower writing HepMC2, MA5's
+  reconstruction and hadron-level analysis; `check timing u u~ > d d~ [virt=QCD]` with Ninja, COLLIER, IREGI
+  and CutTools. Not done: the MG5aMC_PY8 interface (MadGraph 3.8 showers with `main164`), Herwig's paths.
+  Then the user's NLO shower: aMC@NLO's Pythia 8.3 driver includes two plugin headers that each define
+  `PYTHIA8_PLUGIN_VERSIONS`' functions in 8.318; `madgraph.py noplugin` compiles it with `-DNOPLUGIN`.
+
 ## Audit 4: ghosts and gaps (2026-10-15)
 
 [docs/audit_4/](../docs/audit_4/README.md), ordered by the user with task F ("initiate an audit for features and

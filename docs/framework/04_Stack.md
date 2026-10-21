@@ -1,7 +1,7 @@
 # 04 — P1: The stack
 
 **Goal.** Build the software stack into the machine root, `~/Himinbjorg` (`$HEP_MACHINE`, outside
-git): **`@primary`**, every package the lab PC had (`packages=all`: core and extra) plus MadAnalysis5.
+git): **`@primary`**, every package the lab PC had (`packages=all`: core and extra) plus MadAnalysis5 and HepMC2.
 The places (V109, V122) are:
 - `forge/downloads/` and `forge/src/` for the downloads and their unpacked sources;
 - `forge/build/` and `forge/logs/` for the build trees and logs;
@@ -61,7 +61,7 @@ The steps:
 | # | Command | Expected |
 |---|---|---|
 | R1 | `cd $HEP && bash -n .setup/build.sh && echo ok` | `ok` |
-| R2 | `grep -c '^# == ' $HEP/.setup/build.sh` | `20` (python lhapdf hepmc3 fastjet fjcontrib root hdf5 yoda rivet pythia8 thepeg herwig delphes pdfsets sherpa madgraph whizard onnxruntime geant4 madanalysis5) |
+| R2 | `grep -c '^# == ' $HEP/.setup/build.sh` | `22` (python lhapdf hepmc3 hepmc2 fastjet fjcontrib root hdf5 yoda rivet pythia8 thepeg herwig delphes pdfsets sherpa madanalysis5 qcdloop madgraph whizard onnxruntime geant4) |
 | R3 | `grep -c "$HEP_MACHINE/forge/\|$HEP_MACHINE/stack/" $HEP/.setup/build.sh` | ≥ `100` (131 in a scratch root, 2026-10-14: every package's paths in the machine root) |
 | R4 | `grep -c "recipes/patches/fastjet" $HEP/.setup/build.sh` | `1` (the SISCone patch, L29) |
 | R5 | `ls $HEP_MACHINE/base/.pixi/envs/default/conda-meta/*.json \| wc -l` | about `206` (a scratch root's, 2026-10-14) |
@@ -126,7 +126,7 @@ The steps:
 
 | # | Command | Expected |
 |---|---|---|
-| R1 | `ls $HEP_MACHINE/stack/.stamps \| grep -v '\.libs$\|^folders$' \| wc -l` | `21` (the 20 packages of S1's R2, and `cxx_std`) |
+| R1 | `ls $HEP_MACHINE/stack/.stamps \| grep -v '\.libs$\|^folders$' \| wc -l` | `23` (the 22 packages of S1's R2, and `cxx_std`) |
 | R2 | `cat $HEP_MACHINE/stack/.stamps/cxx_std` | `17` |
 | R3 | `tail -1 $HEP/.setup/stack.log` | `done: source <HEP>/gjallarhorn.sh` |
 | R4 | `grep -c 'failed' $HEP/.setup/stack.log` | `0` |
@@ -136,8 +136,8 @@ The steps:
 - A package that fails twice is a gate (02 §5.2), with its log tail (`$HEP_MACHINE/forge/logs/<pkg>.log`) and
   the probable cause. The known suspects on a newer Ubuntu are in the annex: a GCC or Python too
   new for ROOT, ThePEG, Herwig or Whizard.
-- **MadAnalysis5** is a new recipe: its first failure is a gate. Everything else of `@primary` is
-  the lab set, and does not need it: the user may say to go on without it (then R1 expects `20`,
+- **MadAnalysis5**, **HepMC2** and **QCDLoop** were first built on 2026-10-21 (V155): a failure of one is a gate. Everything else of `@primary` is
+  the lab set, and does not need it: the user may say to go on without it (then R1 expects `22`,
   recorded as a deviation), while its recipe is fixed and folded back.
 
 ---

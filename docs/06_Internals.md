@@ -41,7 +41,8 @@ built and installed, outside git. A **work dir** holds a study.
 | `images/` | Apptainer images of Heimdall and a machine root built inside them (`heimdall image build`, V150) |
 
 Several checkouts may share one machine root. A record names a file under a known root by that
-root's placeholder, never by its absolute path: `{apps}/…`, `{stack}/…` (the loaded stack's installs),
+root's placeholder, never by its absolute path: `{apps}/…`, `{stack}/…` (the loaded stack's installs), `{base}/…`
+(the loaded conda base, whose Python runs a script tool),
 `{work}/…`, `{machine}/…`, `{hep}/…`, and the point's own folders as `{out}` and `{res}`. A point's
 fingerprint does the same everywhere in it, its tools' argv and cards included (`paths.portable_texts`,
 V137), so moving the machine root, the stack or a work dir changes no identity and no seed. `recipes/machine.py adopt` moves an older checkout's stack into it.

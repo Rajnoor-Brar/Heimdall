@@ -183,23 +183,26 @@ What a machine needs beyond it (`setup_extra`) goes to the machine root's `machi
 |---|---|---|---|
 | `python` | the base's (`base_python`); `base=system`: your `python3` | the base is the Python environment: `heimdall.pth` into it; `base=system`: a venv in `venv/`, `python_packages`, `heimdall.pth` | every Python binding; the framework's `tomli_w`, `rich`, `uproot`, Pillow, matplotlib, pytest |
 | `lhapdf` | 6.5.6 | autotools | PDFs for Pythia8, Herwig, Sherpa, Whizard, MadGraph |
+| `pdfsets` | `pdf_sets` | `lhapdf install` | the sets the configs and the tests use (the lab PC's 21) |
 | `hepmc3` | 3.3.1 | CMake | the event format between the tools |
+| `hepmc2` | 2.06.11 | CMake (`@primary`) | the older format: Pythia8 built with it too, for MadGraph's showers and Delphes step |
 | `fastjet` | 3.5.0 | autotools, the SISCone patch | jets for Rivet, Pythia8, Sherpa, Whizard and module programs |
 | `fjcontrib` | 1.104 | autotools, into FastJet's prefix | the contribs; `libfastjetcontribfragile.so`, which Rivet links |
 | `root` | 6.40.04 | CMake, `builtin_xrootd`, `root_cores` | App_yd2rt, Paint, Delphes, module programs |
-| `hdf5` | 2.2.0 | cmake, with `h5cc-plain` for configure scripts (extra) | YODA's `.yoda.h5` when built together; HighFive, h5py, JETSCAPE |
+| `hdf5` | 2.2.0 | cmake, with `plain-h5cc` for configure scripts (extra) | YODA's `.yoda.h5` when built together; HighFive, h5py, JETSCAPE |
 | `yoda` | 2.1.4 | autotools; `.yoda.h5` with the stack's HDF5 in the build, else `--disable-h5` (never a system HDF5) | Rivet's histograms; the plot backends |
 | `rivet` | 4.1.4 | autotools | the analyses |
-| `pythia8` | 8.318 | its configure, with ROOT's and Rivet's plugins | App_Pythia, InprocJets |
+| `pythia8` | 8.318 | its configure, with ROOT's and Rivet's plugins, gzip, HepMC2 when it is there; `main164` | App_Pythia, InprocJets, MadGraph's shower |
 | `thepeg` | 2.3.0 | autotools, into `stack/herwig7` | Herwig's event framework |
 | `herwig` | 7.3.0 | autotools, into `stack/herwig7` | the `herwig` tool |
 | `delphes` | 3.5.1 | CMake | the `delphes` tool |
 | `sherpa` | 3.0.5 | CMake (extra) | the `sherpa` tool |
-| `madgraph` | 3.8.1 | unpacked into `stack/madgraph`, configured (extra) | the `madgraph` tool |
+| `madanalysis5` | 1.11.1 | unpacked, SampleAnalyzer compiled (`recipes/madanalysis5.py`) | recasting; MadGraph's analyses |
+| `qcdloop` | 1.9.0 | autotools (with MadGraph) | one-loop scalar integrals; `stack/madgraph/QCDLoop` |
+| `madgraph` | 3.8.1 | unpacked into `stack/madgraph`, configured, its loop libraries built (`recipes/madgraph.py`; extra) | the `madgraph` tool |
 | `whizard` | 3.1.8 | autotools, OCaml (extra) | the `whizard` tool |
 | `onnxruntime` | 1.29.0 | the released binary, x64 or aarch64 (extra) | `// requires: onnx` |
 | `geant4` | 11.4.2 | CMake, MT, GDML, datasets (extra) | `// requires: geant4` |
-| `pdfsets` | `pdf_sets` | `lhapdf install` | the sets the configs and the tests use (the lab PC's 21) |
 
 The installs go to `stack/<dir>` (a recipe's `install`, else its name). `env/packages.sh`, generated
 from the recipes (`make registry`; a test keeps it current), lists them for `env/hep_env.sh`, with
@@ -261,8 +264,13 @@ Each of these was hit on the lab PC; the TOML files do what is in the right colu
 | Herwig | `make install` writes `HerwigDefaults.rpo`, which needs CT14lo/CT14nlo | `lhapdf install CT14lo CT14nlo` first, `LHAPDF_DATA_PATH` set |
 | Delphes | DelphesPythia8 is built only when Pythia8 is found | `PYTHIA8=<install>` in its environment, `-DROOT_DIR=<root>/cmake` |
 | Sherpa | its `_DIR` options are spelled per package (`HepMC3_DIR`, `RIVET_DIR`, `FASTJET_DIR`, `LHAPDF_DIR`) | as Sherpa spells them; `HepMC3_DIR` is the CMake config directory |
-| Whizard | HepMC3 is `--enable-hepmc --with-hepmc` (no `*hepmc3` options); O'Mega needs OCaml | so; OCaml from the base (`ocaml`, `ocaml-findlib`, `bdw-gc`), or apt's `ocaml ocaml-findlib libgc-dev` |
-| MadGraph | not built: a tree that finds LHAPDF and Pythia8 through its configuration file | unpacked into `stack/madgraph`; `lhapdf`, `pythia8_path` and `automatic_html_opening = False` set |
+| Whizard | HepMC3 is `--enable-hepmc --with-hepmc` (no `*hepmc3` options); O'Mega needs OCaml | so; OCaml from the base (`ocaml`, `bdw-gc`; not `ocaml-findlib`, whose builds hold OCaml at 4.14, made with GCC 13–14 only), or apt's `ocaml ocaml-findlib libgc-dev` |
+| MadGraph | not built: a tree that finds the other tools through its configuration file, and installs its loop libraries and MadAnalysis 5 at its prompt (`install …`, from the web) | unpacked into `stack/madgraph`; `recipes/madgraph.py` sets `lhapdf_py3`, `fastjet`, `pythia8_path`, `hepmc_path` (HepMC2), `delphes_path`, `rivet_path`, `yoda_path`, `madanalysis5_path` (a path not built here is left alone) and `automatic_html_opening = False`, then builds Ninja and OneLOop, COLLIER (into `HEPTools/`), CutTools and IREGI from the tarballs it ships, through its own offline installer |
+| MadGraph | its LO shower runs Pythia's `examples/main164`, which nothing builds; it hands Pythia `.lhe.gz` ("Les Houches initialization failed" without gzip); its Delphes step runs `DelphesHepMC2` | Pythia8 `--with-gzip` (the base's zlib: `base.toml`), and `main164` built in its `post`, writing HepMC2 when Pythia has it |
+| MadGraph | aMC@NLO's Pythia8 driver includes `aMCatNLOHooks.h` and `CombineMatchingInput.h`, and in Pythia 8.318 each plugin header defines the same `PYTHIA8_PLUGIN_VERSIONS` functions ("redefinition of `CHECK_COMPATIBLE_VERSION`") | `recipes/madgraph.py noplugin`: its `Pythia83` rule compiles with `-DNOPLUGIN` (in `Template/`; give it an existing process folder's `MCatNLO/` too) |
+| MadGraph | MadLoop's programs link the shared Ninja and COLLIER without a run path (`libninja.so.0: cannot open shared object file`); MadGraph asks the user to put `HEPTools/lib` on `LD_LIBRARY_PATH` | `env/hep_env.sh` does |
+| QCDLoop | MadGraph's tarball carries a macOS build (objects, a configured Makefile: `install QCDLoop` installs `.dylib`s on Linux); gfortran 10+ refuses its argument mismatches | `make distclean` first; `FFLAGS=-std=legacy` |
+| MadAnalysis 5 | its GitHub tarball lacks the `version.txt` its interpreter (MadGraph starts it so) reads; on the base it takes zlib from `/usr/include`; a failed compile still exits 0; its Delphes interface wants a Delphes source tree | `recipes/madanalysis5.py`: the file written, `zlib_includes` from the base, the core library checked, the Delphes interface off (as MadGraph's installer has it) |
 | Python | pip wheels of FastJet or HepMC3 do not match the stack's symbols | every compiled HEP library is built here; pip installs only pure-Python and ML packages |
 
 ---
@@ -373,7 +381,7 @@ replaced: a machine changes recipes in `machine.toml` or in a toolkit of its own
 
 | Toolkit | For | Brings (besides the core) |
 |---|---|---|
-| **`@primary`** | **the primary workflow**: what the fresh-machine plans build | the lab PC's stack (`extends = "lab"`) and MadAnalysis 5 |
+| **`@primary`** | **the primary workflow**: what the fresh-machine plans build | the lab PC's stack (`extends = "lab"`), MadAnalysis 5 and HepMC2 |
 | `@lab` | the lab PC's stack (`all`) | the extra generators, Delphes, HDF5, ONNX Runtime, Geant4 |
 | `@standard` | the core | — |
 | `@generators` | event generators side by side | Herwig, Sherpa, Whizard, MadGraph5_aMC@NLO |

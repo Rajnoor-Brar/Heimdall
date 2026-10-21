@@ -244,6 +244,8 @@ done
 # ROOT and Pythia install their Python modules into lib/ (import ROOT, import pythia8)
 _hep_prepend PYTHONPATH "$HEP_INSTALL/root/lib"
 _hep_prepend PYTHONPATH "$HEP_INSTALL/pythia8/lib"
+# MadGraph's loop libraries (Ninja, COLLIER, shared): its MadLoop programs link them without a run path
+_hep_prepend LD_LIBRARY_PATH "$HEP_INSTALL/madgraph/HEPTools/lib"
 unset pkg _hep_pyver _HEP_PACKAGES
 # framework/bin last, so it sits in front of everything, including the venv's bin/: the `heimdall` command
 # is framework/bin/heimdall.

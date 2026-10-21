@@ -383,13 +383,15 @@ def portable(path) -> str:
 
 
 def portable_texts():
-    """A function writing every known root inside a string as its placeholder ({apps}, {stack}, {work},
-    {machine}, {hep}), the longest root first, as it is written and as it resolves: an argv's
+    """A function writing every known root inside a string as its placeholder ({apps}, {stack}, {base},
+    {work}, {machine}, {hep}), the longest root first, as it is written and as it resolves: an argv's
     `--input=/…/x`, a card's path, paths joined with commas. What a fingerprint holds (V137). {stack}
-    is the loaded stack's installs ($HEP_INSTALL), where a standard tool's program is found."""
+    is the loaded stack's installs ($HEP_INSTALL), where a standard tool's program is found; {base} the
+    loaded conda base ($HEP_BASE), whose Python runs a script tool (it moves with its stack, not with
+    the machine root's name)."""
     work = find_work()
     return _portable_texts(str(apps_dir()), str(installs_dir()), str(machine_root()), str(hep_root()),
-                           str(work) if work is not None else "")
+                           str(work) if work is not None else "", str(base_dir() or ""))
 
 
 def installs_dir() -> Path:
@@ -397,11 +399,18 @@ def installs_dir() -> Path:
     return Path(os.environ["HEP_INSTALL"]) if os.environ.get("HEP_INSTALL") else stack_dir() / "stack"
 
 
+def base_dir() -> Path | None:
+    """The loaded stack's conda base ($HEP_BASE: base/.pixi/envs/default), or None (a venv's stack)."""
+    return Path(os.environ["HEP_BASE"]) if os.environ.get("HEP_BASE") else None
+
+
 @functools.lru_cache(maxsize=8)
-def _portable_texts(apps: str, installs: str, machine: str, hep: str, work: str):
+def _portable_texts(apps: str, installs: str, machine: str, hep: str, work: str, base: str = ""):
     roots = [("{apps}", apps), ("{stack}", installs), ("{machine}", machine), ("{hep}", hep)]
     if work:
         roots.append(("{work}", work))
+    if base:
+        roots.append(("{base}", base))
     pairs = []
     for name, root in roots:
         for form in {str(Path(root).expanduser()), str(Path(root).expanduser().resolve())}:
@@ -420,7 +429,8 @@ def _portable_texts(apps: str, installs: str, machine: str, hep: str, work: str)
 def unportable(text: str) -> str:
     """A path portable() wrote, under today's roots ({work}, {hep}, {apps}, {machine}); anything else as
     it is (a record written before, with absolute paths)."""
-    roots = {"{apps}": apps_dir, "{stack}": installs_dir, "{machine}": machine_root, "{hep}": hep_root, "{work}": work_root}
+    roots = {"{apps}": apps_dir, "{stack}": installs_dir, "{machine}": machine_root, "{hep}": hep_root, "{work}": work_root,
+             "{base}": lambda: base_dir() or ""}
     for name, root in roots.items():
         if text == name or text.startswith(name + "/"):
             return str(root()) + text[len(name):]

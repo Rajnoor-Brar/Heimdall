@@ -94,6 +94,12 @@ FIELDS = {"release", "url", "sha256", "kind", "needs", "group", "install", "prob
           "patch", "strip", "env", "pre", "post", "cores", "status", "how", "apt", "verify", "conda", "conda_std",
           "from", "base"}
 KINDS = ("autotools", "cmake", "unpack", "none", "external")
+#: CMake on the conda base (Linux): the OS's prefixes ignored, so a find_package or find_path never takes a header
+#: from /usr that conda's compiler, searching its own sysroot, cannot see (ROOT found gl2ps, libxml2 and
+#: nlohmann/json there, then failed to compile).
+BASE_CMAKE = ["-DCMAKE_IGNORE_PREFIX_PATH=/usr;/usr/local",
+              "-DCMAKE_IGNORE_PATH=/usr/include;/usr/lib;/usr/lib64;/usr/lib/x86_64-linux-gnu;"
+              "/usr/lib/aarch64-linux-gnu;/usr/local/include;/usr/local/lib"]
 #: The groups a recipe may be in, and "all", both: what packages = "core" or a toolkit's [standard] names.
 #: A recipe in no group joins a build only by name.
 GROUPS = {"core": ("core",), "extra": ("extra",), "all": ("core", "extra")}
@@ -634,7 +640,9 @@ def context(s: dict) -> dict:
         env = base / "base" / ".pixi" / "envs" / "default"
         venv, py = str(env), s["base_python"]
         python, pyinc = f"{env}/bin/python", f"{env}/include/python{py}"
-        include, lib = f"-isystem {env}/include", f"-L{env}/lib -Wl,-rpath,{env}/lib"
+        # -isystem joined to its path: rivet-build sorts and dedups its flags word by word (`xargs -n1 | sort -u`),
+        # which split "-isystem <path>" and left the bare path on the linker's command line (2026-10-15)
+        include, lib = f"-isystem{env}/include", f"-L{env}/lib -Wl,-rpath,{env}/lib"
         ldflags = lib if MAC else f"{lib} -Wl,-rpath-link,{env}/lib"   # (Apple's ld has no -rpath-link)
     else:
         env, venv, include, ldflags = None, str(base / "venv"), "", ""
@@ -1178,6 +1186,8 @@ def build(name: str, p: dict, c: dict, shell: Shell, have: set[str]) -> None:
         into = k["install"] if kind == "unpack" else k["src"]      # afresh, so a failed try leaves nothing
         shell.run(["rm", "-rf", into])
         shell.run(["mkdir", "-p", into])
+        if kind == "cmake":                                         # its cache too: what a failed configure found
+            shell.run(["rm", "-rf", k["build"]])                    # (in /usr, say) is found again from scratch
         shell.run(["tar", "xf", str(tarball(name, p, c)[0]), "-C", into, f"--strip-components={p.get('strip', 1)}"])
     if p.get("patch"):
         shell.run(["patch", "-d", k["src"], "-p0", "-i", str(REPO / expand(p["patch"], k))])
@@ -1197,6 +1207,8 @@ def build(name: str, p: dict, c: dict, shell: Shell, have: set[str]) -> None:
         shell.run(["make", jobs], k["src"], env)
         shell.run(["make", "install"], k["src"], env)
     elif kind == "cmake":
+        if c.get("base_hash") and not MAC:                         # on the base: nothing of the OS's /usr, whose
+            args = [*BASE_CMAKE, *args]                           # headers its compiler never sees
         shell.run(["cmake", "-S", k["src"], "-B", k["build"], f"-DCMAKE_INSTALL_PREFIX={k['install']}",
                    "-DCMAKE_BUILD_TYPE=Release", f"-DCMAKE_CXX_STANDARD={c['cxx_std']}", *args], env=env)
         shell.run(["cmake", "--build", k["build"], jobs], env=env)

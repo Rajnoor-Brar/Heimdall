@@ -84,6 +84,13 @@ group   = "core"
 needs   = ["python"]
 install = "LHAPDF"
 
+[packages.pdfsets]
+kind  = "none"
+group = "core"
+needs = ["lhapdf"]
+post  = ["lhapdf install {pdf_sets}"]                 # a set already there is skipped; right after
+                                                     # LHAPDF: Pythia8's check reads CT14lo
+
 [packages.hepmc3]
 release = "3.3.1"
 url     = "https://hepmc.web.cern.ch/hepmc/releases/HepMC3-{release}.tar.gz"
@@ -99,6 +106,15 @@ args = [
   "-DHEPMC3_ENABLE_ROOTIO=OFF", "-DHEPMC3_ENABLE_SEARCH=ON", "-DHEPMC3_BUILD_EXAMPLES=OFF",
   "-DCMAKE_CXX_FLAGS={cxxflags} -fno-lto", "-DCMAKE_SHARED_LINKER_FLAGS=-fno-lto",
 ]
+
+[packages.hepmc2]
+release = "2.06.11"                                   # the older event format: aMC@NLO's Pythia8 shower and
+url     = "https://hepmc.web.cern.ch/hepmc/releases/HepMC-{release}.tar.gz"   # MadGraph's Delphes step read it
+kind    = "cmake"
+conda   = "hepmc2"
+# Its units must be named; its CMakeLists asks for CMake 2.6, which CMake 4 refuses without a policy floor.
+args    = ["-Dmomentum:STRING=GEV", "-Dlength:STRING=MM", "-DCMAKE_POLICY_VERSION_MINIMUM=3.5",
+           "-DCMAKE_CXX_FLAGS={cxxflags} -fPIC"]
 
 [packages.fastjet]
 release = "3.5.0"
@@ -152,7 +168,9 @@ args = [
   "-DHDF5_BUILD_FORTRAN=OFF", "-DHDF5_BUILD_JAVA=OFF", "-DHDF5_BUILD_EXAMPLES=OFF", "-DBUILD_TESTING=OFF",
   "-DHDF5_ENABLE_ZLIB_SUPPORT=ON", "-DHDF5_ENABLE_SZIP_SUPPORT=OFF", "-DCMAKE_INSTALL_NAME_DIR={install}/lib",
 ]
-# h5cc-plain: the one-line h5cc YODA's configure can read (HDF5 2.x's broke its link line on the Mac)
+# plain-h5cc: the one-line h5cc YODA's configure can read (HDF5 2.x's broke its link line on the Mac); its name
+# ends in h5cc because YODA's m4/ax_lib_hdf5.m4 takes the type from it ("*h5cc": serial; else "neither", and
+# .yoda.h5 is switched off while the headers still include HDF5's: the build fails, 2026-10-15)
 post = ["{python} {repo}/recipes/helpers/h5cc_plain.py {install} {release}"]
 
 [packages.yoda]
@@ -166,7 +184,7 @@ needs   = ["python"]
 # HDF5 support (.yoda.h5) only with the stack's HDF5: never one the system happens to have (the Mac's
 # Homebrew HDF5 broke the link, docs/audit_3/01_Process.md §5). The later --enable-h5 wins.
 args     = ["--disable-h5"]
-optional = { hdf5 = ["--enable-h5", "--with-hdf5={dir_hdf5}/bin/h5cc-plain", "--enable-h5-rpath"] }
+optional = { hdf5 = ["--enable-h5", "--with-hdf5={dir_hdf5}/bin/plain-h5cc", "--enable-h5-rpath"] }
 
 [packages.rivet]
 release = "4.1.4"
@@ -185,14 +203,21 @@ url     = "https://pythia.org/releases/pythia83/pythia{release}.tgz"     # /down
 kind    = "autotools"
 conda   = "pythia8"
 group   = "core"
-needs   = ["python", "lhapdf", "hepmc3", "fastjet"]
+needs   = ["python", "lhapdf", "hepmc3", "fastjet", "pdfsets"]   # pdfsets: its check reads CT14lo (on a fresh
+                                                          # root the sets came after it, and the check failed)
 args = [
   "--with-lhapdf6={dir_lhapdf}", "--with-hepmc3={dir_hepmc3}", "--with-fastjet3={dir_fastjet}",
   "--with-python-bin={venv}/bin/", "--with-python-lib={venv}/lib/python{py}",
   "--with-python-include={pyinc}", "--cxx-common={cxxflags} -fPIC",
+  "--with-gzip",                                      # gzipped Les Houches files: MadGraph hands it .lhe.gz
 ]
-# Its ROOT and Rivet plugins (Pythia8Plugins/RivetHooks.h) exist only when built after them.
-optional = { root = ["--with-root={dir_root}"], rivet = ["--with-rivet={dir_rivet}"] }
+# Its ROOT and Rivet plugins (Pythia8Plugins/RivetHooks.h) exist only when built after them; HepMC2 beside
+# HepMC3 (@primary), for MadGraph: aMC@NLO's Pythia8 shower reads `pythia8-config --hepmc2`.
+optional = { root = ["--with-root={dir_root}"], rivet = ["--with-rivet={dir_rivet}"], hepmc2 = ["--with-hepmc2={dir_hepmc2}"] }
+# MadGraph showers LO events with examples/main164, which it does not build: built here, writing HepMC2
+# when Pythia has it (MadGraph's Delphes step runs DelphesHepMC2), else HepMC3.
+post = ['''sh -c 'cd {install}/share/Pythia8/examples && if [ "$({install}/bin/pythia8-config --with-hepmc2)" = true ];
+  then make main164 HEPMC3_USE=false; else make main164; fi' ''']
 
 [packages.thepeg]
 release = "2.3.0"
@@ -234,12 +259,6 @@ needs   = ["root"]
 env     = { PYTHIA8 = "{dir_pythia8}" }              # DelphesPythia8 too, when Pythia8 is there
 args    = ["-DROOT_DIR={dir_root}/cmake"]
 
-[packages.pdfsets]
-kind  = "none"
-group = "core"
-needs = ["lhapdf"]
-post  = ["lhapdf install {pdf_sets}"]                 # a set already there is skipped
-
 [packages.sherpa]
 release = "3.0.5"
 url     = "https://gitlab.com/sherpa-team/sherpa/-/archive/v{release}/sherpa-v{release}.tar.gz"
@@ -256,17 +275,46 @@ args = [
   "-DSHERPA_ENABLE_INTERNAL_PDFS=ON", "-DSHERPA_ENABLE_EXAMPLES=ON",
 ]
 
+[packages.madanalysis5]                               # before MadGraph, which is pointed at it when both build
+release = "1.11.1"                                    # recasting
+url     = "https://github.com/MadAnalysis/madanalysis5/archive/refs/tags/v{release}.tar.gz"
+kind    = "unpack"                                    # a Python tree, run in place: stack/madanalysis5/bin/ma5
+needs   = ["root", "fastjet", "delphes"]
+probe   = "{install}/bin/ma5"
+# Made ready as MadGraph's `install MadAnalysis5` would: its version file, SampleAnalyzer compiled (zlib from
+# the base when there is one); its Delphes interface off, as MadGraph's installer has it (it wants a Delphes
+# source tree, external/ExRootAnalysis). Then MadGraph, when built, is pointed at it.
+post = ["{venv}/bin/python {repo}/recipes/madanalysis5.py {install} {release} {cores} zlib_includes={base}/include zlib_libs={base}/lib root_bin_path={bin_root} fastjet_bin_path={bin_fastjet} delphes_veto=1",
+        "{venv}/bin/python {repo}/recipes/madgraph.py configure {dir_madgraph} madanalysis5_path={install}"]
+
+[packages.qcdloop]
+release = "1.9.0"                                     # one-loop scalar integrals, MadGraph's `install QCDLoop`
+url     = ["https://madgraph.mi.infn.it/Downloads/qcdloop1-{release}.tar.gz",
+           "http://madgraph.phys.ucl.ac.be/Downloads/qcdloop1-{release}.tar.gz"]
+sha256  = "9d76b4d28d1684d2ed9043dcca6e7fce11c8f57efc3fe87f288bd42917843217"
+kind    = "autotools"
+group   = "extra"                                     # with MadGraph
+pre     = ["make distclean"]                          # the tarball carries a macOS build: objects, a configure's
+args    = ["FC=gfortran", "F77=gfortran", "FFLAGS=-O2 -fPIC -std=legacy"]   # Makefile; its ff/ calls
+                                                      # mismatch their arguments, which gfortran 10+ refuses
+
 [packages.madgraph]
 release = "3.8.1"                                     # Launchpad renames releases: set madgraph.url when it 404s
 url     = "https://launchpad.net/mg5amcnlo/3.0/{series}.x/+download/MG5_aMC_v{release}.tar.gz"
 kind    = "unpack"                                    # a Python/Fortran tree, pointed at the stack
 group   = "extra"
-needs   = ["lhapdf", "pythia8"]
-post = ["""sed -i.orig
-  -e 's|^#* *lhapdf *=.*|lhapdf = {dir_lhapdf}/bin/lhapdf-config|'
-  -e 's|^#* *pythia8_path *=.*|pythia8_path = {dir_pythia8}|'
-  -e 's|^#* *automatic_html_opening *=.*|automatic_html_opening = False|'
-  {install}/input/mg5_configuration.txt"""]
+needs   = ["lhapdf", "pythia8", "qcdloop"]
+# Its options (recipes/madgraph.py: a path not built here is left alone), then its loop libraries as the
+# prompt's `install` would make them, from the tarballs it ships: Ninja and OneLOop, COLLIER into HEPTools/,
+# CutTools and IREGI in vendor/, QCDLoop linked as MadGraph/QCDLoop. A first loop process asks nothing then.
+post = [
+  """{venv}/bin/python {repo}/recipes/madgraph.py configure {install} automatic_html_opening=False
+  lhapdf_py3={bin_lhapdf}/lhapdf-config fastjet={bin_fastjet}/fastjet-config pythia8_path={dir_pythia8}
+  hepmc_path={dir_hepmc2} delphes_path={bin_delphes} rivet_path={dir_rivet} yoda_path={dir_yoda}
+  madanalysis5_path={dir_madanalysis5}""",
+  "{venv}/bin/python {repo}/recipes/madgraph.py loop-tools {install} {dir_qcdloop}",
+  "{venv}/bin/python {repo}/recipes/madgraph.py noplugin {install}/Template/NLO/MCatNLO",   # aMC@NLO's Pythia 8.3 driver
+]
 
 [packages.whizard]
 release = "3.1.8"
@@ -281,6 +329,10 @@ args = [
   "--with-fastjet={dir_fastjet}", "--enable-pythia8", "--with-pythia8={dir_pythia8}",
   "--disable-dependency-tracking", "FC=gfortran",
 ]
+# Its LHAPDF test compiles with `lhapdf-config --cxxflags` and links with `--ldflags`, which LHAPDF 6.5 answers
+# with its build flags (no -I) and -L alone (no -lLHAPDF): the test failed and Whizard built a dummy (2026-10-15).
+# CPATH gives the headers (GCC reads it), LIBS the library, for the test and Whizard's link alike.
+env = { CPATH = "{dir_lhapdf}/include", LIBS = "-L{dir_lhapdf}/lib -Wl,-rpath,{dir_lhapdf}/lib -lLHAPDF" }
 
 [packages.onnxruntime]
 release = "1.29.0"
@@ -361,14 +413,6 @@ kind    = "cmake"
 status  = "new"
 needs   = ["pythia8", "hepmc3", "root", "hdf5"]
 env     = { CMAKE_PREFIX_PATH = "{cmake_prefix}", HDF5_ROOT = "{dir_hdf5}" }
-
-[packages.madanalysis5]
-release = "1.11.1"                                    # recasting; it finds ROOT, FastJet, Delphes at first start
-url     = "https://github.com/MadAnalysis/madanalysis5/archive/refs/tags/v{release}.tar.gz"
-kind    = "unpack"                                    # a Python tree, run in place: stack/madanalysis5/bin/ma5
-status  = "new"
-needs   = ["root", "fastjet", "delphes"]
-probe   = "{install}/bin/ma5"
 
 [packages.contur]
 release = "3.1.3"                                     # model interpretation on Rivet's measurements (Rivet 4)
@@ -593,6 +637,10 @@ files = ["{install}/lib*/libHepMC3search.*"]
 name   = "python: import pyHepMC3"
 python = "import pyHepMC3"
 
+[[packages.hepmc2.verify]]
+name  = "libraries"
+files = ["{install}/lib*/libHepMC.*", "{install}/include/HepMC/GenEvent.h"]
+
 [[packages.fastjet.verify]]
 name    = "version"
 command = "fastjet-config --version"
@@ -640,8 +688,8 @@ name    = "version"
 command = "{install}/bin/h5dump --version"
 
 [[packages.hdf5.verify]]
-name  = "h5cc-plain"
-files = ["{install}/bin/h5cc-plain"]
+name  = "plain-h5cc"
+files = ["{install}/bin/plain-h5cc"]
 
 [[packages.yoda.verify]]
 name    = "version"
@@ -683,6 +731,10 @@ name   = "100 events with an LHAPDF set"
 python = "import pythia8; p = pythia8.Pythia('', False); [p.readString(s) for s in ('Beams:eCM = 13000', 'SoftQCD:inelastic = on', 'PDF:pSet = LHAPDF6:CT14lo', 'Random:setSeed = on', 'Random:seed = 1')]; p.init(); print('events', sum(1 for _ in range(100) if p.next()), flush=True)"
 expect = '^events 100'
 
+[[packages.pythia8.verify]]
+name  = "main164, MadGraph's shower program"
+files = ["{install}/share/Pythia8/examples/main164"]
+
 [[packages.thepeg.verify]]
 name  = "installed"
 files = ["{install}/bin/setupThePEG", "{install}/lib/ThePEG/libThePEG.*"]
@@ -715,6 +767,12 @@ name   = "its Python imports"
 python = "import sys; sys.path.insert(0, '{install}'); import madgraph.interface.master_interface; print('imported')"
 expect = 'imported'
 
+[[packages.madgraph.verify]]
+name  = "its loop libraries: Ninja, OneLOop, COLLIER, CutTools, IREGI, QCDLoop"
+files = ["{install}/HEPTools/lib/libninja.a", "{install}/HEPTools/lib/libavh_olo.a", "{install}/HEPTools/lib/libcollier.a",
+         "{install}/vendor/CutTools/includects/libcts.a", "{install}/vendor/IREGI/src/libiregi.a",
+         "{install}/QCDLoop/lib/libqcdloop1.*"]
+
 [[packages.whizard.verify]]
 name    = "version"
 command = "whizard --version"
@@ -745,3 +803,11 @@ expect  = 'yes'
 [[packages.madanalysis5.verify]]
 name  = "installed"
 files = ["{install}/bin/ma5"]
+
+[[packages.madanalysis5.verify]]
+name  = "SampleAnalyzer compiled, and the version file MadGraph starts it by"
+files = ["{install}/tools/SampleAnalyzer/Lib/libprocess_for_ma5.*", "{install}/version.txt"]
+
+[[packages.qcdloop.verify]]
+name  = "library"
+files = ["{install}/lib/libqcdloop1.*"]

@@ -28,13 +28,18 @@ channels = ["conda-forge"]
 # What the stack links, by what needs it: a change in what is installed of these (or of the compilers,
 # the C++ runtime, Python) marks every package built on them "changed" (docs/conda/02_Design.md §4).
 [base.libraries]
-root      = ["libxml2", "fftw", "libsqlite", "liblzma-devel", "lz4-c", "xxhash", "zstd", "zlib", "openssl",
+root      = ["libxml2", "libxml2-devel", "fftw", "libsqlite", "liblzma-devel", "lz4-c", "xxhash", "zstd", "zlib", "openssl",
              "libcurl", "libuuid", "krb5", "tbb-devel", "xorg-libx11", "xorg-libxpm", "xorg-libxft",
-             "xorg-libxext", "glew", "ftgl", "giflib", "libpng", "libjpeg-turbo"]
+             "xorg-libxext", "glew", "ftgl", "gl2ps", "giflib", "libpng", "libjpeg-turbo", "nlohmann_json",
+             "libgl-devel", "libopengl-devel", "libglx-devel", "libglu"]
+# libxml2-devel: the headers and libxml2.so (conda-forge split them off libxml2; without it ROOT turns xml off);
+# gl2ps: ROOT refuses opengl without it; nlohmann_json, OpenGL's GL, GLX, OpenGL and GLU: ROOT took them from /usr
+# until CMake was kept out of it (build_stack.BASE_CMAKE). Seen in the first source build of ROOT on the base, 2026-10-15.
 herwig    = ["gsl", "libboost-devel"]        # and ThePEG
 lhapdf    = ["yaml-cpp"]
 sherpa    = ["libzip", "bzip2"]
-whizard   = ["ocaml", "bdw-gc"]
+whizard   = ["bdw-gc", "libtirpc"]         # its OCaml is a tool: below; libtirpc: the SunRPC headers glibc
+                                             # dropped, which its contrib/mcfio includes (rpc/types.h, 2026-10-15)
 geant4    = ["xerces-c"]
 framework = ["tomlplusplus"]                 # Paint, App_Pythia, the module kit (zstd, zlib: above)
 
@@ -42,6 +47,10 @@ framework = ["tomlplusplus"]                 # Paint, App_Pythia, the module kit
 [base.tools]
 build = ["make", "cmake", "pkg-config", "autoconf", "automake", "libtool", "patch", "pip"]
 decks = ["pandoc", "poppler"]                # heimdall deck, sheets; TeX stays the OS's (docs/conda/01 §7)
+whizard = ["ocaml >=4.08"]                   # O'Mega's compiler. ">=4.08", Whizard's floor: a lock keeps an old
+                                             # OCaml that "*" allows (4.06.1, chosen beside ocaml-findlib, whose
+                                             # builds hold OCaml at 4.14 with GCC 13-14 only; Whizard does not use
+                                             # findlib). A tool, so its version rebuilds nothing (2026-10-15)
 
 # pkg-config files a conda-forge package lacks and Heimdall's build asks for (env/stack.toml's probes): each
 # is written into base/pkgconfig/ for the version installed, and activate.sh puts that folder on
@@ -58,13 +67,13 @@ cflags  = "-I{base}/include"
 libraries = ["gcc_linux-64 {base_gcc}.*", "gxx_linux-64 {base_gcc}.*", "gfortran_linux-64 {base_gcc}.*",
              "gcc {base_gcc}.*", "gxx {base_gcc}.*", "gfortran {base_gcc}.*", "sysroot_linux-64",
              "libstdcxx", "libgcc", "libgfortran5",
-             "libgl-devel", "libglu", "xorg-libxmu", "xorg-libxi", "ocaml-findlib"]
+             "libgl-devel", "libglu", "xorg-libxmu", "xorg-libxi"]
 
 [base.platform.linux-aarch64]
 libraries = ["gcc_linux-aarch64 {base_gcc}.*", "gxx_linux-aarch64 {base_gcc}.*",
              "gfortran_linux-aarch64 {base_gcc}.*", "gcc {base_gcc}.*", "gxx {base_gcc}.*",
              "gfortran {base_gcc}.*", "sysroot_linux-aarch64", "libstdcxx", "libgcc", "libgfortran5",
-             "libgl-devel", "libglu", "xorg-libxmu", "xorg-libxi", "ocaml-findlib"]
+             "libgl-devel", "libglu", "xorg-libxmu", "xorg-libxi"]
 
 [base.platform.osx-arm64]                    # untested: the Xcode command-line tools' SDK is still needed
 libraries = ["clang_osx-arm64", "clangxx_osx-arm64", "gfortran_osx-arm64", "libcxx", "libgfortran5"]
@@ -79,7 +88,7 @@ tools     = ["sed", "coreutils", "bash"]     # GNU sed and coreutils, a bash of 
 system = false                               # no apt-get: the base is the system
 
 [env]
-CPPFLAGS    = "-isystem {base}/include"
+CPPFLAGS    = "-isystem{base}/include"                   # joined: rivet-build sorts its flags word by word
 CFLAGS      = "{cflags}"
 LDFLAGS     = "{ldflags}"
 VIRTUAL_ENV = ""                             # "": not set (the base is no venv)
@@ -90,8 +99,8 @@ probe   = "{venv}/lib/python{py}/site-packages/heimdall.pth"
 replace = ["pre"]
 pre     = ["{venv}/bin/python {repo}/recipes/pth.py {repo}"]
 
-# Configure scripts that look for a library in /usr/local and /usr (the zlib check of YODA, Rivet and
-# ThePEG adds -I/usr/include, which mixes the OS's glibc headers into the base's), or "on the system"
+# Configure scripts that look for a library in /usr/local and /usr (the zlib check of YODA, Rivet,
+# Pythia8 and ThePEG adds -I/usr/include, which mixes the OS's glibc headers into the base's), or "on the system"
 # (GSL, for ThePEG and Herwig), are told the base's.
 [packages.yoda]
 extra = ["--with-zlib={base}"]
@@ -99,8 +108,23 @@ extra = ["--with-zlib={base}"]
 [packages.rivet]
 extra = ["--with-zlib={base}"]
 
+[packages.pythia8]
+extra = ["--with-gzip={base}"]
+
 [packages.thepeg]
-extra = ["--with-zlib={base}", "--with-gsl={base}"]
+# --with-boost: its boost.m4 otherwise takes the OS's /usr/include, which conda's compiler does not see (2026-10-15)
+extra = ["--with-zlib={base}", "--with-gsl={base}", "--with-boost={base}"]
+# libtool's hidden-libdeps probe in their configure tests `x-L = "$p"` (never true; libtool 2.4.7 tests "x$p"), so the
+# base's GCC, whose specs give `-L <dir>` with a space, leaves bare -L's in postdeps: the link swallows crtendS.o
+# ("undefined reference to __TMC_END__", 2026-10-15). The upstream fix, made to configure before it runs:
+pre   = ['''sed -i 's/test x-\([LR]\) = "$p"/test x-\1 = "x$p"/' configure''']
 
 [packages.herwig]
-extra = ["--with-gsl={base}"]
+extra = ["--with-gsl={base}", "--with-boost={base}"]
+# the same libtool fix as ThePEG's
+pre   = ['''sed -i 's/test x-\([LR]\) = "$p"/test x-\1 = "x$p"/' configure''']
+
+[packages.whizard]
+# conda's activation exports GPROF (its gprof's name); Whizard's Makefiles use $(GPROF) as OCaml's profiling
+# flag and never set it, so ocamlopt got "x86_64-conda-linux-gnu-gprof" as an argument (2026-10-15)
+env = { GPROF = "" }

@@ -261,7 +261,7 @@ def consumer_table(run, master: dict, active: list[str], tags: list[str],
                                f"({', '.join(tags)}): its points would differ only by their seeds",
                                where=f"{run.path}: [quantities.{name}]",
                                hint=f"list the combinations, leaving {name} out of this point's row (vary = [{{ points = "
-                                    "[...] }}], 04 §5.1), or vary it in a configuration of its own")
+                                    "[...] }], 04 §5.1), or vary it in a configuration of its own")
             table[name] = []
             continue
         if not found:

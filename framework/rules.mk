@@ -26,12 +26,14 @@ CXX      ?= g++
 CXXFLAGS ?= -O2
 # The loaded stack's C++ standard, as recipes/build_stack.py built it: an isolated toolkit's may be 20
 CXX_STD  := $(or $(shell cat $(HEP_INSTALL)/.stamps/cxx_std 2>/dev/null),17)
-BASE      = -std=c++$(CXX_STD) $(CXXFLAGS) -I $(HEP)/src $(ON_BASE)
+# -pthread: the conda base's glibc (2.28) keeps threads in libpthread, which nothing else links (App_Pythia's
+# std::thread: "undefined reference to pthread_join", 2026-10-15); harmless where glibc has them in libc.
+BASE      = -std=c++$(CXX_STD) $(CXXFLAGS) -pthread -I $(HEP)/src $(ON_BASE)
 # A stack built on a conda base (docs/conda/): CXX is its compiler (base/activate.sh), and what is built
 # here finds the base's libraries (its libstdc++ first) by rpath, never through LD_LIBRARY_PATH. ($(comma):
 # a bare comma would end $(if)'s argument.)
 comma    := ,
-ON_BASE   = $(if $(HEP_BASE),-isystem $(HEP_BASE)/include -L$(HEP_BASE)/lib -Wl$(comma)-rpath$(comma)$(HEP_BASE)/lib)
+ON_BASE   = $(if $(HEP_BASE),-isystem$(HEP_BASE)/include -L$(HEP_BASE)/lib -Wl$(comma)-rpath$(comma)$(HEP_BASE)/lib)
 # The standard again after a library's flags, which may name their own (conda-forge's pythia8-config says
 # -std=c++11): the last -std wins, and it is the stack's.
 STD_LAST  = -std=c++$(CXX_STD)

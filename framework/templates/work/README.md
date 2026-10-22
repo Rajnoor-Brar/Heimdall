@@ -11,9 +11,8 @@ elsewhere: `heimdall where` says which one this shell uses. Its manual is `$HEP/
 | `modules/<Project>/` | your programs (`X.cc` → `build/<Project>/X.exe`) and Rivet analyses (`Rivet/<x>.cc`) | yes |
 | `datasets/` | input files a run reads (`data = "…"`): small ones tracked; large ones listed in `datasets.toml` (url, sha256), which `heimdall setup .` fetches | yes |
 | `decks/<deck>/` | your decks (`deck.md`, `deck.toml`), built into `reports/<deck>/` by `heimdall deck <deck>` | yes |
-| `results/` | what runs produce: the points' products and the pages | no |
-| `records/` | what runs recorded: each point's provenance, identity and completion; keep it with `results/` | no |
-| `logs/` | each point's cards and configs, a failed tool's last lines, the page configs: safe to delete (`heimdall clean`) | no |
+| `results/<P>/<run>/<cfg>/` | what runs produce: `points/<point>/` the products, `plots/` the pages | no |
+| `records/<P>/<run>/<cfg>/` | what runs recorded: `points/<point>/` each point's provenance, identity and completion (keep it with `results/`); `logs/<point>/` its cards, configs and a failed tool's last lines (safe to delete: `heimdall clean`); `plots/` the page configs; `config/` the run TOML and cards it ran with (`heimdall plot <P>/<run>/<cfg>` draws from it) | no |
 | `.cache/` | prepare caches (and card checks, converted data with `keep cache`): rebuilt when needed | no |
 | `reports/` | the decks' slides, as `heimdall deck` builds them | no |
 | `build/` | compiled modules and Rivet plugins (`heimdall build`) | no |

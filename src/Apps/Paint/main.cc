@@ -12,7 +12,8 @@
 // ranges and voided bins beside its config, <PAGE>.ranges.json, for the other backends; `--ranges-only`
 // writes them and draws nothing (a run whose only backend is yoda).
 // `--dump-ranges` prints one page's ranges as JSON and draws nothing, which is how the arithmetic is
-// tested without looking at pixels. `--dump-style` prints the page's style — src/Apps/Paint/base.toml
+// tested without looking at pixels. Every page read (drawn or not) gets <PAGE>.stats.json: each curve's area,
+// and its area and χ² against the reference (V160). `--dump-style` prints the page's style — src/Apps/Paint/base.toml
 // with the page's [style] over it — as TOML; with no page, base.toml's.
 // Exit codes: src/Kit.hh's one table (V73): 0 ok, 1 page config, 2 usage, 4 input, 5 output (with
 // several pages: 1 when any failed).
@@ -54,7 +55,33 @@ namespace {
         return buffer;
     }
 
-    // One page: its ranges printed (dump), written beside it (ranges) and/or the page drawn.
+    std::string number(double v) {
+        if (!std::isfinite(v)) return "null";
+        char buffer[40];
+        std::snprintf(buffer, sizeof buffer, "%.10g", v);
+        return buffer;
+    }
+
+    // V160: every curve's statistics against the page's reference (the data, else its first curve), as JSON.
+    std::string statisticsJson(const Paint::Page& page, const std::vector<Paint::Series>& curves, bool haveData,
+                               const Paint::Series& data, const Paint::Range& x) {
+        const Paint::Series& ref = haveData ? data : curves.front();
+        std::string out = "{\"page\": " + Status::quote(page.name) + ", \"reference\": \"" + (haveData ? "data" : "first")
+                          + "\", \"x\": [" + number(x.lo) + ", " + number(x.hi) + "], \"curves\": [";
+        for (size_t c = 0; c < curves.size(); ++c) {
+            const Paint::Statistics s = Paint::statistics(curves[c], ref, x.lo, x.hi);
+            const bool self = !haveData && c == 0;
+            out += std::string(c ? ", " : "") + "{\"bins\": " + std::to_string(s.bins) + ", \"area\": " + number(s.area)
+                   + ", \"area_err\": " + number(s.areaErr) + ", \"ref_area\": " + number(s.refArea)
+                   + ", \"abs_area\": " + number(s.absArea) + ", \"compared\": " + std::to_string(s.compared)
+                   + ", \"chi2\": " + number(s.chi2) + ", \"ndf\": " + std::to_string(s.ndf)
+                   + ", \"reference\": " + (self ? "true" : "false") + "}";
+        }
+        return out + "]}";
+    }
+
+    // One page: its ranges printed (dump), written beside it (ranges) and/or the page drawn; its curves'
+    // statistics written beside it whenever it is read (V160).
     Outcome one(const std::string& pagePath, bool dump, bool ranges, bool drawIt, Status::Reporter& status) {
         Paint::Page page;
         try {
@@ -136,6 +163,11 @@ namespace {
         if (dump) {
             std::printf("%s\n", json.c_str());
             return {};
+        }
+        if (!curves.empty()) {
+            std::ofstream stats(pagePath + ".stats.json");
+            stats << statisticsJson(page, curves, haveData, data, x) << "\n";
+            if (!stats) return {Kit::Output, "cannot write " + pagePath + ".stats.json"};
         }
         if (ranges) {
             std::ofstream out(pagePath + ".ranges.json");

@@ -9,11 +9,12 @@ quantity becomes the curves on a page.
 
 from __future__ import annotations
 
+import fnmatch
 import itertools
 import re
 from dataclasses import dataclass, field
 
-from .errors import HepError
+from .errors import HepError, did_you_mean
 
 
 @dataclass
@@ -159,3 +160,70 @@ def select_points(run, configuration, point_list: list[Point], selector: str | N
             raise HepError(f"--points: '{item}' matches no point", hint=", ".join(p.name for p in point_list[:8]))
         chosen += [p for p in matched if p not in chosen]
     return chosen
+
+
+# ── page sets (V159): pages of chosen points, whatever the plot axes ──────────────────────────────
+
+def set_entries(sets, where: str) -> list[tuple[str, list]]:
+    """[plot].sets as (folder name, selectors), in order: a selector alone names its folder (`"pdf=X"` →
+    `pdf-X`, an index the point's own name later), a list is `set<k>` (its place), `{ name, points }` its
+    name. Shapes are checked here; what the selectors match is chosen_points'."""
+    out = []
+    for k, entry in enumerate(sets or [], start=1):
+        at = f"{where}[{k}]"
+        if isinstance(entry, dict):
+            unknown = sorted(set(entry) - {"name", "points"})
+            if unknown or not isinstance(entry.get("name"), str) or not entry.get("name") or not isinstance(entry.get("points"), list):
+                raise HepError("a named set is { name = \"<folder>\", points = [<selector>, …] }", where=at,
+                               hint=f"not {unknown[0]}" if unknown else None)
+            name, selectors = entry["name"], entry["points"]
+        elif isinstance(entry, list):
+            name, selectors = f"set{k}", entry
+        else:
+            name, selectors = None, [entry]
+        if not selectors:
+            raise HepError("a set names at least one point", where=at)
+        for item in selectors:
+            if isinstance(item, bool) or not isinstance(item, (int, str)) or item == "" or (isinstance(item, int) and item < 1):
+                raise HepError("a set's points are 1-based indices, names, globs, tags, \"quantity=tag\" or \"all\"",
+                               where=at, hint=f"got {item!r}")
+        if name is None:
+            name = re.sub(r"[^A-Za-z0-9._+-]+", "-", str(entry)).strip("-") or f"set{k}"
+            name = f"#{entry}" if isinstance(entry, int) else name      # the point's name, once it is known
+        if "/" in name or name in (".", ".."):
+            raise HepError(f"a set's folder may not be {name!r}", where=at)
+        out.append((name, list(selectors)))
+    names = [n for n, _ in out]
+    clashes = sorted({n for n in names if names.count(n) > 1})
+    if clashes:
+        raise HepError(f"two sets share the folder {clashes[0]}", where=where, hint='name them: { name = "…", points = […] }')
+    return out
+
+
+def chosen_points(run, point_list: list, selector, where: str) -> list:
+    """What one selector of a set names, in point order: a 1-based index, "all", a point's name, a glob of
+    names, "quantity=tag", or a tag of any swept or fixed quantity's (every point with it). `point_list`
+    holds sweep Points, or anything with a `.point` that is one. An unknown selector is refused."""
+    def point(m):
+        return getattr(m, "point", m)
+
+    if isinstance(selector, int):
+        found = [m for m in point_list if point(m).index == selector]
+    elif selector == "all":
+        found = list(point_list)
+    elif "=" in selector:
+        name, _, wanted = selector.partition("=")
+        if name not in run.quantities:
+            raise HepError(f"a set names '{selector}', and '{name}' is not a quantity", where=where,
+                           hint=did_you_mean(name, list(run.quantities)))
+        found = [m for m in point_list if name in point(m).choice and tag_of(run.quantities[name], point(m).choice[name]) == wanted]
+    elif any(c in selector for c in "*?["):
+        found = [m for m in point_list if fnmatch.fnmatchcase(point(m).name, selector)]
+    else:
+        found = [m for m in point_list if point(m).name == selector] or \
+                [m for m in point_list if any(tag_of(run.quantities[q], i) == selector
+                                              for q, i in point(m).choice.items() if q in run.quantities)]
+    if not found:
+        raise HepError(f"a set names '{selector}', which matches no point", where=where,
+                       hint=", ".join(point(m).name for m in point_list[:6]) + (", …" if len(point_list) > 6 else ""))
+    return found

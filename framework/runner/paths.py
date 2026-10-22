@@ -22,6 +22,7 @@ fallback, because a lookup that tries several places is how v1's 00/B18 happened
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import os
 import re
@@ -39,16 +40,16 @@ HEP_VAR = "HEP"
 WORK_VAR = "HEP_WORK"
 RESULTS_VAR = "HEP_RESULTS"
 RECORDS_VAR = "HEP_RECORDS"
-LOGS_VAR = "HEP_LOGS"
 CACHE_VAR = "HEP_CACHE"
 DECKS_VAR = "HEP_DECKS"
 CONFIGS_VAR = "HEP_CONFIGS"
 REPORTS_VAR = "HEP_REPORTS"
 
 #: High-Energy's variables (K15): a shell that still sets one is refused, with its replacement named.
-RETIRED = {"HEKIT_ROOT": "HEP", "HEKIT_CONFIGS": "HEP_CONFIGS", "HEKIT_OUTPUT": "HEP_RECORDS and HEP_LOGS",
+RETIRED = {"HEKIT_ROOT": "HEP", "HEKIT_CONFIGS": "HEP_CONFIGS", "HEKIT_OUTPUT": "HEP_RECORDS",
            "HEKIT_RESULTS": "HEP_RESULTS", "HEKIT_REPORTS": "HEP_REPORTS",
-           "HEP_OUTPUT": "HEP_RECORDS, HEP_LOGS and HEP_CACHE: output/ is split by lifecycle"}
+           "HEP_OUTPUT": "HEP_RECORDS and HEP_CACHE: output/ is split by lifecycle",
+           "HEP_LOGS": "HEP_RECORDS: a point's logs live in records/<run>/logs/"}
 
 
 def check_retired() -> None:
@@ -81,7 +82,7 @@ def hep_root() -> Path:
 WORK_KEYS = {"work": ("name",), "framework": ("expects",), "run": ("keep",)}
 #: What a run keeps beyond records/ and results/ (V149); by default nothing more than a finished point's cards
 #: and configs, a failed tool's last lines, and the prepare caches.
-KEEP_WORDS = {"logs": "every tool's whole output (logs/<tag>.log)",
+KEEP_WORDS = {"logs": "every tool's whole output (records/<run>/logs/<point>/<tag>.log)",
               "journal": "every status event (status.jsonl, for heimdall watch --file)",
               "work": "a finished point's whole working folder (scratch files, shards, what its tools left)",
               "cache": "card checks, converted reference data, the plot stage's working files and skip markers"}
@@ -212,16 +213,12 @@ def results_root() -> Path:
 
 
 def records_root() -> Path:
-    """What runs recorded, precious (U21): each point's provenance, identity and .complete, a
-    configuration's points.json and cluster submissions. $HEP_RECORDS (tests set it) or <work>/records;
-    `heimdall clean` leaves it unless told --records."""
+    """What runs recorded, a folder per configuration (V157, tools.RunFolders): its points' provenance,
+    identity and .complete (`points/`, precious: U21), their working folders (`logs/`: cards, configs,
+    logs, FIFOs, scratch files; safe to delete), the page documents (`plots/`), the run's snapshot
+    (`config/`), points.json and cluster submissions. $HEP_RECORDS (tests set it) or <work>/records;
+    `heimdall clean` takes only logs and leftovers unless told --records."""
     return _rooted(RECORDS_VAR, "records")
-
-
-def logs_root() -> Path:
-    """Ephemeral: each point's working folder (cards, configs, logs, FIFOs, scratch files, the context
-    file), journals, page documents. $HEP_LOGS (tests set it) or <work>/logs."""
-    return _rooted(LOGS_VAR, "logs")
 
 
 def cache_root() -> Path:
@@ -254,8 +251,22 @@ def decks_root() -> Path:
 
 
 def configs_root() -> Path:
-    """Where run TOMLs and their cards are: $HEP_CONFIGS or <work>/configs."""
+    """Where run TOMLs and their cards are: $HEP_CONFIGS or <work>/configs (a record's snapshot, V158)."""
     return _rooted(CONFIGS_VAR, "configs")
+
+
+@contextlib.contextmanager
+def configs_at(folder: Path):
+    """configs_root() at `folder` while the block runs: a record's snapshot, read as configs/ is (V158)."""
+    before = os.environ.get(CONFIGS_VAR)
+    os.environ[CONFIGS_VAR] = str(folder)
+    try:
+        yield folder
+    finally:
+        if before is None:
+            os.environ.pop(CONFIGS_VAR, None)
+        else:
+            os.environ[CONFIGS_VAR] = before
 
 
 def work_build() -> Path:
@@ -394,6 +405,18 @@ def portable_texts():
                            str(work) if work is not None else "", str(base_dir() or ""))
 
 
+def identity_texts():
+    """portable_texts for what an identity hashes: also a configs root other than the work dir's configs/ (a
+    record's snapshot, V158) written as it reads there, `{work}/configs/…`, so a run of its snapshot plans its
+    points to the identities they ran with (a card's path is in Pythia's argv; its content's sha256 is
+    hashed anyway). A record's provenance keeps the real paths (portable)."""
+    work = find_work()
+    if work is None or configs_root().resolve() == (work / "configs").resolve():
+        return portable_texts()
+    return _portable_texts(str(apps_dir()), str(installs_dir()), str(machine_root()), str(hep_root()),
+                           str(work), str(base_dir() or ""), str(configs_root()))
+
+
 def installs_dir() -> Path:
     """The loaded stack's installs: $HEP_INSTALL, else <stack>/stack."""
     return Path(os.environ["HEP_INSTALL"]) if os.environ.get("HEP_INSTALL") else stack_dir() / "stack"
@@ -405,10 +428,12 @@ def base_dir() -> Path | None:
 
 
 @functools.lru_cache(maxsize=8)
-def _portable_texts(apps: str, installs: str, machine: str, hep: str, work: str, base: str = ""):
+def _portable_texts(apps: str, installs: str, machine: str, hep: str, work: str, base: str = "", configs: str = ""):
     roots = [("{apps}", apps), ("{stack}", installs), ("{machine}", machine), ("{hep}", hep)]
     if work:
         roots.append(("{work}", work))
+    if configs:                                          # identity_texts: a configs root elsewhere reads as configs/
+        roots.append(("{work}/configs", configs))
     if base:
         roots.append(("{base}", base))
     pairs = []

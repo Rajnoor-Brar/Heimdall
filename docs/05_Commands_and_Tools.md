@@ -33,7 +33,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `config` | configs/<Project>/<name>[.toml], or ./path from the work dir |
+| `config` | configs/<Project>/<name>[.toml], ./path from the work dir, or a record <Project>/<run>/<NN_cfg> (what it ran with: its snapshot) |
 | `[configuration]` | overrides [run].configuration; under [run].sweep_runs, runs only it |
 | `--plan, --dry-run` | print the plan; run nothing |
 | `--why` | for each point that would run, what changed since it last completed; run nothing |
@@ -46,15 +46,17 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--stages LIST` | run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; heimdall cluster's jobs) |
 | `--plain` | plain lines instead of the live view |
 | `--wait` | a point another session is running: wait for it (default: skip it, naming who runs it) |
-| `--journal` | also write every status event to logs/…/status.jsonl (for heimdall watch --file and replay) |
-| `--logs` | keep every tool's whole output in logs/<tag>.log (default: only a failed tool's last lines) |
+| `--journal` | also write every status event to records/…/status.jsonl (for heimdall watch --file and replay) |
+| `--logs` | keep every tool's whole output in records/…/logs/<point>/<tag>.log (default: only a failed tool's last lines) |
 | `--keep WHAT` | also keep (comma-separated): logs, journal, work (a finished point's whole working folder), cache (card checks, converted data, the plot stage's working files); also hep.toml's and machine.toml's [run] keep |
 
 **`heimdall plot`**: draw a configuration's pages from its complete points
 
 | Argument | Meaning |
 |---|---|
-| `config` | the run config |
+| `config` | the run config, or a record <Project>/<run>/<NN_cfg>: its points as they were recorded, with the config they ran with (its snapshot, which you may edit) |
+| `--plot FILE` | a file whose [plot] draws instead of the run's: configs/<P>/<name>, ./… or /… |
+| `--points SEL` | pages of these points only, in this order, in the folder points/: indices, names, globs, tags or quantity=tag, comma-separated ([plot].sets for one set) |
 | `--keep WHAT` | cache: keep the plot stage's working files and converted data (as heimdall run --keep) |
 | `[configuration]` | overrides [run].configuration; under sweep_runs, only it |
 | `--set KEY=VALUE` | as for heimdall run |
@@ -96,7 +98,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `[config]` | one config (default: every config) |
+| `[config]` | one config, or a record <P>/<run>/<NN_cfg> (default: every config) |
 | `[configuration]` | one configuration of it |
 | `--set KEY=VALUE` | as heimdall run's, for the view |
 | `--stack` | the loaded stack instead: each package installed, its release and state; the libraries' versions |
@@ -107,7 +109,11 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `CONFIG…` | configs to migrate (default: every config) |
 | `--v3` | into the run TOML's third form (03 §6, runner/v3.py) |
-| `--layout` | move the work dir's output/ into records/, logs/ and .cache/ (no configs are read) |
+| `--layout` | move the work dir's older layouts into today's: logs/ into records/<run>/logs/, points into points/ (and output/ first, if any); no configs are read |
+| `--list` | with --layout: every move, one a line |
+| `--snapshot RECORD` | give a record that ran before snapshots one: copy a config's files into <record>/config/ (--from, default the config its points.json names) and say which points it gives the same identity |
+| `--from CONFIG` | with --snapshot: the config to copy |
+| `--set KEY=VALUE` | with --snapshot: the overrides it ran with (default: those its points' provenance records) |
 | `--apply` | write the changes (default: print the diff) |
 | `--dry-run` | print the diff, write nothing (the default) |
 
@@ -119,7 +125,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--anyway` | run it even though the setup changed since |
 | `--plain` | plain lines instead of the live view |
 
-**`heimdall clean`**: remove what the runner made and no plan uses: logs/ and .cache/ (records/ with --records)
+**`heimdall clean`**: remove what the runner made and no plan uses: working folders (records/…/logs/) and .cache/ (a point's records with --records)
 
 | Argument | Meaning |
 |---|---|
@@ -305,7 +311,7 @@ the others.
   what is unchanged (`--rerun` as usual): what `heimdall cluster`'s jobs run (§1.9). A run of the points
   alone writes no `points.json` and draws nothing; the points refuse to start without their pre
   stage complete.
-- **`--journal`** also writes the run's events to `logs/…/<cfg>/status.jsonl`. Without it,
+- **`--journal`** also writes the run's events to `records/…/<cfg>/status.jsonl`. Without it,
   nothing of the run's state is on disk.
 - **`--logs`** keeps every tool's whole output; without it, only a failed tool's last 200 lines are
   kept.
@@ -330,9 +336,18 @@ else 0. With `[run] notify = "desktop"`, the end is also a desktop notification.
 
 ### 1.2 `heimdall plot` and `heimdall overlay`
 
-- **`heimdall plot CONFIG [CFG]`** draws a config's pages, as after a run (`--only plot`). Under
-  `[run].sweep_runs` it draws every swept configuration's, each under its `run NN - <title> -`
-  line, and the compare figures whose configurations are all complete.
+- **`heimdall plot CONFIG [CFG]`** draws a config's pages, as after a run (`--only plot`), from each point
+  whose record is complete: a point that ran with other inputs than the config gives now (a card edited,
+  a binary rebuilt) is drawn as recorded and named. Under `[run].sweep_runs` it draws every swept
+  configuration's, each under its `run NN - <title> -` line, and the compare figures whose configurations
+  are all complete.
+- **`heimdall plot <P>/<run>/<NN_cfg>`** (a record: a configuration's folder of `records/`, or a path to it
+  or to its `results/` twin) draws the points that run recorded, with the config they ran with: its
+  snapshot, `records/…/config/` (02 §8.1). Nothing is planned. `heimdall run` and `heimdall status` take a
+  record too: they read the snapshot as `configs/` (its imports and cards), with its configuration and
+  `--set` overrides (yours after them).
+- **`--plot FILE`** draws with another file's `[plot]` (a TOML holding `[plot]`, named as a config is)
+  instead of the run's.
 - **`heimdall overlay FILE…`** (`heimdall plot FILE…` is refused with the hint) takes files ending
   `.yoda`, `.yoda.gz` or `.root`:
   - one page per object any of them holds;
@@ -357,15 +372,15 @@ This is housekeeping.
 - **`status`** gives every configuration's points and stages, each **complete**, **stale** (complete
   for an earlier identity: it reruns), **running** (a session holds its lock: `(pid N on <host>,
   since …)`), **incomplete** (begun, not done: failed or stopped) or **to run**. It reads the
-  records and the locks, so deleting `logs/` or `.cache/` changes no state. Each comes with when it
+  records and the locks, so deleting a configuration's `logs/` or `.cache/` changes no state. Each comes with when it
   finished and its results' size, and `[running]` marks a configuration a job is running now. `status --stack` gives each package of
   `env/stack.toml`, its version and where it is.
 - **`clean`** removes, by lifecycle, what the runner made and no plan uses:
-  - within each configuration's folder, the point folders no plan has (in `logs/`) and the
-    `.partial` leftovers (in `logs/` and `results/`);
-  - with no config named, every config is planned (all must plan), and the run folders of `logs/` no
-    configuration has and the prepare cache entries of `.cache/` no plan references go too;
-  - with `--records`, also the record folders no plan has (`records/`: provenance, identity,
+  - within each configuration's folder, the working folders no plan has (in `records/…/logs/`) and
+    the `.partial` leftovers (there and in `results/…/`);
+  - with no config named, every config is planned (all must plan), and the `logs/` of configuration
+    folders no configuration has and the prepare cache entries of `.cache/` no plan references go too;
+  - with `--records`, also the point records no plan has (`records/…/points/`: provenance, identity,
     completion), never a configuration's `cluster/` submissions. Removing records is asked for by
     name on a terminal (type `records`), even with `--yes`.
 
@@ -375,9 +390,17 @@ This is housekeeping.
 - **Two sessions, one point**: a point another session is running is skipped, its block naming
   who runs it (`running in another session (pid N on <host>, since …): skipped`); `heimdall run --wait`
   waits for it instead, and skips it if that session completed it. The lock is an `flock` on the
-  point's `logs/…/<point>/.lock`, which the kernel frees when the holder ends, however it ends.
-- **`migrate --layout`** moves a work dir made before the split from `output/` into `records/`,
-  `logs/` and `.cache/` (a dry run that counts the files first; `--apply` moves them, by rename).
+  point's `records/…/logs/<point>/.lock`, which the kernel frees when the holder ends, however it ends.
+- **`migrate --layout`** moves a work dir's older layouts into today's (a dry run that counts the moves
+  first, `--list` each; `--apply` moves them, by rename, nothing copied or deleted): a top-level `logs/`
+  into each configuration's `records/…/logs/` (a point's `logs/*.log` one level up), its page
+  documents and journal beside them, and the points into `points/` of `records/…/` and `results/…/`,
+  `points.json` pointed at them; before that, `output/` (5.1) by lifecycle. A work dir still holding
+  `logs/` says so on every command: its points would rerun until it is moved.
+- **`migrate --snapshot <P>/<run>/<NN_cfg>`** gives a record from before snapshots one: the config its
+  `points.json` names (or `--from CONFIG`, with `--set`; by default its points' recorded overrides) is
+  planned and its files copied into `records/…/config/`; each recorded point is said to have the same
+  identity under it, or what differs. `--apply` replaces a snapshot already there.
 
 ### 1.4 `heimdall check`
 
@@ -424,8 +447,8 @@ It reads each config leniently (the old forms included) before writing anything,
 
 `heimdall reproduce` runs a finished point again, exactly as it ran: its config, its configuration,
 its `--set` overrides (the provenance records them) and its seed.
-- **Where it runs:** into `logs/<P>/.reproduce/<identity>/`, with its own `records/`, `logs/` and
-  `results/`, never over the original.
+- **Where it runs:** into `.cache/<P>/reproduce/<identity>/`, with its own `records/` and `results/`,
+  never over the original.
 - **The comparison:** each product against the original's, giving `identical`, `the same values` or
   `differs`, with exit 1 if any differs:
   - a YODA file object by object;
@@ -605,7 +628,7 @@ checkout and the machine root are not entered. `heimdall setup` records the work
 | `HEP_STACK` | `stacks/<toolkit>/gjallarhorn.sh` | an isolated toolkit's stack is loaded: Heimdall's apps are `stacks/<toolkit>/Apps/` (built against it) |
 | `HEP_WORK` | you, tests | the work dir, instead of the walk up from the working directory (it must have a `hep.toml` with `[work]`) |
 | `HEP_WORKDIRS` | you, tests | replaces `<machine root>/workdirs.toml`, the work dirs `heimdall recognise` records |
-| `HEP_RECORDS`, `HEP_LOGS`, `HEP_CACHE`, `HEP_RESULTS`, `HEP_REPORTS` | you, tests | replace the work dir's `records/`, `logs/`, `.cache/`, `results/` and `reports/` (the tests point them into `forge/scratch/`) |
+| `HEP_RECORDS`, `HEP_CACHE`, `HEP_RESULTS`, `HEP_REPORTS` | you, tests | replace the work dir's `records/`, `.cache/`, `results/` and `reports/` (the tests point them into `forge/scratch/`) |
 | `HEP_CONFIGS` | you | replaces the work dir's `configs/` as the root of run TOMLs and their cards |
 | `HEP_STATUS_FD` | the runner, per tool | the status pipe of a `status = "standard"` tool |
 | `RIVET_ANALYSIS_PATH` | the rivet and merge folders, per run | the work dir's `build/Rivet` (not set in the shell on purpose) |
@@ -769,12 +792,12 @@ shards   = 10
   - the runner makes the FIFOs `events.s1.hepmc` … `events.s10.hepmc` in place of `events.hepmc`;
   - App_Pythia deals the events among them (§16);
   - the steps `rivet.1` … `rivet.10` run in the group, each writing
-    `logs/…/<point>/shards/validation.s<i>.yoda`, and each is count-checked against **its own share**
+    `records/…/logs/<point>/shards/validation.s<i>.yoda`, and each is count-checked against **its own share**
     (`written_per_output` in the sidecar);
   - then `rivet.merge`, a step of its own in the next group, runs `rivet-merge -e` (the `merge`
     folder) into the table's `output` (`validation.yoda`, in `results/`).
 
-  The logs are `logs/rivet.<i>.log` and `logs/rivet.merge.log`, and `--plan` shows every step.
+  The logs are `rivet.<i>.log` and `rivet.merge.log` in the point's working folder, and `--plan` shows every step.
 - **The events do not change.** Seeds follow the generator's cards, not its argv, so a sharded
   point has the same events as the same point unsharded. The merged YODA is the same, up to the
   rounding of summing in another order. The point's identity does change (its argv), so changing
@@ -986,6 +1009,14 @@ output = "events.hepmc"
   The marker is `Results.zip`.
 - **Runs** `Sherpa -f <card> "RESULT_DIRECTORY: <cache>/Results"`, in the point's directory. Sherpa
   prepends `./` to the output name, so the name is relative.
+- **Its progress**: the folder's display arguments, `BATCH_MODE: 23` and
+  `EVENT_DISPLAY_INTERVAL: <events ÷ 1000, at least 100>`, make Sherpa print one line per thousandth of
+  the run, its elapsed time in seconds and the cross section on it; `filters.toml` reads them into a bar,
+  a rate, an ETA and σ, enters `initialising`, `integrating` and `generating`, and ignores the routine
+  messages (an event rejected and redone, a hadron a hair off its shell). They are not in the identity:
+  a point that ran without them is the same point. The command line wins over the card, so a card's own
+  `BATCH_MODE` is not used. A run's `stall_after` (the default 300 s) no longer needs Sherpa's quiet
+  stretches allowed for: without these, it printed every 100 000 events.
 - **Consumes** `energies`, `beams`, `sqrts`, `pdf` (checked) and `events`.
 - **Sidecar** written by the runner (`written = "requested"`).
 - **In the context file:** `card`; the product `results` (`"sherpa:results"`), the integration
@@ -994,6 +1025,26 @@ output = "events.hepmc"
   - Sherpa writes a YODA variation per extra weight; the plot stage draws the nominal only.
   - With `MI_HANDLER: Amisic`, ep photoproduction made 0 events in 768 s (v1), so the committed card
     has MPI off.
+- **Several Sherpas for one curve.** A point is one Sherpa process. To spread a long point over K
+  cores, vary a seed replica and merge it back (02 §7.3): K points of `events ÷ K` each, run
+  `parallelism` at a time, each with its own seed, merged into one curve by `rivet-merge -e`.
+
+  ```toml
+  [quantities.replica]
+  to     = { "sherpa/seed" = true }        # only the seed (with @generator: "pythia/seed" too)
+  points = [{ tag = "s1", value = 1 }, { tag = "s2", value = 2 }, { tag = "s3", value = 3 }, { tag = "s4", value = 4 }]
+
+  [run]
+  events      = 2_500_000                  # each: 10M in all
+  parallelism = 4
+
+  [cfgs.generator_pdf]
+  vary    = ["generator", "pdf", "replica"]
+  combine = ["replica"]                    # one curve per generator and PDF
+  ```
+
+  Every replica shares the cached integration. Sherpa's MPI (built with `-DSHERPA_ENABLE_MPI=ON`, run
+  under `mpirun`) speeds that integration, which is cached already; it is not built here.
 
 ## 14. `whizard` — Whizard 3
 
@@ -1161,12 +1212,15 @@ Paint draws many pages in one ROOT process (the plot stage sends up to 200 at a 
 - **`--ranges`** also writes each page's final ranges and voided bins beside its config
   (`<page>.toml.ranges.json`), for the other backends; **`--ranges-only`** writes them and draws
   nothing.
+- **Every page read** (drawn or not) also gets `<page>.toml.stats.json`: each curve's area and its
+  area and χ² against the page's reference (03 §3.2), which the plot stage turns into
+  `statistics.csv` and legend entries.
 - **`--dump-ranges`** prints one page's ranges as JSON; **`--dump-style`** prints the merged style
   (base.toml's alone, without a page).
 - **Exit codes**: 0 ok, 1 page config or style (with several pages: any failed), 2 usage, 4 input,
   5 output.
 
-**The page document**, written by the runner to `logs/…/plots/[<cell>/]<object>.toml`. Its labels
+**The page document**, written by the runner to `records/…/plots/[<cell>/]<object>.toml`. Its labels
 are LaTeX converted to TLatex, which Paint draws:
 
 ```toml
@@ -1190,6 +1244,7 @@ auto_range  = true
 range_pad   = 0
 # markers = true                   (a Scatter2D figure)
 # heatmap = true, logz, z_label    (a HeatMap page: one [[curve]])
+# x_labels = ["…", …]              (a statistic figure: a label under each bin centre 1, 2, …; no ratio)
 
 [style]                            # only what the style layers changed (04 §12)
 page.dpi = 300

@@ -1,7 +1,6 @@
 # What the runner and the build make: reproducible from configs/ and modules/
 build/
 records/
-logs/
 .cache/
 results/
 # Built decks (their sources are decks/, tracked); large inputs are listed in datasets.toml and

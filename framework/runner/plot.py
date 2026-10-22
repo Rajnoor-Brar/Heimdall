@@ -11,7 +11,7 @@ docs/04_Config_Reference.md §11, docs/05_Commands_and_Tools.md §18. After the 
   a figure's own ([plot.figures.<figure>], V80); every text is LaTeX (V65), and may cite the points (V66):
   {cell}, {q:<quantity>} (a value's label), and what the tools' folders give ({opt:ETMIN}: Rivet's);
 * reference data are drawn only through the explicit [plot.data].map (L18);
-* one Paint config per page, logs/…/plots/[<page>/]<object>.toml, drawn to
+* one Paint config per page, records/…/plots/[<page>/]<object>.toml, drawn to
   results/…/plots/root/[<page>/]<object>.<fmt>; the yoda backend writes results/…/plots/yoda/, and
   backend = ["root", "yoda"] (or "both") writes both from the same pages;
 * the style is src/Apps/Paint/base.toml, which Paint reads itself; a page's [style] holds only
@@ -37,10 +37,10 @@ import tomli_w
 from . import hepfiles, plugins, schema
 from .errors import HepError, did_you_mean
 from .labels import canonical, labels_of, lines_of, macros, root_text, tlatex  # noqa: F401 (tlatex et al. re-exported)
-from .paths import apps_dir, cache_root, hep_root, keeping, logs_root, resolve, results_root
-from .record import is_complete, manifest_file
-from .tools import merge_files, sha256_file
-from .sweep import Listed, axes, group_key, group_labels, group_tag, label_of, split_axes, tag_of
+from .paths import apps_dir, cache_root, hep_root, keeping, records_root, resolve, results_root
+from .record import manifest_file, recorded_identity
+from .tools import merge_files, run_folders, sha256_file
+from .sweep import Listed, axes, chosen_points, group_key, group_labels, group_tag, label_of, set_entries, split_axes, tag_of
 
 BACKENDS = tuple(b for b in schema.keys("plot")["backend"]["choices"] if b != "both")
 FORMATS = tuple(schema.keys("plot")["formats"]["choices"])
@@ -81,6 +81,8 @@ class Page:
     plots: Path | None = None                        # results/…/plots: a backend draws into plots/<its name>/
     overlay: str = ""                                # an overlay figure's name: curves are several objects (V51)
     bands: list = field(default_factory=list)        # per curve: its band members' (YODA, object), V69
+    statistic: str = ""                              # legend_statistic: the number after each curve's entry (V160) …
+    plain: list = field(default_factory=list)        # … and the curves' labels without it
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,8 @@ class Figure:
     y: str = ""              # … and the number it reads of each point
     table_pages: tuple = ()  # a sheet's page globs … (V89)
     columns: int = 0         # … and its columns
+    statistic: str = ""      # a statistic figure's number … (V160)
+    sort: bool = False       # … best first
 
 
 def figures(run) -> list[Figure]:
@@ -112,7 +116,8 @@ def figures(run) -> list[Figure]:
                           tuple(table.get("objects", ())), tuple(table.get("labels", ())),
                           {k: v for k, v in table.items() if k not in schema.FIGURE_OWN}, f"{run.path}: {written}",
                           tuple(table.get("over", ())), tuple(table.get("configurations", ())), table.get("op", ""),
-                          table.get("x", ""), table.get("y", ""), tuple(table.get("pages", ())), table.get("columns", 0)))
+                          table.get("x", ""), table.get("y", ""), tuple(table.get("pages", ())), table.get("columns", 0),
+                          table.get("statistic", ""), bool(table.get("sort", False))))
     return out
 
 
@@ -363,7 +368,88 @@ def merge(sources: dict[str, Path], target: Path, stamp: Path, points: Path | No
     return target
 
 
+# ── what a page draws: points, as planned or as recorded (V158) ─────────────────────────────────
+
+@dataclass
+class Member:
+    """A point (or combined group) the plot stage draws from its record, with no tool planned (V158): what
+    a plan gives a page, read from the configuration's points.json and the point's records."""
+    point: object                      # sweep.Point: its name and choice
+    values: dict                       # each active quantity's value index, swept or fixed
+    folders: object                    # tools.RunFolders
+    yoda: Path | None                  # its YODA product
+    texts: dict = field(default_factory=dict)       # what its tools' folders give page texts ({opt:…})
+    context: dict = field(default_factory=dict)
+    identity: str = ""                 # the identity points.json says it ran with …
+    recorded: str | None = None        # … and the one its .complete holds (None: not complete)
+
+
+def recorded(run, configuration) -> list[Member]:
+    """A configuration's points as its record has them: points.json's (every point the run planned), the run
+    (the record's snapshot) giving their quantities; combined groups (`combine`) in their place. Each is
+    complete when its .complete holds the identity points.json names."""
+    from . import quantities as qmod
+    from .sweep import points as sweep_points
+    here = run_folders(run, configuration)
+    if not here.manifest.is_file():
+        raise HepError("this configuration has no record yet", where=str(here.manifest), hint="heimdall run it first")
+    entries = json.loads(here.manifest.read_text(encoding="utf-8")).get("points", [])
+    made = {p.name: p for p in sweep_points(run, configuration)}
+    static = qmod.static_values(run, configuration)
+
+    def marker(name: str) -> str | None:
+        path = here.points / name / ".complete"
+        return path.read_text(encoding="utf-8").strip() if path.is_file() else None
+
+    out = []
+    for entry in entries:
+        point = made.get(entry.get("name"))
+        if point is None:                      # not a point this configuration makes (an edited snapshot)
+            continue
+        yoda = next((Path(p) for p in entry.get("products", {}).values() if str(p).endswith(".yoda")), None)
+        out.append(Member(point, {**static, **point.choice}, here, yoda, dict(entry.get("texts", {})), {},
+                          entry.get("identity", ""), marker(point.name)))
+    if not configuration.combine:
+        return out
+    combined = set(configuration.combine)                # post.plan_combined's groups, named as it names them
+    kept = [n for entry in configuration.sweeps for n in (entry if isinstance(entry, list) else [entry]) if n not in combined]
+    groups: dict[tuple, list] = {}
+    for m in out:
+        groups.setdefault(tuple(m.point.choice.get(n, -1) for n in kept), []).append(m)
+    merged = []
+    for number, (key, members) in enumerate(groups.items(), start=1):
+        choice = {q: i for q, i in zip(kept, key) if i != -1}
+        name = "_".join(tag_of(run.quantities[q], choice[q]) for q in kept if q in choice and not run.quantities[q].silent) or "combined"
+        first = members[0]
+        point = replace(first.point, index=number, name=name, choice=choice, stage="combined")
+        group = here.products / name / first.yoda.name if first.yoda else None
+        state = marker(name)
+        merged.append(Member(point, {**static, **choice}, here, group, first.texts, {}, state or "", state))
+    return merged
+
+
+def drawable(members: list) -> tuple[list, list]:
+    """The members a page draws, and those of them that ran with other inputs than their plan has now (V158):
+    a member is drawn when its record is complete (a .complete there) and its YODA is on disk, whatever the
+    config says today (a changed card, a rebuilt stack, a value left out). A record's member is drawn when
+    its .complete holds the identity its points.json names."""
+    drawn, other = [], []
+    for m in members:
+        if isinstance(m, Member):
+            if m.recorded is not None and m.recorded == m.identity and m.yoda is not None and m.yoda.is_file():
+                drawn.append(m)
+            continue
+        made, yoda = recorded_identity(m), yoda_of(m)
+        if made is not None and yoda is not None and yoda.is_file():
+            drawn.append(m)
+            if made != m.identity:
+                other.append(m)
+    return drawn, other
+
+
 def yoda_of(plan) -> Path | None:
+    if isinstance(plan, Member):
+        return plan.yoda
     for interface in plan.interfaces.values():
         if interface.kind == "product" and not interface.shard and interface.path.suffix == ".yoda":
             return interface.path
@@ -373,14 +459,15 @@ def yoda_of(plan) -> Path | None:
 # ── pages ────────────────────────────────────────────────────────────────────────────────────
 
 def pages(run, configuration, plans) -> list[Page]:
-    """Write the Paint config of every page from the complete points; returns the pages."""
-    complete = [p for p in plans if is_complete(p) and yoda_of(p)]
+    """Write the Paint config of every page from the points whose record is complete (drawable); returns the
+    pages."""
+    complete = drawable(plans)[0]
     if not complete:
         return []
     check_figures(run, configuration)
     declared = figures(run)
-    out_dir = complete[0].out.parent / "plots"
-    res_dir = complete[0].res.parent / "plots" / "root"          # Paint's; another backend's: for_backend
+    out_dir = complete[0].folders.pages                           # records/<run>/plots: the page documents
+    res_dir = complete[0].folders.plots / "root"                  # Paint's; another backend's: for_backend
     page_groups, curve_groups = axes_of(configuration)
     sources = point_yodas(run, complete)
     root = merge(sources, res_dir / f"{configuration.label}.root", out_dir / "merged.sha256",
@@ -393,7 +480,7 @@ def pages(run, configuration, plans) -> list[Page]:
         kept = [g for g in curve_groups if not set(g) & set(figure.over)]
         root = merge(yodas, res_dir / figure.name / f"{configuration.label}.root", out_dir / "merged" / f"{figure.name}.sha256")
         made += _pages(run, members, yodas, root, [replace(figure, kind="defined")], page_groups, kept,
-                       out_dir, res_dir, implicit=False, folder=figure.name)
+                       out_dir, res_dir, implicit=False, folder=figure.name, grouped=False)
     for figure in (f for f in declared if f.kind == "scan"):          # V85: a number per point against a quantity
         members, yodas = _scanned(run, figure, complete, sources, page_groups + curve_groups, out_dir / "scan" / figure.name)
         kept = [g for g in curve_groups if figure.x not in g]
@@ -401,7 +488,7 @@ def pages(run, configuration, plans) -> list[Page]:
         table = {"x_label": figure.x, "y_label": SCAN_LABELS.get(figure.y, figure.y.replace(":", " ")), **figure.table}
         made += _pages(run, members, yodas, root, [replace(figure, kind="defined", objects=(f"/FIGURES/{figure.name}",),
                                                            table=table, type=figure.type or "Scatter2D")],
-                       page_groups, kept, out_dir, res_dir, implicit=False)
+                       page_groups, kept, out_dir, res_dir, implicit=False, grouped=False)
     return made
 
 
@@ -460,7 +547,7 @@ def compare_pages(run, figure: Figure, sets: list[tuple]) -> list[Page]:
     """A compare figure's pages (V83): its objects' pages, one per page cell of the configurations, whose
     curves are every configuration's points (or combined groups), labelled by the configuration first.
     `sets`: (configuration, its complete plans) in the figure's order. Into
-    logs/…/<run>/compare/<name>/ and results/…/<run>/compare/<name>/<backend>/."""
+    records/<P>/<run>/compare/<name>/ and results/<P>/<run>/compare/<name>/<backend>/."""
     members, yodas = [], {}
     for number, (c, plans) in enumerate(sets):
         label = figure.labels[number] if figure.labels else c.configuration.label if c.own \
@@ -472,12 +559,12 @@ def compare_pages(run, figure: Figure, sets: list[tuple]) -> list[Page]:
                                    context={**plan.context, "curve_label": label, **({} if c.own else {"run": c.run})}))
             yodas[name] = sources[plan.point.name]
     first = next(plans[0] for c, plans in sets if c.own)                 # this run's folder (V88)
-    out_dir = first.out.parent.parent / "compare" / figure.name
-    res_dir = first.res.parent.parent / "compare" / figure.name / "root"
+    out_dir, res_dir = first.folders.compare(figure.name)
+    res_dir = res_dir / "root"
     page_groups, curve_groups = axes_of(sets[0][0].configuration)
     root = merge(yodas, res_dir / f"{figure.name}.root", out_dir / "merged.sha256")
     return _pages(run, members, yodas, root, [replace(figure, kind="defined")], page_groups,
-                  [[CONFIGURATION]] + curve_groups, out_dir, res_dir, implicit=False)
+                  [[CONFIGURATION]] + curve_groups, out_dir, res_dir, implicit=False, grouped=False)
 
 
 def derived_figures(declared: list) -> list[Figure]:
@@ -498,14 +585,14 @@ def _labels_from(declared: list, sources: dict) -> dict[str, str]:
 
 def point_yodas(run, complete: list) -> dict[str, Path]:
     """Each complete point's YODA, as the pages read it: its product, or with a derived figure (V84) a
-    copy with the derived objects after its own (logs/…/plots/derived/<point>.yoda), made by
+    copy with the derived objects after its own (records/…/plots/derived/<point>.yoda), made by
     framework/plot/figures/derive.py and remade only when the product or the figures changed."""
     plain = {p.point.name: yoda_of(p) for p in complete}
     derived = [f for f in figures(run) if f.kind == "derived"]
     if not derived:
         return plain
     module = plugins.load(hep_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
-    where = complete[0].out.parent / "plots" / "derived"
+    where = complete[0].folders.pages / "derived"
     where.mkdir(parents=True, exist_ok=True)
     specs = [(f.name, f.op, list(f.objects)) for f in derived]
     out = {}
@@ -550,10 +637,12 @@ def _merged(run, figure: Figure, complete: list, sources: dict, groups: list, wh
 
 
 def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_groups: list, curve_groups: list,
-           out_dir: Path, res_dir: Path, *, implicit: bool, folder: str = "", labels_from: dict | None = None) -> list[Page]:
+           out_dir: Path, res_dir: Path, *, implicit: bool, folder: str = "", labels_from: dict | None = None,
+           grouped: bool = True) -> list[Page]:
     """The pages of these figures from these members (a point, or a merged figure's stand-in: its name
     is its directory in `merged`, the ROOT file of their YODAs `yodas`). `implicit`: [plot].objects's
-    pages too. `folder`: the figure's own, between the cell and the object."""
+    pages too. `folder`: the figure's own, between the cell and the object. `grouped`: the members may be
+    paged by `sets` and `split` (V159); a merged, scan or compare figure's stand-ins page by plot_points."""
     settings = run.plot
     variants: dict[str, dict[str, list[str]]] = {}      # member → base path → its full paths
     raws = {plan.point.name: raws_of(yodas[plan.point.name]) for plan in complete}
@@ -613,8 +702,46 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
              for plan in complete}
     where = f"{run.path}: [plot]"
 
-    def page_fill(plans):
-        return filler(list({p.point.name: known[p.point.name] for p in plans}.values()), where)
+    def page_fill(plans, cell: str | None = None):
+        texts = {p.point.name: known[p.point.name] if cell is None else {**known[p.point.name], "cell": cell} for p in plans}
+        return filler(list(texts.values()), where)
+
+    def cells(override) -> list[tuple[str, list, str | None, list]]:
+        """V159: the pages' cells, (key, members, {cell}'s text or None, the groups that label their curves):
+        by plot_points (curves by the curve axes), or by [plot].sets; each cut by split. A set's or a cut's
+        curves are labelled by the quantities that differ on it."""
+        tables = (override, settings)
+        wanted = chosen("sets", [], [], tables) if grouped else []
+        split = int(chosen("split", 0, 0, tables) or 0) if grouped else 0
+        if wanted in (DEFAULT, None):
+            wanted = []
+        made = []
+        if wanted:
+            for name, selectors in set_entries(wanted, f"{where}.sets"):
+                picked = []
+                for selector in selectors:
+                    try:
+                        found = chosen_points(run, complete, selector, f"{where}.sets")
+                    except HepError:                          # its points are not complete (plan time names a typo)
+                        found = []
+                    picked += [m for m in found if m not in picked]
+                if name.startswith("#"):
+                    name = picked[0].point.name if picked else name[1:]
+                if picked:
+                    made.append((name, picked, name))
+        else:
+            made = [(key, members, None) for key, members in by_page.items()]
+        if split:
+            made = [(f"{key}-{i}" if key else f"part{i}", members[at:at + split], text)
+                    for key, members, text in made for i, at in enumerate(range(0, len(members), split), start=1)]
+        if not wanted and not split:
+            return [(key, members, text, curve_groups) for key, members, text in made]
+        every = page_groups + curve_groups
+        out = []
+        for key, members, text in made:
+            differ = [g for g in every if len({group_key(g, m.point.choice) for m in members}) > 1]
+            out.append((key, members, text, differ or every))
+        return out
 
     def curve_fill(plan):
         return filler([known[plan.point.name]], where)
@@ -633,57 +760,62 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
                            where=f"{figure.where}.type", hint='a 2D object is drawn as a heat map: type = "HeatMap", or leave it out')
 
     made = []
-    for key, members in by_page.items():
-        for path in objects:
-            short = path.rsplit("/", 1)[-1]
-            rel = place(key, short)
-            figure = claimed.get(path)
-            override = override_of(figure.table if figure else None)
-            if path in two_d:                                  # V87: a page per member and variant
-                made += [_heatmap(plan, full, place(key, f"{short}/{plan.point.name}"), settings, override,
-                                  merged, out_dir, res_dir, (style, base), key, curve_fill(plan))
-                         for plan in members for full in variants.get(plan.point.name, {}).get(path, [])]
-                continue
-            drawn = data if chosen("use_data", True, True, (override, settings)) is not False else {}
-            reference = drawn.get("map", {}).get(short) if drawn else None
-            if reference and data_file is None:                # converted once, when a page draws it
-                source = data_source(data["file"], run)
-                data_file = convert(source, (cache_root() / run.project / "datasets" if keeping("cache")   # V149
-                                             else out_dir / "datasets") / f"{source.stem}.root")
-            band = band_of(override)
-            line_groups = [g for g in curve_groups if not set(g) & set(band)]     # what tells a band curve from another
-            curves = [(plan, full) for plan in members for full in variants.get(plan.point.name, {}).get(path, [])]
-            fill = page_fill([plan for plan, _ in curves] or members)
-            folded = _banded(curves, curve_groups, band, lambda p, f: variants[p.point.name][path].index(f))
-            envelope = f" ({', '.join(band)} envelope)" if band else ""
-            page, override = page_settings(settings, (labels_from or {}).get(path, path), rel, res_dir / rel,
-                                           reference is not None, fill=fill, child=override)
-            if figure is not None and figure.type == "Scatter2D":
-                page["markers"] = True                                       # V86
-            several = {plan.point.name for plan, _ in curves if len(variants[plan.point.name][path]) > 1}
-            layer = merge_style(style, override.get("style", {}))
-            document = {"page": page, "style": layer, "curve": [
-                {"file": str(merged), "object": f"{plan.point.name}/{root_name(full)}",
-                 **({"raw": f"{plan.point.name}/RAW/{root_name(full)}"} if "/RAW" + full in raws[plan.point.name] else {}),
-                 "label": _curve_label(run, plan, line_groups, curve_fill(plan))
-                          + (f" [{full.strip('/').split('/')[0].partition(':')[2]}]" if plan.point.name in several else "")
-                          + (envelope if folded_members else ""),
-                 **({"style": look} if (look := _curve_look(run, plan, line_groups)) else {}),
-                 **({"band": [{"file": str(merged), "object": f"{m.point.name}/{root_name(f)}"} for m, f in folded_members]}
-                    if folded_members else {})}
-                for plan, full, folded_members in folded]}
-            if reference:
-                document["data"] = {"file": str(data_file), "object": root_name(reference),
-                                    "label": canonical(fill(data.get("legend", "Data")))}
-            config = out_dir / f"{rel}.toml"
-            config.parent.mkdir(parents=True, exist_ok=True)
-            config.write_text(tomli_w.dumps(for_root(document)), encoding="utf-8")
-            made.append(Page(rel, config, res_dir / rel, cell=key, object=path, document=document,
-                             sources=[yodas[plan.point.name] for plan, _, _ in folded], variants=[full for _, full, _ in folded],
-                             bands=[[(yodas[m.point.name], f) for m, f in ms] for _, _, ms in folded],
-                             data=(source, reference) if reference else None,
-                             overrides={k for k, v in override.items() if v != DEFAULT},
-                             style=merge_style(base, layer), plots=res_dir.parent))
+    own = {o: f for o, f in claimed.items() if o in objects and ({"sets", "split"} & set(f.table))}   # a figure's own cells
+    todo = [(key, members, text, labelled, path) for key, members, text, labelled in cells({})
+            for path in objects if path not in own]
+    todo += [(key, members, text, labelled, path) for path, f in own.items()
+             for key, members, text, labelled in cells(override_of(f.table))]
+    for key, members, cell_text, labelled, path in todo:
+        short = path.rsplit("/", 1)[-1]
+        rel = place(key, short)
+        figure = claimed.get(path)
+        override = override_of(figure.table if figure else None)
+        if path in two_d:                                  # V87: a page per member and variant
+            made += [_heatmap(plan, full, place(key, f"{short}/{plan.point.name}"), settings, override,
+                              merged, out_dir, res_dir, (style, base), key, curve_fill(plan))
+                     for plan in members for full in variants.get(plan.point.name, {}).get(path, [])]
+            continue
+        drawn = data if chosen("use_data", True, True, (override, settings)) is not False else {}
+        reference = drawn.get("map", {}).get(short) if drawn else None
+        if reference and data_file is None:                # converted once, when a page draws it
+            source = data_source(data["file"], run)
+            data_file = convert(source, (cache_root() / run.project / "datasets" if keeping("cache")   # V149
+                                         else out_dir / "datasets") / f"{source.stem}.root")
+        band = band_of(override)
+        line_groups = [g for g in labelled if not set(g) & set(band)]     # what tells a band curve from another
+        curves = [(plan, full) for plan in members for full in variants.get(plan.point.name, {}).get(path, [])]
+        fill = page_fill([plan for plan, _ in curves] or members, cell_text)
+        folded = _banded(curves, curve_groups, band, lambda p, f: variants[p.point.name][path].index(f))
+        envelope = f" ({', '.join(band)} envelope)" if band else ""
+        page, override = page_settings(settings, (labels_from or {}).get(path, path), rel, res_dir / rel,
+                                       reference is not None, fill=fill, child=override)
+        if figure is not None and figure.type == "Scatter2D":
+            page["markers"] = True                                       # V86
+        several = {plan.point.name for plan, _ in curves if len(variants[plan.point.name][path]) > 1}
+        layer = merge_style(style, override.get("style", {}))
+        document = {"page": page, "style": layer, "curve": [
+            {"file": str(merged), "object": f"{plan.point.name}/{root_name(full)}",
+             **({"raw": f"{plan.point.name}/RAW/{root_name(full)}"} if "/RAW" + full in raws[plan.point.name] else {}),
+             "label": _curve_label(run, plan, line_groups, curve_fill(plan))
+                      + (f" [{full.strip('/').split('/')[0].partition(':')[2]}]" if plan.point.name in several else "")
+                      + (envelope if folded_members else ""),
+             **({"style": look} if (look := _curve_look(run, plan, line_groups)) else {}),
+             **({"band": [{"file": str(merged), "object": f"{m.point.name}/{root_name(f)}"} for m, f in folded_members]}
+                if folded_members else {})}
+            for plan, full, folded_members in folded]}
+        if reference:
+            document["data"] = {"file": str(data_file), "object": root_name(reference),
+                                "label": canonical(fill(data.get("legend", "Data")))}
+        config = out_dir / f"{rel}.toml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(tomli_w.dumps(for_root(document)), encoding="utf-8")
+        made.append(Page(rel, config, res_dir / rel, cell=key, object=path, document=document,
+                         sources=[yodas[plan.point.name] for plan, _, _ in folded], variants=[full for _, full, _ in folded],
+                         bands=[[(yodas[m.point.name], f) for m, f in ms] for _, _, ms in folded],
+                         data=(source, reference) if reference else None,
+                         overrides={k for k, v in override.items() if v != DEFAULT},
+                         style=merge_style(base, layer), plots=res_dir.parent,
+                         statistic=_statistic_of(override, settings)))
 
     for figure in (f for f in declared if f.kind == "overlay"):     # V51: several objects of a point on one page
         name, table = figure.name, figure.table
@@ -698,7 +830,7 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
                                where=f"{figure.where}.objects", hint="an overlay draws 1D objects together")
             paths.append(found[0])
         labels = list(figure.labels) or [p.rsplit("/", 1)[-1] for p in paths]
-        for key, members in by_page.items():
+        for key, members, cell_text, labelled in cells(override_of(table)):
             rel = place(key, name)
             named = {}
             for plan in members:
@@ -707,11 +839,11 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
                         named[(plan.point.name, variants[plan.point.name][path][0])] = canonical(curve_fill(plan)(label))
             curves = [(plan, full) for plan in members for (point, full) in named if point == plan.point.name]
             band = band_of(table)
-            line_groups = [g for g in curve_groups if not set(g) & set(band)]
+            line_groups = [g for g in labelled if not set(g) & set(band)]
             folded = _banded(curves, curve_groups, band, lambda p, f: f)          # V69, an overlay's own band
             envelope = f" ({', '.join(band)} envelope)" if band else ""
             page, override = page_settings(settings, paths[0], rel, res_dir / rel, False, child=table,
-                                           fill=page_fill([plan for plan, _ in curves] or members))
+                                           fill=page_fill([plan for plan, _ in curves] or members, cell_text))
             if figure.type == "Scatter2D":
                 page["markers"] = True                                       # V86
             layer = merge_style(style, override.get("style", {}))
@@ -732,8 +864,134 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
                              sources=[yodas[plan.point.name] for plan, _, _ in folded], variants=[full for _, full, _ in folded],
                              bands=[[(yodas[m.point.name], f) for m, f in ms] for _, _, ms in folded],
                              overrides={k for k, v in override.items() if v != DEFAULT},
-                             style=merge_style(base, layer), plots=res_dir.parent, overlay=name))
+                             style=merge_style(base, layer), plots=res_dir.parent, overlay=name,
+                             statistic=_statistic_of(override, settings)))
     return made
+
+
+# ── page statistics (V160): Paint's numbers, as it draws the page ──────────────────────────────
+
+#: What each statistic is called after a legend entry (LaTeX, as every label).
+STATISTIC_LABELS = {"area": "area", "abs_area": "$|\\Delta|$ area", "rel_abs_area": "$|\\Delta|$/ref",
+                    "chi2": "$\\chi^{2}$", "chi2_ndf": "$\\chi^{2}$/ndf"}
+STATISTIC_COLUMNS = ("page", "cell", "object", "curve", "point", "reference", "is_reference", "bins", "area", "area_err",
+                     "ref_area", "abs_area", "rel_abs_area", "chi2", "ndf", "chi2_ndf")
+
+
+def _statistic_of(override: dict, settings: dict) -> str:
+    chosen_one = chosen("legend_statistic", "none", "none", (override, settings))
+    return "" if chosen_one in ("none", DEFAULT, None) else chosen_one
+
+
+def statistics_of(page: Page) -> list[dict] | None:
+    """A page's statistics, one row per curve (STATISTIC_COLUMNS), from Paint's <page>.toml.stats.json; None
+    when Paint wrote none (a heat map, a page it could not read)."""
+    path = page.config.with_name(page.config.name + ".stats.json")
+    if not path.is_file():
+        return None
+    made = json.loads(path.read_text(encoding="utf-8"))
+    curves = page.document.get("curve", [])
+    data = page.document.get("data")
+    reference = data["label"] if data and made.get("reference") == "data" else curves[0]["label"] if curves else ""
+    rows = []
+    for curve, numbers in zip(curves, made.get("curves", [])):
+        number = {k: (float("nan") if numbers.get(k) is None else numbers[k]) for k in ("area", "area_err", "ref_area", "abs_area", "chi2")}
+        label = page.plain[len(rows)] if len(page.plain) > len(rows) else curve["label"]
+        rows.append({"page": page.name, "cell": page.cell, "object": page.object, "curve": label,
+                     "point": curve["object"].split("/", 1)[0], "reference": reference,
+                     "is_reference": bool(numbers.get("reference")), "bins": numbers.get("bins", 0), **number,
+                     "rel_abs_area": number["abs_area"] / number["ref_area"] if number["ref_area"] else float("nan"),
+                     "ndf": numbers.get("ndf", 0),
+                     "chi2_ndf": number["chi2"] / numbers["ndf"] if numbers.get("ndf") else float("nan")})
+    return rows
+
+
+def _shown(value: float) -> str:
+    return "–" if value != value else f"{value:.3g}"
+
+
+def _with_statistics(paint: Path, todo: list[Page]) -> None:
+    """legend_statistic (V160): Paint reads those pages first (--ranges-only writes their statistics), and each
+    curve's legend entry gains its number, in the page document every backend draws from."""
+    asked = [p for p in todo if p.statistic and not p.document["page"].get("heatmap")]
+    if not asked:
+        return
+    _paint(paint, [p.config for p in asked], ["--ranges-only"])
+    for page in asked:
+        rows = statistics_of(page)
+        if not rows:
+            continue
+        page.plain = [c["label"] for c in page.document["curve"]]
+        for curve, row in zip(page.document["curve"], rows):
+            if not row["is_reference"]:
+                curve["label"] = f"{curve['label']} ({STATISTIC_LABELS[page.statistic]} {_shown(row[page.statistic])})"
+        page.config.write_text(tomli_w.dumps(for_root(page.document)), encoding="utf-8")
+
+
+def statistic_pages(run, figure: Figure, todo: list[Page], where: Path, res_dir: Path) -> list[Page]:
+    """A statistic figure's pages (V160): per cell and object its globs match among the drawn defined pages,
+    the page's curves (its own reference curve left out) as bins 1, 2, …, labelled by the curves' labels, y
+    their `statistic` against the page's reference; `sort`: the smallest first. A Scatter2D per page, as a
+    scan figure's (derive.scatter), into records/…/plots/statistic/<name>/, converted for Paint."""
+    module = plugins.load(hep_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
+    where.mkdir(parents=True, exist_ok=True)
+    style, base = run_style(run), base_style()
+    made = []
+    for page in todo:
+        if page.overlay or page.document["page"].get("heatmap") or page.object.startswith("/statistic/"):
+            continue
+        if not any(_matches(page.object, glob) for glob in figure.objects):
+            continue
+        rows = [r for r in (statistics_of(page) or []) if not r["is_reference"]]
+        if figure.sort:
+            rows.sort(key=lambda r: (r[figure.statistic] != r[figure.statistic], r[figure.statistic]))   # NaN last
+        if not rows:
+            continue
+        short = page.object.rsplit("/", 1)[-1]
+        rel = "/".join(part for part in (page.cell, figure.name, short) if part)
+        stem = rel.replace("/", "__")
+        path = f"/FIGURES/{figure.name}"
+        points = [(i + 1.0, 0.5, 0.5, r[figure.statistic], r["area_err"] if figure.statistic == "area" else 0.0)
+                  for i, r in enumerate(rows) if r[figure.statistic] == r[figure.statistic]]
+        if not points:
+            continue
+        kept = [r for r in rows if r[figure.statistic] == r[figure.statistic]]
+        (where / f"{stem}.yoda").write_text(module.scatter(path, points), encoding="utf-8")
+        root = convert(where / f"{stem}.yoda", where / f"{stem}.root")
+        reference = rows[0]["reference"]
+        compared = "" if figure.statistic == "area" else f" against {reference}"
+        table = {"y_label": f"{STATISTIC_LABELS[figure.statistic]}{compared}", "x_label": "", "logy": False,
+                 **figure.table, "ratio": False, "normalise": False, "void_empty": False, "min_entries": 0,
+                 "auto_range": False, "x_gutter": DEFAULT if "x_gutter" not in figure.table else figure.table["x_gutter"]}
+        settings_page, override = page_settings(run.plot, page.object, rel, res_dir / rel, False, child=table)
+        settings_page.update({"markers": True, "x_labels": [r["curve"] for r in kept]})
+        layer = merge_style(style, override.get("style", {}))
+        document = {"page": settings_page, "style": layer,
+                    "curve": [{"file": str(root), "object": root_name(path), "label": STATISTIC_LABELS[figure.statistic]}]}
+        config = page.config.parents[len(Path(page.name).parts) - 1] / f"{rel}.toml"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        document_root = for_root(document)
+        document_root["page"]["x_labels"] = [tlatex(label) for label in settings_page["x_labels"]]
+        config.write_text(tomli_w.dumps(document_root), encoding="utf-8")
+        made.append(Page(rel, config, res_dir / rel, cell=page.cell, object=f"/statistic/{figure.name}", document=document,
+                         overrides={k for k, v in override.items() if v != DEFAULT}, style=merge_style(base, layer),
+                         plots=res_dir.parent))
+    return made
+
+
+def write_statistics(todo: list[Page], target: Path) -> int:
+    """results/…/plots/statistics.csv (V160): every drawn page's curves; the number of rows."""
+    import csv
+    rows = [row for page in todo for row in (statistics_of(page) or [])]
+    if not rows:
+        return 0
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "w", encoding="utf-8", newline="") as handle:
+        out = csv.DictWriter(handle, fieldnames=STATISTIC_COLUMNS)
+        out.writeheader()
+        for row in rows:
+            out.writerow({k: ("" if isinstance(v, float) and v != v else v) for k, v in row.items()})
+    return len(rows)
 
 
 def _heatmap(plan, full: str, rel: str, settings: dict, override: dict, merged: Path, out_dir: Path,
@@ -764,8 +1022,11 @@ def texts_of(run, plan, cell: str) -> dict[str, str]:
     for name, index in plan.values.items():
         if name in run.quantities:
             out[f"q:{name}"] = label_of(run.quantities[name], index)
-    for step in plan.rendered.values():
-        out.update(step.texts)
+    if isinstance(plan, Member):
+        out.update(plan.texts)
+    else:
+        for step in plan.rendered.values():
+            out.update(step.texts)
     return out
 
 
@@ -799,6 +1060,14 @@ def check_figures(run, configuration) -> None:
         if set(band if isinstance(band, list) else []) & set(over):
             raise HepError(f"{at} both merges and bands {sorted(set(band) & set(over))[0]}", where=f"{run.path}: {at}.band",
                            hint="a merged axis is one curve already: band another, or merge less")
+    from .sweep import points as sweep_points
+    made = None
+    for at, table, _ in tables:                                                     # V159: what each set names
+        if table.get("sets") and table.get("sets") != DEFAULT:
+            made = made if made is not None else sweep_points(run, configuration)
+            for _, selectors in set_entries(table["sets"], f"{run.path}: {at}.sets"):
+                for selector in selectors:
+                    chosen_points(run, made, selector, f"{run.path}: {at}.sets")
     for figure in (f for f in figures(run) if f.kind == "compare"):
         compared(run, figure)
     for figure in (f for f in figures(run) if f.kind == "scan"):                    # V85
@@ -820,10 +1089,11 @@ class Compared:
     ref: str
     run: object
     configuration: object
+    record: bool = False     # "<P>/<run>/<NN_cfg>": a record, drawn as it recorded its points (V158)
 
     @property
     def own(self) -> bool:
-        return ":" not in self.ref
+        return ":" not in self.ref and not self.record
 
 
 def compared(run, figure: Figure) -> list[Compared]:
@@ -840,6 +1110,21 @@ def compared(run, figure: Figure) -> list[Compared]:
         raise HepError("a compare figure names a configuration twice", where=at)
     out = []
     for ref in keys:
+        if ":" not in ref and ref.count("/") == 2:               # a record (V158): its snapshot's run
+            from .paths import configs_at
+            from .record import read_snapshot, record_of
+            try:
+                found = record_of(ref)
+            except HepError as error:
+                raise HepError(f"a compare figure names '{ref}': {error.message}", where=at, hint=error.hint) from None
+            if found is None:
+                raise HepError(f"a compare figure names '{ref}', which is no record", where=at,
+                               hint="a record is <P>/<run>/<NN_cfg>, a folder of records/ with a snapshot")
+            snap = read_snapshot(found)
+            with configs_at(found / "config"):
+                owner = load(snap["config"], sets=list(snap.get("sets", [])))
+            out.append(Compared(ref, owner, owner.configurations[snap["configuration"]], record=True))
+            continue
         owner, key = (run, ref) if ":" not in ref else (None, ref.rsplit(":", 1)[1])
         if owner is None:
             try:
@@ -1112,10 +1397,23 @@ def draw(run, configuration, plans, say, others=None) -> int:
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
         raise HepError(f"{paint} is not built", hint="heimdall build --framework")
+    _, other = drawable(plans)
+    if other:                                        # V158: drawn as recorded, and named
+        names = ", ".join(p.point.name for p in other[:4]) + (", …" if len(other) > 4 else "")
+        say(f"plot: {len(other)} point(s) ran with other inputs than the config gives now ({names}): drawn as "
+            f"recorded; heimdall run … --why says what changed")
     todo = pages(run, configuration, plans)
     failed = _draw(run, paint, todo, f"{run.name} · {configuration.label}", say) if todo else 0
+    for figure in (f for f in figures(run) if f.kind == "statistic") if todo else ():     # V160: from what was drawn
+        drawn = statistic_pages(run, figure, todo, plans[0].folders.pages / "statistic" / figure.name,
+                                plans[0].folders.plots / "root")
+        if drawn:
+            say(f"plot: statistic {figure.name}, {len(drawn)} page(s)")
+            failed += _draw(run, paint, drawn, f"{run.name} · {figure.name}", say, table=False)
+        else:
+            say(f"plot: statistic {figure.name}: no drawn page of {', '.join(figure.objects)} has its numbers")
     if todo:
-        tidy(plans[0].out.parent / "plots")
+        tidy(plans[0].folders.pages)
     if not todo:
         say("plot: no complete point has a YODA product to draw")
     for figure in (f for f in figures(run) if f.kind == "sheet") if todo else ():
@@ -1126,8 +1424,9 @@ def draw(run, configuration, plans, say, others=None) -> int:
             continue
         sets, waiting = [], []
         for c in named:
-            mine = plans if c.own and c.ref == configuration.key else (others(c.ref) if others else [])
-            complete = [p for p in mine if is_complete(p) and yoda_of(p)]
+            mine = (plans if c.own and c.ref == configuration.key else recorded(c.run, c.configuration) if c.record
+                    else others(c.ref) if others else [])
+            complete = drawable(mine)[0]
             if complete:
                 sets.append((c, complete))
             else:
@@ -1139,15 +1438,16 @@ def draw(run, configuration, plans, say, others=None) -> int:
         say(f"plot: compare {figure.name}, {len(named)} configurations")
         failed += _draw(run, paint, made, f"{run.name} · {figure.name}", say)
         first = next(plans[0] for c, plans in sets if c.own)
-        tidy(first.out.parent.parent / "compare" / figure.name)
+        tidy(first.folders.compare(figure.name)[0])
     return failed
 
 
 def tidy(folder: Path) -> None:
     """The plot stage's working folder once its pages are drawn: the page configs stay (text, as a point's
     cards do); the merged and derived YODAs, converted data, mkhtml's files, ranges and skip markers go,
-    unless the run keeps `cache` (V149). Never outside logs/."""
-    if keeping("cache") or not folder.is_dir() or not folder.resolve().is_relative_to(logs_root().resolve()):
+    unless the run keeps `cache` (V149). Never outside records/ and .cache/."""
+    if keeping("cache") or not folder.is_dir() or not any(folder.resolve().is_relative_to(root.resolve())
+                                                          for root in (records_root(), cache_root())):
         return
     for path in sorted(folder.rglob("*"), key=lambda p: len(p.parts), reverse=True):
         if path.is_file() and path.suffix != ".toml":
@@ -1185,7 +1485,7 @@ def sheet(run, figure: Figure, todo: list[Page], say) -> int:
     return 0
 
 
-def _draw(run, paint: Path, todo: list[Page], title: str, say) -> int:
+def _draw(run, paint: Path, todo: list[Page], title: str, say, table: bool = True) -> int:
     """Paint on these pages, then the other backends on the same pages, an index each."""
     names = backends(run.plot)
     others = [n for n in names if n != "root"]
@@ -1193,6 +1493,7 @@ def _draw(run, paint: Path, todo: list[Page], title: str, say) -> int:
     # for the other backends (--ranges), or only the ranges (--ranges-only, a yoda-only run).
     mode = ["--ranges"] if others and "root" in names else ["--ranges-only"] if others else []
     failed = 0
+    _with_statistics(paint, todo)                            # V160: a legend's numbers, before any backend draws
     outcomes = _paint(paint, [p.config for p in todo], mode)
     for page in todo:
         ok, why = outcomes[str(page.config)]
@@ -1204,6 +1505,15 @@ def _draw(run, paint: Path, todo: list[Page], title: str, say) -> int:
     if "root" in names:
         where = todo[0].config.parent if "/" not in todo[0].name else todo[0].config.parent.parent
         say(f"plot: {len(todo) - failed} of {len(todo)} page(s) drawn; configs in {where}")
+    if table and chosen("statistics", True, True, (run.plot,)) is not False and todo[0].plots is not None:   # V160
+        table = todo[0].plots / "statistics.csv"
+        drawn_ok = [p for p in todo if outcomes[str(p.config)][0]]
+        if (count := write_statistics(drawn_ok, table)):
+            say(f"plot: statistics of {count} curve(s) → {table}")
+            bars = plugins.load(hep_root() / "framework" / "plot" / "figures" / "bars.py", "bars")   # V162
+            folder = todo[0].plots / "statistics"
+            images = bars.draw([(p.name, statistics_of(p) or []) for p in drawn_ok], folder, formats_of(run.plot))
+            say(f"plot: statistics drawn as bars, {images} image(s) → {folder}")
         drawn = [(p.cell, p.name, p.output) for p in todo if outcomes[str(p.config)][0]]
         if drawn:                                            # V70: the ROOT pages' own index
             write_index(todo[0].plots / "root", title, drawn)
@@ -1284,7 +1594,7 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
     if not paint.exists():
         raise HepError(f"{paint} is not built", hint="heimdall build --framework")
     key = hashlib.sha256("\n".join(map(str, paths)).encode()).hexdigest()[:12]
-    work = logs_root() / "plots" / key
+    work = cache_root() / "overlay" / key                       # its page documents: derived, rebuilt on demand
     outdir = (outdir or (results_root() / "plots" / paths[0].name.split(".")[0])).resolve()
 
     yodas = [(i, p) for i, p in enumerate(paths) if p.name.endswith((".yoda", ".yoda.gz"))]

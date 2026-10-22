@@ -102,7 +102,7 @@ type     = "str"
 required = true
 doc      = "the project; a config under configs/<X>/ belongs to X"
 notes = """\
-  the subfolder of `configs/`, `modules/`, `records/`, `logs/`, `results/`; must equal the folder the file \
+  the subfolder of `configs/`, `modules/`, `records/`, `results/`; must equal the folder the file \
   is in, when it is under `configs/`"""
 
 [run.cfgs]
@@ -379,7 +379,7 @@ notes = """\
 type = "list"
 doc  = "commands run in the point's folder before the tools"
 notes = """\
-  run in the point's output directory; output to `logs/prelim.log`; a nonzero exit fails the \
+  run in the point's output directory; output to the point's `prelim.log`; a nonzero exit fails the \
   point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}`"""
 
 # ── [quantities.<q>] ─────────────────────────────────────────────────────────────────────────
@@ -749,6 +749,52 @@ doc        = "whole bins added around auto_range"
 notes = """\
   whole bins kept either side of the filled ones"""
 
+[plot.sets]
+page  = true
+type  = "list"
+items = "int|str|list|table"
+doc   = "pages of chosen points, a folder each, whatever the plot axes: [[1, 4, 6, 8], \"py8\", \"all\"] (V159)"
+notes = """\
+  the pages' cells, instead of the `plot_points` grid (V159): each entry a page folder of the points it \
+  names, its curves in the order named, the first a ratio's reference. An entry is a selector, a list \
+  of them (`set<k>`, its place), or `{ name = "lo", points = […] }`. A selector is a 1-based index (as \
+  `point i/n` counts), a point's name, a glob of names (`"sh3_NNPDF40*"`), a tag of a quantity's \
+  (`"py8"`: every point with it), `"quantity=tag"`, or `"all"`; a string entry names its folder \
+  (`"pdf=X"` → `pdf-X`). A curve is labelled by the quantities that differ on its page; `{cell}` is the \
+  set's name. A selector no point matches is refused at plan time. merged, scan and compare figures \
+  page by `plot_points` only"""
+
+[plot.split]
+page = true
+type = "int"
+min  = 1
+doc  = "at most this many points a page: each cell (or set) cut in order, <cell>-1, <cell>-2, … (V159)"
+notes = """\
+  at most this many points on a page (V159): each cell (a `plot_points` cell, or a set) cut into pages in \
+  point order, `<cell>-<k>` (`part<k>` with no cell): 24 points, `split = 3`, 8 pages. A curve is \
+  labelled by the quantities that differ on its page"""
+
+[plot.statistics]
+type       = "bool"
+default    = true
+default_ok = true
+doc        = "write results/…/plots/statistics.csv and its bar graphs, statistics/: each page's curves' area, area against the reference, χ² (V160, V162)"
+notes = """\
+  each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the drawn x \
+  range), into `results/…/plots/statistics.csv` (V160): per curve `area` (Σ y·Δx) and its error; \
+  against the reference (the data, else the page's first curve) `ref_area`, `abs_area` (Σ |y − y_ref|·Δx \
+  on the reference's bins), `rel_abs_area`, `chi2`, `ndf`, `chi2_ndf`. false: no table"""
+
+[plot.legend_statistic]
+page    = true
+type    = "str"
+choices = ["none", "area", "abs_area", "rel_abs_area", "chi2", "chi2_ndf"]
+default = "none"
+doc     = "a statistic after each curve's legend entry, against the page's reference (V160)"
+notes = """\
+  one of the statistics (see `statistics`) after each curve's legend entry: `chi2_ndf` → `(χ²/ndf 1.31)`; \
+  the reference's own entry gets none"""
+
 [plot.root_style]
 path = "root_style"
 type       = "str"
@@ -816,7 +862,7 @@ notes = """\
 
 [figure.class]
 type    = "str"
-choices = ["defined", "overlay", "merged", "compare", "derived", "scan", "sheet"]
+choices = ["defined", "overlay", "merged", "compare", "derived", "scan", "sheet", "statistic"]
 default = "defined"
 doc     = "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid)"
 notes = """\
@@ -826,11 +872,11 @@ notes = """\
   when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' \
   pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the \
   other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics \
-  add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The \
+  add, σ averaged), once per change of a member's YODA, into `records/…/plots/merged/<name>/`. The \
   run keeps its points apart; the figure alone merges them (`combine` merges them for the whole \
   configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). \
   `compare` (V83): the objects' pages across configurations, \
-  `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and \
+  `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and \
   `results/`, a folder per backend). A curve per configuration and point (or combined group), \
   labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The \
   configurations must have the same page and curve axes (checked at plan time); the figure is \
@@ -841,7 +887,7 @@ notes = """\
   binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D \
   object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a \
   Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA \
-  (`logs/…/plots/derived/`, remade when the product or the figures change, by \
+  (`records/…/plots/derived/`, remade when the product or the figures change, by \
   `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: \
   its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or \
   a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a \
@@ -881,6 +927,21 @@ doc   = "the objects: YODA path globs, matched against the short name (d01-x01-y
 notes = """\
   matched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob \
   matching no object of the points is an error, at the plot stage"""
+
+[figure.statistic]
+type    = "str"
+choices = ["area", "abs_area", "rel_abs_area", "chi2", "chi2_ndf"]
+doc     = "a statistic figure's number: one of the plot stage's statistics, a bin per point (V160)"
+notes = """\
+  a statistic figure's number (V160), as `statistics.csv` has it: per cell (or set) and object, a page \
+  whose x axis is the page's curves by their labels, a bin each, and y that number of each against the \
+  page's reference (its own reference curve left out), drawn as markers; `area` with its error. Its \
+  pages: `<cell>/<name>/<object>`"""
+
+[figure.sort]
+type    = "bool"
+default = false
+doc     = "a statistic figure's: its points best first (the smallest number), instead of in curve order (V160)"
 
 [figure.op]
 type    = "str"

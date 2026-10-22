@@ -23,7 +23,7 @@ point at a time may fill (`_prepare_lock`: a lock in this process and flock acro
 
 **What is said** goes onto the run's event bus (events.py, V72): a point's and a tool's start and end,
 and every status message. A tool's output is read from a pipe (status.Reader); only a failed tool's last
-lines reach logs/<tag>.log, unless `logs` (--logs) keeps every tool's whole log.
+lines reach the point's <tag>.log (records/<run>/logs/<point>/), unless `logs` (--logs) keeps every tool's whole log.
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ from pathlib import Path
 
 from . import hepfiles
 from .errors import HepError
-from .paths import keeping, logs_root, placeholders
+from .paths import keeping, placeholders
 from .record import (LOCK_FILE, PointLock, complete_marker, held_by, holder, is_complete, now, provenance, provenance_file,
                      write_atomic, write_identity)
 from .status import Reader, ToolState
@@ -271,7 +271,7 @@ def report_of(product: Path) -> Path:
 # ── [prelim] ───────────────────────────────────────────────────────────────────────────────────
 
 def prepare(plan: PointPlan, logs: bool = False) -> None:
-    for directory in (plan.out, plan.res):        # logs/ is made by what writes there (V149)
+    for directory in (plan.out, plan.res):        # a log is made by what writes it (V149)
         directory.mkdir(parents=True, exist_ok=True)
     marker = complete_marker(plan)
     if marker.exists():
@@ -280,7 +280,7 @@ def prepare(plan: PointPlan, logs: bool = False) -> None:
         write_atomic(path, text)
     for step in plan.rendered.values():  # a product left by an earlier attempt must not pass for this one's
         for final, partial in step.products:
-            final.parent.mkdir(parents=True, exist_ok=True)          # a shard's is under logs/…/shards/
+            final.parent.mkdir(parents=True, exist_ok=True)          # a shard's is under records/…/logs/<point>/shards/
             for path in (final, partial, report_of(final), report_of(partial)):
                 path.unlink(missing_ok=True)
     for interface in plan.interfaces.values():
@@ -298,12 +298,12 @@ def prepare(plan: PointPlan, logs: bool = False) -> None:
         argv = [x for a in command for x in ([expand(str(a), context, "[prelim].commands")])]
         done = subprocess.run(argv, cwd=plan.out, capture_output=True, text=True, encoding="utf-8")
         if done.returncode != 0 or logs:              # its output is on disk when it failed, or with --logs (V72)
-            (plan.out / "logs").mkdir(exist_ok=True)
-            (plan.out / "logs" / "prelim.log").open("a", encoding="utf-8").write(
+            plan.out.mkdir(parents=True, exist_ok=True)
+            (plan.out / "prelim.log").open("a", encoding="utf-8").write(
                 f"$ {' '.join(argv)}\n{done.stdout}{done.stderr}")
         if done.returncode != 0:
             raise HepError(f"[prelim] command failed ({done.returncode}): {' '.join(argv)}",
-                           where=str(plan.out / "logs" / "prelim.log"))
+                           where=str(plan.out / "prelim.log"))
 
 
 # ── one group ──────────────────────────────────────────────────────────────────────────────────
@@ -324,6 +324,16 @@ def _signal(entry: _Running, sig: int) -> None:
         os.killpg(entry.process.pid, sig)
     except (ProcessLookupError, PermissionError):
         pass
+
+
+def events_of(plan: PointPlan, step: Step) -> int | None:
+    """The events a tool makes or reads, for its progress bar when its own lines do not say: a producer
+    of events makes the point's; a consumer reads them all, unless a producer deals them among shards."""
+    folder, tool = step.folder, step.tool
+    consumes = tool.consumes_events if tool.consumes_events is not None else folder.get("tool", "consumes_events", False)
+    if folder.get("tool", "produces_events") or (consumes and not plan.deal):
+        return plan.events or None
+    return None
 
 
 def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
@@ -360,7 +370,8 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
         state = ToolState(point=plan.point.name, tag=step.tag)
         bus.emit(plan.point.name, step.tag, {"k": "tool", "state": "started"})
         entry = _Running(step, process, state, Reader(state, fd=read_fd, out=out_read, rules=step.filters, bus=bus,
-                                                      log=step.log, keep=logs), read_fd, time.monotonic())
+                                                      log=step.log, keep=logs, total=events_of(plan, step)),
+                         read_fd, time.monotonic())
         running.append(entry)
 
     failure: tuple[str, str, str] | None = None      # (tag, cause, message)
@@ -550,7 +561,7 @@ def _prepare(plan: PointPlan, step: Step, tag: str, stamp: Path, *, bus, stopper
     """One prepare step into its (locked) cache entry; the stamp only after it exited 0 with its marker."""
     step.prepare_dir.mkdir(parents=True, exist_ok=True)
     job = replace(step, tag=tag, argv=step.prepare_argv, cwd=step.prepare_dir, inputs=[], outputs=[], products=[],
-                  count_check=None, sidecar=None, sidecar_written=None, log=plan.out / "logs" / f"{step.tag}.prepare.log",
+                  count_check=None, sidecar=None, sidecar_written=None, log=plan.out / f"{step.tag}.prepare.log",
                   stall_after=max(step.stall_after, 3600.0))
     ok, blamed, message = run_group(plan, [job], bus=bus, stopper=stopper, results=results, logs=logs)
     if not ok:
@@ -602,13 +613,13 @@ def _finished(plan: PointPlan, result: PointResult, bus) -> None:
 
 
 def _tidy(plan: PointPlan) -> None:
-    """A finished point's working folder keeps its cards/ and config/ (and logs/ when something was written
-    there); its scratch files, shards and what its tools left go, unless the run keeps `work` (V149). The lock
-    stays: another session may hold it. Never outside logs/."""
-    if keeping("work") or not plan.out.is_relative_to(logs_root()) or not plan.out.is_dir():
+    """A finished point's working folder keeps its cards/ and config/ and the logs written there
+    (<tag>.log, V157); its scratch files, shards and what its tools left go, unless the run keeps `work`
+    (V149). The lock stays: another session may hold it. Never outside its configuration's logs/."""
+    if keeping("work") or plan.folders is None or plan.out.parent != plan.folders.logs or not plan.out.is_dir():
         return
     for entry in plan.out.iterdir():
-        if entry.name in ("cards", "config", LOCK_FILE) or (entry.name == "logs" and entry.is_dir() and any(entry.iterdir())):
+        if entry.name in ("cards", "config", LOCK_FILE) or (entry.suffix == ".log" and entry.is_file()):
             continue
         if entry.is_dir() and not entry.is_symlink():
             shutil.rmtree(entry)

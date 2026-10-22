@@ -6,8 +6,8 @@
   becomes.
 - **S2:** a throwaway second work dir shows that work dirs are independent (D4).
 
-High-Energy is left alone (D31). Its conversion into a lean work dir is parked in the appendix and
-runs only on the user's word.
+High-Energy was left alone (D31) until the user asked for its conversion into a lean work dir: done
+2026-10-22, as the appendix records.
 
 **Reads:** 01 §4 and §5; the manual's [02 §1](../02_User_Guide.md#1-set-up-and-build).
 
@@ -101,7 +101,22 @@ is deleted only on the user's word.
 
 ---
 
-## Appendix: High-Energy as a work dir (parked, D31)
+## Appendix: High-Energy as a work dir (D31; done 2026-10-22)
+
+**Done 2026-10-22** (the user: "cleanup High-Energy and migrate it to Heimdall"; High-Energy `b637599`,
+Heimdall `2186975`). What differed from the steps below:
+- **PhotoProduction left too:** it was the work dir Brookhaven's since `ea43a70`, and newer there.
+  High-Energy keeps Comparison and Lambda, in the run TOML's v3 form (`heimdall migrate --v3`).
+- **`aux/` went to Heimdall** as `editor/` (the VS Code tooling serves every work dir).
+- **No `work` branch and no push** (the user's choice): one local commit on `rework`, over `chkpnt`.
+- **The framework paths left by `git rm`** of the move map's "fw" prefixes (`utils/ tests/ bots/
+  docs/` but `Untitled-1.md`, `Makefile`, `pytest.ini`); `movemap.py` was not needed.
+- **Untracked:** v1's outputs, builds and MadGraph debris were deleted; v1's PhotoProduction results
+  and built decks were kept under `archive/v1/` (ignored), out of `heimdall migrate --layout`'s way;
+  `literature/`, `cross_machine/`, `datasets/` stayed.
+- `hep.toml`'s `expects` names `2186975`: Heimdall's tree had uncommitted work, so `setup` wrote none.
+
+The steps as they were parked:
 
 **Not part of P3.** The user left High-Energy alone (2026-10-10). The steps below run only when the
 user asks for them; then they are a phase of their own, with these gates: the diffs to the user's

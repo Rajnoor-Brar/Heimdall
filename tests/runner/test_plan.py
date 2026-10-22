@@ -255,7 +255,6 @@ def test_pythia_reads_the_card_and_a_rejected_line_names_its_source(scratch, mon
     """V59: [checks] card. Pythia's own reader, so a nucleus or an id:new particle needs no list of ours."""
     from runner import tools
     monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
     monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     _, _, good = plan(raw(tools__pythia__settings={"9999999:new": "x void 1 0 0 1.0", "9999999:m0": 2.0,
                                                     "HeavyIon:mode": 1}), scratch)

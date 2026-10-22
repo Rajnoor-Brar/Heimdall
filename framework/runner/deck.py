@@ -125,9 +125,15 @@ def deck_dir(name: str) -> Path:
 
 # ── the event count of a result folder ────────────────────────────────────────────────────────
 
+def points_of(folder: Path) -> Path:
+    """A configuration's folder of points: its points/ (V157), or the folder itself (a layout before it)."""
+    return folder / "points" if (folder / "points").is_dir() else folder
+
+
 def requested(output: Path) -> float | None:
     """The events a result folder's points were run with: its first point's provenance `events`, in
     its records."""
+    output = points_of(output)
     if output.is_dir():
         for point in sorted((p for p in output.iterdir() if p.is_dir()), key=lambda p: natural(p.name)):
             record = point / "provenance.json"
@@ -143,7 +149,7 @@ def requested(output: Path) -> float | None:
 def analysed(results: Path) -> float | None:
     """The events a result folder's first YODA file counted (/RAW/_EVTCOUNT): what Rivet saw, which may
     be a little short of what was asked for."""
-    yodas = sorted((p for p in results.glob("*/*.yoda*") if p.parts[-2] != "plots" and p.name.endswith((".yoda", ".yoda.gz"))),
+    yodas = sorted((p for p in points_of(results).glob("*/*.yoda*") if p.parts[-2] != "plots" and p.name.endswith((".yoda", ".yoda.gz"))),
                    key=lambda p: natural(str(p)))
     for yoda in yodas:
         if (found := hepfiles.entries(yoda, "/RAW/_EVTCOUNT") or hepfiles.entries(yoda, "/_EVTCOUNT")):

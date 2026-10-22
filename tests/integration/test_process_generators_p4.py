@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+import support
+
 from support import apps, folder, hep_ok
 yoda = pytest.importorskip("yoda")
 
@@ -27,10 +29,10 @@ def hep_run(scratch: Path, *args: str) -> str:
 @pytest.mark.skipif(not shutil.which("mg5_aMC"), reason="gjallarhorn: mg5_aMC")
 def test_madgraph_to_pythia_to_rivet(scratch):
     out = hep_run(scratch, "Demo/madgraph", "--set", "run.events=300", "--logs")   # its log is read (V72)
-    assert "count ok: 300 events" in (scratch / "records" / folder("Demo/madgraph") / "point/provenance.json").read_text(encoding="utf-8", errors="replace")
-    log = (scratch / "logs" / folder("Demo/madgraph") / "point/logs/madgraph.log").read_text(encoding="utf-8", errors="replace")
+    assert "count ok: 300 events" in (support.point_records(scratch, folder("Demo/madgraph"), "point") / "provenance.json").read_text(encoding="utf-8", errors="replace")
+    log = (support.point_logs(scratch, folder("Demo/madgraph"), "point") / "madgraph.log").read_text(encoding="utf-8", errors="replace")
     stated = float(re.findall(r"Cross-section :\s+([\d.eE+-]+)", log)[-1])
-    rivet = yoda.read(str(scratch / "results" / folder("Demo/madgraph") / "point/jets.yoda"))["/RAW/_XSEC"].val()
+    rivet = yoda.read(str(support.point_results(scratch, folder("Demo/madgraph"), "point") / "jets.yoda"))["/RAW/_XSEC"].val()
     assert rivet == pytest.approx(stated, rel=1e-3)
     again = hep_run(scratch, "Demo/madgraph", "--set", "run.events=300", "--rerun")
     assert "madgraph:prepare: cached" in again and "madgraph:prepare" in out
@@ -39,9 +41,9 @@ def test_madgraph_to_pythia_to_rivet(scratch):
 @pytest.mark.skipif(not shutil.which("whizard"), reason="gjallarhorn: whizard")
 def test_whizard_direct_photoproduction_runs(scratch):
     hep_run(scratch, "Demo/whizard", "--set", "run.events=500", "--logs")
-    point = scratch / "logs" / folder("Demo/whizard") / "point"
-    assert "count ok: 500 events" in (scratch / "records" / folder("Demo/whizard") / "point" / "provenance.json").read_text(encoding="utf-8", errors="replace")
-    integration = (scratch / "logs" / folder("Demo/whizard") / "point/logs/whizard.prepare.log").read_text(encoding="utf-8", errors="replace")
+    point = support.point_logs(scratch, folder("Demo/whizard"), "point")
+    assert "count ok: 500 events" in (support.point_records(scratch, folder("Demo/whizard"), "point") / "provenance.json").read_text(encoding="utf-8", errors="replace")
+    integration = (support.point_logs(scratch, folder("Demo/whizard"), "point") / "whizard.prepare.log").read_text(encoding="utf-8", errors="replace")
     blocks = integration.split("Starting integration for process")[1:]
     summary = r"^\s+\d+\s+\d+\s+([\d.]+E[+-]\d+)\s+[\d.]+E[+-]\d+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+\d+\s*$"
     totals = [re.findall(summary, block, re.M)[-1] for block in blocks]  # each process's final summary row
@@ -53,5 +55,5 @@ def test_whizard_direct_photoproduction_runs(scratch):
 def test_three_generators_one_page_per_spectrum(scratch):
     out = hep_run(scratch, "Generators/generators", "--set", "run.events=500")
     assert "3 done, 0 failed" in out and "plot: 4 of 4 page(s) drawn" in out
-    page = (scratch / "logs" / folder("Generators/generators", None, scratch) / "plots/nch.toml").read_text(encoding="utf-8", errors="replace")
+    page = (support.pages(scratch, folder("Generators/generators", None, scratch)) / "nch.toml").read_text(encoding="utf-8", errors="replace")
     assert page.count("[[curve]]") == 3

@@ -3,11 +3,13 @@
 docs/06_Internals.md §22 and docs/06_Internals.md §10.
 
 * A tool with status = "standard" writes JSON lines to $HEP_STATUS_FD (src/Status.hh); a tool's
-  output is matched against its filters.toml rules (progress, phase, warn, error, ignore). A rule never
-  fails a run: the exit code does that.
+  output, its control sequences out, is matched against its filters.toml rules (progress, xsec, phase,
+  warn, error, ignore). A rule never fails a run: the exit code does that. A progress line without a total
+  takes the events the tool makes or reads; its rate is done / elapsed when the line says how long, else
+  measured from the first count.
 * Both are read from pipes by one thread per tool (V72), so a tool that prints fast never waits on a
   full pipe, and nothing of it is on disk unless asked: the last TAIL lines are kept in memory and
-  written to logs/<tag>.log only when the tool fails; `--logs` writes every line as it comes.
+  written to the point's <tag>.log only when the tool fails; `--logs` writes every line as it comes.
 * Every message goes onto the run's event bus (events.py), tagged with its point and tool.
 """
 
@@ -25,6 +27,29 @@ from pathlib import Path
 
 TAIL = 200                       # a failed tool's last lines, written beside its point (V72)
 LINE_EVERY = 0.5                 # seconds between a tool's `line` events
+#: A terminal's control sequences (colours, cursor moves: Sherpa's ESC[1A), taken out of what is shown
+#: and matched; the log keeps the bytes as they came.
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07")
+#: A duration as programs print it: "45.2s", "1.2e+06s", "17086", "2h 58m 30s", "1d 3h", "0:00:01".
+_UNITS = {"d": 86400, "h": 3600, "m": 60, "min": 60, "s": 1}
+
+
+def seconds_of(text: str) -> float | None:
+    """A printed duration in seconds, or None when it is not one."""
+    text = text.strip()
+    try:
+        return float(text.rstrip("s").strip())
+    except ValueError:
+        pass
+    if re.fullmatch(r"\d+(?::\d{1,2}){1,2}", text):
+        total = 0.0
+        for part in text.split(":"):
+            total = total * 60 + int(part)
+        return total
+    parts = re.findall(r"([\d.]+)\s*(d|h|min|m|s)\b", text)
+    if not parts or "".join(f"{n}{u}" for n, u in parts) != re.sub(r"\s+", "", text):
+        return None
+    return sum(float(n) * _UNITS[u] for n, u in parts)
 
 
 @dataclass
@@ -49,8 +74,10 @@ class Reader:
     """One process's status pipe (standard) and output pipe, read on a thread of its own until both end."""
 
     def __init__(self, state: ToolState, *, fd: int | None, out: int | None, rules: list[dict], bus,
-                 log: Path | None = None, keep: bool = False):
+                 log: Path | None = None, keep: bool = False, total: int | None = None):
         self.state = state
+        self.total = total                # the events a tool makes or reads, when its lines do not say
+        self._first: tuple[float, int] | None = None   # (when, count) of its first progress line: the rate
         self.rules = [(re.compile(r["match"]), r) for r in rules]
         self.bus = bus
         self.log, self.keep = log, keep
@@ -121,7 +148,9 @@ class Reader:
             self.output(raw.decode("utf-8", "replace").rstrip("\r"))
 
     def output(self, text: str) -> None:
-        """One line the tool printed: the tail, the latest line, and its filter rules."""
+        """One line the tool printed (its control sequences out): the tail, the latest line, and its
+        filter rules, the first that matches."""
+        text = ANSI.sub("", text)
         if text.strip():
             self.tail.append(text)
             self.state.last_line = text.strip()[:200]
@@ -142,7 +171,7 @@ class Reader:
             self._thread.join(timeout)
 
     def keep_tail(self) -> Path | None:
-        """A failed tool: its last lines to logs/<tag>.log (unless --logs wrote them all already)."""
+        """A failed tool: its last lines to its <tag>.log (unless --logs wrote them all already)."""
         if self.log is None or self.keep:
             return self.log
         self.log.parent.mkdir(parents=True, exist_ok=True)
@@ -150,20 +179,46 @@ class Reader:
         return self.log
 
     def _rule(self, rule: dict, match: re.Match, text: str) -> None:
+        """A matched rule's message. A progress rule may also capture `total`, `elapsed` (a duration: the
+        rate is done / elapsed; otherwise it is measured from the first count on), `xsec` and `xsec_err`
+        (pb); any rule may name a `phase` to enter when it matches."""
         emit = rule.get("emit", "ignore")
         try:
+            groups = match.groupdict()
+            if rule.get("phase") and emit != "phase" and self.state.phase != rule["phase"]:
+                self._emit({"k": "phase", "phase": rule["phase"]})
             if emit == "progress":
-                groups = match.groupdict()
-                message = {"k": "progress", "done": int(groups["done"].replace(",", "").replace(" ", ""))}
+                done = int(groups["done"].replace(",", "").replace(" ", ""))
+                message = {"k": "progress", "done": done}
                 if groups.get("total"):
                     message["total"] = int(groups["total"].replace(",", ""))
+                elif self.total:
+                    message["total"] = self.total
+                elapsed = seconds_of(groups["elapsed"]) if groups.get("elapsed") else None
+                now = time.monotonic()
+                if elapsed is not None and elapsed > 0:
+                    message["rate"] = done / elapsed
+                elif self._first is None:
+                    self._first = (now, done)
+                elif now > self._first[0] and done > self._first[1]:
+                    message["rate"] = (done - self._first[1]) / (now - self._first[0])
                 self._emit(message)
+                if groups.get("xsec"):
+                    self._xsec(groups)
+            elif emit == "xsec":
+                self._xsec(groups)
             elif emit == "phase":
                 self._emit({"k": "phase", "phase": rule.get("phase") or match.groupdict().get("phase") or match.group(0)})
             elif emit in ("warn", "error"):
                 self._emit({"k": "log", "level": emit, "msg": text.strip()[:300]})
-        except (KeyError, ValueError, AttributeError, TypeError):
+        except (KeyError, ValueError, AttributeError, TypeError, ZeroDivisionError):
             pass                                                     # a rule never fails a run
+
+    def _xsec(self, groups: dict) -> None:
+        message = {"k": "xsec", "value_pb": float(groups["xsec"])}
+        if groups.get("xsec_err"):
+            message["err_pb"] = float(groups["xsec_err"])
+        self._emit(message)
 
 
 def apply(state: ToolState, message: dict) -> None:

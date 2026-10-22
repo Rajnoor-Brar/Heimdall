@@ -31,7 +31,7 @@ from . import execute, house, paths, plot, post, record, sweep, tools
 from . import doctor as doctormod
 from . import setup as setupmod
 from .errors import HepError, did_you_mean
-from .paths import check_retired, find_work, logs_root, records_root, results_root
+from .paths import cache_root, check_retired, find_work, records_root, results_root
 from .quantities import load_master
 from .events import Bus, Hub, Journal, RunBus, greeting, connect, hubs
 from .watch import follow_events, follow_file, view
@@ -44,7 +44,8 @@ def parser() -> argparse.ArgumentParser:
     commands = top.add_subparsers(dest="command", required=True, metavar="<command>")
 
     run = commands.add_parser("run", help="plan and run a configuration")
-    run.add_argument("config", help="configs/<Project>/<name>[.toml], or ./path from the work dir")
+    run.add_argument("config", help="configs/<Project>/<name>[.toml], ./path from the work dir, or a record "
+                                    "<Project>/<run>/<NN_cfg> (what it ran with: its snapshot)")
     run.add_argument("configuration", nargs="?", help="overrides [run].configuration; under [run].sweep_runs, runs only it")
     run.add_argument("--plan", "--dry-run", dest="plan", action="store_true", help="print the plan; run nothing")
     run.add_argument("--why", action="store_true",
@@ -66,16 +67,22 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--wait", action="store_true",
                      help="a point another session is running: wait for it (default: skip it, naming who runs it)")
     run.add_argument("--journal", action="store_true",
-                     help="also write every status event to logs/…/status.jsonl (for heimdall watch --file and replay)")
+                     help="also write every status event to records/…/status.jsonl (for heimdall watch --file and replay)")
     run.add_argument("--logs", action="store_true",
-                     help="keep every tool's whole output in logs/<tag>.log (default: only a failed tool's last lines)")
+                     help="keep every tool's whole output in records/…/logs/<point>/<tag>.log (default: only a failed tool's last lines)")
     run.add_argument("--keep", action="append", default=[], metavar="WHAT",
                      help="also keep (comma-separated): logs, journal, work (a finished point's whole working folder), "
                           "cache (card checks, converted data, the plot stage's working files); also hep.toml's and "
                           "machine.toml's [run] keep")
 
     draw = commands.add_parser("plot", help="draw a configuration's pages from its complete points")
-    draw.add_argument("config", help="the run config")
+    draw.add_argument("config", help="the run config, or a record <Project>/<run>/<NN_cfg>: its points as they were "
+                                     "recorded, with the config they ran with (its snapshot, which you may edit)")
+    draw.add_argument("--plot", metavar="FILE", dest="plot_file",
+                      help="a file whose [plot] draws instead of the run's: configs/<P>/<name>, ./… or /…")
+    draw.add_argument("--points", metavar="SEL", dest="page_points",
+                      help="pages of these points only, in this order, in the folder points/: indices, names, globs, "
+                           "tags or quantity=tag, comma-separated ([plot].sets for one set)")
     draw.add_argument("--keep", action="append", default=[], metavar="WHAT",
                       help="cache: keep the plot stage's working files and converted data (as heimdall run --keep)")
     draw.add_argument("configuration", nargs="?", help="overrides [run].configuration; under sweep_runs, only it")
@@ -104,7 +111,7 @@ def parser() -> argparse.ArgumentParser:
     explain.add_argument("key", help="e.g. plot.y_gutter, run.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses")
 
     state = commands.add_parser("status", help="each configuration's points: complete, stale, incomplete or to run")
-    state.add_argument("config", nargs="?", help="one config (default: every config)")
+    state.add_argument("config", nargs="?", help="one config, or a record <P>/<run>/<NN_cfg> (default: every config)")
     state.add_argument("configuration", nargs="?", help="one configuration of it")
     state.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as heimdall run's, for the view")
     state.add_argument("--stack", action="store_true", help="the loaded stack instead: each package installed, its release and state; the libraries' versions")
@@ -113,7 +120,15 @@ def parser() -> argparse.ArgumentParser:
     move.add_argument("configs", nargs="*", metavar="CONFIG", help="configs to migrate (default: every config)")
     move.add_argument("--v3", action="store_true", help="into the run TOML's third form (03 §6, runner/v3.py)")
     move.add_argument("--layout", action="store_true",
-                      help="move the work dir's output/ into records/, logs/ and .cache/ (no configs are read)")
+                      help="move the work dir's older layouts into today's: logs/ into records/<run>/logs/, points into "
+                           "points/ (and output/ first, if any); no configs are read")
+    move.add_argument("--list", action="store_true", help="with --layout: every move, one a line")
+    move.add_argument("--snapshot", metavar="RECORD",
+                      help="give a record that ran before snapshots one: copy a config's files into <record>/config/ "
+                           "(--from, default the config its points.json names) and say which points it gives the same identity")
+    move.add_argument("--from", dest="source", metavar="CONFIG", help="with --snapshot: the config to copy")
+    move.add_argument("--set", metavar="KEY=VALUE", action="append", default=[],
+                      help="with --snapshot: the overrides it ran with (default: those its points' provenance records)")
     move.add_argument("--apply", action="store_true", help="write the changes (default: print the diff)")
     move.add_argument("--dry-run", action="store_true", help="print the diff, write nothing (the default)")
 
@@ -122,7 +137,7 @@ def parser() -> argparse.ArgumentParser:
     again.add_argument("--anyway", action="store_true", help="run it even though the setup changed since")
     again.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
 
-    clean = commands.add_parser("clean", help="remove what the runner made and no plan uses: logs/ and .cache/ (records/ with --records)")
+    clean = commands.add_parser("clean", help="remove what the runner made and no plan uses: working folders (records/…/logs/) and .cache/ (a point's records with --records)")
     clean.add_argument("config", nargs="?", help="one config (default: every config, and the unused caches)")
     clean.add_argument("--dry-run", action="store_true", help="list only")
     clean.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as heimdall run's: what the plans use")
@@ -371,8 +386,8 @@ def others_of(args):
 
 
 def journal_path(run, configuration) -> Path:
-    """logs/<P>/<run>/<cfg>/status.jsonl: a --journal run's events, which heimdall watch --file follows."""
-    return logs_root() / tools.run_dir(run, configuration) / "status.jsonl"
+    """records/<P>/<run>/<cfg>/status.jsonl: a --journal run's events, which heimdall watch --file follows."""
+    return tools.run_folders(run, configuration).journal
 
 
 def header(number: int, configuration) -> str:
@@ -441,7 +456,7 @@ def print_plan(run, configuration, plans, post_plan=None, pre_plan=None, combine
     if run.plot and plans:
         count = len(sweep.pages(configuration, [p.point for p in plans]))
         print(f"plot ({', '.join(plot.backends(run.plot))}): {count} page(s) per object, "
-              f"{', '.join(plot.formats_of(run.plot))} → {plans[0].res.parent / 'plots'}")
+              f"{', '.join(plot.formats_of(run.plot))} → {plans[0].folders.plots}")
 
 
 def print_why(run, configuration, plans, post_plan=None, pre_plan=None, combined=()) -> None:
@@ -496,6 +511,27 @@ def _ask_keep(args) -> None:
     """The command's keep words (--keep, --logs, --journal), for this process (paths.keep; V149)."""
     paths.ask_keep([w for item in getattr(args, "keep", None) or [] for w in item.split(",")]
                    + ["logs"] * bool(getattr(args, "logs", False)) + ["journal"] * bool(getattr(args, "journal", False)))
+
+
+def opened(args) -> Path | None:
+    """A record named where a config goes (V158): `heimdall run|plot|status <P>/<run>/<NN_cfg>`, or a path into
+    records/ or results/. Its snapshot is read: its config, its configuration, its --set overrides (yours after
+    them), with configs/ at records/<run>/config/ for the command, so its imports and cards are the ones it
+    ran with. Returns the record, or None for a config."""
+    found = record.record_of(args.config)
+    if found is None:
+        return None
+    snap = record.read_snapshot(found)
+    rel = found.relative_to(records_root())
+    if getattr(args, "configuration", None) and args.configuration != snap["configuration"]:
+        raise HepError(f"the record {rel} is configuration '{snap['configuration']}', not '{args.configuration}'",
+                       hint=f"leave the configuration out: heimdall {args.command} {rel}")
+    os.environ[paths.CONFIGS_VAR] = str(found / "config")
+    args.config, args.configuration = snap["config"], snap["configuration"]
+    args.set = [*snap.get("sets", []), *getattr(args, "set", [])]
+    args.record = found
+    print(f"record {rel}: {snap['config']} · {snap['configuration']} as it ran ({found / 'config'})", file=sys.stderr)
+    return found
 
 
 def cmd_run(args) -> int:
@@ -725,6 +761,17 @@ def not_run(path: Path | None, title: str, message: str, following: Path | None,
         journal.close()
 
 
+def dropped_points(every: list) -> list[str]:
+    """The complete points a configuration's last points.json listed that its plan no longer has (V158)."""
+    path = record.manifest_file(every)
+    try:
+        before = json.loads(path.read_text(encoding="utf-8")).get("points", []) if path.is_file() else []
+    except (OSError, ValueError):
+        return []
+    planned = {p.point.name for p in every}
+    return [e["name"] for e in before if e.get("complete") and e.get("name") not in planned]
+
+
 def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, following: Path | None = None,
             planned: Planned | None = None, bus: Bus | None = None, shown=None, budget=None,
             gate: threading.Event | None = None) -> int:
@@ -775,9 +822,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         catch_signals(stopper)
     logs = paths.keeping("logs")
 
-    base = plans[0].out.parent if plans else None
-    journal = Journal(base / "status.jsonl", run=getattr(bus, "run", None)) \
-        if base and paths.keeping("journal") else None
+    journal = Journal(plans[0].folders.journal, run=getattr(bus, "run", None)) \
+        if plans and paths.keeping("journal") else None
     if journal:
         bus.subscribe(journal)
     title = (f"{run.name} · {configuration.key}: {len(plans)} point(s), {configuration.event_count} events, "
@@ -793,10 +839,16 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     for warning in tools.meta_notes(run):                       # V97
         bus.say(f"   warning: {warning}")
     def manifest() -> None:                  # a points-only run (a cluster job) leaves it to the finish job
-        if base and stages != {"points"}:
+        if plans and stages != {"points"}:
             record.write_atomic(record.manifest_file(every),
                                 json.dumps(record.points_manifest(every, run, configuration), indent=1, default=str) + "\n")
+    dropped = dropped_points(every) if every and stages != {"points"} else []     # read before it is rewritten
     manifest()
+    if every and stages != {"points"}:              # V158: the config it ran with, beside points.json
+        if record.write_snapshot(run, configuration, every) is not None and dropped:
+            bus.say(f"   note: {len(dropped)} point(s) recorded in {tools.run_dir(run, configuration)} are not in the config now "
+                    f"({', '.join(dropped[:4])}{', …' if len(dropped) > 4 else ''}): its snapshot and points.json describe "
+                    "the config as it is; give the configuration a serial of its own to keep a run whole")
     failed = done = 0
     verdict = "stopped"
     try:
@@ -921,22 +973,50 @@ def cmd_deck(args) -> int:
 
 
 def cmd_plot(args) -> int:
-    """`heimdall plot CONFIG [CONFIGURATION]`: the configuration's pages from its complete points (what
-    `heimdall run … --only plot` does)."""
+    """`heimdall plot CONFIG [CONFIGURATION]`: the configuration's pages from the points whose record is
+    complete (what `heimdall run … --only plot` does); a point that ran with other inputs than the config gives
+    now is drawn as recorded, and named (V158). `heimdall plot RECORD` draws a record's points with the
+    config they ran with (its snapshot), planning no tool. `--plot FILE`: another file's [plot] instead."""
     if plot._is_plot_file(args.config):                     # break and migrate (V74)
         raise HepError("heimdall plot draws a configuration's pages; files are overlaid by heimdall overlay",
                        hint=f"heimdall overlay {args.config} …")
     args.points = None
     run = configmod.load(args.config, sets=args.set)
+    styled = configmod.plot_of(args.plot_file) if getattr(args, "plot_file", None) else None
+
+    def restyled(r):
+        if styled is None:
+            return r
+        from dataclasses import replace as with_
+        r = with_(r, plot=styled)
+        plot.validate(r)
+        return r
+
+    run = restyled(run)
+    if getattr(args, "page_points", None) and run.plot:              # V159: one set, from the command line
+        from dataclasses import replace as with_
+        picked = [int(x) if x.strip().isdigit() else x.strip() for x in args.page_points.split(",") if x.strip()]
+        run = with_(run, plot={**run.plot, "sets": [{"name": "points", "points": picked}]})
+        styled = run.plot
     if not run.plot:
         raise HepError(f"{run.path} has no [plot] table", hint="add [plot], or give the files: heimdall plot FILE…")
     keys = run.runs(args.configuration)
+    if getattr(args, "record", None) is not None:           # as it was recorded: nothing is planned (V158)
+        configuration = run.configuration(keys[0])
+        plot.validate(run)
+        plot.check_figures(run, configuration)
+        members = plot.recorded(run, configuration)
+        plot.check_texts(run, members)
+        return 1 if plot.draw(run, configuration, members, print,
+                              others=lambda ref: plot.recorded(run, run.configurations[ref])) else 0
     failed = False
     for number, key in enumerate(keys, 1):   # under [run].sweep_runs, every swept configuration's pages (V38)
         planned = build_plans(args, key)
         if len(keys) > 1:
             print(("\n" if number > 1 else "") + header(number, planned.configuration))
-        failed = plot.draw(planned.run, planned.configuration, planned.combined or planned.every, print,
+        here = restyled(planned.run)
+        plot.check_figures(here, planned.configuration)
+        failed = plot.draw(here, planned.configuration, planned.combined or planned.every, print,
                            others=others_of(args)) or failed
     return 1 if failed else 0
 
@@ -1011,7 +1091,7 @@ def cmd_watch(args) -> int:
     if not found:
         raise HepError("no running job to watch" + (f" for {wanted.path}" if wanted else ""),
                        hint="start one with heimdall run; a finished run's events: heimdall run … --journal, then heimdall watch --file "
-                            "logs/<P>/<run>/<cfg>/status.jsonl")
+                            "records/<P>/<run>/<cfg>/status.jsonl")
     return follow_events(connect(max(found)[1]), plain=args.plain)
 
 
@@ -1074,7 +1154,7 @@ def cmd_clean(args) -> int:
         print(f"{len(targets)} to remove (dry run)")
         return 0
     from .paths import records_root
-    gone = [t for t in targets if t.is_relative_to(records_root())]
+    gone = [t for t in targets if t.is_relative_to(records_root()) and "points" in t.relative_to(records_root()).parts[3:4]]
     if gone:                                  # records are precious: always asked for, by name (U21)
         if not sys.stdin.isatty():
             raise HepError(f"{len(gone)} record folders to remove: not deleted", hint="run it on a terminal, which asks")
@@ -1098,6 +1178,8 @@ def cmd_migrate(args) -> int:
     from . import migrate
     if getattr(args, "layout", False):
         return migrate_layout(args)
+    if getattr(args, "snapshot", None):
+        return migrate_snapshot(args)
     names = list(args.configs) or house.config_names()
     changes = migrate.plan(names, v3=getattr(args, "v3", False))   # every one must read, leniently, first
     for path, (old, new) in changes.items():
@@ -1115,34 +1197,98 @@ def cmd_migrate(args) -> int:
     return 0
 
 
+def migrate_snapshot(args) -> int:
+    """`heimdall migrate --snapshot RECORD [--from CONFIG] [--apply]` (V158): a record that ran before snapshots
+    is given one: the config (by default the one its points.json names, with the --set overrides its points'
+    provenance records) is planned, its files copied into records/<run>/config/, and each recorded point said
+    to have the same identity under it, or what differs (--why). A snapshot already there is replaced only with
+    --apply. Edit the snapshot's files to match what ran (a value since left out), then `heimdall status RECORD`."""
+    found = record.record_of(args.snapshot, need_snapshot=False)
+    if found is None:
+        raise HepError(f"'{args.snapshot}' is no record", hint="a record is <P>/<run>/<NN_cfg>, a folder of records/")
+    manifest = found / "points.json"
+    if not manifest.is_file():
+        raise HepError("this record has no points.json", where=str(manifest))
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    if (found / "config" / record.SNAPSHOT).is_file() and not args.apply:
+        raise HepError(f"{found / 'config'} is there already", hint="--apply replaces it")
+    source = args.source or data.get("config_file", "")
+    if not args.source:
+        try:
+            source = str(Path(source).resolve().relative_to(paths.configs_root().resolve()).with_suffix(""))
+        except ValueError:
+            pass
+    sets = list(args.set) if getattr(args, "set", None) else []
+    entries = data.get("points", [])
+    for entry in entries:                                    # the overrides it ran with, from a point's provenance
+        prov = found / "points" / entry.get("name", "") / "provenance.json"
+        if not sets and prov.is_file():
+            sets = list(json.loads(prov.read_text(encoding="utf-8")).get("sets", []))
+            break
+    planned = build_plans(argparse.Namespace(config=source, set=sets, points=None, rerun=False, only=None),
+                          data.get("configuration"))
+    rel = found.relative_to(records_root())
+    if planned.every and planned.every[0].folders.record.resolve() != found.resolve():
+        raise HepError(f"{source} runs '{data.get('configuration')}' into {planned.every[0].folders.record.relative_to(records_root())}, "
+                       f"not {rel}", hint="--from the config that ran it (its serial and name)")
+    made = record.write_snapshot(planned.run, planned.configuration, planned.every)
+    print(f"snapshot: {made} ({len(list(made.rglob('*')))} files) from {source}" + (f" with {' '.join(sets)}" if sets else ""))
+    plans = {p.point.name: p for p in planned.every}
+    same = 0
+    for entry in entries:
+        plan = plans.get(entry.get("name"))
+        if plan is None:
+            print(f"  {entry.get('name')}: recorded, but this config does not make it (a value left out since?)")
+        elif plan.identity == entry.get("identity"):
+            same += 1
+        else:
+            why = record.why(plan)
+            print(f"  {entry.get('name')}: another identity under it" + (f": {why[0]}" if why else ""))
+    print(f"{same} of {len(entries)} recorded point(s) have the same identity under it"
+          + ("" if same == len(entries) else f"; edit {made} until they do (heimdall status {rel} says), or keep it: "
+                                             "heimdall plot draws a record as it was recorded either way"))
+    return 0
+
+
 def migrate_layout(args) -> int:
-    """`heimdall migrate --layout [--apply]` (5.1): output/ by lifecycle, counted (a dry run), or moved."""
+    """`heimdall migrate --layout [--apply]`: a work dir's older layouts moved into today's, counted (a dry
+    run) or moved. 5.1: output/ by lifecycle into records/, logs/ and .cache/; V157: logs/ into records/<run>/,
+    and each configuration's points into points/ of records/ and results/."""
     from . import migrate
     from .paths import work_root
     if hubs():
         raise HepError("a job is running on this machine", hint="move the layout when it has ended")
     work = work_root()
-    moves = migrate.layout_moves(work) + migrate.deck_moves(work)
-    if not moves:
-        print("nothing to move: no output/, and no deck written in reports/")
+    first = migrate.layout_moves(work) + migrate.deck_moves(work)
+    then = [] if (work / "output").is_dir() else migrate.logs_moves(work)
+    if not first and not then:
+        print("nothing to move: the layout is today's")
         return 0
-    counts: dict[str, int] = {}
-    for _, target in moves:
-        root = target.relative_to(work).parts[0]
-        counts[root] = counts.get(root, 0) + 1
-    for root, n in sorted(counts.items()):
-        print(f"→ {root + '/':9s} {n} file(s) or folder(s)")
+    for title, moves in (("output/ (5.1)", first), ("logs/ and points/ (V157)", then)):
+        counts: dict[str, int] = {}
+        for source, target in moves:
+            kind = f"{source.relative_to(work).parts[0]}/ → {target.relative_to(work).parts[0]}/"
+            counts[kind] = counts.get(kind, 0) + 1
+        for kind, n in sorted(counts.items()):
+            print(f"{title}: {kind:22s} {n} file(s) or folder(s)")
+        if getattr(args, "list", False):
+            for source, target in moves:
+                print(f"  {source.relative_to(work)} → {target.relative_to(work)}")
     if not args.apply:
-        print(f"{len(moves)} file(s) to move (a dry run: --apply moves them)")
+        later = " (then logs/ and points/, once output/ has moved)" if (work / "output").is_dir() else ""
+        print(f"{len(first) + len(then)} to move{later} (a dry run: --apply moves them)")
         return 0
-    left = migrate.apply_layout(moves, work)
-    print(f"moved {len(moves) - left} file(s)" + (f"; {left} left in output/ (already there)" if left else ""))
+    left = migrate.apply_layout(first, work) if first else 0
+    if first:
+        then = migrate.logs_moves(work)
+    left += migrate.apply_logs(then, work) if then else 0
+    print(f"moved {len(first) + len(then) - left}" + (f"; {left} left (already there)" if left else ""))
     return 0
 
 
 def cmd_reproduce(args) -> int:
     """`heimdall reproduce records/…/<point>/provenance.json` (V77, F10): the point again, exactly as it ran,
-    into logs/<P>/.reproduce/<identity>/ (its own records/, logs/ and results/), never over the original; then
+    into .cache/<P>/reproduce/<identity>/ (its own records/ and results/), never over the original; then
     each product compared with the original's. The setup must still be the one that ran (the identity
     the provenance records), else it says what changed (--why) and stops, unless --anyway. A random
     seed is the recorded one; any other seed follows from the identity, as it did."""
@@ -1169,7 +1315,7 @@ def cmd_reproduce(args) -> int:
             print(f"  {line}")
         if not args.anyway:
             raise HepError("not reproduced: this would be a different point", hint="--anyway runs today's setup with its seed")
-    where = logs_root() / record_["project"] / ".reproduce" / record_["identity"][:12]
+    where = cache_root() / record_["project"] / "reproduce" / record_["identity"][:12]
     sets = []
     if planned.configuration.seed_type == "random":                      # in the file's own names
         sets = (["--set", f"cfgs.{key}.seed={record_['seed']}"] if planned.run.form == 3 else
@@ -1177,7 +1323,7 @@ def cmd_reproduce(args) -> int:
     argv = [sys.executable, str(Path(__file__).resolve().parents[1] / "bin" / "run"), "run", config_file, key,
             "--points", name, "--rerun", *[x for item in given for x in ("--set", item)], *sets,
             *(["--plain"] if args.plain else [])]
-    env = dict(os.environ, HEP_RECORDS=str(where / "records"), HEP_LOGS=str(where / "logs"), HEP_RESULTS=str(where / "results"))
+    env = dict(os.environ, HEP_RECORDS=str(where / "records"), HEP_RESULTS=str(where / "results"))
     print(f"reproducing {record_['run']} · {key} · {name} (seed {record_['seed']}) in {where}", flush=True)
     code = subprocess.run(argv, env=env).returncode
     if code != 0:
@@ -1444,8 +1590,11 @@ def main(argv: list[str]) -> int:
             if warning := setupmod.expects_warning(work):          # once per command (framework/01 §4.2)
                 print(warning, file=sys.stderr)
             if (work / "output").is_dir() and not getattr(args, "layout", False):   # made before 5.1's split
-                print("note: this work dir has output/ from before records/, logs/ and .cache/: its points rerun "
+                print("note: this work dir has output/ from before records/ and .cache/: its points rerun "
                       "until `heimdall migrate --layout --apply` moves it", file=sys.stderr)
+            elif (work / "logs").is_dir() and any((work / "logs").iterdir()) and not getattr(args, "layout", False):
+                print("note: this work dir has logs/ from before records/<run>/logs/ and points/ (V157): its points "
+                      "rerun and its pages miss them until `heimdall migrate --layout --apply` moves them", file=sys.stderr)
         if args.command == "setup":
             if args.refresh:
                 ask = input if sys.stdin.isatty() else None
@@ -1490,6 +1639,8 @@ def main(argv: list[str]) -> int:
             for line in (toolsmod.folder_lines(args.what[0]) if args.what else toolsmod.folder_rows()):
                 print(line)
             return 0
+        if args.command in ("run", "plot", "status") and getattr(args, "config", None):
+            opened(args)                                  # a record: its snapshot (V158)
         if args.command == "run":
             return cmd_run(args)
         if args.command == "plot":

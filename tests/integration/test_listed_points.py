@@ -64,13 +64,13 @@ def test_listed_points_run_and_draw_a_page_per_pdf(scratch):
                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     records = scratch / "records" / "T" / "listed" / "01_listed"
-    assert sorted(p.name for p in records.iterdir() if p.is_dir()) == ["MSTW08lo_p30", "MSTW08lo_p34", "NNPDF23lo"]
-    cards = scratch / "logs" / "T" / "listed" / "01_listed"
+    assert sorted(p.name for p in (records / "points").iterdir() if p.is_dir()) == ["MSTW08lo_p30", "MSTW08lo_p34", "NNPDF23lo"]
+    cards = records / "logs"
     mstw = (cards / "MSTW08lo_p34" / "cards" / "pythia.cmnd").read_text(encoding="utf-8").splitlines()
     overrides = (cards / "NNPDF23lo" / "cards" / "pythia.point.cmnd").read_text(encoding="utf-8")
     assert "PDF:pSet = LHAPDF6:MSTW2008lo68cl" in mstw and "MultipartonInteractions:pT0Ref = 3.4" in mstw
     assert "pT0Ref" not in overrides                                       # the base card's own value stands
-    pages = cards / "plots"
+    pages = records / "plots"
     one = next((pages / "MSTW08lo").rglob("*.toml"))
     assert [c["label"] for c in tomllib.loads(one.read_text(encoding="utf-8"))["curve"]] == ["pT0 3.0", "pT0 3.4"]
     other = pages / "NNPDF23lo" / one.relative_to(pages / "MSTW08lo")

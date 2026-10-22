@@ -228,4 +228,41 @@ namespace Paint {
         return {sum / covered, std::sqrt(var) / covered};
     }
 
+    // V160: a curve's numbers as it is drawn (after void, align, normalise), over the drawn x range: its area
+    // (Σ y·Δx over its finite bins inside the range) and that area's error; against a reference (the data, or
+    // the page's first curve), on the reference's bins inside the range where the curve covers them exactly
+    // (rebinned), the reference's area, Σ |y − y_ref|·Δx, and χ² = Σ (y − y_ref)² / (σ² + σ_ref²) over the
+    // bins with a nonzero error, ndf their number.
+    struct Statistics {
+        size_t bins = 0;
+        double area = 0, areaErr = 0, refArea = 0, absArea = 0, chi2 = 0;
+        size_t ndf = 0, compared = 0;
+    };
+
+    inline bool inside(double lo, double hi, double from, double to) {
+        const double eps = 1e-9 * std::max({1.0, std::fabs(from), std::fabs(to)});
+        return lo >= from - eps && hi <= to + eps;
+    }
+
+    inline Statistics statistics(const Series& s, const Series& ref, double from, double to) {
+        Statistics out;
+        double var = 0;
+        for (size_t i = 0; i < s.size(); ++i) {
+            if (!std::isfinite(s.y[i]) || !inside(s.lo[i], s.hi[i], from, to)) continue;
+            const double w = s.hi[i] - s.lo[i];
+            out.area += s.y[i] * w, var += std::pow(s.err[i] * w, 2), ++out.bins;
+        }
+        out.areaErr = std::sqrt(var);
+        for (size_t j = 0; j < ref.size(); ++j) {
+            if (!std::isfinite(ref.y[j]) || !inside(ref.lo[j], ref.hi[j], from, to)) continue;
+            const auto [value, error] = rebinned(s, ref.lo[j], ref.hi[j]);
+            if (!std::isfinite(value)) continue;
+            const double w = ref.hi[j] - ref.lo[j], d = value - ref.y[j];
+            out.refArea += ref.y[j] * w, out.absArea += std::fabs(d) * w, ++out.compared;
+            const double sigma2 = error * error + ref.err[j] * ref.err[j];
+            if (sigma2 > 0) out.chi2 += d * d / sigma2, ++out.ndf;
+        }
+        return out;
+    }
+
 }  // namespace Paint

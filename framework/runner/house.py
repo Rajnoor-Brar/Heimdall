@@ -19,7 +19,7 @@ from . import config as configmod
 from . import schema, tools
 from .errors import HepError, did_you_mean
 from .events import greeting, hubs
-from .paths import cache_root, configs_root, find_work, logs_root, records_root, results_root
+from .paths import cache_root, configs_root, find_work, records_root, results_root
 from .record import complete_marker, held_by, holder, is_complete, provenance_file, record_dir
 
 TABLES = {"run": "run", "config": "config", "prelim": "prelim", "plot": "plot", "data": "data",
@@ -378,20 +378,20 @@ KEEP_NAMES = {"plots", "pre", "post", "cluster", "compare"}
 
 
 def clean_targets(planned: list, everything: bool, records: bool = False) -> tuple[list[Path], list[Path]]:
-    """What `heimdall clean` removes, and the results it only lists, by lifecycle (U21): within each planned
-    configuration's folder of logs/ (ephemeral), the point folders no plan has, and `.partial` leftovers
-    there and in results/. With `everything` (no config named: every config was planned): also a
-    project's run folders of logs/ no configuration has, and the prepare caches of .cache/ (derived) no
-    plan references. records/ only with `records`: the record folders no plan has (never a
-    configuration's cluster/ submissions). results/ is never removed, only listed."""
+    """What `heimdall clean` removes, and the results it only lists, by lifecycle (U21, V157): within each
+    planned configuration's records/<run>/logs/ (ephemeral), the working folders no plan has, and `.partial`
+    leftovers there and in results/<run>/. With `everything` (no config named: every config was planned):
+    also the logs/ of a project's configuration folders no configuration has, and the prepare caches of
+    .cache/ (derived) no plan references. A point's records (records/<run>/points/) only with `records`:
+    those no plan has (never a configuration's cluster/ submissions). results/ is never removed, only
+    listed."""
     remove: list[Path] = []
     kept: list[Path] = []
     outs, ress = _stage_dirs(planned)
     recs = {record_dir(s) for s in outs_stages(planned)}
     for p in planned:
-        base_out = logs_root() / tools.run_dir(p.run, p.configuration)
-        base_res = results_root() / tools.run_dir(p.run, p.configuration)
-        base_rec = records_root() / tools.run_dir(p.run, p.configuration)
+        run_folders = tools.run_folders(p.run, p.configuration)
+        base_out, base_res, base_rec = run_folders.logs, run_folders.products, run_folders.points
         for folder in sorted(base_out.iterdir()) if base_out.is_dir() else ():
             if folder.is_dir() and folder not in outs and folder.name not in KEEP_NAMES:
                 remove.append(folder)
@@ -401,26 +401,26 @@ def clean_targets(planned: list, everything: bool, records: bool = False) -> tup
         for folder in sorted(base_res.iterdir()) if base_res.is_dir() else ():
             if folder.is_dir() and folder not in ress and folder.name not in KEEP_NAMES:
                 kept.append(folder)
-        for root in (base_out, base_res):
+        for root in (base_out, run_folders.results):
             if root.is_dir():
                 remove.extend(sorted(f for f in root.rglob("*.partial*") if f.is_file()))
     if everything:
         used_runs: dict[str, set[Path]] = {}
         referenced: set[Path] = set()
         for p in planned:
-            used_runs.setdefault(p.run.project, set()).add(logs_root() / tools.run_dir(p.run, p.configuration))
+            used_runs.setdefault(p.run.project, set()).add(tools.run_folders(p.run, p.configuration).record)
             for stage in [*p.every, *p.combined, *([p.pre] if p.pre else []), *([p.post] if p.post else [])]:
                 for step in stage.rendered.values():
                     if step.prepare_dir is not None:
                         referenced.add(step.prepare_dir)
         for project, used in used_runs.items():
-            root = logs_root() / project
+            root = records_root() / project
             for run_folder in sorted(root.iterdir()) if root.is_dir() else ():
                 if run_folder.name.startswith(".") or not run_folder.is_dir():
                     continue
-                for cfg in sorted(run_folder.iterdir()):
-                    if cfg.is_dir() and cfg not in used and not any(u.is_relative_to(cfg) or cfg.is_relative_to(u) for u in used):
-                        remove.append(cfg)
+                for cfg in sorted(run_folder.iterdir()):           # another configuration's: its working folders only
+                    if cfg.is_dir() and cfg not in used and (cfg / "logs").is_dir():
+                        remove.append(cfg / "logs")
             cache = cache_root() / project
             for tool_dir in sorted(cache.iterdir()) if cache.is_dir() else ():
                 if tool_dir.name in ("checks", "datasets") or not tool_dir.is_dir():

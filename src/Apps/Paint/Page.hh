@@ -36,6 +36,7 @@ namespace Paint {
         bool markers = false;                                   // the curves as markers, as data (type Scatter2D, V86)
         bool heatmap = false, logz = false;                     // one 2D object, coloured (type HeatMap, V87)
         std::string zLabel;
+        std::vector<std::string> xLabels;                       // V160: a label under each bin centre 1, 2, … (a statistic figure)
         std::optional<double> yGutter, xGutter;                 // none: ROOT's own range ("default")
         int minEntries = 0, rangePad = 0;
         Style style;
@@ -89,6 +90,8 @@ namespace Paint {
         page.heatmap = p["heatmap"].value_or(false);
         page.logz = p["logz"].value_or(false);
         page.zLabel = p["z_label"].value_or(std::string(""));
+        if (auto* labels = p["x_labels"].as_array())
+            for (auto& l : *labels) page.xLabels.push_back(l.value_or(std::string("")));
         if (const auto node = p["normalise"]; node) {
             if (node.value<std::string>() == std::optional<std::string>("area")) page.normalise = true;
             else if (node.value<bool>() != std::optional<bool>(false))

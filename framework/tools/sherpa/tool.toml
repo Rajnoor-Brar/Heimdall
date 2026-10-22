@@ -9,7 +9,7 @@
 category        = "event-generator"
 executable      = "Sherpa"
 packages        = ["sherpa"]        # the recipes it runs (bifrost -b|-c, heimdall tools)
-status          = "none"            # no filters.toml yet: its log's last line is shown
+status          = "filters"         # filters.toml: its event counter, cross section, routine noise
 produces_events = true
 
 [card]
@@ -23,6 +23,10 @@ owned   = ["BEAMS", "BEAM_ENERGIES", "RANDOM_SEED", "EVENTS", "EVENT_OUTPUT", "R
 
 [command]
 argv = ["{exe}", "-f", "{card}", "RESULT_DIRECTORY: {prepared}/Results"]
+# How it prints its progress (L31), never in the identity: BATCH_MODE 23 = 1 (batch) + 2 (a line per print,
+# no cursor moves) + 4 (every EVENT_DISPLAY_INTERVAL events) + 16 (seconds); about 1000 lines a run. The
+# command line wins over the card, so a card's own BATCH_MODE is not used.
+display = ["BATCH_MODE: 23", "EVENT_DISPLAY_INTERVAL: {display_every}"]
 
 [prepare]
 # EVENT_OUTPUT: None, or Sherpa opens the FIFO at initialisation and waits for a reader (L12)

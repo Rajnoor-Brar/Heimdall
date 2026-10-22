@@ -33,8 +33,8 @@ from . import plugins
 from . import quantities as qmod
 from .config import Tool, chain_prelim, fragment_tags, resolve_chain
 from .errors import HepError, did_you_mean
-from .paths import (cache_root, keeping, hep_root, logs_root, placeholders, portable, portable_texts, records_root, resolve,
-                    results_root, tool_chains)
+from .paths import (cache_root, keeping, hep_root, identity_texts, placeholders, portable, portable_texts, records_root,
+                    resolve, results_root, tool_chains)
 from .sweep import tag_of
 
 ENV = Path(__file__).resolve().parents[1] / "tools"       # framework/tools: the shipped folders (the search path's last)
@@ -44,7 +44,7 @@ FOLDER_SECTIONS = {
              "config_always", "formerly", "template", "packages"},
     "card": {"style", "ext", "comment", "bools", "seed", "seed_parallel", "seed_range", "line", "footer",
              "drop", "trailing", "drop_inside_braces", "merge", "repeatable", "owned"},
-    "command": {"argv", "env", "cwd"},
+    "command": {"argv", "env", "cwd", "display"},
     "options": None,                                      # free: the schema of tool-specific keys
     "outputs": {"products", "event_count", "sidecar", "written", "deal", "combines"},
     "context": {"values", "products"},                    # what the point's context file gives of it (04 §9.4)
@@ -591,11 +591,57 @@ class PointPlan:
     products: list[str] = field(default_factory=list)       # generate_cards' "<tag>:<product>": in the identity
     upstream: list[str] = field(default_factory=list)       # post: the identities of the points
     deal: dict[str, str] = field(default_factory=dict)      # a dealt interface → its deal group (V31)
+    folders: RunFolders | None = None                       # its configuration's records/ and results/ (V157)
     seed_type: str = "identity"                             # a point's seed rule (V39); stages keep identity
     manual_seed: int | None = None
     seed_kept: bool = False                                 # random: a complete point's seed, from its provenance
     seed_range: tuple[int, int] = DEFAULT_SEED_RANGE        # what every seeded step accepts (V54)
     notes: list[str] = field(default_factory=list)          # what --plan and the run should say (V59)
+
+
+@dataclass(frozen=True)
+class RunFolders:
+    """A configuration's two folders (06 §1, V157), `<run>` = <P>/<name>/<NN_label>: records/<run>/, what it
+    recorded and where its points work, and results/<run>/, what it made."""
+    project: str
+    record: Path                       # records/<run>
+    results: Path                      # results/<run>
+
+    @property
+    def points(self) -> Path:          # each point's and stage's provenance, identity.json and .complete: kept
+        return self.record / "points"
+
+    @property
+    def logs(self) -> Path:            # each point's working folder (cards, configs, logs, FIFOs): safe to delete
+        return self.record / "logs"
+
+    @property
+    def pages(self) -> Path:           # the page documents, and the plot stage's working files
+        return self.record / "plots"
+
+    @property
+    def config(self) -> Path:          # the run's snapshot: its run TOML, imports and cards (V158)
+        return self.record / "config"
+
+    @property
+    def manifest(self) -> Path:
+        return self.record / "points.json"
+
+    @property
+    def journal(self) -> Path:         # --journal's events
+        return self.record / "status.jsonl"
+
+    @property
+    def products(self) -> Path:        # each point's (and combined group's) products
+        return self.results / "points"
+
+    @property
+    def plots(self) -> Path:           # the pages, a folder per backend
+        return self.results / "plots"
+
+    def compare(self, name: str) -> tuple[Path, Path]:
+        """A compare figure's page documents and pages: beside the configurations, in <P>/<name>/compare/."""
+        return self.record.parent / "compare" / name, self.results.parent / "compare" / name
 
 
 def location(serial: int | None, name: str) -> str:
@@ -610,20 +656,29 @@ def run_dir(run, configuration) -> Path:
 
 
 def serials_taken(run, configuration) -> set[int]:
-    """The numbers of a configuration's folders on disk, <project>/<name>/NN_<label>, in records/,
-    results/ and logs/: where a v3 configuration without a serial may already have run (03 §6)."""
+    """The numbers of a configuration's folders on disk, <project>/<name>/NN_<label>, in records/ and
+    results/: where a v3 configuration without a serial may already have run (03 §6)."""
     parent = Path(run.project) / (configuration.run_folder or run.name)
     numbered = re.compile(r"(\d{2,})_" + re.escape(configuration.label))
     found = set()
-    for root in (records_root(), results_root(), logs_root()):
+    for root in (records_root(), results_root()):
         if (root / parent).is_dir():
             found |= {int(m[1]) for entry in (root / parent).iterdir() if entry.is_dir() and (m := numbered.fullmatch(entry.name))}
     return found
 
 
+def run_folders(run, configuration) -> RunFolders:
+    tail = run_dir(run, configuration)
+    return RunFolders(run.project, records_root() / tail, results_root() / tail)
+
+
 def point_dirs(run, configuration, point) -> tuple[Path, Path]:
-    tail = run_dir(run, configuration) / point.name
-    return logs_root() / tail, results_root() / tail
+    """A point's working folder, records/<run>/logs/<name>, and its products' folder: results/<run>/points/<name>
+    for a point or a combined group, results/<run>/<pre|post> for a stage (index ≤ 0), whose products a later
+    stage names, so they stay where they were (V157)."""
+    here = run_folders(run, configuration)
+    results = here.results if point.index <= 0 else here.products
+    return here.logs / point.name, results / point.name
 
 
 def _check_options(tool, folder: Folder, where: str) -> None:
@@ -737,7 +792,7 @@ def _builtin_value(run, name: str, index: int) -> int:
 def _shard(run, configuration, groups_tags: list[list[str]], out: Path):
     """`shards = K` on a table (V31): the table becomes K copies in its group, each reading a share of
     the events (`events.s1.hepmc` … `events.sK.hepmc`) and writing its product under the point's
-    logs/…/shards/; the folder's merge tool ([shard] merge) runs as its own group right after,
+    records/…/logs/<point>/shards/; the folder's merge tool ([shard] merge) runs as its own group right after,
     reading the K products and writing the table's own output_file. The producer deals its events
     among the K interfaces instead of copying them to each (its folder says [outputs] deal = true).
 
@@ -858,7 +913,8 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
     plan = PointPlan(point=point, values=values, out=out, res=res, prelim=configuration.prelim,
                      groups=[], rendered={}, interfaces={}, consumers=consumers,
                      threads=builtin.get("threads", configuration.threads),
-                     events=builtin.get("events", configuration.event_count), deal=deal)
+                     events=builtin.get("events", configuration.event_count), deal=deal,
+                     folders=run_folders(run, configuration))
     if post is None:                                   # a point, not a pre, post or combined stage
         plan.seed_type, plan.manual_seed = configuration.seed_type, configuration.manual_seed
 
@@ -903,7 +959,7 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
             step.filters = folder.filters
         step.stall_after = tool.stall_after or 300.0
         step.timeout = tool.timeout
-        step.log = out / "logs" / f"{tag}.log"
+        step.log = out / f"{tag}.log"
         plan.rendered[tag] = step
         if step.group >= 0:
             _outputs(plan, step, run)
@@ -928,7 +984,7 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
 
     plan.groups = [[plan.rendered[tag] for tag in group] for group in groups_tags]
     plan.seed_range = seed_range_of(plan.rendered.values())
-    text = portable_texts()                        # a fingerprint (and the seeds from it) names no folder (V137)
+    text = identity_texts()                        # a fingerprint (and the seeds from it) names no folder (V137, V158)
     for step in plan.rendered.values():
         step.identity_parts = _portable_parts(step.identity_parts, plan, text)
     return plan
@@ -1323,6 +1379,7 @@ def _argv(plan: PointPlan, step: Step, run) -> None:
         "seed": "{seed}",                      # filled in by finalise: seeds derive from the identity
         "output": str(step.outputs[0].path) if step.outputs else "",
         "outputs": _outputs_argument(step, plan.deal),
+        "display_every": max(100, plan.events // 1000),      # [command] display: a progress line per ~1000th
         "partial:": {"output": str(step.products[0][1]) if step.products else ""},
         "in:": {i.name: str(i.path) for i in step.inputs},
         "file:": {name: str(i.path) for name, i in plan.interfaces.items() if i.kind in ("fifo", "file")},
@@ -1365,6 +1422,11 @@ def _argv(plan: PointPlan, step: Step, run) -> None:
     if folder.get("outputs", "written") == "requested":
         step.sidecar_written = plan.events          # it always makes what it is asked for, or fails
     step.identity_parts["argv"] = [a.replace(str(plan.out), "{out}").replace(str(plan.res), "{res}") for a in argv]
+    # [command] display: what changes only how the tool prints its progress, after the identity took the argv,
+    # so a point that ran without it is the same point (Sherpa's BATCH_MODE, V156)
+    for template in folder.get("command", "display", []):
+        piece = expand(template, context, f"{folder.name}/tool.toml [command].display")
+        step.argv.extend(piece if isinstance(piece, list) else [piece] if piece != "" else [])
 
     # the count check: a consumer of events reads its count back and compares it with the producer's sidecar
     consumes = tool.consumes_events if tool.consumes_events is not None else folder.get("tool", "consumes_events", False)
@@ -1572,7 +1634,7 @@ def check_cards(plan: PointPlan) -> None:
             lines.append((line, step.card_origins.get(parsed[0], "the point card") if parsed else "the point card"))
         text = "\n".join(line for line, _ in lines) + "\n"
         key = hashlib.sha256((step.folder.name + str(step.identity_parts.get("exe_sha256")) + text).encode()).hexdigest()[:16]
-        cache = cache_root() / plan.out.relative_to(logs_root()).parts[0] / "checks" / step.folder.name / f"{key}.json"
+        cache = cache_root() / plan.folders.project / "checks" / step.folder.name / f"{key}.json"
         if key not in _CHECKED:
             kept = keeping("cache")                                    # on disk only when kept (V149)
             if cache.is_file():

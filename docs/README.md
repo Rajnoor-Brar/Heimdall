@@ -8,7 +8,7 @@ it; after all points it draws the pages with ROOT (Paint) or rivet-mkhtml.
 
 Three places: **Heimdall** (`$HEP`: the framework), the **machine root** (`~/Himinbjorg`: the stack it runs
 on, its compiled apps) and your **work dirs**, as many as you like (`configs/`, `modules/`, `datasets/`, and what runs make:
-`records/` for what runs recorded, `logs/` and `.cache/` for what can go, `results/` for products, `build/` for your compiled modules).
+`records/` for what runs recorded and their working folders, `.cache/` for what can go, `results/` for products, `build/` for your compiled modules).
 
 ```bash
 gjallarhorn                                            # the environment (or: source ~/Github/Heimdall/gjallarhorn.sh)

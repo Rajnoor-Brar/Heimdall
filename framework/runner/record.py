@@ -29,10 +29,12 @@ import json
 import os
 import platform
 import secrets
+import shutil
 import socket
 import subprocess
 import threading
 import time
+import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -228,15 +230,10 @@ def _recorded_seed(plan: PointPlan) -> int:
         return 0
 
 
-def records_of(folder: Path) -> Path:
-    """The records of a folder of logs/ (a point's, a stage's, a configuration's): the same place under
-    records/ (U21), so deleting logs/ or .cache/ reruns nothing."""
-    from .paths import logs_root, records_root
-    return records_root() / folder.relative_to(logs_root())
-
-
 def record_dir(plan: PointPlan) -> Path:
-    return records_of(plan.out)
+    """A point's or stage's records, records/<run>/points/<name>/ (V157): apart from its working folder
+    (records/<run>/logs/<name>/), so deleting logs or .cache/ reruns nothing (U21)."""
+    return plan.folders.points / plan.point.name
 
 
 def provenance_file(plan: PointPlan) -> Path:
@@ -244,8 +241,8 @@ def provenance_file(plan: PointPlan) -> Path:
 
 
 def manifest_file(plans: list) -> Path:
-    """A configuration's points.json: in its records, beside its points' folders."""
-    return records_of(plans[0].out.parent) / "points.json"
+    """A configuration's points.json: in its records, beside its points' folder."""
+    return plans[0].folders.manifest
 
 
 def complete_marker(plan: PointPlan) -> Path:
@@ -450,7 +447,122 @@ def points_manifest(plans: list[PointPlan], run, configuration) -> dict:
             "products": {i.name: str(i.path) for i in plan.interfaces.values() if i.kind == "product" and not i.shard},
             "results": str(plan.res), "output": str(plan.out),
             "identity": plan.identity, "seed": plan.seed, "complete": is_complete(plan),
+            "texts": {k: v for step in plan.rendered.values() for k, v in step.texts.items()},   # {opt:…} (V158)
         })
     return {"run": run.name, "project": run.project, "configuration": configuration.key,
             "config_file": str(run.path), "plot_points": configuration.plot_points, "points": points}
 
+
+
+# ── a run's snapshot (V158) ─────────────────────────────────────────────────────────────────────
+
+#: A record's snapshot: records/<run>/config/<project>/… (its files, as configs/ holds them) and this file.
+SNAPSHOT = "snapshot.toml"
+
+
+def snapshot_files(run, plans: list) -> list[Path]:
+    """The files a run read from its configs: its run TOML, every file it imports, the base cards and configs
+    its points read, its tools' own filters, its [plot].root_style file and its master."""
+    from .paths import resolve
+    wanted = [Path(run.path), *map(Path, run.imported)]
+    wanted += [base for plan in plans for step in plan.rendered.values() for base in step.card_base]
+    for tool in run.tools.values():
+        if tool.filters:
+            wanted.append(resolve(tool.filters, "filters", project=run.project))
+    style = (run.plot or {}).get("root_style")
+    if isinstance(style, str) and style not in ("default", "native"):
+        wanted.append(resolve(style if style.endswith(".toml") else f"{style}.toml", "root_style", project=run.project))
+    if run.master_toml:
+        wanted.append(resolve(run.master_toml, "master", project=run.project))
+    return list(dict.fromkeys(p.resolve() for p in wanted if p.is_file()))
+
+
+def config_name(run) -> str:
+    """How `heimdall run` names a run's config: <P>/<name>, its path under configs/ without .toml."""
+    from .paths import configs_root
+    path = Path(run.path).resolve()
+    try:
+        return str(path.relative_to(configs_root().resolve()).with_suffix(""))
+    except ValueError:
+        return f"{run.project}/{path.stem}"
+
+
+def write_snapshot(run, configuration, plans: list) -> Path | None:
+    """records/<run>/config/ (V158): the files the run read from its configs, as configs/ holds them (a run TOML
+    given by path goes in as <project>/<its name>), and snapshot.toml: the config's name, the configuration,
+    the --set overrides, each file's sha256, the files read from elsewhere (./… and absolute: datasets,
+    modules, tool folders, read live), Heimdall's revision and when. Written whole, then put in place; a run
+    of its own snapshot writes nothing (it is what it ran with). Returns the folder, or None."""
+    from .paths import configs_root
+    if not plans:
+        return None
+    target = plans[0].folders.config
+    if Path(run.path).resolve().is_relative_to(target.resolve()):
+        return None
+    root = configs_root().resolve()
+    name = config_name(run)
+    files: dict[str, str] = {}
+    live: list[str] = []
+    staging = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+    shutil.rmtree(staging, ignore_errors=True)
+    for path in snapshot_files(run, plans):
+        if path == Path(run.path).resolve() and not path.is_relative_to(root):
+            rel = Path(f"{name}.toml")                         # a run TOML given by path: under its project
+        elif path.is_relative_to(root):
+            rel = path.relative_to(root)
+        else:
+            live.append(portable(path))
+            continue
+        (staging / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, staging / rel)
+        files[str(rel)] = hashlib.sha256(path.read_bytes()).hexdigest()
+    import tomli_w
+    meta = {"snapshot": {"config": name, "configuration": configuration.key, "sets": list(run.sets),
+                         "heimdall": git_state(hep_root()).get("revision", ""), "written": now()},
+            "files": files, **({"live": {"files": live}} if live else {})}
+    staging.mkdir(parents=True, exist_ok=True)
+    (staging / SNAPSHOT).write_text("# A run's snapshot (V158): the config it ran with. heimdall plot|run|status "
+                                    "<P>/<run>/<NN_cfg> read it; edit it to restyle that run alone.\n"
+                                    + tomli_w.dumps(meta), encoding="utf-8")
+    if target.exists():
+        shutil.rmtree(target)
+    staging.rename(target)
+    return target
+
+
+def record_of(name: str, need_snapshot: bool = True) -> Path | None:
+    """The record a command's config argument names (V158): `<P>/<run>/<NN_cfg>` (three parts, where a config
+    has two), or a path to such a folder of records/ or results/ (or into it); None when it names a config.
+    A record without a snapshot (it ran before V158) is refused, with the way to give it one."""
+    from .paths import records_root, results_root
+    if not isinstance(name, str) or name.endswith(".toml"):
+        return None
+    path = Path(name).expanduser()
+    candidate = None
+    if path.is_absolute() or name.startswith(("./", "../")) or (path.exists() and path.is_dir()):
+        resolved = path.resolve()
+        for root in (records_root().resolve(), results_root().resolve()):
+            if resolved.is_relative_to(root) and len(resolved.relative_to(root).parts) >= 3:
+                candidate = records_root() / Path(*resolved.relative_to(root).parts[:3])
+                break
+        else:
+            return None
+    elif name.count("/") == 2 and all(name.split("/")):
+        candidate = records_root() / name
+    if candidate is None or not (candidate.is_dir() or (results_root() / candidate.relative_to(records_root())).is_dir()):
+        return None
+    if need_snapshot and not (candidate / "config" / SNAPSHOT).is_file():
+        rel = candidate.relative_to(records_root())
+        raise HepError(f"the record {rel} has no snapshot: it ran before runs kept the config they ran with",
+                       where=str(candidate / "config"),
+                       hint=f"heimdall migrate --snapshot {rel} copies a config into it (default: the one it names) and "
+                            "says which of its points that config gives the same identity")
+    return candidate
+
+
+def read_snapshot(record: Path) -> dict:
+    data = tomllib.loads((record / "config" / SNAPSHOT).read_text(encoding="utf-8"))
+    snap = data.get("snapshot", {})
+    if not snap.get("config") or not snap.get("configuration"):
+        raise HepError("a snapshot names its config and configuration", where=str(record / "config" / SNAPSHOT))
+    return snap

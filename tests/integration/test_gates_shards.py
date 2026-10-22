@@ -64,8 +64,8 @@ def test_a_sharded_point_equals_the_same_point_unsharded(scratch):
     config.write_text(RUN, encoding="utf-8")
     hep_run(scratch, str(config), "one")
     hep_run(scratch, str(config), "four", "--keep", "work")                 # its shards are read (V149)
-    one = yoda.read(str(scratch / "results/Demo/shards/one/point/jets.yoda"))
-    four = yoda.read(str(scratch / "results/Demo/shards/four/point/jets.yoda"))
+    one = yoda.read(str(scratch / "results/Demo/shards/one/points/point/jets.yoda"))
+    four = yoda.read(str(scratch / "results/Demo/shards/four/points/point/jets.yoda"))
     assert set(one) == set(four)
     raw_one, raw_four = one["/RAW/_EVTCOUNT"], four["/RAW/_EVTCOUNT"]
     assert raw_one.numEntries() == raw_four.numEntries() and raw_one.sumW() == pytest.approx(raw_four.sumW(), rel=1e-12)
@@ -75,5 +75,5 @@ def test_a_sharded_point_equals_the_same_point_unsharded(scratch):
         if not path.startswith("/RAW/photo_eic/") or not hasattr(histo, "sumW"):
             continue
         assert histo.sumW() == pytest.approx(four[path].sumW(), rel=1e-9), path    # the same events, summed
-    shards = sorted((scratch / "logs/Demo/shards/four/point/shards").glob("jets.s*.yoda"))
+    shards = sorted((scratch / "records/Demo/shards/four/logs/point/shards").glob("jets.s*.yoda"))
     assert len(shards) == 4

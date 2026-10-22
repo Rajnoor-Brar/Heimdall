@@ -3,7 +3,7 @@
 * The runner package is importable as `runner` (framework/ on sys.path), and tests/ is on sys.path for
   `support` (the shared helpers).
 * The tests run in a work dir of their own: tests/fixtures/work/ (frozen) is synced into
-  forge/scratch/work/, which HEP_WORK names; HEP_RESULTS, HEP_RECORDS, HEP_LOGS, HEP_CACHE and HEP_REPORTS point into
+  forge/scratch/work/, which HEP_WORK names; HEP_RESULTS, HEP_RECORDS, HEP_CACHE and HEP_REPORTS point into
   forge/scratch/, and HEP_WORKDIRS (the registry of work dirs) too. So a test reads and writes no real work dir, whatever the shell has set, and fails
   only when the code changed. $HEP is this Heimdall; a shell's retired HEKIT_* are dropped (the
   tests of their refusal set them).
@@ -55,12 +55,11 @@ def _sync(src: Path, dst: Path) -> None:
 
 _sync(FIXTURE, WORK)
 os.environ["HEP"] = str(REPO)
-for name in ("HEKIT_ROOT", "HEKIT_CONFIGS", "HEKIT_OUTPUT", "HEKIT_RESULTS", "HEKIT_REPORTS", "HEP_CONFIGS", "HEP_OUTPUT"):
+for name in ("HEKIT_ROOT", "HEKIT_CONFIGS", "HEKIT_OUTPUT", "HEKIT_RESULTS", "HEKIT_REPORTS", "HEP_CONFIGS", "HEP_OUTPUT", "HEP_LOGS"):
     os.environ.pop(name, None)
 os.environ["HEP_WORK"] = str(WORK)
 os.environ["HEP_RESULTS"] = str(SCRATCH / "results")
 os.environ["HEP_RECORDS"] = str(SCRATCH / "records")
-os.environ["HEP_LOGS"] = str(SCRATCH / "logs")
 os.environ["HEP_CACHE"] = str(SCRATCH / "cache")
 os.environ["HEP_REPORTS"] = str(SCRATCH / "reports")
 os.environ["HEP_WORKDIRS"] = str(SCRATCH / "workdirs.toml")     # what heimdall recognise and setup record

@@ -82,7 +82,7 @@ class Work:
         self.hep_toml('[work]\nname = "t"\n')
         self.config(**toml)
         self.env = {**{k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, "HEP_WORK": str(self.root),
-                    "HEP_RECORDS": str(self.root / "records"), "HEP_LOGS": str(self.root / "logs"), "HEP_CACHE": str(self.root / "cache"), "HEP_RESULTS": str(self.root / "results"),
+                    "HEP_RECORDS": str(self.root / "records"), "HEP_CACHE": str(self.root / "cache"), "HEP_RESULTS": str(self.root / "results"),
                     "PATH": f"{root / 'bin'}{os.pathsep}{os.environ['PATH']}", "STUBLOG": str(self.log)}
 
     def hep_toml(self, text: str) -> None:
@@ -113,7 +113,7 @@ def work(scratch):
 @pytest.fixture
 def inside(work, monkeypatch):
     """The work dir as this process's, for the tests that call the runner directly."""
-    for var, value in (("HEP_WORK", work.root), ("HEP_RECORDS", work.root / "records"), ("HEP_LOGS", work.root / "logs"), ("HEP_CACHE", work.root / "cache"), ("HEP_RESULTS", work.root / "results"),
+    for var, value in (("HEP_WORK", work.root), ("HEP_RECORDS", work.root / "records"), ("HEP_CACHE", work.root / "cache"), ("HEP_RESULTS", work.root / "results"),
                        ("HEP_MACHINE", work.root.parent / "machine")):   # no machine.toml but the test's
         monkeypatch.setenv(var, str(value))
     paths.reset()
@@ -283,11 +283,11 @@ def test_a_points_stage_runs_its_points_alone(work):
     done = work.hep("run", "P/c", "--points", "b", "--stages", "points", "--plain")
     assert done.returncode == 0, done.stdout + done.stderr
     base = work.root / "records" / "P" / "c" / "three"
-    assert (work.root / "results" / "P" / "c" / "three" / "b" / "x.txt").exists()
+    assert (work.root / "results" / "P" / "c" / "three" / "points" / "b" / "x.txt").exists()
     assert not (base / "points.json").exists()                          # the finish job writes it
     done = work.hep("run", "P/c", "--stages", "combine,post,plot", "--plain")
     assert done.returncode == 0 and "combine, post, plot done" in done.stdout
-    assert (base / "points.json").exists() and not (base / "a").exists()  # no point ran
+    assert (base / "points.json").exists() and not (base / "points" / "a").exists()  # no point ran
 
 
 def test_the_points_need_their_pre_stage(work):

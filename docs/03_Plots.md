@@ -43,14 +43,17 @@ style.ratio.range = [0.8, 1.1]        # any [plot] page key or style key, for th
 
 ## 2. The plot stage
 
-The plot stage runs after the points and the stages, from the **complete** points only. It also
-runs on `heimdall run … --only plot` and on `heimdall plot CONFIG [CFG]`, which redraw without running
-anything. A configuration whose run TOML has no `[plot]` draws nothing.
+The plot stage runs after the points and the stages, from the points whose **record is complete**
+(their `.complete` is there): a point that ran with other inputs than the config gives now is drawn as
+recorded, and named. It also runs on `heimdall run … --only plot` and on `heimdall plot CONFIG [CFG]`,
+which redraw without running anything, and on `heimdall plot <P>/<run>/<NN_cfg>`, which draws a record's
+points with the config they ran with ([02 §8.1](02_User_Guide.md#81-a-run-as-it-was-its-record)). A
+configuration whose run TOML has no `[plot]` draws nothing; `--plot FILE` draws with another file's.
 
 1. **The sweep in one file.** Every complete point's YODA is merged into
    `results/…/plots/root/<cfg>.root`, with a directory per point and the raw entries. With `--keep cache`
    it is rebuilt only when a point's YODA changed; otherwise each plot stage merges again (04 §14).
-2. **One page document per page**, in `logs/…/plots/[<cell>/]<object>.toml`. It holds:
+2. **One page document per page**, in `records/…/plots/[<cell>/]<object>.toml`. It holds:
    - the labels from the analysis's Rivet `.plot` file;
    - the `[plot]` values and the page's figure's own;
    - the curves;
@@ -119,6 +122,55 @@ file wrote that as `"default"` in `[plot]` itself; `heimdall migrate --v3` rewri
 
 **The order on a page** (load-bearing, inherited from v1): void across the page → align the data to
 the MC bins → normalise → auto-range over curves and data → gutters → draw.
+
+### 3.1 Pages of chosen points: `sets` and `split`
+
+Run once, then page the points as you like, whatever `plot_points` says:
+
+```toml
+[plot]
+sets  = [[1, 4, 6, 8], [1, 2, 4, 9], "all"]   # a page folder each: set1/, set2/, all/
+split = 8                                     # at most 8 points a page: all-1/, all-2/, all-3/ of 24
+```
+
+- **A set** is a list of selectors (`set<k>`, its place), one selector (its folder: `"pdf=X"` →
+  `pdf-X`), or `{ name = "lo", points = [...] }`. A selector is a 1-based index (as `point i/n`
+  counts), a point's name, a glob of names (`"sh3_NNPDF40*"`), a tag of any quantity's (`"py8"`:
+  every point with it), `"quantity=tag"`, or `"all"`. A set's curves are in the order named: the first
+  is a ratio's reference when the page has no data.
+- **`split = N`** cuts each cell (a `plot_points` cell, or a set) into pages of at most N points, in
+  order: `<cell>-1`, `<cell>-2`, … (`part1`, … with one cell). 24 points and `split = 3` are 8 pages.
+- **The labels:** a set's or a cut's curves are labelled by the quantities that differ on it; `{cell}`
+  is the set's name.
+- **Where:** `[plot]` for every page; a defined or overlay figure may set its own. merged, scan and
+  compare figures page by `plot_points` only. A selector no point matches is refused at plan time.
+- **On the command line:** `heimdall plot … --points 1,4,6,8` (one set, `points/`), or
+  `--set 'plot.sets=[[1,4],"all"]'`. With a record (`heimdall plot <P>/<run>/<NN_cfg>`) this never
+  touches the configs. Pages of earlier sets stay in their folders until you remove them.
+
+### 3.2 Statistics of the pages
+
+Every drawn page's curves get numbers, computed by Paint on what it draws (after voiding, the data's
+alignment and normalisation, over the drawn x range), so every backend's page agrees with them. The plot
+stage writes them to `results/…/plots/statistics.csv` (`statistics = false` turns it off), a row per
+page and curve:
+
+| Column | Holds |
+|---|---|
+| `page`, `cell`, `object`, `curve`, `point` | which page, the curve's label and its point |
+| `reference`, `is_reference` | what it is compared with: the data, else the page's first curve |
+| `bins`, `area`, `area_err` | its finite bins in the range, Σ y·Δx and its error (σ in pb; 1 when normalised) |
+| `ref_area`, `abs_area`, `rel_abs_area` | on the reference's bins the curve covers exactly: their area, Σ \|y − y_ref\|·Δx, and the ratio of the two |
+| `chi2`, `ndf`, `chi2_ndf` | Σ (y − y_ref)² / (σ² + σ_ref²) over those bins with an error, their number, the ratio |
+
+**As bar graphs:** beside the table, `results/…/plots/statistics/<cell>/<object>.<fmt>` draws each page's
+curves as bars, one panel each for χ²/ndf, |Δ|/reference and the area, and `statistics/summary.<fmt>` each
+point's mean χ²/ndf over the pages it was compared on, best first (matplotlib; the formats of `[plot]`
+that it writes: png, pdf, svg). `statistics = false` turns both off.
+
+`legend_statistic = "chi2_ndf"` (or `area`, `abs_area`, `rel_abs_area`, `chi2`) puts one of them after
+each curve's legend entry, `MSTW 2008 LO (χ²/ndf 1.31)`; the reference curve gets none. A `statistic`
+figure (§7.9) draws one of them as a page per object.
 
 ---
 
@@ -219,7 +271,7 @@ errors = "band"
 - **Misspelt keys:** an unknown key, or a value of another kind, is refused at plan time, with the
   nearest spelling.
 - **Seeing the merged style:** `$HEP_APPS/Paint.exe <page>.toml --dump-style` prints a page's whole
-  style; the page documents are in `logs/…/plots/`.
+  style; the page documents are in `records/…/plots/`.
 - **The reference:** every key and its default is [04 §12](04_Config_Reference.md#12-the-style).
 - **Ratio ticks:** denser or sparser ratio-pad ticks are `ratio = { divisions = 508 }` (0.2 apart)
   or `515`.
@@ -267,6 +319,7 @@ and `heimdall migrate` rewrites them.
 | `derived` | a new object per point: a ratio, difference, sum or projection | `<cell>/<name>` |
 | `scan` | one number per point against a swept quantity | `<cell>/<name>` |
 | `sheet` | drawn pages, tiled in a grid | `plots/<backend>/sheets/<name>` |
+| `statistic` | one statistic per point, of each drawn page | `<cell>/<name>/<object>` |
 
 ### 7.2 `defined`: an object's own pages
 
@@ -313,7 +366,7 @@ title   = "five seeds merged"
 
 The objects' pages, under the figure's folder (`<cell>/avg/<object>`). For each value of the other
 curve axes, the points' YODAs are merged by the combine folder's command (`rivet-merge -e`:
-statistics add, σ averaged), into `logs/…/plots/merged/avg/`, which the plot stage removes once the
+statistics add, σ averaged), into `records/…/plots/merged/avg/`, which the plot stage removes once the
 pages are drawn (with `--keep cache`, it stays, and a merge happens once per change of a member's YODA).
 
 The run keeps its points apart, and only this figure merges them; `combine` merges them for the
@@ -369,7 +422,7 @@ analysis-option variant.
   - `projection-x` and `projection-y` of one 2D object: summed over the other axis, as a Scatter2D
     whose x ranges are the bins.
 - **Where it is written:** it is appended to a copy of each point's YODA
-  (`logs/…/plots/derived/`, removed after the draw unless `--keep cache`), remade when the product or
+  (`records/…/plots/derived/`, removed after the draw unless `--keep cache`), remade when the product or
   the figures change, by
   `framework/plot/figures/derive.py` with YODA's Python (`gjallarhorn`).
 
@@ -421,6 +474,24 @@ columns = 3                                                         # default: u
 - **What it takes:** a sheet takes no page keys; its pages' figures set those.
 - **When it fails:** a glob that names no page fails the sheet.
 - **Its limits:** it has no shared y title or legend, and it does not take compare figures' pages.
+
+### 7.9 `statistic`: the points ranked
+
+```toml
+[plot.figures.rank]
+class     = "statistic"
+statistic = "chi2_ndf"            # area, abs_area, rel_abs_area, chi2, chi2_ndf (§3.2)
+objects   = ["d01-*", "d02-*"]
+sort      = true                  # the smallest first; default: the curves' order
+```
+
+- **The pages:** per cell (or set) and object its globs match among the drawn pages, a page
+  `<cell>/rank/<object>`: the page's curves as bins 1, 2, …, each labelled under the axis by its curve's
+  label, y its statistic against the page's reference, drawn as markers (`area` with its error). The
+  reference curve of a page without data is left out.
+- **When:** after the configuration's pages are drawn, from the numbers just computed; its own pages
+  add nothing to `statistics.csv`. The object's title stays; set `y_label`, `logy` or any page key on it.
+- **Backends:** Paint writes the points' names under the axis (`x_labels`); mpl draws the bins by number.
 
 ---
 

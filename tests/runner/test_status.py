@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import time
 
 import pytest
 
@@ -37,6 +38,64 @@ def test_filter_rules_turn_lines_into_status():
     assert state.warning.endswith("something real") and state.done == 100
     reader.output("Broken x")                                           # a bad rule never raises
     assert state.last_line == "Broken x"
+
+
+SHERPA_LINES = [                                                   # as Sherpa 3.0.5 prints them (L31)
+    "Initialization of framework underway ...",
+    "Starting the calculation at 17:52:56. Lean back and enjoy ... .",
+    "  Event 1 ( 0s elapsed / 0s left ) -> ETA: Tue Oct 20 06:18  ",
+    "Event_Handler::GenerateStandardPerturbativeEvent(): Four momentum not conserved. Rejecting event.",
+    "\x1b[34mDecay_Handler_Base::TreatInitialBlob\x1b[0m:(\x1b[32m\"Initial particle Delta(1232)- not onshell\"\x1b[0m)",
+    "  Event 10000 ( 45.2s elapsed / 9035.1s left ) -> ETA: Tue Oct 21 14:03    XS = 42090.7 pb +- ( 92.1025 pb = 0 % )  ",
+]
+
+
+def test_sherpas_counter_gives_a_bar_a_rate_and_its_cross_section():
+    """BATCH_MODE 23's one line per print (the folder's display arguments), its noise ignored, its colours out."""
+    from runner import tools
+    state = ToolState("p", "sherpa")
+    reader = Reader(state, fd=None, out=None, rules=tools.folders()["sherpa"].filters, bus=None, total=10_000_000)
+    reader.output(SHERPA_LINES[0])
+    assert state.phase == "initialising"
+    reader.output(SHERPA_LINES[1])
+    assert state.phase == "integrating"
+    for line in SHERPA_LINES[2:]:
+        reader.output(line)
+    assert (state.phase, state.done, state.total, state.warning, state.error) == ("generating", 10_000, 10_000_000, "", "")
+    assert state.rate == pytest.approx(10_000 / 45.2) and state.xsec == (42090.7, 92.1025)
+    assert "\x1b" not in "".join(reader.tail)
+
+
+def test_sherpas_default_counter_is_read_too():
+    """A card that overrides the display arguments: Sherpa's own two lines, redrawn in place (ESC[1A)."""
+    from runner import tools
+    state = ToolState("p", "sherpa")
+    reader = Reader(state, fd=None, out=None, rules=tools.folders()["sherpa"].filters, bus=None, total=10_000_000)
+    reader.output("  Event 1600000 ( 2h 58m 30s elapsed / 15h 37m 11s left ) -> ETA: Wed Oct 21 00:54  ")
+    reader.output("  XS = 42090.7 pb +- ( 92.1025 pb = 0 % )  \x1b[1A")
+    assert state.done == 1_600_000 and state.rate == pytest.approx(1_600_000 / 10710) and state.xsec == (42090.7, 92.1025)
+    reader.output("Terminator_Object_Handler::HandleSignal: Signal (2) caught. ")
+    assert state.error.startswith("Terminator_Object_Handler")
+
+
+@pytest.mark.parametrize("text, seconds", [("45.2s", 45.2), ("1.23457e+06s", 1234570.0), ("17086", 17086.0),
+                                           ("2h 58m 30s", 10710.0), ("1d 3h", 97200.0), ("0s", 0.0),
+                                           ("0:00:01", 1.0), ("4min 2s", 242.0), ("soon", None), ("2h x", None)])
+def test_durations_are_read_as_programs_print_them(text, seconds):
+    from runner.status import seconds_of
+    assert seconds_of(text) == seconds
+
+
+def test_a_rate_is_measured_from_the_first_count_when_the_line_gives_none(monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr("runner.status.time.monotonic", lambda: now[0])
+    state = ToolState("p", "rivet")
+    reader = Reader(state, fd=None, out=None, rules=RIVET_RULES[:1], bus=None, total=1000)
+    reader.output("Event 100 (0:00:01)")
+    assert (state.done, state.total, state.rate) == (100, 1000, None)
+    now[0] = 104.0
+    reader.output("Event 500 (0:00:05)")
+    assert state.rate == pytest.approx(100.0)
 
 
 def test_a_tools_output_pipe_is_read_on_its_own_thread_with_unfinished_lines_waiting(scratch):
@@ -136,7 +195,8 @@ def test_the_watch_socket_sends_the_run_so_far_then_every_event_live(monkeypatch
 
 
 def test_a_point_is_one_block_when_it_ends():
-    """── point 2/4: NNPDF23lo ── ok after 1min 12s, then where the results are (the user's layout)."""
+    """── point 2/4: NNPDF23lo ── ok after 1min 12s at <when>, a blank line, where the results are, a blank
+    line (the user's layout, 2026-10-21)."""
     out = io.StringIO()
     view, bus = PlainView(stream=out), Bus()
     bus.subscribe(view)
@@ -145,19 +205,21 @@ def test_a_point_is_one_block_when_it_ends():
     bus.emit("NNPDF23lo", "", {"k": "point", "state": "started", "index": 2})
     bus.emit("NNPDF23lo", "pythia", {"k": "exit", "code": 0, "seconds": 71.6})
     bus.emit("NNPDF23lo", "sherpa:prepare", {"k": "exit", "code": 0, "seconds": 3.0})
-    bus.emit("NNPDF23lo", "", {"k": "point", "state": "done", "res": "results/x/NNPDF23lo"})
+    bus.emit("NNPDF23lo", "", {"k": "point", "state": "done", "res": "results/x/NNPDF23lo", "t": 1792591380.0})
     view.flush()                                                       # the view writes on its own thread (V32)
     lines = out.getvalue().splitlines()
     assert lines[0] == "── point 1/4: MSTW08lo: complete, skipped (--rerun to run it again)"
-    assert lines[1].startswith("── point 2/4: NNPDF23lo ── ok after ") and lines[1].endswith("s")
-    assert lines[2:] == ["   sherpa:prepare: ok after 3.0s", "   done → results/x/NNPDF23lo"]
+    assert lines[1].startswith("── point 2/4: NNPDF23lo ── ok after ")
+    assert lines[1].endswith(" at " + time.strftime("%a %d %b %H:%M", time.localtime(1792591380.0)))
+    assert lines[2:] == ["", "   sherpa:prepare: ok after 3.0s", "   done → results/x/NNPDF23lo", ""]
     bus.emit("NNPDF23lo", "", {"k": "point", "state": "started", "index": 2})
     bus.emit("NNPDF23lo", "rivet", {"k": "log", "level": "error", "msg": "boom"})
     bus.emit("NNPDF23lo", "rivet", {"k": "exit", "code": 1, "seconds": 2.0})
     bus.emit("NNPDF23lo", "", {"k": "point", "state": "failed", "cause": "rivet", "msg": "rivet exited 1"})
     view.end()
-    tail = out.getvalue().splitlines()[4:]
-    assert "── FAILED [rivet] after" in tail[0] and tail[1:] == ["   rivet: exit 1 after 2.0s  (boom)", "   rivet exited 1"]
+    tail = out.getvalue().splitlines()[6:]
+    assert "── FAILED [rivet] after" in tail[0] and " at " in tail[0]
+    assert tail[1:] == ["", "   rivet: exit 1 after 2.0s  (boom)", "   rivet exited 1", ""]
 
 
 def test_a_terminal_that_stops_reading_never_stops_the_run():
@@ -194,8 +256,9 @@ def test_a_running_clock_is_mm_ss_then_hh_mm_ss(seconds, shown):
 
 
 def test_the_live_view_puts_each_running_point_over_its_tools():
-    """A blank line after the finished blocks, the point's heading and time so far, then its tools
-    under it, their columns lined up across points."""
+    """The point's heading and time so far (a finished block ends in a blank line), then its tools
+    under it, their columns lined up across points; a blank line between two points; a tool's warning
+    on a line of its own under its row, and the last line of a tool with no count yet."""
     pytest.importorskip("rich")
     import time
     from rich.console import Console
@@ -214,14 +277,17 @@ def test_the_live_view_puts_each_running_point_over_its_tools():
         bus.emit("PDF4LHC21", "pythia", {"k": "progress", "done": 1_700_000, "total": 10_000_000, "rate": 2812})
         bus.emit("PDF4LHC21", "rivet.12", {"k": "phase", "phase": "analysing"})
         bus.emit("PDF4LHC21", "rivet.12", {"k": "progress", "done": 1_700_000})
+        bus.emit("PDF4LHC21", "rivet.12", {"k": "log", "level": "warn", "msg": "WARN Analysis 'x' is unvalidated"})
+        bus.emit("MSTW08lo", "pythia", {"k": "line", "msg": "reading the PDF set"})
         out = io.StringIO()
         Console(file=out, width=120).print(view.render())
     finally:
         view.end()
     lines = [line.rstrip() for line in out.getvalue().splitlines()]
-    assert lines[0] == "" and lines[1].startswith("point 3/4: MSTW08lo · 00:0")
-    assert lines[2].startswith("   pythia   init ")
+    assert lines[0].startswith("point 3/4: MSTW08lo · 00:0")
+    assert lines[1].startswith("   pythia   init ") and lines[2] == "      ↳ reading the PDF set"
     assert lines[3] == "" and lines[4].startswith("point 4/4: PDF4LHC21 · 09:47:1")
     assert lines[5].startswith("   pythia   generating ") and lines[5].endswith("1.70M/10.00M 2,812/s 49:11")
     assert lines[6].startswith("   rivet.12 analysing  ") and lines[6].endswith("1.70M")
-    assert lines[5].index("1.70M") == lines[6].index("1.70M") and lines[2].index("init") == lines[5].index("generating")
+    assert lines[7] == "      ↳ WARN Analysis 'x' is unvalidated"
+    assert lines[5].index("1.70M") == lines[6].index("1.70M") and lines[1].index("init") == lines[5].index("generating")

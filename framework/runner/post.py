@@ -75,7 +75,7 @@ def plan_pre(run, configuration, master: dict, points: list) -> tools.PointPlan 
     if not configuration.pre:
         return None
     _reserved(run, configuration, {p.name for p in points}, PRE, "pre")
-    manifest = record.records_of(tools.point_dirs(run, configuration, Point(index=-1, name=PRE))[0].parent) / "points.json"
+    manifest = tools.run_folders(run, configuration).manifest
     return _plan_stage(run, configuration, master, Point(index=-1, name=PRE), configuration.pre, {}, manifest)
 
 

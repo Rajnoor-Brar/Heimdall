@@ -70,7 +70,7 @@ def completed(run, configuration) -> list:
         shutil.copy(source, product)
         record.complete_marker(plan).parent.mkdir(parents=True, exist_ok=True)
         record.complete_marker(plan).write_text(plan.identity + "\n", encoding="utf-8")
-    shutil.rmtree(plans[0].res.parent / "plots", ignore_errors=True)
+    shutil.rmtree(plans[0].folders.plots, ignore_errors=True)
     return plans
 
 
@@ -124,15 +124,15 @@ def test_draw_writes_every_page(stage):
     run, configuration, plans = stage
     said = []
     assert plot.draw(run, configuration, plans, said.append) == 0
-    drawn = sorted((plans[0].res.parent / "plots" / "root").rglob("*.png"))
+    drawn = sorted((plans[0].folders.plots / "root").rglob("*.png"))
     assert len(drawn) == 34, said
-    assert "34 of 34" in said[-1]
+    assert any("34 of 34" in line for line in said)
 
 
 def test_the_sweep_is_merged_once_into_the_file_the_pages_read(stage):
     run, configuration, plans = stage
     pages = plot.pages(run, configuration, plans)
-    merged = plans[0].res.parent / "plots" / "root" / f"{configuration.label}.root"
+    merged = plans[0].folders.plots / "root" / f"{configuration.label}.root"
     assert {c["file"] for p in pages for c in tomllib.loads(p.config.read_text(encoding="utf-8"))["curve"]} == {str(merged)}
     before = merged.stat().st_mtime_ns
     plot.pages(run, configuration, plans)
@@ -190,7 +190,7 @@ def test_a_derived_figure_is_an_object_of_every_point(stage):
         by["em/d01-x01-y01"].config.read_text(encoding="utf-8"))["page"]["x_label"]
     assert [c["object"] for c in page["curve"]][0].endswith("/FIGURES/r15")
     assert by["em/both"].variants == ["/FIGURES/r15", "/photo_eic/d01-x01-y01"] * 2
-    copy = plans[0].out.parent / "plots" / "derived" / f"{plans[0].point.name}.yoda"
+    copy = plans[0].folders.pages / "derived" / f"{plans[0].point.name}.yoda"
     assert "BEGIN YODA_ESTIMATE1D_V3 /FIGURES/r15" in copy.read_text(encoding="utf-8")
     when = copy.stat().st_mtime_ns
     assert plot.draw(run, configuration, plans, lambda line: None) == 0
@@ -215,7 +215,7 @@ def test_a_scan_figure_draws_one_number_per_point(scratch):
     by = {p.name: p for p in plot.pages(run, configuration, plans)}
     page = by[[n for n in by if n.endswith("/xs")][0]].document
     assert (page["page"]["x_label"], page["page"]["y_label"]) == ("lepton", r"$\sigma$ [pb]") and len(page["curve"]) == 1
-    scans = sorted((plans[0].out.parent / "plots" / "scan" / "xs").glob("*.yoda"))
+    scans = sorted((plans[0].folders.pages / "scan" / "xs").glob("*.yoda"))
     assert len(scans) == 2                                                          # a curve per page cell (PDF)
     import yoda
     points = [(p.x(), p.xErrs(), p.y()) for p in yoda.read(str(scans[0]))["/FIGURES/xs"].points()]
@@ -246,7 +246,7 @@ def test_a_2d_object_is_a_heat_map_per_point(stage):
     h = yoda.Histo2D(4, 0, 4, 3, 0, 3, "/photo_eic/d90-x01-y01")
     for i in range(60):
         h.fill(i % 4 + 0.5, i % 3 + 0.5, 1.0 + i % 5)
-    extra = plans[0].out.parent / "h2.yoda"
+    extra = plans[0].folders.record / "h2.yoda"
     yoda.write([h], str(extra))
     for plan in plans:                                           # each point's YODA gains the 2D object
         product = plot.yoda_of(plan)
@@ -258,7 +258,7 @@ def test_a_2d_object_is_a_heat_map_per_point(stage):
     assert by["em/px"].document["page"]["x_label"] is not None
     said = []
     assert plot.draw(run, configuration, plans, said.append) == 0, said
-    assert (plans[0].res.parent / "plots" / "root" / maps[0]).with_suffix(".png").is_file()
+    assert (plans[0].folders.plots / "root" / maps[0]).with_suffix(".png").is_file()
     run.plot["figures"]["bad"] = {"objects": ["d01-*"], "type": "HeatMap"}
     with pytest.raises(plot.HepError, match="is a HeatMap, and /photo_eic/d01-x01-y01 is a 1D object"):
         plot.pages(run, configuration, plans)
@@ -278,8 +278,8 @@ def test_a_sheet_tiles_drawn_pages(stage):
     said = []
     assert plot.draw(run, configuration, plans, said.append) == 0, said
     assert "plot: sheet grid, 3 page(s) in 2 column(s) (root: pdf, png)" in said
-    sheets = plans[0].res.parent / "plots" / "root" / "sheets"
-    page = Image.open(plans[0].res.parent / "plots" / "root" / "em" / "d01-x01-y01.png")
+    sheets = plans[0].folders.plots / "root" / "sheets"
+    page = Image.open(plans[0].folders.plots / "root" / "em" / "d01-x01-y01.png")
     assert Image.open(sheets / "grid.png").size == (2 * page.width, 2 * page.height)
     assert (sheets / "grid.pdf").read_bytes().startswith(b"%PDF")
     run.plot["figures"]["grid"]["pages"] = ["nowhere/*"]
@@ -302,9 +302,9 @@ def test_a_compare_figure_draws_configurations_together(stage):
     others = completed(run, two)
     said.clear()
     assert plot.draw(run, two, others, said.append, others=lambda key: plans) == 0, said
-    compare = plans[0].res.parent.parent / "compare" / "stats"
+    compare = plans[0].folders.compare("stats")[1]
     assert (compare / "root" / "em" / "d01-x01-y01.png").is_file() and (compare / "root" / "index.html").is_file()
-    page = tomllib.loads((plans[0].out.parent.parent / "compare" / "stats" / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
+    page = tomllib.loads((plans[0].folders.compare("stats")[0] / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
     assert [c["label"] for c in page["curve"]] == ["1M, MSTW 2008 LO", "1M, NNPDF 2.3 LO", "10M, MSTW 2008 LO", "10M, NNPDF 2.3 LO"]
     assert "data" in page
     run.plot["figures"]["stats"]["configurations"] = ["one", "nope"]
@@ -331,7 +331,7 @@ def test_a_compare_figure_reaches_another_run_toml(stage, scratch):
     said = []
     assert plot.draw(run, configuration, plans, said.append, others=lambda ref: asked.append(ref) or their_plans) == 0, said
     assert asked == [f"{path}:one"]
-    page = tomllib.loads((plans[0].out.parent.parent / "compare" / "chains" / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
+    page = tomllib.loads((plans[0].folders.compare("chains")[0] / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
     assert [c["label"] for c in page["curve"]] == ["one, MSTW 2008 LO", "one, NNPDF 2.3 LO",
                                                    "plotstage_other one, MSTW", "plotstage_other one, NNPDF"]
     other["quantities"]["lepton"]["tags"] = ["e-", "e+"]
@@ -354,11 +354,11 @@ def test_a_merged_figure_merges_the_points_for_itself(stage):
     page = tomllib.loads(by["em/avg/d01-x01-y01"].config.read_text(encoding="utf-8"))
     assert [c["object"].split("/")[0] for c in page["curve"]] == ["em"] and page["page"]["title"] == "both PDFs"
     assert "data" in page and len(tomllib.loads(by["em/d01-x01-y01"].config.read_text(encoding="utf-8"))["curve"]) == 2
-    merged = plans[0].out.parent / "plots" / "merged" / "avg" / "em.yoda"
+    merged = plans[0].folders.pages / "merged" / "avg" / "em.yoda"
     stamp = merged.stat().st_mtime_ns
     assert plot.draw(run, configuration, plans, lambda line: None) == 0
     assert merged.stat().st_mtime_ns == stamp                                        # nothing changed: not merged again
-    assert (plans[0].res.parent / "plots" / "root" / "em" / "avg" / "d01-x01-y01.png").is_file()
+    assert (plans[0].folders.plots / "root" / "em" / "avg" / "d01-x01-y01.png").is_file()
 
 
 @pytest.mark.slow
@@ -369,10 +369,10 @@ def test_the_yoda_backend_draws_the_same_pages(stage):
     run, configuration, plans = stage
     said = []
     assert plot.draw(run, configuration, plans, said.append) == 0, said
-    plots = plans[0].res.parent / "plots" / "yoda"                          # the yoda backend's own tree
+    plots = plans[0].folders.plots / "yoda"                          # the yoda backend's own tree
     for cell in ("em", "ep"):
         assert len(list((plots / cell / "photo_eic").glob("*.pdf"))) == 17
-    work = plans[0].out.parent / "plots" / "em" / "yoda"
+    work = plans[0].folders.pages / "em" / "yoda"
     blocks = (work / "pages.plot").read_text(encoding="utf-8")
     assert blocks.count("# BEGIN PLOT") == 17 and "XMin=" in blocks and "LogY=1" in blocks
     yoda = pytest.importorskip("yoda")
@@ -383,7 +383,7 @@ def test_the_yoda_backend_draws_the_same_pages(stage):
 def test_pages_are_paints_and_another_backend_moves_only_the_output(stage):
     run, configuration, plans = stage
     page = plot.pages(run, configuration, plans)[0]
-    plots = plans[0].res.parent / "plots"
+    plots = plans[0].folders.plots
     assert page.output == plots / "root" / page.name
     assert tomllib.loads(page.config.read_text(encoding="utf-8"))["page"]["output"] == str(page.output)   # Paint's
     assert plot.for_backend(page, "yoda").output == plots / "yoda" / page.name
@@ -396,7 +396,7 @@ def test_both_backends_draw_both_trees(stage):
     run, configuration, plans = stage
     said = []
     assert plot.draw(run, configuration, plans, said.append) == 0, said
-    plots = plans[0].res.parent / "plots"
+    plots = plans[0].folders.plots
     for cell in ("em", "ep"):
         assert len(list((plots / "root" / cell).glob("*.png"))) == 17
         assert len(list((plots / "yoda" / cell / "photo_eic").glob("*.pdf"))) == 17
@@ -477,7 +477,7 @@ def test_titles_and_overlays(stage):
     assert plot.draw(run, configuration, plans, lambda line: None) == 0
 
     if run.plot["backend"] == "yoda":
-        plots = plans[0].res.parent / "plots" / "yoda"
+        plots = plans[0].folders.plots / "yoda"
         assert (plots / "em" / "overlay" / "cuts.png").exists()
         script = (plots / "em" / "photo_eic" / "d01-x01-y01.py").read_text(encoding="utf-8")
         assert "'All pages'" in script and "'Pythia 8'" in script and "bbox_inches='tight'" in script
@@ -498,7 +498,7 @@ def test_the_mpl_backend_draws_mkhtml_s_pages_pixel_for_pixel(stage):
     run.plot["figures"]["d05"] = {"objects": ["d05-*"], "style": {"legend": {"position": "best"}}}
     said = []
     assert plot.draw(run, configuration, plans, said.append) == 0, said
-    plots = plans[0].res.parent / "plots"
+    plots = plans[0].folders.plots
     compared = 0
     for mine in sorted((plots / "mpl").rglob("*.png")):
         rel = mine.relative_to(plots / "mpl")
@@ -507,3 +507,97 @@ def test_the_mpl_backend_draws_mkhtml_s_pages_pixel_for_pixel(stage):
         assert a.shape == b.shape and not (np.abs(a[..., :3] - b[..., :3]) > 1e-3).any(), rel
         compared += 1
     assert compared == 36 and (plots / "mpl" / "index.html").is_file()            # 2 cells × (17 + 1)
+
+
+# ── V159: pages of chosen points ──────────────────────────────────────────────────────────────
+
+def test_sets_page_chosen_points_whatever_the_plot_axes(stage):
+    """A set is a folder of the points it names, in the order named (indices, names, tags, quantity=tag,
+    globs, all); its curves are labelled by what differs on it."""
+    run, configuration, plans = stage
+    sets = [[3, 1], "MSTW08lo", "all", {"name": "lo", "points": ["pdf=MSTW08lo"]}, "ep_*"]
+    made = plot.pages(replace(run, plot={**run.plot, "sets": sets}), configuration, plans)
+    assert {p.cell for p in made} == {"set1", "MSTW08lo", "all", "lo", "ep_"}
+    first = next(p for p in made if p.name == "set1/d01-x01-y01")
+    assert [c["object"].split("/")[0] for c in first.document["curve"]] == ["ep_MSTW08lo", "em_MSTW08lo"]
+    assert [c["label"] for c in first.document["curve"]] == ["ep", "em"]               # the lepton differs, not the PDF
+    every = next(p for p in made if p.name == "all/d01-x01-y01")
+    assert len(every.document["curve"]) == 4 and every.document["curve"][0]["label"] == "em, MSTW 2008 LO"
+    assert {p.name.split("/")[0] for p in made if p.object.endswith("d04-x01-y01")} == {"set1", "MSTW08lo", "all", "lo", "ep_"}
+
+
+def test_split_cuts_each_cell_into_pages(stage):
+    run, configuration, plans = stage
+    made = plot.pages(replace(run, plot={**run.plot, "split": 1}), configuration, plans)
+    assert {p.cell for p in made} == {"em-1", "em-2", "ep-1", "ep-2"}
+    assert all(len(p.document["curve"]) == 1 for p in made if p.object.endswith("d01-x01-y01"))
+    whole = plot.pages(replace(run, plot={**run.plot, "split": 3, "sets": ["all"]}), configuration, plans)
+    assert {p.cell for p in whole} == {"all-1", "all-2"}
+
+
+def test_a_set_that_names_no_point_is_refused_at_plan_time(stage):
+    from runner.errors import HepError
+    run, configuration, _ = stage
+    with pytest.raises(HepError, match="a set names 'NNPDF40', which matches no point"):
+        plot.check_figures(replace(run, plot={**run.plot, "sets": [[1, "NNPDF40"]]}), configuration)
+    with pytest.raises(HepError, match="two sets share the folder"):
+        plot.check_figures(replace(run, plot={**run.plot, "sets": ["all", "all"]}), configuration)
+
+
+def test_a_merged_figure_takes_no_sets(scratch):
+    from runner.errors import HepError
+    data = raw(run__cfgs__one__sweeps=["pdf"],
+               plot={"figures": {"avg": {"class": "merged", "objects": ["d01-*"], "over": ["pdf"], "sets": ["all"]}}})
+    with pytest.raises(HepError, match="a merged figure pages by plot_points"):
+        parse(data, scratch)
+
+
+# ── V160: page statistics ─────────────────────────────────────────────────────────────────────
+
+def test_statistics_are_a_table_and_a_legend_may_show_them(stage):
+    """Paint's numbers as it draws each page: statistics.csv, a row per curve; the d01 pages against the
+    mapped data, the others against their first curve; legend_statistic in each entry but the reference's."""
+    import csv
+    run, configuration, plans = stage
+    said = []
+    shown = replace(run, plot={**run.plot, "legend_statistic": "chi2_ndf"})
+    assert plot.draw(shown, configuration, plans, said.append) == 0
+    table = plans[0].folders.plots / "statistics.csv"
+    assert any(line.startswith("plot: statistics of") and str(table) in line for line in said)
+    rows = list(csv.DictReader(open(table, encoding="utf-8")))
+    d01 = [r for r in rows if r["page"] == "em/d01-x01-y01"]
+    assert [r["point"] for r in d01] == ["em_MSTW08lo", "em_NNPDF23lo"] and all(r["reference"] == "legacy" for r in d01)
+    assert all(int(r["ndf"]) > 0 and float(r["chi2"]) > 0 and float(r["ref_area"]) > 0 for r in d01)
+    assert all(abs(float(r["rel_abs_area"]) - float(r["abs_area"]) / float(r["ref_area"])) < 1e-9 for r in d01)
+    d02 = [r for r in rows if r["page"] == "em/d02-x01-y01"]
+    assert [r["is_reference"] for r in d02] == ["True", "False"] and float(d02[0]["chi2"]) == 0
+    assert d01[0]["curve"] == "MSTW 2008 LO"                                   # the table's labels are plain
+    bars = plans[0].folders.plots / "statistics"                               # V162: the table as bar graphs
+    assert (bars / "em" / "d01-x01-y01.png").is_file() and (bars / "summary.png").is_file()
+    assert any(line.startswith("plot: statistics drawn as bars, 35 image(s)") for line in said)   # 34 pages, the summary
+    page = tomllib.loads((plans[0].folders.pages / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
+    assert all("#chi^{2}/ndf " in c["label"] for c in page["curve"])
+    other = tomllib.loads((plans[0].folders.pages / "em" / "d02-x01-y01.toml").read_text(encoding="utf-8"))
+    assert "ndf" not in other["curve"][0]["label"] and "#chi^{2}/ndf " in other["curve"][1]["label"]
+    plot.draw(replace(run, plot={**run.plot, "statistics": False}), configuration, plans, said.append)
+    table.unlink()
+    plot.draw(replace(run, plot={**run.plot, "statistics": False}), configuration, plans, said.append)
+    assert not table.exists()
+
+
+def test_a_statistic_figure_ranks_the_points(stage):
+    """A page per cell and object: the page's curves as bins, labelled, sorted by the number (best first)."""
+    import csv
+    run, configuration, plans = stage
+    figure = {"class": "statistic", "statistic": "chi2_ndf", "objects": ["d01-*"], "sort": True}
+    ranked = replace(run, plot={**run.plot, "figures": {**run.plot["figures"], "rank": figure}})
+    said = []
+    assert plot.draw(ranked, configuration, plans, said.append) == 0
+    assert "plot: statistic rank, 2 page(s)" in said
+    page = tomllib.loads((plans[0].folders.pages / "em" / "rank" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
+    rows = [r for r in csv.DictReader(open(plans[0].folders.plots / "statistics.csv", encoding="utf-8"))
+            if r["page"] == "em/d01-x01-y01"]
+    best = sorted(rows, key=lambda r: float(r["chi2_ndf"]))
+    assert page["page"]["x_labels"] == [labels.tlatex(r["curve"]) for r in best] and page["page"]["markers"]
+    assert (plans[0].folders.plots / "root" / "em" / "rank" / "d01-x01-y01.png").is_file()
+    assert not any(r["page"].startswith("em/rank") for r in rows)              # the table is the pages' own

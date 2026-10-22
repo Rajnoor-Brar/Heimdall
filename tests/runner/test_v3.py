@@ -313,7 +313,6 @@ def _planned(path: str, key: str, sets=(), rerun: bool = False):
 def trees_of_its_own(scratch, monkeypatch):
     """records/, logs/ and results/ of this test alone: a folder's number depends on what is on disk."""
     monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
     monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     monkeypatch.setenv("HEP_RESULTS", str(scratch / "results"))
     return scratch
@@ -332,7 +331,7 @@ def test_the_runner_numbers_a_folder_without_a_serial(scratch, trees_of_its_own)
     gets a new number and never overwrites; undoing the change finds its folder again."""
     path = written(scratch, V3.replace('name    = "pair"', 'name    = "numbered"'), "numbered.toml")
     first = _planned(path, "pdf")
-    assert first.configuration.serial == 1 and first.plans[0].out.parent.name == "01_pdf"
+    assert first.configuration.serial == 1 and first.plans[0].folders.record.name == "01_pdf"
     assert "the first" in first.configuration.serial_note
     _complete(first)
     assert _planned(path, "pdf").configuration.serial == 1                     # made from these inputs

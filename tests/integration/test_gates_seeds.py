@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+import support
+
 from support import hep
 yoda = pytest.importorskip("yoda")
 
@@ -55,12 +57,12 @@ def config(scratch: Path, seed_type: str) -> Path:
 
 
 def point(where: Path) -> tuple[Path, Path]:
-    tail = Path("Demo") / "seeds" / "one" / "point"
-    return where / "logs" / tail, where / "results" / tail
+    run = Path("Demo") / "seeds" / "one"
+    return support.point_logs(where, run, "point"), support.point_results(where, run, "point")
 
 
 def provenance(where: Path) -> dict:
-    return json.loads((where / "records" / "Demo" / "seeds" / "one" / "point" / "provenance.json").read_text(encoding="utf-8"))
+    return json.loads((support.point_records(where, Path("Demo") / "seeds" / "one", "point") / "provenance.json").read_text(encoding="utf-8"))
 
 
 def histograms(where: Path) -> dict:

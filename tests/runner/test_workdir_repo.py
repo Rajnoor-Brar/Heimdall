@@ -60,7 +60,7 @@ def test_a_hosting_sites_repo_keeps_its_files_and_commits_only_what_was_added(sc
     assert (target / "LICENSE").read_text(encoding="utf-8") == "MIT\n"
     assert setup.GUIDE in added and "A Heimdall work dir" in (target / setup.GUIDE).read_text(encoding="utf-8")
     ignore = (target / ".gitignore").read_text(encoding="utf-8")
-    assert ignore.startswith("*.pyc\n") and setup.BLOCK in ignore and "records/" in ignore and "logs/" in ignore
+    assert ignore.startswith("*.pyc\n") and setup.BLOCK in ignore and "records/" in ignore and "logs/" not in ignore
     assert git(target, "log", "--format=%s").splitlines()[0].startswith("heimdall setup: the work dir study")
     assert len(git(target, "log", "--format=%s").splitlines()) == 2
     committed = git(target, "show", "--name-only", "--format=", "HEAD").split()

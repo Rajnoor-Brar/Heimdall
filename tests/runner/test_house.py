@@ -14,7 +14,6 @@ from runner.errors import HepError
 @pytest.fixture
 def trees(scratch, monkeypatch):
     monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
     monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     monkeypatch.setenv("HEP_RESULTS", str(scratch / "results"))
     return scratch
@@ -55,7 +54,7 @@ def test_status_says_what_each_point_is(trees):
     p = planned("Demo/jets", "pdf")
     first, second, third = p.every[:3]
     second.out.mkdir(parents=True)
-    (second.out / "logs").mkdir()                                       # begun, not done
+    (second.out / "cards").mkdir()                                      # begun, not done
     record.record_dir(third).mkdir(parents=True)
     record.complete_marker(third).write_text("an older identity\n", encoding="utf-8")     # complete once, since changed
     lines = house.status([p], {})
@@ -69,28 +68,30 @@ def test_status_says_what_each_point_is(trees):
 def test_clean_takes_only_what_no_plan_uses_and_never_results(trees):
     p = planned("Demo/jets", "single")
     point = p.every[0]
-    base_out, base_res = point.out.parent, point.res.parent
-    (base_out / "oldtag" / "logs").mkdir(parents=True)                  # a point a quantity's tags no longer make
+    base_out, base_res = point.out.parent, point.res.parent            # records/<run>/logs, results/<run>/points
+    (base_out / "oldtag" / "cards").mkdir(parents=True)                 # a point a quantity's tags no longer make
     (base_res / "oldtag").mkdir(parents=True)
     point.res.mkdir(parents=True)
     (point.res / "jets.partial.yoda").write_text("x", encoding="utf-8")                  # an attempt's leftover
     (point.res / "jets.yoda").write_text("kept", encoding="utf-8")
-    (base_out / "plots").mkdir()
-    old_run = trees / "logs" / "Demo" / "old" / "01_x"
-    old_run.mkdir(parents=True)
-    orphan_record = record.records_of(base_out / "oldtag")             # a point's records no plan has
+    point.folders.pages.mkdir(parents=True)
+    old_run = trees / "records" / "Demo" / "old" / "01_x"
+    (old_run / "logs" / "a").mkdir(parents=True)
+    (old_run / "points" / "a").mkdir(parents=True)
+    orphan_record = point.folders.points / "oldtag"                    # a point's records no plan has
     orphan_record.mkdir(parents=True)
-    (record.records_of(base_out) / "cluster" / "20261013-1200").mkdir(parents=True)
+    (point.folders.record / "cluster" / "20261013-1200").mkdir(parents=True)
     targets, kept = house.clean_targets([p], everything=False)
     assert set(targets) == {base_out / "oldtag", point.res / "jets.partial.yoda"}       # records/: never by default
     with_records, _ = house.clean_targets([p], everything=False, records=True)
     assert set(with_records) == set(targets) | {orphan_record}                          # never cluster/
     assert kept == [base_res / "oldtag"]
     everything, _ = house.clean_targets([p], everything=True)
-    assert old_run in everything and (point.res / "jets.yoda") not in everything
+    assert old_run / "logs" in everything and old_run / "points" not in everything     # another run's logs only
+    assert (point.res / "jets.yoda") not in everything
     house.remove(targets)
     assert not (base_out / "oldtag").exists() and (point.res / "jets.yoda").read_text(encoding="utf-8") == "kept"
-    assert (base_res / "oldtag").exists() and (base_out / "plots").exists()
+    assert (base_res / "oldtag").exists() and point.folders.pages.exists()
 
 
 def test_clean_asks_unless_told(trees, monkeypatch, capsys):

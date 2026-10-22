@@ -124,27 +124,30 @@ up from the working directory (or `$HEP_WORK`), never the working directory itse
 | `[tools.*].executable` | `build/<project>/`, which must exist; `path:<command>` asks for a command on `PATH` by name | `Decay.exe` → `build/Decay/Decay.exe`; `path:python3` |
 | `[tools.*].filters` | `configs/<project>/` | `fit_filters.toml` |
 | `[tools.*].input` | a tool table's name (what it writes), another tool's `output` by name, a pre product; otherwise a path under the point's output directory | `"pythia"`, `events.hepmc` |
-| `[tools.*].output` | a FIFO or a scratch file (§6) → the point's output directory; **anything else → the point's results directory** (a product) | `jets.yoda` → `results/…/<point>/jets.yoda` |
+| `[tools.*].output` | a FIFO or a scratch file (§6) → the point's output directory; **anything else → the point's results directory** (a product) | `jets.yoda` → `results/…/points/<point>/jets.yoda` |
 | `[plot].root_style` | `configs/<project>/`, `.toml` optional | `talk` → `configs/<P>/talk.toml` |
 | `[plot.data].file` | `datasets/`, or `rivet:<Analysis>` for Rivet's own reference data | `rivet:ZEUS_2012_I1116258` |
 
 **The one judgement:** what a tool writes is a product, in `results/`, unless it is technical: a
 FIFO (its reader is in the producer's group) or a scratch file (its producer says `keep = false`),
-both in `logs/` (§6). So a HepMC file kept for another configuration is a product: leave `keep`
-out.
+both in the point's working folder, `records/…/logs/<point>/` (§6). So a HepMC file kept for another
+configuration is a product: leave `keep` out.
 
 **Where a point lives** (by lifecycle):
 
 ```
-results/<P>/<run>/<cfg>/<point>/    the products: yours
-records/<P>/<run>/<cfg>/<point>/    provenance.json  identity.json  .complete: what the run recorded, kept
-logs/<P>/<run>/<cfg>/<point>/       cards/  config/  [logs/]  .lock (scratch files while it runs): safe to delete
+results/<P>/<run>/<cfg>/points/<point>/   the products: yours
+records/<P>/<run>/<cfg>/points/<point>/   provenance.json  identity.json  .complete: what the run recorded, kept
+records/<P>/<run>/<cfg>/logs/<point>/     cards/  config/  [<tag>.log]  .lock (scratch files while it runs): safe to delete
 ```
 
-`.cache/<P>/` holds what is rebuilt on demand (prepare caches; card checks and converted data when a run
-keeps `cache`). What a run keeps beyond records and results is little unless asked (§14). Deleting
-`logs/` or `.cache/` reruns nothing; deleting `records/` makes every point "to run" again. A point
-another session is running is skipped, naming who runs it, unless `--wait`.
+Beside them, `results/<P>/<run>/<cfg>/plots/` holds the pages and `records/<P>/<run>/<cfg>/` the page
+documents (`plots/`), the run's snapshot (`config/`: the run TOML and cards it ran with, which `heimdall
+plot <P>/<run>/<cfg>` draws from) and `points.json`. `.cache/<P>/` holds what is rebuilt on demand
+(prepare caches; card checks and converted data when a run keeps `cache`). What a run keeps beyond
+records and results is little unless asked (§14). Deleting a configuration's `logs/` or `.cache/` reruns
+nothing; deleting its `points/` makes every point "to run" again. A point another session is running is
+skipped, naming who runs it, unless `--wait`.
 
 - `<run>` is `[run].name`, or the configuration's own `name`.
 - `<cfg>` is `NN_<folder>`. `<folder>` is the configuration's `folder`, or its table key when that is
@@ -351,7 +354,7 @@ description = "Inclusive jets in ep collisions"
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `name` | a string | **required** | the run's directory name |
-| `project` | a string | **required** | the subfolder of `configs/`, `modules/`, `records/`, `logs/`, `results/`; must equal the folder the file is in, when it is under `configs/` |
+| `project` | a string | **required** | the subfolder of `configs/`, `modules/`, `records/`, `results/`; must equal the folder the file is in, when it is under `configs/` |
 | `run` | a string |  | the configuration `heimdall run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may be left out |
 | `serial` | an integer |  | the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[run]`. |
 | `events` | an integer, ≥ 1 |  | every configuration's event count, unless it gives its own A configuration inherits it from `[run]`. |
@@ -368,7 +371,7 @@ description = "Inclusive jets in ep collisions"
 | `post` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[run]`. |
 | `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4) A configuration inherits it from `[run]`. |
 | `seed` | a string or an integer | `"identity"` | `"identity"`: from the generator's identity; `"random"`: drawn when the point runs; an integer: exactly that seed for every point (a replica, `to = { "pythia/seed" = true }`, gives a point its own: 04 §8.2; 06 §8) |
-| `commands` | a list |  | argv arrays run in each point's output folder before its tools, in order; output to `logs/prelim.log`; a nonzero exit fails the point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}` |
+| `commands` | a list |  | argv arrays run in each point's output folder before its tools, in order; output to the point's `prelim.log`; a nonzero exit fails the point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}` |
 <!-- /generated -->
 
 Any other key or table in `[run]` is an error (C1). `[run].run` is required unless `sweep_runs` is
@@ -387,7 +390,7 @@ line of its `title`:
 ```
 run 01 - Proton PDFs -
 jets · pdf: 4 point(s), 1000000 events, 12 threads
-── point 1/4: MSTW08lo ── ok after 12min 4s
+── point 1/4: MSTW08lo ── ok after 12min 4s at Tue 21 Oct 14:03
 …
 4 done, 0 failed, 0 skipped
 ```
@@ -858,7 +861,7 @@ output   = "jets_hard.yoda"
 | `uses` | a string |  | the tool folder, when it is not the table's name: a second table of one tool, `[tools.<name>] uses = "<folder>"` (05 §3; `heimdall tools` lists the folders) |
 | `card` | a string or a list |  | native base card(s), read in order (root `configs/<project>/`). Tools with a card only. |
 | `input` | a string or a list |  | what it reads: a producer's table name (`input = "pythia"`: what that tool writes), another tool's output by name, a pre product, (post) a product of every point, or a path. The first input is `{input}` |
-| `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in `logs/` (04 §6). An array is fan-out; one writer per output (C6) |
+| `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in the point's working folder (04 §6). An array is fan-out; one writer per output (C6) |
 | `timeout` | a number, ≥ 0 |  | the tool fails when it runs longer |
 | `stall_after` | a number, ≥ 0 |  | the tool fails when silent this long: no log line, status message or heartbeat (a prepare step waits at least 3600) |
 | `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEP_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
@@ -872,7 +875,7 @@ output   = "jets_hard.yoda"
 | `settings` | a table |  | native card settings as written, `"HeavyIon:mode" = 1`, with no base card needed: over the base card, refused when a quantity sets the same key (one source per key, C8); a tool with no card refuses them |
 | `cores` | an integer, ≥ 1 |  | how many cores it keeps busy, for `--plan`'s note and the crowded warning; an integrated program is estimated as the generator's threads and one more |
 | `shards` | an integer, ≥ 1 | `1` | K > 1: K processes of this tool, each on a share of the events, merged into its `output` by the folder's merge tool (rivet, 05 §5.1). The chain is unchanged. |
-| `keep` | true or false | `true` | `false`: what it writes for a later group is a scratch file of the point (`logs/`), not a product (`results/`) |
+| `keep` | true or false | `true` | `false`: what it writes for a later group is a scratch file of the point (`records/…/logs/<point>/`), not a product (`results/`) |
 <!-- /generated -->
 
 Every other key is **tool-specific**. It is checked against the tool folder's `[options]` (type and
@@ -898,12 +901,12 @@ output      = "fit.json"
 consumes    = ["energy"]                    # written under [quantities] in its config
 filters     = "fit_filters.toml"
 
-[tools.fit.config]                          # written verbatim to logs/…/<point>/config/fit.toml
+[tools.fit.config]                          # written verbatim to records/…/logs/<point>/config/fit.toml
 model  = "gauss+poly2"
 window = [1.09, 1.14]
 ```
 
-The runner writes `logs/…/<point>/config/<name>.toml` when the table has a `config` or consumes a
+The runner writes `records/…/logs/<point>/config/<name>.toml` when the table has a `config` or consumes a
 quantity. It passes it as the **first argument** (the folder's argv is
 `{exe} {config} {arguments}`). The file holds:
 
@@ -943,7 +946,7 @@ before the first event, with the nearest name, instead of running with its defau
 
 ### 9.4 The context file: every tool's card and config
 
-When a point starts, the runner writes **one context file** for it, `logs/…/<point>/context.toml`,
+When a point starts, the runner writes **one context file** for it, `records/…/logs/<point>/context.toml`,
 and removes it when the point ends. Every tool of the point finds it through `$HEP_CONTEXT` (set in
 each tool's environment, never in your shell), or `{context}` in its arguments. It lists, by table
 name:
@@ -1082,6 +1085,10 @@ The plot stage, and how to use it, is [03](03_Plots.md). A configuration whose r
 | `use_data` | true or false | `true` | `false`: the `[plot.data]` table stays in the file but is not drawn, and a `ratio` divides each curve by the page's first curve, the first value of its curve axis |
 | `min_entries` | an integer, ≥ 0, or `"default"` or `"native"` | `0` | blank a bin that fewer raw entries went into, in **any** curve (read from the `/RAW` twin; objects without one are not voided this way) |
 | `range_pad` | an integer, ≥ 0, or `"default"` or `"native"` | `0` | whole bins kept either side of the filled ones |
+| `sets` | a list (an integer or a string or a list or a table each) |  | the pages' cells, instead of the `plot_points` grid: each entry a page folder of the points it names, its curves in the order named, the first a ratio's reference. An entry is a selector, a list of them (`set<k>`, its place), or `{ name = "lo", points = […] }`. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`"sh3_NNPDF40*"`), a tag of a quantity's (`"py8"`: every point with it), `"quantity=tag"`, or `"all"`; a string entry names its folder (`"pdf=X"` → `pdf-X`). A curve is labelled by the quantities that differ on its page; `{cell}` is the set's name. A selector no point matches is refused at plan time. merged, scan and compare figures page by `plot_points` only |
+| `split` | an integer, ≥ 1 |  | at most this many points on a page: each cell (a `plot_points` cell, or a set) cut into pages in point order, `<cell>-<k>` (`part<k>` with no cell): 24 points, `split = 3`, 8 pages. A curve is labelled by the quantities that differ on its page |
+| `statistics` | true or false, or `"default"` | `true` | each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the drawn x range), into `results/…/plots/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve) `ref_area`, `abs_area` (Σ \|y − y_ref\|·Δx on the reference's bins), `rel_abs_area`, `chi2`, `ndf`, `chi2_ndf`. false: no table |
+| `legend_statistic` | a string: `"none"`, `"area"`, `"abs_area"`, `"rel_abs_area"`, `"chi2"`, `"chi2_ndf"` | `"none"` | one of the statistics (see `statistics`) after each curve's legend entry: `chi2_ndf` → `(χ²/ndf 1.31)`; the reference's own entry gets none |
 | `root_style` | a string, or `"default"` |  | a style file over base.toml (04 §12). Refused by the yoda backend alone. |
 | `title` | a string, or `"default"` or `"native"` |  | the main title, centred above the frame. Every page; a figure (04 §11.2) overrides it for its own |
 | `title_left` | a string, or `"default"` or `"native"` |  | small text just above the frame's top-left and top-right corners, inherited the same way |
@@ -1136,10 +1143,12 @@ A figure is a recipe for pages; its classes, each with an example, are
 <!-- generated: keys figure -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged`: the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `logs/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet`: drawn pages laid out in a grid (`pages`, `columns`; below). `compare`: the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `logs/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived`: a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`logs/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan`: one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
+| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"`, `"statistic"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged`: the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `records/…/plots/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet`: drawn pages laid out in a grid (`pages`, `columns`; below). `compare`: the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived`: a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`records/…/plots/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan`: one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
 | `type` | a string: `"Hist1D"`, `"Scatter2D"`, `"HeatMap"` |  | what is drawn: `Hist1D`, steps per curve; `Scatter2D`, a marker per bin at its centre with its y error, in the curve's colour (`data.marker`, `data.marker_size` of the style), as Paint draws data; the legend shows the marker. The page TOML says `markers = true`; mkhtml and mpl draw the curves as they draw points (`ConnectBins=0`, with their x bars). `HeatMap`: a 2D object (a YODA `Histo2D` or `Estimate2D`), the default for one: a page per point of the cell, `<cell>/<object>/<point>`, coloured by value with its scale on the right (labels from the `.plot`, `ZLabel` and `LogZ` too; no ratio, data or voiding). Paint draws heat maps; mkhtml and mpl draw the 1D pages only, and the plot stage says so. A 1D object cannot be a HeatMap, a 2D object neither a Hist1D nor a Scatter2D, nor in an overlay |
 | `name` | a string |  | an overlay's page file stem, a merged figure's folder. A defined figure takes none: its pages are the objects' own |
 | `objects` | a list (a string each) |  | matched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob matching no object of the points is an error, at the plot stage |
+| `statistic` | a string: `"area"`, `"abs_area"`, `"rel_abs_area"`, `"chi2"`, `"chi2_ndf"` |  | a statistic figure's number, as `statistics.csv` has it: per cell (or set) and object, a page whose x axis is the page's curves by their labels, a bin each, and y that number of each against the page's reference (its own reference curve left out), drawn as markers; `area` with its error. Its pages: `<cell>/<name>/<object>` |
+| `sort` | true or false | `false` | a statistic figure's: its points best first (the smallest number), instead of in curve order |
 | `op` | a string: `"ratio"`, `"difference"`, `"sum"`, `"projection-x"`, `"projection-y"` |  | a derived figure's: `ratio`, `difference`, `sum` (two objects), `projection-x`, `projection-y` (one) |
 | `x` | a string |  | a scan figure's quantity (a numeric curve axis) and number (`sigma`, `entries`, `integral`, `mean`, `bin:N`); `sigma` and `entries` need no object |
 | `y` | a string |  | a scan figure's quantity (a numeric curve axis) and number (`sigma`, `entries`, `integral`, `mean`, `bin:N`); `sigma` and `entries` need no object |
@@ -1151,7 +1160,7 @@ A figure is a recipe for pages; its classes, each with an example, are
 | `x_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
 | `y_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
 | `style` | a table |  | a style layer for these pages (04 §12) |
-| *every page key of `[plot]`* | as there | `[plot]`'s | `band`, `ratio`, `y_gutter`, `x_gutter`, `logy`, `logx`, `logz`, `auto_range`, `normalise`, `void_empty`, `use_data`, `min_entries`, `range_pad`, `title`, `title_left`, `title_right`, `legend_header`: the figure's value, for its pages only |
+| *every page key of `[plot]`* | as there | `[plot]`'s | `band`, `ratio`, `y_gutter`, `x_gutter`, `logy`, `logx`, `logz`, `auto_range`, `normalise`, `void_empty`, `use_data`, `min_entries`, `range_pad`, `sets`, `split`, `legend_statistic`, `title`, `title_left`, `title_right`, `legend_header`: the figure's value, for its pages only |
 <!-- /generated -->
 
 When each rule is checked:
@@ -1287,10 +1296,10 @@ The plot checks follow the same shape:
 
 ## 14. Files the runner writes
 
-**Per point**, in `logs/…/<point>/` (its working folder) and, the last three, `records/…/<point>/`. Once
-the point completes, its working folder keeps `cards/`, `config/`, `logs/` (when a log was written) and
-`.lock`; scratch files, shards and what its tools left go, unless the run keeps `work` (below). A failed
-point's folder stays whole.
+**Per point**, in `records/…/logs/<point>/` (its working folder) and, the last three,
+`records/…/points/<point>/`. Once the point completes, its working folder keeps `cards/`, `config/`, the
+logs written there and `.lock`; scratch files, shards and what its tools left go, unless the run keeps
+`work` (below). A failed point's folder stays whole.
 
 | File | Holds |
 |---|---|
@@ -1300,13 +1309,13 @@ point's folder stays whole.
 | `cards/<tag>.prepare.<ext>` | the card a prepare step reads, when the tool's `render.py` makes one |
 | `config/<tag>.toml` | an exec or module tool's extracted config |
 | `context.toml` | the point's context file (§9.4): every tool's card and config; there only while the point runs |
-| `logs/<tag>.log`, `logs/<tag>.prepare.log`, `logs/prelim.log` | a failed tool's last 200 lines of stdout and stderr (a failed `[run] commands` command's output); with `--logs`, every tool's whole output |
+| `<tag>.log`, `<tag>.prepare.log`, `prelim.log` | a failed tool's last 200 lines of stdout and stderr (a failed `[run] commands` command's output); with `--logs`, every tool's whole output |
 | `provenance.json` | `point`, `run`, `project`, `configuration`, `config_file`, `sets`; `values` (each active quantity's index, tag and value); `identity`, `seed`, `threads`, `events`; per tool `tag`, `tool`, `exe`, `exe_sha256`, `version`, `argv`, `ran`, `card`, `card_sha256`, `config`, `result` (exit, seconds, note); `host`, `platform`, `user`, `git` (`revision`, `dirty`), `started`, `finished` |
 | `identity.json` | the parts the identity hashes (each tool's card lines, argv, binaries, options; threads, events, groups, prelim, the seed rule), written when the point completes, for `--why` |
 | `.complete` | the point's identity, written **last**; its absence means the point is not done |
-| `.lock` (in `logs/`) | held while a session runs the point: `{host, pid, since}`, free when that process ends |
+| `.lock` (in its working folder) | held while a session runs the point: `{host, pid, since}`, free when that process ends |
 
-**Per configuration**, in `records/…/<cfg>/` (`points.json`, `cluster/`) and `logs/…/<cfg>/` (the rest):
+**Per configuration**, in `records/…/<cfg>/`:
 
 | File | Holds |
 |---|---|
@@ -1316,6 +1325,7 @@ point's folder stays whole.
 | `plots/…/<page>.toml.ranges.json` | with `keep cache`: each page's ranges, for the other backends |
 | `plots/merged.sha256` | with `keep cache`: what the merged sweep file was built from (else it is merged again) |
 | `plots/derived/`, `plots/merged/<figure>/`, `plots/scan/<figure>/`, `plots/datasets/` | with `keep cache`: the figures' own YODAs and their stamps (03 §7), the converted reference data |
+| `config/` | the run's snapshot: the run TOML and the files it imports, under `<project>/`, the base cards they name, and `snapshot.toml` |
 | `cluster/<stamp>/` | `heimdall cluster`'s submissions: the scripts, `points.txt`, `jobs.toml`, the jobs' logs |
 
 **Beside products:**

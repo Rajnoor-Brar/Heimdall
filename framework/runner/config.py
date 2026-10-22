@@ -139,6 +139,7 @@ class RunConfig:
     sweep_list: list = field(default_factory=list)      # sweep_runs = ["a", "b"]: these, in this order (V79)
     sets: list = field(default_factory=list)            # the --set overrides it was loaded with (V77: provenance)
     included: dict = field(default_factory=dict)        # "<section>.<name>" → the [config].import file it came from
+    imported: list = field(default_factory=list)        # the files it imports, every level (a record's snapshot copies them)
     meta: dict = field(default_factory=dict)            # [config.meta]: descriptive; versions warned about (V97)
     families: dict = field(default_factory=dict)        # v3: a configuration with several event counts → its configurations
     form: int = 2                                       # the file's form: 2, or 3 (runner/v3.py)
@@ -743,6 +744,23 @@ def _with_imports(raw: dict, path: Path) -> tuple[dict, dict, list]:
     return merged, origins, sorted({source for *_, source in located})
 
 
+def _imported_files(raw: dict, path: Path, project: str, chain: tuple[Path, ...] = ()) -> list[Path]:
+    """Every file a run TOML imports, at every level, depth-first (a record's snapshot copies them, V158);
+    _imports' own list holds only the imported runs."""
+    out: list[Path] = []
+    chain = chain or (path.resolve(),)
+    for entry in _as_list(raw.get("config", {}).get("import")):
+        name, _ = _entry(entry, f"{path}: [config].import")
+        source = _import_path(name, project, f"{path}: [config].import")
+        if source.resolve() in chain or source.resolve() in out:
+            continue
+        out.append(source.resolve())
+        part = _read(source)
+        out += [f for f in _imported_files(part, source, _project_of(source, part, project), (*chain, source.resolve()))
+                if f not in out]
+    return out
+
+
 def _folder_list(run) -> list[tuple[str, str]]:
     """Each configuration's folder, <project>/<run>/<NN_><label> (as tools.run_dir makes it; NN_ literally
     when the runner numbers it), with its key."""
@@ -877,10 +895,26 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
     _own_folders(run)
     _shared_folders(run, imported)
     run.included = included
+    run.imported = _imported_files(_form(given, path), path, run.project)
     run.sets = list(sets)
     if strict:
         _check_used(run)
     return run
+
+
+def plot_of(name: str) -> dict:
+    """`heimdall plot … --plot FILE` (V158): a file's [plot], in either form, checked as a run's is, for one
+    drawing in place of the run's own. The file is named as a config is (configs/<P>/<name>, ./…, /…); it
+    needs nothing but [plot] (and [file] schema = 3)."""
+    path = config_file(name)
+    raw = _form(_toml(path), path)
+    if "plot" not in raw:
+        raise HepError("a plot file holds a [plot] table", where=str(path), hint="[plot] and its figures, as a run TOML's")
+    plot = raw["plot"]
+    if "legend" in plot:
+        raise HepError("[plot].legend is now part of the style", where=f"{path}: [plot].legend")
+    check_plot(plot, f"{path}: [plot]")
+    return plot
 
 
 def _check_used(run: RunConfig) -> None:
@@ -1277,6 +1311,18 @@ def check_plot(plot: dict, where: str, strict: bool = True) -> None:
             continue
         if "pages" in table or "columns" in table:
             raise HepError(f"a {kind} figure draws pages: pages and columns are a sheet's", where=at, hint='class = "sheet"')
+        if (kind == "statistic") != ("statistic" in table) or ("sort" in table and kind != "statistic"):   # V160
+            raise HepError("a statistic figure needs statistic = \"chi2_ndf\" | …" if kind == "statistic"
+                           else f"statistic and sort are a statistic figure's, not a {kind} figure's",
+                           where=f"{at}.statistic", hint='class = "statistic", statistic = "chi2_ndf", objects = ["d01-*"]')
+        if kind == "statistic":
+            extra = sorted(set(table) & {"labels", "over", "op", "x", "y", "configurations", "band", "ratio", "normalise"})
+            if extra:
+                raise HepError(f"a statistic figure takes no {extra[0]}: its page is a number per point", where=f"{at}.{extra[0]}")
+        if kind in ("merged", "scan", "compare") and {"sets", "split"} & set(table):     # V159
+            own = sorted({"sets", "split"} & set(table))[0]
+            raise HepError(f"a {kind} figure pages by plot_points: {own} is a defined or overlay figure's (or [plot]'s)",
+                           where=f"{at}.{own}", hint="its members are groups the figure makes, not the run's points")
         if (kind == "scan") != ("x" in table or "y" in table):
             raise HepError("x and y are a scan figure's" if kind != "scan" else "a scan figure needs x and y",
                            where=at, hint='class = "scan", x = "<swept quantity>", y = "sigma"')

@@ -33,6 +33,7 @@ and layout stay:
 from __future__ import annotations
 
 import difflib
+import json
 import re
 import shutil
 import tomllib
@@ -758,6 +759,122 @@ def layout_moves(work: Path) -> list[tuple[Path, Path]]:
             target = work / "logs" / rel
         moves.append((path, target))
     return moves
+
+
+#: What lives in a configuration's folder of records/ beside its points (V157), and of results/: the
+#: stages' products (later stages name them, so they stay) and the pages.
+RECORD_FOLDERS = ("points", "logs", "plots", "config", "cluster")
+RESULT_FOLDERS = ("points", "plots", "pre", "post")
+
+
+def _configurations(root: Path) -> list[Path]:
+    """A tree's configuration folders, <P>/<name>/<cfg> relative to it (not compare/, nothing hidden)."""
+    def dirs(folder: Path) -> list[Path]:
+        return sorted(p for p in folder.iterdir() if p.is_dir() and not p.name.startswith(".")) if folder.is_dir() else []
+    return [cfg.relative_to(root) for project in dirs(root) for name in dirs(project) for cfg in dirs(name)
+            if cfg.name != "compare"]
+
+
+def logs_moves(work: Path) -> list[tuple[Path, Path]]:
+    """`heimdall migrate --layout` (V157): a work dir's logs/ into records/, and each configuration's points
+    into points/ of records/ and results/ (renames of whole folders):
+    * records/<P>/<name>/<cfg>/<point>/ → records/…/<cfg>/points/<point>/ (a stage's too);
+    * results/<P>/<name>/<cfg>/<point>/ → results/…/<cfg>/points/<point>/ (pre/, post/ and plots/ stay);
+    * logs/<P>/<name>/<cfg>/<point>/ → records/…/<cfg>/logs/<point>/ (apply_logs takes its logs/*.log up one);
+    * logs/<P>/<name>/<cfg>/plots/ and status.jsonl → records/…/<cfg>/; logs/<P>/<name>/compare/<figure>/ →
+      records/<P>/<name>/compare/<figure>/;
+    * logs/<P>/.reproduce/ → .cache/<P>/reproduce/; logs/plots/ (heimdall overlay's page documents) →
+      .cache/overlay/."""
+    records, results, logs = work / "records", work / "results", work / "logs"
+    moves: list[tuple[Path, Path]] = []
+    for rel in _configurations(records):
+        moves += [(e, records / rel / "points" / e.name) for e in sorted((records / rel).iterdir())
+                  if e.is_dir() and e.name not in RECORD_FOLDERS]
+    for rel in _configurations(results):
+        moves += [(e, results / rel / "points" / e.name) for e in sorted((results / rel).iterdir())
+                  if e.is_dir() and e.name not in RESULT_FOLDERS]
+    for top in sorted(logs.iterdir()) if logs.is_dir() else ():
+        if top.name == "plots":
+            moves.append((top, work / ".cache" / "overlay"))
+            continue
+        for name in sorted(top.iterdir()) if top.is_dir() else ():
+            if name.name == ".reproduce":
+                moves.append((name, work / ".cache" / top.name / "reproduce"))
+                continue
+            for cfg in sorted(name.iterdir()) if name.is_dir() else [name]:
+                rel = cfg.relative_to(logs)
+                if not cfg.is_dir():
+                    moves.append((cfg, records / rel))
+                elif cfg.name == "compare":
+                    moves += [(figure, records / rel / figure.name) for figure in sorted(cfg.iterdir())]
+                else:
+                    for entry in sorted(cfg.iterdir()):
+                        kept_here = entry.name in ("plots", "status.jsonl") or not entry.is_dir()
+                        moves.append((entry, records / rel / (entry.name if kept_here else f"logs/{entry.name}")))
+    return moves
+
+
+def apply_logs(moves: list[tuple[Path, Path]], work: Path) -> int:
+    """logs_moves made (renames: nothing is copied); a move whose target exists is left, and named. Then
+    each working folder's logs/*.log up one level, each moved configuration's points.json pointed at the
+    new folders, and logs/ removed once empty. Returns the moves left."""
+    left = 0
+    for source, target in moves:
+        if target.exists() or target.is_symlink():
+            print(f"left    {source}: {target} exists")
+            left += 1
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        source.rename(target)
+        inner = target / "logs"
+        if target.parent.name == "logs" and inner.is_dir():           # a point's working folder: its logs flat
+            for log in sorted(inner.iterdir()):
+                if not (target / log.name).exists():
+                    log.rename(target / log.name)
+            if not any(inner.iterdir()):
+                inner.rmdir()
+    for rel in _configurations(work / "records"):
+        _point_manifest(work, rel)
+    logs = work / "logs"
+    for folder in sorted((p for p in logs.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True) \
+            if logs.is_dir() else ():
+        if not any(folder.iterdir()):
+            folder.rmdir()
+    if logs.is_dir() and not any(logs.iterdir()):
+        logs.rmdir()
+    return left
+
+
+def _point_manifest(work: Path, rel: Path) -> None:
+    """A configuration's points.json with each point's results, products and working folder where V157 puts
+    them (a path already there is left as it is)."""
+    path = work / "records" / rel / "points.json"
+    if not path.is_file():
+        return
+    data = json.loads(path.read_text(encoding="utf-8"))
+    roots = {"results": (work / "results" / rel, work / "results" / rel / "points"),
+             "output": (work / "logs" / rel, work / "records" / rel / "logs")}
+
+    def moved(value: str, kind: str) -> str:
+        old, new = roots[kind]
+        try:
+            tail = Path(value).relative_to(old)
+        except ValueError:
+            try:                                       # the manifest names the work dir as it was resolved
+                tail = Path(value).resolve().relative_to(old.resolve())
+            except (ValueError, OSError):
+                return value
+        if not tail.parts or tail.parts[0] in (RESULT_FOLDERS if kind == "results" else ("plots",)):
+            return value
+        return str(new / tail)
+
+    for point in data.get("points", []):
+        if isinstance(point.get("results"), str):
+            point["results"] = moved(point["results"], "results")
+        if isinstance(point.get("output"), str):
+            point["output"] = moved(point["output"], "output")
+        point["products"] = {k: moved(v, "results") if isinstance(v, str) else v for k, v in point.get("products", {}).items()}
+    path.write_text(json.dumps(data, indent=1, default=str) + "\n", encoding="utf-8")
 
 
 def deck_moves(work: Path) -> list[tuple[Path, Path]]:

@@ -224,10 +224,10 @@ This makes `~/Github/Top-Quark` with §4.1's files and folders, plus
 commits once. P5 builds it, checks it and runs it (08 S1). It is a test: the user decides later
 what Top-Quark becomes.
 
-### 4.4 Parked: High-Energy as a work dir (D31)
+### 4.4 High-Energy as a work dir (D31; done 2026-10-22)
 
-Not done now. High-Energy is the source of P0–P1 and of the fixture only, and stays as it is. If
-the user later asks for it, the steps are 08's appendix:
+Done on the user's word, 2026-10-22: 06's appendix records how (Comparison and Lambda stay; PhotoProduction
+is Brookhaven's; `aux/` is Heimdall's `editor/`). The steps as they were parked:
 - on a branch `work`, remove the paths §7 sends to Heimdall;
 - `hep setup --adopt`;
 - `{repo}` → `{work}` by `hep migrate`;
@@ -680,7 +680,8 @@ Heimdall path.
 - `platforms/container/heimdall.def`;
 - `tests/fixtures/work/{hep.toml, modules/**, datasets/jets_data.yoda}`.
 
-**High-Energy is not changed** (D31). The "work" side of the map only says what Heimdall leaves
+**High-Energy was not changed** by the split (D31); its later conversion (06's appendix, 2026-10-22)
+removed the map's "fw" side from it. The "work" side of the map only says what Heimdall leaves
 behind.
 
 ---

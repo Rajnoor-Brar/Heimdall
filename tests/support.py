@@ -23,9 +23,9 @@ def apps() -> Path:
 
 
 def env(where: Path) -> dict:
-    """The environment of a run whose records/, logs/, cache/ and results/ are under `where`."""
-    return dict(os.environ, HEP_RECORDS=str(where / "records"), HEP_LOGS=str(where / "logs"),
-                HEP_CACHE=str(where / "cache"), HEP_RESULTS=str(where / "results"))
+    """The environment of a run whose records/, cache/ and results/ are under `where`."""
+    return dict(os.environ, HEP_RECORDS=str(where / "records"), HEP_CACHE=str(where / "cache"),
+                HEP_RESULTS=str(where / "results"))
 
 
 def hep(where: Path, *args: str, command: str = "run", plain: bool = True, timeout: float = 1800,
@@ -65,11 +65,26 @@ def folder(config: str, configuration: str | None = None, where: Path | None = N
 
 
 def records(where: Path) -> Path:
-    """`where`'s records/: provenance, identity, .complete, points.json, cluster submissions (U21)."""
+    """`where`'s records/: a configuration's points.json, cluster submissions, journal and folders (V157)."""
     return where / "records"
 
 
-def logs(where: Path) -> Path:
-    """`where`'s logs/: each point's cards and configs (its working files while it runs, or with --keep work);
-    a failed tool's last lines; journals; page documents."""
-    return where / "logs"
+def point_records(where: Path, run_folder: Path, point: str) -> Path:
+    """A point's provenance, identity and .complete: records/<run>/points/<point> (V157)."""
+    return where / "records" / run_folder / "points" / point
+
+
+def point_logs(where: Path, run_folder: Path, point: str) -> Path:
+    """A point's working folder: its cards and configs, a failed tool's <tag>.log (all of them with --logs),
+    its working files while it runs or with --keep work: records/<run>/logs/<point> (V157)."""
+    return where / "records" / run_folder / "logs" / point
+
+
+def point_results(where: Path, run_folder: Path, point: str) -> Path:
+    """A point's products: results/<run>/points/<point> (V157)."""
+    return where / "results" / run_folder / "points" / point
+
+
+def pages(where: Path, run_folder: Path) -> Path:
+    """A configuration's page documents: records/<run>/plots."""
+    return where / "records" / run_folder / "plots"

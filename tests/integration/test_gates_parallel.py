@@ -102,7 +102,7 @@ def test_four_at_once_give_every_point_its_one_at_a_time_result(scratch):
     assert one.returncode == 0 and four.returncode == 0, four.stdout[-2000:]
     assert "4 at once" in four.stdout and four.stdout.count(" ── ok after ") == 4
     for point in ("MSTW08lo_s1", "MSTW08lo_s2", "NNPDF23nlo_s1", "NNPDF23nlo_s2"):
-        a, b = (yoda.read(str(where / "results" / "Demo" / "par" / "one" / point / "jets.yoda"))
+        a, b = (yoda.read(str(where / "results" / "Demo" / "par" / "one" / "points" / point / "jets.yoda"))
                 for where in (scratch / "one", scratch / "four"))
         assert a["/_XSEC"].val() == b["/_XSEC"].val(), point
         for path, histo in a.items():
@@ -115,12 +115,12 @@ def test_a_failing_point_leaves_the_others_to_finish(scratch):
     assert done.returncode == 1, done.stdout[-2000:]
     assert "3 done, 1 failed" in done.stdout and "FAILED [check]" in done.stdout
     base = scratch / "records" / "Demo" / "chk" / "one"
-    assert sorted(p.name for p in base.glob("*/.complete") for p in [p.parent]) == ["a", "c", "d"]
+    assert sorted(p.name for p in base.glob("points/*/.complete") for p in [p.parent]) == ["a", "c", "d"]
 
 
 def test_ctrl_c_stops_the_running_points_and_starts_no_more(scratch):
     runner = run(checker(scratch, "fail", extra="[tools.check.config]\nsleep = 60\n"), scratch, wait=False)
-    journal = scratch / "logs" / "Demo" / "chk" / "one" / "status.jsonl"
+    journal = scratch / "records" / "Demo" / "chk" / "one" / "status.jsonl"
     deadline = time.monotonic() + 60
     started: list[str] = []
     while time.monotonic() < deadline and len(started) < 3:
@@ -137,7 +137,7 @@ def test_ctrl_c_stops_the_running_points_and_starts_no_more(scratch):
     assert time.monotonic() - stopped < 20
     assert text.count(" ── stopped after ") == 3
     base = scratch / "records" / "Demo" / "chk" / "one"
-    assert not list(base.glob("*/.complete"))
+    assert not list(base.glob("points/*/.complete"))
     assert "d" not in started                                 # the fourth never started
 
 
@@ -160,6 +160,6 @@ def test_hep_watch_follows_a_run_over_its_socket_and_nothing_runtime_is_on_disk(
     runner.communicate(timeout=120)
     assert watcher.returncode == 0, text
     assert "FAILED [check]" in text and "3 done, 1 failed" in text
-    base = scratch / "logs" / "Demo" / "chk" / "one"
+    base = scratch / "records" / "Demo" / "chk" / "one"
     assert not (base / "status.jsonl").exists()
-    assert (base / "b" / "logs" / "check.log").exists() and not (base / "a" / "logs" / "check.log").exists()
+    assert (base / "logs" / "b" / "check.log").exists() and not (base / "logs" / "a" / "check.log").exists()

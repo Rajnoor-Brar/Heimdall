@@ -92,6 +92,20 @@ def test_sherpa_integration_is_keyed_by_the_card_without_its_event_count():
     assert "EVENTS: 100" in card and f"RANDOM_SEED: {few[0].seed}" in card and "EVENT_OUTPUT: HepMC3_GenEvent[events.hepmc]" in card
 
 
+@pytest.mark.skipif(not NEEDS["sherpa"], reason="gjallarhorn: Sherpa")
+def test_sherpas_display_arguments_are_given_but_not_in_its_identity(monkeypatch):
+    """[command] display (V156): BATCH_MODE and the interval reach Sherpa's command line; a point planned
+    without them has the same identity and seed, so no Sherpa point reruns for them."""
+    shown = plans("Demo/sherpa", sets=["run.events=250000"])[0]
+    step = shown.rendered["sherpa"]
+    assert step.argv[-2:] == ["BATCH_MODE: 23", "EVENT_DISPLAY_INTERVAL: 250"]
+    assert not any("BATCH_MODE" in a for a in step.identity_parts["argv"])
+    monkeypatch.setitem(tools.folders()["sherpa"].spec["command"], "display", [])
+    plain = plans("Demo/sherpa", sets=["run.events=250000"])[0]
+    assert "BATCH_MODE: 23" not in plain.rendered["sherpa"].argv
+    assert (plain.identity, plain.seed) == (shown.identity, shown.seed)
+
+
 # ── Herwig (L15) ──────────────────────────────────────────────────────────────────────────────
 
 @pytest.mark.skipif(not NEEDS["herwig"], reason="gjallarhorn: Herwig")

@@ -1,0 +1,35 @@
+# framework/tools/sherpa/filters.toml — Sherpa only prints (docs/06_Internals.md §23; its counter: L31). A rule
+# never fails a run; the first that matches a line wins. With tool.toml's display arguments a print is one line,
+#   "  Event 10000 ( 45.2s elapsed / 9035.1s left ) -> ETA: Tue Oct 21 14:03    XS = 42090.7 pb +- ( 92.1 pb = 0 % )"
+# and without them (a card that overrides them) two, the first "( 2h 58m 30s elapsed / 15h 37m 11s left )".
+[[rule]]
+match = '^\s*Event (?P<done>\d+)(?:\(\d+\))? \( (?P<elapsed>[^/]+?) elapsed / [^)]*? left \)(?:.*?XS = (?P<xsec>[-+.\deE]+) pb \+- \( (?P<xsec_err>[-+.\deE]+) pb)?'
+emit  = "progress"
+phase = "generating"
+
+[[rule]]
+match = '^\s*XS = (?P<xsec>[-+.\deE]+) pb \+- \( (?P<xsec_err>[-+.\deE]+) pb'
+emit  = "xsec"
+
+# routine: an event rejected and generated again, a hadron a hair off its shell, the build's own notice
+[[rule]]
+match = '(?:Four momentum not conserved\. Rejecting event|FourMomentumConservation|not onshell|reduced overall prescale|unable to create the breakup kinematics|produces kf_none particle|unsupported development branch)'
+emit  = "ignore"
+
+[[rule]]
+match = '^Initialization of framework underway'
+emit  = "phase"
+phase = "initialising"
+
+[[rule]]
+match = '^Starting the calculation'
+emit  = "phase"
+phase = "integrating"
+
+[[rule]]
+match = '^(?:Error|ERROR)\b|\bException\b|Signal \(\d+\) caught'
+emit  = "error"
+
+[[rule]]
+match = '^(?:Warning|WARNING)\b'
+emit  = "warn"

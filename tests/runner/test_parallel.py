@@ -97,9 +97,9 @@ def test_points_running_at_once_each_print_one_whole_block():
     view.flush()
     lines = out.getvalue().splitlines()
     assert lines[0].startswith("── point 2/2: NNPDF23lo ── ok")
-    assert lines[1:3] == ["   sherpa:prepare: cached", "   done → results/x/NNPDF23lo"]
-    assert lines[3].startswith("── point 1/2: MSTW08lo ── FAILED [rivet]")
-    assert lines[4:] == ["   rivet: exit 1 after 1.0s  (boom)", "   rivet exited 1"]
+    assert lines[1:5] == ["", "   sherpa:prepare: cached", "   done → results/x/NNPDF23lo", ""]
+    assert lines[5].startswith("── point 1/2: MSTW08lo ── FAILED [rivet]")
+    assert lines[6:] == ["", "   rivet: exit 1 after 1.0s  (boom)", "   rivet exited 1", ""]
 
 
 def test_the_journal_takes_lines_from_many_threads(scratch):
@@ -197,5 +197,5 @@ def test_overlapping_runs_keep_their_points_apart():
     bus.emit("MSTW08lo", "", {"k": "point", "state": "done", "res": "results/a/MSTW08lo", "run": "a"})
     view.end()
     lines = out.getvalue().splitlines()
-    assert lines[0].startswith("── point 1/2 (b): MSTW08lo ── ok") and lines[1] == "   done → results/b/MSTW08lo"
-    assert lines[2].startswith("── point 1/2 (a): MSTW08lo ── ok") and lines[3] == "   done → results/a/MSTW08lo"
+    assert lines[0].startswith("── point 1/2 (b): MSTW08lo ── ok") and lines[2] == "   done → results/b/MSTW08lo"
+    assert lines[4].startswith("── point 1/2 (a): MSTW08lo ── ok") and lines[6] == "   done → results/a/MSTW08lo"

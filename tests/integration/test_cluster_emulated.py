@@ -49,7 +49,7 @@ def test_a_point_run_as_a_job_equals_the_same_point_run_here(scratch):
     with (work / "configs" / "Starter" / "starter.toml").open("a", encoding="utf-8") as toml:
         toml.write('\n[cluster]\ntime = "00:20:00"\n')
     env = {**{k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, "HEP_WORK": str(work),
-           "HEP_RECORDS": str(work / "records"), "HEP_LOGS": str(work / "logs"), "HEP_CACHE": str(work / "cache"), "HEP_RESULTS": str(work / "results"),
+           "HEP_RECORDS": str(work / "records"), "HEP_CACHE": str(work / "cache"), "HEP_RESULTS": str(work / "results"),
            "PATH": f"{stubs}{os.pathsep}{os.environ['PATH']}", "STUBLOG": str(scratch / "stub.log")}
 
     done = subprocess.run([str(HEP), "cluster", "Starter/starter"], cwd=work, env=env, capture_output=True, text=True,
@@ -67,10 +67,10 @@ def test_a_point_run_as_a_job_equals_the_same_point_run_here(scratch):
 
     ref = scratch / "ref"
     here = subprocess.run([str(HEP), "run", "Starter/starter", "--plain"], cwd=work, capture_output=True, text=True,
-                          env={**env, "HEP_RECORDS": str(ref / "records"), "HEP_LOGS": str(ref / "logs"), "HEP_CACHE": str(ref / "cache"), "HEP_RESULTS": str(ref / "results")}, timeout=1800, encoding="utf-8")
+                          env={**env, "HEP_RECORDS": str(ref / "records"), "HEP_CACHE": str(ref / "cache"), "HEP_RESULTS": str(ref / "results")}, timeout=1800, encoding="utf-8")
     assert here.returncode == 0, here.stdout + here.stderr
     for point in ("nnpdf23", "cteq6l1"):
-        job = work / "results" / "Starter" / "starter" / "01_pdf" / point / "jets.yoda"
-        assert job.read_bytes() == (ref / "results" / "Starter" / "starter" / "01_pdf" / point / "jets.yoda").read_bytes()
+        job = work / "results" / "Starter" / "starter" / "01_pdf" / "points" / point / "jets.yoda"
+        assert job.read_bytes() == (ref / "results" / "Starter" / "starter" / "01_pdf" / "points" / point / "jets.yoda").read_bytes()
     pages = sorted(p.name for p in (work / "results" / "Starter" / "starter" / "01_pdf" / "plots" / "root").glob("*.png"))
     assert pages and pages == sorted(p.name for p in (ref / "results" / "Starter" / "starter" / "01_pdf" / "plots" / "root").glob("*.png"))

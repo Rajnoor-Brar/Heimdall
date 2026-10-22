@@ -34,29 +34,29 @@ def test_the_keep_words_come_from_three_places(scratch, monkeypatch):
 
 
 def test_a_finished_point_keeps_its_cards_and_configs(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))                    # this test's own
+    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))              # this test's own
     _, _, point = plan(raw(), scratch)
     out = point.out
-    for name in ("cards/pythia.cmnd", "config/rivet.toml", "events.hepmc", "shards/1/x.yoda", ".lock"):
+    assert out.parent == point.folders.logs                                  # records/<run>/logs/<point> (V157)
+    for name in ("cards/pythia.cmnd", "config/rivet.toml", "events.hepmc", "shards/1/x.yoda", ".lock", "empty/"):
         (out / name).parent.mkdir(parents=True, exist_ok=True)
-        (out / name).write_text("x", encoding="utf-8")
-    (out / "logs").mkdir()
+        if not name.endswith("/"):
+            (out / name).write_text("x", encoding="utf-8")
     execute._tidy(point)
-    assert sorted(p.name for p in out.iterdir()) == [".lock", "cards", "config"]   # an empty logs/ goes too
-    (out / "logs").mkdir()
-    (out / "logs" / "rivet.log").write_text("the last lines\n", encoding="utf-8")
+    assert sorted(p.name for p in out.iterdir()) == [".lock", "cards", "config"]
+    (out / "rivet.log").write_text("the last lines\n", encoding="utf-8")
     (out / "events.hepmc").write_text("x", encoding="utf-8")
     paths.ask_keep(["work"])
     execute._tidy(point)
     assert (out / "events.hepmc").exists()                                  # kept: the whole folder
     paths.ask_keep([])
     execute._tidy(point)
-    assert sorted(p.name for p in out.iterdir()) == [".lock", "cards", "config", "logs"]   # a log written stays
+    assert sorted(p.name for p in out.iterdir()) == [".lock", "cards", "config", "rivet.log"]   # a log written stays
 
 
 def test_the_plot_stage_keeps_its_page_configs(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
-    folder = paths.logs_root() / "P" / "run" / "cfg" / "plots"
+    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
+    folder = paths.records_root() / "P" / "run" / "cfg" / "plots"
     for name in ("em/d01.toml", "em/d01.toml.ranges.json", "merged.sha256", "derived/a.yoda", "datasets/d.root",
                  "em/yoda/pages.plot"):
         (folder / name).parent.mkdir(parents=True, exist_ok=True)
@@ -71,4 +71,4 @@ def test_the_plot_stage_keeps_its_page_configs(scratch, monkeypatch):
     outside.mkdir()
     (outside / "x.yoda").write_text("x", encoding="utf-8")
     plot.tidy(outside)
-    assert (outside / "x.yoda").exists()                                    # never outside logs/
+    assert (outside / "x.yoda").exists()                                    # never outside records/ and .cache/

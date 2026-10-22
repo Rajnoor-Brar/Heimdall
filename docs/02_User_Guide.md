@@ -174,16 +174,19 @@ heimdall run Demo/jets single --set run.events=50000
 The terminal shows the running tools, then one block:
 
 ```
-── point 1/1: point ── ok after 42.3 s
+── point 1/1: point ── ok after 42.3s at Tue 21 Oct 14:03
+
    done → results/Demo/jets/03_single/point
+
 ```
 
 | Look in | For |
 |---|---|
-| `results/Demo/jets/03_single/point/` | `jets.yoda`, `jets.root`: the products |
+| `results/Demo/jets/03_single/points/point/` | `jets.yoda`, `jets.root`: the products |
 | `results/Demo/jets/03_single/plots/root/` | the pages (`d01-x01-y01.pdf`, …), `index.html`, and `single.root`, the sweep in one file |
-| `records/Demo/jets/03_single/point/` | `provenance.json`, `identity.json`, `.complete`: what the run recorded |
-| `logs/Demo/jets/03_single/point/` | `cards/`, `logs/`: safe to delete (`heimdall clean`) |
+| `records/Demo/jets/03_single/points/point/` | `provenance.json`, `identity.json`, `.complete`: what the run recorded |
+| `records/Demo/jets/03_single/logs/point/` | `cards/`, a failed tool's `<tool>.log`: safe to delete (`heimdall clean`) |
+| `records/Demo/jets/03_single/config/` | the run TOML and cards it ran with: `heimdall plot Demo/jets/03_single` draws from them |
 
 Run the same command again and nothing happens: the point is complete with the same identity. Change
 anything that decides the result (a card, an event count, a binary) and it runs again.
@@ -455,7 +458,7 @@ chain = ["pythia_file", "delphes", "jets_reco"]     # three groups, strictly in 
 uses   = "pythia"
 card   = "ep.cmnd"
 output = "showered.hepmc"
-keep   = false                                      # a scratch file of the point, in logs/
+keep   = false                                      # a scratch file of the point, in records/…/logs/<point>/
 
 [tools.delphes]                                     # not streamable: in pythia's group it is refused
 card   = "delphes_card_ATLAS.tcl"
@@ -471,7 +474,8 @@ output     = "jets_reco.json"
 ```
 
 Delphes' tree is count-checked against the generator's sidecar. The scratch file stays in
-`logs/`, so another configuration can read it with `input = "./logs/…/showered.hepmc"`; without
+point's working folder, so another configuration can read it with
+`input = "./records/…/logs/point/showered.hepmc"`; without
 `keep = false` it would be a product in `results/`.
 → `jets delphes`.
 
@@ -684,7 +688,7 @@ consumes   = ["sqrts"]                            # → [quantities] in its conf
 window = [1.09, 1.14]
 ```
 
-- **Its config:** the file `logs/…/<point>/config/fit.toml` is the first argument. A quantity
+- **Its config:** the file `records/…/logs/<point>/config/fit.toml` is the first argument. A quantity
   with `to = { fit = "window" }` varies a key of it.
 - **Its products:** write them to `{partial:output}`; the runner renames them after the checks.
 - **The other tools:** their cards and configs are in the point's context file, `$HEP_CONTEXT`
@@ -877,6 +881,9 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 | fewer events, once | `--set run.events=50000` (dotted keys into the TOML, in its own names; repeatable) |
 | a finished point again | `--rerun` (with `--points` for one) |
 | only the pages | `--only plot`, or `heimdall plot CONFIG CFG` |
+| a run's pages as it ran, whatever the configs say now | `heimdall plot <P>/<run>/<NN_cfg>` (its record, §8.1) |
+| pages of chosen points, or N points a page | `--points 1,4,6,8`, `--set 'plot.sets=[[1,4],"all"]'`, `--set plot.split=8` (03 §3.1) |
+| how far each curve is from the data | `results/…/plots/statistics.csv`, `legend_statistic`, a `statistic` figure (03 §3.2, §7.9) |
 | only the post (or pre) tools | `--only post` / `--only pre` |
 | plain lines (logs, CI) | `--plain` (automatic when not a terminal) |
 | to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]` (a `--journal` run's file: `heimdall watch --file …`) |
@@ -890,13 +897,42 @@ itself. Threads are part of the identity: `--set cfgs.pdf.threads=8` makes every
 A changed configuration under a serial you set is refused rather than overwrite its points: bump
 the serial, or `--rerun` (04 §2).
 
+### 8.1 A run as it was: its record
+
+Each configuration's folder keeps the config its points ran with: `records/<P>/<run>/<NN_cfg>/config/`
+holds the run TOML, the files it imports and the cards it read, as `configs/` held them, with
+`snapshot.toml` (which configuration, the `--set` overrides). Such a folder is a **record**, and a record
+goes wherever a config does:
+
+```bash
+heimdall plot Demo/jets/01_pdf       # its pages: every point it recorded, with the config they ran with
+heimdall status Demo/jets/01_pdf     # complete, or what changed since (a rebuilt binary, say)
+heimdall run Demo/jets/01_pdf        # what it misses, with the cards it ran with; complete points skip
+```
+
+- **Your configs may move on.** Comment out half the PDFs, edit a card, rebuild the stack: the record
+  still draws all its points. `heimdall plot` of a record plans no tool, so it needs no stack but Paint.
+- **Restyle it alone:** edit the snapshot's `[plot]` (its run TOML in `config/<P>/`) and draw it again,
+  or draw it with another file's `[plot]`: `heimdall plot Demo/jets/01_pdf --plot Demo/talk_pages` (a
+  TOML holding `[plot]` only). The run's own `[plot]` may live in such a file too, imported:
+  `[file] import = [{ from = "talk_pages", only = ["plot"] }]`.
+- **The live config draws what was recorded too:** `heimdall plot CONFIG CFG` draws each point whose
+  record is complete, and names those that ran with other inputs than the config gives now (`--why`
+  says what changed). A point a changed config no longer makes is drawn only through the record.
+- **A run of the same folder replaces its record**, points.json and snapshot both; it says when points
+  recorded there are not in the config now. A serial of its own keeps a run whole.
+- **A record from before snapshots** gets one with `heimdall migrate --snapshot <P>/<run>/<NN_cfg>`
+  (default: the config its points.json names; `--from CONFIG`, `--set`): it says which recorded points
+  have the same identity under it. Edit the snapshot until they all do (a value since left out), then
+  `heimdall status` of the record says so.
+
 ---
 
 ## 9. When something fails
 
 The run goes on to the next point, and the point's block names the tool to blame. Then:
 
-1. Read `logs/…/<point>/logs/<tool>.log` (and `<tool>.prepare.log`, `prelim.log`): a failed tool's
+1. Read `records/…/logs/<point>/<tool>.log` (and `<tool>.prepare.log`, `prelim.log`): a failed tool's
    last 200 lines. For a tool's whole output, run again with `--logs`.
 2. A product that failed its checks keeps its `.partial` name, and the point has no `.complete`, so
    it runs again next time.
@@ -906,7 +942,7 @@ The run goes on to the next point, and the point's block names the tool to blame
 5. Fix it, then `heimdall run … --points <that point>`. Complete points are skipped anyway.
 6. More to look at:
    - `--plan` shows the exact argv and cards;
-   - `--journal` writes the job's every event to `logs/…/<cfg>/status.jsonl`;
+   - `--journal` writes the job's every event to `records/…/<cfg>/status.jsonl`;
    - `--keep work` keeps a finished point's whole working folder (its scratch files and shards), which
      otherwise goes when the point completes; a failed point's stays anyway;
    - `provenance.json` records every binary and card of a finished point.
@@ -945,7 +981,7 @@ heimdall ls Demo                      # every config and its configurations (* =
 heimdall explain plot.y_gutter                   # a key's type, default and meaning
 heimdall status Demo/jets              # each point: complete, stale, incomplete or to run
 heimdall status --stack                          # each package's version
-heimdall clean Demo/jets --dry-run     # what the runner made and no plan uses (logs/ and .cache/)
+heimdall clean Demo/jets --dry-run     # what the runner made and no plan uses (records/…/logs/ and .cache/)
 heimdall migrate Demo/jets             # a diff of the file in today's forms; --apply writes it
 heimdall reproduce records/…/<point>/provenance.json  # the point again, beside it, compared
 ```

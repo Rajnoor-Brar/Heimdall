@@ -54,9 +54,8 @@ def stage(scratch, name="poststage", **changes):
         plan = tools.plan_point(run, configuration, point, master)
         plan.identity = record.identity(plan)
         plans.append(plan)
-    shutil.rmtree(plans[0].res.parent, ignore_errors=True)
-    shutil.rmtree(plans[0].out.parent, ignore_errors=True)
-    shutil.rmtree(record.records_of(plans[0].out.parent), ignore_errors=True)
+    shutil.rmtree(plans[0].folders.results, ignore_errors=True)
+    shutil.rmtree(plans[0].folders.record, ignore_errors=True)
     return run, configuration, master, plans
 
 
@@ -91,7 +90,7 @@ def test_a_post_tool_gets_every_point_and_its_products(scratch):
     assert [p["pdf"] for p in got["points"]] == ["MSTW08lo", "NNPDF23lo"]
     assert [p["products"]["jets.yoda"] for p in got["points"]] == products
     assert all(p["complete"] for p in got["points"])
-    assert post_plan.res == plans[0].res.parent / "post" and record.is_complete(post_plan)
+    assert post_plan.res == plans[0].folders.results / "post" and record.is_complete(post_plan)
 
 
 def test_post_is_skipped_when_nothing_changed_and_reruns_when_a_point_did(scratch):

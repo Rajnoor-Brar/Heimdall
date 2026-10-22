@@ -126,7 +126,6 @@ def test_random_seeds_are_drawn_again_and_disjoint(scratch):
 
 def test_a_complete_random_point_keeps_the_seed_it_ran_with(scratch, monkeypatch):
     monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
     monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     data = raw(run__seed_type="random", run__cfgs__one__sweeps=["pdf"])
     done = build(data, scratch)[0]

@@ -5,8 +5,8 @@ reducer, `State`, turns them into points and their tools, and the views render i
 events come from the run in this process, from its watch socket (`heimdall watch`), or from a --journal file.
 
 * `LiveView` (rich, on a terminal): each running point under its heading and time so far, one line
-  per running tool — tool, phase, a bar, the count, rate and ETA, and the last warning — with each
-  finished point printed above it.
+  per running tool — tool, phase, a bar, the count, rate and ETA — and its last warning on a line of its
+  own under it, with each finished point printed above it.
 * `PlainView` (a pipe, a log file, or `--plain`): one block per point when it ends, and a progress line
   every few seconds while it runs.
 
@@ -40,6 +40,11 @@ def duration(seconds: float) -> str:
     hours, rest = divmod(round(seconds), 3600)
     minutes, secs = divmod(rest, 60)
     return f"{hours}h {minutes}min {secs}s" if hours else f"{minutes}min {secs}s"
+
+
+def finished_at(t: float) -> str:
+    """'Tue 21 Oct 14:03': when a point ended, local time, for its block's heading."""
+    return time.strftime("%a %d %b %H:%M", time.localtime(t))
 
 
 def clock(seconds: float) -> str:
@@ -89,7 +94,7 @@ class _Point:
 
 class State:
     """Events in, what to print out: `apply` returns ("title", header, title), ("say", text) and
-    ("block", point, verdict, seconds, lines) items. Points are numbered in the order they start, per run;
+    ("block", point, verdict, seconds, lines, finished) items. Points are numbered in the order they start, per run;
     in a sweep of runs (events with `run`, V75) a heading names its run, since a pipelined sweep's runs
     overlap and two runs have points of the same name."""
 
@@ -141,15 +146,17 @@ class State:
             if state == "skipped":
                 prefix, name = self._heading(event)
                 return [("say", f"{prefix}{name}: {event.get('msg') or 'complete, skipped (--rerun to run it again)'}")]
-            part = self.points.pop(key, None) or _Point("── ", point, event.get("t", time.time()))
-            seconds = event.get("t", time.time()) - part.started
+            ended = event.get("t", time.time())
+            part = self.points.pop(key, None) or _Point("── ", point, ended)
+            seconds = ended - part.started
             if state == "done":
-                return [("block", part, "ok", seconds, [*part.notes, f"   done → {event.get('res', '')}"])]
+                return [("block", part, "ok", seconds, [*part.notes, f"   done → {event.get('res', '')}"], ended)]
             if state == "stopped":
                 return [("block", part, "stopped", seconds, [*part.notes, *part.failed,
-                                                             "   partial outputs keep their .partial names"])]
+                                                             "   partial outputs keep their .partial names"], ended)]
             blame = f" [{event['cause']}]" if event.get("cause") else ""
-            return [("block", part, f"FAILED{blame}", seconds, [*part.notes, *part.failed, f"   {event.get('msg', '')}"])]
+            return [("block", part, f"FAILED{blame}", seconds, [*part.notes, *part.failed, f"   {event.get('msg', '')}"],
+                     ended)]
         part = self.points.get(key)
         if kind == "note":
             if part is not None:
@@ -254,11 +261,14 @@ class _Screen:
 # ── the views ─────────────────────────────────────────────────────────────────────────────────
 
 class PlainView:
-    """One block per point, printed when it ends: its heading with the verdict and wall time, then
-    only what needs saying (a failed tool, a prepare step) and where the results are:
+    """One block per point, printed when it ends: its heading with the verdict, wall time and when it
+    ended, a blank line, only what needs saying (a failed tool, a prepare step) and where the results
+    are, and a blank line:
 
-        ── point 2/4: NNPDF23lo ── ok after 1min 12s
+        ── point 2/4: NNPDF23lo ── ok after 1min 12s at Tue 21 Oct 14:03
+
            done → results/Demo/validation/default/NNPDF23lo
+
 
     While a point runs, a progress line every few seconds (the live view draws a table instead)."""
 
@@ -299,15 +309,15 @@ class PlainView:
         elif item[0] == "say":
             self.say(item[1])
         else:
-            _, part, verdict, seconds, lines = item
-            for line in self._block(part, verdict, seconds, lines):
+            _, part, verdict, seconds, lines, ended = item
+            for line in self._block(part, verdict, seconds, lines, ended):
                 self.say(line)
 
     def _title(self, line: str) -> str:
         return line
 
-    def _block(self, part: _Point, verdict: str, seconds: float, lines: list[str]) -> list[str]:
-        return [f"{part.heading} ── {verdict} after {duration(seconds)}", *lines]
+    def _block(self, part: _Point, verdict: str, seconds: float, lines: list[str], ended: float) -> list[str]:
+        return [f"{part.heading} ── {verdict} after {duration(seconds)} at {finished_at(ended)}", "", *lines, ""]
 
     def _tick(self) -> None:
         now = time.monotonic()
@@ -323,17 +333,20 @@ class PlainView:
 
 
 class LiveView(PlainView):
-    """The rich version: the same blocks, and under them each running point: a blank line, its
-    heading and time so far, then its running tools, one line each:
+    """The rich version: the same blocks, and under them each running point: its heading and time so
+    far, then its running tools, one line each, and a tool's last warning or error on a line of its own
+    under its row (a tool with no count yet shows its last line there, dim):
 
-        ── point 3/4: MSTW08lo ── ok after 9h 12min 4s
+        ── point 3/4: MSTW08lo ── ok after 9h 12min 4s at Tue 21 Oct 14:03
+
            done → results/Demo/validation/default/MSTW08lo
 
         point 4/4: PDF4LHC21 · 01:03:17
            pythia   generating ━━━━━━━━━━━━━━━━━━━━━━━━ 1.70M/10.00M 2,812/s 49:11
            rivet.12 analysing  ⠸                        1.70M
+              ↳ WARN unvalidated analysis
 
-    The columns line up across points."""
+    The columns line up across points; a blank line parts two running points."""
 
     SPIN = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
     BAR = 24
@@ -355,18 +368,21 @@ class LiveView(PlainView):
         from rich.markup import escape
         return f"[bold]{escape(line)}[/bold]"
 
-    def _block(self, part: _Point, verdict: str, seconds: float, lines: list[str]) -> list[str]:
+    def _block(self, part: _Point, verdict: str, seconds: float, lines: list[str], ended: float) -> list[str]:
+        from rich.markup import escape
         colour = "green" if verdict == "ok" else "yellow" if verdict == "stopped" else "red"
         heading = part.prefix + (f"[bold]{part.name}[/bold]" if part.name else "")
-        return [f"{heading} ── [{colour}]{verdict}[/{colour}] after {duration(seconds)}", *lines]
+        return [f"{heading} ── [{colour}]{verdict}[/{colour}] after {duration(seconds)} at {finished_at(ended)}", "",
+                *(escape(line) for line in lines), ""]
 
     def _tick(self) -> None:
         with self._lock:
             self.frame += 1
             self.screen.frame(self.render())
 
-    def _rows(self, states) -> list[list]:
-        """A line per running tool: tool, phase, bar, count, rate and ETA, the last warning."""
+    def _rows(self, states) -> list[tuple[list, tuple[str, str] | None]]:
+        """A line per running tool, (tool, phase, bar, count, rate and ETA), with the note for the line
+        under it: (text, style), or None."""
         from rich.progress_bar import ProgressBar
         rows = []
         for s in states:
@@ -381,8 +397,9 @@ class LiveView(PlainView):
             else:
                 bar, count = spinner, ""
             rate = f"{s.rate:,.0f}/s" if s.rate else ""
-            note = f"[yellow]{s.warning[:50]}[/yellow]" if s.warning else f"[dim]{(s.last_line if s.done is None else '')[:50]}[/dim]"
-            rows.append([f"[bold]{s.tag}[/bold]", s.phase or "", bar, count, f"{rate} {_eta(s)}".strip(), note])
+            note = ((s.error, "red") if s.error else (s.warning, "yellow") if s.warning
+                    else (s.last_line, "dim") if s.last_line and s.done is None else None)
+            rows.append(([f"[bold]{s.tag}[/bold]", s.phase or "", bar, count, f"{rate} {_eta(s)}".strip()], note))
         return rows
 
     def _width(self, cell) -> int:
@@ -403,23 +420,25 @@ class LiveView(PlainView):
                      f"{clock(now - part.started)}", self._rows(part.states)) for part in self.state.running()]
         widths: list[int] = []
         for _, rows in sections:
-            for row in rows:
+            for row, _ in rows:
                 for i, cell in enumerate(row[:-1]):      # the last column needs no width
                     if i == len(widths):
                         widths.append(0)
                     widths[i] = max(widths[i], self._width(cell))
         shown = []
-        for heading, rows in sections:
-            shown.append(Text(""))               # a line between the finished blocks and this point
+        for number, (heading, rows) in enumerate(sections):
+            if number:                           # a finished block ends in a blank line; two points are parted by one
+                shown.append(Text(""))
             shown.append(Text.from_markup(heading))
-            if rows:
+            for row, note in rows:               # a grid per row, padded alike, so a note under it moves no column
                 table = Table.grid(padding=(0, 1))
-                for row in rows:                 # padded here: rich counts padding into min_width
-                    cells = [cell + " " * (width - self._width(cell)) if isinstance(cell, str) else cell
-                             for cell, width in zip(row, widths)] + row[len(widths):]
-                    cells[0] = "   " + cells[0]  # the tools sit under their point, like a block's lines
-                    table.add_row(*cells)
+                cells = [cell + " " * (width - self._width(cell)) if isinstance(cell, str) else cell
+                         for cell, width in zip(row, widths)] + row[len(widths):]
+                cells[0] = "   " + cells[0]      # the tools sit under their point, like a block's lines
+                table.add_row(*cells)
                 shown.append(table)
+                if note is not None:
+                    shown.append(Text(f"      ↳ {note[0]}", style=note[1], no_wrap=True, overflow="ellipsis"))
         return Group(*shown)
 
 

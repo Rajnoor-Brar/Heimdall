@@ -33,7 +33,8 @@ TABLES = ("config", "run", "configuration", "prelim", "quantity", "tool", "plot"
 #: The tables of deck.toml, a deck's recipe (reports/<name>/deck.toml, V103).
 DECK_TABLES = ("deck", "block")
 #: A figure's own keys: the rest are what it sets for its pages.
-FIGURE_OWN = ("class", "type", "name", "objects", "labels", "over", "configurations", "op", "x", "y", "pages", "columns")
+FIGURE_OWN = ("class", "type", "name", "objects", "labels", "over", "configurations", "op", "x", "y", "pages", "columns",
+              "statistic", "sort")
 
 
 def path(name: str = "run") -> Path:

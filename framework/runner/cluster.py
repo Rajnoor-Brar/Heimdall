@@ -52,7 +52,7 @@ FOLDER = "cluster"
 RECORD = "jobs.toml"
 POINTS = "points.txt"
 #: The roots a job keeps from the shell that submitted it, when set there (the tests set them).
-ROOTS = ("HEP_RECORDS", "HEP_LOGS", "HEP_CACHE", "HEP_RESULTS", "HEP_REPORTS", "HEP_CONFIGS")
+ROOTS = ("HEP_RECORDS", "HEP_CACHE", "HEP_RESULTS", "HEP_REPORTS", "HEP_CONFIGS")
 #: What squeue and sacct are asked for: a job's (or array task's) id, state, time and reason or node; and
 #: id, state, exit code and elapsed time.
 SQUEUE = "%i|%T|%M|%R"

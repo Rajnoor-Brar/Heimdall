@@ -60,7 +60,7 @@ level = 2
 tool       = "exec"
 executable = "/bin/true"
 """, encoding="utf-8")
-    for var, value in (("HEP_WORK", root), ("HEP_RECORDS", root / "records"), ("HEP_LOGS", root / "logs"), ("HEP_CACHE", root / "cache"), ("HEP_RESULTS", root / "results")):
+    for var, value in (("HEP_WORK", root), ("HEP_RECORDS", root / "records"), ("HEP_CACHE", root / "cache"), ("HEP_RESULTS", root / "results")):
         monkeypatch.setenv(var, str(value))
     paths.reset()
     yield root

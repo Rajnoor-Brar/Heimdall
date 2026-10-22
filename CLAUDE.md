@@ -24,6 +24,7 @@ Heimdall is the framework: `$HEP` is this folder, what is authored, nothing buil
 | `docs/` | the manual `00`–`07`, `framework/` (the setup runbook), `conda/` (the base's design), `reporter/`, `audit_2/`, `audit_3/`, `audit_4/` |
 | `bots/` | `current_plan.md`, `intent.md`, `archive.md` |
 | `tests/` | `runner/`, `integration/`, `cxx/`, `reference/`, `fixtures/work/` (the frozen work dir the tests use) |
+| `editor/` | the VS Code tooling: `cmnd-syntax/` (Pythia `.cmnd` highlighting), `hep-contrast-theme/`, `hep-icons/`, `icon-bank/`, `Report.md` (from High-Energy's `aux/` at 2c4fcad) |
 
 What this machine built is in the **machine root**, `~/Himinbjorg` (`$HEP_MACHINE`), outside git:
 `base/` (the conda base; `venv/` in an older root), `stack/`, `apps/` (`$HEP_APPS`), `forge/` (`$HEP_FORGE`:
@@ -57,7 +58,7 @@ Work dirs (configs, modules, results) live elsewhere, one per workspace, made by
 
 ## Testing
 
-- Tests write only `forge/scratch/`, through `HEP_WORK`, `HEP_RECORDS`, `HEP_LOGS`, `HEP_CACHE`,
+- Tests write only `forge/scratch/`, through `HEP_WORK`, `HEP_RECORDS`, `HEP_CACHE`,
   `HEP_RESULTS`, `HEP_REPORTS` and `HEP_WORKDIRS` (tests/conftest.py). Never name a real work dir in a test. Run them with the stack
   loaded (`source gjallarhorn.sh`): the session builds the fixture work dir's modules first.
 - The fixtures (`tests/fixtures/work/`) change only together with the test that needs the change.

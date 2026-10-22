@@ -79,14 +79,14 @@ V3_TABLES = {
                                                               "a file with `[file]` is v3 without it"}}, ()),
     "run": ("run", {"configuration": "run", "event_count": "events", "tools": "chain", "sweeps": "vary"},
             {"seed": _SEED, "commands": {"type": "list", "doc": "argv arrays run in each point's output folder before "
-                                         "its tools, in order; output to `logs/prelim.log`; a nonzero exit fails the "
+                                         "its tools, in order; output to the point's `prelim.log`; a nonzero exit fails the "
                                          "point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}`"}},
             ("seed_type", "manual_seed", "cfgs")),
     "cfgs": ("configuration", {"label": "folder", "event_count": "events", "tools": "chain", "sweeps": "vary",
                                "static": "fixed"}, {"seed": _SEED}, ("seed_type", "manual_seed", "prelim")),
     "tools": ("tool", {"tool": "uses", "baseconfig": "card", "output_file": "output"},
               {"keep": {"type": "bool", "default": True, "doc": "`false`: what it writes for a later group is a scratch "
-                                                              "file of the point (`logs/`), not a product (`results/`)"}},
+                                                              "file of the point (`records/…/logs/<point>/`), not a product (`results/`)"}},
               ()),
     "quantities": ("quantity", {"key": "to"},
                    {"points": {"type": "list", "doc": "the points, one row each: `{ tag, value, label, style }`; "
@@ -123,7 +123,7 @@ V3_DOCS = {
                         "another tool's output by name, a pre product, (post) a product of every point, or a path. "
                         "The first input is `{input}`",
     ("tools", "output"): "what it writes. Read in its own group, a FIFO; in a later group, a file: a product in "
-                         "`results/`, or with `keep = false` a scratch file in `logs/` (04 §6). An array is "
+                         "`results/`, or with `keep = false` a scratch file in the point's working folder (04 §6). An array is "
                          "fan-out (V16); one writer per output (C6)",
     ("quantities", "to"): "where the value goes: `{ pythia = \"PDF:pSet\" }` a native key per tool table or tool; "
                           "`{ \"rivet/photo_eic\" = \"R\" }` an analysis option; `{ \"pythia/seed\" = true }` a replica. "

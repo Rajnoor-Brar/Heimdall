@@ -15,6 +15,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+import support
+
 from support import apps, folder, hep_ok
 BUILT = [apps() / "App_Pythia.exe"]          # the module programs: work_built (every slow test has it)
 uproot = pytest.importorskip("uproot")
@@ -25,15 +27,15 @@ pytestmark = [pytest.mark.slow, pytest.mark.skipif(not all(p.exists() for p in B
 
 def hep_run(scratch: Path, *args: str) -> tuple[Path, Path]:
     hep_ok(scratch, *args)
-    return scratch / "logs", scratch / "results"
+    return scratch / "records", scratch / "results"
 
 
 def test_lambda_module_and_rivet_agree_on_the_same_events(scratch):
     _, results = hep_run(scratch, "Decay/decay", "single", "--set", "run.events=200", "--set", "run.threads=2",
                          "--keep", "work")                                # its working files are read (V149)
-    point = results / folder("Decay/decay", "single", scratch) / "point"
+    point = results / folder("Decay/decay", "single", scratch) / "points" / "point"
     report = json.loads((point / "decay.root.json").read_text(encoding="utf-8", errors="replace"))
-    assert report["events"] == json.loads((scratch / "logs" / folder("Decay/decay", "single", scratch) / "point" /
+    assert report["events"] == json.loads((support.point_logs(scratch, folder("Decay/decay", "single", scratch), "point") /
                                            "to_rivet.hepmc.json").read_text(encoding="utf-8", errors="replace"))["written"]   # named after its first output
     module, rivet = uproot.open(point / "decay.root"), uproot.open(point / "decayriv.root")
     compared = 0
@@ -53,8 +55,8 @@ def test_lambda_module_and_rivet_agree_on_the_same_events(scratch):
 def test_inproc_equals_the_chain_at_one_thread(scratch):
     for configuration in ("single", "inproc"):
         hep_run(scratch, "Demo/jets", configuration, "--set", "run.events=2000", "--set", "run.threads=1")
-    chain, inproc = (scratch / "results" / folder("Demo/jets", c) / "point" for c in ("single", "inproc"))
-    seeds = [json.loads((scratch / "records" / folder("Demo/jets", c) / "point" / "provenance.json")
+    chain, inproc = (support.point_results(scratch, folder("Demo/jets", c), "point") for c in ("single", "inproc"))
+    seeds = [json.loads((support.point_records(scratch, folder("Demo/jets", c), "point") / "provenance.json")
                         .read_text(encoding="utf-8"))["seed"] for c in ("single", "inproc")]
     assert seeds[0] == seeds[1]
     a, b = yoda.read(str(chain / "jets.yoda")), yoda.read(str(inproc / "jets.yoda"))
@@ -70,9 +72,9 @@ def test_inproc_sigma_equals_the_sidecar_at_four_threads(scratch):
     for configuration in ("single", "inproc"):
         output, results = hep_run(scratch, "Demo/jets", configuration, "--set", "run.events=4000",
                                   "--set", "run.threads=4", "--keep", "work")   # the sidecar is read (V149)
-    point = output / folder("Demo/jets", "single") / "point"
+    point = output / folder("Demo/jets", "single") / "logs" / "point"
     sidecar = json.loads(min(point.glob("events*.hepmc.json")).read_text(encoding="utf-8", errors="replace"))  # sharded: .s1
-    report = json.loads((results / folder("Demo/jets", "inproc") / "point" / "jets.yoda.json").read_text(encoding="utf-8", errors="replace"))
+    report = json.loads((results / folder("Demo/jets", "inproc") / "points" / "point" / "jets.yoda.json").read_text(encoding="utf-8", errors="replace"))
     assert report["events"] == sidecar["written"]
     assert report["sigma_pb"] == pytest.approx(sidecar["sigma_pb"], rel=1e-6)
 
@@ -106,5 +108,5 @@ def test_the_serial_engine_is_reproducible(scratch):
     for attempt in range(2):
         _, results = hep_run(scratch, "Demo/jets", "inproc", "--rerun", "--set", "run.events=1000",
                              "--set", "run.threads=1", "--set", "tools.jets.config.engine=serial")
-        runs.append((results / folder("Demo/jets", "inproc") / "point" / "jets.yoda").read_bytes())
+        runs.append((results / folder("Demo/jets", "inproc") / "points" / "point" / "jets.yoda").read_bytes())
     assert runs[0] == runs[1]

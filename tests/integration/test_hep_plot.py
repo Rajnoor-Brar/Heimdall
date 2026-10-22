@@ -23,19 +23,19 @@ BUILT = all((apps() / n).exists() for n in ("Paint.exe", "App_yd2rt.exe"))
 pytestmark = pytest.mark.skipif(not BUILT, reason="heimdall build --framework")
 
 
-def configs(scratch_output: Path) -> list[dict]:
-    return [tomllib.loads(p.read_text(encoding="utf-8")) for p in sorted(scratch_output.glob("plots/*/photo_eic/*.toml"))]
+def configs(cache: Path) -> list[dict]:
+    """An overlay's page documents: .cache/overlay/<key>/ (V157)."""
+    return [tomllib.loads(p.read_text(encoding="utf-8")) for p in sorted(cache.glob("overlay/*/photo_eic/*.toml"))]
 
 
 def test_two_yoda_files_one_page_per_object(scratch, monkeypatch):
     monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
     monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     said = []
     assert plot.files([str(p) for p in YODAS], scratch / "pages", labels=["MSTW", "NNLO"], formats=["png"],
                       say=said.append) == 0
     assert len(list((scratch / "pages" / "photo_eic").glob("*.png"))) == 17 and "2 curve(s)" in said[-1]
-    first = configs(scratch / "logs")[0]
+    first = configs(scratch / "cache")[0]
     assert [c["label"] for c in first["curve"]] == ["MSTW", "NNLO"]
     assert first["curve"][0]["raw"].startswith("f0/RAW/photo_eic/")        # min_entries can void
     assert first["page"]["x_label"]                                          # labels from the .plot
@@ -43,7 +43,6 @@ def test_two_yoda_files_one_page_per_object(scratch, monkeypatch):
 
 def test_a_merged_sweep_is_one_curve_per_point(scratch, monkeypatch):
     monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_LOGS", str(scratch / "logs"))
     monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
     points = scratch / "points.json"
     points.write_text(json.dumps({"points": [
@@ -55,7 +54,7 @@ def test_a_merged_sweep_is_one_curve_per_point(scratch, monkeypatch):
     assert done.returncode == 0, done.stderr
     pytest.importorskip("uproot")
     assert plot.files([str(sweep)], scratch / "pages", objects=["/photo_eic/d01*"], formats=["png"], say=lambda _: None) == 0
-    [page] = configs(scratch / "logs")
+    [page] = configs(scratch / "cache")
     assert [c["label"] for c in page["curve"]] == ["MSTW 2008 LO", "NNPDF 2.3 LO"]
     assert [c["object"] for c in page["curve"]] == ["a/photo_eic/d01-x01-y01", "b/photo_eic/d01-x01-y01"]
     assert (scratch / "pages" / "photo_eic" / "d01-x01-y01.png").stat().st_size > 1000
@@ -69,7 +68,7 @@ def test_mistakes_are_named(scratch):
 
 
 def test_hep_overlay_draws_files(scratch):
-    env = {"HEP_RECORDS": str(scratch / "records"), "HEP_LOGS": str(scratch / "logs"), "HEP_CACHE": str(scratch / "cache"), "HEP_RESULTS": str(scratch / "results")}
+    env = {"HEP_RECORDS": str(scratch / "records"), "HEP_CACHE": str(scratch / "cache"), "HEP_RESULTS": str(scratch / "results")}
     import os
     done = subprocess.run(["python3", str(REPO / "framework" / "bin" / "run"), "overlay", str(YODAS[0]), "--objects", "/photo_eic/d01*",
                            "--formats", "png"], capture_output=True, text=True, encoding="utf-8",

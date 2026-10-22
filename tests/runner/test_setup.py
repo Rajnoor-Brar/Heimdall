@@ -95,7 +95,7 @@ def test_a_folder_with_files_is_adopted_only_when_asked(scratch, quiet):
     setup.setup(target, adopt=True, out=out)
     ignore = (target / ".gitignore").read_text(encoding="utf-8")
     assert ignore.startswith("build/\n") and setup.BLOCK in ignore             # kept, and what it lacks added (U67)
-    assert any(line.startswith("merged .gitignore: records/ logs/ .cache/ results/") for line in lines)
+    assert any(line.startswith("merged .gitignore: records/ .cache/ results/") for line in lines)
 
 
 @pytest.mark.parametrize("project", ["", "a/b", "_parked", ".hidden"])

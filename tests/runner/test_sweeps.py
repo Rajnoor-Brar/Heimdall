@@ -200,3 +200,14 @@ def test_an_entangled_group_with_nothing_left_is_refused(scratch):
     with pytest.raises(HepError, match="no value"):
         swept(scratch, quantities__alphas=alphas, quantities__pdf={**raw()["quantities"]["pdf"], "exclude": [1]},
               run__cfgs__one__sweeps=[["pdf", "alphas"]])
+
+
+def test_a_set_entry_names_its_folder():
+    """[plot].sets (V159): a selector names its folder, a list is set<k>, a table its name; shapes refused."""
+    from runner.errors import HepError
+    from runner.sweep import set_entries
+    assert set_entries([[1, 2], "pdf=NNPDF23lo", "sh3_*", 7, {"name": "lo", "points": ["py8"]}], "w") == [
+        ("set1", [1, 2]), ("pdf-NNPDF23lo", ["pdf=NNPDF23lo"]), ("sh3_", ["sh3_*"]), ("#7", [7]), ("lo", ["py8"])]
+    for bad in ([[]], [[0]], [{"name": "x"}], [{"name": "a/b", "points": [1]}], [[True]], ["all", "all"]):
+        with pytest.raises(HepError):
+            set_entries(bad, "w")

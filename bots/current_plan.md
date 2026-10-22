@@ -1,8 +1,322 @@
 # Current plan
 
-**Task F is done** (V151–V154, 2026-10-15; its plan below). Open: audit 4 (below). The decisions are in docs/07_Record.md (V1–V154); finished task logs
+**Task I is done** (V161, 2026-10-22: High-Energy as a work dir, editor/). **Task H is done** (V156–V160, 2026-10-21/22; below). **Task F is done** (V151–V154, 2026-10-15; its plan below). Open: audit 4 (below). The decisions are in docs/07_Record.md (V1–V155); finished task logs
 are in [archive.md](archive.md) (the latest: tasks A–E of 2026-10-14, V140–V150); ideas not built are
 in [intent.md](intent.md).
+
+## Task H: run output, Sherpa progress, one records/ tree, replot from the record, point sets, page statistics
+
+Planned 2026-10-21 from the user's notes (`docs/Notes.md`, untracked), approved the same day; built in four
+commits (`db38c72` V156, `2ea5de2` V157, `6cc01f1` V158, then V159–V160), the user asking during it to build every
+phase and then move a real study's 38-point generator × PDF run onto the new system.
+
+**Done, and how it differs from the plan below:**
+- As planned, with: a tool with no count shows its last line under its row whatever its phase (Sherpa's
+  integration line); the stage block's lines escaped for rich; `heimdall migrate --layout --list`; reproductions in
+  `.cache/<P>/reproduce/`, an overlay's documents in `.cache/overlay/`; identities write a moved configs root as
+  `{work}/configs/…` (`paths.identity_texts`), which the plan had not foreseen (Pythia's argv names its cards); a
+  plot-only `heimdall plot RECORD`; `heimdall migrate --snapshot RECORD [--from] [--set] [--apply]`; `heimdall plot
+  --points SEL`; the CSV's labels without the legend's number.
+- **The real work dir** (2026-10-22): a tarball of its records/, results/ and logs/ first
+  (`$HEP_FORGE/scratch/<work dir>-before-v157.tar`, 232 MB), then `heimdall migrate --layout --apply` (775 renames,
+  every configuration: the layout is the work dir's); the run's snapshot from today's config, its PDFs since commented
+  out restored in the snapshot's own common.toml (19, in the recorded order, values and labels checked against
+  points.json); `heimdall status RECORD`: 38 complete; `heimdall plot RECORD`: 24 pages, 456 statistics rows against
+  the data. Its configs/ untouched.
+- **Seen:** the mpl-versus-mkhtml pixel test fails when run alone, at HEAD before task H too (an order dependence;
+  it passes in the suite). Pages of earlier sets stay in their folders. `statistics.csv` describes the last drawing.
+- **The slow suite on the conda-base stack** (its first run there, 2026-10-22): 38 of 41 pass after task H's path
+  fixes (`67434ff`); the third is the pixel test's order dependence (above). `test_gates_p1.py::test_the_legacy_reference_is_reproduced_byte_for_byte[MSTW|NNLO]` fail, at
+  `4bf2e06` (before task H) too: one digit of the YODA differs (byte 323) from `tests/reference/`, so the rebuilt
+  stack's Pythia/Rivet/LHAPDF, not the runner. The references are never regenerated: for the user to judge.
+
+### Context
+
+The user's notes (2026-10-21), written after a 38-point run in a real study's work dir
+(a 38-point generator × PDF configuration, `04_generator_pdf`, ~21 h per Sherpa point):
+
+1. Pages of k points cut from one run (24 points → 8 pages of 3, or 4 of 8): run once, mix and match later.
+2. Named point sets, `[[1,4,6,8], [1,2,4,9], "all"]`, by index or tag, whatever the plot axes.
+3. Replot a run after its configs or cards changed: a copy of its config kept with its record, editable,
+   that `heimdall plot` (and `run`) read; the plot configuration separable from the run's.
+4. Logs inside records/, points in `points/`: `records/<P>/<Name>/{points, logs, plots}`,
+   `results/<P>/<Name>/{points, plots}`.
+5. The live view: the tool's "error line" off the progress row (gone, or a line of its own below).
+6. The run's blocks: `ok after … at <finish time>`, a blank line after the heading and after each block.
+7. Sherpa's event progress parsed properly (BATCH_MODE, EVENT_DISPLAY_INTERVAL; MPI noted).
+8. Statistics from the pages: each curve's area, the absolute area between it and the reference data.
+
+**What the code does today (read 2026-10-21):**
+- **Replot (item 3) is blocked by identity.** `plot.pages` keeps `p for p in plans if is_complete(p)`
+  (`framework/runner/plot.py:377`), and `record.is_complete` compares `.complete` with the identity planned
+  *now* (`record.py:255`). Any card edit, a rebuilt binary (`exe_sha256`; the stack was just rebuilt on the
+  conda base, N18), or a commented-out value drops those points from the pages. In the work dir,
+  `records/<P>/<run>/04_generator_pdf/points.json` lists 38 complete points, but `common.toml` now has most
+  PDFs commented out, so the config plans 6: the 38-point run cannot be redrawn. Compare figures re-plan
+  the other configuration the same way (`cli.others_of`, `cli.py:362`).
+- **The layout is built in a few places:** `tools.run_dir` / `tools.point_dirs` (`tools.py:605,624`:
+  `logs/<run>/<point>`, `results/<run>/<point>`), `record.records_of` (`record.py:232`: logs → records,
+  mirrored), and `plan.out.parent / "plots"` in `plot.pages` and `plot.point_yodas`. Identities hold
+  `{out}`/`{res}` (`tools._argv`, `tools.py:1367`, `_portable_parts`), so moving a point's folders changes no
+  identity (V132, V137). `heimdall migrate --layout` exists (V132: `output/` → records/logs/.cache).
+- **Pages:** `plot._pages` groups the complete points by `plot_points` key into `by_page`
+  (`plot.py:605`); curves get labels from the curve axes (`_curve_label`, `_curve_look`).
+  `sweep.select_points` (`sweep.py:142`) already parses `--points` (tags, 1-based indices, names,
+  `quantity=tag`). `--set` takes TOML literals (`config.apply_sets`).
+- **Paint** does void → align → normalise → range per page (`src/Apps/Paint/main.cc:99–131`) and writes
+  `<page>.toml.ranges.json` with `--ranges`; with several pages it prints a JSON line per page. `Transform.hh`
+  has `rebinned` (a density onto a span).
+- **The run's blocks** are `watch.PlainView._block` / `LiveView._block` (`watch.py:309,358`); the point's
+  `done` event carries `t`. The live row's last column is `s.warning` (yellow) or, with no count, `s.last_line`
+  (`watch.py:384`).
+- **Sherpa** has no `filters.toml` (`status = "none"`), so the view shows its last line (often "Four momentum
+  not conserved. Rejecting event."). Sherpa 3.0.5's own code (`SHERPA/Main/Sherpa.C:270–295`,
+  `ATOOLS/Org/Run_Parameter.C:197`): with no `LOG_FILE`, `BATCH_MODE` is 1, so the counter is redrawn with
+  `ESC[1A` and `\r` on two lines; it prints at 1–10, 20–100, …, then every 100 000 events (10M events: a line
+  per ~13 min at these rates, hence `stall_after = 5200`). Bit 2: one line per print, `XS = …` on it. Bit 4:
+  every `EVENT_DISPLAY_INTERVAL` events. Bit 16: `<s>s elapsed / <s>s left`, plain seconds.
+- **Card lines and argv are in the identity** (`tools.py:1154,1367`), so a `BATCH_MODE` line in the card or
+  argv would mark every Sherpa point changed: 21 h each. It must go to the process without entering the identity.
+- A tool's output is kept in memory (last 200 lines), written only when it fails, or whole with `--logs`
+  (`status.Reader`, V72); a filter's progress gives `done` (and `total` if printed), never a rate.
+
+### Priority (the skill's score: (Impact + Risk) × (6 − Effort))
+
+| Item | Impact | Risk if left | Effort | Score | Phase |
+|---|---|---|---|---|---|
+| H3 Sherpa progress | 4 (21 h points watched blind) | 3 (a hang hides 1.5 h behind `stall_after`) | 2 | 28 | 1 |
+| H2 The live view's note line | 3 | 1 | 1 | 20 | 1 |
+| H5 Replot from the record | 5 (a 38-point run cannot be redrawn) | 4 (any config or stack change orphans results) | 4 | 18 | 3 |
+| H1 Finish time, blank lines | 2 | 1 | 1 | 15 | 1 |
+| H6 Point sets and split pages | 4 | 1 | 3 | 15 | 4 |
+| H4 One records/ tree | 3 | 3 (moving real results) | 4 | 12 | 2 |
+| H7 Page statistics (table, legends) | 3 | 1 | 3 | 12 | 4 |
+| H8 A page per statistic | 3 | 1 | 3 | 12 | 4 |
+
+The layout (H4) comes before the record work (H5) despite its score: the snapshot and record-built pages are
+then written once, in their final places. Phases are committed one at a time, each with its V-row (V156…),
+and each phase ships only on the user's order.
+
+### Phase 1: what a run shows (no identity or layout change)
+
+#### H1. The run's blocks
+- `watch.PlainView._block` and `LiveView._block`: `… ── ok after 21h 5min 20s at Tue 21 Oct 14:03`, the local
+  time of the event's `t` (the finish; a stopped or failed point says it too). Then a blank line, the block's
+  lines, and a blank line. `LiveView.render` drops its leading blank line (the block now ends with one).
+  The plot stage's summary then stands apart on its own.
+- `watch.finished(t)`: the format, one function; tests in `tests/runner/test_watch.py`.
+
+#### H2. The live view's note on its own line
+- `LiveView._rows`: the row is tool, phase, bar, count, rate and ETA. A warning or error goes on a line of its
+  own under its row (`      ↳ <text>`, yellow or red, cut to the terminal's width). A tool with no count and no
+  phase shows its last line there, dim, as its only sign of life. Lines with progress show no last line.
+- `PlainView._tick` keeps its one line per running point, without the last line once a count exists.
+- `status.Reader.output`: ANSI escapes stripped (`\x1b\[[0-9;?]*[A-Za-z]`) from what is shown and matched
+  (Sherpa colours its messages); the log keeps the bytes.
+
+#### H3. Sherpa's progress
+- **Display arguments outside the identity:** a tool folder's `[command] display = [...]`, argv pieces that
+  change only what the program prints, appended to `step.argv` after `identity_parts["argv"]` is taken
+  (`tools._argv`); the folder check and 05 §9 document them ("never in the identity: they may not change what
+  the tool makes"). Placeholders: `{events}`, and `{display_every}` = max(100, events // 1000).
+- `framework/tools/sherpa/tool.toml`: `display = ["BATCH_MODE: 23", "EVENT_DISPLAY_INTERVAL: {display_every}"]`
+  (1 + 2 + 4 + 16: batch, a line per print, fixed steps, seconds). Sherpa's command line wins over the card,
+  so a card's `BATCH_MODE` no longer matters; 05 §13 says so. `status = "filters"`.
+- **`framework/tools/sherpa/filters.toml`** (new; rules in order, first match wins):
+  - progress: `^\s*Event (?P<done>\d+) \( ?(?P<elapsed>[\d.e+]+) ?s elapsed / (?P<left>[\d.e+]+) ?s left`, and
+    the default form (`Xh Ym Zs`) for a card that overrides us;
+  - xsec: `XS = (?P<value>\S+) pb \+- \( (?P<err>\S+) pb` (a new `emit = "xsec"` kind; `ToolState.xsec` exists);
+  - phase `generating` on the first event line;
+  - ignore: the routine `Four momentum not conserved. Rejecting event`, `FourMomentumConservation throws`,
+    `not onshell`, `reduced overall prescale`;
+  - warn `^Warning`, error `(?:^Error|ERROR|Exception)`.
+- **Generic, in `status`:** a progress rule's `elapsed` group gives `rate = done / elapsed`; otherwise the
+  rate is measured from successive counts (a smoothed rate, as App_Pythia's). A tool that makes or reads events
+  (`produces_events`, `consumes_events`) starts with `total = plan.events`, so Sherpa and Rivet get a bar and an
+  ETA (`execute.run_group` builds the `ToolState`).
+- `stall_after` stays a user key; with a line per ~1000th of the run, the work dir's 5200 s can go back to the
+  default (the user's file: say so, not change it).
+- **Parallel generation:** the replicas recipe, documented (Decisions); MPI noted, not built.
+- Ledger: an L-row for Sherpa's counter (the bits and the default cadence above, from its 3.0.5 source).
+- Tests: the filter on lines from the real log (both forms, colours), `display` absent from the identity
+  (a plan's identity with and without it is the same), the rate from `elapsed`, `total` from the events.
+
+### Phase 2: one records/ tree (H4; amends V132)
+
+**The layout** (`<run>` = `<P>/<name>/<NN_label>`):
+
+```
+records/<run>/points.json  status.jsonl (--journal)  cluster/
+records/<run>/points/<point>/    provenance.json, identity.json, .complete   (kept)
+records/<run>/logs/<point>/      the working folder: cards/, config/, <tag>.log, .lock, FIFOs while running
+records/<run>/plots/             the page documents (and, with keep cache, the figures' working files)
+records/<run>/config/            the run's snapshot (phase 3)
+results/<run>/points/<point>/    the products
+results/<run>/plots/<backend>/   the pages, index.html, statistics.csv (phase 4)
+results/<run>/pre/, post/        unchanged: later stages name their products, so their paths stay
+```
+
+- **Lifecycle stays readable:** `records/<run>/logs/` is what `heimdall clean` removes (no plan's folders), as
+  `logs/` was; `points/` is kept and touched only by `clean --records`; `.cache/` is unchanged. The working
+  folder's `logs/` subfolder goes: a tool's log is `records/<run>/logs/<point>/<tag>.log` (no argv names it,
+  so no identity moves). Point names no longer clash with `plots`, `pre` … in `points/`, but a stage still
+  shares `logs/` and `points/` with them: `RESERVED` stays.
+- **Code:** a `RunFolders` value in `tools.py` (record, results, and their `points`, `logs`, `plots`, `config`),
+  made by `tools.folders(run, configuration)`; `point_dirs` returns `(folders.logs / name, folders.points_results
+  / name)` (stages: `pre`/`post` results where they are); `record.records_of` becomes `record_dir(plan)` =
+  `folders.points / name`; `plot.pages`, `plot.point_yodas`, `post.py:78`, `cluster.py:158`, `house.clean_targets`,
+  `execute._tidy` (`is_relative_to(records_root())`), `cli.journal_path`, `cli` reproduce (`.reproduce` under
+  `records/<P>/`), `deck.requested` (provenance in `points/`) use it. `paths.logs_root` and `$HEP_LOGS` go:
+  `$HEP_LOGS` joins `paths.RETIRED` ("logs live in records/<run>/logs/"); `cluster.ROOTS` and `tests/conftest.py`
+  drop it; CLAUDE.md's testing line too.
+- **`heimdall migrate --layout`** gains the step from today's layout (it already moves `output/`): per
+  configuration folder with a `points.json`, a dry run listing every move, then `--apply`: record folders into
+  `points/`, `logs/<run>/<point>/` into `records/<run>/logs/<point>/` (its `logs/*.log` up one level),
+  `logs/<run>/plots/` and `status.jsonl` into `records/<run>/`, `results/<run>/<point>/` into `points/`, and
+  `points.json`'s `products`, `results`, `output` rewritten. Renames only (same filesystem), nothing deleted;
+  an empty top-level `logs/` left for the user to remove. Every command in a work dir with the old layout says so
+  (as `output/` does). The work dir's HEIMDALL.md folder table (`framework/templates/work/`) and `.gitignore`
+  follow; `heimdall setup . --refresh` brings them.
+- **Verification:** identities of the fixture's every configuration (`--dry-run`) before and after: equal for
+  every point; a post stage that reads the points' products moves once (its argv names their new path), said in
+  the V-row. If any point identity moves, stop and report. Then on the real work dir: dry run shown to the
+  user, `--apply` only on their word, then `heimdall status` must show the same complete points.
+
+### Phase 3: replot (and rerun) from the record (H5)
+
+- **The snapshot.** When a configuration's points run (not `--only plot`), its folder gets
+  `records/<run>/config/`: the run TOML and every file it imports, byte for byte, under `<project>/` as in
+  `configs/`, the base cards they name (bare paths, the project's), and `snapshot.toml` (source paths and
+  sha256s, the configuration's key, the `--set`s, Heimdall's revision, when). A few KB, a record. A later run
+  of the same folder replaces it with its points.json (the record says what the folder holds); a serial keeps
+  an old run whole. Files named `./…` or absolute (datasets, modules, tool folders) are read live, and
+  `snapshot.toml` lists them.
+- **A record is a config:** `heimdall plot|run|check RECORD`, where RECORD is `<P>/<name>/<NN_label>` (three
+  parts; a config is two) or a path into `records/` or `results/`. It loads the snapshot with `configs_root()`
+  set to `records/<run>/config/` (a `paths` override), so bare imports and cards resolve inside it, re-applies
+  its `--set`s, and fixes the configuration. `heimdall run RECORD` then plans from the cards as they were:
+  complete points skip, missing ones run into the same folder. Editing the snapshot's `[plot]` restyles that
+  run alone.
+- **Pages from what was recorded:** the plot stage takes members (`plot.Member`: name, choice, values, texts,
+  YODA, run), built from plans (live) or from the record: `points.json` and each point's `.complete` equal to its
+  recorded identity and its products present. `heimdall plot RECORD` plans no tool: no stack beyond Paint.
+  `points.json` gains each point's `texts` (Rivet's `{opt:…}`) so record pages cite them.
+- **The live config too** (the user's choice): `plot.pages` stops filtering on `is_complete(plan)`; a planned
+  point is drawn when its record is complete, and the stage notes those whose recorded identity is not today's
+  (`record.recorded_identity` vs `plan.identity`), at most a few names and the count, with the `--why` hint.
+  `cli.others_of` (compare figures) does the same.
+- **A compare figure may name a record** (`configurations = ["generator_pdf", "<P>/<run>/04_generator_pdf"]`),
+  read as recorded.
+- **Plot settings apart from the run's:** already possible by import (`[file] import = [{ from =
+  "<run>_pages", only = ["plot"] }]`); 03 §3 says it as the way. New: `heimdall plot CONFIG|RECORD --plot FILE`,
+  a TOML whose `[plot]` replaces the run's for that drawing (checked as a run's is).
+- Code: `cli.cmd_plot`, `cli.build_plans` (a record argument), `paths` (the configs root override),
+  `record.write_snapshot`, `results.py` (the manifest's reader, shared), `plot.py` (members), `status`
+  (`heimdall status RECORD` reads the record as it does a config).
+- Tests: a fixture run, then its card edited in the scratch copy: `heimdall plot RECORD` draws every point;
+  `heimdall run RECORD` skips them all; a compare figure with a record; the snapshot's files and sha256s.
+
+### Phase 4: pages from chosen points, and their statistics
+
+#### H6. Point sets and split pages
+- `[plot]` (and a defined or overlay figure, as page keys):
+  ```toml
+  sets  = [[1, 4, 6, 8], [1, 2, 4, 9], "all"]   # a page folder each: set1, set2, all
+  split = 3                                       # at most 3 points a page, in order: py8-1, py8-2, …
+  ```
+  - A set is a list of selectors, or one selector, or `{ name = "lo", points = [...] }`. A selector is a
+    1-based index (as "point 34/38" counts), a point name, a glob of names (`"sh3_NNPDF40*"`), a tag
+    (`"py8"`: every point with it), `"quantity=tag"`, or `"all"`. `sweep.select_points` grows lists, globs and
+    `"all"`, and keeps the order written. A string set names its folder (`"pdf=X"` → `pdf-X`); a list is
+    `set<k>`.
+  - `sets` replaces the `plot_points` cells for these pages; `split` cuts each cell (or set) into pages of at
+    most N points, in order (`<cell>-<k>`, or `part<k>` with one cell). Ratios divide by a page's first point.
+  - A curve is labelled by the quantities that differ among its page's points (all of them on a mixed set);
+    `{cell}` is the set's or part's name.
+  - merged, scan and compare figures page by `plot_points` only: `sets`/`split` there are refused, with the hint.
+  - A selector matching no point is refused when the file is read (at plan time for a record); a set without
+    complete points is skipped and said.
+  - `heimdall plot … --points SEL`: one set from the command line (`--set 'plot.sets=[…]'` works too).
+- Code: `plot._pages` (`by_page` from sets/split), `plot.check_figures`, `sweep.select_points`, the schema's
+  `[plot]` and figure keys, 03 §3 and §7, 04 §11.
+
+#### H7. Page statistics
+- **Computed by Paint**, on the numbers it draws (after void, align and normalise, over the drawn x range), so
+  every backend's pages agree: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the
+  page's first curve, the ratio's): `abs_area` = Σ |y − y_ref|·Δx on the reference's bins (`rebinned`),
+  `rel_abs_area` = abs_area / ref_area, `chi2` and `ndf` (bins compared).
+  `Paint::statistics` in `Transform.hh`, printed as a JSON line per page; a C++ test in `tests/cxx/`.
+- **The table, on by default:** the plot stage writes `results/<run>/plots/statistics.csv` (page, cell, object,
+  curve, points, bins, area, area_err, reference, ref_area, abs_area, rel_abs_area, chi2, ndf, chi2_ndf) and
+  says where in its summary line; `[plot] statistics = false` turns it off. With `--ranges` (the mpl and yoda
+  backends) the same numbers go into `<page>.toml.ranges.json`, so no backend computes its own.
+- **In the legends, when asked:** `[plot] legend_statistic = "chi2_ndf"` (or `abs_area`, `rel_abs_area`,
+  `area`; a figure may set its own) appends it to each curve's legend entry (`… (χ²/ndf 1.31)`); Paint writes it,
+  mpl reads it from the ranges file.
+- Rebuilding Paint changes no identity (plot-only).
+
+#### H8. A page per statistic (when declared)
+- A figure class `statistic`: `statistic = "chi2_ndf"` (any column above), `objects = ["d01-*"]`, optional
+  `sort = true` (best first) and `combine_objects = "sum"` (one page summing over its objects instead of a page
+  each). Per cell (or set) and object: a page whose x axis is the cell's points by their curve labels, one bin
+  each, y the statistic, drawn as markers.
+- Built after the pages are drawn, from the statistics just computed: a ROOT file with labelled bins
+  (`records/<run>/plots/statistic/<name>/`), drawn by Paint, which learns alphanumeric x labels (`x_bin_labels`
+  in the page document → `TAxis::SetBinLabel`); mpl draws the same labels.
+- Pages: `<cell>/<name>/<object>`; the figure table in 03 §7.9 and 04 §11.2; refused in a compare figure's list.
+
+### Decisions (the user, 2026-10-21, while planning)
+
+- **Live plot draws what was recorded, with a note:** `heimdall plot CONFIG CFG` (and a run's plot stage)
+  draws every planned point whose record is complete (`.complete` there, products present), and names those
+  whose recorded identity differs from today's plan: "12 points ran with other inputs than the config gives now
+  (py8_NNPDF23lo, …): drawn as recorded; heimdall run … --why". A rebuilt stack no longer empties the pages.
+- **Parallel Sherpa: the recipe, no new code.** Seed replicas with `combine` and `parallelism` already run K
+  Sherpa processes with their own seeds and merge each value's YODAs (02 §7.3, V35, V36). Written up in 02 §7.3
+  and 05 §13 with a Sherpa example (`to = { "sherpa/seed" = true }`, checked in the scratch work dir first; with
+  a generator selector, both generators' seeds; `events` per replica = the total ÷ K). MPI is noted as what
+  it is: it speeds the integration (the cached prepare), needs Sherpa built with `-DSHERPA_ENABLE_MPI=ON`, and is
+  not built.
+- **Statistics:** the CSV on by default (`[plot] statistics = false` turns it off); the legend's statistic and a
+  page per statistic only when asked for (H7, H8).
+- **The live view's note goes on its own line** below the tool's row (H2).
+
+### Verification (each phase)
+- `source gjallarhorn.sh`; the fast suite light (`taskset -c 0-5 nice -n 10 python -m pytest -q -m "not slow"`),
+  one session at a time; the C++ tests for Paint; the slow suite once at the end, alone.
+- Phase 1: a short Sherpa point in the scratch work dir (`--logs`): the live view's bar, rate and ETA; the
+  log's lines one per print; identities before and after equal.
+- Phase 2: the identity gate above; `heimdall migrate --layout` on a scratch copy of the real work dir's
+  `records/ results/ logs/` first (copied, not moved), `heimdall status` equal before and after.
+- Phase 3: the replot test above; then `heimdall plot <P>/<run>/04_generator_pdf` in the real work dir (after its
+  migration): 38 points' pages.
+- Phase 4: sets `[[1,20],"all"]` and `split = 8` on that record; `statistics.csv` checked by hand on one page
+  against the YODA (every curve's area is 1 on a normalised page); `legend_statistic` on one page in Paint and
+  mpl; a `statistic` figure of `chi2_ndf` over the 38 points, sorted.
+- Docs: 02, 03, 04, 05, 06 §1 and §10, 07 (V156… in building order, the ledger row); `heimdall make --framework
+  docs schema` after the schema's docs change.
+
+## Task I: High-Energy cleaned up into a lean work dir; its aux/ into Heimdall as editor/ (done 2026-10-22, V161)
+
+The user: "cleanup High-Energy and migrate it to Heimdall" (06_Workdirs.md's parked appendix, D31). Answers:
+High-Energy keeps **Comparison and Lambda** (PhotoProduction is Brookhaven's since `ea43a70`); **aux/** (the VS
+Code tooling) moves into Heimdall as **`editor/`**; untracked **debris deleted, data kept**; **local commits only**
+(no branch change, no push). Task H phase 4 is uncommitted here (21 files, V159–V160): this task edits none of them.
+
+1. Heimdall `editor/` from `git archive` of High-Energy's `aux/` (1,311 files), `aux/` paths in them → `editor/`,
+   CLAUDE.md's layout row. Commit A.
+2. High-Energy debris out: `py.py`, `MG5_debug`, `ME5_debug`, `output/`, `build/`, `.pytest_cache/`. v1 data out of
+   Heimdall's layout readers (`migrate.logs_moves`, `deck_moves`): `results/PhotoProduction`, `reports/*` →
+   `archive/v1/` (ignored). `literature/`, `cross_machine/`, `datasets/` stay.
+3. `git rm` the move map's framework side (`utils/ tests/ bots/ Makefile pytest.ini`, `docs/` but `Untitled-1.md`),
+   `aux/`, `configs/PhotoProduction`, `modules/PhotoProduction`: 24 tracked paths stay.
+4. `heimdall setup --adopt ~/Github/High-Energy` (recognised in workdirs.toml).
+5. `heimdall migrate` then `--v3` (diffs kept), comments naming `utils/` or `hep` → Heimdall's names.
+6. One local commit by path; 7. `heimdall build` (light), `heimdall check`, `heimdall run … --plan` for both.
+8. 06_Workdirs.md appendix and 01_Target.md §4.4/§7 say it was done; V161; commit B.
+
+Done: Heimdall `2186975` (editor/) and the docs commit; High-Energy `b637599` (local, on `rework`; 28 tracked
+files; build and check pass; recognised in workdirs.toml). Not done: a real run of either study; the push.
 
 ## Task F: generators and tool setups compared in one configuration (done 2026-10-15, V151–V154)
 

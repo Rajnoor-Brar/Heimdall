@@ -58,8 +58,7 @@ A **work dir** holds a study. `heimdall setup <dir>` makes it from `framework/te
 | `datasets/` | your own reference data: small files tracked; large ones in `datasets.toml` (url, sha256), fetched by `heimdall setup` and kept out by `datasets/.gitignore` | yes |
 | `decks/<deck>/` | a deck's sources: `deck.md`, `deck.toml`, its pictures | yes |
 | `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
-| `records/` | what runs recorded: provenance, identities, completion, `points.json`, cluster submissions | no |
-| `logs/` | each point's working folder (its cards and configs; FIFOs and scratch files while it runs), a failed tool's last lines, page documents (§14) | no |
+| `records/` | what runs recorded, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, a failed tool's last lines; FIFOs and scratch files while it runs), `plots/` (page documents), `config/` (the run's snapshot), `points.json`, cluster submissions | no |
 | `.cache/` | prepare caches; with `keep cache`, card checks and converted reference data | no |
 | `results/` | products per project | no |
 | `reports/<deck>/` | a deck as `heimdall deck` builds it: panels, composites, the slides | no |
@@ -110,7 +109,7 @@ a work dir
 ├── hep.toml, Makefile        the marker; include $(HEP)/framework/work.mk
 ├── configs/<Project>/        run TOMLs and native base cards (the physics)
 ├── modules/<Project>/        your C++: programs (<Name>.cc) and Rivet plugins (Rivet/<x>.cc, Rivet_<x>.cc)
-└── build/ records/ logs/ .cache/ results/   compiled modules; records; working files; caches; products
+└── build/ records/ .cache/ results/   compiled modules; records and working files; caches; products
 ```
 
 ### 2.1 The runner
@@ -285,8 +284,8 @@ With `--plan`, everything is printed here and nothing runs. **Running** (`cli.ru
      products from `*.partial.*` to their final names, so the next group can read them.
 4. **Record**: the FIFOs are removed, `provenance.json` is written, and `.complete` holding the
    identity is written **last**.
-5. **Tidy** (`_tidy`, V149): the working folder keeps `cards/`, `config/`, a `logs/` something was
-   written to, and the lock; its scratch files, shards and what its tools left go, unless the run
+5. **Tidy** (`_tidy`, V149): the working folder keeps `cards/`, `config/`, the `<tag>.log` files
+   written there, and the lock; its scratch files, shards and what its tools left go, unless the run
    keeps `work` (§14).
 
 A failure anywhere stops the point: its products keep their partial names, no `.complete` is
@@ -402,7 +401,7 @@ for each point, before anything else is planned:
 [["pythia", "rivet"], "yd2rt"]         with [tools.rivet] shards = 3
   → [["pythia", "rivet.1", "rivet.2", "rivet.3"], ["rivet.merge"], ["yd2rt"]]
      pythia writes  events.s1.hepmc+events.s2.hepmc+events.s3.hepmc   (a deal group: one each)
-     rivet.<i>      reads events.s<i>.hepmc, writes logs/…/shards/jets.s<i>.yoda
+     rivet.<i>      reads events.s<i>.hepmc, writes records/…/logs/<point>/shards/jets.s<i>.yoda
      rivet.merge    rivet-merge -e the three → results/…/jets.yoda
 ```
 
@@ -541,7 +540,7 @@ process directory.
 - **One reader thread per tool** (V72) reads both pipes, so a tool that prints fast never waits on a
   full pipe.
 - **Runtime state stays off disk** (the user's decision). A tool's output is kept in memory (its
-  last 200 lines) and written to `logs/…/<point>/logs/<tag>.log` only when it fails; `--logs`
+  last 200 lines) and written to `records/…/logs/<point>/<tag>.log` only when it fails; `--logs`
   (`keep logs`, §14) writes every tool's whole output there as it comes.
 - **A filter rule never fails a run.** The exit code does that.
 - **The event stream** (`events.py`, V72). The executor, the stages and the CLI emit versioned
@@ -559,13 +558,14 @@ process directory.
     `<tmp>/hep-watch/hep-watch-<pid>`, removed at exit; a dead process's is cleared by the next
     `heimdall watch`). It sends a greeting, the current run's events so far, then every
     event live for the life of the process: a sweep of runs is one stream.
-  - **the journal** `logs/…/<cfg>/status.jsonl`, only with `--journal`: one file per run, for
+  - **the journal** `records/…/<cfg>/status.jsonl`, only with `--journal`: one file per run, for
     `heimdall watch --file` and replay.
 - **The views.** A view is one reducer of events (`watch.State`) and a renderer on its own thread,
   the same in the run, in `heimdall watch` and over a journal.
   - **The live view** (with `rich`, on a terminal) shows each running point below the finished
-    blocks: its heading and its time so far, then a line per running tool with progress, rate, ETA,
-    σ and the last warning.
+    blocks: its heading and its time so far, then a line per running tool with phase, progress, rate
+    and ETA. A tool's last warning or error is on a line of its own under its row (`↳ …`); a tool
+    with no count yet shows its last line there, dim (V156).
   - **The plain view** (`--plain`, or not a terminal) prints progress every few seconds.
 
   **A view never blocks the run** (V32). Everything it prints goes through one background thread,
@@ -573,10 +573,13 @@ process directory.
   Both views print **one block per finished point**:
 
   ```
-  ── point 2/4: NNPDF23lo ── ok after 1min 12s
+  ── point 2/4: NNPDF23lo ── ok after 1min 12s at Tue 21 Oct 14:03
+
      done → results/Demo/validation/default/NNPDF23lo
+
   ```
 
+  The heading says when the point ended (local time), and a blank line follows it and the block.
   A failed point's block names the tool to blame, its exit and the message. A cached prepare step is
   one line in the block.
 
@@ -665,7 +668,31 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
 ## 13. The plot stage inside
 
 `plot.draw(run, configuration, plans, say, others)` runs after the stages, on `--only plot`, and in
-`heimdall plot`. Its input is the complete points only (`record.is_complete` and a YODA product).
+`heimdall plot`. Its input is the points whose record is complete (`plot.drawable`, V158): a plan whose
+`.complete` is there (any identity: one other than the plan's is drawn as recorded, and named) and whose
+YODA product is on disk. `heimdall plot RECORD` gives it `plot.Member`s instead (`plot.recorded`): a
+configuration's points.json read with its snapshot's run (names, choices, values, the tools' page texts,
+the YODA), combined groups in their place, each complete when its `.complete` holds the identity
+points.json names; nothing is planned. A member has what a page needs of a plan: `point`, `values`,
+`folders`, `context`, its YODA and texts (`yoda_of`, `texts_of`).
+
+**Cells** (`_pages.cells`, V159): a page's members by their `plot_points` tags, or by `[plot].sets`
+(`sweep.set_entries` names each set, `sweep.chosen_points` resolves a selector, checked at plan time by
+`check_figures`), each cut by `split`; a set's or a cut's curves are labelled by the groups that differ on
+it. merged, scan and compare figures pass `grouped=False`. **Statistics** (V160): Paint writes
+`<page>.toml.stats.json` for every page it reads (`Paint::statistics`, Transform.hh); `_draw` runs Paint
+`--ranges-only` first on pages with a `legend_statistic` and adds the numbers to their labels, then writes
+`statistics.csv` (`write_statistics`) after the draw; `statistic_pages` builds a statistic figure's pages
+from those rows (a Scatter2D per page, `derive.scatter`, converted for Paint, `x_labels` naming the bins).
+
+**A record** (`record.record_of`) is a configuration's folder of `records/` with a snapshot
+(`record.write_snapshot`, written with points.json when points run): the files the run read from its
+configs (`record.snapshot_files`: the run TOML, `run.imported`, the base cards its points read, its
+tools' filters, the root style, the master) as `configs/` holds them, and `snapshot.toml`. `cli.opened`
+turns a record into a config for `run`, `plot` and `status`: `$HEP_CONFIGS` at its `config/`, its
+configuration and `--set`s. An identity writes a path under a configs root other than the work dir's
+`configs/` as `{work}/configs/…` (`paths.identity_texts`), so a record's points plan to the identities
+they ran with; provenance keeps the real paths.
 
 1. **Figures.** `plot.figures(run)` reads `[plot.figures.<key>]` into `Figure`s, in file order. The
    implicit figure, `[plot].objects` as defined pages, is `_pages`' own. A figure carries every
@@ -676,7 +703,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
    (`dataclasses.replace` of a real plan, renamed by the tags it stands for), each with a YODA of its
    own made once per change of its inputs:
    - **derived** (`point_yodas`, `derive.py`): a copy of each point's YODA with `/FIGURES/<name>`
-     appended, in `logs/…/plots/derived/`;
+     appended, in `records/…/plots/derived/`;
    - **merged** (`_merged`): per value of the kept axes, the members' YODAs merged by the combine
      folder's command (`tools.merge_files`), in `plots/merged/<name>/`;
    - **scan** (`_scanned`, `derive.scan_value`): per value of the other curve axes, a Scatter2D, a
@@ -706,7 +733,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
      curve's own).
    - **Its curves:** each with its label and look, and with a band folded by `_banded`.
    - **Written:** the style layers' changes and the mapped data. Each document goes to
-     `logs/…/plots/[<cell>/][<folder>/]<object>.toml` (labels through `for_root`: LaTeX → TLatex)
+     `records/…/plots/[<cell>/][<folder>/]<object>.toml` (labels through `for_root`: LaTeX → TLatex)
      and is kept in memory as a `Page`.
 5. **Draw** (`_draw`):
    - **Paint:** one `Paint.exe` per `PAINT_BATCH` (200) pages, each page's outcome a JSON line;
@@ -732,32 +759,37 @@ plan time (`check_style`). Keys a backend cannot honour are errors, never silent
 
 ## 14. Where files go
 
-**In the work dir, by lifecycle (U21): what runs recorded goes in `records/`, working files in
-`logs/`, rebuildable caches in `.cache/`, products in `results/`, compiled modules in `build/`.** A run writes nothing else, and nothing in Heimdall; `heimdall deck` writes only into its deck's
-folder, under `reports/`. Heimdall's own builds go to the machine root (§1): `apps/`, `forge/`.
+**In the work dir, a folder per configuration in `records/` and in `results/` (V157), by lifecycle
+within it (U21):** what a run recorded in `records/<run>/points/`, its working files in
+`records/<run>/logs/`, its page documents in `records/<run>/plots/`, the run TOML and cards it ran with in
+`records/<run>/config/`; products in `results/<run>/points/`, pages in `results/<run>/plots/`; rebuildable
+caches in `.cache/`, compiled modules in `build/`. A run writes nothing else, and nothing in Heimdall;
+`heimdall deck` writes only into its deck's folder, under `reports/`. Heimdall's own builds go to the
+machine root (§1): `apps/`, `forge/`. `tools.RunFolders` names them all; nothing else spells them.
 
 ```
 records/<P>/<run>/<cfg>/
-  points.json
-  <point>/      provenance.json  identity.json  .complete
-  pre/, post/, <combined group>/      the same, for the stages
-  cluster/<stamp>/                    heimdall cluster's submissions: *.sbatch, points.txt, jobs.toml, logs/
-logs/<P>/<run>/<cfg>/
-  [status.jsonl: keep journal]
-  <point>/      cards/  config/  .lock   [logs/: a failed tool's last lines; keep logs: every tool's output]
-                while it runs, and kept when it fails or with keep work: FIFOs, scratch files, shards, context.toml
-  pre/, post/, <combined group>/      the same, for the stages
+  points.json   [status.jsonl: keep journal]
+  points/<point>/       provenance.json  identity.json  .complete   (kept; clean --records only)
+  points/pre/, post/, <combined group>/   the same, for the stages
+  logs/<point>/         cards/  config/  .lock   [<tag>.log: a failed tool's last lines; keep logs: every tool's output]
+                        while it runs, and kept when it fails or with keep work: FIFOs, scratch files, shards, context.toml
+  logs/pre/, post/, <combined group>/     the same, for the stages
   plots/        [<cell>/]<object>.toml (page configs); with keep cache also: .ranges.json, merged.sha256,
                 derived/<point>.yoda   merged/<figure>/   scan/<figure>/   yoda/ (mkhtml's)   datasets/
-logs/<P>/<run>/compare/<figure>/      a compare figure's page configs
-logs/<P>/.reproduce/<identity>/       heimdall reproduce's run, beside the original
+  config/       the run's snapshot (V158)
+  cluster/<stamp>/                    heimdall cluster's submissions: *.sbatch, points.txt, jobs.toml, logs/
+records/<P>/<run>/compare/<figure>/   a compare figure's page configs
 .cache/<P>/<tool>/<key>/              prepare caches
 [.cache/<P>/checks/  .cache/<P>/datasets/]   keep cache: card checks; reference data converted for Paint
-$HEP_MACHINE/forge/scratch/           everything tests write: work/ (the fixture's copy), records/, logs/, cache/, results/, reports/, pytest/
+.cache/<P>/reproduce/<identity>/      heimdall reproduce's run, beside the original
+.cache/overlay/<key>/                 heimdall overlay's page configs
+$HEP_MACHINE/forge/scratch/           everything tests write: work/ (the fixture's copy), records/, cache/, results/, reports/, pytest/
 
 results/<P>/<run>/<cfg>/
-  <point>/                            the products only
-  pre/, post/, <combined group>/      the stages' products
+  points/<point>/                     the products only
+  points/<combined group>/            a combined group's merged products
+  pre/, post/                         the stages' products (later stages name them, so they are not in points/)
   plots/root/<cfg>.root               the sweep in one file (a figure's own: plots/root/<figure>/, scan/)
   plots/<backend>/[<cell>/][<figure>/]<object>.<fmt>   the pages: root (Paint), yoda (mkhtml), mpl
   plots/<backend>/index.html          every page, by cell
@@ -943,6 +975,7 @@ Every section and key is checked when the folders load: an unknown one is an err
 | | `merge`, `repeatable`, `owned` | `merge = true`: the combined card holds each key once, parsed with the folder's `line` (V59); `repeatable`: commands kept every time (Pythia's particle-data `onIfMatch`, …); `owned`: keys the runner sets: a base card's value of one is reported by `--plan` (append), or refused by `render.py`, which gets the list as `context["owned"]` (V61) |
 | | `drop`, `trailing`, `drop_inside_braces` | how the combined card leaves out a base card's comments (V54): `drop` a full-line comment (a regex; default: a line starting with `comment`), `trailing` a comment after a value, `drop_inside_braces = false` keeps comment-looking lines inside `{ … }` (Tcl) |
 | `[command]` | `argv` | the argv template (04 §10); default `["{exe}"]` |
+| | `display` | argv pieces that change only how the tool prints its progress, appended after the identity took the argv: **never in the identity**, so they may not change what the tool makes (Sherpa's `BATCH_MODE`, V156). Placeholders as `argv`'s, plus `{display_every}` = max(100, events ÷ 1000) |
 | | `env` | extra environment (`RIVET_ANALYSIS_PATH = "{work}/build/Rivet"`) |
 | | `cwd` | where it runs (default the point's output directory; Whizard: `{prepared}`) |
 | `[options]` | `<key> = { kind, required, flag, default }` | the tool-specific keys a table may carry; `kind` is `list`, `table`, `str`, `int`, `float`, `bool` or `flag` (`flag = "-e"`, `default`); every option is also a placeholder |
@@ -1352,7 +1385,7 @@ rules in order, and **the first match wins**.
 # framework/tools/<tool>/filters.toml, or your own via filters = "<file>" (V61)
 [[rule]]
 match = '^Event (?P<done>\d+) \('     # a Python regex
-emit  = "progress"                    # progress | phase | warn | error | ignore
+emit  = "progress"                    # progress | xsec | phase | warn | error | ignore
 
 [[rule]]
 match = '^Reading events from'
@@ -1366,14 +1399,25 @@ emit  = "error"
 
 | `emit` | Needs | Makes |
 |---|---|---|
-| `progress` | a `(?P<done>…)` group (commas and spaces allowed), optionally `(?P<total>…)` | a `progress` message |
+| `progress` | a `(?P<done>…)` group (commas and spaces allowed); optionally `(?P<total>…)`, `(?P<elapsed>…)` (a duration: `45.2s`, `2h 58m 30s`, `0:00:01`), `(?P<xsec>…)` and `(?P<xsec_err>…)` (pb) | a `progress` message, and an `xsec` one with `xsec` |
+| `xsec` | `(?P<xsec>…)`, optionally `(?P<xsec_err>…)`, in pb | an `xsec` message |
 | `phase` | `phase = "…"`, or a `(?P<phase>…)` group | a `phase` message |
 | `warn`, `error` | — | a `log` message with the line |
 | `ignore` | — | nothing, and stops the lines below from matching |
 
+Any rule may also name a `phase`: matching it enters that phase (Sherpa's first event line enters
+`generating`).
+
+**A progress bar from what a line says.** A line without a total takes the events the tool makes
+(`produces_events`) or reads (`consumes_events`, unless a producer deals them among shards). Its rate
+is `done / elapsed` when the rule captures `elapsed`, and otherwise is measured from the first count
+on; with both, the view shows an ETA.
+
 **A rule never fails a run**: the exit code does that. A rule that stops matching costs a progress
 bar, not a result. Lines are split on `\n` and `\r` (a counter rewritten in place, like Herwig's
-`event>`). The last line is always shown for a tool with no progress.
+`event>`), and a terminal's control sequences (colours, cursor moves) are taken out before a line is
+matched or shown; the log keeps the bytes. The last line is shown, under the tool's row, while a tool
+has no count.
 
 ---
 

@@ -1,5 +1,6 @@
-"""The work dir's lifecycle (audit 3, phase 5.1): records/ apart from logs/ and .cache/ (U21), a point lock
-(U66), reserved names (U30), portable records (U29) and `heimdall migrate --layout`."""
+"""The work dir's lifecycle (audit 3, phase 5.1; V157): a point's records (records/<run>/points/) apart from its
+working folder (records/<run>/logs/) and .cache/ (U21), a point lock (U66), reserved names (U30), portable records
+(U29) and `heimdall migrate --layout`."""
 
 from __future__ import annotations
 
@@ -11,12 +12,12 @@ import pytest
 
 from runner import cli, execute, house, migrate, record
 from runner.errors import HepError
-from runner.paths import cache_root, logs_root, records_root
+from runner.paths import cache_root, records_root, results_root
 
 
 @pytest.fixture
 def trees(scratch, monkeypatch):
-    for var, name in (("HEP_RECORDS", "records"), ("HEP_LOGS", "logs"), ("HEP_CACHE", "cache"), ("HEP_RESULTS", "results")):
+    for var, name in (("HEP_RECORDS", "records"), ("HEP_CACHE", "cache"), ("HEP_RESULTS", "results")):
         monkeypatch.setenv(var, str(scratch / name))
     return scratch
 
@@ -26,9 +27,9 @@ def planned(name: str, key: str):
 
 
 def finished(plan) -> None:
-    """A point as a completed run leaves it: logs, a product, its records."""
-    (plan.out / "logs").mkdir(parents=True, exist_ok=True)
-    (plan.out / "cards").mkdir(exist_ok=True)
+    """A point as a completed run leaves it: a log, its cards, a product, its records."""
+    (plan.out / "cards").mkdir(parents=True, exist_ok=True)
+    (plan.out / "pythia.log").write_text("x\n", encoding="utf-8")
     plan.res.mkdir(parents=True, exist_ok=True)
     record.provenance_file(plan).parent.mkdir(parents=True, exist_ok=True)
     record.provenance_file(plan).write_text(json.dumps({"seed": 1}), encoding="utf-8")
@@ -36,13 +37,15 @@ def finished(plan) -> None:
 
 
 def test_deleting_logs_and_cache_reruns_nothing(trees):
-    """U21: what a run recorded is in records/, so logs/ and .cache/ may go."""
+    """U21, V157: what a run recorded is in records/<run>/points/, so records/<run>/logs/ and .cache/ may go."""
     p = planned("Demo/jets", "pdf")
     for plan in p.every:
         finished(plan)
-    assert record.complete_marker(p.every[0]).is_relative_to(records_root())
-    assert p.every[0].out.is_relative_to(logs_root())
-    shutil.rmtree(logs_root())
+    first = p.every[0]
+    assert record.complete_marker(first) == records_root() / first.folders.record.relative_to(records_root()) / "points" / first.point.name / ".complete"
+    assert first.out == first.folders.record / "logs" / first.point.name and first.res == first.folders.results / "points" / first.point.name
+    assert first.res.is_relative_to(results_root()) and first.rendered["pythia"].log == first.out / "pythia.log"
+    shutil.rmtree(first.folders.logs)
     (cache_root() / "Demo").mkdir(parents=True, exist_ok=True)
     shutil.rmtree(cache_root())
     again = planned("Demo/jets", "pdf")
@@ -118,7 +121,7 @@ def test_the_provenance_is_portable(trees):
     assert made["config_file"].startswith("{work}/configs/Demo/")
     assert unportable(made["config_file"]) == str(p.run.path)
     pythia = next(t for t in made["tools"] if t["tag"] == "pythia")
-    assert pythia["card"].startswith("{") and not any(a.startswith(str(logs_root())) for a in pythia["argv"])
+    assert pythia["card"].startswith("{") and not any(a.startswith(str(records_root())) for a in pythia["argv"])
 
 
 def test_migrate_layout_moves_output_by_lifecycle(scratch):
@@ -147,6 +150,47 @@ def test_migrate_layout_moves_output_by_lifecycle(scratch):
     assert migrate.apply_layout(list(moves.items()), work) == 0
     assert not (work / "output").exists() and (rec / "a" / ".complete").read_text(encoding="utf-8") == "x\n"
     assert (work / ".cache" / "Demo" / "checks" / "pythia" / "x.json").exists()
+
+
+def test_migrate_layout_moves_logs_into_records_and_points_into_points(scratch):
+    """V157: logs/ into records/<run>/logs/ (a point's logs/*.log one level up), page documents and journals
+    beside the points, points into points/ of records/ and results/, points.json pointed at them; the
+    stages' products, the pages and the submissions stay where they are."""
+    work = scratch / "w"
+    rel = "Demo/jets/01_pdf"
+    rec, log, res = work / "records" / rel, work / "logs" / rel, work / "results" / rel
+    files = {rec / "a" / ".complete": "x\n", rec / "a" / "provenance.json": "{}", rec / "pre" / ".complete": "p\n",
+             rec / "cluster" / "20261013-1200" / "jobs.toml": "",
+             log / "a" / "cards" / "pythia.cmnd": "c", log / "a" / "logs" / "rivet.log": "l", log / "a" / ".lock": "",
+             log / "pre" / "logs" / "make.log": "m", log / "plots" / "d01.toml": "", log / "status.jsonl": "",
+             work / "logs" / "Demo" / "jets" / "compare" / "both" / "d01.toml": "",
+             work / "logs" / "Demo" / ".reproduce" / "abc" / "results" / "x": "", work / "logs" / "plots" / "k" / "files.root": "",
+             res / "a" / "jets.yoda": "y", res / "pre" / "made.txt": "", res / "plots" / "root" / "d01.pdf": ""}
+    for path, text in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    (rec / "points.json").write_text(json.dumps({"points": [{
+        "name": "a", "results": str(res / "a"), "output": str(log / "a"), "products": {"jets.yoda": str(res / "a" / "jets.yoda")}}]}),
+        encoding="utf-8")
+    moves = dict(migrate.logs_moves(work))
+    assert moves[rec / "a"] == rec / "points" / "a" and moves[rec / "pre"] == rec / "points" / "pre"
+    assert moves[res / "a"] == res / "points" / "a" and res / "pre" not in moves and res / "plots" not in moves
+    assert moves[log / "a"] == rec / "logs" / "a" and moves[log / "plots"] == rec / "plots"
+    assert moves[log / "status.jsonl"] == rec / "status.jsonl" and rec / "cluster" not in moves
+    assert moves[work / "logs" / "Demo" / "jets" / "compare" / "both"] == work / "records" / "Demo" / "jets" / "compare" / "both"
+    assert moves[work / "logs" / "Demo" / ".reproduce"] == work / ".cache" / "Demo" / "reproduce"
+    assert moves[work / "logs" / "plots"] == work / ".cache" / "overlay"
+    assert migrate.apply_logs(list(moves.items()), work) == 0
+    assert not (work / "logs").exists()
+    assert (rec / "points" / "a" / ".complete").read_text(encoding="utf-8") == "x\n"
+    assert (rec / "logs" / "a" / "rivet.log").read_text(encoding="utf-8") == "l" and not (rec / "logs" / "a" / "logs").exists()
+    assert (rec / "logs" / "a" / "cards" / "pythia.cmnd").is_file() and (rec / "logs" / "pre" / "make.log").is_file()
+    assert (res / "points" / "a" / "jets.yoda").is_file() and (res / "pre" / "made.txt").is_file()
+    assert (res / "plots" / "root" / "d01.pdf").is_file() and (rec / "cluster" / "20261013-1200" / "jobs.toml").is_file()
+    entry = json.loads((rec / "points.json").read_text(encoding="utf-8"))["points"][0]
+    assert entry["results"] == str(res / "points" / "a") and entry["output"] == str(rec / "logs" / "a")
+    assert entry["products"] == {"jets.yoda": str(res / "points" / "a" / "jets.yoda")}
+    assert migrate.logs_moves(work) == []                                # today's layout: nothing to move
 
 
 def test_moving_the_machine_root_and_the_work_dir_changes_no_fingerprint(trees, monkeypatch):

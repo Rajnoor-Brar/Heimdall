@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+import support
+
 from support import apps, hep
 
 pytestmark = [pytest.mark.slow,
@@ -51,13 +53,13 @@ output_file = "jets.yoda"
 
 
 def point_dirs(where: Path) -> tuple[Path, Path]:
-    tail = Path("Demo") / "fail" / "one" / "point"
-    return where / "logs" / tail, where / "results" / tail
+    run = Path("Demo") / "fail" / "one"
+    return support.point_logs(where, run, "point"), support.point_results(where, run, "point")
 
 
 def marker(out: Path) -> Path:
-    """The point's .complete: in its records, beside its logs folder (U21)."""
-    return Path(str(out).replace("/logs/", "/records/", 1)) / ".complete"
+    """The point's .complete: in its records, records/<run>/points/<point>, beside its working folder (V157)."""
+    return out.parent.parent / "points" / out.name / ".complete"
 
 
 def start(config: str, where: Path) -> subprocess.Popen:
@@ -65,7 +67,7 @@ def start(config: str, where: Path) -> subprocess.Popen:
 
 
 def wait_for_progress(out: Path, tool: str, timeout: float = 120) -> None:
-    journal = out.parent / "status.jsonl"
+    journal = out.parent.parent / "status.jsonl"                    # records/<run>/status.jsonl (V157)
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if journal.exists():

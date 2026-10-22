@@ -371,8 +371,14 @@ namespace Paint {
         const double cornerH = 1.5 * st.cornerTitle * look.px, mainH = 1.6 * st.pageTitle * look.px;
         const double topMargin = st.top + ((corners ? cornerH : 0.0) + (main ? mainH : 0.0)) / H;
 
+        // V160: labels under the bins (a statistic figure's points), upright: the bottom margin grows to fit
+        const bool named = !page.xLabels.empty() && !page.ratio;
+        size_t longest = 0;
+        for (const auto& l : page.xLabels) longest = std::max(longest, l.size());
+        const double bottomMargin = st.bottom + (named ? 0.42 * double(longest) * look.labels / H : 0.0);
+
         // with a ratio, the axes between the margins split by ratio.heights, with no gap
-        Frame ft{double(W), double(H), st.left, st.right, st.bottom, topMargin}, fb{};
+        Frame ft{double(W), double(H), st.left, st.right, bottomMargin, topMargin}, fb{};
         TPad* top = &canvas;
         TPad* bottom = nullptr;
         if (page.ratio) {
@@ -395,6 +401,15 @@ namespace Paint {
         frame->GetYaxis()->SetTitle(page.yLabel.c_str());
         frame->GetXaxis()->SetTitle(page.ratio ? "" : page.xLabel.c_str());
         if (page.ratio && !page.logy && y.lo == 0.0) frame->GetYaxis()->ChangeLabel(1, -1, 0);   // the joint's "0"
+        if (named) {                                   // the axis's numbers give way to the points' names
+            frame->GetXaxis()->SetLabelSize(0), frame->GetXaxis()->SetNdivisions(0), frame->GetXaxis()->SetTitle("");
+            for (size_t i = 0; i < page.xLabels.size(); ++i) {
+                const double at = ft.l + (double(i + 1) - x.lo) / (x.hi - x.lo) * (1 - ft.l - ft.r);
+                auto* l = keep.hold(new TLatex(at, ft.b - 0.4 * look.labels / H, page.xLabels[i].c_str()));
+                l->SetNDC(), l->SetTextFont(look.font), l->SetTextSize(look.labels), l->SetTextAngle(90), l->SetTextAlign(32);
+                l->Draw();
+            }
+        }
 
         std::vector<Entry> entries;
         if (data) {

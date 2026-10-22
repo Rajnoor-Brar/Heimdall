@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+import support
+
 from support import HEP, REPO, WORK, apps, env, folder
 
 pytestmark = [pytest.mark.slow,
@@ -42,12 +44,12 @@ def test_a_run_writes_only_its_work_dir(scratch):
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     assert list(root.iterdir()) == []
     assert checkout_state() == before
-    assert sorted(p.name for p in scratch.iterdir()) == ["Himinbjorg", "logs", "records", "results"]   # no cache/
+    assert sorted(p.name for p in scratch.iterdir()) == ["Himinbjorg", "records", "results"]   # no cache/
 
-    run = scratch / "logs" / folder("Demo/jets", "single", scratch)
-    kept = {p.name for p in (run / "point").iterdir()}
+    run = scratch / "records" / folder("Demo/jets", "single", scratch)
+    kept = {p.name for p in (run / "logs" / "point").iterdir()}
     assert "cards" in kept and kept <= {".lock", "cards", "config"}         # config/: an exec or module tool's
     left = [p.relative_to(run / "plots") for p in (run / "plots").rglob("*") if p.is_file()]
     assert left and all(p.suffix == ".toml" for p in left)                  # the page configs only
-    assert not [p for p in (scratch / "logs").rglob("*") if p.is_fifo() or p.name == "status.jsonl"]
-    assert os.access(scratch / "results" / folder("Demo/jets", "single", scratch) / "point" / "jets.yoda", os.R_OK)
+    assert not [p for p in (scratch / "records").rglob("*") if p.is_fifo() or p.name == "status.jsonl"]
+    assert os.access(support.point_results(scratch, folder("Demo/jets", "single", scratch), "point") / "jets.yoda", os.R_OK)

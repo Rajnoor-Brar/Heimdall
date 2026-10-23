@@ -53,7 +53,7 @@ def talk(tmp_path, monkeypatch):
     monkeypatch.setenv("HEP_RECORDS", str(tmp_path / "records"))
     monkeypatch.setenv("HEP_CACHE", str(tmp_path / "cache"))
     for folder, colour in (("01_PDFs_010M", "lightblue"), ("01_PDFs_050M", "lightgreen")):
-        plot(results / "P" / "validation" / folder / "plots" / "root" / "d01-x01-y01.pdf", colour)
+        plot(results / "P" / "validation" / folder / "plots" / "totality" / "root" / "d01-x01-y01.pdf", colour)
     folder = tmp_path / "talk"
     folder.mkdir()
     (folder / "deck.toml").write_text('[blocks.validation]\nfrom = "P/validation"\nfolders = ["01_PDFs_*"]\npages = ["d01-*"]\n', encoding="utf-8")

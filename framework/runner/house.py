@@ -423,7 +423,7 @@ def clean_targets(planned: list, everything: bool, records: bool = False) -> tup
                         remove.append(cfg / "logs")
             cache = cache_root() / project
             for tool_dir in sorted(cache.iterdir()) if cache.is_dir() else ():
-                if tool_dir.name in ("checks", "datasets") or not tool_dir.is_dir():
+                if tool_dir.name in ("checks", "datasets", "plots") or not tool_dir.is_dir():   # plots/: the drawings' (V164)
                     continue
                 for entry in sorted(tool_dir.iterdir()):
                     if entry.is_dir() and entry not in referenced:

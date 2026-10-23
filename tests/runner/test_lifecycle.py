@@ -226,3 +226,44 @@ def test_moving_the_machine_root_and_the_work_dir_changes_no_fingerprint(trees, 
         paths.reset()
     assert there == here
     assert str(moved) not in parts and str(WORK) not in parts and os.path.expanduser("~/Himinbjorg") not in parts
+
+
+def test_migrate_layout_moves_pages_into_their_set_and_numbers_out_of_plots(scratch):
+    """V164: plots/<backend>/ into plots/totality/<backend>/, the merged sweep and the page documents into
+    .cache/<P>/plots/<name>/<cfg>/, statistics.csv and its bar graphs into statistics/totality/; a compare
+    figure's documents into .cache/ and its table into its statistics/. Renames; then nothing is left to move."""
+    work = scratch / "w"
+    rel = "Demo/jets/01_pdf"
+    rec, res = work / "records" / rel, work / "results" / rel
+    cache = work / ".cache" / "Demo" / "plots" / "jets" / "01_pdf"
+    compare = work / "results" / "Demo" / "jets" / "compare" / "both"
+    files = {res / "plots" / "root" / "em" / "d01.png": "p", res / "plots" / "root" / "index.html": "i",
+             res / "plots" / "root" / "pdf.root": "r", res / "plots" / "mpl" / "em" / "d01.png": "m",
+             res / "plots" / "root" / "sheets" / "grid.pdf": "s", res / "plots" / "statistics.csv": "c",
+             res / "plots" / "statistics" / "em" / "d01.png": "b", res / "plots" / "statistics" / "summary.png": "S",
+             rec / "plots" / "em" / "d01.toml": "t", rec / "plots" / "merged.sha256": "h", rec / "points.json": "{}",
+             work / "records" / "Demo" / "jets" / "compare" / "both" / "em" / "d01.toml": "",
+             compare / "root" / "em" / "d01.png": "", compare / "statistics.csv": "",
+             compare / "statistics" / "em" / "d01.png": ""}
+    for path, text in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    assert migrate.old_plots(work)
+    moves = dict(migrate.sets_moves(work))
+    totality = res / "plots" / "totality"
+    assert moves[res / "plots" / "root" / "em"] == totality / "root" / "em"
+    assert moves[res / "plots" / "root" / "pdf.root"] == cache / "pdf.root"
+    assert moves[res / "plots" / "root" / "sheets"] == totality / "root" / "sheets"
+    assert moves[res / "plots" / "statistics.csv"] == res / "statistics" / "totality" / "statistics.csv"
+    assert moves[res / "plots" / "statistics" / "em"] == res / "statistics" / "totality" / "bars" / "em"
+    assert moves[res / "plots" / "statistics" / "summary.png"] == res / "statistics" / "totality" / "summary.png"
+    assert moves[rec / "plots"] == cache
+    assert moves[compare / "statistics.csv"] == compare / "statistics" / "statistics.csv"
+    assert moves[compare / "statistics" / "em"] == compare / "statistics" / "bars" / "em"
+    assert compare / "root" not in moves                                 # a compare figure's pages stay
+    assert migrate.apply_sets(list(moves.items()), work) == 0
+    assert (totality / "root" / "em" / "d01.png").read_text(encoding="utf-8") == "p"
+    assert (totality / "mpl" / "em" / "d01.png").is_file() and (cache / "em" / "d01.toml").is_file()
+    assert (cache / "merged.sha256").is_file() and (cache / "pdf.root").is_file() and (rec / "points.json").is_file()
+    assert not (res / "plots" / "root").exists() and not (rec / "plots").exists()
+    assert not migrate.old_plots(work) and migrate.sets_moves(work) == []

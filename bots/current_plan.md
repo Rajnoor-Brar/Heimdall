@@ -1,8 +1,522 @@
 # Current plan
 
-**Task I is done** (V161, 2026-10-22: High-Energy as a work dir, editor/). **Task H is done** (V156–V160, 2026-10-21/22; below). **Task F is done** (V151–V154, 2026-10-15; its plan below). Open: audit 4 (below). The decisions are in docs/07_Record.md (V1–V155); finished task logs
+**Task K is being built** (V164…, 2026-10-22: plots and statistics by set, `plot.toml` per run; below). **Task J is built, uncommitted** (V163: sets with page axes and curve groups; below). **Task I is done** (V161, 2026-10-22: High-Energy as a work dir, editor/). **Task H is done** (V156–V160, 2026-10-21/22; below). **Task F is done** (V151–V154, 2026-10-15; its plan below). Open: audit 4 (below). The decisions are in docs/07_Record.md (V1–V155); finished task logs
 are in [archive.md](archive.md) (the latest: tasks A–E of 2026-10-14, V140–V150); ideas not built are
 in [intent.md](intent.md).
+
+## Task K: what `heimdall plot` makes; plots and statistics by set; `plot.toml` per run (V164…; approved 2026-10-22)
+
+From `/engineering:tech-debt` on `heimdall plot`, then the user's outline of the commands; approved as below; building.
+
+### Context
+
+The user (2026-10-22, `/engineering:tech-debt`): "there seems to be a lot of actions and output systems wrapped up
+in 'heimdall plot'. Analyse and list 'types' of plots and outputs, by call mechanism, content, context etc. For
+one, I am considering separating statistics into a separate command with a separate folder to plots."
+
+Read for this (2026-10-22): `framework/runner/plot.py` (1733 lines), `cli.py` (`cmd_run`'s plot stage,
+`cmd_plot`, `cmd_overlay`, `cmd_deck`), `framework/plot/{mpl,yoda}/backend.py`, `framework/plot/figures/{bars,
+derive,layout}.py`, `src/Apps/Paint/main.cc`, `tools.RunFolders`, `deck.py`.
+
+### 1. The calls that draw
+
+| Call | Context | What it reads | Tools planned | What it makes |
+|---|---|---|---|---|
+| `heimdall run CFG` (stage `plot`, after pre → points → combine → post) | the live config, after a run | complete plans | yes, and run | all of §2 but 6 |
+| `heimdall run CFG --only plot` / `--stages plot` | the same, nothing run | plans | planned only | the same |
+| `heimdall plot CFG [cfg]` (`--plot FILE`, `--points`, `--plan`, `--keep`); under `sweep_runs`, each | the live config; points drawn as recorded (V158) | plans → records | planned only | the same |
+| `heimdall plot RECORD` | the record's snapshot | points.json, `.complete` | none | the same |
+| a compare figure | **inside another configuration's plot stage**, once every named one is complete | other plans or records | — | compare pages, in `<P>/<run>/compare/<name>/` |
+| `heimdall overlay FILE…` | no run TOML | YODA/ROOT files | none | object pages only: `results/plots/<file>/`, `.cache/overlay/` |
+| `heimdall deck DECK` | reads drawn pages | `plots/<backend>/` | — | composites, slides (`reports/`) |
+
+### 2. What it makes
+
+| # | Output | Made from | Engine | Trigger | Where (`<r>` = results/<run>, `<c>` = records/<run>) |
+|---|---|---|---|---|---|
+| 1 | object pages (the implicit figure) | the points' 1D objects | Paint; mpl; rivet-mkhtml | default | `<r>/plots/<backend>/[<cell>/]<object>` |
+| 2 | defined figure pages | the same, the figure's keys | the same | declared | the same |
+| 3 | overlay figure pages | several objects of a point | the same | declared | `…/<cell>/<name>` |
+| 4 | derived figure pages | a new object per point (derive.py: YODA's Python) | the same | declared | `…/<cell>/<name>`; YODA copies in `<c>/plots/derived/` |
+| 5 | merged figure pages | points merged over axes (rivet-merge) | the same | declared | `…/<cell>/<name>/<object>` |
+| 6 | scan figure pages | a number per point against a quantity, as a Scatter2D | the same | declared | `…/scan/…` |
+| 7 | heat maps | 2D objects, a page per member | Paint only | automatic for 2D | `…/<cell>/<object>/<point>` |
+| 8 | compare figure pages | several configurations or records | Paint; mpl; mkhtml | declared | `results/<P>/<run>/compare/<name>/<backend>/` |
+| 9 | set pages (`sets`, `split`) | a paging layer over 1–4 (not 5, 6, 8) | — | declared | `…/<set>/<cell>/<object>` |
+| 10 | sheets | drawn pages, tiled | pdflatex, pdftoppm (layout.py) | declared | `<r>/plots/<backend>/sheets/<name>` |
+| 11 | index pages | drawn pages | write_index (root, mpl); mkhtml's (yoda) | default | `<r>/plots/<backend>/index.html` |
+| 12 | per-page numbers | each page Paint reads | Paint (`.stats.json`) | always | beside the page document; tidied |
+| 13 | legend statistics | 12, before drawing | Paint, a second pass (`--ranges-only`) | declared (`legend_statistic`) | in the page documents |
+| 14 | `statistics.csv` | 12, for this drawing's pages | Python csv | **default** (`[plot] statistics`) | `<r>/plots/statistics.csv` (a compare figure: its own) |
+| 15 | statistics bars | 14 | matplotlib (bars.py) | with 14 | `<r>/plots/statistics/<cell>/<object>`, `summary` |
+| 16 | statistic figure pages | 12, a bin per curve | derive.scatter → YODA → ROOT → Paint | declared (class `statistic`) | `<r>/plots/root/<cell>/<name>/<object>` |
+| 17 | the merged sweep | every point's YODA, one ROOT file | App_yd2rt | always | `<r>/plots/root/<cfg>.root` (and each merged, scan or compare figure's) |
+| 18 | working files | page documents (kept); ranges, stats, derived, merged, scan and statistic YODAs, converted data (tidied unless `--keep cache`) | — | always | `<c>/plots/…`, `.cache/<P>/datasets` |
+| 19 | the plan | the sets' cells and curves | — | `--plot … --plan` | stdout |
+
+**The same outputs, seen along other axes:**
+- **Made from:**
+  - the points' YODAs: 1–9 and 17;
+  - drawn pages: 10, 11 and decks;
+  - Paint's per-page numbers: 13–16.
+- **Engines:** five.
+  - Paint (C++) is the reference: every backend's ranges, and every number, come from it.
+  - mpl redraws mkhtml's look; rivet-mkhtml (yoda) is mkhtml itself.
+  - matplotlib directly draws the bars; pdflatex draws the sheets.
+  - The style keys each one honours differ (backend `validate`).
+- **Order within one `plot.draw`:**
+  1. page documents;
+  2. legend numbers (a Paint pass);
+  3. Paint draws, then the other backends;
+  4. CSV and bars;
+  5. statistic figures (another Paint pass);
+  6. tidy;
+  7. sheets;
+  8. compare figures.
+
+  One failure count and one `say` stream cover all eight steps.
+- **Scope:**
+  - Most outputs belong to one configuration; 8 spans configurations.
+  - **11, 14 and 15 are rewritten whole by every drawing.** That includes a `--plot FILE`, `--points` or sets
+    drawing, which then replaces the configuration's table and index with its own pages. Earlier pages stay on
+    disk but leave the index.
+
+### 3. The debt, by priority ((Impact + Risk) × (6 − Effort))
+
+| Item | Kind | Impact | Risk | Effort | Score |
+|---|---|---|---|---|---|
+| K1 A drawing rewrites shared outputs (11, 14, 15): a partial drawing replaces the configuration's table and index | architecture | 3 | 4 | 2 | 28 |
+| K2 Statistics are a by-product of drawing (12–16), in the plots folder, computed only for the pages just drawn, their numbers tidied away after | architecture | 4 | 3 | 3 | 21 |
+| K3 No single table of figure classes and outputs: what each makes, from what, by which engine, where | documentation | 3 | 1 | 1 | 20 |
+| K4 The mpl-vs-mkhtml pixel test depends on test order (seen in task H) | test | 2 | 3 | 2 | 20 |
+| K5 plot.py does everything: documents, engines, figure classes, statistics; `_pages` is ~250 lines of closures, with the defined and overlay loops nearly duplicated | code | 3 | 2 | 3 | 15 |
+| K6 Compare figures are drawn as a side effect of each configuration's stage (waits, "drawn by whoever finishes last") | architecture | 2 | 2 | 3 | 12 |
+| K7 `--plan` describes only sets: not the figures, sheets, compare or statistics a drawing would make | code | 2 | 1 | 2 | 12 |
+| K8 Intermediates in `results/` (the merged sweep ROOT) beside deliverables; it is also overlay's input | architecture | 2 | 1 | 2 | 12 |
+
+K2 is the user's proposal, and doing it removes the statistics half of K1. The design that fits it (questions
+pending): **statistics are of pages**, so `heimdall stats` builds the same page documents as `heimdall plot` would
+(sets, figures, data, normalise, range), but into its own working folder. Paint reads them with `--ranges-only`:
+numbers, no images. It writes `<r>/statistics/`, never `<r>/plots/`.
+
+### 4. Commands, their coordination and their configs (the user, mid-analysis: "there may need to be restructuring of commands, and how commands are coordinated (like plot automatically executes after run), and how configs interact with them … consider all possibilities, be bold")
+
+**Today, four jobs are tangled in two commands and one file:**
+
+| Job | Today's command | Today's config | Its input | Its output |
+|---|---|---|---|---|
+| produce (generate, combine, post) | `heimdall run` (stages pre → points → combine → post) | the run TOML: `[run]`, `[cfgs]`, `[tools]`, `[quantities]`, `[cluster]` | cards, the stack | records, products |
+| present (pages) | `heimdall run`'s last stage, `heimdall plot`, `heimdall overlay` | **the same run TOML's** `[plot]` (data, figures, sets, style); or `--plot FILE`, which replaces it whole (its data map copied) | **plans, made again** (the stack needed to compute identities), or a record | `results/<run>/plots/` |
+| measure (statistics) | inside presenting | `[plot] statistics`, `legend_statistic`, figure class `statistic` | the pages just drawn | `results/<run>/plots/statistics*` |
+| publish (slides, sheets) | `heimdall deck`; sheets inside presenting | `decks/<deck>/deck.toml`; figure class `sheet` | drawn pages | `reports/`; `plots/<backend>/sheets/` |
+
+**The coordination is fixed in code:**
+- `STAGES = (pre, points, combine, post, plot)`, so a run always ends by drawing.
+- A compare figure is drawn by whichever compared configuration's stage finds the others complete.
+- The cluster's finish job runs `--stages combine,post,plot`.
+- Nothing redraws when a record changes unless it is asked to.
+
+**What this costs** (seen in tasks H and J):
+- **Plot settings live in the generation file,** so restyling a run means editing what made it. The snapshot
+  (V158) and `--plot FILE` are workarounds.
+- **Plotting a live config plans every tool again,** only to learn identities that `points.json` already
+  records. It needs the stack, and it needs V158's "drawn as recorded, named" logic.
+- **Cross-run pages exist only as compare figures,** declared in one run's file and requiring equal axes.
+  Comparisons across records are not possible: event counts, for instance, differ per record, not per point.
+- **A partial drawing overwrites a configuration's shared outputs** (K1).
+
+### 5. The user's outline, set against the first design (2026-10-22)
+
+The user's outline:
+- `heimdall run <config>` runs as today and writes standard plot and statistics files into
+  `results/<P>/<Name>/<Run>/`, replaced when that run runs again. Chained plot and statistics use them, and both
+  may share one config file in `<Run>/`.
+- The layout is `<Run>/{plots, points, statistics}/` and `<Run>/{plots, statistics}/<sets>/`.
+- A default set, `totality`: curves along the axis whose number of values is closest to 5 within 4–7 (else the
+  closest to 5), pages along the others, nothing excluded. It is the whole run's statistics.
+- `heimdall plot <P>/<Name>/<Run> --style-sync <live config>` syncs the style, with no replot unless `--replot`;
+  `<P>/<Name>` syncs every `<Run>`.
+- "vary/sweep style" choices of which defined sets to plot and to measure.
+- "I still can't discern the purpose of a view."
+
+| Point | User's outline | First design | Verdict |
+|---|---|---|---|
+| A run writes the drawing's input | yes | yes (`plot.toml`) | **same** |
+| Plot from records, no planning | yes (implied) | yes | **same** |
+| One file for plot and statistics | yes | yes (`[stats]` in it) | **same** |
+| Statistics folder beside plots | `<Run>/statistics/` | yes | **same** |
+| Gates in `[run]` | yes | yes | **same** |
+| Where the file lives | `results/<Run>/` | `records/<Run>/` | **the user's is better** once the file holds its members: `<Run>/` then redraws alone, copied anywhere (YODAs and recipe together), and `heimdall clean` never removes `results/` |
+| Per-set folders | `plots/<set>/`, `statistics/<set>/` | per-drawing folders | **the user's is better**: drawing a set rewrites only that set's folders, which fixes K1 at its root, and pages and numbers mirror each other |
+| Live config into a run | explicit `--style-sync`, then `--replot` | the live `[plot]` in memory, the file untouched | **the user's is better**: what is drawn is always the file on disk; a sync is a visible, diffable act |
+| Picking sets to plot or measure | yes | no | **the user's is better**: a gap in the first design |
+| A default that reads well | `totality`, by cardinality | `plot_points` as today | **better, with care** (§6.3): stable across reruns, deferring to `plot_points` when the configuration sets it, its choice written into the file |
+| "Replaced when run again" | the whole file | — | **worse as stated**: it would drop hand edits and syncs. Split the file: what the run knows (members, quantities, attributes) is rewritten on every run; what the user chooses (plot keys, sets, stats, style) is written once, then kept, changed only by `--style-sync` or by hand |
+| `heimdall update` | absent | a general staleness pass | **the user's is enough for now**: the chain draws after each run and `--style-sync --replot` after a sync. What is left (Paint rebuilt, a hand edit) is `heimdall plot <P>/<Name> --stale`, later |
+| Views | "purpose unclear" | free-standing files in configs/ | **the first design over-reached** (below) |
+
+**The purpose a view had, and where it goes now.** A view did one thing that sets cannot: **put points of
+different runs on one page.** Examples are 04 (10M events) against 06 (100k) curve by curve, or a `generators`
+configuration beside a `pdf` one. That is what compare figures do today, awkwardly. Within one run, sets do
+everything, and no view is needed.
+
+In the user's layout that need has a natural home, the **Name level**: `results/<P>/<Name>/` holds every `<Run>` of
+that run TOML. Its own `plot.toml` would hold sets whose members are the Name's runs' points, with each run's
+attributes (`@run`, `@events`, `@configuration`) as axes. It would draw into `results/<P>/<Name>/{plots,
+statistics}/<set>/`, and `--style-sync` already treats `<P>/<Name>` as the group. This replaces free-standing
+views: no new kind of file, no new place (phase 6).
+
+### 6. The merged design
+
+### 6.0 What each tree is for (the user, 2026-10-22)
+
+"records/ is for error-tracing, backtracking and debugging purposes, and things that matter while a run is running
+or launched, but not after it is done." What follows from it:
+
+| Tree | Holds | Today's contents, sorted |
+|---|---|---|
+| `records/<P>/<Name>/<Run>/` | what a run needs while it runs or is launched, and what traces it back | `logs/`, `status.jsonl`, `cluster/` (while running, debugging); `points/<point>/{provenance,identity}.json, .complete` (backtracking; skip-unchanged at launch); `config/`, the snapshot (backtracking: what it ran with); `points.json` (launch: the overwrite check, `heimdall status`) |
+| `results/<P>/<Name>/<Run>/` | everything that matters once it is done | `points/` (products), **`plot.toml`**, `plots/<set>/`, `statistics/<set>/` |
+| `.cache/<P>/<Name>/<Run>/` | what is rebuilt on demand | the drawing's working files, **moved from `records/…/plots/`**: page documents, the merged sweep ROOT (from `results/…/plots/root/<cfg>.root`), derived, merged, scan and statistic YODAs, `.ranges.json`, `.stats.json`, converted data |
+
+So nothing that a drawing reads after the run lives in `records/`: drawing needs `results/<Run>/` alone (and
+`.cache/`, rebuilt when missing). The snapshot stays a record of what ran; replotting no longer goes through it.
+
+### 6.1 `<Run>/plot.toml`: written by the run, read by every drawing
+
+`results/<P>/<Name>/<Run>/plot.toml` (`<Run>` = `<NN_cfg>`, today's folder). Two kinds of table:
+
+- **What the run knows, rewritten by every run of that folder:**
+  - `[source]`: the config, the configuration, `<Run>`, Heimdall's revision, when;
+  - `[quantities.<q>]`: tags, labels and styles in the quantity's order;
+  - `[members.<point>]` per point: tags per quantity, attributes (events, the identity it ran with, complete or
+    not), and its YODA path relative to `<Run>/`.
+
+  So `<Run>/` redraws alone: `heimdall plot <Run>` reads this file and `points/`. No run TOML, snapshot, tool
+  folder, stack or `records/` is needed. When `records/` is there, completeness is checked against it.
+- **What the user chooses, written once from the live config's `[plot]` and `[stats]` and kept after:** plot keys,
+  data map (paths resolved), style, figures, `[plot.sets.<name>]` (with `totality`), `[stats]`. It changes only by
+  `--style-sync` or by hand. A run that finds it different from the live config says so, with the sync command.
+- `heimdall migrate --plot-docs` writes it for existing runs from their snapshots (04's has one).
+
+### 6.2 The layout
+
+```
+results/<P>/<Name>/<Run>/
+  plot.toml
+  points/<point>/…                                     the products (today's)
+  plots/index.html                                     every set's index
+  plots/<set>/<backend>/[<cell>/]<object>.<fmt>         a set's pages; plots/<set>/<backend>/index.html
+  plots/<set>/<backend>/sheets/<name>.<fmt>
+  statistics/<set>/statistics.csv, bars/<cell>/<object>.png, summary.png, figures/<cell>/<name>/<object>
+```
+
+- Drawing a set rewrites `plots/<set>/` and `statistics/<set>/` only.
+- A figure (defined, overlay, derived, merged, scan) draws within each set it is drawn for.
+- The merged sweep ROOT, the page documents and the other working files go to `.cache/<P>/<Name>/<Run>/plots/`
+  (K8, §6.0). They are rebuilt when missing or stale; `--keep cache` is no longer needed to look at them.
+
+### 6.3 `totality`, the default set
+
+Every `plot.toml` gets `[plot.sets.totality]` unless the config defines one of that name. Its rule:
+- **When the configuration sets `plot_points`:** pages along them, curves along the rest. An explicit choice wins.
+- **Else:** the curves follow the axis whose number of values (among the run's points) is in 4–7 and closest to 5.
+  - When none is in 4–7, the one closest to 5.
+  - Ties go to the earlier axis in `vary`.
+  - An entangled group or listed points count as one axis.
+  - The pages follow every other axis.
+- **Nothing is excluded:** its statistics are the whole run's.
+
+The choice is **written into the file** as `pages = { … }` and `curves = { … }`, so the file says what it draws.
+A later run keeps it (the user's part of the file), even if a new value would tip the rule.
+
+### 6.4 Picking sets, and the chain: `[run]`
+
+- `[run] plot = true | false | ["totality", "pdf_picks"]` and `stats = …` take the same forms (`true`: every set;
+  the default `plot = true`, `stats = true`). They can be set per configuration, the way `vary` picks quantities:
+  `[cfgs.generator_pdf] plot = ["totality", "pdf_by_generator"]`. So sets are defined once for the file and each
+  configuration draws the ones that fit it. They are written into `plot.toml` as its defaults.
+- `STAGES` keeps production only (pre, points, combine, post). After them the run draws the picked sets, then
+  measures the picked ones.
+- The cluster's finish job runs the same.
+- On the command line:
+  - `heimdall run … --no-plot` and `--no-stats`;
+  - `heimdall plot <Run> --sets a,b`;
+  - `heimdall stats <Run> --sets a`.
+- Sets move from `[[plot.sets]]` (a list) to `[plot.sets.<name>]` (named tables) so that they can be picked. The
+  list form is migrated.
+
+### 6.5 `--style-sync`
+
+`heimdall plot <P>/<Name>/<Run> --style-sync <live config> [--replot]`, and `<P>/<Name>` for each `<Run>`:
+- the live config's `[plot]` and `[stats]` (keys, style, data, figures, set definitions) replace the user's part of
+  each `plot.toml`;
+- what the run knows is never touched;
+- `--plan` shows the diff;
+- a set naming a quantity or tag a `<Run>` does not have is refused for that `<Run>`, the others synced, and said;
+- `--replot` then draws (and measures) the picked sets.
+
+### 6.6 Statistics
+
+- **With each drawing:** a set's pages give `statistics/<set>/`.
+- **Alone:** `heimdall stats <Run> | <P>/<Name> [--sets …]` builds the same page documents and has Paint read them
+  with `--ranges-only`: numbers, no images.
+- **`[stats]` in `plot.toml`** may measure otherwise (objects, normalise, reference, range); what it leaves unset is
+  the pages'.
+- Statistic figures and bars live in `statistics/<set>/`. `legend_statistic` stays a page key.
+
+### 6.7 Cross-run sets at the Name level (phase 6: what pages by event count need, where counts are per run)
+
+`results/<P>/<Name>/plot.toml`, its sets' members are the Name's runs' points, with attributes `@run`, `@events`
+and `@configuration`. Drawn into `results/<P>/<Name>/{plots, statistics}/<set>/`. Compare figures migrate into it.
+
+### 7. Phases (each its V-row from V164 on, each committed on the user's word)
+
+| Phase | What | Fixes | Effort |
+|---|---|---|---|
+| 1 | Layout: `plots/<set>/`, `statistics/<set>/`, working files to `.cache/`; per-set index; the figure and output table in 03 (§2); the pixel test made order-free | K1, K3, K4, K8 | M |
+| 2 | `<Run>/plot.toml` (both parts), `heimdall migrate --plot-docs`; `heimdall plot <Run>` from it alone, records only | the re-planning, V158's logic | M |
+| 3 | `totality`; named sets and picking; `[run] plot/stats` (bool or list), `--no-plot`, `--sets`; STAGES production only; the cluster | the fixed chain | M |
+| 4 | `heimdall stats`, `[stats]`; statistic figures and bars moved | K2 | M |
+| 5 | `--style-sync`, `--replot`, the Name level | the live config's way into a run | S |
+| 6 | cross-run sets at the Name level (`@run`, `@events`, `@configuration`); compare figures migrated. Needed for pages by event count in the real study, whose counts are per run | K6 | L |
+| 7 | plot.py split by layer; `_pages`' two loops become one; `--plan` covers every output | K5, K7 | M |
+| 8 | The real study's work dir moved over (below) | — | M |
+
+#### Phase 8: the real study's work dir
+
+Each step is a dry run shown to the user first, then applied only on their word. A tar backup of `records/`,
+`results/` and `configs/` goes to `forge/scratch/` first (as before V157).
+
+1. **Results and records** (`heimdall migrate --layout`, its new step), for every `<Run>` with a `points.json`:
+   - `plot.toml` written from its snapshot;
+   - today's pages moved to the `totality` set: `plots/<backend>/…` → `plots/totality/<backend>/…`, and
+     `statistics.csv` and `statistics/` → `statistics/totality/` (`totality` follows `plot_points`, so these are
+     the same pages);
+   - `records/…/plots/` and `results/…/plots/root/<cfg>.root` moved to `.cache/` (or left out: they are rebuilt).
+
+   Afterwards `heimdall status` must show the same complete points.
+2. **Configs:** sets of PDF or energy curves against generator or event-count pages, where a configuration varies
+   them:
+
+   | File | Configuration | Its axes | Sets added (picked by that configuration) |
+   |---|---|---|---|
+   | `eic/zeus.toml`, `zeus/dis.toml`, `zeus/photo.toml` | `generator_pdf` | generator × pdf | `pdf_by_generator` (pages generator, curves pdf: `totality` already); `generator_by_pdf` (pages pdf, curves generator) |
+   | `eic/zeus.toml` | its runs 04–07 (10M, 10k, 100k, 100k events) | `@events` across runs | Name level (phase 6): `pdf_by_events` (pages generator × `@events`, curves pdf), `events_by_pdf` (pages generator × pdf, curves `@events`) |
+   | `eic/baseline.toml`, `eic/dis.toml`, `eic/photoproduction.toml` | `generator_energies` | generator × energies | `energies_by_generator` (pages generator, curves energies); `totality` is pages by energy, curves by generator (`plot_points`) |
+   | the rest (one-axis configurations, `energies_polarisation`, listed points) | | | `totality` only |
+
+   `zeus_pdf_pages.toml` (task J) is migrated into `eic/zeus.toml`'s named sets, `by_generator` and `together`,
+   and then removed (its job is done by a set and `--sets`). Each configuration is checked with `heimdall check`,
+   and `heimdall plot <Run> --plan` is shown before drawing.
+3. **Drawn:** `heimdall plot eic/zeus/04_generator_pdf` (every picked set), the Name level for zeus, and the
+   statistics, with the pages checked by eye.
+
+### Progress
+
+- **Phase 1 built** (V164, uncommitted): sets' folders `plots/<set>/<backend>/` and `statistics/<set>/`, the drawing's working files in `.cache/<P>/plots/<name>/<cfg>/`, `heimdall migrate --layout`'s `sets_moves`, decks by set, docs (03's outputs table). The fast suite passes but `test_stack_build` (N3, known).
+- **Phases 2–6 built** (V165–V169, uncommitted): `<Run>/plot.toml` (`plotdoc.py`), every drawing from it, records only; `--style-sync`/`--replot` (V166); totality, named sets, `[run] plot`, `--sets`, `--no-plot` (V167); `heimdall stats`, `[stats]`, `[run] stats`, `--no-stats` (V168); `[plot.across]`, `results/<P>/<name>/plot.toml`, `@events`, `@run`, `@configuration`, documents from points.json for records without snapshots (V169).
+- **Phase 7 in part** (V170): `--plan` says every output; one page writer. The module split is deferred (the draw ↔ statistics ↔ statistic-figure cycle needs a drawing module above both).
+- **Tried on scratch copies of the real study's records 04–07:** documents written (04 from its snapshot, 05–07 from points.json, keeping their 19 and 11 PDFs), 04 drawn, the runs together by `@events` drawn (80 pages).
+- **Phase 8 rehearsed, not applied** (2026-10-22): backup `forge/scratch/brookhaven-before-v164.tar` (records, results, configs); on a full copy: `migrate --layout --apply` (1229 renames), `migrate --plot-docs --apply` (24 records; 05–07 from points.json), `heimdall status` of 04 the same, `heimdall check` the same (legacy/* failing before too), configs drafted (eic/common, zeus/common: `[plot.looks.pdf]`, sets `energies_by_generator`, `generator_by_pdf`, `together`; eic/zeus: `[plot.across]` `pdf_by_events`, `events_by_pdf`; `[run] plot = ["totality"]` and the generator × pdf/energies configurations' picks), `--style-sync` of eic/zeus's 11 runs, 04 drawn (264 pages), the runs together (`[from] runs = ["*_generator_pdf"]`, 552 pages). Waits for the user's word to apply to the work dir.
+- Found while rehearsing, fixed: `[plot.looks]` (V171), a fixed quantity as a curve axis labelled from the point's values, `--plan` naming the sets `[plot].draw` leaves out, `[run] plot`/`stats` names checked at plan time.
+- `test_deck_build` fails now and then in the whole suite: pandoc's `--embed-resources` fetches the dzslides template's Google font (network), not this work.
+- **K4 found to be something else:** the mpl-vs-mkhtml pixel test fails alone too, at `6cc01f1` and `7b71a73` as well: sub-pixel antialiasing along the ratio pad's curves (326 px of 445×462 per page, the same by eye), likely since the conda-base stack (matplotlib 3.11.2). A parity gap with mkhtml, not test order. `rcdefaults` in the mpl backend's `rc_context` kept (isolation). Not fixed: say so to the user.
+
+### Verification (each phase)
+
+- The fast suite light, one session at a time; the plot-stage tests rewritten per phase (paths, commands). No
+  phase moves a point identity (plotting is in none).
+- On a scratch copy of the real study's `records/` and `results/` (as in task J), before the work dir:
+  - Phase 2: `heimdall migrate --plot-docs` dry run; `heimdall plot <Run>` gives page documents equal to today's.
+  - Phase 3: `totality` on 04 (2 generators × 19 PDFs, `plot_points = generator`): pages per generator, 19
+    curves. Without `plot_points`: curves by generator (2 values is the closest to 5), a page per PDF.
+  - Phase 5: a sync's diff, then `--replot`.
+- Docs: 02, 03, 04 (`[run]` plot/stats, `[plot.sets.<name>]`, `[stats]`), 05 (commands), 06 (layout, modules), 07
+  (V-rows, migrations).
+
+## Task J: sets with page axes and curve groups (V163; planned and approved 2026-10-22)
+
+The user, after V159–V162: sets as outer products of axes, pages of one product and curves the union of several, in one run that sweeps every axis named. Approved as below; building.
+
+### Context
+
+The user (2026-10-22) wants page sets of one run whose points sweep every axis named (generator, energies,
+events, pdf; `events` is a quantity then, 04 §8.3), like:
+
+- **set1**: a page per generator × energy (energies 10x20 and 15x60 only); on each, a curve per
+  events ∈ {10M, 100M, 100k} × every pdf.
+- **set2**: a page per event count; on each, py8 with pdf1, pdf2, pdf5 and sh3 with pdf1, pdf3, pdf4.
+
+**What works today (V159, read 2026-10-22):**
+- `[plot] sets` (`sweep.set_entries`, `sweep.chosen_points`, `plot._pages.cells`, plot.py:709): each set
+  is the union of its selectors (an index, a name, a glob of names, a tag, `quantity=tag`, `"all"`), drawn
+  as one page per object in `<set>/`. Its curves are labelled by the quantities that differ on it. `split`
+  cuts pages.
+- **Missing:**
+  - A set has no page axes.
+  - A set has no AND: `quantity=tag` names one quantity, so "py8 and pdf1" can only be a name glob.
+  - Values cannot be picked per axis ("these 2 energies, every pdf").
+  - Curve groups cannot be unioned with AND inside each group.
+  - A set cannot set page keys of its own (`objects`, `ratio`, …).
+- **The workaround today** is a set per page cell, written as name globs in `vary` order: set1 is 4 sets
+  of 3 globs each (`"py8_10x20_10M_*"`, …), and set2 is a set per event count (and energy) listing 6
+  names. That is verbose, flat (`set1/` rather than `set1/py8_10x20/`) and breaks when `vary` is
+  reordered.
+- `plot_points = ["generator", "energies"]` alone gives set1's grid, but over every energy and every
+  curve.
+
+So this needs implementing. It is a grammar on top of V159's `sets`. V159's forms stay (they are the
+`points` key). Names: `pages`, not `plot_points` (that is the configuration's key; the meaning is the
+same: page axes).
+
+### The grammar
+
+```toml
+[[plot.sets]]
+name   = "beams"                                            # its folder: plots/<backend>/beams/<cell>/<object>
+pages  = { generator = "all", energies = ["10x20", "15x60"] }  # a page per combination present
+curves = { events = ["10M", "100M", "100k"], pdf = "all" }     # on each page, a curve per point matching
+
+[[plot.sets]]
+name   = "pdf_picks"
+pages  = { events = "all" }
+curves = [                                                   # a list: the union, in this order
+  { generator = "py8", pdf = ["pdf1", "pdf2", "pdf5"] },
+  { generator = "sh3", pdf = ["pdf1", "pdf3", "pdf4"] },
+]
+reference = { generator = "py8", pdf = "pdf1" }   # moved first on each page: the ratio's and statistics' reference without data
+look      = { colour = "pdf", line = "generator" } # which axis gives the colour, which the line style
+objects   = ["d0[1-4]-*"]                          # any [plot] page key, for this set's pages
+ratio     = true
+split     = 6
+```
+
+**Keys of a set table:**
+- `name`: the folder. The default is `set<k>`.
+- `points`: V159's selectors. A table with only `name` and `points` is V159's named set.
+- `pages`: a filter whose keys are the page axes.
+- `curves`: a filter, or a list of filters.
+- `reference`: a filter that should match one curve per page.
+- `look`: `{ colour = "q", line = "q" }`, or `"palette"`.
+- Any `[plot]` page key: `objects`, `ratio`, `normalise`, `split`, `legend_statistic`, `title` …
+
+**A filter** is a table `{ quantity = value }`. Its quantities are swept or fixed ones, `events` and
+`threads` included. A value is one of:
+- `"all"`;
+- a tag;
+- a list of tags;
+- a glob (`"NNPDF*"`);
+- `"!tag"` (all but those: a list of only `!`s is everything else);
+- a number, for a numeric quantity (`events = 10_000_000`).
+
+**One table is an outer product:** every combination of its axes' values (a point matches when every key
+matches). `{ generator = "all", energies = ["10x20", "15x60"] }` is py8·10x20, py8·15x60, sh3·10x20,
+sh3·15x60. **A list of tables is the union of each table's product**, in order: set2's curves are py8 ×
+{pdf1, pdf2, pdf5} and then sh3 × {pdf1, pdf3, pdf4}, 6 curves, not 2 × 5. A combination no point has is
+absent (no empty page or curve). A value no point has at all is refused at plan time.
+
+**Rules:**
+1. **Points:** the set's points are the complete points that match `points` (if given), `pages` and one
+   of `curves` (omitted: every point).
+2. **Pages:** there is a page cell per combination of the `pages` axes present among them. Cells follow
+   the order the values are written ("all": the quantity's order). A cell is named by the tags joined by
+   `_`, as `plot_points` cells are (`py8_10x20`); `{cell}` gives their labels. With no `pages`, there is
+   one cell and pages go in `<set>/<object>`.
+3. **Curves:** the curve order is each `curves` entry in turn, by the order its values are written (the
+   first key outermost), then point order. A point two entries match is drawn once. The first curve is
+   the ratio's reference without data; `reference` moves the curve it matches first. A page where it
+   matches none is drawn as it is, and the stage says so.
+4. **An axis no filter names:** a swept quantity that `pages` and `curves` don't name, and that takes
+   several values among the set's points, gets **a page per value**. It joins the cell's name, and the
+   stage says so once per set ("pdf_picks: energies is named by neither pages nor curves and takes 2
+   values: a page each"). Curves never silently mix what the set did not ask for.
+5. **Labels:** a curve is labelled by the `curves` axes that differ on its page (else those that differ in
+   the set; one curve: its curve axes), with the quantities' labels.
+6. **Look:** with `look`, the colour axis takes the style palette by the value's place in the set's values
+   (colour follows the value, the same on every page), and the line axis takes solid, dashed, dotted and
+   dashdot (four values at most, checked). With no `look`, if the curves vary along exactly two axes and
+   one has at most four values, that one takes the line style and the other the colour. A quantity's own
+   `styles` (V67) win for its axis. `look = "palette"` turns this off (the palette in turn, as today).
+7. **Splitting:** `split` cuts each page's curves into pages of at most N (`<cell>-<k>`).
+8. **Layering:** a set's page keys lay over `[plot]` for its pages, and a figure's keys over the set's (the
+   figure is about the object: its axes, its logs).
+9. **Where sets apply:** merged, scan and compare figures page by `plot_points` only, so `sets` there are
+   refused, as today.
+
+**Checks at plan time** (`plot.check_figures`):
+- Every key names a quantity of the configuration (`did_you_mean`), and is not combined away.
+- Every tag or glob matches a value of it. The refusal lists the quantity's tags ("events: 10M, 100k, 10k").
+- No quantity is in both `pages` and `curves`.
+- `look`'s axes are curve axes with at most 4 line values.
+- An unknown key in a set table is refused (it is either a page key or a set key).
+- At draw time, a set or cell with no complete point is skipped and said (a record half-run).
+
+### Code
+
+- **`framework/runner/sweep.py`** (rank 1):
+  - `set_entries` takes the table form. It returns a `SetSpec`: name, selectors, pages, curves,
+    reference, look, page keys.
+  - `filter_of(run, table, where)` parses and checks a filter; `matches(run, flt, choice)` tests a point.
+  - `set_cells(run, members, spec, where) -> (cells, notes)`: each cell is (key, label text, ordered
+    members, curve axes, look assignment). It is pure, so `--plan` and the tests use it without Paint.
+- **`framework/runner/plot.py`**:
+  - `_pages.cells()` calls `set_cells` for table entries; V159 entries stay as they are.
+  - Each cell carries its set's page keys, which are laid over `settings` for `page_settings`, `chosen`
+    and `objects`.
+  - `_curve_look` takes the cell's look assignment, with the palette from the page's style layer and the
+    line styles Paint takes (`src/Apps/Paint/Page.hh:115`).
+  - The notes go back through `pages()` to `draw`'s `say`.
+  - `check_figures` checks table sets.
+- **`framework/runner/config.py`**: `check_plot` checks a set table's keys: set keys plus `schema` page
+  keys.
+- **`framework/runner/cli.py`**: `heimdall plot CONFIG|RECORD --plan` prints each set's cells and their
+  curves' labels (counts, notes), drawing nothing, for writing sets against the real points.
+  `--points` stays.
+- **`framework/schema/run.toml`** `[plot.sets]` notes; `heimdall make --framework docs schema` after.
+- **Docs:**
+  - 03 §3.1 rewritten around the two examples, with today's V159 forms as the short ones.
+  - 04 §11's `sets` row.
+  - 07: the V163 row.
+- **No change** to identities, Paint or the records. `--plot FILE` and `heimdall plot RECORD` work with
+  sets as they are, so a set file can draw a recorded run without touching configs/.
+
+### Added while building (the user, 2026-10-22)
+
+- **A value's own look** ("custom colors … like `{tag = <tag>, color = <color>}`"): in `curves`, a value may be
+  `{ tag = "…", colour, line, width }` (or `value = <number>`), the look of the curves that table draws with it, over
+  the set's `look`.
+- **Several values' looks** ("`{all = true, colors = []}`"): `{ tags = "all" | […] | "<glob>" (or all = true),
+  colours = […], lines = […], widths = […] }`, one look per value in order; fewer looks than values is refused.
+- `color`/`colors` are accepted for `colour`/`colours`. `check_curve_style` and `CURVE_LINES` moved from config to
+  sweep, so the filters check looks as quantity styles are checked.
+- The palette has 5 colours: when two curves of a page then look alike (colour, line, width), the stage (and `--plan`) says so.
+
+### Tests
+
+- **`tests/runner/test_sweeps.py`**, on a run of 4 quantities built in scratch (as `test_snapshot.py`'s
+  last test builds its own):
+  - set1's and set2's cells, their order and the curves' order;
+  - AND within a filter and OR across a list;
+  - `!` and globs;
+  - a numeric `events`;
+  - the unnamed-axis split and its note;
+  - `reference` moved first;
+  - the look assignment, stable across pages.
+- **Refusals:** an unknown quantity or tag (with the tags listed), a quantity in both pages and curves,
+  `look` with more than 4 line values, an unknown key.
+- **`tests/integration/test_plot_stage.py`:** a table set drawn into `<set>/<cell>/<object>` with its
+  own `objects` and `ratio`; `statistics.csv` and the index follow the nested names; the V159 forms are
+  unchanged.
+
+### Verification
+
+- `source gjallarhorn.sh`; the fast suite light (`taskset -c 0-5 nice -n 10 python -m pytest -q -m "not
+  slow"`), one session at a time.
+- In the real study's work dir, read only: `heimdall plot eic/zeus/04_generator_pdf --plan --plot <a
+  scratch file with sets>` shows the cells and curves (generator and pdf are its axes there; events is
+  per record, not a quantity, in that study). Draw one set into the record and check a page by eye.
+- Commit with the V-row, by path, only on the user's word; no push.
 
 ## Task H: run output, Sherpa progress, one records/ tree, replot from the record, point sets, page statistics
 

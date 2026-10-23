@@ -33,7 +33,7 @@ import re
 from .errors import HepError, did_you_mean
 
 #: The tables of a v3 file.
-TABLES = ("file", "run", "cfgs", "tools", "quantities", "plot", "cluster")
+TABLES = ("file", "run", "cfgs", "tools", "quantities", "plot", "stats", "cluster")
 #: v2 tables a v3 file may not have: where their content goes.
 V2_TABLES = {"config": "[file]", "static": "each quantity's fixed (a configuration's own: fixed = { q = tag })",
              "prelim": "nothing: FIFOs and files are inferred from the chain (keep = false on a scratch file's producer; "
@@ -364,6 +364,8 @@ def translate(raw: dict, where: str) -> dict:
         out["prelim"] = prelim
     if "plot" in raw:                                   # "default" is the layer below: as if absent
         out["plot"] = {k: v for k, v in raw["plot"].items() if v != "default"}
+    if "stats" in raw:                                  # V168: what the statistics measure
+        out["stats"] = {k: v for k, v in raw["stats"].items() if v != "default"}
     if "cluster" in raw:
         out["cluster"] = raw["cluster"]
     return out

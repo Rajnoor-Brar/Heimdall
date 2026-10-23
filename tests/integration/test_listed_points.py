@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import support
 from support import HEP, REPO, apps, env
 
 pytestmark = [pytest.mark.slow,
@@ -70,10 +71,10 @@ def test_listed_points_run_and_draw_a_page_per_pdf(scratch):
     overrides = (cards / "NNPDF23lo" / "cards" / "pythia.point.cmnd").read_text(encoding="utf-8")
     assert "PDF:pSet = LHAPDF6:MSTW2008lo68cl" in mstw and "MultipartonInteractions:pT0Ref = 3.4" in mstw
     assert "pT0Ref" not in overrides                                       # the base card's own value stands
-    pages = records / "plots"
+    pages = support.pages(scratch, Path("T") / "listed" / "01_listed")
     one = next((pages / "MSTW08lo").rglob("*.toml"))
     assert [c["label"] for c in tomllib.loads(one.read_text(encoding="utf-8"))["curve"]] == ["pT0 3.0", "pT0 3.4"]
     other = pages / "NNPDF23lo" / one.relative_to(pages / "MSTW08lo")
     assert len(tomllib.loads(other.read_text(encoding="utf-8"))["curve"]) == 1
-    pngs = scratch / "results" / "T" / "listed" / "01_listed" / "plots" / "root"
+    pngs = scratch / "results" / "T" / "listed" / "01_listed" / "plots" / "totality" / "root"
     assert {p.parent.name for p in pngs.rglob("*.png")} >= {"MSTW08lo", "NNPDF23lo"}

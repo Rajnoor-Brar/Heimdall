@@ -183,10 +183,13 @@ The terminal shows the running tools, then one block:
 | Look in | For |
 |---|---|
 | `results/Demo/jets/03_single/points/point/` | `jets.yoda`, `jets.root`: the products |
-| `results/Demo/jets/03_single/plots/root/` | the pages (`d01-x01-y01.pdf`, …), `index.html`, and `single.root`, the sweep in one file |
+| `results/Demo/jets/03_single/plots/totality/root/` | the pages (`d01-x01-y01.pdf`, …) and `index.html`; `plots/<set>/` for each set (03 §3.1) |
+| `results/Demo/jets/03_single/statistics/totality/` | `statistics.csv`, the pages' numbers against the data, and their bar graphs |
+| `.cache/Demo/plots/jets/03_single/` | the page documents and `single.root`, the sweep in one file: rebuilt on demand |
 | `records/Demo/jets/03_single/points/point/` | `provenance.json`, `identity.json`, `.complete`: what the run recorded |
 | `records/Demo/jets/03_single/logs/point/` | `cards/`, a failed tool's `<tool>.log`: safe to delete (`heimdall clean`) |
-| `records/Demo/jets/03_single/config/` | the run TOML and cards it ran with: `heimdall plot Demo/jets/03_single` draws from them |
+| `records/Demo/jets/03_single/config/` | the run TOML and cards it ran with: what traces it back |
+| `results/Demo/jets/03_single/plot.toml` | its plot document: what every drawing of it reads (`heimdall plot Demo/jets/03_single`); its `[plot]` is yours to edit |
 
 Run the same command again and nothing happens: the point is complete with the same identity. Change
 anything that decides the result (a card, an event count, a binary) and it runs again.
@@ -881,9 +884,10 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 | fewer events, once | `--set run.events=50000` (dotted keys into the TOML, in its own names; repeatable) |
 | a finished point again | `--rerun` (with `--points` for one) |
 | only the pages | `--only plot`, or `heimdall plot CONFIG CFG` |
+| no pages after this run | `--no-plot`, or `[run] plot = false` (a configuration's own `plot`); `plot = ["totality", …]` draws those sets only (03 §3.1) |
 | a run's pages as it ran, whatever the configs say now | `heimdall plot <P>/<run>/<NN_cfg>` (its record, §8.1) |
 | pages of chosen points, or N points a page | `--points 1,4,6,8`, `--set 'plot.sets=[[1,4],"all"]'`, `--set plot.split=8` (03 §3.1) |
-| how far each curve is from the data | `results/…/plots/statistics.csv`, `legend_statistic`, a `statistic` figure (03 §3.2, §7.9) |
+| how far each curve is from the data | `results/…/statistics/<set>/statistics.csv` (with each drawing, or `heimdall stats <P>/<name>/<cfg>` alone), `[stats]`, `legend_statistic`, a `statistic` figure (03 §3.2, §7.9) |
 | only the post (or pre) tools | `--only post` / `--only pre` |
 | plain lines (logs, CI) | `--plain` (automatic when not a terminal) |
 | to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]` (a `--journal` run's file: `heimdall watch --file …`) |
@@ -905,22 +909,25 @@ holds the run TOML, the files it imports and the cards it read, as `configs/` he
 goes wherever a config does:
 
 ```bash
-heimdall plot Demo/jets/01_pdf       # its pages: every point it recorded, with the config they ran with
+heimdall plot Demo/jets/01_pdf       # its pages: every point it recorded, from its plot document
 heimdall status Demo/jets/01_pdf     # complete, or what changed since (a rebuilt binary, say)
 heimdall run Demo/jets/01_pdf        # what it misses, with the cards it ran with; complete points skip
 ```
 
 - **Your configs may move on.** Comment out half the PDFs, edit a card, rebuild the stack: the record
-  still draws all its points. `heimdall plot` of a record plans no tool, so it needs no stack but Paint.
-- **Restyle it alone:** edit the snapshot's `[plot]` (its run TOML in `config/<P>/`) and draw it again,
-  or draw it with another file's `[plot]`: `heimdall plot Demo/jets/01_pdf --plot Demo/talk_pages` (a
-  TOML holding `[plot]` only). The run's own `[plot]` may live in such a file too, imported:
-  `[file] import = [{ from = "talk_pages", only = ["plot"] }]`.
-- **The live config draws what was recorded too:** `heimdall plot CONFIG CFG` draws each point whose
-  record is complete, and names those that ran with other inputs than the config gives now (`--why`
-  says what changed). A point a changed config no longer makes is drawn only through the record.
+  still draws all its points. Every drawing reads the run's plot document, `results/<P>/<run>/<NN_cfg>/plot.toml`
+  (03 §2.2), and plans no tool, so it needs no stack but Paint.
+- **Restyle it alone:** edit the document's `[plot]` and draw it again, or draw it with another file's
+  `[plot]`: `heimdall plot Demo/jets/01_pdf --plot Demo/talk_pages` (a TOML holding `[plot]` only). The
+  run's own `[plot]` may live in such a file too, imported: `[file] import = [{ from = "talk_pages", only = ["plot"] }]`.
+- **The live config draws what was recorded too:** `heimdall plot CONFIG CFG` draws that configuration's
+  newest folder from its document. A point that ran with other inputs than the config gives now is drawn
+  as recorded, and named (`--why` says what changed). When the config's `[plot]` differs from the
+  document's, it says so: the document's is drawn until `--style-sync` takes the config's.
 - **A run of the same folder replaces its record**, points.json and snapshot both; it says when points
   recorded there are not in the config now. A serial of its own keeps a run whole.
+- **A record from before plot documents** gets one the first time it is drawn, from its snapshot;
+  `heimdall migrate --plot-docs` writes every record's at once.
 - **A record from before snapshots** gets one with `heimdall migrate --snapshot <P>/<run>/<NN_cfg>`
   (default: the config its points.json names; `--from CONFIG`, `--set`): it says which recorded points
   have the same identity under it. Edit the snapshot until they all do (a value since left out), then

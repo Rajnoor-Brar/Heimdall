@@ -43,17 +43,17 @@ style.ratio.range = [0.8, 1.1]        # any [plot] page key or style key, for th
 
 ## 2. The plot stage
 
-The plot stage runs after the points and the stages, from the points whose **record is complete**
-(their `.complete` is there): a point that ran with other inputs than the config gives now is drawn as
-recorded, and named. It also runs on `heimdall run … --only plot` and on `heimdall plot CONFIG [CFG]`,
-which redraw without running anything, and on `heimdall plot <P>/<run>/<NN_cfg>`, which draws a record's
-points with the config they ran with ([02 §8.1](02_User_Guide.md#81-a-run-as-it-was-its-record)). A
-configuration whose run TOML has no `[plot]` draws nothing; `--plot FILE` draws with another file's.
+The plot stage runs after the points and the stages. It first writes the run's **plot document**,
+`results/<P>/<name>/<cfg>/plot.toml` (§2.2), and then draws every page from that document alone. The pages
+are drawn from the points whose **record is complete** (their `.complete` is there). A point that ran with
+other inputs than the config gives now is drawn as recorded, and named. It also runs on `heimdall run …
+--only plot` and on `heimdall plot`, which redraw without running anything (§2.2). A configuration whose
+run TOML has no `[plot]` draws nothing; `--plot FILE` draws with another file's.
 
 1. **The sweep in one file.** Every complete point's YODA is merged into
-   `results/…/plots/root/<cfg>.root`, with a directory per point and the raw entries. With `--keep cache`
-   it is rebuilt only when a point's YODA changed; otherwise each plot stage merges again (04 §14).
-2. **One page document per page**, in `records/…/plots/[<cell>/]<object>.toml`. It holds:
+   `.cache/<P>/plots/<name>/<cfg>/<cfg>.root`, with a directory per point and the raw entries. It is
+   rebuilt only when a point's YODA changed.
+2. **One page document per page**, in `.cache/<P>/plots/<name>/<cfg>/<set>/[<cell>/]<object>.toml`. It holds:
    - the labels from the analysis's Rivet `.plot` file;
    - the `[plot]` values and the page's figure's own;
    - the curves;
@@ -62,8 +62,18 @@ configuration whose run TOML has no `[plot]` draws nothing; `--plot FILE` draws 
 3. **Draw**: Paint on every page, then any other backend on the same documents (§9). A failed page
    is counted, and the run exits 1, but the others are drawn.
 
-The pages go to `results/…/plots/<backend>/[<cell>/]<object>.<fmt>`, with an `index.html` per
-backend: a section per cell, each page shown and linked to every format drawn.
+The pages go to `results/…/plots/<set>/<backend>/[<cell>/]<object>.<fmt>`. With no `sets`, the set is
+`totality`, the `plot_points` cells. Each set and backend has an `index.html` (a section per cell, each page
+shown and linked to every format drawn), and `results/…/plots/index.html` links them all. **Drawing a set
+replaces its own folders**, `plots/<set>/` and `statistics/<set>/`; other sets' stay as they were.
+
+**Where each tree's files are:**
+- **`results/<P>/<name>/<cfg>/`** holds what matters once a run is done: `points/` (the products),
+  `plots/<set>/` (the pages) and `statistics/<set>/` (their numbers, §3.2).
+- **`records/`** holds what a run needs while it runs or is launched, and what traces it back. It holds
+  nothing a drawing reads.
+- **`.cache/<P>/plots/`** holds the drawing's working files: page documents, the merged sweep, derived and
+  merged YODAs, converted data. They are rebuilt when missing, and `rm -rf .cache` is always safe.
 
 **What a page is made of.**
 - **Curves:** its curves are the cell's complete points (or combined groups). A point whose YODA
@@ -83,6 +93,80 @@ backend: a section per cell, each page shown and linked to every format drawn.
   `\\`) breaks a title into lines. A `$…$` left open across the break is closed and reopened for
   you.
 - **The ratio pad** is labelled `MC/Data` with data, and `Ratio` without.
+
+### 2.1 What a drawing makes
+
+All of it is in `results/<P>/<name>/<cfg>/` (`<s>` is a set) unless said:
+
+| Output | Made from | By | When | Where |
+|---|---|---|---|---|
+| object pages | the points' 1D objects | Paint; mpl; rivet-mkhtml | always (`[plot].objects` narrows) | `plots/<s>/<backend>/[<cell>/]<object>` |
+| a defined figure's pages | the same, with the figure's keys | the same | declared (§7.1) | the same |
+| overlay pages | several objects of a point | the same | declared (§7.2) | `…/<cell>/<name>` |
+| derived pages | a new object per point | derive.py, then the same | declared (§7.4) | `…/<cell>/<name>` |
+| merged pages | points merged over an axis | rivet-merge, then the same | declared (§7.3) | `plots/totality/<backend>/<cell>/<name>/<object>` |
+| scan pages | a number per point against a quantity | derive.py, then the same | declared (§7.6) | `plots/totality/<backend>/…/<name>` |
+| heat maps | a 2D object, a page per point | Paint only | always, for 2D objects | `…/<cell>/<object>/<point>` |
+| compare pages | several configurations | Paint; mpl; rivet-mkhtml | declared (§7.5) | `results/<P>/<name>/compare/<figure>/<backend>/` |
+| sheets | drawn pages, tiled | pdflatex, pdftoppm | declared (§7.8) | `plots/<s>/<backend>/sheets/<name>` |
+| indexes | drawn pages | Heimdall; rivet-mkhtml's own | always | `plots/<s>/<backend>/index.html`, `plots/index.html` |
+| legend numbers | each page's statistics | Paint, a first pass | declared (`legend_statistic`) | in the page |
+| the statistics table | each page's statistics | Paint | always (`statistics = false` stops it) | `statistics/<s>/statistics.csv` |
+| bar graphs | the table | matplotlib | with the table | `statistics/<s>/bars/…`, `statistics/<s>/summary` |
+| statistic pages | the table, a bin per curve | Paint | declared (§7.9) | `statistics/<s>/figures/<backend>/<cell>/<name>/<object>` |
+| the merged sweep, page documents, working YODAs | the points' YODAs | App_yd2rt, Heimdall | always | `.cache/<P>/plots/<name>/<cfg>/` |
+| the plan | the sets' cells and curves | Heimdall | `heimdall plot … --plan` | the terminal |
+
+### 2.2 The plot document: `<cfg>/plot.toml`
+
+Every drawing reads one file, `results/<P>/<name>/<cfg>/plot.toml`, and the folder's `points/`. It needs no
+run TOML, snapshot, tool folder or stack beyond Paint. A run writes it before it draws, and the folder can
+be copied anywhere and drawn there (`heimdall plot <folder>`). It holds two kinds of table:
+
+- **What the run knows**, rewritten by every run of the folder:
+  - `[source]`: the config, the configuration, the folder, Heimdall's revision, when;
+  - `[axes]`: the sweep's axes, `plot_points`, `combine` and the fixed values;
+  - `[quantities.<q>]`: its points in its order, as a run TOML writes them, `points = [{ tag, value, label }]`
+    (with `style` on a point that has one);
+  - `[members.<point>]`: each point (or combined group) the pages draw, with its value indices, its YODA
+    under the folder, the identity it ran with, whether it was complete, and the texts its tools give.
+It is written as a run TOML is written by hand: a header for `[source]`, `[axes]`, each `[quantities.<q>]`,
+`[plot]` (and `[plot.data]`, `[plot.style]`, each `[plot.sets.<set>]`, `[plot.figures.<figure>]`,
+`[plot.looks.<q>]`), `[stats]` and each `[members.<point>]`, last; everything below those is inline (a member's
+`choice = { … }` and `values = { … }`, a set's `pages` and `curves`).
+
+- **What you choose**, `[plot]` (and `[stats]`). It is written once, from the run TOML's: its imports and
+  `--set`s applied, `root_style` laid into `[plot.style]`, and the data file's path made absolute. After
+  that it is kept. **Edit it to restyle that run alone.** A later run of the folder keeps it. When the
+  config's `[plot]` differs from it, the run says so and gives the command that takes the config's,
+  `heimdall plot <P>/<name>/<cfg> --style-sync <config>`.
+
+**Which document `heimdall plot` draws:**
+
+| `heimdall plot …` | Draws |
+|---|---|
+| `<P>/<name>/<cfg>`, or a path into its folder of `records/` or `results/` | that run's document, as it is |
+| a folder holding a `plot.toml` (anywhere) | that document; its working files go to `.cache/<P>/plots/elsewhere/` |
+| `CONFIG [CFG]` | each configuration's latest run (its newest folder), from its document; the config's `[plot]` differing from the document's is said |
+
+**Taking the config's `[plot]` into runs:**
+
+```bash
+heimdall plot eic/zeus/04_generator_pdf --style-sync eic/zeus --plan   # what would change, written nowhere
+heimdall plot eic/zeus/04_generator_pdf --style-sync eic/zeus          # the document's [plot] and [stats] become the config's
+heimdall plot eic/zeus --style-sync eic/zeus --replot                  # every run of eic/zeus, then drawn
+```
+
+What the run knows is never touched, and its `totality` set stays its own: it follows the run's axes (the
+`plot_points` it ran with), only the picks (`draw`) are the config's. A run whose configuration the config lacks, or whose points the config's
+`[plot]` cannot page (a set naming a quantity or a tag it has not), is left, and said; the others are synced.
+Nothing is drawn unless `--replot`.
+
+Nothing is planned and no tool is read. A run made before plot documents gets one, written from its snapshot
+the first time it is drawn; `heimdall migrate --plot-docs [<P>/<name>/<cfg>…]` writes every record's (a dry run
+unless `--apply`). A compare figure's other configurations are drawn from their own documents: the newest
+folder of the same run TOML's configuration, a record, or `"<config>:<cfg>"`'s newest.
+
 
 ---
 
@@ -125,7 +209,117 @@ the MC bins → normalise → auto-range over curves and data → gutters → dr
 
 ### 3.1 Pages of chosen points: `sets` and `split`
 
-Run once, then page the points as you like, whatever `plot_points` says:
+Run once, then page the points as you like, whatever `plot_points` says. A set is a folder of pages,
+`plots/<set>/`, with its numbers in `statistics/<set>/`.
+
+**The totality set.** Every run's plot document holds a set named `totality`, first, unless the config
+defines one of that name: every point, nothing left out. Its pages and curves:
+- **With `plot_points`:** pages along them, curves along the rest.
+- **Without:** curves along the axis whose number of values is in 4–7 and closest to 5. When no axis has 4–7
+  values, the one closest to 5; a tie goes to the earlier in `vary`. Pages along every other axis that takes
+  several values.
+
+The choice is written into the document as the set's `pages` and `curves`, so the file says what it draws,
+and a later run keeps it.
+
+**Which sets are drawn.** By default, every set. `[run] plot` (or a configuration's own `plot`) chooses
+after a run:
+- `true` draws every set;
+- `false` draws none (the document is still written, for `heimdall plot` later);
+- a list draws those sets, `plot = ["totality", "pdf_by_generator"]`. It is written into the document as
+  `[plot].draw`, which `heimdall plot` draws by default.
+
+So sets are defined once for the file, and each configuration draws those that fit it.
+`heimdall plot … --sets a,b` draws others for one drawing; `heimdall run … --no-plot` draws nothing for one
+run. A name no set has is refused.
+
+**Named sets**, `[plot.sets.<name>]`, are the form to pick from. Each is a set table, or selectors, named by
+its key; the list form (`[[plot.sets]]`, `sets = [...]`) is named as below and works the same. The full form
+names a set's page axes and its curves, each a filter of quantities whose values combine as an outer product:
+
+```toml
+[[plot.sets]]                       # a run sweeping generator × energies × events × pdf
+name   = "beams"                    # its folder: plots/beams/<backend>/<cell>/<object>
+pages  = { generator = "all", energies = ["10x20", "15x60"] }   # py8_10x20, py8_15x60, sh3_10x20, sh3_15x60
+curves = { events = ["10M", "100M", "100k"], pdf = "all" }      # on each: every count × every pdf
+
+[[plot.sets]]
+name   = "pdf_picks"
+pages  = { events = "all" }          # a page per event count
+curves = [                           # a list: the union, in order (6 curves, not 2 × 5)
+  { generator = "py8", pdf = ["pdf1", "pdf2", "pdf5"] },
+  { generator = "sh3", pdf = ["pdf1", "pdf3", "pdf4"] },
+]
+reference = { generator = "py8", pdf = "pdf1" }   # moved first: the ratio's reference on a page without data
+look      = { colour = "pdf", line = "generator" } # the colour follows the pdf, the line the generator
+objects   = ["d0[1-4]-*"]                          # and any [plot] page key, for this set's pages alone
+ratio     = true
+```
+
+- **A filter** is `{ quantity = what }`. Its quantities are any swept or fixed ones, `events` and
+  `threads` included when they are quantities (04 §8.3). What it takes for each:
+  - `"all"`;
+  - a tag, a glob of tags (`"NNPDF*"`), or a list of those;
+  - `"!tag"` to leave a value out: a list of only these is every other value;
+  - a number, for a quantity of numbers (`events = 10_000_000`).
+
+  One table is every combination of its quantities' values; a point matches when each matches. A list of
+  tables is the union of their products, in order. A combination no point has is simply absent.
+- **The pages:** a page cell per combination of the `pages` quantities among the set's points, in the
+  order the values are written (`"all"`: the quantity's order). Each is named by its tags joined with
+  `_`, as `plot_points` cells are, and `{cell}` gives their labels. With no `pages`, there is one cell
+  (`<set>/<object>`), unless an axis the set does not name pages (below). `pages = "none"` (or `[]`, `{}`)
+  says no axis pages at all: one page per object, every curve the set chooses on it, even across
+  generators:
+
+  ```toml
+  [plot.sets.all_few]
+  pages  = "none"
+  curves = [{ generator = "py8", pdf = ["NNPDF23nlo", "PDF4LHC21"] },
+            { generator = "sh3", pdf = ["MSTW08lo", "NNPDF23lo"] }]   # 4 curves, one page an object
+  ```
+- **The curves:** each `curves` table in turn, its values in the order written (the first quantity
+  outermost), then point order. A point two tables match is drawn once. With no `curves`, every point of
+  the cell is drawn, and its other quantities are the curve axes. A curve is labelled by the curve axes
+  that differ on its page.
+- **An axis the set does not name:** a swept quantity named in neither `pages` nor `curves`, which takes
+  several values among the set's points, pages too (a page per value). The plot stage says so: curves
+  never quietly mix what the set did not ask for. Name it, with one value or `"all"`, to choose; with
+  `pages = "none"` it joins the curves instead (and their labels name it).
+- **The look:** `look`'s colour quantity takes the style's palette and its line quantity solid, dashed,
+  dotted and dashdot (at most 4 values). A value keeps its colour or line on every page of the set.
+  With no `look`, if the curves vary along exactly two quantities and one has at most 4 values, that one
+  takes the line and the other the colour. `look = "palette"` turns this off; a quantity's own `styles`
+  fill what `look` leaves unset. The style's palette has 5 colours: a colour quantity of more values
+  repeats them, and when two curves of a page then look alike the stage says so. Give them colours of
+  their own (below), or the set a longer palette, `style = { curves = { palette = ["#rrggbb", …] } }`.
+- **A value's own look:** in a `curves` table, a value may be a table that gives the curves this table
+  draws with it their look, over the set's `look`:
+
+  ```toml
+  curves = [
+    { generator = "py8", pdf = [{ tag = "NNPDF23lo", colour = "#d62728", line = "dashed" }, "MSTW08lo"] },
+    { generator = "sh3", pdf = { all = true, colours = ["#1f77b4", "#2ca02c", "#9467bd", "#8c564b", "#e377c2"] } },
+  ]
+  ```
+
+  `{ tag = "…", colour, line, width }` is one value (`value = <number>` in place of the tag), and the tag
+  may be a glob. `{ tags = "all" | [...] | "<glob>", colours = [...], lines = [...], widths = [...] }`
+  is several values with a look each, in their order (`all = true` is `tags = "all"`). A list of looks
+  shorter than its values is refused, rather than repeating. `color` and `colors` are accepted for
+  `colour` and `colours`. Colours are `"#rrggbb"`, ROOT names (`"kBlue+1"`) or numbers; lines are solid,
+  dashed, dotted or dashdot. The same value in another table keeps the set's look.
+- **The page keys:** a set's own (`objects`, `ratio`, `normalise`, `split`, `legend_statistic`, `title`
+  with `{cell}`, `style`, …) lay over `[plot]`'s for its pages, and a figure's over the set's (the figure
+  is about the object: its axes and its scales).
+- **Checked at plan time:** an unknown quantity, a tag no value has (the refusal lists the tags), a
+  value no point of the configuration has, a quantity in both `pages` and `curves`, a `look` quantity
+  that is not a curve axis, or a line quantity of more than 4 values. A record half-run draws the
+  complete points it has.
+- **Before drawing:** `heimdall plot CONFIG|RECORD --plan` prints each set's cells and their curves'
+  labels, and what it would say, without drawing. Write a set against the real points this way.
+
+**The short forms** pick points without axes, in the order named:
 
 ```toml
 [plot]
@@ -133,44 +327,142 @@ sets  = [[1, 4, 6, 8], [1, 2, 4, 9], "all"]   # a page folder each: set1/, set2/
 split = 8                                     # at most 8 points a page: all-1/, all-2/, all-3/ of 24
 ```
 
-- **A set** is a list of selectors (`set<k>`, its place), one selector (its folder: `"pdf=X"` →
+- **A short set** is a list of selectors (`set<k>`, its place), one selector (its folder: `"pdf=X"` →
   `pdf-X`), or `{ name = "lo", points = [...] }`. A selector is a 1-based index (as `point i/n`
   counts), a point's name, a glob of names (`"sh3_NNPDF40*"`), a tag of any quantity's (`"py8"`:
-  every point with it), `"quantity=tag"`, or `"all"`. A set's curves are in the order named: the first
-  is a ratio's reference when the page has no data.
-- **`split = N`** cuts each cell (a `plot_points` cell, or a set) into pages of at most N points, in
-  order: `<cell>-1`, `<cell>-2`, … (`part1`, … with one cell). 24 points and `split = 3` are 8 pages.
-- **The labels:** a set's or a cut's curves are labelled by the quantities that differ on it; `{cell}`
-  is the set's name.
+  every point with it), `"quantity=tag"`, or `"all"`. Its curves are in the order named: the first is a
+  ratio's reference when the page has no data. A table's `points` takes the same selectors, as a filter
+  before its `pages` and `curves`.
+- **`split = N`** cuts each cell (a `plot_points` cell, a set, or a set's cell) into pages of at most N
+  points, in order: `<cell>-1`, `<cell>-2`, … (`part1`, … with one cell). 24 points and `split = 3` are
+  8 pages.
+- **The labels:** a short set's or a cut's curves are labelled by the quantities that differ on it;
+  `{cell}` is the set's name.
 - **Where:** `[plot]` for every page; a defined or overlay figure may set its own. merged, scan and
   compare figures page by `plot_points` only. A selector no point matches is refused at plan time.
 - **On the command line:** `heimdall plot … --points 1,4,6,8` (one set, `points/`), or
-  `--set 'plot.sets=[[1,4],"all"]'`. With a record (`heimdall plot <P>/<run>/<NN_cfg>`) this never
-  touches the configs. Pages of earlier sets stay in their folders until you remove them.
+  `--set 'plot.sets=[[1,4],"all"]'`. Sets may also live in a file of their own, `heimdall plot … --plot
+  FILE`. With a record (`heimdall plot <P>/<run>/<NN_cfg>`) none of this touches the configs. A set's name is
+  its folder, so it may not be `root`, `mpl`, `yoda` or `statistics`. Drawing a set replaces `plots/<set>/`
+  and `statistics/<set>/`; the folders of sets no longer drawn stay until you remove them.
 
 ### 3.2 Statistics of the pages
 
-Every drawn page's curves get numbers, computed by Paint on what it draws (after voiding, the data's
-alignment and normalisation, over the drawn x range), so every backend's page agrees with them. The plot
-stage writes them to `results/…/plots/statistics.csv` (`statistics = false` turns it off), a row per
-page and curve:
+Every page's curves get numbers, computed by Paint on the page (after voiding, the data's alignment and
+normalisation, over the drawn x range), so every backend's page agrees with them. Each set's go into
+`results/…/statistics/<set>/statistics.csv`, beside `plots/<set>/` and never in it, a row per page and curve.
+They are made two ways:
+
+- **With each drawing:** a set's pages give `statistics/<set>/`. `[plot] statistics = false` stops it,
+  `[run] stats = false` (or `--no-stats`) for a run's follow-up.
+- **Alone:** `heimdall stats <P>/<name>/<cfg>` (a folder with a `plot.toml`, `<P>/<name>` for each of its
+  runs, or a run TOML for its configurations' newest) measures a run without drawing a page: the same page
+  documents, read by Paint with `--ranges-only`, in a fraction of the time. `--sets a,b` measures those sets.
+  A run with `[run] plot = false` and `stats = true` does this after its points.
+
+**`[stats]`** (in the run TOML, kept in the plot document) measures otherwise than the pages draw. What it
+leaves unset is the pages' own:
+
+```toml
+[stats]
+sets      = ["totality"]                           # the sets measured (default: [plot].draw, else every set)
+objects   = ["d01-*", "d02-*"]                     # the objects measured
+normalise = "area"                                 # compare shapes, whatever the pages draw
+reference = { generator = "py8", pdf = "NNPDF23lo" }   # against this curve, data or not ("data": the default; "curves": each page's first)
+```
+
+With a `[stats]` table, or `[run] stats = [sets]`, the numbers come from a pass of their own over the pages'
+documents (in the working folder's `stats/`), even after a drawing, so `statistics/<set>/` always holds the
+same kind of numbers, whoever made them. The columns:
 
 | Column | Holds |
 |---|---|
-| `page`, `cell`, `object`, `curve`, `point` | which page, the curve's label and its point |
+| `page`, `cell`, `object`, `curve`, `point` | which page (its name in the set), the curve's label and its point |
 | `reference`, `is_reference` | what it is compared with: the data, else the page's first curve |
 | `bins`, `area`, `area_err` | its finite bins in the range, Σ y·Δx and its error (σ in pb; 1 when normalised) |
-| `ref_area`, `abs_area`, `rel_abs_area` | on the reference's bins the curve covers exactly: their area, Σ \|y − y_ref\|·Δx, and the ratio of the two |
+| `ref_area`, `cmp_area` | on the reference's bins the curve covers exactly (the *compared bins*, the curve's own bins summed onto them): the reference's area there and the curve's |
+| `abs_area`, `rel_abs_area` | Σ \|y − y_ref\|·Δx on those bins, and over `ref_area`: the area between the two, a fraction of the reference's; shape and normalisation both count, nothing cancels |
+| `area_ratio` | `cmp_area` / `ref_area`: MC over data, the normalisation (1: the same; bins above and below cancel) |
+| `ratio_mean` | Σ (y/y_ref)·Δx / Σ Δx on those bins with y_ref ≠ 0: the ratio pad's mean height (Δx in log10 x on a log-x page, as the pad draws it). Every x counts alike, the tails as much as the peak, where `area_ratio` weighs each bin by y_ref |
+| `ratio_dev` | Σ \|y/y_ref − 1\|·Δx / Σ Δx on the same bins: the ratio pad's area about its line at one, over the width compared. 0.1: 10% off on average across x. Beside `ratio_mean`: \|ratio_mean − 1\| ≈ `ratio_dev` when the curve is off one way throughout (normalisation), smaller when it crosses the reference (shape) |
 | `chi2`, `ndf`, `chi2_ndf` | Σ (y − y_ref)² / (σ² + σ_ref²) over those bins with an error, their number, the ratio |
 
-**As bar graphs:** beside the table, `results/…/plots/statistics/<cell>/<object>.<fmt>` draws each page's
-curves as bars, one panel each for χ²/ndf, |Δ|/reference and the area, and `statistics/summary.<fmt>` each
-point's mean χ²/ndf over the pages it was compared on, best first (matplotlib; the formats of `[plot]`
-that it writes: png, pdf, svg). `statistics = false` turns both off.
+**As bar graphs:** beside the table, `statistics/<set>/bars/<cell>/<object>.<fmt>` draws each page's curves
+as bars, one panel each for χ²/ndf, |Δ|/reference, area/reference, the mean ratio, mean |ratio − 1| and the area
+(matplotlib; the formats of `[plot]` that it writes: png, pdf, svg). `statistics = false` turns them and the
+summary off.
 
-`legend_statistic = "chi2_ndf"` (or `area`, `abs_area`, `rel_abs_area`, `chi2`) puts one of them after
+**The summary:** `statistics/<set>/summary.pdf`. It opens with the **standings**, what is best on the most
+pages (as a mode is), where the means further on say what is best on average:
+- **Scoring:** each page ranks its own curves in each of χ²/ndf, |Δ|/reference, area/reference, the mean ratio
+  and mean |ratio − 1| (the two ratios by how far from 1 either way, |log10 r|). 1st scores 5 points, 2nd 4,
+  3rd 3, 4th 2, 5th 1, the rest nothing; equal numbers share the better place. Only pages compared against
+  data count, when any page has data (a page compared against its first curve cannot rank that curve).
+- **Head to head:** on every page counted, in each statistic, each pair of its curves plays a match: the one
+  closer to agreement wins it, equal numbers draw (half each). A point's **win rate** is the share of its
+  matches it won (75%: it beats the others 3 times in 4). Unlike points, which stop at 5th, it counts every
+  place, and it doesn't depend on how many curves a page has.
+- **The top five:** a column per scoreboard (all five statistics together, then each), its first five with
+  their points and wins (1st places); a last column, the first five by win rate.
+- **Scoreboards:** all five statistics page by page (a row per point, a column per object's page, its points
+  there, at most 25), the same by page cell (a row per point placed within its cell, a column per statistic),
+  then one a statistic, page by page. Each ends with the total, the wins, the win rate (over that board's
+  statistics) and the mean rank (the mean of its places), is sorted by total, then wins, then mean rank, and
+  has its top three in bold. Points of different page cells never meet on a page.
+- **Each page cell's head to head:** a row per point, sorted by win rate, a column per opponent: the matches
+  it won against that one of those they played (`31/40`), blue where it won most, orange where it lost most.
+
+Then a section for each of χ²/ndf, |Δ|/reference, area/reference, the mean ratio, mean |ratio − 1| and the
+area:
+- **a ranking:** each point's mean over the pages it was compared on, as bars, lowest first; the number of
+  pages in brackets. The two ratios take the geometric mean (2 and 0.5 average to 1), rank closest to 1
+  first, and their bars grow from 1, blue above and orange below. The area has no ranking: each object has
+  its own units, so a mean across objects says nothing.
+- **a table:** a row per point (its page cell · its label), a column per object (d2 before d10), each cell
+  that point's number on that object's page, then the row's mean (geometric for the ratios). The reference curve's cell
+says `ref` (it is compared with nothing; the area table shows its area), a missing number `–`. Cells are
+shaded by value: χ²/ndf on a log scale, the area within each column (each object has its own units), the
+area ratio and the mean ratio blue above 1 and orange below. More than 13 objects or 42 points split a table over several pages.
+Every summary page ends with a footnote: what its number is and how it is computed. A PNG or SVG is a file
+a page in `statistics/<set>/summary/`, numbered in the PDF's order (`summary_01.png`, `summary_02.png`, …).
+
+`legend_statistic = "chi2_ndf"` (or `area`, `abs_area`, `rel_abs_area`, `area_ratio`, `ratio_mean`, `ratio_dev`, `chi2`) puts one of them after
 each curve's legend entry, `MSTW 2008 LO (χ²/ndf 1.31)`; the reference curve gets none. A `statistic`
 figure (§7.9) draws one of them as a page per object.
+
+### 3.3 The runs together: `[plot.across]`
+
+Sets put one run's points on pages. To put the points of several runs of a run TOML on one page (the same
+points at 10k, 100k and 10M events, or two configurations side by side), declare sets across them:
+
+```toml
+[plot.across.events_by_pdf]          # each run's points, by their event count
+pages  = { generator = "all", pdf = ["NNPDF23lo", "MSTW08lo90cl"] }
+curves = { "@events" = "all" }       # a curve per run's event count: 10k, 100k, 10M
+
+[plot.across.pdf_by_events]
+pages  = { generator = "all", "@events" = "all" }
+curves = { pdf = "all" }
+```
+
+- **The members** are every run's points (each run's plot document's), named `<run>__<point>`, with their
+  quantities matched by tag across the runs, and three attributes:
+  - `@events`: the run's event count, tags like `10M`, labels `10M events`; it is an axis, so a set that does
+    not name it gets a page per event count;
+  - `@run`: the run's folder (`04_generator_pdf`);
+  - `@configuration`: its configuration.
+
+  The last two are not paged by themselves; name them to use them.
+- **Where:** `results/<P>/<name>/plot.toml`, written by a run of the run TOML when it has none, holds
+  `[from]` and the run TOML's `[plot]` with these sets. The pages go to `results/<P>/<name>/plots/<set>/`, their
+  numbers to `statistics/<set>/`.
+- **`[from]`:** `runs = ["04_*", "0[5-7]_*"]` names the runs, by folder globs (every run by default).
+  `prefer = "last"` (the default) draws a point two runs have (every tag and the event count the same) from
+  the later one that completed it, and says so; `"all"` keeps both.
+- **Drawn by** `heimdall plot <config> --across` (or `heimdall plot results/<P>/<name>`), measured by
+  `heimdall stats <config> --across`. `--style-sync <config>` with `--across` takes the config's `[plot]` and
+  `[plot.across]` into it. A compare figure (§7.5) still draws configurations side by side from one run's
+  plot stage; `@configuration` here is the same over any runs.
 
 ---
 
@@ -220,6 +512,20 @@ value = "LHAPDF6:NNPDF23_lo_as_0130_qed"
 label = "NNPDF 2.3 LO"
 style = { colour = "kBlue+1", line = "dashed", width = 1.5 }
 ```
+
+A row's `style` belongs to the run (its plot document keeps it with the quantity), so a run made before the
+style was written does not have it. **`[plot.looks]`** gives values their looks in `[plot]` instead, by tag,
+so `--style-sync` carries them into every run, and a value commented out of the quantity keeps its look:
+
+```toml
+[plot.looks.pdf]                      # each PDF the same colour on every page, in every run
+NNPDF23lo    = "#0067A5"
+MSTW08lo90cl = "#F99379"
+HERAPDF20JetsNLOEig = { colour = "#008856", line = "dashed" }
+```
+
+A look is a colour or `{ colour, line, width }`, over the quantity's own `style`. A set's `look` and a curves
+filter's styled values go over it, and a set's automatic look leaves an axis with looks alone.
 
 **A band** folds a curve axis into an envelope:
 
@@ -271,7 +577,7 @@ errors = "band"
 - **Misspelt keys:** an unknown key, or a value of another kind, is refused at plan time, with the
   nearest spelling.
 - **Seeing the merged style:** `$HEP_APPS/Paint.exe <page>.toml --dump-style` prints a page's whole
-  style; the page documents are in `records/…/plots/`.
+  style; the page documents are in `.cache/<P>/plots/<name>/<cfg>/<set>/`.
 - **The reference:** every key and its default is [04 §12](04_Config_Reference.md#12-the-style).
 - **Ratio ticks:** denser or sparser ratio-pad ticks are `ratio = { divisions = 508 }` (0.2 apart)
   or `515`.
@@ -318,8 +624,8 @@ and `heimdall migrate` rewrites them.
 | `compare` | the same objects across configurations, of this or other run TOMLs | `<run>/compare/<name>/<cell>/<object>` |
 | `derived` | a new object per point: a ratio, difference, sum or projection | `<cell>/<name>` |
 | `scan` | one number per point against a swept quantity | `<cell>/<name>` |
-| `sheet` | drawn pages, tiled in a grid | `plots/<backend>/sheets/<name>` |
-| `statistic` | one statistic per point, of each drawn page | `<cell>/<name>/<object>` |
+| `sheet` | drawn pages, tiled in a grid | `plots/<set>/<backend>/sheets/<name>` |
+| `statistic` | one statistic per point, of each drawn page | `statistics/<set>/figures/<backend>/<cell>/<name>/<object>` |
 
 ### 7.2 `defined`: an object's own pages
 
@@ -366,8 +672,7 @@ title   = "five seeds merged"
 
 The objects' pages, under the figure's folder (`<cell>/avg/<object>`). For each value of the other
 curve axes, the points' YODAs are merged by the combine folder's command (`rivet-merge -e`:
-statistics add, σ averaged), into `records/…/plots/merged/avg/`, which the plot stage removes once the
-pages are drawn (with `--keep cache`, it stays, and a merge happens once per change of a member's YODA).
+statistics add, σ averaged), into `.cache/…/merged/avg/`, merged again only when a member's YODA changes.
 
 The run keeps its points apart, and only this figure merges them; `combine` merges them for the
 whole configuration ([02 §7.3](02_User_Guide.md#73-replicas-merged)). `over` must name curve axes,
@@ -422,7 +727,7 @@ analysis-option variant.
   - `projection-x` and `projection-y` of one 2D object: summed over the other axis, as a Scatter2D
     whose x ranges are the bins.
 - **Where it is written:** it is appended to a copy of each point's YODA
-  (`records/…/plots/derived/`, removed after the draw unless `--keep cache`), remade when the product or
+  (`.cache/…/derived/`), remade when the product or
   the figures change, by
   `framework/plot/figures/derive.py` with YODA's Python (`gjallarhorn`).
 
@@ -463,8 +768,9 @@ pages   = ["18x275/d02-x01-y01", "18x275/eta_algorithms", "*/r15"]   # globs of 
 columns = 3                                                         # default: up to 3
 ```
 
-- **What it makes:** after the configuration's pages are drawn, the pages the globs name are tiled
-  `columns` wide into `plots/<backend>/sheets/<name>.pdf` and `.png`. Each pad is its page exactly
+- **What it makes:** after the configuration's pages are drawn, in each set the pages the globs name (by
+  their names in the set) are tiled `columns` wide into `plots/<set>/<backend>/sheets/<name>.pdf` and
+  `.png`; a set none of the globs names is passed over. Each pad is its page exactly
   as it was drawn alone:
   - pdflatex places the PDFs, as vectors (a page's PNG where it has no PDF), in cells of the
     largest page's size;
@@ -480,7 +786,7 @@ columns = 3                                                         # default: u
 ```toml
 [plot.figures.rank]
 class     = "statistic"
-statistic = "chi2_ndf"            # area, abs_area, rel_abs_area, chi2, chi2_ndf (§3.2)
+statistic = "chi2_ndf"            # area, abs_area, rel_abs_area, area_ratio, ratio_mean, ratio_dev, chi2, chi2_ndf (§3.2)
 objects   = ["d01-*", "d02-*"]
 sort      = true                  # the smallest first; default: the curves' order
 ```
@@ -519,9 +825,9 @@ in an overlay. To see a 2D object in 1D, project it with a derived figure.
 
 | `backend =` | Draws with | Pages in | Honours |
 |---|---|---|---|
-| `"root"` (default) | `$HEP_APPS/Paint.exe`, up to 200 pages per process | `plots/root/` | every `[plot]` key, every figure and type, the whole style |
-| `"mpl"` | matplotlib in this process, a pool of workers (`framework/plot/mpl/backend.py`) | `plots/mpl/` + `index.html` | **mkhtml's pages, pixel for pixel** (until the user has verified it), about 18× faster than mkhtml; 1D pages only |
-| `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/plot/yoda/backend.py`) | `plots/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | the same pages with Paint's ranges and voids; frozen |
+| `"root"` (default) | `$HEP_APPS/Paint.exe`, up to 200 pages per process | `plots/<set>/root/` | every `[plot]` key, every figure and type, the whole style |
+| `"mpl"` | matplotlib in this process, a pool of workers (`framework/plot/mpl/backend.py`) | `plots/<set>/mpl/` + `index.html` | **mkhtml's pages, pixel for pixel** (until the user has verified it), about 18× faster than mkhtml; 1D pages only |
+| `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/plot/yoda/backend.py`) | `plots/<set>/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | the same pages with Paint's ranges and voids; frozen |
 | `["root", "mpl"]`, `"both"` | each, from the same page documents | each tree | as each; `"both"` is root and yoda |
 
 **What the other backends honour.** They draw the same page documents with the ranges and voided
@@ -571,7 +877,7 @@ Writing a backend is [06 §18](06_Internals.md#18-adding-a-plot-backend).
 
 ```bash
 heimdall overlay a.yoda b.yoda --labels "Tune A,Tune B" --ratio --objects "/MC_JETS/*"
-heimdall overlay results/Demo/jets/01_pdf/plots/root/pdf.root      # a sweep: a curve per point
+heimdall overlay .cache/Demo/plots/jets/01_pdf/pdf.root            # a sweep: a curve per point
 ```
 
 **No run TOML is needed.** You get one page per object any file holds, with one curve per file, or

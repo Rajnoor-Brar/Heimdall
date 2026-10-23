@@ -261,18 +261,19 @@ def _recipe_blocks(folder: Path, name: str, spec, settings: dict, where: str) ->
         raise HepError(f"no results for {project_run} under {results_root()}", where=where,
                        hint=did_you_mean(run_dir.name, runs) or (f"runs there: {', '.join(runs)}" if runs else None))
     folders = _folders(run_dir, spec["folders"], where)
+    set_ = spec.get("set", "totality")                    # V164: a folder's pages are by set, plots/<set>/<backend>/
     chosen = spec.get("backend", settings["backend"])
     backends = [chosen] if isinstance(chosen, str) else list(chosen)
     drawn: dict[str, dict[str, Path]] = {}               # folder → page → file, the first backend's that has it
     for f in folders:
         drawn[f] = {}
         for backend in reversed(backends):
-            drawn[f].update(_pages_of(run_dir / f / "plots" / backend))
+            drawn[f].update(_pages_of(run_dir / f / "plots" / set_ / backend))
     names: list[str] = []
     def elsewhere(page_glob: str, among: list[str]) -> str | None:
         """Another backend that drew such a page in one of the folders: its name."""
         return next((b for b in ("root", "mpl", "yoda") if b not in backends for f in among
-                     if any(_page_matches(p, page_glob) for p in _pages_of(run_dir / f / "plots" / b))), None)
+                     if any(_page_matches(p, page_glob) for p in _pages_of(run_dir / f / "plots" / set_ / b))), None)
 
     def use(backend: str) -> str:
         return f"{backend} drew it there: backend = {[*backends, backend]}".replace("'", '"')
@@ -281,14 +282,14 @@ def _recipe_blocks(folder: Path, name: str, spec, settings: dict, where: str) ->
         found = sorted({p for f in folders for p in drawn[f] if _page_matches(p, glob)}, key=natural)
         if not found:
             other = elsewhere(glob, folders)
-            raise HepError(f"pages: '{glob}' names no page drawn in plots/{'|'.join(backends)}/ of these folders",
-                           where=where, hint=use(other) if other else f"they are under {run_dir}/<folder>/plots/<backend>/")
+            raise HepError(f"pages: '{glob}' names no page drawn in plots/{set_}/{'|'.join(backends)}/ of these folders",
+                           where=where, hint=use(other) if other else f"they are under {run_dir}/<folder>/plots/<set>/<backend>/")
         names += [p for p in found if p not in names]
     for f in folders:
         absent = [p for p in names if p not in drawn[f]]
         if absent:
             other = elsewhere(absent[0], [f])
-            raise HepError(f"{f} has no page {absent[0]} in plots/{'|'.join(backends)}/", where=where,
+            raise HepError(f"{f} has no page {absent[0]} in plots/{set_}/{'|'.join(backends)}/", where=where,
                            hint=use(other) if other else f"draw it there (heimdall plot), or leave {f} out of folders")
     shorts = _shorts(names)
     labels = _labels(run_dir, project_run, folders, spec.get("label", "events"), where)

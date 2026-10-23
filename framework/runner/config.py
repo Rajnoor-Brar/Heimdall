@@ -19,35 +19,11 @@ from . import plugins, schema, v3
 from .errors import HepError, did_you_mean
 from .paths import config_file, configs_root, hep_root, resolve
 from .quantities import check_shapes, select
-from .sweep import Listed
+from .sweep import Listed, check_curve_style, set_entries
 
 #: How a point's seeds are chosen (V39, 06 §8); the schema's [run.seed_type].choices.
 SEED_TYPES = tuple(schema.keys("run")["seed_type"]["choices"])
 DEFAULT = schema.DEFAULT
-CURVE_LINES = ("solid", "dashed", "dotted", "dashdot")
-
-
-def check_curve_style(look, where: str) -> None:
-    """A quantity value's curve look (V67): colour ("#rrggbb", a ROOT name or number), line, width
-    (points); "default" for a key is the style's, as if left out."""
-    if not isinstance(look, dict):
-        raise HepError("a style is a table, { colour, line, width }", where=where)
-    for key, value in look.items():
-        if value == DEFAULT:
-            continue
-        if key == "colour":
-            ok = isinstance(value, str) and value or isinstance(value, int) and not isinstance(value, bool)
-        elif key == "line":
-            ok = value in CURVE_LINES
-        elif key == "width":
-            ok = isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
-        else:
-            raise HepError(f"a style has no key '{key}'", where=where, hint=did_you_mean(key, ["colour", "line", "width"])
-                           or "its keys: colour, line, width")
-        if not ok:
-            raise HepError(f"style {key} = {value!r} is not one", where=where,
-                           hint={"colour": '"#rrggbb", a ROOT colour name ("kBlue+1") or number',
-                                 "line": " | ".join(CURVE_LINES), "width": "a number of points > 0"}[key])
 
 
 @dataclass
@@ -116,8 +92,11 @@ class Configuration:
     origins: dict = field(default_factory=dict)         # key → where its value came from (--show-config, V56)
     cluster: dict = field(default_factory=dict)         # [cluster], this configuration's over the run's (V114); never in an identity
     serial_auto: bool = False                           # v3 without a serial: the runner numbers its folder (03 §6)
+    draw: object = True                                 # [run].plot (V167): true, false, or the sets the run draws
+    measure: object = True                              # [run].stats (V168): true, false, or the sets it measures
     serial_note: str = ""                               # why the runner chose the number it did (--plan)
     inference: dict | None = None                       # v3: what infers a resolved chain's interfaces per point (V153)
+    own: dict = field(default_factory=dict)             # V179: its own vars and data (OWN), over the file's
 
 
 @dataclass
@@ -143,6 +122,8 @@ class RunConfig:
     meta: dict = field(default_factory=dict)            # [config.meta]: descriptive; versions warned about (V97)
     families: dict = field(default_factory=dict)        # v3: a configuration with several event counts → its configurations
     form: int = 2                                       # the file's form: 2, or 3 (runner/v3.py)
+    stats: dict = field(default_factory=dict)           # [stats] (V168): what the statistics measure, over the pages
+    applied: dict = field(default_factory=dict)         # V179: the configuration's own vars and data it was read with
 
     def configuration(self, name: str | None) -> Configuration:
         wanted = name or self.default_configuration
@@ -873,9 +854,64 @@ def with_vars(raw: dict, path: Path) -> dict:
     return out
 
 
-def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | None = None) -> RunConfig:
+#: What a configuration may set of the file's own (V179): its vars, over [file.vars]; its data, for [plot.data].
+OWN = ("vars", "data")
+
+
+def _own_of(raw: dict, key: str | None) -> dict:
+    """A configuration's own vars and data (V179), through the configurations it extends: vars merged (its
+    own win), data the nearest."""
+    cfgs = raw.get("run", {}).get("cfgs", {}) if isinstance(raw.get("run"), dict) else {}
+    chain, seen = [], set()
+    while isinstance(cfgs.get(key), dict) and key not in seen:
+        seen.add(key)
+        chain.append(cfgs[key])
+        key = cfgs[key].get("extends")
+    out: dict = {}
+    for table in reversed(chain):
+        if isinstance(table.get("vars"), dict):
+            out["vars"] = {**out.get("vars", {}), **table["vars"]}
+        if "data" in table:
+            out["data"] = table["data"]
+    return out
+
+
+def _with_own(raw: dict, own: dict) -> dict:
+    """The file as one configuration reads it (V179): its vars over [config.vars], its data for [plot].data."""
+    if not own:
+        return raw
+    out = {**raw, "config": {**raw.get("config", {})}}
+    if "vars" in own:
+        out["config"]["vars"] = {**raw.get("config", {}).get("vars", {}), **own["vars"]}
+    if "data" in own:
+        out["plot"] = {**raw.get("plot", {}), "data": own["data"]}
+    return out
+
+
+def for_configuration(run: RunConfig, name: str | None) -> tuple[RunConfig, Configuration]:
+    """The file read for one configuration (V179): `run` itself when that configuration sets nothing of its
+    own (OWN) or `run` was read with what it sets, else the file read again with it."""
+    configuration = run.configuration(name)
+    if configuration.own == run.applied:
+        return run, configuration
+    again = load(str(run.path), sets=list(run.sets), configuration=configuration.key)
+    return again, again.configuration(configuration.key)
+
+
+def check_read_for(run: RunConfig, configuration: Configuration) -> None:
+    """A configuration planned or drawn from a file read for another (V179): refused, never quietly with the
+    other's cards or data."""
+    if configuration.own != run.applied:
+        raise HepError(f"configuration '{configuration.key}' sets its own {' and '.join(configuration.own) or 'nothing'}, "
+                       "and this file was read for another", where=str(run.path),
+                       hint="(Heimdall's) read it with config.for_configuration(run, name)")
+
+
+def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | None = None,
+         configuration: str | None = None) -> RunConfig:
     """A run TOML, checked. `strict=False` (heimdall migrate only, V79) still reads the forms it rewrites;
-    `text` (heimdall migrate's, V81) is read in place of the file's."""
+    `text` (heimdall migrate's, V81) is read in place of the file's. Read for `configuration` (else the
+    default one), with its own vars and data (V179)."""
     path = config_file(name)
     if text is None:
         given = _toml(path)
@@ -890,8 +926,10 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
     raw, included, imported = _with_imports(_form(given, path), path)
     if not own_names:
         apply_sets(raw, list(sets))
-    raw = with_vars(raw, path)
+    key = configuration or (raw.get("run", {}).get("configuration") if isinstance(raw.get("run"), dict) else None)
+    raw = with_vars(_with_own(raw, _own_of(raw, key)), path)
     run = parse(raw, path, strict=strict)
+    run.applied = run.configurations[key].own if key in run.configurations else {}
     _own_folders(run)
     _shared_folders(run, imported)
     run.included = included
@@ -1179,8 +1217,9 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             static=static_values,
             prelim=(_inferred(groups, tools, keep, prelim, quantities) if form == 3     # v3: from the chain
                     else _own_prelim(chain, prelim, origins)),                 # replaced whole: its chain's interfaces
-            origins=origins, cluster=merged("cluster", cluster),
-            inference={"keep": keep, "base": prelim} if form == 3 else None)
+            origins=origins, cluster=merged("cluster", cluster), draw=inherited("plot", True),
+            measure=inherited("stats", True),
+            inference={"keep": keep, "base": prelim} if form == 3 else None, own=_own_of(raw, key))
         check_selectors(configurations[key], quantities, tools, f"{at}.tools")
 
     a_cfg = "[cfgs.<name>]" if form == 3 else "[run.cfgs.<cfg>]"   # in the file's own names
@@ -1207,13 +1246,15 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
         raise HepError("[plot].legend is now part of the style", where=f"{where}: [plot].legend",
                        hint=f'[plot.style] legend.position = "{plot["legend"]}" (or in the root_style file)')
     check_plot(plot, f"{where}: [plot]", strict=strict)
+    stats = raw.get("stats", {})
+    check_stats(stats, f"{where}: [stats]")
 
     return RunConfig(path=path, project=project, name=run["name"], serial=run.get("serial"),
                      default_configuration=run.get("configuration"), configurations=configurations,
                      prelim=prelim, static=static, tools=tools, quantities=quantities, plot=plot,
                      master_toml=file_config.get("master"), meta=dict(file_config.get("meta", {})), raw=raw, sweep_runs=sweep_on,
                      sweep_list=list(run["sweep_runs"]) if isinstance(run.get("sweep_runs"), list) else [],
-                     families=families, form=form)
+                     families=families, form=form, stats=dict(stats))
 
 
 TEXT_KEYS = ("labels", "title", "title_left", "title_right", "legend_header", "x_label", "y_label", "legend")
@@ -1281,6 +1322,16 @@ def check_cluster(values, where: str) -> None:
             schema.check(values[job], "cluster", f"{where}.{job}", only=CLUSTER_JOB_KEYS)
 
 
+def check_stats(stats: dict, where: str) -> None:
+    """[stats] (V168) against the schema, its reference a filter when a table."""
+    if not isinstance(stats, dict):
+        raise HepError("[stats] is a table", where=where)
+    schema.check(stats, "stats", where)
+    if isinstance(stats.get("reference"), dict):
+        from .sweep import _filter_shape
+        _filter_shape(stats["reference"], f"{where}.reference")
+
+
 def check_plot(plot: dict, where: str, strict: bool = True) -> None:
     """[plot] and its figures against the schema, when the file is read (C11, V55): every key, type and
     bound of [plot], [plot.data] and [plot.figures.<figure>]. What needs the style (base.toml), the
@@ -1293,12 +1344,24 @@ def check_plot(plot: dict, where: str, strict: bool = True) -> None:
         _plot_texts(plot, where)
     schema.check(plot, "plot", where)
     schema.check(plot.get("data", {}), "data", f"{where}.data")
+    if plot.get("sets") and plot["sets"] != schema.DEFAULT:                 # V159, V163: their shapes, when read
+        set_entries(plot["sets"], f"{where}.sets")
+    if plot.get("across"):                                                 # V169: the sets across the runs
+        set_entries(plot["across"], f"{where}.across")
+    for quantity, looks in (plot.get("looks") or {}).items():               # V171: a value's look, by its tag
+        if not isinstance(looks, dict):
+            raise HepError(f"[plot.looks.{quantity}] is a table: tag = \"#rrggbb\" or {{ colour, line, width }}",
+                           where=f"{where}.looks.{quantity}")
+        for tag, look in looks.items():
+            check_curve_style({"colour": look} if isinstance(look, (str, int)) else look, f"{where}.looks.{quantity}.{tag}")
     for key, (table, written) in figure_tables(plot).items():
         at = f"{where.removesuffix(': [plot]')}: {written}"
         if not isinstance(table, dict):
             raise HepError("a figure is a table", where=at)
         schema.check(table, "figure", at)
         kind, objects, labels = table.get("class", "defined"), table.get("objects"), table.get("labels")
+        if table.get("sets") and table["sets"] != schema.DEFAULT and kind not in ("merged", "scan", "compare"):
+            set_entries(table["sets"], f"{at}.sets")
         y = table.get("y", "")
         if kind == "sheet":                                # V89: pages laid out, as drawn
             if not table.get("pages"):

@@ -519,6 +519,20 @@ def test_a_band_folds_its_axis_into_one_curve_per_other_value():
     assert [len(ms) for _, _, ms in plot._banded(curves, [["energy"], ["pdf"]], [], lambda *a: 0)] == [0] * 6
 
 
+def test_a_configuration_checks_the_sets_it_draws(scratch):
+    """V179: a set's filters are checked against the points of a configuration that draws or measures it, not of
+    every configuration: the file's sets are there to be picked. Drawing every set (the default) checks them all."""
+    sets = {"nn": {"curves": {"pdf": "NNPDF23lo"}}}                            # one sets no pdf
+    two = {"tools": [["pythia", "rivet"]], "sweeps": ["pdf"], "plot": ["totality", "nn"]}
+    run = parse(raw(plot={"sets": sets}, run__plot=["totality"], run__cfgs__two=two), scratch)
+    plot.check_figures(run, run.configuration("one"))                           # it draws totality alone
+    plot.check_figures(run, run.configuration("two"))
+    for picked in ({"run__cfgs__one__plot": ["nn"]}, {"run__stats": ["nn"], "run__plot": False}, {}):
+        run = parse(raw(plot={"sets": sets}, **picked), scratch)
+        with pytest.raises(HepError, match="which no point of the configuration sets"):
+            plot.check_figures(run, run.configuration("one"))
+
+
 def test_a_band_must_be_a_curve_axis(scratch):
     from helpers import plan
     run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__plot_points=["pdf"], plot={"band": ["pdf"]}), scratch)

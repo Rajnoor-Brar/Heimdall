@@ -24,7 +24,7 @@
 # figure ([plot.figures.<figure>]), data, cluster (also a work dir's hep.toml [cluster], V114).
 
 [sections]
-order = ["config", "run", "prelim", "static", "tools", "quantities", "plot", "cluster"]
+order = ["config", "run", "prelim", "static", "tools", "quantities", "plot", "stats", "cluster"]
 
 # ── [config]: how the file is read (V93) ──────────────────────────────────────────────────────────
 
@@ -159,6 +159,29 @@ notes = """\
   cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never \
   part of an identity or a seed, so changing it reruns nothing"""
 
+[run.plot]
+type    = "bool|list"
+items   = "str"
+default = true
+inherit = true
+doc     = "after the points: draw the run's pages (true: every set), none (false: its plot.toml is still written), or these sets (V167)"
+notes = """\
+  the plot follow-up (V167): `true` draws every set of the run's plot document (its `totality` and the \
+  `[plot].sets`), `false` none (the document is written all the same, for `heimdall plot` later), a list \
+  draws those sets (`["totality", "pdf_by_generator"]`) and is the document's `[plot].draw`. A \
+  configuration may set its own; `heimdall run … --no-plot` turns it off for one run"""
+
+[run.stats]
+type    = "bool|list"
+items   = "str"
+default = true
+inherit = true
+doc     = "after the pages: their statistics (true: every set drawn), none (false), or these sets'; with plot = false, measured alone (V168)"
+notes = """\
+  the statistics follow-up (V168): `true` measures the sets the run draws (or, with `plot = false`, every \
+  set, undrawn), `false` none, a list those sets (the document's `[stats].sets`). A configuration may set its \
+  own; `heimdall run … --no-stats` turns it off for one run"""
+
 [run.description]
 type = "str"
 doc  = "what the run is for"
@@ -268,6 +291,21 @@ notes = """\
   points at once (`\"auto\"`: cores ÷ a point's cores, V75); `--plan` and the run's title say \
   about how many cores that is, and warn past the machine's"""
 
+[configuration.plot]
+type       = "bool|list"
+items      = "str"
+default_ok = true
+doc        = "as [run].plot, for this configuration: true, false, or the sets it draws (V167)"
+notes = """\
+  the plot follow-up for this configuration (V167): `true`, `false`, or the sets it draws, so that sets \
+  defined once for the file are each drawn by the configurations they fit"""
+
+[configuration.stats]
+type       = "bool|list"
+items      = "str"
+default_ok = true
+doc        = "as [run].stats, for this configuration: true, false, or the sets it measures (V168)"
+
 [configuration.seed_type]
 type       = "str"
 choices    = ["identity", "manual", "random"]
@@ -349,6 +387,21 @@ doc  = "this configuration's [prelim]"
 notes = """\
   the nearest layer's **replaces** `[prelim]` whole for this configuration (its chain's \
   interfaces); `{}` means none"""
+
+[configuration.vars]
+type = "table"
+doc  = "this configuration's [file.vars], over the file's: its own cards, analyses, outputs (V179)"
+notes = """\
+  merged over `[file.vars]` (V96) for this configuration alone, before any `{var:…}` is replaced: a \
+  configuration may run other cards (`pythia_card = "../zeus/dis.cmnd"`), another analysis, another output, \
+  in the same file as the others. Only the configuration run, planned or drawn reads them"""
+
+[configuration.data]
+type = "table"
+doc  = "this configuration's reference data, in place of [plot.data]: file, legend, map (V179)"
+notes = """\
+  replaces `[plot.data]` (04 §11.1) for this configuration: its pages' data, its plot document's, its \
+  statistics' reference, when it runs another analysis than the file's others"""
 
 [configuration.cluster]
 type = "table"
@@ -611,7 +664,7 @@ default_ok = true
 doc        = "the pages' formats"
 notes = """\
   `pdf`, `png`, `svg`, `eps`. mkhtml writes pdf and png always. The root backend writes \
-  `plots/root/index.html` (V70): a section per `plot_points` cell, each page by its PNG or SVG, \
+  `plots/<set>/root/index.html` (V70, V164): a section per cell, each page by its PNG or SVG, \
   else an embedded PDF, linked to every format; add `png` for thumbnails a browser shows at once"""
 
 [plot.band]
@@ -751,18 +804,52 @@ notes = """\
 
 [plot.sets]
 page  = true
-type  = "list"
+type  = "list|table"
 items = "int|str|list|table"
-doc   = "pages of chosen points, a folder each, whatever the plot axes: [[1, 4, 6, 8], \"py8\", \"all\"] (V159)"
+doc   = "page folders of chosen points: [[1, 4], \"py8\", \"all\"] (V159), or tables of page axes and curve groups, { name, pages = { … }, curves = [{ … }] } (V163)"
 notes = """\
-  the pages' cells, instead of the `plot_points` grid (V159): each entry a page folder of the points it \
-  names, its curves in the order named, the first a ratio's reference. An entry is a selector, a list \
-  of them (`set<k>`, its place), or `{ name = "lo", points = […] }`. A selector is a 1-based index (as \
-  `point i/n` counts), a point's name, a glob of names (`"sh3_NNPDF40*"`), a tag of a quantity's \
-  (`"py8"`: every point with it), `"quantity=tag"`, or `"all"`; a string entry names its folder \
-  (`"pdf=X"` → `pdf-X`). A curve is labelled by the quantities that differ on its page; `{cell}` is the \
-  set's name. A selector no point matches is refused at plan time. merged, scan and compare figures \
-  page by `plot_points` only"""
+  the pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them \
+  (`set<k>`, its place), or a table. A selector (V159) is a 1-based index (as `point i/n` counts), a \
+  point's name, a glob of names (`"sh3_NNPDF40*"`), a tag of a quantity's (`"py8"`: every point with it), \
+  `"quantity=tag"`, or `"all"`; a string entry names its folder (`"pdf=X"` → `pdf-X`); its points are its \
+  curves, in the order named. A table (V163, `[[plot.sets]]`): `name` (its folder, default `set<k>`), \
+  `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of \
+  their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: \
+  the union, in order), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \
+  "<q>", line = "<q>" }`, or `"palette"`; with none, two varying curve axes: the one of at most 4 values \
+  the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \
+  "all" | tag | glob | "!tag" | number | [those] }`: every combination of its quantities' values (an outer \
+  product). In `curves`, a value may carry its curves' look: `{ tag = "…", colour, line, width }`, or \
+  several values' in order, `{ tags = "all" | […] (or all = true), colours = […], lines = […], widths = […] }` \
+  (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages \
+  too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, \
+  scan and compare figures page by `plot_points` only"""
+
+[plot.looks]
+type = "table"
+doc  = "each value's look on every page, by quantity and tag: [plot.looks.pdf] NNPDF23lo = \"#0067A5\" (or { colour, line, width }) (V171)"
+notes = """\
+  [plot.looks.<quantity>] (V171): a value's look on every page and in every run, by its tag: a colour \
+  (`\"#rrggbb\"`, a ROOT name or number) or `{ colour, line, width }`. A tag a run does not have is unused, so \
+  a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's \
+  styled values, over it; a set's automatic look leaves an axis with looks alone"""
+
+[plot.across]
+type = "table"
+doc  = "the run TOML's sets across its runs, [plot.across.<set>]: drawn at results/<P>/<name>/, by @run, @events, @configuration and the quantities (V169)"
+notes = """\
+  sets of the runs of this run TOML together (V169), as `[plot.sets.<name>]` are of one run's points, with \
+  three more axes: `@events` (each run's event count, tags like `10M`), `@run` (its folder) and \
+  `@configuration`. Kept in `results/<P>/<name>/plot.toml`, drawn by `heimdall plot <P>/<name> --across` into \
+  `results/<P>/<name>/plots/<set>/` and `statistics/<set>/`"""
+
+[plot.draw]
+type  = "list"
+items = "str"
+doc   = "the sets a drawing draws (default: every one): their names, totality included (V167)"
+notes = """\
+  the names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run \
+  writes `[run].plot`'s list here. A name no set has is refused"""
 
 [plot.split]
 page = true
@@ -778,17 +865,20 @@ notes = """\
 type       = "bool"
 default    = true
 default_ok = true
-doc        = "write results/…/plots/statistics.csv and its bar graphs, statistics/: each page's curves' area, area against the reference, χ² (V160, V162)"
+doc        = "write results/…/statistics/<set>/statistics.csv and its bar graphs: each page's curves' area, area against the reference, χ² (V160, V162, V164)"
 notes = """\
   each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the drawn x \
-  range), into `results/…/plots/statistics.csv` (V160): per curve `area` (Σ y·Δx) and its error; \
-  against the reference (the data, else the page's first curve) `ref_area`, `abs_area` (Σ |y − y_ref|·Δx \
-  on the reference's bins), `rel_abs_area`, `chi2`, `ndf`, `chi2_ndf`. false: no table"""
+  range), into each set's `results/…/statistics/<set>/statistics.csv` (V160, V164): per curve `area` (Σ y·Δx) and its error; \
+  against the reference (the data, else the page's first curve), on the reference's bins the curve covers, \
+  `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `rel_abs_area` (abs_area / \
+  ref_area), `area_ratio` (cmp_area / ref_area: MC over data, V175), `ratio_mean` (the ratio pad's mean, \
+  Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page, V175), `ratio_dev` (its area about one over the width \
+  compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table"""
 
 [plot.legend_statistic]
 page    = true
 type    = "str"
-choices = ["none", "area", "abs_area", "rel_abs_area", "chi2", "chi2_ndf"]
+choices = ["none", "area", "abs_area", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "chi2", "chi2_ndf"]
 default = "none"
 doc     = "a statistic after each curve's legend entry, against the page's reference (V160)"
 notes = """\
@@ -856,6 +946,51 @@ notes = """\
   `[plot.figures.<figure>]`: a recipe for pages, with every page key of `[plot]` for its own (04 \
   §11.2, V80)"""
 
+# ── [stats]: what the statistics measure (V168) ──────────────────────────────────────────────
+# Unset, a key is the pages' own: the statistics are of the pages [plot] defines, as Paint reads them.
+
+[stats.sets]
+type  = "list"
+items = "str"
+doc   = "the sets measured (default: [plot].draw, else every set)"
+
+[stats.objects]
+type  = "list"
+items = "str"
+doc   = "the objects measured: globs of their short names (d01-*) or YODA paths (default: the pages')"
+
+[stats.reference]
+type    = "str|table"
+choices = ["data", "curves"]
+doc     = "what each curve is measured against: \"data\" (the mapped data, where there is any), \"curves\" (each page's first curve), or a filter naming the reference curve"
+notes = """\
+  `\"data\"` (the default): the mapped data where a page has it, else the page's first curve; `\"curves\"`: \
+  each page's first curve, data or not; a filter, `{ generator = \"py8\", pdf = \"NNPDF23lo\" }`, names the \
+  reference curve on every page (moved first), data or not"""
+
+[stats.normalise]
+type    = "str|bool"
+choices = ["area", false]
+doc     = "as [plot].normalise, for the numbers: \"area\" compares shapes alone"
+
+[stats.void_empty]
+type = "bool"
+doc  = "as [plot].void_empty, for the numbers"
+
+[stats.min_entries]
+type = "int"
+min  = 0
+doc  = "as [plot].min_entries, for the numbers"
+
+[stats.auto_range]
+type = "bool"
+doc  = "as [plot].auto_range, for the numbers"
+
+[stats.range_pad]
+type = "int"
+min  = 0
+doc  = "as [plot].range_pad, for the numbers"
+
 # ── [plot.figures.<figure>]: a recipe for pages ─────────────────────────────────────────────
 # A figure takes every [plot] key marked `page = true`, meaning the same for its pages ("default":
 # [plot]'s value), and these, which only a figure sets (schema.keys("figure") joins the two).
@@ -872,7 +1007,7 @@ notes = """\
   when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' \
   pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the \
   other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics \
-  add, σ averaged), once per change of a member's YODA, into `records/…/plots/merged/<name>/`. The \
+  add, σ averaged), once per change of a member's YODA, into `.cache/…/merged/<name>/`. The \
   run keeps its points apart; the figure alone merges them (`combine` merges them for the whole \
   configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). \
   `compare` (V83): the objects' pages across configurations, \
@@ -887,7 +1022,7 @@ notes = """\
   binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D \
   object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a \
   Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA \
-  (`records/…/plots/derived/`, remade when the product or the figures change, by \
+  (`.cache/…/derived/`, remade when the product or the figures change, by \
   `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: \
   its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or \
   a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a \
@@ -930,7 +1065,7 @@ notes = """\
 
 [figure.statistic]
 type    = "str"
-choices = ["area", "abs_area", "rel_abs_area", "chi2", "chi2_ndf"]
+choices = ["area", "abs_area", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "chi2", "chi2_ndf"]
 doc     = "a statistic figure's number: one of the plot stage's statistics, a bin per point (V160)"
 notes = """\
   a statistic figure's number (V160), as `statistics.csv` has it: per cell (or set) and object, a page \
@@ -971,7 +1106,7 @@ items = "str"
 doc   = "a sheet's pages: globs of page names (18x275/d02-x01-y01, */eta_algorithms), in this order (V89)"
 notes = """\
   a sheet's (V89): the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the \
-  globs match, in the globs' order, tiled `columns` wide into `plots/<backend>/sheets/<name>.pdf` \
+  globs match (by their names in each set), in the globs' order, tiled `columns` wide into `plots/<set>/<backend>/sheets/<name>.pdf` \
   and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG \
   where a page has no PDF; the `.png` is that PDF rendered by pdftoppm, V102). For Paint's and \
   mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page \
@@ -983,7 +1118,7 @@ min  = 1
 doc  = "a sheet's columns (default: up to 3)"
 notes = """\
   a sheet's (V89): the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the \
-  globs match, in the globs' order, tiled `columns` wide into `plots/<backend>/sheets/<name>.pdf` \
+  globs match (by their names in each set), in the globs' order, tiled `columns` wide into `plots/<set>/<backend>/sheets/<name>.pdf` \
   and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG \
   where a page has no PDF; the `.png` is that PDF rendered by pdftoppm, V102). For Paint's and \
   mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page \

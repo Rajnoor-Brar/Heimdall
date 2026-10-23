@@ -1,6 +1,6 @@
 """A run where the machine root is read-only, as it is inside an Apptainer image (V149, V150): it writes only the
-work dir's records/, logs/ and results/, nothing in the machine root or in Heimdall, and a finished point keeps
-its cards and configs only.
+work dir's records/, results/ and the drawing's .cache/ (V164), nothing in the machine root or in Heimdall, and a
+finished point keeps its cards and configs only.
 
 The machine root here is an empty folder of the test's own, made read-only, with the forge inside it (so it
 cannot be made); the loaded stack (HEP_INSTALL, HEP_APPS, the base) is the real one's, read as an image's is.
@@ -44,12 +44,14 @@ def test_a_run_writes_only_its_work_dir(scratch):
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     assert list(root.iterdir()) == []
     assert checkout_state() == before
-    assert sorted(p.name for p in scratch.iterdir()) == ["Himinbjorg", "records", "results"]   # no cache/
+    assert sorted(p.name for p in scratch.iterdir()) == ["Himinbjorg", "cache", "records", "results"]
+    assert sorted(p.name for p in (scratch / "cache" / "Demo").iterdir()) == ["datasets", "plots"]    # the drawing's alone
 
     run = scratch / "records" / folder("Demo/jets", "single", scratch)
     kept = {p.name for p in (run / "logs" / "point").iterdir()}
     assert "cards" in kept and kept <= {".lock", "cards", "config"}         # config/: an exec or module tool's
-    left = [p.relative_to(run / "plots") for p in (run / "plots").rglob("*") if p.is_file()]
-    assert left and all(p.suffix == ".toml" for p in left)                  # the page configs only
+    assert not (run / "plots").exists()                                     # records/: nothing a drawing reads
+    documents = support.pages(scratch, folder("Demo/jets", "single", scratch))
+    assert any(documents.rglob("*.toml"))
     assert not [p for p in (scratch / "records").rglob("*") if p.is_fifo() or p.name == "status.jsonl"]
     assert os.access(support.point_results(scratch, folder("Demo/jets", "single", scratch), "point") / "jets.yoda", os.R_OK)

@@ -877,6 +877,96 @@ def _point_manifest(work: Path, rel: Path) -> None:
     path.write_text(json.dumps(data, indent=1, default=str) + "\n", encoding="utf-8")
 
 
+#: The backends' folders of results/<run>/plots/ before sets had folders of their own (V164).
+OLD_BACKENDS = ("root", "mpl", "yoda")
+
+
+def old_plots(work: Path) -> bool:
+    """A configuration's pages still in results/<run>/plots/<backend>/, its numbers in plots/statistics*, or its
+    page documents in records/<run>/plots/: from before V164."""
+    results, records = work / "results", work / "records"
+    for rel in _configurations(results):
+        plots = results / rel / "plots"
+        if any((plots / b).is_dir() for b in OLD_BACKENDS) or (plots / "statistics.csv").exists() or (plots / "statistics").is_dir():
+            return True
+    return any((records / rel / "plots").is_dir() for rel in _configurations(records))
+
+
+def sets_moves(work: Path) -> list[tuple[Path, Path]]:
+    """`heimdall migrate --layout` (V164): each configuration's pages into its totality set, its numbers out of
+    plots/, the drawing's working files out of records/ (renames of whole folders and files):
+    * results/<run>/plots/<backend>/<entry> → results/<run>/plots/totality/<backend>/<entry> (but the merged
+      sweep, plots/root/<cfg>.root → .cache/<P>/plots/<name>/<cfg>/, beside its stamp);
+    * results/<run>/plots/statistics.csv → results/<run>/statistics/totality/statistics.csv, the bar graphs of
+      plots/statistics/<cell>/ → statistics/totality/bars/<cell>/, plots/statistics/summary.* →
+      statistics/totality/;
+    * records/<run>/plots/ → .cache/<P>/plots/<name>/<cfg>/ (the page documents, rebuilt by the next drawing);
+    * a compare figure's: records/<P>/<name>/compare/<figure>/ → .cache/<P>/plots/<name>/compare/<figure>/, its
+      statistics.csv and bar graphs into its statistics/."""
+    records, results = work / "records", work / "results"
+    moves: list[tuple[Path, Path]] = []
+
+    def cache_of(rel: Path) -> Path:
+        return work / ".cache" / rel.parts[0] / "plots" / Path(*rel.parts[1:])
+
+    def numbers(old: Path, table: Path, into: Path) -> None:
+        if table.is_file():
+            moves.append((table, into / "statistics.csv"))
+        if old.is_dir():
+            for entry in sorted(old.iterdir()):
+                if entry.name.startswith("summary."):
+                    moves.append((entry, into / entry.name))
+                elif entry.name != "bars" and entry.name != "statistics.csv":
+                    moves.append((entry, into / "bars" / entry.name))
+
+    for rel in _configurations(records):                       # first: the folder the merged sweep then joins
+        if (records / rel / "plots").is_dir():
+            moves.append((records / rel / "plots", cache_of(rel)))
+    for rel in _configurations(results):
+        plots = results / rel / "plots"
+        for backend in OLD_BACKENDS:
+            for entry in sorted((plots / backend).iterdir()) if (plots / backend).is_dir() else ():
+                if backend == "root" and entry.suffix == ".root" and entry.is_file():
+                    moves.append((entry, cache_of(rel) / entry.name))
+                else:
+                    moves.append((entry, plots / "totality" / backend / entry.name))
+        numbers(plots / "statistics", plots / "statistics.csv", results / rel / "statistics" / "totality")
+    for project in sorted(p for p in records.iterdir() if p.is_dir()) if records.is_dir() else ():
+        for name in sorted(p for p in project.iterdir() if p.is_dir()):
+            for figure in sorted((name / "compare").iterdir()) if (name / "compare").is_dir() else ():
+                moves.append((figure, cache_of(figure.relative_to(records))))
+    for project in sorted(p for p in results.iterdir() if p.is_dir()) if results.is_dir() else ():
+        for name in sorted(p for p in project.iterdir() if p.is_dir()):
+            for figure in sorted((name / "compare").iterdir()) if (name / "compare").is_dir() else ():
+                if (figure / "statistics.csv").is_file():                      # the old layout's table beside its pages
+                    old = figure / "statistics"
+                    moves.append((figure / "statistics.csv", old / "statistics.csv"))
+                    for entry in sorted(old.iterdir()) if old.is_dir() else ():
+                        if entry.is_dir() and entry.name != "bars":
+                            moves.append((entry, old / "bars" / entry.name))
+    return moves
+
+
+def apply_sets(moves: list[tuple[Path, Path]], work: Path) -> int:
+    """sets_moves made (renames); a move whose target exists is left, and named; emptied folders removed.
+    Returns the moves left."""
+    left = 0
+    emptied = set()
+    for source, target in moves:
+        if target.exists() or target.is_symlink():
+            print(f"left    {source}: {target} exists")
+            left += 1
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        source.rename(target)
+        emptied.add(source.parent)
+    for folder in sorted(emptied, key=lambda p: len(p.parts), reverse=True):
+        while folder.is_dir() and not any(folder.iterdir()) and folder != work:
+            folder.rmdir()
+            folder = folder.parent
+    return left
+
+
 def deck_moves(work: Path) -> list[tuple[Path, Path]]:
     """A deck written in reports/<deck>/ (before decks/, U22): its sources to decks/<deck>/, everything but
     what `heimdall deck` builds there (panels/, figures/, build/ and the outputs)."""

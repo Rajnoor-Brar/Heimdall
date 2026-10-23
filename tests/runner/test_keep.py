@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from helpers import plan, raw
-from runner import execute, paths, plot
+from runner import execute, paths
 from runner.errors import HepError
 
 
@@ -54,21 +54,12 @@ def test_a_finished_point_keeps_its_cards_and_configs(scratch, monkeypatch):
     assert sorted(p.name for p in out.iterdir()) == [".lock", "cards", "config", "rivet.log"]   # a log written stays
 
 
-def test_the_plot_stage_keeps_its_page_configs(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    folder = paths.records_root() / "P" / "run" / "cfg" / "plots"
-    for name in ("em/d01.toml", "em/d01.toml.ranges.json", "merged.sha256", "derived/a.yoda", "datasets/d.root",
-                 "em/yoda/pages.plot"):
-        (folder / name).parent.mkdir(parents=True, exist_ok=True)
-        (folder / name).write_text("x", encoding="utf-8")
-    paths.ask_keep(["cache"])
-    plot.tidy(folder)
-    assert (folder / "merged.sha256").exists()                              # kept: the skip markers too
-    paths.ask_keep([])
-    plot.tidy(folder)
-    assert sorted(str(p.relative_to(folder)) for p in folder.rglob("*")) == ["em", "em/d01.toml"]
-    outside = scratch / "elsewhere"
-    outside.mkdir()
-    (outside / "x.yoda").write_text("x", encoding="utf-8")
-    plot.tidy(outside)
-    assert (outside / "x.yoda").exists()                                    # never outside records/ and .cache/
+def test_the_drawings_working_files_are_the_caches(scratch, monkeypatch):
+    """V164: the page documents and the drawing's working files are .cache/<P>/plots/<name>/<NN_cfg>/, rebuilt on
+    demand and kept; records/ holds none of them, and heimdall clean does not take them for a tool's caches."""
+    from runner import tools
+    run, configuration, made = plan(raw(), scratch)
+    assert made.folders.pages == paths.cache_root() / "Demo" / "plots" / made.folders.record.relative_to(paths.records_root() / "Demo")
+    assert not made.folders.pages.is_relative_to(paths.records_root())
+    assert made.folders.statistics == made.folders.results / "statistics"
+    assert tools.run_folders(run, configuration) == made.folders

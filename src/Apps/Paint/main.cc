@@ -69,10 +69,12 @@ namespace {
         std::string out = "{\"page\": " + Status::quote(page.name) + ", \"reference\": \"" + (haveData ? "data" : "first")
                           + "\", \"x\": [" + number(x.lo) + ", " + number(x.hi) + "], \"curves\": [";
         for (size_t c = 0; c < curves.size(); ++c) {
-            const Paint::Statistics s = Paint::statistics(curves[c], ref, x.lo, x.hi);
+            const Paint::Statistics s = Paint::statistics(curves[c], ref, x.lo, x.hi, page.logx);
             const bool self = !haveData && c == 0;
             out += std::string(c ? ", " : "") + "{\"bins\": " + std::to_string(s.bins) + ", \"area\": " + number(s.area)
                    + ", \"area_err\": " + number(s.areaErr) + ", \"ref_area\": " + number(s.refArea)
+                   + ", \"cmp_area\": " + number(s.cmpArea) + ", \"ratio_area\": " + number(s.ratioArea)
+                   + ", \"ratio_sum\": " + number(s.ratioSum) + ", \"ratio_width\": " + number(s.ratioWidth)
                    + ", \"abs_area\": " + number(s.absArea) + ", \"compared\": " + std::to_string(s.compared)
                    + ", \"chi2\": " + number(s.chi2) + ", \"ndf\": " + std::to_string(s.ndf)
                    + ", \"reference\": " + (self ? "true" : "false") + "}";

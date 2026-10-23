@@ -1,5 +1,6 @@
 // tests/cxx/test_paint_statistics.cc — src/Apps/Paint/Transform.hh's statistics (V160): a curve's area, and its
-// area and χ² against a reference, over the drawn range, on the reference's bins.
+// area and χ² against a reference, over the drawn range, on the reference's bins; the curve's own area on them and
+// the ratio's area about one (V175).
 // requires: none
 
 #include "Apps/Paint/Transform.hh"
@@ -29,11 +30,22 @@ int main() {
     const auto mc = series({0, 1, 2, 3, 4}, {1, 2, 3, 4}, {0.1, 0.1, 0.1, 0.1});
     const auto same = Paint::statistics(mc, mc, 0, 4);                   // against itself: nothing apart
     CHECK(same.bins == 4 && near(same.area, 10) && near(same.areaErr, 0.2));
-    CHECK(near(same.refArea, 10) && near(same.absArea, 0) && near(same.chi2, 0) && same.ndf == 4);
+    CHECK(near(same.refArea, 10) && near(same.cmpArea, 10) && near(same.absArea, 0) && near(same.chi2, 0) && same.ndf == 4);
 
     const auto data = series({1, 3}, {2.0}, {0.5});                      // one wide bin over MC's 2nd and 3rd
     const auto s = Paint::statistics(mc, data, 0, 4);
     CHECK(s.compared == 1 && near(s.refArea, 4) && near(s.absArea, 1.0));   // MC rebinned: 2.5 over 2 units
+    CHECK(near(s.cmpArea, 5) && near(s.area, 10));                       // on data's bin only: 2.5 × 2, not all 10
+    CHECK(near(s.ratioArea, 0.25 * 2) && near(s.ratioWidth, 2));        // |2.5/2 − 1| over 2 units
+    CHECK(near(s.ratioSum, 1.25 * 2));
+    CHECK(near(same.ratioArea, 0) && near(same.ratioWidth, 4));
+
+    const auto wide = series({1, 10, 100}, {1, 1}, {0.1, 0.1});         // log x: each bin a decade wide
+    const auto above = series({1, 10, 100}, {2, 1}, {0.1, 0.1});
+    const auto logged = Paint::statistics(above, wide, 1, 100, true);
+    CHECK(near(logged.ratioArea, 1) && near(logged.ratioWidth, 2));     // |2 − 1|·1 + 0·1, over 2 decades
+    CHECK(near(logged.ratioSum, 3));                                     // 2·1 + 1·1: a mean ratio of 1.5
+    CHECK(near(Paint::statistics(above, wide, 1, 100).ratioWidth, 99));
     const double sigma2 = std::pow(std::sqrt(0.1 * 0.1 + 0.1 * 0.1) / 2, 2) + 0.25;
     CHECK(near(s.chi2, 0.25 / sigma2) && s.ndf == 1);
 

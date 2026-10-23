@@ -27,7 +27,7 @@ from pathlib import Path
 from . import cluster as clustermod
 from . import config as configmod
 from . import deck as deckmod
-from . import execute, house, paths, plot, post, record, sweep, tools
+from . import execute, house, paths, plot, plotdoc, post, record, sweep, tools
 from . import doctor as doctormod
 from . import setup as setupmod
 from .errors import HepError, did_you_mean
@@ -61,6 +61,10 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--rerun", action="store_true", help="ignore skip-unchanged; under a serial the file sets, "
                                                           "overwrite points made from other inputs")
     run.add_argument("--only", choices=["pre", "post", "plot"], help="rerun only the pre tools, the post tools or the plots")
+    run.add_argument("--no-plot", action="store_true", dest="no_plot",
+                     help="draw nothing after the points (its plot.toml is written all the same), whatever [run].plot says")
+    run.add_argument("--no-stats", action="store_true", dest="no_stats",
+                     help="measure nothing after the points, whatever [run].stats says")
     run.add_argument("--stages", metavar="LIST",
                      help="run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; heimdall cluster's jobs)")
     run.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
@@ -72,7 +76,7 @@ def parser() -> argparse.ArgumentParser:
                      help="keep every tool's whole output in records/…/logs/<point>/<tag>.log (default: only a failed tool's last lines)")
     run.add_argument("--keep", action="append", default=[], metavar="WHAT",
                      help="also keep (comma-separated): logs, journal, work (a finished point's whole working folder), "
-                          "cache (card checks, converted data, the plot stage's working files); also hep.toml's and "
+                          "cache (card checks); also hep.toml's and "
                           "machine.toml's [run] keep")
 
     draw = commands.add_parser("plot", help="draw a configuration's pages from its complete points")
@@ -80,13 +84,33 @@ def parser() -> argparse.ArgumentParser:
                                      "recorded, with the config they ran with (its snapshot, which you may edit)")
     draw.add_argument("--plot", metavar="FILE", dest="plot_file",
                       help="a file whose [plot] draws instead of the run's: configs/<P>/<name>, ./… or /…")
+    draw.add_argument("--sets", metavar="NAMES", dest="draw_sets",
+                      help="draw these sets only (comma-separated; default: the document's [plot].draw, else every set)")
     draw.add_argument("--points", metavar="SEL", dest="page_points",
                       help="pages of these points only, in this order, in the folder points/: indices, names, globs, "
                            "tags or quantity=tag, comma-separated ([plot].sets for one set)")
+    draw.add_argument("--plan", action="store_true",
+                      help="say each set's page cells and their curves, from the complete points; draw nothing; "
+                           "with --style-sync: what would change, written nowhere")
+    draw.add_argument("--style-sync", metavar="CONFIG", dest="style_sync",
+                      help="take this config's [plot] and [stats] into the plot documents named (<P>/<name>/<cfg>, or "
+                           "<P>/<name>: each of its runs), what each run knows left as it is; nothing is drawn unless --replot")
+    draw.add_argument("--replot", action="store_true", help="with --style-sync: then draw what was synced")
+    draw.add_argument("--across", action="store_true",
+                      help="the runs of this run TOML together, results/<P>/<name>/plot.toml: its [plot.across] sets (V169)")
     draw.add_argument("--keep", action="append", default=[], metavar="WHAT",
-                      help="cache: keep the plot stage's working files and converted data (as heimdall run --keep)")
+                      help="cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway")
     draw.add_argument("configuration", nargs="?", help="overrides [run].configuration; under sweep_runs, only it")
     draw.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as for heimdall run")
+
+    numbers = commands.add_parser("stats", help="a run's statistics alone: its pages' numbers against the data, drawing no page")
+    numbers.add_argument("config", help="a run <P>/<name>/<cfg>, a folder with a plot.toml, <P>/<name> (each of its runs), "
+                                        "or a run TOML (its configurations' newest runs)")
+    numbers.add_argument("configuration", nargs="?", help="with a run TOML: only this configuration")
+    numbers.add_argument("--sets", metavar="NAMES", dest="draw_sets",
+                         help="measure these sets only (default: [stats].sets, else [plot].draw, else every set)")
+    numbers.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as for heimdall run")
+    numbers.add_argument("--across", action="store_true", help="the runs of this run TOML together (as heimdall plot --across)")
 
     overlay = commands.add_parser("overlay", help="overlay any YODA/ROOT files through Paint, with no run TOML")
     overlay.add_argument("files", nargs="+", metavar="FILE", help="YODA (.yoda, .yoda.gz) or ROOT files")
@@ -126,6 +150,9 @@ def parser() -> argparse.ArgumentParser:
     move.add_argument("--snapshot", metavar="RECORD",
                       help="give a record that ran before snapshots one: copy a config's files into <record>/config/ "
                            "(--from, default the config its points.json names) and say which points it gives the same identity")
+    move.add_argument("--plot-docs", nargs="*", metavar="RECORD",
+                      help="write the plot document (results/<run>/plot.toml) of every record without one, or of these "
+                           "(<P>/<name>/<cfg>), from its snapshot (else the config its points.json names)")
     move.add_argument("--from", dest="source", metavar="CONFIG", help="with --snapshot: the config to copy")
     move.add_argument("--set", metavar="KEY=VALUE", action="append", default=[],
                       help="with --snapshot: the overrides it ran with (default: those its points' provenance records)")
@@ -288,9 +315,8 @@ class Planned:
 
 
 def build_plans(args, key: str | None) -> Planned:
-    run = configmod.load(args.config, sets=args.set)
+    run, configuration = configmod.for_configuration(configmod.load(args.config, sets=args.set), key)   # V179
     plot.validate(run)                       # before anything is planned (V54): a [plot] typo costs no planning
-    configuration = run.configuration(key)
     master = load_master(run.project, run.master_toml)
     points = sweep.points(run, configuration)
     chosen = {p.index for p in sweep.select_points(run, configuration, points, args.points)}
@@ -383,6 +409,24 @@ def others_of(args):
         planned = build_plans(argparse.Namespace(**{**vars(args), "points": None, "rerun": False, **changed}), key)
         return planned.combined or planned.every
     return plans_of
+
+
+def draw_run(run, configuration, members: list, say, draw: bool = True, stats=True) -> int:
+    """A run's plot stage (V165): its plot document written, results/<run>/plot.toml (what the run knows
+    rewritten, the user's [plot] and [stats] kept), then its pages drawn from that document alone, as
+    `heimdall plot` draws them, and their statistics (V168: `stats` true, false or the sets measured); with
+    `draw` false, the statistics alone. The pages that failed."""
+    target, notes = plotdoc.write(run, configuration, members)
+    for note in notes:
+        say(f"plot: note: {note}")
+    if target is None:
+        return 0
+    doc, kept, drawn = plotdoc.load(target)
+    if not doc.plot:
+        return 0
+    if not draw:
+        return plot.measure(doc, kept, drawn, say, picked=stats if isinstance(stats, list) else None) if stats else 0
+    return plot.draw(doc, kept, drawn, say, stats=stats)
 
 
 def journal_path(run, configuration) -> Path:
@@ -801,7 +845,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                 return 0
             print_plan(run, configuration, plans, post_plan, pre_plan, combined)
             return 0
-        return 1 if plot.draw(run, configuration, combined or every, print, others=others_of(args)) else 0
+        return 1 if draw_run(run, configuration, combined or every, print) else 0
     if args.only == "post" and post_plan is None:
         raise HepError(f"configuration '{configuration.key}' has no post tools", where=f"{run.path}: [run.cfgs.{configuration.key}].post")
     if args.only == "pre" and pre_plan is None:
@@ -886,7 +930,16 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         elif post_plan is not None and again == "post":
             verdict = "post done"
         if "plot" in stages:
-            failed += plot.draw(run, configuration, combined or every, bus.say, others=others_of(args)) > 0   # the groups, when combined
+            drawing = not (getattr(args, "no_plot", False) or configuration.draw is False)     # V167, V168: the gates
+            measuring = False if getattr(args, "no_stats", False) else configuration.measure
+            if not drawing:
+                bus.say(f"plot: not drawn ({'--no-plot' if getattr(args, 'no_plot', False) else '[run].plot = false'}): "
+                        f"heimdall plot {tools.run_dir(run, configuration)} draws it")
+            failed += draw_run(run, configuration, combined or every, bus.say, draw=drawing, stats=measuring) > 0
+            across, written = plotdoc.write_across(run)                    # V169: the runs together
+            if across is not None:
+                bus.say(f"plot: {'wrote ' + str(across) + ': ' if written else ''}heimdall plot "
+                        f"{record.config_name(run)} --across draws this run with the others of {run.name}")
         verdict = verdict or ", ".join(s for s in STAGES if s in stages) + " done"         # a run without its points
         bus.say(verdict)                     # before end(): the view's thread prints it (V32)
     finally:
@@ -973,52 +1026,209 @@ def cmd_deck(args) -> int:
 
 
 def cmd_plot(args) -> int:
-    """`heimdall plot CONFIG [CONFIGURATION]`: the configuration's pages from the points whose record is
-    complete (what `heimdall run … --only plot` does); a point that ran with other inputs than the config gives
-    now is drawn as recorded, and named (V158). `heimdall plot RECORD` draws a record's points with the
-    config they ran with (its snapshot), planning no tool. `--plot FILE`: another file's [plot] instead."""
+    """`heimdall plot CONFIG [CONFIGURATION] | RECORD | <folder>` (V165): the pages of a run's plot document,
+    results/<run>/plot.toml, from records alone (no tool planned, no stack beyond Paint). CONFIG names its
+    configurations' latest records (the newest folder); RECORD (`<P>/<name>/<cfg>`) or a folder with a
+    plot.toml names one. A record without a document gets one written first, from the config (or its
+    snapshot). `--plot FILE`: another file's [plot] for this drawing; `--points`: one set; `--plan`: the sets'
+    cells, nothing drawn."""
     if plot._is_plot_file(args.config):                     # break and migrate (V74)
         raise HepError("heimdall plot draws a configuration's pages; files are overlaid by heimdall overlay",
                        hint=f"heimdall overlay {args.config} …")
     args.points = None
-    run = configmod.load(args.config, sets=args.set)
+    if getattr(args, "across", False) and getattr(args, "style_sync", None):
+        return style_sync_across(args)
+    if getattr(args, "style_sync", None):
+        return style_sync(args)
     styled = configmod.plot_of(args.plot_file) if getattr(args, "plot_file", None) else None
-
-    def restyled(r):
-        if styled is None:
-            return r
-        from dataclasses import replace as with_
-        r = with_(r, plot=styled)
-        plot.validate(r)
-        return r
-
-    run = restyled(run)
-    if getattr(args, "page_points", None) and run.plot:              # V159: one set, from the command line
-        from dataclasses import replace as with_
-        picked = [int(x) if x.strip().isdigit() else x.strip() for x in args.page_points.split(",") if x.strip()]
-        run = with_(run, plot={**run.plot, "sets": [{"name": "points", "points": picked}]})
-        styled = run.plot
-    if not run.plot:
-        raise HepError(f"{run.path} has no [plot] table", hint="add [plot], or give the files: heimdall plot FILE…")
-    keys = run.runs(args.configuration)
-    if getattr(args, "record", None) is not None:           # as it was recorded: nothing is planned (V158)
-        configuration = run.configuration(keys[0])
-        plot.validate(run)
-        plot.check_figures(run, configuration)
-        members = plot.recorded(run, configuration)
-        plot.check_texts(run, members)
-        return 1 if plot.draw(run, configuration, members, print,
-                              others=lambda ref: plot.recorded(run, run.configurations[ref])) else 0
     failed = False
-    for number, key in enumerate(keys, 1):   # under [run].sweep_runs, every swept configuration's pages (V38)
-        planned = build_plans(args, key)
-        if len(keys) > 1:
-            print(("\n" if number > 1 else "") + header(number, planned.configuration))
-        here = restyled(planned.run)
-        plot.check_figures(here, planned.configuration)
-        failed = plot.draw(here, planned.configuration, planned.combined or planned.every, print,
-                           others=others_of(args)) or failed
+    targets = [across_of(args)] if getattr(args, "across", False) else documents_of(args)
+    for number, target in enumerate(targets, 1):
+        doc, configuration, members = plotdoc.load(target)
+        for shadowed, by in list(doc.source.get("shadowed", {}).items())[:1]:   # V169: a point two runs have
+            print(f"plot: {len(doc.source['shadowed'])} point(s) two runs have are drawn from the later "
+                  f"({shadowed} as {by}, …): [from].prefer = \"all\" keeps both")
+        if len(targets) > 1:
+            print(("\n" if number > 1 else "") + f"run {number:02d} - {configuration.title or configuration.label} -")
+        if styled is not None:
+            doc.plot = dict(styled)
+        if getattr(args, "page_points", None) and doc.plot:          # V159: one set, from the command line
+            picked = [int(x) if x.strip().isdigit() else x.strip() for x in args.page_points.split(",") if x.strip()]
+            doc.plot = {**{k: v for k, v in doc.plot.items() if k != "draw"}, "sets": {"points": {"points": picked}}}
+        if getattr(args, "draw_sets", None) and doc.plot:            # V167: these sets of the document's
+            doc.plot = {**doc.plot, "draw": [s.strip() for s in args.draw_sets.split(",") if s.strip()]}
+        if not doc.plot:
+            raise HepError(f"{target} has no [plot] table", hint="its config had none when it ran: add [plot] there and "
+                                                                 "take it with --style-sync, or edit [plot] here")
+        plot.validate(doc)
+        plot.check_figures(doc, configuration)
+        if getattr(args, "plan", False):                    # V163: the sets' cells, nothing drawn
+            print("\n".join(plot.plan_lines(doc, configuration, members)))
+            continue
+        plot.check_texts(doc, members)
+        failed = plot.draw(doc, configuration, members, print) or failed
     return 1 if failed else 0
+
+
+def style_sync(args) -> int:
+    """`heimdall plot <P>/<name>/<cfg> | <P>/<name> --style-sync CONFIG [--plan] [--replot]` (V166): each named plot
+    document's [plot] and [stats] replaced by the config's (its configuration's, resolved as a run writes them),
+    what the run knows left as it is. A document whose configuration the config lacks, or whose points the
+    config's [plot] cannot page (a set naming a quantity or tag it has not), is left, and said; the others are
+    synced. --plan says what would change and writes nothing; --replot then draws the synced ones."""
+    name = args.config.strip("/")
+    found = plotdoc.find(name)
+    if found is not None:
+        targets = [found]
+    elif name.count("/") == 1 and (results_root() / name).is_dir():
+        targets = sorted(p for p in (results_root() / name).glob(f"*/{plotdoc.FILE}"))
+    else:
+        raise HepError(f"'{args.config}' names no plot document", hint="a run, <P>/<name>/<cfg>, or a run TOML's runs, "
+                                                                      "<P>/<name> (results/<P>/<name>/*/plot.toml)")
+    if not targets:
+        raise HepError(f"results/{name}/ holds no plot document", hint="heimdall migrate --plot-docs writes them")
+    run = configmod.load(args.style_sync, sets=args.set)
+    plot.validate(run)
+    synced, left = [], 0
+    for target in targets:
+        doc, configuration, members = plotdoc.load(target)
+        rel = target.parent.relative_to(results_root()) if target.parent.is_relative_to(results_root()) else target.parent
+        if configuration.key not in run.configurations:
+            print(f"left    {rel}: {args.style_sync} has no configuration '{configuration.key}'")
+            left += 1
+            continue
+        live, picks = configmod.for_configuration(run, configuration.key)   # V179: its own data
+        new_plot, new_stats = plotdoc.chosen_of(live, configuration, members, picks=picks)
+        changed = sorted(k for k in {*doc.plot, *new_plot} if doc.plot.get(k) != new_plot.get(k))
+        changed += ["[stats]"] if doc.stats != new_stats else []
+        if not changed:
+            print(f"same    {rel}")
+            continue
+        try:
+            from dataclasses import replace as with_
+            plot.check_figures(with_(doc, plot=new_plot, stats=new_stats), configuration)
+        except HepError as error:
+            print(f"left    {rel}: the config's [plot] cannot draw its points: {error.message}")
+            left += 1
+            continue
+        print(f"{'would sync' if args.plan else 'synced '} {rel}: " + ", ".join(k if k.startswith("[") else f"[plot].{k}" for k in changed))
+        if not args.plan:
+            plotdoc.write_chosen(target, new_plot, new_stats)
+            synced.append(target)
+    print(f"{len(synced) if not args.plan else 'nothing'} synced" + (f", {left} left" if left else "")
+          + ("" if args.plan else "" if args.replot or not synced else ": heimdall plot … draws them (or --replot)"))
+    failed = False
+    for target in synced if args.replot else ():
+        doc, configuration, members = plotdoc.load(target)
+        if doc.plot:
+            failed = plot.draw(doc, configuration, members, print) or failed
+    return 1 if failed or left else 0
+
+
+def cmd_stats(args) -> int:
+    """`heimdall stats RUN | <folder> | <P>/<name> | CONFIG [CFG]` (V168): each run's statistics alone, from its plot
+    document: the pages [plot] defines, as [stats] measures them, read by Paint (no image drawn), into
+    statistics/<set>/. `--sets`: these sets only."""
+    name = args.config.strip("/")
+    if getattr(args, "across", False):
+        targets = [across_of(args)]
+    elif plotdoc.find(name) is None and name.count("/") == 1 and (results_root() / name).is_dir() \
+            and not (paths.configs_root() / f"{name}.toml").is_file():
+        targets = sorted((results_root() / name).glob(f"*/{plotdoc.FILE}"))      # <P>/<name>: each of its runs
+    else:
+        targets = documents_of(args)
+    picked = [s.strip() for s in args.draw_sets.split(",") if s.strip()] if getattr(args, "draw_sets", None) else None
+    failed = 0
+    for target in targets:
+        doc, configuration, members = plotdoc.load(target)
+        if len(targets) > 1:
+            print(f"{target.parent.relative_to(results_root()) if target.parent.is_relative_to(results_root()) else target.parent}:")
+        if not doc.plot:
+            print(f"stats: {target} has no [plot]: no pages to measure")
+            continue
+        plot.validate(doc)
+        plot.check_figures(plot.measured(doc, picked), configuration)
+        failed += plot.measure(doc, configuration, members, print, picked=picked)
+    return 1 if failed else 0
+
+
+def across_of(args) -> Path:
+    """The runs of a run TOML together (V169): results/<P>/<name>/plot.toml, its argument a run TOML (written from
+    its [plot.across] when there is none) or that folder."""
+    found = plotdoc.find(args.config)
+    if found is not None:
+        return found
+    run = configmod.load(args.config, sets=args.set)
+    target, written = plotdoc.write_across(run)
+    if target is None:
+        raise HepError(f"{run.path} has no [plot.across] sets: nothing to draw its runs together",
+                       hint="[plot.across.<set>] pages = { … }, curves = { \"@events\" = \"all\", … }: 03 §3.3")
+    if written:
+        print(f"plot: wrote {target}, from {args.config}'s [plot.across]")
+    return target
+
+
+def style_sync_across(args) -> int:
+    """`heimdall plot CONFIG --across --style-sync CONFIG`: the Name level's [plot] and [stats] become the config's
+    (its [plot] with its [plot.across] sets); --plan says what would change; --replot draws."""
+    run = configmod.load(args.style_sync, sets=args.set)
+    plot.validate(run)
+    target = plotdoc.across_path(run.project, run.name)
+    if not target.is_file():                                # none yet: written, as a run writes it
+        if plotdoc.write_across(run)[0] is None:
+            raise HepError(f"{run.path} has no [plot.across] sets", hint="[plot.across.<set>]: 03 §3.3")
+        print(f"plot: wrote {target}")
+        return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
+    new_plot, new_stats = plotdoc.across_chosen(run)
+    doc = plotdoc.load(target)[0]
+    changed = sorted(k for k in {*doc.plot, *new_plot} if doc.plot.get(k) != new_plot.get(k))
+    print(f"{'would sync' if args.plan else 'synced '} {target}: " + (", ".join(f"[plot].{k}" for k in changed) or "the same"))
+    if args.plan or not changed:
+        return 0
+    plotdoc.write_chosen(target, new_plot, new_stats)
+    return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
+
+
+def documents_of(args) -> list[Path]:
+    """The plot documents `heimdall plot` draws (V165): the one its argument names (a record, a folder), or those
+    of a config's configurations' latest records; a record without one gets it written first (from its
+    snapshot, or the config and its points.json), and says so. The config's [plot] differing from a document's
+    is said, with the sync."""
+    found = plotdoc.find(args.config)
+    if found is not None:
+        return [found]
+    if getattr(args, "record", None) is not None:          # a record from before plot documents: its own, written
+        run, configuration = _record_config(args.record)
+        target, _ = plotdoc.write(run, configuration, plot.recorded(run, configuration))
+        print(f"plot: wrote {target}, from its snapshot and its points.json (heimdall migrate --plot-docs writes "
+              "every record's)")
+        return [target]
+    run = configmod.load(args.config, sets=args.set)
+    plot.validate(run)
+    out, read = [], run
+    for key in read.runs(args.configuration):
+        run, configuration = configmod.for_configuration(read, key)        # V179: its own vars and data
+        if configuration.serial_auto:                       # the newest folder: what a run last made
+            taken = tools.serials_taken(run, configuration)
+            if taken:
+                configuration.serial = max(taken)
+        folders = tools.run_folders(run, configuration)
+        target = plotdoc.path_of(folders.results)
+        if not target.is_file():
+            if not folders.manifest.is_file():
+                raise HepError(f"configuration '{key}' has no record yet: nothing to draw", where=str(folders.record),
+                               hint=f"heimdall run {args.config} {key}")
+            target, notes = plotdoc.write(run, configuration, plot.recorded(run, configuration))
+            print(f"plot: wrote {target}, from the config and its points.json (heimdall migrate --plot-docs writes "
+                  "every record's)")
+        else:
+            kept, axes, members = plotdoc.load(target)
+            if (kept.plot, kept.stats) != plotdoc.chosen_of(run, axes, members, picks=configuration):
+                rel = folders.results.relative_to(results_root())
+                print(f"note: the config's [plot] differs from {rel}/{plotdoc.FILE}'s, which is drawn: heimdall plot {rel} "
+                      f"--style-sync {args.config} takes the config's", file=sys.stderr)
+        out.append(target)
+    return out
 
 
 def cmd_check(args) -> int:
@@ -1180,6 +1390,8 @@ def cmd_migrate(args) -> int:
         return migrate_layout(args)
     if getattr(args, "snapshot", None):
         return migrate_snapshot(args)
+    if getattr(args, "plot_docs", None) is not None:
+        return migrate_plot_docs(args)
     names = list(args.configs) or house.config_names()
     changes = migrate.plan(names, v3=getattr(args, "v3", False))   # every one must read, leniently, first
     for path, (old, new) in changes.items():
@@ -1195,6 +1407,91 @@ def cmd_migrate(args) -> int:
         return 0
     print(f"{len(changes)} file(s) to migrate (a dry run: --apply writes them)")
     return 0
+
+
+def migrate_plot_docs(args) -> int:
+    """`heimdall migrate --plot-docs [RECORD…] [--apply]` (V165): a plot document for each record that has none
+    (every record's, or those named), from its snapshot's config (else the config its points.json names), its
+    points as points.json and their .complete have them. A dry run lists them; --apply writes them. A document
+    already there is left: a run rewrites what it knows, and its [plot] is yours."""
+    names = list(args.plot_docs)
+    if names:
+        found = []
+        for name in names:
+            folder = record.record_of(name, need_snapshot=False)
+            if folder is None:
+                raise HepError(f"'{name}' is no record", hint="a record is <P>/<name>/<cfg>, a folder of records/")
+            found.append(folder)
+    else:
+        root = records_root()
+        found = sorted(p.parent for p in root.glob("*/*/*/points.json"))
+    todo, upgraded = [], 0
+    for folder in found:
+        rel = folder.relative_to(records_root())
+        target = plotdoc.path_of(results_root() / rel)
+        if target.is_file():
+            old = plotdoc.needs_upgrade(target)
+            if old and args.apply:                          # V172: its quantities as points
+                plotdoc.upgrade(target)
+                upgraded += 1
+            print(f"{'there  ' if not old else 'upgraded' if args.apply else 'would  upgrade'} {rel}/{plotdoc.FILE}"
+                  + (" (in today's layout: its quantities as points, nothing below a member or a set under a header)" if old else ""))
+            continue
+        if not (folder / "points.json").is_file():
+            print(f"skip    {rel}: no points.json")
+            continue
+        todo.append(folder)
+        print(f"{'write' if args.apply else 'would  write'} {rel}/{plotdoc.FILE}"
+              + ("" if (folder / "config" / record.SNAPSHOT).is_file() else
+                 " (no snapshot: its points from points.json, [plot] from the config it names)"))
+    for target in sorted(results_root().glob(f"*/*/{plotdoc.FILE}")) if not names else ():   # the runs together (V169)
+        if plotdoc.needs_upgrade(target):
+            if args.apply:
+                plotdoc.upgrade(target)
+                upgraded += 1
+            print(f"{'upgraded' if args.apply else 'would  upgrade'} {target.relative_to(results_root())}")
+    if not args.apply:
+        print(f"{len(todo)} to write (a dry run: --apply writes them)")
+        return 0
+    if upgraded:
+        print(f"upgraded {upgraded}: in today's layout")
+    for folder in todo:
+        run, configuration = _record_config(folder)
+        if (folder / "config" / record.SNAPSHOT).is_file():
+            target, _ = plotdoc.write(run, configuration, plot.recorded(run, configuration))
+        else:                                               # no snapshot: its points as points.json has them
+            target = plotdoc.from_manifest(folder, run, configuration)
+        drawn = sum(1 for m in plotdoc.load(target)[2] if m.recorded is not None and m.recorded == m.identity)
+        print(f"wrote   {target} ({drawn} complete member(s))")
+    return 0
+
+
+def _record_config(folder: Path):
+    """A record's run and configuration: its snapshot's (read as configs/ is), else the config its points.json
+    names; its serial the folder's own."""
+    snapshot = folder / "config" / record.SNAPSHOT
+    data = json.loads((folder / "points.json").read_text(encoding="utf-8"))
+    if snapshot.is_file():
+        snap = record.read_snapshot(folder)
+        key = snap["configuration"]
+        with paths.configs_at(folder / "config"):                          # V179: read for its configuration
+            run = configmod.load(snap["config"], sets=list(snap.get("sets", [])), configuration=key)
+    else:
+        source = data.get("config_file", "")
+        try:
+            source = str(Path(source).resolve().relative_to(paths.configs_root().resolve()).with_suffix(""))
+        except ValueError:
+            pass
+        key = data.get("configuration")
+        run = configmod.load(source, configuration=key)                     # V179: read for its configuration
+    configuration = run.configuration(key)
+    head = folder.name.split("_", 1)[0]
+    if head.isdigit():                                      # a serial is location only: the folder's own
+        configuration.serial = int(head)
+    if snapshot.is_file() and tools.run_folders(run, configuration).record.resolve() != folder.resolve():
+        raise HepError(f"{folder} is not where its config runs '{key}' ({tools.run_folders(run, configuration).record})",
+                       hint="the record's config has moved or been renamed: write its plot.toml by hand, or rerun it")
+    return run, configuration
 
 
 def migrate_snapshot(args) -> int:
@@ -1253,7 +1550,8 @@ def migrate_snapshot(args) -> int:
 def migrate_layout(args) -> int:
     """`heimdall migrate --layout [--apply]`: a work dir's older layouts moved into today's, counted (a dry
     run) or moved. 5.1: output/ by lifecycle into records/, logs/ and .cache/; V157: logs/ into records/<run>/,
-    and each configuration's points into points/ of records/ and results/."""
+    and each configuration's points into points/ of records/ and results/; V164: pages into plots/<set>/, numbers
+    into statistics/<set>/, the drawing's working files into .cache/."""
     from . import migrate
     from .paths import work_root
     if hubs():
@@ -1261,10 +1559,11 @@ def migrate_layout(args) -> int:
     work = work_root()
     first = migrate.layout_moves(work) + migrate.deck_moves(work)
     then = [] if (work / "output").is_dir() else migrate.logs_moves(work)
-    if not first and not then:
+    last = [] if first or then else migrate.sets_moves(work)
+    if not first and not then and not last:
         print("nothing to move: the layout is today's")
         return 0
-    for title, moves in (("output/ (5.1)", first), ("logs/ and points/ (V157)", then)):
+    for title, moves in (("output/ (5.1)", first), ("logs/ and points/ (V157)", then), ("plots/ by set (V164)", last)):
         counts: dict[str, int] = {}
         for source, target in moves:
             kind = f"{source.relative_to(work).parts[0]}/ → {target.relative_to(work).parts[0]}/"
@@ -1275,14 +1574,18 @@ def migrate_layout(args) -> int:
             for source, target in moves:
                 print(f"  {source.relative_to(work)} → {target.relative_to(work)}")
     if not args.apply:
-        later = " (then logs/ and points/, once output/ has moved)" if (work / "output").is_dir() else ""
-        print(f"{len(first) + len(then)} to move{later} (a dry run: --apply moves them)")
+        later = (" (then logs/ and points/, once output/ has moved)" if (work / "output").is_dir() else
+                 " (then plots/ by set, once these have moved)" if (first or then) and migrate.old_plots(work) else "")
+        print(f"{len(first) + len(then) + len(last)} to move{later} (a dry run: --apply moves them)")
         return 0
     left = migrate.apply_layout(first, work) if first else 0
     if first:
         then = migrate.logs_moves(work)
     left += migrate.apply_logs(then, work) if then else 0
-    print(f"moved {len(first) + len(then) - left}" + (f"; {left} left (already there)" if left else ""))
+    if first or then:
+        last = migrate.sets_moves(work)
+    left += migrate.apply_sets(last, work) if last else 0
+    print(f"moved {len(first) + len(then) + len(last) - left}" + (f"; {left} left (already there)" if left else ""))
     return 0
 
 
@@ -1586,6 +1889,7 @@ def main(argv: list[str]) -> int:
     try:
         _ask_keep(args)
         check_retired()                                            # a shell with High-Energy's names (K15)
+        from .migrate import old_plots
         if args.command != "setup" and (work := find_work()) is not None:
             if warning := setupmod.expects_warning(work):          # once per command (framework/01 §4.2)
                 print(warning, file=sys.stderr)
@@ -1595,6 +1899,9 @@ def main(argv: list[str]) -> int:
             elif (work / "logs").is_dir() and any((work / "logs").iterdir()) and not getattr(args, "layout", False):
                 print("note: this work dir has logs/ from before records/<run>/logs/ and points/ (V157): its points "
                       "rerun and its pages miss them until `heimdall migrate --layout --apply` moves them", file=sys.stderr)
+            elif not getattr(args, "layout", False) and old_plots(work):
+                print("note: this work dir has pages in results/…/plots/<backend>/ from before plots/<set>/ (V164): "
+                      "`heimdall migrate --layout --apply` moves them, and the numbers into statistics/<set>/", file=sys.stderr)
         if args.command == "setup":
             if args.refresh:
                 ask = input if sys.stdin.isatty() else None
@@ -1639,12 +1946,15 @@ def main(argv: list[str]) -> int:
             for line in (toolsmod.folder_lines(args.what[0]) if args.what else toolsmod.folder_rows()):
                 print(line)
             return 0
-        if args.command in ("run", "plot", "status") and getattr(args, "config", None):
-            opened(args)                                  # a record: its snapshot (V158)
+        if args.command in ("run", "plot", "status", "stats") and getattr(args, "config", None):
+            if not (args.command in ("plot", "stats") and (plotdoc.find(args.config) or getattr(args, "style_sync", None))):
+                opened(args)                              # a record: its snapshot (V158)
         if args.command == "run":
             return cmd_run(args)
         if args.command == "plot":
             return cmd_plot(args)
+        if args.command == "stats":
+            return cmd_stats(args)
         if args.command == "check":
             return cmd_check(args)
         if args.command == "overlay":

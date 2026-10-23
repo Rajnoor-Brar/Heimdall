@@ -103,6 +103,7 @@ def _page(page, settings: dict) -> None:
     os.environ["RIVET_DATA_PATH"] = os.pathsep.join(filter(None, [str(work_build() / "Rivet"), os.environ.get("RIVET_DATA_PATH")]))
     hists, features, window = _inputs(yb, yoda, page)
     with matplotlib.rc_context():
+        matplotlib.rcdefaults()                  # as mkhtml's fresh process starts (V164): whatever ran before in this one
         plt.style.use(_style_file(yoda))
         plt.rcParams["legend.fontsize"] = page.style["text"]["legend"]     # what LegendFontSize sets (V50)
         plt.rcParams["legend.title_fontsize"] = page.style["text"]["header"]

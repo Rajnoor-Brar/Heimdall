@@ -85,6 +85,6 @@ def point_results(where: Path, run_folder: Path, point: str) -> Path:
     return where / "results" / run_folder / "points" / point
 
 
-def pages(where: Path, run_folder: Path) -> Path:
-    """A configuration's page documents: records/<run>/plots."""
-    return where / "records" / run_folder / "plots"
+def pages(where: Path, run_folder: Path, set_name: str = "totality") -> Path:
+    """A configuration's page documents, a set's (V164): .cache/<P>/plots/<name>/<NN_cfg>/<set>."""
+    return where / "cache" / run_folder.parts[0] / "plots" / Path(*run_folder.parts[1:]) / set_name

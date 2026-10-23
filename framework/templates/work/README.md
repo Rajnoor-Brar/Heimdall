@@ -11,9 +11,9 @@ elsewhere: `heimdall where` says which one this shell uses. Its manual is `$HEP/
 | `modules/<Project>/` | your programs (`X.cc` → `build/<Project>/X.exe`) and Rivet analyses (`Rivet/<x>.cc`) | yes |
 | `datasets/` | input files a run reads (`data = "…"`): small ones tracked; large ones listed in `datasets.toml` (url, sha256), which `heimdall setup .` fetches | yes |
 | `decks/<deck>/` | your decks (`deck.md`, `deck.toml`), built into `reports/<deck>/` by `heimdall deck <deck>` | yes |
-| `results/<P>/<run>/<cfg>/` | what runs produce: `points/<point>/` the products, `plots/` the pages | no |
-| `records/<P>/<run>/<cfg>/` | what runs recorded: `points/<point>/` each point's provenance, identity and completion (keep it with `results/`); `logs/<point>/` its cards, configs and a failed tool's last lines (safe to delete: `heimdall clean`); `plots/` the page configs; `config/` the run TOML and cards it ran with (`heimdall plot <P>/<run>/<cfg>` draws from it) | no |
-| `.cache/` | prepare caches (and card checks, converted data with `keep cache`): rebuilt when needed | no |
+| `results/<P>/<run>/<cfg>/` | what matters once a run is done: `points/<point>/` the products, `plots/<set>/` the pages (`totality` with no sets), `statistics/<set>/` their numbers against the data | no |
+| `records/<P>/<run>/<cfg>/` | what a run needs while it runs or is launched, and what traces it back: `points/<point>/` each point's provenance, identity and completion (keep it with `results/`); `logs/<point>/` its cards, configs and a failed tool's last lines (safe to delete: `heimdall clean`); `config/` the run TOML and cards it ran with (`heimdall plot <P>/<run>/<cfg>` draws from it) | no |
+| `.cache/` | what is rebuilt when needed: prepare caches, the drawings' page documents and working files (`plots/`), converted data; safe to delete | no |
 | `reports/` | the decks' slides, as `heimdall deck` builds them | no |
 | `build/` | compiled modules and Rivet plugins (`heimdall build`) | no |
 

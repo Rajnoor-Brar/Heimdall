@@ -34,12 +34,12 @@ def trees(tmp_path, monkeypatch):
     run = results / "P" / "validation"
     for folder, n in (("01_PDFs_010M", 9_999_062), ("02_seeds", 24_998_000), ("03_PDFs_150M", 149_998_000)):
         for backend, pages in (("root", ("d01-x01-y01", "d02-x01-y01")), ("mpl", ("d01-x01-y01", "d02-x01-y01", "d09-x01-y01"))):
-            plots = run / folder / "plots" / backend
+            plots = run / folder / "plots" / "totality" / backend
             plots.mkdir(parents=True, exist_ok=True)
             for name in pages:
                 (plots / f"{name}.pdf").write_bytes(f"%PDF {folder} {backend} {name}".encode())
-        (run / folder / "plots" / "root" / "sheets").mkdir()
-        (run / folder / "plots" / "root" / "sheets" / "grid.pdf").write_bytes(b"%PDF sheet")
+        (run / folder / "plots" / "totality" / "root" / "sheets").mkdir()
+        (run / folder / "plots" / "totality" / "root" / "sheets" / "grid.pdf").write_bytes(b"%PDF sheet")
         (run / folder / "MSTW08lo").mkdir()
         (run / folder / "MSTW08lo" / "validation.yoda").write_text(YODA.format(n=n), encoding="utf-8")
     point = output / "P" / "validation" / "03_PDFs_150M" / "MSTW08lo"
@@ -79,7 +79,7 @@ def test_a_recipe_block_per_page_with_a_panel_per_folder(trees):
     assert first.title == "ZEUS d01" and first.size == "full" and first.labels and not first.titles
     # asked for: the name's count (01_PDFs_010M), the provenance (03_PDFs_150M); else the YODA's count (02_seeds)
     assert [p.label for p in first.panels] == ["10M", "25M", "150M", "AB"]
-    assert first.panels[0].source == run / "01_PDFs_010M" / "plots" / "root" / "d01-x01-y01.pdf"
+    assert first.panels[0].source == run / "01_PDFs_010M" / "plots" / "totality" / "root" / "d01-x01-y01.pdf"
     assert first.panels[-1].origin == "extras/validation_d01_AB.png"
     named = deck.load(str(recipe(folder, ZEUS + 'label = "folder"\n')))
     assert [p.label for p in named.blocks[0].panels] == ["PDFs_010M", "seeds", "PDFs_150M"]
@@ -87,18 +87,18 @@ def test_a_recipe_block_per_page_with_a_panel_per_folder(trees):
 
 def test_a_block_takes_pages_from_the_backends_it_prefers(trees):
     folder, run = trees
-    with pytest.raises(HepError, match="pages: 'd09-\\*' names no page drawn in plots/root/") as refused:
+    with pytest.raises(HepError, match="pages: 'd09-\\*' names no page drawn in plots/totality/root/") as refused:
         deck.load(str(recipe(folder, ZEUS.replace('"d0[12]-*"', '"d09-*"'))))
     assert refused.value.hint == 'mpl drew it there: backend = ["root", "mpl"]'
     made = deck.load(str(recipe(folder, ZEUS.replace('"d0[12]-*"', '"d09-*"') + 'backend = ["root", "mpl"]\n')))
-    assert made.blocks[0].panels[0].origin == "01_PDFs_010M/plots/mpl/d09-x01-y01"
+    assert made.blocks[0].panels[0].origin == "01_PDFs_010M/plots/totality/mpl/d09-x01-y01"
     # one folder's Paint pages are missing (as the user's 03_PDFs_150M): it is refused, then taken from mpl
-    (run / "03_PDFs_150M" / "plots" / "root" / "d01-x01-y01.pdf").unlink()
-    with pytest.raises(HepError, match="03_PDFs_150M has no page d01-x01-y01 in plots/root/") as refused:
+    (run / "03_PDFs_150M" / "plots" / "totality" / "root" / "d01-x01-y01.pdf").unlink()
+    with pytest.raises(HepError, match="03_PDFs_150M has no page d01-x01-y01 in plots/totality/root/") as refused:
         deck.load(str(recipe(folder, ZEUS)))
     assert refused.value.hint == 'mpl drew it there: backend = ["root", "mpl"]'
     mixed = deck.load(str(recipe(folder, ZEUS + 'backend = ["root", "mpl"]\n'))).blocks[0].panels
-    assert [p.origin.split("/")[2] for p in mixed] == ["root", "root", "mpl"]
+    assert [p.origin.split("/")[3] for p in mixed] == ["root", "root", "mpl"]
 
 
 def test_collecting_copies_once_and_removes_what_is_gone(trees):
@@ -109,7 +109,7 @@ def test_collecting_copies_once_and_removes_what_is_gone(trees):
     assert copied.read_bytes() == b"%PDF 01_PDFs_010M root d01-x01-y01"
     assert made.blocks[0].panels[0].file == copied and made.blocks[0].panels[-1].file == folder / "extras" / "validation_d01_AB.png"
     assert deck.gather(deck.load(str(folder))) == 0
-    (run / "01_PDFs_010M" / "plots" / "root" / "d01-x01-y01.pdf").write_bytes(b"%PDF redrawn")
+    (run / "01_PDFs_010M" / "plots" / "totality" / "root" / "d01-x01-y01.pdf").write_bytes(b"%PDF redrawn")
     assert deck.gather(deck.load(str(folder))) == 1 and copied.read_bytes() == b"%PDF redrawn"
     recipe(folder, ZEUS.replace('"d0[12]-*"', '"d01-*"'))
     deck.gather(deck.load(str(folder)))
@@ -170,6 +170,6 @@ def test_heimdall_deck_list_writes_nothing(trees, capsys, monkeypatch):
     monkeypatch.setenv("HEP_REPORTS", str(folder.parent))
     assert cli.main(["deck", folder.name, "--list"]) == 0
     out = capsys.readouterr().out
-    assert "validation-d01  \"validation d01\"  3 panel(s), full, columns auto" in out and "150M  03_PDFs_150M/plots/root/d01-x01-y01" in out
+    assert "validation-d01  \"validation d01\"  3 panel(s), full, columns auto" in out and "150M  03_PDFs_150M/plots/totality/root/d01-x01-y01" in out
     assert not (folder / "panels").exists()
     assert cli.main(["deck", "nowhere", "--list"]) == 2

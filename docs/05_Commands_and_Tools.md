@@ -43,12 +43,14 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--set KEY=VALUE` | override one value for this invocation (repeatable), in the file's own names: run.events=100 (v3), run.event_count=100 (v2) |
 | `--rerun` | ignore skip-unchanged; under a serial the file sets, overwrite points made from other inputs |
 | `--only pre\|post\|plot` | rerun only the pre tools, the post tools or the plots |
+| `--no-plot` | draw nothing after the points (its plot.toml is written all the same), whatever [run].plot says |
+| `--no-stats` | measure nothing after the points, whatever [run].stats says |
 | `--stages LIST` | run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; heimdall cluster's jobs) |
 | `--plain` | plain lines instead of the live view |
 | `--wait` | a point another session is running: wait for it (default: skip it, naming who runs it) |
 | `--journal` | also write every status event to records/…/status.jsonl (for heimdall watch --file and replay) |
 | `--logs` | keep every tool's whole output in records/…/logs/<point>/<tag>.log (default: only a failed tool's last lines) |
-| `--keep WHAT` | also keep (comma-separated): logs, journal, work (a finished point's whole working folder), cache (card checks, converted data, the plot stage's working files); also hep.toml's and machine.toml's [run] keep |
+| `--keep WHAT` | also keep (comma-separated): logs, journal, work (a finished point's whole working folder), cache (card checks); also hep.toml's and machine.toml's [run] keep |
 
 **`heimdall plot`**: draw a configuration's pages from its complete points
 
@@ -56,10 +58,25 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `config` | the run config, or a record <Project>/<run>/<NN_cfg>: its points as they were recorded, with the config they ran with (its snapshot, which you may edit) |
 | `--plot FILE` | a file whose [plot] draws instead of the run's: configs/<P>/<name>, ./… or /… |
+| `--sets NAMES` | draw these sets only (comma-separated; default: the document's [plot].draw, else every set) |
 | `--points SEL` | pages of these points only, in this order, in the folder points/: indices, names, globs, tags or quantity=tag, comma-separated ([plot].sets for one set) |
-| `--keep WHAT` | cache: keep the plot stage's working files and converted data (as heimdall run --keep) |
+| `--plan` | say each set's page cells and their curves, from the complete points; draw nothing; with --style-sync: what would change, written nowhere |
+| `--style-sync CONFIG` | take this config's [plot] and [stats] into the plot documents named (<P>/<name>/<cfg>, or <P>/<name>: each of its runs), what each run knows left as it is; nothing is drawn unless --replot |
+| `--replot` | with --style-sync: then draw what was synced |
+| `--across` | the runs of this run TOML together, results/<P>/<name>/plot.toml: its [plot.across] sets |
+| `--keep WHAT` | cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway |
 | `[configuration]` | overrides [run].configuration; under sweep_runs, only it |
 | `--set KEY=VALUE` | as for heimdall run |
+
+**`heimdall stats`**: a run's statistics alone: its pages' numbers against the data, drawing no page
+
+| Argument | Meaning |
+|---|---|
+| `config` | a run <P>/<name>/<cfg>, a folder with a plot.toml, <P>/<name> (each of its runs), or a run TOML (its configurations' newest runs) |
+| `[configuration]` | with a run TOML: only this configuration |
+| `--sets NAMES` | measure these sets only (default: [stats].sets, else [plot].draw, else every set) |
+| `--set KEY=VALUE` | as for heimdall run |
+| `--across` | the runs of this run TOML together (as heimdall plot --across) |
 
 **`heimdall overlay`**: overlay any YODA/ROOT files through Paint, with no run TOML
 
@@ -112,6 +129,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--layout` | move the work dir's older layouts into today's: logs/ into records/<run>/logs/, points into points/ (and output/ first, if any); no configs are read |
 | `--list` | with --layout: every move, one a line |
 | `--snapshot RECORD` | give a record that ran before snapshots one: copy a config's files into <record>/config/ (--from, default the config its points.json names) and say which points it gives the same identity |
+| `--plot-docs RECORD…` | write the plot document (results/<run>/plot.toml) of every record without one, or of these (<P>/<name>/<cfg>), from its snapshot (else the config its points.json names) |
 | `--from CONFIG` | with --snapshot: the config to copy |
 | `--set KEY=VALUE` | with --snapshot: the overrides it ran with (default: those its points' provenance records) |
 | `--apply` | write the changes (default: print the diff) |
@@ -883,8 +901,8 @@ It runs `App_yd2rt.exe --merge <partial output> <point>=<yoda>… --keep-raw --p
   a `TNamed`.
 - **Into `.yoda`:** one YODA file, with the point as a path prefix.
 
-It is not a statistical merge (that is `merge`). The plot stage makes the same file itself,
-`plots/root/<cfg>.root`, so this tool is for a copy elsewhere, or a YODA version.
+It is not a statistical merge (that is `merge`). The plot stage makes the same file itself, in
+`.cache/<P>/plots/<name>/<cfg>/<cfg>.root`, so this tool is for a copy elsewhere, or a YODA version.
 
 ## 9. `exec`
 
@@ -1213,20 +1231,20 @@ Paint draws many pages in one ROOT process (the plot stage sends up to 200 at a 
   (`<page>.toml.ranges.json`), for the other backends; **`--ranges-only`** writes them and draws
   nothing.
 - **Every page read** (drawn or not) also gets `<page>.toml.stats.json`: each curve's area and its
-  area and χ² against the page's reference (03 §3.2), which the plot stage turns into
-  `statistics.csv` and legend entries.
+  area and χ² against the page's reference (03 §3.2), which the plot stage turns into each set's
+  `statistics/<set>/statistics.csv` and legend entries.
 - **`--dump-ranges`** prints one page's ranges as JSON; **`--dump-style`** prints the merged style
   (base.toml's alone, without a page).
 - **Exit codes**: 0 ok, 1 page config or style (with several pages: any failed), 2 usage, 4 input,
   5 output.
 
-**The page document**, written by the runner to `records/…/plots/[<cell>/]<object>.toml`. Its labels
+**The page document**, written by the runner to `.cache/<P>/plots/<name>/<cfg>/<set>/[<cell>/]<object>.toml`. Its labels
 are LaTeX converted to TLatex, which Paint draws:
 
 ```toml
 [page]
-name        = "d06-x01-y01"
-output      = "/…/results/…/plots/root/d06-x01-y01"    # without extension
+name        = "totality/d06-x01-y01"
+output      = "/…/results/…/plots/totality/root/d06-x01-y01"    # without extension
 formats     = ["pdf", "png"]
 title       = "1 > #eta > 1.5, #it{k}_{#it{T}} alg"
 x_label     = "#it{E}_{#it{T}} [GeV]"
@@ -1250,7 +1268,7 @@ range_pad   = 0
 page.dpi = 300
 
 [[curve]]
-file   = "/…/plots/root/default.root"
+file   = "/…/.cache/…/default/default.root"
 object = "MSTW08lo/ZEUS_2012_I1116258/d06-x01-y01"
 raw    = "MSTW08lo/RAW/ZEUS_2012_I1116258/d06-x01-y01"   # optional: for min_entries
 label  = "MSTW 2008 LO"

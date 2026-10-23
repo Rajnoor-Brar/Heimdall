@@ -96,7 +96,7 @@ def test_there_are_no_import_cycles():
 
 #: The plot stage reads YODA and Rivet's .plot files by definition, and hepfiles reads those formats for
 #: everyone; every other module is the core.
-PLOT_DOMAIN = {"plot", "labels", "hepfiles"}
+PLOT_DOMAIN = {"plot", "plotdoc", "labels", "hepfiles"}
 #: Words of the folder contract that are also a folder's name: "merge" is a key of [card] and [shard]
 #: (and ".merge" the suffix of a sharded table's merge step), not the merge tool.
 CONTRACT_WORDS = {"merge", ".merge", "exec "}   # exec: also the shell's (a cluster job's last line)

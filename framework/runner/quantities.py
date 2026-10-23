@@ -245,18 +245,22 @@ def builtin_mappings(master: dict, run, tags: list[str], name: str) -> list[Mapp
 
 def consumer_table(run, master: dict, active: list[str], tags: list[str],
                    alternatives: list[str] = (), configured: set = frozenset(), varied: frozenset = frozenset(),
-                   point: str = "") -> dict[str, list[Mapping]]:
+                   point: str = "", together: dict | None = None) -> dict[str, list[Mapping]]:
     """quantity → mappings, and rule C7: an active quantity must reach at least one tool.
 
     In a chain that chooses a tool by a quantity (`"@generator"`, V19), a fixed value that only another
     alternative consumes (Sherpa's BEAMS, say, on a Herwig point) is accepted with no mapping here:
     it reaches a tool in this configuration, just not in this point's chain. A varied one is refused
-    (V151): the points it makes would differ only by their seeds."""
+    (V151): the points it makes would differ only by their seeds, unless another quantity varied with it
+    (`together`: its entangled group, a compound's fields, V180) reaches one of this point's tools: each
+    generator its own field of one switch."""
     table = {}
     for name in active:
         found = mappings(run, master, name, tags, configured)
         if not found and alternatives and mappings(run, master, name, list(alternatives), configured):
-            if name in varied:
+            read_with = [o for o in (together or {}).get(name, ()) if o != name and o in active
+                         and mappings(run, master, o, tags, configured)]
+            if name in varied and not read_with:
                 raise HepError(f"{point}: [quantities.{name}] is varied, but no tool of this point reads it "
                                f"({', '.join(tags)}): its points would differ only by their seeds",
                                where=f"{run.path}: [quantities.{name}]",

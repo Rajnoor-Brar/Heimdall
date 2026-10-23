@@ -58,9 +58,9 @@ A **work dir** holds a study. `heimdall setup <dir>` makes it from `framework/te
 | `datasets/` | your own reference data: small files tracked; large ones in `datasets.toml` (url, sha256), fetched by `heimdall setup` and kept out by `datasets/.gitignore` | yes |
 | `decks/<deck>/` | a deck's sources: `deck.md`, `deck.toml`, its pictures | yes |
 | `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
-| `records/` | what runs recorded, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, a failed tool's last lines; FIFOs and scratch files while it runs), `plots/` (page documents), `config/` (the run's snapshot), `points.json`, cluster submissions | no |
-| `.cache/` | prepare caches; with `keep cache`, card checks and converted reference data | no |
-| `results/` | products per project | no |
+| `records/` | what a run needs while it runs or is launched, and what traces it back, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, a failed tool's last lines; FIFOs and scratch files while it runs), `config/` (the run's snapshot), `points.json`, cluster submissions | no |
+| `.cache/` | what is rebuilt on demand: prepare caches, the drawing's page documents and working files (`plots/`), converted reference data; with `keep cache`, card checks | no |
+| `results/` | what matters once a run is done: products, pages by set (`plots/<set>/`), their numbers (`statistics/<set>/`) | no |
 | `reports/<deck>/` | a deck as `heimdall deck` builds it: panels, composites, the slides | no |
 
 **The roots** (`runner/paths.py`):
@@ -146,6 +146,7 @@ layering was not had nine cycles.)
 | 3 | `results.py` | a run's results from Python, read from `points.json` (V77) |
 | 4 | `watch.py` | the reducer of events (`State`), the live and plain views, `heimdall watch` |
 | 4 | `plot.py` | the plot stage: figures, the merged sweep, page configs, the style layers, Paint and the other backends; `heimdall overlay` on files |
+| 4 | `plotdoc.py` | a run's plot document, `results/<run>/plot.toml` (V165): written by the run (what it knows rewritten, the user's `[plot]` and `[stats]` kept), read by every drawing as a `Doc`, a `DocConfiguration` and members |
 | 4 | `post.py` | the pre, combined and post stages |
 | 4 | `deck.py` | `heimdall deck`: a deck's blocks from result folders or its own files, labelled and copied into `panels/` (V103); their composites, and `deck.md` through pandoc to Beamer, pptx, dzslides HTML and an Overleaf zip, the viewer, `--init` (V104) |
 | 4 | `cluster.py` | `heimdall cluster`: [cluster] in its layers, the Slurm scripts (a pre job, a points array, a finish job, each an ordinary `heimdall run --stages …`), `sbatch` and the dependencies, `jobs.toml`, `--status` from `sacct` and `squeue`, `--cancel` (V114) |
@@ -207,7 +208,8 @@ what their `// requires:` line names.
 | `ToolResult`, `PointResult`, `Stopper`, `Budget` | `execute` | exits, causes and messages; the stop flag; the cores runs share (V75) |
 | `Figure` | `plot` | one `[plot.figures.<key>]`: `kind` (its class), `type`, `name`, `objects`, `labels`, `table` (the page keys it sets), and each class's own: `over`, `configurations`, `op`, `x`, `y`, `table_pages`, `columns` |
 | `Compared` | `plot` | one configuration of a compare figure: `ref` (`"cfg"` or `"<Project>/<config>:<cfg>"`), its `run` and `configuration` (V83, V88) |
-| `Page` | `plot` | one page: its config path, output, cell, object, document, sources, variants, data, overrides, ranges, merged style, `plots` (the backend root), `overlay`, `bands` |
+| `Page` | `plot` | one page: its name, config path, output, cell, object, document, sources, variants, data, overrides, ranges, merged style, `overlay`, `bands`; its `set`, `rel` (its name in the set), `root` (its set's folder, `<root>/<backend>/<rel>`) and `numbers` (its set's statistics folder) (V164) |
+| `Doc`, `DocConfiguration` | `plotdoc` | a run and its configuration as a drawing reads them from `plot.toml`: `path`, `project`, `name`, `plot`, `stats`, `quantities`, `source`; `key`, `label`, `sweeps`, `plot_points`, `combine`, `static` (V165) |
 
 ---
 
@@ -682,7 +684,7 @@ points.json names; nothing is planned. A member has what a page needs of a plan:
 it. merged, scan and compare figures pass `grouped=False`. **Statistics** (V160): Paint writes
 `<page>.toml.stats.json` for every page it reads (`Paint::statistics`, Transform.hh); `_draw` runs Paint
 `--ranges-only` first on pages with a `legend_statistic` and adds the numbers to their labels, then writes
-`statistics.csv` (`write_statistics`) after the draw; `statistic_pages` builds a statistic figure's pages
+each set's `statistics/<set>/statistics.csv` (`write_statistics`) after the draw; `statistic_pages` builds a statistic figure's pages
 from those rows (a Scatter2D per page, `derive.scatter`, converted for Paint, `x_labels` naming the bins).
 
 **A record** (`record.record_of`) is a configuration's folder of `records/` with a snapshot
@@ -703,7 +705,7 @@ they ran with; provenance keeps the real paths.
    (`dataclasses.replace` of a real plan, renamed by the tags it stands for), each with a YODA of its
    own made once per change of its inputs:
    - **derived** (`point_yodas`, `derive.py`): a copy of each point's YODA with `/FIGURES/<name>`
-     appended, in `records/…/plots/derived/`;
+     appended, in `.cache/…/derived/`;
    - **merged** (`_merged`): per value of the kept axes, the members' YODAs merged by the combine
      folder's command (`tools.merge_files`), in `plots/merged/<name>/`;
    - **scan** (`_scanned`, `derive.scan_value`): per value of the other curve axes, a Scatter2D, a
@@ -716,38 +718,42 @@ they ran with; provenance keeps the real paths.
    rerun rebuilds nothing unchanged.
 3. **The sweep in one file** (`merge`): every member's YODA merged by `App_yd2rt --merge` into one
    ROOT file, with a directory per member, raw entries and `points.json`. The configuration's file
-   is `results/…/plots/root/<cfg>.root`; a figure with members of its own has its own file. The
-   file is rebuilt only when a member's YODA changed, when its skip marker is kept (`keep cache`, §14);
-   otherwise each plot stage merges again. Reference data are converted into the plot stage's
-   folder, or once into `.cache/<P>/datasets/` with `keep cache`.
+   is `.cache/<P>/plots/<name>/<cfg>/<cfg>.root`; a figure with members of its own has its own file. The
+   file is rebuilt only when a member's YODA changed (its stamp beside it). Reference data are converted
+   once into `.cache/<P>/datasets/`.
 4. **Page documents** (`_pages`):
    - **Objects:** the objects of the members' YODAs (`hepfiles.objects`, `objects_2d`: not `/RAW`,
      `/TMP`, the counters or weight variations). They are keyed by the option-free path, so a swept
      analysis option's variants are curves on one page.
    - **Claims:** a declared defined figure claims its objects' pages, and two that claim one object
      are refused.
-   - **The page:** a page per `plot_points` cell and object (a 2D object: per member, `_heatmap`),
-     or per cell for an overlay.
+   - **The page:** a page per set, cell and object (a 2D object: per member, `_heatmap`), or per set and
+     cell for an overlay. With no `sets`, the set is `totality` and the cells are `plot_points`'; a compare
+     figure's pages have no set (`set_name=""`). `located` names each page: `<set>/<cell>/<object>`, its
+     document, its output `plots/<set>/root/<cell>/<object>`, its set's folder (`Page.root`) and its
+     statistics folder (`Page.numbers`).
    - **Its `[page]` table:** `page_settings` takes the labels from the `.plot` file under the
      figure's and `[plot]`'s values, with placeholders filled by `filler` (one value per page, or a
      curve's own).
    - **Its curves:** each with its label and look, and with a band folded by `_banded`.
    - **Written:** the style layers' changes and the mapped data. Each document goes to
-     `records/…/plots/[<cell>/][<folder>/]<object>.toml` (labels through `for_root`: LaTeX → TLatex)
+     `.cache/<P>/plots/<name>/<cfg>/<set>/[<cell>/][<folder>/]<object>.toml` (labels through `for_root`: LaTeX → TLatex)
      and is kept in memory as a `Page`.
 5. **Draw** (`_draw`):
    - **Paint:** one `Paint.exe` per `PAINT_BATCH` (200) pages, each page's outcome a JSON line;
      `--ranges` writes each page's ranges and voids beside its config for the other backends.
+   - **A set's folders first:** `plots/<set>/<backend>/` (and `statistics/<set>/`) are cleared (`_clear`, only
+     under `results/`), so each holds its last drawing alone (V164).
    - **The other backends:** they get the same `Page`s by folder (a cell's, or a figure's folder in
-     it), with `output` moved to `plots/<backend>/` (`for_backend`). Heat maps are Paint's alone
+     it), with `output` moved to `plots/<set>/<backend>/` (`for_backend`). Heat maps are Paint's alone
      (V87).
-   - **Indexes:** an `index.html` per backend tree (`write_index`, V70), where the backend writes
-     none of its own.
-   - **Then:** the sheet figures tile what was drawn (`sheet`, `figures/layout.py`'s `tile`). A compare figure is
+   - **Indexes:** an `index.html` per set and backend (`write_index`, V70), where the backend writes
+     none of its own, and `plots/index.html` linking the sets (`write_sets_index`).
+   - **Then:** the sheet figures tile what was drawn, set by set (`sheet`, `figures/layout.py`'s `tile`). A compare figure is
      drawn by each of its own configurations' plot stages, once every configuration it names has
      complete points; `others(ref)` gives another configuration's plans (`cli.others_of`).
-   - **Tidy** (`plot.tidy`, V149): the page configs stay; the merged, derived and scan YODAs, converted
-     data, mkhtml's files, ranges and skip markers go, unless the run keeps `cache` (§14).
+   - **Working files** stay in `.cache/` (V164): they are rebuilt when missing, and reused when their
+     stamps say nothing changed.
 
    A failed page is counted, and the run exits 1, but the others are drawn.
 
@@ -760,10 +766,13 @@ plan time (`check_style`). Keys a backend cannot honour are errors, never silent
 ## 14. Where files go
 
 **In the work dir, a folder per configuration in `records/` and in `results/` (V157), by lifecycle
-within it (U21):** what a run recorded in `records/<run>/points/`, its working files in
-`records/<run>/logs/`, its page documents in `records/<run>/plots/`, the run TOML and cards it ran with in
-`records/<run>/config/`; products in `results/<run>/points/`, pages in `results/<run>/plots/`; rebuildable
-caches in `.cache/`, compiled modules in `build/`. A run writes nothing else, and nothing in Heimdall;
+within it (U21).** `records/` is for what a run needs while it runs or is launched, and for tracing it back:
+error-tracing, backtracking, debugging, never what matters after it is done (V164). `results/` is what
+matters after. `.cache/` is what is rebuilt on demand. So: what a run recorded in `records/<run>/points/`,
+its working files in `records/<run>/logs/`, the run TOML and cards it ran with in `records/<run>/config/`;
+products in `results/<run>/points/`, pages in `results/<run>/plots/<set>/`, their numbers in
+`results/<run>/statistics/<set>/`; the drawing's page documents and working files in
+`.cache/<P>/plots/<name>/<cfg>/`, other rebuildable caches in `.cache/`, compiled modules in `build/`. A run writes nothing else, and nothing in Heimdall;
 `heimdall deck` writes only into its deck's folder, under `reports/`. Heimdall's own builds go to the
 machine root (§1): `apps/`, `forge/`. `tools.RunFolders` names them all; nothing else spells them.
 
@@ -775,13 +784,15 @@ records/<P>/<run>/<cfg>/
   logs/<point>/         cards/  config/  .lock   [<tag>.log: a failed tool's last lines; keep logs: every tool's output]
                         while it runs, and kept when it fails or with keep work: FIFOs, scratch files, shards, context.toml
   logs/pre/, post/, <combined group>/     the same, for the stages
-  plots/        [<cell>/]<object>.toml (page configs); with keep cache also: .ranges.json, merged.sha256,
-                derived/<point>.yoda   merged/<figure>/   scan/<figure>/   yoda/ (mkhtml's)   datasets/
   config/       the run's snapshot (V158)
   cluster/<stamp>/                    heimdall cluster's submissions: *.sbatch, points.txt, jobs.toml, logs/
-records/<P>/<run>/compare/<figure>/   a compare figure's page configs
+.cache/<P>/plots/<run>/<cfg>/         the drawing's (V164): <cfg>.root (the sweep in one file) and merged.sha256,
+                                      <set>/[<cell>/]<object>.toml (page documents) with .ranges.json, .stats.json,
+                                      yoda/ (mkhtml's), derived/<point>.yoda, merged/<figure>/, scan/<figure>/,
+                                      statistic/<figure>/
+.cache/<P>/plots/<run>/compare/<figure>/   a compare figure's page documents and its sweep
 .cache/<P>/<tool>/<key>/              prepare caches
-[.cache/<P>/checks/  .cache/<P>/datasets/]   keep cache: card checks; reference data converted for Paint
+.cache/<P>/datasets/  [.cache/<P>/checks/]   reference data converted for Paint; keep cache: card checks
 .cache/<P>/reproduce/<identity>/      heimdall reproduce's run, beside the original
 .cache/overlay/<key>/                 heimdall overlay's page configs
 $HEP_MACHINE/forge/scratch/           everything tests write: work/ (the fixture's copy), records/, cache/, results/, reports/, pytest/
@@ -790,11 +801,13 @@ results/<P>/<run>/<cfg>/
   points/<point>/                     the products only
   points/<combined group>/            a combined group's merged products
   pre/, post/                         the stages' products (later stages name them, so they are not in points/)
-  plots/root/<cfg>.root               the sweep in one file (a figure's own: plots/root/<figure>/, scan/)
-  plots/<backend>/[<cell>/][<figure>/]<object>.<fmt>   the pages: root (Paint), yoda (mkhtml), mpl
-  plots/<backend>/index.html          every page, by cell
-  plots/<backend>/sheets/<figure>.{pdf,png}   sheets
-results/<P>/<run>/compare/<figure>/<backend>/  a compare figure's pages
+  plots/<set>/<backend>/[<cell>/][<figure>/]<object>.<fmt>   a set's pages (V164; totality with no sets):
+                                      root (Paint), yoda (mkhtml), mpl
+  plots/<set>/<backend>/index.html    a set's pages, by cell;  plots/index.html: every set
+  plots/<set>/<backend>/sheets/<figure>.{pdf,png}   sheets
+  statistics/<set>/statistics.csv     its pages' numbers;  bars/<cell>/<object>.<fmt>; summary.pdf, summary/summary_<NN>.png: rankings and tables;
+                                      figures/<backend>/<cell>/<figure>/<object>: statistic figures
+results/<P>/<run>/compare/<figure>/<backend>/  a compare figure's pages;  …/statistics/: its numbers
 
 reports/<deck>/                       a deck (heimdall deck, V103, V104): yours, deck.toml  deck.md  extras/
   panels/<block>/<NN>_<label>.<ext>   the panels, copied from results/

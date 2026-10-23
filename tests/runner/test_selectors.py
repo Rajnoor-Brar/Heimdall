@@ -38,6 +38,60 @@ def test_a_fixed_value_one_alternative_does_not_read_is_accepted(scratch):
     assert plans["ot"].consumers["pdf"] == [] and [m.tag for m in plans["py"].consumers["pdf"]] == ["pythia"]
 
 
+SWITCH = """[run]
+project = "Demo"
+name    = "switch"
+run     = "all"
+events  = 10
+threads = 1
+chain   = [["@gen", "rivet"]]
+
+[tools.first]
+uses   = "pythia"
+card   = "ep.cmnd"
+output = "events.hepmc"
+
+[tools.other]
+uses   = "pythia"
+card   = "ep.cmnd"
+output = "events.hepmc"
+
+[tools.rivet]
+input    = "events.hepmc"
+analyses = ["photo_eic"]
+output   = "jets.yoda"
+
+[quantities.gen]
+points = [{ tag = "p1", value = "first" }, { tag = "p2", value = "other" }]
+
+[quantities.mpi]                      # one switch, each generator (each table) its own field
+fields = { a = { first = "PartonLevel:MPI" }, b = { other = "PartonLevel:ISR" } }
+points = [{ tag = "on", a = "on", b = "on" }, { tag = "off", a = "off", b = "off" }]
+
+[cfgs.all]
+vary = ["gen", "mpi"]
+"""
+
+
+def test_a_compound_s_fields_are_read_one_a_generator(scratch):
+    """V180: a varied compound (its fields entangled) is read on a point when one of its fields is: each
+    generator takes its own field of one switch, and the points still differ by it."""
+    path = scratch / "switch.toml"
+    path.write_text(SWITCH, encoding="utf-8")
+    run = config.load(str(path))
+    conf = run.configuration("all")
+    master = quantities.load_master(run.project, run.master_toml)
+    by = {p.name: tools.plan_point(run, conf, p, master) for p in sweep.points(run, conf)}
+    assert sorted(by) == ["p1_off", "p1_on", "p2_off", "p2_on"]
+    assert [m.tag for m in by["p1_on"].consumers["mpi"]] == ["first"] and by["p1_on"].consumers["mpi_b"] == []
+    assert [m.tag for m in by["p2_off"].consumers["mpi_b"]] == ["other"] and by["p2_off"].consumers["mpi"] == []
+    from runner import record
+    for planned in by.values():
+        tools.finalise(planned, 12345)
+    assert len({record.identity(by[n]) for n in by}) == 4                     # each differs by the switch
+    assert "PartonLevel:MPI = off" in card_of(by["p1_off"], "first") and "PartonLevel:ISR = on" in card_of(by["p2_on"], "other")
+
+
 # ── one pdf for every generator (V152) ────────────────────────────────────────────────────────
 
 PDFS = """[run]

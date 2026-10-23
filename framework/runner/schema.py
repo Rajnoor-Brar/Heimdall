@@ -29,7 +29,7 @@ TYPES = {"int": int, "float": (int, float), "str": str, "bool": bool, "list": li
 NAMES = {"int": "an integer", "float": "a number", "str": "a string", "bool": "true or false", "list": "a list",
          "table": "a table"}
 #: The tables of run.toml that describe keys (the rest, [sections], describe the file).
-TABLES = ("config", "run", "configuration", "prelim", "quantity", "tool", "plot", "figure", "data", "cluster")
+TABLES = ("config", "run", "configuration", "prelim", "quantity", "tool", "plot", "figure", "data", "stats", "cluster")
 #: The tables of deck.toml, a deck's recipe (reports/<name>/deck.toml, V103).
 DECK_TABLES = ("deck", "block")
 #: A figure's own keys: the rest are what it sets for its pages.
@@ -245,6 +245,7 @@ def json_schema() -> dict:
             "tools": _tools_v2(),
             "quantities": {"type": "object", "additionalProperties": _object("quantity")},
             "plot": plot,
+            "stats": _object("stats"),
             "cluster": _object("cluster"),
         },
         "required": ["run"],
@@ -297,7 +298,7 @@ def json_schema_v3() -> dict:
             "run": run, "cfgs": {"type": "object", "additionalProperties": cfg},
             "tools": {"type": "object", "properties": by_name, "additionalProperties": tool},
             "quantities": {"type": "object", "additionalProperties": quantity},
-            "plot": v2["properties"]["plot"], "cluster": v2["properties"]["cluster"],
+            "plot": v2["properties"]["plot"], "stats": v2["properties"]["stats"], "cluster": v2["properties"]["cluster"],
         },
         "additionalProperties": False,
     }

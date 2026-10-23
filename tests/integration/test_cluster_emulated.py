@@ -72,5 +72,5 @@ def test_a_point_run_as_a_job_equals_the_same_point_run_here(scratch):
     for point in ("nnpdf23", "cteq6l1"):
         job = work / "results" / "Starter" / "starter" / "01_pdf" / "points" / point / "jets.yoda"
         assert job.read_bytes() == (ref / "results" / "Starter" / "starter" / "01_pdf" / "points" / point / "jets.yoda").read_bytes()
-    pages = sorted(p.name for p in (work / "results" / "Starter" / "starter" / "01_pdf" / "plots" / "root").glob("*.png"))
-    assert pages and pages == sorted(p.name for p in (ref / "results" / "Starter" / "starter" / "01_pdf" / "plots" / "root").glob("*.png"))
+    pages = sorted(p.name for p in (work / "results" / "Starter" / "starter" / "01_pdf" / "plots" / "totality" / "root").glob("*.png"))
+    assert pages and pages == sorted(p.name for p in (ref / "results" / "Starter" / "starter" / "01_pdf" / "plots" / "totality" / "root").glob("*.png"))

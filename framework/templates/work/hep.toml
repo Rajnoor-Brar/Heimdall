@@ -17,7 +17,7 @@ expects = "{{revision}}"
 
 # What every run here keeps beyond records/ and results/ (with machine.toml's [run] keep and heimdall run
 # --keep): logs (every tool's whole output), journal (status.jsonl), work (a finished point's whole working
-# folder: by default only its cards/ and config/ stay), cache (card checks, converted data, the plot
-# stage's working files). By default none: a failed tool's last lines and the prepare caches only.
+# folder: by default only its cards/ and config/ stay), cache (card checks). By default none: a failed
+# tool's last lines and the prepare caches only.
 # [run]
 # keep = ["logs"]

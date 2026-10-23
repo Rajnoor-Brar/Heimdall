@@ -54,8 +54,9 @@ heimdall run Demo/jets energy_pdf                      framework/bin/heimdall �
   └─────────────────────────────────────────────────────────────────────────────────────────────┘
   ├─ combine  points that differ only in a combined quantity (replicas) merged into one, per group
   ├─ post     tools run once after every point, handed every point's products and points.json
-  └─ plot     the sweep merged into plots/root/energy_pdf.root; its figures made into pages: one per
-              energy and histogram, the PDFs as curves; drawn by Heimdall's Paint.exe (and/or mkhtml, mpl)
+  └─ plot     the sweep merged into one ROOT file (.cache/); its figures made into pages, plots/<set>/: one
+              per energy and histogram, the PDFs as curves; drawn by Heimdall's Paint.exe (and/or mkhtml,
+              mpl); each page's statistics in statistics/<set>/
 ```
 
 **Every box is a process or a file.** No tool runs inside another, the runner links no physics

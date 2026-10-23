@@ -231,11 +231,14 @@ namespace Paint {
     // V160: a curve's numbers as it is drawn (after void, align, normalise), over the drawn x range: its area
     // (Σ y·Δx over its finite bins inside the range) and that area's error; against a reference (the data, or
     // the page's first curve), on the reference's bins inside the range where the curve covers them exactly
-    // (rebinned), the reference's area, Σ |y − y_ref|·Δx, and χ² = Σ (y − y_ref)² / (σ² + σ_ref²) over the
-    // bins with a nonzero error, ndf their number.
+    // (rebinned), the reference's area, the curve's area on those bins (V175), Σ |y − y_ref|·Δx, and
+    // χ² = Σ (y − y_ref)² / (σ² + σ_ref²) over the bins with a nonzero error, ndf their number. V175: the ratio
+    // pad's area about its line at one, Σ |y/y_ref − 1|·Δx over those bins with y_ref ≠ 0, the ratio's own
+    // Σ y/y_ref·Δx, and their width Σ Δx, Δx in log10 x on a log-x page (as the pad draws it).
     struct Statistics {
         size_t bins = 0;
-        double area = 0, areaErr = 0, refArea = 0, absArea = 0, chi2 = 0;
+        double area = 0, areaErr = 0, refArea = 0, cmpArea = 0, absArea = 0, chi2 = 0;
+        double ratioArea = 0, ratioSum = 0, ratioWidth = 0;
         size_t ndf = 0, compared = 0;
     };
 
@@ -244,7 +247,7 @@ namespace Paint {
         return lo >= from - eps && hi <= to + eps;
     }
 
-    inline Statistics statistics(const Series& s, const Series& ref, double from, double to) {
+    inline Statistics statistics(const Series& s, const Series& ref, double from, double to, bool logx = false) {
         Statistics out;
         double var = 0;
         for (size_t i = 0; i < s.size(); ++i) {
@@ -258,7 +261,12 @@ namespace Paint {
             const auto [value, error] = rebinned(s, ref.lo[j], ref.hi[j]);
             if (!std::isfinite(value)) continue;
             const double w = ref.hi[j] - ref.lo[j], d = value - ref.y[j];
-            out.refArea += ref.y[j] * w, out.absArea += std::fabs(d) * w, ++out.compared;
+            out.refArea += ref.y[j] * w, out.cmpArea += value * w, out.absArea += std::fabs(d) * w, ++out.compared;
+            const double drawn = logx ? (ref.lo[j] > 0 ? std::log10(ref.hi[j] / ref.lo[j]) : 0.0) : w;
+            if (ref.y[j] != 0 && drawn > 0) {
+                const double r = value / ref.y[j];
+                out.ratioArea += std::fabs(r - 1) * drawn, out.ratioSum += r * drawn, out.ratioWidth += drawn;
+            }
             const double sigma2 = error * error + ref.err[j] * ref.err[j];
             if (sigma2 > 0) out.chi2 += d * d / sigma2, ++out.ndf;
         }

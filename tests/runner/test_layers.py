@@ -248,6 +248,31 @@ def test_vars_are_said_once_and_keep_their_type(scratch):
     assert config.load(_written(scratch, data), sets=["config.vars.events=7"]).configuration(None).event_count == 7
 
 
+def test_a_configuration_may_have_its_own_vars_and_data(scratch):
+    """V179: [cfgs.<name>] vars, over [file.vars], and data, in place of [plot.data]: the file read for that
+    configuration (config.for_configuration, or load(…, configuration=)) runs its own analysis and draws its own
+    data; read for another, it is refused where it would plan or write a plot document."""
+    from runner import tools
+    data = raw(config={"vars": {"ana": "photo_eic"}}, tools__rivet__analyses=["{var:ana}"],
+               tools__rivet__output_file="{var:ana}.yoda",
+               plot={"data": {"file": "./photo.yoda", "legend": "photo", "map": {"d01-x01-y01": "/REF/A/d01-x01-y01"}}},
+               run__cfgs__dis={"tools": [["pythia", "rivet"]], "vars": {"ana": "dis_eic"},
+                               "data": {"file": "./dis.yoda", "legend": "dis", "map": {"d01-x01-y01": "/REF/B/d01-x01-y01"}}},
+               run__cfgs__more={"extends": "dis", "event_count": 20})
+    path = _written(scratch, used(data))
+    run = config.load(path)                                                    # read for one, the default
+    assert run.tools["rivet"].extra["analyses"] == ["photo_eic"] and run.plot["data"]["legend"] == "photo"
+    assert config.for_configuration(run, "one") == (run, run.configuration("one"))
+    dis, conf = config.for_configuration(run, "dis")
+    assert dis is not run and conf.key == "dis" and dis.tools["rivet"].output_file == ["dis_eic.yoda"]
+    assert dis.plot["data"]["legend"] == "dis" and dis.plot["data"]["map"]["d01-x01-y01"] == "/REF/B/d01-x01-y01"
+    more = config.load(path, configuration="more")                             # through what it extends
+    assert more.tools["rivet"].extra["analyses"] == ["dis_eic"] and more.applied == more.configuration("more").own
+    point = __import__("runner.sweep", fromlist=["points"]).points(run, run.configuration("dis"))[0]
+    with pytest.raises(HepError, match="sets its own vars and data, and this file was read for another"):
+        tools.plan_point(run, run.configuration("dis"), point, {})
+
+
 def test_a_var_is_checked(scratch):
     with pytest.raises(HepError, match=r"\{var:evnts\} is not in \[config.vars\]") as error:
         config.load(_written(scratch, raw(config={"vars": {"events": 5}}, run__event_count="{var:evnts}")))

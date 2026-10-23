@@ -31,7 +31,7 @@ import tomli_w
 
 from . import plugins
 from . import quantities as qmod
-from .config import Tool, chain_prelim, fragment_tags, resolve_chain
+from .config import Tool, chain_prelim, check_read_for, fragment_tags, resolve_chain
 from .errors import HepError, did_you_mean
 from .paths import (cache_root, keeping, hep_root, identity_texts, placeholders, portable, portable_texts, records_root,
                     resolve, results_root, tool_chains)
@@ -601,11 +601,13 @@ class PointPlan:
 
 @dataclass(frozen=True)
 class RunFolders:
-    """A configuration's two folders (06 §1, V157), `<run>` = <P>/<name>/<NN_label>: records/<run>/, what it
-    recorded and where its points work, and results/<run>/, what it made."""
+    """A configuration's folders (06 §1, V157, V164), `<run>` = <P>/<name>/<NN_label>: records/<run>/, what a run
+    needs while it runs or is launched and what traces it back; results/<run>/, everything that matters once it
+    is done; .cache/<P>/plots/<name>/<NN_label>/, the drawing's working files, rebuilt on demand."""
     project: str
     record: Path                       # records/<run>
     results: Path                      # results/<run>
+    cache: Path                        # .cache/<P>/plots/<name>/<NN_label>
 
     @property
     def points(self) -> Path:          # each point's and stage's provenance, identity.json and .complete: kept
@@ -616,8 +618,8 @@ class RunFolders:
         return self.record / "logs"
 
     @property
-    def pages(self) -> Path:           # the page documents, and the plot stage's working files
-        return self.record / "plots"
+    def pages(self) -> Path:           # the page documents and the drawing's working files (V164): rebuilt on demand
+        return self.cache
 
     @property
     def config(self) -> Path:          # the run's snapshot: its run TOML, imports and cards (V158)
@@ -636,12 +638,17 @@ class RunFolders:
         return self.results / "points"
 
     @property
-    def plots(self) -> Path:           # the pages, a folder per backend
+    def plots(self) -> Path:           # the pages: plots/<set>/<backend>/ (V164)
         return self.results / "plots"
 
+    @property
+    def statistics(self) -> Path:      # the pages' numbers: statistics/<set>/ (V164)
+        return self.results / "statistics"
+
     def compare(self, name: str) -> tuple[Path, Path]:
-        """A compare figure's page documents and pages: beside the configurations, in <P>/<name>/compare/."""
-        return self.record.parent / "compare" / name, self.results.parent / "compare" / name
+        """A compare figure's page documents and pages: beside the configurations, in <P>/<name>/compare/ (its
+        documents in .cache/)."""
+        return self.cache.parent / "compare" / name, self.results.parent / "compare" / name
 
 
 def location(serial: int | None, name: str) -> str:
@@ -669,7 +676,8 @@ def serials_taken(run, configuration) -> set[int]:
 
 def run_folders(run, configuration) -> RunFolders:
     tail = run_dir(run, configuration)
-    return RunFolders(run.project, records_root() / tail, results_root() / tail)
+    return RunFolders(run.project, records_root() / tail, results_root() / tail,
+                      cache_root() / run.project / "plots" / tail.relative_to(run.project))
 
 
 def point_dirs(run, configuration, point) -> tuple[Path, Path]:
@@ -883,6 +891,7 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
     stage's (pre or post): no quantities, and an `input` naming a product of the points reads all of
     them. With `pre`, the pre stage's products are inputs the point may name, and its identity is
     part of the point's."""
+    check_read_for(run, configuration)                                          # V179: never another's cards
     out, res = point_dirs(run, configuration, point)
     groups_tags = _resolve_chain(run, configuration, point)
     if groups_tags != configuration.tools:                           # chosen by a quantity: its own interfaces (V153)
@@ -905,8 +914,10 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
                     for t in fragment_tags(v) if t in run.tools]
     builtin = {name: _builtin_value(run, name, values[name]) for name in qmod.BUILTIN if name in values}   # V56
     configured = {t for t in rendered_tags if folder_of(run.tools[t]).get("tool", "config_file")}
+    together = {n: list(entry) for entry in configuration.sweeps if isinstance(entry, list) for n in entry}   # V180
     consumers = qmod.consumer_table(run, master, [n for n in values if n not in selectors and n not in builtin],
-                                    rendered_tags, alternatives, configured, frozenset(point.choice), point.name)
+                                    rendered_tags, alternatives, configured, frozenset(point.choice), point.name,
+                                    together)
     consumers.update({name: [] for name in selectors if name in values})   # it chooses the tool itself
     consumers.update({name: [] for name in builtin})                        # it is the point's events or threads
 

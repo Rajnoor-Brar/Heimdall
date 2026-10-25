@@ -576,7 +576,9 @@ def set_cells(run, members: list, spec: SetSpec, palette=(), *, values=values_of
             ordered += mine
         picked = ordered
     notes = []
-    swept = list(dict.fromkeys(q for m in picked for q in getattr(m, "point", m).choice))
+    quantities = run.quantities                       # a compound's later fields ride with its first (V186):
+    swept = list(dict.fromkeys(q for m in picked for q in getattr(m, "point", m).choice    # never an axis of their own
+                               if not getattr(quantities.get(q), "silent", False)))
     named = set(pages_) | {q for flt in curves for q in flt}
 
     def varies(q, among) -> bool:
@@ -602,7 +604,6 @@ def set_cells(run, members: list, spec: SetSpec, palette=(), *, values=values_of
     keys = sorted(cells, key=lambda key: tuple(order_of(q, i) for q, i in zip(page_axes, key)))
     look = _look_of(run, spec, curve_axes, picked, values, looked)
     slots = {role: look_slots(q, picked, values) for role, q in look.items()}
-    quantities = run.quantities
     out = []
     reference = {q: resolve(run, q, what, f"{where}.reference") for q, what in (spec.reference or {}).items()}
     missed = []

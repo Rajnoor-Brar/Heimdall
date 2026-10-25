@@ -187,7 +187,7 @@ The terminal shows the running tools, then one block:
 | `results/Demo/jets/03_single/statistics/totality/` | `statistics.csv`, the pages' numbers against the data, and their bar graphs |
 | `.cache/Demo/plots/jets/03_single/` | the page documents and `single.root`, the sweep in one file: rebuilt on demand |
 | `records/Demo/jets/03_single/points/point/` | `provenance.json`, `identity.json`, `.complete`: what the run recorded |
-| `records/Demo/jets/03_single/logs/point/` | `cards/`, a failed tool's `<tool>.log`: safe to delete (`heimdall clean`) |
+| `records/Demo/jets/03_single/logs/point/` | `cards/`, `context.toml` (every tool's card and config), `commands.sh` (each tool's command line, as it ran), a failed tool's `<tool>.log`: safe to delete (`heimdall clean`) |
 | `records/Demo/jets/03_single/config/` | the run TOML and cards it ran with: what traces it back |
 | `results/Demo/jets/03_single/plot.toml` | its plot document: what every drawing of it reads (`heimdall plot Demo/jets/03_single`); its `[plot]` is yours to edit |
 
@@ -199,6 +199,12 @@ heimdall run Demo/jets energy_pdf       # 16 points: 4 beam energies × 4 PDFs
 heimdall watch                                    # from another terminal: follow the latest job
 heimdall plot Demo/jets energy_pdf      # redraw its pages from what is on disk
 ```
+
+**A run on a terminal runs in the background, shown here.** Press `d` and the prompt comes back while
+the run goes on; closing the terminal leaves it running too. `heimdall watch` shows it again (from
+another terminal, or an ssh session), `heimdall stop` stops it, `heimdall runs` lists what runs. Ctrl-C
+stops it as before. `heimdall run … --detach` starts one without showing it. A run with `--plain`, or
+not on a terminal, runs in the shell's own process, as in a script or a cluster job.
 
 ---
 
@@ -862,7 +868,8 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 - A second submission of a configuration waits until the first's jobs have ended (`--status`,
   `--cancel`).
 - The scripts, the job ids and the jobs' logs are in `records/<P>/<run>/<cfg>/cluster/<stamp>/`.
-  `heimdall watch` cannot reach a node: the logs and `--status` stand in.
+  `heimdall watch` cannot reach a node: the logs and `--status` stand in. `heimdall runs` lists each
+  submission (whether its jobs are still on Slurm), and `--cancel` marks it cancelled there.
 - Each script's last line is the `heimdall run` it makes, which can be typed by hand: `heimdall run C cfg
   --points <name> --stages points`, then `heimdall run C cfg --stages combine,post,plot`.
 - The points' FIFOs and the prepare caches' locks are on the shared filesystem: NFSv4 and Lustre
@@ -890,7 +897,10 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 | how far each curve is from the data | `results/…/statistics/<set>/statistics.csv` (with each drawing, or `heimdall stats <P>/<name>/<cfg>` alone), `[stats]`, `legend_statistic`, a `statistic` figure (03 §3.2, §7.9) |
 | only the post (or pre) tools | `--only post` / `--only pre` |
 | plain lines (logs, CI) | `--plain` (automatic when not a terminal) |
-| to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]` (a `--journal` run's file: `heimdall watch --file …`) |
+| to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]`, `--pid N` (a `--journal` run's file: `heimdall watch --file …`); `d` or Ctrl-C leaves, `s` then `y` stops it |
+| to leave a run running | `d` at its terminal; or start it with `--detach` |
+| to stop a run from elsewhere | `heimdall stop [CONFIG [CFG]]`, `--pid N` (as Ctrl-C would) |
+| what runs, and ran lately | `heimdall runs` (this machine, every work dir, 30 days) |
 | a desktop notification at the end | `[run] notify = "desktop"` |
 | a point faster | `shards = K` on the Rivet table (§7.1); more Pythia `threads` alone do not help |
 | many points faster | `parallelism = K` or `"auto"` (§7.2) |
@@ -955,7 +965,9 @@ The run goes on to the next point, and the point's block names the tool to blame
    - `provenance.json` records every binary and card of a finished point.
 
 Ctrl-C stops the job cleanly: the running tools get SIGINT, then SIGTERM, then SIGKILL. The exit is
-6, and the same command resumes. `heimdall run` exits:
+6, and the same command resumes. A second Ctrl-C stops it hard (the tools are killed at once; the stop
+is still recorded), a third kills it outright. Closing the terminal stops the run as Ctrl-C does
+(unless it was started with `nohup`). `heimdall run` exits:
 - 0 when everything is done;
 - 1 when a point, a stage or a page failed;
 - 2 for a config error (nothing ran).

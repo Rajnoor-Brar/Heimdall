@@ -51,10 +51,31 @@ def _mkhtml_backend():
     return module
 
 
+#: What this backend draws beyond mkhtml's (V185): the legend outside the frame, a gap above the ratio pad.
+OWN = {("legend", "position"): ("out-right", "out-left", "out-top", "out-bottom"), ("ratio", "gap"): None}
+
+
+def _without_own(settings: dict) -> dict:
+    """The settings with OWN's keys taken out of every style layer, for mkhtml's check."""
+    def trimmed(style: dict) -> dict:
+        out = {}
+        for table, keys in style.items():
+            if isinstance(keys, dict):
+                keys = {k: v for k, v in keys.items()
+                        if not ((table, k) in OWN and (OWN[(table, k)] is None or v in OWN[(table, k)]))}
+            out[table] = keys
+        return out
+    out = {**settings, "style": trimmed(settings.get("style", {}))}
+    if settings.get("figures"):
+        out["figures"] = {k: {**t, "style": trimmed(t.get("style", {}))} if isinstance(t, dict) else t
+                          for k, t in settings["figures"].items()}
+    return out
+
+
 def validate(settings: dict, beside_root: bool = False, curve_styles: list[dict] = ()) -> None:
-    """mkhtml's limits, as the yoda backend's (the pages are mkhtml's until verified)."""
+    """mkhtml's limits, as the yoda backend's (the pages are mkhtml's until verified), but for OWN's keys."""
     try:
-        _mkhtml_backend().validate(settings, beside_root=beside_root, curve_styles=curve_styles)
+        _mkhtml_backend().validate(_without_own(settings), beside_root=beside_root, curve_styles=curve_styles)
     except HepError as error:
         raise HepError(str(error.message).replace('backend = "yoda"', 'backend = "mpl"').replace("the yoda backend", "the mpl backend"),
                        where=error.where, hint=error.hint) from None
@@ -109,7 +130,8 @@ def _page(page, settings: dict) -> None:
         plt.rcParams["legend.title_fontsize"] = page.style["text"]["header"]
         fig = _figure(plt, hists, features, page, yb, window)
         formats = settings.get("formats", ["pdf"])
-        titled = any(page.document["page"].get(k) for k in ("title", "title_left", "title_right"))
+        titled = any(page.document["page"].get(k) for k in ("title", "title_left", "title_right")) \
+            or page.style["legend"]["position"] in OWN[("legend", "position")]                # the page grows to hold it
         for fmt in (["pdf"] if formats == "default" else formats):
             fig.savefig(f"{page.output}.{fmt}", format=fmt.upper(), **({"bbox_inches": "tight"} if titled else {}))
         plt.close(fig)
@@ -264,7 +286,10 @@ def _figure(plt, hists: dict, features: dict, page, yb, window):
     fig_w *= float(features.get("PlotSizeX", 10)) / 10.0
     fig_h *= sum(specs) / 9.0
     if ratios:
-        fig, (ax, rax) = plt.subplots(2, 1, sharex=True, figsize=(fig_w, fig_h), gridspec_kw={"height_ratios": tuple(specs)})
+        gap = float(page.style["ratio"].get("gap", 0.0)) / 72.0                 # inches between the frames (V185)
+        room = fig_h * (plt.rcParams["figure.subplot.top"] - plt.rcParams["figure.subplot.bottom"])
+        fig, (ax, rax) = plt.subplots(2, 1, sharex=True, figsize=(fig_w, fig_h),
+                                      gridspec_kw={"height_ratios": tuple(specs), "hspace": 2 * gap / max(room - gap, 1e-6)})
     else:
         fig, ax = plt.subplots(1, 1)
         rax = None
@@ -334,7 +359,42 @@ def _figure(plt, hists: dict, features: dict, page, yb, window):
         if n2 > 1:
             rax.yaxis.set_minor_locator(mpl.ticker.AutoMinorLocator(n2))
     _titles(ax, page)
+    if page.style["legend"]["position"] in OWN[("legend", "position")]:
+        _outside(fig, ax, rax, legend, page.style)
     return fig
+
+
+def _outside(fig, ax, rax, legend, style: dict) -> None:
+    """legend.position out-right, out-left, out-top, out-bottom (V185): the legend beside what is drawn (the
+    frames with their labels and titles, as drawn), inset points away; above or below, in as many columns as
+    fit the frame's width. The page grows to hold it (saved with bbox_inches="tight")."""
+    where = style["legend"]["position"]
+    renderer = fig.canvas.get_renderer()
+    fig.canvas.draw()
+    to_figure = fig.transFigure.inverted()
+    axes = [a for a in (ax, rax) if a is not None]
+    drawn = [a.get_tightbbox(renderer).transformed(to_figure) for a in axes]
+    frame = ax.get_position()
+    width_in, height_in = fig.get_size_inches()
+    ix, iy = (v / 72.0 for v in style["legend"]["inset"])
+    handles, labels = legend.legend_handles, [t.get_text() for t in legend.get_texts()]
+    title = legend.get_title().get_text()
+    legend.set_visible(False)                        # the axes' legend and an artist of its own: hidden as both
+    if where == "out-right":
+        spots = [dict(loc="upper left", bbox_to_anchor=(max(b.x1 for b in drawn) + ix / width_in, frame.y1), ncol=1)]
+    elif where == "out-left":
+        spots = [dict(loc="upper right", bbox_to_anchor=(min(b.x0 for b in drawn) - ix / width_in, frame.y1), ncol=1,
+                      markerfirst=False, alignment="right")]
+    else:
+        y = max(b.y1 for b in drawn) + iy / height_in if where == "out-top" else min(b.y0 for b in drawn) - iy / height_in
+        spots = [dict(loc="lower left" if where == "out-top" else "upper left", bbox_to_anchor=(frame.x0, y), ncol=n)
+                 for n in range(len(labels), 0, -1)]
+    for spot in spots:                                   # the most columns that fit the frame's width
+        placed = fig.legend(handles, labels, title=title or None, bbox_transform=fig.transFigure, borderaxespad=0.0,
+                            frameon=False, **spot)
+        if spot is spots[-1] or placed.get_window_extent(renderer).width <= frame.width * width_in * fig.dpi:
+            return
+        placed.remove()
 
 
 def _ylim(features: dict, data: dict) -> tuple[float, float]:

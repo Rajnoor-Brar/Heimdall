@@ -18,7 +18,10 @@ an event only queues a line, and the screen's own clock redraws, so a terminal t
 from __future__ import annotations
 
 import json
+import os
 import queue
+import selectors
+import signal
 import sys
 import threading
 import time
@@ -278,8 +281,15 @@ class PlainView:
         self.stream = stream or sys.stdout
         self.every = every
         self.state = State()
+        self.hint = ""
         self._lock = threading.RLock()
         self.screen = self._screen()
+
+    def keys(self, hint: str) -> None:
+        """The keys a watcher may press (V183): said once here; the live view keeps them under its frame."""
+        if hint and hint != self.hint:
+            self.say(hint)
+        self.hint = hint
 
     def _screen(self) -> _Screen:
         def write(text: str) -> None:
@@ -380,6 +390,9 @@ class LiveView(PlainView):
             self.frame += 1
             self.screen.frame(self.render())
 
+    def keys(self, hint: str) -> None:
+        self.hint = hint
+
     def _rows(self, states) -> list[tuple[list, tuple[str, str] | None]]:
         """A line per running tool, (tool, phase, bar, count, rate and ETA), with the note for the line
         under it: (text, style), or None."""
@@ -439,20 +452,205 @@ class LiveView(PlainView):
                 shown.append(table)
                 if note is not None:
                     shown.append(Text(f"      ↳ {note[0]}", style=note[1], no_wrap=True, overflow="ellipsis"))
+        if self.hint:                            # the keys (V183), under everything
+            if shown:
+                shown.append(Text(""))
+            shown.append(Text(self.hint, style="dim"))
         return Group(*shown)
 
 
-def view(plain: bool = False) -> PlainView:
-    """The live view on a terminal (when rich is there), plain lines otherwise."""
+def view(plain: bool = False, every: float = 5.0) -> PlainView:
+    """The live view on a terminal (when rich is there), plain lines otherwise (a progress line each `every`
+    seconds: a detached run's log takes one a minute)."""
     if not plain and sys.stdout.isatty():
         try:
             return LiveView()
         except ImportError:
             pass
-    return PlainView()
+    return PlainView(every=every)
 
 
 # ── heimdall watch ─────────────────────────────────────────────────────────────────────────────────
+
+# ── keys, and following a run's socket (V183) ──────────────────────────────────────────────────
+
+class Keys:
+    """A terminal's keys, one at a time, unechoed (cbreak: ICANON and ECHO off, so a key needs no Enter and does
+    not garble the view; ISIG kept, so Ctrl-C is still SIGINT; output untouched). The terminal is put back on
+    leaving, at exit, on SIGTERM (then the default), on Ctrl-Z (and set again on fg). A process killed by
+    SIGKILL cannot: `reset` mends the terminal."""
+
+    def __init__(self, source):
+        self.source = source                    # a file descriptor, or a stream (stdin)
+        self.fd = -1
+        self._saved = None
+        self._handlers: dict = {}
+
+    def __enter__(self) -> "Keys":
+        import atexit
+        import termios
+        self.fd = self.source if isinstance(self.source, int) else self.source.fileno()
+        self._saved = termios.tcgetattr(self.fd)
+        self._cbreak()
+        atexit.register(self.restore)
+        if threading.current_thread() is threading.main_thread():
+            for signum, handler in ((signal.SIGTERM, self._on_term), (signal.SIGTSTP, self._on_stop),
+                                    (signal.SIGCONT, self._on_continue)):
+                self._handlers[signum] = signal.signal(signum, handler)
+        return self
+
+    def _cbreak(self) -> None:
+        import termios
+        mode = termios.tcgetattr(self.fd)
+        mode[3] &= ~(termios.ICANON | termios.ECHO)
+        mode[6][termios.VMIN], mode[6][termios.VTIME] = 1, 0
+        termios.tcsetattr(self.fd, termios.TCSANOW, mode)
+
+    def restore(self) -> None:
+        import termios
+        if self._saved is not None:
+            try:
+                termios.tcsetattr(self.fd, termios.TCSADRAIN, self._saved)
+            except (OSError, termios.error):
+                pass
+
+    def _on_term(self, signum, frame) -> None:
+        self.restore()
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
+    def _on_stop(self, signum, frame) -> None:
+        self.restore()
+        signal.signal(signal.SIGTSTP, signal.SIG_DFL)
+        os.kill(os.getpid(), signal.SIGTSTP)
+
+    def _on_continue(self, signum, frame) -> None:
+        signal.signal(signal.SIGTSTP, self._on_stop)
+        try:
+            if os.tcgetpgrp(self.fd) == os.getpgrp():
+                self._cbreak()
+        except OSError:
+            pass
+
+    def __exit__(self, *exc) -> None:
+        self.restore()
+        for signum, handler in self._handlers.items():
+            signal.signal(signum, handler)
+        self._saved = None
+
+
+def follow(source, *, plain: bool = False, keys: int | None = None, on_key=None, on_interrupt=None, proc=None,
+           hint: str = "", every: float = 5.0) -> str:
+    """Drive a view from a run's watch socket (V183), with keys. `source`: a connected socket, or a callable
+    giving one or None (a worker that has not opened its socket yet), tried again while `proc` lives. `keys`:
+    a file descriptor to read keys from (a terminal in cbreak, or a pipe in tests), each passed to
+    `on_key(key, view)`; a SIGINT here (or a Ctrl-C byte from a pipe) calls `on_interrupt(view)`. Either may
+    return how following ends. Returns "ended" (the run's stream ended), "dropped" (this watcher fell behind),
+    "gone" (the worker ended before it had a socket), or what a key returned ("detached")."""
+    from .events import Lines
+    shown = view(plain, every)
+    shown.keys(hint)
+    interrupted = threading.Event()
+    previous = None
+    if threading.current_thread() is threading.main_thread():
+        previous = signal.signal(signal.SIGINT, lambda signum, frame: interrupted.set())
+    selector = selectors.DefaultSelector()
+    if keys is not None:
+        selector.register(keys, selectors.EVENT_READ, "keys")
+    sock, lines = None, Lines()
+    try:
+        while True:
+            if sock is None:
+                sock = source() if callable(source) else source
+                if sock is not None:
+                    selector.register(sock, selectors.EVENT_READ, "events")
+                elif proc is not None and proc.poll() is not None:
+                    return "gone"
+            if interrupted.is_set():
+                interrupted.clear()
+                if on_interrupt is not None and (outcome := on_interrupt(shown)):
+                    return outcome
+            for key, _ in selector.select(0.1 if sock is None else 0.25):
+                if key.data == "keys":
+                    pressed = os.read(keys, 1)
+                    if not pressed:                       # the key source closed: keys no more
+                        selector.unregister(keys)
+                        keys = None
+                        continue
+                    if pressed == b"\x03":                 # Ctrl-C as a byte (a pipe, a raw terminal)
+                        interrupted.set()
+                        continue
+                    if on_key is not None and (outcome := on_key(pressed.decode("utf-8", "replace"), shown)):
+                        return outcome
+                    continue
+                data = sock.recv(65536)
+                if not data:
+                    return "ended"
+                for event in lines.feed(data):
+                    if event.get("k") == "dropped":
+                        return "dropped"
+                    if event.get("k") != "hello":
+                        shown.event(event)
+    except OSError as error:
+        shown.say(f"the run's watch socket went away ({error})")
+        return "ended"
+    finally:
+        if previous is not None:
+            signal.signal(signal.SIGINT, previous)
+        selector.close()
+        if sock is not None:
+            sock.close()
+        shown.end()
+
+
+def socket_of(pid: int):
+    """A callable for follow(): the watch socket of process `pid` once it has one, else None."""
+    from .events import hubs, open_stream, pid_of
+
+    def connect():
+        for name in hubs():
+            if pid_of(name) == pid:
+                try:
+                    return open_stream(name, timeout=1.0)
+                except OSError:
+                    return None
+        return None
+    return connect
+
+
+def started(pid: int, proc, timeout: float | None = None) -> dict | None:
+    """--detach (V183): wait until worker `pid` has said its run started (its greeting, or None when it ended
+    first)."""
+    from .events import Lines
+    connect = socket_of(pid)
+    until = None if timeout is None else time.monotonic() + timeout
+    hello, sock = None, None
+    while sock is None:
+        if proc.poll() is not None or (until is not None and time.monotonic() > until):
+            return None
+        sock = connect()
+        if sock is None:
+            time.sleep(0.1)
+    with sock:
+        lines = Lines()
+        while True:
+            data = sock.recv(65536)
+            if not data:
+                return hello if proc.poll() is None else None
+            for event in lines.feed(data):
+                if event.get("k") == "hello":
+                    hello = event
+                elif event.get("k") == "run" and event.get("state") in ("started", "finished"):
+                    return hello
+
+
+def tail(path: Path, lines: int = 40) -> list[str]:
+    """A log's last lines."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]
+    except OSError:
+        return []
+
 
 def follow_events(events, *, plain: bool = False) -> int:
     """Drive a view from an iterator of events (a watch socket's) until it ends."""

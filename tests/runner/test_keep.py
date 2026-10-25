@@ -38,12 +38,13 @@ def test_a_finished_point_keeps_its_cards_and_configs(scratch, monkeypatch):
     _, _, point = plan(raw(), scratch)
     out = point.out
     assert out.parent == point.folders.logs                                  # records/<run>/logs/<point> (V157)
-    for name in ("cards/pythia.cmnd", "config/rivet.toml", "events.hepmc", "shards/1/x.yoda", ".lock", "empty/"):
+    for name in ("cards/pythia.cmnd", "config/rivet.toml", "commands.sh", "context.toml", "events.hepmc", "shards/1/x.yoda",
+                 ".lock", "empty/"):
         (out / name).parent.mkdir(parents=True, exist_ok=True)
         if not name.endswith("/"):
             (out / name).write_text("x", encoding="utf-8")
     execute._tidy(point)
-    assert sorted(p.name for p in out.iterdir()) == [".lock", "cards", "config"]
+    assert sorted(p.name for p in out.iterdir()) == [".lock", "cards", "commands.sh", "config", "context.toml"]   # V187
     (out / "rivet.log").write_text("the last lines\n", encoding="utf-8")
     (out / "events.hepmc").write_text("x", encoding="utf-8")
     paths.ask_keep(["work"])
@@ -51,7 +52,28 @@ def test_a_finished_point_keeps_its_cards_and_configs(scratch, monkeypatch):
     assert (out / "events.hepmc").exists()                                  # kept: the whole folder
     paths.ask_keep([])
     execute._tidy(point)
-    assert sorted(p.name for p in out.iterdir()) == [".lock", "cards", "config", "rivet.log"]   # a log written stays
+    assert sorted(p.name for p in out.iterdir()) == [".lock", "cards", "commands.sh", "config", "context.toml",
+                                                     "rivet.log"]                                 # a log written stays
+
+
+def test_a_points_commands_are_written_as_its_tools_were_given_them(scratch, monkeypatch):
+    """V187: commands.sh, beside the cards: HEP_CONTEXT, the FIFOs, each group's tools (together, joined by them),
+    each command line exactly its argv (shell-quoted), with its own folder and environment."""
+    import shlex
+    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
+    _, _, point = plan(raw(), scratch)
+    execute.prepare(point)
+    script = point.out / execute.COMMANDS_FILE
+    text = script.read_text(encoding="utf-8")
+    assert script.stat().st_mode & 0o111 and text.startswith("#!/bin/bash\n")
+    assert f"export HEP_CONTEXT={shlex.quote(str(point.out / 'context.toml'))}" in text
+    fifo = point.interfaces["events.hepmc"].path
+    assert f"mkfifo {shlex.quote(str(fifo))}" in text
+    lines = text.splitlines()
+    group = lines.index("# group 1: pythia, rivet")
+    for step, line in zip(point.groups[0], lines[group + 1:group + 3]):
+        assert line.endswith(" &") and shlex.split(line[:-2]) == [f"{k}={v}" for k, v in step.env.items()] + step.argv
+    assert lines[group + 3] == "wait"
 
 
 def test_the_drawings_working_files_are_the_caches(scratch, monkeypatch):

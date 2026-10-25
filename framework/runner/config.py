@@ -940,6 +940,24 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
     return run
 
 
+def heimdall_table(name: str, *, sets: list[str] = ()) -> dict:
+    """[heimdall] (V188): the flags a run TOML gives the commands that read it, its imports' under its own,
+    --set applied as load applies it. {} when it has none."""
+    path = config_file(name)
+    given = _toml(path)
+    own_names = v3.is_v3(given)
+    if own_names:
+        apply_sets(given, list(sets))
+    raw, _, _ = _with_imports(_form(given, path), path)
+    if not own_names:
+        apply_sets(raw, list(sets))
+    table = raw.get("heimdall", {})
+    if not isinstance(table, dict):
+        raise HepError("[heimdall] is a table: a command's option = its value", where=f"{path}: [heimdall]",
+                       hint='[heimdall.run] journal = true, keep = ["work"]')
+    return table
+
+
 def plot_of(name: str) -> dict:
     """`heimdall plot … --plot FILE` (V158): a file's [plot], in either form, checked as a run's is, for one
     drawing in place of the run's own. The file is named as a config is (configs/<P>/<name>, ./…, /…); it

@@ -63,6 +63,8 @@ os.environ["HEP_RECORDS"] = str(SCRATCH / "records")
 os.environ["HEP_CACHE"] = str(SCRATCH / "cache")
 os.environ["HEP_REPORTS"] = str(SCRATCH / "reports")
 os.environ["HEP_WORKDIRS"] = str(SCRATCH / "workdirs.toml")     # what heimdall recognise and setup record
+os.environ["HEP_RUNS"] = str(SCRATCH / "runs")                  # the run registry (V182)
+os.environ.pop("HEP_CLUSTER_JOB", None)
 
 OURS = (REPO / "tests" / "fixtures", REPO / "tests" / "reference")         # must not change: content hashes
 
@@ -131,9 +133,10 @@ def work_built() -> Path:
 
 @pytest.fixture(autouse=True)
 def an_empty_registry():
-    """Each test starts with no work dir recorded ($HEP_WORKDIRS, which heimdall setup writes too), and with
-    no keep word asked (paths.ask_keep: what a run keeps, V149)."""
+    """Each test starts with no work dir recorded ($HEP_WORKDIRS, which heimdall setup writes too), no run
+    recorded ($HEP_RUNS, V182), and no keep word asked (paths.ask_keep: what a run keeps, V149)."""
     Path(os.environ["HEP_WORKDIRS"]).unlink(missing_ok=True)
+    shutil.rmtree(os.environ["HEP_RUNS"], ignore_errors=True)
     from runner import paths
     paths.ask_keep([])
 

@@ -194,6 +194,31 @@ master = "master.toml"           # optional: configs/<project>/master.toml overl
 | `schema` | an integer |  | `3`, or `2` to keep a v2 file v2 for one release; a file with `[file]` is v3 without it |
 <!-- /generated -->
 
+**`[heimdall]`: a command's flags from the file.** Keys are a command's options, by their names
+(`--journal` is `journal`, `--no-plot` is `no-plot`). Values are `true` or `false` for a switch, a list for
+an option given more than once, and the value for the rest. A key directly in `[heimdall]` applies to
+every command that reads a config and has that option (`run`, `plot`, `stats`, `cluster`, `status`,
+`watch`, `stop`). `[heimdall.<command>]` keys are that command's own, and win over the plain ones:
+
+```toml
+[heimdall]
+keep = ["work"]               # every command with --keep
+plain = true                  # every command: plain lines
+
+[heimdall.run]
+journal = true
+detach  = true                # heimdall run of this file always starts in the background
+
+[heimdall.plot]
+sets = "totality"
+```
+
+- **The command line wins:** a file's value fills only an option the command line left unset.
+  Each command says which flags it took from the file (`heimdall: from [heimdall]: --journal …`).
+- **Imports give theirs too,** and this file's are laid over them, like every other table.
+- **Checked:** an option no such command has, or a value of the wrong kind, is refused (with the
+  nearest name), also by `heimdall check`. `--set` is not taken; the file says it itself.
+
 **`import`**. The imported files are read in order, then this file's tables are laid over
 them:
 - a quantity or configuration of the file replaces the imported one whole;
@@ -988,7 +1013,8 @@ before the first event, with the nearest name, instead of running with its defau
 ### 9.4 The context file: every tool's card and config
 
 When a point starts, the runner writes **one context file** for it, `records/…/logs/<point>/context.toml`,
-and removes it when the point ends. Every tool of the point finds it through `$HEP_CONTEXT` (set in
+and keeps it with the point's cards, beside `commands.sh`: the command line each tool was given, with its
+folder and environment, the FIFOs and the groups, as a shell script. Every tool of the point finds it through `$HEP_CONTEXT` (set in
 each tool's environment, never in your shell), or `{context}` in its arguments. It lists, by table
 name:
 
@@ -1295,8 +1321,8 @@ unless said otherwise.
 | `axes.titles_at_ends` | `true` | the x title at the right end, the y title at the top; false centres them |
 | `axes.title_offset` | `[1.0, 1.55]` | x, y: ROOT's title offsets (larger is further from the axis) |
 | `axes.label_offset` | `2.5` | points between an axis and its tick labels |
-| `legend.position` | `"top-right"` | top-right \| top-left \| bottom-right \| bottom-left, or [x, y]: its top-right corner in fractions of the frame (then right-aligned) |
-| `legend.inset` | `[5.0, 5.0]` | points from the frame's corner (x, y), for a named position |
+| `legend.position` | `"top-right"` | top-right \| top-left \| bottom-right \| bottom-left \| best, or [x, y]: its top-right corner in fractions of the frame (then right-aligned); or outside the frame, which shrinks to make room: out-right \| out-left (a column beside it) \| out-top \| out-bottom (as many columns as fit its width) |
+| `legend.inset` | `[5.0, 5.0]` | points from the frame's corner (x, y), for a named position; from the frame and the page's edge, outside |
 | `legend.spacing` | `1.2` | line pitch, × the legend's text size |
 | `legend.symbol` | `16.0` | points: the width of the "+" beside each entry |
 | `legend.gap` | `5.0` | points between the "+" and its text |
@@ -1305,6 +1331,7 @@ unless said otherwise.
 | `ratio.limits` | `[0.0, 3.0]` | … but never past these |
 | `ratio.divisions` | `512` | ROOT's axis divisions: at most 12 labelled (0.1 on ~0.4–1.5), 5 minor each |
 | `ratio.decimals` | `true` | labels 1.0, 1.2, … rather than 1, 1.2, … |
+| `ratio.gap` | `0.0` | points between the main frame and the ratio's: 0 joins them (mkhtml's) |
 <!-- /generated -->
 
 **What the other backends honour.** mkhtml and mpl draw with mkhtml's own look. They honour:

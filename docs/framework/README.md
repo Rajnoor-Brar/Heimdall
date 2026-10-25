@@ -52,7 +52,7 @@ loop, verification, gates, deviations and reports. **A fresh machine starts at 0
   docs/  bots/  tests/
   .setup/                           (ignored) the agents' state
 ~/Himinbjorg/  ($HEP_MACHINE)      outside git: base/ stack/ apps/ forge/ stacks/ images/ machine.toml machine.sh
-                                    recipes.toml workdirs.toml
+                                    recipes.toml workdirs.toml runs/ (the run registry: heimdall runs)
 
 ~/Github/Top-Quark/                 a work dir, made by `heimdall setup` (V107); others anywhere
   hep.toml Makefile .gitignore README.md CLAUDE.md .vscode/

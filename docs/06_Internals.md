@@ -35,6 +35,7 @@ built and installed, outside git. A **work dir** holds a study.
 | `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `base/` (or `venv/`), `forge/`, `apps/` and `gjallarhorn.sh` (another C++ standard) |
 | `machine.toml`, `machine.sh` | this machine's settings; its extra lines for `gjallarhorn.sh` (`setup_extra`), written by the build |
 | `workdirs.toml` | the work dirs this machine knows, by title (`heimdall recognise`, `heimdall setup`; `gjallarhorn <title>` goes to one) |
+| `runs/` | the run registry (`$HEP_RUNS`, V182): `<id>.json` a run or cluster submission (who, where, when, its exit code and verdict, its record folders), `<id>.log` a detached run's output; `heimdall runs` lists them, 30 days kept. Nothing is written in a read-only root |
 | `recipes.toml` | this machine's own recipes, laid right after `recipes/toolkits/standard.toml` (from `recipes/recipes.template.toml`, written by the first build) |
 | `toolkits/` | this machine's own toolkits, beside `recipes/toolkits/` |
 | `tools/` | tool folders every work dir on this machine sees, between a work dir's `tools/` and Heimdall's (§16) |
@@ -139,6 +140,7 @@ layering was not had nine cycles.)
 | 1 | `labels.py` | Rivet `.plot` keys, YODA's text macros, line breaks, LaTeX → TLatex for Paint, TLatex → LaTeX for `heimdall migrate` |
 | 1 | `events.py` | the event stream (V72): the bus, the watch socket (`Hub`), the `--journal` file |
 | 1 | `workdirs.py` | the work dirs this machine knows, by title: `<machine root>/workdirs.toml` (`$HEP_WORKDIRS`); recording, the scan below a folder, a title's path, forgetting (`heimdall recognise`, `gjallarhorn <title>`, V143) |
+| 1 | `runs.py` | the run registry, `<machine root>/runs/` (`$HEP_RUNS`): an entry per run and cluster submission, written whole by one writer; a process's who and where (pid, its start time, namespaces, boot); its state (running, ended, lost, or not knowable from here); 30 days kept; a read-only root records nothing (V182) |
 | 2 | `tools.py` | the tool folders; per point: interfaces, connections (C6), cards, configs, the context file, prepare keys, argv; seeds last; the combine command (`combiner`, `merge_files`) |
 | 3 | `execute.py` | `[prelim]`, prepare steps, groups as supervised process groups, the count checks, settling products |
 | 3 | `status.py` | the status and output pipes, read on a thread per tool; the filter rules; a failed tool's tail |
@@ -541,7 +543,9 @@ process directory.
 - **stdout is never the status channel**: it may carry HepMC, and it always carries chatter.
 - **One reader thread per tool** (V72) reads both pipes, so a tool that prints fast never waits on a
   full pipe.
-- **Runtime state stays off disk** (the user's decision). A tool's output is kept in memory (its
+- **Runtime state stays off disk** (the user's decision), but for the **run registry** (`runs.py`, the
+  user's ask of 2026-10-23, V182): a small entry per run in `<machine root>/runs/`, written when it
+  begins and when it ends, and a detached run's output log beside it. A tool's output is kept in memory (its
   last 200 lines) and written to `records/…/logs/<point>/<tag>.log` only when it fails; `--logs`
   (`keep logs`, §14) writes every tool's whole output there as it comes.
 - **A filter rule never fails a run.** The exit code does that.
@@ -559,11 +563,34 @@ process directory.
     finds in `/proc/net/unix` (where there are no abstract sockets, as on macOS, a socket file
     `<tmp>/hep-watch/hep-watch-<pid>`, removed at exit; a dead process's is cleared by the next
     `heimdall watch`). It sends a greeting, the current run's events so far, then every
-    event live for the life of the process: a sweep of runs is one stream.
+    event live for the life of the process: a sweep of runs is one stream. It is the user's alone:
+    a connection from another uid is closed at once (`SO_PEERCRED`; the 0700 folder on macOS). The
+    greeting says whose and where it is: pid, uid, host, PID namespace and address, then the
+    config, its run and configurations. When the process ends, each watcher gets the events it has
+    not been sent yet (for at most 2 s) before its stream ends, so the verdict is never lost. A
+    watcher 10,000 events behind is cut off: once what it was queued is sent, it gets a `dropped`
+    event and the end of its stream, never a hang. A name taken by another PID namespace's process
+    of the same pid (two containers on one network) gets a suffix, `hep-watch-<pid>-<n>` (V181).
   - **the journal** `records/…/<cfg>/status.jsonl`, only with `--journal`: one file per run, for
     `heimdall watch --file` and replay.
+- **A live run is a worker and a client** (V183). On a terminal (`cli.live`: a terminal in and out,
+  its foreground, not `--plain`, not a Slurm job, `HEP_DETACH` not `never`), `heimdall run` starts the
+  command again as typed with `--worker <id>` (`runs.spawn`: this checkout's `bin/run`, this Python,
+  `start_new_session`, stdin from /dev/null, its output in `runs/<id>.log`, `close_fds`) and follows
+  it as `heimdall watch` does (`watch.follow` over `socket_of(pid)`, retried while the worker starts).
+  The worker has no terminal: only signals sent to it reach it. Keys (`watch.Keys`: cbreak, ICANON and
+  ECHO off, ISIG kept, put back on leaving, at exit, on SIGTERM and Ctrl-Z): `d` leaves the run
+  running; each Ctrl-C (a SIGINT to the client) is sent on to the worker, so the ladder of §11 is the
+  worker's own. After its stream ends, the client takes the worker's exit code; a worker killed by a
+  signal (128 + N) has its entry finished by the client. `--detach` waits for `run started` (or the
+  worker's end, then prints its log's tail). A client killed by SIGKILL leaves the terminal unechoed:
+  `reset` mends it. In `heimdall watch`, `d` or Ctrl-C leaves; `s` then `y` sends SIGINT to the run,
+  refused for another PID namespace's pid (a container's, which could name another process here).
+  `heimdall stop` does the same from the command line, then waits until the pid has ended (a zombie
+  counts as ended).
 - **The views.** A view is one reducer of events (`watch.State`) and a renderer on its own thread,
-  the same in the run, in `heimdall watch` and over a journal.
+  the same in the run, in `heimdall watch` and over a journal. The live view draws the keys under its
+  frame; the plain view says them once.
   - **The live view** (with `rich`, on a terminal) shows each running point below the finished
     blocks: its heading and its time so far, then a line per running tool with phase, progress, rate
     and ETA. A tool's last warning or error is on a line of its own under its row (`↳ …`); a tool
@@ -611,9 +638,14 @@ finalises, and exits 0 with a plausible YODA. So:
 to exit nonzero before the runner sent any signal. **A SIGPIPE death is never the cause** (its
 reader went away first), even when both exits are seen in one poll.
 
-**Ctrl-C** sends SIGINT to the running tools (SIGTERM 2 s later, SIGKILL 5 s after that) and stops
-the run with exit 6. The point is left partial, and rerunning the same command resumes, since
-finished points are skipped. A second Ctrl-C gets the default behaviour.
+**Ctrl-C** (or SIGTERM, or SIGHUP) sends SIGINT to the running tools (SIGTERM 2 s later, SIGKILL 5 s
+after that) and stops the run with exit 6. The point is left partial, and rerunning the same command
+resumes, since finished points are skipped. **A second one is a hard stop**: the tools get SIGKILL at
+once, and the stop is still recorded (exit 6, the points as after the first). **A third** is the
+default behaviour, at once: the process dies with no bookkeeping. Before the run's own handler is in
+place (while it plans), Ctrl-C ends the command with exit 6, no traceback. **SIGHUP** (the terminal
+closed) stops the run as SIGTERM does, and what it still prints goes to /dev/null; a run started with
+SIGHUP ignored (`nohup`) keeps ignoring it (V181).
 
 **Exit codes of our apps** (App_Pythia, App_yd2rt, Paint, module programs, `hepkit` tools). They are
 one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
@@ -795,7 +827,7 @@ records/<P>/<run>/<cfg>/
 .cache/<P>/datasets/  [.cache/<P>/checks/]   reference data converted for Paint; keep cache: card checks
 .cache/<P>/reproduce/<identity>/      heimdall reproduce's run, beside the original
 .cache/overlay/<key>/                 heimdall overlay's page configs
-$HEP_MACHINE/forge/scratch/           everything tests write: work/ (the fixture's copy), records/, cache/, results/, reports/, pytest/
+$HEP_MACHINE/forge/scratch/           everything tests write: work/ (the fixture's copy), records/, cache/, results/, reports/, runs/, pytest/
 
 results/<P>/<run>/<cfg>/
   points/<point>/                     the products only
@@ -817,7 +849,8 @@ reports/<deck>/                       a deck (heimdall deck, V103, V104): yours,
 ```
 
 **What a run keeps** (V149): besides `records/` and `results/`, a finished point keeps its `cards/` and
-`config/`, a failed tool its last lines, and the prepare caches; nothing more unless a `keep` word asks:
+`config/`, its `context.toml` and `commands.sh` (each tool's command line, folder and environment, the FIFOs
+and groups: `execute.commands_text`, written when the point starts, V187), a failed tool its last lines, and the prepare caches; nothing more unless a `keep` word asks:
 `logs` (every tool's whole output), `journal` (`status.jsonl`), `work` (a finished point's whole working
 folder), `cache` (card checks, converted reference data, the plot stage's working files and skip
 markers). The words come from `heimdall run --keep` (`--logs` and `--journal` are two of them), the work

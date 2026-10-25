@@ -4,9 +4,21 @@
 
 - During planning, do not solicit go-ahead or ask to proceed; transition to implementation only when
   the user explicitly triggers it (e.g. "Implement the plan").
-- Save the plan progressively to `bots/current_plan.md` during planning, to avoid loss on context
-  reset.
-- Future roadmaps and intent notes go in `bots/intent.md`.
+- Pending work is [ISSUES.md](ISSUES.md), one issue per task. Write a plan into its issue
+  progressively while planning, to avoid loss on context reset. An idea is an issue labelled `idea`.
+- A finished issue is deleted from ISSUES.md: its history is its V-row in docs/07_Record.md and its
+  commit.
+
+## Ask first
+
+- Never push. Name a download's file, source and size before fetching it.
+- Rebuilding App_Pythia, App_yd2rt, a module program or a Rivet plugin changes the identity of every
+  point that ran it (Paint is plot-only and safe).
+- The machine root holds live state: never rewrite its `machine.toml`, `recipes.toml`, `toolkits/` or
+  `tools/`, and back up any live file before changing it.
+- Start a long build detached (`setsid nohup … < /dev/null &`), or a session's end kills it.
+- After changing a schema key's `doc`/`notes`, base.toml's comments or the CLI's help, run
+  `heimdall make --framework docs schema`.
 
 ## Layout
 
@@ -19,18 +31,18 @@ Heimdall is the framework: `$HEP` is this folder, what is authored, nothing buil
 | `gjallarhorn.sh`, `launch.sh` | the environment, bash only (`source <Heimdall>/gjallarhorn.sh [title]`; the shell function `gjallarhorn [title]` the build writes into ~/.bashrc); `launch.sh` is it from any shell |
 | `recipes/` | the stack's recipes: `build_stack.py`, `base.toml` (the conda base), `toolkits/` (`standard.toml`: every recipe; one file per toolkit), `settings.toml`, the machine's templates, `patches/`, `platforms/{mac,container}/` (`container/heimdall.def`: the Apptainer image) |
 | `env/` | `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
-| `framework/` | `bin/` (`heimdall`, `bifrost`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders, backends, figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py` |
+| `framework/` | `bin/` (`heimdall`, `bifrost`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders), `plot/` (the plot backends and figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py` |
 | `src/` | the C++ kits (`Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh`) and the apps' sources (`App_*.cc`, `Apps/Paint/`) |
 | `docs/` | the manual `00`–`07`, `framework/` (the setup runbook), `conda/` (the base's design), `reporter/`, `audit_2/`, `audit_3/`, `audit_4/` |
-| `bots/` | `current_plan.md`, `intent.md`, `archive.md` |
+| `ISSUES.md` | pending work, one issue per task |
 | `tests/` | `runner/`, `integration/`, `cxx/`, `reference/`, `fixtures/work/` (the frozen work dir the tests use) |
-| `editor/` | the VS Code tooling: `cmnd-syntax/` (Pythia `.cmnd` highlighting), `hep-contrast-theme/`, `hep-icons/`, `icon-bank/`, `Report.md` (from High-Energy's `aux/` at 2c4fcad) |
+| `editor/` | the VS Code tooling: `cmnd-syntax/` (Pythia `.cmnd` highlighting), `hep-contrast-theme/`, `hep-icons/`, `icon-bank/` (from High-Energy's `aux/` at 2c4fcad) |
 
 What this machine built is in the **machine root**, `~/Himinbjorg` (`$HEP_MACHINE`), outside git:
 `base/` (the conda base; `venv/` in an older root), `stack/`, `apps/` (`$HEP_APPS`), `forge/` (`$HEP_FORGE`:
 downloads, sources, builds, logs, the tests' scratch), `stacks/<toolkit>/`, `images/` (Apptainer images),
 `machine.toml`, `machine.sh`, `recipes.toml` (its own recipes), `workdirs.toml` (`heimdall recognise`),
-`toolkits/`, `tools/`. `recipes/machine.py adopt`
+`runs/` (the run registry, `heimdall runs`), `toolkits/`, `tools/`. `recipes/machine.py adopt`
 moves an older in-checkout stack there.
 
 Work dirs (configs, modules, results) live elsewhere, one per workspace, made by `heimdall setup <dir>`.
@@ -59,7 +71,7 @@ Work dirs (configs, modules, results) live elsewhere, one per workspace, made by
 ## Testing
 
 - Tests write only `forge/scratch/`, through `HEP_WORK`, `HEP_RECORDS`, `HEP_CACHE`,
-  `HEP_RESULTS`, `HEP_REPORTS` and `HEP_WORKDIRS` (tests/conftest.py). Never name a real work dir in a test. Run them with the stack
+  `HEP_RESULTS`, `HEP_REPORTS`, `HEP_WORKDIRS` and `HEP_RUNS` (tests/conftest.py). Never name a real work dir in a test. Run them with the stack
   loaded (`source gjallarhorn.sh`): the session builds the fixture work dir's modules first.
 - The fixtures (`tests/fixtures/work/`) change only together with the test that needs the change.
 - The gates compare against `tests/reference/`: the legacy pipeline's cards, base card and YODAs,

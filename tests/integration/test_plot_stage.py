@@ -930,3 +930,27 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
             assert sorted(t.get_text()[-4:] for t in ax.get_yticklabels()) == [" (1)", " (1)", "(17)", "(17)"]
             assert f"the {'geometric' if ratio else 'plain'} mean" in figure.texts[0].get_text()
         plt.close(figure)
+
+
+@pytest.mark.parametrize("where", ["out-right", "out-left", "out-top", "out-bottom"])
+@pytest.mark.filterwarnings("ignore:This process .* is multi-threaded:DeprecationWarning")   # an earlier test's fsspec
+def test_a_legend_outside_the_frame_and_a_gap_above_the_ratio(stage, where):                  # thread; mpl forks per page
+    """V185: legend.position out-right, out-left, out-top, out-bottom, and ratio.gap (points between the frames):
+    Paint and mpl draw them (Paint's frame makes room, mpl's page grows); mkhtml cannot, and says so."""
+    from runner import plugins
+    from runner.errors import HepError
+    run, configuration, plans = stage
+    styled = replace(run, plot={**run.plot, "backend": ["root", "mpl"],
+                                "style": {"page": {"dpi": 100}, "legend": {"position": where}, "ratio": {"gap": 6.0}}})
+    plot.validate(styled)
+    assert plot.draw(styled, configuration, plans, lambda line: None) == 0
+    pages = plans[0].folders.plots / "totality"
+    for backend in ("root", "mpl"):
+        assert (pages / backend / "em" / "d01-x01-y01.png").is_file()
+    yoda = plugins.load(plot.hep_root() / "framework" / "plot" / "yoda" / "backend.py", "yoda_backend")
+    with pytest.raises(HepError, match="legend.position cannot be honoured"):
+        yoda.validate({"style": {"legend": {"position": where}}})
+    with pytest.raises(HepError, match="ratio.gap cannot be honoured"):
+        yoda.validate({"style": {"ratio": {"gap": 6.0}}})
+    with pytest.raises(HepError, match="must be one of"):
+        plot.check_style({"legend": {"position": "out-middle"}}, "[plot.style]")

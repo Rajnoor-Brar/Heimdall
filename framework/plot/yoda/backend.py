@@ -64,7 +64,7 @@ def validate(settings: dict, beside_root: bool = False, curve_styles: list[dict]
             for key, value in keys.items() if isinstance(keys, dict) else [(None, keys)]:
                 if value == "default":                  # sets nothing, so there is nothing to honour
                     continue
-                placed = (table, key) == ("legend", "position") and not isinstance(value, str)
+                placed = (table, key) == ("legend", "position") and (not isinstance(value, str) or value not in LEGEND)
                 if placed or (not beside_root and (table, key) not in HONOURED):
                     name = f"{table}.{key}" if key else table
                     raise HepError(f'{where} {name} cannot be honoured by backend = "yoda"', where=where,
@@ -186,7 +186,7 @@ def _plot_block(page, window: tuple[float, float] | None = None) -> str:
     (xlo, xhi), (ylo, yhi) = page.ranges["x"], page.ranges["y"]
     keys = {"XMin": f"{xlo:.10g}", "XMax": f"{xhi:.10g}", "YMin": f"{ylo:.10g}", "YMax": f"{yhi:.10g}",
             "LogX": str(int(settings["logx"])), "LogY": str(int(settings["logy"])),
-            "RatioPlot": str(int(settings["ratio"])), **LEGEND[page.style["legend"]["position"]],
+            "RatioPlot": str(int(settings["ratio"])), **LEGEND.get(page.style["legend"]["position"], LEGEND["top-right"]),
             # mkhtml writes `plt.rcParams['legend.fontsize'] = <value>` into the page's script as given, so
             # the title's size rides along: matplotlib sizes a legend title from legend.title_fontsize,
             # else from font.size, never from the entries' size (V50)

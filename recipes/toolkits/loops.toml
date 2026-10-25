@@ -1,0 +1,11 @@
+# recipes/toolkits/loops.toml — @loops (README.md §6)
+
+description = "NLO in Sherpa: OpenLoops, Recola (on COLLIER), BlackHat (on QD), and OpenMPI for integrating across ranks"
+
+[standard]
+core      = true
+sherpa    = true
+openloops = true
+recola    = true
+blackhat  = true
+openmpi   = true

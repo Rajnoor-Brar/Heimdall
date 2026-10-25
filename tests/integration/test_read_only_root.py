@@ -33,6 +33,7 @@ def test_a_run_writes_only_its_work_dir(scratch):
     root = scratch / "Himinbjorg"
     root.mkdir()
     environment = dict(env(scratch), HEP_MACHINE=str(root), HEP_FORGE=str(root / "forge"), PYTHONDONTWRITEBYTECODE="1")
+    environment.pop("HEP_RUNS", None)                               # the registry aims at the read-only root (V182)
     before = checkout_state()
     root.chmod(0o555)
     try:
@@ -49,7 +50,7 @@ def test_a_run_writes_only_its_work_dir(scratch):
 
     run = scratch / "records" / folder("Demo/jets", "single", scratch)
     kept = {p.name for p in (run / "logs" / "point").iterdir()}
-    assert "cards" in kept and kept <= {".lock", "cards", "config"}         # config/: an exec or module tool's
+    assert {"cards", "commands.sh", "context.toml"} <= kept <= {".lock", "cards", "config", "commands.sh", "context.toml"}   # V187
     assert not (run / "plots").exists()                                     # records/: nothing a drawing reads
     documents = support.pages(scratch, folder("Demo/jets", "single", scratch))
     assert any(documents.rglob("*.toml"))

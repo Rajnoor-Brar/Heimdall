@@ -38,6 +38,11 @@ python_packages = ["numpy", "cython", "tomli_w", "rich", "pyyaml", "pillow", "ma
 # archives (.tgz, .tar.gz or .zip), e.g. from the FeynRules model database. Empty: nothing.
 ufo_models = []
 
+# What the `openloops` package installs: OpenLoops' process libraries, by name (openloops.hepforge.org's
+# process list). One at least: Sherpa's interface needs the list a first one fetches. Each holds every
+# crossing: ppllj serves DIS (e q → e q, + a jet), pplljj two jets; ppajj photoproduction.
+openloops_processes = ["ppllj"]
+
 # What the `pdfsets` package installs: the sets the configs and the tests use (the lab PC's).
 pdf_sets = ["CT14lo", "CT14nlo", "CT10", "CT18NLO", "CT18NNLO", "cteq6l1", "MSHT20nlo_as118",
             "MSTW2008lo68cl", "MSTW2008lo90cl", "MSTW2008lo68cl_nf3", "MSTW2008lo68cl_nf4",

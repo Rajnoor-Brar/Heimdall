@@ -259,6 +259,65 @@ needs   = ["root"]
 env     = { PYTHIA8 = "{dir_pythia8}" }              # DelphesPythia8 too, when Pythia8 is there
 args    = ["-DROOT_DIR={dir_root}/cmake"]
 
+# One-loop amplitudes for NLO (toolkit @loops): Sherpa builds its interface to each that is installed
+# (its `optional`). Sherpa carries only the interfaces; each provider is a library of its own.
+[packages.qd]
+release = "2.3.24"                                    # double-double and quad-double arithmetic, for BlackHat
+url     = "https://www.davidhbailey.com/dhbsoftware/qd-{release}.tar.gz"
+sha256  = "a47b6c73f86e6421e86a883568dd08e299b20e36c11a99bdfbe50e01bde60e38"
+kind    = "autotools"
+probe   = "{install}/lib/libqd.{dylib}"
+pre     = ["autoreconf -fi"]                          # its libtool misreads the conda compiler's link line (a
+args    = ["--enable-shared"]                         # bare -L before crtendS.o): regenerated
+
+[packages.blackhat]
+release = "0.9.9"                                     # one-loop QCD amplitudes, 2013: HepForge's tarball with
+# CMS's fixes for GCC 4.8, 6 and 10 (cms-externals/blackhat, branch cms/v0.9.9), and the patch's for GCC 15
+url     = "https://github.com/cms-externals/blackhat/archive/3e8ac1f06ef3612088505de448c8e127157076a7.tar.gz"
+kind    = "autotools"
+needs   = ["qd"]
+probe   = "{install}/lib/blackhat/libBH.{dylib}"
+patch   = "recipes/patches/blackhat-0.9.9-gcc15.patch"
+cores   = "{root_cores}"                              # its amplitude files: up to ~1 GB a compiler
+pre     = ["autoreconf -fi"]                          # as QD's: its libtool misreads the link line
+args    = ["--with-QDpath={dir_qd}"]
+
+[packages.openloops]
+release = "2.1.5"                                     # one-loop amplitudes from process libraries fetched by
+url     = "https://gitlab.com/openloops/OpenLoops/-/archive/OpenLoops-{release}/OpenLoops-OpenLoops-{release}.tar.gz"
+kind    = "unpack"                                    # name; built and used in place, stack/openloops
+probe   = "{install}/proclib/channels_public.rinfo"   # the process list: Sherpa's CMake looks for it, and only
+# a libinstall fetches it, so settings.toml's openloops_processes needs one process at least. Both commands
+# run from the folder (its scons reads ./SConstruct); a process library already there is kept.
+post    = ["./scons num_jobs={cores}", "./openloops libinstall {openloops_processes} num_jobs={cores}"]
+
+[packages.collier]
+release = "1.2.10"                                    # one-loop tensor integrals, for Recola
+url     = "https://collier.hepforge.org/downloads/?f=collier-{release}.tar.gz"
+sha256  = "460624ea709211506b642343a7f6be41d3883ccb52598b14950f8e07c0262713"
+kind    = "cmake"
+probe   = "{install}/lib/libcollier.{dylib}"
+
+[packages.recola]
+release = "1.5.1"                                     # Recola 1 (the SM): the calls Sherpa's interface makes
+url     = "https://gitlab.com/recola/recola1/-/archive/{release}/recola1-{release}.tar.gz"
+kind    = "cmake"
+needs   = ["collier"]
+probe   = "{install}/lib/librecola.{dylib}"
+# COLLIER by its CMake config; and by rpath, which goes before LD_LIBRARY_PATH: MadGraph's HEPTools/lib
+# (on it, first) holds a libcollier.so of its own (1.2.9).
+args    = ["-Dcollier_path={dir_collier}/lib/cmake", "-Dwith_smtests=OFF", "-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON"]
+
+[packages.openmpi]
+release = "5.0.11"                                    # MPI, the Message Passing Interface: Sherpa integrates
+url     = "https://download.open-mpi.org/release/open-mpi/v{series}/openmpi-{release}.tar.bz2"
+kind    = "autotools"                                 # (and generates) across `mpirun -n N` ranks
+conda   = "openmpi"
+probe   = "{install}/bin/mpicxx"
+# Its own hwloc, libevent, PMIx and PRRTE, not whichever the base happens to hold. This one is for the ranks
+# of one machine; across a cluster's nodes, the site's MPI (`module load`) knows its network and scheduler.
+args    = ["--with-hwloc=internal", "--with-libevent=internal", "--with-pmix=internal", "--with-prrte=internal"]
+
 [packages.sherpa]
 release = "3.0.5"
 url     = "https://gitlab.com/sherpa-team/sherpa/-/archive/v{release}/sherpa-v{release}.tar.gz"
@@ -274,6 +333,11 @@ args = [
   "-DSHERPA_ENABLE_LHAPDF=ON", "-DLHAPDF_DIR={dir_lhapdf}",
   "-DSHERPA_ENABLE_INTERNAL_PDFS=ON", "-DSHERPA_ENABLE_EXAMPLES=ON",
 ]
+# The one-loop providers (@loops), each when it is installed; `--rebuild sherpa` after adding one.
+optional.blackhat  = ["-DSHERPA_ENABLE_BLACKHAT=ON", "-DBLACKHAT_DIR={dir_blackhat}"]
+optional.openloops = ["-DSHERPA_ENABLE_OPENLOOPS=ON", "-DOPENLOOPS_DIR={dir_openloops}"]
+optional.recola    = ["-DSHERPA_ENABLE_RECOLA=ON", "-DRECOLA_DIR={dir_recola}"]
+optional.openmpi   = ["-DSHERPA_ENABLE_MPI=ON", "-DMPI_HOME={dir_openmpi}"]   # a plain `Sherpa` still runs, as one rank
 
 [packages.madanalysis5]                               # before MadGraph, which is pointed at it when both build
 release = "1.11.1"                                    # recasting
@@ -752,6 +816,31 @@ slow    = true
 [[packages.delphes.verify]]
 name  = "programs"
 files = ["{install}/bin/DelphesHepMC3", "{install}/bin/DelphesPythia8", "{install}/bin/DelphesROOT"]
+
+[[packages.qd.verify]]
+name  = "library"
+files = ["{install}/lib/libqd.{dylib}", "{install}/include/qd/dd_real.h"]
+
+[[packages.blackhat.verify]]
+name  = "libraries and the header Sherpa includes"
+files = ["{install}/lib/blackhat/libBH.{dylib}", "{install}/lib/blackhat/libCutPart.{dylib}",
+         "{install}/include/blackhat/BH_interface.h"]
+
+[[packages.openloops.verify]]
+name  = "library and a process library"
+files = ["{install}/lib/libopenloops.{dylib}", "{install}/proclib/libopenloops_*_lt.{dylib}"]
+
+[[packages.collier.verify]]
+name  = "library and module"
+files = ["{install}/lib/libcollier.{dylib}", "{install}/include/collier.mod"]
+
+[[packages.recola.verify]]
+name  = "library and header"
+files = ["{install}/lib/librecola.{dylib}", "{install}/include/recola.h"]
+
+[[packages.openmpi.verify]]
+name    = "two ranks"
+command = "mpirun --oversubscribe -n 2 hostname"
 
 [[packages.sherpa.verify]]
 name    = "version"

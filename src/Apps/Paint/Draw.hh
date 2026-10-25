@@ -26,6 +26,7 @@
 #include "TSystem.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <limits>
 #include <map>
@@ -277,8 +278,50 @@ namespace Paint {
         return out;
     }
 
+    // V185: a legend outside the frame. A text's width is guessed from its visible characters (TLatex's
+    // #commands, braces, ^ and _ left out) at half the text size each, as "best" guesses it.
+    inline size_t visible(const std::string& text) {
+        size_t n = 0;
+        for (size_t i = 0; i < text.size(); ++i) {
+            if (text[i] == '#') {
+                while (i + 1 < text.size() && std::isalpha(static_cast<unsigned char>(text[i + 1]))) ++i;
+                continue;
+            }
+            if (text[i] == '{' || text[i] == '}' || text[i] == '^' || text[i] == '_') continue;
+            if ((static_cast<unsigned char>(text[i]) & 0xC0) == 0x80) continue;          // a UTF-8 continuation byte
+            ++n;
+        }
+        return n;
+    }
+
+    struct LegendBox {                                   // pixels; its entries in columns, filled row by row
+        double w = 0, h = 0, entry = 0, columnGap = 0;
+        size_t columns = 1;
+    };
+
+    // The legend's box: one column beside the frame (out-left, out-right), or as many as fit `across` pixels
+    // above or below it (out-top, out-bottom).
+    inline LegendBox legendBox(const std::string& title, const std::vector<std::string>& labels, const Look& look,
+                               double across = 0) {
+        const Style& s = look.s;
+        LegendBox box;
+        size_t longest = 0;
+        for (const auto& l : labels) longest = std::max(longest, visible(l));
+        box.entry = (s.symbol + s.gap) * look.px + 0.5 * double(longest) * look.legend;
+        box.columnGap = 1.5 * look.legend;
+        const size_t n = std::max<size_t>(labels.size(), 1);
+        if (across > 0)
+            box.columns = std::clamp<size_t>(static_cast<size_t>((across + box.columnGap) / (box.entry + box.columnGap)), 1, n);
+        const size_t rows = (n + box.columns - 1) / box.columns;
+        const double header = title.empty() ? 0.0 : s.spacing * look.header;
+        box.w = std::max(double(box.columns) * box.entry + double(box.columns - 1) * box.columnGap,
+                         0.5 * double(visible(title)) * look.header);
+        box.h = header + double(rows) * s.spacing * look.legend;
+        return box;
+    }
+
     inline void legend(const std::string& title, const std::vector<Entry>& entries, const Look& look, const Frame& f,
-                       Keep& keep, const Placed& under = {}) {
+                       Keep& keep, const Placed& under = {}, const LegendBox* box = nullptr) {
         const Style& s = look.s;
         std::string corner = s.corner;
         if (corner == "best") {                       // the corner with the fewest drawn points under the legend
@@ -298,15 +341,24 @@ namespace Paint {
                 if (n < fewest) fewest = n, corner = option;
             }
         }
-        const bool right = corner.find("right") != std::string::npos, top = corner.find("top") != std::string::npos;
+        const bool outside = s.outside() && box != nullptr;      // V185: `f` is then the page, its margins the frame's
+        const bool right = outside ? corner == "out-left" : corner.find("right") != std::string::npos;
+        const bool top = corner.find("top") != std::string::npos;
         const double dy = s.spacing * look.legend / f.h, sw = s.symbol * look.px / f.w, gap = s.gap * look.px / f.w;
         const double ix = s.insetX * look.px / f.w, iy = s.insetY * look.px / f.h;
         size_t rows = 1;                                                                // #splitline{a}{b}: two
         for (auto at = title.find("#splitline"); at != std::string::npos; at = title.find("#splitline", at + 1)) ++rows;
         const double first = title.empty() ? 0.0 : rows * s.spacing * look.header / f.h;   // the header's pitch
         const double height = first + static_cast<double>(entries.size()) * dy;
+        const size_t columns = outside ? box->columns : 1;
+        const double step = outside ? (box->entry + box->columnGap) / f.w : 0.0;        // from a column to the next
         double x0, yTop;                                                                // the outer edge, the top
-        if (s.placed) {
+        if (outside) {
+            if (corner == "out-right") x0 = 1 - f.r + ix, yTop = 1 - f.t;
+            else if (corner == "out-left") x0 = ix + box->w / f.w, yTop = 1 - f.t;
+            else if (corner == "out-top") x0 = f.l, yTop = 1 - f.t + iy + box->h / f.h;
+            else x0 = f.l, yTop = iy + box->h / f.h;                                    // out-bottom
+        } else if (s.placed) {
             x0 = f.l + s.atX * (1 - f.l - f.r), yTop = f.b + s.atY * (1 - f.b - f.t);
         } else {
             x0 = right ? 1 - f.r - ix : f.l + ix;
@@ -322,9 +374,12 @@ namespace Paint {
             l->Draw();
         };
         if (!title.empty()) text(x0, yTop - 0.5 * first, title, right ? 32 : 12, look.header);
-        double y = yTop - first - 0.5 * dy;
-        for (const auto& e : entries) {
-            const double s1 = right ? x0 - sw : x0, s2 = right ? x0 : x0 + sw, xc = 0.5 * (s1 + s2);
+        for (size_t k = 0; k < entries.size(); ++k) {
+            const Entry& e = entries[k];
+            const size_t column = k % columns;
+            const double y = yTop - first - (0.5 + double(k / columns)) * dy;          // its row's middle
+            const double xe = x0 + double(column) * step;                               // this column's outer edge
+            const double s1 = right ? xe - sw : xe, s2 = right ? xe : xe + sw, xc = 0.5 * (s1 + s2);
             if (e.drawn) {
                 line(s1, y, s2, y, e.colour, e.line, e.width);   // the curve's line; the bar stays solid
                 line(xc, y - 0.4 * dy, xc, y + 0.4 * dy, e.colour);
@@ -334,7 +389,6 @@ namespace Paint {
                 }
             }
             text(right ? s1 - gap : s2 + gap, y, e.label, right ? 32 : 12, look.legend);
-            y -= dy;
         }
     }
 
@@ -377,16 +431,35 @@ namespace Paint {
         for (const auto& l : page.xLabels) longest = std::max(longest, l.size());
         const double bottomMargin = st.bottom + (named ? 0.42 * double(longest) * look.labels / H : 0.0);
 
-        // with a ratio, the axes between the margins split by ratio.heights, with no gap
-        Frame ft{double(W), double(H), st.left, st.right, bottomMargin, topMargin}, fb{};
+        // V185: a legend outside the frame takes its room from the frame's side of the page
+        std::vector<std::string> labels;
+        if (data) labels.push_back(data->label);
+        for (const Series& c : curves) labels.push_back(c.label + (std::any_of(c.y.begin(), c.y.end(), [](double v) {
+                                                                      return std::isfinite(v); }) ? "" : " (no entries)"));
+        double left = st.left, right = st.right, high = topMargin, low = page.ratio ? st.bottom : bottomMargin;
+        LegendBox box;
+        if (st.outside()) {
+            const double ix = st.insetX * look.px, iy = st.insetY * look.px;
+            if (st.corner == "out-right" || st.corner == "out-left") {
+                box = legendBox(page.legendHeader, labels, look);
+                (st.corner == "out-right" ? right : left) += (box.w + 2 * ix) / W;
+            } else {
+                box = legendBox(page.legendHeader, labels, look, W * (1 - left - right));
+                (st.corner == "out-top" ? high : low) += (box.h + 2 * iy) / H;
+            }
+        }
+
+        // with a ratio, the axes between the margins split by ratio.heights, ratio.gap points apart (V185)
+        Frame ft{double(W), double(H), left, right, low, high}, fb{};
         TPad* top = &canvas;
         TPad* bottom = nullptr;
         if (page.ratio) {
-            const double split = st.bottom + (1 - topMargin - st.bottom) * st.ratioHeight / (st.mainHeight + st.ratioHeight);
+            const double gapped = st.ratioGap * look.px / H, room = 1 - high - low - gapped;
+            const double split = low + room * st.ratioHeight / (st.mainHeight + st.ratioHeight) + 0.5 * gapped;
             top = new TPad("top", "", 0, split, 1, 1);                         // the canvas owns its pads
             bottom = new TPad("bottom", "", 0, 0, 1, split);
-            ft = {double(W), H * (1 - split), st.left, st.right, 0.0, topMargin / (1 - split)};
-            fb = {double(W), H * split, st.left, st.right, st.bottom / split, 0.0};
+            ft = {double(W), H * (1 - split), left, right, 0.5 * gapped / (1 - split), high / (1 - split)};
+            fb = {double(W), H * split, left, right, low / split, 0.5 * gapped / split};
             bottom->SetMargin(fb.l, fb.r, fb.b, fb.t);
             for (TPad* p : {top, bottom}) p->SetFillStyle(0), p->SetBorderMode(0), p->Draw();
         }
@@ -426,7 +499,13 @@ namespace Paint {
         std::vector<const Series*> drawn;
         if (data) drawn.push_back(&*data);
         for (const Series& c : curves) drawn.push_back(&c);
-        legend(page.legendHeader, entries, look, ft, keep, placed(drawn, x, Range{y.lo, y.hi}, page.logx, page.logy, ft));
+        if (st.outside()) {                            // on the page, beside the frames (V185)
+            canvas.cd();
+            legend(page.legendHeader, entries, look, Frame{double(W), double(H), left, right, low, high}, keep, {}, &box);
+            top->cd();
+        } else {
+            legend(page.legendHeader, entries, look, ft, keep, placed(drawn, x, Range{y.lo, y.hi}, page.logx, page.logy, ft));
+        }
         top->RedrawAxis();
 
         if (bottom) {

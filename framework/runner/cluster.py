@@ -29,6 +29,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import time
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,6 +43,7 @@ from .execute import cores
 from .image import image_path
 from .paths import (MACHINE_VAR, MARKER_FILE, STACK_VAR, hep_root, machine_file, machine_root, machine_settings,
                     records_root, work_meta, work_root)
+from . import runs
 from .record import git_state, is_complete, write_atomic
 
 #: A job's resources, as sbatch takes them: [cluster] key → option.
@@ -124,11 +126,13 @@ def script(directive_list: list[str], keys: dict, command: list[str], *, title: 
                   f"cd {q(str(work_root()))}"]
         command = ['"$runtime" exec --cleanenv', *(f"--bind {q(b)}" for b in dict.fromkeys(binds)),
                    f"--env HEP_WORK={q(str(work_root()))}", *(f"--env {var}={q(v)}" for var, v in roots.items()),
+                   f"--env {runs.CLUSTER_VAR}={q(title)}",                  # recorded by its submission (V184)
                    q(str(sif)), "/opt/heimdall/launch.sh", "heimdall", *command[1:]]
     else:
         lines += [f"export {MACHINE_VAR}={q(str(machine_root()))}", f"source {q(str(loader()))}", "set -eo pipefail",
                   f"export HEP_WORK={q(str(work_root()))}",
                   *(f"export {var}={q(os.environ[var])}" for var in ROOTS if os.environ.get(var)),
+                  f"export {runs.CLUSTER_VAR}={q(title)}",                  # recorded by its submission (V184)
                   f"cd {q(str(work_root()))}"]
     if points is not None:
         lines += [f'point=$(sed -n "${{SLURM_ARRAY_TASK_ID}}p" {q(str(points))})',
@@ -286,6 +290,9 @@ def submit(planned, args, out=print) -> int:
               "work": str(work_root()), "heimdall": git_state(hep_root()), "points": [p.point.name for p in todo],
               "jobs": ids, "sbatch": {job: argv for job, (_, argv) in jobs.items()}}
     write_atomic(folder / RECORD, tomli_w.dumps(record))
+    runs.begin(runs.new_id(), {"kind": "cluster", "config": str(run.path), "configuration": configuration.key,     # V184
+                               "configurations": [configuration.key], "jobs": list(ids.values()), "submission": str(folder),
+                               "work": str(work_root()), "points": len(todo)})
     out(f"heimdall cluster {args.config} {configuration.key} --status: where they are")
     return 0
 
@@ -394,4 +401,7 @@ def cancel(planned, out=print) -> int:
     if done.returncode != 0:
         raise HepError(f"scancel failed: {(done.stderr or done.stdout).strip()[-300:]}", where=str(folder))
     out(f"{planned.run.name} · {planned.configuration.key}: cancelled the submission {folder.name} (jobs {' '.join(ids)})")
+    for entry in runs.entries():                                 # its registry entry (V184)
+        if entry.get("kind") == "cluster" and entry.get("submission") == str(folder):
+            runs.update(entry["id"], verdict="cancelled", finished=round(time.time(), 3))
     return 0

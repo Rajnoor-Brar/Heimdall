@@ -1,0 +1,175 @@
+BlackHat 0.9.9 (CMS's tree, cms-externals/blackhat cms/v0.9.9) on GCC 15 and today's autotools (2026-10-23):
+- configure.ac: automake 1.19 (the base's) warns that the libtool libraries need AM_PROG_AR, and -Werror made that fatal,
+  so `autoreconf -fi` (the recipe's pre) failed. The tarball's own libtool cannot be kept: it misreads the
+  conda compiler's link line (a bare -L before crtendS.o: "undefined reference to __TMC_END__").
+- src/cached_OLHA.cpp: one branch returned the object where the function returns a pointer; GCC 15 refuses
+  it. The other three branches allocate with new, as this one now does (CMS's spec seds the same line).
+- src/tree1.cc, src/partial_amplitude.cpp: GenerateMomentum<T> and partial_amplitude_cached::eval_fn<T> are
+  defined in one file and called from others with the declaration alone; GCC 15 inlines the defining file's
+  own calls and emits no copy, so libBG and libassembly were left with undefined symbols (seen when utils/
+  links them). Explicit instantiations, for the precisions the libraries call: R, RHP (and RVHP).
+- my_programs/Makefile.am: `include $(DEPDIR)/*.Po` needs a .deps/ that today's automake no longer makes
+  beforehand ("No rule to make target '.deps/*.Po'"); -include.
+- src/Interface/BH_interface.cpp, src/settings.cpp: functions declared to return a value that never return
+  one. GCC (15 here) takes the end of such a function as unreachable and emits no return, so a call runs on into
+  whatever code follows: BH_interface::set, the first thing Sherpa calls, crashed (SIGSEGV), and
+  cached_BH_Ampl::operator() (every cached amplitude) returned its result only by register accident. The
+  four set()s return true, cached_BH_Ampl what it computed, the two stand-in amplitudes 1. (as their
+  siblings), print_setting true. (The build's -Wreturn-type warnings name them, "no return statement";
+  those left are error stubs, "Not yet implemented", and switches over every valid case.)
+- src/color_algebra.cpp: operator< of color_string fell off the end when the fundamental labels were equal
+  and the adjoint ones differed (undefined: any answer, so a std::map keyed on it could lose entries). Now
+  lexicographic, fundamental labels then adjoint, the same answer wherever it gave one.
+--- configure.ac
++++ configure.ac
+@@ -1,5 +1,5 @@
+ AC_INIT([BlackHat], [0.9.9], [daniel.maitre@durham.ac.uk])
+-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
++AM_INIT_AUTOMAKE([-Wall foreign])
+ AM_DISABLE_STATIC
+ AC_PROG_CXX
+ AC_CONFIG_MACRO_DIR([m4])
+--- src/cached_OLHA.cpp
++++ src/cached_OLHA.cpp
+@@ -331,7 +331,7 @@
+ 		Cached_OLHA* new_COLHA = new Cached_OLHA(new_OLHAb);
+ 		d_amplitudes.insert(pair<pro_cs,Cached_OLHA*>(pc,new_COLHA));
+ 		if(conjQ) return new Cached_OLHA_user_conjugate(new_COLHA,new_COLHA->add(ind),sign);
+-        else return Cached_OLHA_user_normal(new_COLHA,new_COLHA->add(ind));
++        else return new Cached_OLHA_user_normal(new_COLHA,new_COLHA->add(ind));
+ 	} else {
+         if(conjQ) return new Cached_OLHA_user_conjugate((*it).second,(*it).second->add(ind),sign);
+         else return new Cached_OLHA_user_normal((*it).second,(*it).second->add(ind));
+--- src/tree1.cc
++++ src/tree1.cc
+@@ -1485,6 +1485,10 @@
+  return momentum<complex<T> >(sqrt(-bare*bare),bare.X(),bare.Y(),bare.Z());
+ }
+ 
++// util.cc and tree3.cc call these with the declaration alone (GCC 15 inlines this file's own calls)
++template momentum<complex<R> > GenerateMomentum(const R& dummy);
++template momentum<complex<RHP> > GenerateMomentum(const RHP& dummy);
++
+ #if 0
+ // Helicity ignored here
+ ParticleID FlavoredQuarkID(int flavor) {
+--- src/partial_amplitude.cpp
++++ src/partial_amplitude.cpp
+@@ -155,6 +155,11 @@
+ 	return res;
+ }
+ 
++// the assembly library calls these with the declaration alone (GCC 15 inlines this file's own calls)
++template SeriesC<R> partial_amplitude_cached::eval_fn(momentum_configuration<R>& mc, const vector<int>& ind,int mu_index);
++template SeriesC<RHP> partial_amplitude_cached::eval_fn(momentum_configuration<RHP>& mc, const vector<int>& ind,int mu_index);
++template SeriesC<RVHP> partial_amplitude_cached::eval_fn(momentum_configuration<RVHP>& mc, const vector<int>& ind,int mu_index);
++
+ void partial_amplitude_cached::dry_run(const vector<int>& ind){
+ 	for (int i=0;i<d_ampls.size();i++){
+ 		d_ampls[i]->dry_run();
+--- my_programs/Makefile.am
++++ my_programs/Makefile.am
+@@ -65,7 +65,7 @@
+ CXXFLAGS += -DBH_USE_GMP
+ endif 
+ 
+-include $(DEPDIR)/*.Po
++-include $(DEPDIR)/*.Po
+ 
+ %.o:	$(abs_srcdir)/%.cpp 
+ 	test -f $(DEPDIR)/$*.Po || mkdir -p .deps ; echo "#dummy" > $(DEPDIR)/$*.Po 
+--- src/Interface/BH_interface.cpp
++++ src/Interface/BH_interface.cpp
+@@ -76,15 +76,19 @@
+ 
+ bool BH_interface::set(const std::string& name,double value){
+ 	d_impl->set(name,value);
++	return true;
+ }
+ bool BH_interface::set(const std::string& name,int value){
+ 	d_impl->set(name,value);
++	return true;
+ }
+ bool BH_interface::set(const std::string& name,std::string value){
+ 	d_impl->set(name,value);
++	return true;
+ }
+ bool BH_interface::set(const std::string& name,bool value){
+ 	d_impl->set(name,value);
++	return true;
+ }
+ 
+ void BH_interface::print_settings(std::ostream& os){
+@@ -1556,7 +1560,7 @@
+ 	int d_process_locator;
+ 	BH_interface_impl_collectPS* d_parent_p;
+ public:
+-		virtual double operator()(BHinput& in){};
++		virtual double operator()(BHinput& in){return 1.;};
+ 		virtual double get_single_pole(){return 1.;};
+ 		virtual double get_double_pole(){return 1.;};
+ 		virtual double get_finite();
+@@ -1625,7 +1629,7 @@
+ 	double d_last_result_1;
+ 	double d_last_result_0;
+ public:
+-		virtual double operator()(BHinput& in){};
++		virtual double operator()(BHinput& in){return 1.;};
+ 		virtual double get_single_pole(){return 1.;};
+ 		virtual double get_double_pole(){return 1.;};
+ 		virtual double get_finite();
+@@ -1720,7 +1724,7 @@
+ public:
+ 	cached_BH_Ampl(BH_Ampl* ampl) : d_ampl(ampl){};	
+ 
+-	virtual double operator()(BHinput& in){d_ampl->operator ()(in);};
++	virtual double operator()(BHinput& in){return d_ampl->operator ()(in);};
+ 	virtual double get_single_pole(){return d_ampl->get_single_pole();};
+ 	virtual double get_double_pole(){return d_ampl->get_double_pole();};;
+ 	virtual double get_finite(){return d_ampl->get_finite();};;
+--- src/settings.cpp
++++ src/settings.cpp
+@@ -58,7 +58,7 @@
+ 	ostream& d_ostream;
+ 	std::string d_head;
+ 	print_setting(ostream& os,const string& head): d_ostream(os), d_head(head){};
+-	bool operator()(setting_base* se){ d_ostream << d_head << se->get_name()<<  ": " ; se->print_value(d_ostream); d_ostream << endl;};
++	bool operator()(setting_base* se){ d_ostream << d_head << se->get_name()<<  ": " ; se->print_value(d_ostream); d_ostream << endl; return true;};
+ };
+ 
+ void settings_table::display(ostream& os, const string& head){
+--- src/color_algebra.cpp
++++ src/color_algebra.cpp
+@@ -252,23 +252,20 @@
+ 	if(cs1==cs2){return false;}
+ 	else if(cs1.fundamental_degree<cs2.fundamental_degree){return true;}
+ 	else if(cs1.fundamental_degree>cs2.fundamental_degree){return false;}
+-	else if(cs1.fundamental_degree>0&&cs1.fundamental_degree==cs2.fundamental_degree){
++	// Equal fundamental labels go on to the adjoint ones (they fell off the end: undefined, patched for Heimdall)
++	if(cs1.fundamental_degree>0){
+ 		if(cs1.fundamental_color_labels[0]<cs2.fundamental_color_labels[0]){return true;}
+ 		else if(cs1.fundamental_color_labels[0]>cs2.fundamental_color_labels[0]){return false;}
+-		else if(cs1.fundamental_color_labels[0]==cs2.fundamental_color_labels[0]){
+-			if(cs1.fundamental_color_labels[1]<cs2.fundamental_color_labels[1]){return true;}
+-			else if(cs1.fundamental_color_labels[1]>cs2.fundamental_color_labels[1]){return false;}
+-		}
++		if(cs1.fundamental_color_labels[1]<cs2.fundamental_color_labels[1]){return true;}
++		else if(cs1.fundamental_color_labels[1]>cs2.fundamental_color_labels[1]){return false;}
+ 	}
+-	else if(cs1.adjoint_degree<cs2.adjoint_degree){return true;}
++	if(cs1.adjoint_degree<cs2.adjoint_degree){return true;}
+ 	else if(cs1.adjoint_degree>cs2.adjoint_degree){return false;}
+-	else if(cs1.adjoint_degree>0&&cs1.adjoint_degree==cs2.adjoint_degree){
+-		for(int k=0;k<cs1.adjoint_degree;k++){
+-			if(cs1.adjoint_color_labels[k]<cs2.adjoint_color_labels[k]){return true;}
+-			else if(cs1.adjoint_color_labels[k]>cs2.adjoint_color_labels[k]){return false;}
+-		}
++	for(int k=0;k<cs1.adjoint_degree;k++){
++		if(cs1.adjoint_color_labels[k]<cs2.adjoint_color_labels[k]){return true;}
++		else if(cs1.adjoint_color_labels[k]>cs2.adjoint_color_labels[k]){return false;}
+ 	}
+-	else{return false;}
++	return false;
+ }
+ 
+ bool compare_cs(color_string* cs1, color_string* cs2){

@@ -22,15 +22,20 @@ seed    = ["RANDOM_SEED: {seed}"]
 owned   = ["BEAMS", "BEAM_ENERGIES", "RANDOM_SEED", "EVENTS", "EVENT_OUTPUT", "RESULT_DIRECTORY"]
 
 [command]
-argv = ["{exe}", "-f", "{card}", "RESULT_DIRECTORY: {prepared}/Results"]
+# SHERPA_CPP_PATH: the cache entry, where an Amegic card's compiled processes are (Process/Amegic/lib); a
+# Comix card writes nothing there that the run needs.
+argv = ["{exe}", "-f", "{card}", "RESULT_DIRECTORY: {prepared}/Results", "SHERPA_CPP_PATH: {prepared}"]
 # How it prints its progress (L31), never in the identity: BATCH_MODE 23 = 1 (batch) + 2 (a line per print,
 # no cursor moves) + 4 (every EVENT_DISPLAY_INTERVAL events) + 16 (seconds); about 1000 lines a run. The
 # command line wins over the card, so a card's own BATCH_MODE is not used.
 display = ["BATCH_MODE: 23", "EVENT_DISPLAY_INTERVAL: {display_every}"]
 
 [prepare]
-# EVENT_OUTPUT: None, or Sherpa opens the FIFO at initialisation and waits for a reader (L12)
-argv   = ["{exe}", "-f", "{card}", "-e", "0", "RESULT_DIRECTORY: {prepared}/Results", "EVENT_OUTPUT: None"]
+# EVENT_OUTPUT: None, or Sherpa opens the FIFO at initialisation and waits for a reader (L12). prepare.py runs
+# Sherpa, and for an Amegic card compiles what Amegic wrote (./makelibs, $HEP_MAKELIBS_JOBS at once) and runs
+# it again; a run that sets up no process ends with Sherpa's reason, not a missing marker.
+argv   = ["python3", "{hep}/framework/tools/sherpa/prepare.py", "{exe}", "-f", "{card}", "-e", "0",
+          "RESULT_DIRECTORY: {prepared}/Results", "EVENT_OUTPUT: None", "SHERPA_CPP_PATH: {prepared}"]
 ignore = ["EVENTS"]
 marker = "Results.zip"
 

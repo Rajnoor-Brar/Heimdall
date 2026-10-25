@@ -730,7 +730,8 @@ def digest(name: str, p: dict, c: dict) -> str:
     recipe["abi"] = [c["cxx_std"], c["opt_flags"]]
     if c.get("base_hash") and p.get("kind") in ("autotools", "cmake"):   # built on the base's libraries
         recipe["base"] = c["base_hash"]
-    for key, owner in (("python_packages", "python"), ("pdf_sets", "pdfsets"), ("ufo_models", "ufo-models")):
+    for key, owner in (("python_packages", "python"), ("pdf_sets", "pdfsets"), ("ufo_models", "ufo-models"),
+                       ("openloops_processes", "openloops")):
         if name == owner:
             recipe[key] = c.get(key)
     if p.get("patch") and (REPO / p["patch"]).is_file():

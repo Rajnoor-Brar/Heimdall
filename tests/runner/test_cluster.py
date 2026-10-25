@@ -5,6 +5,7 @@ are. Every test has a work dir of its own, with a custom tool that writes its co
 from __future__ import annotations
 
 import argparse
+import json
 import multiprocessing
 import os
 import subprocess
@@ -269,6 +270,23 @@ def test_cancel_cancels_the_latest_submission(work):
     assert work.hep("cluster", "P/c").returncode == 0
     done = work.hep("cluster", "P/c", "--cancel")
     assert done.returncode == 0 and work.calls()[-1] == "scancel 101 102"
+    (entry,) = [json.loads(p.read_text(encoding="utf-8")) for p in Path(os.environ["HEP_RUNS"]).glob("*.json")]
+    assert entry["verdict"] == "cancelled" and entry.get("finished")              # V184
+
+
+def test_a_submission_is_one_registry_entry_and_its_jobs_none(work):
+    """V184: heimdall cluster records its submission (its jobs, folder, config); each job's own heimdall run, under
+    HEP_CLUSTER_JOB (exported by its script), records nothing; heimdall runs shows the submission."""
+    assert work.hep("cluster", "P/c").returncode == 0
+    entries = [json.loads(p.read_text(encoding="utf-8")) for p in Path(os.environ["HEP_RUNS"]).glob("*.json")]
+    assert [(e["kind"], e["jobs"], e["configuration"]) for e in entries] == [("cluster", ["101", "102"], "three")]
+    assert Path(entries[0]["submission"], "jobs.toml").is_file()
+    folder = Path(entries[0]["submission"])
+    assert all(f"export HEP_CLUSTER_JOB=" in (folder / s).read_text(encoding="utf-8")
+               for s in ("points.sbatch", "finish.sbatch"))
+    work.stub("squeue", "101_3|RUNNING|1:02|node12\n")
+    listed = work.hep("runs")
+    assert listed.stdout.startswith("running") and "on Slurm" in listed.stdout and "heimdall cluster" in listed.stdout
 
 
 @pytest.mark.parametrize("given,expected", [("102_3", ("102", [3])), ("102_[3-5,7%2]", ("102", [3, 4, 5, 7])),

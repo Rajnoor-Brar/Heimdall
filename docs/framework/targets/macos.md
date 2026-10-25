@@ -34,7 +34,7 @@ hand). Only what differs from the phase files is here (D11).
 
 | Spot | On macOS |
 |---|---|
-| `runner/events.py` (the watch socket) | a socket file `hep-watch-<pid>` in `$TMPDIR/hep-watch/` (per user on macOS), removed at exit; a dead process's is cleared by the next `heimdall watch`. This is the one place where runtime state touches the disk (the user's rule of 2026-10-03 cannot hold without abstract sockets) |
+| `runner/events.py` (the watch socket) | a socket file `hep-watch-<pid>` in `$TMPDIR/hep-watch/` (per user on macOS), removed at exit; a dead process's is cleared by the next `heimdall watch`. Runtime state touches the disk here (the user's rule of 2026-10-03 cannot hold without abstract sockets), and in the run registry everywhere (`<machine root>/runs/`, the user's ask of 2026-10-23). `$TMPDIR` differs between a desktop session and an ssh one: the greeting and the registry carry the socket's full address, so `heimdall watch` and `heimdall stop` reach it from either |
 | Paint's `basePath()` (C76) | `$HEP/src/Apps/Paint/base.toml`; `gjallarhorn.sh` exports `HEP` |
 | `bin/heimdall`'s core count | `os.cpu_count()` |
 | `framework/rules.mk`'s `sed -i` | `sed -i.tmp`, then the `.tmp` removed |

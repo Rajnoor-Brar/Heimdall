@@ -18,6 +18,7 @@ from pathlib import Path
 from . import config as configmod
 from . import schema, tools
 from .errors import HepError, did_you_mean
+from . import runs
 from .events import greeting, hubs
 from .paths import cache_root, configs_root, find_work, records_root, results_root
 from .record import complete_marker, held_by, holder, is_complete, provenance_file, record_dir
@@ -309,14 +310,117 @@ def _human(size: int) -> str:
     return ""
 
 
+def live_runs(config: str | None = None, configuration: str | None = None, pid: int | None = None) -> list[tuple[str, dict]]:
+    """The runs this user has going on this machine, as their watch sockets answer (V182): (name, greeting),
+    newest first; only those of `config` (its path), naming `configuration`, of process `pid`."""
+    import os
+    found = []
+    for name in hubs():
+        hello = greeting(name)
+        if not hello or hello.get("uid", os.getuid()) != os.getuid():
+            continue
+        if config is not None and hello.get("config") != config:
+            continue
+        if configuration and configuration not in hello.get("configurations", []):
+            continue
+        if pid is not None and hello.get("pid") != pid:
+            continue
+        found.append((name, hello))
+    return sorted(found, key=lambda item: item[1].get("started", 0), reverse=True)
+
+
 def running_configs() -> dict[str, list[str]]:
     """The jobs running on this machine (their watch sockets): config path → its configurations."""
     out: dict[str, list[str]] = {}
-    for name in hubs():
-        hello = greeting(name)
-        if hello:
-            out.setdefault(hello.get("config", ""), []).extend(hello.get("configurations", []))
+    for _, hello in live_runs():
+        out.setdefault(hello.get("config", ""), []).extend(hello.get("configurations", []))
     return out
+
+
+def runs_here(work: Path) -> list[dict]:
+    """This user's live runs of the work dir `work` (V182): what clean and migrate --layout wait for. A run
+    from before the greeting named its work dir counts when its config is under `work`."""
+    out = []
+    for _, hello in live_runs():
+        where = hello.get("work") or ""
+        config = Path(hello.get("config") or "/")
+        if where == str(work) or (not where and config.is_relative_to(work)):
+            out.append(hello)
+    return out
+
+
+def _ago(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    if seconds < 3600:
+        return f"{seconds // 60}m"
+    if seconds < 86400:
+        return f"{seconds // 3600}h {seconds % 3600 // 60:02d}m"
+    return f"{seconds // 86400}d {seconds % 86400 // 3600}h"
+
+
+def _config_name(config: str, work: str | None) -> str:
+    """A config as `heimdall run` names it: <P>/<name> under its work dir's configs/, else its path."""
+    path = Path(config or "")
+    for root in ([Path(work) / "configs"] if work else []):
+        try:
+            return str(path.relative_to(root).with_suffix(""))
+        except ValueError:
+            pass
+    return str(path)
+
+
+def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str], now: float | None = None) -> list[str]:
+    """`heimdall runs` (V182): what runs now (recorded, and live sockets with no entry: unrecorded, as from inside
+    an image), then what ran in the registry's days, newest first. A line each: id, state, when and for how
+    long, the work dir (its title), the config and its configurations, then its log or record."""
+    now = time.time() if now is None else now
+    by_pid = {hello.get("pid"): hello for _, hello in live}
+    states = [(e, runs.state(e, by_pid)) for e in entries]
+    submitted = [e for e, s in states if e.get("kind") == "cluster" and s == "submitted"]
+    if submitted and shutil.which("squeue"):                     # one squeue for every submission (V184)
+        from .cluster import active
+        queued = {line.split("|")[0].split("_")[0] for line in active([str(j) for e in submitted for j in e.get("jobs", [])])}
+        states = [(e, ("on Slurm" if {str(j) for j in e.get("jobs", [])} & queued else "ended") if e in submitted else s)
+                  for e, s in states]
+    running = [(e, s) for e, s in states if s.startswith("running") or s.startswith("on ") or s == "in another PID namespace"
+               or (e.get("kind") == "cluster" and s in ("submitted", "on Slurm"))]
+    recorded = {e.get("pid") for e, s in running if e.get("host") == runs.host()}
+    unrecorded = [hello for pid, hello in by_pid.items() if pid not in recorded]
+
+    def where(work: str | None) -> str:
+        return titles.get(work or "", "") or (Path(work).name if work else "")
+
+    def row(e: dict, state: str) -> list[str]:
+        started = e.get("started") or 0
+        span = _ago((e.get("finished") or now) - started)
+        when = time.strftime("%m-%d %H:%M", time.localtime(started))
+        what = _config_name(e.get("config", ""), e.get("work"))
+        cfgs = ", ".join(e.get("configurations") or ([e["configuration"]] if e.get("configuration") else []))
+        head = f"  {e.get('id', '?'):28s} {state:12s} {when} ({span})  {where(e.get('work')):14s} {what} · {cfgs}"
+        tail = []
+        if e.get("kind") == "cluster":
+            tail.append(f"      cluster jobs {', '.join(map(str, e.get('jobs', [])))}: heimdall cluster {what} "
+                        f"{e.get('configuration', '')} --status")
+        elif state.startswith("running"):
+            tail.append(f"      pid {e.get('pid')}: heimdall watch --pid {e.get('pid')} · heimdall stop --pid {e.get('pid')}")
+        if e.get("log"):
+            tail.append(f"      log {e['log']}")
+        return [head.rstrip(), *tail]
+
+    lines = []
+    if running or unrecorded:
+        lines.append("running")
+        for e, s in running:
+            lines += row(e, s)
+        for hello in unrecorded:
+            lines += row({"id": f"(pid {hello.get('pid')})", **hello, "configurations": hello.get("configurations")},
+                         "running (unrecorded)")
+    ended = [(e, s) for e, s in states if (e, s) not in running]
+    if ended:
+        lines.append(f"the last {runs.KEEP_DAYS} days")
+        for e, s in ended:
+            lines += row(e, s)
+    return lines or [f"no runs on this machine in the last {runs.KEEP_DAYS} days ({runs.folder()})"]
 
 
 def point_state(plan) -> str:

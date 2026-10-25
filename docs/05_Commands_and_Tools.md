@@ -40,6 +40,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--show-config` | print each configuration's resolved values and where each came from; run nothing |
 | `--card TAG` | with --plan: that tool's card for the first point, each line with where its value comes from |
 | `--points SEL` | run a subset: tags, indices or quantity=tag |
+| `--detach` | start the run in the background and return: heimdall watch follows it, heimdall stop stops it (on a terminal, a run started without it leaves on d too) |
 | `--set KEY=VALUE` | override one value for this invocation (repeatable), in the file's own names: run.events=100 (v3), run.event_count=100 (v2) |
 | `--rerun` | ignore skip-unchanged; under a serial the file sets, overwrite points made from other inputs |
 | `--only pre\|post\|plot` | rerun only the pre tools, the post tools or the plots |
@@ -168,6 +169,21 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `[configuration]` | overrides [run].configuration (or the sweep's latest) |
 | `--plain` | plain lines instead of the live view |
 | `--file STATUS.JSONL` | follow a --journal run's status file instead |
+| `--pid N` | the run of this process (heimdall runs lists them) |
+
+**`heimdall runs`**: what runs on this machine now, and what ran in the last 30 days
+
+| Argument | Meaning |
+|---|---|
+
+**`heimdall stop`**: stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes
+
+| Argument | Meaning |
+|---|---|
+| `[config]` | the run config whose job to stop (default: your only running job) |
+| `[configuration]` | the configuration it runs |
+| `--pid N` | the job of this process (heimdall runs lists them) |
+| `--no-wait` | ask it to stop and return, without waiting for it to end |
 
 **`heimdall cluster`**: run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job
 
@@ -276,7 +292,6 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--shell install\|remove` | write (or take out) gjallarhorn and bifrost in ~/.bashrc and ~/.zshrc |
 | `--conda` | -c, -conda: the tools (recipes) ready-made from conda-forge, what they need too |
 | `--build` | -b, -build: the tools built here from their recipes; -b@<toolkit>: with its changes |
-| `--toolkit KIT` | ==SUPPRESS== |
 | `--yes` | switch without asking (it reruns points and rebuilds) |
 
 **`heimdall image`**: Apptainer images of Heimdall and a machine root: list them, or build one
@@ -297,6 +312,9 @@ Every subcommand and its arguments (options and positionals may come in any orde
 <!-- /generated -->
 
 ### 1.1 `heimdall run`
+
+A run TOML may give the commands that read it their flags, in `[heimdall]` (04 §3); the command line
+wins over it.
 
 The order is: the pre stage → every point not complete (in point order, `parallelism` at a time) →
 `points.json` → the combined groups → the post stage → the plot stage. A failed point does not stop
@@ -347,7 +365,7 @@ the others.
 | 0 | everything done or skipped |
 | 1 | a point, a stage or a page failed |
 | 2 | a config error, before anything ran |
-| 6 | stopped by the user (Ctrl-C: SIGINT, then SIGTERM, then SIGKILL to the running tools; a second Ctrl-C is the default behaviour) |
+| 6 | stopped by the user (Ctrl-C, SIGTERM or a closed terminal: SIGINT, then SIGTERM, then SIGKILL to the running tools; a second is a hard stop, the tools killed at once; a third kills the process) |
 
 Under `[run].sweep_runs` (04 §4.1), the command exits 6 if a run was stopped, else 1 if any failed,
 else 0. With `[run] notify = "desktop"`, the end is also a desktop notification.
@@ -428,7 +446,7 @@ covers every C-rule, path, consumer, connection and card, with nothing run or wr
 prints one line per config, and the error of each that fails. It exits 0, or 2 when any failed: for
 a pre-commit hook, or before a long sweep.
 
-### 1.5 `heimdall watch`
+### 1.5 `heimdall watch`, `heimdall runs`, `heimdall stop`
 
 `heimdall watch` follows a running job from another terminal, through the watch socket its `heimdall
 run` serves while it lives.
@@ -439,6 +457,40 @@ run` serves while it lives.
   from run to run.
 - **`--file`** follows a `--journal` run's status file instead (a finished run's too). It leaves when
   the run finishes, or follows on to the next run's journal in a sweep.
+- **Only your own runs** can be watched: a run's socket refuses another user.
+- **`--pid N`** follows the run of that process (`heimdall runs` lists them). With no run to watch, it
+  names the last one that ended and its log.
+- **Keys**, on a terminal: `d` or Ctrl-C leaves (the run goes on); `s`, then `y`, stops the run as
+  Ctrl-C at its own terminal would. They are written under the live view.
+
+**A run on a terminal** (`heimdall run`, with a terminal for input and output, in its foreground) runs as
+a worker process of its own, started in the background; the command shows it as `heimdall watch` does.
+`d` leaves it running and gives the prompt back, printing the commands that watch and stop it. Ctrl-C
+stops it: once cleanly, twice hard, a third time at once. Closing the terminal leaves it running. Its
+exit code is the run's (0, 1, 2 or 6; a run killed by a signal N, 128 + N). A run that cannot be planned
+says why and exits 2 before anything runs. `--plain`, a run not on a terminal, `… &`, a Slurm job and
+`HEP_DETACH=never` keep the run in the command's own process, as before. A worker's output goes to
+`<machine root>/runs/<id>.log` (a progress line a minute).
+
+**`heimdall run … --detach`** starts the worker without showing it, and returns once its run has
+started: its id, pid, log, and the watch and stop commands. Refused with `--plan`, `--why`,
+`--show-config`, `--only plot` (they run nothing), and in a Slurm job (its processes end with the job).
+A detached run still ends with the machine: logging out ends it where systemd kills a user's
+processes at logout (`loginctl enable-linger` keeps them), and so does the end of an `salloc`
+allocation, or an Apptainer image run with `--pid` or `--containall`.
+
+**`heimdall stop [CONFIG [CFG]] [--pid N]`** asks a running job of yours to stop, as Ctrl-C would: its
+points end cleanly, partial outputs are kept, a rerun resumes. It waits until the job has ended
+(Ctrl-C stops the waiting, not the stopping; `--no-wait` returns at once) and says how it ended. With
+neither a config nor a pid, it looks only at the jobs of the work dir it is in; several matching jobs
+are listed and none stopped. A cluster job is stopped with `heimdall cluster … --cancel`.
+
+**`heimdall runs`** lists what runs on this machine now, then what ran in the last 30 days, across every
+work dir and Heimdall checkout: each run's id, its state (running, done, failed, stopped, not run, or
+*lost* when its process ended without saying how), when it started and for how long, its work dir, its
+config and configurations, and for a running one the pid to watch or stop it by. A run from inside an
+Apptainer image is not recorded (its machine root is read-only) but is listed while it runs. The
+registry is `<machine root>/runs/`.
 
 ### 1.6 `heimdall migrate`
 
@@ -646,6 +698,9 @@ checkout and the machine root are not entered. `heimdall setup` records the work
 | `HEP_STACK` | `stacks/<toolkit>/gjallarhorn.sh` | an isolated toolkit's stack is loaded: Heimdall's apps are `stacks/<toolkit>/Apps/` (built against it) |
 | `HEP_WORK` | you, tests | the work dir, instead of the walk up from the working directory (it must have a `hep.toml` with `[work]`) |
 | `HEP_WORKDIRS` | you, tests | replaces `<machine root>/workdirs.toml`, the work dirs `heimdall recognise` records |
+| `HEP_RUNS` | you, tests | replaces `<machine root>/runs/`, the run registry `heimdall runs` lists |
+| `HEP_DETACH` | you | `never`: a `heimdall run` on a terminal stays in the command's own process (a debugger, `pytest -s`) |
+| `HEP_CLUSTER_JOB` | `heimdall cluster`'s job scripts | set in a cluster job: its `heimdall run` records nothing in the registry (its submission is recorded) and stays in-process |
 | `HEP_RECORDS`, `HEP_CACHE`, `HEP_RESULTS`, `HEP_REPORTS` | you, tests | replace the work dir's `records/`, `.cache/`, `results/` and `reports/` (the tests point them into `forge/scratch/`) |
 | `HEP_CONFIGS` | you | replaces the work dir's `configs/` as the root of run TOMLs and their cards |
 | `HEP_STATUS_FD` | the runner, per tool | the status pipe of a `status = "standard"` tool |

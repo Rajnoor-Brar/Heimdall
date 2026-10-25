@@ -574,6 +574,23 @@ position = "top-left"     # a corner, "best", or [x, y]: its top-right corner, i
 errors = "band"
 ```
 
+**Outside the frame, and apart from the ratio pad:**
+
+```toml
+[plot.style]
+legend = { position = "out-right" }     # out-right | out-left: a column beside the frame
+                                        # out-top | out-bottom: as many columns as fit its width
+ratio  = { gap = 6.0 }                  # points between the main frame and the ratio's (0: joined)
+```
+
+- **Where an outside legend goes:** `out-right` right of the frame, `out-left` left of the y axis's
+  labels and title, `out-top` between the titles and the frame, `out-bottom` under the x axis's title
+  (under the ratio pad, when there is one). `legend.inset` is its distance from what it sits beside.
+- **Who makes room:** Paint (`root`) keeps the page's size and shrinks the frame, guessing the labels'
+  widths; `mpl` keeps the frame and grows the page to hold the legend. A long legend beside the frame
+  takes much of a small page: a wider `page.size` gives it room.
+- **mkhtml** (`yoda`) cannot draw either: they are refused for it, and drawn by `root` and `mpl`.
+
 - **Misspelt keys:** an unknown key, or a value of another kind, is refused at plan time, with the
   nearest spelling.
 - **Seeing the merged style:** `$HEP_APPS/Paint.exe <page>.toml --dump-style` prints a page's whole
@@ -833,7 +850,7 @@ in an overlay. To see a 2D object in 1D, project it with a derived figure.
 **What the other backends honour.** They draw the same page documents with the ranges and voided
 bins Paint computed, so every backend shows the same window. They keep mkhtml's look, so only these
 carry over:
-- a `legend.position` corner (or `best`);
+- a `legend.position` corner (or `best`); `mpl` also takes the four outside ones and `ratio.gap`;
 - `text.legend`;
 - `text.header`;
 - `ratio.divisions`;

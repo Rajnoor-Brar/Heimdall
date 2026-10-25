@@ -50,6 +50,10 @@ P0 S1 records `apptainer` in `[machine]`. With it, propose A at P0's end.
   `flock`) honour it.
 - **`heimdall watch`** sees only runs on the same node, in the same network namespace (abstract sockets):
   `heimdall cluster --status` and the jobs' logs stand in.
+- **`heimdall runs`** on the login node lists each submission (from the registry in the machine root, which
+  a shared home makes the nodes' too): whether its jobs are still on Slurm. A job's own `heimdall run`
+  records nothing (`HEP_CLUSTER_JOB`). A detached `heimdall run` on a login node is refused in a Slurm
+  job, and ends with an `salloc` allocation.
 - **The nodes run the login node's binaries:** the same OS and architecture.
 - **`$HEP` shared by several users:** make it read-only for them. Each user needs their own work
   dirs, and the machine root's `apps/` is written only by `heimdall build --framework`.

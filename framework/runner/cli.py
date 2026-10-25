@@ -27,7 +27,7 @@ from pathlib import Path
 from . import cluster as clustermod
 from . import config as configmod
 from . import deck as deckmod
-from . import execute, house, paths, plot, plotdoc, post, record, sweep, tools
+from . import execute, house, paths, plot, plotdoc, post, record, runs, sweep, tools
 from . import doctor as doctormod
 from . import setup as setupmod
 from .errors import HepError, did_you_mean
@@ -55,6 +55,10 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--card", metavar="TAG", help="with --plan: that tool's card for the first point, each line with "
                                                    "where its value comes from")
     run.add_argument("--points", metavar="SEL", help="run a subset: tags, indices or quantity=tag")
+    run.add_argument("--detach", action="store_true",
+                     help="start the run in the background and return: heimdall watch follows it, heimdall stop stops it "
+                          "(on a terminal, a run started without it leaves on d too)")
+    run.add_argument("--worker", metavar="ID", help=argparse.SUPPRESS)       # a detached run's own process (V183)
     run.add_argument("--set", metavar="KEY=VALUE", action="append", default=[],
                      help="override one value for this invocation (repeatable), in the file's own names: "
                           "run.events=100 (v3), run.event_count=100 (v2)")
@@ -182,6 +186,15 @@ def parser() -> argparse.ArgumentParser:
     watch.add_argument("configuration", nargs="?", help="overrides [run].configuration (or the sweep's latest)")
     watch.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
     watch.add_argument("--file", metavar="STATUS.JSONL", help="follow a --journal run's status file instead")
+    watch.add_argument("--pid", type=int, metavar="N", help="the run of this process (heimdall runs lists them)")
+
+    listed = commands.add_parser("runs", help="what runs on this machine now, and what ran in the last 30 days")
+
+    stop = commands.add_parser("stop", help="stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes")
+    stop.add_argument("config", nargs="?", help="the run config whose job to stop (default: your only running job)")
+    stop.add_argument("configuration", nargs="?", help="the configuration it runs")
+    stop.add_argument("--pid", type=int, metavar="N", help="the job of this process (heimdall runs lists them)")
+    stop.add_argument("--no-wait", action="store_true", help="ask it to stop and return, without waiting for it to end")
 
     batch = commands.add_parser("cluster", help="run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job")
     batch.add_argument("config", help="the run config, as heimdall run names it")
@@ -519,15 +532,39 @@ def notes_of(plans) -> list[str]:
     return list(dict.fromkeys(note for plan in plans for note in plan.notes))
 
 
-def catch_signals(stopper: execute.Stopper) -> None:
-    """Ctrl-C (SIGINT) and SIGTERM ask the run to stop; a second one is the default behaviour."""
+def catch_signals(stopper: execute.Stopper) -> dict:
+    """Ctrl-C (SIGINT), SIGTERM and SIGHUP ask the run to stop (V181): the first cleanly (each point ends, its
+    partial outputs kept, a rerun resumes); the second hard (the tools killed at once, the stop still
+    recorded); the third is the default behaviour, at once. SIGHUP, the terminal gone, also points the
+    output at /dev/null; a SIGHUP ignored when the run began (nohup) stays ignored. Returns the handlers
+    it replaced."""
     def on_signal(signum, frame):
-        if stopper.requested:
+        if signum == signal.SIGHUP:
+            _quiet()
+        if stopper.hard:
             signal.signal(signum, signal.SIG_DFL)
+            os.kill(os.getpid(), signum)
+            return
+        stopper.hard = stopper.requested
         stopper.requested = True
 
-    signal.signal(signal.SIGINT, on_signal)
-    signal.signal(signal.SIGTERM, on_signal)
+    previous = {}
+    for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        if signum == signal.SIGHUP and signal.getsignal(signum) is signal.SIG_IGN:
+            continue
+        previous[signum] = signal.signal(signum, on_signal)
+    return previous
+
+
+def _quiet() -> None:
+    """The terminal is gone (SIGHUP): what the run still prints goes nowhere, not to an error."""
+    try:
+        null = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(null, 1)
+        os.dup2(null, 2)
+        os.close(null)
+    except OSError:
+        pass
 
 
 #: A run's stages, in order (V114). `--stages` runs some of them, skip-unchanged; `--only` runs one again.
@@ -583,10 +620,26 @@ def cmd_run(args) -> int:
     another (V38). Each is exactly `heimdall run CONFIG <cfg>`, after a `run NN - <title> -` line. All are
     planned before the first starts, so a config error anywhere exits 2 with nothing run; one is
     planned again at its turn only if the TOML was edited meanwhile, so edits still count. A failed run leaves the next to
-    start; a stop starts no more."""
+    start; a stop starts no more. On a terminal, and with --detach, the run is a worker of its own, which this
+    process follows (or leaves) (V183)."""
+    worker = getattr(args, "worker", None)
+    if worker:
+        _worker_signals()
     _ask_keep(args)
     run = configmod.load(args.config, sets=args.set)
     keys = run.runs(args.configuration)
+    nothing_runs = getattr(args, "why", False) or args.plan or stages_of(args) == {"plot"} \
+        or getattr(args, "show_config", False)
+    if getattr(args, "detach", False) and not worker:
+        if nothing_runs:
+            raise HepError("--detach starts a run in the background, and --plan, --why, --show-config and --only plot run "
+                           "nothing", hint="leave --detach out")
+        if os.environ.get("SLURM_JOB_ID") or runs.cluster_job():
+            raise HepError("--detach in a Slurm job: its processes end with the job's allocation",
+                           hint="heimdall cluster submits a run as jobs; or run it here without --detach")
+        return background(args, run, keys, attach=False)
+    if not worker and not nothing_runs and live(args):
+        return background(args, run, keys, attach=True)
     if getattr(args, "show_config", False):
         for line in show_config(run, keys):
             print(line)
@@ -596,16 +649,165 @@ def cmd_run(args) -> int:
         bus = None                           # nothing runs: nothing to watch
     else:                                    # one stream for the whole process, served while it lives (V72)
         bus = Bus()
-        hub = Hub({"config": str(run.path), "run": run.name, "configurations": keys})
+        worker = getattr(args, "worker", None)
+        log = str(runs.folder() / f"{worker}.log") if worker else None
+        work = find_work()
+        entry = runs.begin(worker or runs.new_id(), {       # the registry (V182): nothing on a read-only root
+            "config": str(run.path), "run": run.name, "configurations": keys, "argv": getattr(args, "argv", []),
+            "work": str(work) if work else None, "checkout": str(paths.hep_root()), "detached": bool(worker), "log": log})
+        hub = Hub({"config": str(run.path), "run": run.name, "configurations": keys, "id": entry, "log": log,
+                   "work": str(work) if work else None, "detached": bool(worker)})
+        recorder = runs.Recorder()
         bus.subscribe(hub)
-    code = 2
+        bus.subscribe(recorder)
+    code, crashed = 2, None
     try:
-        code = _runs(args, run, keys, stopper, bus)
+        try:
+            code = _runs(args, run, keys, stopper, bus)
+        except HepError as error:            # what main() prints, for a watcher too (V181)
+            if bus is not None:
+                bus.say(error.render())
+            raise
+        except KeyboardInterrupt:
+            code = 6
+            raise
+        except Exception as error:           # the runner itself failed: said, and recorded
+            crashed = f"the runner failed: {type(error).__name__}: {error}"
+            if bus is not None:
+                bus.say(crashed + (f" (its log: {log})" if log else ""))
+            raise
         return code
     finally:
         if bus is not None:
-            hub.close()
+            runs.finish(entry, code, crashed, records=recorder.records, verdicts=recorder.verdicts)   # before the
+            hub.close()                                                                              # stream ends
             notify(run, code)
+
+
+def live(args, stdin=None, stdout=None, environ=None) -> bool:
+    """Whether this `heimdall run` is a live one (V183): a terminal in and out, in its foreground (not `… &`),
+    not --plain, not a worker, not in a Slurm job, and HEP_DETACH not "never". Then the run is a worker of its
+    own, followed here, and `d` leaves it running."""
+    stdin, stdout = stdin or sys.stdin, stdout or sys.stdout
+    environ = os.environ if environ is None else environ
+    if getattr(args, "plain", False) or getattr(args, "worker", None) or environ.get("HEP_DETACH") == "never":
+        return False
+    if environ.get("SLURM_JOB_ID") or environ.get(runs.CLUSTER_VAR):
+        return False
+    try:
+        import termios  # noqa: F401
+        return stdin.isatty() and stdout.isatty() and os.tcgetpgrp(stdin.fileno()) == os.getpgrp()
+    except (ImportError, OSError, ValueError, AttributeError):
+        return False
+
+
+def _worker_signals() -> None:
+    """A worker until its run's own handler is in (V183): SIGINT, SIGTERM and SIGHUP are a KeyboardInterrupt
+    (exit 6), whatever it inherited."""
+    def interrupt(signum, frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGINT, signal.default_int_handler)
+    signal.signal(signal.SIGTERM, interrupt)
+    signal.signal(signal.SIGHUP, interrupt)
+
+
+def background(args, run, keys: list[str], *, attach: bool) -> int:
+    """The run as a worker of its own (V183): this command again with --worker <id>, in a session of its own,
+    its output in the registry's <id>.log. `attach`: followed here as heimdall watch does (`d` leaves it
+    running; Ctrl-C stops it, once cleanly, twice hard); else (--detach) left once its run has started."""
+    from .watch import follow, socket_of, started, tail
+    run_id = runs.new_id()
+    log = runs.log_file(run_id)
+    proc = runs.spawn(getattr(args, "argv", []), run_id, log)
+    what = f"{run.name} · {', '.join(keys)}"
+
+    def left() -> None:
+        print(f"left running: {what} (pid {proc.pid})\n  heimdall watch --pid {proc.pid}   follow it again\n"
+              f"  heimdall stop --pid {proc.pid}    stop it\n  log {log}")
+
+    def ended() -> int:
+        code = proc.wait()
+        if code < 0:                                         # killed: the worker could not say so itself
+            runs.finish(run_id, 128 - code, f"killed by signal {-code}")
+            code = 128 - code
+        return code
+
+    if not attach:
+        if started(proc.pid, proc) is None:
+            print("\n".join(tail(log)), file=sys.stderr)
+            return ended()
+        print(f"running in the background: {what} (pid {proc.pid}, {run_id})")
+        left()
+        return 0
+    asked = []
+
+    def on_key(key: str, shown) -> str | None:
+        return "detached" if key in ("d", "D") else None
+
+    def on_interrupt(shown) -> None:
+        asked.append(True)
+        os.kill(proc.pid, signal.SIGINT)
+        shown.keys({1: "stopping: each point ends cleanly (Ctrl-C again: a hard stop)",
+                    2: "stopping hard: the tools are killed (Ctrl-C again: at once)"}.get(len(asked), "killing it"))
+        return None
+
+    from .watch import Keys
+    with Keys(sys.stdin) as keys_in:
+        outcome = follow(socket_of(proc.pid), plain=args.plain, keys=keys_in.fd, on_key=on_key, on_interrupt=on_interrupt,
+                         proc=proc, hint="d: leave it running · Ctrl-C: stop it")
+    if outcome == "detached":
+        left()
+        return 0
+    if outcome == "dropped":
+        print(f"this terminal fell behind the run: heimdall watch --pid {proc.pid} follows it again", file=sys.stderr)
+        left()
+        return 0
+    if outcome == "gone":
+        print("\n".join(tail(log)), file=sys.stderr)
+    return ended()
+
+
+def cmd_stop(args) -> int:
+    """`heimdall stop [CONFIG [CFG]] [--pid N]` (V183): a running job of yours asked to stop, as Ctrl-C does (its
+    points end cleanly, partial outputs kept, a rerun resumes), then waited for (Ctrl-C leaves the waiting)."""
+    from .events import namespace
+    wanted = configmod.load(args.config) if args.config else None
+    found = house.live_runs(str(wanted.path) if wanted else None, args.configuration, args.pid)
+    if wanted is None and args.pid is None:                 # named by neither: this work dir's alone
+        work = find_work()
+        if work is None:
+            raise HepError("stop which job? outside a work dir, name it", hint="heimdall stop --pid N (heimdall runs lists them)")
+        found = [(n, h) for n, h in found if h in house.runs_here(work)]
+    if not found:
+        cluster = next((e for e in runs.entries() if e.get("kind") == "cluster" and runs.state(e) == "submitted"
+                        and (wanted is None or e.get("config") == str(wanted.path))), None)
+        raise HepError("no running job to stop" + (f" for {wanted.path}" if wanted else "")
+                       + (f" with pid {args.pid}" if args.pid else ""),
+                       hint=(f"its cluster jobs: heimdall cluster {cluster.get('config')} {cluster.get('configuration', '')} --cancel"
+                             if cluster else "heimdall runs lists what runs"))
+    if len(found) > 1:
+        raise HepError(f"{len(found)} jobs match: " + "; ".join(
+            f"pid {h.get('pid')} {Path(h.get('config', '')).stem} · {', '.join(h.get('configurations', []))}" for _, h in found),
+            hint="name one: heimdall stop --pid N")
+    _, hello = found[0]
+    if hello.get("pidns") and namespace("pid") and hello["pidns"] != namespace("pid"):
+        raise HepError(f"pid {hello.get('pid')} is another PID namespace's (a container's): stopping it from here could "
+                       "signal another process", hint="stop it from where it runs")
+    pid = hello["pid"]
+    os.kill(pid, signal.SIGINT)
+    what = f"{Path(hello.get('config', '')).stem} · {', '.join(hello.get('configurations', []))}"
+    print(f"stopping pid {pid}: {what} (its points end cleanly; heimdall watch --pid {pid} shows it)")
+    if args.no_wait:
+        return 0
+    try:
+        while not runs.ended(pid):
+            time.sleep(0.25)
+    except KeyboardInterrupt:
+        print(f"no longer waiting; it is still stopping (heimdall runs)")
+        return 0
+    entry = runs.entry(hello["id"]) if hello.get("id") else None
+    print(f"stopped: {runs.state(entry)}" if entry else "it has ended")
+    return 0
 
 
 def notify(run, code: int) -> bool:
@@ -651,6 +853,8 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus) -> int:
         if key in skipped:
             print(("\n" if number > 1 else "") + header(number, run.configurations[key]))
             print(skipped[key])
+            if bus is not None:                  # a watcher hears it too (V181)
+                bus.say(f"{header(number, run.configurations[key])}\n{skipped[key]}")
             continue
         try:                                 # planned again only if the TOML was edited meanwhile (V38, V54)
             unchanged = run.path.stat().st_mtime_ns == stamp
@@ -659,6 +863,8 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus) -> int:
         except HepError as error:            # the TOML was edited since the check: this run fails alone
             print(("\n" if number > 1 else "") + header(number, run.configurations[key]))
             print(error.render(), file=sys.stderr)
+            if bus is not None:
+                bus.say(f"{header(number, run.configurations[key])}\n{error.render()}")
             not_run(journal_path(run, run.configurations[key]) if paths.keeping("journal") else None,
                     header(number, run.configurations[key]), error.message, following, bus)
             code = 2
@@ -677,7 +883,7 @@ def _pipelined(args, run, keys: list[str], stopper: execute.Stopper, bus: Bus, a
     each = {key: max((execute.cores(p) for p in ahead[key].plans), default=1) for key in keys}
     budget = execute.Budget(max(os.cpu_count() or 1,
                                 *(max(1, ahead[key].configuration.parallelism) * each[key] for key in keys)))
-    shown = view(args.plain)
+    shown = view(args.plain, every=60.0 if getattr(args, "worker", None) else 5.0)
     bus.subscribe(shown)
     catch_signals(stopper)
     codes: dict[str, int] = {}
@@ -860,7 +1066,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     bus = bus if bus is not None else Bus()
     own_view = shown is None                 # a pipelined sweep's runs share the sweep's view (V75)
     if own_view:
-        shown = view(args.plain)
+        shown = view(args.plain, every=60.0 if getattr(args, "worker", None) else 5.0)   # a worker's log: a line a minute
         bus.subscribe(shown)
     if threading.current_thread() is threading.main_thread():
         catch_signals(stopper)
@@ -875,6 +1081,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     if number > 1:
         bus.say("")
     bus.emit("", "", {"k": "run", "state": "started", "points": len(plans), "title": title,
+                      "record": str(records_root() / tools.run_dir(run, configuration)),       # the registry's (V182)
                       **({"header": title_line} if title_line else {})})
     if crowded(configuration, plans):
         bus.say(f"   note: {crowded(configuration, plans)}")
@@ -1252,6 +1459,7 @@ def cmd_check(args) -> int:
         try:
             sets = list(getattr(args, "set", []))
             run = configmod.load(name, sets=sets)
+            heimdall_flags(configmod.heimdall_table(name, sets=sets), f"{run.path}: [heimdall]")   # V188
             points = 0
             for key in run.configurations:
                 planned = build_plans(argparse.Namespace(config=name, set=sets, points=None, rerun=False, only=None), key)
@@ -1279,6 +1487,18 @@ def _has_configurations(name: str) -> bool:
     return bool(data.get("cfgs") or data.get("run", {}).get("cfgs"))
 
 
+def cmd_runs(args) -> int:
+    """`heimdall runs` (V182): this machine's registry, what runs now first, then the last 30 days."""
+    from . import workdirs
+    try:
+        titles = {entry["path"]: title for title, entry in workdirs.load().items()}
+    except HepError:
+        titles = {}
+    for line in house.runs_listing(runs.entries(), house.live_runs(), titles):
+        print(line)
+    return 0
+
+
 def cmd_watch(args) -> int:
     """Follow a job from another terminal (V72): a running `heimdall run`'s watch socket (the latest one, or
     the one running CONFIG [CONFIGURATION]), or with --file a --journal run's status.jsonl."""
@@ -1288,21 +1508,49 @@ def cmd_watch(args) -> int:
             raise HepError("no such status file", where=str(path), hint="a run writes one with heimdall run … --journal")
         return follow_file(path, plain=args.plain)
     wanted = configmod.load(args.config) if args.config else None
-    found = []
-    for name in hubs():
-        hello = greeting(name)
-        if not hello:
-            continue
-        if wanted is not None and hello.get("config") != str(wanted.path):
-            continue
-        if args.configuration and args.configuration not in hello.get("configurations", []):
-            continue
-        found.append((hello.get("started", 0), name))
+    found = house.live_runs(str(wanted.path) if wanted else None, args.configuration, getattr(args, "pid", None))
     if not found:
-        raise HepError("no running job to watch" + (f" for {wanted.path}" if wanted else ""),
-                       hint="start one with heimdall run; a finished run's events: heimdall run … --journal, then heimdall watch --file "
-                            "records/<P>/<run>/<cfg>/status.jsonl")
-    return follow_events(connect(max(found)[1]), plain=args.plain)
+        last = next((e for e in runs.entries() if e.get("kind") == "run" and e.get("finished") is not None
+                     and (wanted is None or e.get("config") == str(wanted.path))), None)
+        ended = (f"; the last ({last['id']}) ended {runs.state(last)}" + (f", its log {last['log']}" if last.get("log") else "")
+                 if last else "")
+        raise HepError("no running job to watch" + (f" for {wanted.path}" if wanted else "")
+                       + (f" with pid {args.pid}" if getattr(args, "pid", None) else ""),
+                       hint=f"heimdall runs lists them{ended}; a finished run's events: heimdall run … --journal, then "
+                            "heimdall watch --file records/<P>/<run>/<cfg>/status.jsonl")
+    name, hello = found[0]
+    where = hello.get("address") or name
+    if not live(args):
+        return follow_events(connect(where), plain=args.plain)
+    from .events import namespace, open_stream
+    from .watch import Keys, follow
+    hint = "d or Ctrl-C: leave it running · s: stop it"
+    asking = []
+
+    def on_key(key: str, shown) -> str | None:              # V183: d leaves; s, then y, stops the run
+        if key in "dD":
+            return "detached"
+        if asking:
+            asking.clear()
+            if key in "yY":
+                if hello.get("pidns") and namespace("pid") and hello["pidns"] != namespace("pid"):
+                    shown.say("not stopped: its process is another PID namespace's; stop it from where it runs")
+                else:
+                    os.kill(hello["pid"], signal.SIGINT)
+                    shown.keys("stopping: each point ends cleanly · d or Ctrl-C: leave")
+                    return None
+            shown.keys(hint)
+        elif key in "sS":
+            asking.append(True)
+            shown.keys("stop the run? y stops it (as Ctrl-C in its terminal would); any other key does not")
+        return None
+
+    with Keys(sys.stdin) as keys_in:
+        outcome = follow(open_stream(where), plain=args.plain, keys=keys_in.fd, on_key=on_key,
+                         on_interrupt=lambda shown: "detached", hint=hint)
+    if outcome == "dropped":
+        print(f"this terminal fell behind the run: heimdall watch --pid {hello.get('pid')} follows it again", file=sys.stderr)
+    return 0
 
 
 def _planned_all(names: list[str], configuration: str | None = None, sets=()) -> tuple[list, list[str]]:
@@ -1340,8 +1588,9 @@ def cmd_clean(args) -> int:
     """`heimdall clean [CONFIG] [--dry-run] [--yes]` (V74): the output folders no plan uses, `.partial`
     leftovers and (with no config) unused run folders and prepare caches. It lists them first, and asks
     on a terminal (or needs --yes); results/ is never cleaned but for `.partial` leftovers."""
-    if hubs():
-        raise HepError("a job is running on this machine", hint="clean when it has ended (heimdall watch shows it)")
+    if (going := house.runs_here(paths.work_root())):        # V182: this work dir's, this user's
+        raise HepError(f"a run of this work dir is going (pid {going[0].get('pid')})",
+                       hint="clean when it has ended (heimdall runs lists it, heimdall watch shows it)")
     names = [args.config] if args.config else house.config_names()
     planned, failed = _planned_all(names, sets=getattr(args, "set", []))
     if failed and not args.config:
@@ -1554,8 +1803,9 @@ def migrate_layout(args) -> int:
     into statistics/<set>/, the drawing's working files into .cache/."""
     from . import migrate
     from .paths import work_root
-    if hubs():
-        raise HepError("a job is running on this machine", hint="move the layout when it has ended")
+    if (going := house.runs_here(work_root())):               # V182: this work dir's, this user's
+        raise HepError(f"a run of this work dir is going (pid {going[0].get('pid')})",
+                       hint="move the layout when it has ended (heimdall runs lists it)")
     work = work_root()
     first = migrate.layout_moves(work) + migrate.deck_moves(work)
     then = [] if (work / "output").is_dir() else migrate.logs_moves(work)
@@ -1696,6 +1946,7 @@ def parse(argv: list[str]) -> argparse.Namespace:
     `--plain` may come anywhere, for any command; an unknown command gets the nearest (U59)."""
     top = parser()
     commands = _described(top)
+    typed = list(argv)                                             # as typed: a worker's own (V181)
     plain = "--plain" in argv
     argv = [a for a in argv if a != "--plain"]
     if not argv or argv[0] in ("-h", "--help"):
@@ -1713,7 +1964,121 @@ def parse(argv: list[str]) -> argparse.Namespace:
     args = commands.choices[argv[0]].parse_intermixed_args(argv[1:])
     args.command = argv[0]
     args.plain = plain or getattr(args, "plain", False)
+    args.argv = typed
     return args
+
+
+#: The commands whose flags a run TOML's [heimdall] gives (V188): those that read one config.
+FLAGGED = ("run", "plot", "stats", "cluster", "status", "watch", "stop")
+#: Options a file never sets: what it would name of itself, or change of itself (its own text does that).
+UNFLAGGED = {"set", "worker", "help"}
+
+
+def _options() -> dict[str, dict[str, argparse.Action]]:
+    """Each FLAGGED command's options by their names (dest), --plain beside them (every command has it)."""
+    commands = _described(parser())
+    plain = argparse.Namespace(dest="plain", option_strings=["--plain"], default=False, nargs=0, type=None,
+                               const=True, help="plain lines")
+    out = {}
+    for command in FLAGGED:
+        actions = {}
+        for a in commands.choices[command]._actions:
+            if a.option_strings and a.dest not in UNFLAGGED and a.help != argparse.SUPPRESS:
+                for typed in a.option_strings:              # by the option as typed (sets, no-plot), its dest too
+                    if typed.startswith("--"):
+                        actions[typed[2:].replace("-", "_")] = a
+                actions.setdefault(a.dest, a)
+        out[command] = {**actions, "plain": actions.get("plain", plain)}
+    return out
+
+
+def _flag_value(action, value, where: str):
+    """A [heimdall] value as its option takes it: true/false for a switch, a list for one given many times or
+    taking several, else a string (an int for a number)."""
+    switch = action.nargs == 0
+    many = isinstance(action, argparse._AppendAction) or action.nargs in ("*", "+")
+    name = action.option_strings[-1]
+    if switch:
+        if not isinstance(value, bool):
+            raise HepError(f"{where}: {name} is a switch: true or false", where=where)
+        return value if action.const is not False else not value
+    if many:
+        items = value if isinstance(value, list) else [value]
+        if not all(isinstance(v, (str, int, float)) and not isinstance(v, bool) for v in items):
+            raise HepError(f"{where}: {name} takes values: a list of them", where=where)
+        return [str(v) for v in items]
+    if action.type is int:
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise HepError(f"{where}: {name} takes a whole number", where=where)
+        return value
+    if isinstance(value, (bool, dict, list)):
+        raise HepError(f"{where}: {name} takes one value", where=where)
+    return str(value)
+
+
+def heimdall_flags(table: dict, where: str, command: str | None = None) -> dict[str, tuple]:
+    """[heimdall] checked (V188): a key there is an option of a command that reads a config, for every such
+    command that has it; [heimdall.<command>] keys that command's own, over those. For `command`: its option
+    name → (value, the option as typed). `heimdall check` checks every command's."""
+    options = _options()
+    def dest_of(key: str) -> str:
+        return key.lstrip("-").replace("-", "_")
+    every = {d for o in options.values() for d in o}
+    mine: dict[str, tuple] = {}
+    for key, value in table.items():
+        if isinstance(value, dict):
+            if key not in FLAGGED:
+                raise HepError(f"[heimdall.{key}]: no such command reads a config", where=where,
+                               hint=did_you_mean(key, FLAGGED) or f"the commands: {', '.join(FLAGGED)}")
+            continue
+        dest = dest_of(key)
+        if dest not in every:
+            raise HepError(f"[heimdall] {key}: no command that reads a config has that option", where=where,
+                           hint=did_you_mean(dest, sorted(every)) or "a command's options: heimdall help <command>")
+        for name, actions in options.items():
+            if dest in actions:
+                value_ = _flag_value(actions[dest], value, f"{where}.{key}")
+                if name == command:
+                    mine[actions[dest].dest] = (value_, actions[dest].option_strings[-1])
+    for name, sub in ((k, v) for k, v in table.items() if isinstance(v, dict)):
+        for key, value in sub.items():
+            dest = dest_of(key)
+            if dest not in options[name]:
+                raise HepError(f"[heimdall.{name}] {key}: heimdall {name} has no such option", where=where,
+                               hint=did_you_mean(dest, list(options[name])) or f"heimdall help {name}")
+            value_ = _flag_value(options[name][dest], value, f"{where}.{name}.{key}")
+            if name == command:
+                mine[options[name][dest].dest] = (value_, options[name][dest].option_strings[-1])
+    return mine
+
+
+def config_flags(args) -> list[str]:
+    """A run TOML's [heimdall] (V188) for the command reading it: each option the command line left unset takes
+    the file's value (the command line always wins). The options it set, as they would be typed."""
+    name = getattr(args, "config", None)
+    if args.command not in FLAGGED or not isinstance(name, str) or not name:
+        return []
+    try:
+        path = paths.config_file(name)
+    except HepError:
+        return []
+    if path.suffix != ".toml" or not path.is_file():
+        return []
+    table = configmod.heimdall_table(name, sets=getattr(args, "set", None) or [])
+    if not table:
+        return []
+    options = {a.dest: a for a in _options()[args.command].values()}
+    given = []
+    for dest, (value, typed) in heimdall_flags(table, f"{path}: [heimdall]", args.command).items():
+        action = options[dest]
+        if getattr(args, dest, action.default) not in (action.default, None, []):   # the command line said
+            continue
+        if getattr(args, dest, None) == value:
+            continue
+        setattr(args, dest, value)
+        given.append(typed if value is True else f"{typed} {' '.join(map(str, value))}" if isinstance(value, list)
+                     else "" if value is False else f"{typed} {value}")
+    return [g for g in given if g]
 
 
 def cmd_help(args) -> int:
@@ -1949,6 +2314,9 @@ def main(argv: list[str]) -> int:
         if args.command in ("run", "plot", "status", "stats") and getattr(args, "config", None):
             if not (args.command in ("plot", "stats") and (plotdoc.find(args.config) or getattr(args, "style_sync", None))):
                 opened(args)                              # a record: its snapshot (V158)
+        if (given := config_flags(args)):                 # V188: the file's own flags, where the command line has none
+            print(f"heimdall: from [heimdall]: {' '.join(given)}", file=sys.stderr)
+            _ask_keep(args)
         if args.command == "run":
             return cmd_run(args)
         if args.command == "plot":
@@ -1979,7 +2347,14 @@ def main(argv: list[str]) -> int:
             return cmd_migrate(args)
         if args.command == "cluster":
             return cmd_cluster(args)
+        if args.command == "runs":
+            return cmd_runs(args)
+        if args.command == "stop":
+            return cmd_stop(args)
         return cmd_watch(args)
     except HepError as error:
         print(error.render(), file=sys.stderr)
         return 2
+    except KeyboardInterrupt:                                      # Ctrl-C before a run catches it (V181)
+        print("heimdall: stopped", file=sys.stderr)
+        return 6

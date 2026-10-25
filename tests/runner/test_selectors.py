@@ -92,6 +92,22 @@ def test_a_compound_s_fields_are_read_one_a_generator(scratch):
     assert "PartonLevel:MPI = off" in card_of(by["p1_off"], "first") and "PartonLevel:ISR = on" in card_of(by["p2_on"], "other")
 
 
+def test_a_set_naming_a_compound_names_all_its_fields(scratch):
+    """V186: curves = { mpi = "all" } names the compound mpi, its later field (mpi_b) too: one page of both settings,
+    not a page per value of mpi_b, which varies with mpi and was taken for an axis the set leaves out."""
+    path = scratch / "switch.toml"
+    path.write_text(SWITCH, encoding="utf-8")
+    run = config.load(str(path))
+    points = sweep.points(run, run.configuration("all"))
+    spec, = sweep.set_entries({"few": {"pages": {"gen": "p1"}, "curves": {"mpi": "all"}}}, "w")
+    sweep.check_set(run, spec, points)
+    cells, notes = sweep.set_cells(run, points, spec)
+    assert [c.key for c in cells] == ["p1"] and notes == []
+    assert [m.name for m in cells[0].members] == ["p1_on", "p1_off"] and cells[0].labelled == [["mpi"]]
+    by_page, notes = sweep.set_cells(run, points, sweep.set_entries({"m": {"curves": {"gen": "all"}}}, "w")[0])
+    assert [c.key for c in by_page] == ["on", "off"]                         # mpi left out: it pages, once
+
+
 # ── one pdf for every generator (V152) ────────────────────────────────────────────────────────
 
 PDFS = """[run]

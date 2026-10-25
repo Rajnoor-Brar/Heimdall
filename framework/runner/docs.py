@@ -203,7 +203,7 @@ def commands() -> str:
         out.append(f"**`heimdall {name}`**: {helps.get(name, '')}\n")
         rows = ["| Argument | Meaning |", "|---|---|"]
         for action in parser._actions:
-            if isinstance(action, argparse._HelpAction):
+            if isinstance(action, argparse._HelpAction) or action.help == argparse.SUPPRESS:   # hidden (V181)
                 continue
             meaning = action.help or ""
             rows.append(f"| `{_cell(_option(action))}` | {_cell(meaning)} |")

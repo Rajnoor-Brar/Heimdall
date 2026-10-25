@@ -6,7 +6,8 @@
 // executable on Linux only finds it when the apps sit in the checkout (the layout before the machine
 // root, ~/Himinbjorg/apps). A page's
 // [style] names only what it changes, in base.toml's tables; a key base.toml does not have, or a
-// value of another type, is an error. `legend.position` is a corner name, "best" or [x, y].
+// value of another type, is an error. `legend.position` is a corner name, "best", [x, y], or outside
+// the frame (V185): "out-right", "out-left", "out-top", "out-bottom".
 
 #include <toml++/toml.hpp>
 
@@ -40,11 +41,13 @@ namespace Paint {
         bool placed = false;
         double atX = 0, atY = 0, insetX = 0, insetY = 0, spacing = 0, symbol = 0, gap = 0;
         double mainHeight = 0, ratioHeight = 0, rangeLo = 0, rangeHi = 0, limitLo = 0, limitHi = 0;   // [ratio]
+        double ratioGap = 0;                             // points between the main frame and the ratio frame (V185)
         int divisions = 0;
         bool decimals = true;
         toml::table merged;                              // what --dump-style prints
 
         double px() const { return dpi / 72.0; }         // pixels per point
+        bool outside() const { return corner.rfind("out-", 0) == 0; }   // a legend beside the frame (V185)
         int pixelsWide() const { return static_cast<int>(std::lround(width * dpi)); }
         int pixelsHigh() const { return static_cast<int>(std::lround(height * dpi)); }
         int fontCode() const { return font == "sans" ? 43 : font == "mono" ? 83 : 133; }   // precision 3: pixels
@@ -166,7 +169,8 @@ namespace Paint {
             s.placed = true, s.corner = "top-right";
         } else {
             s.corner = text(t, "legend.position");
-            oneOf(s.corner, {"top-right", "top-left", "bottom-right", "bottom-left", "best"}, "legend.position");
+            oneOf(s.corner, {"top-right", "top-left", "bottom-right", "bottom-left", "best",
+                             "out-right", "out-left", "out-top", "out-bottom"}, "legend.position");
         }
         std::tie(s.insetX, s.insetY) = pair(at(t, "legend.inset"), "legend.inset");
         s.spacing = number(t, "legend.spacing"), s.symbol = number(t, "legend.symbol"), s.gap = number(t, "legend.gap");
@@ -175,8 +179,10 @@ namespace Paint {
         std::tie(s.limitLo, s.limitHi) = pair(at(t, "ratio.limits"), "ratio.limits");
         s.divisions = static_cast<int>(number(t, "ratio.divisions"));
         s.decimals = flag(t, "ratio.decimals");
+        s.ratioGap = number(t, "ratio.gap");
         if (s.dpi <= 0 || s.width <= 0 || s.height <= 0) throw std::runtime_error("[style].page: size and dpi must be positive");
         if (s.mainHeight <= 0 || s.ratioHeight <= 0) throw std::runtime_error("[style].ratio.heights must be positive");
+        if (s.ratioGap < 0) throw std::runtime_error("[style].ratio.gap must be 0 or more (points)");
         return s;
     }
 

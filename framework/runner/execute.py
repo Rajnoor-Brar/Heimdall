@@ -31,6 +31,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import shlex
 import shutil
 import signal
 import stat
@@ -56,10 +57,12 @@ POLL = 0.2
 
 
 class Stopper:
-    """Set by the CLI's SIGINT/SIGTERM handler; the supervisor turns it into the stop ladder."""
+    """Set by the CLI's signal handler; the supervisor turns it into the stop ladder. `hard` (a second
+    Ctrl-C, V181): the tools are killed at once, not after the ladder's graces; the stop is still recorded."""
 
     def __init__(self):
         self.requested = False
+        self.hard = False
 
 
 @dataclass
@@ -270,6 +273,41 @@ def report_of(product: Path) -> Path:
 
 # ── [prelim] ───────────────────────────────────────────────────────────────────────────────────
 
+#: A point's commands, beside its cards (V187): each tool's command line as it was run, for the record.
+COMMANDS_FILE = "commands.sh"
+
+
+def commands_text(plan: PointPlan) -> str:
+    """The commands a point's tools are given (V187), as a shell script in the point's working folder: the
+    context every tool reads, the FIFOs, each prepare step, then each group's tools (run together, joined by
+    the FIFOs), with the folder and environment each runs in. What the runner adds besides (its status pipe,
+    HEP_STATUS_FD) is left out. For the record, and to run a tool again by hand."""
+    q = shlex.quote
+
+    def command(step: Step, argv: list[str], cwd: Path | None) -> str:
+        env = "".join(f"{key}={q(value)} " for key, value in step.env.items())
+        line = env + " ".join(q(str(a)) for a in argv)
+        return f"(cd {q(str(cwd))} && {line})" if cwd is not None and cwd != plan.out else line
+
+    lines = ["#!/bin/bash",
+             f"# {plan.point.name}: the commands heimdall gave its tools (V187). A group's tools run together,",
+             "# joined by the FIFOs below; heimdall's status pipe (HEP_STATUS_FD) is left out.",
+             "set -euo pipefail", f"cd {q(str(plan.out))}",
+             f"export HEP_CONTEXT={q(str(plan.out / CONTEXT_FILE))}      # every tool's card and config"]
+    fifos = [i.path for i in plan.interfaces.values() if i.kind == "fifo"]
+    if fifos:
+        lines += ["", "# the FIFOs", *(f"rm -f {q(str(path))} && mkfifo {q(str(path))}" for path in fifos)]
+    for step in (s for group in plan.groups for s in group if s.prepare_argv):
+        lines += ["", f"# {step.tag}: its prepare step (once per card: cached in {step.prepare_dir})",
+                  command(step, step.prepare_argv, step.prepare_dir)]
+    for number, group in enumerate(plan.groups, 1):
+        lines += ["", f"# group {number}: {', '.join(s.tag for s in group)}"]
+        lines += [command(s, s.argv, s.cwd) + (" &" if len(group) > 1 else "") for s in group]
+        if len(group) > 1:
+            lines.append("wait")
+    return "\n".join(lines) + "\n"
+
+
 def prepare(plan: PointPlan, logs: bool = False) -> None:
     for directory in (plan.out, plan.res):        # a log is made by what writes it (V149)
         directory.mkdir(parents=True, exist_ok=True)
@@ -278,6 +316,9 @@ def prepare(plan: PointPlan, logs: bool = False) -> None:
         marker.unlink()                  # an attempt is under way: whatever was complete no longer is
     for path, text in plan.writes.items():
         write_atomic(path, text)
+    if plan.groups:                      # V187: what its tools are given, kept with its cards
+        write_atomic(plan.out / COMMANDS_FILE, commands_text(plan))
+        (plan.out / COMMANDS_FILE).chmod(0o755)
     for step in plan.rendered.values():  # a product left by an earlier attempt must not pass for this one's
         for final, partial in step.products:
             final.parent.mkdir(parents=True, exist_ok=True)          # a shard's is under records/…/logs/<point>/shards/
@@ -418,6 +459,10 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
             for entry in alive:
                 _signal(entry, signal.SIGINT)
             interrupted = True
+        if stopper.hard and not killed and alive:               # a second Ctrl-C: no graces (V181)
+            for entry in alive:
+                _signal(entry, signal.SIGKILL)
+            killed = termed = True
 
         if not alive:
             break
@@ -619,7 +664,7 @@ def _tidy(plan: PointPlan) -> None:
     if keeping("work") or plan.folders is None or plan.out.parent != plan.folders.logs or not plan.out.is_dir():
         return
     for entry in plan.out.iterdir():
-        if entry.name in ("cards", "config", LOCK_FILE) or (entry.suffix == ".log" and entry.is_file()):
+        if entry.name in ("cards", "config", LOCK_FILE, COMMANDS_FILE, CONTEXT_FILE) or (entry.suffix == ".log" and entry.is_file()):
             continue
         if entry.is_dir() and not entry.is_symlink():
             shutil.rmtree(entry)
@@ -628,8 +673,8 @@ def _tidy(plan: PointPlan) -> None:
 
 
 def _cleanup(plan: PointPlan) -> None:
-    """FIFOs and the context file are removed when the point ends (04 §6, §9.4); files are kept."""
-    (plan.out / CONTEXT_FILE).unlink(missing_ok=True)
+    """FIFOs are removed when the point ends (04 §6); files are kept, the context file too (V187: every tool's
+    card and config, the point's record)."""
     for interface in plan.interfaces.values():
         if interface.kind == "fifo" and interface.path.exists() and stat.S_ISFIFO(interface.path.stat().st_mode):
             interface.path.unlink()

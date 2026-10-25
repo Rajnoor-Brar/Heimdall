@@ -67,7 +67,7 @@ executable = "/bin/true"
     paths.reset()
 
 
-def test_every_tool_reads_the_context_file_which_goes_when_the_point_ends(work):
+def test_every_tool_reads_the_context_file_which_the_point_keeps(work):
     done = subprocess.run([str(HEP), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, timeout=300,
                           env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, encoding="utf-8")
     assert done.returncode == 0, done.stdout + done.stderr
@@ -76,7 +76,10 @@ def test_every_tool_reads_the_context_file_which_goes_when_the_point_ends(work):
     assert set(context) == {"copy", "spare"}                        # the chain's and generate_cards'
     assert tomllib.loads(Path(context["spare"]["config"]).read_text(encoding="utf-8")) == {"level": 2}
     assert tomllib.loads(Path(context["copy"]["config"]).read_text(encoding="utf-8")) == {"level": 1}
-    assert not list((work / "logs").rglob("context.toml"))          # removed when the point ended
+    [kept] = (work / "records").rglob("logs/*/context.toml")       # V187: kept with the point's cards, its record
+    assert tomllib.loads(kept.read_text(encoding="utf-8"))["tools"].keys() == context.keys()
+    commands = (kept.parent / "commands.sh").read_text(encoding="utf-8")
+    assert f"export HEP_CONTEXT={kept}" in commands and "# group 1: copy" in commands
     assert "HEP_CONTEXT" not in os.environ                           # never the user's shell's
 
 

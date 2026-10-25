@@ -17,7 +17,9 @@ heimdall run Demo/jets pdf                 # run what is not complete, then draw
 heimdall run Demo/jets pdf --set run.events=50000 --points 2   # one value changed, one point, for this run
 heimdall status Demo/jets                  # each point: complete, stale, running, incomplete, to run
 heimdall plot Demo/jets pdf                # redraw from what is on disk
-heimdall watch                             # follow a run from another terminal
+heimdall watch                             # follow a run from another terminal (d leaves, s stops it)
+heimdall runs                              # what runs on this machine, and what ran lately
+heimdall stop --pid 12345                  # stop a run as Ctrl-C would (a run's own terminal: d leaves it running)
 heimdall explain run.events                # any key, table, tool option or style key
 heimdall help run                          # any command
 ```

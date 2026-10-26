@@ -572,14 +572,18 @@ a colleague or a supervisor. It runs only when asked: no run, plot or stats step
 - **`--init SOURCE`:** writes `configs/<P>/<name>.toml` for `heimdall report <P>/<name> --init SOURCE`, once,
   with SOURCE's sets, cells and pages listed.
 - **`-o DIR`:** builds into DIR instead of `reports/<P>/<name>/` (a report with no recipe:
-  `reports/<P>/<run>/<cfg>/`).
-- **The build** is not there yet: without `--list` or `--init` it says so.
+  `reports/<P>/<run>/<cfg>/`); never into `results/`.
+- **What it makes:** `figures/` (every page it shows, copied as drawn, with its PNG), `stats/` (the statistics
+  and bar graphs it shows, drawn from each source's `statistics.csv`), `report.tex`, `report.pdf` (A4) and
+  `index.html`, again only what changed; what they are is [03 §11](03_Plots.md#11-reports-heimdall-report).
+- **What it needs:** pdflatex for `report.pdf` (without it, `report.tex` is still written, to compile
+  elsewhere) and poppler's `pdftoppm` for a page drawn with no PNG.
 
 #### 1.8.1 `heimdall deck`
 
 `heimdall deck <deck>` makes slides from pages already drawn, in `reports/<deck>/` (a path
 starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
-[03 §11](03_Plots.md#11-decks-talks-and-reports-heimdall-deck); its `deck.toml` keys are
+[03 §11.4](03_Plots.md#114-decks-heimdall-deck); its `deck.toml` keys are
 [04 §15.1](04_Config_Reference.md#151-a-decks-recipe-decktoml).
 - **What a run does, in order:**
   1. reads `deck.toml`'s blocks, or the folder's own files;

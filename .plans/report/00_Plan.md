@@ -406,7 +406,7 @@ fast-forwarded at P5. Each row is ticked at its commit.
 |---|---|---|---|
 | P0 Paperwork | — | f9c2076 | done |
 | P1 Plot and stats made modular | V206 | 1e9ffe6 | done: gate P same; paused for compaction |
-| P2 Sources and recipes | V207 | (this commit) | done |
-| P3 The build | V208 | | |
+| P2 Sources and recipes | V207 | 304d3f8 | done |
+| P3 The build | V208 | (this commit) | done: on Brookhaven's results; paused for compaction |
 | P4 Drawn for itself | V209 | | |
 | P5 deck retired | V210 | | |

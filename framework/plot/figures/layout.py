@@ -111,9 +111,10 @@ def grid(n: int, box: tuple[float, float], aspect: float, columns: int | None = 
 
 
 def picture(files: list[str], labels: list[str], box: tuple[float, float], columns: int, rows: int, cw: float,
-            ch: float, label: float, title: str, title_h: float, gap: float) -> list[str]:
+            ch: float, label: float, title: str, title_h: float, gap: float, options: list[str] | None = None) -> list[str]:
     """A grid as a LaTeX picture's lines (I-108 P1: composites, sheets and the report's grids): each file (as the
-    source names it) in its cell, aspect kept and centred, its label above it, the title on top. Units bp."""
+    source names it) in its cell, aspect kept and centred, its label above it, the title on top. Units bp.
+    `options`: each file's further \\includegraphics keys (`page=2`, I-108 P3)."""
     width, height = box
     label_pt = min(12.0, 0.75 * label) if label else 0.0
     title_pt = min(18.0, 0.7 * title_h) if title_h else 0.0
@@ -122,8 +123,9 @@ def picture(files: list[str], labels: list[str], box: tuple[float, float], colum
         column, row = number % columns, number // columns
         x = column * (cw + gap)
         top = height - title_h - row * (ch + label + gap)
+        more = f",{options[number]}" if options and options[number] else ""
         lines.append(rf"\put({x:.2f},{top - label - ch:.2f}){{\makebox({cw:.2f},{ch:.2f}){{"
-                     rf"\includegraphics[width={cw:.2f}bp,height={ch:.2f}bp,keepaspectratio]{{{name}}}}}}}")
+                     rf"\includegraphics[width={cw:.2f}bp,height={ch:.2f}bp,keepaspectratio{more}]{{{name}}}}}}}")
         if label and text:
             lines.append(rf"\put({x:.2f},{top - label:.2f}){{\makebox({cw:.2f},{label:.2f})"
                          rf"{{\fontsize{{{label_pt:.1f}}}{{{label_pt * 1.2:.1f}}}\selectfont\sffamily {tex(text)}}}}}")

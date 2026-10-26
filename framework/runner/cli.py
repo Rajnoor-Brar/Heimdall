@@ -1314,7 +1314,8 @@ def cmd_report(args) -> int:
         for line in reportmod.listing(plan):
             print(line)
         return 0
-    raise HepError("building a report comes with its next step (I-108 P3)", hint="--list says what it would hold")
+    reportmod.build(plan)
+    return 0
 
 
 def cmd_plot(args) -> int:

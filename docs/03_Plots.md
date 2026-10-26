@@ -946,7 +946,100 @@ The pages are Paint's, with an `index.html` beside them. The options are in
 
 ---
 
-## 11. Decks: talks and reports, `heimdall deck`
+## 11. Reports, `heimdall report`
+
+A **report** is a quick, informal account of runs' pages and numbers, the kind you send a colleague or a
+supervisor after a run: one A4 PDF, a page to browse, and every figure it shows in its own folder. It is
+made only when you ask: no run, plot or stats step makes one.
+
+```bash
+heimdall report eic/zeus_validation/02_generator_pdf     # the default report of one configuration
+heimdall report eic/zeus_validation                       # … of each configuration of a run
+heimdall report eic/weekly                                # a recipe: configs/eic/weekly.toml
+heimdall report eic/weekly 'eic/zeus_validation/0[2-4]_*' # the recipe over other sources
+heimdall report eic/weekly --list                         # what it would hold; nothing is written
+heimdall report eic/weekly --init eic/zeus_validation/02_generator_pdf   # write that recipe, once
+```
+
+It is built into `reports/<P>/<name>/` (with no recipe, `reports/<P>/<run>/<cfg>/`; `-o DIR` elsewhere, never
+into `results/`):
+
+| File | What it is |
+|---|---|
+| `report.pdf` | A4: a front page (its sources, where they came from, any flags) and the contents, then each section from a new page |
+| `report.tex` | its LaTeX, naming only files in the folder: it compiles there as it is, or on Overleaf (upload the folder) |
+| `figures/` | every page it shows, copied as drawn: `<NN>_<section>/<MMM>_<source>_<page>.pdf`, and its `.png` |
+| `stats/` | the statistics it shows, drawn from each source's `statistics.csv`: a PDF, and a PNG a page; `summaries/`, each source's `summary.html` |
+| `index.html` | the same grids to browse (2, 3 or 4 columns, ← →), its sources up front |
+
+**A rebuild makes only what changed.** A page whose source changed is copied again, statistics whose numbers
+changed are drawn again, and `report.pdf` is remade only when something it shows changed (`.stamps.json` keeps
+what each file was made from). What no section shows any more is removed.
+
+**Where it came from, up front.** For each source: its address, its configuration, when its pages were drawn and
+by which Heimdall, its points complete of all, its events, and what it is compared against (data, or each page's
+first curve). It flags points that are not complete, and points newer than their pages (`heimdall plot
+<source>` redraws them).
+
+### 11.1 The default report
+
+With no recipe, a report holds the statistics' headline (the top five and each statistic's ranking), then each
+set the source draws (its `[plot].draw`), its pages a grid per page cell. A scan of many points or cells makes
+many pages: `--list` says how many first, and a recipe picks fewer.
+
+### 11.2 A recipe
+
+A recipe is a file of the project's configs with a `[report]` table and no `[run]`
+([04 §15](04_Config_Reference.md#15-a-reports-recipe-report)): a title, a subtitle, its sources, and its
+sections, each one kind of item.
+
+```toml
+# configs/eic/weekly.toml
+[report]
+title    = "ZEUS photoproduction: generators and PDFs"
+subtitle = "for the group, 30 Oct 2026"
+from     = ["eic/zeus_validation/02_generator_pdf"]
+
+[[section]]
+title = "Standings"
+stats = ["top5", "ratio_dev"]
+
+[[section]]
+title = "Spectra"
+pages = ["d01-*", "d02-*"]
+note  = "Pythia 8.318 and Sherpa 3.0.5 against ZEUS 2012"
+
+[[section]]
+title  = "Run by run"
+from   = ["eic/zeus_validation/0[2-4]_generator_pdf"]
+pages  = ["d01-x01-y01"]
+layout = "sources"
+```
+
+- **`pages`:** globs of a set's page names (`d01-*`, `18x275/d0*`). `layout = "pages"` shows each source's in
+  turn, a grid per page cell; `layout = "sources"` puts the sources side by side, a grid per page, a panel per
+  source labelled by its folder (`02_generator_pdf`, the serial kept where two would share a name) or its
+  events (`label = "events"`).
+- **`compare`:** a compare figure's pages (§7.5), from each source's run.
+- **`stats`:** sections of the statistics summary (`top5`, `scoreboard`, `head-to-head`, `chi2_ndf`, …), or one
+  part of a statistic's (`chi2_ndf:ranking`, `:crossed`, `:table`), each source's with its facts and notes.
+- **`bars`:** globs of page names, each page's bar graph of its curves' numbers.
+- **`files`:** your own PDF or PNG files, relative to the recipe (`extras/*.png`).
+
+The sources on the command line replace `[report].from`, so one recipe serves many runs; a section's own
+`from` stays. **What is refused:** a set not drawn or numbers not measured in a source (naming the command that
+makes them), a glob that names nothing, two side-by-side panels of one label, a recipe named like a run of its
+project, an unknown key (with the nearest one).
+
+### 11.3 Talks and papers
+
+A report is not a talk, a thesis or a paper, and Heimdall makes none of them. Take what it made into your own
+tools: the figures as vector PDFs from `figures/`, the statistics' pages from `stats/`, and `report.tex` as a
+start for Overleaf.
+
+### 11.4 Decks, `heimdall deck`
+
+`heimdall report` replaces it, and it goes once the report draws for itself. Until then:
 
 A **deck** makes slides from pages already drawn. It is written in `decks/<deck>/`,
 which git tracks, and built into `reports/<deck>/`, which it does not. `decks/<deck>/` holds two
@@ -969,7 +1062,7 @@ the same picture in every target), and turns `deck.md` into:
 `heimdall deck <deck>` again copies what changed, redraws only the composites whose panels changed, and
 remakes the slides.
 
-### 11.1 A talk from result folders
+#### 11.4.1 A talk from result folders
 
 ```toml
 # decks/batch_1/deck.toml
@@ -997,7 +1090,7 @@ folders are taken as they are on disk, whichever config file made them.
 **What is refused:** a page a folder lacks (naming the backend that drew it there, if one did), two
 folders with one label, a glob that names nothing, an unknown key (with the nearest one).
 
-### 11.2 The talk: `deck.md`
+#### 11.4.2 The talk: `deck.md`
 
 ```markdown
 ---
@@ -1031,7 +1124,7 @@ date: group meeting
 - **Beside words:** pandoc's `::: columns`, in every target; a `half` composite fits a column.
 - **Without `deck.md`:** a slide per block, generated each time and never written.
 
-### 11.3 A folder of files
+#### 11.4.3 A folder of files
 
 With no block in `deck.toml` (or no `deck.toml`), a deck takes the PDF and PNG files in its folder
 (**folder mode**). It groups them into blocks by name: `validation_d01_PDFs_010M.pdf` is block

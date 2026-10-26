@@ -14,17 +14,24 @@ for colleagues or a supervisor, made only when asked (rank 4).
 
 from __future__ import annotations
 
+import dataclasses
 import fnmatch
+import hashlib
+import html
+import json
 import math
 import re
+import shutil
+import subprocess
 import tomllib
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from . import config as configmod
-from . import plotdoc, schema
+from . import plotdoc, plugins, record, schema, statstable, viewer
 from .errors import HepError, did_you_mean
-from .paths import configs_root, reports_root, results_root
+from .paths import configs_root, hep_root, reports_root, results_root
 
 #: The tables of report.toml, a recipe's (I-108).
 TABLES = ("report", "section")
@@ -430,6 +437,8 @@ def _compare_section(section: dict, found: list[Source], where: str) -> list[Gri
                 shown: dict[str, Path] = {}
                 for p in pages:
                     rel = p.relative_to(where_).with_suffix("").as_posix()
+                    if rel.startswith("sheets/"):
+                        continue
                     if rel not in shown or p.suffix.lower() == ".pdf":
                         shown[rel] = p
                 if shown:
@@ -449,7 +458,7 @@ def _files_section(section: dict, base: Path, where: str) -> list[Grid]:
         if not found:
             raise HepError(f"files: '{glob}' names no PDF or PNG file in {base}", where=f"{where}.files")
         files += [p for p in found if p not in files]
-    return [Grid(section["title"], [Figure(None, "", p.name, p.resolve(), p.stem) for p in files], section.get("columns"))]
+    return [Grid(section["title"], [Figure(None, "", p.stem, p.resolve(), p.stem) for p in files], section.get("columns"))]
 
 
 def resolve(recipe: dict, given: list[str], *, path: Path | None = None, name: str = "", out: Path | None = None,
@@ -579,3 +588,431 @@ def starter(name: str, source: Source) -> str:
                   f"#   {', '.join(objects[:12])}{' …' if len(objects) > 12 else ''}",
                   *(mark + line for line in ("[[section]]", f'title = "{set_}"', f'set   = "{set_}"', 'pages = ["*"]')), ""]
     return "\n".join(lines)
+
+
+# ── the build ──────────────────────────────────────────────────────────────────────────────────
+
+FIGURES, STATS, STAMPS = "figures", "stats", ".stamps.json"
+#: A4 in bp and its text block (15 mm margins). A grid's picture is at most ROOM high, leaving its caption and, on a
+#: section's first page, the section's heading and note.
+A4_BP = (595.28, 841.89)
+MARGIN = 42.52
+TEXT_W, TEXT_H = A4_BP[0] - 2 * MARGIN, A4_BP[1] - 2 * MARGIN
+ROOM = TEXT_H - 80.0
+GAP, LABEL = 6.0, 11.0
+#: What pdflatex leaves beside report.tex, removed once report.pdf is made.
+LEFTOVERS = (".aux", ".log", ".out", ".toc")
+BUILT = "\0built\0"
+#: A default report this many pages long or more says how a recipe picks fewer.
+LONG = 40
+
+
+def slug(text: str) -> str:
+    """A part of a file's name: letters, digits, `.` and `-`; anything else `_`."""
+    return re.sub(r"[^A-Za-z0-9.-]+", "_", text).strip("_.") or "x"
+
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _key(*parts: str) -> str:
+    return hashlib.sha256("\n".join(parts).encode()).hexdigest()
+
+
+def _layout():
+    return plugins.load(hep_root() / "framework" / "plot" / "figures" / "layout.py", "layout")
+
+
+@dataclass
+class Placed:
+    """A grid as the report shows it: its files in the report's folder, their labels and \\includegraphics keys
+    (`page=2`), their PNGs for index.html (else the file itself), its columns and its first file's aspect."""
+    caption: str
+    files: list[Path]
+    labels: list[str]
+    options: list[str]
+    pngs: list[Path]
+    columns: int
+    aspect: float
+    label: float = LABEL
+
+
+class _Build:
+    """A build's books: the stamps read and written, the files the report holds and their sha256, what was copied
+    and what drawn. A stamp, `.stamps.json`, says what a file was made from, so a rebuild makes only what changed."""
+
+    def __init__(self, out: Path):
+        self.out = out
+        try:
+            self.old = json.loads((out / STAMPS).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.old = {}
+        self.new: dict = {}
+        self.shas: dict[str, str] = {}
+        self.copied = self.drawn = 0
+
+    def rel(self, path: Path) -> str:
+        return path.relative_to(self.out).as_posix()
+
+    def copy(self, source: Path, target: Path) -> str:
+        """`source` copied to `target`, unless it holds the same bytes already; its sha256."""
+        sha = _sha(source)
+        if not target.is_file() or _sha(target) != sha:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            self.copied += 1
+        self.shas[self.rel(target)] = sha
+        return sha
+
+    def stamped(self, first: Path, key: str, make) -> list[Path]:
+        """The files `make()` makes (a list, `first` first), unless `first`'s stamp says they were made from `key`
+        and each is still there; those files."""
+        stamp = self.old.get(self.rel(first))
+        files = [self.out / f for f in stamp["files"]] if stamp and stamp.get("key") == key else []
+        if not files or not all(f.is_file() for f in files):
+            files = make()
+            self.drawn += 1
+        self.new[self.rel(first)] = {"key": key, "files": [self.rel(f) for f in files]}
+        for f in files:
+            self.shas[self.rel(f)] = _sha(f)
+        return files
+
+    def prune(self) -> None:
+        """What no section holds any more, removed from figures/ and stats/ (and their empty folders)."""
+        for top in (FIGURES, STATS):
+            root = self.out / top
+            if not root.is_dir():
+                continue
+            for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+                if path.is_file() and self.rel(path) not in self.shas:
+                    path.unlink()
+                elif path.is_dir() and not any(path.iterdir()):
+                    path.rmdir()
+
+    def save(self) -> None:
+        (self.out / STAMPS).write_text(json.dumps(self.new, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _aspect(path: Path, default: float = 4 / 3) -> float:
+    try:
+        w, h = _layout().size_of(path)
+        return w / h if h else default
+    except ValueError:
+        return default
+
+
+def _figure(build: _Build, figure: Figure, folder: Path, stem: str) -> tuple[Path, Path]:
+    """A figure into the report's folder: its PDF (else its PNG) copied, and its PNG copied, or rendered from the
+    PDF when it has none (none either without pdftoppm); (what report.tex shows, what index.html shows)."""
+    given = figure.file
+    if given.suffix.lower() != ".pdf":
+        shown = folder / f"{stem}{given.suffix.lower()}"
+        build.copy(given, shown)
+        return shown, shown
+    pdf, png = folder / f"{stem}.pdf", folder / f"{stem}.png"
+    sha = build.copy(given, pdf)
+    if given.with_suffix(".png").is_file():
+        build.copy(given.with_suffix(".png"), png)
+        return pdf, png
+
+    def render() -> list[Path]:
+        _layout().png(pdf, png, dpi=150)
+        return [png]
+    try:
+        build.stamped(png, sha, render)
+    except ValueError:
+        return pdf, pdf
+    return pdf, png
+
+
+def chosen(document, keys: list[str]):
+    """The summary's sections that `keys` name, in their order: a whole section, or one of a statistic's parts
+    (`chi2_ndf:ranking`, `:crossed`, `:table`). Its facts and notes stay (only the notes its items name are
+    numbered). (The document, the keys it has no part for.)"""
+    by_key = {s.key: s for s in document.sections}
+    kept, missing = [], []
+    for key in keys:
+        statistic, _, part = key.partition(":")
+        section = by_key.get(statistic)
+        want = statistic if part == "table" else f"{statistic}-{part}"
+        items = [] if section is None else [i for i in section.items if not part or i.key == want]
+        if items:
+            kept.append(dataclasses.replace(section, items=items))
+        else:
+            missing.append(key)
+    return dataclasses.replace(document, sections=kept), missing
+
+
+def _code(bars) -> str:
+    """What the statistics' pages are drawn by: bars.py and paper.py, as they are."""
+    return _key(_sha(Path(bars.__file__)), _sha(Path(bars.paper.__file__)))
+
+
+def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say) -> Placed | None:
+    """A source's statistics, the sections chosen, as A4 pages: stats/<section>/<stem>.pdf and a PNG a page."""
+    heading = statstable.heading_of(part.csv.parent)
+    target = folder / stem
+    missing: list[str] = []
+
+    def make() -> list[Path]:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        document, gone = chosen(bars.summary_model(statstable.read(part.csv), heading), part.keys)
+        missing.extend(gone)
+        if not document.sections:
+            return []
+        return bars.paper.write(document, target, ["pdf", "png"], f"Statistics: {heading}", plt)
+    key = _key(_sha(part.csv), heading, *part.keys, _code(bars))
+    stamp = build.old.get(build.rel(target.with_suffix(".pdf")))
+    files = build.stamped(target.with_suffix(".pdf"), key, make)
+    gone = missing or (stamp or {}).get("missing", [])
+    build.new[build.rel(target.with_suffix(".pdf"))]["missing"] = gone
+    if gone:
+        say(f"report: {heading} has no {', '.join(gone)} (too few curves or page cells for them)")
+    pdf, pngs = (files[0], sorted(files[1:], key=lambda p: natural(p.name))) if files else (None, [])
+    if pdf is None:
+        build.new.pop(build.rel(target.with_suffix(".pdf")), None)
+        return None
+    summary = part.csv.with_name("summary.html")
+    if summary.is_file():
+        build.copy(summary, build.out / STATS / "summaries" / f"{slug(part.source.address)}__{slug(part.set)}.html")
+    return Placed(f"Statistics: {heading}", [pdf] * len(pngs), [""] * len(pngs), [f"page={k}" for k in range(1, len(pngs) + 1)],
+                  pngs, 1, paper_aspect(bars), 0.0)
+
+
+def paper_aspect(bars) -> float:
+    w, h = bars.paper.A4
+    return w / h
+
+
+def _bars(build: _Build, bars, item: Bars, folder: Path) -> Placed:
+    """A source's pages' bar graphs, drawn from its statistics.csv: stats/<section>/<NNN>_<source>_<page>.pdf."""
+    rows = statstable.read(item.csv)
+    pages: dict[str, list[dict]] = {}
+    for row in rows:
+        pages.setdefault(row["page"], []).append(row)
+    names = [n for n in sorted(pages, key=natural) if any(_matches(n, g) for g in item.pages)]
+    if not names:
+        raise HepError(f"bars: {', '.join(item.pages)} names no page measured in {item.csv}",
+                       hint=f"its pages: {', '.join(list(sorted(pages, key=natural))[:6])} …" if pages else None)
+    base = _key(_sha(item.csv), _code(bars))
+    files, options, pngs = [], [], []
+    for number, name in enumerate(names, 1):
+        target = folder / f"{number:03d}_{slug(item.source.folder.name)}_{slug(name)}"
+        made = build.stamped(target.with_suffix(".pdf"), _key(base, name),
+                             lambda name=name, target=target: bars.page(pages[name], target, ["pdf", "png"],
+                                                                       f"{item.source.address} · {name}"))
+        shown = sorted((f for f in made if f.suffix == ".png"), key=lambda p: natural(p.name))
+        files += [target.with_suffix(".pdf")] * len(shown)
+        options += [f"page={k}" for k in range(1, len(shown) + 1)]
+        pngs += shown
+    return Placed(f"Bar graphs: {item.source.address} · {item.set}", files, [""] * len(files), options, pngs, 1,
+                  paper_aspect(bars), 0.0)
+
+
+def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list[Placed]]]:
+    """Every section's figures copied into figures/<NN>_<section>/, its statistics and bar graphs drawn into
+    stats/<NN>_<section>/; each grid as the report shows it."""
+    bars = statstable.bars()
+    placed = []
+    for number, section in enumerate(plan.sections, 1):
+        name = f"{number:02d}_{slug(section.title)}"
+        grids: list[Placed] = []
+        count = 0
+        for grid in section.grids:
+            files, pngs = [], []
+            for figure in grid.figures:
+                count += 1
+                stem = f"{count:03d}_{slug(figure.source.folder.name)}_{slug(figure.page)}" if figure.source else \
+                    f"{count:03d}_{slug(figure.page)}"
+                shown, png = _figure(build, figure, build.out / FIGURES / name, stem)
+                files.append(shown)
+                pngs.append(png)
+            columns = grid.columns or (1 if len(files) == 1 else 2)
+            grids.append(Placed(grid.caption, files, [f.label for f in grid.figures], [""] * len(files), pngs,
+                                columns, _aspect(grid.figures[0].file)))
+        for k, part in enumerate(section.parts, 1):
+            shown = _part(build, bars, part, build.out / STATS / name, f"{k:02d}_{slug(part.source.folder.name)}", say)
+            if shown is not None:
+                grids.append(shown)
+        for item in section.bars:
+            grids.append(_bars(build, bars, item, build.out / STATS / name))
+        placed.append((section, grids))
+    return placed
+
+
+def _breakable(text: str) -> str:
+    """Text for LaTeX that may break after a / or an _ (an address, a folder's name)."""
+    return _layout().tex(text).replace("/", "/\\allowbreak{}").replace("\\_", "\\_\\allowbreak{}")
+
+
+def _chunks(placed: Placed) -> list[tuple[int, int, tuple[float, float], float, float]]:
+    """A grid cut into pictures that each fit a page: (first, last figure, box, cell width, cell height)."""
+    columns = placed.columns
+    cw = (TEXT_W - (columns - 1) * GAP) / columns
+    ch = min(cw / placed.aspect, ROOM - placed.label)
+    rows = max(1, int((ROOM + GAP) // (ch + placed.label + GAP)))
+    out = []
+    for start in range(0, len(placed.files), rows * columns):
+        end = min(len(placed.files), start + rows * columns)
+        shown_rows = math.ceil((end - start) / columns)
+        out.append((start, end, (TEXT_W, shown_rows * (ch + placed.label) + (shown_rows - 1) * GAP), cw, ch))
+    return out
+
+
+PREAMBLE = r"""\documentclass[a4paper,10pt]{article}
+%% Made by heimdall report: every file it names is in this folder, so it compiles here as it is (pdflatex, twice).
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=15mm]{geometry}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage[hidelinks,bookmarksdepth=2]{hyperref}
+\renewcommand{\familydefault}{\sfdefault}
+\setlength{\parindent}{0pt}
+\setcounter{tocdepth}{1}
+\setlength{\unitlength}{1bp}
+"""
+
+
+def _front(plan: Plan) -> list[str]:
+    """The front page's lines: the title, when and by what it was made, each source's facts and its flags."""
+    tex = _layout().tex
+    lines = [r"{\LARGE\bfseries " + tex(plan.title) + r"\par}"]
+    if plan.subtitle:
+        lines += [r"\vspace{3pt}", r"{\large " + tex(plan.subtitle) + r"\par}"]
+    lines += [r"\vspace{6pt}", r"{\small Made by \texttt{heimdall report " + _breakable(plan.name) + "} " + BUILT + r".\par}",
+              r"\vspace{12pt}", r"{\large\bfseries Sources\par}\vspace{4pt}",
+              r"{\small\begin{tabular}{@{}r>{\raggedright\arraybackslash}p{64mm}>{\raggedright\arraybackslash}p{30mm}"
+              r"rr>{\raggedright\arraybackslash}p{34mm}@{}}",
+              r" & Source & Configuration & Points & Events & Compared against\\", r"\hline"]
+    flags = []
+    for number, source in enumerate(plan.sources, 1):
+        f = source.facts()
+        drawn = " · ".join(part for part in (f["written"][:16].replace("T", " "), f"Heimdall {f['heimdall']}" if f["heimdall"] else "") if part)
+        lines.append(f"{number} & \\texttt{{{_breakable(f['address'])}}}" + (f"\\newline{{\\scriptsize {tex(drawn)}}}" if drawn else "")
+                     + f" & {_breakable(f['configuration'] or source.doc.name)} & {f['complete']}/{f['points']}"
+                     + f" & {tex(f['events'] or '?')} & {tex(f['against'])}\\\\")
+        if f["incomplete"]:
+            shown = ", ".join(f["incomplete"][:6]) + (" …" if len(f["incomplete"]) > 6 else "")
+            flags.append(f"\\texttt{{{_breakable(f['address'])}}}: {len(f['incomplete'])} of {f['points']} point(s) not "
+                         f"complete ({_breakable(shown)}); its pages show the complete ones.")
+        if f["stale"]:
+            flags.append(f"\\texttt{{{_breakable(f['address'])}}}: its points are newer than its pages; "
+                         f"\\texttt{{heimdall plot {_breakable(f['address'])}}} redraws them.")
+    lines += [r"\end{tabular}\par}"]
+    if flags:
+        lines += [r"\vspace{6pt}", r"{\small\begin{itemize}\setlength{\itemsep}{1pt}",
+                  *(r"\item " + flag for flag in flags), r"\end{itemize}\par}"]
+    return lines + [r"\vspace{8pt}", r"\tableofcontents", r"\clearpage"]
+
+
+def _tex(plan: Plan, placed: list[tuple[Section, list[Placed]]], out: Path) -> str:
+    """report.tex, with BUILT for when and by what it was made: its front page, its contents, then each section
+    on a new page, each grid in pictures that fit a page, each file named relative to the folder."""
+    layout = _layout()
+    tex = layout.tex
+    lines = [PREAMBLE + f"\\hypersetup{{pdftitle={{{tex(plan.title)}}}}}", r"\begin{document}", *_front(plan)]
+    for section, grids in placed:
+        lines += [r"\clearpage", f"\\section{{{tex(section.title)}}}"]
+        if section.note:
+            lines += [tex(section.note) + r"\par", r"\vspace{6pt}"]
+        for grid in grids:
+            pieces = _chunks(grid)
+            lines.append(f"\\phantomsection\\addcontentsline{{toc}}{{subsection}}{{{tex(grid.caption)}}}")
+            for k, (start, end, box, cw, ch) in enumerate(pieces, 1):
+                rows = math.ceil((end - start) / grid.columns)
+                caption = grid.caption + (f" ({k}/{len(pieces)})" if len(pieces) > 1 else "")
+                names = [f.relative_to(out).as_posix() for f in grid.files[start:end]]
+                lines += [r"\noindent\begin{minipage}{\textwidth}", r"{\small " + _breakable(caption) + r"\par}\vspace{3pt}",
+                          f"\\begin{{picture}}({box[0]:.2f},{box[1]:.2f})",
+                          *layout.picture(names, grid.labels[start:end], box, grid.columns, rows, cw, ch, grid.label,
+                                          "", 0.0, GAP, grid.options[start:end]),
+                          r"\end{picture}", r"\end{minipage}\par\vspace{10pt}"]
+    return "\n".join([*lines, r"\end{document}", ""])
+
+
+def _index(plan: Plan, placed: list[tuple[Section, list[Placed]]], out: Path) -> Path:
+    """index.html (the viewer): a block a grid, its panels the PNGs; the sources and their summaries' pages up front."""
+    blocks = []
+    for number, (section, grids) in enumerate(placed, 1):
+        for k, grid in enumerate(grids, 1):
+            panels = [(label or (f"page {n}" if len(grid.pngs) > 1 else ""), png) for n, (label, png)
+                      in enumerate(zip(grid.labels, grid.pngs), 1)]
+            blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {grid.caption}", panels))
+    summaries = {p.name: p for p in sorted((out / STATS / "summaries").glob("*.html"))} if (out / STATS / "summaries").is_dir() else {}
+    rows = []
+    for source in plan.sources:
+        f = source.facts()
+        links = [f'<a href="{STATS}/summaries/{html.escape(n, quote=True)}">{html.escape(n.split("__", 1)[1][:-5])}</a>'
+                 for n in summaries if n.startswith(slug(source.address) + "__")]
+        rows.append(f"<tr><td><code>{html.escape(f['address'])}</code></td><td>{html.escape(f['configuration'])}</td>"
+                    f"<td>{f['complete']}/{f['points']}</td><td>{html.escape(f['events'])}</td><td>{html.escape(f['against'])}</td>"
+                    f"<td>{' · '.join(links)}</td></tr>")
+    front = ('    <header><h2>Sources</h2><span class="more"><a href="report.pdf">report.pdf</a></span></header>\n'
+             '    <table><tr><th>Source</th><th>Configuration</th><th>Points</th><th>Events</th><th>Compared against</th>'
+             '<th>Statistics summary</th></tr>\n    ' + "\n    ".join(rows) + "\n    </table>")
+    return viewer.page(out / "index.html", plan.title, blocks, front)
+
+
+def _pages_of(pdf: Path) -> int:
+    try:
+        done = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True, encoding="utf-8")
+    except OSError:
+        return 0
+    found = re.search(r"^Pages:\s+(\d+)", done.stdout, re.M)
+    return int(found[1]) if found else 0
+
+
+def build(plan: Plan, say=print) -> list[Path]:
+    """The report, into plan.out (I-108 P3): figures/ (each figure copied as drawn, its PNG beside it), stats/ (the
+    chosen statistics and bar graphs, drawn from each source's statistics.csv), report.tex (A4, naming only files in
+    the folder), report.pdf (pdflatex, twice: the contents) and index.html. Only what changed is copied or drawn
+    again (`.stamps.json`), and what no section holds any more is removed. The files made."""
+    out = plan.out
+    for place in (results_root(), *(s.folder for s in plan.sources)):
+        if out.resolve().is_relative_to(Path(place).resolve()):
+            raise HepError(f"a report is never built into results/: {out}", hint="leave -o out (reports/<P>/<name>/), or name another folder")
+    if plan.drawn():
+        raise HepError("this report needs pages or numbers drawn for it, which comes with its next step",
+                       hint="--list says which; heimdall plot or heimdall stats draws them in the source")
+    out.mkdir(parents=True, exist_ok=True)
+    books = _Build(out)
+    placed = _place(books, plan, say)
+    books.prune()
+    figures = sum(len(g.figures) for s in plan.sections for g in s.grids)
+    say(f"report: {figures} figure(s), {books.copied} file(s) copied; "
+        f"{sum(len(s.parts) + len(s.bars) for s in plan.sections)} statistics part(s), {books.drawn} drawn")
+    text = _tex(plan, placed, out)
+    key = _key(text, *(f"{rel}:{sha}" for rel, sha in sorted(books.shas.items())))
+    source, pdf = out / "report.tex", out / "report.pdf"
+    made = [source, out / "index.html"]
+    stamp = books.old.get("report.pdf")
+    revision = record.git_state(hep_root()).get("revision", "")[:12]
+    when = f"on {datetime.now().strftime('%Y-%m-%d %H:%M')}" + (f", Heimdall {revision}" if revision else "")
+    if stamp and stamp.get("key") == key and pdf.is_file() and source.is_file():
+        books.new["report.pdf"] = stamp
+        say(f"report: report.pdf unchanged ({_pages_of(pdf)} pages)")
+        made.insert(0, pdf)
+    else:
+        source.write_text(text.replace(BUILT, when), encoding="utf-8")
+        if shutil.which("pdflatex"):
+            try:
+                _layout().pdflatex(source, "the report", runs=2)
+            except ValueError as error:
+                raise HepError(str(error), where=str(source), hint=f"pdflatex's log: {source.with_suffix('.log')}") from None
+            for suffix in LEFTOVERS:
+                source.with_suffix(suffix).unlink(missing_ok=True)
+            books.new["report.pdf"] = {"key": key}
+            say(f"report: report.pdf, {_pages_of(pdf)} A4 page(s)")
+            made.insert(0, pdf)
+        else:
+            say("report: no pdflatex on PATH, so no report.pdf: report.tex compiles anywhere else as it is (Overleaf)")
+    _index(plan, placed, out)
+    books.save()
+    say(f"report: {', '.join(p.name for p in made)} in {out}")
+    if plan.recipe is None and pdf.is_file() and _pages_of(pdf) > LONG:
+        say(f"report: a recipe shows less: heimdall report {plan.sources[0].project}/<name> --init {plan.sources[0].address}")
+    return made

@@ -54,6 +54,9 @@ STYLE = """\
   .block { min-height:100vh; padding:20px 16px 32px; scroll-margin-top:var(--top, 60px); margin:0 auto; max-width:var(--width, 1500px); }
   .block header { display:flex; align-items:baseline; gap:12px; margin:0 0 12px; }
   .block h2 { margin:0; font-size:22px; }
+  .front { min-height:auto; }
+  .front table { border-collapse:collapse; font-size:14px; }
+  .front th, .front td { padding:4px 12px 4px 0; border-bottom:1px solid var(--line); text-align:left; }
   .block header .more { color:var(--muted); font-size:13px; }
   .block header .more a { color:var(--muted); }
   .count { margin-left:auto; color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums; }
@@ -131,8 +134,9 @@ def _cell(label: str, path: Path, where: Path) -> str:
             f'<a href="{href}" target="_blank">{html.escape(path.name)}</a></figcaption><div class="view">{shown}</div></figure>')
 
 
-def page(target: Path, title: str, blocks: list[Shown]) -> Path:
-    """`target`: the viewer of these blocks, its paths relative to it."""
+def page(target: Path, title: str, blocks: list[Shown], front: str = "") -> Path:
+    """`target`: the viewer of these blocks, its paths relative to it. `front`: HTML above the first block, as
+    given (a report's sources, I-108 P3)."""
     where = target.parent
     nav = "\n      ".join(f'<a href="#{html.escape(b.name, quote=True)}">{html.escape(b.title)}</a>' for b in blocks)
     sections = []
@@ -156,6 +160,7 @@ def page(target: Path, title: str, blocks: list[Shown]) -> Path:
             '      <div class="seg cols" role="group" aria-label="Columns"><span>Columns</span>'
             '<button data-cols="2">2</button><button data-cols="3">3</button><button data-cols="4">4</button></div>\n'
             '      <span class="hint">← →: block · 2/3/4: columns · + −: size</span>\n    </div>\n  </div>\n'
+            + (f'  <section class="block front">\n{front}\n  </section>\n' if front else "")
             + "\n".join(sections) + f"\n<script>\n{SCRIPT}\n</script>\n</body>\n</html>\n")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")

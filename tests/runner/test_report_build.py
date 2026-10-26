@@ -1,0 +1,207 @@
+"""runner/report.py's build (I-108 P3, V208): figures/ copied as drawn, stats/ drawn from statistics.csv, report.tex
+naming only its own folder's files, report.pdf on A4, index.html; a rebuild makes nothing again. Pages are PDFs
+(and PNGs) made by PIL in a tmp_path results tree, with a statistics.csv beside them."""
+
+from __future__ import annotations
+
+import csv
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from runner import report, statstable
+from runner.errors import HepError
+
+TOOLS = all(shutil.which(t) for t in ("pdflatex", "pdftoppm", "pdfinfo", "pdftotext"))
+pytestmark = pytest.mark.skipif(not TOOLS, reason="pdflatex and poppler make and read the report")
+
+DOCUMENT = """[source]
+config = "P/study"
+configuration = "{label}"
+run = "validation"
+project = "P"
+heimdall = "0123456789abcdef"
+written = "2026-10-26T10:00:00+00:00"
+
+[axes]
+vary = ["pdf"]
+plot_points = []
+combine = []
+fixed = {{}}
+
+[quantities.pdf]
+points = [
+  {{ tag = "A", value = "A", label = "PDF A" }},
+  {{ tag = "B", value = "B", label = "PDF B" }},
+]
+
+[plot]
+backend = ["mpl"]
+draw = ["totality"]
+
+[members.A]
+index = 0
+choice = {{ pdf = 0 }}
+values = {{ pdf = 0 }}
+yoda = "points/A/run.yoda"
+identity = "one"
+complete = true
+events = 1000000
+
+[members.B]
+index = 1
+choice = {{ pdf = 1 }}
+values = {{ pdf = 1 }}
+yoda = "points/B/run.yoda"
+identity = "two"
+complete = true
+events = 1000000
+"""
+
+CELLS, OBJECTS = ("18x275", "27x920"), ("d01-x01-y01", "d02-x01-y01")
+
+
+def page(path: Path, colour: str, png: bool) -> None:
+    from PIL import Image
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (320, 240), colour).save(path, "PDF", resolution=72)
+    if png:
+        Image.new("RGB", (320, 240), colour).save(path.with_suffix(".png"))
+
+
+def source(results: Path, name: str, png: bool) -> Path:
+    """A configuration's result folder: its document, its points, its totality pages (mpl) and their numbers."""
+    where = results / "P" / "validation" / name
+    (where / "points").mkdir(parents=True)
+    (where / "plot.toml").write_text(DOCUMENT.format(label=name.split("_", 1)[1]), encoding="utf-8")
+    for point in ("A", "B"):
+        (where / "points" / point).mkdir()
+        (where / "points" / point / "run.yoda").write_text("# a YODA\n", encoding="utf-8")
+    rows = []
+    for n, (cell, obj) in enumerate((c, o) for c in CELLS for o in OBJECTS):
+        page(where / "plots" / "totality" / "mpl" / cell / f"{obj}.pdf", ("lightblue", "khaki", "salmon", "plum")[n], png)
+        for k, (curve, point) in enumerate((("PDF A", "A"), ("PDF B", "B"))):
+            off = 0.1 * (k + 1) * (n + 1)
+            rows.append({"page": f"{cell}/{obj}", "cell": cell, "object": f"/ZEUS/{obj}", "curve": curve, "point": point,
+                         "reference": "ZEUS", "is_reference": False, "bins": 10, "area": 1.0 + off, "area_err": 0.1,
+                         "ref_area": 1.0, "cmp_area": 1.0 + off, "abs_area": off, "rel_abs_area": off, "area_ratio": 1.0 + off,
+                         "ratio_mean": 1.0 + off, "ratio_dev": off, "chi2": 9.0 * (1 + off), "ndf": 9, "chi2_ndf": 1.0 + off})
+    numbers = where / "statistics" / "totality" / "statistics.csv"
+    numbers.parent.mkdir(parents=True)
+    with open(numbers, "w", encoding="utf-8", newline="") as handle:
+        out = csv.DictWriter(handle, fieldnames=statstable.STATISTIC_COLUMNS)
+        out.writeheader()
+        out.writerows(rows)
+    return where
+
+
+@pytest.fixture
+def trees(tmp_path, monkeypatch):
+    for var in ("HEP_RESULTS", "HEP_RECORDS", "HEP_CONFIGS", "HEP_REPORTS", "HEP_CACHE"):
+        monkeypatch.setenv(var, str(tmp_path / var.removeprefix("HEP_").lower()))
+    monkeypatch.setenv("MPLCONFIGDIR", str(tmp_path / "mpl"))
+    source(tmp_path / "results", "01_pdf", png=True)
+    source(tmp_path / "results", "02_more", png=False)                  # its PNGs rendered from its PDFs
+    return tmp_path
+
+
+def recipe(trees, name: str, text: str) -> Path:
+    path = trees / "configs" / "P" / f"{name}.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def built(name: str, rest: list[str]) -> tuple[report.Plan, list[str]]:
+    said: list[str] = []
+    plan = report.planned(name, rest)
+    report.build(plan, said.append)
+    return plan, said
+
+
+def named(tex: Path) -> list[str]:
+    return re.findall(r"\\includegraphics\[[^\]]*\]\{([^}]*)\}", tex.read_text(encoding="utf-8"))
+
+
+def test_the_default_report_is_a4_and_holds_everything_it_shows(trees, tmp_path):
+    numbers = trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality"
+    (numbers / "summary.html").write_text("<p>a summary</p>\n", encoding="utf-8")
+    plan, said = built("P/validation", [])
+    out = trees / "reports" / "P" / "validation"
+    assert plan.out == out and (out / "report.pdf").is_file() and (out / "index.html").is_file()
+    sizes = re.findall(r"size:\s+([\d.]+) x ([\d.]+)", subprocess.run(["pdfinfo", "-l", "99", str(out / "report.pdf")],
+                                                                     capture_output=True, text=True, encoding="utf-8").stdout)
+    assert sizes and all((round(float(w)), round(float(h))) == (595, 842) for w, h in sizes)
+    files = named(out / "report.tex")
+    assert len(files) >= 8 and all(not Path(f).is_absolute() and ".." not in f and (out / f).is_file() for f in files)
+    assert (out / "figures" / "02_Pages_totality" / "005_02_more_18x275_d01-x01-y01.png").is_file()    # rendered
+    assert not list(out.glob("report.aux")) and "8 figure(s)" in said[0]
+    elsewhere = tmp_path / "lifted"
+    shutil.copytree(out, elsewhere)
+    subprocess.run(["pdflatex", "-interaction=batchmode", "-halt-on-error", "report.tex"], cwd=elsewhere, check=True,
+                   capture_output=True)
+    page = (out / "index.html").read_text(encoding="utf-8")
+    assert "figures/02_Pages_totality/001_01_pdf_18x275_d01-x01-y01.png" in page and "P/validation/02_more" in page
+    assert (out / "stats" / "summaries" / "P_validation_01_pdf__totality.html").is_file()
+    assert 'href="stats/summaries/P_validation_01_pdf__totality.html"' in page
+
+
+def test_a_rebuild_makes_nothing_and_a_changed_page_is_copied_again(trees):
+    built("P/validation/01_pdf", [])
+    _, said = built("P/validation/01_pdf", [])
+    assert "0 file(s) copied" in said[0] and said[0].endswith("0 drawn") and "report.pdf unchanged" in said[1]
+    page(trees / "results" / "P" / "validation" / "01_pdf" / "plots" / "totality" / "mpl" / "18x275" / "d01-x01-y01.pdf",
+         "black", png=True)
+    _, said = built("P/validation/01_pdf", [])
+    assert "2 file(s) copied" in said[0] and said[0].endswith("0 drawn") and "A4 page(s)" in said[1]
+
+
+def test_a_statistics_part_holds_the_sections_chosen(trees):
+    bars = statstable.bars()
+    rows = statstable.read(trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv")
+    document, missing = report.chosen(bars.summary_model(rows, "here"), ["top5", "chi2_ndf:ranking", "area:ranking"])
+    assert [s.key for s in document.sections] == ["top5", "chi2_ndf"] and missing == ["area:ranking"]
+    assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking"]
+    recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[section]]\ntitle = "Standings"\n'
+                             'stats = ["chi2_ndf:ranking"]\n\n[[section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
+    _, said = built("P/numbers", [])
+    out = trees / "reports" / "P" / "numbers"
+    text = subprocess.run(["pdftotext", str(out / "stats" / "01_Standings" / "01_01_pdf.pdf"), "-"], capture_output=True,
+                          text=True, encoding="utf-8").stdout
+    assert "Head to head" not in text and "top five" not in text.lower()
+    assert sorted(p.name for p in (out / "stats" / "02_Bars").glob("*.pdf")) == \
+        ["001_01_pdf_18x275_d01-x01-y01.pdf", "002_01_pdf_27x920_d01-x01-y01.pdf"]
+
+
+def test_what_no_section_holds_is_removed_and_own_files_are_copied(trees):
+    (trees / "configs" / "P" / "extras").mkdir(parents=True)
+    page(trees / "configs" / "P" / "extras" / "sketch.pdf", "grey", png=False)
+    path = recipe(trees, "mine", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[section]]\ntitle = "Spectra"\npages = ["d01-*"]\n\n'
+                                 '[[section]]\ntitle = "Mine"\nfiles = ["extras/*.pdf"]\n')
+    built("P/mine", [])
+    out = trees / "reports" / "P" / "mine"
+    assert (out / "figures" / "02_Mine" / "001_sketch.pdf").is_file() and (out / "figures" / "02_Mine" / "001_sketch.png").is_file()
+    path.write_text(path.read_text(encoding="utf-8").replace('pages = ["d01-*"]', 'pages = ["d02-*"]'), encoding="utf-8")
+    built("P/mine", [])
+    assert sorted(p.name for p in (out / "figures" / "01_Spectra").glob("*.pdf")) == \
+        ["001_01_pdf_18x275_d02-x01-y01.pdf", "002_01_pdf_27x920_d02-x01-y01.pdf"]
+
+
+def test_a_compare_figures_pages_are_copied_from_its_run(trees):
+    run = trees / "results" / "P" / "validation"
+    page(run / "compare" / "both" / "mpl" / "18x275" / "d01-x01-y01.pdf", "teal", png=True)
+    page(run / "compare" / "both" / "mpl" / "sheets" / "all.pdf", "teal", png=False)
+    recipe(trees, "across", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[section]]\ntitle = "Both"\ncompare = ["both"]\n')
+    plan, _ = built("P/across", [])
+    assert [g.caption for g in plan.sections[0].grids] == ["P/validation · compare both"]
+    assert sorted(p.name for p in (plan.out / "figures" / "01_Both").iterdir()) == \
+        ["001_18x275_d01-x01-y01.pdf", "001_18x275_d01-x01-y01.png"]
+
+
+def test_a_report_is_never_built_into_results(trees):
+    plan = report.planned("P/validation/01_pdf", [], trees / "results" / "P" / "here")
+    with pytest.raises(HepError, match="never built into results"):
+        report.build(plan, print)

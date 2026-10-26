@@ -42,3 +42,28 @@ after this phase.**
 - `test_docs`; 03 §11 rewritten as "Reports".
 
 ## Log
+
+- 2026-10-26: done (V208).
+  - **`report.build(plan, say)`** (report.py's "the build"): `_Build` (stamps in `.stamps.json`, copies by
+    sha256, `stamped` for what is drawn, `prune`), `_figure`, `chosen`, `_part`, `_bars`, `_place`, `_chunks`,
+    `_front`, `_tex`, `_index`. `cli.cmd_report` builds after resolving.
+  - **Shared code touched:** `layout.picture(…, options)` (each file's `\includegraphics` keys, for a PDF's page
+    `n`); `viewer.page(…, front)` and its `.front` style. Neither changes what deck or plot write.
+  - **As planned, with these differences:**
+    - bar graphs (`bars = [...]`) are built here, not at P4: they come from `statistics.csv` like the
+      statistics, so nothing is drawn in a source for them;
+    - statistics pages are placed as pictures (one a page, `page=n`), not `\includepdf`: the section's heading and
+      the report's page numbers stay, at about 0.82 of their size;
+    - a section's grids are listed in the PDF's bookmarks, not in the printed contents (`tocdepth` 1), which
+      would run to pages for a scan;
+    - without pdflatex, `report.tex` and `index.html` are still made, and it says so.
+  - **On Brookhaven's results, read-only** (roots in `scratchpad/p2live/`, `HEP_RESULTS` and `HEP_RECORDS` its own):
+    - `side.toml` (Standings of three sources, `d01` side by side over `0[2-4]_generator_pdf`): 11 A4 pages,
+      3.4 s; the contents' pages right (2, 11); viewed.
+    - the default report of `01_pythia_qed_lepton`: 684 figures, 184 A4 pages, 7.3 s; a rebuild 0.7 s, nothing
+      copied or drawn; a copy of the folder compiles alone (696 `\includegraphics`, none missing, none outside).
+    - `index.html`: every link resolves. (Headless Firefox could not reach the scratchpad; its HTML checked.)
+    - nothing in Brookhaven newer than a marker taken before; `git status` clean.
+  - **For the pause:** a default report is everything the source draws: 184 pages for `01_pythia_qed_lepton`.
+    It now says how a recipe shows less when over 40 pages. Whether the default should show less is the user's.
+  - **Tests:** `tests/runner/test_report_build.py` (6).

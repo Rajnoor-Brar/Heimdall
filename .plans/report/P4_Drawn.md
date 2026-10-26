@@ -14,7 +14,8 @@
 - **Measured:** `plot.measure` for numbers no `statistics.csv` holds.
 - **Then:** what they made is copied into `figures/` and `stats/` as in P3. A failure names its log (V204's
   `logs/plot/`, under the cache folder).
-- **Bar images (`bars`):** `bars.page(rows, stats/bars/<source>/<page>, ["pdf", "png"], title)` from the rows.
+- **Bar images (`bars`):** built at P3 from `statistics.csv` (`report._bars`); here only from numbers measured for
+  the report, when a source has no `statistics.csv`.
 - **`resolve`:** *drawn* entries are allowed now; `--list` says which are drawn and why.
 
 ## Verification
@@ -23,7 +24,7 @@
   - a section with `plot = { normalise = "area" }` drawn for the report;
   - a set no run drew;
   - numbers measured when there is no `statistics.csv`;
-  - a bar image;
+  - a bar image from numbers measured for the report;
   - the source's `results/` and `records/` byte for byte unchanged (a tree hash before and after).
 - **On real results:** a section with `plot = { normalise = "area" }` over Brookhaven's
   `eic/zeus_validation/02_generator_pdf`, with `HEP_CACHE` and `HEP_REPORTS` in the scratchpad.

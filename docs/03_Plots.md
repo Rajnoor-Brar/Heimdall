@@ -950,19 +950,21 @@ The pages are Paint's, with an `index.html` beside them. The options are in
 
 A **report** is a quick, informal account of runs' pages and numbers, the kind you send a colleague or a
 supervisor after a run: one A4 PDF, a page to browse, and every figure it shows in its own folder. It is
-made only when you ask: no run, plot or stats step makes one.
+made only when you ask: no run, plot or stats step makes one. (A run writes one small file for it, a folder's
+`report.toml`, §11.2.)
 
 ```bash
-heimdall report eic/zeus_validation/02_generator_pdf     # the default report of one configuration
-heimdall report eic/zeus_validation                       # … of each configuration of a run
-heimdall report eic/weekly                                # a recipe: configs/eic/weekly.toml
-heimdall report eic/weekly 'eic/zeus_validation/0[2-4]_*' # the recipe over other sources
-heimdall report eic/weekly --list                         # what it would hold; nothing is written
-heimdall report eic/weekly --init eic/zeus_validation/02_generator_pdf   # write that recipe, once
+heimdall report eic/zeus_validation/02_generator_pdf          # its report.toml: what its config asks for
+heimdall report eic/zeus_validation                           # the default report of the run's configurations
+heimdall report eic/weekly.toml                               # a recipe of its own, over its from
+heimdall report eic/weekly.toml 'eic/zeus_validation/0[2-4]_*' # the recipe over other sources
+heimdall report eic/zeus.toml eic/zeus_validation/02_generator_pdf   # the run TOML's [report], as it reads today
+heimdall report eic/zeus_validation/02_generator_pdf --list   # what it would hold; nothing is written
+heimdall report eic/weekly.toml --init eic/zeus_validation/02_generator_pdf   # write that recipe, once
 ```
 
-It is built into `reports/<P>/<name>/` (with no recipe, `reports/<P>/<run>/<cfg>/`; `-o DIR` elsewhere, never
-into `results/`):
+A recipe is always named with its `.toml` (`<P>/<name>.toml` under `configs/`, `./…`, or a path); anything
+else is a source. Each report is a folder:
 
 | File | What it is |
 |---|---|
@@ -981,35 +983,50 @@ by which Heimdall, its points complete of all, its events, and what it is compar
 first curve). It flags points that are not complete, and points newer than their pages (`heimdall plot
 <source>` redraws them).
 
-### 11.1 The default report
+### 11.1 Where it is built, and the default report
 
-With no recipe, a report holds the statistics' headline (the top five and each statistic's ranking), then each
-set the source draws (its `[plot].draw`), its pages a grid per page cell. A scan of many points or cells makes
-many pages: `--list` says how many first, and a recipe picks fewer.
+**`reports/` mirrors `results/`.** A report is built where `results/` has its sources:
 
-### 11.2 A recipe
+| Its sources | Its folder |
+|---|---|
+| one configuration's folder, `eic/zeus_validation/02_generator_pdf` | `reports/eic/zeus_validation/02_generator_pdf/` |
+| a run's, `eic/zeus_validation` (each configuration's) | `reports/eic/zeus_validation/` |
+| several runs' of a project | where their addresses meet: `reports/eic/` |
 
-A recipe is a file of the project's configs with a `[report]` table and no `[run]`
+The folders nest as in `results/`: a run's report and its configurations' sit together, each touching only its
+own files. A recipe's `output` (a folder under `reports/`, or `./…`, `/…`) or `-o DIR` builds it elsewhere,
+never into `results/`; sources of two projects, or outside `results/`, need one of them. A recipe over a
+folder builds into that folder's place unless it says otherwise, replacing what was built there.
+
+**The default report**, of a folder with no `report.toml` and of several sources at once, holds the
+statistics' headline (the top five and each statistic's ranking) on the first set measured, then the pages of
+every set the sources' documents draw (`[plot].draw`, else every set of `[plot].sets`), a grid per page cell.
+A set drawn nowhere is left out, and `--list` says so. A scan of many points or cells makes many pages:
+`--list` says how many first, and a recipe picks fewer.
+
+### 11.2 A recipe: of its own, a run's, a folder's
+
+A recipe is a `[report]` table and its `[[report.section]]`s
 ([04 §15](04_Config_Reference.md#15-a-reports-recipe-report)): a title, a subtitle, its sources, and its
 sections, each one kind of item.
 
 ```toml
 # configs/eic/weekly.toml
 [report]
-title    = "ZEUS photoproduction: generators and PDFs"
+title    = "ZEUS photoproduction: {configuration}"
 subtitle = "for the group, 30 Oct 2026"
 from     = ["eic/zeus_validation/02_generator_pdf"]
 
-[[section]]
+[[report.section]]
 title = "Standings"
 stats = ["top5", "ratio_dev"]
 
-[[section]]
+[[report.section]]
 title = "Spectra"
 pages = ["d01-*", "d02-*"]
 note  = "Pythia 8.318 and Sherpa 3.0.5 against ZEUS 2012"
 
-[[section]]
+[[report.section]]
 title  = "Run by run"
 from   = ["eic/zeus_validation/0[2-4]_generator_pdf"]
 pages  = ["d01-x01-y01"]
@@ -1025,11 +1042,35 @@ layout = "sources"
   part of a statistic's (`chi2_ndf:ranking`, `:crossed`, `:table`), each source's with its facts and notes.
 - **`bars`:** globs of page names, each page's bar graph of its curves' numbers.
 - **`files`:** your own PDF or PNG files, relative to the recipe (`extras/*.png`).
+- **`optional = true`:** a source without the section's set drawn (or measured) is passed over, and the section
+  left out when none has it.
+- **`{project}`, `{run}`, `{configuration}`, `{title}`** in a title or subtitle are filled in from the sources.
 
 The sources on the command line replace `[report].from`, so one recipe serves many runs; a section's own
 `from` stays. **What is refused:** a set not drawn or numbers not measured in a source (naming the command that
-makes them), a glob that names nothing, two side-by-side panels of one label, a recipe named like a run of its
-project, an unknown key (with the nearest one).
+makes them), a glob that names nothing, two side-by-side panels of one label, an unknown key (with the nearest
+one).
+
+**The run's own.** A run TOML's `[report]` says what its folders' reports show, so a report needs no
+arguments after a run. Its `template` names a recipe shared by several configs, which its own keys and
+sections are laid over:
+
+```toml
+# configs/eic/zeus.toml
+[report]
+template = "weekly"                  # configs/eic/weekly.toml: its title, subtitle and sections first
+title    = "ZEUS validation: {configuration}"
+
+[[report.section]]
+title = "Jets"
+pages = ["d0[3-4]-*"]
+```
+
+Each time the run writes a folder's `plot.toml` it writes `report.toml` beside it: that table resolved (the
+template's, then the config's, the placeholders filled in), or the default report written out when it gives no
+sections. `heimdall report <folder>` builds it. It is rewritten from the config every time, never merged with
+edits: to change a folder's report, change the config or its template (then `heimdall report <config>.toml
+<folder>` builds it as the config reads today), or copy `report.toml` into `configs/` as a recipe of your own.
 
 ### 11.3 Talks and papers
 

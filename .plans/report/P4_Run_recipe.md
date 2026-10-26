@@ -64,3 +64,25 @@ folders' reports look like; `heimdall report <folder>` builds that.
 - `test_docs`, `test_imports`, and the tests of `config`, `house` and the CLI.
 
 ## Log
+
+- 2026-10-27: done (V209), in the worktree, branch `report`.
+  - **Readings taken while building it:**
+    - **`optional`, a new section key.** Brookhaven's documents name sets in `[plot].draw` that some folders
+      never drew (a Sherpa set where Sherpa's points failed), so a `report.toml` written before the drawing
+      cannot know which are drawn. The default's sections are `optional = true`: such a set is passed over,
+      and the section left out (and listed by `--list`). It replaces P2's private `_quiet` mark.
+    - **A recipe is named as a run config is** (`config_file`): `<P>/<name>.toml` under `configs/`, `./…` the
+      work dir's, `/…`; a folder's `report.toml` named alone builds its folder.
+    - **A run TOML with no sources** is refused, naming the folder form (`heimdall report eic/zeus.toml
+      <P>/<run>/<cfg>`).
+    - **A template's `from` and `output`** are its own: a run TOML takes neither from it.
+    - **A recipe over a folder** builds into that folder's place under `reports/` unless `output` or `-o` says
+      otherwise (the plan's A6, as decided).
+    - **The editor's JSON schemas** take `[report]` (`make schema` did it simply).
+  - **Tests:** test_report (14, one of five cases), test_report_build (7), test_plot_stage's plot-document case; 179 passed across
+    report, report_build, docs, imports, config, v3, house, one_cli, snapshot, flags, migrate.
+  - **On Brookhaven, read-only** (`scratchpad/p4live/`: configs copied, `HEP_REPORTS`, `HEP_CACHE` there):
+    `heimdall report eic/zeus.toml eic/zeus_validation/02_generator_pdf`, the default over its six drawn sets,
+    29 A4 pages in 3.4 s; a scratch `zeus_rep.toml` naming a scratch `weekly.toml`, its `report.toml` written
+    into a copy of the folder and built as `heimdall report eic/zeus_validation/02_generator_pdf`, 7 pages;
+    nothing in Brookhaven newer than the marker, `git status` clean.

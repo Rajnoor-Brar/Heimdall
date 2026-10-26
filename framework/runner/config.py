@@ -124,6 +124,8 @@ class RunConfig:
     form: int = 2                                       # the file's form: 2, or 3 (runner/v3.py)
     stats: dict = field(default_factory=dict)           # [stats] (V168): what the statistics measure, over the pages
     applied: dict = field(default_factory=dict)         # V179: the configuration's own vars and data it was read with
+    report: dict = field(default_factory=dict)          # V209: [report], its template laid under it (a report's recipe)
+    templates: list = field(default_factory=list)       # V209: the report templates it read (a record's snapshot copies them)
 
     def configuration(self, name: str | None) -> Configuration:
         wanted = name or self.default_configuration
@@ -932,6 +934,8 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
     _shared_folders(run, imported)
     run.included = included
     run.imported = _imported_files(_form(given, path), path, run.project)
+    report, run.templates = report_of(raw.get("report", {}), path, run.project, f"{path}: [report]")
+    run.report = {k: v for k, v in report.items() if k not in NOT_IN_A_RUN}   # a template's from and output: a recipe's
     run.sets = list(sets)
     if strict:
         _check_used(run)
@@ -1264,6 +1268,8 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     check_plot(plot, f"{where}: [plot]", strict=strict)
     stats = raw.get("stats", {})
     check_stats(stats, f"{where}: [stats]")
+    if "report" in raw:                                    # V209: what its folders' reports show
+        check_report(raw["report"], f"{where}: [report]", run_toml=True)
 
     return RunConfig(path=path, project=project, name=run["name"], serial=run.get("serial"),
                      default_configuration=run.get("configuration"), configurations=configurations,
@@ -1361,6 +1367,81 @@ def check_stats(stats: dict, where: str) -> None:
     if isinstance(stats.get("reference"), dict):
         from .sweep import _filter_shape
         _filter_shape(stats["reference"], f"{where}.reference")
+
+
+# ── a report's recipe ([report], I-108) ─────────────────────────────────────────────────────────
+
+#: What a report's section shows: exactly one of these (framework/schema/report.toml).
+REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files")
+#: The statistics summary's sections (bars.summary_model), and a statistic's parts by their item's key suffix.
+STATISTICS = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "area")
+SUMMARY = ("top5", "scoreboard", "scoreboard-cells", "head-to-head", "scoreboards", *STATISTICS)
+PARTS = ("ranking", "crossed", "table")
+#: A run TOML's [report] says neither: each folder is its own report's source, built where results/ has it (V209).
+NOT_IN_A_RUN = ("from", "output")
+
+
+def check_report(table, where: str, run_toml: bool = False) -> None:
+    """[report], a report's recipe (I-108, V209): every key against schema/report.toml, each [[report.section]]
+    titled and showing one item, its stats keys known and its plot keys checked as [plot]'s. A run TOML's
+    names neither from nor output: each of its folders is its report's source, and is built where it is."""
+    if not isinstance(table, dict):
+        raise HepError("[report] is a table", where=where)
+    schema.check(table, "report", where)
+    for key in NOT_IN_A_RUN if run_toml else ():
+        if key in table:
+            raise HepError(f"a run TOML's [report] takes no {key}: each folder it writes is its report's source, "
+                           "built into reports/ where results/ has it", where=f"{where}.{key}",
+                           hint="a recipe of its own (configs/<P>/<name>.toml, [report] alone) takes from and output")
+    for number, section in enumerate(table.get("section", []), 1):
+        at = f"{where} section {number}"
+        schema.check(section, "section", at)
+        if "title" not in section:
+            raise HepError("a section needs a title", where=at)
+        kinds = [k for k in REPORT_ITEMS if k in section]
+        if len(kinds) != 1:
+            raise HepError(f"a section shows one of {', '.join(REPORT_ITEMS)}" + (f", not {' and '.join(kinds)}" if kinds else ""),
+                           where=at, hint='pages = ["d01-*"], or stats = ["top5"], …')
+        for key in section.get("stats", []):
+            statistic, _, part = key.partition(":")
+            if statistic not in SUMMARY or (part and (part not in PARTS or statistic not in STATISTICS)):
+                hint = (f"a statistic's parts: {', '.join(f'{statistic}:{p}' for p in PARTS)}" if statistic in STATISTICS
+                        else did_you_mean(statistic, SUMMARY) or f"the sections: {', '.join(SUMMARY)}")
+                raise HepError(f"stats: no section {key!r}", where=f"{at}.stats", hint=hint)
+        if "plot" in section:
+            check_plot(section["plot"], f"{at}.plot")
+
+
+def report_of(table: dict, path: Path, project: str, where: str, chain: tuple[Path, ...] = ()) -> tuple[dict, list[Path]]:
+    """[report] with its template laid under it (V209): `template` names a recipe as [config].import names a file
+    (a bare name this project's, <P>/<name> another's, ./… the work dir's; .toml optional), whose keys this
+    table's replace and whose sections come first; a template naming its own is followed, a circle refused.
+    The table (without template), and the templates read."""
+    named = table.get("template")
+    if not named:
+        return dict(table), []
+    at = f"{where}.template"
+    try:
+        source = _import_path(named, project, at)
+    except HepError:
+        raise HepError(f"no report template '{named}'", where=at,
+                       hint="a bare name is this project's (configs/<project>/); <Project>/<name> another's; ./… the work dir's") from None
+    chain = chain or (path.resolve(),)
+    if source.resolve() in chain:
+        raise HepError("report templates go round in a circle: " + " → ".join(p.name for p in (*chain, source.resolve())), where=at)
+    data = _toml(source)
+    if set(data) != {"report"}:
+        raise HepError("a report's template is a recipe: a file with a [report] table and nothing else", where=str(source),
+                       hint=f"its tables: {', '.join(data) or '(none)'}")
+    check_report(data["report"], f"{source}: [report]")
+    below, read = report_of(data["report"], source, _project_of(source, data, project), f"{source}: [report]",
+                            (*chain, source.resolve()))
+    merged = {k: v for k, v in below.items() if k != "section"}
+    merged.update({k: v for k, v in table.items() if k not in ("section", "template")})
+    sections = [*below.get("section", []), *table.get("section", [])]
+    if sections:
+        merged["section"] = sections
+    return merged, [source.resolve(), *(p for p in read if p != source.resolve())]
 
 
 def check_plot(plot: dict, where: str, strict: bool = True) -> None:

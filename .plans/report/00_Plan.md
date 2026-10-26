@@ -547,9 +547,9 @@ fast-forwarded at P7. Each row is ticked at its commit.
 | P1 Plot and stats made modular | V206 | 1e9ffe6 | done: gate P same; paused for compaction |
 | P2 Sources and recipes | V207 | 304d3f8 | done |
 | P3 The build | V208 | 45a285c | done: on Brookhaven's results; paused for compaction |
-| (plan amended, §1.6) | — | | the run's report.toml, entry modes: P4 inserted |
-| (plan amended, §1.7) | — | | reports mirror results; the tools' configurations: P5 inserted |
-| P4 The run's report.toml | V209 | | |
+| (plan amended, §1.6) | — | f44510a | the run's report.toml, entry modes: P4 inserted |
+| (plan amended, §1.7) | — | f44510a | reports mirror results; the tools' configurations: P5 inserted |
+| P4 The run's report.toml | V209 | | done: on Brookhaven's results |
 | P5 The tools' configurations | V210 | | |
 | P6 Drawn for itself | V211 | | |
 | P7 deck retired | V212 | | |

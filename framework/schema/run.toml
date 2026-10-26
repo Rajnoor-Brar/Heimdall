@@ -24,8 +24,9 @@
 # figure ([plot.figures.<figure>]), data, cluster (also a work dir's hep.toml [cluster], V114).
 
 [sections]
-order = ["config", "run", "prelim", "static", "tools", "quantities", "plot", "stats", "cluster", "heimdall"]
+order = ["config", "run", "prelim", "static", "tools", "quantities", "plot", "stats", "report", "cluster", "heimdall"]
 # [heimdall] (V188): the commands' own flags, by their option names; the CLI checks them against its parser.
+# [report] (V209): what its folders' reports show, a report's recipe (framework/schema/report.toml, 04 §15).
 
 # ── [config]: how the file is read (V93) ──────────────────────────────────────────────────────────
 

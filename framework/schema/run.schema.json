@@ -1553,6 +1553,993 @@
    },
    "additionalProperties": false
   },
+  "report": {
+   "type": "object",
+   "properties": {
+    "title": {
+     "description": "the report's title, on its front page (default: its one source's address, else what its sources' addresses share)\n\nthe report's title, on its front page (default: its one source's address, else what its sources' addresses share). `{project}`, `{run}`, `{configuration}` and `{title}` (a configuration's title, else its name) in the title or subtitle are filled in from its sources' plot documents (several values joined by commas), so one template titles each folder's report.",
+     "type": "string"
+    },
+    "subtitle": {
+     "description": "a line under the title: the date, who it is for",
+     "type": "string"
+    },
+    "from": {
+     "description": "its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them",
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "output": {
+     "description": "where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<P>/<run>/<cfg>/, reports/<P>/<run>/, …); -o replaces it. Not in a run TOML",
+     "type": "string"
+    },
+    "template": {
+     "description": "a recipe laid under this table, named as [config].import names a file (weekly, eic/weekly, ./…; .toml optional): its keys under these, its sections first",
+     "type": "string"
+    },
+    "section": {
+     "description": "its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars or files",
+     "type": "array",
+     "items": {
+      "type": "object",
+      "properties": {
+       "title": {
+        "description": "the section's title, in the contents and above its figures",
+        "type": "string"
+       },
+       "note": {
+        "description": "a line of text under the title",
+        "type": "string"
+       },
+       "from": {
+        "description": "this section's own sources (as [report].from), kept when the command line names others",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "pages": {
+        "description": "globs of page names in each source's plots/<set>/<backend>/ (`d01-x01-y01`, `18x275/d0*`, `*`): a grid of them per page cell, or per page with layout = \"sources\"",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "set": {
+        "description": "the set whose pages it takes: each source's plots/<set>/ and statistics/<set>/",
+        "type": "string",
+        "default": "totality"
+       },
+       "cells": {
+        "description": "globs of page cells (the folders in a set: `18x275`), to take only those; default: every one",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "backend": {
+        "description": "whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl, yoda)",
+        "type": [
+         "string",
+         "array"
+        ],
+        "items": {
+         "type": "string",
+         "enum": [
+          "root",
+          "mpl",
+          "yoda"
+         ]
+        }
+       },
+       "layout": {
+        "description": "pages: each source's pages in turn, a grid per page cell; sources: side by side, a grid per page, a panel per source",
+        "type": "string",
+        "enum": [
+         "pages",
+         "sources"
+        ],
+        "default": "pages"
+       },
+       "columns": {
+        "description": "a grid's columns (default: 2 on an A4 page, 3 for a side-by-side grid of three or more)",
+        "type": "integer",
+        "minimum": 1
+       },
+       "label": {
+        "description": "a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its run, where two sources would share one); events, the events its points ran with (10M)",
+        "type": "string",
+        "enum": [
+         "events",
+         "folder"
+        ],
+        "default": "folder"
+       },
+       "optional": {
+        "description": "a source without the section's set drawn (or measured) is passed over, and the section left out when none has it; false: refused, naming the command that draws it",
+        "type": "boolean",
+        "default": false
+       },
+       "compare": {
+        "description": "compare figures' names (03 §7.5): their pages, from each source's run's compare/<name>/",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "stats": {
+        "description": "the statistics summary's sections, from each source's statistics/<set>/statistics.csv: top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "bars": {
+        "description": "globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "files": {
+        "description": "your own PDF or PNG files, globs relative to the recipe's folder (`extras/*.png`)",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "plot": {
+        "type": "object",
+        "properties": {
+         "backend": {
+          "description": "root (Paint), yoda (rivet-mkhtml), mpl (matplotlib, V71), a list of them, or both (root and yoda)\n\n`\"root\"` (Paint), `\"yoda\"` (rivet-mkhtml; frozen, V71), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process: V71), `\"both\"` (root and yoda, V28) or an array of them, from the same pages",
+          "anyOf": [
+           {
+            "type": [
+             "string",
+             "array"
+            ],
+            "items": {
+             "type": "string",
+             "enum": [
+              "root",
+              "yoda",
+              "mpl",
+              "both"
+             ]
+            }
+           },
+           {
+            "const": "default"
+           }
+          ],
+          "default": "root"
+         },
+         "formats": {
+          "description": "the pages' formats\n\n`pdf`, `png`, `svg`, `eps`. mkhtml writes pdf and png always. The root backend writes `plots/<set>/root/index.html` (V70, V164): a section per cell, each page by its PNG or SVG, else an embedded PDF, linked to every format; add `png` for thumbnails a browser shows at once",
+          "anyOf": [
+           {
+            "type": "array",
+            "items": {
+             "type": "string",
+             "enum": [
+              "pdf",
+              "png",
+              "svg",
+              "eps"
+             ]
+            }
+           },
+           {
+            "const": "default"
+           }
+          ],
+          "default": [
+           "pdf"
+          ]
+         },
+         "band": {
+          "description": "curve-axis quantities drawn as one curve, their first value, with the min–max envelope of all their values (V69)\n\ncurve axes drawn as an envelope (V69): per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band",
+          "type": "array",
+          "items": {
+           "type": "string"
+          }
+         },
+         "objects": {
+          "description": "YODA path globs that get pages (default: every 1D object)\n\nmatched against the option-free YODA path (`/photo_eic/d01-x01-y01`) or any variant's path. No object matching is an error.",
+          "anyOf": [
+           {
+            "type": "array",
+            "items": {
+             "type": "string"
+            }
+           },
+           {
+            "const": "default"
+           }
+          ]
+         },
+         "ratio": {
+          "description": "a ratio pad\n\na ratio pad: each curve over the data, or over the first curve when there are no data",
+          "anyOf": [
+           {
+            "type": "boolean"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ],
+          "default": false
+         },
+         "y_gutter": {
+          "description": "the top of the y axis at (1 + g) × the largest value\n\nthe top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `\"native\"`: no gutter, the tool's own range (V29, V55; a v2 file's [plot] says `\"default\"`)",
+          "anyOf": [
+           {
+            "type": "number",
+            "minimum": 0
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ],
+          "default": 0.5
+         },
+         "x_gutter": {
+          "description": "x widened by g of its span\n\nwidens x by g of its span, symmetrically (in decades on a log axis). `\"default\"`: the range the bins give",
+          "anyOf": [
+           {
+            "type": "number",
+            "minimum": 0
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ]
+         },
+         "logy": {
+          "description": "log y (default: the .plot's)",
+          "anyOf": [
+           {
+            "type": "boolean"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ]
+         },
+         "logx": {
+          "description": "log x (default: the .plot's)",
+          "anyOf": [
+           {
+            "type": "boolean"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ]
+         },
+         "logz": {
+          "description": "a heat map's log z (default: the .plot's LogZ, V87)\n\na heat map's colour scale (V87)",
+          "anyOf": [
+           {
+            "type": "boolean"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ]
+         },
+         "auto_range": {
+          "description": "x clipped to the bins with content\n\ntrim x to the bins with content, in curves and data",
+          "anyOf": [
+           {
+            "type": "boolean"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ],
+          "default": true
+         },
+         "normalise": {
+          "description": "\"area\": every curve and the data scaled to unit area over the bins drawn (V68)\n\n`\"area\"` (V68): every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure (04 §11.2) may set it for its own",
+          "anyOf": [
+           {
+            "type": [
+             "string",
+             "boolean"
+            ],
+            "enum": [
+             "area",
+             false
+            ]
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ],
+          "default": false
+         },
+         "void_empty": {
+          "description": "blank the bins empty in every curve\n\nblank a bin that is zero in **every** curve",
+          "anyOf": [
+           {
+            "type": "boolean"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ],
+          "default": false
+         },
+         "use_data": {
+          "description": "false: [plot.data] stays but is not drawn\n\n`false`: the `[plot.data]` table stays in the file but is not drawn, and a `ratio` divides each curve by the page's first curve, the first value of its curve axis (V44)",
+          "type": "boolean",
+          "default": true
+         },
+         "min_entries": {
+          "description": "blank the bins with fewer raw entries\n\nblank a bin that fewer raw entries went into, in **any** curve (read from the `/RAW` twin; objects without one are not voided this way)",
+          "anyOf": [
+           {
+            "type": "integer",
+            "minimum": 0
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ],
+          "default": 0
+         },
+         "range_pad": {
+          "description": "whole bins added around auto_range\n\nwhole bins kept either side of the filled ones",
+          "anyOf": [
+           {
+            "type": "integer",
+            "minimum": 0
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ],
+          "default": 0
+         },
+         "sets": {
+          "description": "page folders of chosen points: [[1, 4], \"py8\", \"all\"] (V159), or tables of page axes and curve groups, { name, pages = { … }, curves = [{ … }] } (V163)\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector (V159) is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (V163, `[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
+          "type": [
+           "array",
+           "object"
+          ],
+          "items": {
+           "type": "integer"
+          }
+         },
+         "looks": {
+          "description": "each value's look on every page, by quantity and tag: [plot.looks.pdf] NNPDF23lo = \"#0067A5\" (or { colour, line, width }) (V171)\n\n[plot.looks.<quantity>] (V171): a value's look on every page and in every run, by its tag: a colour (`\"#rrggbb\"`, a ROOT name or number) or `{ colour, line, width }`. A tag a run does not have is unused, so a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's styled values, over it; a set's automatic look leaves an axis with looks alone",
+          "type": "object"
+         },
+         "across": {
+          "description": "the run TOML's sets across its runs, [plot.across.<set>]: drawn at results/<P>/<name>/, by @run, @events, @configuration and the quantities (V169)\n\nsets of the runs of this run TOML together (V169), as `[plot.sets.<name>]` are of one run's points, with three more axes: `@events` (each run's event count, tags like `10M`), `@run` (its folder) and `@configuration`. Kept in `results/<P>/<name>/plot.toml`, drawn by `heimdall plot <P>/<name> --across` into `results/<P>/<name>/plots/<set>/` and `statistics/<set>/`",
+          "type": "object"
+         },
+         "draw": {
+          "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[run].plot`'s list here. A name no set has is refused",
+          "type": "array",
+          "items": {
+           "type": "string"
+          }
+         },
+         "split": {
+          "description": "at most this many points a page: each cell (or set) cut in order, <cell>-1, <cell>-2, … (V159)\n\nat most this many points on a page (V159): each cell (a `plot_points` cell, or a set) cut into pages in point order, `<cell>-<k>` (`part<k>` with no cell): 24 points, `split = 3`, 8 pages. A curve is labelled by the quantities that differ on its page",
+          "type": "integer",
+          "minimum": 1
+         },
+         "statistics": {
+          "description": "write results/…/statistics/<set>/statistics.csv and its bar graphs: each page's curves' area, area against the reference, χ² (V160, V162, V164)\n\neach page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the drawn x range), into each set's `results/…/statistics/<set>/statistics.csv` (V160, V164): per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `rel_abs_area` (abs_area / ref_area), `area_ratio` (cmp_area / ref_area: MC over data, V175), `ratio_mean` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page, V175), `ratio_dev` (its area about one over the width compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table",
+          "anyOf": [
+           {
+            "type": "boolean"
+           },
+           {
+            "const": "default"
+           }
+          ],
+          "default": true
+         },
+         "legend_statistic": {
+          "description": "a statistic after each curve's legend entry, against the page's reference (V160)\n\none of the statistics (see `statistics`) after each curve's legend entry: `chi2_ndf` → `(χ²/ndf 1.31)`; the reference's own entry gets none",
+          "type": "string",
+          "enum": [
+           "none",
+           "area",
+           "abs_area",
+           "rel_abs_area",
+           "area_ratio",
+           "ratio_mean",
+           "ratio_dev",
+           "chi2",
+           "chi2_ndf"
+          ],
+          "default": "none"
+         },
+         "root_style": {
+          "description": "a style file over base.toml (configs/<Project>/…)\n\na style file over base.toml (04 §12). Refused by the yoda backend alone.",
+          "anyOf": [
+           {
+            "type": "string"
+           },
+           {
+            "const": "default"
+           }
+          ]
+         },
+         "title": {
+          "description": "centred above the frame (default: the .plot's Title)\n\nthe main title, centred above the frame (V51). Every page; a figure (04 §11.2) overrides it for its own",
+          "anyOf": [
+           {
+            "type": "string"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ]
+         },
+         "title_left": {
+          "description": "above the frame's top-left corner\n\nsmall text just above the frame's top-left and top-right corners (V51), inherited the same way",
+          "anyOf": [
+           {
+            "type": "string"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ]
+         },
+         "title_right": {
+          "description": "above the frame's top-right corner\n\nsmall text just above the frame's top-left and top-right corners (V51), inherited the same way",
+          "anyOf": [
+           {
+            "type": "string"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ]
+         },
+         "legend_header": {
+          "description": "the legend's first line (default: the .plot's LegendTitle)\n\nthe legend's first line (V51), inherited the same way. Children inherit every key their parent has and a key means the same at both levels",
+          "anyOf": [
+           {
+            "type": "string"
+           },
+           {
+            "const": "default"
+           },
+           {
+            "const": "native"
+           }
+          ]
+         },
+         "data": {
+          "type": "object",
+          "properties": {
+           "file": {
+            "description": "a YODA under datasets/, or rivet:<Analysis>\n\n`rivet:<Analysis>`: Rivet's own reference file (`build/Rivet/`, then `rivet-config --datadir`, `.yoda` or `.yoda.gz`); otherwise a path under `datasets/` (not in git)",
+            "type": "string"
+           },
+           "legend": {
+            "description": "the data's legend entry\n\nthe data's legend entry",
+            "type": "string",
+            "default": "Data"
+           },
+           "map": {
+            "type": "object",
+            "additionalProperties": {
+             "type": "string"
+            }
+           }
+          },
+          "additionalProperties": false
+         },
+         "style": {
+          "description": "the style over base.toml\n\n04 §12",
+          "type": "object"
+         },
+         "figures": {
+          "type": "object",
+          "additionalProperties": {
+           "type": "object",
+           "properties": {
+            "band": {
+             "description": "as [plot].band, for these pages\n\ncurve axes drawn as an envelope (V69): per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band",
+             "anyOf": [
+              {
+               "type": "array",
+               "items": {
+                "type": "string"
+               }
+              },
+              {
+               "const": "default"
+              }
+             ]
+            },
+            "ratio": {
+             "description": "as [plot].ratio, for these pages\n\na ratio pad: each curve over the data, or over the first curve when there are no data",
+             "anyOf": [
+              {
+               "type": "boolean"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "y_gutter": {
+             "description": "as [plot].y_gutter, for these pages\n\nthe top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `\"native\"`: no gutter, the tool's own range (V29, V55; a v2 file's [plot] says `\"default\"`)",
+             "anyOf": [
+              {
+               "type": "number",
+               "minimum": 0
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "x_gutter": {
+             "description": "as [plot].x_gutter, for these pages\n\nwidens x by g of its span, symmetrically (in decades on a log axis). `\"default\"`: the range the bins give",
+             "anyOf": [
+              {
+               "type": "number",
+               "minimum": 0
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "logy": {
+             "description": "as [plot].logy, for these pages",
+             "anyOf": [
+              {
+               "type": "boolean"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "logx": {
+             "description": "as [plot].logx, for these pages",
+             "anyOf": [
+              {
+               "type": "boolean"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "logz": {
+             "description": "as [plot].logz, for these pages\n\na heat map's colour scale (V87)",
+             "anyOf": [
+              {
+               "type": "boolean"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "auto_range": {
+             "description": "as [plot].auto_range, for these pages\n\ntrim x to the bins with content, in curves and data",
+             "anyOf": [
+              {
+               "type": "boolean"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "normalise": {
+             "description": "as [plot].normalise, for these pages\n\n`\"area\"` (V68): every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure (04 §11.2) may set it for its own",
+             "anyOf": [
+              {
+               "type": [
+                "string",
+                "boolean"
+               ],
+               "enum": [
+                "area",
+                false
+               ]
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "void_empty": {
+             "description": "as [plot].void_empty, for these pages\n\nblank a bin that is zero in **every** curve",
+             "anyOf": [
+              {
+               "type": "boolean"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "use_data": {
+             "description": "as [plot].use_data, for these pages\n\n`false`: the `[plot.data]` table stays in the file but is not drawn, and a `ratio` divides each curve by the page's first curve, the first value of its curve axis (V44)",
+             "anyOf": [
+              {
+               "type": "boolean"
+              },
+              {
+               "const": "default"
+              }
+             ]
+            },
+            "min_entries": {
+             "description": "as [plot].min_entries, for these pages\n\nblank a bin that fewer raw entries went into, in **any** curve (read from the `/RAW` twin; objects without one are not voided this way)",
+             "anyOf": [
+              {
+               "type": "integer",
+               "minimum": 0
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "range_pad": {
+             "description": "as [plot].range_pad, for these pages\n\nwhole bins kept either side of the filled ones",
+             "anyOf": [
+              {
+               "type": "integer",
+               "minimum": 0
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "sets": {
+             "description": "as [plot].sets, for these pages\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector (V159) is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (V163, `[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
+             "anyOf": [
+              {
+               "type": [
+                "array",
+                "object"
+               ],
+               "items": {
+                "type": "integer"
+               }
+              },
+              {
+               "const": "default"
+              }
+             ]
+            },
+            "split": {
+             "description": "as [plot].split, for these pages\n\nat most this many points on a page (V159): each cell (a `plot_points` cell, or a set) cut into pages in point order, `<cell>-<k>` (`part<k>` with no cell): 24 points, `split = 3`, 8 pages. A curve is labelled by the quantities that differ on its page",
+             "anyOf": [
+              {
+               "type": "integer",
+               "minimum": 1
+              },
+              {
+               "const": "default"
+              }
+             ]
+            },
+            "legend_statistic": {
+             "description": "as [plot].legend_statistic, for these pages\n\none of the statistics (see `statistics`) after each curve's legend entry: `chi2_ndf` → `(χ²/ndf 1.31)`; the reference's own entry gets none",
+             "anyOf": [
+              {
+               "type": "string",
+               "enum": [
+                "none",
+                "area",
+                "abs_area",
+                "rel_abs_area",
+                "area_ratio",
+                "ratio_mean",
+                "ratio_dev",
+                "chi2",
+                "chi2_ndf"
+               ]
+              },
+              {
+               "const": "default"
+              }
+             ]
+            },
+            "title": {
+             "description": "as [plot].title, for these pages\n\nthe main title, centred above the frame (V51). Every page; a figure (04 §11.2) overrides it for its own",
+             "anyOf": [
+              {
+               "type": "string"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "title_left": {
+             "description": "as [plot].title_left, for these pages\n\nsmall text just above the frame's top-left and top-right corners (V51), inherited the same way",
+             "anyOf": [
+              {
+               "type": "string"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "title_right": {
+             "description": "as [plot].title_right, for these pages\n\nsmall text just above the frame's top-left and top-right corners (V51), inherited the same way",
+             "anyOf": [
+              {
+               "type": "string"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "legend_header": {
+             "description": "as [plot].legend_header, for these pages\n\nthe legend's first line (V51), inherited the same way. Children inherit every key their parent has and a key means the same at both levels",
+             "anyOf": [
+              {
+               "type": "string"
+              },
+              {
+               "const": "default"
+              },
+              {
+               "const": "native"
+              }
+             ]
+            },
+            "class": {
+             "description": "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid)\n\nhow the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `.cache/…/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = \"ratio\"`, `\"difference\"` or `\"sum\"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`.cache/…/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = \"Scatter2D\"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet",
+             "type": "string",
+             "enum": [
+              "defined",
+              "overlay",
+              "merged",
+              "compare",
+              "derived",
+              "scan",
+              "sheet",
+              "statistic"
+             ],
+             "default": "defined"
+            },
+            "type": {
+             "description": "what is drawn: Hist1D (steps), Scatter2D (a marker per bin, as data: V86), HeatMap (a 2D object coloured, a page per point: V87); default: from the objects (2D: HeatMap), a scan's Scatter2D\n\nwhat is drawn: `Hist1D`, steps per curve; `Scatter2D` (V86), a marker per bin at its centre with its y error, in the curve's colour (`data.marker`, `data.marker_size` of the style), as Paint draws data; the legend shows the marker. The page TOML says `markers = true`; mkhtml and mpl draw the curves as they draw points (`ConnectBins=0`, with their x bars). `HeatMap` (V87): a 2D object (a YODA `Histo2D` or `Estimate2D`), the default for one: a page per point of the cell, `<cell>/<object>/<point>`, coloured by value with its scale on the right (labels from the `.plot`, `ZLabel` and `LogZ` too; no ratio, data or voiding). Paint draws heat maps; mkhtml and mpl draw the 1D pages only, and the plot stage says so. A 1D object cannot be a HeatMap, a 2D object neither a Hist1D nor a Scatter2D, nor in an overlay",
+             "type": "string",
+             "enum": [
+              "Hist1D",
+              "Scatter2D",
+              "HeatMap"
+             ]
+            },
+            "name": {
+             "description": "its pages' file stem (default: the figure's key; a defined figure's pages keep the object's name)\n\nan overlay's page file stem, a merged figure's folder. A defined figure takes none: its pages are the objects' own",
+             "type": "string"
+            },
+            "objects": {
+             "description": "the objects: YODA path globs, matched against the short name (d01-x01-y01) or the full path\n\nmatched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob matching no object of the points is an error, at the plot stage",
+             "type": "array",
+             "items": {
+              "type": "string"
+             }
+            },
+            "statistic": {
+             "description": "a statistic figure's number: one of the plot stage's statistics, a bin per point (V160)\n\na statistic figure's number (V160), as `statistics.csv` has it: per cell (or set) and object, a page whose x axis is the page's curves by their labels, a bin each, and y that number of each against the page's reference (its own reference curve left out), drawn as markers; `area` with its error. Its pages: `<cell>/<name>/<object>`",
+             "type": "string",
+             "enum": [
+              "area",
+              "abs_area",
+              "rel_abs_area",
+              "area_ratio",
+              "ratio_mean",
+              "ratio_dev",
+              "chi2",
+              "chi2_ndf"
+             ]
+            },
+            "sort": {
+             "description": "a statistic figure's: its points best first (the smallest number), instead of in curve order (V160)",
+             "type": "boolean",
+             "default": false
+            },
+            "op": {
+             "description": "a derived figure's: of its two objects (ratio, difference, sum), or of its 2D histogram (projection-x, -y) (V84)\n\na derived figure's: `ratio`, `difference`, `sum` (two objects), `projection-x`, `projection-y` (one)",
+             "type": "string",
+             "enum": [
+              "ratio",
+              "difference",
+              "sum",
+              "projection-x",
+              "projection-y"
+             ]
+            },
+            "x": {
+             "description": "a scan figure's x: a swept quantity with numeric values, a curve axis (V85)\n\na scan figure's quantity (a numeric curve axis) and number (`sigma`, `entries`, `integral`, `mean`, `bin:N`); `sigma` and `entries` need no object",
+             "type": "string"
+            },
+            "y": {
+             "description": "a scan figure's y: sigma, entries, or integral, mean, bin:N of its object (V85)\n\na scan figure's quantity (a numeric curve axis) and number (`sigma`, `entries`, `integral`, `mean`, `bin:N`); `sigma` and `entries` need no object",
+             "type": "string"
+            },
+            "pages": {
+             "description": "a sheet's pages: globs of page names (18x275/d02-x01-y01, */eta_algorithms), in this order (V89)\n\na sheet's (V89): the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match (by their names in each set), in the globs' order, tiled `columns` wide into `plots/<set>/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm, V102). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet",
+             "type": "array",
+             "items": {
+              "type": "string"
+             }
+            },
+            "columns": {
+             "description": "a sheet's columns (default: up to 3)\n\na sheet's (V89): the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match (by their names in each set), in the globs' order, tiled `columns` wide into `plots/<set>/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm, V102). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet",
+             "type": "integer",
+             "minimum": 1
+            },
+            "over": {
+             "description": "a merged figure's: the curve axes whose points it merges, by the combine folder's command (V82)\n\na merged figure's: curve axes of the configuration (swept, not `plot_points`, not combined), checked at plan time; it may not also `band` them",
+             "type": "array",
+             "items": {
+              "type": "string"
+             }
+            },
+            "configurations": {
+             "description": "a compare figure's configurations (default: the sweep_runs ones), each a curve per point (V83)\n\na compare figure's, two or more, in curve order; one at least of this file. `\"<Project>/<config>:<cfg>\"` (V88) names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `heimdall plot`",
+             "type": "array",
+             "items": {
+              "type": "string"
+             }
+            },
+            "labels": {
+             "description": "an overlay's legend label per object; a compare figure's per configuration\n\nan overlay's: one legend label per object; a compare figure's: one per configuration (default: each configuration's `label`)",
+             "type": "array",
+             "items": {
+              "type": "string"
+             }
+            },
+            "x_label": {
+             "description": "the x axis title (default: the .plot's)\n\nthe axis titles (LaTeX)",
+             "anyOf": [
+              {
+               "type": "string"
+              },
+              {
+               "const": "default"
+              }
+             ]
+            },
+            "y_label": {
+             "description": "the y axis title (default: the .plot's)\n\nthe axis titles (LaTeX)",
+             "anyOf": [
+              {
+               "type": "string"
+              },
+              {
+               "const": "default"
+              }
+             ]
+            },
+            "style": {
+             "description": "a style layer for these pages\n\na style layer for these pages (04 §12)",
+             "type": "object"
+            }
+           },
+           "additionalProperties": false
+          }
+         }
+        },
+        "additionalProperties": false,
+        "description": "[plot] keys over each source's own, for this section's pages: they are then drawn for the report (03 §11), never into results/"
+       }
+      },
+      "required": [
+       "title"
+      ],
+      "additionalProperties": false
+     }
+    }
+   },
+   "additionalProperties": false
+  },
   "cluster": {
    "type": "object",
    "properties": {

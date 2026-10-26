@@ -133,15 +133,19 @@ def parser() -> argparse.ArgumentParser:
     deck.add_argument("--only", metavar="TARGETS", help="some of pdf, pptx, html, overleaf, viewer (comma-separated)")
     deck.add_argument("--init", action="store_true", help="write deck.md once: a title slide and a slide per block")
 
-    reported = commands.add_parser("report", help="a quick report of runs' pages and numbers, built into reports/<P>/<name>/ "
-                                                  "only when asked (a recipe: configs/<P>/<name>.toml with [report])")
-    reported.add_argument("names", nargs="*", metavar="RECIPE|SOURCE",
-                          help="a recipe (<P>/<name>, or a .toml path), then its sources, which replace its [report].from; "
-                               "or sources alone, for the default report: <P>/<run>/<cfg>, <P>/<run>, a path or a glob")
+    reported = commands.add_parser("report", help="a quick report of runs' pages and numbers, built only when asked into "
+                                                  "reports/, where results/ has its sources (a folder's: its report.toml)")
+    reported.add_argument("names", nargs="*", metavar="RECIPE.toml|SOURCE",
+                          help="sources alone: one folder's report.toml (else the default report), or the default over several: "
+                               "<P>/<run>/<cfg>, <P>/<run>, a path or a glob; or a recipe first, always named .toml (<P>/<name>.toml "
+                               "under configs/, ./… or /…: a recipe of its own, a run TOML's [report], a report.toml), "
+                               "then its sources, which replace its [report].from")
     reported.add_argument("--list", "--dry-run", dest="list", action="store_true",
                           help="its sources, sections and figures, each copied or drawn for the report; nothing written")
-    reported.add_argument("--init", metavar="SOURCE", help="write the recipe RECIPE (<P>/<name>) once: SOURCE's sets and pages, listed")
-    reported.add_argument("-o", "--output", metavar="DIR", help="build into DIR (default reports/<P>/<name>/)")
+    reported.add_argument("--init", metavar="SOURCE", help="write the recipe RECIPE.toml (<P>/<name>.toml) once: SOURCE's sets and "
+                                                           "pages, listed")
+    reported.add_argument("-o", "--output", metavar="DIR", help="build into DIR (default: its recipe's [report].output, "
+                                                                "else reports/<P>/<run>/<cfg>/ as results/ has its sources)")
 
     listing = commands.add_parser("ls", help="every config and its configurations")
     listing.add_argument("project", nargs="?", help="only this project's configs")
@@ -443,12 +447,29 @@ def others_of(args):
     return plans_of
 
 
+def write_documents(run, configuration, members: list, say=print) -> tuple[Path | None, list[str]]:
+    """A folder's plot document (plotdoc.write, V165) and beside it its report's recipe, report.toml (V209): the run
+    TOML's [report], else the default report, written again each time. Its failure is said, never the run's."""
+    target, notes = plotdoc.write(run, configuration, members)
+    if target is not None:
+        _write_recipe(run, target, say)
+    return target, notes
+
+
+def _write_recipe(run, target: Path, say) -> None:
+    from . import report as reportmod
+    try:
+        reportmod.write_recipe(run, target)
+    except (HepError, OSError) as error:
+        say(f"report: {target.with_name(reportmod.RECIPE)} not written: {getattr(error, 'message', error)}")
+
+
 def draw_run(run, configuration, members: list, say, draw: bool = True, stats=True) -> int:
     """A run's plot stage (V165): its plot document written, results/<run>/plot.toml (what the run knows
     rewritten, the user's [plot] and [stats] kept), then its pages drawn from that document alone, as
     `heimdall plot` draws them, and their statistics (V168: `stats` true, false or the sets measured); with
     `draw` false, the statistics alone. The pages that failed."""
-    target, notes = plotdoc.write(run, configuration, members)
+    target, notes = write_documents(run, configuration, members, say)
     for note in notes:
         say(f"plot: note: {note}")
     if target is None:
@@ -1293,19 +1314,22 @@ def cmd_deck(args) -> int:
 
 
 def cmd_report(args) -> int:
-    """`heimdall report [RECIPE] [SOURCE…]` (I-108, V207): a recipe and its sources (or sources alone, the default
-    recipe) resolved into sections of figures and statistics; --list says them, --init writes a recipe once."""
+    """`heimdall report [RECIPE.toml] [SOURCE…]` (I-108, V207, V209): a recipe and its sources, or sources alone (one
+    folder's report.toml, else the default), resolved into sections of figures and statistics and built where
+    results/ has them; --list says them, --init writes a recipe once."""
     from . import report as reportmod
     from .paths import configs_root
     if args.init:
-        if not args.names or args.names[0].count("/") != 1 or args.names[0].endswith(".toml"):
-            raise HepError("--init writes a recipe: name it, <P>/<name>", hint=f"heimdall report eic/weekly --init {args.init}")
-        target = configs_root() / f"{args.names[0]}.toml"
+        name = args.names[0] if len(args.names) == 1 else ""
+        if not name.endswith(".toml") or name.count("/") != 1 or name.startswith(("./", "/")):
+            raise HepError("--init writes a recipe under configs/: name it, <P>/<name>.toml",
+                           hint=f"heimdall report eic/weekly.toml --init {args.init}")
+        target = configs_root() / name
         if target.exists():
             raise HepError(f"{target} is there already", hint="--init writes a recipe once: edit it, or name another")
         (source, *_) = reportmod.sources([args.init], "--init")
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(reportmod.starter(args.names[0], source), encoding="utf-8")
+        target.write_text(reportmod.starter(name, source), encoding="utf-8")
         print(f"report: wrote {target}")
         return 0
     first, rest = (args.names[0], args.names[1:]) if args.names else (None, [])
@@ -1492,7 +1516,7 @@ def documents_of(args) -> list[Path]:
         return [found]
     if getattr(args, "record", None) is not None:          # a record from before plot documents: its own, written
         run, configuration = _record_config(args.record)
-        target, _ = plotdoc.write(run, configuration, plot.recorded(run, configuration))
+        target, _ = write_documents(run, configuration, plot.recorded(run, configuration))
         print(f"plot: wrote {target}, from its snapshot and its points.json (heimdall migrate --plot-docs writes "
               "every record's)")
         return [target]
@@ -1511,7 +1535,7 @@ def documents_of(args) -> list[Path]:
             if not folders.manifest.is_file():
                 raise HepError(f"configuration '{key}' has no record yet: nothing to draw", where=str(folders.record),
                                hint=f"heimdall run {args.config} {key}")
-            target, notes = plotdoc.write(run, configuration, plot.recorded(run, configuration))
+            target, notes = write_documents(run, configuration, plot.recorded(run, configuration))
             print(f"plot: wrote {target}, from the config and its points.json (heimdall migrate --plot-docs writes "
                   "every record's)")
         else:
@@ -1563,7 +1587,7 @@ def cmd_check(args) -> int:
     from . import report as reportmod
     for name in (reportmod.recipes() if not args.configs else ()) or ():   # V207: a report's recipe, its keys
         try:
-            recipe = reportmod.load_recipe(configs_root() / f"{name}.toml")
+            recipe = reportmod.load_recipe(configs_root() / name)
             print(f"ok    {name}: a report, {len(recipe.get('section', []))} section(s)")
         except HepError as error:
             failed += 1
@@ -1832,9 +1856,10 @@ def migrate_plot_docs(args) -> int:
     for folder in todo:
         run, configuration = _record_config(folder)
         if (folder / "config" / record.SNAPSHOT).is_file():
-            target, _ = plotdoc.write(run, configuration, plot.recorded(run, configuration))
+            target, _ = write_documents(run, configuration, plot.recorded(run, configuration))
         else:                                               # no snapshot: its points as points.json has them
             target = plotdoc.from_manifest(folder, run, configuration)
+            _write_recipe(run, target, print)
         drawn = sum(1 for m in plotdoc.load(target)[2] if m.recorded is not None and m.recorded == m.identity)
         print(f"wrote   {target} ({drawn} complete member(s))")
     return 0

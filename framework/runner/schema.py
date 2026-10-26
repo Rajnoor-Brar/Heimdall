@@ -1,6 +1,6 @@
 """The run TOML's schema: framework/schema/run.toml, and checking a table against it (rank 0). A deck's
 recipe has its own, framework/schema/deck.toml (tables "deck" and "block", V103), and so has a report's,
-framework/schema/report.toml (tables "report" and "section", V207).
+framework/schema/report.toml (tables "report" and "section", V207), which a run TOML's [report] is too (V209).
 
 docs/04_Config_Reference.md. Every key's type, allowed values, smallest value, default, inheritance and
 whether it takes "default" is written once, in run.toml (V55); config.py and plot.py check their tables
@@ -239,6 +239,10 @@ def json_schema() -> dict:
     plot["properties"]["figures"] = {"type": "object", "additionalProperties": figure}
     plot["properties"]["data"] = _object("data")
     plot["properties"]["data"]["properties"]["map"] = {"type": "object", "additionalProperties": {"type": "string"}}
+    section = _object("section")
+    section["properties"]["plot"] = {**plot, "description": section["properties"]["plot"]["description"]}
+    report = _object("report")
+    report["properties"]["section"] = {**report["properties"]["section"], "items": section}   # [[report.section]] (V209)
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": "heimdall run TOML (generated from framework/schema/run.toml)",
@@ -251,6 +255,7 @@ def json_schema() -> dict:
             "quantities": {"type": "object", "additionalProperties": _object("quantity")},
             "plot": plot,
             "stats": _object("stats"),
+            "report": report,
             "cluster": _object("cluster"),
         },
         "required": ["run"],
@@ -303,7 +308,8 @@ def json_schema_v3() -> dict:
             "run": run, "cfgs": {"type": "object", "additionalProperties": cfg},
             "tools": {"type": "object", "properties": by_name, "additionalProperties": tool},
             "quantities": {"type": "object", "additionalProperties": quantity},
-            "plot": v2["properties"]["plot"], "stats": v2["properties"]["stats"], "cluster": v2["properties"]["cluster"],
+            "plot": v2["properties"]["plot"], "stats": v2["properties"]["stats"], "report": v2["properties"]["report"],
+            "cluster": v2["properties"]["cluster"],
         },
         "additionalProperties": False,
     }

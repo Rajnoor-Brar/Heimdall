@@ -100,14 +100,14 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--only TARGETS` | some of pdf, pptx, html, overleaf, viewer (comma-separated) |
 | `--init` | write deck.md once: a title slide and a slide per block |
 
-**`heimdall report`**: a quick report of runs' pages and numbers, built into reports/<P>/<name>/ only when asked (a recipe: configs/<P>/<name>.toml with [report])
+**`heimdall report`**: a quick report of runs' pages and numbers, built only when asked into reports/, where results/ has its sources (a folder's: its report.toml)
 
 | Argument | Meaning |
 |---|---|
-| `RECIPE\|SOURCE…` | a recipe (<P>/<name>, or a .toml path), then its sources, which replace its [report].from; or sources alone, for the default report: <P>/<run>/<cfg>, <P>/<run>, a path or a glob |
+| `RECIPE.toml\|SOURCE…` | sources alone: one folder's report.toml (else the default report), or the default over several: <P>/<run>/<cfg>, <P>/<run>, a path or a glob; or a recipe first, always named .toml (<P>/<name>.toml under configs/, ./… or /…: a recipe of its own, a run TOML's [report], a report.toml), then its sources, which replace its [report].from |
 | `--list, --dry-run` | its sources, sections and figures, each copied or drawn for the report; nothing written |
-| `--init SOURCE` | write the recipe RECIPE (<P>/<name>) once: SOURCE's sets and pages, listed |
-| `-o, --output DIR` | build into DIR (default reports/<P>/<name>/) |
+| `--init SOURCE` | write the recipe RECIPE.toml (<P>/<name>.toml) once: SOURCE's sets and pages, listed |
+| `-o, --output DIR` | build into DIR (default: its recipe's [report].output, else reports/<P>/<run>/<cfg>/ as results/ has its sources) |
 
 **`heimdall ls`**: every config and its configurations
 
@@ -559,20 +559,29 @@ its `--set` overrides (the provenance records them) and its seed.
 
 ### 1.8 `heimdall report`
 
-`heimdall report [RECIPE] [SOURCE…]` makes a quick, informal report of runs' pages and numbers, to send to
-a colleague or a supervisor. It runs only when asked: no run, plot or stats step calls it.
-- **The arguments:** the first names a recipe when it is `<P>/<name>` and `configs/<P>/<name>.toml` has a
-  `[report]` table, or when it is a `.toml` path; the sources after it replace its `[report].from` (a
-  section's own `from` stays). Otherwise every argument is a source, for the default report.
+`heimdall report [RECIPE.toml] [SOURCE…]` makes a quick, informal report of runs' pages and numbers, to send
+to a colleague or a supervisor. It runs only when asked: no run, plot or stats step calls it.
+- **The ways in:**
+  1. `heimdall report <P>/<run>/<cfg>`: that folder's `report.toml`, which its run wrote from its config's
+     `[report]`; a folder drawn before runs wrote one gets the default report.
+  2. `heimdall report <recipe>.toml <source>…`: that recipe over those sources, which replace its
+     `[report].from` (a section's own `from` stays). The recipe may be a run TOML: its `[report]` (with its
+     template) as the config reads today; the folders' `report.toml` are not rewritten.
+  3. `heimdall report <recipe>.toml`: a recipe of its own over its `from`.
+  4. Several sources, or `<P>/<run>`, with no recipe: the default report over them all.
+
+  A recipe is always named with `.toml`: `<P>/<name>.toml` under `configs/`, `./…` from the work dir, or
+  `/…`. A first argument without `.toml` is a source.
 - **A source:** `<P>/<run>/<cfg>`, `<P>/<run>` (each configuration's folder, then the run's own), a path,
   or a glob (`'eic/zeus_validation/0[2-4]_*'`).
 - **Its recipe's keys** are [04 §15](04_Config_Reference.md#15-a-reports-recipe-report).
 - **`--list`** (or `--dry-run`): its sources (each one's configuration, points complete, events, what it is
-  compared against), then each section and what it shows. Nothing is written.
-- **`--init SOURCE`:** writes `configs/<P>/<name>.toml` for `heimdall report <P>/<name> --init SOURCE`, once,
-  with SOURCE's sets, cells and pages listed.
-- **`-o DIR`:** builds into DIR instead of `reports/<P>/<name>/` (a report with no recipe:
-  `reports/<P>/<run>/<cfg>/`); never into `results/`.
+  compared against), then each section and what it shows, and the optional sections left out. Nothing is
+  written.
+- **`--init SOURCE`:** writes `configs/<P>/<name>.toml` for `heimdall report <P>/<name>.toml --init
+  SOURCE`, once, with SOURCE's sets, cells and pages listed.
+- **`-o DIR`:** builds into DIR instead of where `results/` has its sources (`reports/<P>/<run>/<cfg>/`,
+  `reports/<P>/<run>/`, …) or its recipe's `[report].output`; never into `results/`.
 - **What it makes:** `figures/` (every page it shows, copied as drawn, with its PNG), `stats/` (the statistics
   and bar graphs it shows, drawn from each source's `statistics.csv`), `report.tex`, `report.pdf` (A4) and
   `index.html`, again only what changed; what they are is [03 §11](03_Plots.md#11-reports-heimdall-report).

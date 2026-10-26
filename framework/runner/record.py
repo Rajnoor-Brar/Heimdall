@@ -629,10 +629,10 @@ SNAPSHOT = "snapshot.toml"
 
 
 def snapshot_files(run, plans: list) -> list[Path]:
-    """The files a run read from its configs: its run TOML, every file it imports, the base cards and configs
-    its points read, its tools' own filters, its [plot].root_style file and its master."""
+    """The files a run read from its configs: its run TOML, every file it imports, its [report]'s templates, the
+    base cards and configs its points read, its tools' own filters, its [plot].root_style file and its master."""
     from .paths import resolve
-    wanted = [Path(run.path), *map(Path, run.imported)]
+    wanted = [Path(run.path), *map(Path, run.imported), *map(Path, getattr(run, "templates", []))]   # V209: its reports' too
     wanted += [base for plan in plans for step in plan.rendered.values() for base in step.card_base]
     for tool in run.tools.values():
         if tool.filters:

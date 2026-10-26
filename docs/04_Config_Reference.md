@@ -1464,33 +1464,61 @@ Where everything goes, as a tree, is [06 §14](06_Internals.md#14-where-files-go
 
 ## 15. A report's recipe: `[report]`
 
-A report's recipe is a file of a project's configs, `configs/<P>/<name>.toml`, told apart from a run's by its
-top `[report]` table (it has no `[run]`). `heimdall report <P>/<name>` builds it into `reports/<P>/<name>/`
-(05 §1.8); `framework/schema/report.toml` holds every key, as below. A recipe has `[report]` and
-`[[section]]` tables, and nothing else. With no recipe, `heimdall report <source>` makes the default report:
-the statistics' headline, then each drawn set's pages, a grid per page cell.
+A report's recipe is a `[report]` table and its `[[report.section]]`s; `framework/schema/report.toml` holds
+every key, as below. One table, in three places:
+
+- **A recipe of its own:** `configs/<P>/<name>.toml` holding `[report]` and nothing else (no `[run]`).
+  `heimdall report <P>/<name>.toml <source>…` builds it over those sources, or over its own `from`
+  (05 §1.8).
+- **A run TOML's `[report]`:** what its folders' reports show. It takes neither `from` nor `output`: each
+  folder is its report's source and is built where `results/` has it. Its **`template`** names a recipe, as
+  `[config].import` names a file (`weekly`: this project's `configs/<P>/weekly.toml`; `eic/weekly`: another
+  project's; `./…`: the work dir's; `.toml` optional). The run TOML's keys replace the template's and its
+  sections come after the template's; a template may name its own, and a circle is refused. A template's
+  `from` and `output` are its own, not the run's. Imports merge `[report]` as any table, and `heimdall check`
+  checks it, with its template, when the file is read.
+- **A folder's `report.toml`:** the run writes it beside each `plot.toml`
+  (`results/<P>/<run>/<cfg>/report.toml`), every time it writes that, `--no-plot` too: its config's
+  `[report]` with its template laid under it, or, with no sections, the default report written out. It is
+  rewritten from the config each time, never merged with edits; to change it, change the config or its
+  template, or copy it into `configs/` as a recipe of your own. `heimdall report <P>/<run>/<cfg>` builds it.
+
+**The default report**, for a folder without a `report.toml` and for several sources at once, is a Standings
+section (the statistics' headline: the top five and each statistic's ranking) on the first set measured, then
+the pages of every set in the sources' `[plot].draw` (every set of `[plot].sets` when it names none), a grid
+per page cell. Each of its sections is `optional`, so a set drawn nowhere is left out, and `--list` says so.
 
 ```toml
-# configs/eic/weekly.toml
+# configs/eic/weekly.toml: a template, or a recipe of its own
 [report]
-title    = "ZEUS photoproduction: generators and PDFs"
+title    = "ZEUS photoproduction: {configuration}"   # filled in from each source's plot document
 subtitle = "for the group, 30 Oct 2026"
 from     = ["eic/zeus_validation/02_generator_pdf"]   # replaced by sources on the command line
 
-[[section]]
+[[report.section]]
 title = "Standings"
 stats = ["top5", "ratio_dev"]
 
-[[section]]
+[[report.section]]
 title = "Spectra"
 pages = ["d01-*", "d02-*"]                # set "totality"; backend: the first drawn of root, mpl, yoda
 note  = "Pythia 8.318 and Sherpa 3.0.5 against ZEUS 2012"
 
-[[section]]
+[[report.section]]
 title  = "Run by run"
 from   = ["eic/zeus/0[1-3]_generator_pdf"]   # its own sources, kept on an override
 pages  = ["d01-x01-y01"]
 layout = "sources"                        # a grid per page, a panel per source
+```
+
+```toml
+# configs/eic/zeus.toml, a run TOML: its folders' reports are the template's, then its own sections
+[report]
+template = "weekly"
+
+[[report.section]]
+title = "Jets"
+pages = ["d0[3-4]-*"]
 ```
 
 **`[report]`:**
@@ -1498,12 +1526,15 @@ layout = "sources"                        # a grid per page, a panel per source
 <!-- generated: keys report -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `title` | a string |  | the report's title, on its front page (default: its name, or its one source's address) |
+| `title` | a string |  | the report's title, on its front page (default: its one source's address, else what its sources' addresses share). `{project}`, `{run}`, `{configuration}` and `{title}` (a configuration's title, else its name) in the title or subtitle are filled in from its sources' plot documents (several values joined by commas), so one template titles each folder's report. |
 | `subtitle` | a string |  | a line under the title: the date, who it is for |
 | `from` | a list (a string each) |  | its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them |
+| `output` | a string |  | where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<P>/<run>/<cfg>/, reports/<P>/<run>/, …); -o replaces it. Not in a run TOML |
+| `template` | a string |  | a recipe laid under this table, named as [config].import names a file (weekly, eic/weekly, ./…; .toml optional): its keys under these, its sections first |
+| `section` | a list (a table each) |  | its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars or files |
 <!-- /generated -->
 
-**`[[section]]`:** each shows exactly one of `pages`, `compare`, `stats`, `bars` or `files`.
+**`[[report.section]]`:** each shows exactly one of `pages`, `compare`, `stats`, `bars` or `files`.
 
 <!-- generated: keys section -->
 | Key | Type | Default | Meaning |
@@ -1518,6 +1549,7 @@ layout = "sources"                        # a grid per page, a panel per source
 | `layout` | a string: `"pages"`, `"sources"` | `"pages"` | pages: each source's pages in turn, a grid per page cell; sources: side by side, a grid per page, a panel per source |
 | `columns` | an integer, ≥ 1 |  | a grid's columns (default: 2 on an A4 page, 3 for a side-by-side grid of three or more) |
 | `label` | a string: `"events"`, `"folder"` | `"folder"` | a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its run, where two sources would share one); events, the events its points ran with (10M) |
+| `optional` | true or false | `false` | a source without the section's set drawn (or measured) is passed over, and the section left out when none has it; false: refused, naming the command that draws it |
 | `compare` | a list (a string each) |  | compare figures' names (03 §7.5): their pages, from each source's run's compare/<name>/ |
 | `stats` | a list (a string each) |  | the statistics summary's sections, from each source's statistics/<set>/statistics.csv: top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts |
 | `bars` | a list (a string each) |  | globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv |
@@ -1529,10 +1561,12 @@ layout = "sources"                        # a grid per page, a panel per source
   configurations, then the run's own folder when it is drawn), a path, or a glob of them under `results/`.
   Sources of several runs and projects mix freely.
 - **What is not on disk is refused,** naming the command that makes it: `heimdall plot <source> --sets
-  <set>` for pages, `heimdall stats <source> --sets <set>` for numbers.
-- **A recipe named like a run of its project** (`results/<P>/<name>/` is there) is refused: the two would
-  share a folder under `reports/`.
-- `heimdall report <P>/<name> --init <source>` writes a starter recipe once, listing the source's sets,
+  <set>` for pages, `heimdall stats <source> --sets <set>` for numbers; an `optional` section passes such a
+  source over instead.
+- **Where it is built:** `reports/` mirrors `results/` (03 §11.1): a folder's report in
+  `reports/<P>/<run>/<cfg>/`, a run's in `reports/<P>/<run>/`, several runs' where their addresses meet.
+  `output` or `-o` says otherwise; sources of two projects, or outside `results/`, need one of them.
+- `heimdall report <P>/<name>.toml --init <source>` writes a starter recipe once, listing the source's sets,
   cells and pages; `heimdall check` checks every recipe, and `heimdall ls` lists them under "reports".
 
 ### 15.1 A deck's recipe: `deck.toml`

@@ -4,10 +4,13 @@ for colleagues or a supervisor, made only when asked (rank 4).
 * **Sources** are result folders holding a plot document (plot.toml): a configuration's, or a run's runs-together
   folder (V169). They are named `<P>/<run>/<cfg>`, `<P>/<run>` (each of its configurations, then its own when it
   is drawn), a path, or a glob of them under results/.
-* **A recipe** is `configs/<P>/<name>.toml` with a `[report]` table (framework/schema/report.toml): its title,
-  its sources (`from`, which the command line's replace) and its `[[section]]`s, each one kind of item: pages,
-  compare, stats, bars or files. Without one, the default recipe: a front page, the statistics' headline and
-  each drawn set's pages, a grid per page cell.
+* **A recipe** is a `[report]` table and its `[[report.section]]`s (framework/schema/report.toml), each section one
+  kind of item: pages, compare, stats, bars or files. It is a file of its own (`configs/<P>/<name>.toml`, `[report]`
+  alone), a run TOML's `[report]` (what its folders' reports show, its `template` laid under it), or the
+  `report.toml` a run writes beside each folder's plot.toml from that (V209). With no sections, the default: the
+  statistics' headline, then each set the sources' documents draw.
+* **Where:** reports/ mirrors results/: a folder's report in reports/<P>/<run>/<cfg>/, a run's in reports/<P>/<run>/,
+  several runs' where their addresses meet; `-o` or the recipe's `output` says otherwise.
 * `resolve` turns a recipe and its sources into a `Plan`: its sections' grids of figures, each copied from its
   source or drawn for the report, and its statistics parts. Nothing is written until the build.
 """
@@ -20,6 +23,7 @@ import hashlib
 import html
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -29,27 +33,22 @@ from datetime import datetime
 from pathlib import Path
 
 from . import config as configmod
-from . import plotdoc, plugins, record, schema, statstable, viewer
+from . import plotdoc, plugins, record, statstable, viewer
+from .config import STATISTICS
 from .errors import HepError, did_you_mean
-from .paths import configs_root, hep_root, reports_root, results_root
+from .paths import config_file, configs_root, hep_root, reports_root, results_root, work_root
 
-#: The tables of report.toml, a recipe's (I-108).
-TABLES = ("report", "section")
-#: What a section shows: exactly one of these.
-ITEMS = ("pages", "compare", "stats", "bars", "files")
+#: What a run writes beside each folder's plot.toml: its report's recipe (V209).
+RECIPE = "report.toml"
 #: Whose drawn pages a section takes, in order of preference, when it names none.
 BACKENDS = ("root", "mpl", "yoda")
-#: The statistics summary's sections (bars.summary_model), and a statistic's parts by their item's key suffix.
-STATISTICS = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "area")
-SUMMARY = ("top5", "scoreboard", "scoreboard-cells", "head-to-head", "scoreboards", *STATISTICS)
-PARTS = ("ranking", "crossed", "table")
-#: The default recipe's headline: the top five and each statistic's ranking (the area has none).
+#: The default report's headline: the top five and each statistic's ranking (the area has none).
 HEADLINE = ["top5", *(f"{key}:ranking" for key in STATISTICS if key != "area")]
+#: What a title or subtitle may name, filled in from its sources' plot documents.
+PLACEHOLDERS = ("project", "run", "configuration", "title")
 #: Panels on an A4 page of a grid, for the listing's page count (the build lays them out).
 PER_PAGE = 6
 GLOB = re.compile(r"[*?\[]")
-#: The default recipe's own mark on its sections: a source without the set (or its numbers) is passed over.
-QUIET = "_quiet"
 SERIAL = re.compile(r"^\d+_")
 
 
@@ -217,85 +216,149 @@ def sources(addresses: list[str], where: str) -> list[Source]:
 
 # ── recipes ────────────────────────────────────────────────────────────────────────────────────
 
+def _read(path: Path) -> dict:
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except OSError:
+        raise HepError("cannot read the recipe", where=str(path)) from None
+    except tomllib.TOMLDecodeError as error:
+        raise HepError(f"cannot read the recipe: {error}", where=str(path)) from None
+
+
 def _is_recipe(path: Path) -> bool:
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
+        return set(_read(path)) == {"report"}
+    except HepError:
         return False
-    return "report" in data and "run" not in data
 
 
 def recipe_of(name: str) -> Path | None:
-    """The recipe a command's first argument names: a .toml path, or configs/<P>/<name>.toml with [report]."""
-    if name.endswith(".toml"):
-        path = Path(name).expanduser()
-        if not path.is_file():
-            raise HepError(f"no recipe {path}", hint="a recipe is a TOML file with a [report] table")
-        return path.resolve()
-    if name.count("/") == 1 and not GLOB.search(name):
-        path = configs_root() / f"{name}.toml"
-        if path.is_file() and _is_recipe(path):
-            return path
-    return None
+    """The recipe a command's first argument names, always a .toml file, named as a run config is: <P>/<name>.toml
+    under configs/, ./… the work dir's, /… a path. A recipe of its own, a run TOML or a folder's report.toml. None:
+    the argument is a source."""
+    if not name.endswith(".toml"):
+        return None
+    try:
+        return config_file(name).resolve()
+    except HepError:
+        raise HepError(f"no recipe {name}", where=str(configs_root()),
+                       hint="a recipe is a .toml file: <P>/<name>.toml under configs/, ./… from the work dir, or /…") from None
 
 
 def recipes(project: str | None = None) -> list[str]:
-    """Every configs/<P>/<name>.toml with a [report] table, as <P>/<name> (heimdall ls, check)."""
+    """Every recipe of its own under configs/ ([report] alone), as <P>/<name>.toml (heimdall ls, check)."""
     root = configs_root()
-    return [str(p.relative_to(root).with_suffix("")) for p in sorted(root.glob(f"{project or '*'}/*.toml")) if _is_recipe(p)]
+    return [p.relative_to(root).as_posix() for p in sorted(root.glob(f"{project or '*'}/*.toml")) if _is_recipe(p)]
 
 
 def load_recipe(path: Path) -> dict:
-    """A recipe, checked: [report] and its [[section]]s, every key against report.toml, each section one item."""
-    where = str(path)
-    try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except tomllib.TOMLDecodeError as error:
-        raise HepError(f"cannot read the recipe: {error}", where=where) from None
-    for table in data:
-        if table not in TABLES:
-            raise HepError(f"unknown table [{table}]", where=where,
-                           hint=did_you_mean(table, TABLES) or "a recipe has [report] and [[section]]s")
-    schema.check(data.get("report", {}), "report", f"{where}: [report]")
-    sections = data.get("section", [])
-    if not isinstance(sections, list):
-        raise HepError("a section is a [[section]] table", where=f"{where}: [section]", hint="write [[section]], twice bracketed")
-    for number, section in enumerate(sections, 1):
-        at = f"{where}: section {number}"
-        schema.check(section, "section", at)
-        if "title" not in section:
-            raise HepError("a section needs a title", where=at)
-        kinds = [k for k in ITEMS if k in section]
-        if len(kinds) != 1:
-            raise HepError(f"a section shows one of {', '.join(ITEMS)}" + (f", not {' and '.join(kinds)}" if kinds else ""),
-                           where=at, hint='pages = ["d01-*"], or stats = ["top5"], …')
-        for key in section.get("stats", []):
-            _check_stat(key, at)
-        if "plot" in section:
-            configmod.check_plot(section["plot"], f"{at}.plot")
-    return data
+    """A recipe's [report] table, checked, its template laid under it (V209): a recipe of its own ([report] alone,
+    every key against report.toml), or a run TOML's [report] as it is read (its from and output a recipe's)."""
+    data = _read(path)
+    if "run" in data:
+        return dict(configmod.load(str(path)).report)
+    if set(data) != {"report"}:
+        others = sorted(set(data) - {"report"})
+        raise HepError(f"a recipe has [report] alone, not [{others[0]}]" if others else "a recipe has a [report] table",
+                       where=str(path), hint="[report] title = …, then [[report.section]] tables (04 §15)")
+    configmod.check_report(data["report"], f"{path}: [report]")
+    project = configmod._project_of(path, data, "")
+    table, _ = configmod.report_of(data["report"], path, project, f"{path}: [report]")
+    return table
 
 
-def _check_stat(key: str, where: str) -> None:
-    statistic, _, part = key.partition(":")
-    if statistic not in SUMMARY or (part and (part not in PARTS or statistic not in STATISTICS)):
-        hint = (f"a statistic's parts: {', '.join(f'{statistic}:{p}' for p in PARTS)}" if statistic in STATISTICS
-                else did_you_mean(statistic, SUMMARY) or f"the sections: {', '.join(SUMMARY)}")
-        raise HepError(f"stats: no section {key!r}", where=f"{where}.stats", hint=hint)
+def filled(text: str, facts: list[dict]) -> str:
+    """A title with {project}, {run}, {configuration} and {title} filled in from its sources' [source] tables
+    (several values joined by commas; a title: the configuration's, else its name)."""
+    for word in PLACEHOLDERS:
+        mark = "{" + word + "}"
+        if mark in text:
+            values = [str(f.get("title") or f.get("configuration", "") if word == "title" else f.get(word, "")) for f in facts]
+            text = text.replace(mark, ", ".join(dict.fromkeys(v for v in values if v)))
+    return text
+
+
+def _drawn_sets(plot: dict) -> list[str]:
+    """The sets a plot document draws: its [plot].draw, else every set of its [plot].sets (the totality alone when
+    it names none); none without a [plot]."""
+    if not plot:
+        return []
+    if isinstance(plot.get("draw"), list):
+        return list(plot["draw"])
+    sets = plot.get("sets")
+    return list(sets) if isinstance(sets, dict) and sets else ["totality"]
+
+
+def _sections(sets: list[str], measured: list[str]) -> list[dict]:
+    head = [{"title": "Standings", "set": measured[0], "stats": list(HEADLINE), "optional": True}] if measured else []
+    return head + [{"title": f"Pages: {s}", "set": s, "pages": ["*"], "optional": True} for s in sets]
+
+
+def default_sections(plot: dict, stats: dict) -> list[dict]:
+    """The default report's sections for a plot document's [plot] and [stats] (A1): Standings, the statistics'
+    headline, on the first set it measures ([stats].sets, else the sets drawn), then the pages of each set it
+    draws; every one optional, so a set drawn nowhere is left out."""
+    sets = _drawn_sets(plot)
+    return _sections(sets, list((stats or {}).get("sets") or sets))
 
 
 def default_recipe(found: list[Source]) -> dict:
-    """No recipe (N1): the statistics' headline, then each set drawn (the documents' [plot].draw first), its pages
-    a grid per page cell."""
+    """No recipe (N1, A1): the default sections over these sources, their sets together in order (a document with
+    no [plot]: the sets drawn in its folder)."""
     sets: list[str] = []
+    measured: list[str] = []
     for source in found:
-        drawn = source.sets()
-        wanted = [s for s in (source.doc.plot or {}).get("draw", []) if s in drawn] or drawn
-        sets += [s for s in wanted if s not in sets]
-    first = next((s for s in sets if any(source.numbers(s) for source in found)), None)
-    sections = [{"title": "Standings", "stats": HEADLINE, "set": first, QUIET: True}] if first else []
-    sections += [{"title": f"Pages: {set_}", "pages": ["*"], "set": set_, QUIET: True} for set_ in sets]
-    return {"report": {}, "section": sections}
+        own = _drawn_sets(source.doc.plot or {}) or source.sets()
+        sets += [s for s in own if s not in sets]
+        measured += [s for s in ((source.doc.stats or {}).get("sets") or own) if s not in measured]
+    return {"section": _sections(sets, measured)}
+
+
+def _value(value) -> str:
+    return plotdoc._inline(value)
+
+
+def dumps(table: dict) -> str:
+    """A recipe as TOML: [report]'s keys, then each [[report.section]], its title first."""
+    lines = ["[report]", *(f"{k} = {_value(v)}" for k, v in table.items() if k != "section")]
+    for section in table.get("section", []):
+        lines += ["", "[[report.section]]", *(f"{k} = {_value(v)}" for k, v in
+                                               sorted(section.items(), key=lambda kv: kv[0] != "title"))]
+    return "\n".join(lines) + "\n"
+
+
+def _named(path: Path) -> str:
+    root = configs_root().resolve()
+    return path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+
+
+def write_recipe(run, document: Path) -> Path:
+    """results/<P>/<run>/<cfg>/report.toml (V209), beside the plot document just written: the run TOML's [report]
+    (its template laid under it), else the default report for the document's sets, its title's placeholders filled
+    in. Rewritten whole each time; `heimdall report <folder>` builds it."""
+    data = _read(document)
+    table = {k: v for k, v in (getattr(run, "report", None) or {}).items()}
+    if not table.get("section"):
+        table["section"] = default_sections(data.get("plot", {}), data.get("stats", {}))
+    for key in ("title", "subtitle"):
+        if table.get(key):
+            table[key] = filled(table[key], [data.get("source", {})])
+    address = _address(document.parent)
+    config = f"{record.config_name(run)}.toml"
+    templates = [_named(Path(p)) for p in getattr(run, "templates", [])]
+    own = getattr(run, "report", None) or {}
+    given = (f"{config}'s [report]" + (f" and its template {', '.join(templates)}" if templates else "")
+             + ("" if own.get("section") else ", its sections the default report's") if own
+             else f"the default report ({config} has no [report])")
+    header = [f"# This folder's report (V209): `heimdall report {address}` builds it into reports/.",
+              f"# The run wrote it from {given}.",
+              "# It is written again each time plot.toml is: edit the config (or its template), or copy this file",
+              f"# into configs/ as a recipe of your own: heimdall report <P>/<name>.toml {address}"]
+    target = document.with_name(RECIPE)
+    partial = target.with_name(f"{target.name}.{os.getpid()}.partial")
+    partial.write_text("\n".join(header) + "\n\n" + dumps(table), encoding="utf-8")
+    partial.replace(target)
+    return target
 
 
 # ── the plan ───────────────────────────────────────────────────────────────────────────────────
@@ -306,7 +369,7 @@ class Figure:
     source: Source | None
     set: str
     page: str                    # its name in the set ([<cell>/]<object>), or the file's
-    file: Path | None            # what is shown; None: drawn for the report (P4)
+    file: Path | None            # what is shown; None: drawn for the report (P6)
     label: str = ""              # a side-by-side panel's
     why: str = ""                # why it is drawn for the report
 
@@ -324,7 +387,7 @@ class Part:
     source: Source
     set: str
     keys: list[str]
-    csv: Path | None             # None: measured for the report (P4)
+    csv: Path | None             # None: measured for the report (P6)
 
 
 @dataclass
@@ -348,13 +411,14 @@ class Section:
 
 @dataclass
 class Plan:
-    name: str                    # <P>/<name>: where it builds, under reports/
+    name: str                    # the command that builds it: heimdall report <name>
     title: str
     subtitle: str
     sources: list[Source]        # every source a section takes, in order
     sections: list[Section]
     out: Path
     recipe: Path | None = None
+    left: list[str] = field(default_factory=list)      # optional sections no source has, and why
 
     def drawn(self) -> list:
         """What is drawn or measured for the report: figures with no file, parts and bars with no CSV."""
@@ -379,13 +443,14 @@ def _refuse_missing(source: Source, set_: str, where: str, allow_drawn: bool) ->
     if not allow_drawn:
         raise HepError(f"{source.address} has no set {set_} drawn", where=where,
                        hint=f"heimdall plot {source.address} --sets {set_} draws it"
-                            + (f"; drawn there: {', '.join(source.sets())}" if source.sets() else ""))
+                            + (f"; drawn there: {', '.join(source.sets())}" if source.sets() else "")
+                            + "; optional = true passes it over")
 
 
 def _pages_section(section: dict, found: list[Source], where: str, allow_drawn: bool) -> list[Grid]:
     set_, globs = section.get("set", "totality"), section["pages"]
     cells, backends = section.get("cells"), _backends(section)
-    if section.get(QUIET):
+    if section.get("optional"):
         found = [s for s in found if s.pages(set_, backends)]
     chosen: dict[str, dict[str, Path]] = {}
     for source in found:
@@ -461,84 +526,123 @@ def _files_section(section: dict, base: Path, where: str) -> list[Grid]:
     return [Grid(section["title"], [Figure(None, "", p.stem, p.resolve(), p.stem) for p in files], section.get("columns"))]
 
 
-def resolve(recipe: dict, given: list[str], *, path: Path | None = None, name: str = "", out: Path | None = None,
-            allow_drawn: bool = False) -> Plan:
-    """A recipe (or the default's) and its sources as a Plan. `given`: the command line's sources, which replace
-    [report].from; a section's own from stays. `allow_drawn`: what is not on disk is drawn for the report (P4),
-    else refused naming the command that makes it."""
+def _numbers(spec: dict, found: list[Source], set_: str, where: str, allow_drawn: bool) -> list[tuple[Source, Path | None]]:
+    """A stats or bars section's sources and their set's statistics.csv; optional: those without it passed over."""
+    out = []
+    for source in found:
+        csv = source.numbers(set_)
+        if csv is None and spec.get("optional"):
+            continue
+        if csv is None and not allow_drawn:
+            raise HepError(f"{source.address} has no statistics for {set_}", where=where,
+                           hint=f"heimdall stats {source.address} --sets {set_} measures them; optional = true passes it over")
+        out.append((source, csv))
+    return out
+
+
+def _out(recipe: dict, used: list[Source], where: str) -> Path:
+    """Where a report is built when -o names nowhere (A6): its [report].output (a folder under reports/, ./… the
+    work dir's, /… a path), else where results/ has its sources: their common address under reports/."""
+    given = recipe.get("output")
+    if given:
+        if given.startswith("../") or "/../" in given:
+            raise HepError(f"output '{given}' climbs out of reports/", where=f"{where}.output", hint="name a folder under reports/, or ./… or /…")
+        return Path(given) if given.startswith("/") else work_root() / given[2:] if given.startswith("./") else reports_root() / given
+    outside = [s.address for s in used if Path(s.address).is_absolute()]
+    if outside:
+        raise HepError(f"{outside[0]} is not under results/, so its report has no place of its own under reports/", where=where,
+                       hint='-o DIR builds it there, or output = "<folder>" in its [report]')
+    common = _common(used)
+    if not common:
+        projects = ", ".join(dict.fromkeys(s.address.split("/", 1)[0] for s in used))
+        raise HepError(f"its sources are of several projects ({projects}), so its report has no one place under reports/",
+                       where=where, hint='-o DIR builds it there, or output = "<folder>" in its [report]')
+    return reports_root() / common
+
+
+def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command: str = "", out: Path | None = None,
+            allow_drawn: bool = False, found: list[Source] | None = None) -> Plan:
+    """A recipe ([report], its sections) and its sources as a Plan; with no sections, the default's. `given`: the
+    command line's sources, which replace [report].from (`found`: them, read already); a section's own from stays.
+    `allow_drawn`: what is not on disk is drawn for the report (P6), else refused naming the command that makes it.
+    An optional section no source has is left out, and said."""
     where = str(path) if path else "the default report"
-    head = recipe.get("report", {})
-    named = given or head.get("from", [])
+    named = given or recipe.get("from", [])
     if not named and not any(s.get("from") for s in recipe.get("section", [])):
         raise HepError("a report needs a source", where=where,
-                       hint="heimdall report <recipe> <P>/<run>/<cfg>, or from = [\"<P>/<run>/<cfg>\"] in [report]")
-    every = sources(named, f"{where}: [report].from") if named else []
-    if path is None and not recipe.get("section"):
-        recipe = default_recipe(every)
-    if not name:
-        name = _common(every) if every else "report"
+                       hint="heimdall report <recipe>.toml <P>/<run>/<cfg>, or from = [\"<P>/<run>/<cfg>\"] in [report]")
+    every = found if found is not None else sources(named, "the command line" if given else f"{where}: [report].from") if named else []
+    specs = recipe.get("section") or default_recipe(every)["section"]
     sections: list[Section] = []
+    left: list[str] = []
     used: list[Source] = list(every)
-    for number, spec in enumerate(recipe.get("section", []), 1):
+    for number, spec in enumerate(specs, 1):
         at = f"{where}: section {number} ({spec.get('title', '')})"
-        found = sources(spec["from"], f"{at}.from") if spec.get("from") else every
-        used += [s for s in found if s not in used]
+        found_ = sources(spec["from"], f"{at}.from") if spec.get("from") else every
+        used += [s for s in found_ if s not in used]
         section = Section(spec["title"], spec.get("note", ""), plot=dict(spec.get("plot", {})))
         set_ = spec.get("set", "totality")
         if "pages" in spec:
-            section.grids = _pages_section(spec, found, at, allow_drawn)
+            section.grids = _pages_section(spec, found_, at, allow_drawn)
         elif "compare" in spec:
-            section.grids = _compare_section(spec, found, at)
+            section.grids = _compare_section(spec, found_, at)
         elif "files" in spec:
             section.grids = _files_section(spec, path.parent if path else Path.cwd(), at)
         elif "stats" in spec:
-            for source in (s for s in found if not spec.get(QUIET) or s.numbers(set_)):
-                csv = source.numbers(set_)
-                if csv is None and not allow_drawn:
-                    raise HepError(f"{source.address} has no statistics for {set_}", where=f"{at}.stats",
-                                   hint=f"heimdall stats {source.address} --sets {set_} measures them")
-                section.parts.append(Part(source, set_, list(spec["stats"]), csv))
+            section.parts = [Part(s, set_, list(spec["stats"]), csv) for s, csv in _numbers(spec, found_, set_, f"{at}.stats", allow_drawn)]
         else:
-            for source in found:
-                csv = source.numbers(set_)
-                if csv is None and not allow_drawn:
-                    raise HepError(f"{source.address} has no statistics for {set_}", where=f"{at}.bars",
-                                   hint=f"heimdall stats {source.address} --sets {set_} measures them")
-                section.bars.append(Bars(source, set_, list(spec["bars"]), csv))
+            section.bars = [Bars(s, set_, list(spec["bars"]), csv) for s, csv in _numbers(spec, found_, set_, f"{at}.bars", allow_drawn)]
+        if spec.get("optional") and not (section.grids or section.parts or section.bars):
+            left.append(f"{spec['title']}: no source has {set_} {'drawn' if 'pages' in spec else 'measured'}")
+            continue
         sections.append(section)
-    title = head.get("title") or (every[0].address if len(every) == 1 else name)
-    return Plan(name, title, head.get("subtitle", ""), used, sections, out or reports_root() / name, path)
+    facts = [s.doc.source for s in used]
+    title = filled(recipe.get("title", ""), facts) or (used[0].address if len(used) == 1 else _common(used) or "report")
+    return Plan(command or where, title, filled(recipe.get("subtitle", ""), facts), used, sections,
+                out or _out(recipe, used, where), path, left)
 
 
 def _common(found: list[Source]) -> str:
-    """The sources' common address: one source's own, else what their addresses share (eic/zeus_validation)."""
+    """The sources' common address: one source's own, else what their addresses share (eic/zeus_validation); ""
+    when they share no project."""
     parts = [s.address.split("/") for s in found]
     shared = []
     for column in zip(*parts):
         if len(set(column)) != 1:
             break
         shared.append(column[0])
-    return "/".join(shared) or "report"
+    return "/".join(shared)
 
 
 def planned(first: str | None, rest: list[str], out: Path | None = None, allow_drawn: bool = False) -> Plan:
-    """`heimdall report [RECIPE] [SOURCE…]`: the first argument is a recipe when it names one, else a source."""
+    """`heimdall report [RECIPE.toml] [SOURCE…]` (A5): a first argument ending .toml is a recipe (of its own, a run
+    TOML's [report], a folder's report.toml), over the sources after it, else over its own from; else every
+    argument is a source, and one folder's report is its report.toml (else the default), several sources' the
+    default."""
+    command = " ".join(n for n in (first, *rest) if n)
     path = recipe_of(first) if first else None
-    given = rest if path else ([first] if first else []) + rest
-    if path is None:
-        return resolve({}, given, out=out, allow_drawn=allow_drawn)
-    name = str(path.relative_to(configs_root().resolve()).with_suffix("")) if path.is_relative_to(configs_root().resolve()) \
-        else path.stem
-    if "/" in name and (results_root() / name).is_dir():
-        raise HepError(f"{name} names both a report and a run's results", where=str(path),
-                       hint="rename the recipe: its report would land where the run's would")
-    return resolve(load_recipe(path), given, path=path, name=name, out=out, allow_drawn=allow_drawn)
+    if path is not None:
+        recipe = load_recipe(path)
+        if path.name == RECIPE and not rest and not recipe.get("from") and (path.parent / plotdoc.FILE).is_file():
+            rest = [str(path.parent)]                     # a folder's own report.toml: that folder
+        if "run" in _read(path) and not rest:
+            raise HepError("a run TOML's [report] is its folders' reports: name the folders", where=str(path),
+                           hint=f"heimdall report {first} <P>/<run>/<cfg>")
+        return resolve(recipe, rest, path=path, command=command, out=out, allow_drawn=allow_drawn)
+    given = [first, *rest] if first else list(rest)
+    if not given:
+        raise HepError("a report needs a source", hint="heimdall report <P>/<run>/<cfg>; heimdall report <recipe>.toml <source>")
+    found = sources(given, "the command line")
+    own = found[0].folder / RECIPE if len(found) == 1 else None
+    if own is not None and own.is_file():
+        return resolve(load_recipe(own), given, path=own, command=command, out=out, allow_drawn=allow_drawn, found=found)
+    return resolve({}, given, command=command, out=out, allow_drawn=allow_drawn, found=found)
 
 
 def listing(plan: Plan) -> list[str]:
     """`heimdall report … --list`: its sources, then each section and what it shows, nothing written."""
     lines = [f"report {plan.name} → {plan.out}: {len(plan.sources)} source(s), {len(plan.sections)} section(s), "
-             f"about {plan.pages()} page(s) of figures"]
+             f"about {plan.pages()} page(s) of figures" + (f"; from {plan.recipe}" if plan.recipe else "; the default")]
     for source in plan.sources:
         f = source.facts()
         lines.append(f"  source {f['address']}: {f['configuration'] or source.doc.name}, {f['complete']} of {f['points']} point(s)"
@@ -562,22 +666,23 @@ def listing(plan: Plan) -> list[str]:
                       for item in items if len(items) > 1 or not item.csv]
         lines.append(f"  {number} {section.title}: " + "; ".join(what))
         lines += [f"      {line}" for line in under]
+    lines += [f"  left out: {why}" for why in plan.left]
     return lines
 
 
 def starter(name: str, source: Source) -> str:
     """`--init`: the default report's sections as a recipe, each set's cells and pages listed, and the sets
     drawn that its document does not draw by default as sections commented out (V207)."""
-    lines = [f"# configs/{name}.toml: a report, `heimdall report {name}` (docs/03_Plots.md §11; its keys 04 §15).",
-             "# The sources on the command line replace `from`; each [[section]] shows one of pages, compare, stats,",
-             "# bars or files.", "", "[report]", f'title = "{source.doc.name} · {source.name}"',
+    lines = [f"# configs/{name}: a report, `heimdall report {name} <source>` (docs/03_Plots.md §11; its keys 04 §15).",
+             "# The sources on the command line replace `from`; each [[report.section]] shows one of pages, compare,",
+             "# stats, bars or files.", "", "[report]", f'title = "{source.doc.name} · {source.name}"',
              '# subtitle = "for the group, <date>"', f'from  = ["{source.address}"]', ""]
     sections = default_recipe([source])["section"]
     shown = [s["set"] for s in sections if "pages" in s]
     for section in sections:
         if "stats" in section:
-            lines += ["[[section]]", 'title = "Standings"', f'set   = "{section["set"]}"',
-                      "stats = [" + ", ".join(f'"{k}"' for k in HEADLINE) + "]", ""]
+            lines += ["[[report.section]]", 'title = "Standings"', f'set   = "{section["set"]}"',
+                      "stats = [" + ", ".join(f'"{k}"' for k in HEADLINE) + "]", "optional = true", ""]
     for set_ in [*shown, *(s for s in source.sets() if s not in shown)]:
         pages = source.pages(set_, BACKENDS)
         cells = sorted({_cell(n) for n in pages}, key=natural)
@@ -586,7 +691,8 @@ def starter(name: str, source: Source) -> str:
         lines += [f"# {set_}: {len(pages)} page(s)" + (f" in {len(cells)} cell(s): {', '.join(cells[:8])}"
                                                         f"{' …' if len(cells) > 8 else ''}" if any(cells) else ""),
                   f"#   {', '.join(objects[:12])}{' …' if len(objects) > 12 else ''}",
-                  *(mark + line for line in ("[[section]]", f'title = "{set_}"', f'set   = "{set_}"', 'pages = ["*"]')), ""]
+                  *(mark + line for line in ("[[report.section]]", f'title = "{set_}"', f'set   = "{set_}"', 'pages = ["*"]',
+                                             "optional = true")), ""]
     return "\n".join(lines)
 
 
@@ -603,8 +709,6 @@ GAP, LABEL = 6.0, 11.0
 #: What pdflatex leaves beside report.tex, removed once report.pdf is made.
 LEFTOVERS = (".aux", ".log", ".out", ".toc")
 BUILT = "\0built\0"
-#: A default report this many pages long or more says how a recipe picks fewer.
-LONG = 40
 
 
 def slug(text: str) -> str:
@@ -974,7 +1078,7 @@ def build(plan: Plan, say=print) -> list[Path]:
     out = plan.out
     for place in (results_root(), *(s.folder for s in plan.sources)):
         if out.resolve().is_relative_to(Path(place).resolve()):
-            raise HepError(f"a report is never built into results/: {out}", hint="leave -o out (reports/<P>/<name>/), or name another folder")
+            raise HepError(f"a report is never built into results/: {out}", hint="leave -o out (reports/ mirrors results/), or name another folder")
     if plan.drawn():
         raise HepError("this report needs pages or numbers drawn for it, which comes with its next step",
                        hint="--list says which; heimdall plot or heimdall stats draws them in the source")
@@ -1013,6 +1117,4 @@ def build(plan: Plan, say=print) -> list[Path]:
     _index(plan, placed, out)
     books.save()
     say(f"report: {', '.join(p.name for p in made)} in {out}")
-    if plan.recipe is None and pdf.is_file() and _pages_of(pdf) > LONG:
-        say(f"report: a recipe shows less: heimdall report {plan.sources[0].project}/<name> --init {plan.sources[0].address}")
     return made

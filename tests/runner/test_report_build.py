@@ -165,10 +165,10 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     document, missing = report.chosen(bars.summary_model(rows, "here"), ["top5", "chi2_ndf:ranking", "area:ranking"])
     assert [s.key for s in document.sections] == ["top5", "chi2_ndf"] and missing == ["area:ranking"]
     assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking"]
-    recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[section]]\ntitle = "Standings"\n'
-                             'stats = ["chi2_ndf:ranking"]\n\n[[section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
-    _, said = built("P/numbers", [])
-    out = trees / "reports" / "P" / "numbers"
+    recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Standings"\n'
+                             'stats = ["chi2_ndf:ranking"]\n\n[[report.section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
+    _, said = built("P/numbers.toml", [])
+    out = trees / "reports" / "P" / "validation" / "01_pdf"                     # where results/ has its source
     text = subprocess.run(["pdftotext", str(out / "stats" / "01_Standings" / "01_01_pdf.pdf"), "-"], capture_output=True,
                           text=True, encoding="utf-8").stdout
     assert "Head to head" not in text and "top five" not in text.lower()
@@ -179,13 +179,13 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
 def test_what_no_section_holds_is_removed_and_own_files_are_copied(trees):
     (trees / "configs" / "P" / "extras").mkdir(parents=True)
     page(trees / "configs" / "P" / "extras" / "sketch.pdf", "grey", png=False)
-    path = recipe(trees, "mine", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[section]]\ntitle = "Spectra"\npages = ["d01-*"]\n\n'
-                                 '[[section]]\ntitle = "Mine"\nfiles = ["extras/*.pdf"]\n')
-    built("P/mine", [])
-    out = trees / "reports" / "P" / "mine"
+    path = recipe(trees, "mine", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Spectra"\npages = ["d01-*"]\n\n'
+                                 '[[report.section]]\ntitle = "Mine"\nfiles = ["extras/*.pdf"]\n')
+    built("P/mine.toml", [])
+    out = trees / "reports" / "P" / "validation" / "01_pdf"
     assert (out / "figures" / "02_Mine" / "001_sketch.pdf").is_file() and (out / "figures" / "02_Mine" / "001_sketch.png").is_file()
     path.write_text(path.read_text(encoding="utf-8").replace('pages = ["d01-*"]', 'pages = ["d02-*"]'), encoding="utf-8")
-    built("P/mine", [])
+    built("P/mine.toml", [])
     assert sorted(p.name for p in (out / "figures" / "01_Spectra").glob("*.pdf")) == \
         ["001_01_pdf_18x275_d02-x01-y01.pdf", "002_01_pdf_27x920_d02-x01-y01.pdf"]
 
@@ -194,8 +194,8 @@ def test_a_compare_figures_pages_are_copied_from_its_run(trees):
     run = trees / "results" / "P" / "validation"
     page(run / "compare" / "both" / "mpl" / "18x275" / "d01-x01-y01.pdf", "teal", png=True)
     page(run / "compare" / "both" / "mpl" / "sheets" / "all.pdf", "teal", png=False)
-    recipe(trees, "across", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[section]]\ntitle = "Both"\ncompare = ["both"]\n')
-    plan, _ = built("P/across", [])
+    recipe(trees, "across", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Both"\ncompare = ["both"]\n')
+    plan, _ = built("P/across.toml", [])
     assert [g.caption for g in plan.sections[0].grids] == ["P/validation · compare both"]
     assert sorted(p.name for p in (plan.out / "figures" / "01_Both").iterdir()) == \
         ["001_18x275_d01-x01-y01.pdf", "001_18x275_d01-x01-y01.png"]
@@ -205,3 +205,18 @@ def test_a_report_is_never_built_into_results(trees):
     plan = report.planned("P/validation/01_pdf", [], trees / "results" / "P" / "here")
     with pytest.raises(HepError, match="never built into results"):
         report.build(plan, print)
+
+
+def test_a_folder_is_built_from_its_report_toml_and_a_runs_report_beside_it(trees):
+    where = trees / "results" / "P" / "validation" / "01_pdf"
+    (where / "report.toml").write_text('[report]\ntitle = "Only d02"\n\n[[report.section]]\ntitle = "Spectra"\n'
+                                       'pages = ["d02-*"]\n', encoding="utf-8")
+    plan, _ = built("P/validation/01_pdf", [])
+    out = trees / "reports" / "P" / "validation" / "01_pdf"
+    assert plan.title == "Only d02" and (out / "report.pdf").is_file()
+    assert sorted(p.name for p in (out / "figures" / "01_Spectra").glob("*.pdf")) == \
+        ["001_01_pdf_18x275_d02-x01-y01.pdf", "002_01_pdf_27x920_d02-x01-y01.pdf"]
+    mine = {p: p.read_bytes() for p in out.rglob("*") if p.is_file()}
+    built("P/validation", [])                                       # the run's, in the folder above: nested, apart
+    assert (out.parent / "report.pdf").is_file() and (out.parent / "figures" / "02_Pages_totality").is_dir()
+    assert {p: p.read_bytes() for p in out.rglob("*") if p.is_file()} == mine

@@ -74,6 +74,7 @@ def completed(run, configuration) -> list:
     for folder in (plans[0].folders.plots, plans[0].folders.statistics, plans[0].folders.pages):
         shutil.rmtree(folder, ignore_errors=True)
     (plans[0].folders.results / "plot.toml").unlink(missing_ok=True)      # V165: what an earlier session left
+    (plans[0].folders.results / "report.toml").unlink(missing_ok=True)    # V209: and its report's recipe
     return plans
 
 
@@ -680,7 +681,7 @@ def test_a_statistic_figure_ranks_the_points(stage):
 
 def test_a_run_draws_from_its_plot_document(stage):
     """The plot stage writes results/<run>/plot.toml, what the run knows and its [plot], and draws from it alone:
-    the same pages as from the plans."""
+    the same pages as from the plans; and report.toml beside it, the default report for its sets (V209)."""
     from runner import cli, plotdoc
     run, configuration, plans = stage
     said = []
@@ -698,6 +699,9 @@ def test_a_run_draws_from_its_plot_document(stage):
     doc, kept, members = plotdoc.load(target)
     assert [m.point.name for m in members] == [p.point.name for p in plans] and kept.plot_points == ["lepton"]
     assert [p.document for p in plot.pages(doc, kept, members)] == [p.document for p in plot.pages(run, configuration, plans)]
+    recipe = tomllib.loads(target.with_name("report.toml").read_text(encoding="utf-8"))
+    assert [s["title"] for s in recipe["report"]["section"]] == ["Standings", "Pages: totality"]
+    assert all(s["optional"] and s["set"] == "totality" for s in recipe["report"]["section"])
 
 
 def test_the_document_keeps_its_plot_and_says_when_the_config_differs(stage):

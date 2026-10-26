@@ -1,4 +1,6 @@
-# framework/schema/report.toml — a report's recipe, configs/<P>/<name>.toml with a [report] table (I-108, V207).
+# framework/schema/report.toml — a report's recipe (I-108, V207, V209): [report] and its [[report.section]]s, in a
+# recipe of its own (configs/<P>/<name>.toml, [report] alone), in a run TOML (what its folders' reports show), and
+# in the report.toml a run writes beside each folder's plot.toml.
 #
 # Every key's type, default and meaning, written once: runner/schema.py checks a recipe against it (its tables
 # "report" and "section"), and `make docs` writes the tables into docs/04_Config_Reference.md.
@@ -6,7 +8,12 @@
 
 [report.title]
 type = "str"
-doc  = "the report's title, on its front page (default: its name, or its one source's address)"
+doc  = "the report's title, on its front page (default: its one source's address, else what its sources' addresses share)"
+notes = """\
+  the report's title, on its front page (default: its one source's address, else what its sources' addresses \
+  share). `{project}`, `{run}`, `{configuration}` and `{title}` (a configuration's title, else its name) in the title or \
+  subtitle are filled in from its sources' plot documents (several values joined by commas), so one template \
+  titles each folder's report."""
 
 [report.subtitle]
 type = "str"
@@ -16,6 +23,19 @@ doc  = "a line under the title: the date, who it is for"
 type  = "list"
 items = "str"
 doc   = "its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them"
+
+[report.output]
+type = "str"
+doc  = "where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<P>/<run>/<cfg>/, reports/<P>/<run>/, …); -o replaces it. Not in a run TOML"
+
+[report.template]
+type = "str"
+doc  = "a recipe laid under this table, named as [config].import names a file (weekly, eic/weekly, ./…; .toml optional): its keys under these, its sections first"
+
+[report.section]
+type  = "list"
+items = "table"
+doc   = "its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars or files"
 
 [section.title]
 type     = "str"
@@ -68,6 +88,11 @@ type    = "str"
 choices = ["events", "folder"]
 default = "folder"
 doc     = "a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its run, where two sources would share one); events, the events its points ran with (10M)"
+
+[section.optional]
+type    = "bool"
+default = false
+doc     = "a source without the section's set drawn (or measured) is passed over, and the section left out when none has it; false: refused, naming the command that draws it"
 
 [section.compare]
 type  = "list"

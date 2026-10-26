@@ -1,7 +1,7 @@
 # Audit: run logging (2026-10-25)
 
 What a `heimdall run` records and shows: what a tool prints, how the runner reads and keeps it, and
-where it ends up (the view, the record, the run registry). Checked against the code at `0577eca` and
+where it ends up (the view, the record, the run registry). Checked against the code at `64a472e` (was `0577eca`) and
 against Brookhaven's `eic/zeus_validation` runs 01–11, whose Sherpa failures (the debug of the same
 day) are the worked example throughout. Nothing is built yet.
 

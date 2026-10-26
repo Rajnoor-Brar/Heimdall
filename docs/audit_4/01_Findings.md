@@ -1,7 +1,7 @@
 # 01 — Findings
 
 Each finding has an id (G1…), what was seen and where, and what would settle it. "Checked" says how it was
-seen on 2026-10-15, at `d9d6374`. Findings of earlier audits that are still open are carried here once
+seen on 2026-10-15, at `49fe1ff` (was `d9d6374`). Findings of earlier audits that are still open are carried here once
 (G9), with today's state.
 
 ## 1. Present, but not documented or not used

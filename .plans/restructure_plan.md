@@ -4,7 +4,7 @@ Approved 2026-10-25. Moved here from the plan-mode file on 2026-10-26; its pendi
 
 ## Context
 
-ISSUES.md (commit 29b27ae) holds all of Heimdall's pending work: Task L's follow-ups, the restructure
+ISSUES.md (commit `5c271a0`, was `29b27ae`) holds all of Heimdall's pending work: Task L's follow-ups, the restructure
 the 2026-10-23 audit proposed, stack and machine-root items, unproven targets, and ideas. You asked for
 a plan that resolves all of them, asking where your intent or the file's wording was uncertain.
 Six rounds of questions settled that.

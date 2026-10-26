@@ -7,8 +7,8 @@ execution map: each step's row is ticked when it is committed.
 
 | Step | State | Commit | V-row | Gates |
 | --- | --- | --- | --- | --- |
-| L0 housekeeping | done | 5663f57 | — | docs links |
-| L1 quick fixes | done | (this commit, branch `logging`) | V195 | F; guard: 315 points of 35 Brookhaven configurations unchanged |
+| L0 housekeeping | done | `64a472e` (was `5663f57`) | — | docs links |
+| L1 quick fixes | done | `d13442d` (was `797fc4e`), branch `logging` | V195 | F; guard: 315 points of 35 Brookhaven configurations unchanged |
 | L2 attempts, causes, run constants | to do | | | F, S, guard, B |
 | L3 digests and history | to do | | | F, S, guard, B |
 | L4 the run's own log | to do | | | F, S, guard, B |

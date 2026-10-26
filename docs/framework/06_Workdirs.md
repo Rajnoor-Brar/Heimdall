@@ -104,7 +104,7 @@ is deleted only on the user's word.
 ## Appendix: High-Energy as a work dir (D31; done 2026-10-22)
 
 **Done 2026-10-22** (the user: "cleanup High-Energy and migrate it to Heimdall"; High-Energy `b637599`,
-Heimdall `2186975`). What differed from the steps below:
+Heimdall `db96104`, was `2186975`). What differed from the steps below:
 - **PhotoProduction left too:** it was the work dir Brookhaven's since `ea43a70`, and newer there.
   High-Energy keeps Comparison and Lambda, in the run TOML's v3 form (`heimdall migrate --v3`).
 - **`aux/` went to Heimdall** as `editor/` (the VS Code tooling serves every work dir).
@@ -114,7 +114,7 @@ Heimdall `2186975`). What differed from the steps below:
 - **Untracked:** v1's outputs, builds and MadGraph debris were deleted; v1's PhotoProduction results
   and built decks were kept under `archive/v1/` (ignored), out of `heimdall migrate --layout`'s way;
   `literature/`, `cross_machine/`, `datasets/` stayed.
-- `hep.toml`'s `expects` names `2186975`: Heimdall's tree had uncommitted work, so `setup` wrote none.
+- `hep.toml`'s `expects` names `2186975` (now in `db96104`): Heimdall's tree had uncommitted work, so `setup` wrote none.
 
 The steps as they were parked:
 

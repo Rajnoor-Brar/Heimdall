@@ -177,7 +177,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   - `test_listed_points.py::test_listed_points_run_and_draw_a_page_per_pdf` (`KeyError: 'pt0ref'`).
 - **Where:** `plot.check_figures` → `sweep.points(run, configuration)` → `sweep.kept`, `run.quantities[name]`.
   The `run` there is the plot document (`plotdoc.load`), whose quantities lack the configuration's swept one.
-- **Since:** already failing at `4477c17` (V163–V171, plot documents), and at Phase 1's base `29b27ae`; not
+- **Since:** already failing at `fde73d0` (was `4477c17`; V163–V171, plot documents), and at Phase 1's base `5c271a0` (was `29b27ae`); not
   caused by Phase 1. A configuration with `combine` or listed points draws nothing.
 - **Done when:** both tests pass, and a drawing of such a configuration from its record works.
 - `--plan`'s page count (V195) meets the same `KeyError` on listed points (`eic/baseline`'s
@@ -553,7 +553,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 ### I-79 The legacy gates differ by one digit on the conda base
 **P2 · verification · decision (first seen 2026-10-22)**
 - `test_gates_p1.py::test_the_legacy_reference_is_reproduced_byte_for_byte[MSTW|NNLO]` fail: one digit of the
-  YODA (byte 323) differs from `tests/reference/`. It fails before task H (`4bf2e06`) too, so it comes from the
+  YODA (byte 323) differs from `tests/reference/`. It fails before task H (`fb3eed8`, was `4bf2e06`) too, so it comes from the
   rebuilt stack's Pythia, Rivet or LHAPDF, not the runner. The references are never regenerated.
 - **Yours to judge:** accept the stack's digit (the gate then compares with that one tolerance, written down),
   or find which package moved it (a rebuild against the old release, with your yes).

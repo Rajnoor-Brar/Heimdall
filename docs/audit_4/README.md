@@ -1,7 +1,7 @@
 # Audit 4 — ghosts and gaps
 
 An audit of what Heimdall carries without using, finishing or explaining it, done on 2026-10-15 at
-`d9d6374`, after tasks A–F (V140–V154). The user asked for "features and capabilities that are present but
+`49fe1ff` (was `d9d6374`), after tasks A–F (V140–V154). The user asked for "features and capabilities that are present but
 not documented or used, abandoned halfway or not fully developed, deprecated but still lingers as a ghost,
 hard to discern its purpose or usefulness".
 

@@ -57,3 +57,33 @@ with the same bytes and the same messages. **Pause for compaction after this pha
 - **Brookhaven:** `git status` and a tree hash of `results/` and `records/`, unchanged.
 
 ## Log
+
+- 2026-10-26: done (V206), in the worktree `scratchpad/heimdall-report`, branch `report`.
+  - **`framework/runner/statstable.py`** (rank 4): `STATISTIC_COLUMNS`, `statistics_of`, `write_statistics`,
+    `heading_of` moved as they were (plot.py imports and so names them still), `write_set` (`plot._tables`' loop
+    body: the CSV, then `bars.draw`; `_tables` keeps `_clear`, the bars module loaded once and the message), `read`
+    (the CSV's rows typed back), `bars()`.
+  - **`paper.write(document, target, formats, title, plt)`:** `bars.summary_of`'s page loop; `summary_of` keeps
+    the model and the HTML.
+  - **`layout.picture(files, labels, box, …)`** (a grid's `picture` lines) and **`layout.pdflatex(source, what,
+    runs)`** (pdflatex in the source's folder, the log's first `!` line): `_draw` calls both; `composite` and
+    `tile` unchanged.
+  - **`plotdoc.load(path, folders=None)`** (and `load_across(path, data, into)`): members draw into `folders`, their
+    YODA and `.complete` still read from the document's own (`own`).
+  - **Tests:** `tests/runner/test_statstable.py` (3: the CSV round trip, plot's names, `write_set`);
+    `test_snapshot.py::test_a_document_loaded_into_other_folders_reads_its_own_and_draws_there`. A first version
+    of it left `HEP_CONFIGS` at the record's snapshot (`cli.opened` sets it), which failed a later
+    `test_docs` case in the same session; it restores it now, as its neighbour does.
+  - **Docs:** 06 §2.1 (`statstable.py`), 07 V206.
+  - **Gate P (`scratchpad/gateP.py`), passed.** Brookhaven's `eic/zeus_validation/02_generator_pdf` and
+    `01_pythia_qed_lepton`, drawn (`heimdall plot`) and measured (`heimdall stats`) from copies of their documents,
+    by main's code (9028970) and then the refactor's: 5070 files the same (PNGs, CSVs and HTML byte for byte, PDFs by
+    pages and sizes), the same exits and messages, 8.5 minutes each. A first run, both tags from the worktree, differed
+    only in the summaries: their heading is a folder's last two parts outside results/, and the copies sat in
+    `gateP/before/` and `gateP/after/`; the copies now sit at `gateP/<tag>/cases/`. Brookhaven's `results/` and
+    `records/` trees (path, size, mtime) and its `git status` unchanged.
+  - **Suites:** fast 1069 passed, 1 failed (`test_stack_build.py::test_the_old_way_is_apt_and_a_venv`, failing on
+    main too); slow 42 passed, the 5 known failures (I-09 ×2, I-79 ×2, I-43). `test_deck_build` failed once in a
+    selection on dzslides' Google font (I-78) and passed alone.
+  - **P2 drafted meanwhile** (not in this commit): `scratchpad/p2_patch.py`, `scratchpad/p2/` (`report.py`,
+    `report.toml`, `test_report.py`), its 7 tests passing in a scratch copy (`scratchpad/p2check`).

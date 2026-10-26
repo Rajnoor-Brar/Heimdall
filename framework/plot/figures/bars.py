@@ -832,34 +832,14 @@ def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str 
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.backends.backend_pdf import PdfPages
     document = summary_model(rows, heading)
-    written, pdf = [], None
+    written = []
     if document.sections:
         target.parent.mkdir(parents=True, exist_ok=True)
         page_ = target.with_suffix(".html")
         page_.write_text(webpage.render(document, paper.note_numbers(document), paper), encoding="utf-8")
         written.append(page_)
-    try:
-        for page_ in paper.pages(document):
-            figure = paper.figure(document, page_, plt)
-            if "pdf" in formats:
-                if pdf is None:
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    pdf = PdfPages(target.with_suffix(".pdf"),
-                                   metadata={"Title": f"Statistics: {heading}" if heading else "Statistics"})
-                    written.append(target.with_suffix(".pdf"))
-                pdf.savefig(figure, facecolor=SURFACE)
-            for fmt in (f for f in formats if f != "pdf"):
-                target.mkdir(parents=True, exist_ok=True)
-                path = target / f"{target.name}_{page_.number:02d}.{fmt}"
-                figure.savefig(path, dpi=150, facecolor=SURFACE)
-                written.append(path)
-            plt.close(figure)
-    finally:
-        if pdf is not None:
-            pdf.close()
-    return written
+    return written + paper.write(document, target, formats, f"Statistics: {heading}" if heading else "Statistics", plt)
 
 
 def draw(pages: list[tuple[str, list[dict]]], folder: Path, formats: list[str], summary: Path | None = None,

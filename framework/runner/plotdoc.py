@@ -499,9 +499,11 @@ def _sweeps_of(entries: list) -> list:
     return out
 
 
-def load(path: Path) -> tuple[Doc, DocConfiguration, list[Member]]:
+def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfiguration, list[Member]]:
     """A plot document: the run, configuration and members a drawing reads. A member is complete when its
-    record's .complete holds the identity the document names (records/ there), else as the document says."""
+    record's .complete holds the identity the document names (records/ there), else as the document says.
+    `folders` (I-108 P1): draw into these instead (pages, numbers, working files, logs); each member's YODA and
+    completeness are still read from the document's own, which nothing writes then."""
     import tomllib
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
@@ -511,7 +513,7 @@ def load(path: Path) -> tuple[Doc, DocConfiguration, list[Member]]:
     except tomllib.TOMLDecodeError as error:
         raise HepError(f"the plot document cannot be read: {error}", where=str(path)) from None
     if "members" not in data and "from" in data:             # the runs of a run TOML together (V169)
-        return load_across(path, data)
+        return load_across(path, data, folders)
     missing = [t for t in ("source", "axes", "members") if t not in data]
     if missing:
         raise HepError(f"the plot document has no [{missing[0]}]", where=str(path),
@@ -524,13 +526,13 @@ def load(path: Path) -> tuple[Doc, DocConfiguration, list[Member]]:
                                      source.get("title", ""))
     doc = Doc(path, source.get("project", ""), source.get("run", ""), dict(data.get("plot", {})), dict(data.get("stats", {})),
               quantities, configuration, dict(source))
-    folders = _folders(path.parent, doc.project)
+    own = _folders(path.parent, doc.project)
     members = []
     for name, entry in data["members"].items():
         yoda = entry.get("yoda")
-        yoda = (folders.results / yoda if not Path(yoda).is_absolute() else Path(yoda)) if yoda else None
-        marker = folders.points / name / ".complete"
-        if folders.record.is_dir():
+        yoda = (own.results / yoda if not Path(yoda).is_absolute() else Path(yoda)) if yoda else None
+        marker = own.points / name / ".complete"
+        if own.record.is_dir():
             recorded = marker.read_text(encoding="utf-8").strip() if marker.is_file() else None
         else:                                                # copied away from its records: as it says
             recorded = entry.get("identity", "") if entry.get("complete") else None
@@ -538,7 +540,7 @@ def load(path: Path) -> tuple[Doc, DocConfiguration, list[Member]]:
                       stage=entry.get("stage", ""))
         context = {**({"planned": entry["planned"]} if entry.get("planned") else {}),
                    **({"events": int(entry["events"])} if entry.get("events") else {})}
-        members.append(Member(point, dict(entry.get("values", {})), folders, yoda, dict(entry.get("texts", {})), context,
+        members.append(Member(point, dict(entry.get("values", {})), folders or own, yoda, dict(entry.get("texts", {})), context,
                               entry.get("identity", ""), recorded))
     return doc, configuration, members
 
@@ -625,7 +627,7 @@ def write_across(run) -> tuple[Path | None, bool]:
     return target, True
 
 
-def load_across(path: Path, data: dict) -> tuple[Doc, DocConfiguration, list[Member]]:
+def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple[Doc, DocConfiguration, list[Member]]:
     """The Name level (V169): every run's plot document beside it ([from].runs, globs of their folders), their
     members together, each named <run>__<point>, its quantities' indices by tag across the runs, with the
     attributes @run (its folder), @events (its event count, a tag like 10M) and @configuration; @events counts
@@ -670,7 +672,8 @@ def load_across(path: Path, data: dict) -> tuple[Doc, DocConfiguration, list[Mem
     project = source.get("project") or loaded[0][1].project
     name = source.get("run") or loaded[0][1].name
     rel = folder.relative_to(results_root()) if folder.is_relative_to(results_root()) else Path(project) / name
-    folders = RunFolders(project, records_root() / rel, folder, cache_root() / project / "plots" / Path(*rel.parts[1:]) / "_across")
+    folders = into or RunFolders(project, records_root() / rel, folder,
+                                 cache_root() / project / "plots" / Path(*rel.parts[1:]) / "_across")
     members, seen, shadowed = [], {}, {}
     swept: list[str] = []
     for number, (run_name, doc, conf, own) in enumerate(loaded):

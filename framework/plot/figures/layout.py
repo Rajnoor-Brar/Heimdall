@@ -110,45 +110,67 @@ def grid(n: int, box: tuple[float, float], aspect: float, columns: int | None = 
     return best[1], best[2], best[3], best[4]
 
 
+def picture(files: list[str], labels: list[str], box: tuple[float, float], columns: int, rows: int, cw: float,
+            ch: float, label: float, title: str, title_h: float, gap: float) -> list[str]:
+    """A grid as a LaTeX picture's lines (I-108 P1: composites, sheets and the report's grids): each file (as the
+    source names it) in its cell, aspect kept and centred, its label above it, the title on top. Units bp."""
+    width, height = box
+    label_pt = min(12.0, 0.75 * label) if label else 0.0
+    title_pt = min(18.0, 0.7 * title_h) if title_h else 0.0
+    lines = []
+    for number, (name, text) in enumerate(zip(files, labels)):
+        column, row = number % columns, number // columns
+        x = column * (cw + gap)
+        top = height - title_h - row * (ch + label + gap)
+        lines.append(rf"\put({x:.2f},{top - label - ch:.2f}){{\makebox({cw:.2f},{ch:.2f}){{"
+                     rf"\includegraphics[width={cw:.2f}bp,height={ch:.2f}bp,keepaspectratio]{{{name}}}}}}}")
+        if label and text:
+            lines.append(rf"\put({x:.2f},{top - label:.2f}){{\makebox({cw:.2f},{label:.2f})"
+                         rf"{{\fontsize{{{label_pt:.1f}}}{{{label_pt * 1.2:.1f}}}\selectfont\sffamily {tex(text)}}}}}")
+    if title_h and title:
+        lines.append(rf"\put(0,{height - title_h:.2f}){{\makebox({width:.2f},{title_h:.2f})"
+                     rf"{{\fontsize{{{title_pt:.1f}}}{{{title_pt * 1.2:.1f}}}\selectfont\sffamily {tex(title)}}}}}")
+    return lines
+
+
+def pdflatex(source: Path, what: str, runs: int = 1) -> Path:
+    """`source` (.tex) made into its PDF by pdflatex in its own folder, `runs` times (2: a contents' pages); the
+    PDF. A failure is a ValueError naming `what`, with the log's first error."""
+    if not shutil.which("pdflatex"):
+        raise ValueError("a layout's PDF is made by pdflatex, which is not on PATH")
+    made = source.with_suffix(".pdf")
+    for _ in range(runs):
+        done = subprocess.run(["pdflatex", "-interaction=batchmode", "-halt-on-error", source.name],
+                              cwd=source.parent, capture_output=True, text=True, encoding="utf-8")
+        if done.returncode != 0 or not made.is_file():
+            log = source.with_suffix(".log")
+            text = log.read_text(errors="replace", encoding="utf-8") if log.is_file() else done.stdout
+            errors = [line for line in text.splitlines() if line.startswith("!")]
+            raise ValueError(f"pdflatex could not lay out {what}: "
+                             f"{errors[0] if errors else (text.strip().splitlines() or [done.returncode])[-1]}")
+    return made
+
+
 def _draw(panels: list[tuple[Path, str]], target: Path, box: tuple[float, float], columns: int, rows: int,
           cw: float, ch: float, label: float, title: str, title_h: float, gap: float) -> None:
     """The picture: each panel in its cell (aspect kept, centred), its label above, the title on top."""
     if not shutil.which("pdflatex"):
         raise ValueError("a layout's PDF is made by pdflatex, which is not on PATH")
     width, height = box
-    label_pt = min(12.0, 0.75 * label) if label else 0.0
-    title_pt = min(18.0, 0.7 * title_h) if title_h else 0.0
-    lines = []
     with tempfile.TemporaryDirectory() as work:
-        for number, (path, text) in enumerate(panels):
+        names = []
+        for number, (path, _) in enumerate(panels):
             linked = Path(work) / f"p{number}{path.suffix.lower()}"
             linked.symlink_to(path.resolve())
-            column, row = number % columns, number // columns
-            x = column * (cw + gap)
-            top = height - title_h - row * (ch + label + gap)
-            lines.append(rf"\put({x:.2f},{top - label - ch:.2f}){{\makebox({cw:.2f},{ch:.2f}){{"
-                         rf"\includegraphics[width={cw:.2f}bp,height={ch:.2f}bp,keepaspectratio]{{{linked.name}}}}}}}")
-            if label and text:
-                lines.append(rf"\put({x:.2f},{top - label:.2f}){{\makebox({cw:.2f},{label:.2f})"
-                             rf"{{\fontsize{{{label_pt:.1f}}}{{{label_pt * 1.2:.1f}}}\selectfont\sffamily {tex(text)}}}}}")
-        if title_h and title:
-            lines.append(rf"\put(0,{height - title_h:.2f}){{\makebox({width:.2f},{title_h:.2f})"
-                         rf"{{\fontsize{{{title_pt:.1f}}}{{{title_pt * 1.2:.1f}}}\selectfont\sffamily {tex(title)}}}}}")
+            names.append(linked.name)
+        lines = picture(names, [text for _, text in panels], box, columns, rows, cw, ch, label, title, title_h, gap)
         source = Path(work) / "layout.tex"
         source.write_text(
             "\\documentclass[margin=0pt]{standalone}\n\\usepackage[T1]{fontenc}\n\\usepackage{lmodern}\n\\usepackage{graphicx}\n"
             "\\begin{document}\n\\setlength{\\unitlength}{1bp}%\n"
             f"\\begin{{picture}}({width:.2f},{height:.2f})\n" + "\n".join(lines) + "\n\\end{picture}\n\\end{document}\n",
             encoding="utf-8")
-        done = subprocess.run(["pdflatex", "-interaction=batchmode", "-halt-on-error", "layout.tex"],
-                              cwd=work, capture_output=True, text=True, encoding="utf-8")
-        made = Path(work) / "layout.pdf"
-        if done.returncode != 0 or not made.is_file():
-            log = Path(work) / "layout.log"
-            text = log.read_text(errors="replace", encoding="utf-8") if log.is_file() else done.stdout
-            errors = [line for line in text.splitlines() if line.startswith("!")]
-            raise ValueError(f"pdflatex could not lay out {target.name}: "
-                             f"{errors[0] if errors else (text.strip().splitlines() or [done.returncode])[-1]}")
+        made = pdflatex(source, target.name)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(made, target)
 

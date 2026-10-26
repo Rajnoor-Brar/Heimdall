@@ -37,12 +37,13 @@ from pathlib import Path
 
 import tomli_w
 
-from . import hepfiles, plugins, schema
+from . import hepfiles, plugins, schema, statstable
 from .errors import HepError, did_you_mean
 from .labels import canonical, labels_of, lines_of, macros, root_text, tlatex  # noqa: F401 (tlatex et al. re-exported)
 from .paths import apps_dir, cache_root, hep_root, log_settings, resolve, results_root
 from .record import manifest_file, recorded_identity
 from .status import clean_text, digest
+from .statstable import STATISTIC_COLUMNS, heading_of, statistics_of, write_statistics  # noqa: F401 (re-exported)
 from .tools import merge_files, run_folders, sha256_file
 from .sweep import (Listed, axes, check_set, chosen_points, group_key, group_labels, group_tag, label_of, set_cells,
                     set_entries, split_axes, tag_of)
@@ -965,43 +966,11 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
 #: What each statistic is called after a legend entry (LaTeX, as every label).
 STATISTIC_LABELS = {"area": "area", "abs_area": "$|\\Delta|$ area", "rel_abs_area": "$|\\Delta|$/ref",
                     "area_ratio": "area/ref", "ratio_mean": "mean ratio", "ratio_dev": "|ratio-1|", "chi2": "$\\chi^{2}$", "chi2_ndf": "$\\chi^{2}$/ndf"}
-STATISTIC_COLUMNS = ("page", "cell", "object", "curve", "point", "reference", "is_reference", "bins", "area", "area_err",
-                     "ref_area", "cmp_area", "abs_area", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "chi2", "ndf",
-                     "chi2_ndf")
 
 
 def _statistic_of(override: dict, settings: dict) -> str:
     chosen_one = chosen("legend_statistic", "none", "none", (override, settings))
     return "" if chosen_one in ("none", DEFAULT, None) else chosen_one
-
-
-def statistics_of(page: Page) -> list[dict] | None:
-    """A page's statistics, one row per curve (STATISTIC_COLUMNS), from Paint's <page>.toml.stats.json; None
-    when Paint wrote none (a heat map, a page it could not read)."""
-    path = page.config.with_name(page.config.name + ".stats.json")
-    if not path.is_file():
-        return None
-    made = json.loads(path.read_text(encoding="utf-8"))
-    curves = page.document.get("curve", [])
-    data = page.document.get("data")
-    reference = data["label"] if data and made.get("reference") == "data" else curves[0]["label"] if curves else ""
-    rows = []
-    for curve, numbers in zip(curves, made.get("curves", [])):
-        number = {k: (float("nan") if numbers.get(k) is None else numbers[k])
-                  for k in ("area", "area_err", "ref_area", "cmp_area", "abs_area", "ratio_area", "ratio_sum", "ratio_width",
-                            "chi2")}
-        ratio_area, ratio_sum, ratio_width = (number.pop(k) for k in ("ratio_area", "ratio_sum", "ratio_width"))   # V175
-        label = page.plain[len(rows)] if len(page.plain) > len(rows) else curve["label"]
-        rows.append({"page": page.rel or page.name, "cell": page.cell, "object": page.object, "curve": label,
-                     "point": curve["object"].split("/", 1)[0], "reference": reference,
-                     "is_reference": bool(numbers.get("reference")), "bins": numbers.get("bins", 0), **number,
-                     "rel_abs_area": number["abs_area"] / number["ref_area"] if number["ref_area"] else float("nan"),
-                     "area_ratio": number["cmp_area"] / number["ref_area"] if number["ref_area"] else float("nan"),
-                     "ratio_mean": ratio_sum / ratio_width if ratio_width else float("nan"),
-                     "ratio_dev": ratio_area / ratio_width if ratio_width else float("nan"),
-                     "ndf": numbers.get("ndf", 0),
-                     "chi2_ndf": number["chi2"] / numbers["ndf"] if numbers.get("ndf") else float("nan")})
-    return rows
 
 
 def _shown(value: float) -> str:
@@ -1078,21 +1047,6 @@ def statistic_pages(run, figure: Figure, todo: list[Page], where: Path) -> list[
                          document=document, overrides={k for k, v in override.items() if v != DEFAULT},
                          style=merge_style(base, layer), set=page.set, rel=rel, root=folder))
     return made
-
-
-def write_statistics(todo: list[Page], target: Path) -> int:
-    """results/…/plots/statistics.csv (V160): every drawn page's curves; the number of rows."""
-    import csv
-    rows = [row for page in todo for row in (statistics_of(page) or [])]
-    if not rows:
-        return 0
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with open(target, "w", encoding="utf-8", newline="") as handle:
-        out = csv.DictWriter(handle, fieldnames=STATISTIC_COLUMNS)
-        out.writeheader()
-        for row in rows:
-            out.writerow({k: ("" if isinstance(v, float) and v != v else v) for k, v in row.items()})
-    return len(rows)
 
 
 def _heatmap(plan, full: str, name: str, config: Path, output: Path, root: Path, numbers: Path, settings: dict,
@@ -1798,21 +1752,10 @@ def write_sets_index(plots: Path, title: str) -> Path | None:
     return index
 
 
-def heading_of(numbers: Path) -> str:
-    """A set's statistics' heading (V196): its run folder under results/ (else that folder's last two parts) and
-    the set, "eic/zeus_validation/01_pythia_qed_lepton · qed_lepton_by_pdf"."""
-    run = numbers.parent.parent
-    try:
-        where = run.resolve().relative_to(results_root().resolve()).as_posix()
-    except ValueError:
-        where = "/".join(run.parts[-2:])
-    return f"{where} · {numbers.name}"
-
-
 def _tables(run, groups: dict, outcomes: dict, say, who: str) -> int:
     """Each set's statistics (V160, V164): statistics/<set>/statistics.csv, cleared first, its bar graphs and
     summary; the rows written."""
-    bars = plugins.load(hep_root() / "framework" / "plot" / "figures" / "bars.py", "bars")   # V162
+    bars = statstable.bars()                                    # V162
     counted, images, tables = 0, 0, []
     for (_, set_), pages_ in groups.items():
         numbers = pages_[0].numbers
@@ -1820,11 +1763,11 @@ def _tables(run, groups: dict, outcomes: dict, say, who: str) -> int:
             continue
         _clear(numbers)
         read = [p for p in pages_ if outcomes[str(p.config)][0]]
-        if (count := write_statistics(read, numbers / "statistics.csv")):
+        count, drawn = statstable.write_set(read, numbers, formats_of(run.plot), bars)
+        if count:
             counted += count
             tables.append(numbers)
-            images += bars.draw([(p.rel, statistics_of(p) or []) for p in read], numbers / "bars",
-                                formats_of(run.plot), summary=numbers / "summary", heading=heading_of(numbers))
+            images += drawn
     if counted:
         shown = tables[0] if len(tables) == 1 else tables[0].parent
         say(f"{who}: statistics of {counted} curve(s), {len(tables)} set(s), {images} bar graph(s) → {shown}")

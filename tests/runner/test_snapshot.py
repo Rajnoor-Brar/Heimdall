@@ -272,3 +272,22 @@ def test_a_documents_quantities_are_points_and_an_older_one_is_upgraded(trees, c
     again = tomllib.loads(target.read_text(encoding="utf-8"))
     assert again["quantities"]["pdf"]["points"] == rows and again["members"] == data["members"]
     assert not plotdoc.needs_upgrade(target) and target.read_text(encoding="utf-8") == text
+
+
+def test_a_document_loaded_into_other_folders_reads_its_own_and_draws_there(trees, capsys, monkeypatch):
+    """I-108 P1: plotdoc.load(path, folders) gives members that draw into those folders, each still with its YODA
+    and its completeness from the document's own (the report draws a source's pages without writing to it)."""
+    from runner import plotdoc
+    from runner.tools import RunFolders
+    p = recorded_run("Demo/jets", "pdf")
+    rel = str(p.every[0].folders.record.relative_to(paths.records_root()))
+    monkeypatch.setenv("HEP_CONFIGS", os.environ.get("HEP_CONFIGS", ""))       # cli.opened points it at the snapshot
+    args = argparse.Namespace(command="plot", config=rel, configuration=None, set=[])
+    cli.opened(args)
+    (target,) = cli.documents_of(args)
+    elsewhere = RunFolders("Demo", trees / "away" / "records", trees / "away" / "results", trees / "away" / "cache")
+    _, _, own = plotdoc.load(target)
+    _, _, moved = plotdoc.load(target, folders=elsewhere)
+    assert [m.yoda for m in moved] == [m.yoda for m in own] and all(m.yoda.is_file() for m in moved)
+    assert [m.recorded for m in moved] == [m.recorded for m in own] == [m.identity for m in own]
+    assert {m.folders for m in moved} == {elsewhere} and {m.folders for m in own} == {p.every[0].folders}

@@ -404,8 +404,8 @@ fast-forwarded at P5. Each row is ticked at its commit.
 
 | Phase | V-row | Commit | State |
 |---|---|---|---|
-| P0 Paperwork | — | | in progress |
-| P1 Plot and stats made modular | V206 | | |
+| P0 Paperwork | — | f9c2076 | done |
+| P1 Plot and stats made modular | V206 | (this commit) | done: gate P same; paused for compaction |
 | P2 Sources and recipes | V207 | | |
 | P3 The build | V208 | | |
 | P4 Drawn for itself | V209 | | |

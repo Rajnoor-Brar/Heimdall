@@ -27,6 +27,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from functools import lru_cache
+from pathlib import Path
 
 INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
 BAND = "#efeeea"                                    # a band's background
@@ -670,6 +671,33 @@ def _text(canvas: _Canvas, text: Text, piece: Piece, top: float) -> None:
 
 
 DRAW = {Table: _table, Ranking: _ranking, Text: _text}
+
+
+def write(document: Document, target: Path, formats: list[str], title: str, plt) -> list[Path]:
+    """The document's pages (I-108 P1, the loop the summary had): `target`.pdf holds them all (its metadata's Title
+    `title`), and a PNG or SVG is a file a page in the folder `target`, <target name>_<NN>.<fmt>, in the PDF's
+    order; each page drawn, written and closed before the next. The files written, the PDF first."""
+    from matplotlib.backends.backend_pdf import PdfPages
+    written, pdf = [], None
+    try:
+        for page_ in pages(document):
+            drawn = figure(document, page_, plt)
+            if "pdf" in formats:
+                if pdf is None:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    pdf = PdfPages(target.with_suffix(".pdf"), metadata={"Title": title})
+                    written.append(target.with_suffix(".pdf"))
+                pdf.savefig(drawn, facecolor=SURFACE)
+            for fmt in (f for f in formats if f != "pdf"):
+                target.mkdir(parents=True, exist_ok=True)
+                path = target / f"{target.name}_{page_.number:02d}.{fmt}"
+                drawn.savefig(path, dpi=150, facecolor=SURFACE)
+                written.append(path)
+            plt.close(drawn)
+    finally:
+        if pdf is not None:
+            pdf.close()
+    return written
 
 
 def figure(document: Document, page: Page, plt):

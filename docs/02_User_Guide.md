@@ -961,7 +961,8 @@ The run goes on to the next point, and the point's block names the tool to blame
    it runs again next time.
 3. *"rivet analysed N events; the producer wrote M"*: the chain broke mid-stream. Look at the
    generator's log first.
-4. *"… was silent for 300 s"*: a stall. Raise `stall_after` on the tool if it is legitimately quiet.
+4. *"… was silent for 300 s, since 20:29 (integrating; last line: "…")"*: a stall, with when it went
+   quiet and what it was doing and last said. Raise `stall_after` on the tool if it is legitimately quiet.
 5. Fix it, then `heimdall run … --points <that point>`. Complete points are skipped anyway.
 6. More to look at:
    - `--plan` shows the exact argv and cards;

@@ -428,7 +428,8 @@ line of its `title`:
 
 ```
 run 01 - Proton PDFs -
-jets · pdf: 4 point(s), 1000000 events, 12 threads
+jets · 01  ·  pdf
+   - 4 point(s), 1000000 events, 12 threads
 ── point 1/4: MSTW08lo ── ok after 12min 4s at Tue 21 Oct 14:03
 …
 4 done, 0 failed, 0 skipped

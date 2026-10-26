@@ -180,6 +180,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - **Since:** already failing at `4477c17` (V163–V171, plot documents), and at Phase 1's base `29b27ae`; not
   caused by Phase 1. A configuration with `combine` or listed points draws nothing.
 - **Done when:** both tests pass, and a drawing of such a configuration from its record works.
+- `--plan`'s page count (V195) meets the same `KeyError` on listed points (`eic/baseline`'s
+  `generator_polarisation`) and falls back to `plot_points`' count.
 
 ## M1 — The safety net
 
@@ -321,6 +323,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - **Fix:** the audit's six steps (L1–L6): clean every saved text; `attempts.jsonl` and causes;
   per-tool digests with rotation; `run.jsonl` always; new kinds in `filters.toml`; plot-stage logs.
   L1 has no format change and can go first.
+- **Progress:** L1 done (V195: clean saved text, Sherpa's mid-line messages, the stall's context, the live
+  view's brackets, `--card` sources, totality's page count, an empty analysis said, the two-line title).
 
 ## M5 — The plot model
 

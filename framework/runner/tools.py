@@ -50,7 +50,7 @@ FOLDER_SECTIONS = {
     "context": {"values", "products"},                    # what the point's context file gives of it (04 §9.4)
     "identity": {"files", "version"},
     "prepare": {"argv", "marker", "ignore", "key"},
-    "checks": {"info_dirs", "info_dirs_command", "files", "card"},
+    "checks": {"info_dirs", "info_dirs_command", "files", "card", "filled"},
     "shard": {"merge"},
     "render": None,                                       # free: data for the folder's render.py (V61)
     "beams": {"slots"},                                   # the card's fixed beam slots (V62)
@@ -1609,16 +1609,44 @@ def card_view(plan: PointPlan, tag: str) -> list[str]:
         for n, line in _cleaned(base, step.folder):
             parsed = parse(line)
             rows.append((line, f"{base.name}:{n}" + (", set again below" if parsed and parsed[0] in again else "")))
+    render = step.folder.card_style == "render"
     for line in point_lines:
         parsed = parse(line)
         if not line.strip() or line.lstrip().startswith(comment):
             rows.append((line, ""))
+            continue
+        if render:                                       # a YAML tree: a top-level key's line says who set it
+            rows.append((line, _render_origin(step, line)))
             continue
         origin = step.card_origins.get(parsed[0]) if parsed else None
         rows.append((line, origin or ("the base card" if step.card_point is None else "the runner (seeds, the footer)")))
     width = min(max((len(line) for line, origin in rows if origin), default=20), 64)
     return [f"{tag}'s card for point {plan.point.name}: {step.card_combined}",
             *(f"  {line:{width}}  ← {origin}" if origin else f"  {line}" for line, origin in rows)]
+
+
+_TOP_KEY = re.compile(r"^([A-Za-z_]\w*)\s*:")
+
+
+def _render_origin(step: "Step", line: str) -> str:
+    """Who set a rendered (YAML) card's line (V195): its top-level key's quantities, settings and built-ins (a
+    path under it, `PDF_SET[1]`, counts), else the plan for a key the folder says it owns, else the base card. A
+    line under a key (indented, a list's item) is that key's, and says nothing."""
+    match = _TOP_KEY.match(line)
+    if match is None:
+        return ""
+    name = match.group(1).lower()
+
+    def set_by(key: str) -> list[str]:
+        return list(dict.fromkeys(o for k, o in step.card_origins.items() if re.split(r"[\[:.]", k, maxsplit=1)[0] == key))
+
+    if found := set_by(name):
+        return ", ".join(found)
+    if name == "mpi_pdf_set" and (pdf := set_by("pdf_set")):          # render.py moves it with PDF_SET
+        return f"PDF_SET's ({', '.join(pdf)})"
+    if name in {_normal(k) for k in step.folder.get("card", "owned", [])}:
+        return "the plan"
+    return "the base card"
 
 
 _CHECKED: dict[str, list] = {}

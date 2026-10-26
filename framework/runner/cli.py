@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -459,6 +460,19 @@ def _print_stage(title: str, stage, run) -> None:
     print(f"  results {stage.res}   ({'complete' if record.is_complete(stage) else 'to run'})")
 
 
+def run_title(run, configuration, plans) -> str:
+    """A run's title, two lines (the user's form, 2026-10-26):
+
+        zeus_validation · 12  ·  generator_pdf
+           - 16 point(s), 1000000 events, 1 threads, 19 at once (~38 of 24 cores)
+
+    the run's name, its record's serial (none when the folder has none) and the configuration; then its size."""
+    serial = re.match(r"(\d+)_", tools.run_dir(run, configuration).name)
+    head = f"{run.name} · {serial.group(1)}  ·  {configuration.key}" if serial else f"{run.name}  ·  {configuration.key}"
+    return (f"{head}\n   - {len(plans)} point(s), {configuration.event_count} events, {configuration.threads} threads"
+            + parallel_note(configuration, plans))
+
+
 def parallel_note(configuration, plans) -> str:
     """', 4 at once (~52 of 24 cores)' for the title and --plan; nothing when one at a time (V36)."""
     if configuration.parallelism <= 1 or not plans:
@@ -476,6 +490,20 @@ def crowded(configuration, plans) -> str:
         return ""
     return (f"parallelism {configuration.parallelism} × ~{each} cores a point is more than the {os.cpu_count()} "
             f"here: lower threads, shards or parallelism, or accept the oversubscription")
+
+
+def totality_pages(run, configuration, points: list) -> tuple[int, str]:
+    """The pages per object the totality set draws (V195: its own axes, not plot_points'), and what other sets
+    the configuration draws, for --plan's plot line."""
+    try:
+        spec = sweep.set_entries({sweep.TOTALITY: sweep.totality(configuration, points)}, sweep.TOTALITY)[0]
+        count = len(sweep.set_cells(run, points, spec)[0])
+    except Exception:                    # a count never stops a plan (listed points' KeyError): plot_points'
+        count = len(sweep.pages(configuration, points))
+    drawn = configuration.draw
+    others = ([s for s in drawn if s != sweep.TOTALITY] if isinstance(drawn, list)
+              else [s for s in (run.plot or {}).get("sets", {}) if s != sweep.TOTALITY] if drawn else [])
+    return count, f", and {len(others)} more set(s) ({', '.join(others)})" if others else ""
 
 
 def print_plan(run, configuration, plans, post_plan=None, pre_plan=None, combined=()) -> None:
@@ -511,8 +539,8 @@ def print_plan(run, configuration, plans, post_plan=None, pre_plan=None, combine
     if post_plan is not None:
         _print_stage("post (after every point)", post_plan, run)
     if run.plot and plans:
-        count = len(sweep.pages(configuration, [p.point for p in plans]))
-        print(f"plot ({', '.join(plot.backends(run.plot))}): {count} page(s) per object, "
+        count, more = totality_pages(run, configuration, [p.point for p in plans])
+        print(f"plot ({', '.join(plot.backends(run.plot))}): {count} page(s) per object in totality{more}, "
               f"{', '.join(plot.formats_of(run.plot))} → {plans[0].folders.plots}")
 
 
@@ -1077,8 +1105,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         if plans and paths.keeping("journal") else None
     if journal:
         bus.subscribe(journal)
-    title = (f"{run.name} · {configuration.key}: {len(plans)} point(s), {configuration.event_count} events, "
-             f"{configuration.threads} threads" + parallel_note(configuration, plans))
+    title = run_title(run, configuration, plans)
     if number > 1:
         bus.say("")
     bus.emit("", "", {"k": "run", "state": "started", "points": len(plans), "title": title,

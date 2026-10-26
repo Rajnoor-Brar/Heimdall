@@ -1,5 +1,5 @@
 # framework/tools/sherpa/filters.toml — Sherpa only prints (docs/06_Internals.md §23; its counter: L31). A rule
-# never fails a run; the first that matches a line wins. With tool.toml's display arguments a print is one line,
+# never fails a run; the first that matches a line wins, anywhere in it unless it anchors itself. With tool.toml's display arguments a print is one line,
 #   "  Event 10000 ( 45.2s elapsed / 9035.1s left ) -> ETA: Tue Oct 21 14:03    XS = 42090.7 pb +- ( 92.1 pb = 0 % )"
 # and without them (a card that overrides them) two, the first "( 2h 58m 30s elapsed / 15h 37m 11s left )".
 [[rule]]
@@ -11,9 +11,10 @@ phase = "generating"
 match = '^\s*XS = (?P<xsec>[-+.\deE]+) pb \+- \( (?P<xsec_err>[-+.\deE]+) pb'
 emit  = "xsec"
 
-# routine: an event rejected and generated again, a hadron a hair off its shell, the build's own notice
+# routine: an event rejected and generated again, a hadron a hair off its shell, the build's own notice,
+# CMake's while Amegic's libraries are compiled (prepare.py)
 [[rule]]
-match = '(?:Four momentum not conserved\. Rejecting event|FourMomentumConservation|not onshell|reduced overall prescale|unable to create the breakup kinematics|produces kf_none particle|unsupported development branch)'
+match = '(?:Four momentum not conserved\. Rejecting event|FourMomentumConservation|not onshell|reduced overall prescale|unable to create the breakup kinematics|produces kf_none particle|unsupported development branch|^CMake Warning)'
 emit  = "ignore"
 
 [[rule]]
@@ -26,10 +27,23 @@ match = '^Starting the calculation'
 emit  = "phase"
 phase = "integrating"
 
+# What Sherpa says mid-line (V195), before the general rules below. Errors: a process dropped while the others
+# run on (runs 05, 07 and 09 of 2026-10-25 said "ok" with half their card gone), an integration gone wrong, a
+# card's undefined tag or missing input, and why nothing was set up.
 [[rule]]
-match = '^(?:Error|ERROR)\b|\bException\b|Signal \(\d+\) caught'
+match = "Error in initialising ISR .*Ignoring process|Cross section is 'nan'|Could not find a definition for|Missing input thrown|No hard process found|Wrong ordering of initial-state particles"
+emit  = "error"
+
+# Warnings, though they say "Error": Sherpa's own counts of a repeated message, the singlet sorter's recovery
+# ("return Error and hope for the best"), a pilot run and its rerun disagreeing.
+[[rule]]
+match = 'exceeded frequency limit|last allowed error message|Error in Singlet_Sorter|return Error and hope for the best|results of the pilot run and the re-?run are not the same'
+emit  = "warn"
+
+[[rule]]
+match = '\b(?:Error|ERROR)\b|\bException\b|Signal \(\d+\) caught'
 emit  = "error"
 
 [[rule]]
-match = '^(?:Warning|WARNING)\b'
+match = '\b(?:Warning|WARNING)\b'
 emit  = "warn"

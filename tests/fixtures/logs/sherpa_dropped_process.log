@@ -1,0 +1,53 @@
+# A transcript cut from a real Sherpa 3.0.5 log (Brookhaven, eic/zeus_validation, 2026-10-25), its bytes as Sherpa
+# printed them (colours, cursor commands): tests/runner/test_logging.py reads it.
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+Initializing primordial transverse momentum ...
+Initializing remnants ...
+  Hard process: e+ (Intact) + P (Photon)
+Initializing showers ...
+.......Library_Loader::LoadLibrary(): Failed to load library 'libProc_P2_2.so'.
+Library_Loader::LoadLibrary(): Failed to load library 'libProc_P2_2.so'.
+.Library_Loader::LoadLibrary(): Failed to load library 'libProc_P2_2.so'.
+Library_Loader::LoadLibrary(): Failed to load library 'libProc_P2_2.so'.
+..........Matrix_Element_Handler::BuildSingleProcessList(): Error in initialising ISR (e+ -> j) x (P -> j). Ignoring process.
+ done (92 MB, 25s/25s)
+Performing tests ............ done (92 MB, 0s/0s)
+Initializing scales done (92 MB, 0s/0s)
+[1m[31mNormal exit[0m[1m thrown[0m:
+[31mSource code created in {work}/.cache/eic/sherpa/c0b2ec619f7f4d2b. Run './makelibs' there to compile.[0m
+[1m[33mWARNING[0m: You are using an unsupported development branch.
+┌──────────────────────────────────────────────────────────┐
+│ [1m[32mPlease cite the publications listed in 'References.tex'.[0m │
+└──────────────────────────────────────────────────────────┘
+[1mTerminator_Object_Handler::Exit: [0m[34mExiting Sherpa with code [0m[1m([31m0[0m[1m)[0m[?25h
+Initializing the beam remnants ...
+Beam_Channels::CheckForStructuresFromME for 0: (none)
+ISR_Channels::CheckForStructuresFromME for 0: (none)
+Calculating xs for '2_2__e+__j__e+__j__QCD(BVI)' (Amegic+BlackHat) ...
+Integration parameters: n_{min} = 5000, n_{max} = 5000000, N_{opt} = 10, N_{max} = 1, exponent = 0.5
+Starting the calculation at 20:10:33. Lean back and enjoy ... .
+PDF_Base::Calculate(): Q-range violation Q = 0.309912 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.369456 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.00912278 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.755262 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.879268 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.868664 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.623278 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.550581 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.257337 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.175509 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.260501 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.0335187 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.0430152 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.124543 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.00692358 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.0216377 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.301523 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.436873 < 1. Set Q -> 1.
+PDF_Base::Calculate(): Q-range violation Q = 0.00464759 < 1. Set Q -> 1.
+[31mWARNING: last allowed error message from 'Calculate'
+[0mPDF_Base::Calculate(): Q-range violation Q = 0.622301 < 1. Set Q -> 1.
+Process_Group::Differential(): [31mCross section is 'nan'.[0m
+Phase_Space_Integrator::AddPoint(): value = nan. Skip.
+Process_Group::Differential(): [31mCross section is 'nan'.[0m
+Phase_Space_Integrator::AddPoint(): value = nan. Skip.

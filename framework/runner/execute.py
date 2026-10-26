@@ -48,7 +48,7 @@ from .errors import HepError
 from .paths import keeping, placeholders
 from .record import (LOCK_FILE, PointLock, complete_marker, held_by, holder, is_complete, now, provenance, provenance_file,
                      write_atomic, write_identity)
-from .status import Reader, ToolState
+from .status import Reader, ToolState, clean_text
 from .tools import CONTEXT_FILE, PointPlan, Step, expand
 
 GRACE = 2.0                  # after the first failure, before the rest of the group is asked to stop
@@ -341,7 +341,7 @@ def prepare(plan: PointPlan, logs: bool = False) -> None:
         if done.returncode != 0 or logs:              # its output is on disk when it failed, or with --logs (V72)
             plan.out.mkdir(parents=True, exist_ok=True)
             (plan.out / "prelim.log").open("a", encoding="utf-8").write(
-                f"$ {' '.join(argv)}\n{done.stdout}{done.stderr}")
+                clean_text(f"$ {' '.join(argv)}\n{done.stdout}{done.stderr}"))
         if done.returncode != 0:
             raise HepError(f"[prelim] command failed ({done.returncode}): {' '.join(argv)}",
                            where=str(plan.out / "prelim.log"))
@@ -448,7 +448,7 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
         if failure is None:
             for entry in alive:
                 if clock - entry.state.last_activity > entry.step.stall_after:
-                    failure = (entry.step.tag, "stalled", f"{entry.step.tag} was silent for {entry.step.stall_after:.0f} s")
+                    failure = (entry.step.tag, "stalled", stalled(entry.step.tag, entry.step.stall_after, entry.state, clock))
                 elif entry.step.timeout and clock - entry.started > entry.step.timeout:
                     failure = (entry.step.tag, "timeout", f"{entry.step.tag} ran past its timeout of {entry.step.timeout:.0f} s")
                 if failure:
@@ -491,6 +491,15 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
     if interrupted:
         return False, "", message
     return False, tag, message
+
+
+def stalled(tag: str, after: float, state: ToolState, clock: float) -> str:
+    """A stall's message (V195): how long, since when (local time), and what the tool was last doing and saying,
+    so the record says where it stopped."""
+    since = time.strftime("%H:%M", time.localtime(time.time() - (clock - state.last_activity)))
+    doing = "; ".join(part for part in (state.phase, f'last line: "{state.last_line[:120]}"' if state.last_line else "")
+                      if part)
+    return f"{tag} was silent for {after:.0f} s, since {since}" + (f" ({doing})" if doing else "")
 
 
 def _describe(code: int) -> str:
@@ -560,6 +569,8 @@ def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, lo
             _cleanup(plan)
             _finished(plan, failure, bus)
             return failure
+        for note in empty_analyses(group):
+            bus.emit(plan.point.name, "", {"k": "note", "msg": note})
 
     _cleanup(plan)
     record = provenance(plan, run, configuration, started, now(),
@@ -650,6 +661,21 @@ def _settle(group: list[Step], results: dict[str, ToolResult]) -> PointResult | 
             elif not final.exists():
                 return PointResult(False, cause=step.tag, message=f"{step.tag} did not write {final.name}", tools=results)
     return None
+
+
+def empty_analyses(group: list[Step]) -> list[str]:
+    """A tool folder's `[checks] filled` (V195): its products' histograms with any entry. None filled is said, never
+    failed: the analysis vetoed every event the producer wrote (the count check counts what it saw)."""
+    notes = []
+    for step in group:
+        kind, _, prefix = str(step.folder.get("checks", "filled", "")).partition(":")
+        if kind != "yoda":
+            continue
+        for final, _partial in step.products:
+            got = hepfiles.filled(final, prefix or "/RAW/") if final.suffix == ".yoda" else None
+            if got is not None and got[1] and not got[0]:
+                notes.append(f"   {step.tag}: no histogram filled (0 of {got[1]}) in {final.name}: every event was vetoed")
+    return notes
 
 
 def _finished(plan: PointPlan, result: PointResult, bus) -> None:

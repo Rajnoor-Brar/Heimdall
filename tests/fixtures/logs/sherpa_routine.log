@@ -1,0 +1,22 @@
+# A transcript cut from a real Sherpa 3.0.5 log (Brookhaven, eic/zeus_validation, 2026-10-25), its bytes as Sherpa
+# printed them (colours, cursor commands): tests/runner/test_logging.py reads it.
+   Not enough energy ((3.59301,9.14269e-14,2.45137e-13,-7.30685e-12)) for the 3 masses (3.6); return false
+Warning in Momenta_Stretcher::StretchMomenta(const Particle_Vector&, masses).
+Error in Singlet_Sorter::operator failed to decompose particle list into singlet.
+   Reset list, return Error and hope for the best.
+===================================================
+  Event 400 ( 1.03s elapsed / 24.72s left ) -> ETA: Sun Oct 25 20:20  XS = 665.905 pb +- ( 23412.5 pb = 3515 % )  
+  [31mWARNING: last allowed error message from 'ShiftMassesDIS'
+  [0mMass shift could not be completed. Momentum conseravtion fails by (0.000591203,-8.03335e-10,-5.24689e-11,0.000596148)
+    From "Decay_Channel::GenerateKinematics": 23 (121270) -> 0 %
+[31mError messages from 'ShiftMassesDIS' exceeded frequency limit: 340/20
+[0mPerturbative Interface (Matrix Elements):
+└──────────────────────────────────────────────────────────────────────────────┘
+ERROR: The results of the pilot run and the re-run are not the same:
+  Pilot run:  w = 0.473866, dxs = 4995.6, trials = 1, pdfs = {  pdf1 = (21,0.229108,6.70307:0.00476316) ,  pdf2 = (21,0.0916847,6.70307:1.25062) }
+                    1 warnings (scale kt down by factor of 10).
+[33m[1mWARNING[0m: Some settings that have been defined in the input files and/or
+  the command line have not been used. The following top-level settings
+  have not been used or include subsettings that have not been used:
+  - {work}/records/eic/zeus_validation/02_generator_pdf/logs/sh3_NNPDF23lo/cards/sherpa.yaml: NLO_Model 
+  For more details, inspect the Settings Report: Run `make` within

@@ -548,6 +548,11 @@ process directory.
   begins and when it ends, and a detached run's output log beside it. A tool's output is kept in memory (its
   last 200 lines) and written to `records/…/logs/<point>/<tag>.log` only when it fails; `--logs`
   (`keep logs`, §14) writes every tool's whole output there as it comes.
+- **Nothing saved holds a terminal's clutter** (V195). Every line is cleaned before it is matched, shown or
+  written (`status.clean`): escape sequences out (CSI colours and cursor moves, OSC titles, character-set
+  choices), then any control character but a tab. A line a bare carriage return rewrote (a counter) is matched
+  and shown, and saved only at its last state, as a terminal shows it. A `\r\n` cut between two reads stays
+  one line end. `prelim.log` and a worker's log are cleaned the same way (`status.clean_text`).
 - **A filter rule never fails a run.** The exit code does that.
 - **The event stream** (`events.py`, V72). The executor, the stages and the CLI emit versioned
   events onto one bus:
@@ -1046,6 +1051,7 @@ Every section and key is checked when the folders load: an unknown one is an err
 | `[checks]` | `files` | files that must exist at plan time (C10) |
 | | `card` | argv that reads a card (`{card}`) and prints one JSON line `{"line": N, "text": …}` per line it rejects; run at plan time, cached by the card's text (V59) |
 | | `info_dirs`, `info_dirs_command` | where analyses' `.info` files are, for C9 |
+| | `filled` | `"yoda:<prefix>"`: after the tool, its YODA products' histograms under the prefix with any entry; none filled is a note in the point's block, never a failure (rivet: `yoda:/RAW/`, V195) |
 
 Every tool with a card has `card` and `card_parts` in the context file; one with a config file has
 `config` (04 §9.4). Outside a section, a `tool.toml` may say `extends = "<tool>"` (§16), and `[tool]
@@ -1460,10 +1466,12 @@ is `done / elapsed` when the rule captures `elapsed`, and otherwise is measured 
 on; with both, the view shows an ETA.
 
 **A rule never fails a run**: the exit code does that. A rule that stops matching costs a progress
-bar, not a result. Lines are split on `\n` and `\r` (a counter rewritten in place, like Herwig's
-`event>`), and a terminal's control sequences (colours, cursor moves) are taken out before a line is
-matched or shown; the log keeps the bytes. The last line is shown, under the tool's row, while a tool
-has no count.
+bar, not a result. A rule matches anywhere in a line unless it anchors itself (`^`): Sherpa says what
+matters mid-line (`Matrix_Element_Handler::BuildSingleProcessList(): Error in initialising ISR … Ignoring
+process.`), so its folder lists its own errors and its warnings that say "Error" before its general rules
+(V195). Lines are split on `\n` and `\r` (a counter rewritten in place, like Herwig's `event>`), and
+cleaned before they are matched, shown or saved (§10): a counter's line is saved at its last state. The
+last line is shown, under the tool's row, while a tool has no count.
 
 ---
 

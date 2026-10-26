@@ -27,7 +27,7 @@ import threading
 import time
 from pathlib import Path
 
-from .status import ToolState, apply
+from .status import ToolState, apply, clean_text
 
 
 def _count(value) -> str:
@@ -303,7 +303,7 @@ class PlainView:
                 self._show(item)
 
     def say(self, text: str) -> None:
-        self.screen.line(text)
+        self.screen.line(clean_text(text))       # a worker's log is saved text: no terminal clutter (V195)
 
     def flush(self) -> None:
         self.screen.drain()
@@ -312,18 +312,22 @@ class PlainView:
         self.screen.close()
 
     def _show(self, item: tuple) -> None:
-        if item[0] == "title":
-            for line in item[1:]:
-                if line:
-                    self.say(self._title(line))
+        if item[0] == "title":                    # a header, then the title: its first line bold, the rest as said
+            for text in item[1:]:
+                for number, line in enumerate(text.split("\n") if text else []):
+                    self.say(self._title(line) if number == 0 else self._text(line))
         elif item[0] == "say":
-            self.say(item[1])
+            self.say(self._text(item[1]))
         else:
             _, part, verdict, seconds, lines, ended = item
             for line in self._block(part, verdict, seconds, lines, ended):
                 self.say(line)
 
     def _title(self, line: str) -> str:
+        return line
+
+    def _text(self, line: str) -> str:
+        """A line of the run's, as this view prints it."""
         return line
 
     def _block(self, part: _Point, verdict: str, seconds: float, lines: list[str], ended: float) -> list[str]:
@@ -378,6 +382,11 @@ class LiveView(PlainView):
         from rich.markup import escape
         return f"[bold]{escape(line)}[/bold]"
 
+    def _text(self, line: str) -> str:
+        """Escaped: a message's own brackets (`[quantities.pdf]`) are text, not rich's markup (V195)."""
+        from rich.markup import escape
+        return escape(line)
+
     def _block(self, part: _Point, verdict: str, seconds: float, lines: list[str], ended: float) -> list[str]:
         from rich.markup import escape
         colour = "green" if verdict == "ok" else "yellow" if verdict == "stopped" else "red"
@@ -396,6 +405,7 @@ class LiveView(PlainView):
     def _rows(self, states) -> list[tuple[list, tuple[str, str] | None]]:
         """A line per running tool, (tool, phase, bar, count, rate and ETA), with the note for the line
         under it: (text, style), or None."""
+        from rich.markup import escape
         from rich.progress_bar import ProgressBar
         rows = []
         for s in states:
@@ -412,7 +422,7 @@ class LiveView(PlainView):
             rate = f"{s.rate:,.0f}/s" if s.rate else ""
             note = ((s.error, "red") if s.error else (s.warning, "yellow") if s.warning
                     else (s.last_line, "dim") if s.last_line and s.done is None else None)
-            rows.append(([f"[bold]{s.tag}[/bold]", s.phase or "", bar, count, f"{rate} {_eta(s)}".strip()], note))
+            rows.append(([f"[bold]{s.tag}[/bold]", escape(s.phase or ""), bar, count, f"{rate} {_eta(s)}".strip()], note))
         return rows
 
     def _width(self, cell) -> int:

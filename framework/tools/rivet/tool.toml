@@ -42,3 +42,6 @@ merge = "merge"
 # analyses are in its data directory.
 info_dirs         = ["{work}/build/Rivet"]
 info_dirs_command = ["rivet-config", "--datadir"]
+# After a point's Rivet: its histograms under /RAW/ with any entry. None filled is said in the point's block
+# (V195): every event was vetoed (a DIS card against a photoproduction analysis, 2026-10-25). Never fails it.
+filled            = "yoda:/RAW/"

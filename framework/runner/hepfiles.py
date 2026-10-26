@@ -59,6 +59,32 @@ def raw_twins(path: Path) -> set[str]:
     return set(re.findall(r"^BEGIN YODA_HISTO1D_V\d+ (/RAW/\S+)$", yoda_text(path), re.M))
 
 
+_FILLABLE = re.compile(r"^BEGIN YODA_(?:HISTO[12]D|PROFILE[12]D)_V\d+ (\S+)\n(.*?)^END ", re.M | re.S)
+
+
+def filled(path: Path, prefix: str = "/RAW/") -> tuple[int, int] | None:
+    """(filled, all) of a YODA file's histograms and profiles under `prefix`, the nominal weight's (V195): a
+    histogram is filled when a bin has entries (its rows' last column, numEntries). Counters (`_EVTCOUNT`,
+    `_XSEC`) are not histograms. None when the file is not there."""
+    if not Path(path).exists():
+        return None
+    count = full = 0
+    for name, body in _FILLABLE.findall(yoda_text(path)):
+        if not name.startswith(prefix) or name.endswith("]") or name.rsplit("/", 1)[-1].startswith("_"):
+            continue
+        count += 1
+        rows = [line.split() for line in body.split("\n") if line and line[0] in "-+.0123456789"]
+        full += any(row and _number(row[-1]) > 0 for row in rows)
+    return full, count
+
+
+def _number(text: str) -> float:
+    try:
+        return float(text)
+    except ValueError:
+        return 0.0
+
+
 def entries(path: Path, obj: str) -> float | None:
     """A counter's numEntries (`/RAW/_EVTCOUNT`), from the YODA text; None when the file has none."""
     if not Path(path).exists():

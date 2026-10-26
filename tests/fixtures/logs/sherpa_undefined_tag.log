@@ -1,0 +1,25 @@
+# A transcript cut from a real Sherpa 3.0.5 log (Brookhaven, eic/zeus_validation, 2026-10-25), its bytes as Sherpa
+# printed them (colours, cursor commands): tests/runner/test_logging.py reads it.
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+Initializing primordial transverse momentum ...
+Initializing remnants ...
+  Hard process: P (Photon) + P+ (Hadron)
+Initializing showers ...
+Initializing matrix elements for the hard processes ...
+ME_Generators::ME_Generators(): Try loading 'BlackHat' from 'libSherpaBlackHat'.
+Initializing Comix ...
+Massive PS flavours for Comix: (c,cb,b,bb,mu-,mu+,tau-,tau+)
+Massive PS flavours for Amegic: (c,cb,b,bb,mu-,mu+,tau-,tau+)
+Initialising BlackHat interface {
+BH_interface created in normal mode
+}
+Building processes (3 ME generators, 1 process blocks) ...
+Setting up processes [1m[31mFatal error[0m[1m thrown[0m:
+[31mCould not find a definition for `$(LOOPGEN)'. This is an input error, please check your command line input and your run card.[0m
+[1m[33mWARNING[0m: You are using an unsupported development branch.
+┌──────────────────────────────────────────────────────────┐
+│ [1m[32mPlease cite the publications listed in 'References.tex'.[0m │
+└──────────────────────────────────────────────────────────┘
+[1mTerminator_Object_Handler::Exit: [0m[34mExiting Sherpa with code [0m[1m([31m1[0m[1m)[0m[?25h
+Thanks for using LHAPDF 6.5.6. Please make sure to cite the paper:
+  Eur.Phys.J. C75 (2015) 3, 132  (http://arxiv.org/abs/1412.7420)

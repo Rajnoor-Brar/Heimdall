@@ -7,13 +7,22 @@ execution map: each step's row is ticked when it is committed.
 
 | Step | State | Commit | V-row | Gates |
 | --- | --- | --- | --- | --- |
-| L0 housekeeping | done | (this commit) | — | docs links |
-| L1 quick fixes | to do | | | F, identity guard |
+| L0 housekeeping | done | 5663f57 | — | docs links |
+| L1 quick fixes | done | (this commit, branch `logging`) | V195 | F; guard: 315 points of 35 Brookhaven configurations unchanged |
 | L2 attempts, causes, run constants | to do | | | F, S, guard, B |
 | L3 digests and history | to do | | | F, S, guard, B |
 | L4 the run's own log | to do | | | F, S, guard, B |
 | L5 new kinds in filters.toml | to do | | | F, S, guard |
 | L6 the plot stage | to do | | | F, S |
+
+**Working notes**
+- 2026-10-26: a `generator_pdf` run (pid 1265398) is using the main checkout, so the steps are built in a git
+  worktree on the branch `logging` (the scratchpad's `heimdall-logging`). Main is fast-forwarded when no run is
+  using it.
+- The identity guard plans a copy of Brookhaven's configs, build and modules (the scratchpad's `bh-guard`) with
+  one fixed set of roots (`guard-roots`): Sherpa's argv holds its prepare folder, so the roots must not move
+  between the runs compared. The baseline comes from main's unmodified code.
+- Added on your word (2026-10-26): the run's constants in the record (L2), and the run's two-line title (L1).
 
 ## Context
 

@@ -10,6 +10,8 @@ docs/06_Internals.md §22 and docs/06_Internals.md §10.
 * Both are read from pipes by one thread per tool (V72), so a tool that prints fast never waits on a
   full pipe, and nothing of it is on disk unless asked: the last TAIL lines are kept in memory and
   written to the point's <tag>.log only when the tool fails; `--logs` writes every line as it comes.
+* Nothing saved holds a terminal's clutter (V195): every line is cleaned (`clean`) before it is matched,
+  shown or written, and a line a bare carriage return rewrote (a counter) is saved at its last state.
 * Every message goes onto the run's event bus (events.py), tagged with its point and tool.
 """
 
@@ -27,9 +29,23 @@ from pathlib import Path
 
 TAIL = 200                       # a failed tool's last lines, written beside its point (V72)
 LINE_EVERY = 0.5                 # seconds between a tool's `line` events
-#: A terminal's control sequences (colours, cursor moves: Sherpa's ESC[1A), taken out of what is shown
-#: and matched; the log keeps the bytes as they came.
-ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07")
+#: A terminal's escape sequences: a CSI (colours, cursor moves: Sherpa's ESC[1A and ESC[?25h), an OSC (a window
+#: title), a character set's choice (ESC(B) and the two-character ones. Taken out of every line shown, matched or
+#: saved (V195).
+ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b[()*+][0-9A-Za-z]|\x1b[@-_=>78]")
+#: The control characters left after them: no saved text holds them either. A tab stays.
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+def clean(line: str) -> str:
+    """One line as it is shown, matched and saved: its escape sequences and control characters out."""
+    return CONTROL.sub("", ANSI.sub("", line))
+
+
+def clean_text(text: str) -> str:
+    """Several lines (a command's captured output) cleaned: each line as `clean` leaves it, and a line a bare
+    carriage return rewrote at its last state, as a terminal shows it."""
+    return "\n".join(clean(line.removesuffix("\r").rsplit("\r", 1)[-1]) for line in text.split("\n"))
 #: A duration as programs print it: "45.2s", "1.2e+06s", "17086", "2h 58m 30s", "1d 3h", "0:00:01".
 _UNITS = {"d": 86400, "h": 3600, "m": 60, "min": 60, "s": 1}
 
@@ -137,22 +153,31 @@ class Reader:
                 if isinstance(message, dict) and "k" in message:
                     self._emit(message)
             return
-        if self._handle is not None and chunk:
-            self._handle.write(chunk)
-            self._handle.flush()
-        *lines, self._partial[fd] = re.split(rb"\r\n|\r|\n", data)     # \r: a progress counter
+        held = b""
+        if final and data.endswith(b"\r"):              # a counter the tool left on its line: its last state
+            data = data[:-1] + b"\n"
+        elif data.endswith(b"\r"):                      # a \r\n the read cut in two waits for its \n
+            data, held = data[:-1], b"\r"
+        pieces = re.split(rb"(\r\n|\r|\n)", data)       # line, its end, line, its end, …, the unfinished rest
+        self._partial[fd] = pieces.pop() + held
         if final and self._partial[fd]:
-            lines.append(self._partial[fd])
+            pieces += [self._partial[fd], b"\n"]
             self._partial[fd] = b""
-        for raw in lines:
-            self.output(raw.decode("utf-8", "replace").rstrip("\r"))
+        for raw, end in zip(pieces[::2], pieces[1::2]):
+            self.output(raw.decode("utf-8", "replace"), rewritten=end == b"\r")   # \r: a counter, rewritten
+        if self._handle is not None:
+            self._handle.flush()
 
-    def output(self, text: str) -> None:
-        """One line the tool printed (its control sequences out): the tail, the latest line, and its
-        filter rules, the first that matches."""
-        text = ANSI.sub("", text)
+    def output(self, text: str, rewritten: bool = False) -> None:
+        """One line the tool printed, cleaned: the whole log (`--logs`), the tail, the latest line, and its
+        filter rules, the first that matches. A line a carriage return `rewritten` (a counter's) is matched
+        and shown, and neither saved nor kept: the log and the tail keep the state a terminal shows."""
+        text = clean(text)
+        if self._handle is not None and not rewritten:
+            self._handle.write(text.encode("utf-8") + b"\n")
         if text.strip():
-            self.tail.append(text)
+            if not rewritten:
+                self.tail.append(text)
             self.state.last_line = text.strip()[:200]
             now = time.monotonic()
             if self.bus is not None and now - self._line_at >= LINE_EVERY:

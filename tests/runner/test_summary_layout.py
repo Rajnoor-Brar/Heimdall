@@ -1,7 +1,8 @@
-"""Statistics on A4 (V196, I-107): every summary page and page image is A4 portrait; a table wider than the page
-is cut into column blocks stacked on its page; a page holds whole rows, a band never last; small tables share a
-page within their section; the footer counts the pages. The worst case is shaped like a real one (76 points in
-38 page cells, 12 objects, 57-character labels), made here."""
+"""Statistics on A4 (V196, V197, I-107): every summary page and page image is A4 portrait; a table wider than the
+page is cut into column blocks stacked on its page; a page holds whole rows, a band never last; small tables share
+a page within their section; the footer counts the pages; the facts, contents and notes come first, each page's
+footnote a line of note numbers. The worst case is shaped like a real one (76 points in 38 page cells, 12
+objects, 57-character labels), made here."""
 
 from __future__ import annotations
 
@@ -147,9 +148,10 @@ def test_small_tables_share_a_page_and_each_section_starts_one(worst):
     head_to_head = [p for p in pages if p.section.key == "head-to-head"]
     assert sum(len(p.pieces) for p in head_to_head) == 38 and len(head_to_head) <= 7
     keys = [p.section.key for p in pages]
-    for page in pages[1:]:                                       # a section's pieces never share a page with another's
+    for page in pages:                                           # a section's pieces never share a page with another's
         assert {piece.item.key for piece in page.pieces} <= {i.key for i in page.section.items}
-    assert keys == sorted(keys, key=[s.key for s in worst[0].sections].index)
+    order = ["front"] + [s.key for s in worst[0].sections]
+    assert keys == sorted(keys, key=order.index)
 
 
 def test_a_ranking_continues_on_the_next_page():
@@ -184,3 +186,53 @@ def test_a_page_image_is_a4_in_the_grid_that_suits_its_curves(scratch):
     pngs = sorted(p.name for p in made if p.suffix == ".png")
     assert len(pngs) >= 2 and pngs[0] == "many_01.png"
     assert len(re.findall(rb"/Type\s*/Page\b(?!s)", (scratch / "bars" / "many.pdf").read_bytes())) == len(pngs)
+
+
+def test_the_front_matter_holds_the_facts_the_contents_and_every_note_once(worst):
+    document, pages = worst
+    front = [p for p in pages if p.section.key == "front"]
+    assert pages[0] in front and document.facts[0].startswith("76 point(s) in 38 page cell(s), on 12 object(s)")
+    starts = {}
+    for page in pages:
+        for piece in page.pieces:
+            starts.setdefault(piece.item.key, page.number)
+    contents = next(i for i in front[0].section.items if i.key == "front-contents")
+    for (_, _, number, _), target in zip(contents.lines, contents._targets):
+        assert number == str(starts[target])                     # each entry, the page it starts on
+    assert [s.title for s in document.sections] == [line[1] for line in contents.lines if line[3]]
+    numbers = paper.note_numbers(document)
+    assert sorted(numbers.values()) == list(range(1, len(numbers) + 1)) and set(numbers) <= set(document.notes)
+    named = [k for s in document.sections for i in s.items for k in i.notes]
+    assert list(numbers) == list(dict.fromkeys(k for k in named if k in document.notes))   # in the order first named
+    notes = next(i for i in front[-1].section.items if i.key == "front-notes")
+    assert [n for n, *_ in notes.lines if n] == [f"{n}." for n in range(1, len(numbers) + 1)]   # each once
+
+
+def test_each_page_footnote_is_a_line_of_note_numbers(worst):
+    document, pages = worst
+    where = f"(pages 1–{sum(1 for p in pages if p.section.key == 'front')})"
+    for page in pages:
+        text = paper.footnote(document, page.notes)
+        if page.section.key == "front":
+            assert text == ""
+            continue
+        assert re.fullmatch(r"Notes? [\d, ]+ " + re.escape(where) + r": what these numbers are and how they are computed\.",
+                            text), text
+        assert len(paper.wrap(text, paper.WIDTH, paper.SMALL)) == 1
+
+
+def test_rows_in_curve_order_are_grouped_under_their_cells():
+    document = bars.summary_model(worst_rows(), "")
+    items = {i.key: i for s in document.sections for i in s.items}
+    table = items["chi2_ndf"]
+    bands = [r.label for r in table.rows if r.band]
+    assert len(bands) == 38 and bands[0] == "NNPDF23lo_lpdfon"
+    assert {r.label for r in table.rows if not r.band} == {"lepton QED shower on", "lepton QED shower off"}
+    assert all(" · " in r.label for r in items["scoreboard"].rows)              # sorted across cells: whole names
+    assert [r.label for r in items["head-to-head-1"].rows][0].startswith("1. lepton QED shower")
+    top = [i for i in document.sections[0].items]
+    assert [i.headers for i in top][:2] == [["point", "points", "wins"]] * 2 and top[-1].headers[1:] == ["win rate",
+                                                                                                    "matches"]
+    assert all(c.cells[0].align == "left" for i in top for c in i.rows)
+    one = bars.summary_model([dict(r, cell="") for r in worst_rows() if r["cell"] == "NNPDF23lo_lpdfon"], "")
+    assert not any(r.band for s in one.sections for i in s.items if isinstance(i, paper.Table) for r in i.rows)

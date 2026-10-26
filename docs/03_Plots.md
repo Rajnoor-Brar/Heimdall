@@ -394,9 +394,12 @@ in the grid that gives each bar the most height (2 × 3, 3 × 2 or 6 × 1); more
 on further pages (one PDF, `<object>_NN.png`). `statistics = false` turns them and the summary off.
 
 **The summary:** `statistics/<set>/summary.pdf`, every page A4 portrait (and `summary/summary_<NN>.png`, a
-page each), headed by the run's folder, the set and the section, and numbered ("page 3 of 21"). It opens with
-the **standings**, what is best on the most pages (as a mode is), where the means further on say what is best
-on average:
+page each), headed by the run's folder, the set and the section, and numbered ("page 3 of 21"). Its **front
+pages** say what it holds (its points, page cells, objects and pages; what they are compared against), list its
+contents with the page each part starts on, and write every note once, numbered: what each number is, its
+formula, the compared bins, the scoring. Each later page's footnote is one line, the numbers of the notes it
+needs. Then the **standings**, what is best on the most pages (as a mode is), where the means further on say
+what is best on average:
 - **Scoring:** each page ranks its own curves in each of χ²/ndf, |Δ|/reference, area/reference, the mean ratio
   and mean |ratio − 1| (the two ratios by how far from 1 either way, |log10 r|). 1st scores 5 points, 2nd 4,
   3rd 3, 4th 2, 5th 1, the rest nothing; equal numbers share the better place. Only pages compared against
@@ -405,15 +408,18 @@ on average:
   closer to agreement wins it, equal numbers draw (half each). A point's **win rate** is the share of its
   matches it won (75%: it beats the others 3 times in 4). Unlike points, which stop at 5th, it counts every
   place, and it doesn't depend on how many curves a page has.
-- **The top five:** a column per scoreboard (all five statistics together, then each), its first five with
-  their points and wins (1st places); a last column, the first five by win rate.
+- **The top five:** a small table per scoreboard (all five statistics together, then each), its first five
+  with their points and wins (1st places), and one of the first five by win rate with their matches; `=2nd`:
+  sharing that place.
 - **Scoreboards:** all five statistics page by page (a row per point, a column per object's page, its points
   there, at most 25), the same by page cell (a row per point placed within its cell, a column per statistic),
   then one a statistic, page by page. Each ends with the total, the wins, the win rate (over that board's
   statistics) and the mean rank (the mean of its places), is sorted by total, then wins, then mean rank, and
-  has its top three in bold. Points of different page cells never meet on a page.
+  has its top three in bold. Points of different page cells never meet on a page. The board by page cell
+  groups its rows under each cell's band, each row its place and its curve.
 - **Each page cell's head to head:** a row per point, sorted by win rate, a column per opponent: the matches
   it won against that one of those they played (`31/40`), blue where it won most, orange where it lost most.
+  The cell is named in the table's title, so its rows name the curves alone.
 
 Then a section for each of χ²/ndf, |Δ|/reference, area/reference, the mean ratio, mean |ratio − 1| and the
 area:
@@ -421,18 +427,19 @@ area:
   pages in brackets. The two ratios take the geometric mean (2 and 0.5 average to 1), rank closest to 1
   first, and their bars grow from 1, blue above and orange below. The area has no ranking: each object has
   its own units, so a mean across objects says nothing.
-- **a table:** a row per point (its page cell · its label), a column per object (d2 before d10), each cell
-  that point's number on that object's page, then the row's mean (geometric for the ratios). The reference curve's cell
+- **a table:** a row per point, a column per object (d2 before d10), each cell that point's number on that
+  object's page, then the row's mean (geometric for the ratios). The reference curve's cell
 says `ref` (it is compared with nothing; the area table shows its area), a missing number `–`. Cells are
 shaded by value: χ²/ndf on a log scale, the area within each column (each object has its own units), the
-area ratio and the mean ratio blue above 1 and orange below.
+area ratio and the mean ratio blue above 1 and orange below. With two page cells or more, a band names each
+cell above its rows, and a row names its curve alone (one cell: its label as it is).
 
 **On the page** (`framework/plot/figures/paper.py`): each section starts a page, and its tables and rankings
 follow one below another (so the head-to-head tables of many small cells share pages). A table wider than the
 page is cut into column blocks, the fewest that fit, its columns split evenly and stacked under one another on
 the same page, each block with the row labels and the last with the mean or the totals. A long table or
 ranking continues on the next page, titled "(continued)". A long label wraps, at its " · " or between words,
-when that makes the table shorter overall. Each page ends with the notes its items name, each once.
+when that makes the table shorter overall. No page leaves fewer than three rows of a table to the next.
 Every summary page ends with a footnote: what its number is and how it is computed. A PNG or SVG is a file
 a page in `statistics/<set>/summary/`, numbered in the PDF's order (`summary_01.png`, `summary_02.png`, …).
 

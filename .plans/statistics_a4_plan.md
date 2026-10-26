@@ -6,8 +6,8 @@ Issue: [I-107](ISSUES.md#i-107-statistics-on-a4-and-better-organised). Approved 
 
 | Step | State | Commit | V-row |
 | --- | --- | --- | --- |
-| S1 A4 pages | done | (this commit; hash in the next) | V196 |
-| S2 What the summary holds, reorganised | to do | | |
+| S1 A4 pages | done | `c3a06d6` | V196 |
+| S2 What the summary holds, reorganised | done | (this commit; hash in the next) | V197 |
 | S3 Cell × curve tables | to do | | |
 | S4 summary.html | to do | | |
 

@@ -852,7 +852,8 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     (χ²/ndf, |Δ|/reference, area/reference, mean ratio and mean |ratio − 1| (V175), area) each point's mean as
     sorted bars (not the area's), then its table: a row per point, a column per object in natural order, then the
     mean; the reference "ref"; each item names its notes, what its numbers are. A table wider than the page is cut
-    into column blocks stacked on its page, the mean on the last."""
+    into column blocks stacked on its page, the mean on the last. V197: the top five a table a scoreboard; a table
+    in curve order groups its rows under their cells' bands; the facts, contents and notes up front."""
     import re
     from runner import plugins
     run, configuration, plans = stage
@@ -869,6 +870,7 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     document = bars.summary_model(rows, plot.heading_of(numbers))
     assert len(bars.paper.pages(document)) == count
     assert document.heading.endswith(" · totality")
+    assert document.facts[0].startswith("4 point(s) in 2 page cell(s), on 17 object(s)")       # V197: up front
     keys = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "area")
     sections = {s.key: s for s in document.sections}
     assert list(sections) == ["top5", "scoreboard", "scoreboard-cells", "head-to-head", "scoreboards", *keys]
@@ -885,8 +887,9 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
 
     table = items["chi2_ndf"]
     assert table.headers[:3] == ["d01", "d02", "d03"] and table.headers[-1] == "mean" and len(table.headers) == 18
-    assert {r.label for r in table.rows} == {"em · MSTW 2008 LO", "em · NNPDF 2.3 LO", "ep · MSTW 2008 LO",
-                                            "ep · NNPDF 2.3 LO"}
+    assert [r.label for r in table.rows] == ["em", "MSTW 2008 LO", "NNPDF 2.3 LO", "ep", "MSTW 2008 LO",
+                                             "NNPDF 2.3 LO"]                    # V197: each cell's band, its curves
+    assert [r.band for r in table.rows] == [True, False, False, True, False, False]
     assert any(c.text == "ref" for r in table.rows for c in r.cells)
     assert not any(c.text == "ref" for r in items["area"].rows for c in r.cells)    # a reference has its own area
     for key in keys:                                    # every block fits the page; the mean on the last
@@ -896,20 +899,23 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
                    for block in shape.blocks)
 
     def cells(item):
-        return [[c.text for c in r.cells] for r in item.rows]
+        return [[c.text for c in r.cells] for r in item.rows if not r.band]
     board = items["scoreboard"]                                                 # V176: each page's places scored
     assert board.headers == ["d01", "total", "wins", "win rate", "mean rank"]  # data pages alone
-    totals = {r.label.split(". ", 1)[1]: int(r.cells[1].text) for r in board.rows}
+    totals = {r.label.split(". ", 1)[1]: int(r.cells[1].text) for r in board.rows}         # sorted: no bands
     assert totals["em · MSTW 2008 LO"] + totals["em · NNPDF 2.3 LO"] == 5 * (5 + 4)  # two curves: 5 and 4 a statistic
     assert totals["em · NNPDF 2.3 LO"] == totals["ep · NNPDF 2.3 LO"]          # the same numbers in either cell
-    top5 = items["top5"]
-    assert top5.headers == ["all five"] + [bars.PLAIN[k] for k in keys if k != "area"] + ["head to head"]
-    assert [r.label for r in top5.rows] == ["1st", "2nd", "3rd", "4th", "5th"]
+    assert [i.key for i in sections["top5"].items] == ["top5-all"] + [f"top5-{k}" for k in keys[:-1]] + ["top5-h2h"]
+    top5 = items["top5-all"]                                                    # V197: a table a scoreboard
+    assert top5.headers == ["point", "points", "wins"]
     leader = max(totals, key=totals.get)
-    assert cells(top5)[0][0].startswith(f"{leader}  {totals[leader]} pts") and cells(top5)[1][0].endswith("(=1st)")
-    assert cells(top5)[4][0] == "–"                                             # four points scored
+    assert cells(top5)[0][:2] == [leader, str(totals[leader])]
+    assert [r.label for r in top5.rows][:2] == ["=1st", "=1st"]                 # sharing the first place
+    assert len(top5.rows) == 4                                                  # four points scored
     by_cell = items["scoreboard-cells"]
-    assert sorted(r.label.split(".")[0] for r in by_cell.rows) == ["1", "1", "2", "2"]   # placed in its cell
+    assert [r.label for r in by_cell.rows if r.band] == ["em", "ep"]
+    assert sorted(r.label.split(".")[0] for r in by_cell.rows if not r.band) == ["1", "1", "2", "2"]   # in its cell
+    assert all(" · " not in r.label for r in by_cell.rows)
     assert by_cell.headers[-4:] == ["total", "wins", "win rate", "mean rank"]
     assert {int(row[5]) for row in cells(by_cell)} == set(totals.values())      # the same totals, by statistic
     chi2 = cells(items["scoreboard-chi2_ndf"])                                  # a statistic's own
@@ -917,10 +923,11 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     assert sorted(row[3] for row in chi2) == ["0%", "0%", "100%", "100%"]       # one match, won or lost
     matches = items["head-to-head-1"]                                           # V177: em's head to head
     assert matches.headers == ["NNPDF 2.3 LO", "MSTW 2008 LO", "win rate", "matches"]
+    assert [r.label for r in matches.rows] == ["1. NNPDF 2.3 LO", "2. MSTW 2008 LO"] and matches.title.endswith(": em")
     won = int(cells(matches)[0][1].split("/")[0])                               # the leader against the other
     assert cells(matches)[0][1] == f"{won}/5" and cells(matches)[1][0] == f"{5 - won}/5" and won >= 3   # 5 statistics
     assert cells(matches)[0][2:] == [f"{won / 5:.0%}", "5"] and cells(matches)[0][0] == "–"
-    assert cells(top5)[0][6].startswith(f"em · NNPDF 2.3 LO  {won / 5:.0%} of 5")
+    assert cells(items["top5-h2h"])[0] == ["em · NNPDF 2.3 LO", f"{won / 5:.0%}", "5"]
     assert cells(board)[0][3] == f"{won / 5:.0%}"
     for key in keys[:-1]:
         ranking = items[f"{key}-ranking"]

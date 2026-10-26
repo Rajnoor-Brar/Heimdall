@@ -65,7 +65,7 @@ NOTES = {
             "units of y times x; each page as drawn (after voiding, alignment and normalisation). Each object has "
             "its own units, so each column is shaded on its own.",
 }
-TABLE_NOTE = ("A row per point (its page cell · its label), a column per object; mean: the {mean} mean of the "
+TABLE_NOTE = ("A row per point (its label, under its page cell's band), a column per object; mean: the {mean} mean of the "
               "row's numbers. ref: the page's reference curve itself (compared with nothing); –: no number (no bins "
               "compared, or not on that page).")
 RANKING_NOTE = ("Per point (its page cell · its label), the {mean} mean of its {name} over the pages where it was "
@@ -269,13 +269,39 @@ def _distance(key: str, value) -> float | None:
 
 
 def _table(key: str, title: str, labels: list[str], headers: list[str], cells: list[list[tuple]], notes: tuple,
-           tail: int = 0, bold: frozenset = frozenset()):
+           tail: int = 0, bold: frozenset = frozenset(), groups: list | None = None):
     """A table of the summary's document: `title`'s first line its title, the rest its subtitle; each cell (text,
-    background, ink); the rows in `bold` with their labels bold."""
+    background, ink[, bold, align]); the rows in `bold` with their labels bold. With `groups` (each row's page
+    cell, V197), a band names each group above its rows."""
     head, _, rest = title.partition("\n")
-    rows = [paper.Row(label, [paper.Cell(*cell) for cell in line], bold=i in bold)
-            for i, (label, line) in enumerate(zip(labels, cells))]
+    rows, current = [], None
+    for i, (label, line) in enumerate(zip(labels, cells)):
+        if groups is not None and groups[i] != current:
+            current = groups[i]
+            rows.append(paper.Row(current, band=True))
+        rows.append(paper.Row(label, [paper.Cell(*cell) for cell in line], bold=i in bold))
     return paper.Table(key, head, list(headers), rows, subtitle=rest, tail=tail, notes=tuple(notes))
+
+
+def _parts(rows: list[dict]) -> dict[str, tuple[str, str]]:
+    """Each point's page cell and its curve's label."""
+    parts = {}
+    for r in rows:
+        parts.setdefault(r["point"], (r.get("cell") or "", _label(r["curve"])))
+    return parts
+
+
+def _grouped(order: list[str], parts: dict) -> bool:
+    """Whether rows of these points are grouped under their cells' bands (V197): when they span two cells or
+    more."""
+    return len({parts[p][0] for p in order}) > 1 and all(parts[p][0] for p in order)
+
+
+def _by_cell(order: list[str], parts: dict) -> list[str]:
+    """The points with each cell's together, the cells in the order they first come, each cell's points in
+    theirs."""
+    cells = list(dict.fromkeys(parts[p][0] for p in order))
+    return sorted(order, key=lambda p: cells.index(parts[p][0]))
 
 
 def _ranking(rows: list[dict], key: str, notes: dict):
@@ -310,7 +336,7 @@ def _tables(rows: list[dict], notes: dict) -> dict:
     its label) and a column per object, each cell the point's number on that object's page, then its mean; the
     reference curve's cell says "ref", a missing one "–". Shaded by value (TABLES' rule), its text white on dark."""
     rows = _rows_of(rows)
-    points, cells = _points(rows), {}
+    points, parts, cells = _points(rows), _parts(rows), {}
     for r in rows:
         cells[(r["point"], r["object"])] = r
     objects = _natural({r["object"] for r in rows})
@@ -371,9 +397,17 @@ def _tables(rows: list[dict], notes: dict) -> dict:
         notes[f"stat-{key}"], notes[f"table-{mean}"] = NOTES[key], TABLE_NOTE.format(mean=mean)
         if key != "area":
             notes["compared"] = COMPARED
-        out[key] = _table(key, f"{title}{against}\n{shading}", [points[p] for p in points],
+        order = list(points)
+        grouped = _grouped(order, parts)
+        if grouped:
+            at = {p: i for i, p in enumerate(order)}
+            order = _by_cell(order, parts)
+            styled = [styled[at[p]] for p in order]
+        out[key] = _table(key, f"{title}{against}\n{shading}",
+                          [parts[p][1] if grouped else points[p] for p in order],
                           [short[o] for o in objects] + ["mean"], styled,
-                          (f"stat-{key}",) + (("compared",) if key != "area" else ()) + (f"table-{mean}",), tail=1)
+                          (f"stat-{key}",) + (("compared",) if key != "area" else ()) + (f"table-{mean}",), tail=1,
+                          groups=[parts[p][0] for p in order] if grouped else None)
     return out
 
 
@@ -473,6 +507,7 @@ def _scoreboard(key: str, title: str, points: dict, board: dict, ranks: dict, ra
     page cell when `cells_of` names them), a column per (key, header) in `columns`, then its total, its wins, its
     head-to-head win rate (`rates`) and the mean of its places (`ranks`). Points darker as they score more."""
     groups = list(dict.fromkeys(cells_of[p] for p in board)) if cells_of else [None]
+    banded = cells_of is not None and len(groups) > 1 and all(groups)
     order, labels, bold, totals, wins, mean_rank = [], [], set(), {}, {}, {}
     for group in groups:
         members = {p: s for p, s in board.items() if cells_of is None or cells_of[p] == group}
@@ -482,7 +517,8 @@ def _scoreboard(key: str, title: str, points: dict, board: dict, ranks: dict, ra
             if places[p] <= 3:
                 bold.add(len(order))
             order.append(p)
-            labels.append(f"{places[p]}. {points[p]}")
+            name = points[p][len(group) + 3:] if banded and points[p].startswith(f"{group} · ") else points[p]
+            labels.append(f"{places[p]}. {name}")
     top = max([v for s in board.values() for v in s.values()] + [1])
     best = max(list(totals.values()) + [1])
 
@@ -498,10 +534,11 @@ def _scoreboard(key: str, title: str, points: dict, board: dict, ranks: dict, ra
                 (f"{mean_rank[p]:.2f}" if p in mean_rank else "–", SURFACE, INK)]
         styled.append(row)
     return _table(key, title, labels, [h for _, h in columns] + ["total", "wins", "win rate", "mean rank"], styled,
-                  notes, tail=4, bold=frozenset(bold))
+                  notes, tail=4, bold=frozenset(bold), groups=[cells_of[p] for p in order] if banded else None)
 
 
-def _matches(key: str, cell: str, members: list[str], points: dict, pairs: dict, rates: dict, notes: tuple):
+def _matches(key: str, cell: str, members: list[str], points: dict, pairs: dict, rates: dict, notes: tuple,
+             first: bool = True):
     """A page cell's head to head (V177): a row per point, sorted by win rate, a column per opponent, the matches
     the row's point won against it of those played; then its win rate and matches. Blue: won most, orange: lost
     most, darker further from even."""
@@ -527,8 +564,9 @@ def _matches(key: str, cell: str, members: list[str], points: dict, pairs: dict,
         won, played = rates.get(p, (0.0, 0))
         row += [(f"{won / played:.0%}" if played else "–", SURFACE, INK), (str(played), SURFACE, INK)]
         styled.append(row)
-    title = f"Head to head{f': {cell}' if cell else ''}\nthe row's point against each column's: matches won of played"
-    return _table(key, title, [f"{places[p]}. {points[p]}" for p in order], [short[q] for q in order]
+    title = f"Head to head{f': {cell}' if cell else ''}" + (
+        "\nthe row's point against each column's: matches won of played" if first else "")
+    return _table(key, title, [f"{places[p]}. {short[p]}" for p in order], [short[q] for q in order]
                   + ["win rate", "matches"], styled, notes, tail=2,
                   bold=frozenset(i for i, p in enumerate(order) if places[p] <= 3))
 
@@ -572,36 +610,37 @@ def _standings(rows: list[dict], notes: dict) -> list:
     rates = _rates(pairs)
     key_rates = {k: _rates(_head_to_head(rankings, (k,))) for k in keys}
 
-    boards = [("all five", every, ranks)] + [(PLAIN[k], by_key[k], key_ranks[k]) for k in keys]
-    standings = [_standing(board, rank, points) for _, board, rank in boards]
+    boards = [("all", "All five statistics", every, ranks)] + [(k, PLAIN[k], by_key[k], key_ranks[k]) for k in keys]
     by_rate = sorted(rates, key=lambda p: (-rates[p][0] / rates[p][1], points[p]))
     rate_places = _places({p: -rates[p][0] / rates[p][1] for p in by_rate})
-    cells = []
-    for row in range(len(POINTS)):
-        line = []
-        for order, places, totals, wins, _ in standings:
-            if row < len(order):
-                p = order[row]
-                line.append((f"{points[p]}  {totals[p]} pts, {wins[p]} {'win' if wins[p] == 1 else 'wins'}"
-                             + (f"  (={_ordinal(places[p])})" if places[p] != row + 1 else ""), SURFACE, INK))
-            else:
-                line.append(("–", SURFACE, MUTED))
-        if row < len(by_rate):
-            p = by_rate[row]
-            line.append((f"{points[p]}  {rates[p][0] / rates[p][1]:.0%} of {rates[p][1]}"
-                         + (f"  (={_ordinal(rate_places[p])})" if rate_places[p] != row + 1 else ""), SURFACE, INK))
-        else:
-            line.append(("–", SURFACE, MUTED))
-        cells.append(line)
+
+    def placed(places: dict, chosen: list) -> list[str]:
+        shared = {}
+        for place in places.values():
+            shared[place] = shared.get(place, 0) + 1
+        return [("=" if shared[places[p]] > 1 else "") + _ordinal(places[p]) for p in chosen]
+
+    def name(p):
+        return (points[p], SURFACE, INK, False, "left")
+    top5 = []
+    for key, title, board, rank in boards:
+        order, places, totals, wins, _ = _standing(board, rank, points)
+        chosen = order[:len(POINTS)]
+        top5.append(_table(f"top5-{key}", title, placed(places, chosen), ["point", "points", "wins"],
+                           [[name(p), (str(totals[p]), SURFACE, INK), (str(wins[p]), SURFACE, INK)] for p in chosen],
+                           ("how-top5", "score") + (() if key == "all" else (f"stat-{key}",)) + ("apart", "counted")))
+    chosen = by_rate[:len(POINTS)]
+    top5.append(_table("top5-h2h", "Head to head: by win rate", placed(rate_places, chosen),
+                       ["point", "win rate", "matches"],
+                       [[name(p), (f"{rates[p][0] / rates[p][1]:.0%}", SURFACE, INK), (str(rates[p][1]), SURFACE, INK)]
+                        for p in chosen], ("how-top5", "h2h", "apart", "counted")))
     sections = []
-    notes["how-top5"] = ("Each column: a scoreboard's first five, its points and wins over the pages (all five: every "
-                         "statistic's points together, as the page-by-page scoreboard); head to head: the first five "
-                         "by win rate over every match, and their number; (=2nd): sharing that place.")
+    notes["how-top5"] = ("The top five: a table a scoreboard (all five statistics' points together, as the "
+                         "page-by-page scoreboard, then each statistic's), its first five with their points and wins "
+                         "(1st places), and the first five by head-to-head win rate with their matches; =2nd: sharing "
+                         "that place.")
     standard = ("apart", "counted", "score", "h2h")
-    sections.append(paper.Section("top5", "The top five", [
-        _table("top5", "The top five: best on the most pages\neach scoreboard's first five",
-               [_ordinal(n) for n in range(1, len(POINTS) + 1)], [name for name, _, _ in boards] + ["head to head"],
-               cells, ("how-top5",) + standard)]))
+    sections.append(paper.Section("top5", "The top five: best on the most pages", top5))
     notes["how-scoreboard"] = ("A row per point, a column per object's page: the points it scored on that page, its "
                                "five statistics' together (at most 25); total: over its pages.")
     sections.append(paper.Section("scoreboard", "Scoreboard: page by page", [
@@ -624,7 +663,7 @@ def _standings(rows: list[dict], notes: dict) -> list:
         members = [p for p in every if cells_of[p] == cell]
         if len(members) > 1:
             matches.append(_matches(f"head-to-head-{n}", cell, members, points, pairs, rates,
-                                    ("how-h2h", "counted", "h2h")))
+                                    ("how-h2h", "counted", "h2h"), first=not matches))
     if matches:
         sections.append(paper.Section("head-to-head", "Head to head", matches))
     boards_by_key = []
@@ -642,9 +681,28 @@ def _standings(rows: list[dict], notes: dict) -> list:
     return sections
 
 
+def _facts(rows: list[dict]) -> list[str]:
+    """What a summary holds (V197): its points, cells, objects and pages, and what they are compared against."""
+    rows = _rows_of(rows)
+    points, cells = _points(rows), {r.get("cell") or "" for r in rows}
+    pages: dict = {}
+    for r in rows:
+        pages.setdefault(r["page"], []).append(r)
+    with_data = sum(1 for rs in pages.values() if not any(r["is_reference"] for r in rs))
+    references = sorted({_label(str(r["reference"])) for r in rows})
+    against = ", ".join(references) if len(references) <= 2 else "each page's reference"
+    objects = {r["object"] for r in rows}
+    cells.discard("")
+    return [f"{len(points)} point(s){f' in {len(cells)} page cell(s)' if cells else ''}, on {len(objects)} object(s): "
+            f"{len(pages)} page(s) measured.",
+            f"Compared against {against}: "
+            f"{with_data} of the {len(pages)} page(s) have data"
+            + ("; the others are compared against their first curve." if with_data < len(pages) else ".")]
+
+
 def summary_model(rows: list[dict], heading: str = ""):
-    """The summary as a document (V196): the standings (V176, V177), then a section a statistic, its ranking (but
-    the area's) and its table (V174)."""
+    """The summary as a document (V196): its facts and notes up front (V197), the standings (V176, V177), then a
+    section a statistic, its ranking (but the area's) and its table (V174)."""
     notes: dict = {}
     sections = _standings(rows, notes)
     tables = _tables(rows, notes)
@@ -654,7 +712,7 @@ def summary_model(rows: list[dict], heading: str = ""):
             items.append(tables[key])
         if items:
             sections.append(paper.Section(key, PLAIN[key], items))
-    return paper.Document(heading, sections, notes)
+    return paper.Document(heading, sections, notes, _facts(rows) if rows else [])
 
 
 def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str = "") -> list[Path]:

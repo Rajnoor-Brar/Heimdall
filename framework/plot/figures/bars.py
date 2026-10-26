@@ -80,14 +80,19 @@ PLAIN = {"chi2_ndf": "χ²/ndf", "rel_abs_area": "|Δ| / reference", "area_ratio
 GRIDS = ((2, 3), (3, 2), (6, 1))
 PANEL, PANEL_ROOM, PANEL_GAP, MOST_BAR, LEAST_BAR = 1.4, 0.75, 0.3, 0.32, 0.12
 STRIP = 0.35                                                    # the page image's title strip
+KEY = 0.3                                                       # its foot: what an orange or a pink bar means (V205)
 
 
 def _finite(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _infinite(value) -> bool:
+    return isinstance(value, float) and math.isinf(value)
+
+
 def _shown(value: float) -> str:
-    return f"{value:,.0f}" if abs(value) >= 100 else f"{value:.3g}"
+    return f"{value:,.0f}" if 100 <= abs(value) < 1e6 else f"{value:.3g}"
 
 
 def _label(text: str) -> str:
@@ -113,17 +118,41 @@ def _style(ax, labels: list[str]) -> None:
     ax.set_ylim(len(labels) - 0.5, -0.5)               # the page's first curve on top
 
 
-def _bars(ax, values: list, notes: list[str], size: float = 8) -> None:
-    """Thin bars from one baseline, each value at its tip; a missing value says why."""
+def _bars(ax, values: list, notes: list[str], size: float = 8, panel: float = 2.0) -> bool:
+    """Thin bars from one baseline, each value at its tip; a missing value says why. The axis runs both ways from 0
+    (a mean ratio may be below it), as far as paper.reach: a bar far beyond the rest is cut at the axis's end, its
+    value beside with » (or « below 0); blue above 0 and orange below, violet and golden yellow when cut, pink and
+    red when absurd or infinite (paper.colour_of). Beside the bars
+    is room for their values as measured, in a panel `panel` inches wide, so no text is drawn off it (V205: one
+    10⁸ pixels off it was more than FreeType could raster). Whether a bar was cut."""
     finite = [v for v in values if _finite(v)]
-    top = max(finite + [0.0]) or 1.0
-    for i, (value, note) in enumerate(zip(values, notes)):
-        if _finite(value):
-            ax.barh(i, value, height=0.55, color=SERIES, edgecolor=SURFACE, linewidth=1)
-            ax.text(value + 0.015 * top, i, _shown(value), va="center", ha="left", color=INK, fontsize=size)
-        else:
-            ax.text(0.015 * top, i, note, va="center", ha="left", color=MUTED, fontsize=size, style="italic")
-    ax.set_xlim(0, top * 1.3)
+    reach = paper.reach(finite) or 1.0
+    absurd = paper.absurd_from(finite)
+    said: dict[int, tuple[float, str, str]] = {}
+    for i, value in enumerate(values):
+        if _finite(value) or _infinite(value):
+            drawn = min(reach, max(-reach, value))
+            text = _shown(value) if _finite(value) else ("∞" if value > 0 else "−∞")
+            if drawn != value:
+                text = paper.CUT[0] + text if drawn >= 0 else text + paper.CUT[1]
+            said[i] = (drawn, text, paper.colour_of(value, reach, absurd))
+    high = max([drawn for drawn, _, _ in said.values()] + [0.0])
+    low = min([drawn for drawn, _, _ in said.values()] + [0.0])
+    span = (high - low) or reach
+    gap = 0.04                                                    # inches from a bar's tip to its value
+    right = max([paper.width(text, size) for drawn, text, _ in said.values() if drawn >= 0] + [0.0]) + gap
+    left = max([paper.width(text, size) + gap for drawn, text, _ in said.values() if drawn < 0] + [0.0])
+    per_inch = span / max(panel - left - right, 0.3 * panel)       # the bars keep a third of the panel at least
+    for i, note in enumerate(notes):
+        if i not in said:
+            ax.text(gap * per_inch, i, note, va="center", ha="left", color=MUTED, fontsize=size, style="italic")
+            continue
+        drawn, text, colour = said[i]
+        ax.barh(i, drawn, height=0.55, color=colour, edgecolor=SURFACE, linewidth=1)
+        ax.text(drawn + gap * per_inch if drawn >= 0 else drawn - gap * per_inch, i, text, va="center",
+                ha="left" if drawn >= 0 else "right", color=INK, fontsize=size)
+    ax.set_xlim(low - left * per_inch, high + right * per_inch)
+    return any(colour not in (paper.ABOVE, paper.BELOW) for _, _, colour in said.values())
 
 
 def grid(curves: int, label: float) -> tuple[int, int, float, int]:
@@ -131,7 +160,7 @@ def grid(curves: int, label: float) -> tuple[int, int, float, int]:
     curves a page). The grid gives each bar the most height with every panel at least PANEL wide (2 × 3 when none
     does); a bar is at most MOST_BAR, and below LEAST_BAR the curves continue on further pages, in the grid that
     holds the most."""
-    room = paper.A4[1] - 2 * paper.EDGE - STRIP
+    room = paper.A4[1] - 2 * paper.EDGE - STRIP - KEY
     fits = [(c, r) for c, r in GRIDS if (paper.WIDTH - label - (c - 1) * PANEL_GAP) / c >= PANEL] or [GRIDS[0]]
     each = {g: (room - g[1] * PANEL_ROOM) / g[1] for g in fits}               # a panel's height for bars
     best = max(fits, key=lambda g: each[g])
@@ -152,6 +181,7 @@ def _page_figure(rows: list[dict], title: str, columns: int, bar: float, label: 
     reference = rows[0]["reference"] if rows else ""
     fig.text(paper.SIDE / w, 1 - (paper.EDGE + STRIP / 2) / h, f"{title}  ·  against {_label(reference)}",
              color=MUTED, fontsize=9, ha="left", va="center")
+    cut = False
     for k, (key, name) in enumerate(PANELS):
         r, c = divmod(k, columns)
         left = paper.SIDE + label + c * (panel + PANEL_GAP)
@@ -160,11 +190,14 @@ def _page_figure(rows: list[dict], title: str, columns: int, bar: float, label: 
         notes = ["reference" if r_["is_reference"] and key != "area" else "no bins compared" for r_ in rows]
         values = [None if (r_["is_reference"] and key != "area") else r_[key] for r_ in rows]
         _style(ax, labels)
-        _bars(ax, values, notes, size)
+        cut = _bars(ax, values, notes, size, panel) or cut
         if key in ("area_ratio", "ratio_mean"):
             ax.axvline(1, color=MUTED, linewidth=0.8, linestyle=":")      # the reference's own
         ax.set_title(name, color=INK, fontsize=9, loc="left")
         ax.set_yticks(range(len(labels)), labels if c == 0 else [""] * len(labels), color=INK, fontsize=size)
+    if cut:                                                     # the key, at the page's foot
+        fig.text(paper.SIDE / w, paper.EDGE / h, "\n".join(paper.wrap(paper.CUT_KEY, paper.WIDTH, 7)), color=MUTED,
+                 fontsize=7, ha="left", va="bottom")
     return fig
 
 
@@ -341,9 +374,12 @@ def _ranking(rows: list[dict], key: str, notes: dict):
     order = "closest to 1 first, bars from 1: blue above, orange below" if ratio else "lowest first"
     notes[f"ranking-{key}"] = RANKING_NOTE.format(mean=GEOMETRIC if ratio else "plain", name=PLAIN[key], order=order)
     notes[f"stat-{key}"], notes["compared"] = NOTES[key], COMPARED
+    values = [means[p][0] for p in ranked]
+    if paper.any_cut([v - 1.0 if ratio else max(v, 0.0) for v in values]):
+        order += ". " + paper.CUT_KEY                                       # V205
     return paper.Ranking(f"{key}-ranking",
                          f"{title}: each point's {'geometric ' if ratio else ''}mean over its pages (pages compared)",
-                         [f"{points[p]}  ({means[p][1]})" for p in ranked], [means[p][0] for p in ranked],
+                         [f"{points[p]}  ({means[p][1]})" for p in ranked], values,
                          subtitle=order, base=1.0 if ratio else 0.0,
                          colours=(DARK, WARM) if ratio else (SERIES, SERIES),
                          notes=(f"ranking-{key}", f"stat-{key}", "compared"))
@@ -802,7 +838,7 @@ def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str 
     if document.sections:
         target.parent.mkdir(parents=True, exist_ok=True)
         page_ = target.with_suffix(".html")
-        page_.write_text(webpage.render(document, paper.note_numbers(document)), encoding="utf-8")
+        page_.write_text(webpage.render(document, paper.note_numbers(document), paper), encoding="utf-8")
         written.append(page_)
     try:
         for page_ in paper.pages(document):

@@ -393,7 +393,13 @@ same kind of numbers, whoever made them. The columns:
 as bars, one panel each for χ²/ndf, |Δ|/reference, area/reference, the mean ratio, mean |ratio − 1| and the area
 (matplotlib; the formats of `[plot]` that it writes: png, pdf, svg). Each is an A4 portrait page, its six panels
 in the grid that gives each bar the most height (2 × 3, 3 × 2 or 6 × 1); more curves than a page holds continue
-on further pages (one PDF, `<object>_NN.png`). `statistics = false` turns them and the summary off.
+on further pages (one PDF, `<object>_NN.png`). A bar runs left of 0 for a negative value (a mean ratio can be),
+and one 20 times the others' median or more (a curve gone wild) is cut at the panel's end, its value written
+beside it after » (or before « on the left), so the others keep their scale; the rankings (from 1, for a ratio)
+and `summary.html` do the same. **Colours**, above the base and below it: blue and orange as drawn; violet and
+golden yellow when cut (too big); pink and red when absurd (a million times the median or more, or infinite).
+A page or a ranking with a cut bar says so in a line.
+`statistics = false` turns them and the summary off.
 
 **The summary:** `statistics/<set>/summary.pdf`, every page A4 portrait (and `summary/summary_<NN>.png`, a
 page each), headed by the run's folder, the set and the section, and numbered ("page 3 of 21"). Its **front

@@ -7,8 +7,9 @@ it (numbers as numbers, then text; –, ref and blanks last), again the other wa
 each of its bands (a <tbody> each), a pinned row (a mean) stays last, and the label column's header puts the table
 back in its order. Each item links its notes. Inline CSS and script; no external file or library.
 
-`render(document, numbers)`: the page's text, `numbers` the notes' numbers (paper.note_numbers). Items are read
-by their fields (a table's headers and rows, a ranking's names and values), not by their class.
+`render(document, numbers, scale)`: the page's text, `numbers` the notes' numbers (paper.note_numbers), `scale`
+paper.py itself, for its bars' reach and colours (V205). Items are read by their fields (a table's headers and
+rows, a ranking's names and values), not by their class.
 """
 
 from __future__ import annotations
@@ -193,30 +194,32 @@ def _table(table, numbers: dict) -> list[str]:
 
 def shown(value: float) -> str:
     """A number as the PDF shows it (paper.shown)."""
-    return f"{value:,.0f}" if abs(value) >= 100 else f"{value:.3g}"
+    return f"{value:,.0f}" if 100 <= abs(value) < 1e6 else f"{value:.3g}"
 
 
-def _ranking(ranking, numbers: dict) -> list[str]:
-    """A ranking as a table, a bar in each row's cell: from 0, or from its base both ways (a ratio's 1)."""
+def _ranking(ranking, numbers: dict, scale) -> list[str]:
+    """A ranking as a table, a bar in each row's cell: from 0, or from its base both ways (a ratio's 1), as far as
+    `scale`.reach; a bar beyond is cut at the cell's end, its value marked, and coloured as the PDF's (V205)."""
     values = ranking.values
-    if ranking.base:
-        span = max([abs(v - ranking.base) for v in values] + [0.0]) or 0.05
-    else:
-        top = max([v for v in values if v > 0] + [0.0]) or 1.0
+    offsets = [v - ranking.base if ranking.base else max(v, 0.0) for v in values]
+    span, absurd = (scale.reach(offsets) or (0.05 if ranking.base else 1.0)), scale.absurd_from(offsets)
     out = [f'<figure class="item" id="{anchor("i", ranking.key)}">', _caption(ranking),
            '<div class="scroll"><table class="sortable">',
            '<thead><tr><th class="label" data-col="-1" title="the ranking\'s own order">point (pages)</th>'
            '<th data-col="0">value</th></tr></thead><tbody>']
-    for i, (name, value) in enumerate(zip(ranking.names, values)):
+    for i, (name, value, offset) in enumerate(zip(ranking.names, values, offsets)):
+        drawn = min(span, max(-span if ranking.base else 0.0, offset))
         if ranking.base:
-            share = (value - ranking.base) / span * 50
+            share = drawn / span * 50
             left, wide, axis = 50 + min(share, 0.0), abs(share), '<span class="axis" style="left:50%"></span>'
         else:
-            left, wide, axis = 0.0, max(value, 0.0) / top * 100, '<span class="axis" style="left:0"></span>'
-        fill = colour(ranking.colours[0] if value >= ranking.base else ranking.colours[1])
+            left, wide, axis = 0.0, drawn / span * 100, '<span class="axis" style="left:0"></span>'
+        fill = colour(scale.colour_of(offset, span, absurd, *ranking.colours))
+        said = shown(value) if drawn == offset else \
+            (scale.CUT[0] + shown(value) if drawn >= 0 else shown(value) + scale.CUT[1])
         out.append(f'<tr data-i="{i}"><th class="label">{text_of(name)}</th><td class="bar" data-v="{value!r}">'
                    f'<span class="track">{axis}<span class="fill" style="left:{left:.2f}%;width:{wide:.2f}%;'
-                   f'background:{fill}"></span></span><span>{shown(value)}</span></td></tr>')
+                   f'background:{fill}"></span></span><span>{html.escape(said)}</span></td></tr>')
     out += ["</tbody></table></div>", _notes(ranking, numbers), "</figure>"]
     return out
 
@@ -227,15 +230,15 @@ def _text(text, numbers: dict) -> list[str]:
             "</figure>"]
 
 
-def _item(item, numbers: dict) -> list[str]:
+def _item(item, numbers: dict, scale) -> list[str]:
     if hasattr(item, "headers"):
         return _table(item, numbers)
     if hasattr(item, "values"):
-        return _ranking(item, numbers)
+        return _ranking(item, numbers, scale)
     return _text(item, numbers)
 
 
-def render(document, numbers: dict) -> str:
+def render(document, numbers: dict, scale) -> str:
     """`document` as one HTML page: its heading and facts, its contents (each section, and the items of a section
     of a few), its sections, its notes numbered as `numbers` says."""
     heading = text_of(document.heading or "Statistics")
@@ -261,7 +264,7 @@ def render(document, numbers: dict) -> str:
             continue
         out += [f'<section id="{anchor("s", section.key)}">', f"<h2>{text_of(section.title)}</h2>"]
         for item in section.items:
-            out += _item(item, numbers)
+            out += _item(item, numbers, scale)
         out.append("</section>")
     out.append("</main>")
     if numbers:

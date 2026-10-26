@@ -55,6 +55,9 @@ execution map: each step's row is ticked when it is committed.
   guard matched its baseline from before L1 (315 points of 35 configurations), and `heimdall status`'s counts
   matched main's before L2 (the file of the morning differs only by Brookhaven's own commits of 10:22 and the
   zeus run's end). I-106 is deleted from ISSUES.md; V195 and V200–V204 are in docs/07_Record.md.
+- Found at the end, outside the plan: `heimdall runs` listed two Brookhaven runs of the morning ended by
+  matplotlib's "raster overflow" in the plot stage (a bar value drawn 10⁸ pixels off its panel); fixed as V205
+  (cut bars, coloured by side and size on the user's word), its own commit.
 
 ## Context
 

@@ -281,7 +281,7 @@ def test_cells_against_curves_turn_and_leave_gaps_and_are_left_out_when_nothing_
 def page_of(document) -> tuple[str, dict]:
     """The document's HTML, and what is in it: ids, local links, other references, each item's <tbody> count."""
     from html.parser import HTMLParser
-    text = bars.webpage.render(document, paper.note_numbers(document))
+    text = bars.webpage.render(document, paper.note_numbers(document), paper)
     found = {"ids": set(), "links": [], "others": [], "bodies": {}, "pins": set()}
 
     class Reader(HTMLParser):
@@ -347,3 +347,55 @@ def test_the_sets_index_links_each_sets_statistics(scratch):
     index = plot.write_sets_index(run / "plots", "a run").read_text(encoding="utf-8")
     assert '<a href="../statistics/totality/summary.html">statistics</a>' in index
     assert "../statistics/pdfs/" not in index                                   # no summary there: no link
+
+
+def test_a_bar_far_beyond_the_rest_is_cut_and_every_value_stays_on_its_panel(scratch):
+    """V205: a curve gone wild (Sherpa with one PDF: σ 10⁹ times the rest, a mean ratio of −3.8·10⁸) put its value
+    10⁸ pixels off the panel, more than FreeType could raster; a negative value drew over the curve labels."""
+    assert paper.reach([0.3, 0.8, 0.5, 0.2, 3.8e8]) == 0.8 and paper.reach([1.0, 30.0]) == 30.0
+    assert paper.reach([0.0, 0.0, 5.0]) == 5.0 and paper.reach([]) == 0.0
+    wild = {"area": 1.3e13, "area_ratio": 7.2e9, "ratio_mean": -3.8e8, "rel_abs_area": 8.0e9, "ratio_dev": 4.3e9,
+            "chi2_ndf": 1.86}
+    rows = [r for r in worst_rows() if r["page"] == "NNPDF23lo_lpdfon/d01"]
+    rows = [dict(rows[0], point=f"p{i}", curve=f"curve {i}", ratio_mean=0.5 - 0.15 * i) for i in range(6)] + \
+        [dict(rows[0], point="wild", curve="wild", **wild)]
+    label = max(paper.width(r["curve"], 8) for r in rows) + 0.12
+    columns, _, bar, _ = bars.grid(len(rows), label)
+    figure = bars._page_figure(rows, "a page", columns, bar, label, plt)
+    figure.savefig(scratch / "wild.png", dpi=150)                          # raster overflow before
+    renderer = figure.canvas.get_renderer()
+    for ax in figure.axes:
+        panel = ax.get_window_extent(renderer)
+        for text in ax.texts:
+            box = text.get_window_extent(renderer)
+            assert panel.x0 - 1 <= box.x0 and box.x1 <= panel.x1 + 1, (ax.get_title(loc="left"), text.get_text())
+    said = {ax.get_title(loc="left"): [t.get_text() for t in ax.texts] for ax in figure.axes}
+    assert said["mean ratio"][-1] == "-3.8e+08 «" and said["area"][-1] == "» 1.3e+13"
+    assert paper.CUT_KEY in [t.get_text().replace("\n", " ") for t in figure.texts]          # its key at the foot
+    plt.close(figure)
+    ranking = paper.Ranking("r", "mean ratio", [f"p{i}" for i in range(7)], [0.9, 1.1, 0.8, 1.2, 0.95, 1.05, -3.8e8],
+                            base=1.0)
+    document = paper.Document("heading", [paper.Section("s", "S", [ranking])])
+    figure = paper.figure(document, paper.pages(document)[0], plt)
+    assert "-3.8e+08 «" in [t.get_text() for t in figure.texts] and not texts_inside(figure)
+    plt.close(figure)
+    page = bars.webpage.render(document, paper.note_numbers(document), paper)
+    assert "-3.8e+08 «" in page and f"background:{paper.WILD[1]}" in page
+
+
+def test_a_bar_is_blue_or_orange_by_its_side_violet_or_golden_when_cut_pink_or_red_when_absurd(scratch):
+    """The user, 2026-10-26: "blue, indigo/violet, pink for positive; orange, golden yellow, red for negative"."""
+    values = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 0.95, -0.5, 40.0, -40.0, 2e7, -2e7, float("inf")]
+    figure = plt.figure()
+    ax = figure.add_subplot()
+    assert bars._bars(ax, values, [""] * len(values), panel=2.5)
+    colours = [paper.colour_of(v, paper.reach(values), paper.absurd_from(values)) for v in values]
+    assert colours == [paper.ABOVE] * 10 + [paper.BELOW, paper.TOO_BIG[0], paper.TOO_BIG[1], paper.WILD[0],
+                                            paper.WILD[1], paper.WILD[0]]
+    import matplotlib.colors as mc
+    assert [mc.to_hex(bar.get_facecolor()) for bar in ax.patches] == [mc.to_hex(c) for c in colours]
+    assert [t.get_text() for t in ax.texts][-6:] == ["-0.5", "» 40", "-40 «", "» 2e+07", "-2e+07 «", "» ∞"]
+    plt.close(figure)
+    figure = plt.figure()
+    assert not bars._bars(figure.add_subplot(), [0.5, 1.0, -0.2], ["", "", ""])          # nothing cut: no key
+    plt.close(figure)

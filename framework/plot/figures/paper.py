@@ -48,6 +48,16 @@ TEXT_LINE = TEXT * 1.4 / 72                         # its line
 HANG = 0.3                                          # a numbered line's text, in from its number
 CONTENTS_ITEMS = 8                                  # a section's items in the contents, at most (more: it alone)
 LEAST = 3                                           # the fewest rows an item starts a page with
+OUTLIER = 20.0                                      # a bar this many times the bars' median, or more, is cut (V205)
+ABSURD = 1e6                                        # … this many times, or more, or infinite: absurd
+# A bar's colours (the user, 2026-10-26), above its base and below it: blue and orange as it is, violet and golden
+# yellow when too big (cut), pink and red when absurd.
+ABOVE, BELOW = SERIES, "#e8710a"
+TOO_BIG = ("#6741d9", "#e0a800")
+WILD = ("#e64980", "#d62828")
+CUT = ("» ", " «")                                  # beside a cut bar's value, as it points: out, or back
+CUT_KEY = ("Too big, cut at the axis's end (20 times the others' median or more): violet above, golden yellow below. "
+           "Absurd (a million times or more, or infinite): pink above, red below.")
 SAFETY = 1.01                                       # measured text, widened a little
 DPIS = (100, 150)                                   # text measured at the figure's own resolution and the PNGs'
                                                     # (hinted, the widest; a PDF's is narrower)
@@ -307,14 +317,48 @@ def _table_shape(table: Table) -> _TableShape:
 
 def shown(value: float) -> str:
     """A ranking's value at its bar's tip."""
-    return f"{value:,.0f}" if abs(value) >= 100 else f"{value:.3g}"
+    return f"{value:,.0f}" if 100 <= abs(value) < 1e6 else f"{value:.3g}"
+
+
+def reach(values: list) -> float:
+    """How far a bar axis reaches from its base (V205): the largest magnitude, or, when some are OUTLIER times the
+    median magnitude or more (a curve gone wild: σ 10⁹ times the rest), the largest of the others; those are drawn
+    cut at it, their values written beside, so the rest stay readable and nothing is drawn off its panel."""
+    sizes = sorted(abs(v) for v in values if isinstance(v, (int, float)) and math.isfinite(v))
+    if not sizes:
+        return 0.0
+    median = sizes[len(sizes) // 2]
+    kept = [s for s in sizes if s < OUTLIER * median] if median > 0 else sizes
+    return max(kept) if kept else sizes[-1]
+
+
+def absurd_from(values: list) -> float:
+    """The magnitude from which a bar is absurd: ABSURD times the bars' median magnitude (never, when that is 0)."""
+    sizes = sorted(abs(v) for v in values if isinstance(v, (int, float)) and math.isfinite(v))
+    median = sizes[len(sizes) // 2] if sizes else 0.0
+    return ABSURD * median if median > 0 else math.inf
+
+
+def any_cut(offsets: list) -> bool:
+    """Whether any of these bars is cut at the axis's end, or infinite (V205): their key is then said."""
+    most = reach(offsets)
+    return any(isinstance(o, (int, float)) and (math.isinf(o) or abs(o) > most) for o in offsets)
+
+
+def colour_of(offset: float, reach: float, absurd: float, above: str = ABOVE, below: str = BELOW) -> str:
+    """A bar's colour by its offset from its base (V205): its own, `above` or `below`; violet or golden yellow when
+    cut at `reach`; pink or red when absurd or infinite."""
+    side = 0 if offset >= 0 else 1
+    if not math.isfinite(offset) or abs(offset) >= absurd:
+        return WILD[side]
+    return TOO_BIG[side] if abs(offset) > reach else (above, below)[side]
 
 
 def _ranking_shape(ranking: Ranking) -> _RankingShape:
     shape = ranking.__dict__.get("_shape")
     if shape is None:
         shape = _RankingShape(max([width(n) for n in ranking.names] + [0.6]) + 2 * PAD,
-                              max([width(shown(v)) for v in ranking.values] + [0.3]) + 0.08,
+                              max([width(CUT[0] + shown(v)) for v in ranking.values] + [0.3]) + 0.08,
                               wrap(ranking.title, WIDTH, TITLE), wrap(ranking.subtitle, WIDTH, SUB) if ranking.subtitle else [])
         ranking.__dict__["_shape"] = shape
     return shape
@@ -585,20 +629,26 @@ def _ranking(canvas: _Canvas, ranking: Ranking, piece: Piece, top: float) -> Non
     left = SIDE + shape.label_width + 0.08                    # the bars clear of the longest name
     room = WIDTH - shape.label_width - 0.08 - shape.value_width * (2 if ranking.base else 1)
     values = ranking.values
-    if ranking.base:                                    # from the base both ways, as far as the furthest
-        span = max([abs(v - ranking.base) for v in values] + [0.0]) or 0.05
-        zero, scale = left + shape.value_width + room / 2, room / 2 / span
-    else:
-        zero, scale = left, room / (max([v for v in values if v > 0] + [0.0]) or 1.0)
+    offsets = [v - ranking.base if ranking.base else max(v, 0.0) for v in values]
+    absurd = absurd_from(offsets)
+    if ranking.base:                                    # from the base both ways, as far as the furthest (V205: reach)
+        span = reach(offsets) or 0.05
+        zero, scale, least = left + shape.value_width + room / 2, room / 2 / span, -span
+    else:                                               # from 0 on: a value below it is drawn as none
+        span = reach(offsets) or 1.0
+        zero, scale, least = left, room / span, 0.0
     for i in piece.rows:
         value, middle = values[i], top + BAR / 2
         canvas.text(SIDE + PAD, middle, ranking.names[i])
-        length = (value - ranking.base) * scale
-        colour = ranking.colours[0] if value >= ranking.base else ranking.colours[1]
+        offset = min(span, max(least, value - ranking.base))
+        length = offset * scale
+        colour = colour_of(offsets[i], span, absurd, *ranking.colours)
         canvas.box(min(zero, zero + length), middle - 0.55 * BAR / 2, abs(length), 0.55 * BAR, fill=colour,
                    edge=colour)
         tip = zero + length + (0.04 if length >= 0 else -0.04)
-        canvas.text(tip, middle, shown(value), ha="left" if length >= 0 else "right")
+        said = shown(value) if offset == value - ranking.base else \
+            (CUT[0] + shown(value) if length >= 0 else shown(value) + CUT[1])
+        canvas.text(tip, middle, said, ha="left" if length >= 0 else "right")
         top += BAR
     first_top = top - BAR * len(piece.rows)
     canvas.line(zero, zero, first_top, MUTED, top)

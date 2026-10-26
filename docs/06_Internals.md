@@ -842,7 +842,7 @@ results/<P>/<run>/<cfg>/
                                       root (Paint), yoda (mkhtml), mpl
   plots/<set>/<backend>/index.html    a set's pages, by cell;  plots/index.html: every set
   plots/<set>/<backend>/sheets/<figure>.{pdf,png}   sheets
-  statistics/<set>/statistics.csv     its pages' numbers;  bars/<cell>/<object>.<fmt>; summary.pdf, summary/summary_<NN>.png: rankings and tables, A4 (figures/paper.py);
+  statistics/<set>/statistics.csv     its pages' numbers;  bars/<cell>/<object>.<fmt>; summary.pdf, summary/summary_<NN>.png: rankings and tables, A4 (figures/paper.py); summary.html (figures/webpage.py);
                                       figures/<backend>/<cell>/<figure>/<object>: statistic figures
 results/<P>/<run>/compare/<figure>/<backend>/  a compare figure's pages;  …/statistics/: its numbers
 

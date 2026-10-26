@@ -854,7 +854,7 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     mean; the reference "ref"; each item names its notes, what its numbers are. A table wider than the page is cut
     into column blocks stacked on its page, the mean on the last. V197: the top five a table a scoreboard; a table
     in curve order groups its rows under their cells' bands; the facts, contents and notes up front. V198: each
-    statistic's page cells against its curves."""
+    statistic's page cells against its curves. V199: summary.html beside it."""
     import re
     from runner import plugins
     run, configuration, plans = stage
@@ -866,6 +866,7 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     boxes = re.findall(rb"/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)\s*\]", pdf)
     assert len(boxes) == count and {(float(w), float(h)) for w, h in boxes} == {(595.44, 841.68)}   # A4, every page
     assert len(list((numbers / "summary").glob("summary_*.png"))) == count
+    assert "<h2>Head to head</h2>" in (numbers / "summary.html").read_text(encoding="utf-8")   # V199: the same, a page
     bars = plugins.load(plot.hep_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
     rows = [r for page in plot.pages(shown, configuration, plans) for r in (plot.statistics_of(page) or [])]
     document = bars.summary_model(rows, plot.heading_of(numbers))

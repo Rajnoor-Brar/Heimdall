@@ -1,6 +1,6 @@
 # Plan: statistics on A4, and better organised (2026-10-26)
 
-Issue: [I-107](ISSUES.md#i-107-statistics-on-a4-and-better-organised). Approved 2026-10-26.
+Issue: I-107, done 2026-10-26 (its history: V196–V199 in docs/07_Record.md). Approved 2026-10-26.
 
 ## Execution map
 
@@ -8,8 +8,8 @@ Issue: [I-107](ISSUES.md#i-107-statistics-on-a4-and-better-organised). Approved 
 | --- | --- | --- | --- |
 | S1 A4 pages | done | `c3a06d6` | V196 |
 | S2 What the summary holds, reorganised | done | `68a266c` | V197 |
-| S3 Cell × curve tables | done | (this commit; hash in the next) | V198 |
-| S4 summary.html | to do | | |
+| S3 Cell × curve tables | done | `e7b2b96` | V198 |
+| S4 summary.html | done | (this commit) | V199 |
 
 ## Context
 

@@ -1722,11 +1722,14 @@ def _clear(folder: Path) -> None:
 
 
 def write_sets_index(plots: Path, title: str) -> Path | None:
-    """plots/index.html (V164): every set drawn there, linked to each backend's index of it."""
+    """plots/index.html (V164): every set drawn there, linked to each backend's index of it and to its statistics'
+    summary.html (V199)."""
     rows = []
     for folder in sorted(p for p in plots.iterdir() if p.is_dir()) if plots.is_dir() else ():
         links = [f'<a href="{html.escape(folder.name)}/{b}/index.html">{b}</a>' for b in BACKENDS
                  if (folder / b / "index.html").is_file()]
+        if links and (plots.parent / "statistics" / folder.name / "summary.html").is_file():
+            links.append(f'<a href="../statistics/{html.escape(folder.name)}/summary.html">statistics</a>')
         if links:
             rows.append(f"<li>{html.escape(folder.name)}: {' · '.join(links)}</li>")
     if not rows:

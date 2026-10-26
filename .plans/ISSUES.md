@@ -37,7 +37,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | 3 One dialect | I-20, I-21, I-91 |
 | 4 Retirements, record formats | I-25, I-26, I-27, I-28, I-29, I-30, I-68, I-105 (drops) |
 | 5 Session layer, CLI | I-35, I-36, I-37, I-70, I-71, I-72, I-73, I-100, I-101 |
-| 6 Plot model | I-40 (closed: kept), I-41, I-42, I-43, I-44, I-45, I-46, I-47, I-48, I-97, I-99, I-105 (deck template), I-107 |
+| 6 Plot model | I-40 (closed: kept), I-41, I-42, I-43, I-44, I-45, I-46, I-47, I-48, I-97, I-99, I-105 (deck template) |
 | 7 Package restructure | I-50, I-51, I-52 |
 | 8 The stack | I-55 … I-63, I-65, I-66, I-77 (rest), I-88 |
 | 9 Roots, cluster images | I-75, I-86 |
@@ -103,7 +103,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-46 | Compare figures: their own stage, drawn once | P2 | open |
 | I-47 | Paint's PDF line widths | P3 | open |
 | I-48 | Known plot limits | P3 | idea |
-| I-107 | Statistics on A4, and better organised | P1 | in progress |
 | **M6** | **The package restructure** | | |
 | I-50 | `runner/` as subpackages by layer | P2 | decision (D8) |
 | I-51 | The plugin loader for tool folders only | P2 | blocked on I-50 |
@@ -385,15 +384,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 **P3 · idea (audit 2 H15)**
 - Heat maps are Paint's only (no mpl). A scan's x must be numeric (no PDF-set scans). A sheet has no
   shared y title or legend.
-
-### I-107 Statistics on A4, and better organised
-**P1 · in progress (decided 2026-10-26) · plan: [statistics_a4_plan.md](statistics_a4_plan.md)**
-- **Problem:** the summary's pages are sized to their content: 8 to 37.5 in wide in zeus_validation, a
-  top five 37.5 × 2 in, 38 pages of one 2×2 head-to-head table each, a footnote of up to 6 lines a page;
-  each per-page bar image is 18.5 in wide.
-- **Fix:** every page A4 portrait, too-wide tables cut into column blocks stacked on the page, small tables
-  sharing a page; the top five as a table a scoreboard, rows grouped by cell, a front page of facts,
-  contents and notes; cell × curve tables; `summary.html` (steps S1–S4).
 
 ## M6 — The package restructure
 

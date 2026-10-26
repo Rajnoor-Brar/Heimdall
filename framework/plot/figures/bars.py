@@ -28,6 +28,7 @@ from pathlib import Path
 from runner import plugins
 
 paper = plugins.load(Path(__file__).with_name("paper.py"), "paper")
+webpage = plugins.load(Path(__file__).with_name("webpage.py"), "webpage")
 
 SERIES = paper.SERIES         # one series: the palette's first categorical slot
 INK, MUTED, GRID, SURFACE = paper.INK, paper.MUTED, paper.GRID, paper.SURFACE
@@ -291,17 +292,18 @@ def _distance(key: str, value) -> float | None:
 
 
 def _table(key: str, title: str, labels: list[str], headers: list[str], cells: list[list[tuple]], notes: tuple,
-           tail: int = 0, bold: frozenset = frozenset(), groups: list | None = None):
+           tail: int = 0, bold: frozenset = frozenset(), groups: list | None = None, pinned: frozenset = frozenset()):
     """A table of the summary's document: `title`'s first line its title, the rest its subtitle; each cell (text,
-    background, ink[, bold, align]); the rows in `bold` with their labels bold. With `groups` (each row's page
-    cell, V197), a band names each group above its rows."""
+    background, ink[, bold, align]); the rows in `bold` with their labels bold, those in `pinned` (a mean) last
+    however the page sorts the table. With `groups` (each row's page cell, V197), a band names each group above its
+    rows."""
     head, _, rest = title.partition("\n")
     rows, current = [], None
     for i, (label, line) in enumerate(zip(labels, cells)):
         if groups is not None and groups[i] != current:
             current = groups[i]
             rows.append(paper.Row(current, band=True))
-        rows.append(paper.Row(label, [paper.Cell(*cell) for cell in line], bold=i in bold))
+        rows.append(paper.Row(label, [paper.Cell(*cell) for cell in line], bold=i in bold, pinned=i in pinned))
     return paper.Table(key, head, list(headers), rows, subtitle=rest, tail=tail, notes=tuple(notes))
 
 
@@ -400,7 +402,7 @@ def _crossed(rows: list[dict], key: str, notes: dict):
     way = "page cells against curves" if down is cells else "curves against page cells"
     return _table(f"{key}-crossed", f"{title}: {way}\n{SHADING[rule]}; bold: the best in its row", list(down) + ["mean"],
                   list(across) + ["mean"], styled, (f"crossed-{mean}", f"stat-{key}", "compared"), tail=1,
-                  bold=frozenset({len(down)}))
+                  bold=frozenset({len(down)}), pinned=frozenset({len(down)}))
 
 
 def _natural(objects) -> list[str]:
@@ -789,13 +791,19 @@ def summary_model(rows: list[dict], heading: str = ""):
 
 def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str = "") -> list[Path]:
     """The summary (V174, V196): `target`.pdf holds every page, each A4 portrait; a PNG or SVG is a file a page in
-    the folder `target`, <target name>_<NN>.<fmt> in the PDF's order."""
+    the folder `target`, <target name>_<NN>.<fmt> in the PDF's order; `target`.html the same document as one page
+    (V199), whatever the formats."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
     document = summary_model(rows, heading)
     written, pdf = [], None
+    if document.sections:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        page_ = target.with_suffix(".html")
+        page_.write_text(webpage.render(document, paper.note_numbers(document)), encoding="utf-8")
+        written.append(page_)
     try:
         for page_ in paper.pages(document):
             figure = paper.figure(document, page_, plt)

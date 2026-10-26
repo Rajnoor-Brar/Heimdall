@@ -68,6 +68,7 @@ class Row:
     cells: list = field(default_factory=list)
     bold: bool = False
     band: bool = False                              # a group's name across the table, no cells
+    pinned: bool = False                            # a summing row (a mean): last however the table is sorted
 
 
 @dataclass

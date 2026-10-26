@@ -274,3 +274,76 @@ def test_cells_against_curves_turn_and_leave_gaps_and_are_left_out_when_nothing_
     alone = [dict(r, curve=f"{r['cell']} {r['curve']}") for r in worst_rows()[:96]]     # no curve in two cells
     for case in (one_cell, alone):
         assert not any(i.key.endswith("-crossed") for s in bars.summary_model(case, "").sections for i in s.items)
+
+
+# ── summary.html (V199) ──────────────────────────────────────────────────────────────────────────────
+
+def page_of(document) -> tuple[str, dict]:
+    """The document's HTML, and what is in it: ids, local links, other references, each item's <tbody> count."""
+    from html.parser import HTMLParser
+    text = bars.webpage.render(document, paper.note_numbers(document))
+    found = {"ids": set(), "links": [], "others": [], "bodies": {}, "pins": set()}
+
+    class Reader(HTMLParser):
+        item = None
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if "id" in attrs:
+                found["ids"].add(attrs["id"])
+                if tag == "figure":
+                    Reader.item = attrs["id"]
+            for name in ("href", "src"):
+                if name in attrs:
+                    (found["links"] if attrs[name].startswith("#") else found["others"]).append(attrs[name])
+            if tag == "tbody":
+                found["bodies"][Reader.item] = found["bodies"].get(Reader.item, 0) + 1
+            if tag == "tr" and "pin" in (attrs.get("class") or ""):
+                found["pins"].add(Reader.item)
+    Reader().feed(text)
+    return text, found
+
+
+def test_the_page_holds_every_section_and_item_its_links_resolve_and_it_needs_nothing_else(worst):
+    document, _ = worst
+    text, found = page_of(document)
+    assert text.startswith("<!DOCTYPE html>") and '<meta charset="utf-8">' in text
+    for section in document.sections:
+        assert bars.webpage.anchor("s", section.key) in found["ids"]
+        assert all(bars.webpage.anchor("i", i.key) in found["ids"] for i in section.items)
+    assert found["links"] and all(link[1:] in found["ids"] for link in found["links"])    # every link lands
+    assert found["others"] == [] and "http" not in text and "<script src" not in text      # self-contained
+    numbers = paper.note_numbers(document)
+    assert {f"note-{n}" for n in numbers.values()} <= found["ids"]
+    assert found["bodies"]["i-chi2_ndf"] == 38                                   # a <tbody> a cell's band
+    assert found["pins"] == {f"i-{k}-crossed" for k in bars.SCORED}             # the mean row stays last
+
+
+def test_the_page_escapes_its_text_and_reads_mathtext():
+    table = paper.Table("t", "A <b> & title", ["$\\chi^{2}$/ndf", "x_{1}"],
+                        [paper.Row("<script>alert(1)</script> & co", [paper.Cell("1.5"), paper.Cell("<2")])])
+    text, _ = page_of(paper.Document("a & b", [paper.Section("s", "S", [table])], {"n": "x < y"}, ["4 < 5"]))
+    assert "<script>alert" not in text and "&lt;script&gt;alert(1)&lt;/script&gt; &amp; co" in text
+    assert "A &lt;b&gt; &amp; title" in text and "&lt;2" in text and "4 &lt; 5" in text
+    assert bars.webpage.text_of("$\\chi^{2}$/ndf") == "χ<sup>2</sup>/ndf"
+    assert bars.webpage.text_of("$p_{T}$ [GeV]") == "p<sub>T</sub> [GeV]"
+    assert bars.webpage.text_of("costs $5") == "costs $5"                      # a lone dollar is a dollar
+
+
+def test_the_summary_writes_its_page_whatever_the_formats(scratch):
+    rows = [r for r in worst_rows() if r["cell"] in ("NNPDF23lo_lpdfon", "NNPDF23lo_lpdfoff")]
+    made = bars.summary_of(rows, scratch / "html" / "summary", ["png"], "a · b")
+    assert scratch / "html" / "summary.html" in made and not (scratch / "html" / "summary.pdf").exists()
+    assert "<title>Statistics: a · b</title>" in (scratch / "html" / "summary.html").read_text(encoding="utf-8")
+
+
+def test_the_sets_index_links_each_sets_statistics(scratch):
+    from runner import plot
+    run = scratch / "indexed"
+    for folder in ("plots/totality/mpl", "plots/pdfs/mpl", "statistics/totality"):
+        (run / folder).mkdir(parents=True, exist_ok=True)
+    for page in ("plots/totality/mpl/index.html", "plots/pdfs/mpl/index.html", "statistics/totality/summary.html"):
+        (run / page).write_text("<html></html>", encoding="utf-8")
+    index = plot.write_sets_index(run / "plots", "a run").read_text(encoding="utf-8")
+    assert '<a href="../statistics/totality/summary.html">statistics</a>' in index
+    assert "../statistics/pdfs/" not in index                                   # no summary there: no link

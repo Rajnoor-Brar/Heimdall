@@ -444,6 +444,13 @@ page is cut into column blocks, the fewest that fit, its columns split evenly an
 the same page, each block with the row labels and the last with the mean or the totals. A long table or
 ranking continues on the next page, titled "(continued)". A long label wraps, at its " · " or between words,
 when that makes the table shorter overall. No page leaves fewer than three rows of a table to the next.
+
+**As a page:** `statistics/<set>/summary.html`, beside the PDF whatever `formats` says, holds the same facts,
+contents, tables, rankings and notes, without pages: each table whole, scrolling on its own with its header row
+and label column kept in view. A click on a column's header sorts the table by it (again: the other way; `–`
+and `ref` last), a table grouped by page cell within each cell, a mean row staying last; the label column's
+header puts the order back. It is one file, with nothing to fetch, and `plots/index.html` links it from each
+set's line.
 Every summary page ends with a footnote: what its number is and how it is computed. A PNG or SVG is a file
 a page in `statistics/<set>/summary/`, numbered in the PDF's order (`summary_01.png`, `summary_02.png`, …).
 

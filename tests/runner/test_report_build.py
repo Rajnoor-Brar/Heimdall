@@ -220,3 +220,43 @@ def test_a_folder_is_built_from_its_report_toml_and_a_runs_report_beside_it(tree
     built("P/validation", [])                                       # the run's, in the folder above: nested, apart
     assert (out.parent / "report.pdf").is_file() and (out.parent / "figures" / "02_Pages_totality").is_dir()
     assert {p: p.read_bytes() for p in out.rglob("*") if p.is_file()} == mine
+
+
+def test_a_tools_section_holds_its_cards_and_tables_and_compiles(trees, tmp_path):
+    record = trees / "records" / "P" / "validation" / "01_pdf"
+    for k, (point, identity) in enumerate((("A", "one"), ("B", "two"))):
+        (record / "points" / point).mkdir(parents=True)
+        (record / "points" / point / ".complete").write_text(identity + "\n", encoding="utf-8")
+        cards = record / "logs" / point / "cards"
+        cards.mkdir(parents=True)
+        (cards / "pythia.cmnd").write_text(f"! from base.cmnd, 100% ± 1 → €\nBeams:eCM = 318.\nPDF:pSet = LHAPDF6:PDF_{point}\n"
+                                           f"Random:seed = {k + 7}\nTune:pp = 14 ! a comment of {'x' * 160} ≤ ☃\n",
+                                           encoding="utf-8")
+        (cards / "sherpa.yaml").write_text(f"PROCESSES:\n- 93 93 -> 93 93:\n    Order: {{QCD: {2 + k}}}\nEVENTS: 100\n",
+                                           encoding="utf-8")
+        (record / "logs" / point / "context.toml").write_text(
+            '[tools.pythia]\ntool = "pythia"\ncard = "/x/pythia.cmnd"\n\n[tools.sherpa]\ntool = "sherpa"\ncard = "/x/sherpa.yaml"\n\n'
+            '[tools.rivet]\ntool = "rivet"\nanalyses = ["ZEUS_2012_I1116258"]\n', encoding="utf-8")
+    recipe(trees, "given", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "What they were given"\n'
+                           'tools = ["*"]\n')
+    _, said = built("P/given.toml", [])
+    out = trees / "reports" / "P" / "validation" / "01_pdf"
+    folder = out / "tools" / "01_What_they_were_given" / "01_01_pdf"
+    assert sorted(p.name for p in folder.iterdir()) == ["pythia.baseline.cmnd", "pythia.varied.csv", "sherpa.baseline.yaml",
+                                                        "sherpa.varied.csv"]
+    assert (folder / "pythia.baseline.cmnd").read_text(encoding="utf-8").startswith("! from base.cmnd, 100% ± 1 → €\nBeams:eCM")
+    assert (folder / "pythia.varied.csv").read_text(encoding="utf-8").splitlines() == [
+        "point,label,PDF:pSet,Random:seed", "A,PDF A,LHAPDF6:PDF_A,7", "B,PDF B,LHAPDF6:PDF_B,8"]
+    assert "3 tool configuration(s)" in said[0] and (out / "report.pdf").is_file()
+    tex = (out / "report.tex").read_text(encoding="utf-8")
+    assert r"\VerbatimInput" in tex and r"\begin{longtable}" in tex and r"\DeclareUnicodeCharacter{2603}{?}" in tex
+    text = subprocess.run(["pdftotext", str(out / "report.pdf"), "-"], capture_output=True, text=True, encoding="utf-8").stdout
+    assert "LHAPDF6:PDF_A" in text and "ZEUS_2012_I1116258" in text and "Order: {QCD: 3}" in text
+    page = (out / "index.html").read_text(encoding="utf-8")
+    assert '<div class="text">' in page and "<code>LHAPDF6:PDF_B</code>" in page and "tools/01_What_they_were_given" in page
+    lifted = tmp_path / "lifted"
+    shutil.copytree(out, lifted)
+    subprocess.run(["pdflatex", "-interaction=batchmode", "-halt-on-error", "report.tex"], cwd=lifted, check=True,
+                   capture_output=True)
+    _, said = built("P/given.toml", [])
+    assert "0 file(s) copied or written" in said[0] and "report.pdf unchanged" in said[1]

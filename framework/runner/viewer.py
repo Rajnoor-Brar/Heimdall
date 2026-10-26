@@ -2,7 +2,8 @@
 
 `page(target, title, blocks)` writes one HTML file: a sticky bar of block links with sizes (S | M | L |
 Full) and columns (2 | 3 | 4), ← → between blocks, a panel by its PNG (an image) or its PDF (the
-browser's viewer, reloaded to refit after a change of layout), light and dark, a block per printed page.
+browser's viewer, reloaded to refit after a change of layout), or a block of text (`body`), light and dark,
+a block per printed page.
 It keeps no state between visits. Paths are written relative to the page.
 """
 
@@ -22,6 +23,7 @@ class Shown:
     panels: list[tuple[str, Path]]
     composite: Path | None = None
     notes: list[str] = field(default_factory=list)
+    body: str = ""                      # HTML shown in place of panels (a report's tools' configurations, V210)
 
 
 STYLE = """\
@@ -68,6 +70,10 @@ STYLE = """\
   .tag { font-weight:600; font-size:12px; padding:1px 8px; border-radius:999px; color:#fff; flex:none; }
   .tag.pdf { background:var(--pdf); } .tag.png { background:var(--png); }
   .view { aspect-ratio: 336 / 303; background:#fff; }
+  .text pre { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; font-size:12px;
+              white-space:pre-wrap; overflow-wrap:anywhere; }
+  .text table { border-collapse:collapse; font-size:13px; display:block; overflow-x:auto; }
+  .text th, .text td { padding:3px 10px 3px 0; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
   .view object, .view img { width:100%; height:100%; border:0; display:block; object-fit:contain; }
   @media (max-width: 760px) { .grid { grid-template-columns:1fr; } .hint, .seg.cols { display:none; } }
   @media print { .top { display:none; } .block { min-height:auto; break-after:page; } }"""
@@ -145,11 +151,12 @@ def page(target: Path, title: str, blocks: list[Shown], front: str = "") -> Path
             if block.composite else []
         more += [html.escape(n) for n in block.notes]
         cells = "\n      ".join(_cell(label, path, where) for label, path in block.panels)
+        shown = f'    <div class="text">\n{block.body}\n    </div>' if block.body else f'    <div class="grid">\n      {cells}\n    </div>'
         sections.append(
             f'  <section class="block" id="{html.escape(block.name, quote=True)}">\n'
             f'    <header><h2>{html.escape(block.title)}</h2><span class="more">{" · ".join(more)}</span>'
             f'<span class="count">{number} / {len(blocks)}</span></header>\n'
-            f'    <div class="grid">\n      {cells}\n    </div>\n  </section>')
+            f'{shown}\n  </section>')
     text = (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>{html.escape(title)}</title>\n'
             f'<style>\n{STYLE}\n</style>\n</head>\n<body>\n  <div class="top">\n    <h1>{html.escape(title)}</h1>\n'

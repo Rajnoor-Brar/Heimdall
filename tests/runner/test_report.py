@@ -152,7 +152,7 @@ def test_the_default_report_is_the_headline_and_each_set_its_document_draws(tree
     folder(trees / "results", "03_few", "few", 1_000_000, draw=("totality", "few"))                  # few: drawn nowhere
     plan = report.planned("P/validation/03_few", [])
     assert [s.title for s in plan.sections] == ["Standings", "Pages: totality"]
-    assert plan.left == ["Pages: few: no source has few drawn"]
+    assert plan.left == ["Pages: few: no source has few drawn", "Tools: no source has a record of its points' tools"]
     assert "  left out: Pages: few: no source has few drawn" in report.listing(plan)
 
 
@@ -258,7 +258,7 @@ def test_a_folder_reads_its_own_report_toml(trees):
     assert plan.title == "validation: pdf" and plan.out == trees / "reports" / "P" / "validation" / "01_pdf"
     assert report.planned(str(where / report.RECIPE), []).sources[0].address == "P/validation/01_pdf"   # named itself
     both = report.planned("P/validation", [])                    # several: the default, not one folder's recipe
-    assert [s.title for s in both.sections] == ["Standings", "Pages: totality"]
+    assert [s.title for s in both.sections] == ["Standings", "Pages: totality"]               # Tools: no records
     recipe(trees, "weekly", '[report]\ntitle = "Weekly {configuration}"\n\n[[report.section]]\ntitle = "All"\npages = ["*"]\n')
     over = report.planned("P/weekly.toml", ["P/validation/01_pdf"])            # a recipe over it: the recipe's
     assert [s.title for s in over.sections] == ["All"] and over.title == "Weekly pdf"
@@ -346,3 +346,97 @@ def test_list_writes_nothing_and_init_writes_a_recipe_once(trees, capsys):
     plan = report.planned("P/weekly.toml", [])
     assert [s.title for s in plan.sections] == ["Standings", "totality"] and plan.sources[0].address == "P/validation/01_pdf"
     assert report.recipes("P") == ["P/weekly.toml"]
+
+
+PYTHIA = """! from {base}
+Beams:eCM = 13000.
+PDF:pSet = {pdf}
+! point {point}
+Random:seed = {seed}
+"""
+
+SHERPA = """# point {point}
+BEAMS: [2212, 2212]
+PROCESSES:
+- 93 93 -> 93 93:
+    Order: {{QCD: {order}, EW: 0}}
+PDF_SET: {pdf}
+"""
+
+
+def recorded(trees, name: str = "01_pdf", context: bool = True, points=("A", "B")) -> Path:
+    """A configuration's records: each point complete, its cards and its context.toml as a run leaves them."""
+    record = trees / "records" / "P" / "validation" / name
+    for k, (point, identity, pdf) in enumerate(zip(("A", "B"), ("one", "two"), ("NNPDF", "CT18"))):
+        (record / "points" / point).mkdir(parents=True, exist_ok=True)
+        (record / "points" / point / ".complete").write_text(identity + "\n", encoding="utf-8")
+        if point not in points:
+            continue
+        logs = record / "logs" / point
+        (logs / "cards").mkdir(parents=True)
+        (logs / "cards" / "pythia.cmnd").write_text(PYTHIA.format(base="/w/configs/P/base.cmnd", pdf=pdf, point=point, seed=k + 1),
+                                                    encoding="utf-8")
+        (logs / "cards" / "pythia.point.cmnd").write_text(f"PDF:pSet = {pdf}\n", encoding="utf-8")
+        (logs / "cards" / "sherpa.yaml").write_text(SHERPA.format(point=point, order=2 + k, pdf=pdf), encoding="utf-8")
+        if context:
+            (logs / "context.toml").write_text(
+                '[tools.pythia]\ntool = "pythia"\ncard = "/elsewhere/cards/pythia.cmnd"\ncard_parts = ["/w/base.cmnd"]\n\n'
+                '[tools.sherpa]\ntool = "sherpa"\ncard = "/elsewhere/cards/sherpa.yaml"\n\n'
+                f'[tools.rivet]\ntool = "rivet"\nanalyses = ["MC_JETS"]\nplugin_path = "/w/build/Rivet"\nrunner = "{point}"\n\n'
+                '[tools.yd2rt]\ntool = "yd2rt"\n', encoding="utf-8")
+    return record
+
+
+def test_a_tools_card_is_its_baseline_and_what_varied_point_by_point(trees):
+    recorded(trees)
+    (source,) = report.sources(["P/validation/01_pdf"], "here")
+    pythia, rivet, sherpa = report.configured(source, ["*"], [], "here")                      # yd2rt: given nothing
+    assert (pythia.tag, pythia.ext) == ("pythia", ".cmnd")
+    assert pythia.baseline == ["! from /w/configs/P/base.cmnd", "Beams:eCM = 13000."]      # read by name from cards/
+    assert pythia.varied == [("A", "PDF A", ["PDF:pSet = NNPDF", "Random:seed = 1"]),          # comments left out
+                             ("B", "PDF B", ["PDF:pSet = CT18", "Random:seed = 2"])]
+    assert pythia.table() == (["PDF:pSet", "Random:seed"], [{"PDF:pSet": "NNPDF", "Random:seed": "1"},
+                                                             {"PDF:pSet": "CT18", "Random:seed": "2"}])
+    assert rivet.ext == "" and rivet.options == {"analyses": ["MC_JETS"], "plugin_path": "/w/build/Rivet"}
+    assert rivet.table() == (["runner"], [{"runner": '"A"'}, {"runner": '"B"'}])          # an option that varied
+    assert sherpa.baseline == ["BEAMS: [2212, 2212]", "PROCESSES:", "- 93 93 -> 93 93:"]
+    assert sherpa.table() is None                                                          # a nested line varied
+    assert sherpa.varied[0][2] == ["    Order: {QCD: 2, EW: 0}", "PDF_SET: NNPDF"]
+    (hidden,) = report.configured(source, ["pythia"], ["Random:*"], "here")
+    assert hidden.table() == (["PDF:pSet"], [{"PDF:pSet": "NNPDF"}, {"PDF:pSet": "CT18"}])
+    (nothing,) = report.configured(source, ["yd2rt"], [], "here")                               # named: shown, and said
+    assert nothing.notes == ["given no card and no options"]
+    with pytest.raises(HepError, match="have no tool 'pythai'") as error:
+        report.configured(source, ["pythai"], [], "here")
+    assert "pythia" in str(error.value.hint)
+
+
+def test_a_point_without_a_record_is_said_and_an_older_record_read_from_its_cards(trees):
+    recorded(trees, points=("A",))
+    (source,) = report.sources(["P/validation/01_pdf"], "here")
+    (pythia,) = report.configured(source, ["pythia"], [], "here")
+    assert [p for p, _, _ in pythia.varied] == ["A"] and pythia.notes == ["1 complete point(s) with no record, not shown: B"]
+    folder(trees / "results", "03_old", "old", 1_000_000)
+    recorded(trees, "03_old", context=False)
+    (old,) = report.sources(["P/validation/03_old"], "here")
+    assert [g.tag for g in report.configured(old, ["*"], [], "here")] == ["pythia", "sherpa"]     # cards/<tag>.*, no .point.
+    with pytest.raises(HepError, match="no record of its points' tools"):
+        report.configured(report.sources(["P/validation/02_events"], "here")[0], ["*"], [], "here")
+
+
+def test_the_default_report_ends_with_its_tools_and_tools_chooses_them(trees):
+    recorded(trees)
+    plan = report.planned("P/validation/01_pdf", [])
+    assert [s.title for s in plan.sections] == ["Standings", "Pages: totality", "Tools"]
+    assert [g.tag for g in plan.sections[-1].given] == ["pythia", "rivet", "sherpa"]
+    assert "  3 Tools: tools of P/validation/01_pdf: pythia (2 point(s), 2 card line(s) alike, 2 varied key(s)), rivet (2 " \
+           "point(s), 2 option(s) alike, 1 varied key(s)), sherpa (2 point(s), 3 card line(s) alike, a list of what varied)" \
+           in report.listing(plan)
+    where = trees / "results" / "P" / "validation" / "01_pdf"
+    (where / report.RECIPE).write_text('[report]\ntools = []\n', encoding="utf-8")       # sections the default's
+    assert [s.title for s in report.planned("P/validation/01_pdf", []).sections] == ["Standings", "Pages: totality"]
+    (where / report.RECIPE).write_text('[report]\ntools = ["sh*"]\n', encoding="utf-8")
+    assert [g.tag for g in report.planned("P/validation/01_pdf", []).sections[-1].given] == ["sherpa"]
+    recipe(trees, "bad", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nhide = ["x"]\n')
+    with pytest.raises(HepError, match="hide is a tools section's"):
+        report.planned("P/bad.toml", ["P/validation/01_pdf"])

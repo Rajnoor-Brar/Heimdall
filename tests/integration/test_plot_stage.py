@@ -700,8 +700,10 @@ def test_a_run_draws_from_its_plot_document(stage):
     assert [m.point.name for m in members] == [p.point.name for p in plans] and kept.plot_points == ["lepton"]
     assert [p.document for p in plot.pages(doc, kept, members)] == [p.document for p in plot.pages(run, configuration, plans)]
     recipe = tomllib.loads(target.with_name("report.toml").read_text(encoding="utf-8"))
-    assert [s["title"] for s in recipe["report"]["section"]] == ["Standings", "Pages: totality"]
-    assert all(s["optional"] and s["set"] == "totality" for s in recipe["report"]["section"])
+    standings, pages, given = recipe["report"]["section"]
+    assert [s["title"] for s in (standings, pages, given)] == ["Standings", "Pages: totality", "Tools"]
+    assert standings["set"] == pages["set"] == "totality" and given["tools"] == ["*"]          # V210: what they were given
+    assert all(s["optional"] for s in (standings, pages, given))
 
 
 def test_the_document_keeps_its_plot_and_says_when_the_config_differs(stage):

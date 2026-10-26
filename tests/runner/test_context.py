@@ -1,5 +1,5 @@
 """The point's context file (docs/audit_3/06_Plan.md, phase 4.2; 04 §9.4): every tool's card and config,
-written when the point starts, at $HEP_CONTEXT for every tool, removed when it ends; generate_cards for
+written when the point starts, at $HEP_CONTEXT for every tool, kept with its record (V187); generate_cards for
 tools not in the chain; `heimdall tools new`."""
 
 from __future__ import annotations

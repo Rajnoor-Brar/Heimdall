@@ -972,7 +972,8 @@ else is a source. Each report is a folder:
 | `report.tex` | its LaTeX, naming only files in the folder: it compiles there as it is, or on Overleaf (upload the folder) |
 | `figures/` | every page it shows, copied as drawn: `<NN>_<section>/<MMM>_<source>_<page>.pdf`, and its `.png` |
 | `stats/` | the statistics it shows, drawn from each source's `statistics.csv`: a PDF, and a PNG a page; `summaries/`, each source's `summary.html` |
-| `index.html` | the same grids to browse (2, 3 or 4 columns, ← →), its sources up front |
+| `tools/` | what each tool was given (§11.2): `<NN>_<section>/<MM>_<source>/<tag>.baseline.<ext>`, the card's lines every point had, and `<tag>.varied.csv`, what varied point by point |
+| `index.html` | the same grids to browse (2, 3 or 4 columns, ← →), the tools' cards and tables as text, its sources up front |
 
 **A rebuild makes only what changed.** A page whose source changed is copied again, statistics whose numbers
 changed are drawn again, and `report.pdf` is remade only when something it shows changed (`.stamps.json` keeps
@@ -1000,8 +1001,9 @@ folder builds into that folder's place unless it says otherwise, replacing what 
 
 **The default report**, of a folder with no `report.toml` and of several sources at once, holds the
 statistics' headline (the top five and each statistic's ranking) on the first set measured, then the pages of
-every set the sources' documents draw (`[plot].draw`, else every set of `[plot].sets`), a grid per page cell.
-A set drawn nowhere is left out, and `--list` says so. A scan of many points or cells makes many pages:
+every set the sources' documents draw (`[plot].draw`, else every set of `[plot].sets`), a grid per page cell,
+then a Tools section: what each tool was given (`[report].tools` picks them; every tool given a card or
+options when it is left out, none with `tools = []`). A set drawn nowhere is left out, and `--list` says so. A scan of many points or cells makes many pages:
 `--list` says how many first, and a recipe picks fewer.
 
 ### 11.2 A recipe: of its own, a run's, a folder's
@@ -1042,6 +1044,8 @@ layout = "sources"
   part of a statistic's (`chi2_ndf:ranking`, `:crossed`, `:table`), each source's with its facts and notes.
 - **`bars`:** globs of page names, each page's bar graph of its curves' numbers.
 - **`files`:** your own PDF or PNG files, relative to the recipe (`extras/*.png`).
+- **`tools`:** what each tool was given (below): tool tags (`[tools.<tag>]`) or globs, `"*"` every tool given a
+  card or options; `hide` leaves varied lines out by their key (`"Random:seed"`).
 - **`optional = true`:** a source without the section's set drawn (or measured) is passed over, and the section
   left out when none has it.
 - **`{project}`, `{run}`, `{configuration}`, `{title}`** in a title or subtitle are filled in from the sources.
@@ -1050,6 +1054,26 @@ The sources on the command line replace `[report].from`, so one recipe serves ma
 `from` stays. **What is refused:** a set not drawn or numbers not measured in a source (naming the command that
 makes them), a glob that names nothing, two side-by-side panels of one label, an unknown key (with the nearest
 one).
+
+**What the tools were given.** A `tools` section reads each source's records, never today's `configs/`: each
+complete point's `context.toml` names its tools, and its `cards/` hold each tool's card as it read it. For each
+tool:
+- **its card, alike in every point:** the lines every point had (comments too, where alike), in the card's order,
+  as the card writes them (`tools/…/<tag>.baseline.cmnd`, shown with long lines broken);
+- **its options alike** (Rivet's `analyses`, …): the context's keys other than the card;
+- **what varied, point by point:** each point's other lines, comments left out. When they are all `key = value`
+  or `key: value` lines, it is a table, a row a point labelled as its curve is, a column a key (`PDF:pSet`,
+  `Random:seed`), carried on in a further table past five keys; otherwise each point's lines in turn. Both are
+  in `tools/…/<tag>.varied.csv`.
+
+A point whose record is gone (results copied without `records/`) is named, not guessed.
+
+```toml
+[[report.section]]
+title = "What the generators were given"
+tools = ["pythia", "sherpa"]
+hide  = ["Random:seed", "RANDOM_SEED"]
+```
 
 **The run's own.** A run TOML's `[report]` says what its folders' reports show, so a report needs no
 arguments after a run. Its `template` names a recipe shared by several configs, which its own keys and

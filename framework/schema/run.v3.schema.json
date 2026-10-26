@@ -2679,7 +2679,7 @@
      "type": "string"
     },
     "section": {
-     "description": "its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars or files",
+     "description": "its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars, files or tools",
      "type": "array",
      "items": {
       "type": "object",
@@ -2784,6 +2784,20 @@
        },
        "files": {
         "description": "your own PDF or PNG files, globs relative to the recipe's folder (`extras/*.png`)",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "tools": {
+        "description": "tool tags ([tools.<tag>]) or globs, \"*\" every tool given a card or options: what each was given, read from each source's records, over its complete points: the card's lines every point had (its baseline), then each point's other lines (a table when they are key = value or key: value lines), and its other options",
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "hide": {
+        "description": "a tools section's: globs of varied lines' keys (else of the lines) to leave out (\"Random:seed\", \"RANDOM_SEED\")",
         "type": "array",
         "items": {
          "type": "string"
@@ -3634,6 +3648,13 @@
        "title"
       ],
       "additionalProperties": false
+     }
+    },
+    "tools": {
+     "description": "the tools whose configurations the default sections show, last, in a Tools section: tags ([tools.<tag>]) or globs; default: every tool given a card or options; [] none",
+     "type": "array",
+     "items": {
+      "type": "string"
      }
     }
    },

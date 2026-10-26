@@ -549,7 +549,7 @@ fast-forwarded at P7. Each row is ticked at its commit.
 | P3 The build | V208 | 45a285c | done: on Brookhaven's results; paused for compaction |
 | (plan amended, §1.6) | — | f44510a | the run's report.toml, entry modes: P4 inserted |
 | (plan amended, §1.7) | — | f44510a | reports mirror results; the tools' configurations: P5 inserted |
-| P4 The run's report.toml | V209 | | done: on Brookhaven's results |
-| P5 The tools' configurations | V210 | | |
+| P4 The run's report.toml | V209 | 007a0d4 | done: on Brookhaven's results |
+| P5 The tools' configurations | V210 | | done: on Brookhaven's results; paused for compaction |
 | P6 Drawn for itself | V211 | | |
 | P7 deck retired | V212 | | |

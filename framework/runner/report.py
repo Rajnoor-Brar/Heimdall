@@ -5,10 +5,10 @@ for colleagues or a supervisor, made only when asked (rank 4).
   folder (V169). They are named `<P>/<run>/<cfg>`, `<P>/<run>` (each of its configurations, then its own when it
   is drawn), a path, or a glob of them under results/.
 * **A recipe** is a `[report]` table and its `[[report.section]]`s (framework/schema/report.toml), each section one
-  kind of item: pages, compare, stats, bars or files. It is a file of its own (`configs/<P>/<name>.toml`, `[report]`
+  kind of item: pages, compare, stats, bars, files or tools (what each tool was given, read from the records). It is a file of its own (`configs/<P>/<name>.toml`, `[report]`
   alone), a run TOML's `[report]` (what its folders' reports show, its `template` laid under it), or the
   `report.toml` a run writes beside each folder's plot.toml from that (V209). With no sections, the default: the
-  statistics' headline, then each set the sources' documents draw.
+  statistics' headline, then each set the sources' documents draw, then what their tools were given (V210).
 * **Where:** reports/ mirrors results/: a folder's report in reports/<P>/<run>/<cfg>/, a run's in reports/<P>/<run>/,
   several runs' where their addresses meet; `-o` or the recipe's `output` says otherwise.
 * `resolve` turns a recipe and its sources into a `Plan`: its sections' grids of figures, each copied from its
@@ -19,8 +19,10 @@ from __future__ import annotations
 
 import dataclasses
 import fnmatch
+import csv
 import hashlib
 import html
+import io
 import json
 import math
 import os
@@ -28,6 +30,7 @@ import re
 import shutil
 import subprocess
 import tomllib
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +40,7 @@ from . import plotdoc, plugins, record, statstable, viewer
 from .config import STATISTICS
 from .errors import HepError, did_you_mean
 from .paths import config_file, configs_root, hep_root, reports_root, results_root, work_root
+from .sweep import label_of
 
 #: What a run writes beside each folder's plot.toml: its report's recipe (V209).
 RECIPE = "report.toml"
@@ -289,20 +293,22 @@ def _drawn_sets(plot: dict) -> list[str]:
     return list(sets) if isinstance(sets, dict) and sets else ["totality"]
 
 
-def _sections(sets: list[str], measured: list[str]) -> list[dict]:
+def _sections(sets: list[str], measured: list[str], tools: list[str] | None) -> list[dict]:
     head = [{"title": "Standings", "set": measured[0], "stats": list(HEADLINE), "optional": True}] if measured else []
-    return head + [{"title": f"Pages: {s}", "set": s, "pages": ["*"], "optional": True} for s in sets]
+    tail = [] if tools == [] else [{"title": "Tools", "tools": list(tools or ["*"]), "optional": True}]
+    return head + [{"title": f"Pages: {s}", "set": s, "pages": ["*"], "optional": True} for s in sets] + tail
 
 
-def default_sections(plot: dict, stats: dict) -> list[dict]:
-    """The default report's sections for a plot document's [plot] and [stats] (A1): Standings, the statistics'
+def default_sections(plot: dict, stats: dict, tools: list[str] | None = None) -> list[dict]:
+    """The default report's sections for a plot document's [plot] and [stats] (A1, A8): Standings, the statistics'
     headline, on the first set it measures ([stats].sets, else the sets drawn), then the pages of each set it
-    draws; every one optional, so a set drawn nowhere is left out."""
+    draws, then what its tools were given (`tools`: [report].tools; None every tool given a card or options, []
+    none); every one optional, so a set drawn nowhere is left out."""
     sets = _drawn_sets(plot)
-    return _sections(sets, list((stats or {}).get("sets") or sets))
+    return _sections(sets, list((stats or {}).get("sets") or sets), tools)
 
 
-def default_recipe(found: list[Source]) -> dict:
+def default_recipe(found: list[Source], tools: list[str] | None = None) -> dict:
     """No recipe (N1, A1): the default sections over these sources, their sets together in order (a document with
     no [plot]: the sets drawn in its folder)."""
     sets: list[str] = []
@@ -311,7 +317,7 @@ def default_recipe(found: list[Source]) -> dict:
         own = _drawn_sets(source.doc.plot or {}) or source.sets()
         sets += [s for s in own if s not in sets]
         measured += [s for s in ((source.doc.stats or {}).get("sets") or own) if s not in measured]
-    return {"section": _sections(sets, measured)}
+    return {"section": _sections(sets, measured, tools)}
 
 
 def _value(value) -> str:
@@ -339,7 +345,7 @@ def write_recipe(run, document: Path) -> Path:
     data = _read(document)
     table = {k: v for k, v in (getattr(run, "report", None) or {}).items()}
     if not table.get("section"):
-        table["section"] = default_sections(data.get("plot", {}), data.get("stats", {}))
+        table["section"] = default_sections(data.get("plot", {}), data.get("stats", {}), table.get("tools"))
     for key in ("title", "subtitle"):
         if table.get(key):
             table[key] = filled(table[key], [data.get("source", {})])
@@ -359,6 +365,207 @@ def write_recipe(run, document: Path) -> Path:
     partial.write_text("\n".join(header) + "\n\n" + dumps(table), encoding="utf-8")
     partial.replace(target)
     return target
+
+
+# ── what the tools were given (A7) ─────────────────────────────────────────────────────────────
+
+#: A card's comment lines: kept in its baseline where every point has them alike, never among what varied.
+COMMENTS = ("#", "!", "//", "%")
+#: A context.toml table's keys that are not a tool's options: its card (or a module's config) and where it came from.
+NOT_OPTIONS = ("tool", "card", "card_parts", "config")
+_ASSIGNED = re.compile(r"([A-Za-z_][\w:.\-/\[\]]*)\s*=\s*(\S.*)")
+_MAPPED = re.compile(r"([A-Za-z_][\w.\-]*):\s+(\S.*)")
+
+
+def _is_comment(line: str) -> bool:
+    text = line.strip()
+    return not text or text.startswith(COMMENTS)
+
+
+def key_value(line: str) -> tuple[str, str] | None:
+    """A card line as (key, value) when it is `key = value` (Pythia, Herwig's `set` aside) or a top-level YAML
+    `key: value`; else None (a nested line, a command, a block's head)."""
+    if line[:1].isspace():
+        return None
+    found = _ASSIGNED.fullmatch(line.rstrip()) or _MAPPED.fullmatch(line.rstrip())
+    return (found[1], found[2].strip()) if found else None
+
+
+def split(cards: list[list[str]]) -> tuple[list[str], list[list[str]]]:
+    """Cards' lines (A7): the lines every card has, as many times as each has it, in the first card's order (its
+    baseline), and each card's other lines in its own order."""
+    common = Counter(cards[0])
+    for lines in cards[1:]:
+        common &= Counter(lines)
+    left, baseline = Counter(common), []
+    for line in cards[0]:
+        if left[line] > 0:
+            left[line] -= 1
+            baseline.append(line)
+    others = []
+    for lines in cards:
+        left, own = Counter(common), []
+        for line in lines:
+            if left[line] > 0:
+                left[line] -= 1
+            else:
+                own.append(line)
+        others.append(own)
+    return baseline, others
+
+
+def plain(text: str) -> str:
+    """A LaTeX label as plain text, for a table's row: `$e^{+}p$` → `e+p`, `PDF4LHC21\\_40` → `PDF4LHC21_40`."""
+    text = re.sub(r"\\([_%&#$])", r"\1", text)
+    text = re.sub(r"\\(mathrm|text|textrm|mathit)\b", "", text)
+    text = re.sub(r"\\([A-Za-z]+)", r"\1", text)
+    return re.sub(r"[{}$^]", "", text).replace("~", " ").strip()
+
+
+@dataclass
+class Given:
+    """What one tool was given across a source's reported points (A7), from their records: its card's baseline
+    (the lines every point had alike, comments too), its options alike, and each point's other lines (comments
+    left out, `hide` applied)."""
+    source: Source
+    tag: str
+    ext: str                                  # its card's own extension (".cmnd"); "" with no card
+    baseline: list[str]
+    options: dict
+    varied: list[tuple[str, str, list[str]]]  # (point, its label, its other lines), every point in order
+    notes: list[str] = field(default_factory=list)
+
+    @property
+    def caption(self) -> str:
+        return f"{self.source.address} · {self.tag}"
+
+    def table(self) -> tuple[list[str], list[dict[str, str]]] | None:
+        """Its varied lines as a table, when every one is `key = value` (or `key: value`) and no key comes twice
+        in a point: its keys in first-seen order, and a row per point (key → value). None: a list per point."""
+        keys: list[str] = []
+        rows = []
+        for _, _, lines in self.varied:
+            row: dict[str, str] = {}
+            for line in lines:
+                found = key_value(line)
+                if found is None or found[0] in row:
+                    return None
+                row[found[0]] = found[1]
+                keys += [found[0]] if found[0] not in keys else []
+            rows.append(row)
+        return keys, rows
+
+    def points(self) -> int:
+        return len(self.varied)
+
+    def summary(self) -> str:
+        """`19 point(s), 24 card line(s) alike, 2 varied key(s)`, as --list says it."""
+        table = self.table()
+        varied = any(lines for _, _, lines in self.varied)
+        return ", ".join(part for part in (
+            f"{self.points()} point(s)", f"{len(self.baseline)} card line(s) alike" if self.ext else "",
+            f"{len(self.options)} option(s) alike" if self.options else "",
+            ("" if not varied else f"{len(table[0])} varied key(s)" if table is not None else "a list of what varied"),
+            "nothing varied" if not varied else "") if part)
+
+
+def _point_tools(folder: Path) -> dict[str, dict] | None:
+    """A point's tools as its record has them: context.toml's [tools.<tag>], each its card (cards/, or a
+    module's config/: by name, wherever the record now is) and its options; a record without one, cards/<tag>.*
+    (its .point. and .json files left out). None: no record of the point."""
+    if not folder.is_dir():
+        return None
+    context = folder / "context.toml"
+    if context.is_file():
+        try:
+            tables = tomllib.loads(context.read_text(encoding="utf-8")).get("tools", {})
+        except (OSError, tomllib.TOMLDecodeError):
+            tables = None
+        if isinstance(tables, dict):
+            out = {}
+            for tag, table in tables.items():
+                named = table.get("card") or table.get("config")
+                card = folder / ("cards" if table.get("card") else "config") / Path(named).name if named else None
+                out[tag] = {"card": card, "options": {k: v for k, v in table.items() if k not in NOT_OPTIONS}}
+            return out
+    cards = folder / "cards"
+    out = {}
+    for path in sorted(cards.iterdir()) if cards.is_dir() else ():
+        if path.is_file() and ".point." not in path.name and path.suffix != ".json":
+            out.setdefault(path.name.split(".", 1)[0], {"card": path, "options": {}})
+    return out
+
+
+def _label(source: Source, member) -> str:
+    """A point's label as its curve's: its varied quantities' labels, as plain text; else its name."""
+    names = [q for entry in source.doc.configuration.sweeps for q in (entry if isinstance(entry, list) else [entry])]
+    parts = [plain(label_of(source.doc.quantities[q], member.values[q])) for q in names
+             if q in source.doc.quantities and q in member.values]
+    return ", ".join(p for p in parts if p) or member.point.name
+
+
+def _hidden(line: str, hide: list[str]) -> bool:
+    found = key_value(line)
+    return any(fnmatch.fnmatchcase(found[0] if found else line.strip(), glob) for glob in hide)
+
+
+def configured(source: Source, globs: list[str], hide: list[str], where: str, optional: bool = False) -> list[Given]:
+    """What the tools `globs` name were given in a source's complete points (A7), from its records (never today's
+    configs/): a tag by name even when it was given nothing, a glob only the tools given a card or options, each
+    once, in natural order a glob. Points with no record are said; with none at all, refused (optional: none)."""
+    logs = plotdoc._folders(source.folder, source.project).logs
+    points = [(m, _point_tools(logs / m.point.name)) for m in source.complete()]
+    recorded = [(m, tools) for m, tools in points if tools is not None]
+    missing = [m.point.name for m, tools in points if tools is None]
+    if not recorded:
+        if optional:
+            return []
+        raise HepError(f"{source.address}: no record of its points' tools in {logs}", where=f"{where}.tools",
+                       hint="a point's tools are read from its records/ (cards/, context.toml); results copied alone have none")
+    tags = sorted(dict.fromkeys(t for _, tools in recorded for t in tools), key=natural)
+    chosen: list[str] = []
+    for glob in globs:
+        if GLOB.search(glob):
+            chosen += [t for t in tags if fnmatch.fnmatchcase(t, glob) and t not in chosen
+                       and any(tools[t]["card"] or tools[t]["options"] for _, tools in recorded if t in tools)]
+        elif glob in tags:
+            chosen += [glob] if glob not in chosen else []
+        elif not optional:
+            raise HepError(f"tools: {source.address}'s points have no tool {glob!r}", where=f"{where}.tools",
+                           hint=did_you_mean(glob, tags) or f"their tools: {', '.join(tags)}")
+    out = []
+    for tag in chosen:
+        notes = [f"{len(missing)} complete point(s) with no record, not shown: {', '.join(missing[:6])}"
+                 + (" …" if len(missing) > 6 else "")] if missing else []
+        mine = [(m, tools[tag]) for m, tools in recorded if tag in tools]
+        cards, options, kept = [], [], []
+        for member, tool in mine:
+            lines = None
+            if tool["card"] is not None:
+                try:
+                    lines = [line.rstrip() for line in tool["card"].read_text(encoding="utf-8").splitlines()]
+                except (OSError, UnicodeDecodeError):
+                    notes.append(f"{member.point.name}: its card {tool['card'].name} is not a text file there")
+            if tool["card"] is not None and lines is None:
+                continue
+            kept.append(member)
+            cards.append(lines or [])
+            options.append(tool["options"])
+        if not kept:
+            out.append(Given(source, tag, "", [], {}, [], notes))
+            continue
+        baseline, others = split(cards)
+        alike = {k: v for k, v in options[0].items() if all(k in o and o[k] == v for o in options[1:])}
+        varied = []
+        for member, own, opts in zip(kept, others, options):
+            lines = [line for line in own if not _is_comment(line)]
+            lines += [f"{k} = {_value(v)}" for k, v in opts.items() if k not in alike]
+            varied.append((member.point.name, _label(source, member), [line for line in lines if not _hidden(line, hide)]))
+        card = next((tool["card"] for _, tool in mine if tool["card"] is not None), None)
+        if card is None and not alike and not any(lines for _, _, lines in varied):
+            notes.append("given no card and no options")
+        out.append(Given(source, tag, card.suffix if card is not None else "", baseline, alike, varied, notes))
+    return out
 
 
 # ── the plan ───────────────────────────────────────────────────────────────────────────────────
@@ -406,6 +613,7 @@ class Section:
     grids: list[Grid] = field(default_factory=list)
     parts: list[Part] = field(default_factory=list)
     bars: list[Bars] = field(default_factory=list)
+    given: list[Given] = field(default_factory=list)     # what its tools were given (A7)
     plot: dict = field(default_factory=dict)
 
 
@@ -572,7 +780,7 @@ def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command
         raise HepError("a report needs a source", where=where,
                        hint="heimdall report <recipe>.toml <P>/<run>/<cfg>, or from = [\"<P>/<run>/<cfg>\"] in [report]")
     every = found if found is not None else sources(named, "the command line" if given else f"{where}: [report].from") if named else []
-    specs = recipe.get("section") or default_recipe(every)["section"]
+    specs = recipe.get("section") or default_recipe(every, recipe.get("tools"))["section"]
     sections: list[Section] = []
     left: list[str] = []
     used: list[Source] = list(every)
@@ -590,10 +798,14 @@ def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command
             section.grids = _files_section(spec, path.parent if path else Path.cwd(), at)
         elif "stats" in spec:
             section.parts = [Part(s, set_, list(spec["stats"]), csv) for s, csv in _numbers(spec, found_, set_, f"{at}.stats", allow_drawn)]
+        elif "tools" in spec:
+            section.given = [g for s in found_ for g in configured(s, list(spec["tools"]), list(spec.get("hide", [])), at,
+                                                               spec.get("optional", False))]
         else:
             section.bars = [Bars(s, set_, list(spec["bars"]), csv) for s, csv in _numbers(spec, found_, set_, f"{at}.bars", allow_drawn)]
-        if spec.get("optional") and not (section.grids or section.parts or section.bars):
-            left.append(f"{spec['title']}: no source has {set_} {'drawn' if 'pages' in spec else 'measured'}")
+        if spec.get("optional") and not (section.grids or section.parts or section.bars or section.given):
+            left.append(f"{spec['title']}: " + ("no source has a record of its points' tools" if "tools" in spec else
+                                                f"no source has {set_} {'drawn' if 'pages' in spec else 'measured'}"))
             continue
         sections.append(section)
     facts = [s.doc.source for s in used]
@@ -664,6 +876,10 @@ def listing(plan: Plan) -> list[str]:
                 what.append(f"{kind} of {len(items)} sources: {shown}")
             under += [f"{item.source.address} · {item.set}" + ("" if item.csv else " (measured for the report)")
                       for item in items if len(items) > 1 or not item.csv]
+        for source in dict.fromkeys(g.source.address for g in section.given):
+            mine = [g for g in section.given if g.source.address == source]
+            what.append(f"tools of {source}: " + ", ".join(f"{g.tag} ({g.summary()})" for g in mine))
+            under += [f"{g.tag}: {note}" for g in mine for note in g.notes]
         lines.append(f"  {number} {section.title}: " + "; ".join(what))
         lines += [f"      {line}" for line in under]
     lines += [f"  left out: {why}" for why in plan.left]
@@ -693,12 +909,20 @@ def starter(name: str, source: Source) -> str:
                   f"#   {', '.join(objects[:12])}{' …' if len(objects) > 12 else ''}",
                   *(mark + line for line in ("[[report.section]]", f'title = "{set_}"', f'set   = "{set_}"', 'pages = ["*"]',
                                              "optional = true")), ""]
+    lines += ["# what each tool was given, from the records: the card's lines every point had, then what varied",
+              "[[report.section]]", 'title = "Tools"', 'tools = ["*"]', '# hide  = ["Random:seed", "RANDOM_SEED"]',
+              "optional = true", ""]
     return "\n".join(lines)
 
 
 # ── the build ──────────────────────────────────────────────────────────────────────────────────
 
-FIGURES, STATS, STAMPS = "figures", "stats", ".stamps.json"
+FIGURES, STATS, TOOLS, STAMPS = "figures", "stats", "tools", ".stamps.json"
+#: A varied table's key columns on an A4 page; more are carried on in a further table, the points again.
+KEYS_PER_TABLE = 5
+#: Characters pdflatex sets as they are (T1, textcomp); any other is declared, shown as ?, so a card in any
+#: script never stops the report.
+SAFE = set("–—‘’“”…•·±×÷→←€µ")
 #: A4 in bp and its text block (15 mm margins). A grid's picture is at most ROOM high, leaving its caption and, on a
 #: section's first page, the section's heading and note.
 A4_BP = (595.28, 841.89)
@@ -782,9 +1006,19 @@ class _Build:
             self.shas[self.rel(f)] = _sha(f)
         return files
 
+    def write(self, target: Path, text: str) -> Path:
+        """`text` into `target`, unless it holds it already."""
+        data = text.encode("utf-8")
+        if not target.is_file() or target.read_bytes() != data:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            self.copied += 1
+        self.shas[self.rel(target)] = hashlib.sha256(data).hexdigest()
+        return target
+
     def prune(self) -> None:
-        """What no section holds any more, removed from figures/ and stats/ (and their empty folders)."""
-        for top in (FIGURES, STATS):
+        """What no section holds any more, removed from figures/, stats/ and tools/ (and their empty folders)."""
+        for top in (FIGURES, STATS, TOOLS):
             root = self.out / top
             if not root.is_dir():
                 continue
@@ -916,7 +1150,36 @@ def _bars(build: _Build, bars, item: Bars, folder: Path) -> Placed:
                   paper_aspect(bars), 0.0)
 
 
-def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list[Placed]]]:
+@dataclass
+class Configs:
+    """What a tool was given as the report shows it (A9): the Given, its baseline as a card and its varied lines
+    as a CSV, in tools/<NN>_<section>/<MM>_<source>/."""
+    given: Given
+    baseline: Path | None
+    varied: Path | None
+
+
+def _configs(build: _Build, item: Given, folder: Path) -> Configs:
+    """tools/…/<tag>.baseline<ext> (the lines every point had, as the card has them) and <tag>.varied.csv (a row a
+    point, a column a key; else a row a line), each written when it changed."""
+    baseline = build.write(folder / f"{item.tag}.baseline{item.ext}", "\n".join(item.baseline) + "\n") \
+        if item.ext and item.baseline else None
+    varied = None
+    if any(lines for _, _, lines in item.varied):
+        buffer = io.StringIO()
+        out = csv.writer(buffer, lineterminator="\n")
+        table = item.table()
+        if table is not None:
+            out.writerow(["point", "label", *table[0]])
+            out.writerows([point, label, *(row.get(k, "") for k in table[0])] for (point, label, _), row in zip(item.varied, table[1]))
+        else:
+            out.writerow(["point", "label", "line"])
+            out.writerows([point, label, line] for point, label, lines in item.varied for line in lines)
+        varied = build.write(folder / f"{item.tag}.varied.csv", buffer.getvalue())
+    return Configs(item, baseline, varied)
+
+
+def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
     """Every section's figures copied into figures/<NN>_<section>/, its statistics and bar graphs drawn into
     stats/<NN>_<section>/; each grid as the report shows it."""
     bars = statstable.bars()
@@ -943,6 +1206,10 @@ def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list[Placed]]]
                 grids.append(shown)
         for item in section.bars:
             grids.append(_bars(build, bars, item, build.out / STATS / name))
+        sources = list(dict.fromkeys(g.source.address for g in section.given))
+        for item in section.given:
+            mm = sources.index(item.source.address) + 1
+            grids.append(_configs(build, item, build.out / TOOLS / name / f"{mm:02d}_{slug(item.source.folder.name)}"))
         placed.append((section, grids))
     return placed
 
@@ -973,6 +1240,8 @@ PREAMBLE = r"""\documentclass[a4paper,10pt]{article}
 \usepackage[margin=15mm]{geometry}
 \usepackage{graphicx}
 \usepackage{array}
+\usepackage{longtable}
+\usepackage{fvextra}
 \usepackage[hidelinks,bookmarksdepth=2]{hyperref}
 \renewcommand{\familydefault}{\sfdefault}
 \setlength{\parindent}{0pt}
@@ -1013,7 +1282,63 @@ def _front(plan: Plan) -> list[str]:
     return lines + [r"\vspace{8pt}", r"\tableofcontents", r"\clearpage"]
 
 
-def _tex(plan: Plan, placed: list[tuple[Section, list[Placed]]], out: Path) -> str:
+def _literal(text: str) -> str:
+    """Text for LaTeX as it is written ($ too), breakable after / and _ (a card's key or value)."""
+    return _breakable(text.replace("$", "\0"))
+
+
+def _given_tex(shown: Configs, out: Path) -> list[str]:
+    """A tool's configuration in report.tex: its caption, its points and notes, its options alike, its baseline
+    from its file (fvextra, long lines broken at spaces and after / _ : = , . -: breakanywhere splits a UTF-8
+    character under pdflatex), then what varied: tables of at most KEYS_PER_TABLE keys, the
+    points' column in each, or each point's lines."""
+    tex, item = _layout().tex, shown.given
+    lines = [r"\par\vspace{8pt}\phantomsection\addcontentsline{toc}{subsection}{" + tex(item.caption) + "}",
+             r"\noindent{\large\bfseries " + _breakable(item.caption) + r"\par}\vspace{2pt}",
+             r"{\small " + f"{item.points()} complete point(s)" + r"\par}"]
+    lines += [r"{\small\itshape " + tex(note) + r"\par}" for note in item.notes]
+    if item.options:
+        lines += [r"\vspace{4pt}{\small Its options, alike in every point:\par}", r"\begin{itemize}\setlength{\itemsep}{0pt}",
+                  *(r"\item {\small\ttfamily " + _literal(f"{k} = {_value(v)}") + "}" for k, v in item.options.items()),
+                  r"\end{itemize}"]
+    if shown.baseline is not None:
+        rel = shown.baseline.relative_to(out).as_posix()
+        lines += [r"\vspace{4pt}{\small Its card, alike in every point (\texttt{" + _breakable(rel) + r"}):\par}",
+                  r"\VerbatimInput[breaklines,breakafter={/_:=,.-},fontsize=\footnotesize,frame=leftline,framesep=6pt]{" + rel + "}"]
+    if not any(own for _, _, own in item.varied):
+        return lines + [r"\vspace{4pt}{\small Nothing else varied from point to point.\par}"]
+    rel = shown.varied.relative_to(out).as_posix()
+    lines.append(r"\vspace{4pt}{\small What varied, point by point (\texttt{" + _breakable(rel) + r"}):\par}")
+    table = item.table()
+    if table is None:
+        for _, label, own in item.varied:
+            if own:
+                lines += [r"\par\noindent{\small\bfseries " + tex(label) + r"\par}",
+                          r"\begin{Verbatim}[breaklines,breakafter={/_:=,.-},fontsize=\footnotesize]", *own, r"\end{Verbatim}"]
+        return lines
+    keys, rows = table
+    for start in range(0, len(keys), KEYS_PER_TABLE):
+        shown_keys = keys[start:start + KEYS_PER_TABLE]
+        n = len(shown_keys)
+        point = 110.0 if n > 2 else 160.0
+        width = (TEXT_W - 8.0 * n - point - 4.0) / n
+        spec = rf"@{{}}>{{\raggedright\arraybackslash}}p{{{point:.0f}bp}}" + \
+            "".join(rf">{{\raggedright\arraybackslash\ttfamily}}p{{{width:.0f}bp}}" for _ in shown_keys) + "@{}"
+        lines += [r"{\footnotesize\setlength{\tabcolsep}{4pt}\begin{longtable}{" + spec + "}",
+                  "Point & " + " & ".join(r"\texttt{" + _literal(k) + "}" for k in shown_keys) + r"\\ \hline", r"\endhead",
+                  *(_breakable(label) + " & " + " & ".join(_literal(row[k]) if k in row else "—" for k in shown_keys) + r"\\"
+                    for (_, label, _), row in zip(item.varied, rows)),
+                  r"\end{longtable}\par}"]
+    return lines
+
+
+def _unicode(texts: list[str]) -> list[str]:
+    """Each character pdflatex would stop at (outside Latin-1, Latin Extended-A and SAFE), declared as ?."""
+    odd = sorted({c for text in texts for c in text if ord(c) >= 0x180 and c not in SAFE})
+    return [f"\\DeclareUnicodeCharacter{{{ord(c):04X}}}{{?}}" for c in odd]
+
+
+def _tex(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> str:
     """report.tex, with BUILT for when and by what it was made: its front page, its contents, then each section
     on a new page, each grid in pictures that fit a page, each file named relative to the folder."""
     layout = _layout()
@@ -1024,6 +1349,9 @@ def _tex(plan: Plan, placed: list[tuple[Section, list[Placed]]], out: Path) -> s
         if section.note:
             lines += [tex(section.note) + r"\par", r"\vspace{6pt}"]
         for grid in grids:
+            if isinstance(grid, Configs):
+                lines += _given_tex(grid, out)
+                continue
             pieces = _chunks(grid)
             lines.append(f"\\phantomsection\\addcontentsline{{toc}}{{subsection}}{{{tex(grid.caption)}}}")
             for k, (start, end, box, cw, ch) in enumerate(pieces, 1):
@@ -1035,14 +1363,47 @@ def _tex(plan: Plan, placed: list[tuple[Section, list[Placed]]], out: Path) -> s
                           *layout.picture(names, grid.labels[start:end], box, grid.columns, rows, cw, ch, grid.label,
                                           "", 0.0, GAP, grid.options[start:end]),
                           r"\end{picture}", r"\end{minipage}\par\vspace{10pt}"]
-    return "\n".join([*lines, r"\end{document}", ""])
+    body = "\n".join([*lines, r"\end{document}", ""])
+    shown = [body, *(g.baseline.read_text(encoding="utf-8") for _, grids in placed for g in grids
+                     if isinstance(g, Configs) and g.baseline is not None)]
+    declared = _unicode(shown)
+    return body.replace(r"\begin{document}", "\n".join([*declared, r"\begin{document}"]), 1) if declared else body
 
 
-def _index(plan: Plan, placed: list[tuple[Section, list[Placed]]], out: Path) -> Path:
-    """index.html (the viewer): a block a grid, its panels the PNGs; the sources and their summaries' pages up front."""
+def _given_html(shown: Configs, out: Path) -> str:
+    """A tool's configuration as index.html shows it: its notes, its options, its baseline and what varied, as text."""
+    item, esc = shown.given, html.escape
+    link = lambda path: f'<a href="{esc(path.relative_to(out).as_posix(), quote=True)}">{esc(path.name)}</a>'   # noqa: E731
+    parts = [f"<p>{item.points()} complete point(s)</p>", *(f"<p><em>{esc(note)}</em></p>" for note in item.notes)]
+    if item.options:
+        parts.append("<p>Its options, alike in every point:</p><ul>"
+                     + "".join(f"<li><code>{esc(f'{k} = {_value(v)}')}</code></li>" for k, v in item.options.items()) + "</ul>")
+    if shown.baseline is not None:
+        parts.append(f"<p>Its card, alike in every point ({link(shown.baseline)}):</p><pre>{esc(chr(10).join(item.baseline))}</pre>")
+    if not any(own for _, _, own in item.varied):
+        return "\n".join([*parts, "<p>Nothing else varied from point to point.</p>"])
+    parts.append(f"<p>What varied, point by point ({link(shown.varied)}):</p>")
+    table = item.table()
+    if table is None:
+        parts += [f"<p><strong>{esc(label)}</strong></p><pre>{esc(chr(10).join(own))}</pre>" for _, label, own in item.varied if own]
+    else:
+        keys, rows = table
+        parts.append("<table><tr><th>Point</th>" + "".join(f"<th><code>{esc(k)}</code></th>" for k in keys) + "</tr>"
+                     + "".join(f"<tr><td>{esc(label)}</td>" + "".join(f"<td><code>{esc(row.get(k, '—'))}</code></td>" for k in keys)
+                               + "</tr>" for (_, label, _), row in zip(item.varied, rows)) + "</table>")
+    return "\n".join(parts)
+
+
+def _index(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> Path:
+    """index.html (the viewer): a block a grid, its panels the PNGs, and a block a tool's configuration, as text; the
+    sources and their summaries' pages up front."""
     blocks = []
     for number, (section, grids) in enumerate(placed, 1):
         for k, grid in enumerate(grids, 1):
+            if isinstance(grid, Configs):
+                blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {grid.given.caption}", [],
+                                           body=_given_html(grid, out)))
+                continue
             panels = [(label or (f"page {n}" if len(grid.pngs) > 1 else ""), png) for n, (label, png)
                       in enumerate(zip(grid.labels, grid.pngs), 1)]
             blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {grid.caption}", panels))
@@ -1087,8 +1448,10 @@ def build(plan: Plan, say=print) -> list[Path]:
     placed = _place(books, plan, say)
     books.prune()
     figures = sum(len(g.figures) for s in plan.sections for g in s.grids)
-    say(f"report: {figures} figure(s), {books.copied} file(s) copied; "
-        f"{sum(len(s.parts) + len(s.bars) for s in plan.sections)} statistics part(s), {books.drawn} drawn")
+    tools = sum(len(s.given) for s in plan.sections)
+    say(f"report: {figures} figure(s), {books.copied} file(s) copied or written; "
+        f"{sum(len(s.parts) + len(s.bars) for s in plan.sections)} statistics part(s), {books.drawn} drawn"
+        + (f"; {tools} tool configuration(s)" if tools else ""))
     text = _tex(plan, placed, out)
     key = _key(text, *(f"{rel}:{sha}" for rel, sha in sorted(books.shas.items())))
     source, pdf = out / "report.tex", out / "report.pdf"

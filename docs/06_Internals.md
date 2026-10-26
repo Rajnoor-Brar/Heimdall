@@ -132,7 +132,7 @@ layering was not had nine cycles.)
 | 0 | `hepfiles.py` | reading YODA text (1D and 2D objects, `/RAW` twins, counters; `.gz` too) and Rivet's data directories, once (V60) |
 | 0 | `plugins.py` | loading a folder's Python by path, once: `render.py`, `backend.py`, `provider.py`, the figures' plugins (V61) |
 | 0 | `v3.py` | the run TOML's third form read as the second's: `[file]`, `[cfgs.<name>]`, tools typed by their table's name, quantities as points rows (`fixed`, `to`, compound `fields`, beams `a`/`b`), `events` lists; marks for what the parser infers (FIFOs, files, producers; audit 3, phase 6) |
-| 0 | `viewer.py` | the viewer: a page of blocks of labelled panels, sizes and columns, ← → (V104), with a front block (a report's sources, V208) |
+| 0 | `viewer.py` | the viewer: a page of blocks of labelled panels, sizes and columns, ← → (V104), with a front block (a report's sources, V208) and blocks of text (`body`: a report's tools' configurations, V210) |
 | 0 | `image.py` | Apptainer images: the system's runtime (`apptainer`, else `singularity`), an image by name in the machine root's `images/` or by path, `heimdall image build` (heimdall.def filled, a clean copy of the checkout, `--fakeroot`) and the listing, the image a point runs in for provenance (V150) |
 | 0 | `shellrc.py` | the block Heimdall keeps in ~/.bashrc and ~/.zshrc: `gjallarhorn [title]` and `bifrost`, between marker lines; written, replaced, removed, the rest of the file kept (standard library only: `build_stack.py` loads it by path; V143) |
 | 1 | `config.py` | load the TOML, `[config].import`, `--set`, the strict schema check and the figure rules; `[report]` checked (`check_report`) and its template laid under it (`report_of`, V209); the typed model (`RunConfig`, `Configuration`, `Tool`, `Quantity`); a chain's `@<quantity>` entries resolved, a piece of chain spliced (`resolve_chain`, every value checked with the file by `check_selectors`), and a resolved chain's interfaces (`chain_prelim`, V153) |
@@ -152,7 +152,7 @@ layering was not had nine cycles.)
 | 4 | `plotdoc.py` | a run's plot document, `results/<run>/plot.toml` (V165): written by the run (what it knows rewritten, the user's `[plot]` and `[stats]` kept), read by every drawing as a `Doc`, a `DocConfiguration` and members |
 | 4 | `statstable.py` | the statistics table (V160, V206): a page's numbers as rows, a set's `statistics.csv` written and read back (`read`), its bar graphs and summary (`write_set`, through `figures/bars.py`) |
 | 4 | `post.py` | the pre, combined and post stages |
-| 4 | `report.py` | `heimdall report` (I-108, V207): sources (result folders holding a `plot.toml`, by address, run, path or glob) and their facts, a recipe (`[report]`, `schema/report.toml`: a file of its own, a run TOML's, a folder's `report.toml`, which `write_recipe` writes beside `plot.toml`, V209) or the default one, resolved into a plan of sections, built where `results/` has its sources (`_out`), grids of figures and statistics parts; `--list`, `--init`; the build (V208): figures copied, statistics and bar graphs drawn from `statistics.csv` (`chosen`), `report.tex` in `figures/layout.py`'s pictures, `report.pdf`, `index.html` (`viewer`), each made again only when what it was made from changed (`.stamps.json`) |
+| 4 | `report.py` | `heimdall report` (I-108, V207): sources (result folders holding a `plot.toml`, by address, run, path or glob) and their facts, a recipe (`[report]`, `schema/report.toml`: a file of its own, a run TOML's, a folder's `report.toml`, which `write_recipe` writes beside `plot.toml`, V209) or the default one, resolved into a plan of sections, built where `results/` has its sources (`_out`), what each tool was given read from the records (`configured`: a card's baseline and what varied, `split`, `key_value`, V210), grids of figures and statistics parts; `--list`, `--init`; the build (V208): figures copied, statistics and bar graphs drawn from `statistics.csv` (`chosen`), `report.tex` in `figures/layout.py`'s pictures, `report.pdf`, `index.html` (`viewer`), each made again only when what it was made from changed (`.stamps.json`) |
 | 4 | `deck.py` | `heimdall deck`: a deck's blocks from result folders or its own files, labelled and copied into `panels/` (V103); their composites, and `deck.md` through pandoc to Beamer, pptx, dzslides HTML and an Overleaf zip, the viewer, `--init` (V104) |
 | 4 | `cluster.py` | `heimdall cluster`: [cluster] in its layers, the Slurm scripts (a pre job, a points array, a finish job, each an ordinary `heimdall run --stages …`), `sbatch` and the dependencies, `jobs.toml`, `--status` from `sacct` and `squeue`, `--cancel` (V114) |
 | 5 | `cli.py` | `argparse`: `run`, `plot`, `overlay`, `watch`, `check`, …; the order of events |
@@ -864,9 +864,9 @@ records/<P>/<run>/<cfg>/
   points.json   run.jsonl (the run's own log, every run's, V202)   [status.jsonl: keep journal]
   points/<point>/       provenance.json  identity.json  .complete  attempts.jsonl   (kept; clean --records only)
   points/pre/, post/, <combined group>/   the same, for the stages
-  logs/<point>/         cards/  config/  commands.sh  .lock  <tag>.log (each tool's digest)  [<tag>.full.log: keep logs]
+  logs/<point>/         cards/  config/  context.toml  commands.sh  .lock  <tag>.log (each tool's digest)  [<tag>.full.log: keep logs]
                         history/<n>/: an earlier attempt's logs and cards (the 9 newest; the 3 newest their full logs)
-                        while it runs, and kept when it fails or with keep work: FIFOs, scratch files, shards, context.toml
+                        while it runs, and kept when it fails or with keep work: FIFOs, scratch files, shards
   logs/pre/, post/, <combined group>/     the same, for the stages
   logs/plot/            the plot stage's failures (V204): <set>.root.log (Paint), convert-<point>.log, merge-<cfg>.log
   config/       the run's snapshot (V158)
@@ -901,6 +901,7 @@ reports/<P>/<run>/<cfg>/              a report (heimdall report, V207–V209), w
   figures/<NN>_<section>/<MMM>_<source>_<page>.{pdf,png}   every page it shows, copied as drawn (a PNG rendered when none)
   stats/<NN>_<section>/<MM>_<source>.pdf, …/<MM>_<source>/<MM>_<source>_<NN>.png   statistics drawn from statistics.csv
   stats/<NN>_<section>/<MMM>_<source>_<page>.{pdf,png}     bar graphs;  stats/summaries/<source>__<set>.html
+  tools/<NN>_<section>/<MM>_<source>/<tag>.baseline.<ext>, <tag>.varied.csv   what each tool was given (V210)
   report.tex  report.pdf  index.html  .stamps.json (what each file was made from)
 
 reports/<deck>/                       a deck (heimdall deck, V103, V104): yours, deck.toml  deck.md  extras/

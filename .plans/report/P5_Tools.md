@@ -58,3 +58,27 @@ every reported point shares, and what varied point by point. **Pause for compact
   07 V210.
 
 ## Log
+
+- 2026-10-27: done (V210), in the worktree, branch `report`.
+  - **Readings taken while building it:**
+    - **fvextra, not listings.** `listings` reads no UTF-8 under pdflatex, and fvextra's `breakanywhere` splits a
+      UTF-8 character (a test card with `±`, `→`, `€`, `≤` and a snowman stopped pdflatex); `breaklines` with
+      `breakafter={/_:=,.-}` breaks long lines and takes any character. Characters outside Latin-1, Latin
+      Extended-A and a few symbols are declared as `?` in the preamble, so a card never stops the report.
+    - **A module's `config`** is its card (read from `config/`), and `config` is not among its options.
+    - **Options that varied** join the varied lines as `key = <TOML value>`, so they are columns of the table.
+    - **Tools in natural order** within a glob, globs in their order; `"*"` takes only tools given a card or
+      options (yd2rt is not shown), a name takes its tool even when it was given nothing, and says so.
+    - **Row labels** are the curve's labels as plain text (`plain`: `$e^{+}p$` → `e+p`); the CSV has the
+      point's name too.
+    - The name `given` for the reader shadowed `resolve`'s argument: it is `configured`.
+  - **Tests:** test_report (17; 3 new), test_report_build (8; 1 new: the files, the PDF's text, a copy of the
+    folder compiling alone, a rebuild writing nothing); test_plot_stage's report.toml with its Tools section;
+    213 passed across report, report_build, docs, imports, config, v3, house, one_cli, snapshot, context, deck,
+    deck_build, layout, statstable, summary_layout.
+  - **The fast suite:** 1098 passed, 10 skipped; 1 failed, `test_stack_build::test_the_old_way_is_apt_and_a_venv`,
+    the failure P1's run had too (the pixi base's python named in a `base=system` script), not the report's.
+  - **On Brookhaven, read-only** (`scratchpad/p4live/`): `heimdall report eic/zeus_validation/02_generator_pdf`
+    (no `report.toml` there: the default), 31 A4 pages in 3.4 s; its Tools section as the plan expected (Pythia:
+    `PDF:pSet`, `Random:seed`; Sherpa: `PDF_SET`, `MPI_PDF_SET`, `RANDOM_SEED`; Rivet: its analyses); nothing in
+    Brookhaven newer, `git status` clean.

@@ -1372,7 +1372,7 @@ def check_stats(stats: dict, where: str) -> None:
 # ── a report's recipe ([report], I-108) ─────────────────────────────────────────────────────────
 
 #: What a report's section shows: exactly one of these (framework/schema/report.toml).
-REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files")
+REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files", "tools")
 #: The statistics summary's sections (bars.summary_model), and a statistic's parts by their item's key suffix.
 STATISTICS = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "area")
 SUMMARY = ("top5", "scoreboard", "scoreboard-cells", "head-to-head", "scoreboards", *STATISTICS)
@@ -1410,6 +1410,8 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
                 raise HepError(f"stats: no section {key!r}", where=f"{at}.stats", hint=hint)
         if "plot" in section:
             check_plot(section["plot"], f"{at}.plot")
+        if "hide" in section and "tools" not in section:
+            raise HepError("hide is a tools section's: the varied lines it leaves out", where=f"{at}.hide")
 
 
 def report_of(table: dict, path: Path, project: str, where: str, chain: tuple[Path, ...] = ()) -> tuple[dict, list[Path]]:

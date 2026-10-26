@@ -583,10 +583,12 @@ to a colleague or a supervisor. It runs only when asked: no run, plot or stats s
 - **`-o DIR`:** builds into DIR instead of where `results/` has its sources (`reports/<P>/<run>/<cfg>/`,
   `reports/<P>/<run>/`, …) or its recipe's `[report].output`; never into `results/`.
 - **What it makes:** `figures/` (every page it shows, copied as drawn, with its PNG), `stats/` (the statistics
-  and bar graphs it shows, drawn from each source's `statistics.csv`), `report.tex`, `report.pdf` (A4) and
-  `index.html`, again only what changed; what they are is [03 §11](03_Plots.md#11-reports-heimdall-report).
+  and bar graphs it shows, drawn from each source's `statistics.csv`), `tools/` (what each tool was given, from
+  the records: its card's lines alike in every point, and what varied as a CSV), `report.tex`, `report.pdf` (A4)
+  and `index.html`, again only what changed; what they are is [03 §11](03_Plots.md#11-reports-heimdall-report).
 - **What it needs:** pdflatex for `report.pdf` (without it, `report.tex` is still written, to compile
-  elsewhere) and poppler's `pdftoppm` for a page drawn with no PNG.
+  elsewhere), with `longtable` and `fvextra` for the tools' pages, and poppler's `pdftoppm` for a page drawn
+  with no PNG.
 
 #### 1.8.1 `heimdall deck`
 

@@ -1408,7 +1408,7 @@ logs written there and `.lock`; scratch files, shards and what its tools left go
 | `cards/<tag>.json` | each key's value and where it came from (a folder with `[card] merge`: pythia) |
 | `cards/<tag>.prepare.<ext>` | the card a prepare step reads, when the tool's `render.py` makes one |
 | `config/<tag>.toml` | an exec or module tool's extracted config |
-| `context.toml` | the point's context file (§9.4): every tool's card and config; there only while the point runs |
+| `context.toml` | the point's context file (§9.4): every tool's card and config; kept with the point's record (a report's tools' pages read it) |
 | `<tag>.log`, `<tag>.prepare.log`, `prelim.log` | each tool's digest, written when it ends however it ended: a header (tag, attempt, started, exit, lines), its first 100 lines of stdout and stderr, every line its rules matched with its number, its last 200 lines; its whole output when that fits (`[prelim]`'s commands' output likewise) |
 | `<tag>.full.log`, `<tag>.prepare.full.log`, `prelim.full.log` | with `--logs` (`keep logs`), the tool's whole output |
 | `history/<n>/` | attempt `n`'s logs and a copy of its `cards/`, moved there when the next attempt starts: the 9 newest keep their digests and cards, the 3 newest their whole logs (`[run] log`, below) |
@@ -1486,7 +1486,9 @@ every key, as below. One table, in three places:
 **The default report**, for a folder without a `report.toml` and for several sources at once, is a Standings
 section (the statistics' headline: the top five and each statistic's ranking) on the first set measured, then
 the pages of every set in the sources' `[plot].draw` (every set of `[plot].sets` when it names none), a grid
-per page cell. Each of its sections is `optional`, so a set drawn nowhere is left out, and `--list` says so.
+per page cell, then a Tools section of `[report].tools` (03 §11.2). Each of its sections is `optional`, so a set
+drawn nowhere is left out, and `--list` says so. A recipe with no sections (a run TOML's `[report]` with only a
+title, say) has the default's.
 
 ```toml
 # configs/eic/weekly.toml: a template, or a recipe of its own
@@ -1531,10 +1533,11 @@ pages = ["d0[3-4]-*"]
 | `from` | a list (a string each) |  | its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them |
 | `output` | a string |  | where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<P>/<run>/<cfg>/, reports/<P>/<run>/, …); -o replaces it. Not in a run TOML |
 | `template` | a string |  | a recipe laid under this table, named as [config].import names a file (weekly, eic/weekly, ./…; .toml optional): its keys under these, its sections first |
-| `section` | a list (a table each) |  | its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars or files |
+| `section` | a list (a table each) |  | its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars, files or tools |
+| `tools` | a list (a string each) |  | the tools whose configurations the default sections show, last, in a Tools section: tags ([tools.<tag>]) or globs; default: every tool given a card or options; [] none |
 <!-- /generated -->
 
-**`[[report.section]]`:** each shows exactly one of `pages`, `compare`, `stats`, `bars` or `files`.
+**`[[report.section]]`:** each shows exactly one of `pages`, `compare`, `stats`, `bars`, `files` or `tools`.
 
 <!-- generated: keys section -->
 | Key | Type | Default | Meaning |
@@ -1554,6 +1557,8 @@ pages = ["d0[3-4]-*"]
 | `stats` | a list (a string each) |  | the statistics summary's sections, from each source's statistics/<set>/statistics.csv: top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts |
 | `bars` | a list (a string each) |  | globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv |
 | `files` | a list (a string each) |  | your own PDF or PNG files, globs relative to the recipe's folder (`extras/*.png`) |
+| `tools` | a list (a string each) |  | tool tags ([tools.<tag>]) or globs, "*" every tool given a card or options: what each was given, read from each source's records, over its complete points: the card's lines every point had (its baseline), then each point's other lines (a table when they are key = value or key: value lines), and its other options |
+| `hide` | a list (a string each) |  | a tools section's: globs of varied lines' keys (else of the lines) to leave out ("Random:seed", "RANDOM_SEED") |
 | `plot` | a table |  | [plot] keys over each source's own, for this section's pages: they are then drawn for the report (03 §11), never into results/ |
 <!-- /generated -->
 

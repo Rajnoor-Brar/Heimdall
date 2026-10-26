@@ -35,7 +35,12 @@ doc  = "a recipe laid under this table, named as [config].import names a file (w
 [report.section]
 type  = "list"
 items = "table"
-doc   = "its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars or files"
+doc   = "its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars, files or tools"
+
+[report.tools]
+type  = "list"
+items = "str"
+doc   = "the tools whose configurations the default sections show, last, in a Tools section: tags ([tools.<tag>]) or globs; default: every tool given a card or options; [] none"
 
 [section.title]
 type     = "str"
@@ -113,6 +118,16 @@ doc   = "globs of page names: each page's bar graph of its curves' numbers, draw
 type  = "list"
 items = "str"
 doc   = "your own PDF or PNG files, globs relative to the recipe's folder (`extras/*.png`)"
+
+[section.tools]
+type  = "list"
+items = "str"
+doc   = "tool tags ([tools.<tag>]) or globs, \"*\" every tool given a card or options: what each was given, read from each source's records, over its complete points: the card's lines every point had (its baseline), then each point's other lines (a table when they are key = value or key: value lines), and its other options"
+
+[section.hide]
+type  = "list"
+items = "str"
+doc   = "a tools section's: globs of varied lines' keys (else of the lines) to leave out (\"Random:seed\", \"RANDOM_SEED\")"
 
 [section.plot]
 type = "table"

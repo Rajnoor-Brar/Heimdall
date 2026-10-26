@@ -770,9 +770,10 @@ def _context_tables(plan: PointPlan, products: dict[str, list[str]]) -> dict[str
 
 
 def context_text(plan: PointPlan) -> str:
-    """The context file: written when the point starts, removed when it ends (execute)."""
+    """The context file: written when the point starts, kept with its record when it ends (V187; a report's tools'
+    pages read it, V210)."""
     return (f"# {CONTEXT_FILE} — point {plan.point.name}: every tool's card and config, for any program of it\n"
-            "# (HEP_CONTEXT; docs/04_Config_Reference.md §9.4). Written when the point starts, removed when it ends.\n\n"
+            "# (HEP_CONTEXT; docs/04_Config_Reference.md §9.4). Written when the point starts, kept with its record.\n\n"
             + tomli_w.dumps({"tools": plan.context_tools}))
 
 

@@ -133,6 +133,16 @@ def parser() -> argparse.ArgumentParser:
     deck.add_argument("--only", metavar="TARGETS", help="some of pdf, pptx, html, overleaf, viewer (comma-separated)")
     deck.add_argument("--init", action="store_true", help="write deck.md once: a title slide and a slide per block")
 
+    reported = commands.add_parser("report", help="a quick report of runs' pages and numbers, built into reports/<P>/<name>/ "
+                                                  "only when asked (a recipe: configs/<P>/<name>.toml with [report])")
+    reported.add_argument("names", nargs="*", metavar="RECIPE|SOURCE",
+                          help="a recipe (<P>/<name>, or a .toml path), then its sources, which replace its [report].from; "
+                               "or sources alone, for the default report: <P>/<run>/<cfg>, <P>/<run>, a path or a glob")
+    reported.add_argument("--list", "--dry-run", dest="list", action="store_true",
+                          help="its sources, sections and figures, each copied or drawn for the report; nothing written")
+    reported.add_argument("--init", metavar="SOURCE", help="write the recipe RECIPE (<P>/<name>) once: SOURCE's sets and pages, listed")
+    reported.add_argument("-o", "--output", metavar="DIR", help="build into DIR (default reports/<P>/<name>/)")
+
     listing = commands.add_parser("ls", help="every config and its configurations")
     listing.add_argument("project", nargs="?", help="only this project's configs")
 
@@ -1282,6 +1292,31 @@ def cmd_deck(args) -> int:
     return 0
 
 
+def cmd_report(args) -> int:
+    """`heimdall report [RECIPE] [SOURCE…]` (I-108, V207): a recipe and its sources (or sources alone, the default
+    recipe) resolved into sections of figures and statistics; --list says them, --init writes a recipe once."""
+    from . import report as reportmod
+    from .paths import configs_root
+    if args.init:
+        if not args.names or args.names[0].count("/") != 1 or args.names[0].endswith(".toml"):
+            raise HepError("--init writes a recipe: name it, <P>/<name>", hint=f"heimdall report eic/weekly --init {args.init}")
+        target = configs_root() / f"{args.names[0]}.toml"
+        if target.exists():
+            raise HepError(f"{target} is there already", hint="--init writes a recipe once: edit it, or name another")
+        (source, *_) = reportmod.sources([args.init], "--init")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(reportmod.starter(args.names[0], source), encoding="utf-8")
+        print(f"report: wrote {target}")
+        return 0
+    first, rest = (args.names[0], args.names[1:]) if args.names else (None, [])
+    plan = reportmod.planned(first, rest, Path(args.output).resolve() if args.output else None)
+    if args.list:
+        for line in reportmod.listing(plan):
+            print(line)
+        return 0
+    raise HepError("building a report comes with its next step (I-108 P3)", hint="--list says what it would hold")
+
+
 def cmd_plot(args) -> int:
     """`heimdall plot CONFIG [CONFIGURATION] | RECORD | <folder>` (V165): the pages of a run's plot document,
     results/<run>/plot.toml, from records alone (no tool planned, no stack beyond Paint). CONFIG names its
@@ -1521,6 +1556,15 @@ def cmd_check(args) -> int:
             if importers.get(name) and not args.configs and not _has_configurations(name):
                 print(f"ok    {name}: shared, imported by {', '.join(importers[name])} (checked through them)")
                 continue
+            failed += 1
+            print(f"FAIL  {name}")
+            print("      " + error.render().replace("\n", "\n      "))
+    from . import report as reportmod
+    for name in (reportmod.recipes() if not args.configs else ()) or ():   # V207: a report's recipe, its keys
+        try:
+            recipe = reportmod.load_recipe(configs_root() / f"{name}.toml")
+            print(f"ok    {name}: a report, {len(recipe.get('section', []))} section(s)")
+        except HepError as error:
             failed += 1
             print(f"FAIL  {name}")
             print("      " + error.render().replace("\n", "\n      "))
@@ -2434,6 +2478,8 @@ def main(argv: list[str]) -> int:
             return cmd_overlay(args)
         if args.command == "deck":
             return cmd_deck(args)
+        if args.command == "report":
+            return cmd_report(args)
         if args.command == "ls":
             for line in house.ls(args.project):
                 print(line)

@@ -1036,7 +1036,7 @@ date: group meeting
 With no block in `deck.toml` (or no `deck.toml`), a deck takes the PDF and PNG files in its folder
 (**folder mode**). It groups them into blocks by name: `validation_d01_PDFs_010M.pdf` is block
 `validation_d01_PDFs`, panel `10M events`, in natural order (1M < 10M < 150M), images after PDFs.
-`[deck].group` is the regex (04 §15).
+`[deck].group` is the regex (04 §15.1).
 
-The keys are [04 §15](04_Config_Reference.md#15-a-decks-recipe-decktoml); the command is
-[05 §1.8](05_Commands_and_Tools.md#18-heimdall-deck).
+The keys are [04 §15.1](04_Config_Reference.md#151-a-decks-recipe-decktoml); the command is
+[05 §1.8.1](05_Commands_and_Tools.md#181-heimdall-deck).

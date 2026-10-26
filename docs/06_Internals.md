@@ -151,6 +151,7 @@ layering was not had nine cycles.)
 | 4 | `plotdoc.py` | a run's plot document, `results/<run>/plot.toml` (V165): written by the run (what it knows rewritten, the user's `[plot]` and `[stats]` kept), read by every drawing as a `Doc`, a `DocConfiguration` and members |
 | 4 | `statstable.py` | the statistics table (V160, V206): a page's numbers as rows, a set's `statistics.csv` written and read back (`read`), its bar graphs and summary (`write_set`, through `figures/bars.py`) |
 | 4 | `post.py` | the pre, combined and post stages |
+| 4 | `report.py` | `heimdall report` (I-108, V207): sources (result folders holding a `plot.toml`, by address, run, path or glob) and their facts, a recipe (`configs/<P>/<name>.toml` with `[report]`, `schema/report.toml`) or the default one, resolved into a plan of sections, grids of figures and statistics parts; `--list`, `--init` |
 | 4 | `deck.py` | `heimdall deck`: a deck's blocks from result folders or its own files, labelled and copied into `panels/` (V103); their composites, and `deck.md` through pandoc to Beamer, pptx, dzslides HTML and an Overleaf zip, the viewer, `--init` (V104) |
 | 4 | `cluster.py` | `heimdall cluster`: [cluster] in its layers, the Slurm scripts (a pre job, a points array, a finish job, each an ordinary `heimdall run --stages …`), `sbatch` and the dependencies, `jobs.toml`, `--status` from `sacct` and `squeue`, `--cancel` (V114) |
 | 5 | `cli.py` | `argparse`: `run`, `plot`, `overlay`, `watch`, `check`, …; the order of events |

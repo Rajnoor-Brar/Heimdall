@@ -1,5 +1,6 @@
 """The run TOML's schema: framework/schema/run.toml, and checking a table against it (rank 0). A deck's
-recipe has its own, framework/schema/deck.toml (tables "deck" and "block", V103).
+recipe has its own, framework/schema/deck.toml (tables "deck" and "block", V103), and so has a report's,
+framework/schema/report.toml (tables "report" and "section", V207).
 
 docs/04_Config_Reference.md. Every key's type, allowed values, smallest value, default, inheritance and
 whether it takes "default" is written once, in run.toml (V55); config.py and plot.py check their tables
@@ -32,6 +33,8 @@ NAMES = {"int": "an integer", "float": "a number", "str": "a string", "bool": "t
 TABLES = ("config", "run", "configuration", "prelim", "quantity", "tool", "plot", "figure", "data", "stats", "cluster")
 #: The tables of deck.toml, a deck's recipe (reports/<name>/deck.toml, V103).
 DECK_TABLES = ("deck", "block")
+#: The tables of report.toml, a report's recipe (configs/<P>/<name>.toml with [report], V207).
+REPORT_TABLES = ("report", "section")
 #: A figure's own keys: the rest are what it sets for its pages.
 FIGURE_OWN = ("class", "type", "name", "objects", "labels", "over", "configurations", "op", "x", "y", "pages", "columns",
               "statistic", "sort")
@@ -96,6 +99,8 @@ def keys(table: str) -> dict[str, dict]:
         return spec().get("run", {}) | given
     if table in DECK_TABLES:
         return spec("deck").get(table, {})
+    if table in REPORT_TABLES:
+        return spec("report").get(table, {})
     return spec().get(table, {})
 
 

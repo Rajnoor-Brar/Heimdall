@@ -15,8 +15,8 @@ counted, what it puts in the context file, and the quirks that shaped it (the le
 Every command is one program's (`framework/bin/heimdall` runs `framework/runner/cli.py`): `heimdall help`
 lists them, `heimdall help <command>` (or `heimdall <command> --help`) says one, and a misspelt command gets
 the nearest. Throughout:
-- **`--dry-run`** shows what a command would do and does nothing: `run` (also `--plan`), `deck` (also
-  `--list`), `clean`, `cluster`, `migrate` (its default: `--apply` writes), `build` (`make -n`) and
+- **`--dry-run`** shows what a command would do and does nothing: `run` (also `--plan`), `report` and `deck`
+  (also `--list`), `clean`, `cluster`, `migrate` (its default: `--apply` writes), `build` (`make -n`) and
   `stack build`.
 - **`--set KEY=VALUE`** works on every command that plans: `run`, `check`, `status`, `clean`, `cluster`.
 - **`--plain`** may come anywhere, for any command.
@@ -99,6 +99,15 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--list, --dry-run` | each block, its panels and where they came from; nothing written |
 | `--only TARGETS` | some of pdf, pptx, html, overleaf, viewer (comma-separated) |
 | `--init` | write deck.md once: a title slide and a slide per block |
+
+**`heimdall report`**: a quick report of runs' pages and numbers, built into reports/<P>/<name>/ only when asked (a recipe: configs/<P>/<name>.toml with [report])
+
+| Argument | Meaning |
+|---|---|
+| `RECIPE\|SOURCE…` | a recipe (<P>/<name>, or a .toml path), then its sources, which replace its [report].from; or sources alone, for the default report: <P>/<run>/<cfg>, <P>/<run>, a path or a glob |
+| `--list, --dry-run` | its sources, sections and figures, each copied or drawn for the report; nothing written |
+| `--init SOURCE` | write the recipe RECIPE (<P>/<name>) once: SOURCE's sets and pages, listed |
+| `-o, --output DIR` | build into DIR (default reports/<P>/<name>/) |
 
 **`heimdall ls`**: every config and its configurations
 
@@ -548,12 +557,30 @@ its `--set` overrides (the provenance records them) and its seed.
 - **A changed setup:** if the identity is not the one the provenance records, it prints what changed,
   as `--why` does, and stops. `--anyway` runs today's setup with the recorded seed.
 
-### 1.8 `heimdall deck`
+### 1.8 `heimdall report`
+
+`heimdall report [RECIPE] [SOURCE…]` makes a quick, informal report of runs' pages and numbers, to send to
+a colleague or a supervisor. It runs only when asked: no run, plot or stats step calls it.
+- **The arguments:** the first names a recipe when it is `<P>/<name>` and `configs/<P>/<name>.toml` has a
+  `[report]` table, or when it is a `.toml` path; the sources after it replace its `[report].from` (a
+  section's own `from` stays). Otherwise every argument is a source, for the default report.
+- **A source:** `<P>/<run>/<cfg>`, `<P>/<run>` (each configuration's folder, then the run's own), a path,
+  or a glob (`'eic/zeus_validation/0[2-4]_*'`).
+- **Its recipe's keys** are [04 §15](04_Config_Reference.md#15-a-reports-recipe-report).
+- **`--list`** (or `--dry-run`): its sources (each one's configuration, points complete, events, what it is
+  compared against), then each section and what it shows. Nothing is written.
+- **`--init SOURCE`:** writes `configs/<P>/<name>.toml` for `heimdall report <P>/<name> --init SOURCE`, once,
+  with SOURCE's sets, cells and pages listed.
+- **`-o DIR`:** builds into DIR instead of `reports/<P>/<name>/` (a report with no recipe:
+  `reports/<P>/<run>/<cfg>/`).
+- **The build** is not there yet: without `--list` or `--init` it says so.
+
+#### 1.8.1 `heimdall deck`
 
 `heimdall deck <deck>` makes slides from pages already drawn, in `reports/<deck>/` (a path
 starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
 [03 §11](03_Plots.md#11-decks-talks-and-reports-heimdall-deck); its `deck.toml` keys are
-[04 §15](04_Config_Reference.md#15-a-decks-recipe-decktoml).
+[04 §15.1](04_Config_Reference.md#151-a-decks-recipe-decktoml).
 - **What a run does, in order:**
   1. reads `deck.toml`'s blocks, or the folder's own files;
   2. copies the panels into `panels/`, again only when one changed;

@@ -1462,7 +1462,80 @@ Where everything goes, as a tree, is [06 §14](06_Internals.md#14-where-files-go
 
 ---
 
-## 15. A deck's recipe: `deck.toml`
+## 15. A report's recipe: `[report]`
+
+A report's recipe is a file of a project's configs, `configs/<P>/<name>.toml`, told apart from a run's by its
+top `[report]` table (it has no `[run]`). `heimdall report <P>/<name>` builds it into `reports/<P>/<name>/`
+(05 §1.8); `framework/schema/report.toml` holds every key, as below. A recipe has `[report]` and
+`[[section]]` tables, and nothing else. With no recipe, `heimdall report <source>` makes the default report:
+the statistics' headline, then each drawn set's pages, a grid per page cell.
+
+```toml
+# configs/eic/weekly.toml
+[report]
+title    = "ZEUS photoproduction: generators and PDFs"
+subtitle = "for the group, 30 Oct 2026"
+from     = ["eic/zeus_validation/02_generator_pdf"]   # replaced by sources on the command line
+
+[[section]]
+title = "Standings"
+stats = ["top5", "ratio_dev"]
+
+[[section]]
+title = "Spectra"
+pages = ["d01-*", "d02-*"]                # set "totality"; backend: the first drawn of root, mpl, yoda
+note  = "Pythia 8.318 and Sherpa 3.0.5 against ZEUS 2012"
+
+[[section]]
+title  = "Run by run"
+from   = ["eic/zeus/0[1-3]_generator_pdf"]   # its own sources, kept on an override
+pages  = ["d01-x01-y01"]
+layout = "sources"                        # a grid per page, a panel per source
+```
+
+**`[report]`:**
+
+<!-- generated: keys report -->
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `title` | a string |  | the report's title, on its front page (default: its name, or its one source's address) |
+| `subtitle` | a string |  | a line under the title: the date, who it is for |
+| `from` | a list (a string each) |  | its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them |
+<!-- /generated -->
+
+**`[[section]]`:** each shows exactly one of `pages`, `compare`, `stats`, `bars` or `files`.
+
+<!-- generated: keys section -->
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `title` | a string | **required** | the section's title, in the contents and above its figures |
+| `note` | a string |  | a line of text under the title |
+| `from` | a list (a string each) |  | this section's own sources (as [report].from), kept when the command line names others |
+| `pages` | a list (a string each) |  | globs of page names in each source's plots/<set>/<backend>/ (`d01-x01-y01`, `18x275/d0*`, `*`): a grid of them per page cell, or per page with layout = "sources" |
+| `set` | a string | `"totality"` | the set whose pages it takes: each source's plots/<set>/ and statistics/<set>/ |
+| `cells` | a list (a string each) |  | globs of page cells (the folders in a set: `18x275`), to take only those; default: every one |
+| `backend` | a string or a list (a string each): `"root"`, `"mpl"`, `"yoda"` |  | whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl, yoda) |
+| `layout` | a string: `"pages"`, `"sources"` | `"pages"` | pages: each source's pages in turn, a grid per page cell; sources: side by side, a grid per page, a panel per source |
+| `columns` | an integer, ≥ 1 |  | a grid's columns (default: 2 on an A4 page, 3 for a side-by-side grid of three or more) |
+| `label` | a string: `"events"`, `"folder"` | `"folder"` | a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its run, where two sources would share one); events, the events its points ran with (10M) |
+| `compare` | a list (a string each) |  | compare figures' names (03 §7.5): their pages, from each source's run's compare/<name>/ |
+| `stats` | a list (a string each) |  | the statistics summary's sections, from each source's statistics/<set>/statistics.csv: top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts |
+| `bars` | a list (a string each) |  | globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv |
+| `files` | a list (a string each) |  | your own PDF or PNG files, globs relative to the recipe's folder (`extras/*.png`) |
+| `plot` | a table |  | [plot] keys over each source's own, for this section's pages: they are then drawn for the report (03 §11), never into results/ |
+<!-- /generated -->
+
+- **A source** is a result folder holding a `plot.toml`: `<P>/<run>/<cfg>`, `<P>/<run>` (each of its
+  configurations, then the run's own folder when it is drawn), a path, or a glob of them under `results/`.
+  Sources of several runs and projects mix freely.
+- **What is not on disk is refused,** naming the command that makes it: `heimdall plot <source> --sets
+  <set>` for pages, `heimdall stats <source> --sets <set>` for numbers.
+- **A recipe named like a run of its project** (`results/<P>/<name>/` is there) is refused: the two would
+  share a folder under `reports/`.
+- `heimdall report <P>/<name> --init <source>` writes a starter recipe once, listing the source's sets,
+  cells and pages; `heimdall check` checks every recipe, and `heimdall ls` lists them under "reports".
+
+### 15.1 A deck's recipe: `deck.toml`
 
 A deck is written in `decks/<deck>/` and built into `reports/<deck>/` by `heimdall deck <deck>` (05; a deck
 still written in `reports/<deck>/` is read there, and `heimdall migrate --layout` moves its sources). Its

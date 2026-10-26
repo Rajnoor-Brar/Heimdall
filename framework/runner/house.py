@@ -100,6 +100,10 @@ def ls(project: str | None = None) -> list[str]:
             mark = "*" if key in swept else " "
             about = configuration.description or (configuration.title if configuration.title != key else "")
             lines.append(f"  {mark} {key:16s} {about}")
+    from . import report as reportmod
+    found = reportmod.recipes(project)                     # V207: the reports' recipes
+    if found:
+        lines.append("reports: " + ", ".join(found) + "   (heimdall report <recipe>)")
     return lines
 
 
@@ -210,6 +214,16 @@ def _special(key: str) -> list[str] | None:
         return ["machine.toml (the machine root's; recipes/machine.template.toml): this machine's layer",
                 "  [settings] [env] [packages.<name>]  the stack's build: over the recipes and toolkits (recipes/README.md §1)",
                 "  [cluster]                            heimdall cluster's defaults for every work dir here (04 §16)"]
+    if word in ("report", "section", "report.toml"):
+        tables = (word,) if word in schema.REPORT_TABLES else schema.REPORT_TABLES
+        return ["a report's recipe, configs/<P>/<name>.toml with [report] and [[section]]s (04 §15)",
+                *(f"  {t + '.' + k:24} {e.get('doc', '')}" for t in tables for k, e in schema.keys(t).items())]
+    if word.split(".")[0] in schema.REPORT_TABLES and word.count(".") == 1:
+        table, key = word.split(".")
+        entry = schema.keys(table).get(key)
+        if entry is not None:
+            return [f"{word} (a report's recipe, 04 §15)", f"  type     {entry.get('type', '')}",
+                    *([f"  default  {entry['default']}"] if "default" in entry else []), f"  {entry.get('doc', '')}"]
     if word in ("deck", "deck.toml"):
         return ["deck.toml: a deck's recipe (04 §15)",
                 *(f"  {k:16} {e.get('doc', '')}" for t in schema.DECK_TABLES for k, e in schema.keys(t).items())]

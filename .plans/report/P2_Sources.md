@@ -67,3 +67,29 @@
 - `test_docs`, `test_imports` and the touched tests (`test_check`, `test_ls`, `test_explain`, if they exist).
 
 ## Log
+
+- 2026-10-26: done (V207).
+  - **`framework/runner/report.py`** (rank 4): `Source` (its facts, sets, pages, numbers), `sources()`,
+    `recipe_of()`, `recipes()`, `load_recipe()`, `default_recipe()`, `resolve()` → `Plan` (`Section`, `Grid`,
+    `Figure`, `Part`, `Bars`), `planned()`, `labels()`, `listing()`, `starter()`.
+    `framework/schema/report.toml`; `schema.REPORT_TABLES`; `docs.py` renders `keys report` and `keys section`.
+  - **`cli.py`:** `heimdall report` (`--list`/`--dry-run`, `--init`, `-o`); a build says it is not there yet.
+    `heimdall check` checks recipes; `house`: `heimdall ls` lists them, `explain report`, `report.<key>`,
+    `section.<key>`.
+  - **Docs:** 04 §15 the report's recipe (deck's now §15.1, its links in 03 and 05 moved), 05 §1.8 (deck
+    §1.8.1), 06 §2.1, 07 V207.
+  - **On Brookhaven's results, read-only** (`HEP_RESULTS` and `HEP_RECORDS` its own, every other root in the
+    scratchpad; nothing newer than a marker there afterwards, `git status` clean):
+    - `--list` of `eic/zeus_validation/01_pythia_qed_lepton`, `02_generator_pdf`, the whole run, and a
+      side-by-side recipe over `0[2-4]_generator_pdf`: under 0.2 s each.
+    - **Found and fixed:** the reruns `02_`, `03_`, `04_generator_pdf` all labelled `generator_pdf`, so
+      side by side refused them. `labels()` keeps the serial (then the run) only where it is needed.
+    - **Found and fixed:** `--init`'s starter took its Standings from a different set than the default
+      report (the first in name order, not `[plot].draw`'s); it now writes the default's sections, then the
+      sets drawn but not drawn by default, commented out.
+    - **Tidied:** `--list` gives a statistics section of many sources one line, its sources under it.
+    - **For P3:** the default report of a big scan is big: `01_pythia_qed_lepton` has 38 + 19 page cells of
+      12 pages, about 115 pages of figures; the whole run about 241. Look at it built before deciding
+      whether the default should show less.
+  - **Tests:** `tests/runner/test_report.py` (8); `test_docs`, `test_imports`, `test_house`, `test_one_cli`,
+    `test_deck`: 92 passed.

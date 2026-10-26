@@ -1,0 +1,94 @@
+# framework/schema/report.toml — a report's recipe, configs/<P>/<name>.toml with a [report] table (I-108, V207).
+#
+# Every key's type, default and meaning, written once: runner/schema.py checks a recipe against it (its tables
+# "report" and "section"), and `make docs` writes the tables into docs/04_Config_Reference.md.
+# Entries as in run.toml: type, items, choices, min, default, required, doc, notes.
+
+[report.title]
+type = "str"
+doc  = "the report's title, on its front page (default: its name, or its one source's address)"
+
+[report.subtitle]
+type = "str"
+doc  = "a line under the title: the date, who it is for"
+
+[report.from]
+type  = "list"
+items = "str"
+doc   = "its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them"
+
+[section.title]
+type     = "str"
+required = true
+doc      = "the section's title, in the contents and above its figures"
+
+[section.note]
+type = "str"
+doc  = "a line of text under the title"
+
+[section.from]
+type  = "list"
+items = "str"
+doc   = "this section's own sources (as [report].from), kept when the command line names others"
+
+[section.pages]
+type  = "list"
+items = "str"
+doc   = "globs of page names in each source's plots/<set>/<backend>/ (`d01-x01-y01`, `18x275/d0*`, `*`): a grid of them per page cell, or per page with layout = \"sources\""
+
+[section.set]
+type    = "str"
+default = "totality"
+doc     = "the set whose pages it takes: each source's plots/<set>/ and statistics/<set>/"
+
+[section.cells]
+type  = "list"
+items = "str"
+doc   = "globs of page cells (the folders in a set: `18x275`), to take only those; default: every one"
+
+[section.backend]
+type    = "str|list"
+items   = "str"
+choices = ["root", "mpl", "yoda"]
+doc     = "whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl, yoda)"
+
+[section.layout]
+type    = "str"
+choices = ["pages", "sources"]
+default = "pages"
+doc     = "pages: each source's pages in turn, a grid per page cell; sources: side by side, a grid per page, a panel per source"
+
+[section.columns]
+type = "int"
+min  = 1
+doc  = "a grid's columns (default: 2 on an A4 page, 3 for a side-by-side grid of three or more)"
+
+[section.label]
+type    = "str"
+choices = ["events", "folder"]
+default = "folder"
+doc     = "a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its run, where two sources would share one); events, the events its points ran with (10M)"
+
+[section.compare]
+type  = "list"
+items = "str"
+doc   = "compare figures' names (03 §7.5): their pages, from each source's run's compare/<name>/"
+
+[section.stats]
+type  = "list"
+items = "str"
+doc   = "the statistics summary's sections, from each source's statistics/<set>/statistics.csv: top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts"
+
+[section.bars]
+type  = "list"
+items = "str"
+doc   = "globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv"
+
+[section.files]
+type  = "list"
+items = "str"
+doc   = "your own PDF or PNG files, globs relative to the recipe's folder (`extras/*.png`)"
+
+[section.plot]
+type = "table"
+doc  = "[plot] keys over each source's own, for this section's pages: they are then drawn for the report (03 §11), never into results/"

@@ -242,7 +242,7 @@ def render(what: str) -> str:
 
 def _render(what: str) -> str:
     kind, _, arg = what.strip().partition(" ")
-    if kind == "keys" and arg in schema.TABLES + schema.DECK_TABLES:
+    if kind == "keys" and arg in schema.TABLES + schema.DECK_TABLES + schema.REPORT_TABLES:
         return keys(arg)
     if kind == "keys3" and arg in V3_TABLES:
         return keys3(arg)
@@ -250,7 +250,7 @@ def _render(what: str) -> str:
         return style()
     if kind == "commands" and not arg:
         return commands()
-    raise ValueError(f"no generated block '{what}': keys <{'|'.join(schema.TABLES + schema.DECK_TABLES)}>, style or commands")
+    raise ValueError(f"no generated block '{what}': keys <{'|'.join(schema.TABLES + schema.DECK_TABLES + schema.REPORT_TABLES)}>, style or commands")
 
 
 def updated(text: str) -> str:

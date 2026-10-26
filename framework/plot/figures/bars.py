@@ -5,25 +5,32 @@ means say what is best on average, and each pair of curves on a page plays a mat
 five, scoreboards page by page and by page cell, each cell's head to head, a scoreboard a statistic. Then
 per statistic (χ²/ndf, |Δ|/reference, area/reference, mean ratio, mean |ratio − 1|,
 V175; TABLES), each point's mean over its pages as sorted bars, then a table, a row per point and a column per
-object; the area a table only (each object has its own units: no mean across them). statistics/<set>/summary.pdf
-holds every page; a PNG or SVG is a file a page in statistics/<set>/summary/, numbered in the PDF's order
-(summary_01.png, summary_02.png, …). Each summary page ends with a footnote: what its number is and how it is
-computed (NOTES). Matplotlib (the conda base's), Agg.
+object; the area a table only (each object has its own units: no mean across them).
 
-A page's image is six panels side by side, one bar per curve in the page's order, each statistic on its own
-axis (no two scales on one): χ²/ndf, |Δ|/ref, area/ref, the mean ratio and |ratio − 1| against the page's
-reference, and the area. One series, one colour; the values at the bars' tips, in text ink; the reference curve
-(a page without data) is named, not drawn. Rows are plot.statistics_of's (runner/plot.py).
+The summary is a document (V196, I-107): `summary_model` builds it as paper.py's model, sections of tables and
+rankings, and paper.py lays it out on A4 portrait pages. statistics/<set>/summary.pdf holds every page; a PNG or
+SVG is a file a page in statistics/<set>/summary/, numbered in the PDF's order (summary_01.png, …). Each page
+ends with its items' notes, each once: what its numbers are and how they are computed (NOTES). Matplotlib (the
+conda base's), Agg.
+
+A page's image is six panels on an A4 portrait page, in the grid that gives each bar the most height (2 × 3,
+3 × 2 or 6 × 1), one bar per curve in the page's order, each statistic on its own axis (no two scales on one):
+χ²/ndf, |Δ|/ref, area/ref, the mean ratio and |ratio − 1| against the page's reference, and the area. One series,
+one colour; the values at the bars' tips, in text ink; the reference curve (a page without data) is named, not
+drawn. Rows are plot.statistics_of's (runner/plot.py).
 """
 
 from __future__ import annotations
 
 import math
-import textwrap
 from pathlib import Path
 
-SERIES = "#2a78d6"            # one series: the palette's first categorical slot
-INK, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
+from runner import plugins
+
+paper = plugins.load(Path(__file__).with_name("paper.py"), "paper")
+
+SERIES = paper.SERIES         # one series: the palette's first categorical slot
+INK, MUTED, GRID, SURFACE = paper.INK, paper.MUTED, paper.GRID, paper.SURFACE
 PANELS = (("chi2_ndf", r"$\chi^{2}$/ndf"), ("rel_abs_area", r"$|\Delta|$ / reference"),
           ("area_ratio", "area / reference"), ("ratio_mean", "mean ratio"), ("ratio_dev", "mean |ratio − 1|"),
           ("area", "area"))
@@ -66,7 +73,12 @@ RANKING_NOTE = ("Per point (its page cell · its label), the {mean} mean of its 
 GEOMETRIC = "geometric"                                         # a ratio's mean: 2 and 0.5 average to 1
 PLAIN = {"chi2_ndf": "χ²/ndf", "rel_abs_area": "|Δ| / reference", "area_ratio": "area / reference",
          "ratio_mean": "mean ratio", "ratio_dev": "mean |ratio − 1|", "area": "area"}
-FOOT = 6.5                                                      # the footnote's size, pt
+
+#: A page image's grids of the six panels (columns, rows); a panel's least width, the room around a panel row
+#: (its title, its x labels, the gap), the space between panels, a bar's most and least height, inches.
+GRIDS = ((2, 3), (3, 2), (6, 1))
+PANEL, PANEL_ROOM, PANEL_GAP, MOST_BAR, LEAST_BAR = 1.4, 0.75, 0.3, 0.32, 0.12
+STRIP = 0.35                                                    # the page image's title strip
 
 
 def _finite(value) -> bool:
@@ -91,54 +103,102 @@ def _style(ax, labels: list[str]) -> None:
     for side in ("top", "right", "left"):
         ax.spines[side].set_visible(False)
     ax.spines["bottom"].set_color(GRID)
-    ax.tick_params(axis="x", colors=MUTED, labelsize=8, length=0)
+    ax.tick_params(axis="x", colors=MUTED, labelsize=7, length=0)
+    from matplotlib.ticker import MaxNLocator
+    ax.xaxis.set_major_locator(MaxNLocator(4))                  # a narrow panel's numbers apart
     ax.tick_params(axis="y", length=0)
     ax.grid(axis="x", color=GRID, linewidth=0.8)
     ax.set_axisbelow(True)
     ax.set_ylim(len(labels) - 0.5, -0.5)               # the page's first curve on top
 
 
-def _bars(ax, values: list, notes: list[str]) -> None:
+def _bars(ax, values: list, notes: list[str], size: float = 8) -> None:
     """Thin bars from one baseline, each value at its tip; a missing value says why."""
     finite = [v for v in values if _finite(v)]
     top = max(finite + [0.0]) or 1.0
     for i, (value, note) in enumerate(zip(values, notes)):
         if _finite(value):
-            ax.barh(i, value, height=0.55, color=SERIES, edgecolor=SURFACE, linewidth=2)
-            ax.text(value + 0.015 * top, i, _shown(value), va="center", ha="left", color=INK, fontsize=8)
+            ax.barh(i, value, height=0.55, color=SERIES, edgecolor=SURFACE, linewidth=1)
+            ax.text(value + 0.015 * top, i, _shown(value), va="center", ha="left", color=INK, fontsize=size)
         else:
-            ax.text(0.015 * top, i, note, va="center", ha="left", color=MUTED, fontsize=8, style="italic")
-    ax.set_xlim(0, top * 1.22)
+            ax.text(0.015 * top, i, note, va="center", ha="left", color=MUTED, fontsize=size, style="italic")
+    ax.set_xlim(0, top * 1.3)
+
+
+def grid(curves: int, label: float) -> tuple[int, int, float, int]:
+    """A page image's grid for `curves` curves whose labels take `label` inches: (columns, rows, a bar's height,
+    curves a page). The grid gives each bar the most height with every panel at least PANEL wide (2 × 3 when none
+    does); a bar is at most MOST_BAR, and below LEAST_BAR the curves continue on further pages, in the grid that
+    holds the most."""
+    room = paper.A4[1] - 2 * paper.EDGE - STRIP
+    fits = [(c, r) for c, r in GRIDS if (paper.WIDTH - label - (c - 1) * PANEL_GAP) / c >= PANEL] or [GRIDS[0]]
+    each = {g: (room - g[1] * PANEL_ROOM) / g[1] for g in fits}               # a panel's height for bars
+    best = max(fits, key=lambda g: each[g])
+    if each[best] / max(curves, 1) >= LEAST_BAR:
+        return best[0], best[1], min(MOST_BAR, each[best] / max(curves, 1)), max(curves, 1)
+    per = max(1, int(each[best] // LEAST_BAR))
+    return best[0], best[1], min(MOST_BAR, each[best] / per), per
+
+
+def _page_figure(rows: list[dict], title: str, columns: int, bar: float, label: float, plt):
+    """One A4 page of a page's statistics: the six panels in `columns` columns, a bar per curve."""
+    fig = plt.figure(figsize=paper.A4, facecolor=SURFACE)
+    w, h = paper.A4
+    labels = [_label(r["curve"]) for r in rows]
+    panel = (paper.WIDTH - label - (columns - 1) * PANEL_GAP) / columns
+    height = bar * len(rows)
+    size = 8 if bar >= 0.16 else 7
+    reference = rows[0]["reference"] if rows else ""
+    fig.text(paper.SIDE / w, 1 - (paper.EDGE + STRIP / 2) / h, f"{title}  ·  against {_label(reference)}",
+             color=MUTED, fontsize=9, ha="left", va="center")
+    for k, (key, name) in enumerate(PANELS):
+        r, c = divmod(k, columns)
+        left = paper.SIDE + label + c * (panel + PANEL_GAP)
+        top = paper.EDGE + STRIP + r * (height + PANEL_ROOM) + 0.25
+        ax = fig.add_axes((left / w, 1 - (top + height) / h, panel / w, height / h))
+        notes = ["reference" if r_["is_reference"] and key != "area" else "no bins compared" for r_ in rows]
+        values = [None if (r_["is_reference"] and key != "area") else r_[key] for r_ in rows]
+        _style(ax, labels)
+        _bars(ax, values, notes, size)
+        if key in ("area_ratio", "ratio_mean"):
+            ax.axvline(1, color=MUTED, linewidth=0.8, linestyle=":")      # the reference's own
+        ax.set_title(name, color=INK, fontsize=9, loc="left")
+        ax.set_yticks(range(len(labels)), labels if c == 0 else [""] * len(labels), color=INK, fontsize=size)
+    return fig
 
 
 def page(rows: list[dict], target: Path, formats: list[str], title: str) -> list[Path]:
-    """One page's statistics: three panels, a bar per curve."""
+    """One page's statistics on A4: six panels, a bar per curve; more curves than a page holds continue on further
+    pages (`target`.pdf holds them all, `target`_NN.png one each)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    labels = [_label(r["curve"]) for r in rows]
-    height = 1.2 + 0.32 * len(rows)
-    fig, axes = plt.subplots(1, len(PANELS), figsize=(18.5, height), sharey=True, facecolor=SURFACE)
-    for k, (ax, (key, name)) in enumerate(zip(axes, PANELS)):
-        notes = ["reference" if r["is_reference"] and key != "area" else "no bins compared" for r in rows]
-        values = [None if (r["is_reference"] and key != "area") else r[key] for r in rows]
-        _style(ax, labels)
-        _bars(ax, values, notes)
-        if key in ("area_ratio", "ratio_mean"):
-            ax.axvline(1, color=MUTED, linewidth=0.8, linestyle=":")      # the reference's own
-        ax.set_title(name, color=INK, fontsize=10, loc="left")
-        if k == 0:
-            ax.set_yticks(range(len(labels)), labels, color=INK, fontsize=9)
-    reference = rows[0]["reference"] if rows else ""
-    fig.suptitle(f"{title}  ·  against {_label(reference)}", color=MUTED, fontsize=9, x=0.01, ha="left")
-    fig.tight_layout()
+    label = max([paper.width(_label(r["curve"]), 8) for r in rows] + [0.5]) + 0.12
+    columns, _, bar, per = grid(len(rows), label)
+    chunks = [rows[s:s + per] for s in range(0, len(rows), per)] or [rows]
     written = []
     target.parent.mkdir(parents=True, exist_ok=True)
-    for fmt in formats:
-        path = target.with_suffix(f".{fmt}")
-        fig.savefig(path, dpi=150, facecolor=SURFACE)
-        written.append(path)
-    plt.close(fig)
+    pdf = None
+    try:
+        for number, chunk in enumerate(chunks, 1):
+            fig = _page_figure(chunk, title if len(chunks) == 1 else f"{title} ({number}/{len(chunks)})",
+                               columns, bar, label, plt)
+            for fmt in formats:
+                if fmt == "pdf" and len(chunks) > 1:
+                    if pdf is None:
+                        from matplotlib.backends.backend_pdf import PdfPages
+                        pdf = PdfPages(target.with_suffix(".pdf"))
+                        written.append(target.with_suffix(".pdf"))
+                    pdf.savefig(fig, facecolor=SURFACE)
+                    continue
+                path = target.with_suffix(f".{fmt}") if len(chunks) == 1 else \
+                    target.with_name(f"{target.name}_{number:02d}.{fmt}")
+                fig.savefig(path, dpi=150, facecolor=SURFACE)
+                written.append(path)
+            plt.close(fig)
+    finally:
+        if pdf is not None:
+            pdf.close()
     return written
 
 
@@ -151,22 +211,7 @@ TABLES = (("chi2_ndf", r"$\chi^{2}$/ndf", "log"), ("rel_abs_area", r"$|\Delta|$ 
           ("area", "area", "column"))
 LIGHT, DARK = (0.937, 0.957, 0.984), (0.078, 0.271, 0.478)     # #eff4fb → #14457a: one hue, light to dark
 NEUTRAL, WARM = (0.941, 0.941, 0.933), (0.561, 0.239, 0.078)   # a ratio's 1 (#f0f0ee), and below it (#8f3d14)
-COLUMNS, ROWS = 13, 42                                          # a table page's most columns and rows
 RULES = {key: rule for key, _, rule in TABLES}
-
-
-def _footnote(text: str, width: float) -> tuple[str, float]:
-    """A footnote wrapped to a figure `width` inches wide, and the height it takes, inches."""
-    lines = textwrap.wrap(text, width=max(60, int((width - 0.3) * 72 / (FOOT * 0.55))))
-    return "\n".join(lines), 0.16 + len(lines) * FOOT * 1.35 / 72
-
-
-def _place(fig, note: str, foot: float) -> None:
-    """The footnote at the figure's foot, the rest laid out above it."""
-    height = fig.get_size_inches()[1]
-    fig.tight_layout(rect=(0, foot / height, 1, 1))
-    fig.text(0.15 / fig.get_size_inches()[0], 0.08 / height, note, ha="left", va="bottom", color=MUTED,
-             fontsize=FOOT, linespacing=1.35)
 
 
 def _short(objects: list[str]) -> dict[str, str]:
@@ -198,17 +243,6 @@ def _points(rows: list[dict]) -> dict[str, str]:
     return points
 
 
-def _ratio_bars(ax, values: list[float]) -> None:
-    """Bars from the line at one, blue above it and orange below, each value at its tip."""
-    span = max([abs(v - 1) for v in values] + [0.0]) or 0.05
-    for i, value in enumerate(values):
-        ax.barh(i, value - 1, left=1, height=0.55, color=DARK if value >= 1 else WARM, edgecolor=SURFACE, linewidth=2)
-        tip = value + (0.02 if value >= 1 else -0.02) * span
-        ax.text(tip, i, _shown(value), va="center", ha="left" if value >= 1 else "right", color=INK, fontsize=8)
-    ax.axvline(1, color=MUTED, linewidth=0.8)
-    ax.set_xlim(1 - 1.3 * span, 1 + 1.3 * span)
-
-
 def _rows_of(rows: list[dict]) -> list[dict]:
     """The rows the summary reads: an overlay figure's curves are other objects of a point, not its own page."""
     return [r for r in rows if not str(r.get("object", "")).startswith("/overlay/")]
@@ -234,9 +268,19 @@ def _distance(key: str, value) -> float | None:
     return float(value)
 
 
-def ranking_figure(rows: list[dict], key: str, plt):
+def _table(key: str, title: str, labels: list[str], headers: list[str], cells: list[list[tuple]], notes: tuple,
+           tail: int = 0, bold: frozenset = frozenset()):
+    """A table of the summary's document: `title`'s first line its title, the rest its subtitle; each cell (text,
+    background, ink); the rows in `bold` with their labels bold."""
+    head, _, rest = title.partition("\n")
+    rows = [paper.Row(label, [paper.Cell(*cell) for cell in line], bold=i in bold)
+            for i, (label, line) in enumerate(zip(labels, cells))]
+    return paper.Table(key, head, list(headers), rows, subtitle=rest, tail=tail, notes=tuple(notes))
+
+
+def _ranking(rows: list[dict], key: str, notes: dict):
     """A statistic's ranking (V174): each point's mean over the pages where it was compared, as sorted bars, lowest
-    first (a ratio: closest to 1 first, its geometric mean); None when no point has one."""
+    first (a ratio: closest to 1 first, its geometric mean, bars from 1); None when no point has one."""
     title, rule = next((t, r) for k, t, r in TABLES if k == key)
     rows = _rows_of(rows)
     points, means = _points(rows), _means(rows, key)
@@ -245,64 +289,14 @@ def ranking_figure(rows: list[dict], key: str, plt):
     ratio = rule == "ratio"
     ranked = sorted(means, key=lambda p: (_distance(key, means[p][0]), points[p]))
     order = "closest to 1 first, bars from 1: blue above, orange below" if ratio else "lowest first"
-    note, foot = _footnote(" ".join([RANKING_NOTE.format(mean=GEOMETRIC if ratio else "plain", name=PLAIN[key],
-                                                         order=order), NOTES[key], COMPARED]), 8)
-    fig, ax = plt.subplots(figsize=(8, 1.2 + 0.3 * len(ranked) + foot), facecolor=SURFACE)
-    names = [f"{points[p]}  ({means[p][1]})" for p in ranked]
-    _style(ax, names)
-    if ratio:
-        _ratio_bars(ax, [means[p][0] for p in ranked])
-    else:
-        _bars(ax, [means[p][0] for p in ranked], ["" for _ in ranked])
-    ax.set_yticks(range(len(names)), names, color=INK, fontsize=9)
-    ax.set_title(f"{title}: each point's {'geometric ' if ratio else ''}mean over its pages (pages compared)",
-                 color=INK, fontsize=10, loc="left")
-    _place(fig, note, foot)
-    return fig
-
-
-def _draw(plt, title: str, labels: list[str], headers: list[str], cells: list[list[tuple]], note: str,
-          tail: int = 0, bold: frozenset = frozenset()) -> list[tuple[str, object]]:
-    """A table over as many pages as it needs: at most COLUMNS columns a page (its last `tail` columns, a mean or a
-    total, on the last), at most ROWS rows; each cell (text, background, ink), each column as wide as its text; its
-    title (the part after it on a split table), its footnote; the rows in `bold` with their labels bold.
-    (suffix, figure) each: "" for one page, else -<column part>-<row part>."""
-    body = len(headers) - tail
-    starts = list(range(0, max(body, 1), COLUMNS))
-    split = len(starts) > 1 or len(labels) > ROWS
-    out = []
-    for c0 in starts:
-        columns = list(range(c0, min(c0 + COLUMNS, body))) + (list(range(body, len(headers))) if c0 == starts[-1] else [])
-        for r0 in range(0, len(labels), ROWS):
-            block = range(r0, min(r0 + ROWS, len(labels)))
-            widths = [max(0.62, 0.15 + 0.065 * max([len(headers[j])] + [len(cells[i][j][0]) for i in block])) for j in columns]
-            width = max(6.5, 2.2 + 0.075 * max(len(labels[i]) for i in block) + sum(widths))
-            wrapped, foot = _footnote(note, width)
-            fig, ax = plt.subplots(figsize=(width, 0.6 + 0.17 * (len(block) + 1) + foot), facecolor=SURFACE)
-            ax.axis("off")
-            table = ax.table(cellText=[[cells[i][j][0] for j in columns] for i in block],
-                             cellColours=[[cells[i][j][1] for j in columns] for i in block],
-                             rowLabels=[labels[i] for i in block], colLabels=[headers[j] for j in columns],
-                             colWidths=[w / sum(widths) for w in widths], bbox=[0, 0, 1, 1],    # filling its axes
-                             cellLoc="center", rowLoc="right")
-            table.auto_set_font_size(False)
-            table.set_fontsize(7)
-            for (i, j), cell in table.get_celld().items():
-                cell.set_edgecolor(GRID)
-                cell.set_linewidth(0.6)
-                if i == 0 or j == -1:
-                    cell.get_text().set_color(INK)
-                    cell.set_facecolor(SURFACE)
-                    if j == -1 and i > 0 and block[i - 1] in bold:
-                        cell.get_text().set_fontweight("bold")
-                else:
-                    cell.get_text().set_color(cells[block[i - 1]][columns[j]][2])
-            head, _, rest = title.partition("\n")
-            part = f"  ({c0 // COLUMNS + 1}·{r0 // ROWS + 1})" if split else ""
-            ax.set_title(head + part + (f"\n{rest}" if rest else ""), color=INK, fontsize=9, loc="left")
-            _place(fig, wrapped, foot)
-            out.append((f"-{c0 // COLUMNS + 1}-{r0 // ROWS + 1}" if split else "", fig))
-    return out
+    notes[f"ranking-{key}"] = RANKING_NOTE.format(mean=GEOMETRIC if ratio else "plain", name=PLAIN[key], order=order)
+    notes[f"stat-{key}"], notes["compared"] = NOTES[key], COMPARED
+    return paper.Ranking(f"{key}-ranking",
+                         f"{title}: each point's {'geometric ' if ratio else ''}mean over its pages (pages compared)",
+                         [f"{points[p]}  ({means[p][1]})" for p in ranked], [means[p][0] for p in ranked],
+                         subtitle=order, base=1.0 if ratio else 0.0,
+                         colours=(DARK, WARM) if ratio else (SERIES, SERIES),
+                         notes=(f"ranking-{key}", f"stat-{key}", "compared"))
 
 
 def _natural(objects) -> list[str]:
@@ -311,29 +305,21 @@ def _natural(objects) -> list[str]:
     return sorted(objects, key=lambda o: [int(s) if s.isdigit() else s for s in re.split(r"(\d+)", o)])
 
 
-def table_figures(rows: list[dict], plt) -> list[tuple[str, object]]:
-    """The summary's tables (V174): per statistic, a row per point (in curve order, its page cell before its label)
-    and a column per object, each cell the point's number on that object's page, then its mean; the reference
-    curve's cell says "ref", a missing one "–". Shaded by value (TABLES' rule), its text white on dark. Cut into
-    pages of at most COLUMNS objects and ROWS points. (statistic key, figure) each."""
-    return list(_tables(rows, plt))
-
-
-def _tables(rows: list[dict], plt, only: tuple = ()):
-    """table_figures' pages as they are drawn, of the statistics in `only` (else all)."""
+def _tables(rows: list[dict], notes: dict) -> dict:
+    """The summary's tables (V174), {statistic key: table}: a row per point (in curve order, its page cell before
+    its label) and a column per object, each cell the point's number on that object's page, then its mean; the
+    reference curve's cell says "ref", a missing one "–". Shaded by value (TABLES' rule), its text white on dark."""
     rows = _rows_of(rows)
     points, cells = _points(rows), {}
     for r in rows:
         cells[(r["point"], r["object"])] = r
     objects = _natural({r["object"] for r in rows})
+    out: dict = {}
     if not points or not objects:
-        return
+        return out
     short = _short(objects)
     references = sorted({str(r["reference"]) for r in rows})
     for key, title, rule in TABLES:
-        if only and key not in only:
-            continue
-
         def number(point, obj):
             r = cells.get((point, obj))
             compared = key != "area"                    # an area is the curve's own: the reference has one too
@@ -381,11 +367,14 @@ def _tables(rows: list[dict], plt, only: tuple = ()):
                    "ratio": "blue above 1, orange below, darker further from 1 (log scale: 2 and 0.5 alike)"}[rule]
         against = "" if key == "area" else (f" against {', '.join(_label(r) for r in references)}"
                                             if len(references) <= 2 else " against each page's reference")
-        table_note = TABLE_NOTE.format(mean=GEOMETRIC if rule == "ratio" else "plain")
-        note = " ".join([NOTES[key]] + ([COMPARED] if key != "area" else []) + [table_note])
-        yield from ((key + suffix, fig) for suffix, fig in
-                    _draw(plt, f"{title}{against}\n{shading}", [points[p] for p in points],
-                          [short[o] for o in objects] + ["mean"], styled, note, tail=1))
+        mean = GEOMETRIC if rule == "ratio" else "plain"
+        notes[f"stat-{key}"], notes[f"table-{mean}"] = NOTES[key], TABLE_NOTE.format(mean=mean)
+        if key != "area":
+            notes["compared"] = COMPARED
+        out[key] = _table(key, f"{title}{against}\n{shading}", [points[p] for p in points],
+                          [short[o] for o in objects] + ["mean"], styled,
+                          (f"stat-{key}",) + (("compared",) if key != "area" else ()) + (f"table-{mean}",), tail=1)
+    return out
 
 
 # ── the standings (V176): what is best on the most pages, as a mode is: each page's places scored ───────────
@@ -405,6 +394,7 @@ H2H_NOTE = ("Head to head: on every page counted, in each statistic, each pair o
             "one closer to agreement wins it, equal numbers draw (half each). Win rate: the share of its matches a "
             "point won (75%: it beats the others 3 times in 4); every place counts and the number of curves on a "
             "page does not, where points end at the 5th.")
+APART = "Points of different page cells never meet: a page holds one cell's points."
 
 
 def _places(values: dict) -> dict:
@@ -477,8 +467,8 @@ def _standing(board: dict, ranks: dict, points: dict) -> tuple[list, dict, dict,
     return order, _places({p: (-totals[p], -wins[p]) for p in board}), totals, wins, mean_rank
 
 
-def _scoreboard(plt, title: str, points: dict, board: dict, ranks: dict, rates: dict, columns: list[tuple[str, str]],
-                note: str, cells_of: dict | None = None) -> list[tuple[str, object]]:
+def _scoreboard(key: str, title: str, points: dict, board: dict, ranks: dict, rates: dict,
+                columns: list[tuple[str, str]], notes: tuple, cells_of: dict | None = None):
     """A scoreboard: a row per point in `board` ({point: {column: points}}), its place before its name (within its
     page cell when `cells_of` names them), a column per (key, header) in `columns`, then its total, its wins, its
     head-to-head win rate (`rates`) and the mean of its places (`ranks`). Points darker as they score more."""
@@ -507,12 +497,11 @@ def _scoreboard(plt, title: str, points: dict, board: dict, ranks: dict, rates: 
                 (f"{won / played:.0%}" if played else "–", SURFACE, INK),
                 (f"{mean_rank[p]:.2f}" if p in mean_rank else "–", SURFACE, INK)]
         styled.append(row)
-    return _draw(plt, title, labels, [h for _, h in columns] + ["total", "wins", "win rate", "mean rank"], styled,
-                 note, tail=4, bold=frozenset(bold))
+    return _table(key, title, labels, [h for _, h in columns] + ["total", "wins", "win rate", "mean rank"], styled,
+                  notes, tail=4, bold=frozenset(bold))
 
 
-def _matches(plt, cell: str, members: list[str], points: dict, pairs: dict, rates: dict,
-             note: str) -> list[tuple[str, object]]:
+def _matches(key: str, cell: str, members: list[str], points: dict, pairs: dict, rates: dict, notes: tuple):
     """A page cell's head to head (V177): a row per point, sorted by win rate, a column per opponent, the matches
     the row's point won against it of those played; then its win rate and matches. Blue: won most, orange: lost
     most, darker further from even."""
@@ -539,32 +528,27 @@ def _matches(plt, cell: str, members: list[str], points: dict, pairs: dict, rate
         row += [(f"{won / played:.0%}" if played else "–", SURFACE, INK), (str(played), SURFACE, INK)]
         styled.append(row)
     title = f"Head to head{f': {cell}' if cell else ''}\nthe row's point against each column's: matches won of played"
-    return _draw(plt, title, [f"{places[p]}. {points[p]}" for p in order], [short[q] for q in order]
-                 + ["win rate", "matches"], styled, note, tail=2, bold=frozenset(i for i, p in enumerate(order)
-                                                                                if places[p] <= 3))
+    return _table(key, title, [f"{places[p]}. {points[p]}" for p in order], [short[q] for q in order]
+                  + ["win rate", "matches"], styled, notes, tail=2,
+                  bold=frozenset(i for i, p in enumerate(order) if places[p] <= 3))
 
 
-def standings_figures(rows: list[dict], plt) -> list[tuple[str, object]]:
-    """The summary's standings (V176, V177): each page's own rankings scored (POINTS) and played as matches, so that
-    they say what is best on most pages, as a mode does, where the ranking pages' means say what is best on average.
-    Each a table: the top five, the scoreboard of all five statistics page by page, by page cell, each cell's head
-    to head, then a scoreboard a statistic. (name, figure) each: top5, scoreboard, scoreboard-cells,
-    head-to-head-<n>, scoreboard-<statistic> (and their parts)."""
-    return list(_standings(rows, plt))
-
-
-def _standings(rows: list[dict], plt):
-    """standings_figures' pages as they are drawn."""
+def _standings(rows: list[dict], notes: dict) -> list:
+    """The summary's standings (V176, V177), its first sections: each page's own rankings scored (POINTS) and
+    played as matches, so that they say what is best on most pages, as a mode does, where the ranking pages' means
+    say what is best on average. The top five; the scoreboard of all five statistics page by page; by page cell;
+    each cell's head to head; a scoreboard a statistic. Tables keyed top5, scoreboard, scoreboard-cells,
+    head-to-head-<n>, scoreboard-<statistic>."""
     rows = _rows_of(rows)
     points = _points(rows)
     rankings, object_of, data_only = _page_rankings(rows)
     if not points or not rankings:
-        return
-    counted = ("Only the pages compared against data count: on a page compared against its first curve, that curve "
-               "cannot be ranked." if data_only else
-               "No page here has data: each is compared against its first curve, which cannot be ranked there, so a "
-               "point that is a page's reference scores nothing on it.")
-    apart = "Points of different page cells never meet: a page holds one cell's points."
+        return []
+    notes["counted"] = ("Only the pages compared against data count: on a page compared against its first curve, "
+                        "that curve cannot be ranked." if data_only else
+                        "No page here has data: each is compared against its first curve, which cannot be ranked "
+                        "there, so a point that is a page's reference scores nothing on it.")
+    notes["apart"], notes["score"], notes["h2h"] = APART, SCORE_NOTE, H2H_NOTE
     objects = _natural(set(object_of.values()))
     short = _short(objects)
     keys = [k for k in SCORED if any(k in by_key for by_key in rankings.values())]
@@ -609,79 +593,92 @@ def _standings(rows: list[dict], plt):
         else:
             line.append(("–", SURFACE, MUTED))
         cells.append(line)
-    note = ("Each column: a scoreboard's first five, its points and wins over the pages (all five: every statistic's "
-            "points together, as the page-by-page scoreboard); head to head: the first five by win rate over every "
-            f"match, and their number; (=2nd): sharing that place. {apart} {counted} {SCORE_NOTE} {H2H_NOTE}")
-    yield from ((f"top5{s}", f) for s, f in
-                _draw(plt, "The top five: best on the most pages\neach scoreboard's first five",
-                      [_ordinal(n) for n in range(1, len(POINTS) + 1)],
-                      [name for name, _, _ in boards] + ["head to head"], cells, note))
-    note = ("A row per point, a column per object's page: the points it scored on that page, its five statistics' "
-            f"together (at most 25); total: over its pages. {apart} {counted} {SCORE_NOTE} {H2H_NOTE}")
-    yield from ((f"scoreboard{s}", f) for s, f in
-                _scoreboard(plt, "Scoreboard: all five statistics, page by page\nsorted by total; darker: more points",
-                            points, every, ranks, rates, [(o, short[o]) for o in objects], note))
-    note = ("The same points, a row per point by its page cell (its plot_points), placed within its cell: a column "
-            "per statistic, the points it scored in that statistic over the cell's pages; total: their sum (its "
-            f"page-by-page total). {counted} {SCORE_NOTE} {H2H_NOTE}")
+    sections = []
+    notes["how-top5"] = ("Each column: a scoreboard's first five, its points and wins over the pages (all five: every "
+                         "statistic's points together, as the page-by-page scoreboard); head to head: the first five "
+                         "by win rate over every match, and their number; (=2nd): sharing that place.")
+    standard = ("apart", "counted", "score", "h2h")
+    sections.append(paper.Section("top5", "The top five", [
+        _table("top5", "The top five: best on the most pages\neach scoreboard's first five",
+               [_ordinal(n) for n in range(1, len(POINTS) + 1)], [name for name, _, _ in boards] + ["head to head"],
+               cells, ("how-top5",) + standard)]))
+    notes["how-scoreboard"] = ("A row per point, a column per object's page: the points it scored on that page, its "
+                               "five statistics' together (at most 25); total: over its pages.")
+    sections.append(paper.Section("scoreboard", "Scoreboard: page by page", [
+        _scoreboard("scoreboard", "Scoreboard: all five statistics, page by page\nsorted by total; darker: more points",
+                    points, every, ranks, rates, [(o, short[o]) for o in objects], ("how-scoreboard",) + standard)]))
+    notes["how-cells"] = ("The same points, a row per point by its page cell (its plot_points), placed within its "
+                          "cell: a column per statistic, the points it scored in that statistic over the cell's "
+                          "pages; total: their sum (its page-by-page total).")
     cells_of = {r["point"]: r.get("cell", "") for r in rows}
-    yield from ((f"scoreboard-cells{s}", f) for s, f in
-                _scoreboard(plt, "Scoreboard: by page cell\neach cell's points placed among themselves", points,
-                            by_cell, ranks, rates, [(k, PLAIN[k]) for k in keys], note, cells_of=cells_of))
-    note = (f"A cell: the matches the row's point won against the column's, over the cell's pages and the five "
-            f"statistics, of those they played (a draw counts half); blue: it won most, orange: it lost most, "
-            f"darker further from even. Win rate: over all its matches. Sorted by win rate; bold: the top three. "
-            f"{counted} {H2H_NOTE}")
+    sections.append(paper.Section("scoreboard-cells", "Scoreboard: by page cell", [
+        _scoreboard("scoreboard-cells", "Scoreboard: by page cell\neach cell's points placed among themselves",
+                    points, by_cell, ranks, rates, [(k, PLAIN[k]) for k in keys], ("how-cells", "counted", "score", "h2h"),
+                    cells_of=cells_of)]))
+    notes["how-h2h"] = ("A cell: the matches the row's point won against the column's, over the cell's pages and the "
+                        "five statistics, of those they played (a draw counts half); blue: it won most, orange: it "
+                        "lost most, darker further from even. Win rate: over all its matches. Sorted by win rate; "
+                        "bold: the top three.")
+    matches = []
     for n, cell in enumerate(dict.fromkeys(cells_of[p] for p in every), 1):
         members = [p for p in every if cells_of[p] == cell]
         if len(members) > 1:
-            yield from ((f"head-to-head-{n}{s}", f) for s, f in
-                        _matches(plt, cell, members, points, pairs, rates, note))
+            matches.append(_matches(f"head-to-head-{n}", cell, members, points, pairs, rates,
+                                    ("how-h2h", "counted", "h2h")))
+    if matches:
+        sections.append(paper.Section("head-to-head", "Head to head", matches))
+    boards_by_key = []
     for key in keys:
-        note = (f"A row per point, a column per object's page: the points its place in {PLAIN[key]} on that page "
-                f"scored; total: over its pages; win rate: its matches in {PLAIN[key]} alone. {NOTES[key]} {apart} "
-                f"{counted} {SCORE_NOTE} {H2H_NOTE}")
-        yield from ((f"scoreboard-{key}{s}", f) for s, f in
-                    _scoreboard(plt, f"Scoreboard: {PLAIN[key]}, page by page\nsorted by total; darker: more points",
-                                points, by_key[key], key_ranks[key], key_rates[key], [(o, short[o]) for o in objects],
-                                note))
+        notes[f"how-scoreboard-{key}"] = (f"A row per point, a column per object's page: the points its place in "
+                                          f"{PLAIN[key]} on that page scored; total: over its pages; win rate: its "
+                                          f"matches in {PLAIN[key]} alone.")
+        notes[f"stat-{key}"] = NOTES[key]
+        boards_by_key.append(_scoreboard(
+            f"scoreboard-{key}", f"Scoreboard: {PLAIN[key]}, page by page\nsorted by total; darker: more points",
+            points, by_key[key], key_ranks[key], key_rates[key], [(o, short[o]) for o in objects],
+            (f"how-scoreboard-{key}", f"stat-{key}") + standard))
+    if boards_by_key:
+        sections.append(paper.Section("scoreboards", "Scoreboards, a statistic each", boards_by_key))
+    return sections
 
 
-def summary_figures(rows: list[dict], plt) -> list[tuple[str, object]]:
-    """The summary's pages in order: the standings (V176), then per statistic its ranking (but the area's) and its
-    tables (V174)."""
-    return list(_summary_pages(rows, plt))
-
-
-def _summary_pages(rows: list[dict], plt):
-    """summary_figures' pages as they are drawn, so that each is written and closed before the next."""
-    yield from _standings(rows, plt)
+def summary_model(rows: list[dict], heading: str = ""):
+    """The summary as a document (V196): the standings (V176, V177), then a section a statistic, its ranking (but
+    the area's) and its table (V174)."""
+    notes: dict = {}
+    sections = _standings(rows, notes)
+    tables = _tables(rows, notes)
     for key, _, _ in TABLES:
-        ranking = ranking_figure(rows, key, plt) if key != "area" else None
-        if ranking is not None:
-            yield f"{key}-ranking", ranking
-        yield from _tables(rows, plt, only=(key,))
+        items = [r for r in [_ranking(rows, key, notes) if key != "area" else None] if r is not None]
+        if key in tables:
+            items.append(tables[key])
+        if items:
+            sections.append(paper.Section(key, PLAIN[key], items))
+    return paper.Document(heading, sections, notes)
 
 
-def summary_of(rows: list[dict], target: Path, formats: list[str]) -> list[Path]:
-    """The summary (V174): `target`.pdf holds every page; a PNG or SVG is a file a page in the folder `target`,
-    <target name>_<NN>.<fmt> in the PDF's order."""
+def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str = "") -> list[Path]:
+    """The summary (V174, V196): `target`.pdf holds every page, each A4 portrait; a PNG or SVG is a file a page in
+    the folder `target`, <target name>_<NN>.<fmt> in the PDF's order."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
-    written, pdf, number = [], None, 0
+    document = summary_model(rows, heading)
+    written, pdf = [], None
     try:
-        for number, (_, figure) in enumerate(_summary_pages(rows, plt), 1):
+        for page_ in paper.pages(document):
+            figure = paper.figure(document, page_, plt)
             if "pdf" in formats:
                 if pdf is None:
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    pdf = PdfPages(target.with_suffix(".pdf"))
+                    pdf = PdfPages(target.with_suffix(".pdf"),
+                                   metadata={"Title": f"Statistics: {heading}" if heading else "Statistics"})
                     written.append(target.with_suffix(".pdf"))
                 pdf.savefig(figure, facecolor=SURFACE)
             for fmt in (f for f in formats if f != "pdf"):
                 target.mkdir(parents=True, exist_ok=True)
-                path = target / f"{target.name}_{number:02d}.{fmt}"
+                path = target / f"{target.name}_{page_.number:02d}.{fmt}"
                 figure.savefig(path, dpi=150, facecolor=SURFACE)
                 written.append(path)
             plt.close(figure)
@@ -691,12 +688,14 @@ def summary_of(rows: list[dict], target: Path, formats: list[str]) -> list[Path]
     return written
 
 
-def draw(pages: list[tuple[str, list[dict]]], folder: Path, formats: list[str], summary: Path | None = None) -> int:
-    """Every page's image into `folder`, then the summary (`summary`, else folder/summary); the number of images."""
+def draw(pages: list[tuple[str, list[dict]]], folder: Path, formats: list[str], summary: Path | None = None,
+         heading: str = "") -> int:
+    """Every page's image into `folder`, then the summary (`summary`, else folder/summary, under `heading`); the
+    number of images."""
     formats = [f for f in formats if f in ("png", "pdf", "svg")] or ["png"]
     made = 0
     for name, rows in pages:
         if rows:
             made += bool(page(rows, folder / name, formats, name))
-    made += bool(summary_of([r for _, rows in pages for r in rows], summary or folder / "summary", formats))
+    made += bool(summary_of([r for _, rows in pages for r in rows], summary or folder / "summary", formats, heading))
     return made

@@ -1738,6 +1738,17 @@ def write_sets_index(plots: Path, title: str) -> Path | None:
     return index
 
 
+def heading_of(numbers: Path) -> str:
+    """A set's statistics' heading (V196): its run folder under results/ (else that folder's last two parts) and
+    the set, "eic/zeus_validation/01_pythia_qed_lepton · qed_lepton_by_pdf"."""
+    run = numbers.parent.parent
+    try:
+        where = run.resolve().relative_to(results_root().resolve()).as_posix()
+    except ValueError:
+        where = "/".join(run.parts[-2:])
+    return f"{where} · {numbers.name}"
+
+
 def _tables(run, groups: dict, outcomes: dict, say, who: str) -> int:
     """Each set's statistics (V160, V164): statistics/<set>/statistics.csv, cleared first, its bar graphs and
     summary; the rows written."""
@@ -1753,7 +1764,7 @@ def _tables(run, groups: dict, outcomes: dict, say, who: str) -> int:
             counted += count
             tables.append(numbers)
             images += bars.draw([(p.rel, statistics_of(p) or []) for p in read], numbers / "bars",
-                                formats_of(run.plot), summary=numbers / "summary")
+                                formats_of(run.plot), summary=numbers / "summary", heading=heading_of(numbers))
     if counted:
         shown = tables[0] if len(tables) == 1 else tables[0].parent
         say(f"{who}: statistics of {counted} curve(s), {len(tables)} set(s), {images} bar graph(s) → {shown}")

@@ -644,7 +644,8 @@ def test_statistics_are_a_table_and_a_legend_may_show_them(stage):
     bars = table.parent                                                          # V162: the table as bar graphs
     assert (bars / "bars" / "em" / "d01-x01-y01.png").is_file()
     assert not list(bars.glob("summary*.png"))                                   # the summary's PNGs: in summary/
-    assert sorted(p.name for p in (bars / "summary").iterdir()) == [f"summary_{n:02d}.png" for n in range(1, 1 + 10 + 5 + 6 * 2)]
+    shown = sorted(p.name for p in (bars / "summary").iterdir())               # a page each, numbered in order (V196)
+    assert shown == [f"summary_{n:02d}.png" for n in range(1, len(shown) + 1)] and len(shown) >= 5 + 6   # a section a page at least
     assert any(", 1 set(s), 35 bar graph(s) → " in line for line in said)         # 34 pages, the summary
     page = tomllib.loads((plans[0].folders.pages / "totality" / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
     assert all("#chi^{2}/ndf " in c["label"] for c in page["curve"])
@@ -847,89 +848,88 @@ def test_plot_looks_give_a_value_its_look_by_tag(stage, scratch):
 
 
 def test_the_summary_pdf_holds_a_table_a_statistic(stage):
-    """V174: statistics/<set>/summary.pdf, per statistic (χ²/ndf, |Δ|/reference, area/reference, mean ratio and
-    mean |ratio − 1| (V175), area) each point's mean as sorted bars (not the area's), then its table: a row per
-    point, a column per object in natural order, then the mean; the reference "ref"; each page a footnote, what its
-    number is. 17 objects are more than a page's 13 columns: two table pages a statistic."""
+    """V174, V196: statistics/<set>/summary.pdf, every page A4 portrait: the standings, then per statistic
+    (χ²/ndf, |Δ|/reference, area/reference, mean ratio and mean |ratio − 1| (V175), area) each point's mean as
+    sorted bars (not the area's), then its table: a row per point, a column per object in natural order, then the
+    mean; the reference "ref"; each item names its notes, what its numbers are. A table wider than the page is cut
+    into column blocks stacked on its page, the mean on the last."""
     import re
     from runner import plugins
     run, configuration, plans = stage
     shown = replace(run, plot={**run.plot, "formats": ["pdf", "png"]})
     assert plot.draw(shown, configuration, plans, lambda line: None) == 0
-    pdf = (plans[0].folders.statistics / "totality" / "summary.pdf").read_bytes()
-    assert len(re.findall(rb"/Type\s*/Page\b(?!s)", pdf)) == 10 + 5 + 6 * 2          # standings, rankings, tables
+    numbers = plans[0].folders.statistics / "totality"
+    pdf = (numbers / "summary.pdf").read_bytes()
+    count = len(re.findall(rb"/Type\s*/Page\b(?!s)", pdf))
+    boxes = re.findall(rb"/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)\s*\]", pdf)
+    assert len(boxes) == count and {(float(w), float(h)) for w, h in boxes} == {(595.44, 841.68)}   # A4, every page
+    assert len(list((numbers / "summary").glob("summary_*.png"))) == count
     bars = plugins.load(plot.hep_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
     rows = [r for page in plot.pages(shown, configuration, plans) for r in (plot.statistics_of(page) or [])]
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    figures = bars.table_figures(rows, plt)
+    document = bars.summary_model(rows, plot.heading_of(numbers))
+    assert len(bars.paper.pages(document)) == count
+    assert document.heading.endswith(" · totality")
     keys = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "area")
-    assert [key for key, _ in figures] == [f"{k}-{c}-1" for k in keys for c in (1, 2)]
-    notes = [" ".join(t.get_text() for t in figure.texts) for _, figure in figures]
-    assert all(bars.NOTES[key.split("-")[0]].split(" = ")[0] in note for (key, _), note in zip(figures, notes))
-    assert "Σ |y/y_ref − 1|·Δx / Σ Δx" in notes[8] and "Σ (y/y_ref)·Δx / Σ Δx" in notes[6]
-    assert "Compared bins" in notes[0] and "Compared bins" not in notes[10]
+    sections = {s.key: s for s in document.sections}
+    assert list(sections) == ["top5", "scoreboard", "scoreboard-cells", "head-to-head", "scoreboards", *keys]
+    items = {item.key: item for s in document.sections for item in s.items}
+    assert [i.key for i in sections["chi2_ndf"].items] == ["chi2_ndf-ranking", "chi2_ndf"]
+    assert [i.key for i in sections["area"].items] == ["area"]                  # each object its own units: no mean
 
-    def headers(figure):
-        cells = figure.axes[0].tables[0].get_celld()
-        return [cells[(0, j)].get_text().get_text() for j in range(len({c for _, c in cells if c >= 0}))]
-    assert headers(figures[0][1])[:3] == ["d01", "d02", "d03"] and len(headers(figures[0][1])) == 13
-    assert headers(figures[1][1])[-1] == "mean" and headers(figures[1][1])[0] == "d14"
-    cells = figures[0][1].axes[0].tables[0].get_celld()
-    assert {cells[(i, -1)].get_text().get_text() for i in range(1, 5)} == {
-        "em · MSTW 2008 LO", "em · NNPDF 2.3 LO", "ep · MSTW 2008 LO", "ep · NNPDF 2.3 LO"}
-    assert any(cell.get_text().get_text() == "ref" for (i, j), cell in cells.items() if i > 0 and j >= 0)
-    area = figures[10][1].axes[0].tables[0].get_celld()                         # a reference has its own area
-    assert not any(cell.get_text().get_text() == "ref" for (i, j), cell in area.items() if i > 0 and j >= 0)
-    for _, figure in figures:
-        plt.close(figure)
+    def notes(item):
+        return " ".join(document.notes[k] for k in item.notes)
+    for key in keys:
+        assert bars.NOTES[key].split(" = ")[0] in notes(items[key])
+    assert "Σ |y/y_ref − 1|·Δx / Σ Δx" in notes(items["ratio_dev"]) and "Σ (y/y_ref)·Δx / Σ Δx" in notes(items["ratio_mean"])
+    assert "Compared bins" in notes(items["chi2_ndf"]) and "Compared bins" not in notes(items["area"])
 
-    with matplotlib.rc_context({"figure.max_open_warning": 0}):                # every page held, to be read
-        pages = bars.summary_figures(rows, plt)                 # the standings, then a ranking and its tables
-    standings = ["top5", "scoreboard", "scoreboard-cells", "head-to-head-1", "head-to-head-2"] + [
-        f"scoreboard-{k}" for k in keys if k != "area"]
-    assert [key for key, _ in pages] == standings + [
-        f"{k}-{part}" for k in keys for part in (["ranking"] if k != "area" else []) + ["1-1", "2-1"]]
+    table = items["chi2_ndf"]
+    assert table.headers[:3] == ["d01", "d02", "d03"] and table.headers[-1] == "mean" and len(table.headers) == 18
+    assert {r.label for r in table.rows} == {"em · MSTW 2008 LO", "em · NNPDF 2.3 LO", "ep · MSTW 2008 LO",
+                                            "ep · NNPDF 2.3 LO"}
+    assert any(c.text == "ref" for r in table.rows for c in r.cells)
+    assert not any(c.text == "ref" for r in items["area"].rows for c in r.cells)    # a reference has its own area
+    for key in keys:                                    # every block fits the page; the mean on the last
+        shape = bars.paper._table_shape(items[key])
+        assert [j for block in shape.blocks for j in block] == list(range(18)) and shape.blocks[-1][-1] == 17
+        assert all(shape.label_width + sum(shape.widths[j] for j in block) <= bars.paper.WIDTH + 1e-9
+                   for block in shape.blocks)
 
-    def texts(figure):
-        return {at: cell.get_text().get_text() for at, cell in figure.axes[0].tables[0].get_celld().items()}
-    board = texts(pages[1][1])                                                  # V176: each page's places scored
-    assert [board[(0, j)] for j in range(5)] == ["d01", "total", "wins", "win rate", "mean rank"]   # data pages alone
-    totals = {board[(i, -1)].split(". ", 1)[1]: int(board[(i, 1)]) for i in range(1, 5)}
+    def cells(item):
+        return [[c.text for c in r.cells] for r in item.rows]
+    board = items["scoreboard"]                                                 # V176: each page's places scored
+    assert board.headers == ["d01", "total", "wins", "win rate", "mean rank"]  # data pages alone
+    totals = {r.label.split(". ", 1)[1]: int(r.cells[1].text) for r in board.rows}
     assert totals["em · MSTW 2008 LO"] + totals["em · NNPDF 2.3 LO"] == 5 * (5 + 4)  # two curves: 5 and 4 a statistic
     assert totals["em · NNPDF 2.3 LO"] == totals["ep · NNPDF 2.3 LO"]          # the same numbers in either cell
-    top5 = texts(pages[0][1])
-    assert [top5[(0, j)] for j in range(7)] == ["all five"] + [bars.PLAIN[k] for k in keys if k != "area"] + [
-        "head to head"]
-    assert [top5[(i, -1)] for i in range(1, 6)] == ["1st", "2nd", "3rd", "4th", "5th"]
+    top5 = items["top5"]
+    assert top5.headers == ["all five"] + [bars.PLAIN[k] for k in keys if k != "area"] + ["head to head"]
+    assert [r.label for r in top5.rows] == ["1st", "2nd", "3rd", "4th", "5th"]
     leader = max(totals, key=totals.get)
-    assert top5[(1, 0)].startswith(f"{leader}  {totals[leader]} pts") and top5[(2, 0)].endswith("(=1st)")
-    assert top5[(5, 0)] == "–"                                                  # four points scored
-    by_cell = texts(pages[2][1])
-    assert sorted(by_cell[(i, -1)].split(".")[0] for i in range(1, 5)) == ["1", "1", "2", "2"]   # placed in its cell
-    assert [by_cell[(0, j)] for j in range(9)][-4:] == ["total", "wins", "win rate", "mean rank"]
-    assert {int(by_cell[(i, 5)]) for i in range(1, 5)} == set(totals.values())   # the same totals, by statistic
-    chi2 = texts(pages[5][1])                                                   # a statistic's own
-    assert sorted(int(chi2[(i, 1)]) for i in range(1, 5)) == [4, 4, 5, 5]
-    assert sorted(chi2[(i, 3)] for i in range(1, 5)) == ["0%", "0%", "100%", "100%"]   # one match, won or lost
-    matches = texts(pages[3][1])                                                # V177: em's head to head
-    assert [matches[(0, j)] for j in range(4)] == ["NNPDF 2.3 LO", "MSTW 2008 LO", "win rate", "matches"]
-    won = int(matches[(1, 1)].split("/")[0])                                    # the leader against the other
-    assert matches[(1, 1)] == f"{won}/5" and matches[(2, 0)] == f"{5 - won}/5" and won >= 3   # 5 statistics
-    assert matches[(1, 2)] == f"{won / 5:.0%}" and matches[(1, 3)] == "5" and matches[(1, 0)] == "–"
-    assert top5[(1, 6)].startswith(f"em · NNPDF 2.3 LO  {won / 5:.0%} of 5")
-    assert board[(1, 3)] == f"{won / 5:.0%}"
-    for key, figure in pages:
-        if key.endswith("-ranking"):
-            ax = figure.axes[0]
-            means = [float(t.get_text().replace(",", "")) for t in ax.texts]
-            ratio = key.startswith(("area_ratio", "ratio_mean"))
-            assert len(means) == 4                                              # MSTW's on d01 alone, NNPDF's on 17
-            assert means == sorted(means, key=lambda m: abs(math.log10(m)) if ratio else m)
-            assert sorted(t.get_text()[-4:] for t in ax.get_yticklabels()) == [" (1)", " (1)", "(17)", "(17)"]
-            assert f"the {'geometric' if ratio else 'plain'} mean" in figure.texts[0].get_text()
-        plt.close(figure)
+    assert cells(top5)[0][0].startswith(f"{leader}  {totals[leader]} pts") and cells(top5)[1][0].endswith("(=1st)")
+    assert cells(top5)[4][0] == "–"                                             # four points scored
+    by_cell = items["scoreboard-cells"]
+    assert sorted(r.label.split(".")[0] for r in by_cell.rows) == ["1", "1", "2", "2"]   # placed in its cell
+    assert by_cell.headers[-4:] == ["total", "wins", "win rate", "mean rank"]
+    assert {int(row[5]) for row in cells(by_cell)} == set(totals.values())      # the same totals, by statistic
+    chi2 = cells(items["scoreboard-chi2_ndf"])                                  # a statistic's own
+    assert sorted(int(row[1]) for row in chi2) == [4, 4, 5, 5]
+    assert sorted(row[3] for row in chi2) == ["0%", "0%", "100%", "100%"]       # one match, won or lost
+    matches = items["head-to-head-1"]                                           # V177: em's head to head
+    assert matches.headers == ["NNPDF 2.3 LO", "MSTW 2008 LO", "win rate", "matches"]
+    won = int(cells(matches)[0][1].split("/")[0])                               # the leader against the other
+    assert cells(matches)[0][1] == f"{won}/5" and cells(matches)[1][0] == f"{5 - won}/5" and won >= 3   # 5 statistics
+    assert cells(matches)[0][2:] == [f"{won / 5:.0%}", "5"] and cells(matches)[0][0] == "–"
+    assert cells(top5)[0][6].startswith(f"em · NNPDF 2.3 LO  {won / 5:.0%} of 5")
+    assert cells(board)[0][3] == f"{won / 5:.0%}"
+    for key in keys[:-1]:
+        ranking = items[f"{key}-ranking"]
+        ratio = key in ("area_ratio", "ratio_mean")
+        assert len(ranking.values) == 4                                         # MSTW's on d01 alone, NNPDF's on 17
+        assert ranking.values == sorted(ranking.values, key=lambda m: abs(math.log10(m)) if ratio else m)
+        assert sorted(n[-4:] for n in ranking.names) == [" (1)", " (1)", "(17)", "(17)"]
+        assert f"the {'geometric' if ratio else 'plain'} mean" in notes(ranking)
+        assert ranking.base == (1.0 if ratio else 0.0)
 
 
 @pytest.mark.parametrize("where", ["out-right", "out-left", "out-top", "out-bottom"])

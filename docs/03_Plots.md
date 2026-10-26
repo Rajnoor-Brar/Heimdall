@@ -389,11 +389,14 @@ same kind of numbers, whoever made them. The columns:
 
 **As bar graphs:** beside the table, `statistics/<set>/bars/<cell>/<object>.<fmt>` draws each page's curves
 as bars, one panel each for χ²/ndf, |Δ|/reference, area/reference, the mean ratio, mean |ratio − 1| and the area
-(matplotlib; the formats of `[plot]` that it writes: png, pdf, svg). `statistics = false` turns them and the
-summary off.
+(matplotlib; the formats of `[plot]` that it writes: png, pdf, svg). Each is an A4 portrait page, its six panels
+in the grid that gives each bar the most height (2 × 3, 3 × 2 or 6 × 1); more curves than a page holds continue
+on further pages (one PDF, `<object>_NN.png`). `statistics = false` turns them and the summary off.
 
-**The summary:** `statistics/<set>/summary.pdf`. It opens with the **standings**, what is best on the most
-pages (as a mode is), where the means further on say what is best on average:
+**The summary:** `statistics/<set>/summary.pdf`, every page A4 portrait (and `summary/summary_<NN>.png`, a
+page each), headed by the run's folder, the set and the section, and numbered ("page 3 of 21"). It opens with
+the **standings**, what is best on the most pages (as a mode is), where the means further on say what is best
+on average:
 - **Scoring:** each page ranks its own curves in each of χ²/ndf, |Δ|/reference, area/reference, the mean ratio
   and mean |ratio − 1| (the two ratios by how far from 1 either way, |log10 r|). 1st scores 5 points, 2nd 4,
   3rd 3, 4th 2, 5th 1, the rest nothing; equal numbers share the better place. Only pages compared against
@@ -422,7 +425,14 @@ area:
   that point's number on that object's page, then the row's mean (geometric for the ratios). The reference curve's cell
 says `ref` (it is compared with nothing; the area table shows its area), a missing number `–`. Cells are
 shaded by value: χ²/ndf on a log scale, the area within each column (each object has its own units), the
-area ratio and the mean ratio blue above 1 and orange below. More than 13 objects or 42 points split a table over several pages.
+area ratio and the mean ratio blue above 1 and orange below.
+
+**On the page** (`framework/plot/figures/paper.py`): each section starts a page, and its tables and rankings
+follow one below another (so the head-to-head tables of many small cells share pages). A table wider than the
+page is cut into column blocks, the fewest that fit, its columns split evenly and stacked under one another on
+the same page, each block with the row labels and the last with the mean or the totals. A long table or
+ranking continues on the next page, titled "(continued)". A long label wraps, at its " · " or between words,
+when that makes the table shorter overall. Each page ends with the notes its items name, each once.
 Every summary page ends with a footnote: what its number is and how it is computed. A PNG or SVG is a file
 a page in `statistics/<set>/summary/`, numbered in the PDF's order (`summary_01.png`, `summary_02.png`, …).
 

@@ -1,0 +1,186 @@
+"""Statistics on A4 (V196, I-107): every summary page and page image is A4 portrait; a table wider than the page
+is cut into column blocks stacked on its page; a page holds whole rows, a band never last; small tables share a
+page within their section; the footer counts the pages. The worst case is shaped like a real one (76 points in
+38 page cells, 12 objects, 57-character labels), made here."""
+
+from __future__ import annotations
+
+import random
+import re
+from pathlib import Path
+
+import pytest
+
+matplotlib = pytest.importorskip("matplotlib")
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+
+from runner import plugins  # noqa: E402
+
+FIGURES = Path(__file__).resolve().parents[2] / "framework" / "plot" / "figures"
+bars = plugins.load(FIGURES / "bars.py", "bars")
+paper = bars.paper
+PDFS = ("NNPDF23lo", "NNPDF23nlo", "MSTW08lo", "PDF4LHC21", "MSHT20lo_as130", "MSHT20qed_lo",
+        "NNPDF40nnlo_hessian_pdfas", "MSTW08lo90cl", "MSHT20nlo_as120", "MSHT20nlo_as118", "NNPDF40MClo_as01180qed",
+        "NNPDF40MCnlo_as01180qed", "NNPDF40MClo_as01180", "NNPDF40lopch_as01180", "NNPDF40lo_as01180",
+        "HERAPDF20loEig", "HERAPDF20nloEig", "HERAPDF20nloVar", "HERAPDF20JetsNLOEig")
+
+
+def worst_rows() -> list[dict]:
+    """76 points: 38 page cells (a PDF, the lepton PDF on or off) of two curves (the QED shower), 12 objects."""
+    draw = random.Random(7)
+    rows = []
+    for pdf in PDFS:
+        for lepton in ("lpdfon", "lpdfoff"):
+            cell = f"{pdf}_{lepton}"
+            for k in range(1, 13):
+                obj = f"/ZEUS_2012_I1116258/d{k:02d}-x01-y01"
+                for shower in ("on", "off"):
+                    area = draw.uniform(0.5, 2.0)
+                    rows.append({"page": f"{cell}/d{k:02d}", "cell": cell, "object": obj,
+                                 "curve": f"lepton QED shower {shower}", "point": f"{cell}_{shower}",
+                                 "reference": "ZEUS 2012", "is_reference": False, "bins": 10, "area": area,
+                                 "area_err": 0.01, "ref_area": 1.0, "cmp_area": area, "abs_area": draw.uniform(0.05, 0.4),
+                                 "rel_abs_area": draw.uniform(0.05, 0.4), "area_ratio": area,
+                                 "ratio_mean": draw.uniform(0.4, 1.6), "ratio_dev": draw.uniform(0.1, 0.9),
+                                 "chi2": 0.0, "ndf": 10, "chi2_ndf": draw.uniform(1.0, 60.0)})
+    return rows
+
+
+@pytest.fixture(scope="module")
+def worst():
+    document = bars.summary_model(worst_rows(), "eic/zeus_validation/01_pythia_qed_lepton · totality")
+    return document, paper.pages(document)
+
+
+def texts_inside(figure) -> list[str]:
+    """The texts drawn outside the page's margins (none, when all is well)."""
+    figure.canvas.draw()
+    renderer = figure.canvas.get_renderer()
+    w, h = (v * figure.dpi for v in paper.A4)
+    side, edge, slack = paper.SIDE * figure.dpi, paper.EDGE * figure.dpi, 1.0
+    out = []
+    for text in figure.texts:
+        box = text.get_window_extent(renderer)
+        if box.x0 < side - slack or box.x1 > w - side + slack or box.y0 < edge - slack or box.y1 > h - edge + slack:
+            out.append(text.get_text())
+    return out
+
+
+def test_every_page_is_a4_and_drawn_within_its_margins(worst):
+    document, pages = worst
+    assert len(pages) < 70                                       # the content-sized pages of today were 70
+    sections = {p.section.key for p in pages}
+    for key in sorted(sections):                                 # each section's first page, and the last page
+        page = next(p for p in pages if p.section.key == key)
+        figure = paper.figure(document, page, plt)
+        try:
+            assert tuple(round(v, 2) for v in figure.get_size_inches()) == paper.A4
+            assert texts_inside(figure) == [], key
+        finally:
+            plt.close(figure)
+
+
+def test_the_footer_counts_the_pages(worst):
+    document, pages = worst
+    figure = paper.figure(document, pages[-1], plt)
+    try:
+        assert f"page {len(pages)} of {len(pages)}" in [t.get_text() for t in figure.texts]
+    finally:
+        plt.close(figure)
+
+
+def wide_table(rows: int = 30, bands: int = 0) -> object:
+    """16 columns of wide numbers, the last four a tail; labels as long as real ones; a band every `bands` rows."""
+    out = []
+    for i in range(rows):
+        if bands and i % bands == 0:
+            out.append(paper.Row(f"NNPDF40nnlo_hessian_pdfas_lpdfoff {i // bands}", band=True))
+        out.append(paper.Row(f"{i + 1}. NNPDF40nnlo_hessian_pdfas_lpdfoff · lepton QED shower off",
+                             [paper.Cell(f"{0.0001 * (i + 1) + 0.05:.4f}") for _ in range(16)]))
+    return paper.Table("wide", "A wide table", [f"d{j:02d}" for j in range(1, 13)] + ["total", "wins", "win rate",
+                                                                                      "mean rank"], out, tail=4)
+
+
+def test_a_wide_table_is_cut_into_blocks_stacked_on_its_page():
+    table = wide_table()
+    shape = paper._table_shape(table)
+    assert len(shape.blocks) >= 2
+    assert [j for block in shape.blocks for j in block] == list(range(16))              # in order, each once
+    assert shape.blocks[-1][-4:] == [12, 13, 14, 15]                                     # the tail on the last
+    body = [len([j for j in block if j < 12]) for block in shape.blocks]
+    assert max(body) - min(body) <= 1                                                     # split evenly
+    assert all(shape.label_width + sum(shape.widths[j] for j in block) <= paper.WIDTH + 1e-9 for block in shape.blocks)
+    document = paper.Document("heading", [paper.Section("s", "S", [table])])
+    pages = paper.pages(document)
+    figure = paper.figure(document, pages[0], plt)
+    try:
+        drawn = [t.get_text() for t in figure.texts]
+        first = pages[0].pieces[0].rows[0]
+        label = shape.labels[first][0]
+        assert drawn.count(label) == len(shape.blocks)                                     # each block its labels
+        assert texts_inside(figure) == []
+    finally:
+        plt.close(figure)
+
+
+def test_a_page_holds_whole_rows_and_a_band_never_ends_it():
+    table = wide_table(rows=120, bands=5)
+    document = paper.Document("heading", [paper.Section("s", "S", [table])])
+    pages = paper.pages(document)
+    assert len(pages) > 1
+    seen = []
+    for page in pages:
+        (piece,) = page.pieces
+        rows = piece.rows
+        assert not table.rows[rows[-1]].band                                              # never last
+        if len(rows) > 1 and rows[1] != rows[0] + 1:                                      # a group continued
+            assert table.rows[rows[0]].band and not table.rows[rows[1]].band
+            rows = rows[1:]
+        seen += rows
+        assert piece.first == (page is pages[0])
+    assert seen == list(range(len(table.rows)))                                           # every row once, in order
+
+
+def test_small_tables_share_a_page_and_each_section_starts_one(worst):
+    _, pages = worst
+    head_to_head = [p for p in pages if p.section.key == "head-to-head"]
+    assert sum(len(p.pieces) for p in head_to_head) == 38 and len(head_to_head) <= 7
+    keys = [p.section.key for p in pages]
+    for page in pages[1:]:                                       # a section's pieces never share a page with another's
+        assert {piece.item.key for piece in page.pieces} <= {i.key for i in page.section.items}
+    assert keys == sorted(keys, key=[s.key for s in worst[0].sections].index)
+
+
+def test_a_ranking_continues_on_the_next_page():
+    names = [f"point {i}  (12)" for i in range(130)]
+    ranking = paper.Ranking("r", "A ranking", names, [i / 10 for i in range(130)])
+    document = paper.Document("heading", [paper.Section("s", "S", [ranking])])
+    pages = paper.pages(document)
+    assert len(pages) >= 2
+    assert [i for p in pages for i in p.pieces[0].rows] == list(range(130))
+    assert [p.pieces[0].first for p in pages] == [True] + [False] * (len(pages) - 1)
+
+
+def test_a_label_wraps_when_that_saves_height():
+    shape = paper._table_shape(wide_table())
+    assert max(len(lines) for lines in shape.labels) >= 1
+    one_line = max(paper.width(r.label) for r in wide_table().rows) + 2 * paper.PAD
+    assert shape.label_width <= one_line                         # wrapped only when the table takes less height
+
+
+def test_a_page_image_is_a4_in_the_grid_that_suits_its_curves(scratch):
+    assert bars.grid(19, 2.7)[:2] == (2, 3)                     # long labels: two panels across
+    assert bars.grid(4, 1.0)[:2] == (3, 2)                      # short ones: three across, bars taller
+    columns, rows, bar, per = bars.grid(400, 1.0)
+    assert per < 400 and bar >= bars.LEAST_BAR                  # too many for a page: they continue
+    rows_ = [r for r in worst_rows() if r["page"] == "NNPDF23lo_lpdfon/d01"]
+    made = bars.page(rows_, scratch / "bars" / "d01", ["pdf", "png"], "NNPDF23lo_lpdfon/d01")
+    pdf = (scratch / "bars" / "d01.pdf").read_bytes()
+    assert {tuple(map(float, b)) for b in re.findall(rb"/MediaBox\s*\[\s*0 0 ([\d.]+) ([\d.]+)\s*\]", pdf)} == {
+        (595.44, 841.68)}
+    many = [dict(rows_[0], point=f"p{i}", curve=f"curve {i}") for i in range(200)]
+    made = bars.page(many, scratch / "bars" / "many", ["pdf", "png"], "many")
+    pngs = sorted(p.name for p in made if p.suffix == ".png")
+    assert len(pngs) >= 2 and pngs[0] == "many_01.png"
+    assert len(re.findall(rb"/Type\s*/Page\b(?!s)", (scratch / "bars" / "many.pdf").read_bytes())) == len(pngs)

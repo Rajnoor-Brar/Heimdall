@@ -1005,7 +1005,7 @@ Common refusals, and what they mean:
 heimdall check                                   # every config: loaded, validated, every point planned; runs nothing
 heimdall ls Demo                      # every config and its configurations (* = what heimdall run runs)
 heimdall explain plot.y_gutter                   # a key's type, default and meaning
-heimdall status Demo/jets              # each point: complete, stale, incomplete or to run
+heimdall status Demo/jets              # each point: complete, stale, failed (and why), stopped or to run
 heimdall status --stack                          # each package's version
 heimdall clean Demo/jets --dry-run     # what the runner made and no plan uses (records/…/logs/ and .cache/)
 heimdall migrate Demo/jets             # a diff of the file in today's forms; --apply writes it

@@ -19,6 +19,9 @@ docs/06_Internals.md §8 and §12.
     seed its provenance.json records.
 * A point is complete when records/…/<point>/.complete holds its identity. It is written last,
   after the count checks, so a half-written point is never skipped.
+* Each attempt at a point ends with a line in its records' attempts.jsonl (V200): when, with what identity
+  and cards, its verdict and cause, and each tool's exit, stall, warnings, errors and what it reported. A
+  record without the file (it ran before V200) has no cause to give.
 """
 
 from __future__ import annotations
@@ -240,6 +243,90 @@ def provenance_file(plan: PointPlan) -> Path:
     return record_dir(plan) / "provenance.json"
 
 
+ATTEMPTS = "attempts.jsonl"
+ATTEMPT_VERSION = 1
+
+
+def attempts_file(plan: PointPlan) -> Path:
+    """A point's attempts (V200): a JSON line each, in its records, beside its provenance."""
+    return record_dir(plan) / ATTEMPTS
+
+
+def attempts(plan: PointPlan) -> list[dict]:
+    """A point's attempts, oldest first; [] for a record without the file (one older than V200). A line that
+    is not JSON (a write cut short) is passed over."""
+    try:
+        text = attempts_file(plan).read_text(encoding="utf-8")
+    except OSError:
+        return []
+    out = []
+    for line in text.splitlines():
+        try:
+            data = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(data, dict):
+            out.append(data)
+    return out
+
+
+def append_attempt(plan: PointPlan, data: dict) -> int:
+    """An attempt's line appended (under the point's lock: one writer); its number, from 1."""
+    number = len(attempts(plan)) + 1
+    path = attempts_file(plan)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"v": ATTEMPT_VERSION, "n": number, **data}, default=str) + "\n")
+    return number
+
+
+def card_hashes(plan: PointPlan) -> dict[str, str]:
+    """Each tool's combined card's sha256, as the point wrote it: what an attempt ran with."""
+    return {tag: hashlib.sha256(plan.writes.get(step.card_combined, "").encode("utf-8")).hexdigest()
+            for tag, step in plan.rendered.items() if step.card_combined}
+
+
+def cause_text(attempt: dict) -> str:
+    """An attempt's cause in a few words (V200): "sherpa:prepare stalled (silent 5200 s)", "pythia failed (exit
+    code 3)", "stopped", "[prelim] failed"; "" for one that went well."""
+    verdict, cause, blamed = attempt.get("verdict"), attempt.get("cause", ""), attempt.get("blamed", "")
+    if verdict == "ok":
+        return ""
+    if verdict == "stopped" or cause == "stopped":
+        return "stopped"
+    if cause == "prelim":
+        return "[prelim] failed"
+    tool = (attempt.get("tools") or {}).get(blamed, {})
+    detail = ""
+    if cause == "stalled" and tool.get("stall"):
+        detail = f" (silent {tool['stall'].get('silent', '?')} s)"
+    elif cause == "failed" and tool.get("exit") is not None:
+        code = tool["exit"]
+        detail = f" (signal {-code})" if code < 0 else f" (exit code {code})"
+    elif cause in ("count", "missing") and attempt.get("message"):
+        detail = f": {attempt['message']}"
+    return f"{blamed or 'a tool'} {cause or 'failed'}{detail}".strip()
+
+
+def state_of(plan: PointPlan) -> tuple[str, dict | None]:
+    """A point's state and its last attempt (V200): running (a session holds its lock, U66); complete; stale
+    (complete for an earlier identity: a changed setup reruns it); failed or stopped (its last attempt's
+    verdict); incomplete (begun, with no attempt recorded: before V200); to run (never begun, or its logs
+    are gone)."""
+    if holder(plan) is not None:
+        return "running", None
+    last = (attempts(plan) or [None])[-1]
+    if is_complete(plan):
+        return "complete", last
+    if complete_marker(plan).exists():
+        return "stale", last
+    if last is not None and last.get("verdict") in ("failed", "stopped"):
+        return last["verdict"], last
+    if (plan.out.exists() and any(p.name != LOCK_FILE for p in plan.out.iterdir())) or record_dir(plan).exists():
+        return "incomplete", last
+    return "to run", last
+
+
 def manifest_file(plans: list) -> Path:
     """A configuration's points.json: in its records, beside its points' folder."""
     return plans[0].folders.manifest
@@ -431,8 +518,9 @@ def write_atomic(path: Path, text: str) -> None:
     partial.replace(path)
 
 
-def points_manifest(plans: list[PointPlan], run, configuration) -> dict:
-    """points.json (06 §7): every point's values, page, products and state, for plot and post tools."""
+def points_manifest(plans: list[PointPlan], run, configuration, known: dict | None = None) -> dict:
+    """points.json (06 §7): every point's values, page, products and state, for plot and post tools, and the run's
+    constants (V200; `known`: as the run began, its points' counts made again)."""
     from .sweep import label_of, split_axes, tag_of
     page_names = [name for group in split_axes(configuration)[0] for name in group]    # a listed group's paged members (V154)
     points = []
@@ -448,9 +536,89 @@ def points_manifest(plans: list[PointPlan], run, configuration) -> dict:
             "results": str(plan.res), "output": str(plan.out),
             "identity": plan.identity, "seed": plan.seed, "complete": is_complete(plan),
             "texts": {k: v for step in plan.rendered.values() for k, v in step.texts.items()},   # {opt:…} (V158)
+            **_last(plan),                                                                     # V200
         })
     return {"run": run.name, "project": run.project, "configuration": configuration.key,
-            "config_file": str(run.path), "plot_points": configuration.plot_points, "points": points}
+            "config_file": str(run.path), "plot_points": configuration.plot_points,
+            "constants": _counted(known, plans) if known else constants(plans, run, configuration), "points": points}
+
+
+def _counted(known: dict, plans: list[PointPlan]) -> dict:
+    from collections import Counter
+    return {**known, "points": dict(Counter(state_of(p)[0] for p in plans))}
+
+
+def _last(plan: PointPlan) -> dict:
+    """A point's state and, when its last attempt failed, its cause (points.json, V200)."""
+    state, last = state_of(plan)
+    return {"state": state, **({"cause": cause_text(last)} if last and state in ("failed", "stopped") else {})}
+
+
+def constants(plans: list[PointPlan], run, configuration, machine: bool = True) -> dict:
+    """What every point of a run shares (V200, the user's ask): its events, threads, parallelism and seed rule;
+    its chain and stages; its fixed quantities; each tool (folder, executable, version, packages, analyses); the
+    base cards and their sha256s; the data it is compared with; and (`machine`) the revisions, host, stack and
+    image, and the points by state. In points.json, and in the run's `run started` event."""
+    from collections import Counter
+    from .sweep import label_of, tag_of
+    out: dict = {"events": configuration.event_count, "threads": configuration.threads,
+                 "parallelism": "auto" if configuration.parallelism_auto else configuration.parallelism,
+                 "seeds": configuration.seed_type if configuration.seed_type != "manual"
+                 else ["manual", configuration.manual_seed],
+                 "chain": configuration.tools,
+                 "stages": {k: v for k, v in (("pre", configuration.pre), ("post", configuration.post),
+                                              ("combine", configuration.combine)) if v}}
+    swept = {name for plan in plans for name in plan.point.choice}          # what the points vary
+    fixed = {}
+    for name, tag in configuration.static.items():
+        if name in swept:                              # a file's default the configuration varies
+            continue
+        quantity = run.quantities.get(name)
+        index = next((i for i in range(len(quantity.values)) if tag_of(quantity, i) == tag), None) if quantity else None
+        fixed[name] = {"tag": tag, **({"label": label_of(quantity, index), "value": quantity.values[index]}
+                                      if index is not None else {})}
+    if fixed:
+        out["fixed"] = fixed
+    tools, cards = {}, {}
+    for plan in plans:
+        for tag, step in plan.rendered.items():
+            if tag in tools:
+                continue
+            entry = {"tool": step.tool.tool, "folder": str(getattr(step.folder, "name", "")), "exe": portable(step.exe)}
+            if machine:
+                entry["version"] = version_of(step.folder)
+                if named := step.folder.get("tool", "packages", []):
+                    entry["packages"] = package_states(named)
+            if analyses := (step.tool.extra or {}).get("analyses"):
+                entry["analyses"] = analyses
+            tools[tag] = entry
+            for base in step.card_base:
+                if base.is_file() and base.name not in cards:
+                    cards[base.name] = hashlib.sha256(base.read_bytes()).hexdigest()
+    out["tools"] = tools
+    if cards:
+        out["base_cards"] = cards
+    data = (configuration.own or {}).get("data") or (run.plot or {}).get("data")
+    if data:
+        out["data"] = data
+    if machine:
+        out["git"] = {"heimdall": git_state(hep_root()), "work": git_state(Path(w["root"])) if (w := work_record()) else {}}
+        out["host"], out["stack"] = socket.gethostname(), os.environ.get("HEP_STACK", "")
+        if held := inside():
+            out["image"] = held
+        out["points"] = dict(Counter(state_of(p)[0] for p in plans))
+    return out
+
+
+def constants_lines(data: dict) -> list[str]:
+    """A run's constants in two lines, as `heimdall status` heads its points with them (V200)."""
+    seeds = data.get("seeds")
+    first = [f"{data.get('events', 0):,} events", f"{data.get('threads', 1)} thread(s)",
+             f"{data.get('parallelism', 1)} at once", f"seeds {seeds if isinstance(seeds, str) else ' '.join(map(str, seeds))}"]
+    if fixed := data.get("fixed"):
+        first.append("fixed " + ", ".join(f"{k} {v.get('tag')}" for k, v in fixed.items()))
+    tools = [f"{tag} ({t.get('tool')}{' ' + t['version'] if t.get('version') else ''})" for tag, t in data.get("tools", {}).items()]
+    return ["   " + " · ".join(first), *(["   tools: " + ", ".join(tools)] if tools else [])]
 
 
 

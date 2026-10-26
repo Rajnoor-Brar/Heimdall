@@ -325,6 +325,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   L1 has no format change and can go first.
 - **Progress:** L1 done (V195: clean saved text, Sherpa's mid-line messages, the stall's context, the live
   view's brackets, `--card` sources, totality's page count, an empty analysis said, the two-line title).
+  L2 done (V200: `attempts.jsonl` with each attempt's cause and tools, `heimdall status` saying why, the
+  run's constants in `points.json`, a block's warnings, the verdict's counts and failures).
 
 ## M5 — The plot model
 

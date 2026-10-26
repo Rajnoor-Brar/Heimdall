@@ -139,7 +139,8 @@ def parser() -> argparse.ArgumentParser:
     explain = commands.add_parser("explain", help="a run TOML key: its type, default and meaning (the schema's)")
     explain.add_argument("key", help="e.g. plot.y_gutter, run.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses")
 
-    state = commands.add_parser("status", help="each configuration's points: complete, stale, incomplete or to run")
+    state = commands.add_parser("status", help="each configuration's points: complete, stale, running, failed or stopped "
+                                                "(when, and why), incomplete or to run; its events, seeds and tools")
     state.add_argument("config", nargs="?", help="one config, or a record <P>/<run>/<NN_cfg> (default: every config)")
     state.add_argument("configuration", nargs="?", help="one configuration of it")
     state.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as heimdall run's, for the view")
@@ -1106,11 +1107,14 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     if journal:
         bus.subscribe(journal)
     title = run_title(run, configuration, plans)
+    tally = runs.Tally()                     # the verdict's counts and failures (V200)
+    bus.subscribe(tally)
+    known = record.constants(every, run, configuration) if every else {}       # what every point shares (V200)
     if number > 1:
         bus.say("")
     bus.emit("", "", {"k": "run", "state": "started", "points": len(plans), "title": title,
                       "record": str(records_root() / tools.run_dir(run, configuration)),       # the registry's (V182)
-                      **({"header": title_line} if title_line else {})})
+                      **({"header": title_line} if title_line else {}), **({"constants": known} if known else {})})
     if crowded(configuration, plans):
         bus.say(f"   note: {crowded(configuration, plans)}")
     for note in notes_of(plans):
@@ -1119,8 +1123,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         bus.say(f"   warning: {warning}")
     def manifest() -> None:                  # a points-only run (a cluster job) leaves it to the finish job
         if plans and stages != {"points"}:
-            record.write_atomic(record.manifest_file(every),
-                                json.dumps(record.points_manifest(every, run, configuration), indent=1, default=str) + "\n")
+            record.write_atomic(record.manifest_file(every), json.dumps(
+                record.points_manifest(every, run, configuration, known), indent=1, default=str) + "\n")
     dropped = dropped_points(every) if every and stages != {"points"} else []     # read before it is rewritten
     manifest()
     if every and stages != {"points"}:              # V158: the config it ran with, beside points.json
@@ -1146,7 +1150,9 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                                                        wait_held=getattr(args, "wait", False))
             if stopped:
                 return 6
-        verdict = f"{done} done, {failed} failed, {len(plans) - done - failed} skipped" if "points" in stages else ""
+        warned = tally.warned(getattr(bus, "run", "") or "")
+        verdict = (f"{done} done{f' ({warned} with warnings)' if warned else ''}, {failed} failed, "
+                   f"{len(plans) - done - failed} skipped") if "points" in stages else ""
         manifest()                           # post tools read it: it must say which points are complete
         if combined and "combine" in stages:
             bad = post.run_combined(combined, every, run, configuration, bus=bus, stopper=stopper, logs=logs,
@@ -1177,6 +1183,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                         f"{record.config_name(run)} --across draws this run with the others of {run.name}")
         verdict = verdict or ", ".join(s for s in STAGES if s in stages) + " done"         # a run without its points
         bus.say(verdict)                     # before end(): the view's thread prints it (V32)
+        if failures := tally.failures(getattr(bus, "run", "") or ""):          # V200: which failed, and why
+            bus.say("failed:\n" + "\n".join(failures))
     finally:
         onward = {"next": str(following)} if following and not stopper.requested else {}
         bus.emit("", "", {"k": "run", "state": "finished", "verdict": verdict, **onward})
@@ -1184,6 +1192,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             bus.unsubscribe(shown)
             shown.end()
         manifest()
+        bus.unsubscribe(tally)
         if journal:
             bus.unsubscribe(journal)
             journal.close()

@@ -13,6 +13,9 @@ docs/06_Internals.md §22 and docs/06_Internals.md §10.
 * Nothing saved holds a terminal's clutter (V195): every line is cleaned (`clean`) before it is matched,
   shown or written, and a line a bare carriage return rewrote (a counter) is saved at its last state.
 * Every message goes onto the run's event bus (events.py), tagged with its point and tool.
+* What a tool said that matters is kept for its attempt's record (V200): its warnings and errors, each
+  message once with its count and the line it first came on (at most SIGNALS distinct of each), every
+  `summary` it sent and its last cross section (`Reader.signals`, `Reader.reported`).
 """
 
 from __future__ import annotations
@@ -28,6 +31,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 TAIL = 200                       # a failed tool's last lines, written beside its point (V72)
+SIGNALS = 50                     # distinct warnings (and errors) a tool's attempt keeps (V200)
+LEVELS = {"warn": "warn", "warning": "warn", "error": "error"}   # a log message's level, as kept
 LINE_EVERY = 0.5                 # seconds between a tool's `line` events
 #: A terminal's escape sequences: a CSI (colours, cursor moves: Sherpa's ESC[1A and ESC[?25h), an OSC (a window
 #: title), a character set's choice (ESC(B) and the two-character ones. Taken out of every line shown, matched or
@@ -84,6 +89,7 @@ class ToolState:
     last_activity: float = field(default_factory=time.monotonic)
     running: bool = True
     exit: int | None = None
+    summary: dict = field(default_factory=dict)       # every `summary` message's fields, merged (V200)
 
 
 class Reader:
@@ -98,6 +104,9 @@ class Reader:
         self.bus = bus
         self.log, self.keep = log, keep
         self.tail: collections.deque = collections.deque(maxlen=TAIL)
+        self.count = 0                    # the lines it printed (a counter's rewrites not counted)
+        self.kept: dict[str, dict] = {"warn": {}, "error": {}}   # level → message → [count, first line] (V200)
+        self.more = {"warn": 0, "error": 0}                       # … and those past SIGNALS distinct
         self._fds = [f for f in (fd, out) if f is not None]
         self._status_fd, self._out_fd = fd, out
         self._partial = {f: b"" for f in self._fds}
@@ -110,6 +119,8 @@ class Reader:
             self._thread.start()
 
     def _emit(self, message: dict) -> None:
+        if message.get("k") == "log" and (level := LEVELS.get(str(message.get("level", "")))):
+            self._keep(level, str(message.get("msg", "")))
         apply(self.state, message)
         if self.bus is not None:
             self.bus.emit(self.state.point, self.state.tag, message)
@@ -173,6 +184,8 @@ class Reader:
         filter rules, the first that matches. A line a carriage return `rewritten` (a counter's) is matched
         and shown, and neither saved nor kept: the log and the tail keep the state a terminal shows."""
         text = clean(text)
+        if not rewritten:
+            self.count += 1
         if self._handle is not None and not rewritten:
             self._handle.write(text.encode("utf-8") + b"\n")
         if text.strip():
@@ -189,6 +202,32 @@ class Reader:
                 continue
             self._rule(rule, match, text)
             break
+
+    def _keep(self, level: str, text: str) -> None:
+        kept = self.kept[level]
+        if text in kept:
+            kept[text][0] += 1
+        elif len(kept) < SIGNALS:
+            kept[text] = [1, self.count or None]
+        else:
+            self.more[level] += 1
+
+    def signals(self, level: str) -> dict:
+        """A level's messages ({message: [count, first line]}, the line None for a status message), and how
+        many more there were past SIGNALS distinct ones (the key "…")."""
+        kept = {text: list(entry) for text, entry in self.kept[level].items()}
+        if self.more[level]:
+            kept["…"] = [self.more[level], None]
+        return kept
+
+    def reported(self) -> dict:
+        """What the tool reported of itself (V200): its `summary` fields and its last cross section."""
+        out: dict = {}
+        if self.state.summary:
+            out["summary"] = dict(self.state.summary)
+        if self.state.xsec and self.state.xsec[0] is not None:
+            out["xsec_pb"] = list(self.state.xsec)
+        return out
 
     def join(self, timeout: float = 2.0) -> None:
         """Wait for the pipes to end (a child that keeps the tool's stdout open is not waited for)."""
@@ -246,6 +285,10 @@ class Reader:
         self._emit(message)
 
 
+#: An event's own keys: what a `summary` message's fields are not.
+ENVELOPE = ("k", "v", "t", "point", "tool", "run")
+
+
 def apply(state: ToolState, message: dict) -> None:
     state.last_activity = time.monotonic()
     kind = message.get("k")
@@ -264,3 +307,5 @@ def apply(state: ToolState, message: dict) -> None:
             state.warning = str(message.get("msg", ""))
     elif kind == "line":
         state.last_line = str(message.get("msg", ""))
+    elif kind == "summary":
+        state.summary.update({k: v for k, v in message.items() if k not in ENVELOPE})

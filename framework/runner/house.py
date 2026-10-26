@@ -21,7 +21,8 @@ from .errors import HepError, did_you_mean
 from . import runs
 from .events import greeting, hubs
 from .paths import cache_root, configs_root, find_work, records_root, results_root
-from .record import complete_marker, held_by, holder, is_complete, provenance_file, record_dir
+from .record import (cause_text, constants, constants_lines, held_by, holder, provenance_file, record_dir,
+                     state_of)
 
 TABLES = {"run": "run", "config": "config", "prelim": "prelim", "plot": "plot", "data": "data",
           "configuration": "configuration", "quantity": "quantity", "quantities": "quantity", "tool": "tool",
@@ -425,41 +426,51 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
 
 def point_state(plan) -> str:
     """complete; stale (complete for an earlier identity: a changed setup reruns it); running (a
-    session holds its lock, U66); incomplete (begun, not done: failed or stopped); to run (never begun,
-    or its logs are gone). From its records and its lock: deleting logs/ or .cache/ changes no state
-    but incomplete's."""
-    if holder(plan) is not None:
-        return "running"
-    if is_complete(plan):
-        return "complete"
-    if complete_marker(plan).exists():
-        return "stale"
-    if (plan.out.exists() and any(p.name != ".lock" for p in plan.out.iterdir())) or record_dir(plan).exists():
-        return "incomplete"
-    return "to run"
+    session holds its lock, U66); failed or stopped (its last attempt's verdict, V200); incomplete (begun,
+    not done, with no attempt recorded: before V200); to run (never begun, or its logs are gone). From its
+    records and its lock: deleting logs/ or .cache/ changes no state but incomplete's (record.state_of)."""
+    return state_of(plan)[0]
 
 
 def status(planned: list, running: dict[str, list[str]]) -> list[str]:
-    """Per configuration, a line per point: its state, when it finished, its results' size."""
+    """Per configuration, its counts by state, its constants (V200: events, threads, seeds, tools), then a line
+    per point: its state, when it finished, its results' size, and why a failed or stopped one ended."""
     lines = []
     for p in planned:
         stages = [*([p.pre] if p.pre else []), *p.every, *p.combined, *([p.post] if p.post else [])]
-        states = [point_state(s) for s in stages]
+        found = [state_of(s) for s in stages]
+        states = [state for state, _ in found]
         live = p.configuration.key in running.get(str(p.run.path), [])
-        counts = ", ".join(f"{states.count(s)} {s}" for s in ("complete", "stale", "running", "incomplete", "to run")
-                           if states.count(s))
+        counts = ", ".join(f"{states.count(s)} {s}" for s in STATES if states.count(s))
         lines.append(f"{p.run.name} · {p.configuration.key} ({tools.run_dir(p.run, p.configuration)}): {counts}"
                      + ("   [running]" if live else ""))
-        for stage, state in zip(stages, states):
-            when = ""
+        lines += constants_lines(constants(p.every, p.run, p.configuration, machine=False))
+        width = max([24] + [len(s.point.name) for s in stages])        # the states in one column
+        for stage, (state, last) in zip(stages, found):
+            when, why = "", ""
             provenance = provenance_file(stage)
             if state == "complete" and provenance.exists():
                 when = time.strftime("%Y-%m-%d %H:%M", time.localtime(provenance.stat().st_mtime))
             elif state == "running" and (who := holder(stage)):
                 when = f"({held_by(who)})"
+            elif state in ("failed", "stopped") and last:
+                when, why = _local(last.get("finished", "")), cause_text(last)
             size = _human(_size(stage.res)) if stage.res.exists() else ""
-            lines.append(f"  {stage.point.name:24s} {state:10s} {when:16s} {size}".rstrip())
+            lines.append(f"  {stage.point.name:{width}s} {state:10s} {when:16s} {size:>9s}  {why}".rstrip())
     return lines
+
+
+#: A point's states, in the order `heimdall status` counts them.
+STATES = ("complete", "stale", "running", "failed", "stopped", "incomplete", "to run")
+
+
+def _local(stamp: str) -> str:
+    """An attempt's time (ISO, UTC) as local "YYYY-mm-dd HH:MM"; as given when it is not one."""
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(stamp).astimezone().strftime("%Y-%m-%d %H:%M")
+    except (TypeError, ValueError):
+        return str(stamp)
 
 
 # ── heimdall clean ──────────────────────────────────────────────────────────────────────────────────

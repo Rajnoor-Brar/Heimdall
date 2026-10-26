@@ -27,7 +27,7 @@ import threading
 import time
 from pathlib import Path
 
-from .status import ToolState, apply, clean_text
+from .status import LEVELS, ToolState, apply, clean_text
 
 
 def _count(value) -> str:
@@ -77,6 +77,25 @@ def progress_text(state) -> str:
     return " ".join(parts)
 
 
+SHOWN = 3                                       # a block's distinct warnings (errors) shown, at most (V200)
+
+
+def signals_line(name: str, said: dict[tuple[str, str], int]) -> str:
+    """A block's line for what its tools warned of (or erred), V200: "   warnings: 3 (sherpa 2, rivet 1): <msg>
+    (×2); <msg>", the most frequent SHOWN first; "" for none."""
+    if not said:
+        return ""
+    total = sum(said.values())
+    by_tool: dict[str, int] = {}
+    for (tag, _), count in said.items():
+        by_tool[tag or "run"] = by_tool.get(tag or "run", 0) + count
+    first = sorted(said.items(), key=lambda kv: -kv[1])[:SHOWN]
+    shown = "; ".join(f"{text[:110]}{' (×' + str(count) + ')' if count > 1 else ''}" for (_, text), count in first)
+    more = " …" if len(said) > SHOWN else ""
+    tools = ", ".join(f"{tag} {count}" for tag, count in by_tool.items())
+    return f"   {name}: {total} ({tools}): {shown}{more}"
+
+
 # ── the reducer ───────────────────────────────────────────────────────────────────────────────
 
 class _Point:
@@ -89,6 +108,7 @@ class _Point:
         self.failed: list[str] = []
         self.states: list[ToolState] = []
         self.last = 0.0                              # the plain view's last progress line
+        self.said: dict[str, dict[tuple[str, str], int]] = {"warn": {}, "error": {}}   # (tool, message) → count (V200)
 
     @property
     def heading(self) -> str:
@@ -152,14 +172,18 @@ class State:
             ended = event.get("t", time.time())
             part = self.points.pop(key, None) or _Point("── ", point, ended)
             seconds = ended - part.started
+            shown = {(s.tag, s.error) for s in part.states if s.exit not in (0, None) and s.error}   # on its exit line
+            errors = {k: n for k, n in part.said["error"].items() if k not in shown}
+            said = [line for name, kept in (("errors", errors), ("warnings", part.said["warn"]))
+                    if (line := signals_line(name, kept))]
             if state == "done":
-                return [("block", part, "ok", seconds, [*part.notes, f"   done → {event.get('res', '')}"], ended)]
+                return [("block", part, "ok", seconds, [*part.notes, *said, f"   done → {event.get('res', '')}"], ended)]
             if state == "stopped":
-                return [("block", part, "stopped", seconds, [*part.notes, *part.failed,
+                return [("block", part, "stopped", seconds, [*part.notes, *part.failed, *said,
                                                              "   partial outputs keep their .partial names"], ended)]
             blame = f" [{event['cause']}]" if event.get("cause") else ""
-            return [("block", part, f"FAILED{blame}", seconds, [*part.notes, *part.failed, f"   {event.get('msg', '')}"],
-                     ended)]
+            return [("block", part, f"FAILED{blame}", seconds,
+                     [*part.notes, *part.failed, *said, f"   {event.get('msg', '')}"], ended)]
         part = self.points.get(key)
         if kind == "note":
             if part is not None:
@@ -171,6 +195,9 @@ class State:
         tool = self._state(key, tag)
         if tool is None:
             return []
+        if kind == "log" and (level := LEVELS.get(str(event.get("level", "")))):
+            said = part.said[level]
+            said[(tag, str(event.get("msg", "")))] = said.get((tag, str(event.get("msg", ""))), 0) + 1
         if kind == "exit":
             tool.running, tool.exit = False, event.get("code")
             verdict = "ok" if event.get("code") == 0 else f"exit {event.get('code')}"

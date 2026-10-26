@@ -9,7 +9,7 @@ execution map: each step's row is ticked when it is committed.
 | --- | --- | --- | --- | --- |
 | L0 housekeeping | done | `64a472e` (was `5663f57`) | — | docs links |
 | L1 quick fixes | done | `d13442d` (was `797fc4e`), branch `logging` | V195 | F; guard: 315 points of 35 Brookhaven configurations unchanged |
-| L2 attempts, causes, run constants | to do | | | F, S, guard, B |
+| L2 attempts, causes, run constants | done | (this commit; hash in the next), branch `logging` | V200 | F (1036 passed; the pre-existing stack-build failure); S (41 passed, the 5 known failures; the generators test's verdict text updated, then passing); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
 | L3 digests and history | to do | | | F, S, guard, B |
 | L4 the run's own log | to do | | | F, S, guard, B |
 | L5 new kinds in filters.toml | to do | | | F, S, guard |
@@ -23,6 +23,14 @@ execution map: each step's row is ticked when it is committed.
   one fixed set of roots (`guard-roots`): Sherpa's argv holds its prepare folder, so the roots must not move
   between the runs compared. The baseline comes from main's unmodified code.
 - Added on your word (2026-10-26): the run's constants in the record (L2), and the run's two-line title (L1).
+- 2026-10-26: main was fast-forwarded to `logging` (5d27da6) when the zeus run ended; the work stays in the
+  worktree on `logging`, fast-forwarded into main at the end.
+- 2026-10-26, after L2: L3–L6 are drafted, not applied nor tested, in this session's scratchpad: `l3_patch.py`,
+  `l4_patch.py`, `l5_patch.py`, `l6_patch.py` (each `python3 lN_patch.py <checkout>`, string replacements that
+  assert their anchors) and their tests `test_digests.py`, `test_runlog.py`, `test_filter_kinds.py` (for
+  `tests/runner/`). Apply one step at a time, test, then fix what the anchors or tests find. The guard
+  (`guard.py`, baseline `guard-base.txt`) and gate B (`heimdall status` in Brookhaven, counts lines only) are
+  as for L2. The user's pace now: pause after each milestone for compaction.
 
 ## Context
 

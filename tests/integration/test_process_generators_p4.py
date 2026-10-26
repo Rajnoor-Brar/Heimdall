@@ -54,6 +54,6 @@ def test_whizard_direct_photoproduction_runs(scratch):
                     not (apps() / "Herwig" / "HerwigDefaults.rpo").exists(), reason="gjallarhorn and heimdall build --framework")
 def test_three_generators_one_page_per_spectrum(scratch):
     out = hep_run(scratch, "Generators/generators", "--set", "run.events=500")
-    assert "3 done, 0 failed" in out and "plot: 4 of 4 page(s) drawn" in out
+    assert re.search(r"3 done(?: \(\d with warnings\))?, 0 failed", out) and "plot: 4 of 4 page(s) drawn" in out   # V200
     page = (support.pages(scratch, folder("Generators/generators", None, scratch)) / "nch.toml").read_text(encoding="utf-8", errors="replace")
     assert page.count("[[curve]]") == 3

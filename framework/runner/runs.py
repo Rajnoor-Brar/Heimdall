@@ -295,3 +295,40 @@ class Recorder:
             self.records.append(event["record"])
         elif event.get("state") == "finished":
             self.verdicts[event.get("run") or ""] = event.get("verdict", "")
+
+
+class Tally:
+    """A bus subscriber (V200): per run (a sweep's `run` key, "" for one run), its points done, failed and stopped,
+    those that ended with a warning or an error said, and each failed point's cause, for the run's verdict."""
+
+    def __init__(self):
+        self.runs: dict[str, dict] = {}
+
+    def _run(self, key: str) -> dict:
+        return self.runs.setdefault(key, {"done": 0, "failed": [], "stopped": 0, "warned": set(), "said": set()})
+
+    def event(self, event: dict) -> None:
+        kind, point, key = event.get("k"), event.get("point", ""), event.get("run") or ""
+        if kind == "log" and point and event.get("level") in ("warn", "warning", "error"):
+            self._run(key)["said"].add(point)
+        elif kind == "point" and event.get("state") in ("done", "failed", "stopped"):
+            tally = self._run(key)
+            if event["state"] == "done":
+                tally["done"] += 1
+                if point in tally["said"]:
+                    tally["warned"].add(point)
+            elif event["state"] == "stopped":
+                tally["stopped"] += 1
+            else:
+                tally["failed"].append((point, event.get("cause", ""), event.get("msg", "")))
+            tally["said"].discard(point)
+
+    def warned(self, key: str = "") -> int:
+        return len(self._run(key)["warned"])
+
+    def failures(self, key: str = "") -> list[str]:
+        """The failed points, a line each: its name, the tool blamed, the message's first line."""
+        rows = self._run(key)["failed"]
+        width = max((len(name) for name, _, _ in rows), default=0)
+        return [f"   {name:{width}s}  {f'[{cause}] ' if cause else ''}{(message.strip().splitlines() or [''])[0][:160]}"
+                for name, cause, message in rows]

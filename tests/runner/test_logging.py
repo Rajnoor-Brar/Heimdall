@@ -185,8 +185,8 @@ def test_a_rivet_that_filled_nothing_says_so():
     final.parent.mkdir(parents=True, exist_ok=True)
     final.write_text(HISTO.format(name="d01", w="0.0") + COUNTER, encoding="utf-8")
     try:
-        assert execute.empty_analyses([rivet]) == [f"   {rivet.tag}: no histogram filled (0 of 1) in {final.name}: "
-                                                   "every event was vetoed"]
+        assert execute.empty_analyses([rivet]) == [(rivet.tag, f"no histogram filled (0 of 1) in {final.name}: "
+                                                               "every event was vetoed")]     # a warning (V200)
         final.write_text(HISTO.format(name="d01", w="2.0") + COUNTER, encoding="utf-8")
         assert execute.empty_analyses([rivet]) == []
     finally:

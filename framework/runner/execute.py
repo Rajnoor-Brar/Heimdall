@@ -24,6 +24,12 @@ point at a time may fill (`_prepare_lock`: a lock in this process and flock acro
 **What is said** goes onto the run's event bus (events.py, V72): a point's and a tool's start and end,
 and every status message. A tool's output is read from a pipe (status.Reader); only a failed tool's last
 lines reach the point's <tag>.log (records/<run>/logs/<point>/), unless `logs` (--logs) keeps every tool's whole log.
+
+**What is kept** (V200): every attempt, however it ends (done, failed, stopped, a [prelim] failure; pre, post and
+combined stages too), appends a line to the point's attempts.jsonl (record.append_attempt): its verdict, its
+cause (the tool to blame and how: failed, stalled, timeout, count, missing, stopped, prelim) and each tool's
+exit, stall (its phase, last line, how long silent and since when), warnings, errors and what it reported
+(its `summary`, its last σ). A complete point's provenance.json carries its tools' warnings and reports too.
 """
 
 from __future__ import annotations
@@ -46,8 +52,8 @@ from pathlib import Path
 from . import hepfiles
 from .errors import HepError
 from .paths import keeping, placeholders
-from .record import (LOCK_FILE, PointLock, complete_marker, held_by, holder, is_complete, now, provenance, provenance_file,
-                     write_atomic, write_identity)
+from .record import (LOCK_FILE, PointLock, append_attempt, card_hashes, complete_marker, held_by, holder, is_complete,
+                     now, provenance, provenance_file, write_atomic, write_identity)
 from .status import Reader, ToolState, clean_text
 from .tools import CONTEXT_FILE, PointPlan, Step, expand
 
@@ -72,6 +78,19 @@ class ToolResult:
     seconds: float = 0.0
     cause: str = ""                      # failed | stalled | timeout | stopped | count | missing
     message: str = ""
+    stall: dict | None = None            # a stall's context: phase, last line, silent (s), since (V200)
+    warnings: dict = field(default_factory=dict)    # message → [count, first line] (status.Reader.signals)
+    errors: dict = field(default_factory=dict)
+    reported: dict = field(default_factory=dict)    # its summary and last σ (status.Reader.reported)
+    cache: str = ""                      # a prepare step a cache entry held: the entry
+
+    def kept(self) -> dict:
+        """What an attempt keeps of it (V200): only what it has."""
+        out = {"exit": self.exit, "seconds": round(self.seconds, 3)}
+        for key in ("cause", "message", "stall", "warnings", "errors", "reported", "cache"):
+            if value := getattr(self, key):
+                out[key] = value
+        return out
 
 
 @dataclass
@@ -416,6 +435,7 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
         running.append(entry)
 
     failure: tuple[str, str, str] | None = None      # (tag, cause, message)
+    stall: dict | None = None
     failed_at = 0.0
     termed = killed = interrupted = False
     exits: list[_Running] = []
@@ -449,6 +469,7 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
             for entry in alive:
                 if clock - entry.state.last_activity > entry.step.stall_after:
                     failure = (entry.step.tag, "stalled", stalled(entry.step.tag, entry.step.stall_after, entry.state, clock))
+                    stall = stall_context(entry.step.stall_after, entry.state, clock)
                 elif entry.step.timeout and clock - entry.started > entry.step.timeout:
                     failure = (entry.step.tag, "timeout", f"{entry.step.tag} ran past its timeout of {entry.step.timeout:.0f} s")
                 if failure:
@@ -480,6 +501,9 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
 
     for entry in running:
         entry.reader.join()
+        kept = results.setdefault(entry.step.tag, ToolResult(entry.step.tag, entry.process.returncode))
+        kept.warnings, kept.errors = entry.reader.signals("warn"), entry.reader.signals("error")
+        kept.reported = entry.reader.reported()
     if failure is None:
         return True, "", ""
     for entry in running:                         # what a failed tool said last, beside its point (V72)
@@ -488,6 +512,8 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
     tag, cause, message = failure
     if tag and tag in results:
         results[tag].cause, results[tag].message = cause, message
+        if cause == "stalled":
+            results[tag].stall = stall
     if interrupted:
         return False, "", message
     return False, tag, message
@@ -500,6 +526,18 @@ def stalled(tag: str, after: float, state: ToolState, clock: float) -> str:
     doing = "; ".join(part for part in (state.phase, f'last line: "{state.last_line[:120]}"' if state.last_line else "")
                       if part)
     return f"{tag} was silent for {after:.0f} s, since {since}" + (f" ({doing})" if doing else "")
+
+
+def stall_context(after: float, state: ToolState, clock: float) -> dict:
+    """A stall's context for the record (V200): what the tool was doing and saying last, how long it was silent
+    and since when (UTC)."""
+    since = time.time() - (clock - state.last_activity)
+    out = {"silent": round(after), "since": time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(since))}
+    if state.phase:
+        out["phase"] = state.phase
+    if state.last_line:
+        out["last_line"] = state.last_line[:200]
+    return out
 
 
 def _describe(code: int) -> str:
@@ -546,14 +584,14 @@ def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, lo
         prepare(plan, logs)
     except HepError as error:
         result = PointResult(False, cause="prelim", message=error.render())
-        _finished(plan, result, bus)
+        _finished(plan, result, bus, started)
         return result
 
     ok, blamed, message = run_prepares(plan, bus=bus, stopper=stopper, results=results, logs=logs)
     if not ok:
         result = PointResult(False, stopped=stopper.requested, cause=blamed, message=message, tools=results)
         _cleanup(plan)
-        _finished(plan, result, bus)
+        _finished(plan, result, bus, started)
         return result
 
     for group in plan.groups:
@@ -561,26 +599,31 @@ def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, lo
         if not ok:
             result = PointResult(False, stopped=stopper.requested, cause=blamed, message=message, tools=results)
             _cleanup(plan)
-            _finished(plan, result, bus)
+            _finished(plan, result, bus, started)
             return result
         # a group's products are checked and take their final names before the next group reads them
         failure = _settle(group, results)
         if failure is not None:
             _cleanup(plan)
-            _finished(plan, failure, bus)
+            _finished(plan, failure, bus, started)
             return failure
-        for note in empty_analyses(group):
-            bus.emit(plan.point.name, "", {"k": "note", "msg": note})
+        for tag, note in empty_analyses(group):              # a warning, recorded (V200)
+            kept = results.setdefault(tag, ToolResult(tag)).warnings
+            kept[note] = [kept.get(note, [0, None])[0] + 1, None]
+            bus.emit(plan.point.name, tag, {"k": "log", "level": "warn", "msg": note})
 
     _cleanup(plan)
     record = provenance(plan, run, configuration, started, now(),
-                        {tag: {"exit": r.exit, "seconds": round(r.seconds, 3), "note": r.message} for tag, r in results.items()})
+                        {tag: {"exit": r.exit, "seconds": round(r.seconds, 3), "note": r.message,
+                               **{k: v for k, v in (("warnings", r.warnings), ("errors", r.errors),
+                                                    ("reported", r.reported)) if v}}
+                         for tag, r in results.items()})
     write_atomic(provenance_file(plan), json.dumps(record, indent=1, default=str) + "\n")
     write_identity(plan)                          # what it ran with, for --why (V57)
     write_atomic(complete_marker(plan), plan.identity + "\n")
     _tidy(plan)
     result = PointResult(True, tools=results)
-    _finished(plan, result, bus)
+    _finished(plan, result, bus, started)
     return result
 
 
@@ -595,14 +638,15 @@ def run_prepares(plan: PointPlan, *, bus=None, stopper: Stopper, results: dict[s
         tag = f"{step.tag}:prepare"
         stamp = step.prepare_dir / ".prepared"
         if stamp.exists():
-            results[tag] = ToolResult(tag, exit=0, message=f"cache hit {step.prepare_dir.name}")
+            results[tag] = ToolResult(tag, exit=0, message=f"cache hit {step.prepare_dir.name}", cache=str(step.prepare_dir))
             _bus(bus).emit(plan.point.name, "", {"k": "note", "msg": f"   {tag}: cached ({step.prepare_dir})"})
             continue
         with _prepare_lock(step.prepare_dir):            # another point may be filling it (V36)
             if stopper.requested:
                 return False, step.tag, "stopped before its prepare step"
             if stamp.exists():
-                results[tag] = ToolResult(tag, exit=0, message=f"cache hit {step.prepare_dir.name}")
+                results[tag] = ToolResult(tag, exit=0, message=f"cache hit {step.prepare_dir.name}",
+                                          cache=str(step.prepare_dir))
                 _bus(bus).emit(plan.point.name, "", {"k": "note", "msg": f"   {tag}: cached, made by a point running "
                                                                          f"beside it ({step.prepare_dir})"})
                 continue
@@ -659,13 +703,15 @@ def _settle(group: list[Step], results: dict[str, ToolResult]) -> PointResult | 
             if partial.exists():
                 partial.replace(final)
             elif not final.exists():
+                results.setdefault(step.tag, ToolResult(step.tag)).cause = "missing"
                 return PointResult(False, cause=step.tag, message=f"{step.tag} did not write {final.name}", tools=results)
     return None
 
 
-def empty_analyses(group: list[Step]) -> list[str]:
+def empty_analyses(group: list[Step]) -> list[tuple[str, str]]:
     """A tool folder's `[checks] filled` (V195): its products' histograms with any entry. None filled is said, never
-    failed: the analysis vetoed every event the producer wrote (the count check counts what it saw)."""
+    failed: the analysis vetoed every event the producer wrote (the count check counts what it saw). (tag, what to
+    say) each: a warning of the tool's, recorded with its attempt (V200)."""
     notes = []
     for step in group:
         kind, _, prefix = str(step.folder.get("checks", "filled", "")).partition(":")
@@ -674,13 +720,39 @@ def empty_analyses(group: list[Step]) -> list[str]:
         for final, _partial in step.products:
             got = hepfiles.filled(final, prefix or "/RAW/") if final.suffix == ".yoda" else None
             if got is not None and got[1] and not got[0]:
-                notes.append(f"   {step.tag}: no histogram filled (0 of {got[1]}) in {final.name}: every event was vetoed")
+                notes.append((step.tag, f"no histogram filled (0 of {got[1]}) in {final.name}: every event was vetoed"))
     return notes
 
 
-def _finished(plan: PointPlan, result: PointResult, bus) -> None:
-    bus.emit(plan.point.name, "", {"k": "point", "state": "done" if result.ok else "stopped" if result.stopped else "failed",
-                                   "cause": result.cause, "msg": result.message, "res": str(plan.res)})
+def _finished(plan: PointPlan, result: PointResult, bus, started: str = "") -> None:
+    """A point ended: its attempt recorded (V200), then said."""
+    verdict = "ok" if result.ok else "stopped" if result.stopped else "failed"
+    blamed, cause = blame(result)
+    try:
+        append_attempt(plan, {"started": started, "finished": now(), "identity": plan.identity, "cards": card_hashes(plan),
+                              "verdict": verdict, "cause": cause, "blamed": blamed, "message": result.message,
+                              "tools": {tag: r.kept() for tag, r in result.tools.items()}})
+    except OSError as error:                       # a record that cannot be written: said, never the run's end
+        bus.emit(plan.point.name, "", {"k": "note", "msg": f"   its attempt could not be recorded: {error}"})
+    bus.emit(plan.point.name, "", {"k": "point", "state": "done" if result.ok else verdict, "cause": result.cause,
+                                   "msg": result.message, "res": str(plan.res)})
+
+
+def blame(result: PointResult) -> tuple[str, str]:
+    """(the tool to blame, how it ended) for an attempt (V200): ("", "") when it went well, ("", "stopped") when
+    the user stopped it, ("", "prelim") for [prelim]; a prepare step's failure blames "<tag>:prepare"."""
+    if result.ok:
+        return "", ""
+    if result.stopped:
+        return "", "stopped"
+    if result.cause == "prelim":
+        return "", "prelim"
+    tag = result.cause
+    for candidate in (f"{tag}:prepare", tag):          # a prepare step's run is under its own tag
+        tool = result.tools.get(candidate)
+        if tool is not None and (tool.cause or tool.exit not in (0, None)):
+            return candidate, tool.cause or "failed"
+    return tag, "failed"
 
 
 def _tidy(plan: PointPlan) -> None:

@@ -112,7 +112,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `key` | e.g. plot.y_gutter, run.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses |
 
-**`heimdall status`**: each configuration's points: complete, stale, incomplete or to run
+**`heimdall status`**: each configuration's points: complete, stale, running, failed or stopped (when, and why), incomplete or to run; its events, seeds and tools
 
 | Argument | Meaning |
 |---|---|

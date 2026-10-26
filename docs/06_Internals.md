@@ -686,7 +686,8 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
   - the point's values;
   - its identity, seed, threads and events;
   - per tool: the binary's path, sha256 and version, the argv, the card and its sha256, the config,
-    and the result (exit, seconds, note);
+    and the result (exit, seconds, note; its warnings and errors, each once with its count and the line
+    it first came on, and what it reported of itself, its `summary` fields and last σ, V200);
   - the `--set`s it ran with (V77);
   - the host, platform, user and start and end times;
   - `git = {heimdall, work}`: each repository's revision and dirty flag (`{}` for a work dir not in
@@ -695,10 +696,22 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `hepkit.Exit` in Python:
 
   `heimdall reproduce` runs a point again from it, and warns first when either revision moved, or was
   dirty when it ran: the setup may be the same while the code is not.
+- **`records/…/<point>/attempts.jsonl`** (V200): a line per attempt, however it ended (done, failed,
+  stopped, a `[prelim]` failure; the pre, post and combined stages too), appended under the point's lock:
+  `n`, `started`, `finished`, the identity, each card's sha256, the `verdict` (ok, failed, stopped), the
+  `cause` (failed, stalled, timeout, count, missing, stopped, prelim) and the tool `blamed` (a prepare
+  step's as `<tag>:prepare`), the message, and per tool its exit, seconds, cause, stall (its phase, last
+  line, seconds silent and since when), warnings, errors, what it reported, and a prepare cache entry it
+  hit. A record without the file (one older than V200) has no cause to give.
 - **`records/…/<cfg>/points.json`**: every point's values (tag, label, value), page, products,
-  directories, identity, seed and whether it is complete. Post tools, the plot stage and
-  `runner.results` read it, so none of them has to know the layout. It is also stored inside the
-  merged sweep file.
+  directories, identity, seed, whether it is complete, and its `state` (complete, stale, running,
+  failed, stopped, incomplete, to run) with a failed or stopped one's `cause` (V200). Its `constants`
+  (V200) are what every point shares: events, threads, parallelism, the seed rule, the chain and the
+  stages, the fixed quantities (tag, label, value), each tool (its folder, executable, version, packages
+  and analyses), the base cards' sha256s, the data, the Heimdall and work-dir revisions, the host, stack
+  and image, and the points by state; the `run started` event carries them too. Post tools, the plot
+  stage and `runner.results` read it, so none of them has to know the layout. It is also stored inside
+  the merged sweep file.
 - **`identity.json`** beside `.complete` (V57): what the identity hashed, for `--why`.
 - **Sidecars and reports** travel with their products (04 §14).
 
@@ -816,7 +829,7 @@ machine root (§1): `apps/`, `forge/`. `tools.RunFolders` names them all; nothin
 ```
 records/<P>/<run>/<cfg>/
   points.json   [status.jsonl: keep journal]
-  points/<point>/       provenance.json  identity.json  .complete   (kept; clean --records only)
+  points/<point>/       provenance.json  identity.json  .complete  attempts.jsonl   (kept; clean --records only)
   points/pre/, post/, <combined group>/   the same, for the stages
   logs/<point>/         cards/  config/  .lock   [<tag>.log: a failed tool's last lines; keep logs: every tool's output]
                         while it runs, and kept when it fails or with keep work: FIFOs, scratch files, shards, context.toml

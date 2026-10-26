@@ -170,10 +170,13 @@ def test_a_run_records_itself(scratch):
     (config / "rec.toml").write_text(tomli_w.dumps(data), encoding="utf-8")
     os.environ["HEP_CONFIGS"] = str(scratch / "configs")
     try:
-        code = cli.main(["run", str(config / "rec.toml"), "--plain"])
+        code = cli.main(["run", str(config / "rec.toml"), "--plain", "--rerun"])        # its point runs, however it last ran
     finally:
         os.environ.pop("HEP_CONFIGS", None)
     (entry,) = runs.entries()
     assert entry["config"].endswith("rec.toml") and entry["argv"][:2] == ["run", str(config / "rec.toml")]
     assert (entry["code"], entry["verdict"]) == (code, runs.VERDICTS[code]) and entry["records"]
     assert entry["detached"] is False and entry["log"] is None
+    assert entry["counts"] == {"done": 1, "failed": 0, "stopped": 0, "warned": 0}          # its points (V202)
+    told = (Path(entry["records"][0]) / "run.jsonl").read_text(encoding="utf-8").splitlines()   # the run's own log
+    assert json.loads(told[0])["state"] == "started" and json.loads(told[-1])["state"] == "finished"

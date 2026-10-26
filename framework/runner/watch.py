@@ -706,11 +706,13 @@ def follow_events(events, *, plain: bool = False) -> int:
 
 
 def follow_file(journal: Path, *, plain: bool = False, idle_exit: float = 0.0) -> int:
-    """`heimdall watch --file`: a --journal run's status.jsonl, followed until the run says it finished (or
-    `idle_exit` seconds of silence). A run of a sweep of runs names the next one's journal when it
-    finishes: follow on to it."""
+    """`heimdall watch --file`: a --journal run's status.jsonl, or any run's run.jsonl (V202), followed from its
+    last run's start until that run says it finished (or `idle_exit` seconds of silence). A run of a sweep of
+    runs names the next one's journal when it finishes: follow on to it, from the run begun there since."""
+    from .events import last_run
     shown = view(plain)
-    offset, last = 0, time.monotonic()
+    offset, last = (last_run(journal)[0] if journal.exists() else 0), time.monotonic()
+    begun = 0.0
     try:
         while True:
             size = journal.stat().st_size if journal.exists() else 0
@@ -729,10 +731,14 @@ def follow_file(journal: Path, *, plain: bool = False, idle_exit: float = 0.0) -
                     except ValueError:
                         continue
                     shown.event(event)
+                    if event.get("k") == "run" and event.get("state") == "started":
+                        begun = event.get("t", begun)
                     if event.get("k") == "run" and event.get("state") == "finished":
                         if not event.get("next"):
                             return 0
-                        journal, offset = Path(event["next"]), 0
+                        journal = Path(event["next"])
+                        start, when = last_run(journal) if journal.exists() else (0, 0.0)
+                        offset = start if when >= begun else (journal.stat().st_size if journal.exists() else 0)
                         break
             if idle_exit and time.monotonic() - last > idle_exit:
                 shown.say(f"no status for {idle_exit:.0f} s; leaving")

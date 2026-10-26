@@ -168,13 +168,21 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `[config]` | the run config whose job to watch (default: the latest job) |
 | `[configuration]` | overrides [run].configuration (or the sweep's latest) |
 | `--plain` | plain lines instead of the live view |
-| `--file STATUS.JSONL` | follow a --journal run's status file instead |
+| `--file EVENTS.JSONL` | follow a run's run.jsonl, or a --journal run's status.jsonl, instead |
 | `--pid N` | the run of this process (heimdall runs lists them) |
 
 **`heimdall runs`**: what runs on this machine now, and what ran in the last 30 days
 
 | Argument | Meaning |
 |---|---|
+
+**`heimdall log`**: a record's own account, a point's attempts and logs, or a tool's log
+
+| Argument | Meaning |
+|---|---|
+| `RECORD[/POINT[/TAG]]` | a record, <P>/<run>/<NN_cfg>, then a point and a tool, or a path under records/ |
+| `--full` | the whole logs (a run with --logs) instead of the digests |
+| `--attempt N` | an earlier attempt's logs, from the point's history/ |
 
 **`heimdall stop`**: stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes
 
@@ -446,7 +454,7 @@ covers every C-rule, path, consumer, connection and card, with nothing run or wr
 prints one line per config, and the error of each that fails. It exits 0, or 2 when any failed: for
 a pre-commit hook, or before a long sweep.
 
-### 1.5 `heimdall watch`, `heimdall runs`, `heimdall stop`
+### 1.5 `heimdall watch`, `heimdall runs`, `heimdall stop`, `heimdall log`
 
 `heimdall watch` follows a running job from another terminal, through the watch socket its `heimdall
 run` serves while it lives.
@@ -455,8 +463,9 @@ run` serves while it lives.
 - **What it shows:** the run so far, then what follows, as the same blocks as the run. It leaves when
   the job's process ends. Under `[run].sweep_runs` the job is one process, so the watch follows it
   from run to run.
-- **`--file`** follows a `--journal` run's status file instead (a finished run's too). It leaves when
-  the run finishes, or follows on to the next run's journal in a sweep.
+- **`--file`** follows a record's `run.jsonl` (every run writes one), or a `--journal` run's status
+  file, instead; a finished run's too. Both are appended run after run, and it starts at the last run's
+  beginning. It leaves when the run finishes, or follows on to the next run's in a sweep.
 - **Only your own runs** can be watched: a run's socket refuses another user.
 - **`--pid N`** follows the run of that process (`heimdall runs` lists them). With no run to watch, it
   names the last one that ended and its log.
@@ -470,7 +479,8 @@ stops it: once cleanly, twice hard, a third time at once. Closing the terminal l
 exit code is the run's (0, 1, 2 or 6; a run killed by a signal N, 128 + N). A run that cannot be planned
 says why and exits 2 before anything runs. `--plain`, a run not on a terminal, `… &`, a Slurm job and
 `HEP_DETACH=never` keep the run in the command's own process, as before. A worker's output goes to
-`<machine root>/runs/<id>.log` (a progress line a minute).
+`<machine root>/runs/<id>.log` (a progress line every 10 minutes; `[run] log`'s `worker_every`, 04 §14,
+changes it).
 
 **`heimdall run … --detach`** starts the worker without showing it, and returns once its run has
 started: its id, pid, log, and the watch and stop commands. Refused with `--plan`, `--why`,
@@ -488,9 +498,20 @@ are listed and none stopped. A cluster job is stopped with `heimdall cluster …
 **`heimdall runs`** lists what runs on this machine now, then what ran in the last 30 days, across every
 work dir and Heimdall checkout: each run's id, its state (running, done, failed, stopped, not run, or
 *lost* when its process ended without saying how), when it started and for how long, its work dir, its
-config and configurations, and for a running one the pid to watch or stop it by. A run from inside an
+config and configurations, and for a running one the pid to watch or stop it by; an ended one also says
+how its points went ("14 done (5 with warnings), 2 failed"). A run from inside an
 Apptainer image is not recorded (its machine root is read-only) but is listed while it runs. The
 registry is `<machine root>/runs/`.
+
+**`heimdall log RECORD[/POINT[/TAG]] [--full] [--attempt N]`** reads what a record of this work dir kept:
+- **A record** (`<P>/<run>/<NN_cfg>`, as `heimdall runs` and `heimdall status` name it): its `run.jsonl`,
+  printed as the run printed itself, each of its runs in turn. A record from before runs kept their own
+  log has none.
+- **A point** (`…/<point>`): its attempts, a line each (when, how it ended, why), then each of its tools'
+  digests. `--full` gives their whole logs (a run with `--logs`); `--attempt N` an earlier attempt's,
+  from the point's `history/`.
+- **A tool** (`…/<point>/<tag>`, `<tag>.prepare` for a prepare step, or the log's own path, a
+  `.full.log` the whole log): that log alone.
 
 ### 1.6 `heimdall migrate`
 

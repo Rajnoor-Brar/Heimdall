@@ -282,13 +282,22 @@ def cluster_job() -> bool:
 
 
 class Recorder:
-    """A bus subscriber: the record folders a run wrote and each run's verdict, in memory, for its entry."""
+    """A bus subscriber: the record folders a run wrote, each run's verdict and its points' counts (V202: done,
+    failed, stopped, done with warnings), in memory, for its entry."""
 
     def __init__(self):
         self.records: list[str] = []
         self.verdicts: dict[str, str] = {}
+        self.tally = Tally()
+
+    def counts(self) -> dict:
+        """Every run's points together: done, failed, stopped, and done with warnings."""
+        runs = self.tally.runs.values()
+        return {"done": sum(r["done"] for r in runs), "failed": sum(len(r["failed"]) for r in runs),
+                "stopped": sum(r["stopped"] for r in runs), "warned": sum(len(r["warned"]) for r in runs)}
 
     def event(self, event: dict) -> None:
+        self.tally.event(event)
         if event.get("k") != "run":
             return
         if event.get("state") == "started" and event.get("record") and event["record"] not in self.records:

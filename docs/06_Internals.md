@@ -138,7 +138,7 @@ layering was not had nine cycles.)
 | 1 | `quantities.py` | the master TOML, static values and selectors, who consumes what (C7), provider checks (C10) |
 | 1 | `sweep.py` | points from `sweeps` (grid, zip and listed rows: `Listed`, V154), point names, pages (`split_axes`: a listed group's paged members), a group's key, tag and labels at a point (`group_key`, `group_tag`, `group_labels`), `--points` |
 | 1 | `labels.py` | Rivet `.plot` keys, YODA's text macros, line breaks, LaTeX → TLatex for Paint, TLatex → LaTeX for `heimdall migrate` |
-| 1 | `events.py` | the event stream (V72): the bus, the watch socket (`Hub`), the `--journal` file |
+| 1 | `events.py` | the event stream (V72): the bus, the watch socket (`Hub`), the `--journal` file, the run's own log (`RunLog`, V202) |
 | 1 | `workdirs.py` | the work dirs this machine knows, by title: `<machine root>/workdirs.toml` (`$HEP_WORKDIRS`); recording, the scan below a folder, a title's path, forgetting (`heimdall recognise`, `gjallarhorn <title>`, V143) |
 | 1 | `runs.py` | the run registry, `<machine root>/runs/` (`$HEP_RUNS`): an entry per run and cluster submission, written whole by one writer; a process's who and where (pid, its start time, namespaces, boot); its state (running, ended, lost, or not knowable from here); 30 days kept; a read-only root records nothing (V182) |
 | 2 | `tools.py` | the tool folders; per point: interfaces, connections (C6), cards, configs, the context file, prepare keys, argv; seeds last; the combine command (`combiner`, `merge_files`) |
@@ -205,7 +205,7 @@ what their `// requires:` line names.
 | `Step` | `tools` | one tool of one point: its folder, group, executable, argv, env, cwd, log, status mode, filters, inputs, outputs, products (final, partial), sidecar, count check, card lines and paths, config, prepare entry and argv, `identity_parts`, `texts` (what page texts may cite: `{opt:…}`) |
 | `PointPlan` | `tools` | one point (or stage): `point`, `values`, `out`, `res`, `groups` of steps, `rendered` (every step, generate_cards' ones included), `context_tools` (the context file), `interfaces`, `consumers`, `identity`, `seed`, `writes` (files to write), `context`, `upstream`, `deal` (a dealt interface → its group) |
 | `ToolState`, `Reader` | `status` | what the views show per tool; one process's status and output pipes, on a thread (V72) |
-| `Bus`, `RunBus`, `Hub`, `Journal` | `events` | the event stream; a run's view of it under a sweep of runs; the watch socket; `status.jsonl` with `--journal` (V72, V75) |
+| `Bus`, `RunBus`, `Hub`, `Journal`, `RunLog` | `events` | the event stream; a run's view of it under a sweep of runs; the watch socket; `status.jsonl` with `--journal` (V72, V75); `run.jsonl`, always (V202) |
 | `State`, `PlainView`, `LiveView` | `watch` | the reducer of events, and the views that render it |
 | `ToolResult`, `PointResult`, `Stopper`, `Budget` | `execute` | exits, causes and messages; the stop flag; the cores runs share (V75) |
 | `Figure` | `plot` | one `[plot.figures.<key>]`: `kind` (its class), `type`, `name`, `objects`, `labels`, `table` (the page keys it sets), and each class's own: `over`, `configurations`, `op`, `x`, `y`, `table_pages`, `columns` |
@@ -589,8 +589,16 @@ process directory.
     watcher 10,000 events behind is cut off: once what it was queued is sent, it gets a `dropped`
     event and the end of its stream, never a hang. A name taken by another PID namespace's process
     of the same pid (two containers on one network) gets a suffix, `hep-watch-<pid>-<n>` (V181).
-  - **the journal** `records/…/<cfg>/status.jsonl`, only with `--journal`: one file per run, for
-    `heimdall watch --file` and replay.
+  - **the journal** `records/…/<cfg>/status.jsonl`, only with `--journal`: appended run after run
+    (V202), for `heimdall watch --file` and replay.
+  - **the run log** `records/…/<cfg>/run.jsonl` (`events.RunLog`, V202), always, appended run after
+    run: every event of the run but a tool's latest line (`line`), and a tool's `progress` at most once
+    a minute (`RunLog.PROGRESS`). A write that fails is passed over. `heimdall log RECORD` prints it
+    through the plain view; `watch.follow_file` takes it as it takes a journal, starting at the last
+    `run started` (`events.last_run`). `cli.run_one` subscribes it beside the journal.
+  - **the registry's counts** (V202): `runs.Recorder` tallies the points (`runs.Tally`), and the entry
+    finishes with `counts` (done, failed, stopped, warned), which `heimdall runs` prints. A worker's plain
+    view prints a progress line every `[run] log` `worker_every` seconds (600).
 - **A live run is a worker and a client** (V183). On a terminal (`cli.live`: a terminal in and out,
   its foreground, not `--plain`, not a Slurm job, `HEP_DETACH` not `never`), `heimdall run` starts the
   command again as typed with `--worker <id>` (`runs.spawn`: this checkout's `bin/run`, this Python,
@@ -841,7 +849,7 @@ machine root (§1): `apps/`, `forge/`. `tools.RunFolders` names them all; nothin
 
 ```
 records/<P>/<run>/<cfg>/
-  points.json   [status.jsonl: keep journal]
+  points.json   run.jsonl (the run's own log, every run's, V202)   [status.jsonl: keep journal]
   points/<point>/       provenance.json  identity.json  .complete  attempts.jsonl   (kept; clean --records only)
   points/pre/, post/, <combined group>/   the same, for the stages
   logs/<point>/         cards/  config/  commands.sh  .lock  <tag>.log (each tool's digest)  [<tag>.full.log: keep logs]

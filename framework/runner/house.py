@@ -398,6 +398,9 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         what = _config_name(e.get("config", ""), e.get("work"))
         cfgs = ", ".join(e.get("configurations") or ([e["configuration"]] if e.get("configuration") else []))
         head = f"  {e.get('id', '?'):28s} {state:12s} {when} ({span})  {where(e.get('work')):14s} {what} · {cfgs}"
+        if counts := e.get("counts"):                                   # V202: its points
+            head += (f"   {counts.get('done', 0)} done" + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
+                     + f", {counts.get('failed', 0)} failed" + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
         tail = []
         if e.get("kind") == "cluster":
             tail.append(f"      cluster jobs {', '.join(map(str, e.get('jobs', [])))}: heimdall cluster {what} "
@@ -422,6 +425,79 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         for e, s in ended:
             lines += row(e, s)
     return lines or [f"no runs on this machine in the last {runs.KEEP_DAYS} days ({runs.folder()})"]
+
+
+def log_target(target: str) -> tuple[Path, str | None, str | None]:
+    """`heimdall log`'s argument (V202): a record, `<P>/<run>/<NN_cfg>`, then a point and a tool, as names
+    (`Demo/jets/01_pdf/MSTW08lo/pythia`) or as a path under records/ or results/ (a point's logs/<point>/<tag>.log
+    too). (the record's folder, the point or None, the tool or None)."""
+    path = Path(target).expanduser()
+    parts = None
+    if path.is_absolute() or target.startswith(("./", "../")) or path.exists():
+        resolved = path.resolve()
+        for root in (records_root().resolve(), results_root().resolve()):
+            if resolved.is_relative_to(root):
+                parts = list(resolved.relative_to(root).parts)
+                break
+    if parts is None:
+        parts = [part for part in target.split("/") if part]
+    if len(parts) < 3:
+        raise HepError(f"'{target}' names no record", hint="a record is <P>/<run>/<NN_cfg> (heimdall runs names them), then "
+                       "a point and a tool: heimdall log Demo/jets/01_pdf/MSTW08lo/pythia")
+    record = records_root() / Path(*parts[:3])
+    if not record.is_dir():
+        raise HepError(f"no record {'/'.join(parts[:3])}", where=str(record))
+    rest = parts[3:]
+    if rest and rest[0] in ("logs", "points"):
+        rest = rest[1:]
+    tag = rest[1].removesuffix(".log").removesuffix(".full") if len(rest) > 1 else None
+    return record, (rest[0] if rest else None), tag
+
+
+def point_log(record: Path, point: str, tag: str | None = None, full: bool = False,
+              attempt: int | None = None) -> list[str]:
+    """`heimdall log RECORD/POINT[/TAG]` (V202): a point's attempts (when, verdict, why), then each of its tools'
+    digests (`full`: their whole logs), the latest attempt's or (`attempt`) an earlier one's from its history/;
+    with `tag`, that tool's alone."""
+    logs, rows = record / "logs" / point, []
+    try:
+        for line in (record / "points" / point / "attempts.jsonl").read_text(encoding="utf-8").splitlines():
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                continue
+    except OSError:
+        pass
+    if not logs.is_dir() and not rows:
+        names = sorted(p.name for p in (record / "logs").iterdir() if p.is_dir()) if (record / "logs").is_dir() else []
+        raise HepError(f"no point {point} in {record.name}", hint=did_you_mean(point, names) or
+                       (f"its points: {', '.join(names[:8])}{' …' if len(names) > 8 else ''}" if names else "it has none"))
+    latest = rows[-1]["n"] if rows else None
+    folder = logs if attempt is None or attempt == latest else logs / "history" / str(attempt)
+    if not folder.is_dir():
+        kept = sorted(int(p.name) for p in (logs / "history").iterdir() if p.name.isdigit()) if (logs / "history").is_dir() else []
+        raise HepError(f"no logs of attempt {attempt} kept", where=str(folder),
+                       hint=f"kept: {', '.join(map(str, kept))}" + (f" and the latest, {latest}" if latest else "") if kept
+                       else "a point keeps its latest attempt's logs, and earlier ones' from the next attempt on")
+    suffix = ".full.log" if full else ".log"
+    if tag is not None:
+        path = folder / f"{tag}{suffix}"
+        if not path.is_file():
+            there = sorted(p.name for p in folder.glob(f"*{suffix}") if full or not p.name.endswith(".full.log"))
+            raise HepError(f"no {path.name} in {folder}", hint=f"there: {', '.join(there)}" if there else
+                           ("--full needs a run with --logs" if full else "nothing was logged there"))
+        return path.read_text(encoding="utf-8", errors="replace").splitlines()
+    out = [f"{point}: {len(rows)} attempt(s) recorded" + ("" if rows else " (it ran before attempts were recorded)")]
+    for row in rows:
+        out.append(f"  {row.get('n', '?'):>3}  {_local(row.get('finished', '')):16s}  {row.get('verdict', '?'):8s} "
+                   f"{cause_text(row)}".rstrip())
+    said = sorted(p for p in folder.glob(f"*{suffix}") if full or not p.name.endswith(".full.log"))
+    for path in said:
+        out += ["", f"── {path.relative_to(record)}", *path.read_text(encoding="utf-8", errors="replace").splitlines()]
+    if not said:
+        out.append(f"no {'whole logs' if full else 'logs'} kept in {folder.relative_to(record)}"
+                   + (" (--logs keeps them)" if full else ""))
+    return out
 
 
 def point_state(plan) -> str:

@@ -958,7 +958,8 @@ The run goes on to the next point, and the point's block names the tool to blame
 1. Read `records/…/logs/<point>/<tool>.log` (and `<tool>.prepare.log`, `prelim.log`): the tool's digest,
    its first 100 lines, every line its rules matched with its number, and its last 200. Earlier attempts'
    are in `history/<n>/`, with the cards they ran. For a tool's whole output, run again with `--logs`
-   (`<tool>.full.log`).
+   (`<tool>.full.log`). `heimdall log <P>/<run>/<NN_cfg>/<point>` prints the point's attempts and its
+   tools' digests (05 §1.5); `heimdall log <P>/<run>/<NN_cfg>` the run as it printed itself.
 2. A product that failed its checks keeps its `.partial` name, and the point has no `.complete`, so
    it runs again next time.
 3. *"rivet analysed N events; the producer wrote M"*: the chain broke mid-stream. Look at the

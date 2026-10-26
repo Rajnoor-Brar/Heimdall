@@ -22,8 +22,11 @@ runs.py: the user, 2026-10-23). Who hears the bus:
   the stream follows from run to run by itself. Only this user's processes may connect (V181:
   SO_PEERCRED on Linux, the 0700 folder elsewhere); when the run ends, every watcher gets its last
   events before the stream ends;
-* the **Journal**, only with `--journal`: the same events in records/…/status.jsonl, one file per run,
-  for replay (`heimdall watch --file`) and tests.
+* the **Journal**, only with `--journal`: the same events in records/…/status.jsonl, appended run after run,
+  for replay (`heimdall watch --file`) and tests;
+* the **RunLog**, always (V202): records/…/run.jsonl, the run's own account, appended run after run: every event
+  but a tool's latest line (`line`), and a tool's progress at most once a minute. `heimdall log RECORD` prints it
+  as the plain view would; `heimdall watch --file` follows it.
 
 A subscriber is called on the emitting thread and must not block; the Hub queues for each client and
 drops a client that stops reading (it gets a `dropped` event, then the end). In a sweep of runs, each run emits through a `RunBus`, which adds
@@ -118,13 +121,13 @@ class RunBus:
 
 
 class Journal:
-    """--journal: every event of one run in its status.jsonl, the file begun afresh. With `run`, only
-    that run's events (a pipelined sweep's runs share one bus, V75)."""
+    """--journal: every event of one run in its status.jsonl, appended to what earlier runs wrote (V202). With
+    `run`, only that run's events (a pipelined sweep's runs share one bus, V75)."""
 
     def __init__(self, path: Path, run: str | None = None):
         path.parent.mkdir(parents=True, exist_ok=True)
         self.path, self.run = path, run
-        self.handle = open(path, "w", encoding="utf-8")
+        self.handle = open(path, "a", encoding="utf-8")
 
     def event(self, event: dict) -> None:
         if self.run is not None and event.get("run") != self.run:
@@ -134,6 +137,57 @@ class Journal:
 
     def close(self) -> None:
         self.handle.close()
+
+
+class RunLog:
+    """records/…/run.jsonl (V202): a run's own account, always written, appended run after run: every event of the
+    run (with `run`, that run's alone) but its tools' latest lines, and a tool's progress at most once every
+    PROGRESS seconds. A write that fails is passed over: the log never stops a run."""
+
+    PROGRESS = 60.0
+
+    def __init__(self, path: Path, run: str | None = None):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self.path, self.run = path, run
+        self.handle = open(path, "a", encoding="utf-8")
+        self._last: dict[tuple, float] = {}
+
+    def event(self, event: dict) -> None:
+        if self.run is not None and event.get("run") != self.run:
+            return
+        kind = event.get("k")
+        if kind == "line":
+            return
+        if kind == "progress":
+            key, at = (event.get("point", ""), event.get("tool", "")), event.get("t", time.time())
+            if at - self._last.get(key, float("-inf")) < self.PROGRESS:
+                return
+            self._last[key] = at
+        try:
+            self.handle.write(json.dumps(event, default=str) + "\n")
+            self.handle.flush()
+        except (OSError, ValueError):
+            pass
+
+    def close(self) -> None:
+        self.handle.close()
+
+
+def last_run(path: Path) -> tuple[int, float]:
+    """Where an appended events file's last run begins: the byte offset of its last `run started` and when that
+    run started; (0, 0.0) when there is none."""
+    offset, found = 0, (0, 0.0)
+    with open(path, "rb") as handle:
+        for line in handle:
+            if b'"k": "run"' in line and b'"started"' in line:
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    event = {}
+                if event.get("k") == "run" and event.get("state") == "started":
+                    found = (offset, float(event.get("t", 0.0)))
+            offset += len(line)
+    return found
 
 
 class Hub:

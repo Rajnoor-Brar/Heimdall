@@ -329,6 +329,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   run's constants in `points.json`, a block's warnings, the verdict's counts and failures).
   L3 done (V201: every tool's `<tag>.log` a digest, `--logs` its `<tag>.full.log`, earlier attempts in
   `history/<n>/` with their cards, the prepare stamp's seconds, card hash and filler, `[run] log`).
+  L4 done (V202: every run's `run.jsonl`, the journal appended, `heimdall log`, `watch --file` from the last
+  run, the registry's counts, a worker's progress every 10 minutes).
 
 ## M5 — The plot model
 

@@ -632,6 +632,10 @@ class RunFolders:
         return self.record / "points.json"
 
     @property
+    def run_log(self) -> Path:         # the run's own account, every run's (V202)
+        return self.record / "run.jsonl"
+
+    @property
     def journal(self) -> Path:         # --journal's events
         return self.record / "status.jsonl"
 

@@ -34,8 +34,8 @@ from . import setup as setupmod
 from .errors import HepError, did_you_mean
 from .paths import cache_root, check_retired, find_work, records_root, results_root
 from .quantities import load_master
-from .events import Bus, Hub, Journal, RunBus, greeting, connect, hubs
-from .watch import follow_events, follow_file, view
+from .events import Bus, Hub, Journal, RunBus, RunLog, greeting, connect, hubs
+from .watch import PlainView, follow_events, follow_file, view
 
 
 def parser() -> argparse.ArgumentParser:
@@ -187,10 +187,17 @@ def parser() -> argparse.ArgumentParser:
     watch.add_argument("config", nargs="?", help="the run config whose job to watch (default: the latest job)")
     watch.add_argument("configuration", nargs="?", help="overrides [run].configuration (or the sweep's latest)")
     watch.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
-    watch.add_argument("--file", metavar="STATUS.JSONL", help="follow a --journal run's status file instead")
+    watch.add_argument("--file", metavar="EVENTS.JSONL",
+                       help="follow a run's run.jsonl, or a --journal run's status.jsonl, instead")
     watch.add_argument("--pid", type=int, metavar="N", help="the run of this process (heimdall runs lists them)")
 
     listed = commands.add_parser("runs", help="what runs on this machine now, and what ran in the last 30 days")
+
+    logged = commands.add_parser("log", help="a record's own account, a point's attempts and logs, or a tool's log")
+    logged.add_argument("target", metavar="RECORD[/POINT[/TAG]]",
+                        help="a record, <P>/<run>/<NN_cfg>, then a point and a tool, or a path under records/")
+    logged.add_argument("--full", action="store_true", help="the whole logs (a run with --logs) instead of the digests")
+    logged.add_argument("--attempt", type=int, metavar="N", help="an earlier attempt's logs, from the point's history/")
 
     stop = commands.add_parser("stop", help="stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes")
     stop.add_argument("config", nargs="?", help="the run config whose job to stop (default: your only running job)")
@@ -709,7 +716,8 @@ def cmd_run(args) -> int:
         return code
     finally:
         if bus is not None:
-            runs.finish(entry, code, crashed, records=recorder.records, verdicts=recorder.verdicts)   # before the
+            runs.finish(entry, code, crashed, records=recorder.records, verdicts=recorder.verdicts,  # before the
+                        counts=recorder.counts())
             hub.close()                                                                              # stream ends
             notify(run, code)
 
@@ -913,7 +921,7 @@ def _pipelined(args, run, keys: list[str], stopper: execute.Stopper, bus: Bus, a
     each = {key: max((execute.cores(p) for p in ahead[key].plans), default=1) for key in keys}
     budget = execute.Budget(max(os.cpu_count() or 1,
                                 *(max(1, ahead[key].configuration.parallelism) * each[key] for key in keys)))
-    shown = view(args.plain, every=60.0 if getattr(args, "worker", None) else 5.0)
+    shown = view(args.plain, every=paths.log_settings()["worker_every"] if getattr(args, "worker", None) else 5.0)
     bus.subscribe(shown)
     catch_signals(stopper)
     codes: dict[str, int] = {}
@@ -1096,7 +1104,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     bus = bus if bus is not None else Bus()
     own_view = shown is None                 # a pipelined sweep's runs share the sweep's view (V75)
     if own_view:
-        shown = view(args.plain, every=60.0 if getattr(args, "worker", None) else 5.0)   # a worker's log: a line a minute
+        shown = view(args.plain, every=paths.log_settings()["worker_every"] if getattr(args, "worker", None) else 5.0)
+        # a worker's log: a progress line each [run] log worker_every seconds (V202), 10 minutes by default
         bus.subscribe(shown)
     if threading.current_thread() is threading.main_thread():
         catch_signals(stopper)
@@ -1106,6 +1115,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         if plans and paths.keeping("journal") else None
     if journal:
         bus.subscribe(journal)
+    run_log = RunLog(tools.run_folders(run, configuration).run_log, run=getattr(bus, "run", None))   # always (V202)
+    bus.subscribe(run_log)
     title = run_title(run, configuration, plans)
     tally = runs.Tally()                     # the verdict's counts and failures (V200)
     bus.subscribe(tally)
@@ -1193,6 +1204,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             shown.end()
         manifest()
         bus.unsubscribe(tally)
+        bus.unsubscribe(run_log)
+        run_log.close()
         if journal:
             bus.unsubscribe(journal)
             journal.close()
@@ -1532,6 +1545,36 @@ def cmd_runs(args) -> int:
     except HepError:
         titles = {}
     for line in house.runs_listing(runs.entries(), house.live_runs(), titles):
+        print(line)
+    return 0
+
+
+def cmd_log(args) -> int:
+    """`heimdall log RECORD[/POINT[/TAG]] [--full] [--attempt N]` (V202): a record's own account, its run.jsonl, as the
+    plain view prints it (each of its runs in turn); a point's attempts and its tools' digests (--full: their whole
+    logs; --attempt N: an earlier attempt's, from its history/); a tool's log."""
+    record_dir, point, tag = house.log_target(args.target)
+    if point is None:
+        if args.full or args.attempt is not None:
+            raise HepError("--full and --attempt are a point's: name one", hint=f"heimdall log {args.target}/<point>")
+        path = record_dir / "run.jsonl"
+        if not path.is_file():
+            raise HepError("this record has no run.jsonl: it ran before runs kept their own log", where=str(record_dir),
+                           hint=f"heimdall log {args.target}/<point> shows a point's attempts and logs")
+        shown = PlainView(stream=sys.stdout, every=float("inf"))
+        try:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                shown.event(event)
+            shown.screen.drain(timeout=60.0)
+        finally:
+            shown.end()
+        return 0
+    full = args.full or args.target.endswith(".full.log")              # a whole log named by its path
+    for line in house.point_log(record_dir, point, tag, full=full, attempt=args.attempt):
         print(line)
     return 0
 
@@ -2413,6 +2456,8 @@ def main(argv: list[str]) -> int:
             return cmd_runs(args)
         if args.command == "stop":
             return cmd_stop(args)
+        if args.command == "log":
+            return cmd_log(args)
         return cmd_watch(args)
     except HepError as error:
         print(error.render(), file=sys.stderr)

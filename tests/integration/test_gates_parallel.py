@@ -165,3 +165,7 @@ def test_hep_watch_follows_a_run_over_its_socket_and_nothing_runtime_is_on_disk(
     failed, passed = ((base / "logs" / p / "check.log").read_text(encoding="utf-8") for p in ("b", "a"))
     assert " · exit 0 · " not in failed.splitlines()[0] and " · exit 0 · " in passed.splitlines()[0]   # a digest each (V201)
     assert not list((base / "logs").rglob("*.full.log"))                    # the whole output only with --logs
+    told = [json.loads(line) for line in (base / "run.jsonl").read_text(encoding="utf-8").splitlines()]   # V202
+    assert told[0]["k"] == "run" and told[0]["state"] == "started" and told[-1]["state"] == "finished"
+    assert not [e for e in told if e["k"] == "line"]
+    assert {e["point"] for e in told if e["k"] == "point" and e.get("state") == "failed"} == {"b"}

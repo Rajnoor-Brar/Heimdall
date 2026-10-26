@@ -41,6 +41,18 @@ deal    = true                      # it can deal events among a sharded tool's 
 [checks]
 card = ["{apps}/App_PythiaCheck.exe", "{card}"]   # Pythia reads the card and names what it rejects (V59)
 
+# After Kit's Init fails (exit 3) App_Pythia says no more: PythiaParallel keeps its instances' messages to itself.
+# The runner then reads the same cards into one plain Pythia (diagnose.py, through Pythia's Python module), its
+# messages on, initialises it with no events, and quotes what Pythia says (V203): "PYTHIA Error in
+# ProcessLevel::init: all processes have vanishing cross sections". Nothing is rebuilt: no identity moves.
+[diagnose]
+exits   = [3]
+program = ["python3", "{hep}/framework/tools/pythia/diagnose.py"]
+card    = ["Print:quiet = off", "Print:errors = on", "Init:showProcesses = on", "Main:numberOfEvents = 0"]
+ext     = "cmnd"
+quote   = 'PYTHIA (?:Error|Abort) (?:from|in) '
+timeout = 300
+
 [identity]
 files   = ["{exe}"]
 version = "stack:pythia8"                # env/stack.toml's (V78)

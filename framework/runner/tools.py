@@ -54,6 +54,7 @@ FOLDER_SECTIONS = {
     "shard": {"merge"},
     "render": None,                                       # free: data for the folder's render.py (V61)
     "beams": {"slots"},                                   # the card's fixed beam slots (V62)
+    "diagnose": {"exits", "card", "ext", "quote", "timeout", "program"},   # run again after these exits, to say why (V203)
 }
 CARD_STYLES = ("append", "none", "render")
 #: The retired export keys (`pythia_cmnd = true`): the context file and generate_cards replace them.
@@ -972,7 +973,7 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
             rules = resolve(tool.filters, "filters", project=run.project, where=f"{where}.filters")
             step.filters = tomllib.loads(rules.read_text(encoding="utf-8")).get("rule", [])
             step.status = "filters"
-        elif step.status == "filters":
+        else:                                               # a folder's rules read its output whatever its status (V203)
             step.filters = folder.filters
         step.stall_after = tool.stall_after or 300.0
         step.timeout = tool.timeout

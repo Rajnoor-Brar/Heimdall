@@ -11,8 +11,8 @@ execution map: each step's row is ticked when it is committed.
 | L1 quick fixes | done | `d13442d` (was `797fc4e`), branch `logging` | V195 | F; guard: 315 points of 35 Brookhaven configurations unchanged |
 | L2 attempts, causes, run constants | done | `61e53ed`, branch `logging` | V200 | F (1036 passed; the pre-existing stack-build failure); S (41 passed, the 5 known failures; the generators test's verdict text updated, then passing); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
 | L3 digests and history | done | `0d47106`, branch `logging` | V201 | F (1044 passed; the pre-existing stack-build failure; `test_paths`' work_meta shape updated); S (42 passed, the 5 known failures; two tests that pinned "only a failed tool's log" updated to the digest); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
-| L4 the run's own log | done | (this commit; hash in the next), branch `logging` | V202 | F (1050 passed; the pre-existing stack-build failure); S (42 passed, the 5 known failures); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
-| L5 new kinds in filters.toml | to do | | | F, S, guard |
+| L4 the run's own log | done | `9bd4791`, branch `logging` | V202 | F (1050 passed; the pre-existing stack-build failure); S (42 passed, the 5 known failures); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
+| L5 new kinds in filters.toml | done | (this commit; hash in the next), branch `logging` | V203 | F (1057 passed; the pre-existing stack-build failure); S (42 passed, the 5 known failures); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
 | L6 the plot stage | to do | | | F, S |
 
 **Working notes**
@@ -35,7 +35,12 @@ execution map: each step's row is ticked when it is committed.
   prepare stamp hashes the planned card when it is not on disk yet.
 - 2026-10-26, L4: applied from `l4_patch.py`; added on the way: a point with no logs says so, a `.full.log`
   path prints the whole log, `test_runs`' registry test reruns its point (records outlive a test session).
-  L5–L6 remain as drafts.
+- 2026-10-26, L5: applied from `l5_patch.py`; changed on the way: a Sherpa rule's `\d` in a double-quoted TOML
+  string (planning refused it), Pythia's `reason` rule no longer matches its statistics' heading, `[diagnose]`
+  remaps outputs inside joined arguments (`a+b,c`). App_Pythia rerun with `Print:quiet = off` says nothing more
+  (PythiaParallel keeps its instances' messages, and quiet's flags stay off), so `[diagnose]` gained `program`:
+  Pythia's `diagnose.py` reads the cards into one plain Pythia (its Python module), which says why. L6 remains a
+  draft.
 
 ## Context
 

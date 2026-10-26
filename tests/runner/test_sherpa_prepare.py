@@ -78,12 +78,13 @@ def test_a_comix_card_is_one_run(prepare):
 
 
 def test_no_hard_process_says_why(prepare, capfd):
-    """Sherpa exits 0 having set up nothing: the step fails, quoting Sherpa's reasons."""
+    """Sherpa exits 0 having set up nothing: the step fails, its reason left in the lines above for the folder's
+    `reason` rules, which the runner quotes (V203)."""
     code, entry = prepare("nohard")
-    last = capfd.readouterr().out.strip().splitlines()[-1]
+    lines = capfd.readouterr().out.strip().splitlines()
     assert code == 3 and runs(entry) == 1 and not (entry / "Results.zip").exists()
-    assert last.startswith("Error: Sherpa ended without its Results: Error in initialising ISR (P+ -> e+)")
-    assert last.count("No hard process found") == 1
+    assert lines[-1] == "Error: Sherpa ended without its Results: it set up no process (its reason is in the lines above)"
+    assert any("No hard process found" in line for line in lines[:-1])
 
 
 def test_a_crash_passes_its_exit_on(prepare):

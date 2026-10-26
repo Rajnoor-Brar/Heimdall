@@ -331,6 +331,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   `history/<n>/` with their cards, the prepare stamp's seconds, card hash and filler, `[run] log`).
   L4 done (V202: every run's `run.jsonl`, the journal appended, `heimdall log`, `watch --file` from the last
   run, the registry's counts, a worker's progress every 10 minutes).
+  L5 done (V203: `reason`, `fact`, `stat`, `integration` in filters.toml; a folder's rules whatever its status;
+  Sherpa's and Pythia's rules; `[diagnose]`, Pythia's through one plain Pythia).
 
 ## M5 — The plot model
 

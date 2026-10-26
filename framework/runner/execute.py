@@ -43,6 +43,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -523,6 +524,8 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
                 blamed = real[0] if real else exits[0]
                 piped = [e.step.tag for e in failed if e.process.returncode == -signal.SIGPIPE]
                 message = f"{blamed.step.tag} exited with {_describe(blamed.process.returncode)}"
+                if blamed.reader.reasons:                       # what its rules say it is down to (V203)
+                    message += f": {blamed.reader.reasons[-1]}"
                 if piped and blamed.step.tag not in piped:
                     message += f"; {', '.join(piped)} then lost its pipe"
                 failure, failed_at = (blamed.step.tag, "failed", message), clock
@@ -572,6 +575,9 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
         return True, "", ""
     tag, cause, message = failure
     if tag and tag in results:
+        failing = next(e for e in running if e.step.tag == tag)
+        if cause == "failed" and (said := diagnose(plan, failing.step, failing.process.returncode)):
+            message += f"; asked again: {said}"                         # V203
         results[tag].cause, results[tag].message = cause, message
         if cause == "stalled":
             results[tag].stall = stall
@@ -587,6 +593,56 @@ def stalled(tag: str, after: float, state: ToolState, clock: float) -> str:
     doing = "; ".join(part for part in (state.phase, f'last line: "{state.last_line[:120]}"' if state.last_line else "")
                       if part)
     return f"{tag} was silent for {after:.0f} s, since {since}" + (f" ({doing})" if doing else "")
+
+
+def diagnose(plan: PointPlan, step: Step, code: int | None) -> str:
+    """A tool folder's [diagnose] (V203): after an exit it names (`exits`), the tool is run once more as it was,
+    with one more card (`card`'s lines, a file of `ext`) after its own and its outputs moved to a scratch folder,
+    for at most `timeout` seconds; `program` (the folder's placeholders, {exe} the tool's) runs in place of its
+    executable, with the same arguments. Its output's digest is <tag>.diagnose.log; the lines matching `quote` (at most
+    three) are returned, for the failure to quote; "" when there is none, or no [diagnose]."""
+    spec = step.folder.spec.get("diagnose") or {}
+    if not spec or code not in spec.get("exits", []):
+        return ""
+    scratch = plan.out / "diagnose"
+    shutil.rmtree(scratch, ignore_errors=True)
+    scratch.mkdir(parents=True)
+    card = scratch / f"diagnose.{spec.get('ext', 'txt')}"
+    card.write_text("\n".join(spec.get("card", [])) + "\n", encoding="utf-8")
+    moved = sorted(((str(i.path), str(scratch / i.path.name)) for i in step.outputs), key=lambda pair: -len(pair[0]))
+
+    def away(arg) -> str:                 # an output, a joined list of them (`a+b,c`) or a path made from one
+        arg = str(arg)
+        for path, there in moved:
+            arg = arg.replace(path, there)
+        return arg
+
+    env = {**os.environ, **step.env, "HEP_CONTEXT": str(plan.out / CONTEXT_FILE)}
+    env.pop("HEP_STATUS_FD", None)
+    try:
+        argv = [away(a) for a in step.argv] + [str(card)]
+        if spec.get("program"):
+            context = {**placeholders(), "exe": str(step.exe)}
+            argv = [expand(str(a), context, f"{step.tag}: [diagnose].program") for a in spec["program"]] + argv[1:]
+        done = subprocess.run(argv, cwd=step.cwd or plan.out,
+                              env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=float(spec.get("timeout", 300)))
+        text, code = (done.stdout + done.stderr).decode("utf-8", "replace"), done.returncode
+    except subprocess.TimeoutExpired as late:
+        text, code = ((late.stdout or b"") + (late.stderr or b"")).decode("utf-8", "replace"), None
+    except OSError as error:
+        text, code = f"could not run it again: {error}", None
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+    lines = clean_text(text).rstrip("\n").split("\n")
+    pattern = re.compile(spec.get("quote", r"\bError\b"))
+    quoted = list(dict.fromkeys(line.strip() for line in lines if pattern.search(line)))
+    numbered = list(enumerate(lines, 1))
+    settings = log_settings()
+    (plan.out / f"{step.tag}.diagnose.log").write_text(
+        digest(numbered[:settings["head"]], numbered[-settings["tail"]:] if settings["tail"] else [],
+               [(n, line) for n, line in numbered if pattern.search(line)][:500], len(quoted), len(lines), 0,
+               {"tag": f"{step.tag} (asked again: [diagnose])", "exit": code}), encoding="utf-8")
+    return "; ".join(quoted[:3])
 
 
 def stall_context(after: float, state: ToolState, clock: float) -> dict:

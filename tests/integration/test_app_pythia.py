@@ -146,3 +146,26 @@ def test_every_output_ends_on_the_same_sigma(scratch, card):
     assert result.returncode == 0, result.stderr
     ends = {n: last_sigma(scratch / f"{n}.hepmc") for n in "abcd"}
     assert len(set(ends.values())) == 1, ends
+
+
+def test_a_failed_init_is_asked_again_and_pythias_own_reason_quoted(scratch, monkeypatch):
+    """[diagnose] (V203): App_Pythia exits 3 saying only that init failed (PythiaParallel keeps its instances'
+    messages); the folder's diagnose.py reads the same cards into one plain Pythia, which says why."""
+    import argparse
+    from dataclasses import replace
+    from runner import cli, execute
+    for var, name in (("HEP_RECORDS", "records"), ("HEP_CACHE", "cache"), ("HEP_RESULTS", "results")):
+        monkeypatch.setenv(var, str(scratch / name))
+    bad = scratch / "bad.cmnd"
+    bad.write_text("Beams:eCM = 100.\nHardQCD:all = on\nPhaseSpace:pTHatMin = 60.\n", encoding="utf-8")
+    events = scratch / "events.hepmc"
+    done = run("--threads", 1, "--events", 10, events, bad, cwd=scratch)
+    assert done.returncode == 3 and "vanishing" not in done.stdout + done.stderr
+    p = cli.build_plans(argparse.Namespace(config="Demo/jets", set=[], points=None, rerun=False, only=None), "single")
+    plan = p.every[0]
+    step = replace(plan.rendered["pythia"], argv=[str(APP), "--threads", "1", str(events), str(bad)], outputs=[])
+    plan.out.mkdir(parents=True, exist_ok=True)
+    said = execute.diagnose(plan, step, done.returncode)
+    assert said.startswith("PYTHIA Error in ProcessLevel::init: all processes have vanishing cross sections")
+    log = (plan.out / f"{step.tag}.diagnose.log").read_text(encoding="utf-8")
+    assert log.startswith(f"# tag {step.tag} (asked again: [diagnose]) · exit 3") and not events.exists()

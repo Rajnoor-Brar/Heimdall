@@ -36,6 +36,8 @@ TAIL = 200                       # a tool's last lines, in its digest (V72, V201
 HEAD = 100                       # its first lines, in its digest (V201)
 MATCHED = 500                    # the lines its rules matched, at most, in its digest
 SIGNALS = 50                     # distinct warnings (and errors) a tool's attempt keeps (V200)
+FACTS = 20                       # `fact` lines an attempt keeps (V203)
+REASONS = 5                      # `reason` lines kept, the last one quoted in a failure (V203)
 LEVELS = {"warn": "warn", "warning": "warn", "error": "error"}   # a log message's level, as kept
 LINE_EVERY = 0.5                 # seconds between a tool's `line` events
 #: A terminal's escape sequences: a CSI (colours, cursor moves: Sherpa's ESC[1A and ESC[?25h), an OSC (a window
@@ -117,6 +119,9 @@ class Reader:
         self.count = 0                    # the lines it printed (a counter's rewrites not counted)
         self.kept: dict[str, dict] = {"warn": {}, "error": {}}   # level → message → [count, first line] (V200)
         self.more = {"warn": 0, "error": 0}                       # … and those past SIGNALS distinct
+        self.reasons: list[str] = []      # what a failure is put down to: `reason` lines, the last REASONS (V203)
+        self.facts: list[str] = []        # `fact` lines, the first FACTS
+        self.stats: dict[str, int] = {}   # `stat` rows: a counts table, {what: count}
         self._fds = [f for f in (fd, out) if f is not None]
         self._status_fd, self._out_fd = fd, out
         self._partial = {f: b"" for f in self._fds}
@@ -239,8 +244,13 @@ class Reader:
         return kept
 
     def reported(self) -> dict:
-        """What the tool reported of itself (V200): its `summary` fields and its last cross section."""
+        """What the tool reported of itself (V200): its `summary` fields and its last cross section; what its
+        rules kept (V203): its facts and its counts table."""
         out: dict = {}
+        if self.facts:
+            out["facts"] = list(self.facts)
+        if self.stats:
+            out["stats"] = dict(self.stats)
         if self.state.summary:
             out["summary"] = dict(self.state.summary)
         if self.state.xsec and self.state.xsec[0] is not None:
@@ -264,7 +274,10 @@ class Reader:
     def _rule(self, rule: dict, match: re.Match, text: str) -> None:
         """A matched rule's message. A progress rule may also capture `total`, `elapsed` (a duration: the
         rate is done / elapsed; otherwise it is measured from the first count on), `xsec` and `xsec_err`
-        (pb); any rule may name a `phase` to enter when it matches."""
+        (pb); any rule may name a `phase` to enter when it matches. V203: `reason` keeps the line as what a
+        failure is put down to, `fact` keeps it (and a σ it captures), `stat` keeps its `count` under its `what`
+        (else the line), `integration` gives its σ ± err (a prepare step's) and its phase, "integrating" unless
+        it names one; a reason or a stat with a `level` is also said at that level."""
         emit = rule.get("emit", "ignore")
         try:
             groups = match.groupdict()
@@ -294,6 +307,25 @@ class Reader:
                 self._emit({"k": "phase", "phase": rule.get("phase") or match.groupdict().get("phase") or match.group(0)})
             elif emit in ("warn", "error"):
                 self._emit({"k": "log", "level": emit, "msg": text.strip()[:300]})
+            elif emit == "reason":
+                said = text.strip()[:300]
+                self.reasons = [r for r in self.reasons if r != said][-(REASONS - 1):] + [said]
+                if rule.get("level"):
+                    self._emit({"k": "log", "level": rule["level"], "msg": said})
+            elif emit == "fact":
+                if len(self.facts) < FACTS and text.strip() not in self.facts:
+                    self.facts.append(text.strip()[:300])
+                if groups.get("xsec"):
+                    self._xsec(groups)
+            elif emit == "stat":
+                what = (groups.get("what") or text).strip()[:200]
+                self.stats[what] = int(groups["count"].replace(",", ""))
+                if rule.get("level"):
+                    self._emit({"k": "log", "level": rule["level"], "msg": text.strip()[:300]})
+            elif emit == "integration":
+                if self.state.phase != (rule.get("phase") or "integrating"):
+                    self._emit({"k": "phase", "phase": rule.get("phase") or "integrating"})
+                self._xsec(groups)
         except (KeyError, ValueError, AttributeError, TypeError, ZeroDivisionError):
             pass                                                     # a rule never fails a run
 

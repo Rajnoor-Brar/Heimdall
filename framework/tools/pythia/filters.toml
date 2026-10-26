@@ -1,0 +1,20 @@
+# framework/tools/pythia/filters.toml — what App_Pythia prints besides its status protocol (V203; docs/06_Internals.md
+# §23). Read whatever the folder's status is. A rule never fails a run; the first that matches a line wins.
+
+# PYTHIA Error and Warning Messages Statistics, at the end: a counts table, kept with the attempt, not said.
+#   " | 237176   Error in SimpleSpaceShower::pT2nearThreshold: stuck in loop      |"
+[[rule]]
+match = '^ \|\s+(?P<count>\d+)\s+(?P<what>(?:Abort|Error|Warning) (?:from|in) .+?)\s*\|?\s*$'
+emit  = "stat"
+
+# Why it failed: Pythia's own error and abort lines, "PYTHIA Abort from Pythia::init: …", quoted by a failure
+# (and by [diagnose]); not the statistics table's heading.
+[[rule]]
+match = 'PYTHIA (?:Error|Abort) (?:from|in) .*'
+emit  = "reason"
+level = "error"
+
+# The process table (with Print:quiet off: a [diagnose] run), " | q g -> q gamma (udscb)   201   1.234e-06 |".
+[[rule]]
+match = '^ \| (?P<what>[A-Za-z][^|]*?)\s+(?P<code>\d{3,4})\s+[-+.\deE]+\s*\|'
+emit  = "fact"

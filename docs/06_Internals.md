@@ -538,6 +538,7 @@ process directory.
 |---|---|---|
 | our apps, module programs, `hepkit` tools (`status = "standard"`) | JSON lines on the fd in `$HEP_STATUS_FD` (§22) | `status.Reader`, from a pipe per process |
 | every other tool (`status = "filters"`) | its stdout and stderr, through a pipe | the same reader, matched line by line against `filters.toml` rules (§23) |
+| any tool whose folder has a `filters.toml` | its stdout and stderr, whatever its status (V203) | the same rules: Pythia's error statistics and reasons beside its status protocol |
 | a tool with `status = "none"` | its stdout and stderr | the last line only |
 
 - **stdout is never the status channel**: it may carry HepMC, and it always carries chatter.
@@ -1087,6 +1088,11 @@ Every section and key is checked when the folders load: an unknown one is an err
 | `[shard]` | `merge` | the tool folder that joins K shards' products into the table's `output_file`; without it, `shards` is refused (rivet: `merge`, i.e. `rivet-merge -e`) |
 | `[beams]` | `slots` | the card's fixed beam slots, `["lepton", "hadron"]` (Herwig): the run's per-beam values are reordered into them (V62); without it a tool takes `[beam A, beam B]` as given |
 | `[render]` | (free) | data for the folder's `render.py`, handed over as `context["render"]` (MadGraph's `[render.lpp]`, PDG → lpp) (V61) |
+| `[diagnose]` | `exits` | the exit codes after which the tool is asked again, to say why (V203; pythia: `[3]`, Kit's Init) |
+| | `card`, `ext` | the lines of one more card (a file of `ext`), given after its own: messages on, no events |
+| | `program` | run in place of its executable, with the same arguments and the card (pythia: `diagnose.py`, one plain Pythia that reads the cards and initialises); without it, the executable again |
+| | `quote` | a regex: the matching lines (at most three) are quoted in the failure, "…; asked again: …"; its output's digest is `<tag>.diagnose.log` |
+| | `timeout` | seconds (300). Its outputs go to a scratch folder, removed after |
 | `[checks]` | `files` | files that must exist at plan time (C10) |
 | | `card` | argv that reads a card (`{card}`) and prints one JSON line `{"line": N, "text": …}` per line it rejects; run at plan time, cached by the card's text (V59) |
 | | `info_dirs`, `info_dirs_command` | where analyses' `.info` files are, for C9 |
@@ -1476,7 +1482,7 @@ rules in order, and **the first match wins**.
 # framework/tools/<tool>/filters.toml, or your own via filters = "<file>" (V61)
 [[rule]]
 match = '^Event (?P<done>\d+) \('     # a Python regex
-emit  = "progress"                    # progress | xsec | phase | warn | error | ignore
+emit  = "progress"                    # progress | xsec | phase | warn | error | ignore | reason | fact | stat | integration
 
 [[rule]]
 match = '^Reading events from'
@@ -1495,9 +1501,14 @@ emit  = "error"
 | `phase` | `phase = "…"`, or a `(?P<phase>…)` group | a `phase` message |
 | `warn`, `error` | — | a `log` message with the line |
 | `ignore` | — | nothing, and stops the lines below from matching |
+| `reason` (V203) | optionally `level` (`warn`, `error`: also said) | what a failure is put down to: the last 5 are kept, and a failed tool's message quotes the last, "sherpa:prepare exited with exit code 3: No hard process found" |
+| `fact` | optionally `(?P<xsec>…)`, `(?P<xsec_err>…)` | the line, kept with the attempt (`reported.facts`, the first 20); an `xsec` message with `xsec` |
+| `stat` | `(?P<count>…)`, optionally `(?P<what>…)` (else the line), `level` | a row of a counts table, `{what: count}`, kept with the attempt (`reported.stats`): Pythia's error statistics, Sherpa's "exceeded frequency limit" |
+| `integration` | `(?P<xsec>…)`, optionally `(?P<xsec_err>…)`, `phase` | a prepare step's σ ± err as it integrates, an `xsec` message, and its phase (`integrating` unless named) |
 
 Any rule may also name a `phase`: matching it enters that phase (Sherpa's first event line enters
-`generating`).
+`generating`). A folder's rules read a tool's output whatever its `status` (V203): App_Pythia's
+statistics and errors come on its stdout, beside its status protocol.
 
 **A progress bar from what a line says.** A line without a total takes the events the tool makes
 (`produces_events`) or reads (`consumes_events`, unless a producer deals them among shards). Its rate

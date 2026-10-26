@@ -27,14 +27,42 @@ match = '^Starting the calculation'
 emit  = "phase"
 phase = "integrating"
 
-# What Sherpa says mid-line (V195), before the general rules below. Errors: a process dropped while the others
-# run on (runs 05, 07 and 09 of 2026-10-25 said "ok" with half their card gone), an integration gone wrong, a
-# card's undefined tag or missing input, and why nothing was set up.
+# The integration (V203): each step's σ ± err, "55063.4 pb +- ( 150.425 pb = 0.27 % ) 487226 ( 1381641 -> 33.9 % )",
+# and each process's result, "2_2__j__j__j__j : 55063.4 pb +- ( 150.425 pb = 0.27 % )  exp. eff: 0.25 %", kept as
+# a fact with what it was set up from ("Hard process:", "Building processes").
 [[rule]]
-match = "Error in initialising ISR .*Ignoring process|Cross section is 'nan'|Could not find a definition for|Missing input thrown|No hard process found|Wrong ordering of initial-state particles"
+match = '^(?P<xsec>[-+.\deE]+) pb \+- \( (?P<xsec_err>[-+.\deE]+) pb = [-+.\deE]+ % \) \d+ \('
+emit  = "integration"
+
+[[rule]]
+match = '^\S+ : (?P<xsec>[-+.\deE]+) pb \+- \( (?P<xsec_err>[-+.\deE]+) pb = '
+emit  = "fact"
+
+[[rule]]
+match = '^\s*Hard process:|^Building processes'
+emit  = "fact"
+
+# What Sherpa says mid-line (V195), before the general rules below. Why a run went wrong (V203: a reason, which
+# a failure quotes, said as an error): a process dropped while the others run on (runs 05, 07 and 09 of
+# 2026-10-25 said "ok" with half their card gone), a card's undefined tag or missing input, and why nothing was
+# set up. An integration gone wrong is an error.
+[[rule]]
+match = "Error in initialising ISR .*Ignoring process.*|Could not find a definition for.*|Missing input thrown.*|No hard process found.*|Wrong ordering of initial-state particles.*|Please re-order the initial state.*"
+emit  = "reason"
+level = "error"
+
+[[rule]]
+match = "Cross section is 'nan'"
 emit  = "error"
 
-# Warnings, though they say "Error": Sherpa's own counts of a repeated message, the singlet sorter's recovery
+# Sherpa's own count of a repeated message (V203: a counts table, said as a warning), "Error messages from
+# 'ShiftMassesDIS' exceeded frequency limit: 340/20".
+[[rule]]
+match = "messages from '(?P<what>[^']+)' exceeded frequency limit: (?P<count>[0-9]+)"
+emit  = "stat"
+level = "warn"
+
+# Warnings, though they say "Error": Sherpa's other repeated-message notices, the singlet sorter's recovery
 # ("return Error and hope for the best"), a pilot run and its rerun disagreeing.
 [[rule]]
 match = 'exceeded frequency limit|last allowed error message|Error in Singlet_Sorter|return Error and hope for the best|results of the pilot run and the re-?run are not the same'

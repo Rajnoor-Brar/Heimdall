@@ -824,6 +824,14 @@ output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04
 - **Writes** HepMC3 to every output, and the **sidecar** `<first output>.json` (§16). It can
   **deal** its events among a sharded tool's inputs (`[outputs] deal = true`, §5.1).
 - **In the context file** (04 §9.4): `card` (the combined card, seeds included) and `card_parts`.
+- **What it says** (`filters.toml`): Pythia's error and warning statistics at the end are kept with the
+  attempt as a counts table; a `PYTHIA Error in …` or `Abort from …` line is said as an error and
+  quoted when it fails.
+- **When its init fails** (exit 3) App_Pythia says only that, as its parallel Pythia keeps its
+  instances' messages. The runner then reads the same cards into one plain Pythia, its messages on and
+  no events (`[diagnose]`, `diagnose.py`), and quotes why: *"pythia exited with exit code 3; asked
+  again: PYTHIA Error in ProcessLevel::init: all processes have vanishing cross sections"*. Its output
+  is `<tag>.diagnose.log`.
 - **Identity** includes the binary's sha256; the **version** is the stack's (`stack:pythia8`).
 
 ## 5. `rivet`
@@ -1100,7 +1108,10 @@ output = "events.hepmc"
 - **Prepare** (the integration, cached by the card without `EVENTS`): `Sherpa -f <card> -e 0
   "RESULT_DIRECTORY: <cache>/Results" "EVENT_OUTPUT: None"`. `EVENT_OUTPUT: None` matters: otherwise
   Sherpa opens the FIFO at initialisation and waits for a reader that only the generation starts.
-  The marker is `Results.zip`.
+  The marker is `Results.zip`. Sherpa exits 0 even when it set up no process; the prepare step then
+  fails (exit 3), and the failure quotes Sherpa's reason ("No hard process found", "Error in
+  initialising ISR …"). The integration's σ ± err shows as it goes, and each process's result is kept
+  with the attempt.
 - **Runs** `Sherpa -f <card> "RESULT_DIRECTORY: <cache>/Results"`, in the point's directory. Sherpa
   prepends `./` to the output name, so the name is relative.
 - **Its progress**: the folder's display arguments, `BATCH_MODE: 23` and

@@ -8,7 +8,8 @@ Amegic's compile in between when the card uses Amegic. Run in the cache entry, a
   until a run asks for no more (at most PASSES runs). A card without Amegic is one run, as before.
 * Sherpa also exits 0 when it sets up no process at all ("No hard process found": the process's incoming
   particles do not match the beams, say). A run that ends without asking to compile and without its Results
-  ends here with an `Error:` line naming Sherpa's reason and exit 3, so the run says why.
+  ends here with an `Error:` line and exit 3; Sherpa's reason is in the lines above, which the folder's
+  filters.toml reads (its `reason` rules: the runner quotes the last in the failure, V203).
 """
 
 from __future__ import annotations
@@ -23,27 +24,21 @@ from pathlib import Path
 PASSES = 4
 JOBS_VAR = "HEP_MAKELIBS_JOBS"
 COMPILE = re.compile(r"Run '\./makelibs'")
-#: Sherpa's lines that say why a run made nothing: the last one seen is quoted.
-REASONS = re.compile(r"No hard process found|Wrong ordering of initial-state particles[^\n]*|"
-                     r"Error in initialising ISR[^\n]*|Missing input thrown[^\n]*|"
-                     r"Please re-order the initial state[^\n]*")
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
-def run(argv: list[str]) -> tuple[int, list[str]]:
+def run(argv: list[str]) -> tuple[int, bool]:
     """One command, its output passed through as it comes (a progress line ended by a carriage return too: the
-    runner reads activity from it); its exit code and Sherpa's reasons seen."""
-    reasons: list[str] = []
+    runner reads activity from it); its exit code, and whether Sherpa asked for Amegic's compile."""
+    asked = False
     process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     out, pending = sys.stdout.buffer, b""
 
     def scan(lines: list[bytes]) -> None:
+        nonlocal asked
         for raw in lines:
-            line = ANSI.sub("", raw.decode("utf-8", errors="replace"))
-            if COMPILE.search(line):
-                reasons.append("compile")
-            elif (match := REASONS.search(line)):
-                reasons.append(match.group(0).strip())
+            if COMPILE.search(ANSI.sub("", raw.decode("utf-8", errors="replace"))):
+                asked = True
 
     fd = process.stdout.fileno()
     while chunk := os.read(fd, 65536):
@@ -53,7 +48,7 @@ def run(argv: list[str]) -> tuple[int, list[str]]:
         scan(lines)
     scan([pending])
     process.stdout.close()
-    return process.wait(), reasons
+    return process.wait(), asked
 
 
 def code_of(returncode: int) -> int:
@@ -71,14 +66,14 @@ def main(argv: list[str]) -> int:
         signal.signal(sig, lambda *_: None)
     results = Path.cwd() / "Results.zip"
     for _ in range(PASSES):
-        code, reasons = run(argv)
+        code, compile_asked = run(argv)
         if code != 0:
             return code_of(code)
-        if "compile" not in reasons:
+        if not compile_asked:
             if results.exists():
                 return 0
-            why = "; ".join(dict.fromkeys(r for r in reasons if r != "compile")) or "Sherpa wrote no Results"
-            print(f"Error: Sherpa ended without its Results: {why} (see the lines above)", flush=True)
+            print("Error: Sherpa ended without its Results: it set up no process (its reason is in the lines above)",
+                  flush=True)
             return 3
         jobs = os.environ.get(JOBS_VAR, "1")
         print(f"prepare.py: compiling Amegic's processes (./makelibs -j {jobs}), then Sherpa again", flush=True)

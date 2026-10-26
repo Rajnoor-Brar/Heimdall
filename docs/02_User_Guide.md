@@ -206,6 +206,12 @@ another terminal, or an ssh session), `heimdall stop` stops it, `heimdall runs` 
 stops it as before. `heimdall run … --detach` starts one without showing it. A run with `--plain`, or
 not on a terminal, runs in the shell's own process, as in a script or a cluster job.
 
+A detached run still ends when what holds its session ends:
+- **logging out**, where systemd ends a user's processes at logout (`KillUserProcesses`):
+  `loginctl enable-linger` keeps them;
+- **an allocation's end** (`salloc`), on a cluster;
+- **an Apptainer shell started with `--pid` or `--containall`**, when it exits.
+
 ---
 
 ## 3. Anatomy of a run TOML

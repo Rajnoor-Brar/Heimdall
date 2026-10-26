@@ -650,7 +650,8 @@ def cmd_run(args) -> int:
     else:                                    # one stream for the whole process, served while it lives (V72)
         bus = Bus()
         worker = getattr(args, "worker", None)
-        log = str(runs.folder() / f"{worker}.log") if worker else None
+        opened = runs.log_of(worker) if worker else None    # the log its parent opened, wherever it is
+        log = str(opened) if opened else None
         work = find_work()
         entry = runs.begin(worker or runs.new_id(), {       # the registry (V182): nothing on a read-only root
             "config": str(run.path), "run": run.name, "configurations": keys, "argv": getattr(args, "argv", []),
@@ -1972,6 +1973,21 @@ def parse(argv: list[str]) -> argparse.Namespace:
 FLAGGED = ("run", "plot", "stats", "cluster", "status", "watch", "stop")
 #: Options a file never sets: what it would name of itself, or change of itself (its own text does that).
 UNFLAGGED = {"set", "worker", "help"}
+#: What [heimdall] may set (the user, 2026-10-25): switches that say how you like a command to run, and keep.
+PREFERENCES = ("rerun", "wait", "detach", "plain", "journal", "logs", "replot", "keep")
+#: Every other option, by its dest, and why a file never sets it: a mode or a target is one command's job, a
+#: selection one run's choice, and the study's own settings are [run]'s keys.
+NOT_PREFERENCES = {
+    **dict.fromkeys(("plan", "why", "show_config", "dry_run", "status", "cancel", "style_sync", "across", "stack",
+                     "no_wait"), ("a mode: what this one command does", "type it on the command line")),
+    **dict.fromkeys(("card", "pid", "file", "plot_file"), ("a target: what this one command acts on",
+                                                            "type it on the command line")),
+    **dict.fromkeys(("points", "page_points", "draw_sets", "stages", "only"),
+                    ("a selection: a part of the run, chosen when it is run",
+                     "type it on the command line; a run's sets are [run] plot = [...] or a configuration's plot")),
+    "no_plot": ("the study's own setting", "[run] plot = false"),
+    "no_stats": ("the study's own setting", "[run] stats = false"),
+}
 
 
 def _options() -> dict[str, dict[str, argparse.Action]]:
@@ -2017,12 +2033,20 @@ def _flag_value(action, value, where: str):
 
 
 def heimdall_flags(table: dict, where: str, command: str | None = None) -> dict[str, tuple]:
-    """[heimdall] checked (V188): a key there is an option of a command that reads a config, for every such
-    command that has it; [heimdall.<command>] keys that command's own, over those. For `command`: its option
-    name → (value, the option as typed). `heimdall check` checks every command's."""
+    """[heimdall] checked (V188, V190): a key there is an option of a command that reads a config, for every such
+    command that has it; [heimdall.<command>] keys that command's own, over those. Only PREFERENCES are taken;
+    any other option is refused with why (NOT_PREFERENCES). For `command`: its option name → (value, the option
+    as typed). `heimdall check` checks every command's."""
     options = _options()
     def dest_of(key: str) -> str:
         return key.lstrip("-").replace("-", "_")
+
+    def refused(key: str, dest: str, at: str) -> None:
+        """A known option that is not a preference: said, with why (V190)."""
+        if dest not in PREFERENCES:
+            what, hint = NOT_PREFERENCES.get(dest, ("not a preference", "type it on the command line"))
+            raise HepError(f"{at} {key}: {what}, which a file does not set", where=where,
+                           hint=f"{hint}; [heimdall] takes {', '.join(PREFERENCES)}")
     every = {d for o in options.values() for d in o}
     mine: dict[str, tuple] = {}
     for key, value in table.items():
@@ -2035,6 +2059,7 @@ def heimdall_flags(table: dict, where: str, command: str | None = None) -> dict[
         if dest not in every:
             raise HepError(f"[heimdall] {key}: no command that reads a config has that option", where=where,
                            hint=did_you_mean(dest, sorted(every)) or "a command's options: heimdall help <command>")
+        refused(key, next(o[dest].dest for o in options.values() if dest in o), "[heimdall]")
         for name, actions in options.items():
             if dest in actions:
                 value_ = _flag_value(actions[dest], value, f"{where}.{key}")
@@ -2046,6 +2071,7 @@ def heimdall_flags(table: dict, where: str, command: str | None = None) -> dict[
             if dest not in options[name]:
                 raise HepError(f"[heimdall.{name}] {key}: heimdall {name} has no such option", where=where,
                                hint=did_you_mean(dest, list(options[name])) or f"heimdall help {name}")
+            refused(key, options[name][dest].dest, f"[heimdall.{name}]")
             value_ = _flag_value(options[name][dest], value, f"{where}.{name}.{key}")
             if name == command:
                 mine[options[name][dest].dest] = (value_, options[name][dest].option_strings[-1])

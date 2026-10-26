@@ -18,25 +18,66 @@ on OCaml 5; the Mac notes, now in `mac.toml`).
 - Nothing is built without your order. `docs/` is left for the docs pass, and an issue that changes
   what the manual says names the section it leaves stale.
 
+## Plan (approved 2026-10-25)
+
+The whole plan is [restructure_plan.md](restructure_plan.md); this section tracks it. Phase by phase,
+each built, committed with its V-rows and reported, then the next on your word. A phase deletes the
+issues it resolves. Gates:
+- **F:** the fast suite.
+- **S:** the slow suite, alone.
+- **I:** the identity golden file unchanged (from Phase 2 on).
+- **B:** Brookhaven's `heimdall status` unchanged (read-only).
+
+Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never makes them.
+
+| Phase | Issues |
+| --- | --- |
+| 1 Task L's follow-ups, quick fixes | **done** (V190–V194), but I-07's checks by hand |
+| 2 The safety net | I-10, I-11, I-12, I-13, I-76, I-77 (part), I-78 |
+| 3 One dialect | I-20, I-21, I-91 |
+| 4 Retirements, record formats | I-25, I-26, I-27, I-28, I-29, I-30, I-68, I-105 (drops) |
+| 5 Session layer, CLI | I-35, I-36, I-37, I-70, I-71, I-72, I-73, I-100, I-101 |
+| 6 Plot model | I-40 (closed: kept), I-41, I-42, I-43, I-44, I-45, I-46, I-47, I-48, I-97, I-99, I-105 (deck template) |
+| 7 Package restructure | I-50, I-51, I-52 |
+| 8 The stack | I-55 … I-63, I-65, I-66, I-77 (rest), I-88 |
+| 9 Roots, cluster images | I-75, I-86 |
+| 10 Throughput, provenance | I-95, then I-90, I-96, I-98, I-67, I-102 |
+| 11 Physics set-ups | I-103 (ep Delphes card, Geant4 module), I-104 (BeAGLE) |
+| parked | I-80, I-82 (the Mac), I-83 (the reinstall), I-85 (image downloads), I-87 (a Slurm site; HTCondor and PBS with it), I-81's roadmap and Herwig photoproduction (ideas) |
+
+**Your decisions (2026-10-25):**
+- **D1:** drop v2; Brookhaven's `configs/legacy/` stays as history.
+- **D2:** `plot.toml` stays the source of a drawing (I-40 closed as kept).
+- **D3:** retire `plot_points`; old documents still draw.
+- **D4:** delete the yoda backend; mpl may drift from mkhtml.
+- **D5:** `[heimdall]` keeps preference switches only (`rerun`, `wait`, `detach`, `plain`, `journal`, `logs`,
+  `replot`, `keep`); modes, targets and selections are refused; `no-plot`/`no-stats` are `[run]`'s.
+- **D6:** after the Mac.
+- **D7:** `editor/` stays as it is.
+- **D8, D9:** built.
+- **D10:** the doctor row goes into Himinbjorg, published on purpose.
+- **D11:** downloads to `<root>/downloads/`.
+- **I-08:** cores adapt to the load (0 = the idle CPUs; ROOT compilers from available memory, about 1.3
+  GB each).
+- **I-11:** the golden file is approved.
+- **I-17** and **I-90:** approved (I-90's `App_yd2rt` binary must stay byte-identical).
+- **I-86:** plan inside the image.
+- **I-66:** Herwig for MadGraph, plus MG5aMC_PY8.
+- **I-70:** `--logs` and `--journal` stay, as shorthands.
+- **I-105:** the deck `template` key is built; F8 and the stamp are dropped.
+
 ## Index
 
 | # | Title | P | Status |
 | --- | --- | --- | --- |
-| **M0** | **Task L's follow-ups (committed fb6b28f, a7675e6)** | | |
-| I-02 | The registry's prune deletes a path named by an entry | P0 | open |
-| I-03 | `heimdall runs` and friends read every user's entries | P0 | open |
-| I-04 | `[heimdall]` (V188, committed): keep it, or revert it for `[run]` keys | P1 | decision (D5) |
-| I-07 | Task L: the checks by hand, and the worker's log path | P1 | open |
-| I-08 | `recipes/settings.toml`'s local `cores = 4` and `root_cores = 4` | P2 | decision |
+| **M0** | **Task L's follow-ups** | | |
+| I-07 | Task L: the checks by hand | P1 | open (needs you) |
+| I-09 | The plot stage fails for `combine` and for listed points (`KeyError`) | P0 | open |
 | **M1** | **The safety net** | | |
 | I-10 | A shadow machine root for the tests | P1 | open |
 | I-11 | An identity golden file | P1 | held (a new frozen file) |
 | I-12 | Baselines before the restructure | P1 | open |
 | I-13 | Static checks: ruff, mypy, `make check` | P2 | open |
-| I-14 | Pin a sha256 for every recipe | P1 | open |
-| I-15 | Small code defects | P3 | open |
-| I-16 | `[cluster]` strings with newlines | P3 | open |
-| I-17 | The checkout's stale `forge/` and `.setup/` | P3 | held (deletion) |
 | **M2** | **One run-TOML dialect** | | |
 | I-20 | Drop v2 run TOMLs | P1 | decision (D1) |
 | I-21 | v3 as the form and the model | P1 | blocked on I-10, I-11, I-20 |
@@ -51,6 +92,7 @@ on OCaml 5; the Mac notes, now in `mac.toml`).
 | I-35 | `RunRequest` and a session module | P1 | blocked on I-25 |
 | I-36 | `heimdall plan` | P2 | decision (D9) |
 | I-37 | `--json` output | P2 | blocked on I-35 |
+| I-106 | Run logging: what a run keeps, and where | P1 | in progress |
 | **M5** | **The plot model** | | |
 | I-40 | `[plot]` lives in the config; the record keeps facts | P1 | decision (D2) |
 | I-41 | Sets as the one grouping; retire `plot_points` | P2 | decision (D3) |
@@ -75,7 +117,6 @@ on OCaml 5; the Mac notes, now in `mac.toml`).
 | I-61 | A recipe's helper scripts in its digest | P3 | open |
 | I-62 | A change of the base marks only what it touches | P3 | open |
 | I-63 | Geant4's data through the build's downloader | P3 | open |
-| I-64 | `root_cores` from measured memory | P3 | open |
 | I-65 | A test that CMake on the base ignores `/usr` | P3 | open |
 | I-66 | MadGraph: the MG5aMC_PY8 interface, Herwig's paths | P3 | open |
 | I-67 | Sherpa's integration over MPI | P3 | idea |
@@ -90,6 +131,7 @@ on OCaml 5; the Mac notes, now in `mac.toml`).
 | I-76 | Tests independent of their order | P2 | open |
 | I-77 | Tests a conda-base root skips | P3 | open |
 | I-78 | `test_deck_build` fetches a web font | P3 | open |
+| I-79 | The legacy gates differ by one digit on the conda base | P2 | decision |
 | **M10** | **The machine and the repository** | | |
 | I-80 | Retire `base = "system"` | P3 | blocked on I-82 (D6) |
 | I-81 | `editor/` to its own repository; its roadmap | P3 | decision (D7) |
@@ -118,58 +160,26 @@ on OCaml 5; the Mac notes, now in `mac.toml`).
 
 ---
 
-## M0 — Task L's follow-ups (committed fb6b28f, a7675e6)
+## M0 — Task L's follow-ups
 
-### I-02 The registry's prune deletes a path named by an entry
-**P0 · security · open (committed in fb6b28f)**
-- **Problem:** `runs.prune` deletes `where / f"{data.get('id', path.stem)}.log"` (`runs.py:188-189`), with
-  `id` taken from the entry's content. An entry whose `id` is `../../x` makes `heimdall runs` delete a
-  `.log` file outside the registry. The root is `0775`, and its docstring allows a shared root.
-- **Fix:** delete `path.with_suffix(".log")`; skip an entry whose `id` is not `new_id()`'s shape.
-- **Done when:** a test with `id = "../x"` deletes nothing outside `runs/`.
-
-### I-03 `heimdall runs` and friends read every user's entries
-**P0 · security · open (committed in fb6b28f)**
-- **Problem:** Task L decided "own runs only: watch, stop, runs and clean see only yours". But
-  `runs.entries()` has no uid filter (`runs.py:159-170`). So `heimdall runs` (`house.py:372`,
-  `cli.py:1490`), `watch`'s last-run hint (`cli.py:1513`) and `stop`'s cluster lookup (`cli.py:782`) show
-  other users' entries. Only `house.live_runs` filters (`house.py:320`).
-- **Fix:** `runs.entries(mine=True)` by default; `prune` touches only your own entries.
-- **Done when:** a test with a foreign-uid entry sees nothing.
-
-### I-04 `[heimdall]` (V188, committed): keep it, or revert it for `[run]` keys
-**P1 · design · decision (D5)**
-- **State:** committed alone as `a7675e6`, at your request of 2026-10-23 ("have support for [heimdall]
-  to be able to get flags from configs itself"). Reverting it reverses that request.
-- **The case against it:** it walks argparse's private `_actions` (`cli.py:1971-2081`) and re-implements
-  argparse's typing. It duplicates schema keys (`[run].plot = false` against `[heimdall.run] no_plot`,
-  `[run].stats`, keep), with no precedence written down. It lets a file set moment-of-use options
-  (`watch --pid`, `stop --no-wait`, `--plain`).
-- **Options:**
-  - (a) keep it;
-  - (b) `git revert a7675e6`, and give `journal`, `keep` and `wait` `[run]` schema keys (I-70).
-- **Recommended:** (b).
-
-### I-07 Task L: the checks by hand, and the worker's log path
+### I-07 Task L: the checks by hand
 **P1 · verification · open**
-- **By hand, on the lab PC:**
+- **By hand, on the lab PC** (your 15 minutes):
   - `heimdall run eic/zeus dis_generator_pdf --points 1`, press `d`, close the terminal;
   - `heimdall runs`, then `heimdall watch` (`s`, `y`), then `heimdall runs` again for the verdict;
   - the same from an ssh session.
-- **The worker's log path:** the greeting names `runs.folder()/<id>.log` even when the root was
-  read-only and the log went to `<tmp>/hep-runs-<uid>/` (`cli.py:653` against `runs.py:117-124`). Pass
-  the real path to the worker.
-- **The slow suite** has not been run on `fb6b28f` (`tests/integration/test_detached_runs.py` is in it).
-- **Docs pass:** where a detached worker still dies: systemd `KillUserProcesses` (`loginctl
-  enable-linger`), the end of an `salloc`, Apptainer `--pid`/`--containall`.
+- The worker's log path and the docs of where a detached worker still ends are done (V191).
 
-### I-08 `recipes/settings.toml`'s local `cores = 4` and `root_cores = 4`
-**P2 · machine root · decision**
-- The shipped defaults are changed in the working tree from `0` (every CPU, and one ROOT compiler per
-  3 GB) to `4` and `4`, uncommitted. That is one machine's choice: its place is `~/Himinbjorg/machine.toml`
-  (`[settings] cores = 4, root_cores = 4`), which is yours to edit.
-- **Recommended:** put them in `machine.toml` yourself, and then `git checkout recipes/settings.toml`. Or
-  say they are the new defaults, and commit them.
+### I-09 The plot stage fails for `combine` and for listed points (`KeyError`)
+**P0 · bug · open (found by the slow suite, 2026-10-25)**
+- **Problem:** two slow tests fail in the plot stage after every point ran:
+  - `test_gates_combine.py::test_each_pdf_is_its_seeds_merged_and_drawn_as_one_curve` (`KeyError: 'pdf'`);
+  - `test_listed_points.py::test_listed_points_run_and_draw_a_page_per_pdf` (`KeyError: 'pt0ref'`).
+- **Where:** `plot.check_figures` → `sweep.points(run, configuration)` → `sweep.kept`, `run.quantities[name]`.
+  The `run` there is the plot document (`plotdoc.load`), whose quantities lack the configuration's swept one.
+- **Since:** already failing at `4477c17` (V163–V171, plot documents), and at Phase 1's base `29b27ae`; not
+  caused by Phase 1. A configuration with `combine` or listed points draws nothing.
+- **Done when:** both tests pass, and a drawing of such a configuration from its record works.
 
 ## M1 — The safety net
 
@@ -206,32 +216,6 @@ on OCaml 5; the Mac notes, now in `mac.toml`).
   unseen. CI is one manual, hours-long stack build (`.github/workflows/stack.yml`).
 - **Fix:** `pyproject.toml` (tool config only). ruff report-only first (F, B, redefinitions), then
   enforcing. mypy on the new modules. `make check` = ruff + the import layers + the fast suite.
-
-### I-14 Pin a sha256 for every recipe
-**P1 · security · open**
-- **Problem:** 39 of the 40 downloadable recipes in `standard.toml` have no `sha256`, so a re-rolled or
-  substituted archive builds silently and moves identities.
-- **Fix:** `python3 recipes/build_stack.py --sha256` over `~/Himinbjorg/forge/downloads/` (nothing
-  downloaded), with the lines added to the recipes. A missing one is a warning in `--check-urls` and
-  `stack doctor`.
-
-### I-15 Small code defects
-**P3 · bug · open**
-- `config.OWN` is defined twice with different meanings (`config.py:166` and `:858`); the second
-  shadows what `inherited()` (`:1162`) relies on. Latent: delete the first, and rename the second.
-- `runs._namespace` duplicates `events.namespace`.
-- The mapping form `render` is accepted (`quantities.py:234`), then refused (`tools.py:1159`): drop it.
-
-### I-16 `[cluster]` strings with newlines
-**P3 · hardening · open**
-- `#SBATCH` values are written unchecked (`cluster.py:95-104`): refuse control characters in
-  `config.check_cluster`.
-
-### I-17 The checkout's stale `forge/` and `.setup/`
-**P3 · housekeeping · held (deletion)**
-- `forge/` (488 MB) is the layout from before the machine root. `.setup/` now holds only
-  `check_stack.sh` (`heimdall doctor` replaced it). Delete both once `find ~/Himinbjorg -lname
-  '<checkout>/*'` finds no link into them, and drop the in-checkout layout's `.gitignore` lines with I-25.
 
 ## M2 — One run-TOML dialect
 
@@ -327,6 +311,16 @@ on OCaml 5; the Mac notes, now in `mac.toml`).
 ### I-37 `--json` output
 **P2 · feature · blocked on I-35 (intent U6)**
 - On `plan`, `status`, `runs`, `tools` and `stack status`, from one renderer: for scripts and agents.
+
+### I-106 Run logging: what a run keeps, and where
+**P1 · in progress (decided 2026-10-26) · audit: [run_logging_audit.md](run_logging_audit.md) · plan: [run_logging_plan.md](run_logging_plan.md)**
+- **Problem:** a failure's cause, a successful point's warnings, the tools' own numbers and the
+  generators' error statistics are lost when a run ends. Sherpa's mid-line errors are not recognised.
+  `--logs` is 90–99 % counters and keeps Sherpa's escape sequences. Attempts are appended without a
+  boundary. The worked example is `eic/zeus_validation` 04–11 (2026-10-25).
+- **Fix:** the audit's six steps (L1–L6): clean every saved text; `attempts.jsonl` and causes;
+  per-tool digests with rotation; `run.jsonl` always; new kinds in `filters.toml`; plot-stage logs.
+  L1 has no format change and can go first.
 
 ## M5 — The plot model
 
@@ -477,11 +471,6 @@ on OCaml 5; the Mac notes, now in `mac.toml`).
   recompiles Geant4 (about 20 min). Fetch the datasets with `build_stack`'s downloader (resumed,
   checked, kept), and point CMake at them.
 
-### I-64 `root_cores` from measured memory
-**P3 · stack · open (N7)**
-- "3 GB a compiler" is cautious: ROOT and Rivet built at 12 on 14 GB. Measure peak memory per compiler,
-  and loosen the rule.
-
 ### I-65 A test that CMake on the base ignores `/usr`
 **P3 · test · open (N4)**
 - The fix exists (`BASE_CMAKE`, empty build folders), but no test checks it.
@@ -556,6 +545,14 @@ on OCaml 5; the Mac notes, now in `mac.toml`).
 **P3 · test · open**
 - pandoc's `--embed-resources` fetches the dzslides template's Google font, so the test fails offline and
   now and then in the whole suite. Use a local template, or no font.
+
+### I-79 The legacy gates differ by one digit on the conda base
+**P2 · verification · decision (first seen 2026-10-22)**
+- `test_gates_p1.py::test_the_legacy_reference_is_reproduced_byte_for_byte[MSTW|NNLO]` fail: one digit of the
+  YODA (byte 323) differs from `tests/reference/`. It fails before task H (`4bf2e06`) too, so it comes from the
+  rebuilt stack's Pythia, Rivet or LHAPDF, not the runner. The references are never regenerated.
+- **Yours to judge:** accept the stack's digit (the gate then compares with that one tolerance, written down),
+  or find which package moved it (a rebuild against the old release, with your yes).
 
 ## M10 — The machine and the repository
 

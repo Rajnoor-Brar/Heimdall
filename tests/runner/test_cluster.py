@@ -135,6 +135,16 @@ def test_an_unknown_cluster_key_is_refused_with_its_nearest(work):
     assert done.returncode == 2 and "unknown key 'tme'" in said and "did you mean 'time'?" in said
 
 
+def test_a_cluster_value_is_one_line_of_the_script():
+    """V194: a newline in an #SBATCH value or a setup line would add a line of its own to the job script."""
+    from runner.config import check_cluster
+    from runner.errors import HepError
+    check_cluster({"account": "lab", "setup": ["module load gcc/13", "export X=1\t# a tab is fine"]}, "[cluster]")
+    for values in ({"account": "lab\nrm -rf ~"}, {"setup": ["ok", "x\r"]}, {"sbatch": ["--x=\x00"]}):
+        with pytest.raises(HepError, match="a control character"):
+            check_cluster(values, "[cluster]")
+
+
 def test_pre_and_finish_take_only_a_jobs_resources(work):
     work.config(cluster_lines='time = "00:10:00"\n[cluster.finish]\nsetup = []')
     done = work.hep("check", "P/c")

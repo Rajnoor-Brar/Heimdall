@@ -194,15 +194,16 @@ master = "master.toml"           # optional: configs/<project>/master.toml overl
 | `schema` | an integer |  | `3`, or `2` to keep a v2 file v2 for one release; a file with `[file]` is v3 without it |
 <!-- /generated -->
 
-**`[heimdall]`: a command's flags from the file.** Keys are a command's options, by their names
-(`--journal` is `journal`, `--no-plot` is `no-plot`). Values are `true` or `false` for a switch, a list for
-an option given more than once, and the value for the rest. A key directly in `[heimdall]` applies to
-every command that reads a config and has that option (`run`, `plot`, `stats`, `cluster`, `status`,
-`watch`, `stop`). `[heimdall.<command>]` keys are that command's own, and win over the plain ones:
+**`[heimdall]`: how you like a command to run, from the file.** Keys are a command's options, by their
+names (`--journal` is `journal`), and only its **preference switches**: `rerun`, `wait`, `detach`,
+`plain`, `journal`, `logs` and `replot`, each `true` or `false`, and `keep`, a list of words. A key
+directly in `[heimdall]` applies to every command that reads a config and has that option (`run`, `plot`,
+`stats`, `cluster`, `status`, `watch`, `stop`). `[heimdall.<command>]` keys are that command's own, and
+win over the plain ones:
 
 ```toml
 [heimdall]
-keep = ["work"]               # every command with --keep
+keep  = ["work"]              # every command with --keep
 plain = true                  # every command: plain lines
 
 [heimdall.run]
@@ -210,11 +211,20 @@ journal = true
 detach  = true                # heimdall run of this file always starts in the background
 
 [heimdall.plot]
-sets = "totality"
+replot = true
 ```
 
-- **The command line wins:** a file's value fills only an option the command line left unset.
-  Each command says which flags it took from the file (`heimdall: from [heimdall]: --journal …`).
+- **The command line wins:** a file's value fills only an option the command line left unset. Then
+  `[heimdall.<command>]`, then `[heimdall]`. `keep`'s words add to hep.toml's and machine.toml's
+  `[run] keep`. Each command says which flags it took from the file (`heimdall: from [heimdall]:
+  --journal …`).
+- **Never from a file**, each refused with why:
+  - **modes**, what one command does (`plan`, `why`, `show-config`, cluster `status`, `cancel` and
+    `dry-run`, plot `style-sync` and `across`, `status --stack`, stop `no-wait`);
+  - **targets**, what it acts on (`card`, `pid`, `file`, plot's `plot`);
+  - **selections**, a part of the run (`points`, `sets`, `stages`, `only`): a run's sets are
+    `[run] plot = [...]` or a configuration's `plot`.
+  - `no-plot` and `no-stats` are the study's own settings: `[run] plot = false`, `[run] stats = false`.
 - **Imports give theirs too,** and this file's are laid over them, like every other table.
 - **Checked:** an option no such command has, or a value of the wrong kind, is refused (with the
   nearest name), also by `heimdall check`. `--set` is not taken; the file says it itself.

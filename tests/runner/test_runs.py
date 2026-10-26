@@ -44,6 +44,9 @@ def test_a_read_only_registry_writes_nothing(tmp_path, monkeypatch):
         assert runs.begin(run_id, {}) is None and not runs.finish(run_id, 0) and runs.entries() == []
         log = runs.log_file(run_id)
         assert log.parent.name == f"hep-runs-{os.getuid()}" and not log.is_relative_to(locked)
+        log.touch()                                    # as spawn opens it: the worker then names this one
+        assert runs.log_of(run_id) == log
+        log.unlink()
     finally:
         locked.chmod(0o755)
     assert list(locked.iterdir()) == []
@@ -63,6 +66,37 @@ def test_old_entries_and_their_logs_leave_after_thirty_days():
     os.utime(orphan, (now - 40 * 86400,) * 2)
     assert [e["id"] for e in runs.entries(now)] == [fresh]
     assert sorted(p.name for p in runs.folder().iterdir()) == [f"{fresh}.json", f"{fresh}.log"]
+
+
+def test_an_entry_never_names_what_is_deleted():
+    """V191: an entry whose id names another path (`../x`) is not read, and pruning deletes only `<id>.log`
+    beside an entry it read: never a path an entry's content gives."""
+    outside = runs.folder().parent / "x.log"
+    outside.parent.mkdir(parents=True, exist_ok=True)
+    outside.write_text("keep me\n", encoding="utf-8")
+    forged = runs.new_id()
+    runs.folder().mkdir(parents=True, exist_ok=True)
+    (runs.folder() / f"{forged}.json").write_text(json.dumps({"id": "../x", "uid": os.getuid(), "finished": 1.0}),
+                                                  encoding="utf-8")
+    (runs.folder() / "not-an-id.json").write_text(json.dumps({"id": "not-an-id", "uid": os.getuid()}), encoding="utf-8")
+    try:
+        assert runs.entries() == []
+        assert outside.read_text(encoding="utf-8") == "keep me\n" and (runs.folder() / f"{forged}.json").exists()
+    finally:
+        outside.unlink()
+
+
+def test_another_users_entries_are_neither_listed_nor_pruned():
+    """V191 (task L: own runs only): an entry of another uid is not listed, not pruned, and not stopped."""
+    theirs = runs.new_id()
+    runs.folder().mkdir(parents=True, exist_ok=True)
+    (runs.folder() / f"{theirs}.json").write_text(json.dumps({"id": theirs, "uid": os.getuid() + 1, "kind": "run",
+                                                              "started": 1.0, "finished": 2.0}), encoding="utf-8")
+    mine = runs.new_id()
+    runs.begin(mine, {})
+    assert [e["id"] for e in runs.entries()] == [mine]
+    assert {e["id"] for e in runs.entries(mine=False)} == {mine, theirs}
+    assert (runs.folder() / f"{theirs}.json").exists()           # 30 days old and more, but not ours to prune
 
 
 def test_state_tells_lost_from_unknowable():

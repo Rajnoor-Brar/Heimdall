@@ -313,8 +313,8 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 ### 1.1 `heimdall run`
 
-A run TOML may give the commands that read it their flags, in `[heimdall]` (04 §3); the command line
-wins over it.
+A run TOML may give the commands that read it their preference switches (`rerun`, `wait`, `detach`, `plain`,
+`journal`, `logs`, `replot`, `keep`), in `[heimdall]` (04 §3); the command line wins over it.
 
 The order is: the pre stage → every point not complete (in point order, `parallelism` at a time) →
 `points.json` → the combined groups → the post stage → the plot stage. A failed point does not stop

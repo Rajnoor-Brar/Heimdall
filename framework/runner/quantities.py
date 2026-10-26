@@ -88,8 +88,8 @@ class Override(NamedTuple):
 class Mapping:
     """How one quantity reaches one tool."""
     tag: str
-    form: str            # key | keys | flag | render | config | option | seed
-    key: Any = None      # the native key(s), flag, render function, config key or option name
+    form: str            # key | keys | flag | config | option | seed
+    key: Any = None      # the native key(s), flag, config key or option name
     format: str = ""
     analysis: str = ""   # for form = option
     check: str = ""      # a provider check on the value (C10), e.g. "lhapdf"
@@ -229,11 +229,12 @@ def mappings(run, master: dict, name: str, tags: list[str], configured: set = fr
 
 
 def _from_master(tag: str, entry: dict, where: str) -> Mapping:
-    """A folder's (or a master's) mapping: a card key, several, a flag, the folder's render, or a key of
-    an exec or module tool's config (`config = "cuts.window"`, dotted keys nest)."""
-    forms = [f for f in ("key", "keys", "flag", "render", "config") if f in entry]
+    """A folder's (or a master's) mapping: a card key, several, a flag, or a key of an exec or module tool's
+    config (`config = "cuts.window"`, dotted keys nest). A folder that renders its card maps plain keys and
+    applies them in its render.py."""
+    forms = [f for f in ("key", "keys", "flag", "config") if f in entry]
     if len(forms) != 1:
-        raise HepError("a master mapping takes exactly one of key, keys, flag, render, config", where=where)
+        raise HepError("a master mapping takes exactly one of key, keys, flag, config", where=where)
     return Mapping(tag, forms[0], entry[forms[0]], entry.get("format", ""), check=entry.get("check", ""))
 
 

@@ -118,11 +118,13 @@ args = ["-Dcuda=ON"]          # after ROOT's own arguments
 
 **Cores.** `cores` is how many compilers run at once: each package's build gets it as
 `make -j<cores>` (autotools) or `cmake --build <build> -j<cores>` (CMake); one compiler keeps one CPU
-busy. `cores = 0` takes every CPU the build may run on: logical CPUs, so hyper-threads count (the
-lab PC's i7-13700K has 16 cores and 24 threads: 24). ROOT and Rivet have their own, `root_cores`,
-because each of ROOT's LLVM/Cling compilers, and each of Rivet's analysis libraries (one compiler run
-per experiment), needs ~3 GB: `0` gives one per 3 GB of RAM, at most `cores` (4 on 14 GB). At every
-core, Rivet's took a 14 GB machine down.
+busy. `cores = 0` takes the CPUs the build may run on that are idle when it starts: logical CPUs, so
+hyper-threads count (the lab PC's i7-13700K has 16 cores and 24 threads: 24), less the 1-minute load
+average of the runs going beside it. ROOT and Rivet have their own, `root_cores`, because each of ROOT's
+LLVM/Cling compilers, and each of Rivet's analysis libraries (one compiler run per experiment), takes
+memory: `0` gives one per 1.3 GB of the memory **available** when the build starts (Linux's
+MemAvailable; the RAM elsewhere), at most `cores`: 12 on the idle 16 GB lab PC, fewer beside runs. At
+every core, Rivet's once took a 14 GB machine down.
 `make install`, pip and the downloads do not use it.
 
 **Choosing packages.** `packages = "core"` (the default), `"all"` (core and extra), a toolkit
@@ -163,7 +165,9 @@ variable. A list value splits like a shell line: quote an item with spaces
 built: a dead link stops the run in its first minute, not after ROOT. A package's `url` may list
 mirrors; a download resumes and retries; an archive is kept only when it is one (a web page, a
 cut-off file or a wrong `sha256` is refused and named). `--check-urls` asks every URL first, and
-`--sha256` prints the checksums of the archives you have, as recipe lines. A tarball already in
+`--sha256` prints the checksums of the archives you have, as recipe lines. Every shipped recipe built here
+carries its `sha256`; one without it is taken on trust, and `--check-urls` and `heimdall stack doctor`
+say so (the digest leaves `url` and `sha256` out, so pinning one rebuilds nothing). A tarball already in
 `forge/downloads/<name>-<release>.<ext>` (in the machine root) is used as it is, so a machine without network can build from
 copied tarballs.
 
@@ -255,7 +259,7 @@ Each of these was hit on the lab PC; the TOML files do what is in the right colu
 | FastJet | several Rivets in one process (InprocJets, `rivet_threads`) cluster SISCone jets with one shared random state: other jets, or a FastJet internal error (L16, L29) | `fastjet.patch`: `recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch`, the state per thread; one thread draws exactly what it drew before |
 | fjcontrib | `make install` gives only static contrib libraries | `make fragile-shared-install` as well: `libfastjetcontribfragile.so`, as the lab PC has it |
 | ROOT | 6.40.00's `rootcling_stage1` fails to link (`clang::CodeGenerator::GetModule()`) | pinned to 6.40.04, which fixes that regression |
-| ROOT | parallel compilation of its LLVM/Cling OOM-kills `cc1plus`, and the truncated objects then fail later links with errors that look unrelated | `root_cores`: one compiler per 3 GB of RAM (5 on 15 GB); every other package at `cores` |
+| ROOT | parallel compilation of its LLVM/Cling OOM-kills `cc1plus`, and the truncated objects then fail later links with errors that look unrelated | `root_cores`: one compiler per 1.3 GB of available memory (12 on an idle 16 GB); every other package at `cores` |
 | ROOT | `-DPYTHON_EXECUTABLE`, `-Dglew`, `-Dpython3` are ignored by 6.40 | `-DPython3_EXECUTABLE=<venv>` (FindPython3), `-Dpyroot=ON` |
 | ROOT | an external xrootd 6.x is untested against ROOT 6.40, and ROOT does not read `XROOTD_ROOT_DIR` | `-Dxrootd=ON -Dbuiltin_xrootd=ON`, `-Ddavix=OFF` |
 | ROOT | the features the framework and the lab PC use | `mathmore roofit tmva fftw3 sqlite xml gdml http imt ssl vdt` on; `x11 opengl webgui asimage` follow `graphics` |

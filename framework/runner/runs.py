@@ -11,6 +11,10 @@ The one exception to "runtime state stays off disk" (V72): the user's ask. Each 
 time (the run's own process; its client only when the worker died by a signal), written whole through a
 temporary file of its own and a rename. A machine root that cannot be written (an Apptainer image's) records
 nothing, silently: every write is a no-op. Finished entries leave after KEEP_DAYS, their logs with them.
+
+Own entries only (task L's decision): `entries` reads and `prune` removes this user's alone, so on a machine
+root several accounts share, nobody lists or deletes another's. An entry's name is its id, and only a name of
+`new_id`'s shape is read: what an entry file says never names a path (V191).
 """
 
 from __future__ import annotations
@@ -18,6 +22,7 @@ from __future__ import annotations
 import getpass
 import json
 import os
+import re
 import secrets
 import socket
 import subprocess
@@ -27,6 +32,7 @@ import threading
 import time
 from pathlib import Path
 
+from .events import namespace as _namespace
 from .paths import machine_root
 
 DIR_VAR = "HEP_RUNS"
@@ -36,6 +42,8 @@ KEEP_DAYS = 30
 CLUSTER_VAR = "HEP_CLUSTER_JOB"
 #: What a run's exit code says, in a listing and in an entry.
 VERDICTS = {0: "done", 1: "failed", 2: "not run", 6: "stopped"}
+#: An entry's id, as new_id makes it: <YYYYmmdd-HHMMSS>-<host>-<4 hex>. Nothing else is read as one.
+ID = re.compile(r"\d{8}-\d{6}-[A-Za-z0-9_-]+-[0-9a-f]{4}")
 
 
 def folder() -> Path:
@@ -56,13 +64,6 @@ def new_id(now: float | None = None) -> str:
 def _read(path: str) -> str:
     try:
         return Path(path).read_text(encoding="utf-8").strip()
-    except OSError:
-        return ""
-
-
-def _namespace(kind: str) -> str:
-    try:
-        return os.readlink(f"/proc/self/ns/{kind}")
     except OSError:
         return ""
 
@@ -114,14 +115,27 @@ def reserve(run_id: str, suffix: str) -> Path | None:
         return None
 
 
+def _fallback() -> Path:
+    """Where a worker's log goes when the registry cannot be written: <tmp>/hep-runs-<uid>/ (0700)."""
+    return Path(tempfile.gettempdir()) / f"hep-runs-{os.getuid()}"
+
+
 def log_file(run_id: str) -> Path:
     """A detached worker's log: in the registry, else (a read-only machine root) <tmp>/hep-runs-<uid>/."""
     reserved = reserve(run_id, ".log")
     if reserved is not None:
         return reserved
-    fallback = Path(tempfile.gettempdir()) / f"hep-runs-{os.getuid()}"
-    fallback.mkdir(mode=0o700, exist_ok=True)
-    return fallback / f"{run_id}.log"
+    _fallback().mkdir(mode=0o700, exist_ok=True)
+    return _fallback() / f"{run_id}.log"
+
+
+def log_of(run_id: str) -> Path | None:
+    """The log a worker's parent opened for it (log_file): the registry's, else the fallback's; None when
+    neither is there. What the worker names in its entry and its greeting."""
+    for place in (folder() / f"{run_id}.log", _fallback() / f"{run_id}.log"):
+        if place.is_file():
+            return place
+    return None
 
 
 def entry(run_id: str) -> dict | None:
@@ -156,39 +170,47 @@ def finish(run_id: str | None, code: int, verdict: str | None = None, **fields) 
                   finished=round(time.time(), 3), **fields)
 
 
-def entries(now: float | None = None) -> list[dict]:
-    """Every entry, newest first, after pruning those KEEP_DAYS old."""
-    prune(now)
-    found = []
-    for path in sorted(folder().glob("*.json")) if folder().is_dir() else ():
+def _own(paths, mine: bool):
+    """(path, entry) of each entry file: named by an id of new_id's shape, holding that id, and (`mine`) this
+    user's, by the entry and by the file."""
+    for path in paths:
+        if not ID.fullmatch(path.stem):
+            continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
+            owner = path.stat().st_uid
         except (OSError, ValueError):
             continue
-        if isinstance(data, dict) and data.get("id"):
-            found.append(data)
+        if not isinstance(data, dict) or data.get("id") != path.stem:
+            continue
+        if mine and (data.get("uid") != os.getuid() or owner != os.getuid()):
+            continue
+        yield path, data
+
+
+def entries(now: float | None = None, mine: bool = True) -> list[dict]:
+    """The entries, newest first, after pruning those KEEP_DAYS old: this user's (`mine`), else everyone's."""
+    prune(now)
+    found = [data for _, data in _own(sorted(folder().glob("*.json")) if folder().is_dir() else (), mine)]
     return sorted(found, key=lambda e: e.get("started", 0), reverse=True)
 
 
 def prune(now: float | None = None) -> None:
-    """Entries finished KEEP_DAYS ago (or begun KEEP_DAYS ago and never finished: a process killed), and their
-    logs; a log with no entry, by its age."""
+    """This user's entries finished KEEP_DAYS ago (or begun KEEP_DAYS ago and never finished: a process
+    killed), and their logs, `<id>.log` beside them; a log of this user's with no entry, by its age."""
     now = time.time() if now is None else now
     edge = now - KEEP_DAYS * 86400
     where = folder()
     if not where.is_dir():
         return
     try:
-        for path in where.glob("*.json"):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue
+        for path, data in list(_own(where.glob("*.json"), mine=True)):
             if (data.get("finished") or data.get("started") or now) < edge:
                 path.unlink(missing_ok=True)
-                (where / f"{data.get('id', path.stem)}.log").unlink(missing_ok=True)
+                path.with_suffix(".log").unlink(missing_ok=True)
         for log in where.glob("*.log"):
-            if not log.with_suffix(".json").exists() and log.stat().st_mtime < edge:
+            info = log.stat()
+            if info.st_uid == os.getuid() and not log.with_suffix(".json").exists() and info.st_mtime < edge:
                 log.unlink(missing_ok=True)
     except OSError:
         pass

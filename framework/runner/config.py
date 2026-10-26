@@ -96,7 +96,7 @@ class Configuration:
     measure: object = True                              # [run].stats (V168): true, false, or the sets it measures
     serial_note: str = ""                               # why the runner chose the number it did (--plan)
     inference: dict | None = None                       # v3: what infers a resolved chain's interfaces per point (V153)
-    own: dict = field(default_factory=dict)             # V179: its own vars and data (OWN), over the file's
+    own: dict = field(default_factory=dict)             # V179: its own vars and data (OWN_TABLES), over the file's
 
 
 @dataclass
@@ -162,8 +162,6 @@ class RunConfig:
 DEFAULTS = "defaults"
 #: [run.cfgs.<cfg>]: the configurations (V98; they were [run.<cfg>], beside [run]'s own keys).
 CFGS = "cfgs"
-#: Each configuration's own: never taken from the one it extends or [run].
-OWN = ("label", "title", "extends", "swept")
 
 
 def _layers(run: dict, where: str) -> dict[str, list[tuple[str, dict]]]:
@@ -855,7 +853,7 @@ def with_vars(raw: dict, path: Path) -> dict:
 
 
 #: What a configuration may set of the file's own (V179): its vars, over [file.vars]; its data, for [plot.data].
-OWN = ("vars", "data")
+OWN_TABLES = ("vars", "data")
 
 
 def _own_of(raw: dict, key: str | None) -> dict:
@@ -890,7 +888,7 @@ def _with_own(raw: dict, own: dict) -> dict:
 
 def for_configuration(run: RunConfig, name: str | None) -> tuple[RunConfig, Configuration]:
     """The file read for one configuration (V179): `run` itself when that configuration sets nothing of its
-    own (OWN) or `run` was read with what it sets, else the file read again with it."""
+    own (OWN_TABLES) or `run` was read with what it sets, else the file read again with it."""
     configuration = run.configuration(name)
     if configuration.own == run.applied:
         return run, configuration
@@ -1159,7 +1157,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
         def inherited(name: str, fallback=None):
             """The most specific layer's value (V56): own, extended, then [run] (V99); a
             "default" in a layer is the next one's (V55); else the schema's default."""
-            layers = chain[:1] if name in OWN else chain
+            layers = chain
             if name in schema.keys("run"):
                 layers = [*layers, ("[run]", run)]
             for origin, layer in layers:
@@ -1338,6 +1336,21 @@ def check_cluster(values, where: str) -> None:
     for job in ("pre", "finish"):
         if job in values:
             schema.check(values[job], "cluster", f"{where}.{job}", only=CLUSTER_JOB_KEYS)
+    _one_line(values, where)
+
+
+def _one_line(value, where: str) -> None:
+    """Every [cluster] string is one line of a job script (an #SBATCH option, a setup line): a newline or another
+    control character (a tab aside) would add a line of its own (V194)."""
+    if isinstance(value, str) and any((ord(ch) < 32 and ch != "\t") or ord(ch) == 127 for ch in value):
+        raise HepError(f"{where} holds a control character (a newline?): each value is one line of the job script",
+                       where=where, hint="split it into a list's entries, one line each")
+    if isinstance(value, list):
+        for i, item in enumerate(value):
+            _one_line(item, f"{where}[{i}]")
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            _one_line(item, f"{where}.{key}")
 
 
 def check_stats(stats: dict, where: str) -> None:

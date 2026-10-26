@@ -39,7 +39,7 @@ The manual was rebuilt at V90–V92 (audit 2) and re-rooted for Heimdall at V105
 Heimdall was seeded from High-Energy at `split/base` (5e0a913): the history before that, and the
 record's older citations (`git show 47f06b8:docs/…`, `git show rework/v1-final:docs/…`, `git log
 --all -- docs/rework_v2`), are High-Energy's, read there. Ideas found in those documents, not yet
-built, are issues labelled `idea` in [ISSUES.md](../ISSUES.md).
+built, are issues labelled `idea` in [.plans/ISSUES.md](../.plans/ISSUES.md).
 
 Building the software stack itself (LHAPDF … ROOT … Rivet, Pythia8, Herwig, Sherpa, Geant4) from source,
 whole or as a toolkit (`@primary`, `@bsm-recast`, an isolated C++20 stack, your own), ready-made from

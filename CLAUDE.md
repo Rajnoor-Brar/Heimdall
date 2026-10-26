@@ -4,9 +4,11 @@
 
 - During planning, do not solicit go-ahead or ask to proceed; transition to implementation only when
   the user explicitly triggers it (e.g. "Implement the plan").
-- Pending work is [ISSUES.md](ISSUES.md), one issue per task. Write a plan into its issue
-  progressively while planning, to avoid loss on context reset. An idea is an issue labelled `idea`.
-- A finished issue is deleted from ISSUES.md: its history is its V-row in docs/07_Record.md and its
+- Pending work is [.plans/ISSUES.md](.plans/ISSUES.md), one issue per task. An idea is an issue labelled `idea`.
+- Plans, audits and plan execution maps go in `.plans/` (the default place, the user's rule of
+  2026-10-25). Write one progressively while planning, to avoid loss on context reset, and link it
+  from the issue it serves.
+- A finished issue is deleted from `.plans/ISSUES.md`: its history is its V-row in docs/07_Record.md and its
   commit.
 
 ## Ask first
@@ -34,7 +36,7 @@ Heimdall is the framework: `$HEP` is this folder, what is authored, nothing buil
 | `framework/` | `bin/` (`heimdall`, `bifrost`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders), `plot/` (the plot backends and figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py` |
 | `src/` | the C++ kits (`Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh`) and the apps' sources (`App_*.cc`, `Apps/Paint/`) |
 | `docs/` | the manual `00`–`07`, `framework/` (the setup runbook), `conda/` (the base's design), `reporter/`, `audit_2/`, `audit_3/`, `audit_4/` |
-| `ISSUES.md` | pending work, one issue per task |
+| `.plans/` | `ISSUES.md` (pending work, one issue per task); plans, audits and plan execution maps (`restructure_plan.md`, `run_logging_audit.md`, `run_logging_plan.md`) |
 | `tests/` | `runner/`, `integration/`, `cxx/`, `reference/`, `fixtures/work/` (the frozen work dir the tests use) |
 | `editor/` | the VS Code tooling: `cmnd-syntax/` (Pythia `.cmnd` highlighting), `hep-contrast-theme/`, `hep-icons/`, `icon-bank/` (from High-Energy's `aux/` at 2c4fcad) |
 

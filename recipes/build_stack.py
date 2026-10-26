@@ -577,6 +577,40 @@ def ram_kb() -> int:
         return 8_000_000
 
 
+#: Memory one ROOT or Rivet compiler takes at its peak, as root_cores = 0 counts it (the user, 2026-10-25: 12 at
+#: once work on the idle 16 GB lab PC).
+COMPILER_KB = 1_300_000
+
+
+def available_kb() -> int:
+    """Memory a build may take now: Linux's MemAvailable, what the runs going beside it leave; elsewhere the RAM."""
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1])
+    except (OSError, ValueError, IndexError):
+        pass
+    return ram_kb()
+
+
+def idle_cpus() -> int:
+    """The CPUs this process may use that are not busy now: those it may use (Linux: its affinity), less the
+    1-minute load average (runs going beside the build), at least one."""
+    usable = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 4)
+    try:
+        busy = round(os.getloadavg()[0])
+    except OSError:
+        busy = 0
+    return max(1, usable - busy)
+
+
+def compilers(s: dict) -> tuple[int, int]:
+    """(cores, root_cores): the settings', or for 0 what the machine has free when the build starts (V192):
+    every idle CPU, and for ROOT and Rivet one compiler per COMPILER_KB of available memory, at most cores."""
+    cores = s["cores"] or idle_cpus()
+    return cores, s["root_cores"] or max(1, min(cores, available_kb() // COMPILER_KB))
+
+
 #: This machine as pixi's release archives and conda's platforms name it.
 PIXI_TARGETS = {("Linux", "x86_64"): "x86_64-unknown-linux-musl", ("Linux", "aarch64"): "aarch64-unknown-linux-musl",
                 ("Darwin", "arm64"): "aarch64-apple-darwin"}
@@ -649,13 +683,12 @@ def context(s: dict) -> dict:
         python = shutil.which(s["python"]) or die(f"no {s['python']}: install Python 3, or set python=")
         py = probe([python, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"])
         pyinc = probe([python, "-c", "import sysconfig; print(sysconfig.get_paths()['include'])"])
-    cores = s["cores"] or (len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity")   # Linux: the
-                           else os.cpu_count() or 4)                                       # CPUs it may use
+    cores, root_cores = compilers(s)
     c = {**s, "prefix": str(prefix), "inst": str(base / "stack"), "venv": venv,
          "stash": str(prefix / "forge" / "downloads"), "sources": str(prefix / "forge" / "src"),
          "forge": str(base / "forge"), "stack": stack,
          "venv_prompt": f"HEP-{stack}" if stack else "HEP",
-         "cores": cores, "root_cores": s["root_cores"] or max(1, min(cores, ram_kb() // 3_000_000)),
+         "cores": cores, "root_cores": root_cores,
          "python": python, "py": py, "pyxy": py.replace(".", ""), "pyinc": pyinc,
          "cflags": f"{opt} {include}".strip(), "cxxflags": f"{opt} -std=c++{std} {include}".strip(), "ldflags": ldflags,
          "base": str(env or ""), "base_dir": str(base / "base"), "pixi": str(prefix / "forge" / "pixi" / "bin" / "pixi"),
@@ -832,6 +865,8 @@ def doctor_rows(packages: dict, c: dict, env: dict[str, str], quick: bool = Fals
         if p["kind"] == "external" or state(name, p, c) in ("", "failed"):
             continue
         rows += checks(name, p, c, env, quick=quick)
+        if p.get("url") and not p.get("sha256") and not ready_made(p):   # built from an archive taken on trust (V193)
+            rows.append((name, "archive checksum", "n/a", "no sha256 pinned: build_stack.py --sha256 prints it"))
         folder = scope(name, p, c)["install"]
         if p["kind"] != "none" and not ready_made(p) and folder not in scanned:   # each install folder once (ThePEG and Herwig share one)
             scanned.add(folder)
@@ -1176,6 +1211,9 @@ def check_urls(order: list[str], packages: dict, c: dict) -> None:
         if not answered:
             bad += 1
             print(f"BAD  {name}: no URL answers with an archive")
+        if p.get("url") and not p.get("sha256"):              # what is fetched is then taken on trust (V193)
+            print(f"note {name}: no sha256 pinned: once it is downloaded, python3 recipes/build_stack.py --sha256 "
+                  "prints the line")
     if bad:
         die(f"{bad} package(s) cannot be downloaded: set <package>.url=…")
 

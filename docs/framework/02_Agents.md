@@ -255,14 +255,14 @@ Everything else is a gate.
 ## 8. Concurrency and the machine
 
 **The rules:**
-- **One stack build at a time.** ROOT's compilers need about 3 GB each (`root_cores`).
+- **One stack build at a time.** ROOT's compilers need about 1.3 GB each (`root_cores`).
 - **One pytest session at a time.** The basetemp `$HEP_FORGE/scratch/pytest` is wiped per session.
 - **During the build**, the orchestrator keeps CPU-heavy work off the machine: no compiles and no
   tests. P2 needs the stack, so it waits for P1.
 - **The slow suite (P2)** runs as the builder, in the background, after the fast suite passes.
 
 **Cores and RAM:** P0 records them. P1 chooses `cores` and `root_cores` from them, by
-[recipes/README.md](../../recipes/README.md)'s rules (one ROOT compiler per 3 GB). The choice is written to
+[recipes/README.md](../../recipes/README.md)'s rules (one ROOT compiler per 1.3 GB available). The choice is written to
 `[choices]` before the build starts.
 
 ---

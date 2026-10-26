@@ -1156,8 +1156,6 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
             config_values[mapping.key] = value
         elif mapping.form == "seed":
             step.identity_parts.setdefault("replica", []).append(value)
-        elif mapping.form == "render":
-            raise HepError(f"{origin}: render mappings arrive with their tool (render.py)", where=f"[tools.{step.tag}]")
 
     for name in ("events", "threads"):
         value = plan.events if name == "events" else plan.threads

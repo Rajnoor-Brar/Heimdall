@@ -114,8 +114,9 @@ The steps:
    cd $HEP && setsid nohup python3 recipes/build_stack.py packages=@primary \
        cores=<cores> root_cores=<root_cores> > .setup/stack.log 2>&1 < /dev/null &
    ```
-   - `root_cores` bounds ROOT's and Rivet's compilers, each about 3 GB: more than RAM ÷ 3 of them
-     exhausts the memory, and can take the machine down.
+   - `root_cores` bounds ROOT's and Rivet's compilers, each about 1.3 GB at its peak: more than the
+     available memory ÷ 1.3 GB of them exhausts it, and can take the machine down. Left at 0, the build
+     counts them from the memory available when it starts.
    - Watch `stack.log`: one line per package ("<name>: done in N min"), and a failure's last 30
      lines.
    - On a failure: 02 §5.2. **Resuming** is the same command; the stamps in `stack/.stamps/` skip

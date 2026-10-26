@@ -78,6 +78,7 @@ pre   = ["{python} -m venv --prompt {venv_prompt} {venv}",
 [packages.lhapdf]
 release = "6.5.6"
 url     = "https://lhapdf.hepforge.org/downloads/?f=LHAPDF-{release}.tar.gz"
+sha256  = "6b8b7e38dc26a977a24f5a321215b7054c14a4469d04134d70cb93a860eeeea7"
 kind    = "autotools"
 conda   = "lhapdf"
 group   = "core"
@@ -94,6 +95,7 @@ post  = ["lhapdf install {pdf_sets}"]                 # a set already there is s
 [packages.hepmc3]
 release = "3.3.1"
 url     = "https://hepmc.web.cern.ch/hepmc/releases/HepMC3-{release}.tar.gz"
+sha256  = "08240160b0f28dc3293aa4d61ce65e2d67cd597acf6faca439f2e46625f7e793"
 kind    = "cmake"
 conda   = "hepmc3"
 group   = "core"
@@ -110,6 +112,7 @@ args = [
 [packages.hepmc2]
 release = "2.06.11"                                   # the older event format: aMC@NLO's Pythia8 shower and
 url     = "https://hepmc.web.cern.ch/hepmc/releases/HepMC-{release}.tar.gz"   # MadGraph's Delphes step read it
+sha256  = "ceaced62d39e4e2a1469fa2f20662d4d370279b3209930250766db02f44ae8de"
 kind    = "cmake"
 conda   = "hepmc2"
 # Its units must be named; its CMakeLists asks for CMake 2.6, which CMake 4 refuses without a policy floor.
@@ -119,6 +122,7 @@ args    = ["-Dmomentum:STRING=GEV", "-Dlength:STRING=MM", "-DCMAKE_POLICY_VERSIO
 [packages.fastjet]
 release = "3.5.0"
 url     = "https://fastjet.fr/repo/fastjet-{release}.tar.gz"
+sha256  = "42d0cacffb204b1160591d507489ee50375a279efb173f8da426ca1bde9d4c29"
 kind    = "autotools"
 conda   = "fastjet-cxx"
 group   = "core"
@@ -130,6 +134,7 @@ args    = ["--enable-shared", "--enable-allcxxplugins"]
 [packages.fjcontrib]
 release = "1.104"
 url     = "https://fastjet.hepforge.org/contrib/downloads/fjcontrib-{release}.tar.gz"
+sha256  = "c4b1f675f02787003c42c600051c0e23f23680ee454f9f8e34875755563dbb77"
 kind    = "autotools"
 conda   = "fastjet-contrib"
 group   = "core"
@@ -142,6 +147,7 @@ post    = ["make fragile-shared-install"]             # libfastjetcontribfragile
 [packages.root]
 release = "6.40.04"                                   # not 6.40.00: its rootcling_stage1 does not link
 url     = "https://root.cern/download/root_v{release}.source.tar.gz"
+sha256  = "44ada253b1935d34b6801222232d50731fe7c5e3cbcfab47734c85031cfbe4d3"
 kind    = "cmake"
 conda   = ["root", "root_base * cxx{cxx_std}*"]       # conda-forge builds it for C++20 and 23 only:
 conda_std = [20, 23]                                   # ready-made, the stack follows it (README.md §3)
@@ -159,6 +165,7 @@ args = [
 [packages.hdf5]
 release = "2.2.0"                                     # 2.x builds with CMake only
 url     = "https://github.com/HDFGroup/hdf5/releases/download/{release}/hdf5-{release}.tar.gz"
+sha256  = "1a1ab8209b35586fbc1aa279ba76d102130b95badcb20ca329587219112d8c16"
 kind    = "cmake"
 conda   = "hdf5"
 group   = "extra"
@@ -177,6 +184,7 @@ post = ["{python} {repo}/recipes/helpers/h5cc_plain.py {install} {release}"]
 release = "2.1.4"
 url     = ["https://cedar-tools.web.cern.ch/downloads/YODA-{release}.tar.gz",     # CEDAR: the releases' home now
            "https://yoda.hepforge.org/downloads?f=YODA-{release}.tar.gz"]
+sha256  = "1a13aabdfe8d230cfb4a1107ed856608928bb3131e6ce0adf46b5b43934f17f7"
 kind    = "autotools"
 conda   = "yoda"
 group   = "core"
@@ -189,6 +197,7 @@ optional = { hdf5 = ["--enable-h5", "--with-hdf5={dir_hdf5}/bin/plain-h5cc", "--
 [packages.rivet]
 release = "4.1.4"
 url     = "https://cedar-tools.web.cern.ch/downloads/Rivet-{release}.tar.gz"      # HepForge stops at 4.1.3
+sha256  = "ccf710efd401ef42cc9d4bece53376aebbec670488ae303f30a2baca07898742"
 kind    = "autotools"
 conda   = "rivet"
 group   = "core"
@@ -200,6 +209,7 @@ args    = ["--with-hepmc3={dir_hepmc3}", "--with-yoda={dir_yoda}", "--with-fastj
 [packages.pythia8]
 release = "8318"
 url     = "https://pythia.org/releases/pythia83/pythia{release}.tgz"     # /download/ is gone (404) since 2026
+sha256  = "85dce1e623f91499b2973e3f939bf760b0f745ad4f4eb1bd0fbce2074e2e8f5c"
 kind    = "autotools"
 conda   = "pythia8"
 group   = "core"
@@ -222,6 +232,7 @@ post = ['''sh -c 'cd {install}/share/Pythia8/examples && if [ "$({install}/bin/p
 [packages.thepeg]
 release = "2.3.0"
 url     = "https://thepeg.hepforge.org/downloads/?f=ThePEG-{release}.tar.bz2"
+sha256  = "ac35979ae89c29608ca92c156a49ff68aace7a5a12a0c92f0a01a833d2d34572"
 kind    = "autotools"
 conda   = "thepeg"
 group   = "core"
@@ -235,6 +246,7 @@ args    = ["--with-hepmc={dir_hepmc3}", "--with-hepmcversion=3", "--with-fastjet
 [packages.herwig]
 release = "7.3.0"
 url     = "https://herwig.hepforge.org/downloads/?f=Herwig-{release}.tar.bz2"
+sha256  = "2624819d2dff105ba952ea1b5cf12eb6f4926d4951774a41907699e2f567686c"
 kind    = "autotools"
 conda   = "herwig"
 group   = "core"
@@ -252,6 +264,7 @@ args    = ["--with-thepeg={dir_thepeg}", "--with-fastjet={dir_fastjet}", "--with
 [packages.delphes]
 release = "3.5.1"
 url     = "https://github.com/delphes/delphes/archive/refs/tags/{release}.tar.gz"
+sha256  = "b60d26d2ee2c84b58fbf2cf397fabd0ef3e89d3a0546d843c4ada82cc802d787"
 kind    = "cmake"
 conda   = "delphes"
 group   = "core"
@@ -274,6 +287,7 @@ args    = ["--enable-shared"]                         # bare -L before crtendS.o
 release = "0.9.9"                                     # one-loop QCD amplitudes, 2013: HepForge's tarball with
 # CMS's fixes for GCC 4.8, 6 and 10 (cms-externals/blackhat, branch cms/v0.9.9), and the patch's for GCC 15
 url     = "https://github.com/cms-externals/blackhat/archive/3e8ac1f06ef3612088505de448c8e127157076a7.tar.gz"
+sha256  = "fa8f5f96c92087d94d4d187362cfb46d7357a0252659eef4b7c15fa9b46b4c1d"
 kind    = "autotools"
 needs   = ["qd"]
 probe   = "{install}/lib/blackhat/libBH.{dylib}"
@@ -285,6 +299,7 @@ args    = ["--with-QDpath={dir_qd}"]
 [packages.openloops]
 release = "2.1.5"                                     # one-loop amplitudes from process libraries fetched by
 url     = "https://gitlab.com/openloops/OpenLoops/-/archive/OpenLoops-{release}/OpenLoops-OpenLoops-{release}.tar.gz"
+sha256  = "dbb2bdf160725dca4e80d85403ce6d1f55a15754ba863fcc62febc42efc34bc2"
 kind    = "unpack"                                    # name; built and used in place, stack/openloops
 probe   = "{install}/proclib/channels_public.rinfo"   # the process list: Sherpa's CMake looks for it, and only
 # a libinstall fetches it, so settings.toml's openloops_processes needs one process at least. Both commands
@@ -301,6 +316,7 @@ probe   = "{install}/lib/libcollier.{dylib}"
 [packages.recola]
 release = "1.5.1"                                     # Recola 1 (the SM): the calls Sherpa's interface makes
 url     = "https://gitlab.com/recola/recola1/-/archive/{release}/recola1-{release}.tar.gz"
+sha256  = "4aaa5940c8894ce4432e47f5b93627ff1a0132bde7c9be8311928c32597ac3c1"
 kind    = "cmake"
 needs   = ["collier"]
 probe   = "{install}/lib/librecola.{dylib}"
@@ -311,6 +327,7 @@ args    = ["-Dcollier_path={dir_collier}/lib/cmake", "-Dwith_smtests=OFF", "-DCM
 [packages.openmpi]
 release = "5.0.11"                                    # MPI, the Message Passing Interface: Sherpa integrates
 url     = "https://download.open-mpi.org/release/open-mpi/v{series}/openmpi-{release}.tar.bz2"
+sha256  = "e668a3c4acd50c41dc204c8a6dd98a611e0f26af89cf677577fa9be8a2698003"
 kind    = "autotools"                                 # (and generates) across `mpirun -n N` ranks
 conda   = "openmpi"
 probe   = "{install}/bin/mpicxx"
@@ -321,6 +338,7 @@ args    = ["--with-hwloc=internal", "--with-libevent=internal", "--with-pmix=int
 [packages.sherpa]
 release = "3.0.5"
 url     = "https://gitlab.com/sherpa-team/sherpa/-/archive/v{release}/sherpa-v{release}.tar.gz"
+sha256  = "6c3804d48e1955ee82f713b3d3ffd16b013a9912752f488aab0ba6c1b1634288"
 kind    = "cmake"
 conda   = "sherpa"
 group   = "extra"
@@ -342,6 +360,7 @@ optional.openmpi   = ["-DSHERPA_ENABLE_MPI=ON", "-DMPI_HOME={dir_openmpi}"]   # 
 [packages.madanalysis5]                               # before MadGraph, which is pointed at it when both build
 release = "1.11.1"                                    # recasting
 url     = "https://github.com/MadAnalysis/madanalysis5/archive/refs/tags/v{release}.tar.gz"
+sha256  = "2b1921f07c7aa1d20fc7581cbd76c067ceca930ceb1f2931befcf57e66a5888b"
 kind    = "unpack"                                    # a Python tree, run in place: stack/madanalysis5/bin/ma5
 needs   = ["root", "fastjet", "delphes"]
 probe   = "{install}/bin/ma5"
@@ -365,6 +384,7 @@ args    = ["FC=gfortran", "F77=gfortran", "FFLAGS=-O2 -fPIC -std=legacy"]   # Ma
 [packages.madgraph]
 release = "3.8.1"                                     # Launchpad renames releases: set madgraph.url when it 404s
 url     = "https://launchpad.net/mg5amcnlo/3.0/{series}.x/+download/MG5_aMC_v{release}.tar.gz"
+sha256  = "281b9055af99f45217dc99378c520215f3129e65a9ab2fde6636e274aa6cd692"
 kind    = "unpack"                                    # a Python/Fortran tree, pointed at the stack
 group   = "extra"
 needs   = ["lhapdf", "pythia8", "qcdloop"]
@@ -383,6 +403,7 @@ post = [
 [packages.whizard]
 release = "3.1.8"
 url     = "https://whizard.hepforge.org/downloads/?f=whizard-{release}.tar.gz"
+sha256  = "96bfdf2ec4476ab7945e50550a3294634af6bc0f472cf7848b5903887629ce55"
 kind    = "autotools"
 group   = "extra"
 needs   = ["hepmc3", "fastjet", "lhapdf", "pythia8", "pdfsets"]
@@ -401,6 +422,7 @@ env = { CPATH = "{dir_lhapdf}/include", LIBS = "-L{dir_lhapdf}/lib -Wl,-rpath,{d
 [packages.onnxruntime]
 release = "1.29.0"
 url     = "https://github.com/microsoft/onnxruntime/releases/download/v{release}/onnxruntime-linux-{arch}-{release}.tgz"
+sha256  = "c3fddc4f139a045b0c4902c57410f0694f1c2fdf9b6939fbe38b1aeae7cd14ba"
 kind    = "unpack"                                    # a released binary: no ABI to match
 conda   = "onnxruntime-cpp"
 group   = "extra"
@@ -408,6 +430,7 @@ group   = "extra"
 [packages.geant4]
 release = "11.4.2"
 url     = "https://github.com/Geant4/geant4/archive/refs/tags/v{release}.tar.gz"
+sha256  = "f381f461e31fdcfccf28a5e48b420d61ba66adbf55d266e3691277bab04eb270"
 kind    = "cmake"
 conda   = "geant4"
 group   = "extra"

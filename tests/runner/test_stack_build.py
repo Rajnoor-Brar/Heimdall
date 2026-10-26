@@ -85,6 +85,28 @@ def test_a_config_file_changes_and_adds_packages(bs, tmp_path):
 
 
 
+def test_zero_compilers_follow_what_the_machine_has_free(bs, monkeypatch):
+    """V192: cores = 0 takes the idle CPUs, and root_cores = 0 one ROOT/Rivet compiler per 1.3 GB of the memory
+    available now, so a build started beside runs takes fewer; a number given is taken as it is."""
+    monkeypatch.setattr(bs.os, "sched_getaffinity", lambda pid: set(range(24)), raising=False)
+    monkeypatch.setattr(bs.os, "getloadavg", lambda: (7.6, 0.0, 0.0))
+    monkeypatch.setattr(bs, "available_kb", lambda: 16_000_000)
+    assert bs.compilers({"cores": 0, "root_cores": 0}) == (16, 12)       # 24 CPUs less a load of 8; 16 GB free
+    monkeypatch.setattr(bs, "available_kb", lambda: 7_900_000)            # runs going beside it
+    assert bs.compilers({"cores": 0, "root_cores": 0}) == (16, 6)
+    monkeypatch.setattr(bs.os, "getloadavg", lambda: (30.0, 0.0, 0.0))
+    assert bs.compilers({"cores": 0, "root_cores": 0}) == (1, 1)          # never fewer than one
+    assert bs.compilers({"cores": 4, "root_cores": 4}) == (4, 4)
+
+
+def test_available_memory_is_linux_s_memavailable(bs, monkeypatch, tmp_path):
+    meminfo = tmp_path / "meminfo"
+    meminfo.write_text("MemTotal:       16131048 kB\nMemFree:  100 kB\nMemAvailable:    7978316 kB\n", encoding="utf-8")
+    real = bs.Path
+    monkeypatch.setattr(bs, "Path", lambda p, *a: real(meminfo) if str(p) == "/proc/meminfo" else real(p, *a))
+    assert bs.available_kb() == 7978316
+
+
 def test_machine_toml_is_this_machines_layer(bs, tmp_path):
     """Audit 3, phase 3.1: lists append, unless the table says replace; scalars replace; the command line wins."""
     (tmp_path / "machine.toml").write_text(
@@ -953,3 +975,22 @@ def test_a_tool_is_built_with_a_toolkit_s_changes_but_not_its_set(bs, tmp_path, 
     assert c["stack"] == "gpu-sim" and "geant4" in order and "adept" not in order       # isolated: its own stack
     with pytest.raises(SystemExit):
         planned(bs, tmp_path, "packages=rivet@")
+
+
+def test_an_unpinned_archive_is_named_by_the_doctor(bs, monkeypatch, tmp_path):
+    """V193: a package built from an archive with no sha256 is said (n/a, never a failure); a pinned one is not."""
+    _, s, packages = bs.options([f"machine={tmp_path}", "packages=fastjet"])
+    c = bs.context(s)
+    monkeypatch.setattr(bs, "state", lambda name, p, c: "built" if name == "fastjet" else "")
+    monkeypatch.setattr(bs, "checks", lambda *a, **k: [])
+    pinned = {"fastjet": packages["fastjet"]}
+    assert pinned["fastjet"]["sha256"]
+    assert not [r for r in bs.doctor_rows(pinned, c, {}) if r[1] == "archive checksum"]
+    unpinned = {"fastjet": {k: v for k, v in packages["fastjet"].items() if k != "sha256"}}
+    assert ("fastjet", "archive checksum", "n/a") == bs.doctor_rows(unpinned, c, {})[0][:3]
+
+
+def test_pinned_checksums_are_sha256s(bs):
+    shipped = bs.read(REPO / "recipes" / "toolkits" / "standard.toml")["packages"]
+    pinned = {n: p["sha256"] for n, p in shipped.items() if p.get("sha256")}
+    assert len(pinned) >= 26 and all(len(v) == 64 and set(v) <= set("0123456789abcdef") for v in pinned.values())

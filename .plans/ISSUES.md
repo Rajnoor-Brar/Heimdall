@@ -156,6 +156,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-103 | Physics set-ups to settle | P3 | decision |
 | I-104 | A tool's private dependencies (BeAGLE) | P3 | idea (set aside) |
 | I-105 | Smaller leftovers | P3 | idea |
+| I-108 | `heimdall report` replaces `heimdall deck` | P2 | in progress (approved 2026-10-26) |
 
 ---
 
@@ -314,6 +315,15 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - On `plan`, `status`, `runs`, `tools` and `stack status`, from one renderer: for scripts and agents.
 
 ## M5 — The plot model
+
+### I-108 `heimdall report` replaces `heimdall deck`
+**P2 · feature · in progress (approved 2026-10-26)**
+- The audit, the decisions and the plan are [report/00_Plan.md](report/00_Plan.md); its phases are P1–P5
+  there, each with its own file and log.
+- **Its scope:** quick, informal reports of plots and statistics (one or more runs, across projects) for
+  colleagues or a supervisor, run only on `heimdall report`. Recipes are `configs/<P>/<name>.toml` with
+  `[report]`, and reports are built into `reports/<P>/<name>/`. Formal presentation is not Heimdall's.
+- It supersedes I-105's deck `template` key and I-78 (both go with deck in P5).
 
 ### I-40 `[plot]` lives in the config; the record keeps facts
 **P1 · design · decision (D2)**

@@ -327,6 +327,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   view's brackets, `--card` sources, totality's page count, an empty analysis said, the two-line title).
   L2 done (V200: `attempts.jsonl` with each attempt's cause and tools, `heimdall status` saying why, the
   run's constants in `points.json`, a block's warnings, the verdict's counts and failures).
+  L3 done (V201: every tool's `<tag>.log` a digest, `--logs` its `<tag>.full.log`, earlier attempts in
+  `history/<n>/` with their cards, the prepare stamp's seconds, card hash and filler, `[run] log`).
 
 ## M5 — The plot model
 

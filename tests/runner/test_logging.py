@@ -71,10 +71,10 @@ def test_a_crlf_two_reads_cut_is_one_line_end(scratch):
     assert log.read_text(encoding="utf-8") == "line one\nline two\n"
 
 
-def test_a_failed_tools_tail_is_clean_too(scratch):
+def test_a_tools_digest_is_clean_too(scratch):
     reader, log, _ = read_through(scratch, [b"\x1b[31mlast words\x1b[0m\n"], keep=False)
-    reader.keep_tail()
-    assert log.read_text(encoding="utf-8") == "last words\n"
+    reader.write_digest(log, {"tag": "sherpa"})
+    assert log.read_text(encoding="utf-8") == "# tag sherpa · 1 line(s)\nlast words\n"
 
 
 def test_captured_output_is_cleaned_line_by_line():

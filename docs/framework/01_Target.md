@@ -211,6 +211,9 @@ expects = "<Heimdall's revision when this file was made>"
   `HEAD`, meaning the work dir was made with a newer Heimdall than the one running. A dirty or
   missing revision is not warned about.
 - **`[cluster]`**, this work dir's defaults for `hep cluster` (04 §16), over the machine root's.
+- **`[run]`**: `keep` (what every run here keeps, with the machine's and `--keep`) and `log` (a tool's
+  digest's first and last lines, the earlier attempts kept, a detached run's progress line; 04 §14), over
+  the machine root's `machine.toml [run]`.
 - Unknown keys are refused, as in every TOML the runner reads.
 
 ### 4.3 Top-Quark, the test work dir (D32)

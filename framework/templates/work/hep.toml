@@ -17,7 +17,10 @@ expects = "{{revision}}"
 
 # What every run here keeps beyond records/ and results/ (with machine.toml's [run] keep and heimdall run
 # --keep): logs (every tool's whole output), journal (status.jsonl), work (a finished point's whole working
-# folder: by default only its cards/ and config/ stay), cache (card checks). By default none: a failed
-# tool's last lines and the prepare caches only.
+# folder: by default only its cards/ and config/ stay), cache (card checks). By default none: each tool's
+# digest (its first and last lines and what its rules matched) and the prepare caches only.
+# `log` sets the digest's first and last lines, how many earlier attempts keep their digests and cards
+# (history/<n>/) and their whole logs, and a detached run's progress line every so many seconds.
 # [run]
 # keep = ["logs"]
+# log  = { head = 100, tail = 200, digests = 9, full = 3, worker_every = 600 }

@@ -50,7 +50,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--plain` | plain lines instead of the live view |
 | `--wait` | a point another session is running: wait for it (default: skip it, naming who runs it) |
 | `--journal` | also write every status event to records/…/status.jsonl (for heimdall watch --file and replay) |
-| `--logs` | keep every tool's whole output in records/…/logs/<point>/<tag>.log (default: only a failed tool's last lines) |
+| `--logs` | keep every tool's whole output in records/…/logs/<point>/<tag>.full.log (its digest, <tag>.log, is always kept) |
 | `--keep WHAT` | also keep (comma-separated): logs, journal, work (a finished point's whole working folder), cache (card checks); also hep.toml's and machine.toml's [run] keep |
 
 **`heimdall plot`**: draw a configuration's pages from its complete points
@@ -349,10 +349,10 @@ the others.
   stage complete.
 - **`--journal`** also writes the run's events to `records/…/<cfg>/status.jsonl`. Without it,
   nothing of the run's state is on disk.
-- **`--logs`** keeps every tool's whole output; without it, only a failed tool's last 200 lines are
-  kept.
+- **`--logs`** keeps every tool's whole output (`<tag>.full.log`). Without it, each tool's digest is
+  kept (`<tag>.log`: its first 100 lines, every line its rules matched, its last 200).
 - **`--keep WORD,…`** keeps more than the default, which is the records, the results, each finished
-  point's cards and configs, a failed tool's last lines and the prepare caches. The words: `logs` (as
+  point's cards and configs, each tool's digest and the prepare caches. The words: `logs` (as
   `--logs`), `journal` (as `--journal`), `work` (a finished point's whole working folder), `cache` (card
   checks, converted reference data, the plot stage's working files and skip markers). The work dir's
   `hep.toml` and the machine's `machine.toml` may say the same as `[run] keep = ["…"]`; the three

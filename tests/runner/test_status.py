@@ -63,7 +63,7 @@ def test_sherpas_counter_gives_a_bar_a_rate_and_its_cross_section():
         reader.output(line)
     assert (state.phase, state.done, state.total, state.warning, state.error) == ("generating", 10_000, 10_000_000, "", "")
     assert state.rate == pytest.approx(10_000 / 45.2) and state.xsec == (42090.7, 92.1025)
-    assert "\x1b" not in "".join(reader.tail)
+    assert "\x1b" not in "".join(text for _, text in reader.tail)
 
 
 def test_sherpas_default_counter_is_read_too():
@@ -107,8 +107,8 @@ def test_a_tools_output_pipe_is_read_on_its_own_thread_with_unfinished_lines_wai
     os.close(write)
     reader.join()
     assert (state.phase, state.done) == ("analysing", 200)
-    assert not (scratch / "rivet.log").exists()                          # nothing on disk unless it fails (V72)
-    reader.keep_tail()
+    assert not (scratch / "rivet.log").exists()                          # nothing on disk until it ends (V201)
+    reader.write_digest(scratch / "rivet.log", {"tag": "rivet"})
     assert (scratch / "rivet.log").read_text(encoding="utf-8").splitlines()[-1] == "Event 200 (0:00:02)"
 
 

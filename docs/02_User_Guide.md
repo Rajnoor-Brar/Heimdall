@@ -955,8 +955,10 @@ heimdall run Demo/jets/01_pdf        # what it misses, with the cards it ran wit
 
 The run goes on to the next point, and the point's block names the tool to blame. Then:
 
-1. Read `records/…/logs/<point>/<tool>.log` (and `<tool>.prepare.log`, `prelim.log`): a failed tool's
-   last 200 lines. For a tool's whole output, run again with `--logs`.
+1. Read `records/…/logs/<point>/<tool>.log` (and `<tool>.prepare.log`, `prelim.log`): the tool's digest,
+   its first 100 lines, every line its rules matched with its number, and its last 200. Earlier attempts'
+   are in `history/<n>/`, with the cards they ran. For a tool's whole output, run again with `--logs`
+   (`<tool>.full.log`).
 2. A product that failed its checks keeps its `.partial` name, and the point has no `.complete`, so
    it runs again next time.
 3. *"rivet analysed N events; the producer wrote M"*: the chain broke mid-stream. Look at the

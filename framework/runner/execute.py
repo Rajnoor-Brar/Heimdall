@@ -25,6 +25,11 @@ point at a time may fill (`_prepare_lock`: a lock in this process and flock acro
 and every status message. A tool's output is read from a pipe (status.Reader); only a failed tool's last
 lines reach the point's <tag>.log (records/<run>/logs/<point>/), unless `logs` (--logs) keeps every tool's whole log.
 
+**Logs** (V201): each tool's <tag>.log is its digest, written at its end however it ended (status.Reader); with
+`logs` its whole output is <tag>.full.log. A new attempt first moves the last one's logs, with a copy of its cards,
+into the point's history/<n>/ (`rotate`), the newest `[run] log` digests (9) keeping their digests and cards and
+the newest `full` (3) their whole logs.
+
 **What is kept** (V200): every attempt, however it ends (done, failed, stopped, a [prelim] failure; pre, post and
 combined stages too), appends a line to the point's attempts.jsonl (record.append_attempt): its verdict, its
 cause (the tool to blame and how: failed, stalled, timeout, count, missing, stopped, prelim) and each tool's
@@ -35,6 +40,7 @@ exit, stall (its phase, last line, how long silent and since when), warnings, er
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 import shlex
@@ -51,10 +57,10 @@ from pathlib import Path
 
 from . import hepfiles
 from .errors import HepError
-from .paths import keeping, placeholders
-from .record import (LOCK_FILE, PointLock, append_attempt, card_hashes, complete_marker, held_by, holder, is_complete,
-                     now, provenance, provenance_file, write_atomic, write_identity)
-from .status import Reader, ToolState, clean_text
+from .paths import keeping, log_settings, placeholders, portable
+from .record import (LOCK_FILE, PointLock, append_attempt, attempts, card_hashes, complete_marker, held_by, holder,
+                     is_complete, now, provenance, provenance_file, write_atomic, write_identity)
+from .status import Reader, ToolState, clean_text, digest
 from .tools import CONTEXT_FILE, PointPlan, Step, expand
 
 GRACE = 2.0                  # after the first failure, before the rest of the group is asked to stop
@@ -327,9 +333,48 @@ def commands_text(plan: PointPlan) -> str:
     return "\n".join(lines) + "\n"
 
 
-def prepare(plan: PointPlan, logs: bool = False) -> None:
+HISTORY = "history"                  # a point's earlier attempts' logs and cards (V201)
+
+
+def full_of(log: Path) -> Path:
+    """A digest's whole log (V201): <tag>.log → <tag>.full.log, <tag>.prepare.log → <tag>.prepare.full.log."""
+    return log.with_name(log.name.removesuffix(".log") + ".full.log")
+
+
+def rotate(plan: PointPlan, digests: int, full: int) -> Path | None:
+    """An attempt begins (V201): the last one's logs (*.log: digests, whole logs, prelim.log) move into the point's
+    history/<n>/ with a copy of its cards/, n being that attempt's number (attempts.jsonl), or for a record that
+    has none, the next free one; then the `digests` newest folders keep their digests and cards, the `full`
+    newest their whole logs, and older ones go. The folder, or None when there was nothing to keep."""
+    logs = sorted(p for p in plan.out.glob("*.log") if p.is_file()) if plan.out.is_dir() else []
+    if not logs:
+        return None
+    history = plan.out / HISTORY
+    taken = [int(p.name) for p in history.iterdir() if p.is_dir() and p.name.isdigit()] if history.is_dir() else []
+    number = len(attempts(plan))
+    if number < 1 or number in taken:
+        number = max(taken, default=0) + 1
+    target = history / str(number)
+    target.mkdir(parents=True)
+    for log in logs:
+        log.replace(target / log.name)
+    if (plan.out / "cards").is_dir():
+        shutil.copytree(plan.out / "cards", target / "cards")
+    folders = sorted((p for p in history.iterdir() if p.is_dir() and p.name.isdigit()), key=lambda p: -int(p.name))
+    for place, folder in enumerate(folders):
+        if place >= digests:
+            shutil.rmtree(folder)
+        elif place >= full:
+            for whole in folder.glob("*.full.log"):
+                whole.unlink()
+    return target
+
+
+def prepare(plan: PointPlan, logs: bool = False, attempt: int = 0) -> None:
     for directory in (plan.out, plan.res):        # a log is made by what writes it (V149)
         directory.mkdir(parents=True, exist_ok=True)
+    settings = log_settings()
+    rotate(plan, settings["digests"], settings["full"])          # the last attempt's logs into history/ (V201)
     marker = complete_marker(plan)
     if marker.exists():
         marker.unlink()                  # an attempt is under way: whatever was complete no longer is
@@ -352,18 +397,29 @@ def prepare(plan: PointPlan, logs: bool = False) -> None:
             os.mkfifo(interface.path)
         elif interface.kind == "file" and interface.name in plan.prelim.get("files", []):
             interface.path.touch(exist_ok=True)
+    said: list[str] = []
     for command in plan.prelim.get("commands", []):
         context = {**placeholders(), "out": str(plan.out), "res": str(plan.res),
                    "file:": {n: str(i.path) for n, i in plan.interfaces.items()}}
         argv = [x for a in command for x in ([expand(str(a), context, "[prelim].commands")])]
         done = subprocess.run(argv, cwd=plan.out, capture_output=True, text=True, encoding="utf-8")
-        if done.returncode != 0 or logs:              # its output is on disk when it failed, or with --logs (V72)
-            plan.out.mkdir(parents=True, exist_ok=True)
-            (plan.out / "prelim.log").open("a", encoding="utf-8").write(
-                clean_text(f"$ {' '.join(argv)}\n{done.stdout}{done.stderr}"))
+        said += clean_text(f"$ {' '.join(argv)}\n{done.stdout}{done.stderr}").rstrip("\n").split("\n")
         if done.returncode != 0:
+            _prelim_log(plan, said, logs, attempt, settings, done.returncode)
             raise HepError(f"[prelim] command failed ({done.returncode}): {' '.join(argv)}",
                            where=str(plan.out / "prelim.log"))
+    if said:
+        _prelim_log(plan, said, logs, attempt, settings, 0)
+
+
+def _prelim_log(plan: PointPlan, lines: list[str], logs: bool, attempt: int, settings: dict, code: int) -> None:
+    """[prelim]'s output (V201): prelim.log its digest, prelim.full.log the whole of it with `logs`."""
+    numbered = list(enumerate(lines, 1))
+    header = {"tag": "prelim", "attempt": attempt or "", "exit": code}
+    (plan.out / "prelim.log").write_text(digest(numbered[:settings["head"]], numbered[-settings["tail"]:] if settings["tail"] else [],
+                                                [], 0, len(lines), 0, header), encoding="utf-8")
+    if logs:
+        (plan.out / "prelim.full.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 # ── one group ──────────────────────────────────────────────────────────────────────────────────
@@ -377,6 +433,7 @@ class _Running:
     fd: int | None
     started: float
     exited_at: float | None = None
+    begun: str = ""                      # when it started, for its digest's header
 
 
 def _signal(entry: _Running, sig: int) -> None:
@@ -397,10 +454,12 @@ def events_of(plan: PointPlan, step: Step) -> int | None:
 
 
 def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
-              results: dict[str, ToolResult], logs: bool = False) -> tuple[bool, str, str]:
-    """Run one group to the end. Returns (ok, blamed tag, message)."""
+              results: dict[str, ToolResult], logs: bool = False, attempt: int = 0) -> tuple[bool, str, str]:
+    """Run one group to the end. Returns (ok, blamed tag, message). Each tool's digest is written at its end
+    (V201)."""
     bus = _bus(bus)
     running: list[_Running] = []
+    settings = log_settings()
     for step in group:
         step.log.parent.mkdir(parents=True, exist_ok=True)
         out_read, out_write = os.pipe()
@@ -430,8 +489,10 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
         state = ToolState(point=plan.point.name, tag=step.tag)
         bus.emit(plan.point.name, step.tag, {"k": "tool", "state": "started"})
         entry = _Running(step, process, state, Reader(state, fd=read_fd, out=out_read, rules=step.filters, bus=bus,
-                                                      log=step.log, keep=logs, total=events_of(plan, step)),
-                         read_fd, time.monotonic())
+                                                      log=full_of(step.log) if logs and step.log else None, keep=logs,
+                                                      total=events_of(plan, step), head=settings["head"],
+                                                      tail=settings["tail"]),
+                         read_fd, time.monotonic(), begun=now())
         running.append(entry)
 
     failure: tuple[str, str, str] | None = None      # (tag, cause, message)
@@ -504,11 +565,11 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
         kept = results.setdefault(entry.step.tag, ToolResult(entry.step.tag, entry.process.returncode))
         kept.warnings, kept.errors = entry.reader.signals("warn"), entry.reader.signals("error")
         kept.reported = entry.reader.reported()
+        if entry.step.log is not None:                                                          # V201
+            entry.reader.write_digest(entry.step.log, {"tag": entry.step.tag, "attempt": attempt or "",
+                                                       "started": entry.begun, "exit": entry.process.returncode})
     if failure is None:
         return True, "", ""
-    for entry in running:                         # what a failed tool said last, beside its point (V72)
-        if entry.process.returncode != 0 or entry.step.tag == failure[0]:
-            entry.reader.keep_tail()
     tag, cause, message = failure
     if tag and tag in results:
         results[tag].cause, results[tag].message = cause, message
@@ -577,17 +638,18 @@ def run_point(plan: PointPlan, run, configuration, *, bus=None, stopper: Stopper
 
 def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, logs: bool) -> PointResult:
     started = now()
+    attempt = len(attempts(plan)) + 1                 # this attempt's number (V200, V201)
     results: dict[str, ToolResult] = {}
     bus.emit(plan.point.name, "", {"k": "point", "state": "started", "index": plan.point.index,
                                    **({"stage": plan.point.stage} if plan.point.stage else {})})
     try:
-        prepare(plan, logs)
+        prepare(plan, logs, attempt)
     except HepError as error:
         result = PointResult(False, cause="prelim", message=error.render())
         _finished(plan, result, bus, started)
         return result
 
-    ok, blamed, message = run_prepares(plan, bus=bus, stopper=stopper, results=results, logs=logs)
+    ok, blamed, message = run_prepares(plan, bus=bus, stopper=stopper, results=results, logs=logs, attempt=attempt)
     if not ok:
         result = PointResult(False, stopped=stopper.requested, cause=blamed, message=message, tools=results)
         _cleanup(plan)
@@ -595,7 +657,8 @@ def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, lo
         return result
 
     for group in plan.groups:
-        ok, blamed, message = run_group(plan, group, bus=bus, stopper=stopper, results=results, logs=logs)
+        ok, blamed, message = run_group(plan, group, bus=bus, stopper=stopper, results=results, logs=logs,
+                                        attempt=attempt)
         if not ok:
             result = PointResult(False, stopped=stopper.requested, cause=blamed, message=message, tools=results)
             _cleanup(plan)
@@ -628,7 +691,7 @@ def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, lo
 
 
 def run_prepares(plan: PointPlan, *, bus=None, stopper: Stopper, results: dict[str, ToolResult],
-                 logs: bool = False) -> tuple[bool, str, str]:
+                 logs: bool = False, attempt: int = 0) -> tuple[bool, str, str]:
     """[prepare] steps (Herwig's read, Sherpa's integration), each in its cache entry, before the
     groups. An entry with a `.prepared` stamp is a hit and runs nothing; the stamp is written only
     after the step exited 0 and left its marker, so an interrupted integration is redone."""
@@ -639,6 +702,7 @@ def run_prepares(plan: PointPlan, *, bus=None, stopper: Stopper, results: dict[s
         stamp = step.prepare_dir / ".prepared"
         if stamp.exists():
             results[tag] = ToolResult(tag, exit=0, message=f"cache hit {step.prepare_dir.name}", cache=str(step.prepare_dir))
+            _hit_log(results[tag], step.prepare_dir)
             _bus(bus).emit(plan.point.name, "", {"k": "note", "msg": f"   {tag}: cached ({step.prepare_dir})"})
             continue
         with _prepare_lock(step.prepare_dir):            # another point may be filling it (V36)
@@ -647,29 +711,50 @@ def run_prepares(plan: PointPlan, *, bus=None, stopper: Stopper, results: dict[s
             if stamp.exists():
                 results[tag] = ToolResult(tag, exit=0, message=f"cache hit {step.prepare_dir.name}",
                                           cache=str(step.prepare_dir))
+                _hit_log(results[tag], step.prepare_dir)
                 _bus(bus).emit(plan.point.name, "", {"k": "note", "msg": f"   {tag}: cached, made by a point running "
                                                                          f"beside it ({step.prepare_dir})"})
                 continue
-            ok, blamed, message = _prepare(plan, step, tag, stamp, bus=bus, stopper=stopper, results=results, logs=logs)
+            ok, blamed, message = _prepare(plan, step, tag, stamp, bus=bus, stopper=stopper, results=results, logs=logs,
+                                           attempt=attempt)
             if not ok:
                 return False, blamed, message
     return True, "", ""
 
 
+def _hit_log(result: ToolResult, entry: Path) -> None:
+    """A cache hit names the log that filled the entry, when the entry kept one (V201)."""
+    if (entry / PREPARE_LOG).is_file():
+        result.message += f" (its log: {entry / PREPARE_LOG})"
+
+
+#: A prepare cache entry's copy of the digest of the step that filled it (V201).
+PREPARE_LOG = "prepare.log"
+
+
 def _prepare(plan: PointPlan, step: Step, tag: str, stamp: Path, *, bus, stopper: Stopper,
-             results: dict[str, ToolResult], logs: bool = False) -> tuple[bool, str, str]:
-    """One prepare step into its (locked) cache entry; the stamp only after it exited 0 with its marker."""
+             results: dict[str, ToolResult], logs: bool = False, attempt: int = 0) -> tuple[bool, str, str]:
+    """One prepare step into its (locked) cache entry; the stamp only after it exited 0 with its marker: what ran,
+    how long, the card's sha256, the record and point that filled it, and the step's digest in the entry
+    (prepare.log). A stamp of the older shape is a hit all the same: only its being there counts."""
     step.prepare_dir.mkdir(parents=True, exist_ok=True)
     job = replace(step, tag=tag, argv=step.prepare_argv, cwd=step.prepare_dir, inputs=[], outputs=[], products=[],
                   count_check=None, sidecar=None, sidecar_written=None, log=plan.out / f"{step.tag}.prepare.log",
                   stall_after=max(step.stall_after, 3600.0))
-    ok, blamed, message = run_group(plan, [job], bus=bus, stopper=stopper, results=results, logs=logs)
+    ok, blamed, message = run_group(plan, [job], bus=bus, stopper=stopper, results=results, logs=logs, attempt=attempt)
     if not ok:
         return False, step.tag, message
     marker = step.folder.spec["prepare"].get("marker")
     if marker and not (step.prepare_dir / marker).exists():
         return False, step.tag, f"{tag} exited 0 but left no {marker} in {step.prepare_dir}"
-    write_atomic(stamp, json.dumps({"argv": job.argv, "finished": now()}, indent=1) + "\n")
+    card = step.prepare_card or step.card_combined                 # the card it read: on disk, else as planned
+    text = card.read_bytes() if card is not None and card.is_file() else plan.writes.get(card, "").encode("utf-8")
+    sha = hashlib.sha256(text).hexdigest() if card is not None else ""
+    if job.log is not None and job.log.is_file():
+        shutil.copyfile(job.log, step.prepare_dir / PREPARE_LOG)
+    write_atomic(stamp, json.dumps({"argv": job.argv, "finished": now(), "seconds": round(results[tag].seconds, 3),
+                                    "card_sha256": sha, "record": portable(plan.folders.record) if plan.folders else "",
+                                    "point": plan.point.name}, indent=1, default=str) + "\n")
     return True, "", ""
 
 
@@ -762,7 +847,7 @@ def _tidy(plan: PointPlan) -> None:
     if keeping("work") or plan.folders is None or plan.out.parent != plan.folders.logs or not plan.out.is_dir():
         return
     for entry in plan.out.iterdir():
-        if entry.name in ("cards", "config", LOCK_FILE, COMMANDS_FILE, CONTEXT_FILE) or (entry.suffix == ".log" and entry.is_file()):
+        if entry.name in ("cards", "config", HISTORY, LOCK_FILE, COMMANDS_FILE, CONTEXT_FILE) or (entry.suffix == ".log" and entry.is_file()):
             continue
         if entry.is_dir() and not entry.is_symlink():
             shutil.rmtree(entry)

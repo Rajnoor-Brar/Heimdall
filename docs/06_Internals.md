@@ -59,7 +59,7 @@ A **work dir** holds a study. `heimdall setup <dir>` makes it from `framework/te
 | `datasets/` | your own reference data: small files tracked; large ones in `datasets.toml` (url, sha256), fetched by `heimdall setup` and kept out by `datasets/.gitignore` | yes |
 | `decks/<deck>/` | a deck's sources: `deck.md`, `deck.toml`, its pictures | yes |
 | `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
-| `records/` | what a run needs while it runs or is launched, and what traces it back, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, a failed tool's last lines; FIFOs and scratch files while it runs), `config/` (the run's snapshot), `points.json`, cluster submissions | no |
+| `records/` | what a run needs while it runs or is launched, and what traces it back, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, each tool's digest, `history/` of earlier attempts; FIFOs and scratch files while it runs), `config/` (the run's snapshot), `points.json`, cluster submissions | no |
 | `.cache/` | what is rebuilt on demand: prepare caches, the drawing's page documents and working files (`plots/`), converted reference data; with `keep cache`, card checks | no |
 | `results/` | what matters once a run is done: products, pages by set (`plots/<set>/`), their numbers (`statistics/<set>/`) | no |
 | `reports/<deck>/` | a deck as `heimdall deck` builds it: panels, composites, the slides | no |
@@ -545,9 +545,22 @@ process directory.
   full pipe.
 - **Runtime state stays off disk** (the user's decision), but for the **run registry** (`runs.py`, the
   user's ask of 2026-10-23, V182): a small entry per run in `<machine root>/runs/`, written when it
-  begins and when it ends, and a detached run's output log beside it. A tool's output is kept in memory (its
-  last 200 lines) and written to `records/…/logs/<point>/<tag>.log` only when it fails; `--logs`
-  (`keep logs`, §14) writes every tool's whole output there as it comes.
+  begins and when it ends, and a detached run's output log beside it. A tool's output is kept as a
+  **digest** (V201): in memory its first 100 lines (`HEAD`), its last 200 (`TAIL`) and every line a rule
+  matched with its number (at most 500; progress and ignored lines are counted, not kept), written to
+  `records/…/logs/<point>/<tag>.log` when it ends however it ended (`Reader.write_digest`, `status.digest`):
+  a header line (tag, attempt, started, exit, lines, progress), the head, `# … N line(s) left out …`, the
+  matched lines, the tail, or the whole output when it fits. `--logs` (`keep logs`, §14) writes every
+  tool's whole output to `<tag>.full.log` as it comes. A prepare step's are `<tag>.prepare.log` and
+  `.prepare.full.log`, `[prelim]`'s `prelim.log` and `prelim.full.log`.
+- **History** (V201): an attempt's start (`execute.prepare` → `rotate`) moves the last attempt's `*.log`
+  and a copy of its `cards/` into `logs/<point>/history/<n>/`, `n` its number in `attempts.jsonl` (or, for
+  a record without one, the next free number). The `[run] log` `digests` newest folders (9) keep their
+  digests and cards, the `full` newest (3) their whole logs; older ones go. `_tidy` keeps `history/`.
+- **The prepare cache's stamp** (`.prepared`, its name kept: renaming it would integrate every Sherpa point
+  again) holds what ran, when it finished, its `seconds`, the card's `card_sha256`, and the `record` and
+  `point` that filled it; the step's digest is copied into the entry as `prepare.log`, and a cache hit names
+  it in its message. A stamp of the older shape is a hit all the same.
 - **Nothing saved holds a terminal's clutter** (V195). Every line is cleaned before it is matched, shown or
   written (`status.clean`): escape sequences out (CSI colours and cursor moves, OSC titles, character-set
   choices), then any control character but a tab. A line a bare carriage return rewrote (a counter) is matched
@@ -831,7 +844,8 @@ records/<P>/<run>/<cfg>/
   points.json   [status.jsonl: keep journal]
   points/<point>/       provenance.json  identity.json  .complete  attempts.jsonl   (kept; clean --records only)
   points/pre/, post/, <combined group>/   the same, for the stages
-  logs/<point>/         cards/  config/  .lock   [<tag>.log: a failed tool's last lines; keep logs: every tool's output]
+  logs/<point>/         cards/  config/  commands.sh  .lock  <tag>.log (each tool's digest)  [<tag>.full.log: keep logs]
+                        history/<n>/: an earlier attempt's logs and cards (the 9 newest; the 3 newest their full logs)
                         while it runs, and kept when it fails or with keep work: FIFOs, scratch files, shards, context.toml
   logs/pre/, post/, <combined group>/     the same, for the stages
   config/       the run's snapshot (V158)
@@ -868,12 +882,16 @@ reports/<deck>/                       a deck (heimdall deck, V103, V104): yours,
 
 **What a run keeps** (V149): besides `records/` and `results/`, a finished point keeps its `cards/` and
 `config/`, its `context.toml` and `commands.sh` (each tool's command line, folder and environment, the FIFOs
-and groups: `execute.commands_text`, written when the point starts, V187), a failed tool its last lines, and the prepare caches; nothing more unless a `keep` word asks:
+and groups: `execute.commands_text`, written when the point starts, V187), each tool's digest and `history/`
+(V201), and the prepare caches; nothing more unless a `keep` word asks:
 `logs` (every tool's whole output), `journal` (`status.jsonl`), `work` (a finished point's whole working
 folder), `cache` (card checks, converted reference data, the plot stage's working files and skip
 markers). The words come from `heimdall run --keep` (`--logs` and `--journal` are two of them), the work
 dir's `hep.toml [run] keep` and the machine's `machine.toml [run] keep`, together (`paths.keep`). A failed
-point keeps everything. Without `cache`, card checks are still run once per distinct card in a process.
+point keeps everything. `cards/`, `config/`, `commands.sh` and `context.toml` are what the point ran with, so
+deleting `logs/<point>/` reruns nothing but loses them (V201). `[run] log` (`paths.log_settings`, the work
+dir's over the machine's over `LOG_DEFAULTS`) sets the digest's head and tail, the history's `digests` and
+`full`, and a detached worker's `worker_every`. Without `cache`, card checks are still run once per distinct card in a process.
 
 `<run>` and `<cfg>` are `NN_<name>` when they have a serial. `<point>` is the swept tags joined by
 `_`, or `point`. `datasets/` (your reference data) is not in git; Rivet's own are `rivet:<Analysis>`.

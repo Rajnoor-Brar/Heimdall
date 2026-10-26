@@ -8,8 +8,10 @@ docs/06_Internals.md §22 and docs/06_Internals.md §10.
   takes the events the tool makes or reads; its rate is done / elapsed when the line says how long, else
   measured from the first count.
 * Both are read from pipes by one thread per tool (V72), so a tool that prints fast never waits on a
-  full pipe, and nothing of it is on disk unless asked: the last TAIL lines are kept in memory and
-  written to the point's <tag>.log only when the tool fails; `--logs` writes every line as it comes.
+  full pipe. What it printed is kept as a **digest** (V201): its first HEAD lines, its last TAIL lines and
+  every line a rule matched with its number (at most MATCHED; progress and ignored lines are counted, not
+  kept), written to the point's <tag>.log when it ends however it ended (`Reader.write_digest`; the whole
+  output when it fits); `--logs` writes every line to <tag>.full.log as it comes.
 * Nothing saved holds a terminal's clutter (V195): every line is cleaned (`clean`) before it is matched,
   shown or written, and a line a bare carriage return rewrote (a counter) is saved at its last state.
 * Every message goes onto the run's event bus (events.py), tagged with its point and tool.
@@ -30,7 +32,9 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-TAIL = 200                       # a failed tool's last lines, written beside its point (V72)
+TAIL = 200                       # a tool's last lines, in its digest (V72, V201)
+HEAD = 100                       # its first lines, in its digest (V201)
+MATCHED = 500                    # the lines its rules matched, at most, in its digest
 SIGNALS = 50                     # distinct warnings (and errors) a tool's attempt keeps (V200)
 LEVELS = {"warn": "warn", "warning": "warn", "error": "error"}   # a log message's level, as kept
 LINE_EVERY = 0.5                 # seconds between a tool's `line` events
@@ -96,14 +100,20 @@ class Reader:
     """One process's status pipe (standard) and output pipe, read on a thread of its own until both end."""
 
     def __init__(self, state: ToolState, *, fd: int | None, out: int | None, rules: list[dict], bus,
-                 log: Path | None = None, keep: bool = False, total: int | None = None):
+                 log: Path | None = None, keep: bool = False, total: int | None = None, head: int = HEAD,
+                 tail: int = TAIL):
         self.state = state
         self.total = total                # the events a tool makes or reads, when its lines do not say
         self._first: tuple[float, int] | None = None   # (when, count) of its first progress line: the rate
         self.rules = [(re.compile(r["match"]), r) for r in rules]
         self.bus = bus
         self.log, self.keep = log, keep
-        self.tail: collections.deque = collections.deque(maxlen=TAIL)
+        self.head: list[tuple[int, str]] = []          # its first lines, (number, text)
+        self.head_size = head
+        self.tail: collections.deque = collections.deque(maxlen=tail)   # its last lines, (number, text)
+        self.matched: list[tuple[int, str]] = []       # the lines a rule matched (not progress, not ignored)
+        self.matches = 0                               # … and how many there were
+        self.progress = 0                              # the lines a progress rule matched (counters too)
         self.count = 0                    # the lines it printed (a counter's rewrites not counted)
         self.kept: dict[str, dict] = {"warn": {}, "error": {}}   # level → message → [count, first line] (V200)
         self.more = {"warn": 0, "error": 0}                       # … and those past SIGNALS distinct
@@ -186,11 +196,12 @@ class Reader:
         text = clean(text)
         if not rewritten:
             self.count += 1
+            if len(self.head) < self.head_size:
+                self.head.append((self.count, text))
+            self.tail.append((self.count, text))          # blank ones too: the digest's lines run on
         if self._handle is not None and not rewritten:
             self._handle.write(text.encode("utf-8") + b"\n")
         if text.strip():
-            if not rewritten:
-                self.tail.append(text)
             self.state.last_line = text.strip()[:200]
             now = time.monotonic()
             if self.bus is not None and now - self._line_at >= LINE_EVERY:
@@ -200,6 +211,13 @@ class Reader:
             match = pattern.search(text)
             if match is None:
                 continue
+            emit = rule.get("emit", "ignore")
+            if emit == "progress":
+                self.progress += 1
+            elif emit != "ignore" and not rewritten:
+                self.matches += 1
+                if len(self.matched) < MATCHED:
+                    self.matched.append((self.count, text))
             self._rule(rule, match, text)
             break
 
@@ -234,13 +252,14 @@ class Reader:
         if self._thread.is_alive():
             self._thread.join(timeout)
 
-    def keep_tail(self) -> Path | None:
-        """A failed tool: its last lines to its <tag>.log (unless --logs wrote them all already)."""
-        if self.log is None or self.keep:
-            return self.log
-        self.log.parent.mkdir(parents=True, exist_ok=True)
-        self.log.write_text("".join(f"{line}\n" for line in self.tail), encoding="utf-8")
-        return self.log
+    def write_digest(self, path: Path, header: dict) -> Path:
+        """Its digest, at its end however it ended (V201): `header` (tag, attempt, started, exit) and its counts,
+        then its first lines, what was left out, the lines its rules matched with their numbers, its last lines;
+        the whole output when it fits."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(digest(self.head, list(self.tail), self.matched, self.matches, self.count, self.progress,
+                               header), encoding="utf-8")
+        return path
 
     def _rule(self, rule: dict, match: re.Match, text: str) -> None:
         """A matched rule's message. A progress rule may also capture `total`, `elapsed` (a duration: the
@@ -287,6 +306,27 @@ class Reader:
 
 #: An event's own keys: what a `summary` message's fields are not.
 ENVELOPE = ("k", "v", "t", "point", "tool", "run")
+
+
+def digest(head: list, tail: list, matched: list, matches: int, count: int, progress: int, header: dict) -> str:
+    """A tool's digest (V201): a header line, then its whole output when the first and last lines hold it all,
+    else the first lines, a line for what was left out, the lines its rules matched (numbered) and the last
+    lines. Lines are (number, text)."""
+    said = " · ".join(f"{k} {v}" for k, v in header.items() if v not in (None, ""))
+    out = [f"# {said} · {count} line(s){f' ({progress} progress)' if progress else ''}"]
+    last = head[-1][0] if head else 0
+    rest = [(n, text) for n, text in tail if n > last]
+    if not rest or rest[0][0] == last + 1:               # nothing between: the whole of it
+        return "\n".join(out + [text for _, text in head + rest]) + "\n"
+    out += [text for _, text in head]
+    out.append(f"# … {rest[0][0] - last - 1} line(s) left out …")
+    if matched:
+        out.append(f"# the lines its rules matched ({matches}{f'; the first {len(matched)}' if matches > len(matched) else ''}), "
+                   "with their numbers:")
+        out += [f"{n:>9}  {text}" for n, text in matched]
+    out.append(f"# its last {len(rest)} line(s):")
+    out += [text for _, text in rest]
+    return "\n".join(out) + "\n"
 
 
 def apply(state: ToolState, message: dict) -> None:

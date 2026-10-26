@@ -1409,7 +1409,9 @@ logs written there and `.lock`; scratch files, shards and what its tools left go
 | `cards/<tag>.prepare.<ext>` | the card a prepare step reads, when the tool's `render.py` makes one |
 | `config/<tag>.toml` | an exec or module tool's extracted config |
 | `context.toml` | the point's context file (§9.4): every tool's card and config; there only while the point runs |
-| `<tag>.log`, `<tag>.prepare.log`, `prelim.log` | a failed tool's last 200 lines of stdout and stderr (a failed `[run] commands` command's output); with `--logs`, every tool's whole output |
+| `<tag>.log`, `<tag>.prepare.log`, `prelim.log` | each tool's digest, written when it ends however it ended: a header (tag, attempt, started, exit, lines), its first 100 lines of stdout and stderr, every line its rules matched with its number, its last 200 lines; its whole output when that fits (`[prelim]`'s commands' output likewise) |
+| `<tag>.full.log`, `<tag>.prepare.full.log`, `prelim.full.log` | with `--logs` (`keep logs`), the tool's whole output |
+| `history/<n>/` | attempt `n`'s logs and a copy of its `cards/`, moved there when the next attempt starts: the 9 newest keep their digests and cards, the 3 newest their whole logs (`[run] log`, below) |
 | `provenance.json` | `point`, `run`, `project`, `configuration`, `config_file`, `sets`; `values` (each active quantity's index, tag and value); `identity`, `seed`, `threads`, `events`; per tool `tag`, `tool`, `exe`, `exe_sha256`, `version`, `argv`, `ran`, `card`, `card_sha256`, `config`, `result` (exit, seconds, note); `host`, `platform`, `user`, `git` (`revision`, `dirty`), `started`, `finished` |
 | `identity.json` | the parts the identity hashes (each tool's card lines, argv, binaries, options; threads, events, groups, prelim, the seed rule), written when the point completes, for `--why` |
 | `.complete` | the point's identity, written **last**; its absence means the point is not done |
@@ -1447,7 +1449,12 @@ are two of them), the work dir's `hep.toml` and the machine's `machine.toml`, to
 ```toml
 [run]
 keep = ["logs", "cache"]
+log = { head = 100, tail = 200, digests = 9, full = 3, worker_every = 600 }
 ```
+
+**`log`** (the defaults above; the work dir's over the machine's): a digest's first (`head`) and last
+(`tail`) lines; how many earlier attempts keep their digests and cards (`digests`) and their whole logs
+(`full`) in `history/`; and a detached run's progress line, every `worker_every` seconds.
 
 A work dir made before the split has `output/`: `heimdall migrate --layout` moves it (a dry run first).
 

@@ -78,7 +78,7 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--journal", action="store_true",
                      help="also write every status event to records/…/status.jsonl (for heimdall watch --file and replay)")
     run.add_argument("--logs", action="store_true",
-                     help="keep every tool's whole output in records/…/logs/<point>/<tag>.log (default: only a failed tool's last lines)")
+                     help="keep every tool's whole output in records/…/logs/<point>/<tag>.full.log (its digest, <tag>.log, is always kept)")
     run.add_argument("--keep", action="append", default=[], metavar="WHAT",
                      help="also keep (comma-separated): logs, journal, work (a finished point's whole working folder), "
                           "cache (card checks); also hep.toml's and "

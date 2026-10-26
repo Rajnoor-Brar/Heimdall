@@ -9,8 +9,8 @@ execution map: each step's row is ticked when it is committed.
 | --- | --- | --- | --- | --- |
 | L0 housekeeping | done | `64a472e` (was `5663f57`) | — | docs links |
 | L1 quick fixes | done | `d13442d` (was `797fc4e`), branch `logging` | V195 | F; guard: 315 points of 35 Brookhaven configurations unchanged |
-| L2 attempts, causes, run constants | done | (this commit; hash in the next), branch `logging` | V200 | F (1036 passed; the pre-existing stack-build failure); S (41 passed, the 5 known failures; the generators test's verdict text updated, then passing); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
-| L3 digests and history | to do | | | F, S, guard, B |
+| L2 attempts, causes, run constants | done | `61e53ed`, branch `logging` | V200 | F (1036 passed; the pre-existing stack-build failure); S (41 passed, the 5 known failures; the generators test's verdict text updated, then passing); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
+| L3 digests and history | done | (this commit; hash in the next), branch `logging` | V201 | F (1044 passed; the pre-existing stack-build failure; `test_paths`' work_meta shape updated); S (42 passed, the 5 known failures; two tests that pinned "only a failed tool's log" updated to the digest); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
 | L4 the run's own log | to do | | | F, S, guard, B |
 | L5 new kinds in filters.toml | to do | | | F, S, guard |
 | L6 the plot stage | to do | | | F, S |
@@ -31,6 +31,8 @@ execution map: each step's row is ticked when it is committed.
   `tests/runner/`). Apply one step at a time, test, then fix what the anchors or tests find. The guard
   (`guard.py`, baseline `guard-base.txt`) and gate B (`heimdall status` in Brookhaven, counts lines only) are
   as for L2. The user's pace now: pause after each milestone for compaction.
+- 2026-10-26, L3: applied from `l3_patch.py`; fixed on the way: a step without a log writes no digest, the
+  prepare stamp hashes the planned card when it is not on disk yet. L4–L6 remain as drafts.
 
 ## Context
 

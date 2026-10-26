@@ -614,7 +614,9 @@ class RunFolders:
         return self.record / "points"
 
     @property
-    def logs(self) -> Path:            # each point's working folder (cards, configs, logs, FIFOs): safe to delete
+    def logs(self) -> Path:            # each point's working folder: deleting it reruns nothing, but its cards/, config/,
+                                       # commands.sh and context.toml are what the point ran with, its logs and history/
+                                       # what it said (V201); FIFOs and scratch files while it runs
         return self.record / "logs"
 
     @property

@@ -143,8 +143,8 @@ def test_ctrl_c_stops_the_running_points_and_starts_no_more(scratch):
 
 def test_hep_watch_follows_a_run_over_its_socket_and_nothing_runtime_is_on_disk(scratch):
     """V72: no --journal, no status.jsonl; `heimdall watch CONFIG` attaches to the running process's socket,
-    shows the run so far and what follows, and ends with the run. Only the failed tool's last lines
-    are on disk."""
+    shows the run so far and what follows, and ends with the run. Each tool's digest is on disk (V201), the
+    whole output is not."""
     config = checker(scratch, "fail", extra="[tools.check.config]\nsleep = 4\n")
     runner = hep(scratch, config, wait=False)                     # no --journal
     deadline = time.monotonic() + 30
@@ -162,4 +162,6 @@ def test_hep_watch_follows_a_run_over_its_socket_and_nothing_runtime_is_on_disk(
     assert "FAILED [check]" in text and "3 done, 1 failed" in text
     base = scratch / "records" / "Demo" / "chk" / "one"
     assert not (base / "status.jsonl").exists()
-    assert (base / "logs" / "b" / "check.log").exists() and not (base / "logs" / "a" / "check.log").exists()
+    failed, passed = ((base / "logs" / p / "check.log").read_text(encoding="utf-8") for p in ("b", "a"))
+    assert " · exit 0 · " not in failed.splitlines()[0] and " · exit 0 · " in passed.splitlines()[0]   # a digest each (V201)
+    assert not list((base / "logs").rglob("*.full.log"))                    # the whole output only with --logs

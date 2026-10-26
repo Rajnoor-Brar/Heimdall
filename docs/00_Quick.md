@@ -91,7 +91,7 @@ ratio   = true
 | `configs/<P>/`, `modules/<P>/`, `decks/<deck>/` | yours: run TOMLs and cards; programs and Rivet analyses; decks | tracked |
 | `datasets/` | reference data (large ones listed in `datasets.toml`, fetched by `heimdall setup .`) | tracked |
 | `results/<P>/<run>/<NN_cfg>/` | `points/<point>/` the products, `plots/` the pages | no |
-| `records/<P>/<run>/<NN_cfg>/` | `points/<point>/` each point's provenance, identity and `.complete` (delete it and the point reruns); `logs/<point>/` its cards and configs, a failed tool's last lines (safe to delete: `heimdall clean`; more with `--keep`); `plots/` the page configs; `config/` the run TOML and cards it ran with | no |
+| `records/<P>/<run>/<NN_cfg>/` | `points/<point>/` each point's provenance, identity and `.complete` (delete it and the point reruns); `logs/<point>/` its cards and configs, each tool's digest `<tag>.log`, earlier attempts in `history/` (deleting it reruns nothing: `heimdall clean`; more with `--keep`); `plots/` the page configs; `config/` the run TOML and cards it ran with | no |
 | `.cache/` | prepare caches: safe to delete | no |
 | `build/`, `reports/<deck>/` | compiled modules; built decks | no |
 

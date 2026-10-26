@@ -79,10 +79,14 @@ def hep_root() -> Path:
 
 #: hep.toml's tables and keys (docs/framework/01_Target.md §4.2): any other is refused. [cluster] is the
 #: machine's defaults for heimdall cluster (V114): its keys are the run TOML's, checked by cluster.py.
-WORK_KEYS = {"work": ("name",), "framework": ("expects",), "run": ("keep",)}
+WORK_KEYS = {"work": ("name",), "framework": ("expects",), "run": ("keep", "log")}
+#: What a point's logs keep (V201), `[run] log` in hep.toml or machine.toml (the work dir's over the machine's):
+#: a digest's first and last lines, the earlier attempts kept with their digests and cards and with their whole
+#: logs, and a detached worker's progress line every so many seconds.
+LOG_DEFAULTS = {"head": 100, "tail": 200, "digests": 9, "full": 3, "worker_every": 600}
 #: What a run keeps beyond records/ and results/ (V149); by default nothing more than a finished point's cards
-#: and configs, a failed tool's last lines, and the prepare caches.
-KEEP_WORDS = {"logs": "every tool's whole output (records/<run>/logs/<point>/<tag>.log)",
+#: and configs, each tool's digest (V201), and the prepare caches.
+KEEP_WORDS = {"logs": "every tool's whole output (records/<run>/logs/<point>/<tag>.full.log; its digest, <tag>.log, always)",
               "journal": "every status event (status.jsonl, for heimdall watch --file)",
               "work": "a finished point's whole working folder (scratch files, shards, what its tools left)",
               "cache": "card checks, converted reference data, the plot stage's working files and skip markers"}
@@ -109,12 +113,41 @@ def work_meta(root: Path) -> dict:
                 raise HepError(f"unknown key '{table}.{key}'", where=str(marker), hint=f"hep.toml has {known}")
             if (table, key) == ("run", "keep"):
                 keep_words(item, f"{marker}: [run] keep")
+            elif (table, key) == ("run", "log"):
+                log_values(item, f"{marker}: [run] log")
             elif not isinstance(item, str):
                 raise HepError(f"'{table}.{key}' must be a string, got {item!r}", where=str(marker))
     return {"name": data.get("work", {}).get("name") or root.name,
             "expects": data.get("framework", {}).get("expects", ""),
             "cluster": dict(data.get("cluster", {})),
-            "keep": sorted(keep_words(data.get("run", {}).get("keep", []), f"{marker}: [run] keep"))}
+            "keep": sorted(keep_words(data.get("run", {}).get("keep", []), f"{marker}: [run] keep")),
+            "log": log_values(data.get("run", {}).get("log", {}), f"{marker}: [run] log")}
+
+
+def log_values(given, where: str) -> dict:
+    """`[run] log`'s table, checked: each key one of LOG_DEFAULTS, each value a whole number ≥ 0."""
+    if not isinstance(given, dict):
+        raise HepError(f"{where}: a table, {{ {', '.join(f'{k} = {v}' for k, v in LOG_DEFAULTS.items())} }}", where=where)
+    for key, value in given.items():
+        if key not in LOG_DEFAULTS:
+            raise HepError(f"{where}: no '{key}' to set", where=where,
+                           hint=did_you_mean(key, LOG_DEFAULTS) or f"it has {', '.join(LOG_DEFAULTS)}")
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise HepError(f"{where}: {key} must be a whole number ≥ 0, got {value!r}", where=where)
+    return dict(given)
+
+
+def log_settings() -> dict:
+    """What a run's logs keep (V201): LOG_DEFAULTS, under machine.toml's [run] log, under the work dir's."""
+    out = dict(LOG_DEFAULTS)
+    out.update(log_values(machine_settings().get("run", {}).get("log", {}), f"{machine_file()}: [run] log"))
+    try:
+        work = find_work()
+    except HepError:
+        work = None
+    if work is not None:
+        out.update(work_meta(work)["log"])
+    return out
 
 
 def keep_words(given, where: str = "--keep") -> set[str]:

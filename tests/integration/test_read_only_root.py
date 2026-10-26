@@ -50,7 +50,10 @@ def test_a_run_writes_only_its_work_dir(scratch):
 
     run = scratch / "records" / folder("Demo/jets", "single", scratch)
     kept = {p.name for p in (run / "logs" / "point").iterdir()}
-    assert {"cards", "commands.sh", "context.toml"} <= kept <= {".lock", "cards", "config", "commands.sh", "context.toml"}   # V187
+    digests = {name for name in kept if name.endswith(".log")}                  # each tool's digest (V201)
+    assert digests and not {name for name in digests if name.endswith(".full.log")}
+    assert {"cards", "commands.sh", "context.toml"} <= kept - digests <= {".lock", "cards", "config", "commands.sh",
+                                                                         "context.toml"}   # V187
     assert not (run / "plots").exists()                                     # records/: nothing a drawing reads
     documents = support.pages(scratch, folder("Demo/jets", "single", scratch))
     assert any(documents.rglob("*.toml"))

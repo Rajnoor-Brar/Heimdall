@@ -92,7 +92,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-35 | `RunRequest` and a session module | P1 | blocked on I-25 |
 | I-36 | `heimdall plan` | P2 | decision (D9) |
 | I-37 | `--json` output | P2 | blocked on I-35 |
-| I-106 | Run logging: what a run keeps, and where | P1 | in progress |
 | **M5** | **The plot model** | | |
 | I-40 | `[plot]` lives in the config; the record keeps facts | P1 | decision (D2) |
 | I-41 | Sets as the one grouping; retire `plot_points` | P2 | decision (D3) |
@@ -313,26 +312,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 ### I-37 `--json` output
 **P2 · feature · blocked on I-35 (intent U6)**
 - On `plan`, `status`, `runs`, `tools` and `stack status`, from one renderer: for scripts and agents.
-
-### I-106 Run logging: what a run keeps, and where
-**P1 · in progress (decided 2026-10-26) · audit: [run_logging_audit.md](run_logging_audit.md) · plan: [run_logging_plan.md](run_logging_plan.md)**
-- **Problem:** a failure's cause, a successful point's warnings, the tools' own numbers and the
-  generators' error statistics are lost when a run ends. Sherpa's mid-line errors are not recognised.
-  `--logs` is 90–99 % counters and keeps Sherpa's escape sequences. Attempts are appended without a
-  boundary. The worked example is `eic/zeus_validation` 04–11 (2026-10-25).
-- **Fix:** the audit's six steps (L1–L6): clean every saved text; `attempts.jsonl` and causes;
-  per-tool digests with rotation; `run.jsonl` always; new kinds in `filters.toml`; plot-stage logs.
-  L1 has no format change and can go first.
-- **Progress:** L1 done (V195: clean saved text, Sherpa's mid-line messages, the stall's context, the live
-  view's brackets, `--card` sources, totality's page count, an empty analysis said, the two-line title).
-  L2 done (V200: `attempts.jsonl` with each attempt's cause and tools, `heimdall status` saying why, the
-  run's constants in `points.json`, a block's warnings, the verdict's counts and failures).
-  L3 done (V201: every tool's `<tag>.log` a digest, `--logs` its `<tag>.full.log`, earlier attempts in
-  `history/<n>/` with their cards, the prepare stamp's seconds, card hash and filler, `[run] log`).
-  L4 done (V202: every run's `run.jsonl`, the journal appended, `heimdall log`, `watch --file` from the last
-  run, the registry's counts, a worker's progress every 10 minutes).
-  L5 done (V203: `reason`, `fact`, `stat`, `integration` in filters.toml; a folder's rules whatever its status;
-  Sherpa's and Pythia's rules; `[diagnose]`, Pythia's through one plain Pythia).
 
 ## M5 — The plot model
 

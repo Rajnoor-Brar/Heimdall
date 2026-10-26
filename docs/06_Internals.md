@@ -143,7 +143,7 @@ layering was not had nine cycles.)
 | 1 | `runs.py` | the run registry, `<machine root>/runs/` (`$HEP_RUNS`): an entry per run and cluster submission, written whole by one writer; a process's who and where (pid, its start time, namespaces, boot); its state (running, ended, lost, or not knowable from here); 30 days kept; a read-only root records nothing (V182) |
 | 2 | `tools.py` | the tool folders; per point: interfaces, connections (C6), cards, configs, the context file, prepare keys, argv; seeds last; the combine command (`combiner`, `merge_files`) |
 | 3 | `execute.py` | `[prelim]`, prepare steps, groups as supervised process groups, the count checks, settling products |
-| 3 | `status.py` | the status and output pipes, read on a thread per tool; the filter rules; a failed tool's tail |
+| 3 | `status.py` | the status and output pipes, read on a thread per tool; the filter rules; each tool's digest (V201) |
 | 3 | `record.py` | identity, seeds, skip, provenance, `points.json` |
 | 3 | `results.py` | a run's results from Python, read from `points.json` (V77) |
 | 4 | `watch.py` | the reducer of events (`State`), the live and plain views, `heimdall watch` |
@@ -827,7 +827,14 @@ they ran with; provenance keeps the real paths.
    - **Working files** stay in `.cache/` (V164): they are rebuilt when missing, and reused when their
      stamps say nothing changed.
 
-   A failed page is counted, and the run exits 1, but the others are drawn.
+   A failed page is counted, and the run exits 1, but the others are drawn. **Its output is kept** (V204): a
+   Paint batch with a failed page, a failed `App_yd2rt` conversion and a failed merge of the sweep leave their
+   clean output's digest (`status.digest`, `[run] log`'s head and tail) in the record's `logs/plot/`
+   (`plot.failure_log`): `<set>.root.log` (a batch's, appended batch after batch), `convert-<point>.log`,
+   `merge-<cfg>.log`; the failed page's reason, and the error, name the file. `draw` and `measure` set the
+   folder for the drawing under way (`plot._LOGS`, a ContextVar: a pipelined sweep's runs draw on threads of
+   their own); `heimdall plot FILE` has none and writes nothing. `heimdall clean` keeps `logs/plot/`
+   (`house.KEEP_NAMES`).
 
 The style is a stack of TOML layers over `src/Apps/Paint/base.toml` (V27), checked against it at
 plan time (`check_style`). Keys a backend cannot honour are errors, never silently dropped (v1's
@@ -857,6 +864,7 @@ records/<P>/<run>/<cfg>/
                         history/<n>/: an earlier attempt's logs and cards (the 9 newest; the 3 newest their full logs)
                         while it runs, and kept when it fails or with keep work: FIFOs, scratch files, shards, context.toml
   logs/pre/, post/, <combined group>/     the same, for the stages
+  logs/plot/            the plot stage's failures (V204): <set>.root.log (Paint), convert-<point>.log, merge-<cfg>.log
   config/       the run's snapshot (V158)
   cluster/<stamp>/                    heimdall cluster's submissions: *.sbatch, points.txt, jobs.toml, logs/
 .cache/<P>/plots/<run>/<cfg>/         the drawing's (V164): <cfg>.root (the sweep in one file) and merged.sha256,

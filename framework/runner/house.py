@@ -564,8 +564,9 @@ def _stage_dirs(planned) -> tuple[set[Path], set[Path]]:
     return outs, ress
 
 
-#: Folders of a configuration's that are no point's: the stages, the pages, the submissions (U30).
-KEEP_NAMES = {"plots", "pre", "post", "cluster", "compare"}
+#: Folders of a configuration's that are no point's: the stages, the pages, the submissions (U30), the plot stage's
+#: failures (logs/plot/, V204).
+KEEP_NAMES = {"plots", "pre", "post", "cluster", "compare", "plot"}
 
 
 def clean_targets(planned: list, everything: bool, records: bool = False) -> tuple[list[Path], list[Path]]:

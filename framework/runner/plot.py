@@ -22,6 +22,7 @@ docs/04_Config_Reference.md §11, docs/05_Commands_and_Tools.md §18. After the 
 
 from __future__ import annotations
 
+import contextvars
 import fnmatch
 import hashlib
 import html
@@ -39,8 +40,9 @@ import tomli_w
 from . import hepfiles, plugins, schema
 from .errors import HepError, did_you_mean
 from .labels import canonical, labels_of, lines_of, macros, root_text, tlatex  # noqa: F401 (tlatex et al. re-exported)
-from .paths import apps_dir, cache_root, hep_root, resolve, results_root
+from .paths import apps_dir, cache_root, hep_root, log_settings, resolve, results_root
 from .record import manifest_file, recorded_identity
+from .status import clean_text, digest
 from .tools import merge_files, run_folders, sha256_file
 from .sweep import (Listed, axes, check_set, chosen_points, group_key, group_labels, group_tag, label_of, set_cells,
                     set_entries, split_axes, tag_of)
@@ -314,6 +316,37 @@ def _sha(path: Path) -> str:
     return sha256_file(path)
 
 
+#: Where a drawing's failures are logged (V204): records/<run>/logs/plot/, set by draw() and measure() for the
+#: drawing under way (a ContextVar: a pipelined sweep's runs draw on threads of their own).
+_LOGS: contextvars.ContextVar = contextvars.ContextVar("plot_logs", default=None)
+
+
+def logs_of(plans) -> Path | None:
+    """A drawing's log folder: its configuration's records/<run>/logs/plot/ (None without one)."""
+    first = next(iter(plans or []), None)
+    folders = getattr(first, "folders", None)
+    return folders.logs / "plot" if folders is not None else None
+
+
+def failure_log(name: str, text: str, header: dict, append: bool = False) -> Path | None:
+    """A failed program's output, cleaned and digested (V204), as `name`.log in the drawing's log folder; None
+    when no drawing is under way (heimdall plot FILE)."""
+    folder = _LOGS.get()
+    if folder is None:
+        return None
+    lines = clean_text(text).rstrip("\n").split("\n")
+    numbered = list(enumerate(lines, 1))
+    settings = log_settings()
+    path = folder / (re.sub(r"[^A-Za-z0-9_.-]+", "_", name) + ".log")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    said = digest(numbered[:settings["head"]], numbered[-settings["tail"]:] if settings["tail"] else [],
+                  [(n, line) for n, line in numbered if re.search(r"\b(?:Error|ERROR|error)\b", line)][:500],
+                  0, len(lines), 0, header)
+    with open(path, "a" if append else "w", encoding="utf-8") as handle:
+        handle.write(said)
+    return path
+
+
 def convert(yoda: Path, target: Path) -> Path:
     """App_yd2rt --keep-raw, once per content: the stamp beside the target holds the YODA's sha256."""
     stamp = target.with_name(target.name + ".sha256")
@@ -326,7 +359,10 @@ def convert(yoda: Path, target: Path) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     done = subprocess.run([str(app), str(yoda), str(target), "--keep-raw"], capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0:
-        raise HepError(f"converting {yoda.name} failed: {done.stderr.strip()[-300:]}", where=str(yoda))
+        log = failure_log(f"convert-{yoda.stem}", done.stdout + done.stderr, {"tag": "App_yd2rt", "yoda": str(yoda),
+                                                                             "exit": done.returncode})
+        raise HepError(f"converting {yoda.name} failed: {done.stderr.strip()[-300:]}"
+                       + (f" (its output: {log})" if log else ""), where=str(log or yoda))
     stamp.write_text(digest + "\n", encoding="utf-8")
     return target
 
@@ -369,7 +405,10 @@ def merge(sources: dict[str, Path], target: Path, stamp: Path, points: Path | No
         argv += ["--points", str(points)]
     done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0:
-        raise HepError(f"merging the sweep failed: {done.stderr.strip()[-300:]}", where=str(target))
+        log = failure_log(f"merge-{target.stem}", done.stdout + done.stderr, {"tag": "App_yd2rt --merge",
+                                                                             "exit": done.returncode})
+        raise HepError(f"merging the sweep failed: {done.stderr.strip()[-300:]}" + (f" (its output: {log})" if log else ""),
+                       where=str(log or target))
     partial.replace(target)
     stamp.parent.mkdir(parents=True, exist_ok=True)
     stamp.write_text(digest, encoding="utf-8")
@@ -1454,21 +1493,31 @@ def _curve_label(run, plan, curve_groups, fill=lambda text: text) -> str:
     return ", ".join(own + labels) or run.name
 
 
-def _paint(paint: Path, configs: list[Path], mode: list[str] = ()) -> dict[str, tuple[bool, str]]:
-    """Paint on many pages, PAINT_BATCH per process (V64): each config's (ok, why)."""
+def _paint(paint: Path, configs: list[Path], mode: list[str] = (), sets: dict[str, str] | None = None
+           ) -> dict[str, tuple[bool, str]]:
+    """Paint on many pages, PAINT_BATCH per process (V64): each config's (ok, why). A batch with a failed page
+    leaves its output's digest in the drawing's log folder (V204), <set>.root.log for each set its pages are of
+    (`sets`: config → set), and a failed page's why names it."""
     outcomes: dict[str, tuple[bool, str]] = {}
-    for start in range(0, len(configs), PAINT_BATCH):
+    for number, start in enumerate(range(0, len(configs), PAINT_BATCH), 1):
         batch = [str(c) for c in configs[start:start + PAINT_BATCH]]
         done = subprocess.run([str(paint), *batch, *mode], capture_output=True, text=True, encoding="utf-8")
         if len(batch) == 1:
             outcomes[batch[0]] = (done.returncode == 0, _why(done) if done.returncode else "")
-            continue
-        for line in done.stdout.splitlines():
-            if line.startswith("{"):
-                entry = json.loads(line)
-                outcomes[entry["page"]] = (entry["ok"], entry["error"])
-        for config in batch:                                  # a crash leaves the rest without a line
-            outcomes.setdefault(config, (False, _why(done)))
+        else:
+            for line in done.stdout.splitlines():
+                if line.startswith("{"):
+                    entry = json.loads(line)
+                    outcomes[entry["page"]] = (entry["ok"], entry["error"])
+            for config in batch:                              # a crash leaves the rest without a line
+                outcomes.setdefault(config, (False, _why(done)))
+        failed = [c for c in batch if not outcomes[c][0]]
+        for set_ in dict.fromkeys((sets or {}).get(c, "") or "pages" for c in failed):
+            log = failure_log(f"{set_}.root", done.stdout + done.stderr,
+                              {"tag": "Paint", "batch": number, "pages": len(batch), "exit": done.returncode}, append=True)
+            for config in (c for c in failed if ((sets or {}).get(c, "") or "pages") == set_ and log is not None):
+                ok, why = outcomes[config]
+                outcomes[config] = (ok, f"{why} (Paint's output: {log})")
     return outcomes
 
 
@@ -1528,7 +1577,15 @@ def draw(run, configuration, plans, say, others=None, stats=True) -> int:
     """The plot stage: Paint on every page, then any other backend on the same pages. Returns the
     number of pages that failed, summed over the backends. Then each compare figure that names this
     configuration (V83), once all of its configurations have complete points: `others(key)` gives
-    another configuration's plans."""
+    another configuration's plans. A failed program's output is logged in records/<run>/logs/plot/ (V204)."""
+    token = _LOGS.set(logs_of(plans))
+    try:
+        return _draw_stage(run, configuration, plans, say, others, stats)
+    finally:
+        _LOGS.reset(token)
+
+
+def _draw_stage(run, configuration, plans, say, others=None, stats=True) -> int:
     if not run.plot:
         return 0
     paint = apps_dir() / "Paint.exe"
@@ -1802,6 +1859,15 @@ def measured(run, picked=None):
 
 
 def measure(run, configuration, plans, say, picked=None) -> int:
+    """`heimdall stats`'s pass (V168), its failures logged as a drawing's (V204): see _measure."""
+    token = _LOGS.set(logs_of(plans) or _LOGS.get())
+    try:
+        return _measure(run, configuration, plans, say, picked)
+    finally:
+        _LOGS.reset(token)
+
+
+def _measure(run, configuration, plans, say, picked=None) -> int:
     """The statistics alone (V168): the pages [plot] defines (as `measured` reads them), their documents in the
     working folder's stats/, read by Paint --ranges-only (numbers, no images); each set's statistics/<set>/,
     its bar graphs, and the statistic figures' pages. The pages Paint could not read."""
@@ -1867,7 +1933,7 @@ def _draw(run, paint: Path, todo: list[Page], title: str, say, table: bool = Tru
         for name in names:
             _clear(root / name)
     _with_statistics(paint, todo)                            # V160: a legend's numbers, before any backend draws
-    outcomes = _paint(paint, [p.config for p in todo], mode)
+    outcomes = _paint(paint, [p.config for p in todo], mode, sets={str(p.config): p.set for p in todo})
     for page in todo:
         ok, why = outcomes[str(page.config)]
         if not ok:

@@ -1,6 +1,6 @@
 # Plan: run logging (I-106), steps L0–L6
 
-Approved 2026-10-26. Issue [I-106](ISSUES.md); audit [run_logging_audit.md](run_logging_audit.md). This file is the
+Approved 2026-10-26; done the same day. Issue I-106 (deleted from ISSUES.md when done: its history is V195 and V200–V204 in docs/07_Record.md and their commits); audit [run_logging_audit.md](run_logging_audit.md). This file is the
 execution map: each step's row is ticked when it is committed.
 
 ## Execution map
@@ -12,8 +12,9 @@ execution map: each step's row is ticked when it is committed.
 | L2 attempts, causes, run constants | done | `61e53ed`, branch `logging` | V200 | F (1036 passed; the pre-existing stack-build failure); S (41 passed, the 5 known failures; the generators test's verdict text updated, then passing); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
 | L3 digests and history | done | `0d47106`, branch `logging` | V201 | F (1044 passed; the pre-existing stack-build failure; `test_paths`' work_meta shape updated); S (42 passed, the 5 known failures; two tests that pinned "only a failed tool's log" updated to the digest); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
 | L4 the run's own log | done | `9bd4791`, branch `logging` | V202 | F (1050 passed; the pre-existing stack-build failure); S (42 passed, the 5 known failures); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
-| L5 new kinds in filters.toml | done | (this commit; hash in the next), branch `logging` | V203 | F (1057 passed; the pre-existing stack-build failure); S (42 passed, the 5 known failures); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
-| L6 the plot stage | to do | | | F, S |
+| L5 new kinds in filters.toml | done | `2dc9f00`, branch `logging` | V203 | F (1057 passed; the pre-existing stack-build failure); S (42 passed, the 5 known failures); guard: 315 points of 35 configurations unchanged; B: counts unchanged |
+| L6 the plot stage | done | the commit after `2dc9f00` ("Run logging L6"), branch `logging`, main fast-forwarded to it | V204 | F (1063 passed; the pre-existing stack-build failure); S (42 passed, the 5 known failures) |
+| Verification | done | — | — | the last working note |
 
 **Working notes**
 - 2026-10-26: a `generator_pdf` run (pid 1265398) is using the main checkout, so the steps are built in a git
@@ -39,8 +40,21 @@ execution map: each step's row is ticked when it is committed.
   string (planning refused it), Pythia's `reason` rule no longer matches its statistics' heading, `[diagnose]`
   remaps outputs inside joined arguments (`a+b,c`). App_Pythia rerun with `Print:quiet = off` says nothing more
   (PythiaParallel keeps its instances' messages, and quiet's flags stay off), so `[diagnose]` gained `program`:
-  Pythia's `diagnose.py` reads the cards into one plain Pythia (its Python module), which says why. L6 remains a
-  draft.
+  Pythia's `diagnose.py` reads the cards into one plain Pythia (its Python module), which says why.
+- 2026-10-26, L6: applied from `l6_patch.py` with the imports it lacked (`contextvars`, `status.clean_text`
+  and `digest`, `paths.log_settings`); `heimdall clean` keeps `logs/plot/` (`house.KEEP_NAMES`); its test is
+  `tests/runner/test_plot_logs.py`.
+- **The end (2026-10-26).** A scratch work dir (the fixture's copy, in the session's scratchpad, every root
+  there) with one config of three exec points (a warning, an exit 2, a 3 s stall): the run said "1 done (1
+  with warnings), 2 failed" with both causes; `heimdall status` named them ("say failed (exit code 2)", "say
+  stalled (silent 3 s)"); `heimdall log` printed the run, a point's attempts and digests, `--attempt`,
+  `--full`, and refused attempt 1 naming the kept ones; `heimdall watch --file run.jsonl` replayed the last
+  run; `heimdall runs` gave the counts. After 12 runs with `--logs`, each failed point's `history/` held
+  attempts 3–11 with their digests and cards, 9–11 with their full logs; `grep -rlP
+  '[\x00-\x08\x0b-\x1f\x7f]|\x1b'` over the record found no file. Brookhaven, read-only: the identity
+  guard matched its baseline from before L1 (315 points of 35 configurations), and `heimdall status`'s counts
+  matched main's before L2 (the file of the morning differs only by Brookhaven's own commits of 10:22 and the
+  zeus run's end). I-106 is deleted from ISSUES.md; V195 and V200–V204 are in docs/07_Record.md.
 
 ## Context
 

@@ -60,7 +60,9 @@ run TOML has no `[plot]` draws nothing; `--plot FILE` draws with another file's.
    - the mapped data;
    - what the style layers change.
 3. **Draw**: Paint on every page, then any other backend on the same documents (§9). A failed page
-   is counted, and the run exits 1, but the others are drawn.
+   is counted, and the run exits 1, but the others are drawn. What Paint said is kept in the record's
+   `logs/plot/<set>.root.log` (a failed conversion's in `convert-<point>.log`), and the failure names
+   the file.
 
 The pages go to `results/…/plots/<set>/<backend>/[<cell>/]<object>.<fmt>`. With no `sets`, the set is
 `totality`, the `plot_points` cells. Each set and backend has an `index.html` (a section per cell, each page

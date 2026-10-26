@@ -227,6 +227,28 @@ def _shade(fraction: float, low=LIGHT, high=DARK) -> tuple:
     return tuple(a + (b - a) * f for a, b in zip(low, high))
 
 
+#: How a table's cells are shaded, by its rule, as its subtitle says.
+SHADING = {"log": "darker is larger, log scale", "linear": "darker is larger",
+           "column": "darker is larger within each column; mean unshaded",
+           "ratio": "blue above 1, orange below, darker further from 1 (log scale: 2 and 0.5 alike)"}
+
+
+def _scale(rule: str, found: list[float]):
+    """How dark a number's cell is, 0 to 1, among the numbers `found`, by a table's rule ("column" as "linear":
+    each column is the caller's)."""
+    low, high = min(found), max(found)
+    spread = max([abs(math.log10(v)) for v in found if v > 0] + [0.0]) if rule == "ratio" else 0.0
+
+    def fraction(value: float) -> float:
+        if rule == "ratio":
+            return 0.0 if not spread or value <= 0 else abs(math.log10(value)) / spread
+        if rule == "log":
+            lo, hi = math.log10(max(low, 1e-3)), math.log10(max(high, 1e-3))
+            return 0.0 if hi == lo else (math.log10(max(value, 1e-3)) - lo) / (hi - lo)
+        return 0.0 if high == low else (value - low) / (high - low)
+    return fraction
+
+
 def _mean(values: list[float], rule: str) -> float | None:
     """A row's or a point's mean: geometric for a ratio (its values above 0), else plain."""
     if rule == "ratio":
@@ -325,6 +347,62 @@ def _ranking(rows: list[dict], key: str, notes: dict):
                          notes=(f"ranking-{key}", f"stat-{key}", "compared"))
 
 
+CROSSED_NOTE = ("Page cells against curves: each entry a point's {mean} mean over the pages where it was compared "
+                "(its ranking's number), its page cell one way and its curve the other; mean: the {mean} mean of the "
+                "row's, the column's, or all the entries; bold: the best in its row, closest to agreement; –: no "
+                "such point, or no number.")
+
+
+def _crossed(rows: list[dict], key: str, notes: dict):
+    """A statistic's page cells against its curves (V198): each entry that point's mean over its pages (as its
+    ranking's), the longer list down the rows, a mean column and a mean row, each row's best bold. None for the
+    area (its units are each object's), with one cell, when no curve is in two cells, or when a cell repeats a
+    label."""
+    title, rule = next((t, r) for k, t, r in TABLES if k == key)
+    rows = _rows_of(rows)
+    parts, means = _parts(rows), _means(rows, key)
+    cells = list(dict.fromkeys(c for c, _ in parts.values()))
+    curves = list(dict.fromkeys(v for _, v in parts.values()))
+    if key == "area" or len(cells) < 2 or len(curves) < 2 or not all(cells) or len(set(parts.values())) < len(parts):
+        return None
+    if not any(sum(1 for _, v in parts.values() if v == curve) > 1 for curve in curves):
+        return None                                     # no curve in two cells: nothing crosses
+    grid = {parts[p]: means[p][0] for p in parts if p in means and means[p][0] is not None}
+    found = [v for v in grid.values() if rule != "ratio" or v > 0]
+    if not found:
+        return None
+    down, across = (cells, curves) if len(cells) >= len(curves) else (curves, cells)
+
+    def entry(r, c):
+        return grid.get((r, c) if down is cells else (c, r))
+    row_means = {r: _mean([v for c in across if (v := entry(r, c)) is not None], rule) for r in down}
+    column_means = {c: _mean([v for r in down if (v := entry(r, c)) is not None], rule) for c in across}
+    overall = _mean(found, rule)
+    scale = _scale(rule, [v for v in found + list(row_means.values()) + list(column_means.values())
+                          if v is not None and (rule != "ratio" or v > 0)])
+
+    def cell(value, bold=False):
+        if value is None:
+            return ("–", SURFACE, MUTED, False)
+        f = scale(value)
+        pole = (NEUTRAL, DARK if value >= 1 else WARM) if rule == "ratio" else (LIGHT, DARK)
+        return (_shown(value), _shade(f, *pole), "white" if f > 0.55 else INK, bold)
+    styled = []
+    for r in down:
+        values = [entry(r, c) for c in across]
+        near = [d for v in values if (d := _distance(key, v)) is not None]
+        best = min(near) if near else None
+        styled.append([cell(v, best is not None and _distance(key, v) == best) for v in values] + [cell(row_means[r])])
+    styled.append([cell(column_means[c]) for c in across] + [cell(overall)])
+    mean = GEOMETRIC if rule == "ratio" else "plain"
+    notes[f"crossed-{mean}"] = CROSSED_NOTE.format(mean=mean)
+    notes[f"stat-{key}"], notes["compared"] = NOTES[key], COMPARED
+    way = "page cells against curves" if down is cells else "curves against page cells"
+    return _table(f"{key}-crossed", f"{title}: {way}\n{SHADING[rule]}; bold: the best in its row", list(down) + ["mean"],
+                  list(across) + ["mean"], styled, (f"crossed-{mean}", f"stat-{key}", "compared"), tail=1,
+                  bold=frozenset({len(down)}))
+
+
 def _natural(objects) -> list[str]:
     """Objects in natural order: d2 before d10."""
     import re
@@ -356,20 +434,14 @@ def _tables(rows: list[dict], notes: dict) -> dict:
             found = [v for v in found if v > 0]
         if not found:
             continue
-        low, high = min(found), max(found)
-        spread = max(abs(math.log10(v)) for v in found) if rule == "ratio" else 0.0
+        scale = _scale(rule, found)
 
         def fraction(value, obj):
-            if rule == "ratio":
-                return 0.0 if not spread or value <= 0 else abs(math.log10(value)) / spread
-            if rule == "log":
-                lo, hi = math.log10(max(low, 1e-3)), math.log10(max(high, 1e-3))
-                return 0.0 if hi == lo else (math.log10(max(value, 1e-3)) - lo) / (hi - lo)
             if rule == "column" and obj is not None:
                 column = [v for p in points if (v := number(p, obj)) is not None]
                 lo, hi = min(column), max(column)
                 return 0.0 if hi == lo else (value - lo) / (hi - lo)
-            return 0.0 if high == low else (value - low) / (high - low)
+            return scale(value)
 
         styled = []
         for point in points:
@@ -388,9 +460,7 @@ def _tables(rows: list[dict], notes: dict) -> dict:
                     row.append((_shown(value), _shade(f, *pole) if shaded else SURFACE,
                                 "white" if shaded and f > 0.55 else INK))
             styled.append(row)
-        shading = {"log": "darker is larger, log scale", "linear": "darker is larger",
-                   "column": "darker is larger within each column; mean unshaded",
-                   "ratio": "blue above 1, orange below, darker further from 1 (log scale: 2 and 0.5 alike)"}[rule]
+        shading = SHADING[rule]
         against = "" if key == "area" else (f" against {', '.join(_label(r) for r in references)}"
                                             if len(references) <= 2 else " against each page's reference")
         mean = GEOMETRIC if rule == "ratio" else "plain"
@@ -702,12 +772,14 @@ def _facts(rows: list[dict]) -> list[str]:
 
 def summary_model(rows: list[dict], heading: str = ""):
     """The summary as a document (V196): its facts and notes up front (V197), the standings (V176, V177), then a
-    section a statistic, its ranking (but the area's) and its table (V174)."""
+    section a statistic, its ranking (but the area's), its page cells against its curves (V198) and its table
+    (V174)."""
     notes: dict = {}
     sections = _standings(rows, notes)
     tables = _tables(rows, notes)
     for key, _, _ in TABLES:
-        items = [r for r in [_ranking(rows, key, notes) if key != "area" else None] if r is not None]
+        items = [r for r in [_ranking(rows, key, notes) if key != "area" else None, _crossed(rows, key, notes)]
+                 if r is not None]
         if key in tables:
             items.append(tables[key])
         if items:

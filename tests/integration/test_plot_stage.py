@@ -853,7 +853,8 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     sorted bars (not the area's), then its table: a row per point, a column per object in natural order, then the
     mean; the reference "ref"; each item names its notes, what its numbers are. A table wider than the page is cut
     into column blocks stacked on its page, the mean on the last. V197: the top five a table a scoreboard; a table
-    in curve order groups its rows under their cells' bands; the facts, contents and notes up front."""
+    in curve order groups its rows under their cells' bands; the facts, contents and notes up front. V198: each
+    statistic's page cells against its curves."""
     import re
     from runner import plugins
     run, configuration, plans = stage
@@ -875,7 +876,10 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     sections = {s.key: s for s in document.sections}
     assert list(sections) == ["top5", "scoreboard", "scoreboard-cells", "head-to-head", "scoreboards", *keys]
     items = {item.key: item for s in document.sections for item in s.items}
-    assert [i.key for i in sections["chi2_ndf"].items] == ["chi2_ndf-ranking", "chi2_ndf"]
+    assert [i.key for i in sections["chi2_ndf"].items] == ["chi2_ndf-ranking", "chi2_ndf-crossed", "chi2_ndf"]
+    crossed = items["chi2_ndf-crossed"]                                         # V198: page cells against curves
+    assert crossed.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "mean"] and [r.label for r in crossed.rows] == [
+        "em", "ep", "mean"]
     assert [i.key for i in sections["area"].items] == ["area"]                  # each object its own units: no mean
 
     def notes(item):

@@ -427,6 +427,10 @@ area:
   pages in brackets. The two ratios take the geometric mean (2 and 0.5 average to 1), rank closest to 1
   first, and their bars grow from 1, blue above and orange below. The area has no ranking: each object has
   its own units, so a mean across objects says nothing.
+- **page cells against curves** (but the area's): each point's mean, as its ranking's, its page cell one way
+  and its curve the other, the longer list down the rows (19 PDFs × the four QED shower and lepton PDF
+  settings; the PDFs × py8 and sh3), with a mean column and a mean row and each row's best in bold; `–` where
+  a cell has no such curve. Left out with one page cell, or when no curve is in two cells.
 - **a table:** a row per point, a column per object (d2 before d10), each cell that point's number on that
   object's page, then the row's mean (geometric for the ratios). The reference curve's cell
 says `ref` (it is compared with nothing; the area table shows its area), a missing number `–`. Cells are

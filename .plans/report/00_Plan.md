@@ -177,6 +177,135 @@ They stay as they are. The report reads their outputs, or calls their code to ma
 - **Q5 Refactoring** (the user's word): plot and stats backends may be reorganised where the report shares their
   code; the commands and their outputs stay as they are.
 
+### 1.6 Amended after P3: the run's `report.toml` (2026-10-26)
+
+**The user's words:** "Let the default report whatever sets are in plot. How about run also creates report.toml
+in results. And `heimdall report <P>/<Name>/<Run>` uses that toml, so there are these modes of entry:
+`heimdall report <P>/<Name>/<Run>`, `heimdall report <config>.toml <P>/<Name>/<Run>`. And in run config
+`[report].template = <P|empty>/<conf>.toml` so multiple live configs can share one reference report toml, which
+along with live config options make report.toml." (`<P>/<Name>/<Run>` is a result folder's address,
+`<P>/<run>/<NN_cfg>`: `eic/zeus_validation/02_generator_pdf`.)
+
+**Scrutinised.**
+- **It answers why §1.3 left `[report]` out of the run TOML.** That table was to *make* reports from a run;
+  here the run TOML only says what its own folders' reports look like. The report still reads result folders,
+  still spans runs (a section's `from`, or sources on the command line), and is still not a stage: a run
+  writes a small TOML, never a report.
+- **It makes the common case need no arguments:** after a run, `heimdall report <its folder>` gives the report
+  its config asked for. A shared template keeps several configs' reports alike.
+- **The cost is a copy that can drift,** the pattern I-40 wants out of `plot.toml`: an edited template reaches
+  `report.toml` only when the run next writes it. So no "differs" notes and no sync flags here (what I-40
+  objects to): `report.toml` is rewritten from the config every time the run writes `plot.toml`, its header
+  says so, and `heimdall report <run config>.toml <folder>` gives the live config's report at any time.
+- **`<config>.toml` may be either kind of file,** at no extra cost: a recipe (`[report]`, no `[run]`) is used
+  as it is; a run TOML gives its `[report]` with its template, for the source's configuration, as the run would
+  write it today.
+- **Kept from P2–P3:** sources by address, run, path or glob; several sources; `--list`, `--init`; the build.
+
+**Decided** (the user's word, and these readings of it; each is easy to turn back):
+- **A1 The default** (the user's word): the statistics' headline, then every set in the document's
+  `[plot].draw`. The hint at 40 pages goes.
+- **A2 The run writes `report.toml`** beside each configuration's `plot.toml`
+  (`results/<P>/<run>/<NN_cfg>/report.toml`), wherever `plot.toml` is written: a run's plot stage, every run
+  (with `--no-plot` too), and where `heimdall plot` or `heimdall migrate --plot-docs` writes a missing one.
+  - **What it holds:** the recipe resolved: the template, the run TOML's `[report]` over it, the defaults
+    filled in. It has no `from`: its folder is its source.
+  - **With no `[report]` in the run TOML:** the default (A1) written out: a Standings section on the first
+    measured set, a pages section for each set in `[plot].draw`.
+  - **Rewritten each time** from the config, never merged with edits. Its header says so, and where it came
+    from. To change it, change the config or its template, or copy it into `configs/` as a recipe.
+- **A3 `[report]` in a run TOML** (the user's): `template`, `title`, `subtitle`, `[[report.section]]`s.
+  - **`template`** is a recipe, named as `[config].import` names a file: `weekly` is this project's
+    `configs/<P>/weekly.toml`, `eic/weekly` another project's, `./…` the work dir's; `.toml` optional.
+  - **The merge:** the run TOML's keys over the template's; its sections after the template's.
+  - **`from` is refused there:** each folder is its report's source. A section's own `from` stays.
+  - **Imports** merge `[report]` as any table. **`heimdall check`** checks it, and its template's keys.
+  - **`{project}`, `{run}`, `{configuration}`, `{title}`** (the configuration's title, else its name) in a title
+    or subtitle are filled in when `report.toml` is written, so one template titles each configuration's
+    report. *(New, small; drop it if unwanted.)*
+- **A4 One table shape everywhere:** a recipe file is `[report]` with `[[report.section]]`s (P2 had
+  `[[section]]`): the same table as a run TOML's and as `report.toml`. A recipe file may name a `template` too
+  (followed; a circle is refused).
+- **A5 Entry modes:**
+  1. `heimdall report <P>/<run>/<NN_cfg>`: its `report.toml`; a folder drawn before this has none and gets
+     the default.
+  2. `heimdall report <file>.toml <P>/<run>/<NN_cfg> […]`: that recipe, or that run TOML's `[report]`, over
+     those sources. The folder's `report.toml` is not rewritten.
+  3. `heimdall report <file>.toml`: a recipe over its own `from`.
+  4. Several sources, `<P>/<run>` or a glob, with no `.toml`: the default over them all.
+
+  A recipe is always named with `.toml` (`<P>/<name>.toml` under `configs/`, or a path), so the first argument
+  is never ambiguous. P2's bare `<P>/<name>` goes.
+- **A6 Where it is built** (the user's word, §1.7): `reports/` mirrors `results/`, unless told otherwise.
+
+**Phases:** P4 (V209) is this, before drawing for itself (P6).
+
+### 1.7 Amended again: reports mirror results; the tools' configurations (2026-10-26)
+
+**The user's words:** "Report follows dir structure similar/same as results (when implicit, otherwise explicit
+overrides) but with contents being reports. Let reports also have pages dedicated to configs given to tools.
+Baseline options and varied options (for reported points). Options to decide which tools configs are shown in
+reports."
+
+**What the records hold** (Brookhaven's `records/eic/zeus_validation/02_generator_pdf/logs/<point>/`, read):
+- A finished point keeps `cards/`, `context.toml` and `commands.sh` (`execute._tidy`).
+- **`cards/`:** each tool's combined card as it read it, e.g. `pythia.cmnd` (the base card's lines, then the
+  point's), `pythia.point.cmnd` (the point's own) and `sherpa.yaml`.
+- **`context.toml`:** for each tool (`[tools.<tag>]`), its `card`, the `card_parts` it was made from, and its other
+  options, e.g. Rivet's `analyses`.
+- So a tool's **baseline** (what every reported point was given alike) and its **varied** options (what differs
+  point by point) come from the cards alone, with no tool named in the core. Those cards are as the points
+  read them, not today's `configs/`.
+- (`context.toml`'s header says it is removed when the point ends; it is kept. The header is fixed with this.)
+
+**Decided** (the user's word, and these readings of it):
+- **A6 (revised) Where a report is built: `reports/` mirrors `results/`.**
+  - **Implicitly, its sources' address:**
+    - a configuration's report is in `reports/<P>/<run>/<NN_cfg>/`;
+    - a run's (`heimdall report <P>/<run>`) is in `reports/<P>/<run>/`;
+    - sources of several runs give their common address (`reports/<P>/`).
+  - **The folders nest as in `results/`:** a run's report and its configurations' reports sit together, since
+    a report touches only its own `figures/`, `stats/`, `tools/`, `report.*`, `index.html` and `.stamps.json`.
+  - **Explicitly, overriding that:** `-o DIR`, or a recipe's `[report].output` (a folder under `reports/`, or a
+    path). `output` is refused in a run TOML's `[report]`, where every configuration would share it.
+  - **No common project** (sources of two projects) and nothing explicit: refused, asking for `-o` or
+    `output`.
+  - This replaces Q2's `reports/<P>/<name>/` and its run-name clash check.
+- **A7 The tools' configurations: a section item, `tools`.**
+
+  ```toml
+  [[report.section]]
+  title = "What the generators were given"
+  tools = ["pythia", "sherpa"]       # tool tags ([tools.<tag>]), globs; "*" every tool
+  hide  = ["Random:seed*", "RANDOM_SEED*"]   # varied lines left out, by glob (optional)
+  ```
+
+  - **For each source and each tool chosen, over the source's complete points:**
+    - **the baseline:** the card's lines that every one of those points has alike, in the card's order (comments
+      included where alike), shown as the card is written (monospace, long lines wrapped). The tool's other
+      options (`analyses`, …) are listed too.
+    - **the varied options:** each point's lines that are not in the baseline, comments left out.
+      - **As a table** (a row per point, labelled as its curve is; a column per key) when they are all
+        `key = value` or `key: value` lines.
+      - **Else** as a list per point.
+      - Columns beyond what fits are carried on in a further table, the point column repeated.
+  - **Points with no record** (results copied without their `records/`) are named as such, not guessed.
+- **A8 Choosing the tools** (the user's "options to decide"):
+  - in a section, its `tools` list;
+  - for the default report and for a run TOML's or template's `[report]`, the key **`[report].tools`**:
+    - leaving it out takes every tool given a card or options;
+    - `tools = []` shows none.
+  - **The default report** (A1) ends with a "Tools" section of `[report].tools`, so `report.toml` lists them
+    and you can edit them there.
+- **A9 In the report's folder** (N5's rule: everything it shows, it holds):
+  - `tools/<NN>_<section>/<source>/<tag>.baseline.<ext>`: the baseline as a card;
+  - `<tag>.varied.csv`: the varied options.
+
+  `report.tex` shows the baseline from that file (`\lstinputlisting`, `listings` in TeX Live's recommended set)
+  and the table inline (`longtable`), as text you can copy. `index.html` shows them as text too.
+
+**Phases:** P5 (V210) is this. Drawing for itself becomes P6 (V211), deck's retirement P7 (V212).
+
 ---
 
 ## 2. The plan
@@ -187,8 +316,10 @@ They stay as they are. The report reads their outputs, or calls their code to ma
 | **P1** Plot and stats made modular | the shared pieces the report needs, every command's output unchanged (gate P) | V206 | **pause for compaction**: the refactor proven, before the new feature |
 | **P2** Sources and recipes | sources, recipes, the schema, `--list`, `--init`, `check` / `ls` / `explain` | V207 | straight on |
 | **P3** The build | `figures/` (copied), `stats/` (from `statistics.csv`), `report.tex`, `report.pdf`, `index.html`, on real results | V208 | **pause for compaction**: the report works end to end |
-| **P4** Drawn for itself | N3 and N8: a source's document drawn or measured into the report's folders, a section's `plot = {…}`, bar images by `bars.page` | V209 | straight on |
-| **P5** deck retired | deck's code, tests, folders and docs gone; the fast suite | V210 | **pause**: done, main fast-forwarded if built in a worktree |
+| **P4** The run's `report.toml` (§1.6, §1.7) | A1–A6: the default by `[plot].draw`; `[report]` in a run TOML with `template`; `report.toml` written beside `plot.toml`; one recipe shape; the entry modes; `reports/` mirroring `results/` | V209 | straight on |
+| **P5** The tools' configurations (§1.7) | A7–A9: a `tools` section, baseline and varied options from the points' records, `[report].tools`, the default's Tools section | V210 | **pause for compaction**: the run's reports and their tools' pages, seen on real records |
+| **P6** Drawn for itself | N3 and N8: a source's document drawn or measured into the report's folders, a section's `plot = {…}` | V211 | straight on |
+| **P7** deck retired | deck's code, tests, folders and docs gone; the slow and fast suites | V212 | **pause**: done, main fast-forwarded |
 
 ### P1 Plot and stats made modular (V206)
 
@@ -323,7 +454,15 @@ bytes, the same messages.
 - **Docs:** 03 §11 becomes "Reports"; 06 (layout, ranks); 07 V208.
 - **On real results, read-only,** before the pause (see Verification).
 
-### P4 Drawn for itself (V209)
+### P4 The run's `report.toml` (V209)
+
+What §1.6 and §1.7 decided (A1–A6). The tasks and checks are in [P4_Run_recipe.md](P4_Run_recipe.md).
+
+### P5 The tools' configurations (V210)
+
+What §1.7 decided (A7–A9). The tasks and checks are in [P5_Tools.md](P5_Tools.md).
+
+### P6 Drawn for itself (V211)
 
 - **Loaded for the report.** The source's document is loaded with
   `plotdoc.load(path, folders=RunFolders(…))` (P1). Its pages, numbers, working files and failure logs go to
@@ -332,15 +471,15 @@ bytes, the same messages.
 - **Drawing:** `plot.draw` for missing pages and for sections with `plot`; `plot.measure` for numbers no
   `statistics.csv` holds. The results are then copied into `figures/` and `stats/` as in P3. A failure names
   its log (V204's `logs/plot/`, under that folder).
-- **Bar images:** `bars.page(rows, stats/bars/<source>/<page>, ["pdf", "png"], title)`.
+- **Bar images:** built at P3 from `statistics.csv`; here only from numbers measured for the report.
 - **Tests:** `tests/integration/test_report_draw.py`, run on a fixture run's result folder:
   - a page drawn for the report with `plot = { normalise = "area" }`;
   - a set no run drew;
   - numbers measured when there is no `statistics.csv`;
   - the source's `results/` and `records/` byte for byte unchanged (a tree hash before and after).
-- **Docs:** 03 §11 (what is drawn for a report, and where), 07 V209.
+- **Docs:** 03 §11 (what is drawn for a report, and where), 07 V211.
 
-### P5 `heimdall deck` retired (V210)
+### P7 `heimdall deck` retired (V212)
 
 - **Removed:**
   - `deck.py`, `schema/deck.toml`, `schema.DECK_TABLES`;
@@ -370,7 +509,7 @@ bytes, the same messages.
 
 - **Pace:** each phase is built, then tested (light, one session), then committed by named paths with its
   V-row. Its phase file's log and `00_Plan.md`'s map are written at each commit, so a compaction loses
-  nothing. Compaction pauses only where the table says: after P1, P3 and P5.
+  nothing. Compaction pauses only where the table says: after P1, P3, P5 and P7.
 - **Before P1:** `heimdall runs`. If a live run uses main's checkout, the work is built in a worktree, since
   P1 changes code a running plot stage loads.
 - **On real results, read-only (P3):** with `HEP_REPORTS` set to the scratchpad, build:
@@ -384,7 +523,7 @@ bytes, the same messages.
   - every figure shown is in `figures/`, and `report.tex` compiles from a copy of the folder;
   - the time taken.
 
-  At P4, again with `HEP_CACHE` in the scratchpad too: a section with `plot = { normalise = "area" }` drawn
+  At P6, again with `HEP_CACHE` in the scratchpad too: a section with `plot = { normalise = "area" }` drawn
   for the report. Brookhaven's `results/` and `records/` get a tree hash before and after, which must be
   equal.
 
@@ -392,21 +531,25 @@ bytes, the same messages.
 - **Gates:**
   - `test_docs` at each phase;
   - gate P and the slow suite at P1;
-  - the slow suite again at P4 (the new integration test);
-  - the fast suite at P5.
+  - the slow suite at P7 (P6's integration test, and P4's change to the plot stage);
+  - the fast suite at P7.
 
 ---
 
 ## 3. Execution map
 
 Built in the worktree `scratchpad/heimdall-report`, branch `report` (from main at `9028970`); main is
-fast-forwarded at P5. Each row is ticked at its commit.
+fast-forwarded at P7. Each row is ticked at its commit.
 
 | Phase | V-row | Commit | State |
 |---|---|---|---|
 | P0 Paperwork | — | f9c2076 | done |
 | P1 Plot and stats made modular | V206 | 1e9ffe6 | done: gate P same; paused for compaction |
 | P2 Sources and recipes | V207 | 304d3f8 | done |
-| P3 The build | V208 | (this commit) | done: on Brookhaven's results; paused for compaction |
-| P4 Drawn for itself | V209 | | |
-| P5 deck retired | V210 | | |
+| P3 The build | V208 | 45a285c | done: on Brookhaven's results; paused for compaction |
+| (plan amended, §1.6) | — | | the run's report.toml, entry modes: P4 inserted |
+| (plan amended, §1.7) | — | | reports mirror results; the tools' configurations: P5 inserted |
+| P4 The run's report.toml | V209 | | |
+| P5 The tools' configurations | V210 | | |
+| P6 Drawn for itself | V211 | | |
+| P7 deck retired | V212 | | |

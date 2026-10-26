@@ -1,6 +1,6 @@
-# P4: drawn for itself (V209)
+# P6: drawn for itself (V211)
 
-[00_Plan.md](00_Plan.md) §2 P4, N3, N4, N8. A report no longer needs what plot and stats left on disk.
+[00_Plan.md](00_Plan.md) §2 P6, N3, N4, N8. A report no longer needs what plot and stats left on disk.
 
 ## Tasks
 

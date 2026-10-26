@@ -318,12 +318,14 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 
 ### I-108 `heimdall report` replaces `heimdall deck`
 **P2 · feature · in progress (approved 2026-10-26)**
-- The audit, the decisions and the plan are [report/00_Plan.md](report/00_Plan.md); its phases are P1–P5
-  there, each with its own file and log.
+- The audit, the decisions and the plan are [report/00_Plan.md](report/00_Plan.md); its phases are P1–P7
+  there, each with its own file and log (amended after P3: §1.6, the run writes `report.toml`; §1.7, reports
+  mirror `results/` and show what each tool was given).
 - **Its scope:** quick, informal reports of plots and statistics (one or more runs, across projects) for
   colleagues or a supervisor, run only on `heimdall report`. Recipes are `configs/<P>/<name>.toml` with
-  `[report]`, and reports are built into `reports/<P>/<name>/`. Formal presentation is not Heimdall's.
-- It supersedes I-105's deck `template` key and I-78 (both go with deck in P5).
+  `[report]`; a run TOML's `[report]` (a `template` and its own keys) is written into each result folder as
+  `report.toml`. Formal presentation is not Heimdall's.
+- It supersedes I-105's deck `template` key and I-78 (both go with deck in P7).
 
 ### I-40 `[plot]` lives in the config; the record keeps facts
 **P1 · design · decision (D2)**

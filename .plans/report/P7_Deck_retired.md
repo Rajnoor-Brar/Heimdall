@@ -1,6 +1,6 @@
-# P5: `heimdall deck` retired (V210)
+# P7: `heimdall deck` retired (V212)
 
-[00_Plan.md](00_Plan.md) §2 P5, X3, X9. The report replaces the deck. **Pause after this phase: the plan is
+[00_Plan.md](00_Plan.md) §2 P7, X3, X9. The report replaces the deck. **Pause after this phase: the plan is
 done.**
 
 ## Tasks
@@ -17,14 +17,14 @@ done.**
 - **Tests:** `tests/runner/test_deck.py` and `test_deck_build.py` deleted.
 - **Docs:**
   - 00, 01, 02, 03 §11, 04 §15 (regenerated), 05 §1.8, 06;
-  - `docs/reporter/00_Plan.md` headed "superseded by `heimdall report` (V206–V210)";
+  - `docs/reporter/00_Plan.md` headed "superseded by `heimdall report` (V206–V212)";
   - `heimdall make --framework docs schema`;
-  - 07 V210.
+  - 07 V212.
 - **`.plans/ISSUES.md`:**
   - I-78 deleted;
   - I-105's deck-template line dropped;
   - I-44: the viewer is the report's;
-  - I-108 deleted, its history V206–V210.
+  - I-108 deleted, its history V206–V212.
 - **CLAUDE.md:** the docs row (`reporter/` as history), the `.plans/` row.
 - **Not touched:**
   - `recipes/base.toml`'s `decks` group (a base change marks the stack, I-62);

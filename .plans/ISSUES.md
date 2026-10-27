@@ -154,6 +154,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-103 | Physics set-ups to settle | P3 | decision |
 | I-104 | A tool's private dependencies (BeAGLE) | P3 | idea (set aside) |
 | I-105 | Smaller leftovers | P3 | idea |
+| I-111 | A report's context first: what was run, how the numbers are made | P2 | in progress (asked 2026-10-27) |
 
 ---
 
@@ -363,6 +364,11 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 **P3 · idea (audit 2 H15)**
 - Heat maps are Paint's only (no mpl). A scan's x must be numeric (no PDF-set scans). A sheet has no
   shared y title or legend.
+
+### I-111 A report's context first: what was run, how the numbers are made
+**P2 · feature · in progress (asked 2026-10-27)**
+- The tools' configuration and a paragraph per statistic (its formula, its meaning) before the results; the
+  statistics parts without the repeated definitions. The plan: [report_context.md](report_context.md).
 
 ## M6 — The package restructure
 

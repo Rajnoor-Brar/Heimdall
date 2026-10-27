@@ -1138,7 +1138,7 @@ Every report has one look, set once in `report.tex`'s preamble and used by every
   for notes on what is missing and for comments in code.
 - **The page:** A4, 18 mm left and right, a running header (the report's title, the section) 8 mm over the body,
   "page n of N" under it. Each section starts a page; its note is muted, in wide lines; tables have light rules
-  and rows of 1.3 lines.
+  and rows of 1.3 lines, and a table of a few rows starts on a page that holds it whole.
 - **A set's sub-header**, once over a source's grids of a set: the set's name and its source, then its *Pages*
   (its page axes and their values, as labels), its *Curves* (a line a curves filter) and what is *Fixed* (each
   quantity the configuration does not vary). Each grid under it is captioned by its page cell's labels

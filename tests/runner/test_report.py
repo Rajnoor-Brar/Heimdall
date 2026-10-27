@@ -592,3 +592,14 @@ def test_a_cards_lines_are_highlighted():
     assert report.highlight("set /Herwig/Gen:NumberOfEvents 1000") == r"\hdB{set} /Herwig/Gen:NumberOfEvents \hdN{1000}"
     assert report.highlight(r"# a \path {x}") == r"{\hdC # a \hdBS{}path \hdLB{}x\hdRB{}}"
     assert report.highlight('PDF:pSet = "a ! b" # yaml') == r'\hdK{PDF:pSet} \hdP{=} "a ! b" {\hdC # yaml}'
+
+
+def test_typeset_takes_any_colour_and_keeps_a_short_table_whole():
+    """I-110 R5: a cell's ink or fill as Matplotlib names it ("white"); a table of a few rows asks for room for all of
+    them on its page, a long one for its head and a few rows."""
+    typeset, paper = report._typeset(), report.statstable.bars().paper
+    assert [typeset._hex(c) for c in ("white", "#2a78d6", (1.0, 0.5, 0.0))] == ["FFFFFF", "2A78D6", "FF8000"]
+    short = paper.Table("t", "a table", ["a"], [paper.Row(f"r{k}", [paper.Cell("1")]) for k in range(5)])
+    long = paper.Table("t", "a table", ["a"], [paper.Row(f"r{k}", [paper.Cell("1")]) for k in range(40)])
+    assert typeset.keep(short) == 24 + 3 * typeset.ROW + 5 * typeset.ROW
+    assert typeset.keep(long) == 24 + 3 * typeset.ROW + typeset.HEAD_ROWS * typeset.ROW

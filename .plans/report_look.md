@@ -102,7 +102,8 @@ The execution map is §4; each phase's log is §5. Built in the worktree `scratc
 | R0 this plan, I-110 | — | (with R1) | written |
 | R1 `reports/` | V214 | fbb7ad6 | done |
 | R2 the look | V215 | b6eeb22 | done |
-| R3 statistics typeset, data beside | V216 | | done |
+| R3 statistics typeset, data beside | V216 | 6ad07c6 | done |
+| R4 Brookhaven's zeus_report.toml, built read-only | V217 | | done |
 
 ## 5. Log
 
@@ -165,3 +166,7 @@ The execution map is §4; each phase's log is §5. Built in the worktree `scratc
 - 2026-10-27, **R3** (V216): statistics and bar tables typeset (`typeset.py`, `report.Typeset`), their CSVs and HTML in
   `stats/`; each figure's bins as a CSV from its page document's YODAs (38 of 38 in the slow test's drawn report). The
   count of figures with data is in the build's line, not `--list` (it needs the page documents read).
+- 2026-10-27, **R4** (V217): Brookhaven's `configs/eic/zeus_report.toml` written (left uncommitted there, the user's);
+  built read-only into `scratchpad/zeusbuild/`: 20 A4 pages. Its pages showed `\needspace`'s penalty breaking pages
+  early, a lone "(continued)" table header, and a cell ink named `white`: `\hdKeep`, `typeset.keep`, `_hex` by name.
+  ZEUS_2012_I1116258's legends corrected §2 R8's grouping (d09–d12: anti-k_T and SISCone).

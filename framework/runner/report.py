@@ -1394,6 +1394,7 @@ class Typeset:
     lines: list[str]
     data: list[Path]             # the CSVs beside it
     page: Path | None = None     # the same document as one HTML page, for index.html
+    toc: str = ""                # its line in the contents, when not its title
 
 
 def _measuring():
@@ -1607,14 +1608,17 @@ def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
             head, set_ = grid.head, grid.figures[0].set if "pages" in section.spec else ""
             grids.append(Placed(caption, files, [f.label for f in grid.figures], [""] * len(files), pngs,
                                 columns, _aspect(grid.figures[0].file), head=head,
-                                toc=f"{head.set} · {head.address}" if head else caption if "compare" in section.spec else "",
+                                toc=(head.set if len(plan.sources) == 1 else f"{head.set} · {head.address}") if head else
+                                caption if "compare" in section.spec else "",
                                 title=" · ".join(part for part in (set_, plain(caption)) if part) or section.title))
         for k, part in enumerate(section.parts, 1):
             shown = _part(build, bars, part, build.out / STATS / name, f"{k:02d}_{slug(part.source.folder.name)}", say)
             if shown is not None:
+                shown.toc = f"{part.set} · statistics" if len(plan.sources) == 1 and not part.look else ""
                 grids.append(shown)
         for k, item in enumerate(section.bars, 1):
             grids.append(_bars(build, bars, item, build.out / STATS / name, k))
+            grids[-1].toc = f"{item.set} · a table a page" if len(plan.sources) == 1 and not item.look else ""
         sources = list(dict.fromkeys(g.source.address for g in section.given))
         for item in section.given:
             mm = sources.index(item.source.address) + 1
@@ -1655,7 +1659,6 @@ PREAMBLE = r"""\documentclass[a4paper]{article}
 \usepackage{graphicx,array,longtable,booktabs}
 \usepackage{fvextra}
 \usepackage{enumitem}
-\usepackage{needspace}
 \usepackage{titlesec,titletoc}
 \usepackage{fancyhdr,lastpage}
 \usepackage[letterspace=60]{microtype}
@@ -1675,6 +1678,9 @@ PREAMBLE = r"""\documentclass[a4paper]{article}
 \renewcommand\normalsize{\@setfontsize\normalsize{@SIZE@}{@LINE@}\abovedisplayskip 6pt plus 2pt\belowdisplayskip 6pt plus 2pt%
   \abovedisplayshortskip 3pt\belowdisplayshortskip 3pt}
 \newcommand\hdContents{\@starttoc{toc}}
+%% \hdKeep{len}: a new page unless len is left on this one (no penalty, unlike needspace's: TeX never prefers it)
+\newcommand\hdKeep[1]{\par\begingroup\setlength{\dimen@}{#1}\dimen@ii\pagegoal\advance\dimen@ii-\pagetotal
+  \ifdim\dimen@>\dimen@ii\ifdim\dimen@ii>\z@\vfil\fi\break\fi\endgroup}
 \makeatother
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0pt}
@@ -1725,9 +1731,9 @@ PREAMBLE = r"""\documentclass[a4paper]{article}
 \newcommand\hdNote[1]{{\hdSize{9}{13.5}\color{hdmuted}#1\par}\vspace{10pt}}
 \newcommand\hdBlockTitle[2]{\par\addvspace{16pt}{\sffamily\hdSize{11}{14}\bfseries #1}\hspace{0.6em}{\sffamily\hdSize{8}{10}\color{hdmuted}#2}\par\vspace{4pt}}
 \newcommand\hdLabel[2]{\par\addvspace{9pt}{\sffamily\hdSize{8}{10}\bfseries #1}\hspace{0.5em}{\hdSize{7.5}{9}\ttfamily\color{hdmuted}#2}\par\vspace{3pt}}
-\newcommand\hdItem[1]{\par\addvspace{12pt}\needspace{4\baselineskip}{\sffamily\hdSize{9.5}{12}\bfseries #1\par}\vspace{2pt}}
+\newcommand\hdItem[1]{\par\addvspace{12pt}{\sffamily\hdSize{9.5}{12}\bfseries #1\par}\vspace{2pt}}
 \newcommand\hdSub[1]{{\sffamily\hdSize{8}{10.5}\color{hdmuted}#1\par}\vspace{2pt}}
-\newcommand\hdStatSection[1]{\par\addvspace{16pt}\needspace{5\baselineskip}{\sffamily\hdSize{11}{14}\bfseries #1\par}\vspace{2pt}}
+\newcommand\hdStatSection[1]{\par\addvspace{16pt}{\sffamily\hdSize{11}{14}\bfseries #1\par}\vspace{2pt}}
 %% a set's sub-header: its name and source, then a line a fact (Pages, Curves, Fixed); a grid's caption; a panel's label
 \newcommand\hdFact[2]{\par\hangindent=4.6em\hangafter=1\noindent\makebox[4.6em][l]{\textcolor{hdmuted}{#1}}#2\par}
 \newcommand\hdSetHead[3]{\par\addvspace{18pt}{\sffamily\hdSize{11}{14}\bfseries #1}\hspace{0.7em}%
@@ -1894,7 +1900,7 @@ def _given_tex(shown: Configs, out: Path) -> list[str]:
     card's baseline, highlighted (fvextra: long lines broken at spaces and after / _ : = , . -); then what varied:
     tables of at most KEYS_PER_TABLE keys, the points' column in each, or each point's lines."""
     tex, item = _layout().tex, shown.given
-    lines = [r"\phantomsection\addcontentsline{toc}{subsection}{" + tex(item.caption) + "}",
+    lines = [r"\hdKeep{110bp}\phantomsection\addcontentsline{toc}{subsection}{" + tex(item.caption) + "}",
              rf"\hdBlockTitle{{{tex(item.tag)}}}{{\texttt{{{_breakable(item.source.address)}}} · {item.points()} complete point(s)}}"]
     if item.notes:
         lines += [r"\begin{hdFlags}", *(r"\item " + tex(note) for note in item.notes), r"\end{hdFlags}"]
@@ -1957,7 +1963,7 @@ def _grid_tex(grid: Placed, out: Path) -> list[str]:
     head = 0.0
     if grid.head is not None:
         head = 50.0 + 13.0 * sum(len(lines_) for _, lines_ in grid.head.facts)
-    lines.append(rf"\par\needspace{{{head + (15.0 if grid.caption else 0.0) + row_h + 4:.0f}bp}}")
+    lines.append(rf"\hdKeep{{{head + (15.0 if grid.caption else 0.0) + row_h + 4:.0f}bp}}")
     if grid.toc:
         lines.append(rf"\phantomsection\addcontentsline{{toc}}{{subsection}}{{{layout.tex(grid.toc)}}}")
     if grid.head is not None:
@@ -1979,7 +1985,7 @@ def _typeset_tex(item: Typeset, out: Path) -> list[str]:
     tex = _layout().tex
     rel = [p.relative_to(out).as_posix() for p in item.data]
     where = rel[0] if len(rel) == 1 else f"{rel[0].rsplit('/', 1)[0]}/, a CSV a page" if rel else ""
-    return [r"\par\needspace{120bp}\phantomsection\addcontentsline{toc}{subsection}{" + tex(item.title) + "}",
+    return [r"\hdKeep{120bp}\phantomsection\addcontentsline{toc}{subsection}{" + tex(item.toc or item.title) + "}",
             rf"\hdBlockTitle{{{_breakable(item.title)}}}{{{tex(item.tagline)}}}",
             *([r"\hdTagline{its numbers: \texttt{" + _breakable(where) + r"}}\vspace{2pt}"] if where else []),
             *item.lines, r"\hdGridGap"]

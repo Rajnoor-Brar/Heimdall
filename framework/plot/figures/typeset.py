@@ -30,13 +30,21 @@ HEAD_LINES = 3                  # a column header's most lines
 RANK_BAR = 190.0                # bp: a ranking's bar track
 BAR_TRACK = 34.0                # bp: a statistic's bar track in a page's table
 BAR_HEIGHT = 5.0                # bp
+ROW = 14.0                      # bp: a table's row, about (\\arraystretch 1.3 of 10.5)
+WHOLE = 14                      # a table of this many rows or fewer starts on a page that holds it whole; a longer one
+HEAD_ROWS = 4                   # its title, header and this many rows
 
 
 def _hex(value) -> str:
-    """A colour as xcolor's HTML model takes it: #rrggbb, or (r, g, b) of 0–1."""
+    """A colour as xcolor's HTML model takes it (RRGGBB): from #rrggbb, (r, g, b) of 0–1, or a name Matplotlib knows
+    ("white")."""
     if isinstance(value, (tuple, list)):
         return "".join(f"{max(0, min(255, round(255 * c))):02X}" for c in value[:3])
-    return str(value).lstrip("#").upper()
+    text = str(value)
+    if len(text) == 7 and text.startswith("#"):
+        return text[1:].upper()
+    from matplotlib.colors import to_hex
+    return to_hex(text)[1:].upper()
 
 
 def _inches(text: str, scale) -> float:
@@ -57,8 +65,14 @@ def _marks(item, numbers: dict) -> str:
     return "\\textsuperscript{" + ",".join(str(n) for n in named) + "}" if named else ""
 
 
+def keep(item) -> float:
+    """bp an item's start needs on its page: its title and its rows, all of a short table's, else HEAD_ROWS."""
+    rows = len(getattr(item, "rows", None) or getattr(item, "names", None) or getattr(item, "lines", None) or [])
+    return 24.0 + (12.0 if getattr(item, "subtitle", "") else 0.0) + 3 * ROW + (rows if rows <= WHOLE else HEAD_ROWS) * ROW
+
+
 def _title(item, numbers: dict, tex) -> list[str]:
-    lines = [f"\\hdItem{{{tex(item.title)}{_marks(item, numbers)}}}"]
+    lines = [f"\\hdKeep{{{keep(item):.0f}bp}}", f"\\hdItem{{{tex(item.title)}{_marks(item, numbers)}}}"]
     if getattr(item, "subtitle", ""):
         lines.append(f"\\hdSub{{{tex(item.subtitle)}}}")
     return lines
@@ -203,7 +217,7 @@ def document(doc, numbers: dict, scale, tex, width: float) -> list[str]:
         if not section.items:
             continue
         if len(doc.sections) > 1 or len(section.items) > 1:
-            out.append(f"\\hdStatSection{{{tex(section.title)}}}")
+            out += [f"\\hdKeep{{{30 + keep(section.items[0]):.0f}bp}}", f"\\hdStatSection{{{tex(section.title)}}}"]
         for item in section.items:
             out += _item(item, numbers, scale, tex, width)
     if numbers:
@@ -230,7 +244,8 @@ def bars(rows: list[dict], title: str, subtitle: str, panels, scale, tex, width:
     spec = f"@{{}}>{{\\raggedright\\arraybackslash}}p{{{label_w - 2 * PAD:.1f}bp}}" + \
         "".join(f">{{\\raggedright\\arraybackslash}}p{{{column - 2 * PAD:.1f}bp}}" for _ in panels)
     head = "\\textbf{curve} & " + " & ".join(f"\\textbf{{{tex(name)}}}" for _, name in panels) + "\\\\"
-    out = [f"\\hdItem{{{tex(title)}}}"] + ([f"\\hdSub{{{tex(subtitle)}}}"] if subtitle else [])
+    out = [f"\\hdKeep{{{36 + 3 * ROW + len(rows) * ROW * 1.2:.0f}bp}}", f"\\hdItem{{{tex(title)}}}"] + \
+        ([f"\\hdSub{{{tex(subtitle)}}}"] if subtitle else [])
     out += [f"\\begin{{hdTable}}{{{spec}}}", "\\toprule", head, "\\midrule", "\\endfirsthead",
             f"\\multicolumn{{{len(panels) + 1}}}{{@{{}}l}}{{\\hdContinued}}\\\\", "\\toprule", head, "\\midrule", "\\endhead",
             "\\bottomrule", "\\endfoot"]

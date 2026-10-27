@@ -552,4 +552,4 @@ fast-forwarded at P7. Each row is ticked at its commit.
 | P4 The run's report.toml | V209 | 007a0d4 | done: on Brookhaven's results |
 | P5 The tools' configurations | V210 | 3399e88 | done: on Brookhaven's results; paused for compaction |
 | P6 Drawn for itself | V211 | d27edb7 | done: on Brookhaven's results |
-| P7 deck retired | V212 | | done: the fast and slow suites; main fast-forwarded; paused |
+| P7 deck retired | V212 | 63c28ea | done: the fast and slow suites; main fast-forwarded; paused |

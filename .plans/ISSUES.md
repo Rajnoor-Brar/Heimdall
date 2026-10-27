@@ -155,6 +155,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-103 | Physics set-ups to settle | P3 | decision |
 | I-104 | A tool's private dependencies (BeAGLE) | P3 | idea (set aside) |
 | I-105 | Smaller leftovers | P3 | idea |
+| I-109 | `hep` → `heimdall`: the framework's names | P2 | planning (asked 2026-10-27) |
 
 ---
 
@@ -372,6 +373,15 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   shared y title or legend.
 
 ## M6 — The package restructure
+
+### I-109 `hep` → `heimdall`: the framework's names
+**P2 · rename · planning (asked 2026-10-27)**
+- The user, after I-108: "migrate all 'hep' references to 'heimdall'". The inventory, the proposal, the
+  decisions it needs and the map are [heimdall_names.md](heimdall_names.md).
+- **The framework's own names** (`HEP_*`, `hep.toml`, `hep_env.sh`, `hepkit`, `HepError`, `hep_root`, the shell's
+  helpers) become `heimdall`'s, the old ones read as a fallback until the work dirs and builds move; physics
+  (HepMC, "HEP") and history stay. The tool contract (`HEP_CONTEXT`, `HEP_STATUS_FD`) is compiled into App_Pythia
+  and the modules: its readers switch at their next rebuild, the user's call.
 
 ### I-50 `runner/` as subpackages by layer
 **P2 · refactor · decision (D8)**

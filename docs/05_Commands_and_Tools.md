@@ -574,13 +574,13 @@ to a colleague or a supervisor. It runs only when asked: no run, plot or stats s
 - **What it draws for itself:** a set a source has not drawn (or drew as PNG alone), numbers it has not
   measured, and every section with `plot = { … }`, from the source's plot document into the report's cache
   (`.cache/<P>/reports/…/.drawn/`), never into `results/` ([03 §11.3](03_Plots.md#113-drawn-for-itself)).
-- **What it makes:** `figures/` (every page it shows, copied as drawn or drawn for it, with its PNG), `stats/`
-  (the statistics and bar graphs it shows, drawn from each source's `statistics.csv` or the numbers measured for
-  it), `tools/` (what each tool was given, from the records: its card's lines alike in every point, and what
+- **What it makes:** `figures/` (every page it shows, copied as drawn or drawn for it, with its PNG and its
+  curves' bins as a CSV), `stats/` (the numbers behind the statistics and bar tables it typesets, from each
+  source's `statistics.csv` or the numbers measured for it), `tools/` (what each tool was given, from the records: its card's lines alike in every point, and what
   varied as a CSV), `report.tex`, `report.pdf` (A4) and `index.html`, again only what changed; what they are is
   [03 §11](03_Plots.md#11-reports-heimdall-report).
 - **What it needs:** pdflatex for `report.pdf` (without it, `report.tex` is still written, to compile
-  elsewhere), with `longtable` and `fvextra` for the tools' pages, and poppler's `pdftoppm` for a page drawn
+  elsewhere), with TeX Gyre Heros (`tgheros`), `sansmath`, `titlesec`, `fancyhdr`, `booktabs`, `longtable` and `fvextra`, and poppler's `pdftoppm` for a page drawn
   with no PNG; to draw for itself, what `heimdall plot` needs (Paint, the backend's own).
 
 ---

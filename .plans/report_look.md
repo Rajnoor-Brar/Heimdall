@@ -101,7 +101,8 @@ The execution map is §4; each phase's log is §5. Built in the worktree `scratc
 |---|---|---|---|
 | R0 this plan, I-110 | — | (with R1) | written |
 | R1 `reports/` | V214 | fbb7ad6 | done |
-| R2 the look | V215 | | done |
+| R2 the look | V215 | b6eeb22 | done |
+| R3 statistics typeset, data beside | V216 | | done |
 
 ## 5. Log
 
@@ -161,3 +162,6 @@ The execution map is §4; each phase's log is §5. Built in the worktree `scratc
   sansmath needs `[T1]`, Latin Modern's math fonts (cmm, cmsy have no 7.5 or 9.5) and `\mathsfsl` in Heros italic (it has
   no slanted shape); Heros's OT1 has no Greek capitals (Latin Modern Sans's taken); a cell's colour overhangs a table's
   `@{}` edge, so tables keep their right padding; `\hdLB{}`'s brace must not be escaped again.
+- 2026-10-27, **R3** (V216): statistics and bar tables typeset (`typeset.py`, `report.Typeset`), their CSVs and HTML in
+  `stats/`; each figure's bins as a CSV from its page document's YODAs (38 of 38 in the slow test's drawn report). The
+  count of figures with data is in the build's line, not `--list` (it needs the page documents read).

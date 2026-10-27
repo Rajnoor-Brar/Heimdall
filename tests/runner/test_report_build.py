@@ -169,11 +169,20 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
                              'stats = ["chi2_ndf:ranking"]\n\n[[report.section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
     _, said = built("P/numbers.toml", [])
     out = trees / "reports" / "P" / "validation" / "01_pdf"                     # where results/ has its source
-    text = subprocess.run(["pdftotext", str(out / "stats" / "01_Standings" / "01_01_pdf.pdf"), "-"], capture_output=True,
-                          text=True, encoding="utf-8").stdout
-    assert "Head to head" not in text and "top five" not in text.lower()
-    assert sorted(p.name for p in (out / "stats" / "02_Bars").glob("*.pdf")) == \
-        ["001_01_pdf_18x275_d01-x01-y01.pdf", "002_01_pdf_27x920_d01-x01-y01.pdf"]
+    source = trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv"
+    standings = out / "stats" / "01_Standings"                                   # typeset (I-110 R5); its numbers beside it
+    assert sorted(p.name for p in standings.iterdir()) == ["01_01_pdf__totality.csv", "01_01_pdf__totality.html"]
+    assert (standings / "01_01_pdf__totality.csv").read_bytes() == source.read_bytes()
+    assert not list(out.rglob("stats/**/*.pdf")) and not list(out.rglob("stats/**/*.png"))
+    text = subprocess.run(["pdftotext", str(out / "report.pdf"), "-"], capture_output=True, text=True, encoding="utf-8").stdout
+    assert "Head to head" not in text and "top five" not in text.lower() and "PDF B" in text and "Notes" in text.title()
+    tex = (out / "report.tex").read_text(encoding="utf-8")
+    assert r"\includegraphics" not in tex and r"\begin{hdTable}" in tex and r"\begin{hdNotes}" in tex
+    bars = out / "stats" / "02_Bars" / "01_01_pdf"
+    assert sorted(p.name for p in bars.iterdir()) == ["001_18x275_d01-x01-y01.csv", "002_27x920_d01-x01-y01.csv"]
+    rows = list(csv.DictReader(open(bars / "001_18x275_d01-x01-y01.csv", encoding="utf-8")))
+    assert [r["curve"] for r in rows] == ["PDF A", "PDF B"] and rows[0]["chi2_ndf"] == "1.1"     # as the source wrote it
+    assert "18x275, d01-x01-y01" in tex and "against ZEUS" in tex
 
 
 def test_what_no_section_holds_is_removed_and_own_files_are_copied(trees):
@@ -280,3 +289,37 @@ def test_a_recipes_look_is_its_preamble_and_a_set_has_its_sub_header(trees):
     assert body.count(r"\begin{picture}") == 2 and r"{\hdPanel d01-x01-y01}" in body           # 3 columns: a row a cell
     page = (out / "index.html").read_text(encoding="utf-8")
     assert "Spectra: totality · 18x275" in page and "Curves: pdf: PDF A, PDF B" in page
+
+
+SCATTER = """BEGIN YODA_SCATTER2D_V2 /ZEUS/{obj}
+Path: /ZEUS/{obj}
+Type: Scatter2D
+---
+# xval	 xerr-	 xerr+	 yval	 yerr-	 yerr+
+1.5	0.5	0.5	{a}	1	1
+2.5	0.5	0.5	{b}	2	3
+END YODA_SCATTER2D_V2
+"""
+
+
+def test_a_figure_has_its_curves_bins_beside_it(trees):
+    """I-110 R6: a figure whose page document is at hand has a CSV beside it, each curve's bins as its point's YODA
+    holds them; made again only when the page document or a YODA changed."""
+    pytest.importorskip("yoda")
+    where = trees / "results" / "P" / "validation" / "01_pdf"
+    for point, (a, b) in (("A", (10, 20)), ("B", (11, 22))):
+        (where / "points" / point / "run.yoda").write_text(SCATTER.format(obj="d01-x01-y01", a=a, b=b), encoding="utf-8")
+    document = trees / "cache" / "P" / "plots" / "validation" / "01_pdf" / "totality" / "18x275" / "d01-x01-y01.toml"
+    document.parent.mkdir(parents=True)
+    document.write_text('[page]\nname = "totality/18x275/d01-x01-y01"\n\n'
+                        '[[curve]]\nfile = "x.root"\nobject = "A/ZEUS/d01-x01-y01"\nlabel = "PDF A"\n\n'
+                        '[[curve]]\nfile = "x.root"\nobject = "B/ZEUS/d01-x01-y01"\nlabel = "PDF B"\n', encoding="utf-8")
+    _, said = built("P/validation/01_pdf", [])
+    out = trees / "reports" / "P" / "validation" / "01_pdf" / "figures" / "02_Pages_totality"
+    rows = list(csv.reader(open(out / "001_01_pdf_18x275_d01-x01-y01.csv", encoding="utf-8")))
+    assert rows == [list(report.FIGURE_COLUMNS), ["A", "PDF A", "1", "2", "10", "1", "1"], ["A", "PDF A", "2", "3", "20", "2", "3"],
+                    ["B", "PDF B", "1", "2", "11", "1", "1"], ["B", "PDF B", "2", "3", "22", "2", "3"]]
+    assert said[0].startswith("report: 4 figure(s) (1 with their data, a CSV each), ")
+    assert not (out / "002_01_pdf_18x275_d02-x01-y01.csv").exists()               # no page document: no data
+    _, said = built("P/validation/01_pdf", [])
+    assert said[0].endswith("0 drawn")

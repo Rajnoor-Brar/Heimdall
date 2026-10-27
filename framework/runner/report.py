@@ -1277,7 +1277,7 @@ class _Build:
             self.old = {}
         self.new: dict = {}
         self.shas: dict[str, str] = {}
-        self.copied = self.drawn = 0
+        self.copied = self.drawn = self.data = 0
 
     def rel(self, path: Path) -> str:
         return path.relative_to(self.out).as_posix()
@@ -1381,53 +1381,62 @@ def chosen(document, keys: list[str]):
     return dataclasses.replace(document, sections=kept), missing
 
 
-def _code(bars) -> str:
-    """What the statistics' pages are drawn by: bars.py and paper.py, as they are."""
-    return _key(_sha(Path(bars.__file__)), _sha(Path(bars.paper.__file__)))
+def _typeset():
+    return plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "typeset.py", "typeset")
 
 
-def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say) -> Placed | None:
-    """A source's statistics, the sections chosen, as A4 pages: stats/<section>/<stem>.pdf and a PNG a page."""
+@dataclass
+class Typeset:
+    """Statistics typeset in the report (I-110 R5): a source's part of its summary, or its pages' bar tables, as
+    LaTeX in the report's own fonts (figures/typeset.py), the numbers they are made from beside them (R6)."""
+    title: str                   # its block's title, its line in the contents
+    tagline: str
+    lines: list[str]
+    data: list[Path]             # the CSVs beside it
+    page: Path | None = None     # the same document as one HTML page, for index.html
+
+
+def _measuring():
+    """Matplotlib, headless: paper.py measures text with it."""
+    import matplotlib
+    matplotlib.use("Agg")
+
+
+def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say) -> Typeset | None:
+    """A source's statistics, the sections chosen, typeset (its facts, its items, its notes numbered at its end);
+    beside it its numbers, stats/<section>/<stem>__<set>.csv (the statistics.csv they were read from), and the same
+    document as one HTML page."""
     heading = statstable.heading_of(part.csv.parent) if part.csv.is_relative_to(part.source.folder) else \
         f"{part.source.address} · {part.set}" + (" · as this report measures it" if part.look else "")
-    target = folder / stem
-    missing: list[str] = []
-
-    def make() -> list[Path]:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        document, gone = chosen(bars.summary_model(statstable.read(part.csv), heading), part.keys)
-        missing.extend(gone)
-        if not document.sections:
-            return []
-        return bars.paper.write(document, target, ["pdf", "png"], f"Statistics: {heading}", plt)
-    key = _key(_sha(part.csv), heading, *part.keys, _code(bars))
-    stamp = build.old.get(build.rel(target.with_suffix(".pdf")))
-    files = build.stamped(target.with_suffix(".pdf"), key, make)
-    gone = missing or (stamp or {}).get("missing", [])
-    build.new[build.rel(target.with_suffix(".pdf"))]["missing"] = gone
+    _measuring()
+    document, gone = chosen(bars.summary_model(statstable.read(part.csv), heading), part.keys)
     if gone:
         say(f"report: {heading} has no {', '.join(gone)} (too few curves or page cells for them)")
-    pdf, pngs = (files[0], sorted(files[1:], key=lambda p: natural(p.name))) if files else (None, [])
-    if pdf is None:
-        build.new.pop(build.rel(target.with_suffix(".pdf")), None)
+    if not document.sections:
         return None
+    numbers = bars.paper.note_numbers(document)
+    target = folder / f"{stem}__{slug(part.set)}"
+    data = target.with_suffix(".csv")
+    build.copy(part.csv, data)
+    page = build.write(target.with_suffix(".html"), bars.webpage.render(document, numbers, bars.paper))
     summary = part.csv.with_name("summary.html")
     if summary.is_file():
         build.copy(summary, build.out / STATS / "summaries" / f"{slug(part.source.address)}__{slug(part.set)}.html")
-    return Placed(f"Statistics: {heading}", [pdf] * len(pngs), [""] * len(pngs), [f"page={k}" for k in range(1, len(pngs) + 1)],
-                  pngs, 1, paper_aspect(bars), 0.0, toc=f"Statistics: {heading}", title=f"Statistics: {heading}")
+    lines = _typeset().document(document, numbers, bars.paper, _layout().tex, TEXT_W)
+    return Typeset(heading, "statistics" + (" · as this report measures it" if part.look and "measures" not in heading else ""),
+                   lines, [data], page)
 
 
-def paper_aspect(bars) -> float:
-    w, h = bars.paper.A4
-    return w / h
+def _raw_rows(path: Path) -> list[dict]:
+    """statistics.csv's rows as written: text, so a page's rows are copied as they are."""
+    with open(path, encoding="utf-8", newline="") as handle:
+        return list(csv.DictReader(handle))
 
 
-def _bars(build: _Build, bars, item: Bars, folder: Path) -> Placed:
-    """A source's pages' bar graphs, drawn from its statistics.csv: stats/<section>/<NNN>_<source>_<page>.pdf."""
-    rows = statstable.read(item.csv)
+def _bars(build: _Build, bars, item: Bars, folder: Path, number: int) -> Typeset:
+    """A source's pages' statistics, a table each (a row a curve, a column a statistic, each a small bar and its
+    value), from its statistics.csv; beside each, its rows: stats/<section>/<MM>_<source>/<NNN>_<page>.csv."""
+    rows = _raw_rows(item.csv)
     pages: dict[str, list[dict]] = {}
     for row in rows:
         pages.setdefault(row["page"], []).append(row)
@@ -1435,19 +1444,106 @@ def _bars(build: _Build, bars, item: Bars, folder: Path) -> Placed:
     if not names:
         raise HeimdallError(f"bars: {', '.join(item.pages)} names no page measured in {item.csv}",
                        hint=f"its pages: {', '.join(list(sorted(pages, key=natural))[:6])} …" if pages else None)
-    base = _key(_sha(item.csv), _code(bars))
-    files, options, pngs = [], [], []
-    for number, name in enumerate(names, 1):
-        target = folder / f"{number:03d}_{slug(item.source.folder.name)}_{slug(name)}"
-        made = build.stamped(target.with_suffix(".pdf"), _key(base, name),
-                             lambda name=name, target=target: bars.page(pages[name], target, ["pdf", "png"],
-                                                                       f"{item.source.address} · {name}"))
-        shown = sorted((f for f in made if f.suffix == ".png"), key=lambda p: natural(p.name))
-        files += [target.with_suffix(".pdf")] * len(shown)
-        options += [f"page={k}" for k in range(1, len(shown) + 1)]
-        pngs += shown
-    caption = f"Bar graphs: {item.source.address} · {item.set}" + (" · as this report measures it" if item.look else "")
-    return Placed(caption, files, [""] * len(files), options, pngs, 1, paper_aspect(bars), 0.0, toc=caption, title=caption)
+    _measuring()
+    typeset, tex = _typeset(), _layout().tex
+    where = folder / f"{number:02d}_{slug(item.source.folder.name)}"
+    lines, data = [], []
+    for k, name in enumerate(names, 1):
+        mine = pages[name]
+        title = ", ".join(part for part in (cell_label(item.source.doc, _cell(name)), name.rsplit("/", 1)[-1]) if part)
+        against = next((r.get("reference", "") for r in mine if r.get("reference")), "")
+        lines += typeset.bars(mine, title, f"against {against}" if against else "", bars.PANELS, bars.paper, tex, TEXT_W)
+        buffer = io.StringIO()
+        out = csv.DictWriter(buffer, fieldnames=list(mine[0]), lineterminator="\n")
+        out.writeheader()
+        out.writerows(mine)
+        data.append(build.write(where / f"{k:03d}_{slug(name)}.csv", buffer.getvalue()))
+    title = f"{item.source.address} · {item.set}" + (" · as this report measures it" if item.look else "")
+    return Typeset(title, f"{len(names)} page(s), a table each", lines, data)
+
+
+#: A figure's data (I-110 R6): each curve's bins as the run made them (before the page's normalisation), and the
+#: data's, read from the YODAs its page document names.
+FIGURE_COLUMNS = ("curve", "label", "xlow", "xhigh", "y", "err_down", "err_up")
+
+
+def _page_document(figure: Figure, drawings: list[Drawing]) -> Path | None:
+    """A figure's page document: in its drawing's work/ when it was drawn for the report, else in its source's
+    cache (.cache/<P>/plots/<run>/<cfg>/<set>/<page>.toml); None when there is none."""
+    source = figure.source
+    if source is None or figure.file is None:
+        return None
+    drawn = next((d for d in drawings if d.results is not None and figure.file.is_relative_to(d.results)), None)
+    work = drawn.folder / "work" if drawn else plotdoc._folders(source.folder, source.project).cache
+    path = work / figure.set / f"{figure.page}.toml"
+    return path if path.is_file() else None
+
+
+class _Yodas:
+    """The YODA files a build reads figures' data from, each read once per analysis (YODA's Python, the stack's);
+    none without it."""
+
+    def __init__(self):
+        try:
+            import yoda
+        except ImportError:
+            yoda = None
+        self.yoda = yoda
+        self.read: dict[tuple[str, str], dict] = {}
+
+    def points(self, path: Path, name: str) -> list[tuple] | None:
+        """An object's points, (xlow, xhigh, y, err_down, err_up) each; None when it is not there."""
+        prefix = "/".join(name.split("/")[:3 if name.startswith("/REF/") else 2]) + "/"
+        key = (str(path), prefix)
+        if key not in self.read:
+            try:
+                self.read[key] = self.yoda.read(str(path), patterns=["^" + re.escape(prefix)])
+            except Exception:                                        # a file YODA cannot read: no data from it
+                self.read[key] = {}
+        found = self.read[key].get(name)
+        if found is None:
+            return None
+        try:
+            shown = found.mkScatter()
+        except Exception:
+            return None
+        return [(p.x() - p.xErrs()[0], p.x() + p.xErrs()[1], p.y(), p.yErrs()[0], p.yErrs()[1]) for p in shown.points()]
+
+
+def _figure_data(build: _Build, figure: Figure, document: Path, target: Path, yodas: _Yodas) -> Path | None:
+    """figures/<section>/<stem>.csv: each curve of the figure's page document, a row a bin (FIGURE_COLUMNS), its
+    member's YODA read; the page's data as curve `data`. Made again only when the page document or a YODA it names
+    changed."""
+    source = figure.source
+    members = {m.point.name: m for m in source.members}
+    page = tomllib.loads(document.read_text(encoding="utf-8"))
+    wanted = []
+    for curve in page.get("curve", []):
+        member, _, name = str(curve.get("object", "")).partition("/")
+        found = members.get(member)
+        if found is not None and found.yoda is not None and found.yoda.is_file():
+            wanted.append((member, str(curve.get("label", member)), found.yoda, "/" + name))
+    data = page.get("data")
+    if isinstance(data, dict) and data.get("object") and (source.doc.plot or {}).get("data"):
+        try:
+            file = plotting.data_source(str(source.doc.plot["data"].get("file", "")), source.doc)
+            wanted.append(("data", str(data.get("label", "data")), file, "/" + str(data["object"]).lstrip("/")))
+        except HeimdallError:
+            pass
+    if not wanted:
+        return None
+
+    def make() -> list[Path]:
+        buffer = io.StringIO()
+        out = csv.writer(buffer, lineterminator="\n")
+        out.writerow(FIGURE_COLUMNS)
+        for curve, label, path, name in wanted:
+            out.writerows([curve, label, *(f"{v:.10g}" for v in point)] for point in yodas.points(path, name) or [])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(buffer.getvalue(), encoding="utf-8")
+        return [target]
+    key = _key(_sha(document), *(f"{c}:{n}:{_stat(p)}" for c, _, p, n in wanted))
+    return build.stamped(target, key, make)[0]
 
 
 @dataclass
@@ -1480,9 +1576,15 @@ def _configs(build: _Build, item: Given, folder: Path) -> Configs:
 
 
 def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
-    """Every section's figures copied into figures/<NN>_<section>/, its statistics and bar graphs drawn into
-    stats/<NN>_<section>/; each grid as the report shows it."""
+    """Every section's figures copied into figures/<NN>_<section>/, each with its data (a CSV, from its page
+    document's YODAs), its statistics and bar tables typeset, their numbers into stats/<NN>_<section>/; each grid
+    and part as the report shows it."""
     bars = statstable.bars()
+    yodas = _Yodas()
+    figures = sum(1 for s in plan.sections for g in s.grids for f in g.figures if f.source is not None)
+    if figures and yodas.yoda is None:
+        say("report: no YODA module here, so no figure's data beside it (figures/…/<page>.csv)")
+    data = 0
     placed = []
     for number, section in enumerate(plan.sections, 1):
         name = f"{number:02d}_{slug(section.title)}"
@@ -1497,6 +1599,9 @@ def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
                 shown, png = _figure(build, figure, build.out / FIGURES / name, stem)
                 files.append(shown)
                 pngs.append(png)
+                document = _page_document(figure, plan.drawings) if yodas.yoda is not None else None
+                if document is not None and _figure_data(build, figure, document, shown.with_suffix(".csv"), yodas):
+                    data += 1
             columns = grid.columns or (1 if len(files) == 1 else plan.look.columns)
             caption = grid.cell if "pages" in section.spec else "" if "files" in section.spec else grid.caption
             head, set_ = grid.head, grid.figures[0].set if "pages" in section.spec else ""
@@ -1508,13 +1613,14 @@ def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
             shown = _part(build, bars, part, build.out / STATS / name, f"{k:02d}_{slug(part.source.folder.name)}", say)
             if shown is not None:
                 grids.append(shown)
-        for item in section.bars:
-            grids.append(_bars(build, bars, item, build.out / STATS / name))
+        for k, item in enumerate(section.bars, 1):
+            grids.append(_bars(build, bars, item, build.out / STATS / name, k))
         sources = list(dict.fromkeys(g.source.address for g in section.given))
         for item in section.given:
             mm = sources.index(item.source.address) + 1
             grids.append(_configs(build, item, build.out / TOOLS / name / f"{mm:02d}_{slug(item.source.folder.name)}"))
         placed.append((section, grids))
+    build.data = data
     return placed
 
 
@@ -1528,7 +1634,7 @@ def _rows(placed: Placed) -> tuple[float, float, list[tuple[int, int]]]:
     each row's first and last figure)."""
     columns = placed.columns
     cw = (TEXT_W - (columns - 1) * GAP) / columns
-    ch = min(cw / placed.aspect, (ROW_MOST if placed.label else TEXT_H - 40.0) - placed.label)   # a page of statistics: a page
+    ch = min(cw / placed.aspect, ROW_MOST - placed.label)
     return cw, ch, [(start, min(len(placed.files), start + columns)) for start in range(0, len(placed.files), columns)]
 
 
@@ -1654,7 +1760,7 @@ PREAMBLE = r"""\documentclass[a4paper]{article}
 FONTS = {"sans": "\n".join([r"\renewcommand{\familydefault}{\sfdefault}", r"\usepackage[T1]{sansmath}",
                             r"\SetSymbolFont{letters}{sans}{OML}{lmm}{m}{it}", r"\SetSymbolFont{symbols}{sans}{OMS}{lmsy}{m}{n}",
                             r"\SetMathAlphabet{\mathsfsl}{sans}{T1}{qhv}{m}{it}", r"\DeclareSymbolFont{hdgreek}{OT1}{lmss}{m}{n}",
-                            *(rf'\DeclareMathSymbol{{\{name}}}{{\mathalpha}}{{hdgreek}}{{"{k:02X}}}' for k, name in
+                            *(rf'\DeclareMathSymbol{{\{name}}}{{\mathord}}{{hdgreek}}{{"{k:02X}}}' for k, name in
                               enumerate("Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega".split())),
                             r"\sansmath"]),
          "serif": "\n".join([r"\usepackage{tgtermes}", r"\renewcommand{\familydefault}{\rmdefault}"])}
@@ -1868,6 +1974,17 @@ def _grid_tex(grid: Placed, out: Path) -> list[str]:
     return lines + [r"\hdGridGap"]
 
 
+def _typeset_tex(item: Typeset, out: Path) -> list[str]:
+    """Statistics typeset: its title (in the contents) and where its numbers are, then its LaTeX."""
+    tex = _layout().tex
+    rel = [p.relative_to(out).as_posix() for p in item.data]
+    where = rel[0] if len(rel) == 1 else f"{rel[0].rsplit('/', 1)[0]}/, a CSV a page" if rel else ""
+    return [r"\par\needspace{120bp}\phantomsection\addcontentsline{toc}{subsection}{" + tex(item.title) + "}",
+            rf"\hdBlockTitle{{{_breakable(item.title)}}}{{{tex(item.tagline)}}}",
+            *([r"\hdTagline{its numbers: \texttt{" + _breakable(where) + r"}}\vspace{2pt}"] if where else []),
+            *item.lines, r"\hdGridGap"]
+
+
 def _tex(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> str:
     """report.tex, with BUILT for when and by what it was made: its preamble (the look), its front page, then
     each section on a new page, its note, its grids a row of panels at a time, each file named relative to the
@@ -1879,7 +1996,8 @@ def _tex(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> str:
         if section.note:
             lines.append(rf"\hdNote{{{tex(section.note)}}}")
         for grid in grids:
-            lines += _given_tex(grid, out) if isinstance(grid, Configs) else _grid_tex(grid, out)
+            lines += _given_tex(grid, out) if isinstance(grid, Configs) else _typeset_tex(grid, out) \
+                if isinstance(grid, Typeset) else _grid_tex(grid, out)
     body = "\n".join([*lines, r"\end{document}", ""])
     return "\n".join([_preamble(plan), *_unicode([body, plan.title]), body])
 
@@ -1940,6 +2058,15 @@ def _index(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> Path:
             if isinstance(grid, Configs):
                 blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {grid.given.caption}", [],
                                            body=_given_html(grid, out, plan.look.accent)))
+                continue
+            if isinstance(grid, Typeset):
+                link = lambda path: (f'<a href="{html.escape(path.relative_to(out).as_posix(), quote=True)}">'   # noqa: E731
+                                     f"{html.escape(path.name)}</a>")
+                said = [f"<p>Typeset in <a href=\"report.pdf\">report.pdf</a>"
+                        + (f"; as one page: {link(grid.page)}" if grid.page else "") + ".</p>",
+                        "<p>Its numbers: " + ", ".join(link(p) for p in grid.data) + "</p>"]
+                blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {plain(grid.title)}", [],
+                                           body="\n".join(said)))
                 continue
             panels = [(label or (f"page {n}" if len(grid.pngs) > 1 else ""), png) for n, (label, png)
                       in enumerate(zip(grid.labels, grid.pngs), 1)]
@@ -2097,7 +2224,8 @@ def build(plan: Plan, say=print) -> list[Path]:
     books.prune()
     figures = sum(len(g.figures) for s in plan.sections for g in s.grids)
     tools = sum(len(s.given) for s in plan.sections)
-    say(f"report: {figures} figure(s), {books.copied} file(s) copied or written; "
+    say(f"report: {figures} figure(s)" + (f" ({books.data} with their data, a CSV each)" if books.data else "")
+        + f", {books.copied} file(s) copied or written; "
         f"{sum(len(s.parts) + len(s.bars) for s in plan.sections)} statistics part(s), {books.drawn} drawn"
         + (f"; {tools} tool configuration(s)" if tools else ""))
     text = _tex(plan, placed, out)

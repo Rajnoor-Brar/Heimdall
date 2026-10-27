@@ -970,13 +970,13 @@ else is a source. Each report is a folder:
 |---|---|
 | `report.pdf` | A4: a front page (its sources, where they came from, any flags) and the contents, then each section from a new page |
 | `report.tex` | its LaTeX, naming only files in the folder: it compiles there as it is, or on Overleaf (upload the folder) |
-| `figures/` | every page it shows, copied as drawn, or drawn for the report (§11.3): `<NN>_<section>/<MMM>_<source>_<page>.pdf`, and its `.png` |
-| `stats/` | the statistics it shows, drawn from each source's `statistics.csv` (or the numbers measured for the report): a PDF, and a PNG a page; `summaries/`, each source's `summary.html` |
+| `figures/` | every page it shows, copied as drawn, or drawn for the report (§11.3): `<NN>_<section>/<MMM>_<source>_<page>.pdf`, its `.png`, and its `.csv`: each curve's bins (`curve`, `label`, `xlow`, `xhigh`, `y`, `err_down`, `err_up`) as its point's YODA holds them, before the page's normalisation, and the data's, so a figure can be drawn again without reading a PDF |
+| `stats/` | the numbers of the statistics it shows, which are typeset in the report itself, not pictures: `<NN>_<section>/<MM>_<source>__<set>.csv` (the `statistics.csv` they come from) and `.html` (the same tables as one page); a bar table's rows, `<NN>_<section>/<MM>_<source>/<NNN>_<page>.csv`; `summaries/`, each source's `summary.html` |
 | `tools/` | what each tool was given (§11.2): `<NN>_<section>/<MM>_<source>/<tag>.baseline.<ext>`, the card's lines every point had, and `<tag>.varied.csv`, what varied point by point |
 | `index.html` | the same grids to browse (2, 3 or 4 columns, ← →), the tools' cards and tables as text, its sources up front |
 
-**A rebuild makes only what changed.** A page whose source changed is copied again, statistics whose numbers
-changed are drawn again, what was drawn for the report is drawn again only when its source or its keys changed,
+**A rebuild makes only what changed.** A page whose source changed is copied again (its CSV when its page
+document or a YODA changed), what was drawn for the report is drawn again only when its source or its keys changed,
 and `report.pdf` is remade only when something it shows changed (`.stamps.json` keeps what each file was made
 from). What no section shows any more is removed.
 
@@ -1160,5 +1160,5 @@ contents = false        # no contents on the front page
 ### 11.5 Talks and papers
 
 A report is not a talk, a thesis or a paper, and Heimdall makes none of them. Take what it made into your own
-tools: the figures as vector PDFs from `figures/`, the statistics' pages from `stats/`, and `report.tex` as a
-start for Overleaf.
+tools: the figures as vector PDFs from `figures/` (their curves' numbers in the CSV beside each), the statistics'
+numbers from `stats/`, and `report.tex` as a start for Overleaf (its preamble holds the whole look).

@@ -193,7 +193,7 @@ TABLE_TEXT = {
 
 def _special(key: str) -> list[str] | None:
     """What explain answers beyond a key of the schema: a table, a v3 name, a tool folder's option, a
-    style key, deck.toml, machine.toml, [static]."""
+    style key, a report's recipe, machine.toml, [static]."""
     from . import tools as toolsmod
     word = key.strip("[]")
     table = TABLES.get(word, {"file": "config", "cfgs": "configuration"}.get(word))
@@ -228,9 +228,6 @@ def _special(key: str) -> list[str] | None:
         if entry is not None:
             return [f"{word} (a report's recipe, 04 §15)", f"  type     {entry.get('type', '')}",
                     *([f"  default  {entry['default']}"] if "default" in entry else []), f"  {entry.get('doc', '')}"]
-    if word in ("deck", "deck.toml"):
-        return ["deck.toml: a deck's recipe (04 §15)",
-                *(f"  {k:16} {e.get('doc', '')}" for t in schema.DECK_TABLES for k, e in schema.keys(t).items())]
     style = word.removeprefix("style.")
     for dotted, default, comment in schema.style_entries():
         if dotted == style:

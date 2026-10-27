@@ -1,4 +1,4 @@
-"""The viewer (docs/reporter, V104): a page of blocks, each a grid of labelled panels, for browsing.
+"""The viewer (V104; a report's index.html since V208): a page of blocks, each a grid of labelled panels, for browsing.
 
 `page(target, title, blocks)` writes one HTML file: a sticky bar of block links with sizes (S | M | L |
 Full) and columns (2 | 3 | 4), ← → between blocks, a panel by its PNG (an image) or its PDF (the
@@ -17,11 +17,10 @@ from pathlib import Path
 
 @dataclass
 class Shown:
-    """A block as the viewer shows it: its panels (label, file) and, when made, its composite."""
+    """A block as the viewer shows it: its panels (label, file), or a block of text."""
     name: str
     title: str
     panels: list[tuple[str, Path]]
-    composite: Path | None = None
     notes: list[str] = field(default_factory=list)
     body: str = ""                      # HTML shown in place of panels (a report's tools' configurations, V210)
 
@@ -147,9 +146,7 @@ def page(target: Path, title: str, blocks: list[Shown], front: str = "") -> Path
     nav = "\n      ".join(f'<a href="#{html.escape(b.name, quote=True)}">{html.escape(b.title)}</a>' for b in blocks)
     sections = []
     for number, block in enumerate(blocks, 1):
-        more = [f'composite <a href="{_href(block.composite, where)}" target="_blank">{html.escape(block.composite.name)}</a>']\
-            if block.composite else []
-        more += [html.escape(n) for n in block.notes]
+        more = [html.escape(n) for n in block.notes]
         cells = "\n      ".join(_cell(label, path, where) for label, path in block.panels)
         shown = f'    <div class="text">\n{block.body}\n    </div>' if block.body else f'    <div class="grid">\n      {cells}\n    </div>'
         sections.append(

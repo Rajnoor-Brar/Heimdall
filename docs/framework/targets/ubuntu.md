@@ -13,11 +13,12 @@ differs from the phase files is here (D11).
 ## System packages (P1 S1, `base=system` only)
 
 With the conda base (the default) P1 S1 installs none: TeX alone stays the OS's
-(`texlive-latex-recommended` and `-extra`, for the sheets and the decks; a gate when they are missing).
+(`texlive-latex-recommended` and `-extra`, for the sheets and the reports; a gate when they are missing).
 With `base=system`:
 
 `settings.toml`'s `apt_packages`: 51 at 9cb907a, grouped there by what needs each one. That
-includes `pandoc`, `poppler-utils` and `texlive-latex-recommended` for decks (V102–V104). They are
+includes `poppler-utils` and `texlive-latex-recommended` for the sheets and reports, and `pandoc` from the
+retired decks (V102–V104, V212). They are
 installed once, at P1 S1's gate, and the build then runs with `system=false`.
 
 ## Overlay and launching

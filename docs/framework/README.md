@@ -56,7 +56,7 @@ loop, verification, gates, deviations and reports. **A fresh machine starts at 0
 
 ~/Github/Top-Quark/                 a work dir, made by `heimdall setup` (V107); others anywhere
   hep.toml Makefile .gitignore README.md CLAUDE.md .vscode/
-  configs/Starter/  modules/Starter/  datasets/ decks/ results/ records/ reports/ build/   (logs/ .cache/: a run's)
+  configs/Starter/  modules/Starter/  datasets/ results/ records/ reports/ build/   (logs/ .cache/: a run's)
 ```
 
 Every folder and file is in the manual, [06 §1](../06_Internals.md#1-layout-heimdall-and-work-dirs).

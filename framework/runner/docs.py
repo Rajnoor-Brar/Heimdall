@@ -194,7 +194,7 @@ def _option(action: argparse.Action) -> str:
 
 
 def commands() -> str:
-    """Each subcommand: its help, then a table of its arguments."""
+    """Each subcommand: its help, then a table of its arguments (none when every one is hidden: a retired command's)."""
     top = cli.parser()
     sub = next(a for a in top._actions if isinstance(a, argparse._SubParsersAction))
     helps = {a.dest: a.help for a in sub._choices_actions}
@@ -207,7 +207,8 @@ def commands() -> str:
                 continue
             meaning = action.help or ""
             rows.append(f"| `{_cell(_option(action))}` | {_cell(meaning)} |")
-        out.append("\n".join(rows) + "\n")
+        if len(rows) > 2:
+            out.append("\n".join(rows) + "\n")
     return "\n".join(out).rstrip("\n")
 
 
@@ -242,7 +243,7 @@ def render(what: str) -> str:
 
 def _render(what: str) -> str:
     kind, _, arg = what.strip().partition(" ")
-    if kind == "keys" and arg in schema.TABLES + schema.DECK_TABLES + schema.REPORT_TABLES:
+    if kind == "keys" and arg in schema.TABLES + schema.REPORT_TABLES:
         return keys(arg)
     if kind == "keys3" and arg in V3_TABLES:
         return keys3(arg)
@@ -250,7 +251,7 @@ def _render(what: str) -> str:
         return style()
     if kind == "commands" and not arg:
         return commands()
-    raise ValueError(f"no generated block '{what}': keys <{'|'.join(schema.TABLES + schema.DECK_TABLES + schema.REPORT_TABLES)}>, style or commands")
+    raise ValueError(f"no generated block '{what}': keys <{'|'.join(schema.TABLES + schema.REPORT_TABLES)}>, style or commands")
 
 
 def updated(text: str) -> str:

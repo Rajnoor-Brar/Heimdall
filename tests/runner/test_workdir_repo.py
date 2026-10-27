@@ -1,5 +1,5 @@
-"""A work dir's sources and its git repository (audit 3, phase 5.2 and 5.3): decks/ apart from reports/
-(U22), datasets.toml (U23), `heimdall setup --refresh` (U28), and a work dir made in a git repository (U67)."""
+"""A work dir's sources and its git repository (audit 3, phase 5.2 and 5.3): datasets.toml (U23), `heimdall setup
+--refresh` (U28), and a work dir made in a git repository (U67)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import subprocess
 
 import pytest
 
-from runner import deck, migrate, record, setup
+from runner import record, setup
 from runner.errors import HepError
 
 
@@ -141,26 +141,6 @@ def test_refresh_brings_the_framework_files_up_to_date_and_leaves_the_users(scra
     assert "include" in (target / "Makefile").read_text(encoding="utf-8")
     assert (target / "configs" / "mine.txt").read_text(encoding="utf-8") == "mine\n"
     assert setup.refresh(target, yes=True, out=quiet[0]) == 0                      # today's: nothing to do
-
-
-def test_a_deck_is_written_in_decks_and_built_in_reports(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_DECKS", str(scratch / "decks"))
-    monkeypatch.setenv("HEP_REPORTS", str(scratch / "reports"))
-    src = scratch / "decks" / "talk"
-    src.mkdir(parents=True)
-    (src / "eta_one.png").write_bytes(b"\x89PNG")
-    made = deck.load("talk")
-    assert made.src == src.resolve() and made.dir == (scratch / "reports" / "talk").resolve()
-    old = scratch / "reports" / "old"                                              # written before decks/
-    old.mkdir(parents=True)
-    (old / "deck.toml").write_text("[deck]\n", encoding="utf-8")
-    (old / "eta_one.png").write_bytes(b"\x89PNG")
-    (old / "deck.pdf").write_bytes(b"%PDF")
-    assert deck.load("old").src == deck.load("old").dir == old.resolve()
-    work = scratch
-    moves = dict(migrate.deck_moves(work))
-    assert moves == {old / "deck.toml": work / "decks" / "old" / "deck.toml",
-                     old / "eta_one.png": work / "decks" / "old" / "eta_one.png"}       # the build's stay
 
 
 def test_an_example_is_a_working_project(scratch, quiet):

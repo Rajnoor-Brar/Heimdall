@@ -25,8 +25,8 @@ heimdall run Jets/jets                                 # run: 2 points, a page p
 | [00_Quick.md](00_Quick.md) | everyone | **one page**: the everyday commands, a whole run TOML and what to write for the common needs, where things go |
 | [01_Overview.md](01_Overview.md) | everyone | what it is, the model in one picture, the vocabulary (object, figure, page …), the principles and what each buys, what is refused, where it came from |
 | [02_User_Guide.md](02_User_Guide.md) | users | set up (Heimdall and work dirs), a first run, the anatomy of a run TOML, **the pipelines** as recipes (sweeps, generators and chains, your own programs, scale and seeds), reruns, failures, housekeeping, results from Python, a new project |
-| [03_Plots.md](03_Plots.md) | users | the plot stage, `[plot]` in practice, data and ratios, curves and bands, the style, **the seven figure classes** with examples, Hist1D/Scatter2D/HeatMap, the backends, `heimdall overlay`, **decks** for talks and reports (`heimdall deck`) |
-| [04_Config_Reference.md](04_Config_Reference.md) | users | **every accepted key**, as tables generated from the schema; paths, precedence and `"default"`; quantities and consumers; placeholders; the style keys; the validation rules C1–C14; the files the runner writes; a deck's `deck.toml` |
+| [03_Plots.md](03_Plots.md) | users | the plot stage, `[plot]` in practice, data and ratios, curves and bands, the style, **the seven figure classes** with examples, Hist1D/Scatter2D/HeatMap, the backends, `heimdall overlay`, **reports** (`heimdall report`) |
+| [04_Config_Reference.md](04_Config_Reference.md) | users | **every accepted key**, as tables generated from the schema; paths, precedence and `"default"`; quantities and consumers; placeholders; the style keys; the validation rules C1–C14; the files the runner writes; a report's recipe |
 | [05_Commands_and_Tools.md](05_Commands_and_Tools.md) | users, developers | **every command** (generated from the CLI) and what it does; the build and the environment; every standard tool; App_Pythia, App_yd2rt and Paint's command line |
 | [06_Internals.md](06_Internals.md) | developers | Heimdall's and a work dir's layout, components and ranks, the data model, a run in code, connections, identity and seeds, caches, events, failures, the plot stage inside, where files go; the build, the tool-folder contract, adding a tool, backend or figure class, Paint inside, the C++ kits and protocols, tests, conventions |
 | [07_Record.md](07_Record.md) | everyone | the brief, the decisions (V), the knowledge ledger (L), findings (F), v1's findings and decisions, risks, what has been verified, the budget, the glossary |
@@ -48,7 +48,8 @@ conda-forge (`@core-conda`, `bifrost -c`), on a machine or in an Apptainer image
 an agent: [framework/](framework/README.md).
 
 Decks (`heimdall deck`, talks and shareable reports from drawn pages) were planned and built as
-[reporter/](reporter/00_Plan.md) (V102–V104).
+[reporter/](reporter/00_Plan.md) (V102–V104), kept as history: `heimdall report` replaced them (V206–V212,
+[.plans/report/](../.plans/report/00_Plan.md)).
 
 What is open is the ghosts-and-gaps audit [audit_4/](audit_4/README.md) (G1–G23, 2026-10-15: what is
 carried unused, half-built, retired but lingering, or of unclear use), which carries the health check

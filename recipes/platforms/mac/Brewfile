@@ -35,8 +35,8 @@ brew "ocaml"          # Whizard (O'Mega)
 brew "ocaml-findlib"
 brew "bdw-gc"         # Whizard
 brew "tomlplusplus"   # the framework: Paint, App_Pythia, the module kit
-brew "pandoc"         # decks (heimdall deck): Beamer, pptx and HTML slides; Beamer itself comes with the TeX
-brew "poppler"        # decks and sheets: pdftoppm renders a figure's PNG from its PDF, pdfinfo reads sizes
+brew "pandoc"         # kept from heimdall deck (retired): the base's decks group, until it is next rebuilt
+brew "poppler"        # sheets and reports: pdftoppm renders a figure's PNG from its PDF, pdfinfo reads sizes
 
 # pdflatex, for sheet figures: a ~100 MB TeX, which asks for your password; uncomment to include it
 # cask "basictex"

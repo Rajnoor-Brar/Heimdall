@@ -41,7 +41,6 @@ WORK_VAR = "HEP_WORK"
 RESULTS_VAR = "HEP_RESULTS"
 RECORDS_VAR = "HEP_RECORDS"
 CACHE_VAR = "HEP_CACHE"
-DECKS_VAR = "HEP_DECKS"
 CONFIGS_VAR = "HEP_CONFIGS"
 REPORTS_VAR = "HEP_REPORTS"
 
@@ -261,7 +260,7 @@ def cache_root() -> Path:
 
 
 def reports_root() -> Path:
-    """Where decks go (docs/reporter): $HEP_REPORTS (tests set it) or <work>/reports."""
+    """Where reports are built (heimdall report, V207–V211): $HEP_REPORTS (tests set it) or <work>/reports."""
     return _rooted(REPORTS_VAR, "reports")
 
 
@@ -275,12 +274,6 @@ def dataset_listed(path: Path) -> bool:
         return Path(path).resolve().relative_to((work / "datasets").resolve()).as_posix() in files
     except (ValueError, OSError, tomllib.TOMLDecodeError):
         return False
-
-
-def decks_root() -> Path:
-    """Where decks are written (U22): decks/<deck>/{deck.md, deck.toml, extras}, tracked; they build into
-    reports/<deck>/. $HEP_DECKS (tests set it) or <work>/decks."""
-    return _rooted(DECKS_VAR, "decks")
 
 
 def configs_root() -> Path:

@@ -15,8 +15,8 @@ hand). Only what differs from the phase files is here (D11).
 
 ## System packages (P1 S1)
 
-- `brew bundle --file=$HEP/recipes/platforms/mac/Brewfile` replaces apt. It includes `pandoc` and
-  `poppler` for decks.
+- `brew bundle --file=$HEP/recipes/platforms/mac/Brewfile` replaces apt. It includes `poppler` for
+  the sheets and reports (and `pandoc`, kept from the retired decks).
 - No sudo, so no gate, but it is a download: ask with the others.
 - Homebrew's own HEP formulae (`root`, `hepmc3`, `lhapdf`, `pythia`, `yoda`, `rivet`, `fastjet`)
   must not be installed (recipes/platforms/mac/README.md §5). A gate if they are.

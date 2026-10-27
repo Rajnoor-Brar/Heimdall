@@ -59,8 +59,8 @@ def test_the_manual_is_a_quick_page_seven_pages_and_its_index():
 
 
 def prose(body: str) -> str:
-    """A page without its code: fenced blocks and inline spans hold examples, not links (a deck.md's
-    `![](validation-d01)` names a block, V104)."""
+    """A page without its code: fenced blocks and inline spans hold examples, not links (`![](validation-d01)` in
+    a code span is an example, not an image)."""
     return re.sub(r"`[^`\n]*`", "", re.sub(r"^```.*?^```", "", body, flags=re.M | re.S))
 
 

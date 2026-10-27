@@ -1,5 +1,8 @@
 # Reporter: decks for talks and sharing (`hep deck`)
 
+> **Superseded by `heimdall report` (V206–V212, [.plans/report/](../../.plans/report/00_Plan.md)); `heimdall deck` is
+> retired. Kept as history.**
+
 The plan for building talks and shareable reports from the framework's drawn pages. It was agreed
 with the user on 2026-10-08, after a discussion of the current features, the new ones, and their
 structure. It was reviewed on 2026-10-10 against the code, the results on disk and pandoc itself (§8).

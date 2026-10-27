@@ -236,7 +236,8 @@ def test_the_mac_on_the_conda_base_needs_no_homebrew(bs, tmp_path, monkeypatch, 
 
 
 def test_the_system_packages_carry_what_decks_need(bs, tmp_path):
-    """heimdall deck (docs/reporter): pandoc for the slides, poppler for a figure's PNG, the Beamer class."""
+    """The decks group, named for heimdall deck (retired, V212), kept as the base's is until it is next rebuilt
+    (I-62): poppler for a page's PNG (sheets, reports), TeX's recommended set, pandoc."""
     _, s, _ = bs.options([f"machine={tmp_path}"])
     assert {"pandoc", "poppler-utils", "texlive-latex-recommended"} <= set(s["apt_packages"])
 

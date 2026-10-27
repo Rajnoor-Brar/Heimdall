@@ -52,10 +52,16 @@ def test_the_shell_verbs_say_to_source_setup():
     assert done.returncode == 2 and "gjallarhorn.sh's shell function" in done.stderr and "source " in done.stderr
 
 
+def test_heimdall_deck_stops_naming_heimdall_report():
+    """V212: deck is retired, as V74 retired heimdall plot FILE: whatever it is given, it names the report."""
+    with pytest.raises(HepError, match="heimdall deck is now heimdall report") as error:
+        cli.cmd_deck(cli.parse(["deck", "talk", "--dry-run"]))
+    assert "heimdall report <P>/<run>/<cfg>" in str(error.value.hint)
+
+
 def test_plain_and_dry_run_anywhere():
     args = cli.parse(["--plain", "run", "Demo/jets", "--dry-run", "pdf"])
     assert args.plain and args.plan and args.configuration == "pdf"
-    assert cli.parse(["deck", "talk", "--dry-run"]).list
     assert cli.parse(["status", "--set", "run.events=10"]).set == ["run.events=10"]
     assert cli.parse(["check", "--set", "run.events=10"]).set == ["run.events=10"]
     assert cli.parse(["clean", "--set", "run.events=10", "--dry-run"]).set == ["run.events=10"]

@@ -35,7 +35,7 @@ Heimdall is the framework: `$HEP` is this folder, what is authored, nothing buil
 | `env/` | `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
 | `framework/` | `bin/` (`heimdall`, `bifrost`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders), `plot/` (the plot backends and figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py` |
 | `src/` | the C++ kits (`Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh`) and the apps' sources (`App_*.cc`, `Apps/Paint/`) |
-| `docs/` | the manual `00`–`07`, `framework/` (the setup runbook), `conda/` (the base's design), `reporter/`, `audit_2/`, `audit_3/`, `audit_4/` |
+| `docs/` | the manual `00`–`07`, `framework/` (the setup runbook), `conda/` (the base's design), `reporter/` (the retired decks' plan, history), `audit_2/`, `audit_3/`, `audit_4/` |
 | `.plans/` | `ISSUES.md` (pending work, one issue per task); plans, audits and plan execution maps (`restructure_plan.md`, `run_logging_audit.md`, `run_logging_plan.md`, `statistics_a4_plan.md`, `report/`: `heimdall report`'s audit and phases) |
 | `tests/` | `runner/`, `integration/`, `cxx/`, `reference/`, `fixtures/work/` (the frozen work dir the tests use) |
 | `editor/` | the VS Code tooling: `cmnd-syntax/` (Pythia `.cmnd` highlighting), `hep-contrast-theme/`, `hep-icons/`, `icon-bank/` (from High-Energy's `aux/` at 2c4fcad) |

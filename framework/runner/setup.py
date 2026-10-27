@@ -51,7 +51,7 @@ MANIFEST = "datasets.toml"
 EXAMPLES = {"jets": ("Demo", "Demo/jets single")}
 EXAMPLE_WORK = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "work"
 #: The key folders every work dir has (framework/01 §4.1).
-FOLDERS = ("configs", "modules", "datasets", "decks", "results", "records", "reports", "build")
+FOLDERS = ("configs", "modules", "datasets", "results", "records", "reports", "build")
 
 
 def revision(root: Path | None = None) -> str:

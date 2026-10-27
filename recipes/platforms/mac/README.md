@@ -40,7 +40,7 @@ macOS; no recipe is copied. **The conda base on a Mac is not yet proven by a bui
    git clone <Heimdall's URL> ~/Github/Heimdall
    cd ~/Github/Heimdall
    ```
-4. **Optional: pdflatex** for the sheet figures and the decks' Beamer class (TeX stays the OS's, on
+4. **Optional: pdflatex** for the sheet figures and the reports (TeX stays the OS's, on
    either base): [BasicTeX](https://tug.org/mactex/morepackages.html) (about 100 MB), or with Homebrew:
    ```bash
    brew install --cask basictex
@@ -116,7 +116,7 @@ today, pandoc and poppler) and `conda.toml` holds the one fix it needs; the tabl
 | fjcontrib's shared library | `libfastjetcontribfragile.so` | `.dylib` (the `{dylib}` placeholder) |
 | ONNX Runtime | `onnxruntime-linux-<arch>` | `onnxruntime-osx-<arm64 or x86_64>` |
 | gjallarhorn.sh | the stub | the stub, then `DYLD_LIBRARY_PATH` and GNU make, sed, coreutils first on `PATH` (`setup_extra`) |
-| decks (`heimdall deck`) | `pandoc`, `poppler-utils`, `texlive-latex-recommended` (apt) | `pandoc`, `poppler` (Brewfile); the Beamer class comes with BasicTeX or MacTeX |
+| sheets and reports (`heimdall report`; pandoc kept from the retired decks) | `pandoc`, `poppler-utils`, `texlive-latex-recommended` (apt) | `pandoc`, `poppler` (Brewfile); TeX comes with BasicTeX or MacTeX |
 
 ---
 

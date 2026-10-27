@@ -3,7 +3,7 @@ build/
 records/
 .cache/
 results/
-# Built decks (their sources are decks/, tracked); large inputs are listed in datasets.toml and
+# Built reports (heimdall report: their recipes are in configs/); large inputs are listed in datasets.toml and
 # kept out by datasets/.gitignore (heimdall setup . fetches them)
 reports/*
 __pycache__/

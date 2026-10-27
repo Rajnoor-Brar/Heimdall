@@ -71,7 +71,7 @@ heimdall build                                            # its module programs 
 heimdall run Jets/jets                                    # the starter: Pythia → MC_JETS, two PDFs
 ```
 
-`heimdall setup <dir>` makes the folders every work dir has (`configs/ modules/ datasets/ decks/ results/
+`heimdall setup <dir>` makes the folders every work dir has (`configs/ modules/ datasets/ results/
 records/ reports/ build/`), its `hep.toml` (the marker: `[work] name`, and `[framework] expects`, the
 Heimdall revision it was made by), a `Makefile`, `.gitignore`, `README.md`, `CLAUDE.md` and editor
 settings, then says the next commands. It never overwrites: run it again in a work dir (after a fresh
@@ -106,8 +106,7 @@ url    = "https://example.org/data/ZEUS_2012.yoda"
 sha256 = "9f2c…"                 # sha256sum's: the file must be this one
 ```
 
-**Decks** are written in `decks/<deck>/` (`deck.md`, `deck.toml`), tracked, and built into
-`reports/<deck>/` (03 §11). **`heimdall setup . --refresh`** brings the framework's own files (the
+**Reports** are built into `reports/`, which mirrors `results/`; their recipes are in `configs/` (03 §11). **`heimdall setup . --refresh`** brings the framework's own files (the
 `Makefile`, Heimdall's `README.md` or `HEIMDALL.md`, `CLAUDE.md`, `.vscode/`, the `.gitignore` block)
 up to today's template, showing each diff first; your files are never touched.
 

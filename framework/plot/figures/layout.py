@@ -1,12 +1,11 @@
-"""framework/plot/figures/layout.py — figures laid out in a grid: a sheet's pages (V89) and a deck's composites (V102).
+"""framework/plot/figures/layout.py — figures laid out in a grid: a sheet's pages (V89), and the LaTeX a report's grids
+are placed with (`picture`, `tex`, `pdflatex`, I-108).
 
 One PDF, drawn by pdflatex: each panel (a page's PDF, or a PNG) placed in its cell by graphicx, vector as
 it is, with an optional label above it and an optional title above the grid. The PNG is that PDF
-rendered by pdftoppm, so the two are one picture (docs/reporter D-R6, D-R9).
+rendered by pdftoppm, so the two are one picture.
 
 * `tile(files, target, columns)`: a sheet. The pages at their own size, `columns` of them wide.
-* `composite(panels, target, box, …)`: a deck's block. The panels fitted into a box, by name a slide's
-  content area (`SIZES`), labelled.
 
 A page's size is the size it shows (a PDF's rotation applied). Errors are ValueError, with what is wrong.
 """
@@ -23,13 +22,6 @@ from pathlib import Path
 
 TILED = ("pdf", "png")
 
-#: A composite's box (width, height in bp, PDF's points) by name: a 16:9 slide's content area under its title, as
-#: pandoc's Beamer and pptx output leave it (`full`), one of its two columns (`half`), A4 landscape, a square.
-SIZES = {"full": (400.0, 222.0), "half": (196.0, 222.0), "a4": (842.0, 595.0), "square": (400.0, 400.0)}
-
-GAP = 4.0                                    # bp between cells of a composite
-LABEL = 0.06                                 # a label strip, as a fraction of the box height (at most 12 pt)
-TITLE = 0.09                                 # the title strip, the same (at most 18 pt)
 PNG_DPI = 300                                # a PNG panel's resolution, when it says none (Paint's, base.toml)
 
 _SPECIALS = {"\\": r"\textbackslash{}", "&": r"\&", "%": r"\%", "#": r"\#", "_": r"\_", "{": r"\{",
@@ -87,32 +79,9 @@ def size_of(path: Path) -> tuple[float, float]:
     return _pdf_size(done.stdout)
 
 
-def grid(n: int, box: tuple[float, float], aspect: float, columns: int | None = None,
-         label: float = 0.0, title: float = 0.0, gap: float = GAP) -> tuple[int, int, float, float]:
-    """(columns, rows, cell width, cell height) for n panels of width/height `aspect` in a box, each cell
-    with a label strip above it and the grid under a title strip. Without `columns`, the count that
-    shows the panels largest."""
-    if n < 1:
-        raise ValueError("a grid needs a panel")
-    width, height = box[0], box[1] - title
-    best = None
-    for c in ([columns] if columns else range(1, n + 1)):
-        rows = math.ceil(n / c)
-        cw = (width - (c - 1) * gap) / c
-        ch = (height - (rows - 1) * gap) / rows - label
-        if cw <= 0 or ch <= 0:
-            continue
-        shown = min(cw, ch * aspect)                         # a panel's width once fitted in its cell
-        if best is None or shown > best[0] + 1e-9:
-            best = (shown, c, rows, cw, ch)
-    if best is None:
-        raise ValueError(f"{n} panels do not fit a {box[0]:g} × {box[1]:g} pt box")
-    return best[1], best[2], best[3], best[4]
-
-
 def picture(files: list[str], labels: list[str], box: tuple[float, float], columns: int, rows: int, cw: float,
             ch: float, label: float, title: str, title_h: float, gap: float, options: list[str] | None = None) -> list[str]:
-    """A grid as a LaTeX picture's lines (I-108 P1: composites, sheets and the report's grids): each file (as the
+    """A grid as a LaTeX picture's lines (I-108 P1: sheets and the report's grids): each file (as the
     source names it) in its cell, aspect kept and centred, its label above it, the title on top. Units bp.
     `options`: each file's further \\includegraphics keys (`page=2`, I-108 P3)."""
     width, height = box
@@ -186,32 +155,6 @@ def png(pdf: Path, target: Path, dpi: float = 200, pixels: tuple[int, int] | Non
                           capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0 or not target.is_file():
         raise ValueError(f"pdftoppm could not render {pdf.name}: {done.stderr.strip() or done.returncode}")
-
-
-def composite(panels: list[tuple[Path, str]], target: Path, box: str | tuple[float, float] = "full",
-              columns: int | None = None, labels: bool = True, title: str = "", dpi: float = 200) -> list[Path]:
-    """A deck's block: `target`.pdf and .png, the panels (file, label) in order, fitted into the box (a
-    SIZES name or (width, height) in pt). Columns automatic unless given; the panels' aspect is the
-    median of theirs."""
-    if isinstance(box, str):
-        if box not in SIZES:
-            raise ValueError(f"no size '{box}': {', '.join(SIZES)}")
-        box = SIZES[box]
-    if not panels:
-        raise ValueError("a composite needs a panel")
-    for path, _ in panels:
-        if not path.is_file():
-            raise ValueError(f"no such panel: {path}")
-    aspects = sorted(w / h for w, h in (size_of(p) for p, _ in panels))
-    aspect = aspects[len(aspects) // 2]
-    label = min(12.0 / 0.75, LABEL * box[1]) if labels and any(t for _, t in panels) else 0.0
-    title_h = min(18.0 / 0.7, TITLE * box[1]) if title else 0.0
-    c, rows, cw, ch = grid(len(panels), box, aspect, columns, label, title_h)
-    pdf = target.with_name(target.name + ".pdf")
-    _draw(panels, pdf, box, c, rows, cw, ch, label, title, title_h, GAP)
-    shown = target.with_name(target.name + ".png")
-    png(pdf, shown, dpi)
-    return [pdf, shown]
 
 
 def tile(files: dict[str, list[Path]], target: Path, columns: int) -> list[str]:

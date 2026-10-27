@@ -37,3 +37,23 @@ done.**
 - **The branch:** `report` fast-forwarded into main, the worktree removed.
 
 ## Log
+
+- 2026-10-27: done (V212), in the worktree, branch `report`.
+  - **Readings taken while doing it:**
+    - `layout.grid` went with `composite`, its only user, and `viewer.Shown.composite` with them.
+    - `heimdall deck` keeps its old options, hidden, so any old line parses and stops with the message
+      (`cli.parse` is `parse_intermixed_args`, which takes no `REMAINDER`); the docs' commands block leaves out an
+      argument table when every argument is hidden.
+    - **Recipes:** the package lists stay (the base's `decks` group, I-62; `settings.toml`'s `apt_packages` keep
+      pandoc beside it); their comments, the Brewfile's and the setup docs' now say pandoc is kept from the decks.
+      A recipe's stamp hashes its parsed table, not its comments.
+    - **History left as it is:** `docs/framework/01_Target.md`, `06_Workdirs.md`, `docs/conda/`, the audits;
+      `docs/reporter/00_Plan.md` is headed "superseded"; 01's "Where it came from" keeps its decks row and gains
+      the reports'.
+  - **Verification:** `grep -rn deck framework/ tests/` finds the break, its test, and the stack test of the
+    kept `decks` package group. The fast suite: 1075 passed, 10 skipped; 1 failed, the old
+    `test_stack_build::test_the_old_way_is_apt_and_a_venv`.
+    The slow suite (P6's and P4's checks with it): 44 passed (P1's 42 and `test_report_draw`'s 2); 5 failed,
+    the same 5 as P1's baseline (`test_gates_combine`'s seeds merged, `test_gates_p1`'s legacy digit ×2, I-79;
+    `test_listed_points`; the mpl-vs-mkhtml pixels).
+  - **The branch:** `report` fast-forwarded into main; the worktree removed. Nothing pushed.

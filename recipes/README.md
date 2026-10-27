@@ -292,8 +292,8 @@ them, as `apt_packages` does: the libraries ROOT, ThePEG and Herwig, LHAPDF, She
 Geant4 link, and the framework's own (toml++, zstd, zlib), then the tools (make, cmake, autotools, pandoc,
 poppler), then each platform's compilers. A recipe's own go in its `base = [...]`; yours in
 `base_packages`. pixi solves them for this machine's platform into `base/pixi.lock`. What the base cannot
-hold stays the OS's: glibc and the kernel, the GPU and GL drivers, and TeX (pdflatex for sheet figures,
-the Beamer class for decks: `texlive-latex-recommended` and `-extra` on Ubuntu) until conda-forge's is
+hold stays the OS's: glibc and the kernel, the GPU and GL drivers, and TeX (pdflatex for sheet figures
+and reports: `texlive-latex-recommended` and `-extra` on Ubuntu) until conda-forge's is
 proven (docs/conda/01 §7).
 
 **`base=system`** (and a machine root made before the base): the run first installs `settings.toml`'s

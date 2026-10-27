@@ -15,8 +15,8 @@ counted, what it puts in the context file, and the quirks that shaped it (the le
 Every command is one program's (`framework/bin/heimdall` runs `framework/runner/cli.py`): `heimdall help`
 lists them, `heimdall help <command>` (or `heimdall <command> --help`) says one, and a misspelt command gets
 the nearest. Throughout:
-- **`--dry-run`** shows what a command would do and does nothing: `run` (also `--plan`), `report` and `deck`
-  (also `--list`), `clean`, `cluster`, `migrate` (its default: `--apply` writes), `build` (`make -n`) and
+- **`--dry-run`** shows what a command would do and does nothing: `run` (also `--plan`), `report` (also
+  `--list`), `clean`, `cluster`, `migrate` (its default: `--apply` writes), `build` (`make -n`) and
   `stack build`.
 - **`--set KEY=VALUE`** works on every command that plans: `run`, `check`, `status`, `clean`, `cluster`.
 - **`--plain`** may come anywhere, for any command.
@@ -91,14 +91,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--ratio` | a ratio panel against the first curve |
 | `--style FILE` | a style file over src/Apps/Paint/base.toml |
 
-**`heimdall deck`**: a deck of slides from drawn pages, in reports/<deck>/ (deck.toml, deck.md)
-
-| Argument | Meaning |
-|---|---|
-| `deck` | decks/<deck> (built into reports/<deck>), or a path starting ./, ../ or / |
-| `--list, --dry-run` | each block, its panels and where they came from; nothing written |
-| `--only TARGETS` | some of pdf, pptx, html, overleaf, viewer (comma-separated) |
-| `--init` | write deck.md once: a title slide and a slide per block |
+**`heimdall deck`**: retired: heimdall report makes a report of runs' pages and numbers
 
 **`heimdall report`**: a quick report of runs' pages and numbers, built only when asked into reports/, where results/ has its sources (a folder's: its report.toml)
 
@@ -182,9 +175,6 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 **`heimdall runs`**: what runs on this machine now, and what ran in the last 30 days
 
-| Argument | Meaning |
-|---|---|
-
 **`heimdall log`**: a record's own account, a point's attempts and logs, or a tool's log
 
 | Argument | Meaning |
@@ -260,13 +250,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 **`heimdall make`**: make one source of the work dir (or --framework, Heimdall's): <path>/<X>.exe, <path>/<x>.so
 
-| Argument | Meaning |
-|---|---|
-
 **`heimdall stack`**: this machine's stack: heimdall stack build|list|status|doctor [options]
-
-| Argument | Meaning |
-|---|---|
 
 **`heimdall help`**: a command's help: heimdall help <command>
 
@@ -276,18 +260,9 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 **`heimdall refresh`**: reload this shell's environment (gjallarhorn.sh's shell function)
 
-| Argument | Meaning |
-|---|---|
-
 **`heimdall quit`**: leave this shell's environment (gjallarhorn.sh's shell function)
 
-| Argument | Meaning |
-|---|---|
-
 **`heimdall cd`**: cd to a work dir's folder: heimdall cd PROJECT [configs|modules|results|records|logs] (gjallarhorn.sh's shell function)
-
-| Argument | Meaning |
-|---|---|
 
 **`heimdall recognise`**: record work dirs by title, in the machine root's workdirs.toml (gjallarhorn <title> goes to one)
 
@@ -420,8 +395,8 @@ This is housekeeping.
   schema (`framework/schema/run.toml`): `plot.y_gutter`, `run.events`, `cfgs.pdf.threads`,
   `quantities.<q>.points`, `plot.figures.<f>.logy`, or a bare key looked up in every table. It also
   answers for a table (`heimdall explain cfgs`), a v2 name (`run.event_count`), a tool folder's option
-  (`rivet.analyses`), a style key (`style.page.dpi`), a quantity of the vocabulary, `deck.toml` and
-  `machine.toml`.
+  (`rivet.analyses`), a style key (`style.page.dpi`), a quantity of the vocabulary, a report's recipe
+  (`report`, `report.section.<key>`) and `machine.toml`.
 - **`status`** gives every configuration's points and stages, each **complete**, **stale** (complete
   for an earlier identity: it reruns), **running** (a session holds its lock: `(pid N on <host>,
   since …)`), **incomplete** (begun, not done: failed or stopped) or **to run**. It reads the
@@ -594,26 +569,6 @@ to a colleague or a supervisor. It runs only when asked: no run, plot or stats s
   elsewhere), with `longtable` and `fvextra` for the tools' pages, and poppler's `pdftoppm` for a page drawn
   with no PNG; to draw for itself, what `heimdall plot` needs (Paint, the backend's own).
 
-#### 1.8.1 `heimdall deck`
-
-`heimdall deck <deck>` makes slides from pages already drawn, in `reports/<deck>/` (a path
-starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
-[03 §11.5](03_Plots.md#115-decks-heimdall-deck); its `deck.toml` keys are
-[04 §15.1](04_Config_Reference.md#151-a-decks-recipe-decktoml).
-- **What a run does, in order:**
-  1. reads `deck.toml`'s blocks, or the folder's own files;
-  2. copies the panels into `panels/`, again only when one changed;
-  3. draws each composite into `figures/`, again only when its panels or settings changed;
-  4. makes each target.
-- **The targets:** `deck.pdf` (Beamer), `overleaf.zip`, `deck.pptx`, `deck.html` (dzslides) and
-  `index.html` (the viewer). `[deck].targets`, or `--only pdf,pptx`, picks some. The slides need
-  pandoc; the viewer does not.
-- **`--list`:** the blocks, their panels and labels, and where each came from. Nothing is written.
-- **`--init`:** writes `deck.md` once (a title slide, then a section per table and a slide per
-  block), and a starter `deck.toml` where there is none. It refuses when `deck.md` is there.
-- **What it needs:** pdflatex and poppler (`pdftoppm`, `pdfinfo`) for the composites, pandoc and
-  the Beamer class for the slides (recipes/README.md §4).
-
 ---
 
 ### 1.9 `heimdall cluster`
@@ -688,7 +643,7 @@ sees ([02 §1](02_User_Guide.md#1-set-up-and-build); their options are in §1). 
 in `HEIMDALL.md`), merges a marked block into its `.gitignore`, and `--git` commits only the files it
 added, in the repository the folder is in (`--git=new`: a repository of its own). It fetches what
 `datasets.toml` lists (url, sha256) into `datasets/`; `--refresh` shows and writes (asked, or `--yes`)
-the framework's own files as today's template has them. `HEP_DECKS` replaces the work dir's `decks/`.
+the framework's own files as today's template has them.
 
 **`gjallarhorn [title]`.** At the end of a build (setting `shell_rc`, default true), `recipes/build_stack.py`
 writes a block into `~/.bashrc` (when the login shell is bash or the file is there) and `~/.zshrc`

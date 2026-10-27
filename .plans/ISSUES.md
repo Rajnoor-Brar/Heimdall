@@ -33,11 +33,11 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | Phase | Issues |
 | --- | --- |
 | 1 Task L's follow-ups, quick fixes | **done** (V190–V194), but I-07's checks by hand |
-| 2 The safety net | I-10, I-11, I-12, I-13, I-76, I-77 (part), I-78 |
+| 2 The safety net | I-10, I-11, I-12, I-13, I-76, I-77 (part) |
 | 3 One dialect | I-20, I-21, I-91 |
 | 4 Retirements, record formats | I-25, I-26, I-27, I-28, I-29, I-30, I-68, I-105 (drops) |
 | 5 Session layer, CLI | I-35, I-36, I-37, I-70, I-71, I-72, I-73, I-100, I-101 |
-| 6 Plot model | I-40 (closed: kept), I-41, I-42, I-43, I-44, I-45, I-46, I-47, I-48, I-97, I-99, I-105 (deck template) |
+| 6 Plot model | I-40 (closed: kept), I-41, I-42, I-43, I-44, I-45, I-46, I-47, I-48, I-97, I-99 |
 | 7 Package restructure | I-50, I-51, I-52 |
 | 8 The stack | I-55 … I-63, I-65, I-66, I-77 (rest), I-88 |
 | 9 Roots, cluster images | I-75, I-86 |
@@ -64,7 +64,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - **I-86:** plan inside the image.
 - **I-66:** Herwig for MadGraph, plus MG5aMC_PY8.
 - **I-70:** `--logs` and `--journal` stay, as shorthands.
-- **I-105:** the deck `template` key is built; F8 and the stamp are dropped.
+- **I-105:** F8 and the stamp are dropped (the deck `template` key went with deck, V212).
 
 ## Index
 
@@ -129,7 +129,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-75 | A `WorkDir` value; no root variables, no `os.environ` mutation | P2 | blocked on I-10 |
 | I-76 | Tests independent of their order | P2 | open |
 | I-77 | Tests a conda-base root skips | P3 | open |
-| I-78 | `test_deck_build` fetches a web font | P3 | open |
 | I-79 | The legacy gates differ by one digit on the conda base | P2 | decision |
 | **M10** | **The machine and the repository** | | |
 | I-80 | Retire `base = "system"` | P3 | blocked on I-82 (D6) |
@@ -156,7 +155,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-103 | Physics set-ups to settle | P3 | decision |
 | I-104 | A tool's private dependencies (BeAGLE) | P3 | idea (set aside) |
 | I-105 | Smaller leftovers | P3 | idea |
-| I-108 | `heimdall report` replaces `heimdall deck` | P2 | in progress (approved 2026-10-26) |
 
 ---
 
@@ -282,7 +280,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 
 ### I-29 Leftover names and stale hints
 **P3 · cleanup · open (audit 4's G1, G9, G17)**
-- Dead names: `deck.deck_dir` (`deck.py:121`), `plot.BACKENDS` (`plot.py:48`), `layout.TILED`, `tools.ENV`
+- Dead names: `plot.BACKENDS` (`plot.py:48`), `layout.TILED`, `tools.ENV`
   (`tools.py:40`), `paths.forge_dir` (tests only).
 - Hints that name `heimdall plot FILE` instead of `overlay`. The wrappers `plot.objects_of`, `raws_of`,
   `_sha` and `base_of` inlined. `{repo}` → `{hep}` in the recipes.
@@ -315,18 +313,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - On `plan`, `status`, `runs`, `tools` and `stack status`, from one renderer: for scripts and agents.
 
 ## M5 — The plot model
-
-### I-108 `heimdall report` replaces `heimdall deck`
-**P2 · feature · in progress (approved 2026-10-26)**
-- The audit, the decisions and the plan are [report/00_Plan.md](report/00_Plan.md); its phases are P1–P7
-  there, each with its own file and log (amended after P3: §1.6, the run writes `report.toml`; §1.7, reports
-  mirror `results/` and show what each tool was given).
-- **Its scope:** quick, informal reports of plots and statistics (one or more runs, across projects) for
-  colleagues or a supervisor, run only on `heimdall report`. Recipes are `configs/<P>/<name>.toml` with
-  `[report]`; a run TOML's `[report]` (a `template` and its own keys) is written into each result folder as
-  `report.toml`. Formal presentation is not Heimdall's.
-- It supersedes I-105's deck `template` key and I-78 (both go with deck in P7).
-- **Done:** P1–P6 (V206–V211), on branch `report`. **Left:** P7, deck retired (then main fast-forwarded).
 
 ### I-40 `[plot]` lives in the config; the record keeps facts
 **P1 · design · decision (D2)**
@@ -363,8 +349,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 
 ### I-44 One HTML index writer
 **P3 · cleanup · open**
-- `plot.write_index` (`:1484`), `plot.write_sets_index` (`:1724`) and `viewer.page` (the deck's, the best
-  of them). Use the viewer for the plots too (the reporter plan's "later").
+- `plot.write_index` (`:1484`), `plot.write_sets_index` (`:1724`) and `viewer.page` (a report's `index.html`
+  since the deck's retirement, V212; the best of them). Use the viewer for the plots too (the reporter plan's "later").
 
 ### I-45 `heimdall stats` → `heimdall plot --stats-only`
 **P3 · CLI · decision (D9)**
@@ -401,7 +387,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 ### I-51 The plugin loader for tool folders only
 **P2 · refactor · blocked on I-50**
 - `bars.py`, `derive.py`, `layout.py`, the backends, `build_stack.py` and `env/stack.py` are loaded as
-  "plugins" (`plot.py:1744`, `deck.py:468`, `config.py:1289`, `tools.py:515`). The premise was "the
+  "plugins" (`plot.py:1744`, `report._layout`, `config.py:1289`, `tools.py:515`). The premise was "the
   runner stays standard library", but `tomli_w` is imported in five modules already. Import them
   normally, with matplotlib and YODA lazily, and pin the real dependency set in a test.
 
@@ -544,11 +530,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - `test_v3`'s editor-schema test needs `jsonschema`, which the base lacks.
 - `test_the_old_way_is_apt_and_a_venv` fails on a conda root: it asserts "pixi" appears nowhere, and
   the venv's path holds it. It goes with I-80, or asserts on the script's pixi commands.
-
-### I-78 `test_deck_build` fetches a web font
-**P3 · test · open**
-- pandoc's `--embed-resources` fetches the dzslides template's Google font, so the test fails offline and
-  now and then in the whole suite. Use a local template, or no font.
 
 ### I-79 The legacy gates differ by one digit on the conda base
 **P2 · verification · decision (first seen 2026-10-22)**
@@ -703,5 +684,4 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 **P3 · idea**
 - `heimdall migrate --stamp`: the stack's versions into `[file.meta].versions`, if wanted.
 - HTCondor and PBS for `heimdall cluster`.
-- A `template` key for decks (the reporter's D-R10).
 - "F8 `--more`": named in older plans with no description anywhere. Confirm what it was, or drop it.

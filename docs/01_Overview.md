@@ -256,6 +256,7 @@ Anything a user does not ask for is not there (v1 had 19 commands).
 | **figures** (V80–V89) | `[plot.figures]`: seven ways to build a page and three things to draw |
 | **audit 2** (V90–) | this manual, rebuilt on generated reference tables |
 | **decks** (V102–V104) | `heimdall deck`: talks and reports from drawn pages |
+| **reports** | `heimdall report`, in place of the decks: a quick A4 report of runs' pages and numbers, what their tools were given, and what it draws for itself |
 | **Heimdall** (V105–V113) | the framework split from High-Energy (`split/base`) into its own repository, which is also the machine's home: the stack's recipes and toolkits, `heimdall setup` for work dirs, two roots, provenance across both repositories |
 
 The decisions and what each gave up are in [07 §2](07_Record.md#2-decisions).

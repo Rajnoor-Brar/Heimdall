@@ -27,7 +27,6 @@ from pathlib import Path
 
 from . import cluster as clustermod
 from . import config as configmod
-from . import deck as deckmod
 from . import execute, house, paths, plot, plotdoc, post, record, runs, sweep, tools
 from . import doctor as doctormod
 from . import setup as setupmod
@@ -126,12 +125,11 @@ def parser() -> argparse.ArgumentParser:
     overlay.add_argument("--ratio", action="store_true", help="a ratio panel against the first curve")
     overlay.add_argument("--style", metavar="FILE", help="a style file over src/Apps/Paint/base.toml")
 
-    deck = commands.add_parser("deck", help="a deck of slides from drawn pages, in reports/<deck>/ (deck.toml, deck.md)")
-    deck.add_argument("deck", help="decks/<deck> (built into reports/<deck>), or a path starting ./, ../ or /")
-    deck.add_argument("--list", "--dry-run", dest="list", action="store_true",
-                      help="each block, its panels and where they came from; nothing written")
-    deck.add_argument("--only", metavar="TARGETS", help="some of pdf, pptx, html, overleaf, viewer (comma-separated)")
-    deck.add_argument("--init", action="store_true", help="write deck.md once: a title slide and a slide per block")
+    deck = commands.add_parser("deck", help="retired: heimdall report makes a report of runs' pages and numbers")
+    deck.add_argument("rest", nargs="*", help=argparse.SUPPRESS)          # what it took, so any old line stops with the message
+    deck.add_argument("--list", "--dry-run", dest="list", action="store_true", help=argparse.SUPPRESS)
+    deck.add_argument("--only", help=argparse.SUPPRESS)
+    deck.add_argument("--init", action="store_true", help=argparse.SUPPRESS)
 
     reported = commands.add_parser("report", help="a quick report of runs' pages and numbers, built only when asked into "
                                                   "reports/, where results/ has its sources (a folder's: its report.toml)")
@@ -1288,29 +1286,10 @@ def cmd_overlay(args) -> int:
 
 
 def cmd_deck(args) -> int:
-    """`heimdall deck DECK` (docs/reporter): the deck's blocks, their panels collected into panels/ (V103), then
-    its composites and slides built (V104); --init writes deck.md once."""
-    made = deckmod.load(args.deck)
-    if made.src == made.dir and made.dir.parent.name == "reports":
-        print(f"note: {made.dir} holds the deck's sources: decks/{made.dir.name}/ is their place now "
-              "(heimdall migrate --layout moves them)", file=sys.stderr)
-    if args.list:
-        for line in deckmod.listing(made):
-            print(line)
-        return 0
-    if args.init:
-        for path in deckmod.init(made):
-            print(f"deck: wrote {path}")
-        return 0
-    only = [t.strip() for t in args.only.split(",") if t.strip()] if args.only else None
-    wrong = [t for t in only or () if t not in deckmod.TARGETS]
-    if wrong:
-        raise HepError(f"no target '{wrong[0]}'", hint=f"the targets: {', '.join(deckmod.TARGETS)}")
-    copied = deckmod.gather(made)
-    panels = sum(len(b.panels) for b in made.blocks)
-    print(f"deck: {len(made.blocks)} block(s), {panels} panel(s); {copied} file(s) copied into {made.dir / deckmod.PANELS}")
-    deckmod.build(made, only, print)
-    return 0
+    """`heimdall deck …`, retired (V212, as V74 retired `heimdall plot FILE`): it stops, naming heimdall report."""
+    raise HepError("heimdall deck is now heimdall report: an A4 report of runs' pages and numbers, its figures and "
+                   "LaTeX in its folder to lift into a talk",
+                   hint="heimdall report <P>/<run>/<cfg> (docs/03_Plots.md §11); a deck's decks/<deck>/ is yours, left as it is")
 
 
 def cmd_report(args) -> int:
@@ -1957,7 +1936,7 @@ def migrate_layout(args) -> int:
         raise HepError(f"a run of this work dir is going (pid {going[0].get('pid')})",
                        hint="move the layout when it has ended (heimdall runs lists it)")
     work = work_root()
-    first = migrate.layout_moves(work) + migrate.deck_moves(work)
+    first = migrate.layout_moves(work)
     then = [] if (work / "output").is_dir() else migrate.logs_moves(work)
     last = [] if first or then else migrate.sets_moves(work)
     if not first and not then and not last:

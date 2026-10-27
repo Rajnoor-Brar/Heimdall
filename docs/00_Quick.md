@@ -26,7 +26,8 @@ heimdall help run                          # any command
 
 Housekeeping: `heimdall clean` (logs and caches nothing uses), `heimdall migrate --v3` (a v2 file in v3),
 `heimdall migrate --layout` (a work dir from before `records/`), `heimdall reproduce records/…/provenance.json`,
-`heimdall cluster CONFIG CFG` (Slurm), `heimdall deck <deck>` (slides), `heimdall stack build|list|status|doctor`
+`heimdall cluster CONFIG CFG` (Slurm), `heimdall report <P>/<run>/<cfg>` (an A4 report of a run's pages and numbers),
+`heimdall stack build|list|status|doctor`
 (the machine's stack). [05 §1](05_Commands_and_Tools.md#1-commands).
 
 ## A run TOML
@@ -88,12 +89,12 @@ ratio   = true
 
 | Folder of a work dir | Holds | git |
 |---|---|---|
-| `configs/<P>/`, `modules/<P>/`, `decks/<deck>/` | yours: run TOMLs and cards; programs and Rivet analyses; decks | tracked |
+| `configs/<P>/`, `modules/<P>/` | yours: run TOMLs, cards and report recipes; programs and Rivet analyses | tracked |
 | `datasets/` | reference data (large ones listed in `datasets.toml`, fetched by `heimdall setup .`) | tracked |
 | `results/<P>/<run>/<NN_cfg>/` | `points/<point>/` the products, `plots/` the pages | no |
 | `records/<P>/<run>/<NN_cfg>/` | `points/<point>/` each point's provenance, identity and `.complete` (delete it and the point reruns); `logs/<point>/` its cards and configs, each tool's digest `<tag>.log`, earlier attempts in `history/` (deleting it reruns nothing: `heimdall clean`; more with `--keep`); `plots/` the page configs; `config/` the run TOML and cards it ran with | no |
 | `.cache/` | prepare caches: safe to delete | no |
-| `build/`, `reports/<deck>/` | compiled modules; built decks | no |
+| `build/`, `reports/<P>/<run>/<cfg>/` | compiled modules; reports, where `results/` has their sources | no |
 
 When something fails: read `records/…/logs/<point>/<tool>.log`, fix, run again (complete points are
 skipped). [02 §9](02_User_Guide.md#9-when-something-fails).

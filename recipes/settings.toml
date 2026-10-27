@@ -70,7 +70,7 @@ apt_packages = [
   "libxerces-c-dev", "libgl1-mesa-dev", "libglu1-mesa-dev", "libxmu-dev", "libxi-dev",
   # the framework: Paint, App_Pythia, the module kit; pdflatex for sheet figures
   "libtomlplusplus-dev", "libzstd-dev", "zlib1g-dev", "texlive-latex-base", "texlive-latex-extra",
-  # decks and sheets (heimdall deck, docs/reporter): pandoc, poppler's pdftoppm and pdfinfo, the Beamer class
+  # sheets and reports: poppler's pdftoppm and pdfinfo, TeX's recommended set; pandoc, kept from heimdall deck (retired)
   "pandoc", "poppler-utils", "texlive-latex-recommended",
 ]
 

@@ -19,7 +19,7 @@ built and installed, outside git. A **work dir** holds a study.
 | `gjallarhorn.sh`, `launch.sh` | the environment, bash only (any other shell is turned away first): sets `HEP` from its own folder, the machine root (`HEP_MACHINE`), the loaded stack (`HEP_INSTALL`, `HEP_VENV`, `HEP_BASE`, `HEP_APPS`, `HEP_FORGE`, `HEP_STACK`), then sources `env/hep_env.sh`, which activates the base (its `activate.sh`) or the venv and sources the machine root's `machine.sh`, recording what both change for `quit`; given a title, then goes to that work dir (`heimdall recognise --path`). `launch.sh` is it from any shell (`--gjallarhorn [title]`: zsh's `gjallarhorn`) | yes |
 | `recipes/` | how the stack is built: `build_stack.py`, `machine.py` (`adopt`, `where`), `verify.py`, `toolkits/` (`standard.toml`, every recipe; one file per toolkit; your own in the machine root's `toolkits/`), `settings.toml`, `base.toml` (the conda base: pixi, its packages, the layer its builds get), `patches/`, `platforms/` (mac, container), `pth.py`, `build_by_hand.txt`; [recipes/README.md](../recipes/README.md) | yes |
 | `env/` | the environment's files: `hep_env.sh` (the shell), `flags.sh`, `stack.toml` and `stack.py` (the stack's libraries, versions and flags) | yes |
-| `framework/` | what runs: `bin/` (`heimdall`, `bifrost`, `run`), `runner/`, `tools/<tool>/` (the tool folders, the plot backends `yoda/` and `mpl/`, `figures/`, the provider `lhapdf/`), `schema/` (`run.toml`, `deck.toml`, `quantities.toml` the vocabulary, `latex.toml`), `templates/work/` (what `heimdall setup` lays down), `rules.mk` and `work.mk` (the build's rules), `hepkit.py` | yes |
+| `framework/` | what runs: `bin/` (`heimdall`, `bifrost`, `run`), `runner/`, `tools/<tool>/` (the tool folders, the plot backends `yoda/` and `mpl/`, `figures/`, the provider `lhapdf/`), `schema/` (`run.toml`, `report.toml`, `quantities.toml` the vocabulary, `latex.toml`), `templates/work/` (what `heimdall setup` lays down), `rules.mk` and `work.mk` (the build's rules), `hepkit.py` | yes |
 | `src/` | what is compiled: the C++ kits `Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh` (§2.2), the single-file apps `App_*.cc`, the multi-file `Apps/Paint/` and its `base.toml` (the style) | yes |
 | `docs/` | this manual; `framework/` (setting Heimdall up on a fresh machine, for agents); `reporter/`, `audit_2/` | yes |
 | `tests/` | `runner/` (unit), `integration/` (real processes), `cxx/`, `fixtures/work/` (the frozen work dir the tests run in), `reference/` (data the gates compare against) | yes |
@@ -57,13 +57,11 @@ A **work dir** holds a study. `heimdall setup <dir>` makes it from `framework/te
 | `configs/<Project>/` | run TOMLs and native base cards; optionally a project `master.toml` and style files | yes |
 | `modules/<Project>/` | programs (`<Name>.cc`), shared headers, Rivet plugins (`Rivet/<x>.{cc,info,plot,yoda}` or `Rivet_<x>.cc`); `_`-prefixed folders are parked | yes |
 | `datasets/` | your own reference data: small files tracked; large ones in `datasets.toml` (url, sha256), fetched by `heimdall setup` and kept out by `datasets/.gitignore` | yes |
-| `decks/<deck>/` | a deck's sources: `deck.md`, `deck.toml`, its pictures | yes |
 | `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
 | `records/` | what a run needs while it runs or is launched, and what traces it back, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, each tool's digest, `history/` of earlier attempts; FIFOs and scratch files while it runs), `config/` (the run's snapshot), `points.json`, cluster submissions | no |
 | `.cache/` | what is rebuilt on demand: prepare caches, the drawing's page documents and working files (`plots/`), what a report draws for itself (`reports/`), converted reference data; with `keep cache`, card checks | no |
 | `results/` | what matters once a run is done: products, pages by set (`plots/<set>/`), their numbers (`statistics/<set>/`) | no |
 | `reports/<P>/<run>/<cfg>/` | reports as `heimdall report` builds them, where `results/` has their sources (a run's in `reports/<P>/<run>/`): `figures/`, `stats/`, `report.tex`, `report.pdf`, `index.html` | no |
-| `reports/<deck>/` | a deck as `heimdall deck` builds it: panels, composites, the slides | no |
 
 **The roots** (`runner/paths.py`):
 - `hep_root()` is where the code is (`framework/runner/paths.py`, two levels up). A `$HEP` that names
@@ -94,7 +92,7 @@ Heimdall ($HEP)
 │   ├── tools/<tool>/         one folder per standard tool: tool.toml (+ quantities.toml, render.py, filters.toml)
 │   ├── tools/yoda/, mpl/     the plot backends besides Paint: backend.py
 │   ├── tools/figures/        the figures' plugins: derive.py (YODA's Python), layout.py (pdflatex, pdftoppm)
-│   ├── schema/               run.toml (every key a run TOML may hold, V55, V90), deck.toml,
+│   ├── schema/               run.toml (every key a run TOML may hold, V55, V90), report.toml (V207),
 │   │                         quantities.toml (the vocabulary: what each quantity name means), latex.toml
 │   ├── templates/work/       what `heimdall setup` lays down
 │   ├── rules.mk, work.mk     the build's shared rules; a work dir's build (§15)
@@ -128,7 +126,7 @@ layering was not had nine cycles.)
 |---|---|---|
 | 0 | `errors.py` | `HepError(message, where, hint)`, `did_you_mean` |
 | 0 | `paths.py` | the two roots: Heimdall (`hep_root`, where the code is) and the work dir (`work_root`: `$HEP_WORK` or the walk up to a `hep.toml`), `hep.toml` read (`work_meta`); the `configs/`, `records/`, `logs/`, `.cache/`, `results/` and `reports/` roots; the loaded stack's apps (`apps_dir`); `{hep}` and `{work}`; the path rules (04 §2); the retired `HEKIT_*` |
-| 0 | `schema.py` | the run TOML's schema, `framework/schema/run.toml`: every key's type, choices, bounds, default, inheritance, doc and notes; checking a table against it; the editor schema (V55, V90); a deck's, `deck.toml` (V103) |
+| 0 | `schema.py` | the run TOML's schema, `framework/schema/run.toml`: every key's type, choices, bounds, default, inheritance, doc and notes; checking a table against it; the editor schema (V55, V90); a report's recipe, `report.toml` (V207) |
 | 0 | `hepfiles.py` | reading YODA text (1D and 2D objects, `/RAW` twins, counters; `.gz` too) and Rivet's data directories, once (V60) |
 | 0 | `plugins.py` | loading a folder's Python by path, once: `render.py`, `backend.py`, `provider.py`, the figures' plugins (V61) |
 | 0 | `v3.py` | the run TOML's third form read as the second's: `[file]`, `[cfgs.<name>]`, tools typed by their table's name, quantities as points rows (`fixed`, `to`, compound `fields`, beams `a`/`b`), `events` lists; marks for what the parser infers (FIFOs, files, producers; audit 3, phase 6) |
@@ -153,7 +151,6 @@ layering was not had nine cycles.)
 | 4 | `statstable.py` | the statistics table (V160, V206): a page's numbers as rows, a set's `statistics.csv` written and read back (`read`), its bar graphs and summary (`write_set`, through `figures/bars.py`) |
 | 4 | `post.py` | the pre, combined and post stages |
 | 4 | `report.py` | `heimdall report` (I-108, V207): sources (result folders holding a `plot.toml`, by address, run, path or glob) and their facts, a recipe (`[report]`, `schema/report.toml`: a file of its own, a run TOML's, a folder's `report.toml`, which `write_recipe` writes beside `plot.toml`, V209) or the default one, resolved into a plan of sections, built where `results/` has its sources (`_out`), what each tool was given read from the records (`configured`: a card's baseline and what varied, `split`, `key_value`, V210), grids of figures and statistics parts; `--list`, `--init`; the build (V208): figures copied, statistics and bar graphs drawn from `statistics.csv` (`chosen`), `report.tex` in `figures/layout.py`'s pictures, `report.pdf`, `index.html` (`viewer`), each made again only when what it was made from changed (`.stamps.json`); drawn for itself (V211): what a source has not drawn or measured, and a section's `plot` keys (`looked`), as `Drawing`s that `_draw_for` makes with `plot.draw` and `plot.measure` from the source's document loaded into the report's cache (`plotdoc.load(…, folders=)`, stamped `drawn.key`), the waiting sections resolved again after (`_settle`) |
-| 4 | `deck.py` | `heimdall deck`: a deck's blocks from result folders or its own files, labelled and copied into `panels/` (V103); their composites, and `deck.md` through pandoc to Beamer, pptx, dzslides HTML and an Overleaf zip, the viewer, `--init` (V104) |
 | 4 | `cluster.py` | `heimdall cluster`: [cluster] in its layers, the Slurm scripts (a pre job, a points array, a finish job, each an ordinary `heimdall run --stages …`), `sbatch` and the dependencies, `jobs.toml`, `--status` from `sacct` and `squeue`, `--cancel` (V114) |
 | 5 | `cli.py` | `argparse`: `run`, `plot`, `overlay`, `watch`, `check`, …; the order of events |
 | 5 | `house.py` | `ls`, `explain`, `status`, `clean` (V74) |
@@ -855,8 +852,8 @@ its working files in `records/<run>/logs/`, the run TOML and cards it ran with i
 products in `results/<run>/points/`, pages in `results/<run>/plots/<set>/`, their numbers in
 `results/<run>/statistics/<set>/`; the drawing's page documents and working files in
 `.cache/<P>/plots/<name>/<cfg>/`, other rebuildable caches in `.cache/`, compiled modules in `build/`. A run writes nothing else, and nothing in Heimdall;
-`heimdall report` writes only into its report's folder under `reports/` (or `-o`'s, never under `results/`),
-and `heimdall deck` only into its deck's. Heimdall's own builds go to the
+`heimdall report` writes only into its report's folder under `reports/` (or `-o`'s, never under `results/`) and
+what it draws for itself into `.cache/<P>/reports/`. Heimdall's own builds go to the
 machine root (§1): `apps/`, `forge/`. `tools.RunFolders` names them all; nothing else spells them.
 
 ```
@@ -906,12 +903,6 @@ reports/<P>/<run>/<cfg>/              a report (heimdall report, V207–V211), w
   stats/<NN>_<section>/<MMM>_<source>_<page>.{pdf,png}     bar graphs;  stats/summaries/<source>__<set>.html
   tools/<NN>_<section>/<MM>_<source>/<tag>.baseline.<ext>, <tag>.varied.csv   what each tool was given (V210)
   report.tex  report.pdf  index.html  .stamps.json (what each file was made from)
-
-reports/<deck>/                       a deck (heimdall deck, V103, V104): yours, deck.toml  deck.md  extras/
-  panels/<block>/<NN>_<label>.<ext>   the panels, copied from results/
-  figures/<block>[.<variant>].{pdf,png,sha256}   the composites
-  build/                              deck.md's build copies, deck.tex
-  deck.pdf  deck.pptx  deck.html  overleaf.zip  index.html
 ```
 
 **What a run keeps** (V149): besides `records/` and `results/`, a finished point keeps its `cards/` and

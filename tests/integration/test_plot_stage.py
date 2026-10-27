@@ -162,10 +162,10 @@ def test_figures_are_recipes_for_pages(stage):
     d05 = tomllib.loads(after["em/d05-x01-y01"].config.read_text(encoding="utf-8"))
     assert (d05["page"]["min_entries"], d05["page"]["auto_range"], d05["style"]["page"]["dpi"]) == (0, False, 50)
     run.plot["figures"]["more"] = {"objects": ["d0[5-6]-*"]}
-    with pytest.raises(plot.HepError, match="'tails' and 'more' both make the pages of /photo_eic/d05-x01-y01"):
+    with pytest.raises(plot.HeimdallError, match="'tails' and 'more' both make the pages of /photo_eic/d05-x01-y01"):
         plot.pages(run, configuration, plans)
     run.plot["figures"] = {"none": {"objects": ["d99-*"]}}
-    with pytest.raises(plot.HepError, match="match no object"):
+    with pytest.raises(plot.HeimdallError, match="match no object"):
         plot.pages(run, configuration, plans)
 
 
@@ -200,7 +200,7 @@ def test_a_derived_figure_is_an_object_of_every_point(stage):
     assert plot.draw(run, configuration, plans, lambda line: None) == 0
     assert copy.stat().st_mtime_ns == when
     run.plot["figures"]["bad"] = {"class": "derived", "op": "ratio", "objects": ["d01-x01-y01", "d02-x01-y01"]}
-    with pytest.raises(plot.HepError, match="figure 'bad' at .*: ratio of /photo_eic/d01-x01-y01 and /photo_eic/d02-x01-y01"):
+    with pytest.raises(plot.HeimdallError, match="figure 'bad' at .*: ratio of /photo_eic/d01-x01-y01 and /photo_eic/d02-x01-y01"):
         plot.pages(run, configuration, plans)
 
 
@@ -228,7 +228,7 @@ def test_a_scan_figure_draws_one_number_per_point(scratch):
     assert by[[n for n in by if n.endswith("/b2")][0]].document["page"]["y_label"] == "second bin"
     assert plot.draw(run, configuration, plans, lambda line: None) == 0
     run.plot["figures"]["xs"]["x"] = "pdf"
-    with pytest.raises(plot.HepError, match="not a curve axis"):
+    with pytest.raises(plot.HeimdallError, match="not a curve axis"):
         plot.check_figures(run, configuration)
 
 
@@ -264,10 +264,10 @@ def test_a_2d_object_is_a_heat_map_per_point(stage):
     assert plot.draw(run, configuration, plans, said.append) == 0, said
     assert (plans[0].folders.plots / "totality" / "root" / maps[0]).with_suffix(".png").is_file()
     run.plot["figures"]["bad"] = {"objects": ["d01-*"], "type": "HeatMap"}
-    with pytest.raises(plot.HepError, match="is a HeatMap, and /photo_eic/d01-x01-y01 is a 1D object"):
+    with pytest.raises(plot.HeimdallError, match="is a HeatMap, and /photo_eic/d01-x01-y01 is a 1D object"):
         plot.pages(run, configuration, plans)
     run.plot["figures"]["bad"] = {"class": "overlay", "objects": ["d90-x01-y01", "d01-x01-y01"]}
-    with pytest.raises(plot.HepError, match="is a 2D object, which a heat map draws alone"):
+    with pytest.raises(plot.HeimdallError, match="is a 2D object, which a heat map draws alone"):
         plot.pages(run, configuration, plans)
 
 
@@ -312,7 +312,7 @@ def test_a_compare_figure_draws_configurations_together(stage):
     assert [c["label"] for c in page["curve"]] == ["1M, MSTW 2008 LO", "1M, NNPDF 2.3 LO", "10M, MSTW 2008 LO", "10M, NNPDF 2.3 LO"]
     assert "data" in page
     run.plot["figures"]["stats"]["configurations"] = ["one", "nope"]
-    with pytest.raises(plot.HepError, match="names 'nope', which is not a configuration"):
+    with pytest.raises(plot.HeimdallError, match="names 'nope', which is not a configuration"):
         plot.check_figures(run, configuration)
 
 
@@ -340,10 +340,10 @@ def test_a_compare_figure_reaches_another_run_toml(stage, scratch):
                                                    "plotstage_other one, MSTW", "plotstage_other one, NNPDF"]
     other["quantities"]["lepton"]["tags"] = ["e-", "e+"]
     path.write_text(tomli_w.dumps(other), encoding="utf-8")
-    with pytest.raises(plot.HepError, match="has other values of lepton, a page axis"):
+    with pytest.raises(plot.HeimdallError, match="has other values of lepton, a page axis"):
         plot.check_figures(run, configuration)
     run.plot["figures"]["chains"]["configurations"] = [f"{path}:one", f"{path}:one2"]
-    with pytest.raises(plot.HepError, match="names '.*:one2', which is not a configuration"):
+    with pytest.raises(plot.HeimdallError, match="names '.*:one2', which is not a configuration"):
         plot.check_figures(run, configuration)
 
 
@@ -540,19 +540,19 @@ def test_split_cuts_each_cell_into_pages(stage):
 
 
 def test_a_set_that_names_no_point_is_refused_at_plan_time(stage):
-    from runner.errors import HepError
+    from runner.errors import HeimdallError
     run, configuration, _ = stage
-    with pytest.raises(HepError, match="a set names 'NNPDF40', which matches no point"):
+    with pytest.raises(HeimdallError, match="a set names 'NNPDF40', which matches no point"):
         plot.check_figures(replace(run, plot={**run.plot, "sets": [[1, "NNPDF40"]]}), configuration)
-    with pytest.raises(HepError, match="two sets share the folder"):
+    with pytest.raises(HeimdallError, match="two sets share the folder"):
         plot.check_figures(replace(run, plot={**run.plot, "sets": ["all", "all"]}), configuration)
 
 
 def test_a_merged_figure_takes_no_sets(scratch):
-    from runner.errors import HepError
+    from runner.errors import HeimdallError
     data = raw(run__cfgs__one__sweeps=["pdf"],
                plot={"figures": {"avg": {"class": "merged", "objects": ["d01-*"], "over": ["pdf"], "sets": ["all"]}}})
-    with pytest.raises(HepError, match="a merged figure pages by plot_points"):
+    with pytest.raises(HeimdallError, match="a merged figure pages by plot_points"):
         parse(data, scratch)
 
 
@@ -612,11 +612,11 @@ def test_a_set_table_is_drawn_and_planned(stage, capsys):
 
 
 def test_a_set_table_naming_what_no_point_has_is_refused_at_plan_time(stage):
-    from runner.errors import HepError
+    from runner.errors import HeimdallError
     run, configuration, _ = stage
-    with pytest.raises(HepError, match="lepton = 'mu', which is no value of it"):
+    with pytest.raises(HeimdallError, match="lepton = 'mu', which is no value of it"):
         plot.check_figures(replace(run, plot={**run.plot, "sets": [{"curves": {"lepton": "mu"}}]}), configuration)
-    with pytest.raises(HepError, match="'pfd', which is not a quantity"):
+    with pytest.raises(HeimdallError, match="'pfd', which is not a quantity"):
         plot.check_figures(replace(run, plot={**run.plot, "sets": [{"pages": {"pfd": "all"}}]}), configuration)
 
 # ── V160: page statistics ─────────────────────────────────────────────────────────────────────
@@ -753,7 +753,7 @@ def test_a_document_holds_totality_and_draws_the_sets_it_picks(stage):
     assert plot.draw(doc, kept, members, lambda line: None) == 0
     assert len(list((plots / "totality" / "root").rglob("*.png"))) == 34 and (plots / "by_pdf").is_dir()   # left as it was
     doc.plot = {**doc.plot, "draw": ["nope"]}
-    with pytest.raises(plot.HepError, match="names 'nope', which is no set"):
+    with pytest.raises(plot.HeimdallError, match="names 'nope', which is no set"):
         plot.check_figures(doc, kept)
 
 
@@ -838,7 +838,7 @@ def test_the_runs_of_a_run_toml_draw_together(stage):
 def test_plot_looks_give_a_value_its_look_by_tag(stage, scratch):
     """[plot.looks.<quantity>] (V171): a value's look on every page, by tag; a tag no point has is unused; a set's
     automatic look leaves the axis alone; a bad look is refused when the file is read."""
-    from runner.errors import HepError
+    from runner.errors import HeimdallError
     run, configuration, plans = stage
     looks = {"pdf": {"MSTW08lo": "#111111", "NNPDF23lo": {"colour": "#222222", "line": "dashed"}, "gone": "#333333"}}
     made = plot.pages(replace(run, plot={**run.plot, "looks": looks}), configuration, plans)
@@ -848,7 +848,7 @@ def test_plot_looks_give_a_value_its_look_by_tag(stage, scratch):
     made = plot.pages(replace(run, plot={**run.plot, "looks": looks, "sets": [two]}), configuration, plans)
     page = next(p for p in made if p.rel == "d02-x01-y01")
     assert {c["style"]["colour"] for c in page.document["curve"]} == {"#111111", "#222222"}       # no automatic colour
-    with pytest.raises(HepError, match="style line = 'wavy' is not one"):
+    with pytest.raises(HeimdallError, match="style line = 'wavy' is not one"):
         parse(raw(plot={"looks": {"pdf": {"MSTW08lo": {"line": "wavy"}}}}), scratch)
 
 
@@ -873,7 +873,7 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     assert len(boxes) == count and {(float(w), float(h)) for w, h in boxes} == {(595.44, 841.68)}   # A4, every page
     assert len(list((numbers / "summary").glob("summary_*.png"))) == count
     assert "<h2>Head to head</h2>" in (numbers / "summary.html").read_text(encoding="utf-8")   # V199: the same, a page
-    bars = plugins.load(plot.hep_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
+    bars = plugins.load(plot.heimdall_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
     rows = [r for page in plot.pages(shown, configuration, plans) for r in (plot.statistics_of(page) or [])]
     document = bars.summary_model(rows, plot.heading_of(numbers))
     assert len(bars.paper.pages(document)) == count
@@ -956,7 +956,7 @@ def test_a_legend_outside_the_frame_and_a_gap_above_the_ratio(stage, where):    
     """V185: legend.position out-right, out-left, out-top, out-bottom, and ratio.gap (points between the frames):
     Paint and mpl draw them (Paint's frame makes room, mpl's page grows); mkhtml cannot, and says so."""
     from runner import plugins
-    from runner.errors import HepError
+    from runner.errors import HeimdallError
     run, configuration, plans = stage
     styled = replace(run, plot={**run.plot, "backend": ["root", "mpl"],
                                 "style": {"page": {"dpi": 100}, "legend": {"position": where}, "ratio": {"gap": 6.0}}})
@@ -965,10 +965,10 @@ def test_a_legend_outside_the_frame_and_a_gap_above_the_ratio(stage, where):    
     pages = plans[0].folders.plots / "totality"
     for backend in ("root", "mpl"):
         assert (pages / backend / "em" / "d01-x01-y01.png").is_file()
-    yoda = plugins.load(plot.hep_root() / "framework" / "plot" / "yoda" / "backend.py", "yoda_backend")
-    with pytest.raises(HepError, match="legend.position cannot be honoured"):
+    yoda = plugins.load(plot.heimdall_root() / "framework" / "plot" / "yoda" / "backend.py", "yoda_backend")
+    with pytest.raises(HeimdallError, match="legend.position cannot be honoured"):
         yoda.validate({"style": {"legend": {"position": where}}})
-    with pytest.raises(HepError, match="ratio.gap cannot be honoured"):
+    with pytest.raises(HeimdallError, match="ratio.gap cannot be honoured"):
         yoda.validate({"style": {"ratio": {"gap": 6.0}}})
-    with pytest.raises(HepError, match="must be one of"):
+    with pytest.raises(HeimdallError, match="must be one of"):
         plot.check_style({"legend": {"position": "out-middle"}}, "[plot.style]")

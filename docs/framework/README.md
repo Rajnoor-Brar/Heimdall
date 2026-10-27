@@ -35,7 +35,7 @@ the design the code cites by section (`framework/01 §5.2`).
 | P3 | [06_Workdirs.md](06_Workdirs.md) | Top-Quark made by `heimdall setup --project Starter --git`, built, checked and run; a throwaway second work dir, and independence | — | none |
 | P4 | [07_Verify.md](07_Verify.md) | the reference point on its seed against the lab PC's kept products; the handover: report, memory, publishing | — | push / publish |
 
-[02_Agents.md](02_Agents.md) is how the agents run them: the roles, the state in `$HEP/.setup/`, the step
+[02_Agents.md](02_Agents.md) is how the agents run them: the roles, the state in `$HEIMDALL/.setup/`, the step
 loop, verification, gates, deviations and reports. **A fresh machine starts at 02 §1.**
 
 ---
@@ -43,19 +43,19 @@ loop, verification, gates, deviations and reports. **A fresh machine starts at 0
 ## 2. The target
 
 ```
-~/Github/Heimdall/                  = $HEP: the framework, what git has (V105, V122)
+~/Github/Heimdall/                  = $HEIMDALL: the framework, what git has (V105, V122)
   README.md CLAUDE.md .gitignore Makefile pytest.ini gjallarhorn.sh (gjallarhorn)
   recipes/                          build_stack.py toolkits/ settings.toml patches/ platforms/
-  env/                              hep_env.sh flags.sh stack.toml stack.py
-  framework/                        bin/ runner/ tools/ schema/ templates/work/ rules.mk work.mk hepkit.py
+  env/                              heimdall_env.sh flags.sh stack.toml stack.py
+  framework/                        bin/ runner/ tools/ schema/ templates/work/ rules.mk work.mk heimdallkit.py
   src/                              the kits (*.hh), App_*.cc, Apps/Paint/
   docs/  bots/  tests/
   .setup/                           (ignored) the agents' state
-~/Himinbjorg/  ($HEP_MACHINE)      outside git: base/ stack/ apps/ forge/ stacks/ images/ machine.toml machine.sh
+~/Himinbjorg/  ($HEIMDALL_MACHINE)      outside git: base/ stack/ apps/ forge/ stacks/ images/ machine.toml machine.sh
                                     recipes.toml workdirs.toml runs/ (the run registry: heimdall runs)
 
 ~/Github/Top-Quark/                 a work dir, made by `heimdall setup` (V107); others anywhere
-  hep.toml Makefile .gitignore README.md CLAUDE.md .vscode/
+  heimdall.toml Makefile .gitignore README.md CLAUDE.md .vscode/
   configs/Starter/  modules/Starter/  datasets/ results/ records/ reports/ build/   (logs/ .cache/: a run's)
 ```
 
@@ -72,12 +72,12 @@ The user's, through round 2c (2026-10-08 to 10-10), as built. Each is a V-row of
 
 | # | Decision | V |
 |---|---|---|
-| D26 | Heimdall is `~/Github/Heimdall`, and it **is** `$HEP`: the recipes, the environment, the framework, the kits and, ignored, the stack and its builds | V105 |
+| D26 | Heimdall is `~/Github/Heimdall`, and it **is** `$HEIMDALL`: the recipes, the environment, the framework, the kits and, ignored, the stack and its builds | V105 |
 | D27 | in the machine root: `forge/` downloads, sources, builds in progress and logs; `base/` the conda base (compilers, libraries, Python); `stack/` installs; `apps/` the ready apps | V105, V109, V122, V140 |
-| D3, D4 | a work dir is marked by `hep.toml` (`[work]`), found by walking up; work dirs are independent and share only Heimdall | V106 |
+| D3, D4 | a work dir is marked by `heimdall.toml` (`[work]`), found by walking up; work dirs are independent and share only Heimdall | V106 |
 | D14 | `heimdall setup <dir>` makes a work dir, never overwriting | V107 |
 | D8 | provenance records both repositories' revisions | V111 |
-| D9 | the tests run in a frozen fixture work dir, synced into `$HEP_FORGE/scratch/` | V112 |
+| D9 | the tests run in a frozen fixture work dir, synced into `$HEIMDALL_FORGE/scratch/` | V112 |
 | D11 | one framework for every target; portability is framework code | V113 |
 | D12 | three agents: orchestrator, builder, verifier (02) | — |
 | D31 | High-Energy is left alone | — |
@@ -97,5 +97,5 @@ Each phase has 2–3 steps. Each step gives:
 - **verification rows:** a command and the number or text it must give;
 - **on failure:** what to collect, and when to stop.
 
-**Logs are per machine,** in `$HEP/.setup/log.md`, never in these files. A deviation (02 §7) is
+**Logs are per machine,** in `$HEIMDALL/.setup/log.md`, never in these files. A deviation (02 §7) is
 folded back into these files by a commit, so the next machine does not meet it.

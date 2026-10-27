@@ -4,7 +4,7 @@ A framework for Monte Carlo studies in high-energy physics, and the home of the 
 runs on. Tools are processes, chained by a run TOML: Pythia, Herwig, Sherpa, Whizard and MadGraph,
 Rivet, Delphes, your own programs, and the pages drawn with ROOT.
 
-This folder is `$HEP`. It holds the stack's recipes and the framework; what they build (the base, the
+This folder is `$HEIMDALL`. It holds the stack's recipes and the framework; what they build (the base, the
 stack, the compiled apps) goes to the machine root, `~/Himinbjorg`. Your studies live elsewhere, in
 **work dirs** (`configs/`, `modules/`, `results/`, …), as many as you like.
 
@@ -61,23 +61,23 @@ fresh machine follows [docs/framework/](docs/framework/README.md), step by step.
 
 | Folder | Holds |
 |---|---|
-| `gjallarhorn.sh` | the environment: `HEP`, the base (or the venv), the stack on `PATH`, `heimdall` |
+| `gjallarhorn.sh` | the environment: `HEIMDALL`, the base (or the venv), the stack on `PATH`, `heimdall` |
 | `recipes/` | how the stack is built: `build_stack.py`, `toolkits/` (`standard.toml`, every recipe; one file per toolkit), `settings.toml`, `patches/`, `platforms/` |
-| `env/` | the environment's files: `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
+| `env/` | the environment's files: `heimdall_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
 | `framework/` | what runs: `bin/heimdall`, the runner, the tool folders, the schema, the work-dir template, the build's rules |
 | `src/` | what is compiled: the C++ kits and the apps' sources |
 | `docs/` | the manual ([docs/README.md](docs/README.md)); `framework/`, the plans that set Heimdall up on a fresh machine |
 | `tests/` | the tests, and the frozen work dir they run in |
 
 The checkout holds only what git has. What this machine built lives in the **machine root**,
-`~/Himinbjorg` (`$HEP_MACHINE`), outside git, and several checkouts may share it:
+`~/Himinbjorg` (`$HEIMDALL_MACHINE`), outside git, and several checkouts may share it:
 
 | Machine root | Holds |
 |---|---|
-| `base/` | the base: a pixi workspace (`pixi.toml`, `pixi.lock`), its environment in `.pixi/envs/default/` (`$HEP_BASE`: compilers, libraries, Python with `heimdall.pth`), `activate.sh` |
+| `base/` | the base: a pixi workspace (`pixi.toml`, `pixi.lock`), its environment in `.pixi/envs/default/` (`$HEIMDALL_BASE`: compilers, libraries, Python with `heimdall.pth`), `activate.sh` |
 | `stack/` | the installed stack: a folder per package, `.stamps/` |
 | `venv/` | with `base=system` (or a root made before the base): the Python environment, with `heimdall.pth` |
-| `apps/` | Heimdall's compiled apps (`$HEP_APPS`) |
+| `apps/` | Heimdall's compiled apps (`$HEIMDALL_APPS`) |
 | `forge/` | `downloads/` (`conda/`: pixi's package cache), `pixi/`, `src/`, `build/`, `logs/`; the framework's `make/` and `tests/`; the tests' `scratch/`. May be emptied (the next build fetches pixi again) |
 | `stacks/<toolkit>/` | an isolated toolkit's own stack (another C++ standard), loaded by its `gjallarhorn.sh` |
 | `machine.toml`, `machine.sh` | this machine's settings, and its extra lines for `gjallarhorn.sh` |

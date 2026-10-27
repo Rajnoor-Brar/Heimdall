@@ -1,5 +1,5 @@
 """`heimdall recognise` and the work dirs a machine knows by title (runner/workdirs.py, V143): the registry is
-$HEP_WORKDIRS here, a file in each test's own folder."""
+$HEIMDALL_WORKDIRS here, a file in each test's own folder."""
 
 from __future__ import annotations
 
@@ -10,18 +10,18 @@ from pathlib import Path
 import pytest
 
 from runner import cli, paths, setup as setupmod, workdirs
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 
 def a_work_dir(where: Path, name: str | None = None) -> Path:
     where.mkdir(parents=True, exist_ok=True)
-    (where / "hep.toml").write_text("[work]\n" + (f'name = "{name}"\n' if name else ""), encoding="utf-8")
+    (where / "heimdall.toml").write_text("[work]\n" + (f'name = "{name}"\n' if name else ""), encoding="utf-8")
     return where
 
 
 @pytest.fixture
 def registry(tmp_path, monkeypatch):
-    monkeypatch.setenv("HEP_WORKDIRS", str(tmp_path / "workdirs.toml"))
+    monkeypatch.setenv("HEIMDALL_WORKDIRS", str(tmp_path / "workdirs.toml"))
     paths.reset()
     yield tmp_path / "workdirs.toml"
     paths.reset()
@@ -43,7 +43,7 @@ def test_a_title_follows_its_moved_work_dir_and_is_never_taken_from_another(regi
     old = a_work_dir(tmp_path / "old", "Jets")
     workdirs.record(old)
     other = a_work_dir(tmp_path / "other", "Jets")
-    with pytest.raises(HepError, match="another work dir's") as refused:
+    with pytest.raises(HeimdallError, match="another work dir's") as refused:
         workdirs.record(other)
     assert "--as" in refused.value.hint
     assert workdirs.record(other, "Jets-2") == ("Jets-2", "recorded")
@@ -52,21 +52,21 @@ def test_a_title_follows_its_moved_work_dir_and_is_never_taken_from_another(regi
     assert workdirs.record(new) == ("Jets", f"moved from {old}")
     assert workdirs.record(new, "Photo") == ("Photo", "renamed from Jets")
     assert set(workdirs.load()) == {"Jets-2", "Photo"}
-    with pytest.raises(HepError, match="cannot be a title"):
+    with pytest.raises(HeimdallError, match="cannot be a title"):
         workdirs.record(new, 'say "hi"')
 
 
 def test_a_title_s_path_says_what_became_of_it(registry, tmp_path):
     study = a_work_dir(tmp_path / "Study", "Jets")
     workdirs.record(study)
-    with pytest.raises(HepError, match="no work dir titled 'Jet'") as unknown:
+    with pytest.raises(HeimdallError, match="no work dir titled 'Jet'") as unknown:
         workdirs.path_of("Jet")
     assert "'Jets'" in unknown.value.hint
-    (study / "hep.toml").unlink()
-    with pytest.raises(HepError, match="no longer a work dir"):
+    (study / "heimdall.toml").unlink()
+    with pytest.raises(HeimdallError, match="no longer a work dir"):
         workdirs.path_of("Jets")
     shutil.rmtree(study)
-    with pytest.raises(HepError, match="missing"):
+    with pytest.raises(HeimdallError, match="missing"):
         workdirs.path_of("Jets")
     assert workdirs.forget("Jets") == study and workdirs.load() == {}
 
@@ -80,7 +80,7 @@ def test_a_scan_finds_work_dirs_below_but_not_inside_one_outputs_or_hidden_folde
     a_work_dir(root / "x" / "results" / "E")
     a_work_dir(root / "1" / "2" / "3" / "4" / "F")                     # five folders down: too deep
     assert workdirs.scan(root) == [a, b]
-    assert workdirs.scan(paths.hep_root()) == []                       # Heimdall's own fixtures are not studies
+    assert workdirs.scan(paths.heimdall_root()) == []                       # Heimdall's own fixtures are not studies
 
 
 def test_heimdall_recognise_records_lists_and_answers_gjallarhorn(registry, tmp_path, capsys):

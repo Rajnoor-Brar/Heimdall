@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from runner import execute, post, quantities, record, sweep, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from runner.events import Bus
 from runner.watch import PlainView
 
@@ -116,7 +116,7 @@ def test_post_does_not_run_over_a_subset(scratch):
 
 def test_a_post_tool_may_not_overwrite_the_points_product(scratch):
     run, configuration, master, plans = stage(scratch, tools__summary__output_file="jets.yoda")
-    with pytest.raises(HepError, match="points' product"):
+    with pytest.raises(HeimdallError, match="points' product"):
         post.plan(run, configuration, master, plans)
 
 
@@ -186,7 +186,7 @@ def test_a_point_may_not_be_named_pre(scratch):
                tools__fetch={"tool": "exec", "executable": sys.executable, "arguments": ["-c", "pass"]})
     run = parse(data, scratch)
     configuration = run.configuration(None)
-    with pytest.raises(HepError, match="named 'pre'"):
+    with pytest.raises(HeimdallError, match="named 'pre'"):
         post.plan_pre(run, configuration, quantities.load_master(run.project, run.master_toml),
                       sweep.points(run, configuration))
 

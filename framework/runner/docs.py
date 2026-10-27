@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 
 from . import cli, schema
-from .paths import hep_root
+from .paths import heimdall_root
 
 BLOCK = re.compile(r"(<!-- generated: ([^>]+?) -->\n)(.*?)(<!-- /generated -->)", re.S)
 
@@ -80,7 +80,7 @@ V3_TABLES = {
     "run": ("run", {"configuration": "run", "event_count": "events", "tools": "chain", "sweeps": "vary"},
             {"seed": _SEED, "commands": {"type": "list", "doc": "argv arrays run in each point's output folder before "
                                          "its tools, in order; output to the point's `prelim.log`; a nonzero exit fails the "
-                                         "point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}`"}},
+                                         "point. Placeholders: `{work}`, `{heimdall}`, `{out}`, `{res}`, `{file:<name>}`"}},
             ("seed_type", "manual_seed", "cfgs")),
     "cfgs": ("configuration", {"label": "folder", "event_count": "events", "tools": "chain", "sweeps": "vary",
                                "static": "fixed"}, {"seed": _SEED}, ("seed_type", "manual_seed", "prelim")),
@@ -259,13 +259,13 @@ def updated(text: str) -> str:
 
 
 def pages() -> list[Path]:
-    docs = hep_root() / "docs"
+    docs = heimdall_root() / "docs"
     return sorted(p for p in docs.rglob("*.md") if "audit_" not in str(p.relative_to(docs)))
 
 
 def stale() -> list[str]:
     """The pages whose generated blocks differ from what the code says now."""
-    return [str(p.relative_to(hep_root())) for p in pages()
+    return [str(p.relative_to(heimdall_root())) for p in pages()
             if BLOCK.search(text := p.read_text(encoding="utf-8")) and updated(text) != text]
 
 
@@ -274,4 +274,4 @@ if __name__ == "__main__":                                  # make docs
         text = page.read_text(encoding="utf-8")
         if BLOCK.search(text) and (new := updated(text)) != text:
             page.write_text(new, encoding="utf-8")
-            print(page.relative_to(hep_root()))
+            print(page.relative_to(heimdall_root()))

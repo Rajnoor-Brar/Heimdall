@@ -4,7 +4,7 @@ Amegic's compile in between when the card uses Amegic. Run in the cache entry, a
 
 * Amegic writes C++ for its processes on Sherpa's first run, copies `makelibs` beside it and stops with exit 0
   ("Source code created in … Run './makelibs' there to compile."). Then this compiles (`./makelibs -j N`, N
-  from $HEP_MAKELIBS_JOBS, default 1: every point of a sweep may be compiling at once) and runs Sherpa again,
+  from $HEIMDALL_MAKELIBS_JOBS, default 1: every point of a sweep may be compiling at once) and runs Sherpa again,
   until a run asks for no more (at most PASSES runs). A card without Amegic is one run, as before.
 * Sherpa also exits 0 when it sets up no process at all ("No hard process found": the process's incoming
   particles do not match the beams, say). A run that ends without asking to compile and without its Results
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 PASSES = 4
-JOBS_VAR = "HEP_MAKELIBS_JOBS"
+JOBS_VAR = "HEIMDALL_MAKELIBS_JOBS"
 COMPILE = re.compile(r"Run '\./makelibs'")
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 

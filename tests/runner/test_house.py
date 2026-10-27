@@ -8,14 +8,14 @@ import argparse
 import pytest
 
 from runner import cli, house, record
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 
 @pytest.fixture
 def trees(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
-    monkeypatch.setenv("HEP_RESULTS", str(scratch / "results"))
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEIMDALL_CACHE", str(scratch / "cache"))
+    monkeypatch.setenv("HEIMDALL_RESULTS", str(scratch / "results"))
     return scratch
 
 
@@ -28,7 +28,7 @@ def test_ls_lists_every_configuration_and_marks_what_runs():
     assert "Demo/jets   run jets" in lines
     assert any(line.startswith("  * pdf ") for line in lines)                 # [run].configuration
     assert any(line.startswith("    single ") for line in lines)
-    with pytest.raises(HepError, match="no run TOML"):
+    with pytest.raises(HeimdallError, match="no run TOML"):
         house.ls("NoSuchProject")
 
 
@@ -45,7 +45,7 @@ def test_explain_reads_the_schema(key, shown):
 
 
 def test_explain_suggests_a_near_key():
-    with pytest.raises(HepError) as error:
+    with pytest.raises(HeimdallError) as error:
         house.explain("plot.yguter")
     assert "y_gutter" in error.value.hint
 
@@ -99,7 +99,7 @@ def test_clean_asks_unless_told(trees, monkeypatch, capsys):
     (p.every[0].out.parent / "oldtag").mkdir(parents=True)
     args = argparse.Namespace(config="Demo/jets", dry_run=False, yes=False)
     monkeypatch.setattr("sys.stdin.isatty", lambda: False)
-    with pytest.raises(HepError, match="not deleted"):
+    with pytest.raises(HeimdallError, match="not deleted"):
         cli.cmd_clean(args)
     assert (p.every[0].out.parent / "oldtag").exists()
     args.dry_run = True
@@ -109,9 +109,9 @@ def test_clean_asks_unless_told(trees, monkeypatch, capsys):
 
 
 def test_plot_takes_a_config_and_overlay_takes_files():
-    with pytest.raises(HepError, match="overlaid by heimdall overlay"):
+    with pytest.raises(HeimdallError, match="overlaid by heimdall overlay"):
         cli.cmd_plot(argparse.Namespace(config="a.yoda", configuration=None, set=[]))
-    with pytest.raises(HepError, match="is not a YODA or ROOT file"):
+    with pytest.raises(HeimdallError, match="is not a YODA or ROOT file"):
         cli.cmd_overlay(argparse.Namespace(files=["a.yoda", "notes.txt"], output=None, labels=None, objects=[],
                                            formats="png", ratio=False, style=None))
 
@@ -131,7 +131,7 @@ def test_results_load_reads_the_manifest(trees):
     assert first.values["pdf"].tag == "MSTW08lo" and first.values["pdf"].swept and not first.complete
     assert first.yoda() == p.every[0].res / "jets.yoda"
     assert set(results.runs("Demo/jets")) == {"pdf"}
-    with pytest.raises(HepError, match="no results yet"):
+    with pytest.raises(HeimdallError, match="no results yet"):
         results.load("Demo/jets", "single")
 
 
@@ -144,6 +144,6 @@ def test_reproduce_refuses_a_setup_that_changed(trees, capsys):
     record.provenance_file(point).write_text(json.dumps({
         "config_file": str(p.run.path), "configuration": "single", "point": point.point.name, "run": "jets",
         "project": "Demo", "identity": "0" * 64, "seed": 1, "sets": []}), encoding="utf-8")
-    with pytest.raises(HepError, match="not reproduced"):
+    with pytest.raises(HeimdallError, match="not reproduced"):
         cli.cmd_reproduce(argparse.Namespace(provenance=str(record.record_dir(point)), anyway=False, plain=True))
     assert "changed since it ran" in capsys.readouterr().out

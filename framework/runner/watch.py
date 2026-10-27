@@ -230,7 +230,7 @@ class _Screen:
         self._closing = False
         self._broken = False                     # the stream went away (a closed pipe): stop writing
         self._queued = self._done = 0            # lines queued (the caller) and written (the thread)
-        self._thread = threading.Thread(target=self._loop, name="hep-view", daemon=True)
+        self._thread = threading.Thread(target=self._loop, name="heimdall-view", daemon=True)
         self._thread.start()
 
     def line(self, text: str) -> None:

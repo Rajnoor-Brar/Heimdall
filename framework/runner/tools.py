@@ -32,8 +32,8 @@ import tomli_w
 from . import plugins
 from . import quantities as qmod
 from .config import Tool, chain_prelim, check_read_for, fragment_tags, resolve_chain
-from .errors import HepError, did_you_mean
-from .paths import (cache_root, keeping, hep_root, identity_texts, placeholders, portable, portable_texts, records_root,
+from .errors import HeimdallError, did_you_mean
+from .paths import (cache_root, keeping, heimdall_root, identity_texts, placeholders, portable, portable_texts, records_root,
                     resolve, results_root, tool_chains)
 from .sweep import tag_of
 
@@ -92,7 +92,7 @@ class Folder:
         """<tool>/render.py, for `[card] style = "render"` (06 §16): the nearest folder's, or the extended one's."""
         path = self.find("render.py")
         if path is None:
-            raise HepError(f'{self.name} has [card] style = "render" but no render.py', where=str(self.dir))
+            raise HeimdallError(f'{self.name} has [card] style = "render" but no render.py', where=str(self.dir))
         return plugins.load(path, "render")
 
     def hook(self, name: str):
@@ -112,26 +112,26 @@ _FOLDERS: tuple[dict, dict[str, Folder]] | None = None     # (the chains they we
 
 def _spec(path: Path) -> dict:
     """One tool.toml, checked: its sections and their keys; `extends` the only key outside a section."""
-    where = str(path.relative_to(hep_root())) if path.is_relative_to(hep_root()) else str(path)
+    where = str(path.relative_to(heimdall_root())) if path.is_relative_to(heimdall_root()) else str(path)
     try:
         spec = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as error:
-        raise HepError(f"not valid TOML: {error}", where=where)
+        raise HeimdallError(f"not valid TOML: {error}", where=where)
     for section, table in spec.items():
         if section == "extends":
             continue
         if section not in FOLDER_SECTIONS:
-            raise HepError(f"unknown section [{section}] in a tool folder", where=where,
+            raise HeimdallError(f"unknown section [{section}] in a tool folder", where=where,
                            hint=did_you_mean(section, [*FOLDER_SECTIONS, "extends"]))
         allowed = FOLDER_SECTIONS[section]
         if allowed is not None:
             for key in table:
                 if key not in allowed:
-                    raise HepError(f"unknown key [{section}].{key}", where=where,
+                    raise HeimdallError(f"unknown key [{section}].{key}", where=where,
                                    hint=did_you_mean(key, allowed))
     named = spec.get("tool", {}).get("packages", [])
     if not isinstance(named, list) or not all(isinstance(n, str) for n in named):
-        raise HepError("[tool].packages is a list of recipe names (the packages it runs)", where=where)
+        raise HeimdallError("[tool].packages is a list of recipe names (the packages it runs)", where=where)
     return spec
 
 
@@ -160,7 +160,7 @@ def folders() -> dict[str, Folder]:
             spec.pop("extends", None)
             style = spec.get("card", {}).get("style", "none")
             if style not in CARD_STYLES:
-                raise HepError(f"[card].style must be one of {', '.join(CARD_STYLES)}", where=str(chain[0][1]))
+                raise HeimdallError(f"[card].style must be one of {', '.join(CARD_STYLES)}", where=str(chain[0][1]))
             found[name] = Folder(name, chain[0][1], spec, chain[0][0], tuple(chain))
         _FOLDERS = (chains, found)
     return _FOLDERS[1]
@@ -188,7 +188,7 @@ def folder_lines(name: str) -> list[str]:
     their docs) and what the context file gives of it."""
     known = folders()
     if name not in known:
-        raise HepError(f"no tool folder '{name}'", hint=did_you_mean(name, known) or "heimdall tools lists them")
+        raise HeimdallError(f"no tool folder '{name}'", hint=did_you_mean(name, known) or "heimdall tools lists them")
     folder = known[name]
     lines = [f"{name}: {folder.get('tool', 'category', '')}, from {folder.origin}"
              + (" (a template: heimdall tools new <name> --from " + name + " copies it)" if folder.get("tool", "template") else ""),
@@ -218,21 +218,21 @@ def new_folder(name: str, source: str, packages: list[str] | None = None, runs: 
     override it and the rest stays Heimdall's. `packages` and `runs` fill [tool] packages and executable."""
     unknown = [n for n, s in package_states(packages or []).items() if s == "unknown"]
     if unknown:
-        raise HepError(f"no recipe {', '.join(unknown)}", where="heimdall tools new --package",
+        raise HeimdallError(f"no recipe {', '.join(unknown)}", where="heimdall tools new --package",
                        hint="python3 recipes/build_stack.py --list; your own go in the machine root's recipes.toml")
     from .paths import find_work
     work = find_work()
     if work is None:
-        raise HepError("heimdall tools new makes a folder in a work dir's tools/: not inside a work dir",
+        raise HeimdallError("heimdall tools new makes a folder in a work dir's tools/: not inside a work dir",
                        hint="cd into one (heimdall where --work)")
     if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
-        raise HepError(f"'{name}' is not a tool name: lower case letters, digits and _", where="heimdall tools new")
+        raise HeimdallError(f"'{name}' is not a tool name: lower case letters, digits and _", where="heimdall tools new")
     known = folders()
     if source not in known:
-        raise HepError(f"no tool folder '{source}' to start from", hint=did_you_mean(source, known) or "heimdall tools lists them")
+        raise HeimdallError(f"no tool folder '{source}' to start from", hint=did_you_mean(source, known) or "heimdall tools lists them")
     target = work / "tools" / name
     if target.exists():
-        raise HepError(f"{target} exists already", hint="edit it, or remove it first")
+        raise HeimdallError(f"{target} exists already", hint="edit it, or remove it first")
     origin = known[source]
     text = (origin.find("tool.toml") or origin.dir / "tool.toml").read_text(encoding="utf-8")
     target.mkdir(parents=True)
@@ -266,10 +266,10 @@ def folder_of(tool) -> Folder:
     known = folders()
     renamed = next((name for name, f in known.items() if tool.tool in f.get("tool", "formerly", [])), None)
     if tool.tool not in known and renamed:                          # a folder's old name ([tool] formerly)
-        raise HepError(f'tool = "{tool.tool}" is tool = "{renamed}" now', where=f"[tools.{tool.tag}]",
+        raise HeimdallError(f'tool = "{tool.tool}" is tool = "{renamed}" now', where=f"[tools.{tool.tag}]",
                        hint="heimdall migrate rewrites it")
     if tool.tool not in known:
-        raise HepError(f"tool = \"{tool.tool}\" is no tool folder", where=f"[tools.{tool.tag}]",
+        raise HeimdallError(f"tool = \"{tool.tool}\" is no tool folder", where=f"[tools.{tool.tag}]",
                        hint=did_you_mean(tool.tool, known) or f"tool folders (heimdall tools): {', '.join(known)}")
     return known[tool.tool]
 
@@ -306,9 +306,9 @@ def _lookup(name: str, context: dict, where: str):
     if isinstance(table, dict) and arg in table:
         return table[arg]
     if name == "repo":                                               # High-Energy's, retired (framework/01 §5.3)
-        raise HepError("{repo} is retired: {work} for your files, {hep} for Heimdall's", where=where,
+        raise HeimdallError("{repo} is retired: {work} for your files, {heimdall} for Heimdall's", where=where,
                        hint="heimdall migrate rewrites it in a run TOML")
-    raise HepError(f"unknown placeholder {{{name}}}", where=where,
+    raise HeimdallError(f"unknown placeholder {{{name}}}", where=where,
                    hint=did_you_mean(name, [k for k in context if not k.endswith(":")]))
 
 
@@ -347,7 +347,7 @@ def combiner() -> tuple[str, tuple[str, ...]]:
     for name, folder in folders().items():
         if folder.get("outputs", "combines"):
             return name, tuple("." + s for s in folder.get("outputs", "combines"))
-    raise HepError("no tool folder says [outputs] combines: nothing can merge the points")
+    raise HeimdallError("no tool folder says [outputs] combines: nothing can merge the points")
 
 
 def merge_files(sources: list[Path], target: Path) -> Path:
@@ -377,14 +377,14 @@ def merge_files(sources: list[Path], target: Path) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     done = subprocess.run(argv, capture_output=True, text=True, env=env, encoding="utf-8")
     if done.returncode != 0 or not partial.exists():
-        raise HepError(f"merging {len(sources)} files failed: {(done.stderr or done.stdout).strip()[-300:]}",
+        raise HeimdallError(f"merging {len(sources)} files failed: {(done.stderr or done.stdout).strip()[-300:]}",
                        where=str(target), hint=" ".join(argv)[:300])
     partial.replace(target)
     return target
 
 
 def executable_of(tool, folder: Folder, project: str) -> Path:
-    """A folder's executable (`{hep}`/`{work}` expanded, else PATH), or a custom table's (04 §2): bare →
+    """A folder's executable (`{heimdall}`/`{work}` expanded, else PATH), or a custom table's (04 §2): bare →
     build/<project>/<name>, which must exist; `path:<command>` → that command on PATH, asked for by
     name. A bare name never falls back to PATH (V54): a missing build would run a system binary."""
     if tool.executable:
@@ -393,29 +393,29 @@ def executable_of(tool, folder: Folder, project: str) -> Path:
             command = tool.executable[len("path:"):]
             found = shutil.which(command)
             if not found:
-                raise HepError(f"'{command}' is not a command on PATH", where=where, hint="gjallarhorn first")
+                raise HeimdallError(f"'{command}' is not a command on PATH", where=where, hint="gjallarhorn first")
             return Path(found)
         candidate = resolve(tool.executable, "executable", project=project, where=where)
         if candidate.exists():
             return candidate
         on_path = "/" not in tool.executable and shutil.which(tool.executable)
-        raise HepError(f"executable '{tool.executable}' is not built: {candidate}", where=where,
+        raise HeimdallError(f"executable '{tool.executable}' is not built: {candidate}", where=where,
                        hint=(f"for the command on PATH write executable = \"path:{tool.executable}\"" if on_path
                              else f"build it (make modules/{project}/{Path(tool.executable).stem}.cc → .exe)"))
     template = folder.get("tool", "executable")
     if not template:
-        raise HepError(f"[tools.{tool.tag}] needs executable = \"...\"", where=f"[tools.{tool.tag}]")
+        raise HeimdallError(f"[tools.{tool.tag}] needs executable = \"...\"", where=f"[tools.{tool.tag}]")
     text = expand(template, placeholders(), f"{folder.name}/tool.toml")
     if "/" in text:
         path = Path(text)
         if not path.exists():
-            rel = path.relative_to(hep_root()) if path.is_relative_to(hep_root()) else path
-            raise HepError(f"{rel} is not built", where=f"tool '{folder.name}'",
-                           hint="heimdall build --framework" if path.is_relative_to(hep_root()) else "heimdall build")
+            rel = path.relative_to(heimdall_root()) if path.is_relative_to(heimdall_root()) else path
+            raise HeimdallError(f"{rel} is not built", where=f"tool '{folder.name}'",
+                           hint="heimdall build --framework" if path.is_relative_to(heimdall_root()) else "heimdall build")
         return path
     found = shutil.which(text)
     if not found:
-        raise HepError(f"'{text}' is not on PATH", where=f"tool '{folder.name}'", hint=missing_hint(folder))
+        raise HeimdallError(f"'{text}' is not on PATH", where=f"tool '{folder.name}'", hint=missing_hint(folder))
     return Path(found)
 
 
@@ -426,8 +426,8 @@ def _installed():
     """recipes/build_stack.py's view of the loaded stack (the machine root's, or an isolated toolkit's):
     (the module, its recipes, its placeholders); None when it cannot be read."""
     try:
-        bs = plugins.load(hep_root() / "recipes" / "build_stack.py", "build_stack")
-        stack = os.environ.get("HEP_STACK", "")
+        bs = plugins.load(heimdall_root() / "recipes" / "build_stack.py", "build_stack")
+        stack = os.environ.get("HEIMDALL_STACK", "")
         _, settings, packages = bs.options([f"packages=@{stack}"] if stack else [])
         return bs, packages, bs.context(settings)
     except (SystemExit, Exception):                                # build_stack dies with SystemExit
@@ -514,7 +514,7 @@ def meta_notes(run) -> list[str]:
 @functools.lru_cache(maxsize=1)
 def _stack():
     """env/stack.py, the stack registry's reader (V78)."""
-    return plugins.load(hep_root() / "env" / "stack.py", "stack")
+    return plugins.load(heimdall_root() / "env" / "stack.py", "stack")
 
 
 # ── the plan of one point ──────────────────────────────────────────────────────────────────────
@@ -701,22 +701,22 @@ def _check_options(tool, folder: Folder, where: str) -> None:
     for key, value in tool.extra.items():
         if (key not in schema and folder.get("tool", "config_file") and EXPORT.match(key)
                 and EXPORT.match(key).group("tool") in folders()):
-            raise HepError(f"'{key}' is retired: the point's context file gives every tool's card and config",
+            raise HeimdallError(f"'{key}' is retired: the point's context file gives every tool's card and config",
                            where=f"{where}.{key}",
                            hint=f"a tool that is not in the chain goes in generate_cards = [\"<tag>\"] (or \"<tag>:<product>\"); "
-                                "the program reads $HEP_CONTEXT. heimdall migrate rewrites it")
+                                "the program reads $HEIMDALL_CONTEXT. heimdall migrate rewrites it")
         if key not in schema:
             from .schema import home_of
-            raise HepError(f"unknown key '{key}' for a {folder.name} tool", where=where,
+            raise HeimdallError(f"unknown key '{key}' for a {folder.name} tool", where=where,
                            hint=home_of(key, "tool") or did_you_mean(key, schema)
                            or (f"{folder.name} takes: {', '.join(schema)}" if schema else f"{folder.name} takes no extra keys"))
         kind = schema[key].get("kind")
         types = {"list": list, "table": dict, "str": str, "int": int, "float": (int, float), "bool": bool, "flag": bool}
         if kind in types and not isinstance(value, types[kind]):
-            raise HepError(f"'{key}' must be a {kind}", where=f"{where}.{key}")
+            raise HeimdallError(f"'{key}' must be a {kind}", where=f"{where}.{key}")
     for key, rule in schema.items():
         if rule.get("required") and key not in tool.extra:
-            raise HepError(f"a {folder.name} tool needs '{key}'", where=where)
+            raise HeimdallError(f"a {folder.name} tool needs '{key}'", where=where)
 
 
 def _generated(run, configuration, chain: list[str]) -> tuple[list[str], dict[str, list[str]]]:
@@ -726,12 +726,12 @@ def _generated(run, configuration, chain: list[str]) -> tuple[list[str], dict[st
     for entry in configuration.generate_cards:
         tag, _, product = entry.partition(":")
         if tag not in run.tools:
-            raise HepError(f"generate_cards names '{tag}', which is not a tool table", where="generate_cards",
+            raise HeimdallError(f"generate_cards names '{tag}', which is not a tool table", where="generate_cards",
                            hint=did_you_mean(tag, run.tools))
         if product:
             offered = folder_of(run.tools[tag]).spec.get("context", {}).get("products", {})
             if product not in offered:
-                raise HepError(f"{run.tools[tag].tool} makes no product '{product}'", where=f"generate_cards: \"{entry}\"",
+                raise HeimdallError(f"{run.tools[tag].tool} makes no product '{product}'", where=f"generate_cards: \"{entry}\"",
                                hint=(f"its products: {', '.join(offered)}" if offered else
                                      f"{run.tools[tag].tool} has none; \"{tag}\" alone gives its card and config"))
             products.setdefault(tag, []).append(product)
@@ -760,7 +760,7 @@ def _context_tables(plan: PointPlan, products: dict[str, list[str]]) -> dict[str
             declared = step.folder.spec["context"]["products"][product]
             if declared.get("needs_prepare"):
                 if step.prepare_dir is None:
-                    raise HepError(f"{step.folder.name}'s product '{product}' needs a prepare step it does not have",
+                    raise HeimdallError(f"{step.folder.name}'s product '{product}' needs a prepare step it does not have",
                                    where=where)
                 step.prepare_needed = True
             entry[product] = expand(declared["path"], {"prepared": str(step.prepare_dir or ""),
@@ -773,7 +773,7 @@ def context_text(plan: PointPlan) -> str:
     """The context file: written when the point starts, kept with its record when it ends (V187; a report's tools'
     pages read it, V210)."""
     return (f"# {CONTEXT_FILE} — point {plan.point.name}: every tool's card and config, for any program of it\n"
-            "# (HEP_CONTEXT; docs/04_Config_Reference.md §9.4). Written when the point starts, kept with its record.\n\n"
+            "# (HEIMDALL_CONTEXT; docs/04_Config_Reference.md §9.4). Written when the point starts, kept with its record.\n\n"
             + tomli_w.dumps({"tools": plan.context_tools}))
 
 
@@ -782,7 +782,7 @@ def _resolve_chain(run, configuration, point) -> list[list[str]]:
     chain spliced in (V19, V153; config.resolve_chain)."""
     def choose(name: str):
         if name not in point.choice and name not in configuration.static:
-            raise HepError(f"'@{name}' needs {name} swept or static", where=f"[run.cfgs.{configuration.key}].tools")
+            raise HeimdallError(f"'@{name}' needs {name} swept or static", where=f"[run.cfgs.{configuration.key}].tools")
         quantity = run.quantities[name]
         index = point.choice.get(name)
         if index is None:
@@ -798,7 +798,7 @@ def _builtin_value(run, name: str, index: int) -> int:
     value = run.quantities[name].values[index]
     least = 1 if name == "events" else 0
     if isinstance(value, bool) or not isinstance(value, int) or value < least:
-        raise HepError(f"[quantities.{name}] value {value!r} is not an integer ≥ {least}", where=f"[quantities.{name}]")
+        raise HeimdallError(f"[quantities.{name}] value {value!r} is not an integer ≥ {least}", where=f"[quantities.{name}]")
     if name == "threads" and value == 0:
         import os
         return os.cpu_count() or 1
@@ -830,21 +830,21 @@ def _shard(run, configuration, groups_tags: list[list[str]], out: Path):
         folder = folder_of(tool)
         merge = folder.get("shard", "merge")
         if not merge:
-            raise HepError(f"a {folder.name} tool cannot be sharded", where=where,
+            raise HeimdallError(f"a {folder.name} tool cannot be sharded", where=where,
                            hint="its tool folder has no [shard] merge: nothing would put the shares back together")
         if len(tool.input) != 1 or len(tool.output_file) != 1:
-            raise HepError("a sharded tool reads one input and writes one output_file", where=where)
+            raise HeimdallError("a sharded tool reads one input and writes one output_file", where=where)
         name = tool.input[0]
         kind = "fifo" if name in prelim.get("fifo", []) else "files" if name in prelim.get("files", []) else ""
         if not kind:
-            raise HepError(f"'{name}' is neither a FIFO nor a file of the point (v2: [prelim])", where=where,
+            raise HeimdallError(f"'{name}' is neither a FIFO nor a file of the point (v2: [prelim])", where=where,
                            hint="a sharded tool reads its events through an agreed interface, which the producer deals")
         producers = [t for group in groups for t in group if name in tables[t].output_file]
         if len(producers) != 1:
-            raise HepError(f"'{name}' needs exactly one producer in the chain to be dealt", where=where)
+            raise HeimdallError(f"'{name}' needs exactly one producer in the chain to be dealt", where=where)
         producer = producers[0]
         if not folder_of(tables[producer]).get("outputs", "deal"):
-            raise HepError(f"'{producer}' ({tables[producer].tool}) cannot deal its events among shards", where=where,
+            raise HeimdallError(f"'{producer}' ({tables[producer].tool}) cannot deal its events among shards", where=where,
                            hint="only a producer whose tool folder says [outputs] deal = true (pythia) can feed a sharded tool")
         head, dot, tail = name.rpartition(".")
         members = [f"{head}.s{i}.{tail}" if dot else f"{name}.s{i}" for i in range(1, tool.shards + 1)]
@@ -857,7 +857,7 @@ def _shard(run, configuration, groups_tags: list[list[str]], out: Path):
         for i, member in enumerate(members, start=1):
             copy = f"{tag}.{i}"
             if copy in tables:
-                raise HepError(f"[tools.{copy}] exists, and it is the name of {tag}'s shard {i}", where=where)
+                raise HeimdallError(f"[tools.{copy}] exists, and it is the name of {tag}'s shard {i}", where=where)
             part = str(out / "shards" / f"{product.stem}.s{i}{product.suffix}")
             tables[copy] = replace(tool, tag=copy, input=[member], output_file=[part], shards=1)
             copies.append(copy)
@@ -941,7 +941,7 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
     for kind in ("fifo", "files"):
         for name in configuration.prelim.get(kind, []):
             if name in plan.interfaces:
-                raise HepError(f"'{name}' is declared twice in [prelim]", where="[prelim]")
+                raise HeimdallError(f"'{name}' is declared twice in [prelim]", where="[prelim]")
             plan.interfaces[name] = Interface(name, resolve(name, "prelim", root=out, where="[prelim]"),
                                               "fifo" if kind == "fifo" else "file")
     if pre is not None:                               # what the pre stage made, for every point
@@ -964,8 +964,8 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
         for pattern in folder.get("checks", "files", []):          # what the tool needs built first
             needed = Path(expand(pattern, placeholders(), f"{folder.name}/tool.toml [checks].files"))
             if not needed.exists():
-                raise HepError(f"{folder.name} needs {needed}, which does not exist", where=where,
-                               hint=("heimdall build --framework" if needed.is_relative_to(hep_root()) else "heimdall build")
+                raise HeimdallError(f"{folder.name} needs {needed}, which does not exist", where=where,
+                               hint=("heimdall build --framework" if needed.is_relative_to(heimdall_root()) else "heimdall build")
                                     + f" (see framework/tools/{folder.name}/tool.toml)")
         step = Step(tag=tag, tool=tool, folder=folder, group=group_of.get(tag, -1),
                     exe=executable_of(tool, folder, run.project))
@@ -1033,7 +1033,7 @@ def seed_range_of(steps) -> tuple[int, int]:
         a, b = step.folder.get("card", "seed_range", DEFAULT_SEED_RANGE)
         lo, hi = max(lo, int(a)), min(hi, int(b))
     if hi - lo < 1:
-        raise HepError(f"the seeded tools of this point accept no common seed range ({lo} … {hi})",
+        raise HeimdallError(f"the seeded tools of this point accept no common seed range ({lo} … {hi})",
                        hint="see their folders' [card] seed_range")
     return lo, hi
 
@@ -1041,10 +1041,10 @@ def seed_range_of(steps) -> tuple[int, int]:
 def _outputs(plan: PointPlan, step: Step, run) -> None:
     for name in step.tool.output_file:
         if name in plan.interfaces and plan.interfaces[name].kind == "points":
-            raise HepError(f"'{name}' is the name of the points' product", where=f"[tools.{step.tag}].output_file",
+            raise HeimdallError(f"'{name}' is the name of the points' product", where=f"[tools.{step.tag}].output_file",
                            hint="a post tool writes a new file; it reads the points' products with input = \"" + name + "\"")
         if name in plan.interfaces and plan.interfaces[name].producer:
-            raise HepError(f"'{name}' is written by both {plan.interfaces[name].producer} and {step.tag}",
+            raise HeimdallError(f"'{name}' is written by both {plan.interfaces[name].producer} and {step.tag}",
                            where=f"[tools.{step.tag}].output_file", hint="every output has exactly one writer (see C6)")
         if name in plan.interfaces:
             interface = plan.interfaces[name]
@@ -1081,34 +1081,34 @@ def _check_connections(plan: PointPlan, run) -> None:
             continue
         if interface.kind == "fifo":
             if not interface.producer:
-                raise HepError(f"FIFO '{interface.name}' has no writer", where=where,
+                raise HeimdallError(f"FIFO '{interface.name}' has no writer", where=where,
                                hint="name it in a tool's output (v2: output_file); a FIFO nobody writes blocks its reader for ever")
             if len(readers) != 1:
-                raise HepError(f"FIFO '{interface.name}' has {len(readers)} readers; a FIFO has exactly one",
+                raise HeimdallError(f"FIFO '{interface.name}' has {len(readers)} readers; a FIFO has exactly one",
                                where=where, hint="fan out with a list output on the producer, one FIFO per reader (see V16)")
             reader = readers[0]
             if reader.group != interface.group:
-                raise HepError(f"FIFO '{interface.name}' connects {interface.producer} and {reader.tag} across groups",
+                raise HeimdallError(f"FIFO '{interface.name}' connects {interface.producer} and {reader.tag} across groups",
                                where=where, hint=f"put them in one group, [\"{interface.producer}\", \"{reader.tag}\"], "
                                                   "or make it a file (v2: a [prelim] file): a later reader leaves the writer "
                                                   "blocked (see L8)")
             streamable = reader.tool.streamable if reader.tool.streamable is not None else reader.folder.get("tool", "streamable", False)
             if not streamable:
-                raise HepError(f"'{reader.tag}' cannot read a FIFO", where=where,
+                raise HeimdallError(f"'{reader.tag}' cannot read a FIFO", where=where,
                                hint="its tool folder says streamable = false, as Delphes skips a zero-length input: "
                                     "put it in a later group, so it reads a file; v2: a [prelim] file there (see L11)")
         else:
             for reader in readers:
                 if interface.producer:
                     if interface.group > reader.group:
-                        raise HepError(f"'{reader.tag}' reads '{interface.name}' before {interface.producer} writes it",
+                        raise HeimdallError(f"'{reader.tag}' reads '{interface.name}' before {interface.producer} writes it",
                                        where=where, hint="the writer must be in an earlier group")
                     if interface.group == reader.group:
-                        raise HepError(f"'{reader.tag}' and {interface.producer} share file '{interface.name}' in one group",
+                        raise HeimdallError(f"'{reader.tag}' and {interface.producer} share file '{interface.name}' in one group",
                                        where=where, hint="within a group the interface is a FIFO; between groups a file")
                 elif interface.kind == "file" and interface.name not in plan.prelim.get("files", []) \
                         and not interface.path.exists():
-                    raise HepError(f"'{reader.tag}' reads '{interface.name}', which nothing writes and does not exist",
+                    raise HeimdallError(f"'{reader.tag}' reads '{interface.name}', which nothing writes and does not exist",
                                    where=f"[tools.{reader.tag}].input", hint=f"expected at {interface.path}")
 
 
@@ -1133,7 +1133,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
     def claim(key: str, value: Any, origin: str, fmt: str = "") -> None:
         normal = "".join(key.split()).lower()
         if normal in owners and owners[normal] != origin:
-            raise HepError(f"'{key}' is set by both {owners[normal]} and {origin}", where=f"[tools.{step.tag}]",
+            raise HeimdallError(f"'{key}' is set by both {owners[normal]} and {origin}", where=f"[tools.{step.tag}]",
                            hint="one source per native key: pin it in one place (see C8)")
         owners[normal] = origin
         step.card_origins[normal] = origin
@@ -1152,7 +1152,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
             if not isinstance(value, list):                              # one value, every key (V152)
                 value = [value] * len(mapping.key)
             if len(value) != len(mapping.key):
-                raise HepError(f"{origin}: expected {len(mapping.key)} values for {', '.join(mapping.key)}",
+                raise HeimdallError(f"{origin}: expected {len(mapping.key)} values for {', '.join(mapping.key)}",
                                where=f"[tools.{step.tag}]")
             for key, item in zip(mapping.key, value):
                 claim(key, item, origin, mapping.format)
@@ -1170,7 +1170,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
         for mapping in qmod.builtin_mappings(master, run, [step.tag], name):
             apply(mapping, value, f"built-in {name}")
     if tool.settings and style == "none":
-        raise HepError(f"a {folder.name} tool has no card for settings", where=f"[tools.{step.tag}].settings",
+        raise HeimdallError(f"a {folder.name} tool has no card for settings", where=f"[tools.{step.tag}].settings",
                        hint="its values are flags or options: give them as its own keys")
     for key, value in tool.settings.items():                                # native settings, as written (V59)
         if value != "default":
@@ -1195,7 +1195,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
                           for b in tool.baseconfig]
         for base in step.card_base:
             if not base.is_file():
-                raise HepError("base config not found", where=f"[tools.{step.tag}].baseconfig: {base}")
+                raise HeimdallError("base config not found", where=f"[tools.{step.tag}].baseconfig: {base}")
         output_name = (step.outputs[0].path.name if step.outputs          # an export-only step: its table's
                        else Path(tool.output_file[0]).name if tool.output_file else "")
         where_footer = f"{folder.name}/tool.toml [card].footer"
@@ -1227,7 +1227,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
         step.identity_parts["card"] = [line for line in step.card_lines if line not in redundant]
         _prepare_key(plan, step, run)
     elif lines:
-        raise HepError(f"{folder.name} has no card, but quantities set native keys on it: {', '.join(lines)}",
+        raise HeimdallError(f"{folder.name} has no card, but quantities set native keys on it: {', '.join(lines)}",
                        where=f"[tools.{step.tag}]", hint="target an option or a config key instead")
 
     # a folder's own options hook (rivet: its analyses and their options, V60)
@@ -1274,7 +1274,7 @@ def beam_order(plan: PointPlan, run, folder: Folder) -> tuple[int, int] | None:
     if sorted(classes) != sorted(slots):
         if classes[0] == classes[1]:
             return None                                   # two of a kind (pp): any order is the card's
-        raise HepError(f"{folder.name}'s card takes beams as {slots}, and this point's are {classes}",
+        raise HeimdallError(f"{folder.name}'s card takes beams as {slots}, and this point's are {classes}",
                        where=f"tool '{folder.name}' [beams] slots")
     first = classes.index(slots[0])
     return (first, 1 - first)
@@ -1403,7 +1403,7 @@ def _argv(plan: PointPlan, step: Step, run) -> None:
         "q:": {name: str(run.quantities[name].values[i]) for name, i in plan.values.items()},
         "cards": [str(p) for p in step.card_base] + ([str(step.card_point)] if step.card_point else []),
         "card": str(step.card_combined or ""),
-        "context": str(plan.out / CONTEXT_FILE),             # the context file (04 §9.4); also $HEP_CONTEXT
+        "context": str(plan.out / CONTEXT_FILE),             # the context file (04 §9.4); also $HEIMDALL_CONTEXT
         "context:": {f"{tag}.{key}": value for tag, table in plan.context_tools.items() for key, value in table.items()},
         **step.placeholders,
         **plan.context,
@@ -1462,10 +1462,10 @@ def _outputs_argument(step: Step, deal: dict[str, str]) -> str:
     at: dict[str, int] = {}
     for interface in step.outputs:
         if set(str(interface.path)) & {",", "+"}:
-            raise HepError(f"an output path of [tools.{step.tag}] contains ',' or '+', which separate its outputs",
+            raise HeimdallError(f"an output path of [tools.{step.tag}] contains ',' or '+', which separate its outputs",
                            where=str(interface.path),
                            hint="rename what puts it there: the run's name or serial, a configuration, a quantity tag, "
-                                "or $HEP_OUTPUT")
+                                "or $HEIMDALL_RECORDS")
         group = deal.get(interface.name)
         if group is not None and group in at:
             items[at[group]] += "+" + str(interface.path)
@@ -1603,10 +1603,10 @@ def card_view(plan: PointPlan, tag: str) -> list[str]:
     each line with where its value comes from: a base card's line (and whether the point card sets it
     again), a setting, a quantity, the vocabulary, a built-in, or the runner (seeds, the footer)."""
     if tag not in plan.rendered:
-        raise HepError(f"--card: no tool table '{tag}' in this point", hint="its tools: " + ", ".join(plan.rendered))
+        raise HeimdallError(f"--card: no tool table '{tag}' in this point", hint="its tools: " + ", ".join(plan.rendered))
     step = plan.rendered[tag]
     if step.card_combined is None:
-        raise HepError(f"--card {tag}: {step.folder.name} has no card", hint="its values are flags, options or a config file")
+        raise HeimdallError(f"--card {tag}: {step.folder.name} has no card", hint="its values are flags, options or a config file")
     parse = card_parser(step.folder)
     comment = step.folder.get("card", "comment", "#")
     point = plan.writes.get(step.card_point or step.card_combined, "\n".join(step.card_lines))
@@ -1715,7 +1715,7 @@ def check_cards(plan: PointPlan) -> None:
         rejected = _CHECKED[key]
         if rejected:
             shown = [f"{lines[r['line'] - 1][0]!r} ({lines[r['line'] - 1][1]})" for r in rejected[:4]]
-            raise HepError(f"{step.folder.name} rejects {len(rejected)} line(s) of [tools.{step.tag}]'s card: "
+            raise HeimdallError(f"{step.folder.name} rejects {len(rejected)} line(s) of [tools.{step.tag}]'s card: "
                            + "; ".join(shown) + (" …" if len(rejected) > 4 else ""),
                            where=f"[tools.{step.tag}]", hint="a key it does not know, or a value of the wrong kind")
 

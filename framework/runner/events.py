@@ -15,9 +15,9 @@ the time `t`, and its kind `k`:
 Runtime state stays off disk (the user, 2026-10-03), but for the run registry and a worker's log (V182,
 runs.py: the user, 2026-10-23). Who hears the bus:
 * the view, always (watch.py);
-* the **Hub**, while the process lives: an abstract Unix socket `@hep-watch-<pid>` (no file, no path
+* the **Hub**, while the process lives: an abstract Unix socket `@heimdall-watch-<pid>` (no file, no path
   limit) on Linux, which `heimdall watch` finds in /proc/net/unix; elsewhere (macOS has neither) a socket
-  file <tmp>/hep-watch/hep-watch-<pid>, removed when the process ends. The watcher gets a greeting, the current run's events so far
+  file <tmp>/heimdall-watch/heimdall-watch-<pid>, removed when the process ends. The watcher gets a greeting, the current run's events so far
   (a tool's progress only as its latest), then every event live. A sweep of runs is one process, so
   the stream follows from run to run by itself. Only this user's processes may connect (V181:
   SO_PEERCRED on Linux, the 0700 folder elsewhere); when the run ends, every watcher gets its last
@@ -48,10 +48,10 @@ import time
 from pathlib import Path
 
 VERSION = 1
-PREFIX = "hep-watch-"                     # the socket's name: PREFIX + pid
+PREFIX = "heimdall-watch-"                     # the socket's name: PREFIX + pid
 #: Abstract sockets are Linux's; elsewhere the sockets are files in one folder (a short path: 104 bytes on macOS).
 ABSTRACT = sys.platform.startswith("linux")
-SOCKETS = Path(tempfile.gettempdir()) / "hep-watch"
+SOCKETS = Path(tempfile.gettempdir()) / "heimdall-watch"
 
 
 def address(name: str) -> str:
@@ -60,7 +60,7 @@ def address(name: str) -> str:
 
 
 def pid_of(name: str) -> int | None:
-    """The pid a watch socket's name carries: hep-watch-<pid>, or hep-watch-<pid>-<n> (V181)."""
+    """The pid a watch socket's name carries: heimdall-watch-<pid>, or heimdall-watch-<pid>-<n> (V181)."""
     head = name[len(PREFIX):].split("-", 1)[0] if name.startswith(PREFIX) else ""
     return int(head) if head.isdigit() else None
 
@@ -213,10 +213,10 @@ class Hub:
                          "address": address(self.name), **greeting}
         self._server.listen(8)
         self._closed = False
-        threading.Thread(target=self._accept, name="hep-watch-hub", daemon=True).start()
+        threading.Thread(target=self._accept, name="heimdall-watch-hub", daemon=True).start()
 
     def _bind(self, name: str | None) -> str:
-        """Its name: hep-watch-<pid>, or with a suffix when another PID namespace's process of the same pid
+        """Its name: heimdall-watch-<pid>, or with a suffix when another PID namespace's process of the same pid
         holds that one (two containers sharing the network, V181)."""
         names = [name] if name else [f"{PREFIX}{os.getpid()}"] + [f"{PREFIX}{os.getpid()}-{n}" for n in range(1, 10)]
         for candidate in names:
@@ -354,7 +354,7 @@ def hubs() -> list[str]:
 
 
 def open_stream(where: str, timeout: float = 2.0) -> socket.socket:
-    """A connected watch socket, by its name (hep-watch-<pid>) or its address (a greeting's, an entry's: the
+    """A connected watch socket, by its name (heimdall-watch-<pid>) or its address (a greeting's, an entry's: the
     one way to a macOS socket file under another session's $TMPDIR). Blocking once connected."""
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client.settimeout(timeout)

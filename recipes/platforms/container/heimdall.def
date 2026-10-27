@@ -21,12 +21,12 @@ From: ubuntu:24.04
     rm -rf /var/lib/apt/lists/*
     python3 /opt/heimdall/recipes/build_stack.py machine=/opt/himinbjorg packages="{{ PACKAGES }}" \
         cores={{ CORES }} root_cores={{ ROOT_CORES }} shell_rc=false
-    HEP_MACHINE=/opt/himinbjorg /opt/heimdall/launch.sh heimdall build --framework
+    HEIMDALL_MACHINE=/opt/himinbjorg /opt/heimdall/launch.sh heimdall build --framework
     rm -rf /opt/himinbjorg/forge
     chmod -R a+rX /opt/heimdall /opt/himinbjorg
 
 %environment
-    export HEP_MACHINE=/opt/himinbjorg
+    export HEIMDALL_MACHINE=/opt/himinbjorg
     export PYTHONDONTWRITEBYTECODE=1
 
 %runscript

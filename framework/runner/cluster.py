@@ -14,7 +14,7 @@ point is skipped in its job when its identity is complete, as anywhere. Nothing 
 identity or a seed, so a point run as a job equals the same point run by hand.
 
 [cluster] comes in layers, lowest first: the machine root's machine.toml (this machine's defaults for
-every work dir: account, partition, setup lines), the work dir's hep.toml, the run TOML's (imports merge
+every work dir: account, partition, setup lines), the work dir's heimdall.toml, the run TOML's (imports merge
 it key by key), the configuration's ([run.cfgs.<cfg>].cluster), and --set cluster.<key>=…; `time`
 must be in one of them.
 
@@ -38,10 +38,10 @@ import tomli_w
 
 from . import tools
 from .config import check_cluster
-from .errors import HepError
+from .errors import HeimdallError
 from .execute import cores
 from .image import image_path
-from .paths import (MACHINE_VAR, MARKER_FILE, STACK_VAR, hep_root, machine_file, machine_root, machine_settings,
+from .paths import (MACHINE_VAR, MARKER_FILE, STACK_VAR, heimdall_root, machine_file, machine_root, machine_settings,
                     records_root, work_meta, work_root)
 from . import runs
 from .record import git_state, is_complete, write_atomic
@@ -54,7 +54,7 @@ FOLDER = "cluster"
 RECORD = "jobs.toml"
 POINTS = "points.txt"
 #: The roots a job keeps from the shell that submitted it, when set there (the tests set them).
-ROOTS = ("HEP_RECORDS", "HEP_CACHE", "HEP_RESULTS", "HEP_REPORTS", "HEP_CONFIGS")
+ROOTS = ("HEIMDALL_RECORDS", "HEIMDALL_CACHE", "HEIMDALL_RESULTS", "HEIMDALL_REPORTS", "HEIMDALL_CONFIGS")
 #: What squeue and sacct are asked for: a job's (or array task's) id, state, time and reason or node; and
 #: id, state, exit code and elapsed time.
 SQUEUE = "%i|%T|%M|%R"
@@ -71,7 +71,7 @@ def _deep(base: dict, over: dict) -> dict:
 
 
 def settings(configuration) -> dict:
-    """[cluster] for this configuration: machine.toml's under the work dir's hep.toml, under the run
+    """[cluster] for this configuration: machine.toml's under the work dir's heimdall.toml, under the run
     TOML's and the configuration's (merged by config.py), checked whole; `time` is required."""
     work = work_root()
     machine = machine_settings().get("cluster", {})
@@ -80,8 +80,8 @@ def settings(configuration) -> dict:
     check_cluster(here, f"{work / MARKER_FILE}: [cluster]")
     merged = _deep(_deep(machine, here), configuration.cluster)
     if not merged.get("time"):
-        raise HepError("heimdall cluster needs each job's time limit", where="[cluster] time",
-                       hint='[cluster] time = "02:00:00" in the run TOML (or the work dir\'s hep.toml): a site\'s default '
+        raise HeimdallError("heimdall cluster needs each job's time limit", where="[cluster] time",
+                       hint='[cluster] time = "02:00:00" in the run TOML (or the work dir\'s heimdall.toml): a site\'s default '
                             'limit is a surprise TIMEOUT')
     return merged
 
@@ -107,7 +107,7 @@ def loader() -> Path:
     """The gjallarhorn.sh a job sources: Heimdall's, or the loaded isolated stack's, in the machine root's
     stacks/ (recipes/README.md §6)."""
     stack = os.environ.get(STACK_VAR)
-    return machine_root() / "stacks" / stack / "gjallarhorn.sh" if stack else hep_root() / "gjallarhorn.sh"
+    return machine_root() / "stacks" / stack / "gjallarhorn.sh" if stack else heimdall_root() / "gjallarhorn.sh"
 
 
 def script(directive_list: list[str], keys: dict, command: list[str], *, title: str, points: Path | None = None) -> str:
@@ -125,12 +125,12 @@ def script(directive_list: list[str], keys: dict, command: list[str], *, title: 
                   '{ echo "heimdall cluster: no apptainer on $(hostname)" >&2; exit 127; }',
                   f"cd {q(str(work_root()))}"]
         command = ['"$runtime" exec --cleanenv', *(f"--bind {q(b)}" for b in dict.fromkeys(binds)),
-                   f"--env HEP_WORK={q(str(work_root()))}", *(f"--env {var}={q(v)}" for var, v in roots.items()),
+                   f"--env HEIMDALL_WORK={q(str(work_root()))}", *(f"--env {var}={q(v)}" for var, v in roots.items()),
                    f"--env {runs.CLUSTER_VAR}={q(title)}",                  # recorded by its submission (V184)
                    q(str(sif)), "/opt/heimdall/launch.sh", "heimdall", *command[1:]]
     else:
         lines += [f"export {MACHINE_VAR}={q(str(machine_root()))}", f"source {q(str(loader()))}", "set -eo pipefail",
-                  f"export HEP_WORK={q(str(work_root()))}",
+                  f"export HEIMDALL_WORK={q(str(work_root()))}",
                   *(f"export {var}={q(os.environ[var])}" for var in ROOTS if os.environ.get(var)),
                   f"export {runs.CLUSTER_VAR}={q(title)}",                  # recorded by its submission (V184)
                   f"cd {q(str(work_root()))}"]
@@ -143,10 +143,10 @@ def script(directive_list: list[str], keys: dict, command: list[str], *, title: 
     return "\n".join(lines) + "\n"
 
 
-def hep_run(planned, args, stages: str, point: bool = False) -> list[str]:
+def heimdall_run(planned, args, stages: str, point: bool = False) -> list[str]:
     """The heimdall run a job makes: the same config file, configuration and --set's as the submission."""
     q = shlex.quote
-    argv = [q(str(hep_root() / "framework" / "bin" / "heimdall")), "run", q(str(planned.run.path)), q(planned.configuration.key)]
+    argv = [q(str(heimdall_root() / "framework" / "bin" / "heimdall")), "run", q(str(planned.run.path)), q(planned.configuration.key)]
     if point:
         argv += ["--points", '"$point"']
     argv += ["--stages", stages, "--plain"]
@@ -179,17 +179,17 @@ def latest(planned) -> Path | None:
 
 def _need(command: str) -> None:
     if not shutil.which(command):
-        raise HepError(f"no {command} here: heimdall cluster submits to Slurm", hint="run it on the cluster's login node, "
+        raise HeimdallError(f"no {command} here: heimdall cluster submits to Slurm", hint="run it on the cluster's login node, "
                        "with Heimdall loaded (source <Heimdall>/gjallarhorn.sh)")
 
 
 def _sbatch(argv: list[str]) -> str:
     done = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if done.returncode != 0:
-        raise HepError(f"sbatch failed: {(done.stderr or done.stdout).strip()[-300:]}", where=argv[-1])
+        raise HeimdallError(f"sbatch failed: {(done.stderr or done.stdout).strip()[-300:]}", where=argv[-1])
     job = done.stdout.strip().split(";")[0]
     if not job.isdigit():
-        raise HepError(f"sbatch said '{done.stdout.strip()}', not a job id", where=argv[-1])
+        raise HeimdallError(f"sbatch said '{done.stdout.strip()}', not a job id", where=argv[-1])
     return job
 
 
@@ -224,18 +224,18 @@ def submit(planned, args, out=print) -> int:
         if (last := latest(planned)) is not None:
             ids = list(tomllib.loads((last / RECORD).read_text(encoding="utf-8"))["jobs"].values())
             if ids and shutil.which("squeue") and active(ids):
-                raise HepError(f"{run.name} · {configuration.key}: the submission {last.name} still has jobs pending or "
+                raise HeimdallError(f"{run.name} · {configuration.key}: the submission {last.name} still has jobs pending or "
                                "running, and a second would run the same points in the same folders",
                                where=str(last), hint=f"heimdall cluster {args.config} {configuration.key} --status, or --cancel")
     folder = _stamp(base(planned))
     (folder / "logs").mkdir(parents=True)              # a dry run's folder has no record: never a submission
-    name = f"hep-{run.name}-{configuration.key}"
+    name = f"heimdall-{run.name}-{configuration.key}"
     jobs: dict[str, tuple[Path, list[str]]] = {}       # job → (its script, its sbatch line once known)
     if pre is not None:
         keys = job_settings(merged, "pre")
         text = script(directives(keys, name=f"{name}-pre", log=folder / "logs" / "pre-%j.log",
                                  cpus=int(keys.get("cpus") or cores(pre))),
-                      keys, hep_run(planned, args, "pre"), title=f"{run.name} · {configuration.key}: pre")
+                      keys, heimdall_run(planned, args, "pre"), title=f"{run.name} · {configuration.key}: pre")
         jobs["pre"] = (folder / "pre.sbatch", [])
         (folder / "pre.sbatch").write_text(text, encoding="utf-8")
     if todo:
@@ -245,14 +245,14 @@ def submit(planned, args, out=print) -> int:
         text = script(directives(keys, name=f"{name}-points", log=folder / "logs" / "points-%A_%a.log",
                                  cpus=int(keys.get("cpus") or max(cores(p) for p in todo)),
                                  array=f"1-{len(todo)}{throttle}"),
-                      keys, hep_run(planned, args, "points", point=True),
+                      keys, heimdall_run(planned, args, "points", point=True),
                       title=f"{run.name} · {configuration.key}: points", points=folder / POINTS)
         jobs["points"] = (folder / "points.sbatch", [])
         (folder / "points.sbatch").write_text(text, encoding="utf-8")
     keys = job_settings(merged, "finish")
     text = script(directives(keys, name=f"{name}-finish", log=folder / "logs" / "finish-%j.log",
                              cpus=int(merged.get("finish", {}).get("cpus") or 1)),
-                  keys, hep_run(planned, args, "combine,post,plot"), title=f"{run.name} · {configuration.key}: finish")
+                  keys, heimdall_run(planned, args, "combine,post,plot"), title=f"{run.name} · {configuration.key}: finish")
     jobs["finish"] = (folder / "finish.sbatch", [])
     (folder / "finish.sbatch").write_text(text, encoding="utf-8")
 
@@ -277,7 +277,7 @@ def submit(planned, args, out=print) -> int:
             continue
         try:
             ids[job] = _sbatch(argv)
-        except HepError:
+        except HeimdallError:
             if ids and shutil.which("scancel"):        # no half a chain left queued
                 subprocess.run(["scancel", *ids.values()], capture_output=True)
             raise
@@ -287,7 +287,7 @@ def submit(planned, args, out=print) -> int:
         return 0
     record = {"stamp": folder.name, "scheduler": merged.get("scheduler", "slurm"), "config": str(run.path),
               "configuration": configuration.key, "sets": list(getattr(args, "set", None) or []), "rerun": rerun,
-              "work": str(work_root()), "heimdall": git_state(hep_root()), "points": [p.point.name for p in todo],
+              "work": str(work_root()), "heimdall": git_state(heimdall_root()), "points": [p.point.name for p in todo],
               "jobs": ids, "sbatch": {job: argv for job, (_, argv) in jobs.items()}}
     write_atomic(folder / RECORD, tomli_w.dumps(record))
     runs.begin(runs.new_id(), {"kind": "cluster", "config": str(run.path), "configuration": configuration.key,     # V184
@@ -399,7 +399,7 @@ def cancel(planned, out=print) -> int:
     ids = list(tomllib.loads((folder / RECORD).read_text(encoding="utf-8"))["jobs"].values())
     done = subprocess.run(["scancel", *ids], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if done.returncode != 0:
-        raise HepError(f"scancel failed: {(done.stderr or done.stdout).strip()[-300:]}", where=str(folder))
+        raise HeimdallError(f"scancel failed: {(done.stderr or done.stdout).strip()[-300:]}", where=str(folder))
     out(f"{planned.run.name} · {planned.configuration.key}: cancelled the submission {folder.name} (jobs {' '.join(ids)})")
     for entry in runs.entries():                                 # its registry entry (V184)
         if entry.get("kind") == "cluster" and entry.get("submission") == str(folder):

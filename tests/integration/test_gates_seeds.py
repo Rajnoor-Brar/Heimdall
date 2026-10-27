@@ -12,7 +12,7 @@ import pytest
 
 import support
 
-from support import hep
+from support import heimdall
 yoda = pytest.importorskip("yoda")
 
 pytestmark = pytest.mark.slow
@@ -47,7 +47,7 @@ output_file = "jets.yoda"
 
 
 def run(config: Path, where: Path, *args: str) -> subprocess.CompletedProcess:
-    return hep(where, config, *args)
+    return heimdall(where, config, *args)
 
 
 def config(scratch: Path, seed_type: str) -> Path:

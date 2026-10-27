@@ -13,14 +13,14 @@ from pathlib import Path
 import pytest
 
 from runner import cli
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 REPO = Path(__file__).resolve().parents[2]
-HEP = REPO / "framework" / "bin" / "heimdall"
+HEIMDALL = REPO / "framework" / "bin" / "heimdall"
 
 
 def run(*args, **env) -> subprocess.CompletedProcess:
-    return subprocess.run([str(HEP), *args], capture_output=True, text=True, encoding="utf-8", timeout=120,
+    return subprocess.run([str(HEIMDALL), *args], capture_output=True, text=True, encoding="utf-8", timeout=120,
                           env={**os.environ, **env})
 
 
@@ -42,19 +42,19 @@ def test_build_parses_its_own_options():
     """U61: argparse, not bash: -j wants a number; --tests is the framework's."""
     done = run("build", "-j")
     assert done.returncode == 2 and "-j" in done.stderr and "expected one argument" in done.stderr
-    with pytest.raises(HepError, match=r"--tests builds Heimdall's C\+\+ tests"):
+    with pytest.raises(HeimdallError, match=r"--tests builds Heimdall's C\+\+ tests"):
         cli.cmd_build(cli.parse(["build", "--tests"]))
     assert "--framework" in run("build", "--help").stdout
 
 
 def test_the_shell_verbs_say_to_source_setup():
-    done = run("refresh", HEP_ENV_LOADED="")
+    done = run("refresh", HEIMDALL_ENV_LOADED="")
     assert done.returncode == 2 and "gjallarhorn.sh's shell function" in done.stderr and "source " in done.stderr
 
 
 def test_heimdall_deck_stops_naming_heimdall_report():
     """V212: deck is retired, as V74 retired heimdall plot FILE: whatever it is given, it names the report."""
-    with pytest.raises(HepError, match="heimdall deck is now heimdall report") as error:
+    with pytest.raises(HeimdallError, match="heimdall deck is now heimdall report") as error:
         cli.cmd_deck(cli.parse(["deck", "talk", "--dry-run"]))
     assert "heimdall report <P>/<run>/<cfg>" in str(error.value.hint)
 
@@ -79,7 +79,7 @@ def test_record_ids_in_messages_follow_their_explanation():
     bad = []
     for path in sorted(p for root in roots for p in root.rglob("*.py")):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Call) and getattr(node.func, "id", getattr(node.func, "attr", "")) == "HepError":
+            if isinstance(node, ast.Call) and getattr(node.func, "id", getattr(node.func, "attr", "")) == "HeimdallError":
                 text = " ".join(s.value for s in ast.walk(node) if isinstance(s, ast.Constant) and isinstance(s.value, str))
                 for found in re.finditer(r"\b[VCLU]\d{1,3}\b", text):
                     if not re.search(r"\(see [^()]*$", text[:found.start()]):

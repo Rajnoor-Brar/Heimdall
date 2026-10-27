@@ -14,7 +14,7 @@ brew "gcc"            # gfortran: Whizard, Sherpa's internal PDFs
 brew "python@3.13"    # tomllib for build_stack.py, and the venv's interpreter (build.sh picks it first)
 
 # GNU tools for the framework (put first on PATH by gjallarhorn.sh): its Makefile is GNU make 4 and uses
-# GNU sed -i; hep_env.sh and hep are bash (macOS has bash 3.2)
+# GNU sed -i; heimdall_env.sh and heimdall are bash (macOS has bash 3.2)
 brew "make"
 brew "gnu-sed"
 brew "coreutils"

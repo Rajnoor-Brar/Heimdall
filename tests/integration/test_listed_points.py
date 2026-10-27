@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 import support
-from support import HEP, REPO, apps, env
+from support import HEIMDALL, REPO, apps, env
 
 pytestmark = [pytest.mark.slow,
               pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="heimdall build --framework")]
@@ -58,10 +58,10 @@ formats = ["png"]
 def test_listed_points_run_and_draw_a_page_per_pdf(scratch):
     work = scratch / "Listed"
     (work / "configs" / "T").mkdir(parents=True)
-    (work / "hep.toml").write_text('[work]\nname = "Listed"\n', encoding="utf-8")
+    (work / "heimdall.toml").write_text('[work]\nname = "Listed"\n', encoding="utf-8")
     (work / "configs" / "T" / "listed.toml").write_text(LISTED, encoding="utf-8")
     (work / "configs" / "T" / "ep.cmnd").write_bytes((REPO / "tests" / "fixtures" / "work" / "configs" / "Demo" / "ep.cmnd").read_bytes())
-    done = subprocess.run([str(HEP), "run", "T/listed", "--plain"], cwd=work, env={**env(scratch), "HEP_WORK": str(work)},
+    done = subprocess.run([str(HEIMDALL), "run", "T/listed", "--plain"], cwd=work, env={**env(scratch), "HEIMDALL_WORK": str(work)},
                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     records = scratch / "records" / "T" / "listed" / "01_listed"

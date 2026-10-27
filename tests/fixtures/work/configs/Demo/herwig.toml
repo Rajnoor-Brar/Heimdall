@@ -21,7 +21,7 @@ chain       = [["herwig", "rivet"], "yd2rt"]
 [cfgs.export]
 description = "An exec tool asks for herwig:run: Herwig's read runs once (cached), the tool gets the path"
 chain       = ["probe"]
-generate_cards = ["herwig:run"]   # Herwig's run file, made for probe (HEP_CONTEXT)
+generate_cards = ["herwig:run"]   # Herwig's run file, made for probe (HEIMDALL_CONTEXT)
 
 [tools.herwig]
 card        = "dis_ep.herwig.in"

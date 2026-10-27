@@ -2,7 +2,7 @@
 
 docs/06_Internals.md §22 and docs/06_Internals.md §10.
 
-* A tool with status = "standard" writes JSON lines to $HEP_STATUS_FD (src/Status.hh); a tool's
+* A tool with status = "standard" writes JSON lines to $HEIMDALL_STATUS_FD (src/Status.hh); a tool's
   output, its control sequences out, is matched against its filters.toml rules (progress, xsec, phase,
   warn, error, ignore). A rule never fails a run: the exit code does that. A progress line without a total
   takes the events the tool makes or reads; its rate is done / elapsed when the line says how long, else
@@ -129,7 +129,7 @@ class Reader:
         if keep and log is not None:
             log.parent.mkdir(parents=True, exist_ok=True)
         self._handle = open(log, "ab") if keep and log is not None else None
-        self._thread = threading.Thread(target=self._loop, name=f"hep-read-{state.tag}", daemon=True)
+        self._thread = threading.Thread(target=self._loop, name=f"heimdall-read-{state.tag}", daemon=True)
         if self._fds:
             self._thread.start()
 

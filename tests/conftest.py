@@ -3,9 +3,9 @@
 * The runner package is importable as `runner` (framework/ on sys.path), and tests/ is on sys.path for
   `support` (the shared helpers).
 * The tests run in a work dir of their own: tests/fixtures/work/ (frozen) is synced into
-  forge/scratch/work/, which HEP_WORK names; HEP_RESULTS, HEP_RECORDS, HEP_CACHE and HEP_REPORTS point into
-  forge/scratch/, and HEP_WORKDIRS (the registry of work dirs) too. So a test reads and writes no real work dir, whatever the shell has set, and fails
-  only when the code changed. $HEP is this Heimdall; a shell's retired HEKIT_* are dropped (the
+  forge/scratch/work/, which HEIMDALL_WORK names; HEIMDALL_RESULTS, HEIMDALL_RECORDS, HEIMDALL_CACHE and HEIMDALL_REPORTS point into
+  forge/scratch/, and HEIMDALL_WORKDIRS (the registry of work dirs) too. So a test reads and writes no real work dir, whatever the shell has set, and fails
+  only when the code changed. $HEIMDALL is this Heimdall; a shell's retired HEKIT_* are dropped (the
   tests of their refusal set them).
 * The basetemp is forge/scratch/pytest, wherever pytest is started.
 * The session guard: tests/fixtures and tests/reference must come out byte for byte as they went in.
@@ -28,8 +28,8 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]                  # Heimdall
 sys.path.insert(0, str(REPO / "framework"))
 
-MACHINE = Path(os.environ.get("HEP_MACHINE") or "~/Himinbjorg").expanduser()
-SCRATCH = Path(os.environ.get("HEP_FORGE") or MACHINE / "forge") / "scratch"   # the machine root's, never the checkout
+MACHINE = Path(os.environ.get("HEIMDALL_MACHINE") or "~/Himinbjorg").expanduser()
+SCRATCH = Path(os.environ.get("HEIMDALL_FORGE") or MACHINE / "forge") / "scratch"   # the machine root's, never the checkout
 FIXTURE = REPO / "tests" / "fixtures" / "work"
 WORK = SCRATCH / "work"
 
@@ -54,17 +54,19 @@ def _sync(src: Path, dst: Path) -> None:
 
 
 _sync(FIXTURE, WORK)
-os.environ["HEP"] = str(REPO)
-for name in ("HEKIT_ROOT", "HEKIT_CONFIGS", "HEKIT_OUTPUT", "HEKIT_RESULTS", "HEKIT_REPORTS", "HEP_CONFIGS", "HEP_OUTPUT", "HEP_LOGS"):
+os.environ["HEIMDALL"] = str(REPO)
+from runner.paths import RETIRED  # noqa: E402
+
+for name in ("HEIMDALL_CONFIGS", *RETIRED):                 # a shell's retired names, I-109's HEP_* too
     os.environ.pop(name, None)
-os.environ["HEP_WORK"] = str(WORK)
-os.environ["HEP_RESULTS"] = str(SCRATCH / "results")
-os.environ["HEP_RECORDS"] = str(SCRATCH / "records")
-os.environ["HEP_CACHE"] = str(SCRATCH / "cache")
-os.environ["HEP_REPORTS"] = str(SCRATCH / "reports")
-os.environ["HEP_WORKDIRS"] = str(SCRATCH / "workdirs.toml")     # what heimdall recognise and setup record
-os.environ["HEP_RUNS"] = str(SCRATCH / "runs")                  # the run registry (V182)
-os.environ.pop("HEP_CLUSTER_JOB", None)
+os.environ["HEIMDALL_WORK"] = str(WORK)
+os.environ["HEIMDALL_RESULTS"] = str(SCRATCH / "results")
+os.environ["HEIMDALL_RECORDS"] = str(SCRATCH / "records")
+os.environ["HEIMDALL_CACHE"] = str(SCRATCH / "cache")
+os.environ["HEIMDALL_REPORTS"] = str(SCRATCH / "reports")
+os.environ["HEIMDALL_WORKDIRS"] = str(SCRATCH / "workdirs.toml")     # what heimdall recognise and setup record
+os.environ["HEIMDALL_RUNS"] = str(SCRATCH / "runs")                  # the run registry (V182)
+os.environ.pop("HEIMDALL_CLUSTER_JOB", None)
 
 OURS = (REPO / "tests" / "fixtures", REPO / "tests" / "reference")         # must not change: content hashes
 
@@ -107,7 +109,7 @@ _made: list[subprocess.CompletedProcess] = []
 
 def _make_work() -> subprocess.CompletedProcess | None:
     """`make all` in the scratch work, once per session; None without the stack."""
-    if not os.environ.get("HEP_INSTALL") or not shutil.which("rivet-build"):
+    if not os.environ.get("HEIMDALL_INSTALL") or not shutil.which("rivet-build"):
         return None
     if not _made:
         _made.append(subprocess.run(["make", "-C", str(WORK), "--no-print-directory", "-j", str(os.cpu_count() or 1),
@@ -133,10 +135,10 @@ def work_built() -> Path:
 
 @pytest.fixture(autouse=True)
 def an_empty_registry():
-    """Each test starts with no work dir recorded ($HEP_WORKDIRS, which heimdall setup writes too), no run
-    recorded ($HEP_RUNS, V182), and no keep word asked (paths.ask_keep: what a run keeps, V149)."""
-    Path(os.environ["HEP_WORKDIRS"]).unlink(missing_ok=True)
-    shutil.rmtree(os.environ["HEP_RUNS"], ignore_errors=True)
+    """Each test starts with no work dir recorded ($HEIMDALL_WORKDIRS, which heimdall setup writes too), no run
+    recorded ($HEIMDALL_RUNS, V182), and no keep word asked (paths.ask_keep: what a run keeps, V149)."""
+    Path(os.environ["HEIMDALL_WORKDIRS"]).unlink(missing_ok=True)
+    shutil.rmtree(os.environ["HEIMDALL_RUNS"], ignore_errors=True)
     from runner import paths
     paths.ask_keep([])
 

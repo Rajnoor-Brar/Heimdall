@@ -26,7 +26,7 @@ def test_flags_sh_probes_what_the_stack_lists(stack):
     names = [n for n, e in stack.entries().items() if e.get("flags") or e.get("dir")]
     assert f"NAMES=({' '.join(names)})" in text
     assert "    probe pythia8 pythia8-config --cxxflags --ldflags" in text
-    assert '    dir_lib delphes "${DELPHES_DIR:-${HEP_INSTALL-}/delphes}" Delphes' in text   # or the base's
+    assert '    dir_lib delphes "${DELPHES_DIR:-${HEIMDALL_INSTALL-}/delphes}" Delphes' in text   # or the base's
     assert text.startswith("TOOLS=(") and "pkg-config" in text.splitlines()[0]
 
 
@@ -52,10 +52,10 @@ def test_every_tool_version_names_a_stack_entry(stack):
 
 def test_a_file_version_reads_the_files_version_line(stack, monkeypatch, tmp_path):
     (tmp_path / "VERSION").write_text("version = 3.7.3\ndate = x\n", encoding="utf-8")
-    monkeypatch.setenv("HEP_INSTALL", str(tmp_path / "x"))
+    monkeypatch.setenv("HEIMDALL_INSTALL", str(tmp_path / "x"))
     monkeypatch.setattr(stack, "entries", lambda: {"mg": {"version": {"file": str(tmp_path / "VERSION")}}})
     assert stack.version("mg") == "version = 3.7.3"
-    assert stack.expand("${HEP_INSTALL-}/madgraph") == str(tmp_path / "x" / "madgraph")
+    assert stack.expand("${HEIMDALL_INSTALL-}/madgraph") == str(tmp_path / "x" / "madgraph")
 
 
 def test_the_bases_flags_survive_make(tmp_path):
@@ -68,7 +68,7 @@ def test_the_bases_flags_survive_make(tmp_path):
     def flags(**env):
         return subprocess.run(["make", "-s", "-f", str(mk)], env={"PATH": os.environ["PATH"], **env},
                               capture_output=True, text=True, encoding="utf-8").stdout.split()
-    assert flags(HEP_BASE="/b") == ["-isystem/b/include", "-L/b/lib", "-Wl,-rpath,/b/lib"]
+    assert flags(HEIMDALL_BASE="/b") == ["-isystem/b/include", "-L/b/lib", "-Wl,-rpath,/b/lib"]
     assert flags() == []
 
 
@@ -86,7 +86,7 @@ def test_the_same_flags_under_a_new_key_keep_the_caches_time(tmp_path):
 
 
 
-@pytest.mark.skipif(not os.environ.get("HEP") or not __import__("shutil").which("pkg-config"),
+@pytest.mark.skipif(not os.environ.get("HEIMDALL") or not __import__("shutil").which("pkg-config"),
                     reason="the environment, and pkg-config")
 def test_a_module_requires_any_library_pkg_config_knows(tmp_path):
     """`// requires: pkg:<name>`: a library outside env/stack.toml (the base's, a recipe of the machine's), linked

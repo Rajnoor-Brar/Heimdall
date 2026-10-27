@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import config as configmod
-from .errors import HepError
+from .errors import HeimdallError
 from .paths import records_root
 from .tools import run_dir
 
@@ -62,7 +62,7 @@ def load(config: str, configuration: str | None = None) -> list[Point]:
     """The points of one configuration, as its last run recorded them."""
     path = manifest(config, configuration)
     if not path.is_file():
-        raise HepError("this configuration has no results yet", where=str(path), hint="heimdall run it first")
+        raise HeimdallError("this configuration has no results yet", where=str(path), hint="heimdall run it first")
     data = json.loads(path.read_text(encoding="utf-8"))
     out = []
     for entry in data.get("points", []):
@@ -84,6 +84,6 @@ def runs(config: str) -> dict[str, list[Point]]:
     for key in run.configurations:
         try:
             found[key] = load(config, key)
-        except HepError:
+        except HeimdallError:
             continue
     return found

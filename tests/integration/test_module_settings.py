@@ -8,7 +8,7 @@ import subprocess
 
 import pytest
 
-from support import HEP, WORK
+from support import HEIMDALL, WORK
 
 pytestmark = pytest.mark.slow
 
@@ -26,6 +26,6 @@ def test_the_settings_are_described(work_built):
     exe = WORK / "build" / "Decay" / "Decay.exe"
     described = subprocess.run([str(exe), "--describe"], capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert described.returncode == 0 and '"name": "mass_tolerance"' in described.stdout
-    shown = subprocess.run([str(HEP), "explain", "Decay.exe.mass_tolerance"], cwd=WORK, capture_output=True,
+    shown = subprocess.run([str(HEIMDALL), "explain", "Decay.exe.mass_tolerance"], cwd=WORK, capture_output=True,
                            text=True, encoding="utf-8", timeout=60)
     assert shown.returncode == 0 and "mass_tolerance" in shown.stdout and "0.15" in shown.stdout

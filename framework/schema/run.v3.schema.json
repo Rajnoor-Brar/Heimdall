@@ -164,7 +164,7 @@
      "type": "array"
     },
     "generate_cards": {
-     "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4)",
+     "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4)",
      "type": "array",
      "items": {
       "type": "string"
@@ -315,7 +315,7 @@
       "type": "array"
      },
      "generate_cards": {
-      "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4)",
+      "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4)",
       "type": "array",
       "items": {
        "type": "string"
@@ -398,7 +398,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -498,7 +498,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -598,7 +598,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -698,7 +698,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -798,7 +798,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -902,7 +902,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -1002,7 +1002,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -1102,7 +1102,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -1202,7 +1202,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -1310,7 +1310,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -1410,7 +1410,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -1510,7 +1510,7 @@
        "minimum": 0
       },
       "status": {
-       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+       "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
        "type": "string",
        "enum": [
         "standard",
@@ -1615,7 +1615,7 @@
       "minimum": 0
      },
      "status": {
-      "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+      "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
       "type": "string",
       "enum": [
        "standard",

@@ -13,7 +13,7 @@ import math
 from pathlib import Path
 
 from . import plugins
-from .paths import hep_root, results_root
+from .paths import heimdall_root, results_root
 
 STATISTIC_COLUMNS = ("page", "cell", "object", "curve", "point", "reference", "is_reference", "bins", "area", "area_err",
                      "ref_area", "cmp_area", "abs_area", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "chi2", "ndf",
@@ -25,7 +25,7 @@ COUNTS = ("bins", "ndf")
 
 def bars():
     """framework/plot/figures/bars.py, loaded (V162): the bar graphs and the summary."""
-    return plugins.load(hep_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
+    return plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
 
 
 def statistics_of(page) -> list[dict] | None:

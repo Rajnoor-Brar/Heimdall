@@ -57,7 +57,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from . import hepfiles
-from .errors import HepError
+from .errors import HeimdallError
 from .paths import keeping, log_settings, placeholders, portable
 from .record import (LOCK_FILE, PointLock, append_attempt, attempts, card_hashes, complete_marker, held_by, holder,
                      is_complete, now, provenance, provenance_file, write_atomic, write_identity)
@@ -183,7 +183,7 @@ def run_points(plans: list[PointPlan], run, configuration, *, bus=None, stopper:
         return done, failed, False
     error: BaseException | None = None
     held: dict = {}                                   # a running point's future → the cores it took
-    with ThreadPoolExecutor(max_workers=at_once, thread_name_prefix="hep-point") as pool:
+    with ThreadPoolExecutor(max_workers=at_once, thread_name_prefix="heimdall-point") as pool:
         running: set = set()
         while todo or running:
             while todo and len(running) < at_once and not stopper.requested and error is None:
@@ -307,7 +307,7 @@ def commands_text(plan: PointPlan) -> str:
     """The commands a point's tools are given (V187), as a shell script in the point's working folder: the
     context every tool reads, the FIFOs, each prepare step, then each group's tools (run together, joined by
     the FIFOs), with the folder and environment each runs in. What the runner adds besides (its status pipe,
-    HEP_STATUS_FD) is left out. For the record, and to run a tool again by hand."""
+    HEIMDALL_STATUS_FD) is left out. For the record, and to run a tool again by hand."""
     q = shlex.quote
 
     def command(step: Step, argv: list[str], cwd: Path | None) -> str:
@@ -317,9 +317,9 @@ def commands_text(plan: PointPlan) -> str:
 
     lines = ["#!/bin/bash",
              f"# {plan.point.name}: the commands heimdall gave its tools (V187). A group's tools run together,",
-             "# joined by the FIFOs below; heimdall's status pipe (HEP_STATUS_FD) is left out.",
+             "# joined by the FIFOs below; heimdall's status pipe (HEIMDALL_STATUS_FD) is left out.",
              "set -euo pipefail", f"cd {q(str(plan.out))}",
-             f"export HEP_CONTEXT={q(str(plan.out / CONTEXT_FILE))}      # every tool's card and config"]
+             f"export HEIMDALL_CONTEXT={q(str(plan.out / CONTEXT_FILE))}      # every tool's card and config"]
     fifos = [i.path for i in plan.interfaces.values() if i.kind == "fifo"]
     if fifos:
         lines += ["", "# the FIFOs", *(f"rm -f {q(str(path))} && mkfifo {q(str(path))}" for path in fifos)]
@@ -393,7 +393,7 @@ def prepare(plan: PointPlan, logs: bool = False, attempt: int = 0) -> None:
         if interface.kind == "fifo":
             if interface.path.exists() or interface.path.is_symlink():
                 if not stat.S_ISFIFO(interface.path.stat().st_mode):
-                    raise HepError(f"{interface.path} exists and is not a FIFO", hint="remove it")
+                    raise HeimdallError(f"{interface.path} exists and is not a FIFO", hint="remove it")
                 interface.path.unlink()  # fresh per attempt
             os.mkfifo(interface.path)
         elif interface.kind == "file" and interface.name in plan.prelim.get("files", []):
@@ -407,7 +407,7 @@ def prepare(plan: PointPlan, logs: bool = False, attempt: int = 0) -> None:
         said += clean_text(f"$ {' '.join(argv)}\n{done.stdout}{done.stderr}").rstrip("\n").split("\n")
         if done.returncode != 0:
             _prelim_log(plan, said, logs, attempt, settings, done.returncode)
-            raise HepError(f"[prelim] command failed ({done.returncode}): {' '.join(argv)}",
+            raise HeimdallError(f"[prelim] command failed ({done.returncode}): {' '.join(argv)}",
                            where=str(plan.out / "prelim.log"))
     if said:
         _prelim_log(plan, said, logs, attempt, settings, 0)
@@ -466,12 +466,12 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
         out_read, out_write = os.pipe()
         env = dict(os.environ)
         env.update(step.env)
-        env["HEP_CONTEXT"] = str(plan.out / CONTEXT_FILE)         # every tool's card and config (04 §9.4)
-        env.pop("HEP_STATUS_FD", None)
+        env["HEIMDALL_CONTEXT"] = str(plan.out / CONTEXT_FILE)         # every tool's card and config (04 §9.4)
+        env.pop("HEIMDALL_STATUS_FD", None)
         read_fd = write_fd = None
         if step.status == "standard":
             read_fd, write_fd = os.pipe()
-            env["HEP_STATUS_FD"] = str(write_fd)
+            env["HEIMDALL_STATUS_FD"] = str(write_fd)
         try:
             process = subprocess.Popen(step.argv, cwd=step.cwd or plan.out, env=env, stdin=subprocess.DEVNULL,
                                        stdout=out_write, stderr=subprocess.STDOUT, start_new_session=True,
@@ -482,7 +482,7 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
             os.close(out_read)
             if read_fd is not None:
                 os.close(read_fd)
-            raise HepError(f"cannot start {step.tag}: {error}", where=" ".join(step.argv[:2]))
+            raise HeimdallError(f"cannot start {step.tag}: {error}", where=" ".join(step.argv[:2]))
         finally:
             os.close(out_write)
             if write_fd is not None:
@@ -617,8 +617,8 @@ def diagnose(plan: PointPlan, step: Step, code: int | None) -> str:
             arg = arg.replace(path, there)
         return arg
 
-    env = {**os.environ, **step.env, "HEP_CONTEXT": str(plan.out / CONTEXT_FILE)}
-    env.pop("HEP_STATUS_FD", None)
+    env = {**os.environ, **step.env, "HEIMDALL_CONTEXT": str(plan.out / CONTEXT_FILE)}
+    env.pop("HEIMDALL_STATUS_FD", None)
     try:
         argv = [away(a) for a in step.argv] + [str(card)]
         if spec.get("program"):
@@ -700,7 +700,7 @@ def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, lo
                                    **({"stage": plan.point.stage} if plan.point.stage else {})})
     try:
         prepare(plan, logs, attempt)
-    except HepError as error:
+    except HeimdallError as error:
         result = PointResult(False, cause="prelim", message=error.render())
         _finished(plan, result, bus, started)
         return result

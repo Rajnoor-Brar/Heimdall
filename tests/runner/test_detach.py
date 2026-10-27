@@ -71,7 +71,7 @@ import sys
 from pathlib import Path
 
 from runner import house, runs, watch
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 FRAMEWORK = Path(__file__).resolve().parents[2] / "framework"
 #: A worker of the real type: a process with a real Hub, which ends its run on SIGINT (exit 6), as a run does.
@@ -127,14 +127,14 @@ class Tty:
 
 def test_a_live_run_is_a_terminal_in_its_foreground(monkeypatch):
     """V183: a worker is started only for a run at a terminal, in its foreground, not --plain, not a worker, not
-    in a Slurm job, and not with HEP_DETACH=never."""
+    in a Slurm job, and not with HEIMDALL_DETACH=never."""
     monkeypatch.setattr(os, "tcgetpgrp", lambda fd: os.getpgrp())
     plain = SimpleNamespace(plain=False, worker=None)
     assert cli.live(plain, Tty(), Tty(), {})
     assert not cli.live(plain, Tty(False), Tty(), {}) and not cli.live(plain, Tty(), Tty(False), {})
     assert not cli.live(SimpleNamespace(plain=True, worker=None), Tty(), Tty(), {})
     assert not cli.live(SimpleNamespace(plain=False, worker="x"), Tty(), Tty(), {})
-    for environ in ({"HEP_DETACH": "never"}, {"SLURM_JOB_ID": "1"}, {runs.CLUSTER_VAR: "s"}):
+    for environ in ({"HEIMDALL_DETACH": "never"}, {"SLURM_JOB_ID": "1"}, {runs.CLUSTER_VAR: "s"}):
         assert not cli.live(plain, Tty(), Tty(), environ)
     monkeypatch.setattr(os, "tcgetpgrp", lambda fd: os.getpgrp() + 1)            # `heimdall run … &`
     assert not cli.live(plain, Tty(), Tty(), {})

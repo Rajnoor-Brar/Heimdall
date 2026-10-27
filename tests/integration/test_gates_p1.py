@@ -34,7 +34,7 @@ def chain(workdir: Path, cards: list[Path], plugin_dir: Path, name: str) -> tupl
         fifo.unlink()
     os.mkfifo(fifo)
     env = dict(os.environ, RIVET_ANALYSIS_PATH=str(plugin_dir))
-    env.pop("HEP_STATUS_FD", None)
+    env.pop("HEIMDALL_STATUS_FD", None)
     yoda = workdir / f"{name}.yoda"
     rivet = subprocess.Popen(["rivet", "--analysis=photo_eic", "-o", str(yoda), str(fifo)], cwd=workdir, env=env,
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

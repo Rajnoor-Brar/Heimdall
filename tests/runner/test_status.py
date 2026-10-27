@@ -172,7 +172,7 @@ def test_the_watch_socket_sends_the_run_so_far_then_every_event_live(monkeypatch
     latest only), then the rest as it happens, and the stream ends with the process's hub."""
     import threading
     bus = Bus()
-    hub = Hub({"config": "c.toml", "configurations": ["one"]}, name=f"hep-watch-test-{os.getpid()}")
+    hub = Hub({"config": "c.toml", "configurations": ["one"]}, name=f"heimdall-watch-test-{os.getpid()}")
     bus.subscribe(hub)
     events = run_events()
     for event in events[:2]:
@@ -209,7 +209,7 @@ def test_a_closing_hub_sends_every_watcher_its_last_events_first():
     """V181: close() waits for what each watcher has not been sent yet, so the verdict is never lost."""
     import threading
     from runner.events import open_stream
-    hub = Hub({}, name=f"hep-watch-test-{os.getpid()}-close")
+    hub = Hub({}, name=f"heimdall-watch-test-{os.getpid()}-close")
     sock, got = open_stream(hub.name), []
     reader = threading.Thread(target=_reader, args=(sock, got))
     reader.start()
@@ -228,7 +228,7 @@ def test_a_watcher_that_falls_behind_is_told_and_cut_off():
     end of its stream (it never hangs), while the run goes on."""
     import socket as socketmod
     from runner.events import open_stream
-    hub = Hub({}, name=f"hep-watch-test-{os.getpid()}-slow", depth=5)
+    hub = Hub({}, name=f"heimdall-watch-test-{os.getpid()}-slow", depth=5)
     sock = open_stream(hub.name)
     sock.setsockopt(socketmod.SOL_SOCKET, socketmod.SO_RCVBUF, 4096)
     time.sleep(0.2)
@@ -245,15 +245,15 @@ def test_a_watcher_that_falls_behind_is_told_and_cut_off():
 
 
 def test_a_hub_names_itself_by_its_pid_and_says_who_it_is():
-    """V181: hep-watch-<pid>, or with a suffix when that name is taken; the greeting carries uid, host, PID
+    """V181: heimdall-watch-<pid>, or with a suffix when that name is taken; the greeting carries uid, host, PID
     namespace and address, so watch, stop and runs can tell whose it is and reach it."""
     import socket as socketmod
     from runner.events import address, namespace, pid_of
     first = Hub({"config": "c.toml"})
     second = Hub({"config": "c.toml"})
     try:
-        assert first.name == f"hep-watch-{os.getpid()}" and second.name == f"hep-watch-{os.getpid()}-1"
-        assert pid_of(first.name) == pid_of(second.name) == os.getpid() and pid_of("hep-watch-x") is None
+        assert first.name == f"heimdall-watch-{os.getpid()}" and second.name == f"heimdall-watch-{os.getpid()}-1"
+        assert pid_of(first.name) == pid_of(second.name) == os.getpid() and pid_of("heimdall-watch-x") is None
         hello = greeting(second.name)
         assert (hello["uid"], hello["host"], hello["pidns"]) == (os.getuid(), socketmod.gethostname(), namespace("pid"))
         assert hello["address"] == address(second.name) and second.name in hubs()
@@ -267,7 +267,7 @@ def test_another_users_watcher_is_refused(monkeypatch):
     import socket as socketmod
     if not hasattr(socketmod, "SO_PEERCRED"):
         pytest.skip("SO_PEERCRED is Linux's; elsewhere the sockets' folder is the user's alone")
-    hub = Hub({}, name=f"hep-watch-test-{os.getpid()}-peer")
+    hub = Hub({}, name=f"heimdall-watch-test-{os.getpid()}-peer")
     real = os.getuid()
     monkeypatch.setattr("runner.events.os.getuid", lambda: real + 1)
     try:

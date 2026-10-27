@@ -10,7 +10,7 @@ import subprocess
 import pytest
 
 from runner import record, setup
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def test_a_fresh_git_init_needs_no_adopt(scratch, quiet):
     target.mkdir()
     git(target, "init", "-q")
     setup.setup(target, project="P", out=quiet[0])
-    assert (target / "hep.toml").is_file() and (target / ".git").is_dir()
+    assert (target / "heimdall.toml").is_file() and (target / ".git").is_dir()
     assert git(target, "rev-parse", "--verify", "-q", "HEAD") == ""                 # .git untouched: no commit
 
 
@@ -64,7 +64,7 @@ def test_a_hosting_sites_repo_keeps_its_files_and_commits_only_what_was_added(sc
     assert git(target, "log", "--format=%s").splitlines()[0].startswith("heimdall setup: the work dir study")
     assert len(git(target, "log", "--format=%s").splitlines()) == 2
     committed = git(target, "show", "--name-only", "--format=", "HEAD").split()
-    assert "hep.toml" in committed and ".gitignore" in committed and "README.md" not in committed
+    assert "heimdall.toml" in committed and ".gitignore" in committed and "README.md" not in committed
     assert "M  README.md" in git(target, "status", "--short")                     # still staged
     assert any(line.startswith("merged .gitignore:") for line in quiet[1])
     assert any(line.startswith("kept README.md") for line in quiet[1])
@@ -89,7 +89,7 @@ def test_inside_a_larger_repo_no_nested_git(scratch, quiet, git_identity):
     outer = fresh_repo(scratch / "big")
     setup.setup(outer / "analysis", git="yes", out=quiet[0])
     assert not (outer / "analysis" / ".git").exists()
-    assert "analysis/hep.toml" in git(outer, "show", "--name-only", "--format=", "HEAD").split()
+    assert "analysis/heimdall.toml" in git(outer, "show", "--name-only", "--format=", "HEAD").split()
     state = record.git_state(outer / "analysis")
     assert state["subfolder"] == "analysis" and state["revision"] == git(outer, "rev-parse", "HEAD")
     setup.setup(outer / "own", git="new", out=quiet[0])
@@ -125,7 +125,7 @@ def test_datasets_are_fetched_from_the_manifest_and_checked(scratch, quiet):
     assert any(l.startswith("fetched datasets/zeus/2012.yoda") for l in quiet[1])
     (target / "datasets.toml").write_text(f'[files."b.yoda"]\nurl = "{source.as_uri()}"\nsha256 = "{"0" * 64}"\n',
                                           encoding="utf-8")
-    with pytest.raises(HepError, match="arrived with another sha256"):
+    with pytest.raises(HeimdallError, match="arrived with another sha256"):
         setup.fetch_datasets(target)
     assert not (target / "datasets" / "b.yoda").exists()
 
@@ -135,7 +135,7 @@ def test_refresh_brings_the_framework_files_up_to_date_and_leaves_the_users(scra
     setup.setup(target, out=quiet[0])
     (target / "Makefile").write_text("old\n", encoding="utf-8")
     (target / "configs" / "mine.txt").write_text("mine\n", encoding="utf-8")
-    with pytest.raises(HepError, match="differ from today's template"):
+    with pytest.raises(HeimdallError, match="differ from today's template"):
         setup.refresh(target, out=quiet[0])
     assert setup.refresh(target, yes=True, out=quiet[0]) == 1
     assert "include" in (target / "Makefile").read_text(encoding="utf-8")
@@ -155,6 +155,6 @@ def test_an_example_is_a_working_project(scratch, quiet):
     (target / "configs" / "Demo" / "jets.toml").write_text("mine\n", encoding="utf-8")
     setup.setup(target, example="jets", out=quiet[0])                               # again: never over a file
     assert (target / "configs" / "Demo" / "jets.toml").read_text(encoding="utf-8") == "mine\n"
-    with pytest.raises(HepError, match="no example 'jest'") as caught:
+    with pytest.raises(HeimdallError, match="no example 'jest'") as caught:
         setup.setup(target, example="jest", out=quiet[0])
     assert "jets" in caught.value.hint

@@ -30,7 +30,7 @@ from __future__ import annotations
 import copy
 import re
 
-from .errors import HepError, did_you_mean
+from .errors import HeimdallError, did_you_mean
 
 #: The tables of a v3 file.
 TABLES = ("file", "run", "cfgs", "tools", "quantities", "plot", "stats", "report", "cluster", "heimdall")
@@ -61,7 +61,7 @@ def is_v3(raw: dict) -> bool:
 def _refuse_renamed(table: dict, renamed: dict, where: str) -> None:
     for old, new in renamed.items():
         if old in table:
-            raise HepError(f"'{old}' is the v2 form: this file is v3, where it is {new}", where=f"{where}.{old}",
+            raise HeimdallError(f"'{old}' is the v2 form: this file is v3, where it is {new}", where=f"{where}.{old}",
                            hint="heimdall migrate --v3 rewrites a v2 file; [file] schema = 2 keeps one v2 for now")
 
 
@@ -71,7 +71,7 @@ def _seed(table: dict, out: dict, where: str) -> None:
         return
     seed = table["seed"]
     if isinstance(seed, bool) or not isinstance(seed, (str, int)):
-        raise HepError('seed is "identity", "random" or an integer', where=f"{where}.seed")
+        raise HeimdallError('seed is "identity", "random" or an integer', where=f"{where}.seed")
     if isinstance(seed, int):
         out["seed_type"], out["manual_seed"] = "manual", seed
     else:
@@ -91,17 +91,17 @@ def count_name(n) -> str:
 def _run(table: dict, where: str) -> tuple[dict, dict]:
     """[run] → v2 [run] and the [prelim] its commands make."""
     if not isinstance(table, dict):
-        raise HepError("[run] is a table", where=where)
+        raise HeimdallError("[run] is a table", where=where)
     _refuse_renamed(table, RUN_RENAMED, where)
     if "cfgs" in table:
-        raise HepError("configurations are [cfgs.<name>] at the top level in a v3 file", where=f"{where}.cfgs")
+        raise HeimdallError("configurations are [cfgs.<name>] at the top level in a v3 file", where=f"{where}.cfgs")
     out, prelim = {}, {}
     for key, value in table.items():
         if key == "run":
             out["configuration"] = value
         elif key == "events":
             if isinstance(value, list):
-                raise HepError("[run].events is one count; a configuration's may be a list (one folder per count)",
+                raise HeimdallError("[run].events is one count; a configuration's may be a list (one folder per count)",
                                where=f"{where}.events")
             out["event_count"] = value
         elif key == "chain":
@@ -120,7 +120,7 @@ def _run(table: dict, where: str) -> tuple[dict, dict]:
 def _cfg(name: str, table: dict, where: str) -> dict[str, dict]:
     """[cfgs.<name>] → one v2 configuration, or one per count of a list-valued events."""
     if not isinstance(table, dict):
-        raise HepError("a configuration is a table", where=where)
+        raise HeimdallError("a configuration is a table", where=where)
     _refuse_renamed(table, CFG_RENAMED, where)
     out: dict = {}
     for key, value in table.items():
@@ -134,7 +134,7 @@ def _cfg(name: str, table: dict, where: str) -> dict[str, dict]:
             out["sweeps"] = value
         elif key == "fixed":
             if not isinstance(value, dict):
-                raise HepError("a configuration's fixed is a table: { quantity = tag }", where=f"{where}.fixed")
+                raise HeimdallError("a configuration's fixed is a table: { quantity = tag }", where=f"{where}.fixed")
             out["static"] = value
         elif key == "seed":
             _seed(table, out, where)
@@ -144,7 +144,7 @@ def _cfg(name: str, table: dict, where: str) -> dict[str, dict]:
     if not isinstance(counts, list):
         return {name: out}
     if not counts or len(set(counts)) != len(counts):
-        raise HepError("events lists different counts, one folder each", where=f"{where}.events")
+        raise HeimdallError("events lists different counts, one folder each", where=f"{where}.events")
     family = {}
     for count in counts:
         key = f"{name}_{count_name(count)}"
@@ -156,7 +156,7 @@ def _cfg(name: str, table: dict, where: str) -> dict[str, dict]:
 def _tool(name: str, table: dict, where: str) -> dict:
     """[tools.<name>] → v2: tool = its name, or uses."""
     if not isinstance(table, dict):
-        raise HepError("a tool is a table", where=where)
+        raise HeimdallError("a tool is a table", where=where)
     _refuse_renamed(table, TOOL_RENAMED, where)
     out: dict = {"tool": table.get("uses", name)}
     for key, value in table.items():
@@ -168,7 +168,7 @@ def _tool(name: str, table: dict, where: str) -> dict:
             out["output_file"] = value
         elif key == "keep":
             if not isinstance(value, bool):
-                raise HepError("keep is true or false", where=f"{where}.keep")
+                raise HeimdallError("keep is true or false", where=f"{where}.keep")
             out[KEEP] = value
         else:
             out[key] = value
@@ -178,10 +178,10 @@ def _tool(name: str, table: dict, where: str) -> dict:
 def _quantity(name: str, table: dict, where: str) -> tuple[dict[str, dict], dict[str, object]]:
     """[quantities.<name>] → the v2 quantities it is (one, or one per field) and their [static] values."""
     if not isinstance(table, dict):
-        raise HepError("a quantity is a table", where=where)
+        raise HeimdallError("a quantity is a table", where=where)
     _refuse_renamed(table, QUANTITY_RENAMED, where)
     if "points" in table and "values" in table:
-        raise HepError("points or values, not both", where=where, hint="points = [{ tag, value, label, style }]")
+        raise HeimdallError("points or values, not both", where=where, hint="points = [{ tag, value, label, style }]")
     rows = table.get("points")
     if name == "beams" and isinstance(rows, list) and rows and all(isinstance(r, dict) and "a" in r for r in rows):
         table = _beams(table, where)
@@ -191,14 +191,14 @@ def _quantity(name: str, table: dict, where: str) -> tuple[dict[str, dict], dict
         common.update(_to(table["to"], f"{where}.to"))
     if rows is None:
         if "fields" in table:
-            raise HepError("a quantity with fields has points: one row per point, a value per field", where=where)
+            raise HeimdallError("a quantity with fields has points: one row per point, a value per field", where=where)
         out = {name: common}
         return out, ({name: table["fixed"]} if "fixed" in table else {})
     if not isinstance(rows, list) or not rows or not all(isinstance(r, dict) for r in rows):
-        raise HepError("points is a list of rows: [{ tag = \"a\", value = 1, label = \"…\" }]", where=f"{where}.points")
+        raise HeimdallError("points is a list of rows: [{ tag = \"a\", value = 1, label = \"…\" }]", where=f"{where}.points")
     for i, row in enumerate(rows, start=1):
         if "tag" not in row:
-            raise HepError(f"point {i} has no tag", where=f"{where}.points")
+            raise HeimdallError(f"point {i} has no tag", where=f"{where}.points")
     tags = [row["tag"] for row in rows]
     labels = [row.get("label", row["tag"]) for row in rows]
     styles = [row.get("style", {}) for row in rows]
@@ -208,7 +208,7 @@ def _quantity(name: str, table: dict, where: str) -> tuple[dict[str, dict], dict
         for i, row in enumerate(rows, start=1):
             unknown = sorted(set(row) - {"tag", "value", "label", "style"})
             if unknown or "value" not in row:
-                raise HepError(f"point {i} has {'no value' if 'value' not in row else 'no key ' + ', '.join(unknown)}",
+                raise HeimdallError(f"point {i} has {'no value' if 'value' not in row else 'no key ' + ', '.join(unknown)}",
                                where=f"{where}.points", hint="a row has tag, value, label, style; a quantity with fields "
                                                              "has a value per field")
         q = {**common, "values": [row["value"] for row in rows], "tags": tags}
@@ -221,18 +221,18 @@ def _quantity(name: str, table: dict, where: str) -> tuple[dict[str, dict], dict
         return {name: q}, fixed
     # a compound quantity: one v2 quantity per field, swept together; the first names the points
     if not isinstance(fields, dict) or not fields:
-        raise HepError("fields is a table: { field = \"<vocabulary word>\" or { tool = \"key\" } }", where=f"{where}.fields")
+        raise HeimdallError("fields is a table: { field = \"<vocabulary word>\" or { tool = \"key\" } }", where=f"{where}.fields")
     out: dict[str, dict] = {}
     for n, (field, binding) in enumerate(fields.items()):
         missing = [i for i, row in enumerate(rows, start=1) if field not in row]
         if missing:
-            raise HepError(f"point {missing[0]} has no {field}", where=f"{where}.points", hint="a compound point sets every field")
+            raise HeimdallError(f"point {missing[0]} has no {field}", where=f"{where}.points", hint="a compound point sets every field")
         if isinstance(binding, str):
             qname, q = binding, {}                                          # a vocabulary word: its own name binds it
         elif isinstance(binding, dict):
             qname, q = (name if n == 0 else f"{name}_{field}"), {"key": binding}
         else:
-            raise HepError(f"field {field} is bound by a vocabulary word or {{ tool = \"key\" }}", where=f"{where}.fields")
+            raise HeimdallError(f"field {field} is bound by a vocabulary word or {{ tool = \"key\" }}", where=f"{where}.fields")
         q.update({k: v for k, v in common.items() if k in ("description", "exclude")})
         q.update({"values": [row[field] for row in rows], "tags": tags})
         if n == 0:
@@ -242,7 +242,7 @@ def _quantity(name: str, table: dict, where: str) -> tuple[dict[str, dict], dict
         else:
             q[SILENT] = True
         if qname in out:
-            raise HepError(f"two fields bind {qname}", where=f"{where}.fields")
+            raise HeimdallError(f"two fields bind {qname}", where=f"{where}.fields")
         out[qname] = q
         if "fixed" in table:
             fixed[qname] = table["fixed"]
@@ -255,7 +255,7 @@ def _to(to, where: str) -> dict:
     none. When any entry names a target (a "/", or true), the entries are the target list, as v2's
     target was; else only keys, for the tools that consume the quantity anyway (v2's key table)."""
     if not isinstance(to, dict) or not to or not all(isinstance(v, (str, bool)) and v is not False for v in to.values()):
-        raise HepError('to is a table: { pythia = "PDF:pSet" }, { "rivet/photo_eic" = "R" }, { "pythia/seed" = true }',
+        raise HeimdallError('to is a table: { pythia = "PDF:pSet" }, { "rivet/photo_eic" = "R" }, { "pythia/seed" = true }',
                        where=where)
     keys = {name.split("/")[0]: value for name, value in to.items() if isinstance(value, str)}
     out: dict = {}
@@ -272,7 +272,7 @@ def _beams(table: dict, where: str) -> dict:
     for i, row in enumerate(table["points"], start=1):
         a, b = row.get("a"), row.get("b")
         if not (isinstance(a, dict) and isinstance(b, dict) and {"id", "energy"} <= set(a) and {"id", "energy"} <= set(b)):
-            raise HepError(f"point {i}: a and b are {{ id = <pdg>, energy = <GeV> }}", where=f"{where}.points")
+            raise HeimdallError(f"point {i}: a and b are {{ id = <pdg>, energy = <GeV> }}", where=f"{where}.points")
         rows.append({k: v for k, v in row.items() if k not in ("a", "b")}
                     | {"beams": [a["id"], b["id"]], "energies": [a["energy"], b["energy"]]})
     return {**{k: v for k, v in table.items() if k != "points"}, "points": rows,
@@ -312,15 +312,15 @@ def translate(raw: dict, where: str) -> dict:
     """A v3 file's tables as v2's (see the module's text), marked for the parser."""
     for table in raw:
         if table in V2_TABLES:
-            raise HepError(f"[{table}] is the v2 form: this file is v3, where it is {V2_TABLES[table]}",
+            raise HeimdallError(f"[{table}] is the v2 form: this file is v3, where it is {V2_TABLES[table]}",
                            where=f"{where}: [{table}]", hint="heimdall migrate --v3 rewrites a v2 file")
         if table not in TABLES:
-            raise HepError(f"unknown table [{table}]", where=where, hint=did_you_mean(table, TABLES) or ", ".join(TABLES))
+            raise HeimdallError(f"unknown table [{table}]", where=where, hint=did_you_mean(table, TABLES) or ", ".join(TABLES))
     out: dict = {MARK: True}
     file = raw.get("file", {})
     if file:
         if file.get("schema", 3) != 3:
-            raise HepError("[file] schema is 3 here (or 2, for a v2 file)", where=f"{where}: [file].schema")
+            raise HeimdallError("[file] schema is 3 here (or 2, for a v2 file)", where=f"{where}: [file].schema")
         config = {k: v for k, v in file.items() if k != "schema"}
         if config:
             out["config"] = config
@@ -334,7 +334,7 @@ def translate(raw: dict, where: str) -> dict:
     family_of = {c[FAMILY] for c in cfgs.values() if FAMILY in c}
     for key, cfg in cfgs.items():
         if cfg.get("extends") in family_of:
-            raise HepError(f"'{cfg['extends']}' has several event counts: a configuration cannot extend it",
+            raise HeimdallError(f"'{cfg['extends']}' has several event counts: a configuration cannot extend it",
                            where=f"{where}: [cfgs.{key}].extends", hint="extend a configuration of one count")
     if cfgs:
         out.setdefault("run", {})["cfgs"] = cfgs
@@ -350,7 +350,7 @@ def translate(raw: dict, where: str) -> dict:
             compound[name] = list(made)
         for qname, q in made.items():
             if qname in quantities:
-                raise HepError(f"two quantities make '{qname}' (a field binds a word another quantity is)",
+                raise HeimdallError(f"two quantities make '{qname}' (a field binds a word another quantity is)",
                                where=f"{where}: [quantities.{name}]")
             quantities[qname] = q
         static.update(fixed)

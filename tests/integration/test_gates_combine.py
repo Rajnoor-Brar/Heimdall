@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 import support
-from support import hep
+from support import heimdall
 yoda = pytest.importorskip("yoda")
 
 pytestmark = pytest.mark.slow
@@ -62,7 +62,7 @@ objects = ["*d01-x01-y01"]
 def test_each_pdf_is_its_seeds_merged_and_drawn_as_one_curve(scratch):
     config = scratch / "seeds.toml"
     config.write_text(RUN, encoding="utf-8")
-    done = hep(scratch, config)
+    done = heimdall(scratch, config)
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     assert "── combined: MSTW08lo" in done.stdout
     results = scratch / "results" / "Demo" / "seeds" / "one" / "points"     # the seeds and the groups (V157)

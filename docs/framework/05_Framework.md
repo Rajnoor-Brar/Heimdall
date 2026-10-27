@@ -21,15 +21,15 @@ The baselines are the lab PC's of 2026-10-10: Heimdall at `c6e7590` and after, a
 
 **Preconditions:**
 - P1 is verified.
-- `source $HEP/gjallarhorn.sh`.
-- `git -C $HEP status --porcelain` is empty.
+- `source $HEIMDALL/gjallarhorn.sh`.
+- `git -C $HEIMDALL status --porcelain` is empty.
 
 **Tasks:**
 
 1. `heimdall build --framework --tests`: the apps (`App_Pythia`, `App_PythiaCheck`, `App_yd2rt`, `Paint`),
    Herwig's repository and the C++ tests.
 2. `heimdall make --framework test`: runs the C++ tests, then `pytest -m "not slow"`, which first builds
-   the fixture work dir's modules and plugins in `$HEP_FORGE/scratch/work/` (V112). Collect the summary
+   the fixture work dir's modules and plugins in `$HEIMDALL_FORGE/scratch/work/` (V112). Collect the summary
    line and every skip with its reason (`-rs`).
 3. Check that the generated parts of the manual are current: `heimdall make --framework docs schema`.
 
@@ -37,13 +37,13 @@ The baselines are the lab PC's of 2026-10-10: Heimdall at `c6e7590` and after, a
 
 | # | Command | Expected |
 |---|---|---|
-| R1 | `ls $HEP_APPS/*.exe $HEP_APPS/Herwig/HerwigDefaults.rpo \| wc -l` | `5` |
-| R2 | `ls $HEP_FORGE/tests/*.exe \| wc -l` | `3` (test_kit, test_module_kit, test_status) |
-| R3 | `cd $HEP && for t in $HEP_FORGE/tests/*.exe; do $t >/dev/null \|\| echo FAIL $t; done \| wc -l` | `0` |
-| R4 | `cd $HEP && python3 -m pytest -q -m "not slow" -rs -p no:cacheprovider 2>&1 \| tail -1` | `605 passed`, 0 failed, 0 errors, no skips (the lab PC's, 2026-10-10; more if tests were added since, never fewer) |
-| R5 | `ls $HEP_FORGE/scratch/work/build/Rivet/*.so \| wc -l` | `3` (photo_eic, DecayRiv, particle_spectra) |
-| R6 | `git -C $HEP status --porcelain \| wc -l` | `0` (the generated blocks and the editor schema were current; the build wrote only ignored folders) |
-| R7 | `git -C $HEP status --porcelain --ignored tests \| grep -v __pycache__ \| wc -l` | `0` (the tests wrote nothing under `tests/`) |
+| R1 | `ls $HEIMDALL_APPS/*.exe $HEIMDALL_APPS/Herwig/HerwigDefaults.rpo \| wc -l` | `5` |
+| R2 | `ls $HEIMDALL_FORGE/tests/*.exe \| wc -l` | `3` (test_kit, test_module_kit, test_status) |
+| R3 | `cd $HEIMDALL && for t in $HEIMDALL_FORGE/tests/*.exe; do $t >/dev/null \|\| echo FAIL $t; done \| wc -l` | `0` |
+| R4 | `cd $HEIMDALL && python3 -m pytest -q -m "not slow" -rs -p no:cacheprovider 2>&1 \| tail -1` | `605 passed`, 0 failed, 0 errors, no skips (the lab PC's, 2026-10-10; more if tests were added since, never fewer) |
+| R5 | `ls $HEIMDALL_FORGE/scratch/work/build/Rivet/*.so \| wc -l` | `3` (photo_eic, DecayRiv, particle_spectra) |
+| R6 | `git -C $HEIMDALL status --porcelain \| wc -l` | `0` (the generated blocks and the editor schema were current; the build wrote only ignored folders) |
+| R7 | `git -C $HEIMDALL status --porcelain --ignored tests \| grep -v __pycache__ \| wc -l` | `0` (the tests wrote nothing under `tests/`) |
 
 **On failure:** a test that passed on the lab PC and fails here means the machine differs (a
 compiler, a library's version). Collect the test's output and the versions of P1 S3; this is a
@@ -57,7 +57,7 @@ gate. No test is ever skipped to pass the row.
 
 **Tasks:**
 
-1. As the builder: `cd $HEP && nohup make test-slow > $HEP/.setup/slow.log 2>&1 &`. Watch for its
+1. As the builder: `cd $HEIMDALL && nohup make test-slow > $HEIMDALL/.setup/slow.log 2>&1 &`. Watch for its
    summary (8 min 47 s on the lab PC).
 2. Read the gates' outcomes into the rows below. They are the manual's 07 §8, measured on the lab
    PC by these same tests.
@@ -66,7 +66,7 @@ gate. No test is ever skipped to pass the row.
 
 | # | Gate (test) | Expected |
 |---|---|---|
-| R1 | the whole slow suite: `tail -1 $HEP/.setup/slow.log` | `36 passed`, 0 failed, 0 errors (the lab PC's, 2026-10-10) |
+| R1 | the whole slow suite: `tail -1 $HEIMDALL/.setup/slow.log` | `36 passed`, 0 failed, 0 errors (the lab PC's, 2026-10-10) |
 | R2 | App_Pythia at 1 thread against the legacy pipeline (`test_gates_p1.py`) | byte-identical YODAs (0 of 1,530 lines differ); σ = 71,422.158 pb |
 | R3 | σ at 4 threads, 100k events (`test_gates_p1.py`) | Rivet's `/_XSEC` against the sidecar's: relative difference ≤ 1e-8 |
 | R4 | failure injection (`test_failures.py`) | no hang, the right tool blamed, no `.complete` |

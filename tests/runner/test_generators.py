@@ -11,7 +11,7 @@ import shutil
 import pytest
 
 from runner import execute, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from runner.quantities import Override
 
 from helpers import plans, render_context
@@ -32,7 +32,7 @@ def test_delphes_reads_a_file_from_an_earlier_group_and_is_count_checked():
 
 @pytest.mark.skipif(not NEEDS["delphes"], reason="gjallarhorn: DelphesHepMC3")
 def test_a_fifo_into_delphes_is_refused():
-    with pytest.raises(HepError, match="'delphes' cannot read a FIFO"):
+    with pytest.raises(HeimdallError, match="'delphes' cannot read a FIFO"):
         plans("Demo/jets", "delphes", sets=["cfgs.delphes.chain=[['pythia_file', 'delphes'], 'jets_reco']"])   # one group: a FIFO
 
 
@@ -73,9 +73,9 @@ def test_render_leaves_a_deliberately_different_mpi_pdf_alone():
 
 
 def test_render_refuses_what_the_plan_owns_and_missing_entries():
-    with pytest.raises(HepError, match="plan owns"):
+    with pytest.raises(HeimdallError, match="plan owns"):
         render().card([BASE + "RANDOM_SEED: 7\n"], [], render_context("sherpa", tag="sherpa"))
-    with pytest.raises(HepError, match=r"no PDF_SET\[2\]"):
+    with pytest.raises(HeimdallError, match=r"no PDF_SET\[2\]"):
         render().card([BASE], [Override("PDF_SET[2]", "X", "x")], render_context("sherpa"))
 
 
@@ -112,7 +112,7 @@ def test_sherpas_display_arguments_are_given_but_not_in_its_identity(monkeypatch
 def test_herwig_reads_once_and_runs_with_flag_seeds():
     try:
         [p] = plans("Demo/herwig")
-    except HepError as error:
+    except HeimdallError as error:
         pytest.skip(error.message)                                 # no repository: heimdall build
     step = p.rendered["herwig"]
     assert step.argv[-6:] == ["-N", "2000", "-s", str(p.seed), "-d", "0"]
@@ -126,7 +126,7 @@ def test_herwig_reads_once_and_runs_with_flag_seeds():
 def test_an_export_that_needs_a_prepare_runs_it_for_a_tool_herwig_is_not_in():
     try:
         [p] = plans("Demo/herwig", "export")
-    except HepError as error:
+    except HeimdallError as error:
         pytest.skip(error.message)
     herwig, probe = p.rendered["herwig"], p.rendered["probe"]
     assert herwig.group < 0 and herwig.prepare_needed

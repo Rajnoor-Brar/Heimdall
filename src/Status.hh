@@ -1,7 +1,7 @@
 #pragma once
 // src/Status.hh — the standard status protocol (docs/06_Internals.md §22).
 //
-// A tool writes JSON lines to the file descriptor named in $HEP_STATUS_FD:
+// A tool writes JSON lines to the file descriptor named in $HEIMDALL_STATUS_FD:
 //
 //     {"t": 1790000001.500000, "k": "progress", "done": 12000, "total": 1000000, "rate": 8123.4}
 //
@@ -39,9 +39,9 @@ namespace Status {
 
     class Reporter {
       public:
-        // Reads $HEP_STATUS_FD; `beat` = heartbeat period in milliseconds (0 = no heartbeat thread).
+        // Reads $HEIMDALL_STATUS_FD; `beat` = heartbeat period in milliseconds (0 = no heartbeat thread).
         explicit Reporter(int beat = 500) {
-            if (const char* value = std::getenv("HEP_STATUS_FD")) {
+            if (const char* value = std::getenv("HEIMDALL_STATUS_FD")) {
                 fd_ = std::atoi(value);
                 if (fd_ >= 0) fcntl(fd_, F_SETFL, fcntl(fd_, F_GETFL) | O_NONBLOCK);
             }

@@ -30,7 +30,7 @@ fi
 
 # Which base: the command line's, else machine.toml's, else "system" for a machine root made before the
 # base (a venv/, no base/), else "conda": as build_stack.py decides it.
-machine=${HEP_MACHINE:-$HOME/Himinbjorg}
+machine=${HEIMDALL_MACHINE:-$HOME/Himinbjorg}
 dry=0 base=""
 for a in "$@"; do
     case "$a" in
@@ -46,7 +46,7 @@ fi
 if [ -z "$base" ]; then
     if [ -d "$machine/venv" ] && [ ! -d "$machine/base" ]; then base=system; else base=conda; fi
 fi
-export HEP_BUILD_SH=1                                        # build_stack.py's preflight: built through here
+export HEIMDALL_BUILD_SH=1                                        # build_stack.py's preflight: built through here
 
 if [ "$base" = conda ]; then
     # pixi, as recipes/base.toml pins it; build_stack.py finds it there and makes the base with it

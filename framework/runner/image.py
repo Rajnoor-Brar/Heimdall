@@ -18,8 +18,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .errors import HepError, did_you_mean
-from .paths import hep_root, machine_root
+from .errors import HeimdallError, did_you_mean
+from .paths import heimdall_root, machine_root
 
 RUNTIMES = ("apptainer", "singularity")
 #: Where a running image says its labels (Apptainer and SingularityCE both).
@@ -27,7 +27,7 @@ LABELS = Path("/.singularity.d/labels.json")
 
 
 def definition() -> Path:
-    return hep_root() / "recipes" / "platforms" / "container" / "heimdall.def"
+    return heimdall_root() / "recipes" / "platforms" / "container" / "heimdall.def"
 
 
 def runtime() -> str:
@@ -35,7 +35,7 @@ def runtime() -> str:
     for name in RUNTIMES:
         if found := shutil.which(name):
             return found
-    raise HepError("no apptainer (or singularity) on PATH",
+    raise HeimdallError("no apptainer (or singularity) on PATH",
                    hint="the system's: `sudo apt install apptainer`, or a cluster's `module load apptainer`")
 
 
@@ -51,7 +51,7 @@ def image_path(name: str) -> Path:
         path = images_dir() / f"{name}.sif"
     if not path.is_file():
         known = sorted(p.stem for p in images_dir().glob("*.sif"))
-        raise HepError(f"no image {path}", hint=did_you_mean(name, known) or
+        raise HeimdallError(f"no image {path}", hint=did_you_mean(name, known) or
                        (f"the images: {', '.join(known)}" if known else "heimdall image build makes one"))
     return path.resolve()
 
@@ -63,28 +63,28 @@ def render(values: dict[str, str]) -> str:
         text = text.replace("{{ %s }}" % name, value)
     body = "\n".join(line for line in text.splitlines() if not line.startswith("#"))
     if left := sorted(set(re.findall(r"\{\{ (\w+) \}\}", body))):
-        raise HepError(f"heimdall.def's {', '.join(left)} not given", where=str(definition()))
+        raise HeimdallError(f"heimdall.def's {', '.join(left)} not given", where=str(definition()))
     return text
 
 
 def dirty() -> bool:
     """Tracked changes in the checkout: an image of it would not say what it holds."""
-    done = subprocess.run(["git", "-C", str(hep_root()), "status", "--porcelain", "--untracked-files=no"],
+    done = subprocess.run(["git", "-C", str(heimdall_root()), "status", "--porcelain", "--untracked-files=no"],
                           capture_output=True, text=True, encoding="utf-8")
     return done.returncode != 0 or bool(done.stdout.strip())
 
 
 def revision() -> str:
-    done = subprocess.run(["git", "-C", str(hep_root()), "rev-parse", "HEAD"], capture_output=True, text=True,
+    done = subprocess.run(["git", "-C", str(heimdall_root()), "rev-parse", "HEAD"], capture_output=True, text=True,
                           encoding="utf-8")
     return done.stdout.strip()[:12] if done.returncode == 0 else "unknown"
 
 
 def copy_checkout(target: Path) -> None:
     """The checkout's tracked files, as they are in the working tree, into `target` (no ignored trees)."""
-    listed = subprocess.run(["git", "-C", str(hep_root()), "ls-files", "-z"], capture_output=True, check=True)
+    listed = subprocess.run(["git", "-C", str(heimdall_root()), "ls-files", "-z"], capture_output=True, check=True)
     for name in filter(None, listed.stdout.decode("utf-8").split("\0")):
-        source = hep_root() / name
+        source = heimdall_root() / name
         if source.is_file():
             (target / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target / name)
@@ -96,7 +96,7 @@ def build(packages: str = "@primary", cores: str = "0", root_cores: str = "0", n
     Ubuntu and the stack and builds it (hours for a source-built set; minutes for an @…-conda one)."""
     command = runtime()
     if dirty() and not allow_dirty:
-        raise HepError("Heimdall has uncommitted changes: an image of them would not say what it holds",
+        raise HeimdallError("Heimdall has uncommitted changes: an image of them would not say what it holds",
                        hint="commit them first, or --dirty to take the working tree as it is")
     name = name or packages.lstrip("@").replace(" ", "-") or "heimdall"
     target = images_dir() / f"{name}.sif"
@@ -111,7 +111,7 @@ def build(packages: str = "@primary", cores: str = "0", root_cores: str = "0", n
         argv = [command, "build", "--fakeroot", str(target), str(recipe)]
         out(" ".join(argv))
         if subprocess.run(argv).returncode != 0:
-            raise HepError(f"{Path(command).name} build failed", where=str(target),
+            raise HeimdallError(f"{Path(command).name} build failed", where=str(target),
                            hint="--fakeroot needs your user in /etc/subuid and /etc/subgid; else build with sudo: "
                                 f"sudo {' '.join(argv[:2] + argv[3:])}")
     out(f"made {target}")

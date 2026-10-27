@@ -21,19 +21,19 @@ import tomllib
 from pathlib import Path
 
 from . import plugins
-from .paths import apps_dir, find_work, hep_root
+from .paths import apps_dir, find_work, heimdall_root
 
 RESULTS = ("ok", "MISSING", "FAIL", "n/a")
 
 
 def builder():
-    return plugins.load(hep_root() / "recipes" / "build_stack.py", "build_stack")
+    return plugins.load(heimdall_root() / "recipes" / "build_stack.py", "build_stack")
 
 
 def loaded(bs):
     """The recipes, settings and placeholders of the stack this shell has loaded: the machine root's, or an
-    isolated toolkit's ($HEP_STACK), with that toolkit's changes."""
-    stack = os.environ.get("HEP_STACK", "")
+    isolated toolkit's ($HEIMDALL_STACK), with that toolkit's changes."""
+    stack = os.environ.get("HEIMDALL_STACK", "")
     _, settings, packages = bs.options([f"packages=@{stack}"] if stack else [])
     return settings, packages, bs.context(settings)
 
@@ -87,7 +87,7 @@ def stack_status() -> list[str]:
     if any(" installed " in line for line in out[2:]):
         out.append("  (installed: there, but not built by build_stack.py here; its version is below, or in heimdall doctor)")
     out += ["", "libraries a module may require (env/stack.toml), and the programs' versions:"]
-    out += ["  " + line for line in plugins.load(hep_root() / "env" / "stack.py", "stack").versions()]
+    out += ["  " + line for line in plugins.load(heimdall_root() / "env" / "stack.py", "stack").versions()]
     return out
 
 
@@ -118,8 +118,8 @@ def system_rows() -> list[tuple[str, str, str, str]]:
 
 def heimdall_rows() -> list[tuple[str, str, str, str]]:
     work = find_work()
-    rows = [("heimdall", "where", "ok", f"hep={hep_root()} work={work or '-'}")]
-    if not os.environ.get("HEP_ENV_LOADED"):
+    rows = [("heimdall", "where", "ok", f"heimdall={heimdall_root()} work={work or '-'}")]
+    if not os.environ.get("HEIMDALL_ENV_LOADED"):
         rows.append(("heimdall", "environment", "MISSING", "not loaded: source gjallarhorn.sh (or launch.sh on macOS)"))
     apps = sorted(apps_dir().glob("*.exe")) if apps_dir().is_dir() else []
     rows.append(("heimdall", "framework apps", "ok" if apps else "n/a",
@@ -152,12 +152,12 @@ def render(rows: list[tuple[str, str, str, str]], colour: bool) -> list[str]:
 def support_file() -> Path:
     system = "macos" if sys.platform == "darwin" else (platform.system().lower() or "unknown")
     host = platform.node().split(".")[0] or "machine"
-    return hep_root() / "recipes" / "support" / f"{system}-{host}.toml"
+    return heimdall_root() / "recipes" / "support" / f"{system}-{host}.toml"
 
 
 def record(rows: list[tuple[str, str, str, str]]) -> Path:
     """This machine's row of the support matrix: when, what, and what did not pass."""
-    revision = first_line(["git", "-C", str(hep_root()), "rev-parse", "--short", "HEAD"])
+    revision = first_line(["git", "-C", str(heimdall_root()), "rev-parse", "--short", "HEAD"])
     versions = {package: note for package, check, result, note in rows if check == "version" and result == "ok"}
     lines = [f"# {support_file().name} — `heimdall doctor --record` on this machine; the support matrix's row (recipes/README.md)",
              f'date     = "{datetime.date.today().isoformat()}"',
@@ -175,7 +175,7 @@ def record(rows: list[tuple[str, str, str, str]]) -> Path:
 
 
 def matrix() -> list[str]:
-    files = sorted((hep_root() / "recipes" / "support").glob("*.toml"))
+    files = sorted((heimdall_root() / "recipes" / "support").glob("*.toml"))
     if not files:
         return ["no machine has recorded its checks yet: heimdall doctor --record"]
     out = [f"{'machine':28} {'date':11} {'heimdall':9} {'ok':>4} {'FAIL':>5} {'MISSING':>8}  platform"]

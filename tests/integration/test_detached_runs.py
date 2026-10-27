@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from support import HEP, WORK, env
+from support import HEIMDALL, WORK, env
 
 pytestmark = pytest.mark.slow
 
@@ -62,7 +62,7 @@ tags   = {[f"p{i}" for i in range(len(fails))]}
 @pytest.fixture
 def where(scratch):
     """A registry of its own; any worker still alive at the end is killed."""
-    environment = dict(env(scratch), HEP_RUNS=str(scratch / "runs"))
+    environment = dict(env(scratch), HEIMDALL_RUNS=str(scratch / "runs"))
     yield scratch, environment
     for path in (scratch / "runs").glob("*.json"):
         pid = json.loads(path.read_text(encoding="utf-8")).get("pid")
@@ -74,7 +74,7 @@ def where(scratch):
 
 
 def heimdall(environment, *args, timeout=120):
-    return subprocess.run([str(HEP), *map(str, args)], cwd=WORK, env=environment, capture_output=True, text=True,
+    return subprocess.run([str(HEIMDALL), *map(str, args)], cwd=WORK, env=environment, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout)
 
 
@@ -142,7 +142,7 @@ def at_a_terminal(environment, *args):
     pid, master = pty.fork()
     if pid == 0:
         os.chdir(WORK)
-        os.execve(str(HEP), [str(HEP), *map(str, args)], {**environment, "TERM": "xterm"})   # rich draws its live view
+        os.execve(str(HEIMDALL), [str(HEIMDALL), *map(str, args)], {**environment, "TERM": "xterm"})   # rich draws its live view
     seen = []
 
     def read(wait=0.2) -> str:

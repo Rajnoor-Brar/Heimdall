@@ -120,7 +120,7 @@ def run(package: str, entries: list[dict], expand: Callable[[str], str], python:
     """A package's checks, as rows. `expand` fills a string's placeholders; `python` is the venv's."""
     rows: list[Row] = []
     env = {**env, "PYTHONDONTWRITEBYTECODE": "1"}
-    with tempfile.TemporaryDirectory(prefix="hep-verify-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="heimdall-verify-") as scratch:
         for entry in entries:
             name = entry["name"]
             if entry.get("slow") and (quick or not slow_ok):

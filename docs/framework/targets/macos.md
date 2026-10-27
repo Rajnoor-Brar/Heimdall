@@ -9,13 +9,13 @@ hand). Only what differs from the phase files is here (D11).
 - **Xcode's command-line tools:** `xcode-select -p` prints a path.
 - **Homebrew** (`brew --version`). A native terminal: on Apple Silicon `uname -m` is `arm64`, never
   Rosetta.
-- **Homebrew's bash 5** for `hep_env.sh` (macOS's own bash is 3.2), and Python ≥ 3.11 from
+- **Homebrew's bash 5** for `heimdall_env.sh` (macOS's own bash is 3.2), and Python ≥ 3.11 from
   Homebrew.
 - 60 GB free.
 
 ## System packages (P1 S1)
 
-- `brew bundle --file=$HEP/recipes/platforms/mac/Brewfile` replaces apt. It includes `poppler` for
+- `brew bundle --file=$HEIMDALL/recipes/platforms/mac/Brewfile` replaces apt. It includes `poppler` for
   the sheets and reports (and `pandoc`, kept from the retired decks).
 - No sudo, so no gate, but it is a download: ask with the others.
 - Homebrew's own HEP formulae (`root`, `hepmc3`, `lhapdf`, `pythia`, `yoda`, `rivet`, `fastjet`)
@@ -23,10 +23,10 @@ hand). Only what differs from the phase files is here (D11).
 
 ## Overlay and launching
 
-- **The build:** `bash $HEP/recipes/platforms/mac/build.sh packages=@primary cores=… root_cores=…`
+- **The build:** `bash $HEIMDALL/recipes/platforms/mac/build.sh packages=@primary cores=… root_cores=…`
   stands in for P1 S2's command. It runs `recipes/build_stack.py`, which lays `mac.toml` itself, with GNU
   make, sed and coreutils first on `PATH`.
-- **Launching:** `$HEP/launch.sh` (every platform's; the Mac's old path passes on to it) opens a bash 5 with `$HEP/gjallarhorn.sh` loaded, or runs one
+- **Launching:** `$HEIMDALL/launch.sh` (every platform's; the Mac's old path passes on to it) opens a bash 5 with `$HEIMDALL/gjallarhorn.sh` loaded, or runs one
   command in it. The machine root's `machine.sh`, written from `mac.toml`'s `setup_extra` and sourced by
   `gjallarhorn.sh`, adds `DYLD_LIBRARY_PATH` and the GNU tools.
 
@@ -34,8 +34,8 @@ hand). Only what differs from the phase files is here (D11).
 
 | Spot | On macOS |
 |---|---|
-| `runner/events.py` (the watch socket) | a socket file `hep-watch-<pid>` in `$TMPDIR/hep-watch/` (per user on macOS), removed at exit; a dead process's is cleared by the next `heimdall watch`. Runtime state touches the disk here (the user's rule of 2026-10-03 cannot hold without abstract sockets), and in the run registry everywhere (`<machine root>/runs/`, the user's ask of 2026-10-23). `$TMPDIR` differs between a desktop session and an ssh one: the greeting and the registry carry the socket's full address, so `heimdall watch` and `heimdall stop` reach it from either |
-| Paint's `basePath()` (C76) | `$HEP/src/Apps/Paint/base.toml`; `gjallarhorn.sh` exports `HEP` |
+| `runner/events.py` (the watch socket) | a socket file `heimdall-watch-<pid>` in `$TMPDIR/heimdall-watch/` (per user on macOS), removed at exit; a dead process's is cleared by the next `heimdall watch`. Runtime state touches the disk here (the user's rule of 2026-10-03 cannot hold without abstract sockets), and in the run registry everywhere (`<machine root>/runs/`, the user's ask of 2026-10-23). `$TMPDIR` differs between a desktop session and an ssh one: the greeting and the registry carry the socket's full address, so `heimdall watch` and `heimdall stop` reach it from either |
+| Paint's `basePath()` (C76) | `$HEIMDALL/src/Apps/Paint/base.toml`; `gjallarhorn.sh` exports `HEIMDALL` |
 | `bin/heimdall`'s core count | `os.cpu_count()` |
 | `framework/rules.mk`'s `sed -i` | `sed -i.tmp`, then the `.tmp` removed |
 
@@ -44,7 +44,7 @@ hand). Only what differs from the phase files is here (D11).
 | Row | On macOS |
 |---|---|
 | R13 | `libonnxruntime.dylib`, not `.so` |
-| R17 | the same file count, under `$HEP_INSTALL/fastjet/include/siscone` |
+| R17 | the same file count, under `$HEIMDALL_INSTALL/fastjet/include/siscone` |
 | R23 | Homebrew's versions; recorded |
 
 Everything else is as on Ubuntu. That includes the versions of every HEP package, which are the lab

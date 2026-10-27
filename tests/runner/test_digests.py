@@ -12,7 +12,7 @@ from dataclasses import replace
 import pytest
 
 from runner import cli, execute, paths, record
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from runner.events import Bus
 from runner.status import Reader, ToolState
 
@@ -22,7 +22,7 @@ RULES = [{"match": r"^Event (?P<done>\d+)", "emit": "progress"}, {"match": r"\bE
 
 @pytest.fixture
 def trees(scratch, monkeypatch):
-    for var, name in (("HEP_RECORDS", "records"), ("HEP_CACHE", "cache"), ("HEP_RESULTS", "results")):
+    for var, name in (("HEIMDALL_RECORDS", "records"), ("HEIMDALL_CACHE", "cache"), ("HEIMDALL_RESULTS", "results")):
         monkeypatch.setenv(var, str(scratch / name))
     return scratch
 
@@ -118,10 +118,10 @@ def test_a_prepare_entry_keeps_its_digest_and_a_stamp_of_the_older_shape_is_stil
 def test_run_log_is_read_from_hep_toml_and_checked(scratch, monkeypatch):
     work = scratch / "logwork"
     work.mkdir()
-    (work / "hep.toml").write_text('[work]\nname = "w"\n[run]\nlog = { head = 5, full = 1 }\n', encoding="utf-8")
+    (work / "heimdall.toml").write_text('[work]\nname = "w"\n[run]\nlog = { head = 5, full = 1 }\n', encoding="utf-8")
     monkeypatch.chdir(work)
-    monkeypatch.setenv("HEP_WORK", str(work))
+    monkeypatch.setenv("HEIMDALL_WORK", str(work))
     assert paths.log_settings() == {**paths.LOG_DEFAULTS, "head": 5, "full": 1}
-    (work / "hep.toml").write_text('[work]\nname = "w"\n[run]\nlog = { heads = 5 }\n', encoding="utf-8")
-    with pytest.raises(HepError, match="no 'heads' to set"):
+    (work / "heimdall.toml").write_text('[work]\nname = "w"\n[run]\nlog = { heads = 5 }\n', encoding="utf-8")
+    with pytest.raises(HeimdallError, match="no 'heads' to set"):
         paths.log_settings()

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from support import hep_ok
+from support import heimdall_ok
 yoda = pytest.importorskip("yoda")
 
 pytestmark = pytest.mark.slow
@@ -55,15 +55,15 @@ shards      = 4
 """
 
 
-def hep_run(scratch: Path, *args: str) -> str:
-    return hep_ok(scratch, *args)
+def heimdall_run(scratch: Path, *args: str) -> str:
+    return heimdall_ok(scratch, *args)
 
 
 def test_a_sharded_point_equals_the_same_point_unsharded(scratch):
     config = scratch / "shards.toml"
     config.write_text(RUN, encoding="utf-8")
-    hep_run(scratch, str(config), "one")
-    hep_run(scratch, str(config), "four", "--keep", "work")                 # its shards are read (V149)
+    heimdall_run(scratch, str(config), "one")
+    heimdall_run(scratch, str(config), "four", "--keep", "work")                 # its shards are read (V149)
     one = yoda.read(str(scratch / "results/Demo/shards/one/points/point/jets.yoda"))
     four = yoda.read(str(scratch / "results/Demo/shards/four/points/point/jets.yoda"))
     assert set(one) == set(four)

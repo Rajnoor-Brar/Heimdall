@@ -77,7 +77,7 @@ def test_the_scan_finds_a_library_that_no_longer_resolves(verify, tmp_path, monk
 
 
 def test_the_report_and_the_support_matrix(tmp_path, monkeypatch):
-    monkeypatch.setattr(doctor, "hep_root", lambda: tmp_path)
+    monkeypatch.setattr(doctor, "heimdall_root", lambda: tmp_path)
     sample = [("system", "os", "ok", "Linux x86_64"), ("root", "version", "ok", "6.40.04"),
               ("root", "libraries (root/)", "FAIL", "libgsl.so.27 (libMathMore.so)"),
               ("whizard", "linked", "MISSING", "not linked: LHAPDF")]
@@ -92,8 +92,8 @@ def test_the_report_and_the_support_matrix(tmp_path, monkeypatch):
 def test_the_stack_status_comes_from_the_recipes(tmp_path, monkeypatch):
     """Audit 3, phase 3.2: `heimdall status --stack` lists every recipe installed in the loaded stack, with no
     list of its own; a package not built here shows no release (its version is the libraries' block's)."""
-    monkeypatch.setenv("HEP_MACHINE", str(tmp_path))
-    monkeypatch.delenv("HEP_STACK", raising=False)
+    monkeypatch.setenv("HEIMDALL_MACHINE", str(tmp_path))
+    monkeypatch.delenv("HEIMDALL_STACK", raising=False)
     stamps = tmp_path / "stack" / ".stamps"
     stamps.mkdir(parents=True)
     (stamps / "fastjet-3.5.0").touch()                                 # built here, before digests

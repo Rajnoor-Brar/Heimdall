@@ -1,5 +1,5 @@
 # framework/work.mk — a work dir's build (docs/06_Internals.md §15). The work dir's Makefile includes
-# it (`include $(HEP)/framework/work.mk`, from framework/templates/work/); `heimdall build` is `make all`
+# it (`include $(HEIMDALL)/framework/work.mk`, from framework/templates/work/); `heimdall build` is `make all`
 # there. The rules it shares with Heimdall's Makefile are framework/rules.mk.
 #
 #   make                        every module program and Rivet plugin
@@ -13,7 +13,7 @@
 #   modules/<P>/Rivet_<x>.cc    → the same
 #   <dir>/<X>.cc                → build/<dir>/<X>.exe or build/<dir>/lib<X>.so, only when named
 # A path with a component starting with `_` is parked: never built by `make all`. Heimdall's
-# headers (Module.hh, Kit.hh, Status.hh, …) are on the include path: -I $(HEP)/src.
+# headers (Module.hh, Kit.hh, Status.hh, …) are on the include path: -I $(HEIMDALL)/src.
 
 BUILD    := build
 MK       := $(BUILD)
@@ -33,14 +33,14 @@ RIVET_SRCS  = $(call parked,$(wildcard modules/*/Rivet/*.cc)) $(foreach s,$(ROOT
 PROGRAMS    = $(foreach s,$(ROOT_CC),$(if $(filter Rivet_%,$(notdir $(s))),,$(s)))
 RIVET_OUT  := $(BUILD)/Rivet
 
-include $(HEP)/framework/rules.mk
+include $(HEIMDALL)/framework/rules.mk
 
 ALL := $(foreach s,$(PROGRAMS),$(call out_of,$(s))) $(foreach s,$(RIVET_SRCS),rivet_$(call ana_of,$(s)))
 
 .PHONY: all clean configure list
 all: $(ALL)
 configure:
-	$(HEP)/env/flags.sh $(FLAGS_MK)
+	$(HEIMDALL)/env/flags.sh $(FLAGS_MK)
 list:
 	@printf '%s\n' $(ALL)
 clean:

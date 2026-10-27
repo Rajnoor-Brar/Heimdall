@@ -1,5 +1,5 @@
 """The point's context file (docs/audit_3/06_Plan.md, phase 4.2; 04 §9.4): every tool's card and config,
-written when the point starts, at $HEP_CONTEXT for every tool, kept with its record (V187); generate_cards for
+written when the point starts, at $HEIMDALL_CONTEXT for every tool, kept with its record (V187); generate_cards for
 tools not in the chain; `heimdall tools new`."""
 
 from __future__ import annotations
@@ -12,12 +12,12 @@ from pathlib import Path
 import pytest
 
 from runner import paths, tools
-from runner.errors import HepError
-from support import HEP, REPO
+from runner.errors import HeimdallError
+from support import HEIMDALL, REPO
 
-#: An exec tool that copies the context file it was given (by $HEP_CONTEXT and by {context}) to its output.
+#: An exec tool that copies the context file it was given (by $HEIMDALL_CONTEXT and by {context}) to its output.
 SCRIPT = ('#!/usr/bin/env python3\nimport os, sys\n'
-          'given = sys.argv[-2]\nassert given == os.environ["HEP_CONTEXT"], (given, os.environ["HEP_CONTEXT"])\n'
+          'given = sys.argv[-2]\nassert given == os.environ["HEIMDALL_CONTEXT"], (given, os.environ["HEIMDALL_CONTEXT"])\n'
           'open(sys.argv[-1], "w").write(open(given).read())\n')
 
 
@@ -25,7 +25,7 @@ SCRIPT = ('#!/usr/bin/env python3\nimport os, sys\n'
 def work(scratch, monkeypatch):
     root = scratch / "w"
     (root / "configs" / "P").mkdir(parents=True)
-    (root / "hep.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
+    (root / "heimdall.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
     script = root / "copy.py"
     script.write_text(SCRIPT, encoding="utf-8")
     script.chmod(0o755)
@@ -60,7 +60,7 @@ level = 2
 tool       = "exec"
 executable = "/bin/true"
 """, encoding="utf-8")
-    for var, value in (("HEP_WORK", root), ("HEP_RECORDS", root / "records"), ("HEP_CACHE", root / "cache"), ("HEP_RESULTS", root / "results")):
+    for var, value in (("HEIMDALL_WORK", root), ("HEIMDALL_RECORDS", root / "records"), ("HEIMDALL_CACHE", root / "cache"), ("HEIMDALL_RESULTS", root / "results")):
         monkeypatch.setenv(var, str(value))
     paths.reset()
     yield root
@@ -68,8 +68,8 @@ executable = "/bin/true"
 
 
 def test_every_tool_reads_the_context_file_which_the_point_keeps(work):
-    done = subprocess.run([str(HEP), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, timeout=300,
-                          env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, encoding="utf-8")
+    done = subprocess.run([str(HEIMDALL), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, timeout=300,
+                          env={k: v for k, v in os.environ.items() if k != "HEIMDALL_CONFIGS"}, encoding="utf-8")
     assert done.returncode == 0, done.stdout + done.stderr
     [copied] = (work / "results").rglob("context.txt")
     context = tomllib.loads(copied.read_text(encoding="utf-8"))["tools"]
@@ -79,8 +79,8 @@ def test_every_tool_reads_the_context_file_which_the_point_keeps(work):
     [kept] = (work / "records").rglob("logs/*/context.toml")       # V187: kept with the point's cards, its record
     assert tomllib.loads(kept.read_text(encoding="utf-8"))["tools"].keys() == context.keys()
     commands = (kept.parent / "commands.sh").read_text(encoding="utf-8")
-    assert f"export HEP_CONTEXT={kept}" in commands and "# group 1: copy" in commands
-    assert "HEP_CONTEXT" not in os.environ                           # never the user's shell's
+    assert f"export HEIMDALL_CONTEXT={kept}" in commands and "# group 1: copy" in commands
+    assert "HEIMDALL_CONTEXT" not in os.environ                           # never the user's shell's
 
 
 def test_heimdall_tools_new_copies_a_template_or_extends_a_tool(work):
@@ -91,9 +91,9 @@ def test_heimdall_tools_new_copies_a_template_or_extends_a_tool(work):
     assert "\nextends = \"sherpa\"\n" in made.joinpath("tool.toml").read_text(encoding="utf-8")
     sherpa = tools.folders()["sherpa"]
     assert sherpa.origin == "work" and sherpa.plugin is not None and sherpa.get("tool", "category")
-    with pytest.raises(HepError, match="exists already"):
+    with pytest.raises(HeimdallError, match="exists already"):
         tools.new_folder("fit", "exec")
-    with pytest.raises(HepError, match="no tool folder 'nope'"):
+    with pytest.raises(HeimdallError, match="no tool folder 'nope'"):
         tools.new_folder("mine", "nope")
     assert any("product results" in line for line in tools.folder_lines("sherpa"))
 
@@ -105,7 +105,7 @@ def test_a_tool_of_ones_own_names_its_program_and_package(work):
     assert "config_file" in made.joinpath("tool.toml").read_text(encoding="utf-8")
     made = tools.new_folder("rivet", "rivet", ["rivet", "yoda", "hdf5"])                 # extending: a [tool] of its own
     assert tools.folders()["rivet"].get("tool", "packages") == ["rivet", "yoda", "hdf5"]
-    with pytest.raises(HepError, match="no recipe nosuch"):
+    with pytest.raises(HeimdallError, match="no recipe nosuch"):
         tools.new_folder("other", "exec", ["nosuch"])
 
 
@@ -114,7 +114,7 @@ def test_an_unknown_product_or_table_is_named(work):
     text = (work / "configs" / "P" / "c.toml").read_text(encoding="utf-8")
     (work / "configs" / "P" / "c.toml").write_text(text.replace('generate_cards = ["spare"]', 'generate_cards = ["spare:run"]'),
                                                    encoding="utf-8")
-    done = subprocess.run([str(HEP), "check", "P/c"], cwd=work, capture_output=True, text=True, timeout=120, encoding="utf-8")
+    done = subprocess.run([str(HEIMDALL), "check", "P/c"], cwd=work, capture_output=True, text=True, timeout=120, encoding="utf-8")
     assert done.returncode != 0 and "exec makes no product 'run'" in done.stdout + done.stderr
 
 
@@ -122,5 +122,5 @@ def test_a_renamed_folder_says_its_new_name(work):
     text = (work / "configs" / "P" / "c.toml").read_text(encoding="utf-8")
     (work / "configs" / "P" / "c.toml").write_text(text.replace('tool        = "exec"', 'tool        = "custom"'),
                                                    encoding="utf-8")
-    done = subprocess.run([str(HEP), "check", "P/c"], cwd=work, capture_output=True, text=True, timeout=120, encoding="utf-8")
+    done = subprocess.run([str(HEIMDALL), "check", "P/c"], cwd=work, capture_output=True, text=True, timeout=120, encoding="utf-8")
     assert 'tool = "custom" is tool = "exec" now' in done.stdout + done.stderr and "heimdall migrate" in done.stdout + done.stderr

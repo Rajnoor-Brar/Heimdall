@@ -1,4 +1,4 @@
-"""framework/hepkit.py (V74): the kit for a custom tool in Python — the status protocol, the report, the
+"""framework/heimdallkit.py (V74): the kit for a custom tool in Python — the status protocol, the report, the
 exit codes (the same table as src/Kit.hh's), and a tool that uses it under the runner's Reader."""
 
 from __future__ import annotations
@@ -13,19 +13,19 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "framework"))
-import hepkit  # noqa: E402
+import heimdallkit  # noqa: E402
 
 
 def test_the_exit_table_is_kit_hh_s():
     text = (REPO / "src" / "Kit.hh").read_text(encoding="utf-8")
     table = dict(re.findall(r"(\w+) = (\d+)", re.search(r"enum Exit : int \{([^}]*)\}", text).group(1)))
-    assert {name.upper(): int(code) for name, code in table.items()} == {e.name: e.value for e in hepkit.Exit}
+    assert {name.upper(): int(code) for name, code in table.items()} == {e.name: e.value for e in heimdallkit.Exit}
 
 
 def test_status_writes_the_standard_protocol(monkeypatch):
     read, write = os.pipe()
-    monkeypatch.setenv("HEP_STATUS_FD", str(write))
-    status = hepkit.Status(beat=0, signals=False)
+    monkeypatch.setenv("HEIMDALL_STATUS_FD", str(write))
+    status = heimdallkit.Status(beat=0, signals=False)
     status.phase("reading", "x.root")
     status.progress(5, 10, 2.5, force=True)
     status.progress(6, 10, 2.5)                                   # rate-limited: dropped quietly
@@ -38,19 +38,19 @@ def test_status_writes_the_standard_protocol(monkeypatch):
 
 
 def test_without_the_fd_it_prints_plain_lines(monkeypatch, capsys):
-    monkeypatch.delenv("HEP_STATUS_FD", raising=False)
-    status = hepkit.Status(beat=0, signals=False)
+    monkeypatch.delenv("HEIMDALL_STATUS_FD", raising=False)
+    status = heimdallkit.Status(beat=0, signals=False)
     status.log("warn", "careful")
     assert not status.structured and "warn: careful" in capsys.readouterr().err
 
 
 def test_a_report_is_written_whole(scratch):
-    path = hepkit.report(scratch / "jets.json", events=3)
+    path = heimdallkit.report(scratch / "jets.json", events=3)
     assert path.name == "jets.json.json" and json.loads(path.read_text(encoding="utf-8"))["events"] == 3
     assert not list(scratch.glob("*.part"))
 
 
 def test_usage_exits_two(capsys):
     with pytest.raises(SystemExit) as stop:
-        hepkit.usage("usage: x")
-    assert stop.value.code == hepkit.Exit.USAGE == 2
+        heimdallkit.usage("usage: x")
+    assert stop.value.code == heimdallkit.Exit.USAGE == 2

@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from runner import house, labels, paths, plot, quantities, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from support import REPO
 
 
@@ -19,10 +19,10 @@ from support import REPO
 def roots(scratch, monkeypatch):
     work, machine = scratch / "w", scratch / "m"
     (work / "configs" / "P").mkdir(parents=True)
-    (work / "hep.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
+    (work / "heimdall.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
     machine.mkdir()
-    for var, value in (("HEP_WORK", work), ("HEP_RECORDS", work / "records"), ("HEP_CACHE", work / "cache"), ("HEP_RESULTS", work / "results"),
-                       ("HEP_MACHINE", machine)):
+    for var, value in (("HEIMDALL_WORK", work), ("HEIMDALL_RECORDS", work / "records"), ("HEIMDALL_CACHE", work / "cache"), ("HEIMDALL_RESULTS", work / "results"),
+                       ("HEIMDALL_MACHINE", machine)):
         monkeypatch.setenv(var, str(value))
     paths.reset()
     yield work, machine
@@ -35,7 +35,7 @@ def test_the_style_layers_lie_between_base_toml_and_the_run(roots):
     (work / "style.toml").write_text('[page]\ndpi = 200\n', encoding="utf-8")
     assert plot.house_style() == {"page": {"dpi": 200, "font": "sans"}}            # the work dir's over the machine's
     (work / "style.toml").write_text('[page]\ndip = 200\n', encoding="utf-8")
-    with pytest.raises(HepError, match="no key 'page.dip'") as caught:
+    with pytest.raises(HeimdallError, match="no key 'page.dip'") as caught:
         plot.house_style()
     assert str(work / "style.toml") in str(caught.value.where)
 
@@ -59,7 +59,7 @@ def test_a_declaration_may_not_redefine_heimdalls_words(roots):
     shutil.copytree(REPO / "framework" / "tools" / "exec", folder, ignore=shutil.ignore_patterns("__pycache__"))
     (folder / "quantities.toml").write_text('sqrts = { key = "e", shape = "float" }\n', encoding="utf-8")
     paths.reset()
-    with pytest.raises(HepError, match="declares 'sqrts', which Heimdall's vocabulary has"):
+    with pytest.raises(HeimdallError, match="declares 'sqrts', which Heimdall's vocabulary has"):
         quantities.vocabulary()
 
 
@@ -71,7 +71,7 @@ def test_the_work_dirs_latex_toml_adds_to_heimdalls(roots):
     mine = labels.latex()
     assert mine[table]["myword"] == "my" and set(shipped[table]) <= set(mine[table])
     (work / "latex.toml").write_text('[nope]\nx = "y"\n', encoding="utf-8")
-    with pytest.raises(HepError, match=r"latex.toml has no table \[nope\]"):
+    with pytest.raises(HeimdallError, match=r"latex.toml has no table \[nope\]"):
         labels.latex()
 
 
@@ -85,7 +85,7 @@ def test_a_declared_quantity_reaches_its_tool_in_a_run(roots):
     """04 §6's row: [quantities.window] binds to the folder that declared it, with no key or target."""
     import os
     import subprocess
-    from support import HEP
+    from support import HEIMDALL
     work, _ = roots
     shutil.copytree(REPO / "framework" / "tools" / "exec", work / "tools" / "fit", ignore=shutil.ignore_patterns("__pycache__"))
     (work / "tools" / "fit" / "quantities.toml").write_text(
@@ -115,8 +115,8 @@ output_file = "config.txt"
 values = [[1.0, 2.0], [3.0, 4.0]]
 tags   = ["low", "high"]
 """, encoding="utf-8")
-    done = subprocess.run([str(HEP), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, timeout=300,
-                          env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, encoding="utf-8")
+    done = subprocess.run([str(HEIMDALL), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, timeout=300,
+                          env={k: v for k, v in os.environ.items() if k != "HEIMDALL_CONFIGS"}, encoding="utf-8")
     assert done.returncode == 0, done.stdout + done.stderr
     written = sorted(tomllib.loads(p.read_text(encoding="utf-8"))["cuts"]["window"] for p in (work / "results").rglob("config.txt"))
     assert written == [[1.0, 2.0], [3.0, 4.0]]

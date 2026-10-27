@@ -6,7 +6,7 @@ new file there is a template edit, never a code change. In the template, `{{name
 
     heimdall setup <dir> [--project P] [--git[=new]] [--adopt] [--name N]
     heimdall setup <dir> --refresh [--yes]
-    heimdall where [--hep | --work]
+    heimdall where [--heimdall | --work]
 
 A work dir may be made in a git repository (U67): a fresh one (only .git/ and a hosting site's
 README, LICENSE, .gitignore) needs no --adopt; its own README.md and CLAUDE.md are kept, Heimdall's
@@ -32,8 +32,8 @@ import tomllib
 import urllib.request
 from pathlib import Path
 
-from .errors import HepError
-from .paths import MARKER_FILE, STACK_VAR, find_work, hep_root, is_work, machine_root, stack_dir, work_meta
+from .errors import HeimdallError
+from .paths import MARKER_FILE, STACK_VAR, find_work, heimdall_root, is_work, machine_root, stack_dir, work_meta
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "work"
 STARTER = "starter"
@@ -56,7 +56,7 @@ FOLDERS = ("configs", "modules", "datasets", "results", "records", "reports", "b
 
 def revision(root: Path | None = None) -> str:
     """Heimdall's git revision, or "" when it is not a repo or its tracked files changed."""
-    root = root or hep_root()
+    root = root or heimdall_root()
 
     def git(*args) -> str:
         try:
@@ -166,14 +166,14 @@ def setup(target: Path, *, project: str | None = None, git: bool = False, adopt:
     """Lay the template down in `target`; never overwrite. Returns what was added (paths relative to it)."""
     target = target.expanduser().resolve()
     if target.exists() and not target.is_dir():
-        raise HepError(f"{target} is a file", hint="heimdall setup makes a work dir: give a folder")
+        raise HeimdallError(f"{target} is a file", hint="heimdall setup makes a work dir: give a folder")
     if target.is_dir() and any(target.iterdir()) and not is_work(target) and not adopt and not _fresh(target):
-        raise HepError(f"{target} is not empty and not a work dir",
+        raise HeimdallError(f"{target} is not empty and not a work dir",
                        hint="give an empty or new folder (a fresh git repository is one), or --adopt to make a work dir of this one")
     if not TEMPLATE.is_dir():
-        raise HepError(f"no work-dir template at {TEMPLATE}")
+        raise HeimdallError(f"no work-dir template at {TEMPLATE}")
     if project is not None and (not project or "/" in project or project.startswith(("_", "."))):
-        raise HepError(f"'{project}' is not a project name", hint="a folder name: letters, digits, - and _")
+        raise HeimdallError(f"'{project}' is not a project name", hint="a folder name: letters, digits, - and _")
     values = {"name": name or target.name, "revision": revision(), "date": datetime.date.today().isoformat(),
               "P": project or "", "p": (project or "").lower()}
     making = not is_work(target)                                    # not completing a work dir: making one
@@ -242,7 +242,7 @@ def _recognise(target: Path, out=print) -> None:
     from .workdirs import record
     try:
         title, happened = record(target)
-    except HepError as error:
+    except HeimdallError as error:
         out(f"not recognised: {error.message}" + (f" ({error.hint})" if error.hint else ""))
         return
     if happened != "known":
@@ -253,7 +253,7 @@ def _example(target: Path, name: str, out=print) -> list[str]:
     """The example's project: its configs/, modules/ and the datasets they read, never over a file."""
     if name not in EXAMPLES:
         from .errors import did_you_mean
-        raise HepError(f"no example '{name}'", hint=did_you_mean(name, EXAMPLES) or f"examples: {', '.join(EXAMPLES)}")
+        raise HeimdallError(f"no example '{name}'", hint=did_you_mean(name, EXAMPLES) or f"examples: {', '.join(EXAMPLES)}")
     project = EXAMPLES[name][0]
     added = []
     sources = [EXAMPLE_WORK / "configs" / project, EXAMPLE_WORK / "modules" / project, EXAMPLE_WORK / "datasets"]
@@ -281,19 +281,19 @@ def _commit(target: Path, files: list[str], values: dict[str, str], new: bool = 
         if top is not None:
             out(f"warning: {target} is in the repository {top}; --git=new makes it a repository of its own, nested")
         if run("init", "-q").returncode:
-            raise HepError(f"git init failed in {target}")
+            raise HeimdallError(f"git init failed in {target}")
     elif top != target:
         out(f"committing in the repository {top}, which {target.name}/ is in (--git=new for one of its own)")
     if not files:
         return
     done = run("add", "--", *files)
     if done.returncode:
-        raise HepError(f"git add failed in {target}: {done.stderr.strip() or done.stdout.strip()}",
+        raise HeimdallError(f"git add failed in {target}: {done.stderr.strip() or done.stdout.strip()}",
                        hint="the files are written; add and commit them yourself (git add -- <paths>)")
     done = run("commit", "-q", "-m", f"heimdall setup: the work dir {values['name']} (Heimdall {values['revision'][:12] or 'unknown'})",
                "--", *files)
     if done.returncode:
-        raise HepError(f"git commit failed in {target}: {done.stderr.strip() or done.stdout.strip()}",
+        raise HeimdallError(f"git commit failed in {target}: {done.stderr.strip() or done.stdout.strip()}",
                        hint="set git's user.name and user.email, then commit the added files yourself")
 
 
@@ -336,19 +336,19 @@ def fetch_datasets(target: Path, out=print) -> list[str]:
     try:
         files = tomllib.loads(manifest.read_text(encoding="utf-8")).get("files", {})
     except tomllib.TOMLDecodeError as error:
-        raise HepError(f"cannot read {MANIFEST}: {error}", where=str(manifest)) from None
+        raise HeimdallError(f"cannot read {MANIFEST}: {error}", where=str(manifest)) from None
     names = []
     for name, entry in files.items():
         where = f"{manifest}: [files.\"{name}\"]"
         rel = Path(name)
         if rel.is_absolute() or ".." in rel.parts or not isinstance(entry, dict) or not {"url", "sha256"} <= set(entry):
-            raise HepError("a dataset is a name under datasets/ with a url and a sha256", where=where,
+            raise HeimdallError("a dataset is a name under datasets/ with a url and a sha256", where=where,
                            hint='[files."zeus_2012.yoda"]  url = "https://…"  sha256 = "…"')
         names.append(rel.as_posix())
         dest = target / "datasets" / rel
         if dest.is_file():
             if _sha256(dest) != entry["sha256"].lower():
-                raise HepError(f"datasets/{rel} is not the file {MANIFEST} names (its sha256 differs)", where=where,
+                raise HeimdallError(f"datasets/{rel} is not the file {MANIFEST} names (its sha256 differs)", where=where,
                                hint="remove it, and heimdall setup fetches it again; or correct the manifest")
             continue
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -358,10 +358,10 @@ def fetch_datasets(target: Path, out=print) -> list[str]:
                 shutil.copyfileobj(answer, handle)
         except (OSError, ValueError) as error:
             partial.unlink(missing_ok=True)
-            raise HepError(f"cannot fetch datasets/{rel}: {error}", where=where) from None
+            raise HeimdallError(f"cannot fetch datasets/{rel}: {error}", where=where) from None
         if _sha256(partial) != entry["sha256"].lower():
             partial.unlink()
-            raise HepError(f"datasets/{rel} arrived with another sha256: not kept", where=where,
+            raise HeimdallError(f"datasets/{rel} arrived with another sha256: not kept", where=where,
                            hint="the file at the url changed, or the manifest's sha256 is wrong")
         partial.replace(dest)
         out(f"fetched datasets/{rel} ({dest.stat().st_size / 1e6:.1f} MB)")
@@ -380,7 +380,7 @@ def refresh(target: Path, *, yes: bool = False, out=print, ask=None) -> int:
     files are never touched: a README or CLAUDE.md that is not Heimdall's stays. Returns how many changed."""
     target = target.expanduser().resolve()
     if not is_work(target):
-        raise HepError(f"{target} is not a work dir", hint="heimdall setup <dir> makes one")
+        raise HeimdallError(f"{target} is not a work dir", hint="heimdall setup <dir> makes one")
     meta = work_meta(target)
     values = {"name": meta["name"], "revision": revision(), "date": datetime.date.today().isoformat(), "P": "", "p": ""}
     changes: dict[Path, str] = {}
@@ -412,7 +412,7 @@ def refresh(target: Path, *, yes: bool = False, out=print, ask=None) -> int:
         out("".join(difflib.unified_diff(old.splitlines(True), new.splitlines(True), f"a/{rel}", f"b/{rel}")).rstrip("\n"))
     if changes and not yes:
         if ask is None:
-            raise HepError(f"{len(changes)} file(s) differ from today's template: not written", hint="--yes writes them")
+            raise HeimdallError(f"{len(changes)} file(s) differ from today's template: not written", hint="--yes writes them")
         if ask(f"write these {len(changes)}? [y/N] ").strip().lower() not in ("y", "yes"):
             out("nothing written")
             return 0
@@ -433,7 +433,7 @@ def expects_warning(work: Path) -> str:
 
     Warned about, never enforced, as [config.meta] is (V97); no revision, or no git, is no warning."""
     expects = work_meta(work)["expects"]
-    root = hep_root()
+    root = heimdall_root()
     if not expects or not (root / ".git").exists():
         return ""
     try:                                                            # its commits that HEAD lacks: none, if an ancestor
@@ -447,24 +447,24 @@ def expects_warning(work: Path) -> str:
             "(an older Heimdall, or one without those commits): git pull there")
 
 
-def _pth_problem(hep: Path) -> str:
+def _pth_problem(heimdall: Path) -> str:
     """What is wrong with the venv's heimdall.pth (framework/01 §5.5), or ""."""
     for folder in site.getsitepackages():
         pth = Path(folder, "heimdall.pth")
         if pth.is_file():
             named = Path(pth.read_text(encoding="utf-8").strip())
-            return "" if named == hep / "framework" else f"{pth} names {named}, not {hep / 'framework'}"
-    return "the venv has no heimdall.pth (recipes/pth.py writes it): `import hepkit` needs it"
+            return "" if named == heimdall / "framework" else f"{pth} names {named}, not {heimdall / 'framework'}"
+    return "the venv has no heimdall.pth (recipes/pth.py writes it): `import heimdallkit` needs it"
 
 
 def where(which: str | None = None, out=print, err=None) -> int:
-    """Three lines (hep=…, work=…, machine=…), or one path for --hep / --work; 2 when the one asked for is
+    """Three lines (heimdall=…, work=…, machine=…), or one path for --heimdall / --work; 2 when the one asked for is
     not there."""
     err = err or (lambda line: print(line, file=sys.stderr))
-    hep = hep_root()
+    heimdall = heimdall_root()
     work = find_work()
-    if which == "hep":
-        out(str(hep))
+    if which == "heimdall":
+        out(str(heimdall))
         return 0
     if which == "work":
         if work is None:
@@ -473,10 +473,10 @@ def where(which: str | None = None, out=print, err=None) -> int:
         out(str(work))
         return 0
     stack = os.environ.get(STACK_VAR, "")
-    out(f"hep={hep} {revision(hep)[:12] or '(uncommitted changes)'}" + (f" (stack: {stack})" if stack else ""))
+    out(f"heimdall={heimdall} {revision(heimdall)[:12] or '(uncommitted changes)'}" + (f" (stack: {stack})" if stack else ""))
     out(f"work={work if work else '-'}")
     out(f"machine={machine_root()}" + (f" (stack: {stack_dir()})" if stack else ""))
-    if problem := _pth_problem(hep):
+    if problem := _pth_problem(heimdall):
         err(f"warning: {problem}")
     return 0
 

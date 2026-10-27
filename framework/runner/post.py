@@ -24,7 +24,7 @@ from dataclasses import replace
 
 from . import execute, record, tools
 from .config import Tool
-from .errors import HepError
+from .errors import HeimdallError
 from .sweep import Point, tag_of
 
 NAME = "post"
@@ -65,7 +65,7 @@ def _run_stage(stage: tools.PointPlan, waits_on: list, run_config, configuration
 
 def _reserved(run, configuration, names, name: str, stage: str) -> None:
     if name in names:
-        raise HepError(f"a point is named '{name}', which is where the {stage} stage lives",
+        raise HeimdallError(f"a point is named '{name}', which is where the {stage} stage lives",
                        where=f"{run.path}: [run.cfgs.{configuration.key}]", hint="give that value another tag")
 
 
@@ -130,7 +130,7 @@ def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.P
         return []
     where = f"{run.path}: [run.cfgs.{configuration.key}].combine"
     if MERGE_TAG in run.tools:
-        raise HepError(f"[tools.{MERGE_TAG}] is the name combine uses for its merges", where=where,
+        raise HeimdallError(f"[tools.{MERGE_TAG}] is the name combine uses for its merges", where=where,
                        hint="rename that table")
     combined = set(configuration.combine)
     kept = [name for entry in configuration.sweeps for name in (entry if isinstance(entry, list) else [entry])
@@ -145,11 +145,11 @@ def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.P
         choice = {q: i for q, i in zip(kept, key) if i != -1}
         name = "_".join(tag_of(run.quantities[q], choice[q]) for q in kept if q in choice and not run.quantities[q].silent) or COMBINED
         if name in taken:
-            raise HepError(f"the combined group '{name}' would share a directory with a point or stage", where=where,
+            raise HeimdallError(f"the combined group '{name}' would share a directory with a point or stage", where=where,
                            hint="give the swept quantities distinct tags (see C11)")
         found = [_yoda_product(m) for m in members]
         if not all(found):
-            raise HepError("combine merges the points' YODA product, and these points have none", where=where)
+            raise HeimdallError("combine merges the points' YODA product, and these points have none", where=where)
         product = found[0][0]
         source = f"{product} of the combined points"           # not the product's own name: the output is
         stage_run = replace(run, tools={**run.tools, MERGE_TAG: Tool(tag=MERGE_TAG, tool=tools.combiner()[0], input=[source],

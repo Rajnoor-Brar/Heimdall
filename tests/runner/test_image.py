@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from runner import image, paths
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -26,7 +26,7 @@ def fake(tmp_path, monkeypatch):
                                     encoding="utf-8")
     (bin_ / "apptainer").chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_}:{os.environ['PATH']}")
-    monkeypatch.setenv("HEP_MACHINE", str(tmp_path / "Himinbjorg"))
+    monkeypatch.setenv("HEIMDALL_MACHINE", str(tmp_path / "Himinbjorg"))
     (tmp_path / "Himinbjorg" / "images").mkdir(parents=True)
     return bin_
 
@@ -36,14 +36,14 @@ def test_the_definition_is_filled_or_refused():
                          "REVISION": "abc", "BUILT": "2026-10-14"})
     assert "    /tmp/h /opt/heimdall" in text and 'packages="@core-conda"' in text and "cores=4 root_cores=2" in text
     assert "heimdall.revision abc" in text and "shell_rc=false" in text and "Bootstrap: docker" in text
-    with pytest.raises(HepError, match="not given"):
+    with pytest.raises(HeimdallError, match="not given"):
         image.render({"HEIMDALL": "/tmp/h"})
 
 
 def test_an_image_by_name_or_path(fake, tmp_path):
     (tmp_path / "Himinbjorg" / "images" / "core-conda.sif").write_text("x", encoding="utf-8")
     assert image.image_path("core-conda") == tmp_path / "Himinbjorg" / "images" / "core-conda.sif"
-    with pytest.raises(HepError, match="no image") as missing:
+    with pytest.raises(HeimdallError, match="no image") as missing:
         image.image_path("core-cond")
     assert "'core-conda'" in missing.value.hint
     assert image.runtime() == str(fake / "apptainer")
@@ -51,7 +51,7 @@ def test_an_image_by_name_or_path(fake, tmp_path):
 
 def test_a_build_takes_a_clean_copy_with_fakeroot(fake, tmp_path, monkeypatch):
     monkeypatch.setattr(image, "dirty", lambda: True)
-    with pytest.raises(HepError, match="uncommitted changes"):
+    with pytest.raises(HeimdallError, match="uncommitted changes"):
         image.build("@core-conda", out=lambda _: None)
     monkeypatch.setattr(image, "dirty", lambda: False)
     assert image.build("@core-conda", cores="4", out=lambda _: None) == 0
@@ -75,8 +75,8 @@ def test_launch_runs_in_an_image_with_a_clean_environment(fake, tmp_path, monkey
     (tmp_path / "Himinbjorg" / "images" / "core.sif").write_text("x", encoding="utf-8")
     study = tmp_path / "Study"
     study.mkdir()
-    (study / "hep.toml").write_text('[work]\nname = "Demo"\n', encoding="utf-8")
-    monkeypatch.setenv("HEP_WORKDIRS", str(tmp_path / "workdirs.toml"))
+    (study / "heimdall.toml").write_text('[work]\nname = "Demo"\n', encoding="utf-8")
+    monkeypatch.setenv("HEIMDALL_WORKDIRS", str(tmp_path / "workdirs.toml"))
     from runner import workdirs
     workdirs.record(study)
     env = {**os.environ}

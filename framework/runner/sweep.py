@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import schema
-from .errors import HepError, did_you_mean
+from .errors import HeimdallError, did_you_mean
 
 
 @dataclass
@@ -97,7 +97,7 @@ def kept(run, group: list[str]) -> list[int]:
     dropped = {i - 1 for name in group for i in run.quantities[name].exclude}
     indices = [i for i in range(len(run.quantities[group[0]].values)) if i not in dropped]
     if not indices:
-        raise HepError(f"exclude leaves the entangled group {group} no value", where=f"{run.path}",
+        raise HeimdallError(f"exclude leaves the entangled group {group} no value", where=f"{run.path}",
                        hint="its quantities' exclude lists together cover every value")
     return indices
 
@@ -122,13 +122,13 @@ def points(run, configuration) -> list[Point]:
     names = [p.name for p in out]
     for name in names:
         if name in RESERVED:
-            raise HepError(f"a point is named '{name}', which is where the configuration's "
+            raise HeimdallError(f"a point is named '{name}', which is where the configuration's "
                            + {"plots": "pages", "pre": "pre stage", "post": "post stage", "cluster": "cluster submissions"}[name]
                            + " live", where=f"{run.path}",
                            hint=f"give that value another tag; {', '.join(RESERVED)} are reserved")
     clashes = sorted({n for n in names if names.count(n) > 1})
     if clashes:
-        raise HepError(f"these points would share a directory: {', '.join(clashes)}", where=f"{run.path}",
+        raise HeimdallError(f"these points would share a directory: {', '.join(clashes)}", where=f"{run.path}",
                        hint="give the swept quantities distinct tags (see C11)")
     return out
 
@@ -151,14 +151,14 @@ def select_points(run, configuration, point_list: list[Point], selector: str | N
         if "=" in item:
             name, _, wanted = item.partition("=")
             if name not in run.quantities:
-                raise HepError(f"--points: '{name}' is not a quantity")
+                raise HeimdallError(f"--points: '{name}' is not a quantity")
             matched = [p for p in point_list if name in p.choice and tag_of(run.quantities[name], p.choice[name]) == wanted]
         elif item.isdigit():
             matched = [p for p in point_list if p.index == int(item)]
         else:
             matched = [p for p in point_list if p.name == item] or [p for p in point_list if item in p.name.split("_")]
         if not matched:
-            raise HepError(f"--points: '{item}' matches no point", hint=", ".join(p.name for p in point_list[:8]))
+            raise HeimdallError(f"--points: '{item}' matches no point", hint=", ".join(p.name for p in point_list[:8]))
         chosen += [p for p in matched if p not in chosen]
     return chosen
 
@@ -177,7 +177,7 @@ def check_curve_style(look, where: str) -> None:
     """A quantity value's curve look (V67): colour ("#rrggbb", a ROOT name or number), line, width
     (points); "default" for a key is the style's, as if left out."""
     if not isinstance(look, dict):
-        raise HepError("a style is a table, { colour, line, width }", where=where)
+        raise HeimdallError("a style is a table, { colour, line, width }", where=where)
     for key, value in look.items():
         if value == schema.DEFAULT:
             continue
@@ -188,10 +188,10 @@ def check_curve_style(look, where: str) -> None:
         elif key == "width":
             ok = isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0
         else:
-            raise HepError(f"a style has no key '{key}'", where=where, hint=did_you_mean(key, ["colour", "line", "width"])
+            raise HeimdallError(f"a style has no key '{key}'", where=where, hint=did_you_mean(key, ["colour", "line", "width"])
                            or "its keys: colour, line, width")
         if not ok:
-            raise HepError(f"style {key} = {value!r} is not one", where=where,
+            raise HeimdallError(f"style {key} = {value!r} is not one", where=where,
                            hint={"colour": '"#rrggbb", a ROOT colour name ("kBlue+1") or number',
                                  "line": " | ".join(CURVE_LINES), "width": "a number of points > 0"}[key])
 
@@ -235,7 +235,7 @@ def set_entries(sets, where: str) -> list[SetSpec]:
         for name, entry in sets.items():
             if isinstance(entry, dict):
                 if "name" in entry and entry["name"] != name:
-                    raise HepError(f"[plot.sets.{name}] is named by its key: it takes no name", where=f"{where}.{name}.name")
+                    raise HeimdallError(f"[plot.sets.{name}] is named by its key: it takes no name", where=f"{where}.{name}.name")
                 entries.append({**entry, "name": name})
             else:
                 entries.append({"name": name, "points": entry if isinstance(entry, list) else [entry]})
@@ -247,57 +247,57 @@ def set_entries(sets, where: str) -> list[SetSpec]:
         if isinstance(entry, dict):
             unknown = sorted(set(entry) - set(SET_KEYS) - set(page_keys))
             if unknown:
-                raise HepError(f"a set takes no '{unknown[0]}'", where=at,
+                raise HeimdallError(f"a set takes no '{unknown[0]}'", where=at,
                                hint=did_you_mean(unknown[0], [*SET_KEYS, *page_keys]) or
                                f"a set's keys: {', '.join(SET_KEYS)}, and [plot]'s page keys")
             name = entry.get("name", f"set{k}")
             if not isinstance(name, str) or not name:
-                raise HepError("a set's name is its folder: a string", where=f"{at}.name")
+                raise HeimdallError("a set's name is its folder: a string", where=f"{at}.name")
             selectors = entry.get("points", [])
             if not isinstance(selectors, list):
-                raise HepError("a set's points are a list of selectors", where=f"{at}.points")
+                raise HeimdallError("a set's points are a list of selectors", where=f"{at}.points")
             spec.pages = _pages_shape(entry["pages"], f"{at}.pages") if "pages" in entry else None
             curves = entry.get("curves", [])
             curves = [curves] if isinstance(curves, dict) else curves
             if not isinstance(curves, list):
-                raise HepError("a set's curves are a filter, { quantity = … }, or a list of them", where=f"{at}.curves")
+                raise HeimdallError("a set's curves are a filter, { quantity = … }, or a list of them", where=f"{at}.curves")
             spec.curves = [_filter_shape(c, f"{at}.curves[{i}]", styled=True) for i, c in enumerate(curves, start=1)]
             spec.reference = _filter_shape(entry["reference"], f"{at}.reference") if "reference" in entry else None
             spec.look = _look_shape(entry["look"], f"{at}.look") if "look" in entry else None
             spec.keys = {key: value for key, value in entry.items() if key not in SET_KEYS}
             schema.check(spec.keys, "figure", at, only=page_keys)
             if not selectors and not spec.axes:
-                raise HepError("a set names its points: points = […], pages = { … } or curves = { … }", where=at,
+                raise HeimdallError("a set names its points: points = […], pages = { … } or curves = { … }", where=at,
                                hint='{ name = "lo", pages = { generator = "all" }, curves = { pdf = ["a", "b"] } }')
             if not spec.axes and (spec.reference or spec.look):
-                raise HepError("reference and look are a set's with pages or curves", where=at,
+                raise HeimdallError("reference and look are a set's with pages or curves", where=at,
                                hint="a set of points alone draws them in the order named: the first is the reference")
             named = set(spec.pages or {}) & {q for c in spec.curves for q in c}
             if named:
-                raise HepError(f"a set names {sorted(named)[0]} in both pages and curves", where=at,
+                raise HeimdallError(f"a set names {sorted(named)[0]} in both pages and curves", where=at,
                                hint="an axis makes pages or curves, not both")
         elif isinstance(entry, list):
             name, selectors = f"set{k}", entry
             if not selectors:
-                raise HepError("a set names at least one point", where=at)
+                raise HeimdallError("a set names at least one point", where=at)
         else:
             name, selectors = None, [entry]
         for item in selectors:
             if isinstance(item, bool) or not isinstance(item, (int, str)) or item == "" or (isinstance(item, int) and item < 1):
-                raise HepError("a set's points are 1-based indices, names, globs, tags, \"quantity=tag\" or \"all\"",
+                raise HeimdallError("a set's points are 1-based indices, names, globs, tags, \"quantity=tag\" or \"all\"",
                                where=at, hint=f"got {item!r}")
         if name is None:
             name = re.sub(r"[^A-Za-z0-9._+-]+", "-", str(entry)).strip("-") or f"set{k}"
             name = f"#{entry}" if isinstance(entry, int) else name      # the point's name, once it is known
         if "/" in name or name in (".", "..", "index.html", *RESERVED_SETS):
-            raise HepError(f"a set's folder may not be {name!r}", where=at,
+            raise HeimdallError(f"a set's folder may not be {name!r}", where=at,
                            hint=f"{', '.join(RESERVED_SETS)} are the backends' folders" if name in RESERVED_SETS else None)
         spec.name, spec.selectors = name, list(selectors)
         out.append(spec)
     names = [s.name for s in out]
     clashes = sorted({n for n in names if names.count(n) > 1})
     if clashes:
-        raise HepError(f"two sets share the folder {clashes[0]}", where=where, hint='name them: { name = "…", points = […] }')
+        raise HeimdallError(f"two sets share the folder {clashes[0]}", where=where, hint='name them: { name = "…", points = […] }')
     return out
 
 
@@ -369,7 +369,7 @@ def _pages_shape(pages, where: str) -> dict:
     if any(pages == none and type(pages) is type(none) for none in NO_PAGES):
         return {}
     if not isinstance(pages, dict):
-        raise HepError("a set's pages are a filter, { quantity = … }, or \"none\" (a page per object, every curve on "
+        raise HeimdallError("a set's pages are a filter, { quantity = … }, or \"none\" (a page per object, every curve on "
                        "it)", where=where, hint='pages = { generator = "all" }, or pages = "none"')
     return _filter_shape(pages, where)
 
@@ -381,14 +381,14 @@ def _filter_shape(table, where: str, styled: bool = False) -> dict:
     theirs, in order, { tags = "all" | […] | "<glob>" (or all = true), colours = […], lines = […], widths = […] }.
     `color` and `colors` are `colour` and `colours`."""
     if not isinstance(table, dict) or not table:
-        raise HepError("a filter is a table of quantities: { pdf = [\"a\", \"b\"], generator = \"all\" }", where=where)
+        raise HeimdallError("a filter is a table of quantities: { pdf = [\"a\", \"b\"], generator = \"all\" }", where=where)
     out = {}
     for name, what in table.items():
         items = []
         for item in what if isinstance(what, list) else [what]:
             if isinstance(item, dict):
                 if not styled:
-                    raise HepError(f"{name}: a value with its own look is a curves filter's", where=f"{where}.{name}",
+                    raise HeimdallError(f"{name}: a value with its own look is a curves filter's", where=f"{where}.{name}",
                                    hint='curves = { pdf = [{ tag = "pdf1", colour = "#d62728" }, "pdf2"] }')
                 item = {SPELLINGS.get(k, k): v for k, v in item.items()}
                 if item.get("all") is True and "tags" not in item:
@@ -396,7 +396,7 @@ def _filter_shape(table, where: str, styled: bool = False) -> dict:
                 if "tags" in item:                   # several values, their looks in order
                     if set(item) - {"tags", *LIST_KEYS} or len(item) < 2 or \
                             not all(isinstance(item[k], list) and item[k] for k in LIST_KEYS if k in item):
-                        raise HepError(f"{name}: values with their looks are {{ tags = \"all\" | […], colours = […], "
+                        raise HeimdallError(f"{name}: values with their looks are {{ tags = \"all\" | […], colours = […], "
                                        "lines = […], widths = […] }", where=f"{where}.{name}", hint=f"got {item!r}")
                     for key, one in LIST_KEYS.items():
                         for k, look in enumerate(item.get(key, []), start=1):
@@ -404,12 +404,12 @@ def _filter_shape(table, where: str, styled: bool = False) -> dict:
                     items.append(item)
                     for tag in item["tags"] if isinstance(item["tags"], list) else [item["tags"]]:
                         if isinstance(tag, bool) or not isinstance(tag, (int, float, str)) or tag == "":
-                            raise HepError(f"{name}: tags are tags, globs, \"all\" or numbers", where=f"{where}.{name}",
+                            raise HeimdallError(f"{name}: tags are tags, globs, \"all\" or numbers", where=f"{where}.{name}",
                                            hint=f"got {tag!r}")
                     continue
                 tagged = [k for k in ("tag", "value") if k in item]
                 if len(tagged) != 1 or set(item) - {*tagged, *STYLE_KEYS} or len(item) < 2:
-                    raise HepError(f"{name}: a value with its own look is {{ tag = \"<tag>\", colour, line, width }}",
+                    raise HeimdallError(f"{name}: a value with its own look is {{ tag = \"<tag>\", colour, line, width }}",
                                    where=f"{where}.{name}", hint=f"got {item!r}")
                 check_curve_style({k: v for k, v in item.items() if k in STYLE_KEYS}, f"{where}.{name}")
                 items.append(item)
@@ -417,10 +417,10 @@ def _filter_shape(table, where: str, styled: bool = False) -> dict:
             else:
                 items.append(item)
             if isinstance(item, bool) or not isinstance(item, (int, float, str)) or item == "":
-                raise HepError(f"{name}: a filter's values are \"all\", tags, globs, \"!tag\" or numbers",
+                raise HeimdallError(f"{name}: a filter's values are \"all\", tags, globs, \"!tag\" or numbers",
                                where=f"{where}.{name}", hint=f"got {item!r}")
         if isinstance(what, list) and not what:
-            raise HepError(f"{name}: a filter names at least one value", where=f"{where}.{name}", hint='"all": every one')
+            raise HeimdallError(f"{name}: a filter names at least one value", where=f"{where}.{name}", hint='"all": every one')
         out[name] = items if isinstance(what, list) else items[0]
     return out
 
@@ -449,7 +449,7 @@ def value_styles(run, name: str, what, where: str) -> dict[int, dict]:
                     continue
                 if len(given) < len(indices):
                     tags = ", ".join(tag_of(run.quantities[name], i) for i in indices)
-                    raise HepError(f"{name}: {len(given)} {key} for {len(indices)} values ({tags})", where=f"{where}.{name}",
+                    raise HeimdallError(f"{name}: {len(given)} {key} for {len(indices)} values ({tags})", where=f"{where}.{name}",
                                    hint=f"one each, in that order; fewer would repeat: give {len(indices) - len(given)} more")
                 for index, look in zip(indices, given):
                     if look != schema.DEFAULT:
@@ -466,9 +466,9 @@ def _look_shape(look, where: str):
         return look
     if not isinstance(look, dict) or not look or set(look) - {"colour", "line"} or \
             not all(isinstance(v, str) and v for v in look.values()):
-        raise HepError('look is { colour = "<quantity>", line = "<quantity>" } (either or both), or "palette"', where=where)
+        raise HeimdallError('look is { colour = "<quantity>", line = "<quantity>" } (either or both), or "palette"', where=where)
     if look.get("colour") and look.get("colour") == look.get("line"):
-        raise HepError("look gives one quantity both the colour and the line", where=where)
+        raise HeimdallError("look gives one quantity both the colour and the line", where=where)
     return dict(look)
 
 
@@ -484,7 +484,7 @@ def resolve(run, name: str, what, where: str) -> list[int]:
     order), a tag, a glob of tags, a number (a value equal to it), a list of those; "!tag" leaves values out
     (a list of only those: every other value). A tag or glob naming no value is refused, with the tags."""
     if name not in run.quantities:
-        raise HepError(f"a set names '{name}', which is not a quantity", where=where,
+        raise HeimdallError(f"a set names '{name}', which is not a quantity", where=where,
                        hint=did_you_mean(name, list(run.quantities)) or f"quantities: {', '.join(run.quantities)}")
     quantity = run.quantities[name]
     tags = [tag_of(quantity, i) for i in range(len(quantity.values))]
@@ -504,7 +504,7 @@ def resolve(run, name: str, what, where: str) -> list[int]:
         else:
             found = [i for i, t in enumerate(tags) if t == item]
         if not found:
-            raise HepError(f"a set names {name} = {item!r}, which is no value of it", where=where,
+            raise HeimdallError(f"a set names {name} = {item!r}, which is no value of it", where=where,
                            hint=" ".join(filter(None, [did_you_mean(str(item), tags), f"{name}: {', '.join(tags)}"])))
         if negated:
             dropped |= set(found)
@@ -546,7 +546,7 @@ def set_cells(run, members: list, spec: SetSpec, palette=(), *, values=values_of
         for selector in spec.selectors:
             try:
                 found = chosen_points(run, members, selector, where)
-            except HepError:                          # its points are not complete (plan time names a typo)
+            except HeimdallError:                          # its points are not complete (plan time names a typo)
                 found = []
             picked += [m for m in found if m not in picked]
         if spec.axes:                                 # a filter then: the curves' order is theirs
@@ -670,10 +670,10 @@ def check_set(run, spec: SetSpec, points: list, combined=(), *, values=values_of
             here = f"{spec.where}.{at}.{q}"
             resolve(run, q, what, here)                   # its quantity and tags
             if q in combined:
-                raise HepError(f"a set names {q}, which the configuration combines away", where=here,
+                raise HeimdallError(f"a set names {q}, which the configuration combines away", where=here,
                                hint="its points are merged over it: name another axis")
             if q not in present:
-                raise HepError(f"a set names {q}, which no point of the configuration sets", where=here,
+                raise HeimdallError(f"a set names {q}, which no point of the configuration sets", where=here,
                                hint="vary it or fix it in the configuration, or leave it out of the set")
             if at.startswith("curves"):
                 value_styles(run, q, what, here)             # a styled list's looks: one per value
@@ -683,7 +683,7 @@ def check_set(run, spec: SetSpec, points: list, combined=(), *, values=values_of
             for one in named:                             # a tag or number named alone is a value some point has
                 if not set(resolve(run, q, one, here)) & present[q]:
                     shown = [tag_of(quantity, i) for i in sorted(present[q])]
-                    raise HepError(f"a set names {q} = {one!r}, which no point of the configuration has",
+                    raise HeimdallError(f"a set names {q} = {one!r}, which no point of the configuration has",
                                    where=here, hint=f"its points have {q}: {', '.join(shown)}")
     if isinstance(spec.look, dict):
         cells, _ = set_cells(run, points, spec, values=values)
@@ -692,11 +692,11 @@ def check_set(run, spec: SetSpec, points: list, combined=(), *, values=values_of
             if spec.curves else [q for q in present if q not in (spec.pages or {})]
         for role, q in spec.look.items():
             if q not in curve_axes:
-                raise HepError(f"look's {role} is {q}, which is not one of the set's curve axes", where=f"{spec.where}.look",
+                raise HeimdallError(f"look's {role} is {q}, which is not one of the set's curve axes", where=f"{spec.where}.look",
                                hint=f"its curve axes: {', '.join(dict.fromkeys(curve_axes)) or 'none'}")
         line = spec.look.get("line")
         if line and len(look_slots(line, picked, values)) > len(CURVE_LINES):
-            raise HepError(f"look's line is {line}, which takes {len(look_slots(line, picked, values))} values in the set: "
+            raise HeimdallError(f"look's line is {line}, which takes {len(look_slots(line, picked, values))} values in the set: "
                            f"there are {len(CURVE_LINES)} line styles", where=f"{spec.where}.look",
                            hint="give the line to an axis of at most 4 values, and the colour to this one")
 
@@ -739,7 +739,7 @@ def chosen_points(run, point_list: list, selector, where: str) -> list:
     elif "=" in selector:
         name, _, wanted = selector.partition("=")
         if name not in run.quantities:
-            raise HepError(f"a set names '{selector}', and '{name}' is not a quantity", where=where,
+            raise HeimdallError(f"a set names '{selector}', and '{name}' is not a quantity", where=where,
                            hint=did_you_mean(name, list(run.quantities)))
         found = [m for m in point_list if name in point(m).choice and tag_of(run.quantities[name], point(m).choice[name]) == wanted]
     elif any(c in selector for c in "*?["):
@@ -749,6 +749,6 @@ def chosen_points(run, point_list: list, selector, where: str) -> list:
                 [m for m in point_list if any(tag_of(run.quantities[q], i) == selector
                                               for q, i in point(m).choice.items() if q in run.quantities)]
     if not found:
-        raise HepError(f"a set names '{selector}', which matches no point", where=where,
+        raise HeimdallError(f"a set names '{selector}', which matches no point", where=where,
                        hint=", ".join(point(m).name for m in point_list[:6]) + (", …" if len(point_list) > 6 else ""))
     return found

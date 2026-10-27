@@ -27,7 +27,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from runner.hepfiles import base_path
 from runner.labels import mathtext
 from runner.paths import work_build
@@ -45,7 +45,7 @@ def _raw(text: str) -> str:
 
 def _mkhtml_backend():
     """The yoda backend's module: its transforms and fixes, which mkhtml's pages are made with."""
-    spec = importlib.util.spec_from_file_location("hep_yoda_backend", _YODA)
+    spec = importlib.util.spec_from_file_location("heimdall_yoda_backend", _YODA)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -76,8 +76,8 @@ def validate(settings: dict, beside_root: bool = False, curve_styles: list[dict]
     """mkhtml's limits, as the yoda backend's (the pages are mkhtml's until verified), but for OWN's keys."""
     try:
         _mkhtml_backend().validate(_without_own(settings), beside_root=beside_root, curve_styles=curve_styles)
-    except HepError as error:
-        raise HepError(str(error.message).replace('backend = "yoda"', 'backend = "mpl"').replace("the yoda backend", "the mpl backend"),
+    except HeimdallError as error:
+        raise HeimdallError(str(error.message).replace('backend = "yoda"', 'backend = "mpl"').replace("the yoda backend", "the mpl backend"),
                        where=error.where, hint=error.hint) from None
 
 
@@ -142,7 +142,7 @@ def _style_file(yoda) -> str:
         path = Path(where) / "plotting" / "default.mplstyle"
         if path.is_file():
             return str(path)
-    raise HepError("YODA's default.mplstyle is not found", hint=f"searched {yoda.getYodaDataPath()}")
+    raise HeimdallError("YODA's default.mplstyle is not found", hint=f"searched {yoda.getYodaDataPath()}")
 
 
 def _inputs(yb, yoda, page):

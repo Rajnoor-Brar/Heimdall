@@ -7,18 +7,18 @@
 #   make tests                  build the C++ tests       make test   build and run them, then pytest
 #   make clean                  remove the apps and the build's intermediates (never the stack's builds)
 #
-# Conventions (§5.1), into the loaded stack's part of the machine root (gjallarhorn.sh sets HEP_APPS and
-# HEP_FORGE: ~/Himinbjorg/apps and ~/Himinbjorg/forge, or stacks/<toolkit>/… for an isolated toolkit's):
-#   src/App_<X>.cc              → $HEP_APPS/App_<X>.exe
-#   src/Apps/<X>/main.cc        → $HEP_APPS/<X>.exe           (the folder's other files are headers it includes)
-#   tests/cxx/<X>.cc            → $HEP_FORGE/tests/<X>.exe
-#   <dir>/<X>.cc                → $HEP_FORGE/make/<dir>/<X>.exe or …/lib<X>.so, only when named
-# Intermediates (flags.mk, flags.log, deps/) are in $HEP_FORGE/make/. The apps are linked against the
+# Conventions (§5.1), into the loaded stack's part of the machine root (gjallarhorn.sh sets HEIMDALL_APPS and
+# HEIMDALL_FORGE: ~/Himinbjorg/apps and ~/Himinbjorg/forge, or stacks/<toolkit>/… for an isolated toolkit's):
+#   src/App_<X>.cc              → $HEIMDALL_APPS/App_<X>.exe
+#   src/Apps/<X>/main.cc        → $HEIMDALL_APPS/<X>.exe           (the folder's other files are headers it includes)
+#   tests/cxx/<X>.cc            → $HEIMDALL_FORGE/tests/<X>.exe
+#   <dir>/<X>.cc                → $HEIMDALL_FORGE/make/<dir>/<X>.exe or …/lib<X>.so, only when named
+# Intermediates (flags.mk, flags.log, deps/) are in $HEIMDALL_FORGE/make/. The apps are linked against the
 # loaded stack, so they live beside it.
 
-HEP      ?= $(CURDIR)
-APPS     := $(or $(HEP_APPS),$(error load Heimdall's environment first (source gjallarhorn.sh): HEP_APPS is not set))
-FORGE    := $(or $(HEP_FORGE),$(error load Heimdall's environment first (source gjallarhorn.sh): HEP_FORGE is not set))
+HEIMDALL ?= $(CURDIR)
+APPS     := $(or $(HEIMDALL_APPS),$(error load Heimdall's environment first (source gjallarhorn.sh): HEIMDALL_APPS is not set))
+FORGE    := $(or $(HEIMDALL_FORGE),$(error load Heimdall's environment first (source gjallarhorn.sh): HEIMDALL_FORGE is not set))
 MK       := $(FORGE)/make
 
 out_of   = $(strip \

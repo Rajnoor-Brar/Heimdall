@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 QUIET = "set automatic_html_opening False"
 
@@ -27,10 +27,10 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
         for line in text.splitlines():
             head = line.strip().split(" ", 1)[0].lower()
             if head in ("output", "launch"):
-                raise HepError(f"the proc card has its own `{head}` line", where=f"[tools.{context.get('tag')}].baseconfig",
+                raise HeimdallError(f"the proc card has its own `{head}` line", where=f"[tools.{context.get('tag')}].baseconfig",
                                hint="the runner writes `output` (into the prepare cache) and `launch` (with the point's values)")
         if not re.search(r"^\s*(generate|add\s+process)\s", text, re.M):
-            raise HepError("the proc card generates no process", where=f"[tools.{context.get('tag')}].baseconfig")
+            raise HeimdallError("the proc card generates no process", where=f"[tools.{context.get('tag')}].baseconfig")
     lines = [QUIET, "launch {prepared}/process -n r{seed}", "shower=OFF", "detector=OFF", "analysis=OFF", "done",
              "set iseed {seed}"]
     for key, value, origin in overrides:               # the runner's Override (L26)
@@ -38,10 +38,10 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
             for index, code in enumerate(value, start=1):
                 lpp = {int(k): v for k, v in context["render"]["lpp"].items()}
                 if int(code) not in lpp:
-                    raise HepError(f"no MadGraph beam type (lpp) for PDG {code}", where=origin)
+                    raise HeimdallError(f"no MadGraph beam type (lpp) for PDG {code}", where=origin)
                 lines.append(f"set lpp{index} {lpp[int(code)]}")
         elif isinstance(value, list):
-            raise HepError(f"'{key}' takes one value, not a list", where=origin)
+            raise HeimdallError(f"'{key}' takes one value, not a list", where=origin)
         else:
             lines.append(f"set {key} {value}")
     lines.append("done")

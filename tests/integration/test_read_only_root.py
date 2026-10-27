@@ -3,7 +3,7 @@ work dir's records/, results/ and the drawing's .cache/ (V164), nothing in the m
 finished point keeps its cards and configs only.
 
 The machine root here is an empty folder of the test's own, made read-only, with the forge inside it (so it
-cannot be made); the loaded stack (HEP_INSTALL, HEP_APPS, the base) is the real one's, read as an image's is.
+cannot be made); the loaded stack (HEIMDALL_INSTALL, HEIMDALL_APPS, the base) is the real one's, read as an image's is.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import pytest
 
 import support
 
-from support import HEP, REPO, WORK, apps, env, folder
+from support import HEIMDALL, REPO, WORK, apps, env, folder
 
 pytestmark = [pytest.mark.slow,
               pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="heimdall build --framework")]
@@ -32,12 +32,12 @@ def checkout_state() -> list[str]:
 def test_a_run_writes_only_its_work_dir(scratch):
     root = scratch / "Himinbjorg"
     root.mkdir()
-    environment = dict(env(scratch), HEP_MACHINE=str(root), HEP_FORGE=str(root / "forge"), PYTHONDONTWRITEBYTECODE="1")
-    environment.pop("HEP_RUNS", None)                               # the registry aims at the read-only root (V182)
+    environment = dict(env(scratch), HEIMDALL_MACHINE=str(root), HEIMDALL_FORGE=str(root / "forge"), PYTHONDONTWRITEBYTECODE="1")
+    environment.pop("HEIMDALL_RUNS", None)                               # the registry aims at the read-only root (V182)
     before = checkout_state()
     root.chmod(0o555)
     try:
-        done = subprocess.run([str(HEP), "run", "Demo/jets", "single", "--set", "run.events=200", "--set", "run.threads=1",
+        done = subprocess.run([str(HEIMDALL), "run", "Demo/jets", "single", "--set", "run.events=200", "--set", "run.threads=1",
                                "--plain"], cwd=WORK, env=environment, capture_output=True, text=True, encoding="utf-8",
                               errors="replace", timeout=1800)
     finally:

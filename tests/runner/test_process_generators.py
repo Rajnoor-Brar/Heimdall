@@ -8,7 +8,7 @@ import shutil
 import pytest
 
 from runner import plot, quantities, sweep, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from runner.quantities import Override
 
 from helpers import parse, plans, raw, render_context
@@ -16,7 +16,7 @@ from helpers import parse, plans, raw, render_context
 
 # ── Whizard (L13) ─────────────────────────────────────────────────────────────────────────────
 
-WHIZARD_BASE = "# hep: beam_structure = pdf_builtin, epa\nmodel = SM\nintegrate (x)\nsimulate (x)\n"
+WHIZARD_BASE = "# heimdall: beam_structure = pdf_builtin, epa\nmodel = SM\nintegrate (x)\nsimulate (x)\n"
 
 
 @pytest.mark.skipif(not shutil.which("whizard"), reason="gjallarhorn: whizard (its model file names the beams)")
@@ -36,7 +36,7 @@ def test_whizard_card_sets_everything_before_it_includes_the_base():
 
 def test_whizard_refuses_a_base_that_sets_what_the_plan_owns():
     plugin = tools.folders()["whizard"].plugin
-    with pytest.raises(HepError, match="n_events"):
+    with pytest.raises(HeimdallError, match="n_events"):
         plugin.card([WHIZARD_BASE + "n_events = 5\n"], [], render_context("whizard", tag="whizard", base_paths=["/b"]))
 
 
@@ -53,7 +53,7 @@ def test_madgraph_launch_script_and_proc_card():
     assert {"set lpp1 1", "set lpp2 0", "set ebeam1 275", "set nevents 1000", "set iseed {seed}"} <= set(launch)
     proc = plugin.prepare_card(launch, [PROC], {"prepared": "/cache/k"}).splitlines()
     assert proc[0] == "set automatic_html_opening False" and proc[-1] == "output /cache/k/process -f"
-    with pytest.raises(HepError, match="own `output` line"):
+    with pytest.raises(HeimdallError, match="own `output` line"):
         plugin.card([PROC + "output here\n"], [], render_context("madgraph", tag="madgraph"))
 
 
@@ -80,7 +80,7 @@ def test_a_pythia_card_without_an_input_has_no_lhef_line(scratch):
 def test_each_point_runs_its_own_generator_and_takes_what_it_consumes():
     try:
         by = {p.point.name: p for p in plans("Generators/generators")}
-    except HepError as error:
+    except HeimdallError as error:
         pytest.skip(error.message)                                    # Herwig's repository: heimdall build
     assert [s.tag for s in by["hw7"].groups[0]] == ["herwig", "spectra"]
     assert by["hw7"].consumers["beams"] == []                           # Herwig's snippet fixes its beams
@@ -95,7 +95,7 @@ def test_an_at_chain_still_refuses_a_value_no_alternative_consumes(scratch):
                quantities__nothing={"values": [1], "key": {"herwig": "X"}}, static={"nothing": 1})
     run = parse(data, scratch)
     conf = run.configuration(None)
-    with pytest.raises(HepError, match="no tool in this chain consumes"):
+    with pytest.raises(HeimdallError, match="no tool in this chain consumes"):
         tools.plan_point(run, conf, sweep.points(run, conf)[0], quantities.load_master(run.project, run.master_toml))
 
 

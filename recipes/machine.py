@@ -5,7 +5,7 @@
     python3 recipes/machine.py where              # the machine root and its folders
     python3 recipes/machine.py adopt [--dry-run]  # a checkout that still holds its stack: moved under the root
 
-The machine root is $HEP_MACHINE, else ~/Himinbjorg. `adopt` makes it from a checkout of the old
+The machine root is $HEIMDALL_MACHINE, else ~/Himinbjorg. `adopt` makes it from a checkout of the old
 layout (stack/, env/venv/, framework/Apps/, stash/, env/machine.sh inside Heimdall):
 * what can move does: Heimdall's compiled apps (their libraries are found by absolute paths, not by
   where they are), the downloads, this machine's shell lines;
@@ -27,7 +27,7 @@ REPO = Path(__file__).resolve().parent.parent
 
 
 def root() -> Path:
-    return Path(os.environ.get("HEP_MACHINE") or "~/Himinbjorg").expanduser()
+    return Path(os.environ.get("HEIMDALL_MACHINE") or "~/Himinbjorg").expanduser()
 
 
 #: A new root's machine.toml: every table, commented out (build_stack.py writes the same).

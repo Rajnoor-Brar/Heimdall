@@ -13,7 +13,7 @@ High-Energy was left alone (D31) until the user asked for its conversion into a 
 
 **Writes:**
 - `~/Github/Top-Quark`;
-- the throwaway work dir, under `$HEP/.setup/verify/P3/`;
+- the throwaway work dir, under `$HEIMDALL/.setup/verify/P3/`;
 - nothing in Heimdall outside `.setup/`.
 
 **Gates:** none. Pushing Top-Quark anywhere is the user's choice, asked in P4.
@@ -24,7 +24,7 @@ High-Energy was left alone (D31) until the user asked for its conversion into a 
 
 **Preconditions:**
 - P2 is verified, or waiting only at its S2 R2 gate.
-- `source $HEP/gjallarhorn.sh`.
+- `source $HEIMDALL/gjallarhorn.sh`.
 - `~/Github/Top-Quark` does not exist.
 
 **Tasks:**
@@ -42,7 +42,7 @@ High-Energy was left alone (D31) until the user asked for its conversion into a 
    `heimdall build` has nothing to compile (no modules yet), but writes the work dir's `build/flags.mk`.
 3. **Stamp, then run the starter:**
    ```bash
-   mkdir -p $HEP/.setup/verify/P3 && touch $HEP/.setup/verify/P3/stamp
+   mkdir -p $HEIMDALL/.setup/verify/P3 && touch $HEIMDALL/.setup/verify/P3/stamp
    cd ~/Github/Top-Quark && heimdall run Starter/starter --plain
    ```
    That is 2 points of 500 events: Pythia → Rivet (`MC_JETS`) → yd2rt, then 35 pages (9 s on the
@@ -53,13 +53,13 @@ High-Energy was left alone (D31) until the user asked for its conversion into a 
 | # | Command | Expected |
 |---|---|---|
 | R1 | `cd configs/Starter && heimdall where --work` | `<home>/Github/Top-Quark` |
-| R2 | `LC_ALL=C git ls-files \| sort \| tr '\n' ' '` | `.gitignore .vscode/settings.json CLAUDE.md Makefile README.md configs/Starter/starter.cmnd configs/Starter/starter.toml hep.toml` |
+| R2 | `LC_ALL=C git ls-files \| sort \| tr '\n' ' '` | `.gitignore .vscode/settings.json CLAUDE.md Makefile README.md configs/Starter/starter.cmnd configs/Starter/starter.toml heimdall.toml` |
 | R3 | `git log --oneline \| wc -l` | `1` |
 | R4 | `heimdall check; echo "exit $?"` | `ok    Starter/starter: 2 configuration(s), 3 point(s)`, then `exit 0` |
 | R5 | `heimdall status Starter/starter \| grep -c complete` | `3` (the `pdf` configuration's line, and its two points) |
 | R6 | `ls results/Starter/starter/*pdf/plots/root/*.png \| wc -l` | `35` |
-| R7 | `python3 -c "import json,glob; d=json.load(open(glob.glob('records/Starter/*/*/*/provenance.json')[0])); print(d['work']['name'], d['git']['heimdall']['revision'] == '$(git -C $HEP rev-parse HEAD)', d['git']['work']['revision'] == '$(git rev-parse HEAD)')"` | `Top-Quark True True` |
-| R8 | `find $HEP -newer $HEP/.setup/verify/P3/stamp -not -path "$HEP/.setup/*" -not -path '*/__pycache__*' \| wc -l` | `0` (the run wrote nothing into Heimdall but Python's bytecode caches) |
+| R7 | `python3 -c "import json,glob; d=json.load(open(glob.glob('records/Starter/*/*/*/provenance.json')[0])); print(d['work']['name'], d['git']['heimdall']['revision'] == '$(git -C $HEIMDALL rev-parse HEAD)', d['git']['work']['revision'] == '$(git rev-parse HEAD)')"` | `Top-Quark True True` |
+| R8 | `find $HEIMDALL -newer $HEIMDALL/.setup/verify/P3/stamp -not -path "$HEIMDALL/.setup/*" -not -path '*/__pycache__*' \| wc -l` | `0` (the run wrote nothing into Heimdall but Python's bytecode caches) |
 | R9 | `git status --porcelain \| wc -l` | `0` (`build/ records/ logs/ .cache/ results/` are ignored) |
 | R10 | `heimdall recognise --path Top-Quark` | `<home>/Github/Top-Quark` (`heimdall setup` recognised it: `gjallarhorn Top-Quark` goes there) |
 | R11 | `find logs -type f ! -path '*/cards/*' ! -path '*/config/*' ! -name '*.toml' ! -name .lock \| wc -l` | `0` (a finished run keeps its cards, configs and page configs only, V149) |
@@ -80,9 +80,9 @@ High-Energy was left alone (D31) until the user asked for its conversion into a 
 
 1. **Make a throwaway work dir, outside every other:**
    ```bash
-   T=$HEP/.setup/verify/P3/second && heimdall setup $T --project Second
+   T=$HEIMDALL/.setup/verify/P3/second && heimdall setup $T --project Second
    ```
-2. **Run its starter:** `touch $HEP/.setup/verify/P3/stamp2 && cd $T && heimdall run Second/second --plain`.
+2. **Run its starter:** `touch $HEIMDALL/.setup/verify/P3/stamp2 && cd $T && heimdall run Second/second --plain`.
 
 **Verification:**
 
@@ -91,9 +91,9 @@ High-Energy was left alone (D31) until the user asked for its conversion into a 
 | R1 | `cd $T/configs && heimdall where --work` | `$T` |
 | R2 | `cd ~/Github/Top-Quark && heimdall ls \| grep -c Second` | `0` (Top-Quark does not see the second's configs) |
 | R3 | `cd $T && heimdall ls \| grep -c Starter` | `0` (and the other way round) |
-| R4 | `find ~/Github/Top-Quark -newer $HEP/.setup/verify/P3/stamp2 -not -path '*/.git/*' \| wc -l` | `0` (the second's run wrote nothing in Top-Quark) |
+| R4 | `find ~/Github/Top-Quark -newer $HEIMDALL/.setup/verify/P3/stamp2 -not -path '*/.git/*' \| wc -l` | `0` (the second's run wrote nothing in Top-Quark) |
 | R5 | `cd $T && heimdall status Second/second \| grep -c complete` | `3` |
-| R6 | `cd ~/Github/Top-Quark && HEP_WORK=$T heimdall where --work` | `$T`: the variable wins over the search |
+| R6 | `cd ~/Github/Top-Quark && HEIMDALL_WORK=$T heimdall where --work` | `$T`: the variable wins over the search |
 | R7 | `cd /tmp && heimdall run Second/second; echo "exit $?"` | `heimdall: not inside a work dir` (with its hint, `heimdall setup <dir>`), then `exit 2` |
 
 **After the rows pass:** the second work dir stays in `verify/P3/` as the record of the check. It
@@ -114,7 +114,7 @@ Heimdall `db96104`, was `2186975`). What differed from the steps below:
 - **Untracked:** v1's outputs, builds and MadGraph debris were deleted; v1's PhotoProduction results
   and built decks were kept under `archive/v1/` (ignored), out of `heimdall migrate --layout`'s way;
   `literature/`, `cross_machine/`, `datasets/` stayed.
-- `hep.toml`'s `expects` names `2186975` (now in `db96104`): Heimdall's tree had uncommitted work, so `setup` wrote none.
+- `heimdall.toml`'s `expects` names `2186975` (now in `db96104`): Heimdall's tree had uncommitted work, so `setup` wrote none.
 
 The steps as they were parked:
 
@@ -136,29 +136,29 @@ files (shown first), and the push of `work`.
 2. **The framework leaves:** every path the move map (01 §7) sends to Heimdall. Its applier,
    `movemap.py`, is in `git show c6e7590:docs/framework/04_Seed.md` (S1, task 2):
    ```bash
-   python3 $HEP/.setup/movemap.py --src ~/Github/High-Energy --list fw | xargs -d '\n' git rm -q --
+   python3 $HEIMDALL/.setup/movemap.py --src ~/Github/High-Energy --list fw | xargs -d '\n' git rm -q --
    ```
 3. **The user's untracked files come back** (D13): `datasets/ literature/ cross_machine/ reports/`
-   from `$HEP/.setup/kept/`, copied into the clone. They stay untracked, as before.
+   from `$HEIMDALL/.setup/kept/`, copied into the clone. They stay untracked, as before.
 4. **Adopt:**
    ```bash
    heimdall setup --adopt ~/Github/High-Energy
    ```
-   - This adds `hep.toml` (`name = "High-Energy"`), `Makefile`, `README.md`, `CLAUDE.md`,
+   - This adds `heimdall.toml` (`name = "High-Energy"`), `Makefile`, `README.md`, `CLAUDE.md`,
      `.vscode/settings.json` if absent, and the missing folders.
    - It prints the template's `.gitignore` lines that High-Energy's `.gitignore` lacks. Add those
      to `.gitignore` by hand, and keep every existing line.
 5. **The user's files** (C65–C67, C77). Show the diffs, then ask (a **gate**):
-   - `heimdall migrate` (C65): `{repo}` → `{work}` (and `{apps}/…`, `{hep}/src/…`);
-   - the Python module that put `utils/` on `sys.path` for hepkit: `sys.path.insert(0,
-     os.environ["HEP"] + "/framework")`, as the fixture's `delphes_jets.py` has it (C66);
+   - `heimdall migrate` (C65): `{repo}` → `{work}` (and `{apps}/…`, `{heimdall}/src/…`);
+   - the Python module that put `utils/` on `sys.path` for heimdallkit: `sys.path.insert(0,
+     os.environ["HEIMDALL"] + "/framework")`, as the fixture's `delphes_jets.py` has it (C66);
    - `Inproc/Analysis.hh:68` and the two in-process run TOMLs name `recipes/patches/…` (C67);
-   - the comments of C77 name `src/…`, `framework/hepkit.py` and `recipes/patches/`.
+   - the comments of C77 name `src/…`, `framework/heimdallkit.py` and `recipes/patches/`.
 
    On a yes: `heimdall migrate --apply` and the edits.
 6. **Commit by path:**
    - the removals are staged by `git rm`;
-   - `git add hep.toml Makefile README.md CLAUDE.md .gitignore`, plus each file changed in task 5;
+   - `git add heimdall.toml Makefile README.md CLAUDE.md .gitignore`, plus each file changed in task 5;
    - message: `work: High-Energy as a Heimdall work dir (the framework is Heimdall, from split/base <sha>)`.
 7. **Build and check:** `cd ~/Github/High-Energy && heimdall build && heimdall check`.
 8. **The push** of `work` is a gate.

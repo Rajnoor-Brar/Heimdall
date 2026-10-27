@@ -34,9 +34,9 @@ def test_a_point_records_both_roots_and_heimdalls_revision(scratch):
     made = provenance_of(scratch)
     assert made["git"]["heimdall"]["revision"] == head(REPO)
     assert made["git"]["work"] == {}                                   # the scratch work is not a repo
-    assert made["hep"] == str(REPO)
+    assert made["heimdall"] == str(REPO)
     assert made["work"] == {"name": "fixture", "root": str(WORK)}
-    assert made["stack"] == os.environ.get("HEP_STACK", "")
+    assert made["stack"] == os.environ.get("HEIMDALL_STACK", "")
 
 
 @needs_git
@@ -49,7 +49,7 @@ def test_a_work_dir_in_git_records_its_revision(scratch, monkeypatch):
         monkeypatch.setenv(var, value)
     for argv in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "w"]):
         subprocess.run(["git", *argv], cwd=work, check=True, capture_output=True)
-    monkeypatch.setenv("HEP_WORK", str(work))
+    monkeypatch.setenv("HEIMDALL_WORK", str(work))
     paths.reset()
     try:
         made = provenance_of(scratch)

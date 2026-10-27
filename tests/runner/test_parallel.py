@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from runner import config, execute, record
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from runner.events import Bus, Journal
 from runner.execute import PointResult, Stopper
 from runner.sweep import Point
@@ -26,7 +26,7 @@ def test_parallelism_is_read_from_run_and_the_configuration(scratch):
     assert parse(raw(), scratch).configuration(None).parallelism == 1
     assert parse(raw(run__parallelism=4), scratch).configuration(None).parallelism == 4
     assert parse(raw(run__parallelism=4, run__cfgs__one__parallelism=2), scratch).configuration(None).parallelism == 2
-    with pytest.raises(HepError, match="at least 1"):
+    with pytest.raises(HeimdallError, match="at least 1"):
         parse(raw(run__parallelism=0), scratch)
 
 
@@ -151,7 +151,7 @@ def test_auto_parallelism_is_the_cores_over_a_points_cores(scratch, monkeypatch)
     assert conf.parallelism_auto and execute.auto_parallelism([p]) == 24 // execute.cores(p)
     monkeypatch.setattr(os, "cpu_count", lambda: 2)
     assert execute.auto_parallelism([p]) == 1
-    with pytest.raises(HepError, match="one of auto"):
+    with pytest.raises(HeimdallError, match="one of auto"):
         parse(raw(run__parallelism="many"), scratch)
 
 

@@ -10,7 +10,7 @@ import pytest
 
 from helpers import plan, raw
 from runner import paths, plugins, record, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -18,8 +18,8 @@ REPO = Path(__file__).resolve().parents[2]
 @pytest.fixture
 def machine(tmp_path, monkeypatch):
     """An empty machine root on a conda base, the stack's view read afresh."""
-    monkeypatch.setenv("HEP_MACHINE", str(tmp_path / "Himinbjorg"))
-    monkeypatch.delenv("HEP_STACK", raising=False)
+    monkeypatch.setenv("HEIMDALL_MACHINE", str(tmp_path / "Himinbjorg"))
+    monkeypatch.delenv("HEIMDALL_STACK", raising=False)
     (tmp_path / "Himinbjorg").mkdir()
     tools._installed.cache_clear()
     yield tmp_path / "Himinbjorg"
@@ -57,7 +57,7 @@ def test_a_package_is_built_ready_made_installed_or_missing(machine):
 def test_a_missing_program_says_how_to_get_its_package(machine, monkeypatch):
     folder = tools.folders()["sherpa"]
     monkeypatch.setenv("PATH", "/nowhere")
-    with pytest.raises(HepError) as missing:
+    with pytest.raises(HeimdallError) as missing:
         tools.executable_of(type("T", (), {"executable": "", "tag": "s"})(), folder, "P")
     assert "'Sherpa' is not on PATH" in str(missing.value)
     assert "bifrost -b sherpa" in missing.value.hint and "bifrost -c sherpa" in missing.value.hint

@@ -17,7 +17,7 @@ import pytest
 
 import support
 
-from support import apps, folder, hep_ok
+from support import apps, folder, heimdall_ok
 BUILT = [apps() / "App_Pythia.exe"]          # the module programs: work_built (every slow test has it)
 uproot = pytest.importorskip("uproot")
 yoda = pytest.importorskip("yoda")
@@ -25,13 +25,13 @@ yoda = pytest.importorskip("yoda")
 pytestmark = [pytest.mark.slow, pytest.mark.skipif(not all(p.exists() for p in BUILT), reason="heimdall build --framework")]
 
 
-def hep_run(scratch: Path, *args: str) -> tuple[Path, Path]:
-    hep_ok(scratch, *args)
+def heimdall_run(scratch: Path, *args: str) -> tuple[Path, Path]:
+    heimdall_ok(scratch, *args)
     return scratch / "records", scratch / "results"
 
 
 def test_lambda_module_and_rivet_agree_on_the_same_events(scratch):
-    _, results = hep_run(scratch, "Decay/decay", "single", "--set", "run.events=200", "--set", "run.threads=2",
+    _, results = heimdall_run(scratch, "Decay/decay", "single", "--set", "run.events=200", "--set", "run.threads=2",
                          "--keep", "work")                                # its working files are read (V149)
     point = results / folder("Decay/decay", "single", scratch) / "points" / "point"
     report = json.loads((point / "decay.root.json").read_text(encoding="utf-8", errors="replace"))
@@ -54,7 +54,7 @@ def test_lambda_module_and_rivet_agree_on_the_same_events(scratch):
 
 def test_inproc_equals_the_chain_at_one_thread(scratch):
     for configuration in ("single", "inproc"):
-        hep_run(scratch, "Demo/jets", configuration, "--set", "run.events=2000", "--set", "run.threads=1")
+        heimdall_run(scratch, "Demo/jets", configuration, "--set", "run.events=2000", "--set", "run.threads=1")
     chain, inproc = (support.point_results(scratch, folder("Demo/jets", c), "point") for c in ("single", "inproc"))
     seeds = [json.loads((support.point_records(scratch, folder("Demo/jets", c), "point") / "provenance.json")
                         .read_text(encoding="utf-8"))["seed"] for c in ("single", "inproc")]
@@ -70,7 +70,7 @@ def test_inproc_equals_the_chain_at_one_thread(scratch):
 
 def test_inproc_sigma_equals_the_sidecar_at_four_threads(scratch):
     for configuration in ("single", "inproc"):
-        output, results = hep_run(scratch, "Demo/jets", configuration, "--set", "run.events=4000",
+        output, results = heimdall_run(scratch, "Demo/jets", configuration, "--set", "run.events=4000",
                                   "--set", "run.threads=4", "--keep", "work")   # the sidecar is read (V149)
     point = output / folder("Demo/jets", "single") / "logs" / "point"
     sidecar = json.loads(min(point.glob("events*.hepmc.json")).read_text(encoding="utf-8", errors="replace"))  # sharded: .s1
@@ -87,7 +87,7 @@ def test_rivet_threads_equal_one_rivet(scratch, config, product):
     change or FastJet stops with an internal error."""
     results = []
     for k in (1, 4):
-        _, res = hep_run(scratch / f"k{k}", config, "single", "--set", "run.events=4000", "--set", "run.threads=4",
+        _, res = heimdall_run(scratch / f"k{k}", config, "single", "--set", "run.events=4000", "--set", "run.threads=4",
                          "--set", f"tools.inproc.config.rivet_threads={k}")
         results.append(yoda.read(str(next(res.rglob(product)))))
     one, four = results
@@ -106,7 +106,7 @@ def test_rivet_threads_equal_one_rivet(scratch, config, product):
 def test_the_serial_engine_is_reproducible(scratch):
     runs = []
     for attempt in range(2):
-        _, results = hep_run(scratch, "Demo/jets", "inproc", "--rerun", "--set", "run.events=1000",
+        _, results = heimdall_run(scratch, "Demo/jets", "inproc", "--rerun", "--set", "run.events=1000",
                              "--set", "run.threads=1", "--set", "tools.jets.config.engine=serial")
         runs.append((results / folder("Demo/jets", "inproc") / "points" / "point" / "jets.yoda").read_bytes())
     assert runs[0] == runs[1]

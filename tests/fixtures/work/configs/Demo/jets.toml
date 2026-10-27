@@ -84,7 +84,7 @@ fixed       = { energies = "18x275" }
 serial      = 11
 description = "Pythia and Rivet in one process (InprocJets): the card and seeds of `single`, no FIFO"
 chain       = ["jets", "yd2rt"]
-generate_cards = ["pythia", "rivet"]   # not run: their cards, for jets (HEP_CONTEXT)
+generate_cards = ["pythia", "rivet"]   # not run: their cards, for jets (HEIMDALL_CONTEXT)
 
 [cfgs.delphes]
 serial      = 12

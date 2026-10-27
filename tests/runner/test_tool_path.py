@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 
 from runner import paths, quantities, tools
-from runner.errors import HepError
-from support import HEP, REPO
+from runner.errors import HeimdallError
+from support import HEIMDALL, REPO
 
 SHIPPED = REPO / "framework" / "tools"
 SCRIPT = ('#!/usr/bin/env python3\nimport sys\nargs = [a for a in sys.argv[1:] if a]          # [config,] output\n'
@@ -25,10 +25,10 @@ def roots(scratch, monkeypatch):
     """A work dir and a machine root of the test's own: their tools/ are searched before Heimdall's."""
     work, machine = scratch / "w", scratch / "m"
     (work / "configs" / "P").mkdir(parents=True)
-    (work / "hep.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
+    (work / "heimdall.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
     machine.mkdir()
-    for var, value in (("HEP_WORK", work), ("HEP_RECORDS", work / "records"), ("HEP_CACHE", work / "cache"), ("HEP_RESULTS", work / "results"),
-                       ("HEP_MACHINE", machine)):
+    for var, value in (("HEIMDALL_WORK", work), ("HEIMDALL_RECORDS", work / "records"), ("HEIMDALL_CACHE", work / "cache"), ("HEIMDALL_RESULTS", work / "results"),
+                       ("HEIMDALL_MACHINE", machine)):
         monkeypatch.setenv(var, str(value))
     paths.reset()
     yield work, machine
@@ -104,7 +104,7 @@ def test_a_bad_folder_is_refused(roots, texts, message):
     work, _ = roots
     for name, text in texts.items():
         folder(work, name, text)
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         tools.folders()
 
 
@@ -148,8 +148,8 @@ values = [1, 2]
 tags   = ["a", "b"]
 """, encoding="utf-8")
     before = sorted(p for p in SHIPPED.rglob("*") if "__pycache__" not in p.parts)
-    done = subprocess.run([str(HEP), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, encoding="utf-8",
-                          timeout=300, env={k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"})
+    done = subprocess.run([str(HEIMDALL), "run", "P/c", "--plain"], cwd=work, capture_output=True, text=True, encoding="utf-8",
+                          timeout=300, env={k: v for k, v in os.environ.items() if k != "HEIMDALL_CONFIGS"})
     assert done.returncode == 0, done.stdout + done.stderr
     assert len(list((work / "results").rglob("x.txt"))) == 2
     assert sorted(p for p in SHIPPED.rglob("*") if "__pycache__" not in p.parts) == before

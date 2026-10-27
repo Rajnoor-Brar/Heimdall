@@ -1,7 +1,7 @@
 # tests/fixtures/work
 
 The tests' work dir (docs/framework/01_Target.md §5.7): a frozen copy of what the tests load. A test
-session syncs it into `forge/scratch/work/` and points `$HEP_WORK` there (tests/conftest.py), so the
+session syncs it into `forge/scratch/work/` and points `$HEIMDALL_WORK` there (tests/conftest.py), so the
 tests never read or write a real work dir, and a failure means the code changed, not a config.
 
 - `configs/`: the run TOMLs and cards, frozen from High-Energy's `configs/` at commit `0e05885`
@@ -12,10 +12,10 @@ tests never read or write a real work dir, and a failure means the code changed,
   build Decay.exe, InprocJets.exe and the photo_eic, DecayRiv and particle_spectra plugins.
 - `datasets/jets_data.yoda`: High-Energy's (sha256 `625723465b10ea69…`), the one dataset the plot
   tests name.
-- `Makefile`: the work-dir template's (`include $(HEP)/framework/work.mk`), so `work_built` can make it.
-- Changed with Heimdall's seam (P2 task 2): `jets.toml`'s `{repo}` is `{work}` (what `hep migrate` writes),
-  and `delphes_jets.py` finds hepkit under `$HEP/framework`, as a migrated module does.
-- `hep.toml`: the marker. The walk-up search skips it (it lies under `tests/`); only `$HEP_WORK`
+- `Makefile`: the work-dir template's (`include $(HEIMDALL)/framework/work.mk`), so `work_built` can make it.
+- Changed with Heimdall's seam (P2 task 2): `jets.toml`'s `{repo}` is `{work}` (what `heimdall migrate` writes),
+  and `delphes_jets.py` finds heimdallkit under `$HEIMDALL/framework`, as a migrated module does.
+- `heimdall.toml`: the marker. The walk-up search skips it (it lies under `tests/`); only `$HEIMDALL_WORK`
   finds it.
 
 Change a fixture only together with the test that needs the change. Never sync it from a work dir

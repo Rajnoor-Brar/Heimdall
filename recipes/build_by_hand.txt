@@ -17,8 +17,8 @@
 # STEP 0 — the variables and a helper (paste in every new terminal)
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
-export HEP=$HOME/Github/Heimdall                      # Heimdall: everything goes into it
-export SRC=$HEP/stash BUILD=$HEP/forge HEP_INSTALL=$HEP/stack VENV=$HEP/env/venv
+export HEIMDALL=$HOME/Github/Heimdall                      # Heimdall: everything goes into it
+export SRC=$HEIMDALL/stash BUILD=$HEIMDALL/forge HEIMDALL_INSTALL=$HEIMDALL/stack VENV=$HEIMDALL/env/venv
 export CORES=$(nproc)                                 # compilers at once: make -j$CORES
 export ROOT_CORES=$(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 3000000 ))   # ROOT: one per 3 GB RAM
 [ "$ROOT_CORES" -ge 1 ] || ROOT_CORES=1; [ "$ROOT_CORES" -le "$CORES" ] || ROOT_CORES=$CORES
@@ -26,14 +26,14 @@ export CXXFLAGS="-O2 -std=c++17"                      # one C++ standard for the
 export PY=$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')      # e.g. 3.12
 export PYINC=$(python3 -c 'import sysconfig; print(sysconfig.get_paths()["include"])')
 export VIRTUAL_ENV=$VENV
-export LHAPDF_DATA_PATH=$HEP_INSTALL/LHAPDF/share/LHAPDF
+export LHAPDF_DATA_PATH=$HEIMDALL_INSTALL/LHAPDF/share/LHAPDF
 for d in LHAPDF hepmc3 fastjet root yoda rivet pythia8 herwig7 delphes sherpa whizard geant4; do
-    export PATH=$HEP_INSTALL/$d/bin:$PATH
-    export LD_LIBRARY_PATH=$HEP_INSTALL/$d/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
-    export PYTHONPATH=$HEP_INSTALL/$d/lib/python$PY/site-packages${PYTHONPATH:+:$PYTHONPATH}
+    export PATH=$HEIMDALL_INSTALL/$d/bin:$PATH
+    export LD_LIBRARY_PATH=$HEIMDALL_INSTALL/$d/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+    export PYTHONPATH=$HEIMDALL_INSTALL/$d/lib/python$PY/site-packages${PYTHONPATH:+:$PYTHONPATH}
 done
 export PATH=$VENV/bin:$PATH
-mkdir -p "$SRC" "$BUILD" "$HEP_INSTALL"
+mkdir -p "$SRC" "$BUILD" "$HEIMDALL_INSTALL"
 
 # get NAME URL: download a tarball into $SRC (once) and unpack it, fresh, into $SRC/NAME
 get() {
@@ -41,7 +41,7 @@ get() {
     rm -rf "$SRC/$1" && mkdir -p "$SRC/$1" && tar xf "$SRC/$1.tar" -C "$SRC/$1" --strip-components=1
 }
 
-echo "HEP=$HEP  cores=$CORES  ROOT cores=$ROOT_CORES  python=$PY"
+echo "HEIMDALL=$HEIMDALL  cores=$CORES  ROOT cores=$ROOT_CORES  python=$PY"
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
@@ -71,7 +71,7 @@ cmake --version | head -1 && gfortran --version | head -1
 python3 -m venv --prompt HEP "$VENV"                 # the shell shows (HEP) while it is active
 "$VENV/bin/pip" install numpy cython tomli_w rich pyyaml pillow matplotlib uproot awkward pytest
 # check:
-"$VENV/bin/python" "$HEP/recipes/pth.py" "$HEP"         # heimdall.pth: framework/ on the venv's path
+"$VENV/bin/python" "$HEIMDALL/recipes/pth.py" "$HEIMDALL"         # heimdall.pth: framework/ on the venv's path
 "$VENV/bin/python" -c 'import numpy, tomli_w, rich, uproot; print("venv OK")'
 
 
@@ -81,7 +81,7 @@ python3 -m venv --prompt HEP "$VENV"                 # the shell shows (HEP) whi
 
 get lhapdf "https://lhapdf.hepforge.org/downloads/?f=LHAPDF-6.5.6.tar.gz"
 cd "$SRC/lhapdf"
-./configure --prefix="$HEP_INSTALL/LHAPDF"
+./configure --prefix="$HEIMDALL_INSTALL/LHAPDF"
 make -j"$CORES" && make install
 # check:
 lhapdf-config --version
@@ -92,7 +92,7 @@ lhapdf-config --version
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
 get hepmc3 "https://hepmc.web.cern.ch/hepmc/releases/HepMC3-3.3.1.tar.gz"
-cmake -S "$SRC/hepmc3" -B "$BUILD/hepmc3" -DCMAKE_INSTALL_PREFIX="$HEP_INSTALL/hepmc3" \
+cmake -S "$SRC/hepmc3" -B "$BUILD/hepmc3" -DCMAKE_INSTALL_PREFIX="$HEIMDALL_INSTALL/hepmc3" \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 \
     -DHEPMC3_ENABLE_PYTHON=ON -DHEPMC3_PYTHON_VERSIONS="$PY" \
     -DHEPMC3_Python_SITEARCH"${PY/./}"="$VENV/lib/python$PY/site-packages" \
@@ -108,9 +108,9 @@ HepMC3-config --version && python -c 'import pyHepMC3; print("pyHepMC3 OK")'
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
 get fastjet "https://fastjet.fr/repo/fastjet-3.5.0.tar.gz"
-patch -d "$SRC/fastjet" -p0 -i "$HEP/recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch"
+patch -d "$SRC/fastjet" -p0 -i "$HEIMDALL/recipes/patches/fastjet-3.5.0-siscone-thread-local-ranlux.patch"
 cd "$SRC/fastjet"
-./configure --prefix="$HEP_INSTALL/fastjet" --enable-shared --enable-allcxxplugins
+./configure --prefix="$HEIMDALL_INSTALL/fastjet" --enable-shared --enable-allcxxplugins
 make -j"$CORES" && make install
 # check (the patch: 2 lines):
 fastjet-config --version && grep -c thread_local "$SRC/fastjet/plugins/SISCone/siscone/siscone/ranlux.cpp"
@@ -122,11 +122,11 @@ fastjet-config --version && grep -c thread_local "$SRC/fastjet/plugins/SISCone/s
 
 get fjcontrib "https://fastjet.hepforge.org/contrib/downloads/fjcontrib-1.104.tar.gz"
 cd "$SRC/fjcontrib"
-./configure --prefix="$HEP_INSTALL/fastjet" --fastjet-config="$HEP_INSTALL/fastjet/bin/fastjet-config" \
+./configure --prefix="$HEIMDALL_INSTALL/fastjet" --fastjet-config="$HEIMDALL_INSTALL/fastjet/bin/fastjet-config" \
     CXXFLAGS="$CXXFLAGS -fPIC"
 make -j"$CORES" && make install && make fragile-shared-install
 # check:
-ls "$HEP_INSTALL/fastjet/lib/libfastjetcontribfragile.so"
+ls "$HEIMDALL_INSTALL/fastjet/lib/libfastjetcontribfragile.so"
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
@@ -135,7 +135,7 @@ ls "$HEP_INSTALL/fastjet/lib/libfastjetcontribfragile.so"
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
 get root "https://root.cern/download/root_v6.40.04.source.tar.gz"
-cmake -S "$SRC/root" -B "$BUILD/root" -DCMAKE_INSTALL_PREFIX="$HEP_INSTALL/root" \
+cmake -S "$SRC/root" -B "$BUILD/root" -DCMAKE_INSTALL_PREFIX="$HEIMDALL_INSTALL/root" \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 \
     -DPython3_EXECUTABLE="$VENV/bin/python" -Dpyroot=ON \
     -Dmathmore=ON -Droofit=ON -Dtmva=ON -Dfftw3=ON -Dsqlite=ON -Dxml=ON -Dgdml=ON \
@@ -153,7 +153,7 @@ root-config --version && python -c 'import ROOT; print("PyROOT OK", ROOT.__versi
 
 get yoda "https://yoda.hepforge.org/downloads?f=YODA-2.1.3.tar.gz"
 cd "$SRC/yoda"
-./configure --prefix="$HEP_INSTALL/yoda"
+./configure --prefix="$HEIMDALL_INSTALL/yoda"
 make -j"$CORES" && make install
 # check:
 yoda-config --version && python -c 'import yoda; print("yoda OK")'
@@ -165,8 +165,8 @@ yoda-config --version && python -c 'import yoda; print("yoda OK")'
 
 get rivet "https://rivet.hepforge.org/downloads/?f=Rivet-4.1.3.tar.gz"
 cd "$SRC/rivet"
-./configure --prefix="$HEP_INSTALL/rivet" --with-hepmc3="$HEP_INSTALL/hepmc3" --with-yoda="$HEP_INSTALL/yoda" \
-    --with-fastjet="$HEP_INSTALL/fastjet"
+./configure --prefix="$HEIMDALL_INSTALL/rivet" --with-hepmc3="$HEIMDALL_INSTALL/hepmc3" --with-yoda="$HEIMDALL_INSTALL/yoda" \
+    --with-fastjet="$HEIMDALL_INSTALL/fastjet"
 make -j"$CORES" && make install
 # check:
 rivet --version
@@ -178,8 +178,8 @@ rivet --version
 
 get pythia8 "https://pythia.org/download/pythia83/pythia8317.tgz"
 cd "$SRC/pythia8"
-./configure --prefix="$HEP_INSTALL/pythia8" --with-lhapdf6="$HEP_INSTALL/LHAPDF" --with-hepmc3="$HEP_INSTALL/hepmc3" \
-    --with-fastjet3="$HEP_INSTALL/fastjet" --with-root="$HEP_INSTALL/root" --with-rivet="$HEP_INSTALL/rivet" \
+./configure --prefix="$HEIMDALL_INSTALL/pythia8" --with-lhapdf6="$HEIMDALL_INSTALL/LHAPDF" --with-hepmc3="$HEIMDALL_INSTALL/hepmc3" \
+    --with-fastjet3="$HEIMDALL_INSTALL/fastjet" --with-root="$HEIMDALL_INSTALL/root" --with-rivet="$HEIMDALL_INSTALL/rivet" \
     --with-python-bin="$VENV/bin/" --with-python-lib="$VENV/lib/python$PY" --with-python-include="$PYINC" \
     --cxx-common="$CXXFLAGS -fPIC"
 make -j"$CORES" && make install
@@ -193,11 +193,11 @@ pythia8-config --version
 
 get thepeg "https://thepeg.hepforge.org/downloads/?f=ThePEG-2.3.0.tar.bz2"
 cd "$SRC/thepeg"
-./configure --prefix="$HEP_INSTALL/herwig7" --with-hepmc="$HEP_INSTALL/hepmc3" --with-hepmcversion=3 \
-    --with-fastjet="$HEP_INSTALL/fastjet" --with-lhapdf="$HEP_INSTALL/LHAPDF"
+./configure --prefix="$HEIMDALL_INSTALL/herwig7" --with-hepmc="$HEIMDALL_INSTALL/hepmc3" --with-hepmcversion=3 \
+    --with-fastjet="$HEIMDALL_INSTALL/fastjet" --with-lhapdf="$HEIMDALL_INSTALL/LHAPDF"
 make -j"$CORES" && make install
 # check:
-ls "$HEP_INSTALL/herwig7/bin/setupThePEG"
+ls "$HEIMDALL_INSTALL/herwig7/bin/setupThePEG"
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
@@ -207,8 +207,8 @@ ls "$HEP_INSTALL/herwig7/bin/setupThePEG"
 lhapdf install CT14lo CT14nlo
 get herwig "https://herwig.hepforge.org/downloads/?f=Herwig-7.3.0.tar.bz2"
 cd "$SRC/herwig"
-./configure --prefix="$HEP_INSTALL/herwig7" --with-thepeg="$HEP_INSTALL/herwig7" --with-fastjet="$HEP_INSTALL/fastjet" \
-    --with-lhapdf="$HEP_INSTALL/LHAPDF"
+./configure --prefix="$HEIMDALL_INSTALL/herwig7" --with-thepeg="$HEIMDALL_INSTALL/herwig7" --with-fastjet="$HEIMDALL_INSTALL/fastjet" \
+    --with-lhapdf="$HEIMDALL_INSTALL/LHAPDF"
 make -j"$CORES" && make install
 # check:
 Herwig --version
@@ -219,12 +219,12 @@ Herwig --version
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
 get delphes "https://github.com/delphes/delphes/archive/refs/tags/3.5.1.tar.gz"
-PYTHIA8="$HEP_INSTALL/pythia8" cmake -S "$SRC/delphes" -B "$BUILD/delphes" \
-    -DCMAKE_INSTALL_PREFIX="$HEP_INSTALL/delphes" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 \
-    -DROOT_DIR="$HEP_INSTALL/root/cmake"
+PYTHIA8="$HEIMDALL_INSTALL/pythia8" cmake -S "$SRC/delphes" -B "$BUILD/delphes" \
+    -DCMAKE_INSTALL_PREFIX="$HEIMDALL_INSTALL/delphes" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 \
+    -DROOT_DIR="$HEIMDALL_INSTALL/root/cmake"
 cmake --build "$BUILD/delphes" -j"$CORES" && cmake --install "$BUILD/delphes"
 # check:
-ls "$HEP_INSTALL/delphes/bin/DelphesHepMC3"
+ls "$HEIMDALL_INSTALL/delphes/bin/DelphesHepMC3"
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
@@ -243,11 +243,11 @@ lhapdf list --installed | wc -l
 # STEP 15 — the environment for every later session: Heimdall's gjallarhorn.sh (tracked; nothing to write)
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
-"$HEP/framework/bin/bifrost" --shell install      # gjallarhorn [title] and bifrost, into ~/.bashrc (a marked block)
+"$HEIMDALL/framework/bin/bifrost" --shell install      # gjallarhorn [title] and bifrost, into ~/.bashrc (a marked block)
 # check, in a NEW terminal:
 #   gjallarhorn && heimdall_status
 # then the framework's apps and tests:
-#   heimdall build --framework && make -C "$HEP" test
+#   heimdall build --framework && make -C "$HEIMDALL" test
 
 # ── The core stack is done here. The rest is optional (packages = "all"). ────────────────────────
 
@@ -257,12 +257,12 @@ lhapdf list --installed | wc -l
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
 get sherpa "https://gitlab.com/sherpa-team/sherpa/-/archive/v3.0.5/sherpa-v3.0.5.tar.gz"
-cmake -S "$SRC/sherpa" -B "$BUILD/sherpa" -DCMAKE_INSTALL_PREFIX="$HEP_INSTALL/sherpa" \
+cmake -S "$SRC/sherpa" -B "$BUILD/sherpa" -DCMAKE_INSTALL_PREFIX="$HEIMDALL_INSTALL/sherpa" \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 \
-    -DSHERPA_ENABLE_HEPMC3=ON -DHepMC3_DIR="$HEP_INSTALL/hepmc3/share/HepMC3/cmake" \
-    -DSHERPA_ENABLE_RIVET=ON -DRIVET_DIR="$HEP_INSTALL/rivet" \
-    -DSHERPA_ENABLE_FASTJET=ON -DFASTJET_DIR="$HEP_INSTALL/fastjet" \
-    -DSHERPA_ENABLE_LHAPDF=ON -DLHAPDF_DIR="$HEP_INSTALL/LHAPDF" \
+    -DSHERPA_ENABLE_HEPMC3=ON -DHepMC3_DIR="$HEIMDALL_INSTALL/hepmc3/share/HepMC3/cmake" \
+    -DSHERPA_ENABLE_RIVET=ON -DRIVET_DIR="$HEIMDALL_INSTALL/rivet" \
+    -DSHERPA_ENABLE_FASTJET=ON -DFASTJET_DIR="$HEIMDALL_INSTALL/fastjet" \
+    -DSHERPA_ENABLE_LHAPDF=ON -DLHAPDF_DIR="$HEIMDALL_INSTALL/LHAPDF" \
     -DSHERPA_ENABLE_INTERNAL_PDFS=ON -DSHERPA_ENABLE_EXAMPLES=ON
 cmake --build "$BUILD/sherpa" -j"$CORES" && cmake --install "$BUILD/sherpa"
 # check:
@@ -276,15 +276,15 @@ Sherpa --version | head -1
 
 [ -s "$SRC/madgraph.tar" ] || wget -O "$SRC/madgraph.tar" \
     "https://launchpad.net/mg5amcnlo/3.0/3.7.x/+download/MG5_aMC_v3.7.3.tar.gz"
-rm -rf "$HEP_INSTALL/madgraph" && mkdir -p "$HEP_INSTALL/madgraph"
-tar xf "$SRC/madgraph.tar" -C "$HEP_INSTALL/madgraph" --strip-components=1
+rm -rf "$HEIMDALL_INSTALL/madgraph" && mkdir -p "$HEIMDALL_INSTALL/madgraph"
+tar xf "$SRC/madgraph.tar" -C "$HEIMDALL_INSTALL/madgraph" --strip-components=1
 sed -i.orig \
-    -e "s|^#* *lhapdf *=.*|lhapdf = $HEP_INSTALL/LHAPDF/bin/lhapdf-config|" \
-    -e "s|^#* *pythia8_path *=.*|pythia8_path = $HEP_INSTALL/pythia8|" \
+    -e "s|^#* *lhapdf *=.*|lhapdf = $HEIMDALL_INSTALL/LHAPDF/bin/lhapdf-config|" \
+    -e "s|^#* *pythia8_path *=.*|pythia8_path = $HEIMDALL_INSTALL/pythia8|" \
     -e "s|^#* *automatic_html_opening *=.*|automatic_html_opening = False|" \
-    "$HEP_INSTALL/madgraph/input/mg5_configuration.txt"
+    "$HEIMDALL_INSTALL/madgraph/input/mg5_configuration.txt"
 # check:
-cat "$HEP_INSTALL/madgraph/VERSION" | head -2
+cat "$HEIMDALL_INSTALL/madgraph/VERSION" | head -2
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
@@ -293,8 +293,8 @@ cat "$HEP_INSTALL/madgraph/VERSION" | head -2
 
 get whizard "https://whizard.hepforge.org/downloads/?f=whizard-3.1.8.tar.gz"
 cd "$SRC/whizard"
-./configure --prefix="$HEP_INSTALL/whizard" --enable-lhapdf --enable-hepmc --with-hepmc="$HEP_INSTALL/hepmc3" \
-    --enable-fastjet --with-fastjet="$HEP_INSTALL/fastjet" --enable-pythia8 --with-pythia8="$HEP_INSTALL/pythia8" \
+./configure --prefix="$HEIMDALL_INSTALL/whizard" --enable-lhapdf --enable-hepmc --with-hepmc="$HEIMDALL_INSTALL/hepmc3" \
+    --enable-fastjet --with-fastjet="$HEIMDALL_INSTALL/fastjet" --enable-pythia8 --with-pythia8="$HEIMDALL_INSTALL/pythia8" \
     --disable-dependency-tracking FC=gfortran
 make -j"$CORES" && make install
 # check:
@@ -307,10 +307,10 @@ whizard --version | head -1
 
 [ -s "$SRC/onnxruntime.tar" ] || wget -O "$SRC/onnxruntime.tar" \
     "https://github.com/microsoft/onnxruntime/releases/download/v1.29.0/onnxruntime-linux-x64-1.29.0.tgz"
-rm -rf "$HEP_INSTALL/onnxruntime" && mkdir -p "$HEP_INSTALL/onnxruntime"
-tar xf "$SRC/onnxruntime.tar" -C "$HEP_INSTALL/onnxruntime" --strip-components=1
+rm -rf "$HEIMDALL_INSTALL/onnxruntime" && mkdir -p "$HEIMDALL_INSTALL/onnxruntime"
+tar xf "$SRC/onnxruntime.tar" -C "$HEIMDALL_INSTALL/onnxruntime" --strip-components=1
 # check:
-ls "$HEP_INSTALL"/onnxruntime/lib/libonnxruntime.so*
+ls "$HEIMDALL_INSTALL"/onnxruntime/lib/libonnxruntime.so*
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
@@ -319,7 +319,7 @@ ls "$HEP_INSTALL"/onnxruntime/lib/libonnxruntime.so*
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 
 get geant4 "https://github.com/Geant4/geant4/archive/refs/tags/v11.4.2.tar.gz"
-cmake -S "$SRC/geant4" -B "$BUILD/geant4" -DCMAKE_INSTALL_PREFIX="$HEP_INSTALL/geant4" \
+cmake -S "$SRC/geant4" -B "$BUILD/geant4" -DCMAKE_INSTALL_PREFIX="$HEIMDALL_INSTALL/geant4" \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17 \
     -DGEANT4_BUILD_MULTITHREADED=ON -DGEANT4_INSTALL_DATA=ON -DGEANT4_USE_GDML=ON \
     -DGEANT4_USE_OPENGL_X11=ON -DGEANT4_USE_SYSTEM_CLHEP=OFF -DGEANT4_USE_SYSTEM_EXPAT=OFF \
@@ -333,4 +333,4 @@ geant4-config --version
 # Cleaning up (optional, once everything works): the sources and build trees, ~15 GB
 # ═════════════════════════════════════════════════════════════════════════════════════════════════
 #
-#   rm -rf "$HEP/src" "$HEP/build"
+#   rm -rf "$HEIMDALL/src" "$HEIMDALL/build"

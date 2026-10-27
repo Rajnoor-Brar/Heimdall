@@ -1,4 +1,4 @@
-# recipes.toml — this machine's own recipes, in its machine root (~/Himinbjorg, or $HEP_MACHINE). Written
+# recipes.toml — this machine's own recipes, in its machine root (~/Himinbjorg, or $HEIMDALL_MACHINE). Written
 # once from recipes/recipes.template.toml (by build_stack.py); yours to edit; never in git.
 #
 # The same [packages.<name>] tables as recipes/toolkits/standard.toml (its header says every key), laid

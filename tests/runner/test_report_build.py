@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from runner import report, statstable
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 TOOLS = all(shutil.which(t) for t in ("pdflatex", "pdftoppm", "pdfinfo", "pdftotext"))
 pytestmark = pytest.mark.skipif(not TOOLS, reason="pdflatex and poppler make and read the report")
@@ -100,8 +100,8 @@ def source(results: Path, name: str, png: bool) -> Path:
 
 @pytest.fixture
 def trees(tmp_path, monkeypatch):
-    for var in ("HEP_RESULTS", "HEP_RECORDS", "HEP_CONFIGS", "HEP_REPORTS", "HEP_CACHE"):
-        monkeypatch.setenv(var, str(tmp_path / var.removeprefix("HEP_").lower()))
+    for var in ("HEIMDALL_RESULTS", "HEIMDALL_RECORDS", "HEIMDALL_CONFIGS", "HEIMDALL_REPORTS", "HEIMDALL_CACHE"):
+        monkeypatch.setenv(var, str(tmp_path / var.removeprefix("HEIMDALL_").lower()))
     monkeypatch.setenv("MPLCONFIGDIR", str(tmp_path / "mpl"))
     source(tmp_path / "results", "01_pdf", png=True)
     source(tmp_path / "results", "02_more", png=False)                  # its PNGs rendered from its PDFs
@@ -203,7 +203,7 @@ def test_a_compare_figures_pages_are_copied_from_its_run(trees):
 
 def test_a_report_is_never_built_into_results(trees):
     plan = report.planned("P/validation/01_pdf", [], trees / "results" / "P" / "here")
-    with pytest.raises(HepError, match="never built into results"):
+    with pytest.raises(HeimdallError, match="never built into results"):
         report.build(plan, print)
 
 

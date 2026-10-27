@@ -1,14 +1,14 @@
-"""framework/hepkit.py — the C++ kit (src/Kit.hh, Status.hh) for a custom tool written in Python (V74).
+"""framework/heimdallkit.py — the C++ kit (src/Kit.hh, Status.hh) for a custom tool written in Python (V74).
 
 A custom tool is any program; this module gives one written in Python what the apps have:
 
-    import hepkit                            # Heimdall's venv has framework/ on its path (heimdall.pth)
+    import heimdallkit                            # Heimdall's venv has framework/ on its path (heimdall.pth)
 
-    status = hepkit.Status()                 # JSON lines on $HEP_STATUS_FD (status = "standard"), else stderr
+    status = heimdallkit.Status()                 # JSON lines on $HEIMDALL_STATUS_FD (status = "standard"), else stderr
     status.phase("reading", source)
     status.progress(done, total, rate)
-    hepkit.report(output, events=n, …)       # <output>.json, written whole (.part, then renamed)
-    sys.exit(hepkit.Exit.OK)
+    heimdallkit.report(output, events=n, …)       # <output>.json, written whole (.part, then renamed)
+    sys.exit(heimdallkit.Exit.OK)
 
 * `Exit`: the one exit-code table (0 ok, 1 config, 2 usage, 3 init, 4 input, 5 output, 6 stopped,
   70 internal), Kit::Exit's.
@@ -19,7 +19,7 @@ A custom tool is any program; this module gives one written in Python what the a
   is written, exit `Exit.STOPPED`.
 * `usage(text)`: print it and exit `Exit.USAGE`.
 
-Standard library only. Another Python finds it with `sys.path.insert(0, os.environ["HEP"] + "/framework")`:
+Standard library only. Another Python finds it with `sys.path.insert(0, os.environ["HEIMDALL"] + "/framework")`:
 framework/ shadows nothing (the tool folders, named like the yoda and rivet packages, are in framework/tools/).
 """
 
@@ -68,7 +68,7 @@ class Status:
     """The standard status protocol, as src/Status.hh writes it."""
 
     def __init__(self, beat: float = 0.5, signals: bool = True):
-        value = os.environ.get("HEP_STATUS_FD")
+        value = os.environ.get("HEIMDALL_STATUS_FD")
         self.fd = int(value) if value and value.lstrip("-").isdigit() and int(value) >= 0 else -1
         if self.fd >= 0:
             os.set_blocking(self.fd, False)
@@ -81,7 +81,7 @@ class Status:
             signal.signal(signal.SIGINT, _on_signal)
             signal.signal(signal.SIGTERM, _on_signal)
         if beat > 0 and self.fd >= 0:
-            threading.Thread(target=self._beat, args=(beat,), name="hepkit-heartbeat", daemon=True).start()
+            threading.Thread(target=self._beat, args=(beat,), name="heimdallkit-heartbeat", daemon=True).start()
 
     @property
     def structured(self) -> bool:

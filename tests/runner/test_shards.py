@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from runner import plot, record
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from helpers import plan, raw
 
@@ -75,7 +75,7 @@ def test_other_outputs_still_get_every_event(scratch):
 
 def test_an_output_path_with_a_separator_is_refused(scratch):
     """`+` and `,` separate App_Pythia's outputs: a path holding one would be split into others."""
-    with pytest.raises(HepError, match="contains ',' or '\\+'"):
+    with pytest.raises(HeimdallError, match="contains ',' or '\\+'"):
         plan(sharded(2, run__cfgs__one__sweeps=["q"], quantities__q={"key": {"pythia": "MultipartonInteractions:pT0Ref"},
                                                                  "values": [3.0, 3.2], "tags": ["a+b", "c"]}), scratch)
 
@@ -90,5 +90,5 @@ def test_an_output_path_with_a_separator_is_refused(scratch):
      "neither a FIFO nor a file of the point"),
 ])
 def test_what_cannot_be_sharded_is_refused(scratch, changes, message):
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         plan(raw(**changes), scratch)

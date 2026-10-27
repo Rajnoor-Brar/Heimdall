@@ -9,15 +9,15 @@
 | `Rivet/DecayRiv.cc` | the same as a Rivet analysis: `decayriv.yoda`, options `MASSTOL`, `COSTHETATOL`, `RESERVED`, … |
 
 ```bash
-hep build
+heimdall build
 ```
 
 ```bash
-hep run Decay/decay              # one run at 7 TeV: decay.root, decayriv.yoda, decayriv.root
+heimdall run Decay/decay              # one run at 7 TeV: decay.root, decayriv.yoda, decayriv.root
 ```
 
 ```bash
-hep run Decay/decay masswindow   # the mass window swept through both paths
+heimdall run Decay/decay masswindow   # the mass window swept through both paths
 ```
 
 `configs/Decay/decay.toml` holds the cuts: the module's under `[tools.decay.config]`, and

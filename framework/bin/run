@@ -10,11 +10,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))       # framework/: the runner package
 
-from runner.errors import HepError  # noqa: E402
+from runner.errors import HeimdallError  # noqa: E402
 
 try:
     from runner.cli import main  # noqa: E402
-except HepError as error:            # raised while loading: another Heimdall's $HEP, a broken schema file
+except HeimdallError as error:            # raised while loading: another Heimdall's $HEIMDALL, a broken schema file
     print(error.render(), file=sys.stderr)
     sys.exit(2)
 

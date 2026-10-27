@@ -19,7 +19,7 @@ eval "$(python3 "$here/stack.py" --bash)" || { echo "flags.sh: cannot read env/s
 key() {
     local t
     for t in "${TOOLS[@]}"; do printf '%s=%s;' "$t" "$(command -v "$t" || echo -)"; done
-    printf 'HEP_INSTALL=%s;ONNXRUNTIME_DIR=%s;DELPHES_DIR=%s;PKG_CONFIG_PATH=%s;STACK=%s' "${HEP_INSTALL-}" \
+    printf 'HEIMDALL_INSTALL=%s;ONNXRUNTIME_DIR=%s;DELPHES_DIR=%s;PKG_CONFIG_PATH=%s;STACK=%s' "${HEIMDALL_INSTALL-}" \
         "${ONNXRUNTIME_DIR-}" "${DELPHES_DIR-}" "${PKG_CONFIG_PATH-}" "$STACK"
 }
 

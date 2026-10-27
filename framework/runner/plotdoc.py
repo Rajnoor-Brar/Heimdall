@@ -28,7 +28,7 @@ import tomli_w
 
 from . import schema
 from .config import Quantity, check_read_for
-from .errors import HepError
+from .errors import HeimdallError
 from .paths import cache_root, records_root, results_root
 from .plot import DEFAULT, Member, data_source, style_file, yoda_of
 from .sweep import Listed, Point
@@ -407,9 +407,9 @@ def known(run, configuration, members: list) -> dict:
     from .record import config_name
     names = {q for m in members for q in m.values}
     static = static_values(run, configuration) if hasattr(configuration, "tools") else {}
-    from .paths import hep_root
+    from .paths import heimdall_root
     from .record import git_state
-    revision = git_state(hep_root()).get("revision", "")
+    revision = git_state(heimdall_root()).get("revision", "")
     results = members[0].folders.results if members else None
     return {
         "source": {"config": config_name(run) if hasattr(run, "imported") else run.source.get("config", ""),
@@ -444,7 +444,7 @@ def write(run, configuration, members: list) -> tuple[Path | None, list[str]]:
         try:
             kept = tomllib.loads(target.read_text(encoding="utf-8"))
         except (OSError, tomllib.TOMLDecodeError) as error:
-            raise HepError(f"the plot document cannot be read: {error}", where=str(target),
+            raise HeimdallError(f"the plot document cannot be read: {error}", where=str(target),
                            hint="fix it, or remove it: the next run writes it again from the config") from None
         if "plot" in kept or "stats" in kept:
             if (kept.get("plot", {}), kept.get("stats", {})) != (plot, stats):
@@ -508,15 +508,15 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
     except OSError as error:
-        raise HepError(f"no plot document: {error.strerror}", where=str(path),
+        raise HeimdallError(f"no plot document: {error.strerror}", where=str(path),
                        hint="a run writes it; heimdall migrate --plot-docs writes one for a run made before") from None
     except tomllib.TOMLDecodeError as error:
-        raise HepError(f"the plot document cannot be read: {error}", where=str(path)) from None
+        raise HeimdallError(f"the plot document cannot be read: {error}", where=str(path)) from None
     if "members" not in data and "from" in data:             # the runs of a run TOML together (V169)
         return load_across(path, data, folders)
     missing = [t for t in ("source", "axes", "members") if t not in data]
     if missing:
-        raise HepError(f"the plot document has no [{missing[0]}]", where=str(path),
+        raise HeimdallError(f"the plot document has no [{missing[0]}]", where=str(path),
                        hint="a run writes it whole; heimdall migrate --plot-docs writes it again")
     source, axes = data["source"], data["axes"]
     quantities = {name: _quantity_of(name, table) for name, table in data.get("quantities", {}).items()}
@@ -556,7 +556,7 @@ def find(name: str) -> Path | None:
     from .record import record_of
     try:
         found = record_of(name, need_snapshot=False)
-    except HepError:
+    except HeimdallError:
         return None
     if found is None:
         return None
@@ -638,11 +638,11 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
     source, wanted = dict(data.get("source", {})), dict(data.get("from", {}))
     globs, prefer = list(wanted.get("runs", ["*"])), wanted.get("prefer", "last")
     if prefer not in ("last", "all"):
-        raise HepError(f"[from].prefer is \"last\" or \"all\", not {prefer!r}", where=f"{path}: [from].prefer")
+        raise HeimdallError(f"[from].prefer is \"last\" or \"all\", not {prefer!r}", where=f"{path}: [from].prefer")
     folder = path.parent
     runs = [d for d in sorted(folder.iterdir()) if d.is_dir() and (d / FILE).is_file() and any(fnmatch.fnmatchcase(d.name, g) for g in globs)]
     if not runs:
-        raise HepError(f"no run beside {path} has a plot document", where=f"{path}: [from].runs",
+        raise HeimdallError(f"no run beside {path} has a plot document", where=f"{path}: [from].runs",
                        hint="heimdall migrate --plot-docs writes them; runs = [\"04_*\", …] names them")
     loaded = [(d.name, *load(d / FILE)) for d in runs]
     usual = {}                                               # a run's event count: what its members ran with

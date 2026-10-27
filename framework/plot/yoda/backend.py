@@ -35,7 +35,7 @@ import sys
 import tomllib
 from pathlib import Path
 
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from runner.hepfiles import base_path
 from runner.labels import canonical, mathtext
 from runner.paths import work_build
@@ -53,10 +53,10 @@ def validate(settings: dict, beside_root: bool = False, curve_styles: list[dict]
     for look in curve_styles:                         # V67: matplotlib takes #rrggbb, not ROOT's names
         colour = look.get("colour")
         if colour is not None and not re.fullmatch(r"#[0-9A-Fa-f]{6}", str(colour)):
-            raise HepError(f"the yoda backend cannot draw the curve colour {colour!r}", where="[quantities].styles",
+            raise HeimdallError(f"the yoda backend cannot draw the curve colour {colour!r}", where="[quantities].styles",
                            hint='write it as "#rrggbb", which both backends draw')
     if "root_style" in settings and not beside_root:
-        raise HepError('[plot].root_style cannot be honoured by backend = "yoda"', where="[plot].root_style", hint=hint)
+        raise HeimdallError('[plot].root_style cannot be honoured by backend = "yoda"', where="[plot].root_style", hint=hint)
     layers = [("[plot.style]", settings.get("style", {}))] + [
         (f'[plot.figures.{key}].style', table.get("style", {})) for key, table in settings.get("figures", {}).items()]
     for where, layer in layers:
@@ -67,7 +67,7 @@ def validate(settings: dict, beside_root: bool = False, curve_styles: list[dict]
                 placed = (table, key) == ("legend", "position") and (not isinstance(value, str) or value not in LEGEND)
                 if placed or (not beside_root and (table, key) not in HONOURED):
                     name = f"{table}.{key}" if key else table
-                    raise HepError(f'{where} {name} cannot be honoured by backend = "yoda"', where=where,
+                    raise HeimdallError(f'{where} {name} cannot be honoured by backend = "yoda"', where=where,
                                    hint=hint + " (only legend.position, text.legend, text.header and ratio.divisions, range and limits carry over)")
 
 
@@ -98,7 +98,7 @@ def _voided(yoda, source: Path, pages: list, target: Path) -> Path:
 
 def _void(estimate, voided: list, source: Path) -> bool:
     if "Estimate" not in estimate.type():
-        raise HepError(f"cannot void bins of {estimate.path()}, a {estimate.type()}", where=str(source))
+        raise HeimdallError(f"cannot void bins of {estimate.path()}, a {estimate.type()}", where=str(source))
     for index in voided:
         estimate.bin(index).setVal(float("nan"))
         estimate.bin(index).rmErrs()

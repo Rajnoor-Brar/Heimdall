@@ -6,7 +6,7 @@ expand into points; for each point the runner writes every tool's native card, c
 through agreed files and FIFOs, runs them in order, watches them, checks what they made, and records
 it; after all points it draws the pages with ROOT (Paint) or rivet-mkhtml.
 
-Three places: **Heimdall** (`$HEP`: the framework), the **machine root** (`~/Himinbjorg`: the stack it runs
+Three places: **Heimdall** (`$HEIMDALL`: the framework), the **machine root** (`~/Himinbjorg`: the stack it runs
 on, its compiled apps) and your **work dirs**, as many as you like (`configs/`, `modules/`, `datasets/`, and what runs make:
 `records/` for what runs recorded and their working folders, `.cache/` for what can go, `results/` for products, `build/` for your compiled modules).
 

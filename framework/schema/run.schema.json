@@ -212,7 +212,7 @@
         "type": "array"
        },
        "generate_cards": {
-        "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4)",
+        "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4)",
         "type": "array",
         "items": {
          "type": "string"
@@ -373,7 +373,7 @@
      "type": "array"
     },
     "generate_cards": {
-     "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4)",
+     "description": "tools not in the chain whose cards and configs go into the point's context file\n\ntool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `\"<tag>:<product>\"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4)",
      "type": "array",
      "items": {
       "type": "string"
@@ -404,7 +404,7 @@
      }
     },
     "commands": {
-     "description": "commands run in the point's folder before the tools\n\nrun in the point's output directory; output to the point's `prelim.log`; a nonzero exit fails the point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}`",
+     "description": "commands run in the point's folder before the tools\n\nrun in the point's output directory; output to the point's `prelim.log`; a nonzero exit fails the point. Placeholders: `{work}`, `{heimdall}`, `{out}`, `{res}`, `{file:<name>}`",
      "type": "array"
     }
    },
@@ -463,7 +463,7 @@
       "minimum": 0
      },
      "status": {
-      "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
+      "description": "how its progress is read: the status protocol, its log's filter rules, or not at all\n\n`\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`",
       "type": "string",
       "enum": [
        "standard",

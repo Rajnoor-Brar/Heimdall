@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from helpers import plan, raw
 
@@ -65,12 +65,12 @@ def test_an_inline_analysis_option_beats_the_tables_options(scratch):
 def test_c6_a_fifo_into_a_non_streamable_tool_is_refused(scratch):
     data = raw(tools__rivet=None, run__cfgs__one__tools=[["pythia", "slow"]],
                tools__slow={**CUSTOM, "input": "events.hepmc", "streamable": False})
-    with pytest.raises(HepError, match="cannot read a FIFO"):
+    with pytest.raises(HeimdallError, match="cannot read a FIFO"):
         plan(data, scratch)
 
 
 def test_c6_a_fifo_across_groups_is_refused(scratch):
-    with pytest.raises(HepError, match="across groups") as caught:
+    with pytest.raises(HeimdallError, match="across groups") as caught:
         plan(raw(run__cfgs__one__tools=["pythia", "rivet"]), scratch)
     assert "L8" in caught.value.hint
 
@@ -78,20 +78,20 @@ def test_c6_a_fifo_across_groups_is_refused(scratch):
 def test_c6_a_fifo_has_one_reader(scratch):
     data = raw(run__cfgs__one__tools=[["pythia", "rivet", "second"]],
                tools__second={**CUSTOM, "input": "events.hepmc"})
-    with pytest.raises(HepError, match="2 readers") as caught:
+    with pytest.raises(HeimdallError, match="2 readers") as caught:
         plan(data, scratch)
     assert "V16" in caught.value.hint
 
 
 def test_c6_a_fifo_needs_a_writer(scratch):
-    with pytest.raises(HepError, match="no writer"):
+    with pytest.raises(HeimdallError, match="no writer"):
         plan(raw(run__cfgs__one__tools=[["rivet"]]), scratch)
 
 
 def test_c6_an_output_has_one_writer(scratch):
     data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "again"],
                tools__again={**CUSTOM, "output_file": "jets.yoda"})
-    with pytest.raises(HepError, match="written by both"):
+    with pytest.raises(HeimdallError, match="written by both"):
         plan(data, scratch)
 
 
@@ -107,14 +107,14 @@ def test_fan_out_gives_each_reader_its_own_fifo(scratch):
 
 def test_c7_a_quantity_nobody_consumes_is_refused(scratch):
     data = raw(run__cfgs__one__sweeps=["nothing"], quantities__nothing={"values": [1, 2], "tags": ["a", "b"]})
-    with pytest.raises(HepError, match="no tool in this chain consumes it"):
+    with pytest.raises(HeimdallError, match="no tool in this chain consumes it"):
         plan(data, scratch)
 
 
 def test_c8_two_sources_for_one_key_are_refused(scratch):
     data = raw(static={"pdf": "MSTW08lo", "alias": "x"},
                quantities__alias={"values": ["x"], "key": {"pythia": "PDF:pSet"}})
-    with pytest.raises(HepError, match="set by both"):
+    with pytest.raises(HeimdallError, match="set by both"):
         plan(data, scratch)
 
 
@@ -126,7 +126,7 @@ def context_of(p) -> dict:
 
 
 def test_the_context_file_gives_every_tool_its_card_and_config(scratch):
-    """04 §9.4: one file per point, the chain's tools in it; reached by $HEP_CONTEXT or {context}."""
+    """04 §9.4: one file per point, the chain's tools in it; reached by $HEIMDALL_CONTEXT or {context}."""
     data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"],
                tools__probe={**CUSTOM, "config": {"model": "gauss"}, "arguments": ["{context}", "{context:pythia.card}"]})
     _, _, p = plan(data, scratch)
@@ -156,18 +156,18 @@ def test_generate_cards_renders_a_tool_without_running_it(scratch):
 def test_a_product_is_asked_for_by_tag_and_name(scratch):
     data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"],
                run__cfgs__one__generate_cards=["pythia:run"], tools__probe=dict(CUSTOM))
-    with pytest.raises(HepError, match="pythia makes no product 'run'") as caught:
+    with pytest.raises(HeimdallError, match="pythia makes no product 'run'") as caught:
         plan(data, scratch)
     assert '"pythia" alone' in caught.value.hint
     data = raw(run__cfgs__one__tools=[["pythia", "rivet"]], run__cfgs__one__generate_cards=["nope"])
-    with pytest.raises(HepError, match="generate_cards names 'nope'"):
+    with pytest.raises(HeimdallError, match="generate_cards names 'nope'"):
         plan(data, scratch)
 
 
 @pytest.mark.parametrize("key", ["pythia_cmnd", "rivet_analyses", "pythia_card"])
 def test_the_export_keys_are_retired_with_a_way_on(scratch, key):
     data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={**CUSTOM, key: True})
-    with pytest.raises(HepError, match=f"'{key}' is retired") as caught:
+    with pytest.raises(HeimdallError, match=f"'{key}' is retired") as caught:
         plan(data, scratch)
     assert "generate_cards" in caught.value.hint and "heimdall migrate" in caught.value.hint
 
@@ -186,7 +186,7 @@ def test_a_custom_tool_gets_its_config_and_consumed_quantities(scratch):
 
 def test_a_bare_executable_must_be_built_and_never_falls_back_to_path(scratch):
     data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={"tool": "exec", "executable": "true"})
-    with pytest.raises(HepError, match="is not built") as caught:
+    with pytest.raises(HeimdallError, match="is not built") as caught:
         plan(data, scratch)
     assert 'path:true' in caught.value.hint
 
@@ -196,7 +196,7 @@ def test_path_prefix_takes_the_command_from_path(scratch):
     _, _, p = plan(data, scratch)
     assert p.rendered["probe"].exe.name == "true" and p.rendered["probe"].exe.is_absolute()
     data["tools"]["probe"]["executable"] = "path:no-such-command-here"
-    with pytest.raises(HepError, match="is not a command on PATH"):
+    with pytest.raises(HeimdallError, match="is not a command on PATH"):
         plan(data, scratch)
 
 
@@ -235,9 +235,9 @@ def test_settings_reach_the_card_and_a_second_source_is_refused(scratch):
     _, _, p = plan(raw(tools__pythia__settings={"HeavyIon:mode": 1}), scratch)
     assert "HeavyIon:mode = 1" in p.writes[p.rendered["pythia"].card_point]
     data = raw(tools__pythia__settings={"PDF:pSet": 8}, run__cfgs__one__sweeps=["pdf"])
-    with pytest.raises(HepError, match="set by both"):
+    with pytest.raises(HeimdallError, match="set by both"):
         plan(data, scratch)
-    with pytest.raises(HepError, match="no card for settings"):
+    with pytest.raises(HeimdallError, match="no card for settings"):
         plan(raw(tools__rivet__settings={"x": 1}), scratch)
 
 
@@ -254,13 +254,13 @@ def test_a_tcl_comment_line_inside_braces_is_kept(scratch):
 def test_pythia_reads_the_card_and_a_rejected_line_names_its_source(scratch, monkeypatch):
     """V59: [checks] card. Pythia's own reader, so a nucleus or an id:new particle needs no list of ours."""
     from runner import tools
-    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEIMDALL_CACHE", str(scratch / "cache"))
     _, _, good = plan(raw(tools__pythia__settings={"9999999:new": "x void 1 0 0 1.0", "9999999:m0": 2.0,
                                                     "HeavyIon:mode": 1}), scratch)
     tools.check_cards(good)                                                 # no error: every line read
     _, _, bad = plan(raw(tools__pythia__settings={"PDF:pSett": 13}), scratch)
-    with pytest.raises(HepError, match=r"rejects 1 line.*'PDF:pSett = 13' \(\[tools.pythia\].settings\)"):
+    with pytest.raises(HeimdallError, match=r"rejects 1 line.*'PDF:pSett = 13' \(\[tools.pythia\].settings\)"):
         tools.check_cards(bad)
     assert not list((scratch / "cache").glob("*/checks/pythia/*.json"))   # V149: on disk only when kept
     from runner import paths
@@ -276,7 +276,7 @@ def test_a_tables_own_filters_file_replaces_the_folders(scratch, monkeypatch):
     rules.write_text('[[rule]]\nmatch = "^Done"\nemit = "phase"\n', encoding="utf-8")
     _, _, p = plan(raw(tools__rivet__filters=str(rules)), scratch)
     assert p.rendered["rivet"].status == "filters" and p.rendered["rivet"].filters == [{"match": "^Done", "emit": "phase"}]
-    with pytest.raises(HepError, match="status must be one of"):
+    with pytest.raises(HeimdallError, match="status must be one of"):
         plan(raw(tools__rivet__status="filters:mine.toml"), scratch)
 
 

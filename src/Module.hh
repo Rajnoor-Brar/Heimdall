@@ -10,7 +10,7 @@
 //     under [quantities]). Every top-level key must be one the program reads (config().get, setting):
 //     an unknown one is refused before the first event, with the nearest name (a misspelt setting
 //     would otherwise run with its default);
-//   * the point's context file ($HEP_CONTEXT, or --context): every tool's card and config, by tag or
+//   * the point's context file ($HEIMDALL_CONTEXT, or --context): every tool's card and config, by tag or
 //     by tool, through tool("rivet") and card("pythia") (docs/04_Config_Reference.md §9.4);
 //   * --input: HepMC3 from a file or a FIFO, plain, gz or zst (HepMC3::deduce_reader); none for an
 //     integrated program that makes its own events;
@@ -224,7 +224,7 @@ namespace Module {
                 }
             }
             config_ = Values(&document_, describing_ ? "settings" : positional.front(), &reads_);
-            const char* fromEnv = std::getenv("HEP_CONTEXT");
+            const char* fromEnv = std::getenv("HEIMDALL_CONTEXT");
             contextPath_ = args.get("context", fromEnv ? fromEnv : "");
             if (!describing_ && !contextPath_.empty() && std::ifstream(contextPath_).good()) {
                 try {
@@ -248,7 +248,7 @@ namespace Module {
         bool stopping() const { return detail::stop; }
         Status::Reporter& status() { return detail::status(); }
 
-        // ── settings: config().get with a doc, for --describe and `hep explain` ───────────────
+        // ── settings: config().get with a doc, for --describe and `heimdall explain` ───────────────
         // Read them before anything else (the input, the context), so --describe sees them all.
         template <class T>
         T setting(const std::string& key, T fallback, const std::string& doc) {
@@ -260,7 +260,7 @@ namespace Module {
             return setting<std::string>(key, fallback, doc);
         }
 
-        // ── the point's context file ($HEP_CONTEXT; docs/04_Config_Reference.md §9.4) ──────────
+        // ── the point's context file ($HEIMDALL_CONTEXT; docs/04_Config_Reference.md §9.4) ──────────
         // A tool of the point, by its table's tag, else the one table of that tool: its card, card_parts
         // and config, and what its folder gives (Rivet's analyses and plugin_path; a product asked for
         // in generate_cards, "herwig:run" → run). A tool outside the chain is there when generate_cards
@@ -269,7 +269,7 @@ namespace Module {
             gate();
             const toml::table* tools = context_.get_as<toml::table>("tools");
             if (!tools)
-                detail::die(Config, contextPath_.empty() ? "no context file: hep run gives one ($HEP_CONTEXT)"
+                detail::die(Config, contextPath_.empty() ? "no context file: heimdall run gives one ($HEIMDALL_CONTEXT)"
                                                          : "the context file " + contextPath_ + " has no [tools]");
             if (const toml::table* own = tools->get_as<toml::table>(name)) return Values(own, "context [tools." + name + "]");
             const toml::table* found = nullptr;

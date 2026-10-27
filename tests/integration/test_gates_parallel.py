@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from support import hep
+from support import heimdall
 yoda = pytest.importorskip("yoda")
 
 pytestmark = pytest.mark.slow
@@ -62,7 +62,7 @@ sys.exit(config.get("quantities", {}).get("fail", 0))       # consumed quantitie
 
 
 def run(config: Path, where: Path, *args: str, wait: bool = True):
-    return hep(where, config, "--journal", *args, wait=wait)                # the tests read its events (V72)
+    return heimdall(where, config, "--journal", *args, wait=wait)                # the tests read its events (V72)
 
 
 def checker(scratch: Path, sweep: str, extra: str = "") -> Path:
@@ -146,12 +146,12 @@ def test_hep_watch_follows_a_run_over_its_socket_and_nothing_runtime_is_on_disk(
     shows the run so far and what follows, and ends with the run. Each tool's digest is on disk (V201), the
     whole output is not."""
     config = checker(scratch, "fail", extra="[tools.check.config]\nsleep = 4\n")
-    runner = hep(scratch, config, wait=False)                     # no --journal
+    runner = heimdall(scratch, config, wait=False)                     # no --journal
     deadline = time.monotonic() + 30
     watcher = None
     while time.monotonic() < deadline:
         time.sleep(0.5)
-        watcher = hep(scratch, config, command="watch", wait=False)
+        watcher = heimdall(scratch, config, command="watch", wait=False)
         try:
             watcher.wait(timeout=1.0)                                # no job yet: it says so and exits
         except Exception:

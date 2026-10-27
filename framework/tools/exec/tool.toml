@@ -1,7 +1,7 @@
 # framework/tools/exec/tool.toml — any executable (docs/05_Commands_and_Tools.md §9). Its table gives
 # executable and arguments; its [tools.<tag>.config] and consumed quantities are written to
 # config/<tag>.toml and passed as the first argument. Like every tool it finds the point's context file
-# (every tool's card and config) through $HEP_CONTEXT, or {context} in its arguments.
+# (every tool's card and config) through $HEIMDALL_CONTEXT, or {context} in its arguments.
 # `heimdall tools new <name> --from exec` copies this folder into the work dir's tools/, to make it your own.
 [tool]
 config_file     = true             # its table's config and consumed quantities, written to config/<tag>.toml

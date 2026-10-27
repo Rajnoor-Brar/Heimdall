@@ -1,6 +1,6 @@
 """The one error type (rank 0).
 
-Every refusal the runner makes is a `HepError`: a message, *where* it applies (a config key, a file,
+Every refusal the runner makes is a `HeimdallError`: a message, *where* it applies (a config key, a file,
 a point), and a *hint* saying what to do. `cli` catches it, prints `render()`, and exits 2 before
 anything ran (or 1 once points have run). Nothing else prints error text.
 """
@@ -11,7 +11,7 @@ import difflib
 from collections.abc import Iterable
 
 
-class HepError(Exception):
+class HeimdallError(Exception):
     def __init__(self, message: str, *, where: str | None = None, hint: str | None = None):
         super().__init__(message)
         self.message = message

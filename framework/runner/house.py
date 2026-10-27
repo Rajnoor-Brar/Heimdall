@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import config as configmod
 from . import schema, tools
-from .errors import HepError, did_you_mean
+from .errors import HeimdallError, did_you_mean
 from . import runs
 from .events import greeting, hubs
 from .paths import cache_root, configs_root, find_work, records_root, results_root
@@ -86,12 +86,12 @@ def ls(project: str | None = None) -> list[str]:
     """Each config, then each configuration: its title and description, and whether a sweep runs it."""
     names = config_names(project)
     if not names:
-        raise HepError(f"no run TOML under {configs_root() / (project or '')}", hint="a config has a [run] table")
+        raise HeimdallError(f"no run TOML under {configs_root() / (project or '')}", hint="a config has a [run] table")
     lines = []
     for name in names:
         try:
             run = configmod.load(name)
-        except HepError as error:
+        except HeimdallError as error:
             lines.append(f"{name}   (does not load: {error.message})")
             continue
         swept = set(run.runs(None)) if run.sweep_runs else {run.raw.get("run", {}).get("configuration")}
@@ -119,19 +119,19 @@ def module_settings(key: str) -> list[str]:
         work = find_work()
         found = sorted((work / "build").rglob(f"{exe.name}")) if work is not None else []
         if not found:
-            raise HepError(f"no program {exe.name} built in this work dir", hint="heimdall build makes it (build/<project>/)")
+            raise HeimdallError(f"no program {exe.name} built in this work dir", hint="heimdall build makes it (build/<project>/)")
         exe = found[0]
     try:
         done = subprocess.run([str(exe), "--describe"], capture_output=True, text=True, encoding="utf-8", timeout=60)
     except (OSError, subprocess.TimeoutExpired) as error:
-        raise HepError(f"{exe.name} --describe did not answer: {error}") from None
+        raise HeimdallError(f"{exe.name} --describe did not answer: {error}") from None
     rows = [json.loads(line) for line in done.stdout.splitlines() if line.startswith("{")]
     if done.returncode != 0 or not rows and done.stderr.strip():
-        raise HepError(f"{exe.name} --describe failed", hint=(done.stderr.strip().splitlines() or [""])[-1][:200])
+        raise HeimdallError(f"{exe.name} --describe failed", hint=(done.stderr.strip().splitlines() or [""])[-1][:200])
     if setting:
         chosen = [r for r in rows if r["name"] == setting]
         if not chosen:
-            raise HepError(f"{exe.name} reads no setting '{setting}'",
+            raise HeimdallError(f"{exe.name} reads no setting '{setting}'",
                            hint=did_you_mean(setting, [r["name"] for r in rows]) or ", ".join(r["name"] for r in rows))
         rows = chosen
     lines = [f"{exe} — the settings it reads ([tools.<tag>.config]; an unknown one is refused)"]
@@ -186,7 +186,7 @@ TABLE_TEXT = {
     "quantity": "[quantities.<q>]: a quantity: its points, fixed point and bindings",
     "tool": "[tools.<tag>]: a tool table; its folder's own keys are `heimdall tools <folder>`",
     "plot": "[plot]: the pages", "figure": "[plot.figures.<f>]: one figure's pages", "data": "[plot.data]: reference data",
-    "cluster": "[cluster]: heimdall cluster's Slurm keys (machine.toml, hep.toml, the run TOML, a configuration)",
+    "cluster": "[cluster]: heimdall cluster's Slurm keys (machine.toml, heimdall.toml, the run TOML, a configuration)",
     "prelim": "[prelim] (v2 only; v3 infers it): FIFOs, files and commands of each point",
 }
 
@@ -262,7 +262,7 @@ def explain(key: str) -> list[str]:
 
     parts = [p for p in key.replace("[", "").replace("]", ".").split(".") if p]
     if not parts:
-        raise HepError("explain which key?", hint="e.g. heimdall explain plot.y_gutter")
+        raise HeimdallError("explain which key?", hint="e.g. heimdall explain plot.y_gutter")
     if parts[0] == "cfgs" and len(parts) >= 3:                          # v3's names: cfgs.pdf.threads, file.vars
         parts = ["run", *parts]
     elif parts[0] == "file":
@@ -279,7 +279,7 @@ def explain(key: str) -> list[str]:
         found = [(table, parts[-1]) for table in schema.spec() if table != "sections" and parts[-1] in schema.keys(table)]
     if not found:
         every = sorted({k for t in schema.spec() if t != "sections" for k in schema.keys(t)})
-        raise HepError(f"no key '{key}' in the schema", hint=did_you_mean(parts[-1], every) or
+        raise HeimdallError(f"no key '{key}' in the schema", hint=did_you_mean(parts[-1], every) or
                        "keys are written as plot.y_gutter, run.events, cfgs.<name>.threads, quantities.<q>.points")
     lines = []
     for table, name in found:
@@ -457,11 +457,11 @@ def log_target(target: str) -> tuple[Path, str | None, str | None]:
     if parts is None:
         parts = [part for part in target.split("/") if part]
     if len(parts) < 3:
-        raise HepError(f"'{target}' names no record", hint="a record is <P>/<run>/<NN_cfg> (heimdall runs names them), then "
+        raise HeimdallError(f"'{target}' names no record", hint="a record is <P>/<run>/<NN_cfg> (heimdall runs names them), then "
                        "a point and a tool: heimdall log Demo/jets/01_pdf/MSTW08lo/pythia")
     record = records_root() / Path(*parts[:3])
     if not record.is_dir():
-        raise HepError(f"no record {'/'.join(parts[:3])}", where=str(record))
+        raise HeimdallError(f"no record {'/'.join(parts[:3])}", where=str(record))
     rest = parts[3:]
     if rest and rest[0] in ("logs", "points"):
         rest = rest[1:]
@@ -485,13 +485,13 @@ def point_log(record: Path, point: str, tag: str | None = None, full: bool = Fal
         pass
     if not logs.is_dir() and not rows:
         names = sorted(p.name for p in (record / "logs").iterdir() if p.is_dir()) if (record / "logs").is_dir() else []
-        raise HepError(f"no point {point} in {record.name}", hint=did_you_mean(point, names) or
+        raise HeimdallError(f"no point {point} in {record.name}", hint=did_you_mean(point, names) or
                        (f"its points: {', '.join(names[:8])}{' …' if len(names) > 8 else ''}" if names else "it has none"))
     latest = rows[-1]["n"] if rows else None
     folder = logs if attempt is None or attempt == latest else logs / "history" / str(attempt)
     if not folder.is_dir():
         kept = sorted(int(p.name) for p in (logs / "history").iterdir() if p.name.isdigit()) if (logs / "history").is_dir() else []
-        raise HepError(f"no logs of attempt {attempt} kept", where=str(folder),
+        raise HeimdallError(f"no logs of attempt {attempt} kept", where=str(folder),
                        hint=f"kept: {', '.join(map(str, kept))}" + (f" and the latest, {latest}" if latest else "") if kept
                        else "a point keeps its latest attempt's logs, and earlier ones' from the next attempt on")
     suffix = ".full.log" if full else ".log"
@@ -499,7 +499,7 @@ def point_log(record: Path, point: str, tag: str | None = None, full: bool = Fal
         path = folder / f"{tag}{suffix}"
         if not path.is_file():
             there = sorted(p.name for p in folder.glob(f"*{suffix}") if full or not p.name.endswith(".full.log"))
-            raise HepError(f"no {path.name} in {folder}", hint=f"there: {', '.join(there)}" if there else
+            raise HeimdallError(f"no {path.name} in {folder}", hint=f"there: {', '.join(there)}" if there else
                            ("--full needs a run with --logs" if full else "nothing was logged there"))
         return path.read_text(encoding="utf-8", errors="replace").splitlines()
     out = [f"{point}: {len(rows)} attempt(s) recorded" + ("" if rows else " (it ran before attempts were recorded)")]

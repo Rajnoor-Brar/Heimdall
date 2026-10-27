@@ -1,4 +1,4 @@
-# machine.toml — this machine's settings for Heimdall, in its machine root (~/Himinbjorg, or $HEP_MACHINE).
+# machine.toml — this machine's settings for Heimdall, in its machine root (~/Himinbjorg, or $HEIMDALL_MACHINE).
 # Written once from recipes/machine.template.toml (by build_stack.py or machine.py adopt); yours to edit;
 # never in git, so editing it leaves Heimdall's checkout clean.
 #
@@ -24,10 +24,10 @@
 # extra   = ["-Dcuda=ON"]
 # replace = []
 
-# [cluster]                       # heimdall cluster's defaults for every work dir here (a work dir's hep.toml wins)
+# [cluster]                       # heimdall cluster's defaults for every work dir here (a work dir's heimdall.toml wins)
 # account   = "my-account"
 # partition = "standard"
 # setup     = ["module load gcc/13"]
 
 # [run]                           # what every heimdall run here keeps beyond records/ and results/ (with a
-# keep = ["logs"]                 # work dir's hep.toml [run] keep, and --keep): logs, journal, work, cache
+# keep = ["logs"]                 # work dir's heimdall.toml [run] keep, and --keep): logs, journal, work, cache

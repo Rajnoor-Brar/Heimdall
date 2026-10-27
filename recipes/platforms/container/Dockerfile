@@ -10,7 +10,7 @@
 #   docker run --rm -it --user "$(id -u):$(id -g)" -v "$HOME/Github/Top-Quark:$HOME/Github/Top-Quark" -w "$HOME/Github/Top-Quark" heimdall
 #
 # The build takes hours (ROOT alone is 1–2 h) and ~25 GB of disk while it runs; give Docker 3 GB of
-# memory per ROOT core (root_cores). The machine root is /opt/himinbjorg (HEP_MACHINE); its forge/
+# memory per ROOT core (root_cores). The machine root is /opt/himinbjorg (HEIMDALL_MACHINE); its forge/
 # (downloads, sources, builds, pixi and its package cache) is removed in the same layer, so the image
 # keeps the installs only (docs/framework/targets/container.md). The stack is built on a conda base
 # (docs/conda/): apt gives only the Python that runs the builder, the certificates it downloads with,
@@ -25,18 +25,18 @@ ARG ROOT_CORES=0
 ARG GRAPHICS=OFF
 ARG GEANT4_DATA=ON
 
-ENV LANG=C.UTF-8 HEP_MACHINE=/opt/himinbjorg
+ENV LANG=C.UTF-8 HEIMDALL_MACHINE=/opt/himinbjorg
 
 COPY . /opt/heimdall
 
 RUN apt-get update && apt-get install -y --no-install-recommends python3 ca-certificates bzip2 xz-utils && \
     python3 /opt/heimdall/recipes/build_stack.py packages="$PACKAGES" \
         cores="$CORES" root_cores="$ROOT_CORES" graphics="$GRAPHICS" geant4_data="$GEANT4_DATA" shell_rc=false && \
-    bash -c 'source /opt/heimdall/gjallarhorn.sh && make -C "$HEP" all' && \
+    bash -c 'source /opt/heimdall/gjallarhorn.sh && make -C "$HEIMDALL" all' && \
     rm -rf /opt/himinbjorg/forge /var/lib/apt/lists/* /root/.cache/pip && \
     chmod -R a+rX /opt/heimdall /opt/himinbjorg
 
-RUN echo '[ -n "$BASH_VERSION" ] && HEP_MACHINE=/opt/himinbjorg . /opt/heimdall/gjallarhorn.sh' > /etc/profile.d/heimdall.sh && \
+RUN echo '[ -n "$BASH_VERSION" ] && HEIMDALL_MACHINE=/opt/himinbjorg . /opt/heimdall/gjallarhorn.sh' > /etc/profile.d/heimdall.sh && \
     echo 'source /etc/profile.d/heimdall.sh' >> /etc/bash.bashrc
 
 CMD ["bash"]

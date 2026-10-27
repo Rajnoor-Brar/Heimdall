@@ -8,7 +8,7 @@
 #   ~/Github/Heimdall/launch.sh --image <name> [--dev] [--gjallarhorn [title] | command…]
 #                                                            the same in an Apptainer image (heimdall image)
 #
-# The environment (gjallarhorn.sh, env/hep_env.sh) is bash. In a bash already, `source gjallarhorn.sh` loads
+# The environment (gjallarhorn.sh, env/heimdall_env.sh) is bash. In a bash already, `source gjallarhorn.sh` loads
 # it into that shell itself instead. On macOS this runs the base's bash, or Homebrew's (the system's is 3.2).
 
 set -euo pipefail
@@ -29,7 +29,7 @@ if [ "$shell" = 1 ]; then
 fi
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 setup=$here/gjallarhorn.sh
-machine=${HEP_MACHINE:-~/Himinbjorg}
+machine=${HEIMDALL_MACHINE:-~/Himinbjorg}
 
 # An Apptainer image (V150): its Heimdall and stack, the work dir bound at its own path; a clean environment,
 # so this shell's paths never reach it. --dev binds this checkout over the image's /opt/heimdall.

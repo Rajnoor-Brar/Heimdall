@@ -27,7 +27,7 @@ The user does four things by hand, before any agent starts:
 4. Start Claude Code in `~/Github/Heimdall` and give it the start prompt (§11.1).
 
 Everything after that is the orchestrator's. The plans are read from `~/Github/Heimdall/docs/framework/`
-(`$HEP/docs/framework/`), and the deviations of §7 are committed there, so the next machine gets them.
+(`$HEIMDALL/docs/framework/`), and the deviations of §7 are committed there, so the next machine gets them.
 
 ---
 
@@ -51,7 +51,7 @@ Everything after that is the orchestrator's. The plans are read from `~/Github/H
 
 ## 3. Where progress is kept
 
-Everything per machine is in `$HEP/.setup/`, which Heimdall's `.gitignore` leaves out:
+Everything per machine is in `$HEIMDALL/.setup/`, which Heimdall's `.gitignore` leaves out:
 
 | File | Holds | Written by |
 |---|---|---|
@@ -61,12 +61,12 @@ Everything per machine is in `$HEP/.setup/`, which Heimdall's `.gitignore` leave
 | `verify/<phase>/` | the verifier's scratch and its tables; P3's second work dir; P4's reference work dir | the verifier, P3, P4 |
 | `stack.log`, `slow.log`, `compare_ref.py`, … | the long jobs' output; small scripts a step writes | the step that needs them |
 
-`$HEP` is `~/Github/Heimdall` unless the user's start prompt names another place.
+`$HEIMDALL` is `~/Github/Heimdall` unless the user's start prompt names another place.
 
 ### 3.1 `state.toml`
 
 ```toml
-# $HEP/.setup/state.toml — Heimdall's setup on this machine. Written only by the orchestrator (02 §3).
+# $HEIMDALL/.setup/state.toml — Heimdall's setup on this machine. Written only by the orchestrator (02 §3).
 
 [machine]                       # P0.S1
 host = "Lab_PC"
@@ -74,7 +74,7 @@ os = "Ubuntu 26.04 LTS"
 arch = "x86_64"
 cores = 24                      # logical CPUs
 ram_gb = 31
-disk_free_gb = 412              # where $HEP is
+disk_free_gb = 412              # where $HEIMDALL is
 sudo = true
 network = true
 apptainer = "absent"            # its (or SingularityCE's) version, or "absent"
@@ -117,7 +117,7 @@ folded = ""                     # the Heimdall commit that put it into the plan 
 **Resuming:**
 - Read `state.toml`, then take the first step that is not `done`.
 - Re-run that step's **preconditions**. They decide whether its partial work is reusable: the
-  stack's stamps (`$HEP_MACHINE/stack/.stamps/`) make P1 resumable on their own
+  stack's stamps (`$HEIMDALL_MACHINE/stack/.stamps/`) make P1 resumable on their own
   ([recipes/README.md](../../recipes/README.md) §1).
 - A `running` step found on resume means the session died. Treat it as `failed`, collect what is
   there (§5.2), and run it again.
@@ -171,7 +171,7 @@ Every step ends with rows of this shape (the phase files use it):
 
 **The rules:**
 - The **command** is exact and runs from a stated directory, with `gjallarhorn` (`source
-  $HEP/gjallarhorn.sh`) done unless the row says otherwise.
+  $HEIMDALL/gjallarhorn.sh`) done unless the row says otherwise.
 - The **expected** value is a number, an exact text, or a stated tolerance (`σ within 3 % of
   12.4 nb`). "Works" or "looks right" is never expected.
 - A row that cannot be run (a tool missing) is a **fail**, not a skip. Only a phase file may mark a
@@ -180,7 +180,7 @@ Every step ends with rows of this shape (the phase files use it):
 ### 5.2 A failing row
 
 1. Collect: the command, its full output (to `verify/<phase>/` or the log), and the relevant log
-   tails: `$HEP_MACHINE/forge/logs/<package>.log`, pytest's summary.
+   tails: `$HEIMDALL_MACHINE/forge/logs/<package>.log`, pytest's summary.
 2. If the cause is plainly transient, run it once more: a network timeout, or a download the
    annex's caveats list (MadGraph and ONNX Runtime URLs, Geant4 data).
 3. A row that fails twice is a **gate**: report the two outputs and the probable cause, propose the
@@ -194,7 +194,7 @@ At a phase's end, the orchestrator starts the verifier with the prompt in §11.2
 name. The verifier:
 - **runs** every row of every step of that phase, exactly as written, from a clean shell
   (`gjallarhorn` only);
-- **writes** to `verify/<phase>/` and to the scratch the rows name (the tests' `$HEP_FORGE/scratch/`),
+- **writes** to `verify/<phase>/` and to the scratch the rows name (the tests' `$HEIMDALL_FORGE/scratch/`),
   and nowhere else;
 - **returns** a table: `# · command · expected · got · pass/fail`;
 - **adds** anything it noticed that no row covers, as a separate list;
@@ -216,7 +216,7 @@ gate instance, never the next one of the same kind.
 | a download, with its list and total size (asked once per phase: the stack's tarballs; Geant4's ~4 GB of data) | P1 |
 | a new recipe (`status = "new"`, MadAnalysis5 in `@primary`) that fails | P1 |
 | a change to the user's account or groups (an `/etc/subuid` line for `--fakeroot` is the user's own action) | container annex |
-| a deletion outside `$HEP_MACHINE/forge` and `$HEP/.setup/verify` (V105, V122); and `git clean -x` in a checkout that still holds a stack, never | any |
+| a deletion outside `$HEIMDALL_MACHINE/forge` and `$HEIMDALL/.setup/verify` (V105, V122); and `git clean -x` in a checkout that still holds a stack, never | any |
 | a write to a High-Energy clone, if one is on the machine (it is left alone) | any |
 | a change to the content of a work dir's `configs/` or `modules/` that the user made (Top-Quark's starter is `heimdall setup`'s) | any |
 | `git push`, publishing a repo or an image anywhere | P4 |
@@ -226,7 +226,7 @@ gate instance, never the next one of the same kind.
 **The form:**
 
 ```
-GATE P1.S1 — sudo apt-get install: 51 packages, about 1.2 GB (the list: $HEP/.setup/apt.txt).
+GATE P1.S1 — sudo apt-get install: 51 packages, about 1.2 GB (the list: $HEIMDALL/.setup/apt.txt).
 Why: the stack's system packages (recipes/settings.toml's apt_packages; targets/ubuntu.md).
 If no: P1 cannot build; nothing else can proceed meanwhile.
 Approve? yes / no / change …
@@ -247,7 +247,7 @@ Everything else is a gate.
 **Every deviation:**
 - is recorded in `state.toml` (`[[deviation]]`) and in the log;
 - is named in the phase report;
-- is folded back into the plan files in `$HEP/docs/framework/` (or the recipe, when the recipe was
+- is folded back into the plan files in `$HEIMDALL/docs/framework/` (or the recipe, when the recipe was
   wrong), by a commit at the end of its phase, so that the next machine does not hit it.
 
 ---
@@ -256,7 +256,7 @@ Everything else is a gate.
 
 **The rules:**
 - **One stack build at a time.** ROOT's compilers need about 1.3 GB each (`root_cores`).
-- **One pytest session at a time.** The basetemp `$HEP_FORGE/scratch/pytest` is wiped per session.
+- **One pytest session at a time.** The basetemp `$HEIMDALL_FORGE/scratch/pytest` is wiped per session.
 - **During the build**, the orchestrator keeps CPU-heavy work off the machine: no compiles and no
   tests. P2 needs the stack, so it waits for P1.
 - **The slow suite (P2)** runs as the builder, in the background, after the fast suite passes.
@@ -275,7 +275,7 @@ Everything else is a gate.
 P1 done — verified 26/26 (verify/P1/table.md).
   ROOT 6.40.04 · Pythia 8.318 · Rivet 4.1.4 · YODA 2.1.4 · HepMC3 3.3.1 · FastJet 3.5.0 (patched) · MadAnalysis5 1.11.1 · 21 PDF sets
   deviations: 1 (libpcre3-dev → libpcre2-dev; annex-allowed; folded in a1b2c3d)
-  took 4 h 35 min; 22 GB under $HEP
+  took 4 h 35 min; 22 GB under $HEIMDALL
 Next: P2.S1. No gate pending.
 ```
 
@@ -289,7 +289,7 @@ what is needed. Nothing else is said between reports, except to answer the user.
 Heimdall's `CLAUDE.md` holds them; in short:
 
 - **Commits:** stage named paths, never `git commit -a`; never push without the gate.
-- **Tests** write only their scratch (`$HEP_FORGE/scratch/`). They never read or write a real work dir.
+- **Tests** write only their scratch (`$HEIMDALL_FORGE/scratch/`). They never read or write a real work dir.
   The fixtures and `tests/reference/` are never regenerated.
 - **Text files** are read and written with `encoding="utf-8"` (L17: reading a YODA file resets the
   locale).
@@ -297,7 +297,7 @@ Heimdall's `CLAUDE.md` holds them; in short:
   (`docs/07_Record.md` §3).
 - **The user's files are the user's.** A work dir's `configs/` and `modules/` change only through
   listed, shown and approved diffs. High-Energy is not touched at all.
-- **The stack lives in the machine root** (`$HEP_MACHINE`, `~/Himinbjorg`), outside git: `stack/`,
+- **The stack lives in the machine root** (`$HEIMDALL_MACHINE`, `~/Himinbjorg`), outside git: `stack/`,
   `venv/` and `apps/` are hours of building; its `forge/` may be emptied by hand. A checkout that
   still holds a stack of its own (made before V122) is adopted once, `recipes/machine.py adopt`; never
   `git clean -x` in it before that.
@@ -314,9 +314,9 @@ Heimdall's `CLAUDE.md` holds them; in short:
 
 ```
 You are the orchestrator for setting up Heimdall on this machine, following the plan files in
-docs/framework/ of this repository (~/Github/Heimdall, which is $HEP).
+docs/framework/ of this repository (~/Github/Heimdall, which is $HEIMDALL).
 
-Read, in order: docs/framework/README.md, 02_Agents.md. Then read $HEP/.setup/state.toml if it
+Read, in order: docs/framework/README.md, 02_Agents.md. Then read $HEIMDALL/.setup/state.toml if it
 exists.
 
 Follow 02_Agents.md exactly: run the next step whose preconditions hold; stop at every gate of
@@ -332,20 +332,20 @@ Begin with P0 (03_Preflight.md), or resume where the state says.
 
 ```
 You are the verifier for phase <P> of Heimdall's setup. You are read-only: do not edit, build,
-install, commit or delete anything. You may write only to $HEP/.setup/verify/<P>/ and to the
+install, commit or delete anything. You may write only to $HEIMDALL/.setup/verify/<P>/ and to the
 scratch locations a row itself names.
 
-Read $HEP/docs/framework/02_Agents.md §5 and the phase file <file>. Open a fresh shell,
-run `source $HEP/gjallarhorn.sh`, then run every verification row of every step of <P> exactly as written,
-from the directory it states. Do not read $HEP/.setup/log.md or state.toml to decide a row.
+Read $HEIMDALL/docs/framework/02_Agents.md §5 and the phase file <file>. Open a fresh shell,
+run `source $HEIMDALL/gjallarhorn.sh`, then run every verification row of every step of <P> exactly as written,
+from the directory it states. Do not read $HEIMDALL/.setup/log.md or state.toml to decide a row.
 
 Return a table: row · command · expected · got · pass/fail, and save it as
-$HEP/.setup/verify/<P>/table.md. Then list anything you noticed that no row covers. Fix nothing.
+$HEIMDALL/.setup/verify/<P>/table.md. Then list anything you noticed that no row covers. Fix nothing.
 ```
 
 ### 11.3 Resume (any later session)
 
 ```
-Resume Heimdall's setup as its orchestrator: read $HEP/docs/framework/README.md and
-02_Agents.md, then $HEP/.setup/state.toml and the end of log.md, and continue by 02 §4.
+Resume Heimdall's setup as its orchestrator: read $HEIMDALL/docs/framework/README.md and
+02_Agents.md, then $HEIMDALL/.setup/state.toml and the end of log.md, and continue by 02 §4.
 ```

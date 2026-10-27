@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from runner import config, record, sweep, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from helpers import plan, plans_of, raw
 
@@ -80,19 +80,19 @@ def test_the_consumer_table_of_energy_pdf(capsys):
 
 def test_c9_an_undeclared_rivet_option_is_refused(scratch):
     data = raw(tools__rivet__options={"NOSUCH": 3})
-    with pytest.raises(HepError, match="does not declare the option NOSUCH") as caught:
+    with pytest.raises(HeimdallError, match="does not declare the option NOSUCH") as caught:
         plan(data, scratch)
     assert "ETMIN" in caught.value.hint
 
 
 def test_c9_an_unknown_analysis_is_refused(scratch):
-    with pytest.raises(HepError, match="no analysis 'photo_eci'"):
+    with pytest.raises(HeimdallError, match="no analysis 'photo_eci'"):
         plan(raw(tools__rivet__analyses=["photo_eci"]), scratch)
 
 
 def test_c10_a_pdf_set_that_is_not_installed_is_refused(scratch):
     data = raw(static={"pdf": "x"}, quantities__pdf={"values": ["LHAPDF6:NoSuchSet"], "tags": ["x"]})
-    with pytest.raises(HepError, match="not installed") as caught:
+    with pytest.raises(HeimdallError, match="not installed") as caught:
         plan(data, scratch)
     assert "lhapdf install NoSuchSet" in caught.value.hint
 
@@ -124,10 +124,10 @@ def test_sherpa_and_herwig_take_the_set_s_name():
     assert check_provider("lhapdf:bare", "MSTW2008lo68cl", "x") == "MSTW2008lo68cl"
     assert check_provider("lhapdf:bare", "LHAPDF6:MSTW2008lo68cl/3", "x") == "MSTW2008lo68cl/3"
     assert check_provider("lhapdf:set", "LHAPDF6:MSTW2008lo68cl", "x") == "MSTW2008lo68cl"
-    with pytest.raises(HepError, match="a set's name, not a member") as caught:
+    with pytest.raises(HeimdallError, match="a set's name, not a member") as caught:
         check_provider("lhapdf:set", "MSTW2008lo68cl/3", "x")
     assert "card" in caught.value.hint
-    with pytest.raises(HepError, match="not installed"):
+    with pytest.raises(HeimdallError, match="not installed"):
         check_provider("lhapdf:set", "LHAPDF6:NoSuchSet", "x")
 
 
@@ -146,7 +146,7 @@ def test_points_selects_by_tag_index_and_quantity():
     assert [p.name for p in sweep.select_points(run, conf, points, "MSTW08lo")][:1] == ["5x41_MSTW08lo"]
     assert len(sweep.select_points(run, conf, points, "energies=18x275")) == 4
     assert [p.index for p in sweep.select_points(run, conf, points, "3,16")] == [3, 16]
-    with pytest.raises(HepError, match="matches no point"):
+    with pytest.raises(HeimdallError, match="matches no point"):
         sweep.select_points(run, conf, points, "nothing")
 
 
@@ -190,28 +190,28 @@ def test_exclude_changes_no_remaining_point(scratch):
     (["pt32"], "not a value's place"), ([1, 2, 3], "leaves no value"),
 ])
 def test_what_exclude_refuses(scratch, exclude, message):
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         swept(scratch, quantities__pt0ref={**THREE, "exclude": exclude}, run__cfgs__one__sweeps=["pt0ref"])
 
 
 def test_an_entangled_group_with_nothing_left_is_refused(scratch):
     alphas = {"values": [0.118, 0.130], "tags": ["as118", "as130"], "key": {"pythia": "SigmaProcess:alphaSvalue"},
               "exclude": [2]}
-    with pytest.raises(HepError, match="no value"):
+    with pytest.raises(HeimdallError, match="no value"):
         swept(scratch, quantities__alphas=alphas, quantities__pdf={**raw()["quantities"]["pdf"], "exclude": [1]},
               run__cfgs__one__sweeps=[["pdf", "alphas"]])
 
 
 def test_a_set_entry_names_its_folder():
     """[plot].sets (V159): a selector names its folder, a list is set<k>, a table its name; shapes refused."""
-    from runner.errors import HepError
+    from runner.errors import HeimdallError
     from runner.sweep import set_entries
     got = set_entries([[1, 2], "pdf=NNPDF23lo", "sh3_*", 7, {"name": "lo", "points": ["py8"]}], "w")
     assert [(s.name, s.selectors) for s in got] == [
         ("set1", [1, 2]), ("pdf-NNPDF23lo", ["pdf=NNPDF23lo"]), ("sh3_", ["sh3_*"]), ("#7", [7]), ("lo", ["py8"])]
     assert not any(s.axes for s in got)
     for bad in ([[]], [[0]], [{"name": "x"}], [{"name": "a/b", "points": [1]}], [[True]], ["all", "all"]):
-        with pytest.raises(HepError):
+        with pytest.raises(HeimdallError):
             set_entries(bad, "w")
 
 
@@ -343,7 +343,7 @@ def test_a_curves_value_may_carry_its_own_look(scratch):
                          ({"curves": {"pdf": {"all": True, "shades": ["#1"]}}}, "values with their looks are"),
                          ({"curves": {"pdf": [{"tag": "pdf1"}]}}, "is { tag"),
                          ({"curves": {"pdf": [{"tag": "pdf1", "line": "wavy"}]}}, "style line = 'wavy' is not one")):
-        with pytest.raises(HepError, match=message):
+        with pytest.raises(HeimdallError, match=message):
             cells_of(run, points, bad)
 
 
@@ -361,7 +361,7 @@ def test_a_curves_value_may_carry_its_own_look(scratch):
 ])
 def test_what_a_set_table_refuses(scratch, entry, message):
     run, points = four(scratch)
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         cells_of(run, points, entry)
 
 
@@ -369,10 +369,10 @@ def test_a_value_no_point_has_is_refused_at_plan_time(scratch):
     run = config.parse(raw(quantities=FOUR, run__cfgs__one__sweeps=["generator", "pdf"]), scratch / "t.toml")
     points = sweep.points(run, run.configuration(None))
     spec, = sweep.set_entries([{"curves": {"events": "10M"}}], "w")
-    with pytest.raises(HepError, match="no point of the configuration sets"):
+    with pytest.raises(HeimdallError, match="no point of the configuration sets"):
         sweep.check_set(run, spec, points)
     spec, = sweep.set_entries([{"curves": {"pdf": ["pdf1", "pdf9"]}}], "w")
-    with pytest.raises(HepError, match="no value of it") as refused:
+    with pytest.raises(HeimdallError, match="no value of it") as refused:
         sweep.check_set(run, spec, points)
     assert "pdf: pdf1, pdf2, pdf3, pdf4, pdf5" in refused.value.hint
 
@@ -407,7 +407,7 @@ def test_sets_may_be_named_tables(scratch):
     assert [(s.name, s.selectors, s.axes) for s in got] == [("lo", [1, 2], False), ("pdfs", [], True), ("one", ["pdf=pdf1"], False)]
     assert named_sets([[1, 2], "all", {"name": "x", "curves": {"pdf": "all"}}]) == {
         "set1": {"points": [1, 2]}, "all": {"points": ["all"]}, "x": {"curves": {"pdf": "all"}}}
-    with pytest.raises(HepError, match="is named by its key"):
+    with pytest.raises(HeimdallError, match="is named by its key"):
         set_entries({"lo": {"name": "hi", "points": [1]}}, "w")
 
 
@@ -426,5 +426,5 @@ def test_stats_is_a_section_and_a_gate(scratch):
     assert run.stats == {"normalise": "area", "reference": {"pdf": "NNPDF23lo"}} and run.configuration(None).measure == ["totality"]
     for bad, message in (({"normalize": "area"}, "unknown key 'normalize'"), ({"reference": "first"}, "must be one of"),
                          ({"reference": {}}, "a filter is a table")):
-        with pytest.raises(HepError, match=message):
+        with pytest.raises(HeimdallError, match=message):
             config.parse(raw(stats=bad), scratch / "u.toml")

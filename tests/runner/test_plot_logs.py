@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from runner import cli, house, plot
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 
 def script(path: Path, body: str) -> Path:
@@ -66,11 +66,11 @@ def test_no_drawing_under_way_no_log(scratch):
 
 
 def test_a_failed_conversion_names_its_log(scratch, logs, monkeypatch):
-    monkeypatch.setenv("HEP_APPS", str(scratch / "apps"))
+    monkeypatch.setenv("HEIMDALL_APPS", str(scratch / "apps"))
     script(scratch / "apps" / "App_yd2rt.exe", 'echo "reading $1"; echo "bad YODA" >&2; exit 4')
     yoda = scratch / "MSTW.yoda"
     yoda.write_text("x\n", encoding="utf-8")
-    with pytest.raises(HepError, match=r"converting MSTW.yoda failed: bad YODA \(its output: .*convert-MSTW.log\)"):
+    with pytest.raises(HeimdallError, match=r"converting MSTW.yoda failed: bad YODA \(its output: .*convert-MSTW.log\)"):
         plot.convert(yoda, scratch / "MSTW.root")
     lines = (logs / "convert-MSTW.log").read_text(encoding="utf-8").splitlines()
     assert lines[0].startswith("# tag App_yd2rt · yoda ") and " · exit 4 · 2 line(s)" in lines[0]
@@ -78,7 +78,7 @@ def test_a_failed_conversion_names_its_log(scratch, logs, monkeypatch):
 
 
 def test_a_drawings_logs_are_its_records_and_clean_keeps_them(scratch, monkeypatch):
-    for var, name in (("HEP_RECORDS", "records"), ("HEP_CACHE", "cache"), ("HEP_RESULTS", "results")):
+    for var, name in (("HEIMDALL_RECORDS", "records"), ("HEIMDALL_CACHE", "cache"), ("HEIMDALL_RESULTS", "results")):
         monkeypatch.setenv(var, str(scratch / name))
     p = cli.build_plans(argparse.Namespace(config="Demo/jets", set=[], points=None, rerun=False, only=None), "single")
     assert plot.logs_of(p.every) == p.every[0].folders.logs / "plot" and plot.logs_of([]) is None

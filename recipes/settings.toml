@@ -5,7 +5,7 @@
 # the recipes (recipes/toolkits/standard.toml). The command line wins over the file. The platform's fixes,
 # the toolkits, and the machine root's machine.toml are layers between (recipes/README.md §1).
 
-machine     = ""           # the machine root: "": $HEP_MACHINE, else ~/Himinbjorg (forge/ base/ stack/ apps/ machine.sh)
+machine     = ""           # the machine root: "": $HEIMDALL_MACHINE, else ~/Himinbjorg (forge/ base/ stack/ apps/ machine.sh)
 base        = "conda"      # what the stack is built with: "conda", a conda-forge base made by pixi (recipes/base.toml:
                            # compilers, libraries, Python; no root needed); "system", apt_packages (or Homebrew) and a venv
 base_python = "3.12"       # the base's Python, which the stack's bindings are built against

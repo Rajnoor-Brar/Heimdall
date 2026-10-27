@@ -47,7 +47,7 @@ card = ["{apps}/App_PythiaCheck.exe", "{card}"]   # Pythia reads the card and na
 # ProcessLevel::init: all processes have vanishing cross sections". Nothing is rebuilt: no identity moves.
 [diagnose]
 exits   = [3]
-program = ["python3", "{hep}/framework/tools/pythia/diagnose.py"]
+program = ["python3", "{heimdall}/framework/tools/pythia/diagnose.py"]
 card    = ["Print:quiet = off", "Print:errors = on", "Init:showProcesses = on", "Main:numberOfEvents = 0"]
 ext     = "cmnd"
 quote   = 'PYTHIA (?:Error|Abort) (?:from|in) '

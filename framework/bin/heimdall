@@ -8,9 +8,9 @@
 # LANG=C; YODA 2.1's reader, which leaves its thread in the "C" locale after yoda.read).
 set -euo pipefail
 here=$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)
-machine=${HEP_MACHINE:-~/Himinbjorg}
+machine=${HEIMDALL_MACHINE:-~/Himinbjorg}
 py=python3
-for env in ${HEP_VENV:+"$HEP_VENV"} "$machine/base/.pixi/envs/default" "$machine/venv"; do
+for env in ${HEIMDALL_VENV:+"$HEIMDALL_VENV"} "$machine/base/.pixi/envs/default" "$machine/venv"; do
     [ -x "$env/bin/python" ] && { py=$env/bin/python; break; }
 done
 exec "$py" -X utf8 "$here/run" "$@"

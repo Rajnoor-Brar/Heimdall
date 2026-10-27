@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from support import HEP, apps
+from support import HEIMDALL, apps
 
 pytestmark = [pytest.mark.slow,
               pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="heimdall build --framework")]
@@ -44,15 +44,15 @@ def test_a_point_run_as_a_job_equals_the_same_point_run_here(scratch):
     stubs.mkdir()
     (stubs / "sbatch").write_text(SBATCH, encoding="utf-8")
     (stubs / "sbatch").chmod(0o755)
-    made = subprocess.run([str(HEP), "setup", str(work), "--project", "Starter"], capture_output=True, text=True, encoding="utf-8")
+    made = subprocess.run([str(HEIMDALL), "setup", str(work), "--project", "Starter"], capture_output=True, text=True, encoding="utf-8")
     assert made.returncode == 0, made.stderr
     with (work / "configs" / "Starter" / "starter.toml").open("a", encoding="utf-8") as toml:
         toml.write('\n[cluster]\ntime = "00:20:00"\n')
-    env = {**{k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, "HEP_WORK": str(work),
-           "HEP_RECORDS": str(work / "records"), "HEP_CACHE": str(work / "cache"), "HEP_RESULTS": str(work / "results"),
+    env = {**{k: v for k, v in os.environ.items() if k != "HEIMDALL_CONFIGS"}, "HEIMDALL_WORK": str(work),
+           "HEIMDALL_RECORDS": str(work / "records"), "HEIMDALL_CACHE": str(work / "cache"), "HEIMDALL_RESULTS": str(work / "results"),
            "PATH": f"{stubs}{os.pathsep}{os.environ['PATH']}", "STUBLOG": str(scratch / "stub.log")}
 
-    done = subprocess.run([str(HEP), "cluster", "Starter/starter"], cwd=work, env=env, capture_output=True, text=True,
+    done = subprocess.run([str(HEIMDALL), "cluster", "Starter/starter"], cwd=work, env=env, capture_output=True, text=True,
                           timeout=1800, encoding="utf-8")
     assert done.returncode == 0, done.stdout + done.stderr
     assert "points: job 201 (an array of 2)" in done.stdout and "finish: job 202" in done.stdout
@@ -61,13 +61,13 @@ def test_a_point_run_as_a_job_equals_the_same_point_run_here(scratch):
     assert sorted(p.name for p in logs.iterdir()) == ["finish-202.log", "points-201_1.log", "points-201_2.log"]
     assert "combine, post, plot done" in (logs / "finish-202.log").read_text(encoding="utf-8")
 
-    status = subprocess.run([str(HEP), "status", "Starter/starter", "pdf"], cwd=work, env=env, capture_output=True,
+    status = subprocess.run([str(HEIMDALL), "status", "Starter/starter", "pdf"], cwd=work, env=env, capture_output=True,
                             text=True, encoding="utf-8")
     assert status.stdout.count(" complete ") == 2, status.stdout
 
     ref = scratch / "ref"
-    here = subprocess.run([str(HEP), "run", "Starter/starter", "--plain"], cwd=work, capture_output=True, text=True,
-                          env={**env, "HEP_RECORDS": str(ref / "records"), "HEP_CACHE": str(ref / "cache"), "HEP_RESULTS": str(ref / "results")}, timeout=1800, encoding="utf-8")
+    here = subprocess.run([str(HEIMDALL), "run", "Starter/starter", "--plain"], cwd=work, capture_output=True, text=True,
+                          env={**env, "HEIMDALL_RECORDS": str(ref / "records"), "HEIMDALL_CACHE": str(ref / "cache"), "HEIMDALL_RESULTS": str(ref / "results")}, timeout=1800, encoding="utf-8")
     assert here.returncode == 0, here.stdout + here.stderr
     for point in ("nnpdf23", "cteq6l1"):
         job = work / "results" / "Starter" / "starter" / "01_pdf" / "points" / point / "jets.yoda"

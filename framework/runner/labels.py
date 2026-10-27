@@ -13,8 +13,8 @@ import tomllib
 from pathlib import Path
 
 from . import hepfiles
-from .errors import HepError
-from .paths import hep_root
+from .errors import HeimdallError
+from .paths import heimdall_root
 
 # ── LaTeX ($…$ in Rivet .plot files) → ROOT TLatex (V11) ──────────────────────────────────────
 
@@ -29,16 +29,16 @@ def latex() -> dict:
 
 @functools.cache
 def _latex(own: str, stamp: int) -> dict:
-    shipped = tomllib.loads((hep_root() / "framework" / "schema" / "latex.toml").read_text(encoding="utf-8"))
+    shipped = tomllib.loads((heimdall_root() / "framework" / "schema" / "latex.toml").read_text(encoding="utf-8"))
     if not own:
         return shipped
     try:
         mine = tomllib.loads(Path(own).read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as error:
-        raise HepError(f"cannot parse the work dir's latex.toml: {error}", where=own) from None
+        raise HeimdallError(f"cannot parse the work dir's latex.toml: {error}", where=own) from None
     for table, entries in mine.items():
         if table not in shipped or not isinstance(entries, dict):
-            raise HepError(f"latex.toml has no table [{table}]", where=own, hint=", ".join(shipped))
+            raise HeimdallError(f"latex.toml has no table [{table}]", where=own, hint=", ".join(shipped))
         shipped[table] = {**shipped[table], **entries}
     return shipped
 

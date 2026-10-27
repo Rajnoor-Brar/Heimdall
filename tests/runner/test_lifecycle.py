@@ -11,13 +11,13 @@ import shutil
 import pytest
 
 from runner import cli, execute, house, migrate, record
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from runner.paths import cache_root, records_root, results_root
 
 
 @pytest.fixture
 def trees(scratch, monkeypatch):
-    for var, name in (("HEP_RECORDS", "records"), ("HEP_CACHE", "cache"), ("HEP_RESULTS", "results")):
+    for var, name in (("HEIMDALL_RECORDS", "records"), ("HEIMDALL_CACHE", "cache"), ("HEIMDALL_RESULTS", "results")):
         monkeypatch.setenv(var, str(scratch / name))
     return scratch
 
@@ -103,12 +103,12 @@ def test_a_reserved_name_is_refused(scratch):
     path = scratch / "reserved.toml"
     path.write_text(text, encoding="utf-8")
     run = config.load(str(path))
-    with pytest.raises(HepError, match="a point is named 'plots'"):
+    with pytest.raises(HeimdallError, match="a point is named 'plots'"):
         sweep.points(run, run.configuration("c"))
     clash = (text.replace('[run.cfgs.c]\n', '[run.cfgs.c]\nlabel = "compare"\n').replace('tags = ["plots", "b"]', 'tags = ["a", "b"]')
              + '\n[plot.figures.both]\nclass = "compare"\nobjects = ["/x/*"]\nconfigurations = ["c"]\n')
     path.write_text(clash, encoding="utf-8")
-    with pytest.raises(HepError, match="where this run's compare figures go"):
+    with pytest.raises(HeimdallError, match="where this run's compare figures go"):
         config.load(str(path))
 
 
@@ -215,9 +215,9 @@ def test_moving_the_machine_root_and_the_work_dir_changes_no_fingerprint(trees, 
     shutil.copytree(WORK, moved / "work", symlinks=True)
     (moved / "machine").mkdir()
     (moved / "machine" / "apps").symlink_to(paths.apps_dir().resolve())
-    monkeypatch.setenv("HEP_WORK", str(moved / "work"))
-    monkeypatch.setenv("HEP_MACHINE", str(moved / "machine"))
-    monkeypatch.setenv("HEP_APPS", str(moved / "machine" / "apps"))
+    monkeypatch.setenv("HEIMDALL_WORK", str(moved / "work"))
+    monkeypatch.setenv("HEIMDALL_MACHINE", str(moved / "machine"))
+    monkeypatch.setenv("HEIMDALL_APPS", str(moved / "machine" / "apps"))
     paths.reset()
     try:
         there = identities()

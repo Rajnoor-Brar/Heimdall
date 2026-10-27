@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 import support
-from support import HEP, WORK, env
+from support import HEIMDALL, WORK, env
 
 pytestmark = pytest.mark.slow
 
@@ -74,8 +74,8 @@ tags   = ["no", "yes"]
     return config
 
 
-def hep(config: Path, where: Path, *args: str) -> subprocess.CompletedProcess:
-    return support.hep(where, config, "--journal", *args, timeout=600)       # the tests read its events (V72)
+def heimdall(config: Path, where: Path, *args: str) -> subprocess.CompletedProcess:
+    return support.heimdall(where, config, "--journal", *args, timeout=600)       # the tests read its events (V72)
 
 
 def base(where: Path) -> Path:
@@ -92,7 +92,7 @@ def records(journal: Path) -> list[dict]:
 
 def test_the_swept_configurations_run_one_after_another(scratch):
     config = sweep_config(scratch)
-    done = hep(config, scratch)
+    done = heimdall(config, scratch)
     assert done.returncode == 1, done.stdout[-2000:] + done.stderr[-2000:]
     out = done.stdout
     assert out.index("run 01 - a -") < out.index("run 02 - Bee -") < out.index("run 03 - d -")
@@ -103,19 +103,19 @@ def test_the_swept_configurations_run_one_after_another(scratch):
     assert first[-1]["k"] == "run" and first[-1]["next"] == str(base(scratch) / "b" / "status.jsonl")
     assert records(base(scratch) / "b" / "status.jsonl")[-1]["next"] == str(base(scratch) / "d" / "status.jsonl")
     assert "next" not in records(base(scratch) / "d" / "status.jsonl")[-1]
-    alone = hep(config, scratch, "d")                                  # the very run `heimdall run sw d` makes
+    alone = heimdall(config, scratch, "d")                                  # the very run `heimdall run sw d` makes
     assert alone.returncode == 0 and "complete, skipped" in alone.stdout and "run 0" not in alone.stdout
 
 
 def test_a_config_error_anywhere_runs_nothing(scratch):
-    done = hep(sweep_config(scratch, d_static='{ fail = "nosuch" }'), scratch)
+    done = heimdall(sweep_config(scratch, d_static='{ fail = "nosuch" }'), scratch)
     assert done.returncode == 2, done.stdout[-2000:]
     assert "configuration 'd'" in done.stderr
     assert not recorded(scratch).exists() or not list(recorded(scratch).glob("*/points/*/.complete"))
 
 
 def test_points_belong_to_one_configuration(scratch):
-    done = hep(sweep_config(scratch), scratch, "--points", "1")
+    done = heimdall(sweep_config(scratch), scratch, "--points", "1")
     assert done.returncode == 2 and "--points picks points of one configuration" in done.stderr
 
 
@@ -125,7 +125,7 @@ def test_ctrl_c_starts_no_more_runs(scratch):
     text = text.replace('title  = "Bee"\n', 'title  = "Bee"\nsweeps = ["twice"]\n')   # time: its run has not
     text = text.replace('consumes   = ["fail", "nap"]', 'consumes   = ["fail", "nap", "twice"]')   # started all its
     config.write_text(text + '\n[quantities.twice]\nvalues = [1, 2]\n', encoding="utf-8")       # points (V75)
-    runner = subprocess.Popen([str(HEP), "run", str(config), "--plain", "--journal"], cwd=WORK, env=env(scratch),
+    runner = subprocess.Popen([str(HEIMDALL), "run", str(config), "--plain", "--journal"], cwd=WORK, env=env(scratch),
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
     journal = base(scratch) / "b" / "status.jsonl"
     deadline = time.monotonic() + 60
@@ -187,7 +187,7 @@ def test_a_sweep_of_runs_is_pipelined(scratch):
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
     config = scratch / "pipe.toml"
     config.write_text(PIPE.format(script=script), encoding="utf-8")
-    done = hep(config, scratch)
+    done = heimdall(config, scratch)
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     root = scratch / "records" / "Demo" / "pipe"
     x, y = (records(next(root.glob(f"*{k}/status.jsonl"))) for k in ("x", "y"))

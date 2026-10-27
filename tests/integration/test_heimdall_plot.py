@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from runner import plot
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from support import apps  # noqa: E402
 
@@ -29,8 +29,8 @@ def configs(cache: Path) -> list[dict]:
 
 
 def test_two_yoda_files_one_page_per_object(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEIMDALL_CACHE", str(scratch / "cache"))
     said = []
     assert plot.files([str(p) for p in YODAS], scratch / "pages", labels=["MSTW", "NNLO"], formats=["png"],
                       say=said.append) == 0
@@ -42,8 +42,8 @@ def test_two_yoda_files_one_page_per_object(scratch, monkeypatch):
 
 
 def test_a_merged_sweep_is_one_curve_per_point(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEIMDALL_CACHE", str(scratch / "cache"))
     points = scratch / "points.json"
     points.write_text(json.dumps({"points": [
         {"name": "a", "values": {"pdf": {"label": "MSTW 2008 LO", "swept": True}}},
@@ -61,14 +61,14 @@ def test_a_merged_sweep_is_one_curve_per_point(scratch, monkeypatch):
 
 
 def test_mistakes_are_named(scratch):
-    with pytest.raises(HepError, match="no such file"):
+    with pytest.raises(HeimdallError, match="no such file"):
         plot.files([str(scratch / "none.yoda")], scratch / "pages")
-    with pytest.raises(HepError, match="2 names for 1 files"):
+    with pytest.raises(HeimdallError, match="2 names for 1 files"):
         plot.files([str(YODAS[0])], scratch / "pages", labels=["x", "y"])
 
 
 def test_hep_overlay_draws_files(scratch):
-    env = {"HEP_RECORDS": str(scratch / "records"), "HEP_CACHE": str(scratch / "cache"), "HEP_RESULTS": str(scratch / "results")}
+    env = {"HEIMDALL_RECORDS": str(scratch / "records"), "HEIMDALL_CACHE": str(scratch / "cache"), "HEIMDALL_RESULTS": str(scratch / "results")}
     import os
     done = subprocess.run(["python3", str(REPO / "framework" / "bin" / "run"), "overlay", str(YODAS[0]), "--objects", "/photo_eic/d01*",
                            "--formats", "png"], capture_output=True, text=True, encoding="utf-8",

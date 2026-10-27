@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from runner import cli, record
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from runner.watch import PlainView, follow_file
 
 from helpers import parse, plan, raw
@@ -47,7 +47,7 @@ def test_the_keys_and_their_defaults(scratch):
     ({"run__sweep_runs": True, "run__configuration": "nope"}, "not a \\[run.cfgs.<cfg>\\] table"),
 ])
 def test_what_is_refused(scratch, changes, message):
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         parse(raw(**changes), scratch)
 
 
@@ -57,7 +57,7 @@ def test_a_sweep_runs_its_listed_configurations_in_its_order(scratch):
     assert run.runs("c") == ["c"]                                  # named: even one left out of the sweep
     assert parse(several(run__sweep_runs=["d", "a"]), scratch).runs(None) == ["d", "a"]
     assert parse(several(run__sweep_runs=True), scratch).runs(None) == ["a", "b", "c", "d"]   # true: every one
-    with pytest.raises(HepError, match=r"runs every configuration \(sweep_runs\) and names none"):
+    with pytest.raises(HeimdallError, match=r"runs every configuration \(sweep_runs\) and names none"):
         run.configuration(None)
     assert parse(several(run__sweep_runs=False, run__configuration="b"), scratch).runs(None) == ["b"]
 
@@ -107,8 +107,8 @@ def toml(data: dict) -> str:
 
 @pytest.fixture
 def sweep_file(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEIMDALL_CACHE", str(scratch / "cache"))
     path = scratch / "sw.toml"
     path.write_text(toml(several()), encoding="utf-8")
     return path
@@ -156,18 +156,18 @@ def test_every_run_is_checked_before_the_first_starts(sweep_file, monkeypatch):
 
     def build_plans(args, key):
         if key == "d":
-            raise HepError("base config not found")
+            raise HeimdallError("base config not found")
         return real(args, key)
 
     monkeypatch.setattr(cli, "build_plans", build_plans)
-    with pytest.raises(HepError, match="configuration 'd': base config not found"):
+    with pytest.raises(HeimdallError, match="configuration 'd': base config not found"):
         cli.cmd_run(args_for(sweep_file))
     assert calls == []
 
 
 def test_a_run_that_cannot_be_planned_at_its_turn_fails_alone(sweep_file, monkeypatch, capsys):
     calls = []
-    fake_runs(monkeypatch, {"b": HepError("the TOML changed")}, calls)
+    fake_runs(monkeypatch, {"b": HeimdallError("the TOML changed")}, calls)
     assert cli.cmd_run(args_for(sweep_file)) == 1
     assert [c[0] for c in calls] == ["a", "b", "d"]
     assert "run 02 - Bee -" in capsys.readouterr().out
@@ -185,7 +185,7 @@ def test_one_named_configuration_is_a_plain_run(sweep_file, monkeypatch):
 
 def test_points_belong_to_one_configuration(sweep_file, monkeypatch):
     fake_runs(monkeypatch, {}, [])
-    with pytest.raises(HepError, match="--points picks points of one configuration"):
+    with pytest.raises(HeimdallError, match="--points picks points of one configuration"):
         cli.cmd_run(args_for(sweep_file, points="1"))
 
 
@@ -240,5 +240,5 @@ def test_notify_desktop_sends_one_note_and_never_fails(scratch, monkeypatch):
     run = parse(raw(run__notify="desktop"), scratch)
     assert cli.notify(run, 1) and sent[-1][-1].endswith(": a point failed")
     assert not cli.notify(parse(raw(), scratch), 0) and len(sent) == 1
-    with pytest.raises(HepError, match="one of none, desktop"):
+    with pytest.raises(HeimdallError, match="one of none, desktop"):
         parse(raw(run__notify="email"), scratch)

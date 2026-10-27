@@ -12,7 +12,7 @@ import pytest
 from runner import plugins, shellrc, workdirs
 
 REPO = Path(__file__).resolve().parents[2]
-NEEDS_VENV = pytest.mark.skipif(not Path(os.environ.get("HEP_VENV", "/nowhere"), "bin", "activate").exists(),
+NEEDS_VENV = pytest.mark.skipif(not Path(os.environ.get("HEIMDALL_VENV", "/nowhere"), "bin", "activate").exists(),
                                 reason="no venv in the machine root: build the stack")
 
 
@@ -39,8 +39,8 @@ def test_another_root_s_block_is_left_unless_replaced(tmp_path):
     assert shellrc.install(rc, here, replace=False) == "another" and shellrc.status(rc, here) == "another"
     assert shellrc.install(rc, here) == "replaced"
     assert shellrc.status(rc, here) == "installed" and rc.read_text(encoding="utf-8").endswith("export AFTER=1\n")
-    assert f"export HEP_MACHINE={tmp_path / 'Himinbjorg'}" in here                  # not the default: named
-    assert "HEP_MACHINE" not in shellrc.block("bash", REPO, Path("~/Himinbjorg").expanduser())
+    assert f"export HEIMDALL_MACHINE={tmp_path / 'Himinbjorg'}" in here                  # not the default: named
+    assert "HEIMDALL_MACHINE" not in shellrc.block("bash", REPO, Path("~/Himinbjorg").expanduser())
 
 
 def test_a_linked_rc_keeps_its_link(tmp_path):
@@ -88,25 +88,25 @@ def test_a_build_writes_the_block_once_and_leaves_another(tmp_path, monkeypatch,
 def test_gjallarhorn_loads_the_environment_and_goes_to_the_work_dir(tmp_path, monkeypatch):
     study = tmp_path / "Study"
     study.mkdir()
-    (study / "hep.toml").write_text('[work]\nname = "Demo"\n', encoding="utf-8")
-    monkeypatch.setenv("HEP_WORKDIRS", str(tmp_path / "workdirs.toml"))
+    (study / "heimdall.toml").write_text('[work]\nname = "Demo"\n', encoding="utf-8")
+    monkeypatch.setenv("HEIMDALL_WORKDIRS", str(tmp_path / "workdirs.toml"))
     workdirs.record(study)
-    machine = Path(os.environ["HEP_MACHINE"]).expanduser()
+    machine = Path(os.environ["HEIMDALL_MACHINE"]).expanduser()
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))                                       # the block's ~ is this one's
     shellrc.install(home / ".bashrc", shellrc.block("bash", REPO, machine))
-    env = {"HOME": str(home), "PATH": "/usr/bin:/bin", "HEP_WORKDIRS": str(tmp_path / "workdirs.toml")}
+    env = {"HOME": str(home), "PATH": "/usr/bin:/bin", "HEIMDALL_WORKDIRS": str(tmp_path / "workdirs.toml")}
     done = subprocess.run(["bash", "-c", """source ~/.bashrc
-        gjallarhorn Demo >/dev/null; pwd; echo "$HEP_ENV_LOADED"
+        gjallarhorn Demo >/dev/null; pwd; echo "$HEIMDALL_ENV_LOADED"
         gjallarhorn Demi; echo "rc=$?"; pwd; type -t bifrost"""], env=env, capture_output=True, text=True, encoding="utf-8", timeout=120)
-    assert done.stdout.splitlines() == [str(study), os.environ["HEP_INSTALL"], "rc=1", str(study), "function"], done.stderr
+    assert done.stdout.splitlines() == [str(study), os.environ["HEIMDALL_INSTALL"], "rc=1", str(study), "function"], done.stderr
     assert "no work dir titled 'Demi'" in done.stderr and "did you mean 'Demo'" in done.stderr
 
 
 @NEEDS_VENV
 def test_launch_runs_a_command_whose_words_are_not_a_title(tmp_path):
-    env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "HEP_MACHINE": os.environ["HEP_MACHINE"]}
-    done = subprocess.run([str(REPO / "launch.sh"), "heimdall", "where", "--hep"], env=env, capture_output=True,
+    env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "HEIMDALL_MACHINE": os.environ["HEIMDALL_MACHINE"]}
+    done = subprocess.run([str(REPO / "launch.sh"), "heimdall", "where", "--heimdall"], env=env, capture_output=True,
                           text=True, encoding="utf-8", timeout=120)
     assert done.returncode == 0 and done.stdout.strip() == str(REPO), done.stderr

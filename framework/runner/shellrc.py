@@ -23,8 +23,8 @@ DEFAULT_MACHINE = "~/Himinbjorg"
 TITLES = r"""sed -n 's/^\["\(.*\)"\]$/\1/p'"""
 
 
-def block(shell: str, hep: Path, machine: Path) -> str:
-    """The block for `shell` ("bash" or "zsh"): `gjallarhorn` and `bifrost` for the checkout `hep` and the
+def block(shell: str, heimdall: Path, machine: Path) -> str:
+    """The block for `shell` ("bash" or "zsh"): `gjallarhorn` and `bifrost` for the checkout `heimdall` and the
     machine root `machine` (named in it only when it is not the default)."""
     machine = Path(machine).expanduser().resolve()
     own = machine != Path(DEFAULT_MACHINE).expanduser().resolve()
@@ -33,19 +33,19 @@ def block(shell: str, hep: Path, machine: Path) -> str:
              "# Written by Heimdall (bifrost --shell install; --shell remove takes it out). `gjallarhorn` loads",
              "# Heimdall's environment; `gjallarhorn <title>` also goes to that work dir (heimdall recognise --list",
              "# shows them). `bifrost` adds packages to the environment (bifrost --help)."]
-    bifrost = shlex.quote(str(hep / "framework" / "bin" / "bifrost"))
+    bifrost = shlex.quote(str(heimdall / "framework" / "bin" / "bifrost"))
     if shell == "bash":
-        export = f"export HEP_MACHINE={shlex.quote(str(machine))}; " if own else ""
-        env = f"HEP_MACHINE={shlex.quote(str(machine))} " if own else ""
-        launch = shlex.quote(str(hep / "launch.sh"))
+        export = f"export HEIMDALL_MACHINE={shlex.quote(str(machine))}; " if own else ""
+        env = f"HEIMDALL_MACHINE={shlex.quote(str(machine))} " if own else ""
+        launch = shlex.quote(str(heimdall / "launch.sh"))
         lines += [f"gjallarhorn() {{ if [ \"${{1-}}\" = --image ]; then {env}{launch} --gjallarhorn \"$@\"; "
-                  f"else {export}source {shlex.quote(str(hep / 'gjallarhorn.sh'))} \"$@\"; fi; }}",
+                  f"else {export}source {shlex.quote(str(heimdall / 'gjallarhorn.sh'))} \"$@\"; fi; }}",
                   f"_gjallarhorn_titles() {{ {TITLES} {registry} 2>/dev/null; }}",
                   "complete -W '$(_gjallarhorn_titles)' gjallarhorn",
                   f"bifrost() {{ {env}{bifrost} \"$@\"; }}"]
     elif shell == "zsh":
-        env = f"HEP_MACHINE={shlex.quote(str(machine))} " if own else ""
-        lines += [f"gjallarhorn() {{ {env}{shlex.quote(str(hep / 'launch.sh'))} --gjallarhorn \"$@\"; }}",
+        env = f"HEIMDALL_MACHINE={shlex.quote(str(machine))} " if own else ""
+        lines += [f"gjallarhorn() {{ {env}{shlex.quote(str(heimdall / 'launch.sh'))} --gjallarhorn \"$@\"; }}",
                   f"_gjallarhorn() {{ compadd -- ${{(f)\"$({TITLES} {registry} 2>/dev/null)\"}}; }}",
                   "(( $+functions[compdef] )) && compdef _gjallarhorn gjallarhorn",
                   f"bifrost() {{ {env}{bifrost} \"$@\"; }}"]

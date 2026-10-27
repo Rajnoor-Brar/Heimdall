@@ -5,7 +5,7 @@
   To pin a specific color, replace currentColor with a hex value in .root-shape,
   or substitute it at build time via build.js.
   Original ROOT official cyan: #1ed3e4
-  hep-contrast accentBlue:    #0055CC
+  heimdall-contrast accentBlue:    #0055CC
 -->
 <svg id="root" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
   <defs>

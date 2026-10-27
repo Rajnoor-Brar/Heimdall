@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from runner import cli
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 FILE = """[file]
 schema = 3
@@ -79,12 +79,12 @@ def test_every_option_is_a_preference_or_says_why_it_is_not():
 ])
 def test_what_heimdall_refuses(tmp_path, table, message):
     path = written(tmp_path, f'[file]\nschema = 3\n\n[run]\nname = "f"\nproject = "Demo"\n\n{table}')
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         flagged(["run", path])
 
 
 def test_the_study_s_own_settings_point_to_run(tmp_path):
     path = written(tmp_path, '[file]\nschema = 3\n\n[run]\nname = "f"\nproject = "Demo"\n\n[heimdall]\nno-stats = true\n')
-    with pytest.raises(HepError) as caught:
+    with pytest.raises(HeimdallError) as caught:
         flagged(["run", path])
     assert "[run] stats = false" in caught.value.hint

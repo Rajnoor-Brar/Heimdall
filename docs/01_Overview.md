@@ -12,12 +12,12 @@ physicist-developer. It generates events with a standard generator, analyses the
 own program, sweeps the settings that matter, and compares the curves with each other and with data.
 
 It lives in two kinds of place:
-- **Heimdall** (`$HEP`) is the framework and the machine's home at once: the recipes that build the
+- **Heimdall** (`$HEIMDALL`) is the framework and the machine's home at once: the recipes that build the
   software stack, the stack itself, the Python environment, the runner and its tool folders, and the
   compiled apps. One per machine (or per toolkit's isolated stack).
 - **Work dirs** hold your studies: run TOMLs and cards, your programs and Rivet plugins, data, and
   what runs make. As many as you like, each its own git repository, independent of each other. `heimdall
-  setup <dir>` makes one; a `hep.toml` marks it, and the runner finds it from the working directory,
+  setup <dir>` makes one; a `heimdall.toml` marks it, and the runner finds it from the working directory,
   as git finds a repository.
 
 Its whole shape is one sentence of the brief ([07 §1](07_Record.md#1-the-brief)): **tools are
@@ -219,7 +219,7 @@ A rule a test enforces is a rule; a rule in a document is a hope.
 The surface stays small:
 - one `heimdall` command with a few subcommands ([05 §1](05_Commands_and_Tools.md#1-commands)), plus
   `heimdall build` and `make`; `heimdall cluster` runs the same `heimdall run` as Slurm jobs;
-- one marker file, `hep.toml`, between a work dir and the framework;
+- one marker file, `heimdall.toml`, between a work dir and the framework;
 - seven sections in a run TOML;
 - a few C++ headers;
 - one flat runner package.

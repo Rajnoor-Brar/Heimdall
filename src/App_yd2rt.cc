@@ -15,7 +15,7 @@
 // directory photo_eic__R-0.4 (directories nest as the path does). Every object's title is its
 // original YODA path, and the `paths` TTree maps each ROOT path back to it.
 //
-// --merge (plotmerge, `hep plot`): each input's objects go under a directory named for it, its point
+// --merge (plotmerge, `heimdall plot`): each input's objects go under a directory named for it, its point
 // (27x920_MSTW08lo/photo_eic/d01-x01-y01); the `paths` tree says which point, and --points stores
 // the sweep's points.json in the file as the TNamed "points.json". Into a .yoda file the name becomes
 // a path prefix instead (/27x920_MSTW08lo/photo_eic/d01-x01-y01): one YODA file for the sweep.

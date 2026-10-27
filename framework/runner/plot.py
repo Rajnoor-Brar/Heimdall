@@ -38,9 +38,9 @@ from pathlib import Path
 import tomli_w
 
 from . import hepfiles, plugins, schema, statstable
-from .errors import HepError, did_you_mean
+from .errors import HeimdallError, did_you_mean
 from .labels import canonical, labels_of, lines_of, macros, root_text, tlatex  # noqa: F401 (tlatex et al. re-exported)
-from .paths import apps_dir, cache_root, hep_root, log_settings, resolve, results_root
+from .paths import apps_dir, cache_root, heimdall_root, log_settings, resolve, results_root
 from .record import manifest_file, recorded_identity
 from .status import clean_text, digest
 from .statstable import STATISTIC_COLUMNS, heading_of, statistics_of, write_statistics  # noqa: F401 (re-exported)
@@ -141,9 +141,9 @@ def _matches(path: str, glob: str, fulls=()) -> bool:
 def backend(name: str):
     """A backend other than Paint: framework/plot/<name>/backend.py, with validate(settings) and
     draw(cells, settings, say) -> failed pages."""
-    path = hep_root() / "framework" / "plot" / name / "backend.py"
+    path = heimdall_root() / "framework" / "plot" / name / "backend.py"
     if not path.is_file():
-        raise HepError(f"no plot backend '{name}'", hint=f"expected {path}")
+        raise HeimdallError(f"no plot backend '{name}'", hint=f"expected {path}")
     return plugins.load(path, "backend")
 
 
@@ -163,7 +163,7 @@ def validate(run) -> None:
     where = f"{run.path}: [plot]"
     names = backends(settings)
     if not names:
-        raise HepError("[plot].backend names no backend", where=f"{where}.backend", hint='"root", "yoda" or "both"')
+        raise HeimdallError("[plot].backend names no backend", where=f"{where}.backend", hint='"root", "yoda" or "both"')
     run_style(run)
     for figure in figures(run):
         check_style(figure.table.get("style", {}), f"{figure.where}.style")
@@ -172,21 +172,21 @@ def validate(run) -> None:
                                curve_styles=[s for q in run.quantities.values() for s in q.styles])
     data = settings.get("data", {})
     if data and not data.get("map"):
-        raise HepError("[plot.data] names a file but no map", where=f"{where}.data",
+        raise HeimdallError("[plot.data] names a file but no map", where=f"{where}.data",
                        hint='reference data are matched only through an explicit map, "d01-x01-y01" = "/REF/…/d01-x01-y01" (see L18)')
     if data and "file" not in data:
-        raise HepError("[plot.data] has a map but no file", where=f"{where}.data")
+        raise HeimdallError("[plot.data] has a map but no file", where=f"{where}.data")
 
 
 # ── the style: src/Apps/Paint/base.toml and the layers over it ─────────────────────────────
 
 def base_style() -> dict:
     """src/Apps/Paint/base.toml: every style key, with its default. Paint reads the same file."""
-    path = hep_root() / "src" / "Apps" / "Paint" / "base.toml"
+    path = heimdall_root() / "src" / "Apps" / "Paint" / "base.toml"
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
-        raise HepError(f"cannot read the base style: {error}", where=str(path)) from None
+        raise HeimdallError(f"cannot read the base style: {error}", where=str(path)) from None
 
 
 def _number(value) -> bool:
@@ -202,12 +202,12 @@ def check_style(layer: dict, where: str, base: dict | None = None, at: str = "")
         if key in base and value == DEFAULT:        # set nothing: the layer below, at last base.toml, decides
             continue
         if key not in base:
-            raise HepError(f"the style has no key '{name}'", where=where,
+            raise HeimdallError(f"the style has no key '{name}'", where=where,
                            hint=did_you_mean(key, list(base)) or f"src/Apps/Paint/base.toml has: {', '.join(base)}")
         mine = base[key]
         if isinstance(mine, dict) or isinstance(value, dict):
             if not (isinstance(mine, dict) and isinstance(value, dict)):
-                raise HepError(f"style '{name}' must be {'a table' if isinstance(mine, dict) else 'a value'}", where=where)
+                raise HeimdallError(f"style '{name}' must be {'a table' if isinstance(mine, dict) else 'a value'}", where=where)
             check_style(value, where, mine, name)
             continue
         if name == "legend.position" and isinstance(value, list):
@@ -221,9 +221,9 @@ def check_style(layer: dict, where: str, base: dict | None = None, at: str = "")
         else:
             ok = type(value) is type(mine)
         if not ok:
-            raise HepError(f"style '{name}' = {value!r} is not of the kind base.toml gives it ({mine!r})", where=where)
+            raise HeimdallError(f"style '{name}' = {value!r} is not of the kind base.toml gives it ({mine!r})", where=where)
         if name in STYLE_CHOICES and isinstance(value, str) and value not in STYLE_CHOICES[name]:
-            raise HepError(f"style '{name}' must be one of {', '.join(STYLE_CHOICES[name])}, not '{value}'", where=where)
+            raise HeimdallError(f"style '{name}' must be one of {', '.join(STYLE_CHOICES[name])}, not '{value}'", where=where)
 
 
 def merge_style(*layers: dict) -> dict:
@@ -245,9 +245,9 @@ def style_file(value: str, project: str = "", where: str = "") -> dict:
     try:
         layer = tomllib.loads(path.read_text(encoding="utf-8"))
     except OSError:
-        raise HepError(f"no style file {path}", where=where or str(path)) from None
+        raise HeimdallError(f"no style file {path}", where=where or str(path)) from None
     except tomllib.TOMLDecodeError as error:
-        raise HepError(f"cannot parse the style file: {error}", where=str(path)) from None
+        raise HeimdallError(f"cannot parse the style file: {error}", where=str(path)) from None
     check_style(layer, str(path))
     return layer
 
@@ -262,7 +262,7 @@ def house_style() -> dict:
             try:
                 layer = tomllib.loads(path.read_text(encoding="utf-8"))
             except tomllib.TOMLDecodeError as error:
-                raise HepError(f"cannot parse the style file: {error}", where=str(path)) from None
+                raise HeimdallError(f"cannot parse the style file: {error}", where=str(path)) from None
             check_style(layer, str(path))
             layers.append(layer)
     return merge_style(*layers)
@@ -356,13 +356,13 @@ def convert(yoda: Path, target: Path) -> Path:
         return target
     app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
-        raise HepError(f"{app} is not built", hint="heimdall build --framework")
+        raise HeimdallError(f"{app} is not built", hint="heimdall build --framework")
     target.parent.mkdir(parents=True, exist_ok=True)
     done = subprocess.run([str(app), str(yoda), str(target), "--keep-raw"], capture_output=True, text=True, encoding="utf-8")
     if done.returncode != 0:
         log = failure_log(f"convert-{yoda.stem}", done.stdout + done.stderr, {"tag": "App_yd2rt", "yoda": str(yoda),
                                                                              "exit": done.returncode})
-        raise HepError(f"converting {yoda.name} failed: {done.stderr.strip()[-300:]}"
+        raise HeimdallError(f"converting {yoda.name} failed: {done.stderr.strip()[-300:]}"
                        + (f" (its output: {log})" if log else ""), where=str(log or yoda))
     stamp.write_text(digest + "\n", encoding="utf-8")
     return target
@@ -378,12 +378,12 @@ def data_source(name: str, run) -> Path:
             for candidate in (place / f"{analysis}.yoda", place / f"{analysis}.yoda.gz"):
                 if candidate.is_file():
                     return candidate
-        raise HepError(f"Rivet has no reference data for {analysis}", where=f"{run.path}: [plot.data].file",
+        raise HeimdallError(f"Rivet has no reference data for {analysis}", where=f"{run.path}: [plot.data].file",
                        hint=f"looked for {analysis}.yoda[.gz] in {', '.join(map(str, places))}")
     source = resolve(name, "data", project=run.project, where=f"{run.path}: [plot.data].file")
     if not source.is_file():
         from .paths import dataset_listed
-        raise HepError("the reference data file does not exist", where=str(source),
+        raise HeimdallError("the reference data file does not exist", where=str(source),
                        hint="datasets.toml lists it: `heimdall setup .` fetches it" if dataset_listed(source) else
                        "put it in datasets/ (tracked), or list it in datasets.toml (url, sha256) for heimdall setup to fetch; "
                        "`rivet:<Analysis>` names Rivet's own reference data")
@@ -398,7 +398,7 @@ def merge(sources: dict[str, Path], target: Path, stamp: Path, points: Path | No
         return target
     app = apps_dir() / "App_yd2rt.exe"
     if not app.exists():
-        raise HepError(f"{app} is not built", hint="heimdall build --framework")
+        raise HeimdallError(f"{app} is not built", hint="heimdall build --framework")
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.stem + ".partial" + target.suffix)
     argv = [str(app), "--merge", str(partial), *(f"{name}={path}" for name, path in sources.items()), "--keep-raw"]
@@ -408,7 +408,7 @@ def merge(sources: dict[str, Path], target: Path, stamp: Path, points: Path | No
     if done.returncode != 0:
         log = failure_log(f"merge-{target.stem}", done.stdout + done.stderr, {"tag": "App_yd2rt --merge",
                                                                              "exit": done.returncode})
-        raise HepError(f"merging the sweep failed: {done.stderr.strip()[-300:]}" + (f" (its output: {log})" if log else ""),
+        raise HeimdallError(f"merging the sweep failed: {done.stderr.strip()[-300:]}" + (f" (its output: {log})" if log else ""),
                        where=str(log or target))
     partial.replace(target)
     stamp.parent.mkdir(parents=True, exist_ok=True)
@@ -440,7 +440,7 @@ def recorded(run, configuration) -> list[Member]:
     from .sweep import points as sweep_points
     here = run_folders(run, configuration)
     if not here.manifest.is_file():
-        raise HepError("this configuration has no record yet", where=str(here.manifest), hint="heimdall run it first")
+        raise HeimdallError("this configuration has no record yet", where=str(here.manifest), hint="heimdall run it first")
     entries = json.loads(here.manifest.read_text(encoding="utf-8")).get("points", [])
     made = {p.name: p for p in sweep_points(run, configuration)}
     static = qmod.static_values(run, configuration)
@@ -561,7 +561,7 @@ def _scanned(run, figure: Figure, complete: list, sources: dict, groups: list, w
     the figure reads of the point (framework/plot/figures/derive.py), its x range reaching halfway to its
     nearer neighbour on both sides, so it is centred on its value and every backend can draw it as a
     bin (a scan is drawn as markers, V86). Remade only when a member's YODA or the figure changed."""
-    module = plugins.load(hep_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
+    module = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
     quantity = run.quantities[figure.x]
     kept = [g for g in groups if figure.x not in g]
     by: dict[tuple, list] = {}
@@ -587,7 +587,7 @@ def _scanned(run, figure: Figure, complete: list, sources: dict, groups: list, w
                 try:
                     value, error = module.scan_value(str(sources[plan.point.name]), figure.y, glob)
                 except ValueError as error:
-                    raise HepError(f"figure '{figure.key}' at {plan.point.name}: {error}", where=figure.where) from None
+                    raise HeimdallError(f"figure '{figure.key}' at {plan.point.name}: {error}", where=figure.where) from None
                 points.append((x, x - lo, hi - x, value, error))
             target.write_text(module.scatter(f"/FIGURES/{figure.name}", points), encoding="utf-8")
             stamp.write_text(digest, encoding="utf-8")
@@ -650,7 +650,7 @@ def point_yodas(run, complete: list) -> dict[str, Path]:
     derived = [f for f in figures(run) if f.kind == "derived"]
     if not derived:
         return plain
-    module = plugins.load(hep_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
+    module = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
     where = complete[0].folders.pages / "derived"
     where.mkdir(parents=True, exist_ok=True)
     specs = [(f.name, f.op, list(f.objects)) for f in derived]
@@ -664,7 +664,7 @@ def point_yodas(run, complete: list) -> dict[str, Path]:
                 try:
                     text.append(module.derive(str(source), [spec]))
                 except ValueError as error:
-                    raise HepError(f"figure '{figure.key}' at {name}: {error}", where=figure.where) from None
+                    raise HeimdallError(f"figure '{figure.key}' at {name}: {error}", where=figure.where) from None
             target.write_text("".join(text), encoding="utf-8")
             stamp.write_text(digest, encoding="utf-8")
         out[name] = target
@@ -730,17 +730,17 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
         objects = [o for o in objects if any(fnmatch.fnmatch(o, g) or any(fnmatch.fnmatch(f, g) for f in fulls(o))
                                              for g in wanted)]
         if not objects:
-            raise HepError(f"[plot].objects {wanted} match no object of the points' YODAs",
+            raise HeimdallError(f"[plot].objects {wanted} match no object of the points' YODAs",
                            where=f"{run.path}: [plot].objects")
     claimed: dict[str, Figure] = {}                        # a declared defined figure takes its objects' pages
     for figure in (f for f in declared if f.kind == "defined"):
         found = [o for o in every if any(_matches(o, g, fulls(o)) for g in figure.objects)]
         if not found:
-            raise HepError(f"figure '{figure.key}': {list(figure.objects)} match no object of the points' YODAs",
+            raise HeimdallError(f"figure '{figure.key}': {list(figure.objects)} match no object of the points' YODAs",
                            where=f"{figure.where}.objects")
         for o in found:
             if o in claimed:
-                raise HepError(f"figures '{claimed[o].key}' and '{figure.key}' both make the pages of {o}",
+                raise HeimdallError(f"figures '{claimed[o].key}' and '{figure.key}' both make the pages of {o}",
                                where=f"{figure.where}.objects",
                                hint="one recipe per page: narrow a glob; what every page shares goes in [plot]")
             claimed[o] = figure
@@ -798,7 +798,7 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
                 for selector in spec.selectors:
                     try:
                         found = chosen_points(run, complete, selector, f"{where}.sets")
-                    except HepError:                  # its points are not complete (plan time names a typo)
+                    except HeimdallError:                  # its points are not complete (plan time names a typo)
                         found = []
                     picked += [m for m in found if m not in picked]
                 name = spec.name
@@ -865,10 +865,10 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
         mine = [o for o in objects if claimed.get(o) is figure] if figure.kind == "defined" else []
         flat = [o for o in mine if o not in two_d]
         if figure.type == "HeatMap" and flat:
-            raise HepError(f"figure '{figure.key}' is a HeatMap, and {flat[0]} is a 1D object", where=f"{figure.where}.type",
+            raise HeimdallError(f"figure '{figure.key}' is a HeatMap, and {flat[0]} is a 1D object", where=f"{figure.where}.type",
                            hint="a heat map draws a 2D object; leave type out to draw each as it is")
         if figure.type in ("Hist1D", "Scatter2D") and set(mine) & two_d:
-            raise HepError(f"figure '{figure.key}' is a {figure.type}, and {sorted(set(mine) & two_d)[0]} is a 2D object",
+            raise HeimdallError(f"figure '{figure.key}' is a {figure.type}, and {sorted(set(mine) & two_d)[0]} is a 2D object",
                            where=f"{figure.where}.type", hint='a 2D object is drawn as a heat map: type = "HeatMap", or leave it out')
 
     made = []
@@ -925,10 +925,10 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
         for glob in figure.objects:
             found = [o for o in every if _matches(o, glob)]
             if not found:
-                raise HepError(f"figure '{figure.key}': '{glob}' matches no object of the points' YODAs",
+                raise HeimdallError(f"figure '{figure.key}': '{glob}' matches no object of the points' YODAs",
                                where=f"{figure.where}.objects")
             if found[0] in two_d:
-                raise HepError(f"figure '{figure.key}': {found[0]} is a 2D object, which a heat map draws alone",
+                raise HeimdallError(f"figure '{figure.key}': {found[0]} is a 2D object, which a heat map draws alone",
                                where=f"{figure.where}.objects", hint="an overlay draws 1D objects together")
             paths.append(found[0])
         labels = list(figure.labels) or [p.rsplit("/", 1)[-1] for p in paths]
@@ -1001,7 +1001,7 @@ def statistic_pages(run, figure: Figure, todo: list[Page], where: Path) -> list[
     their `statistic` against the page's reference; `sort`: the smallest first. A Scatter2D per page, as a
     scan figure's (derive.scatter), into .cache/…/statistic/<name>/, converted for Paint; drawn into the page's
     set's statistics/<set>/figures/<backend>/<cell>/<name>/<object> (V164)."""
-    module = plugins.load(hep_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
+    module = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
     where.mkdir(parents=True, exist_ok=True)
     style, base = run_style(run), base_style()
     made = []
@@ -1106,14 +1106,14 @@ def check_figures(run, configuration) -> None:
         for key, names in (("band", band if isinstance(band, list) else []), ("over", over)):
             for name in names:
                 if not any(name in g for g in curve_groups):
-                    raise HepError(f"{at}.{key} names {name}, which is not a curve axis of {configuration.key}",
+                    raise HeimdallError(f"{at}.{key} names {name}, which is not a curve axis of {configuration.key}",
                                    where=f"{run.path}: {at}.{key}", hint=hint)
                 if name in listed:
-                    raise HepError(f"{at}.{key} names {name}, a quantity of listed points (vary's {{ points = … }})",
+                    raise HeimdallError(f"{at}.{key} names {name}, a quantity of listed points (vary's {{ points = … }})",
                                    where=f"{run.path}: {at}.{key}",
                                    hint="listed points are not a grid to band or merge across: sweep it as an axis of its own")
         if set(band if isinstance(band, list) else []) & set(over):
-            raise HepError(f"{at} both merges and bands {sorted(set(band) & set(over))[0]}", where=f"{run.path}: {at}.band",
+            raise HeimdallError(f"{at} both merges and bands {sorted(set(band) & set(over))[0]}", where=f"{run.path}: {at}.band",
                            hint="a merged axis is one curve already: band another, or merge less")
     from .quantities import static_values
     from .sweep import TOTALITY, named_sets
@@ -1122,7 +1122,7 @@ def check_figures(run, configuration) -> None:
         known = {TOTALITY, *named_sets(settings.get("sets"))}                    # V167, V168: what [run] picks
         for name in given if isinstance(given, list) else ():
             if name not in known:
-                raise HepError(f"{key} = [...] names '{name}', which is no set", where=f"{run.path}: {key}",
+                raise HeimdallError(f"{key} = [...] names '{name}', which is no set", where=f"{run.path}: {key}",
                                hint=did_you_mean(name, sorted(known)) or f"sets: {', '.join(sorted(known))}")
     def mine(at: str, table: dict):
         """The sets of [plot] this configuration draws or measures (V179), None for every one: a file's sets are
@@ -1145,7 +1145,7 @@ def check_figures(run, configuration) -> None:
             picked = table.get("draw")
             for name in picked if isinstance(picked, list) else ():                  # V167: what it draws
                 if name not in {s.name for s in specs}:
-                    raise HepError(f"{at}.draw names '{name}', which is no set", where=f"{run.path}: {at}.draw",
+                    raise HeimdallError(f"{at}.draw names '{name}', which is no set", where=f"{run.path}: {at}.draw",
                                    hint=did_you_mean(name, [s.name for s in specs]) or f"sets: {', '.join(s.name for s in specs)}")
             checked = mine(at, table)
             for spec in specs:
@@ -1161,13 +1161,13 @@ def check_figures(run, configuration) -> None:
     for figure in (f for f in figures(run) if f.kind == "scan"):                    # V85
         at = f"{run.path}: {figure.where.split(': ', 1)[1]}.x"
         if not any(figure.x in g for g in curve_groups) or figure.x in listed:
-            raise HepError(f"a scan figure's x names {figure.x}, which is not a curve axis of {configuration.key}"
+            raise HeimdallError(f"a scan figure's x names {figure.x}, which is not a curve axis of {configuration.key}"
                            + (" of its own (it is in listed points)" if figure.x in listed else ""), where=at, hint=hint)
         if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in run.quantities[figure.x].values):
-            raise HepError(f"a scan figure's x, {figure.x}, has values that are not numbers", where=at,
+            raise HeimdallError(f"a scan figure's x, {figure.x}, has values that are not numbers", where=at,
                            hint="its values are the x axis: a quantity of numbers (a scan of named values is not drawn yet)")
         if figure.x in (figure.table.get("band") or []):
-            raise HepError(f"a scan figure's x, {figure.x}, is its axis: it cannot be banded", where=f"{at.removesuffix('.x')}.band")
+            raise HeimdallError(f"a scan figure's x, {figure.x}, is its axis: it cannot be banded", where=f"{at.removesuffix('.x')}.band")
 
 
 @dataclass(frozen=True)
@@ -1195,10 +1195,10 @@ def compared(run, figure: Figure) -> list[Compared]:
         return _compared_documents(run, figure, at)
     keys = list(figure.configurations) or (run.runs(None) if run.sweep_runs else [])
     if len(keys) < 2:
-        raise HepError("a compare figure needs two configurations or more", where=at,
+        raise HeimdallError("a compare figure needs two configurations or more", where=at,
                        hint='configurations = ["a", "b"], or [run].sweep_runs: its configurations')
     if len(set(keys)) != len(keys):
-        raise HepError("a compare figure names a configuration twice", where=at)
+        raise HeimdallError("a compare figure names a configuration twice", where=at)
     out = []
     for ref in keys:
         if ":" not in ref and ref.count("/") == 2:               # a record (V158): its snapshot's run
@@ -1206,10 +1206,10 @@ def compared(run, figure: Figure) -> list[Compared]:
             from .record import read_snapshot, record_of
             try:
                 found = record_of(ref)
-            except HepError as error:
-                raise HepError(f"a compare figure names '{ref}': {error.message}", where=at, hint=error.hint) from None
+            except HeimdallError as error:
+                raise HeimdallError(f"a compare figure names '{ref}': {error.message}", where=at, hint=error.hint) from None
             if found is None:
-                raise HepError(f"a compare figure names '{ref}', which is no record", where=at,
+                raise HeimdallError(f"a compare figure names '{ref}', which is no record", where=at,
                                hint="a record is <P>/<run>/<NN_cfg>, a folder of records/ with a snapshot")
             snap = read_snapshot(found)
             with configs_at(found / "config"):                             # V179: read for its configuration
@@ -1222,20 +1222,20 @@ def compared(run, figure: Figure) -> list[Compared]:
         if owner is None:
             try:
                 owner = load(ref.rsplit(":", 1)[0], configuration=key)
-            except HepError as error:
-                raise HepError(f"a compare figure names '{ref}': {error.message}", where=at, hint=error.hint) from None
+            except HeimdallError as error:
+                raise HeimdallError(f"a compare figure names '{ref}': {error.message}", where=at, hint=error.hint) from None
         if key not in owner.configurations:
-            raise HepError(f"a compare figure names '{ref}', which is not a configuration", where=at,
+            raise HeimdallError(f"a compare figure names '{ref}', which is not a configuration", where=at,
                            hint=did_you_mean(key, list(owner.configurations)) or f"configurations: {', '.join(owner.configurations)}")
         out.append(Compared(ref, owner, owner.configurations[key]))
     if not any(c.own for c in out):
-        raise HepError("a compare figure names a configuration of its own file too", where=at,
+        raise HeimdallError("a compare figure names a configuration of its own file too", where=at,
                        hint="its pages are drawn by that configuration's plot stage, into this run's compare/")
     shapes = {c.ref: axes_of(c.configuration) for c in out}
     first = out[0]
     for c in out[1:]:
         if shapes[c.ref] != shapes[first.ref]:
-            raise HepError(f"a compare figure's configurations differ in their axes: {first.ref} {_shape(shapes[first.ref])}, "
+            raise HeimdallError(f"a compare figure's configurations differ in their axes: {first.ref} {_shape(shapes[first.ref])}, "
                            f"{c.ref} {_shape(shapes[c.ref])}", where=at,
                            hint="compared configurations sweep the same quantities, with the same plot_points and combine")
     for c in (c for c in out if not c.own):              # another run's page cells must be this run's
@@ -1243,10 +1243,10 @@ def compared(run, figure: Figure) -> list[Compared]:
             for name in (group if isinstance(group, Listed) else group[:1]):
                 mine, theirs = run.quantities[name], c.run.quantities[name]
                 if [tag_of(mine, i) for i in range(len(mine.values))] != [tag_of(theirs, i) for i in range(len(theirs.values))]:
-                    raise HepError(f"'{c.ref}' has other values of {name}, a page axis, than this file", where=at,
+                    raise HeimdallError(f"'{c.ref}' has other values of {name}, a page axis, than this file", where=at,
                                    hint="its pages pair with this run's by the page axes' tags")
     if figure.labels and len(figure.labels) != len(out):
-        raise HepError(f"a compare figure's labels give one label per configuration ({len(out)})", where=f"{figure.where}.labels")
+        raise HeimdallError(f"a compare figure's labels give one label per configuration ({len(out)})", where=f"{figure.where}.labels")
     return out
 
 
@@ -1256,7 +1256,7 @@ def _compared_documents(run, figure: Figure, at: str) -> list[Compared]:
     with no document yet has no members (the figure waits). The found ones' axes must match, as compared's."""
     keys = list(figure.configurations)
     if len(keys) < 2:
-        raise HepError("a compare figure needs two configurations or more", where=at,
+        raise HeimdallError("a compare figure needs two configurations or more", where=at,
                        hint='configurations = ["a", "b"]: drawn from a plot document, it names them')
     out = []
     for ref in keys:
@@ -1268,15 +1268,15 @@ def _compared_documents(run, figure: Figure, at: str) -> list[Compared]:
         out.append(Compared(ref, found[0] if found else None, found[1] if found else None, record=record,
                             members=found[2] if found else []))
     if not any(c.ref == run.configuration.key for c in out):
-        raise HepError("a compare figure names a configuration of its own file too", where=at)
+        raise HeimdallError("a compare figure names a configuration of its own file too", where=at)
     shapes = {c.ref: axes_of(c.configuration) for c in out if c.configuration is not None}
     for c in out:
         if c.configuration is not None and shapes[c.ref] != shapes[run.configuration.key]:
-            raise HepError(f"a compare figure's configurations differ in their axes: {run.configuration.key} "
+            raise HeimdallError(f"a compare figure's configurations differ in their axes: {run.configuration.key} "
                            f"{_shape(shapes[run.configuration.key])}, {c.ref} {_shape(shapes[c.ref])}", where=at,
                            hint="compared configurations sweep the same quantities, with the same plot_points and combine")
     if figure.labels and len(figure.labels) != len(out):
-        raise HepError(f"a compare figure's labels give one label per configuration ({len(out)})", where=f"{figure.where}.labels")
+        raise HeimdallError(f"a compare figure's labels give one label per configuration ({len(out)})", where=f"{figure.where}.labels")
     return out
 
 
@@ -1308,7 +1308,7 @@ def check_texts(run, plans) -> None:
     known = {"cell"} | {k for plan in plans for k in texts_of(run, plan, "")}
     for key, at in cited:
         if key not in known:
-            raise HepError(f"a page text cites {{{key}}}, which is nothing the points have", where=f"{run.path}: {at}",
+            raise HeimdallError(f"a page text cites {{{key}}}, which is nothing the points have", where=f"{run.path}: {at}",
                            hint=did_you_mean(key, sorted(known)) or f"they have: {', '.join('{' + k + '}' for k in sorted(known))}")
 
 
@@ -1321,10 +1321,10 @@ def filler(known: list[dict[str, str]], where: str):
             values = {k.get(key) for k in known}
             if None in values:
                 cited = sorted({k for d in known for k in d})
-                raise HepError(f"a page text cites {{{key}}}, which is nothing the points have", where=where,
+                raise HeimdallError(f"a page text cites {{{key}}}, which is nothing the points have", where=where,
                                hint=did_you_mean(key, cited) or f"they have: {', '.join('{' + k + '}' for k in cited)}")
             if len(values) > 1:
-                raise HepError(f"a page text cites {{{key}}}, which differs between the curves of the page: "
+                raise HeimdallError(f"a page text cites {{{key}}}, which differs between the curves of the page: "
                                f"{', '.join(sorted(values))}", where=where,
                                hint="cite it in the curves' labels (a quantity's labels), or make it a plot_points axis")
             return values.pop()
@@ -1544,7 +1544,7 @@ def _draw_stage(run, configuration, plans, say, others=None, stats=True) -> int:
         return 0
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
-        raise HepError(f"{paint} is not built", hint="heimdall build --framework")
+        raise HeimdallError(f"{paint} is not built", hint="heimdall build --framework")
     _, other = drawable(plans)
     if other:                                        # V158: drawn as recorded, and named
         names = ", ".join(p.point.name for p in other[:4]) + (", …" if len(other) > 4 else "")
@@ -1651,7 +1651,7 @@ def plan_lines(run, configuration, plans) -> list[str]:
                 for selector in spec.selectors:
                     try:
                         picked += [m for m in chosen_points(run, complete, selector, at) if m not in picked]
-                    except HepError:
+                    except HeimdallError:
                         pass
                 lines.append(f"set {spec.name} ({at}): {len(picked)} curve(s){extra}: "
                              + "; ".join(m.point.name for m in picked))
@@ -1686,7 +1686,7 @@ def sheet(run, figure: Figure, todo: list[Page], say) -> int:
     <name>.pdf, and its .png rendered from that PDF (V102), for Paint's pages and mpl's (mkhtml lays its files
     out its own way). A set none of its globs names is passed over; 1 when no set has its pages, or one has
     some of them only, or it could not be made."""
-    module = plugins.load(hep_root() / "framework" / "plot" / "figures" / "layout.py", "layout")
+    module = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "layout.py", "layout")
     by_set: dict[str, list[Page]] = {}
     for page in todo:
         by_set.setdefault(page.set, []).append(page)
@@ -1818,7 +1818,7 @@ def _measure(run, configuration, plans, say, picked=None) -> int:
         return 0
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
-        raise HepError(f"{paint} is not built", hint="heimdall build --framework")
+        raise HeimdallError(f"{paint} is not built", hint="heimdall build --framework")
     numbers = measured(run, picked)
     notes: list[str] = []
     todo = pages(numbers, configuration, plans, notes, documents="stats")
@@ -1967,12 +1967,12 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
     paths = [Path(t).resolve() for t in targets]
     missing = [str(p) for p in paths if not p.is_file()]
     if missing:
-        raise HepError(f"no such file: {', '.join(missing)}")
+        raise HeimdallError(f"no such file: {', '.join(missing)}")
     if labels and len(labels) != len(paths):
-        raise HepError(f"--labels gives {len(labels)} names for {len(paths)} files")
+        raise HeimdallError(f"--labels gives {len(labels)} names for {len(paths)} files")
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
-        raise HepError(f"{paint} is not built", hint="heimdall build --framework")
+        raise HeimdallError(f"{paint} is not built", hint="heimdall build --framework")
     key = hashlib.sha256("\n".join(map(str, paths)).encode()).hexdigest()[:12]
     work = cache_root() / "overlay" / key                       # its page documents: derived, rebuilt on demand
     outdir = (outdir or (results_root() / "plots" / paths[0].name.split(".")[0])).resolve()
@@ -1997,7 +1997,7 @@ def files(targets: list[str], outdir: Path | None, *, labels: list[str] | None =
     if objects:
         pages_of = [o for o in pages_of if any(fnmatch.fnmatch(o, g) for g in objects)]
     if not pages_of:
-        raise HepError("no 1D object to draw" + (f" matches {list(objects)}" if objects else ""))
+        raise HeimdallError("no 1D object to draw" + (f" matches {list(objects)}" if objects else ""))
     settings = {"formats": list(formats), "ratio": ratio, "auto_range": True}
     layer = merge_style(house_style(), style_file(style) if style else {})   # the machine's and work dir's, then --style
     failed, written = 0, {}

@@ -8,7 +8,7 @@ import pytest
 import tomli_w
 
 from runner import cli, config
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from helpers import parse, plan, raw
 
@@ -54,9 +54,9 @@ def test_extends_chains_and_refuses_a_circle_or_a_missing_parent(scratch):
     chained = parse(configurations(a={"tools": [["pythia", "rivet"]], "threads": 3}, b={"extends": "a"}, c={"extends": "b"}),
                     scratch)
     assert chained.configurations["c"].threads == 3
-    with pytest.raises(HepError, match="round in a circle"):
+    with pytest.raises(HeimdallError, match="round in a circle"):
         parse(configurations(a={"extends": "b", "tools": [["pythia"]]}, b={"extends": "a"}), scratch)
-    with pytest.raises(HepError, match="not a configuration") as caught:
+    with pytest.raises(HeimdallError, match="not a configuration") as caught:
         parse(configurations(a={"tools": [["pythia", "rivet"]]}, b={"extends": "aa"}), scratch)
     assert "'a'" in caught.value.hint
 
@@ -64,10 +64,10 @@ def test_extends_chains_and_refuses_a_circle_or_a_missing_parent(scratch):
 def test_run_cannot_set_a_configurations_own_keys_and_run_defaults_is_gone(scratch):
     """V99: label, title and extends are each configuration's own; [run.defaults] is refused, read
     leniently (heimdall migrate's) as keys of [run], and `defaults` may now name a configuration."""
-    with pytest.raises(HepError, match="unknown key 'label'"):
+    with pytest.raises(HeimdallError, match="unknown key 'label'"):
         parse(configurations(run={"label": "x"}, a={"tools": [["pythia", "rivet"]]}), scratch)
     data = raw(run__defaults={"threads": 3})
-    with pytest.raises(HepError, match=r"\[run.defaults\] is \[run\] now") as error:
+    with pytest.raises(HeimdallError, match=r"\[run.defaults\] is \[run\] now") as error:
         parse(data, scratch)
     assert "heimdall migrate" in error.value.hint
     assert config.parse(data, scratch / "t.toml", strict=False).configuration(None).threads == 3
@@ -131,7 +131,7 @@ def test_an_import_circle_is_refused(scratch):
     a, b = scratch / "a.toml", scratch / "b.toml"
     a.write_text(tomli_w.dumps(raw(run__name="a", config={"import": str(b)})), encoding="utf-8")
     b.write_text(tomli_w.dumps({"config": {"import": str(a)}}), encoding="utf-8")
-    with pytest.raises(HepError, match="imports go round in a circle: a.toml → b.toml → a.toml"):
+    with pytest.raises(HeimdallError, match="imports go round in a circle: a.toml → b.toml → a.toml"):
         config.load(str(a))
 
 
@@ -142,14 +142,14 @@ def test_a_file_that_imports_has_its_own_location(scratch):
     other.write_text(tomli_w.dumps(raw(run__serial=2)), encoding="utf-8")
     path = scratch / "run.toml"
     path.write_text(tomli_w.dumps({"config": {"import": str(other)}, "run": {"project": "Demo"}}), encoding="utf-8")
-    with pytest.raises(HepError, match=r"sets its own \[run\].name"):
+    with pytest.raises(HeimdallError, match=r"sets its own \[run\].name"):
         config.load(str(path))
     beside = {"config": {"import": str(other)}, "run": {"project": "Demo", "name": "t", "serial": 3}}
     path.write_text(tomli_w.dumps(beside), encoding="utf-8")
     assert set(config.load(str(path)).configurations) == {"one"}                 # t/03_one beside t/02_one
     beside["run"]["serial"] = 2
     path.write_text(tomli_w.dumps(beside), encoding="utf-8")
-    with pytest.raises(HepError, match=r"\[run.cfgs.one\] and other.toml's \[run.cfgs.one\] would both write Demo/t/02_one"):
+    with pytest.raises(HeimdallError, match=r"\[run.cfgs.one\] and other.toml's \[run.cfgs.one\] would both write Demo/t/02_one"):
         config.load(str(path))
 
 
@@ -163,7 +163,7 @@ def test_another_projects_file_brings_its_cards_and_plans_the_same(scratch, monk
     (root / "Other").mkdir(parents=True)
     (root / "Demo").mkdir()
     shutil.copy(fixtures / "Demo" / "ep.cmnd", root / "Other" / "ep.cmnd")
-    monkeypatch.setenv("HEP_CONFIGS", str(root))
+    monkeypatch.setenv("HEIMDALL_CONFIGS", str(root))
     (root / "Other" / "other.toml").write_text(tomli_w.dumps(used(raw(run__name="other", run__project="Other"))), encoding="utf-8")
     (root / "Demo" / "mine.toml").write_text(tomli_w.dumps(
         {"config": {"import": "Other/other"}, "run": {"name": "mine", "project": "Demo"}}), encoding="utf-8")
@@ -201,7 +201,7 @@ def test_an_import_may_take_only_some_of_a_file(scratch):
     assert set(run.configurations) == {"two"} and run.configuration(None).event_count == 99
     assert not run.plot and set(run.quantities) == {"pdf", "energies"}
     path.write_text(tomli_w.dumps({**mine, "config": {"import": [{"from": str(other), "only": ["run.cfgs.tow"]}]}}), encoding="utf-8")
-    with pytest.raises(HepError, match="only names 'run.cfgs.tow', which other.toml has not") as error:
+    with pytest.raises(HeimdallError, match="only names 'run.cfgs.tow', which other.toml has not") as error:
         config.load(str(path))
     assert "two" in error.value.hint
 
@@ -217,11 +217,11 @@ def test_drop_takes_out_what_an_import_gave(scratch):
     assert set(run.configurations) == {"one"} and set(run.plot["figures"]) == {"keep"} and "energies" not in run.quantities
     assert "quantities.energies" not in run.included and run.included["run.cfgs.one"] == "other.toml"
     path.write_text(tomli_w.dumps({**mine, "config": {"import": str(other), "drop": ["plot.figures.tials"]}}), encoding="utf-8")
-    with pytest.raises(HepError, match="drop names 'plot.figures.tials', which no import gave") as error:
+    with pytest.raises(HeimdallError, match="drop names 'plot.figures.tials', which no import gave") as error:
         config.load(str(path))
     assert "tails" in error.value.hint
     path.write_text(tomli_w.dumps(raw(config={"drop": ["run.cfgs.one"]})), encoding="utf-8")
-    with pytest.raises(HepError, match="this file imports nothing"):
+    with pytest.raises(HeimdallError, match="this file imports nothing"):
         config.load(str(path))
 
 
@@ -269,15 +269,15 @@ def test_a_configuration_may_have_its_own_vars_and_data(scratch):
     more = config.load(path, configuration="more")                             # through what it extends
     assert more.tools["rivet"].extra["analyses"] == ["dis_eic"] and more.applied == more.configuration("more").own
     point = __import__("runner.sweep", fromlist=["points"]).points(run, run.configuration("dis"))[0]
-    with pytest.raises(HepError, match="sets its own vars and data, and this file was read for another"):
+    with pytest.raises(HeimdallError, match="sets its own vars and data, and this file was read for another"):
         tools.plan_point(run, run.configuration("dis"), point, {})
 
 
 def test_a_var_is_checked(scratch):
-    with pytest.raises(HepError, match=r"\{var:evnts\} is not in \[config.vars\]") as error:
+    with pytest.raises(HeimdallError, match=r"\{var:evnts\} is not in \[config.vars\]") as error:
         config.load(_written(scratch, raw(config={"vars": {"events": 5}}, run__event_count="{var:evnts}")))
     assert "events" in error.value.hint
-    with pytest.raises(HepError, match="is a list: it can only be a whole value"):
+    with pytest.raises(HeimdallError, match="is a list: it can only be a whole value"):
         config.load(_written(scratch, raw(config={"vars": {"l": [1, 2]}}, plot={"title": "a {var:l}"})))
 
 
@@ -299,10 +299,10 @@ def test_meta_versions_warn_and_never_refuse(scratch, monkeypatch):
     assert tools.meta_notes(run) == ["t.toml was run with onnx 1.20; the stack gives no version of it to compare"]
     run = parse(raw(config={"meta": {"versions": {"pythia8": "8.312", "rivet": "4.1.3"}}}), scratch)
     assert tools.meta_notes(run) == ["t.toml was run with pythia8 8.312; the stack has 8.317 (it runs anyway, at your own risk)"]
-    with pytest.raises(HepError, match="'pythia' is not a package of env/stack.toml") as error:
+    with pytest.raises(HeimdallError, match="'pythia' is not a package of env/stack.toml") as error:
         parse(raw(config={"meta": {"versions": {"pythia": "8.317"}}}), scratch)
     assert "pythia8" in error.value.hint
-    with pytest.raises(HepError, match="version is a string"):
+    with pytest.raises(HeimdallError, match="version is a string"):
         parse(raw(config={"meta": {"versions": {"pythia8": 8.317}}}), scratch)
 
 
@@ -319,7 +319,7 @@ def test_an_imported_files_vars_come_with_the_part_taken(scratch):
 
 def test_master_is_config_now(scratch):
     """V93 (break and migrate): [master] is refused with what to write."""
-    with pytest.raises(HepError, match=r"\[master\] is \[config\] now") as error:
+    with pytest.raises(HeimdallError, match=r"\[master\] is \[config\] now") as error:
         parse(raw(master={"master_toml": "m.toml"}), scratch)
     assert "heimdall migrate" in error.value.hint
 

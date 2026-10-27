@@ -8,7 +8,7 @@
 #   version  the command that prints its version: `heimdall status --stack`, and a tool folder's
 #            `[identity] version = "stack:<name>"`; or { file = "<shell path>" }: the file's first
 #            line that holds "version"
-# Read by env/stack.py. env/hep_env.sh (sourced at login) keeps its own list, on purpose:
+# Read by env/stack.py. env/heimdall_env.sh (sourced at login) keeps its own list, on purpose:
 # it must stay fast and bash-only (the user, 2026-10-03).
 
 [pythia8]
@@ -56,11 +56,11 @@ flags   = ["pkg-config", "--cflags", "--libs", "zlib"]
 version = ["pkg-config", "--modversion", "zlib"]
 
 [onnx]
-dir = "${ONNXRUNTIME_DIR:-${HEP_INSTALL-}/onnxruntime}"
+dir = "${ONNXRUNTIME_DIR:-${HEIMDALL_INSTALL-}/onnxruntime}"
 lib = "onnxruntime"
 
 [delphes]
-dir = "${DELPHES_DIR:-${HEP_INSTALL-}/delphes}"     # DELPHES_DIR: a ready-made Delphes, in the base (hep_env.sh)
+dir = "${DELPHES_DIR:-${HEIMDALL_INSTALL-}/delphes}"     # DELPHES_DIR: a ready-made Delphes, in the base (heimdall_env.sh)
 lib = "Delphes"
 
 # programs: no flags, a version only
@@ -74,4 +74,4 @@ version = ["Sherpa-config", "--version"]
 version = ["whizard", "--version"]
 
 [madgraph]
-version = { file = "${HEP_INSTALL-}/madgraph/VERSION" }
+version = { file = "${HEIMDALL_INSTALL-}/madgraph/VERSION" }

@@ -14,9 +14,9 @@
 **Reads:** 01 §8 (what was kept), P2 S2's rows.
 
 **Writes:**
-- a scratch work dir for the reference point, `$HEP/.setup/verify/P4/ref`;
+- a scratch work dir for the reference point, `$HEIMDALL/.setup/verify/P4/ref`;
 - Heimdall's `bots/current_plan.md`;
-- `$HEP/.setup/report.md`.
+- `$HEIMDALL/.setup/report.md`.
 
 **Gates:**
 - a reference setup that differs from the kept one (S1);
@@ -31,7 +31,7 @@
 - P2 S2 is `done`, with its R2 decided if it failed.
 - The machine is otherwise idle: the reference uses 12 threads plus 10 Rivets.
 
-**The reference point** (kept as `$HEP/.setup/kept/reference/`, 01 §8) is the point that the
+**The reference point** (kept as `$HEIMDALL/.setup/kept/reference/`, 01 §8) is the point that the
 fixture's `Demo/inproc_validation`, configuration `default`, calls `NNPDF23lo`. Its provenance on the
 lab PC says:
 
@@ -51,8 +51,8 @@ lab PC says:
    (frozen copies of the study's configs and modules, and `jets_data.yoda`, V112),
    so no High-Energy clone is needed:
    ```bash
-   R=$HEP/.setup/verify/P4/ref && heimdall setup $R
-   cp -r $HEP/tests/fixtures/work/{configs,modules,datasets} $R/
+   R=$HEIMDALL/.setup/verify/P4/ref && heimdall setup $R
+   cp -r $HEIMDALL/tests/fixtures/work/{configs,modules,datasets} $R/
    cd $R && heimdall build && touch $R/stamp
    ```
 2. **Plan it** with its seed pinned (the fixture's `inproc_validation.toml` already asks for 12 threads):
@@ -63,7 +63,7 @@ lab PC says:
    **The setup is the same:** diff the point card and the program's config against the kept ones.
    Comment lines are skipped, and the config's paths differ by place:
    ```bash
-   K=$HEP/.setup/kept/reference/output
+   K=$HEIMDALL/.setup/kept/reference/output
    N=$(ls -d $R/output/Demo/inproc_validation/*default/NNPDF23lo)
    diff <(grep -v '^ *!' $K/cards/pythia.point.cmnd) <(grep -v '^ *!' $N/cards/pythia.point.cmnd)
    diff <(grep -v '/' $K/config/inproc.toml) <(grep -v '/' $N/config/inproc.toml)
@@ -74,7 +74,7 @@ lab PC says:
      setups. Show the diff, and the user decides: compare anyway (the rows become informative
      only), or pin the changed keys too.
 3. **Run it:** the same command without `--plan`, with `--plain`. It took about 90 s on the lab PC.
-4. **Compare.** Write `$HEP/.setup/compare_ref.py`, tested on the lab PC (the kept files against
+4. **Compare.** Write `$HEIMDALL/.setup/compare_ref.py`, tested on the lab PC (the kept files against
    themselves: all `same`, exit 0):
    ```python
    #!/usr/bin/env python3
@@ -115,8 +115,8 @@ lab PC says:
    ```
    Then run:
    ```bash
-   python3 $HEP/.setup/compare_ref.py \
-       $HEP/.setup/kept/reference/results \
+   python3 $HEIMDALL/.setup/compare_ref.py \
+       $HEIMDALL/.setup/kept/reference/results \
        $(ls -d $R/results/Demo/inproc_validation/*default/NNPDF23lo)
    ```
    - **`same` everywhere:** the new build generates the same events on the same seed, which is
@@ -132,7 +132,7 @@ lab PC says:
 | R1 | task 2's two `diff`s, `\| wc -l` | `0` and `0` (or the user's decision at the gate) |
 | R2 | task 4's `compare_ref.py …; echo "exit $?"` | four lines, each `same` or `ok`; `exit 0` |
 | R3 | `python3 -c "import json; d=json.load(open('$(ls -d $R/results/Demo/inproc_validation/*default/NNPDF23lo)/validation.yoda.json')); print(d['sigma_from'], d['stopped'])"` | `generator False` |
-| R4 | `git -C $HEP status --porcelain \| wc -l; find $HEP -newer $R/stamp -not -path "$HEP/.setup/*" -not -path '*/__pycache__*' \| wc -l` | `0` and `0` (the run wrote nothing in Heimdall) |
+| R4 | `git -C $HEIMDALL status --porcelain \| wc -l; find $HEIMDALL -newer $R/stamp -not -path "$HEIMDALL/.setup/*" -not -path '*/__pycache__*' \| wc -l` | `0` and `0` (the run wrote nothing in Heimdall) |
 | R5 | P2 S2 R1–R10 in `state.toml` | all `done`, with R2 either byte-identical or decided by the user (a V-row) |
 
 **On failure:** R2's `FAIL` on σ but not on the entries, or the other way round, is the more
@@ -152,11 +152,11 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
      "Later", `bots/intent.md`), and High-Energy's parked conversion (06's appendix).
 
    Commit.
-2. **The report**, `$HEP/.setup/report.md`, one page:
+2. **The report**, `$HEIMDALL/.setup/report.md`, one page:
    - the phases with their times;
    - every gate and its answer;
    - every deviation and where it was folded in;
-   - the disk used (`du -sh $HEP_MACHINE/{stack,venv,forge,apps}/`);
+   - the disk used (`du -sh $HEIMDALL_MACHINE/{stack,venv,forge,apps}/`);
    - P2's test counts;
    - S1's table;
    - **"how to work now"** in five lines:
@@ -167,10 +167,10 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
      heimdall build --framework                 # after changing Heimdall's apps (identities change, 06 §27)
      heimdall where                             # which Heimdall and work dir this shell sees
      ```
-3. **Clean the stack's build trees.** The stack's trees in `$HEP_MACHINE/forge/build/` (6.8 GB on the
+3. **Clean the stack's build trees.** The stack's trees in `$HEIMDALL_MACHINE/forge/build/` (6.8 GB on the
    lab PC) and the unpacked sources in `forge/src/` go. The archives in `forge/downloads/`, and
    `forge/logs/`, `forge/make/`, `forge/tests/`, `forge/scratch/` stay. This is inside
-   `$HEP_MACHINE/forge`, so 02 §6 needs no gate; report the space freed. Never `git clean -x`.
+   `$HEIMDALL_MACHINE/forge`, so 02 §6 needs no gate; report the space freed. Never `git clean -x`.
 4. **Gates, asked together, each answered on its own:**
    - **publish Heimdall:** if it was cloned from a bundle, a new private GitHub repository
      `Rajnoor-Brar/Heimdall` (the user creates it, or approves `gh repo create --private`), then
@@ -179,20 +179,20 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
    - **`gjallarhorn` and `bifrost`:** the stack's build wrote them into `~/.bashrc` (and `~/.zshrc`)
      unless `shell_rc = false`; `bifrost` (no arguments) says whether they are there, and
      `bifrost --shell install` writes them (it edits the user's rc files: show the block, and ask);
-   - **the agents' memory:** copy `$HEP/.setup/kept/memory/` (if it was kept, 01 §8) back to
+   - **the agents' memory:** copy `$HEIMDALL/.setup/kept/memory/` (if it was kept, 01 §8) back to
      the agents' memory folder for `~/Github/Heimdall`, and update its lab-PC entries to the new
      install (Heimdall at `~/Github/Heimdall`, Top-Quark, High-Energy left alone);
    - **the user's kept folders** (`datasets/ literature/ cross_machine/ reports/` in
-     `$HEP/.setup/kept/`): where they go is the user's.
+     `$HEIMDALL/.setup/kept/`): where they go is the user's.
 
 **Verification:**
 
 | # | Command | Expected |
 |---|---|---|
-| R1 | `python3 -c "import tomllib; s=tomllib.load(open('$HEP/.setup/state.toml','rb'))['step']; print(sum(v['status']!='done' for v in s.values()))"` | `0` |
-| R2 | `python3 -c "import tomllib; d=tomllib.load(open('$HEP/.setup/state.toml','rb')).get('deviation',[]); print(sum(not x['folded'] for x in d))"` | `0` (every deviation folded into the plans) |
-| R3 | `git -C $HEP status --porcelain \| wc -l` | `0` |
-| R4 | `test -s $HEP/.setup/report.md && grep -c '^## ' $HEP/.setup/report.md` | ≥ `5` |
-| R5 | `ls -d $HEP_MACHINE/forge/build/root $HEP_MACHINE/forge/build/geant4 2>/dev/null \| wc -l` | `0` (the stack's trees are gone) |
-| R6 | `bash -lc 'source ~/Github/Heimdall/gjallarhorn.sh >/dev/null; cd ~/Github/Top-Quark && heimdall where'` | two lines: `hep=…/Github/Heimdall <revision>`, `work=…/Github/Top-Quark` |
-| R7 | `ls $HEP_MACHINE/stack/.stamps \| wc -l` | `20` (the cleaning left the installs) |
+| R1 | `python3 -c "import tomllib; s=tomllib.load(open('$HEIMDALL/.setup/state.toml','rb'))['step']; print(sum(v['status']!='done' for v in s.values()))"` | `0` |
+| R2 | `python3 -c "import tomllib; d=tomllib.load(open('$HEIMDALL/.setup/state.toml','rb')).get('deviation',[]); print(sum(not x['folded'] for x in d))"` | `0` (every deviation folded into the plans) |
+| R3 | `git -C $HEIMDALL status --porcelain \| wc -l` | `0` |
+| R4 | `test -s $HEIMDALL/.setup/report.md && grep -c '^## ' $HEIMDALL/.setup/report.md` | ≥ `5` |
+| R5 | `ls -d $HEIMDALL_MACHINE/forge/build/root $HEIMDALL_MACHINE/forge/build/geant4 2>/dev/null \| wc -l` | `0` (the stack's trees are gone) |
+| R6 | `bash -lc 'source ~/Github/Heimdall/gjallarhorn.sh >/dev/null; cd ~/Github/Top-Quark && heimdall where'` | two lines: `heimdall=…/Github/Heimdall <revision>`, `work=…/Github/Top-Quark` |
+| R7 | `ls $HEIMDALL_MACHINE/stack/.stamps \| wc -l` | `20` (the cleaning left the installs) |

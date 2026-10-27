@@ -84,7 +84,7 @@ def test_a_folders_rules_read_its_output_whatever_its_status(scratch):
 
 @pytest.fixture
 def trees(scratch, monkeypatch):
-    for var, name in (("HEP_RECORDS", "records"), ("HEP_CACHE", "cache"), ("HEP_RESULTS", "results")):
+    for var, name in (("HEIMDALL_RECORDS", "records"), ("HEIMDALL_CACHE", "cache"), ("HEIMDALL_RESULTS", "results")):
         monkeypatch.setenv(var, str(scratch / name))
     return scratch
 

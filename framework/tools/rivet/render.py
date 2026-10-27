@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 
 def options(extra: dict, targeted: dict, context: dict) -> dict:
@@ -35,7 +35,7 @@ def options(extra: dict, targeted: dict, context: dict) -> dict:
         rendered.append(":".join([base, *(f"{k}={v}" for k, v in sorted(merged.items()))]))
     unknown = set(targeted) - {a.split(":")[0] for a in extra["analyses"]}
     if unknown:
-        raise HepError(f"options target analyses not run by {tag}: {', '.join(sorted(unknown))}", where=f"[tools.{tag}]")
+        raise HeimdallError(f"options target analyses not run by {tag}: {', '.join(sorted(unknown))}", where=f"[tools.{tag}]")
     defaults = declared_options(rendered, context["info_dirs"], tag)
     return {
         "texts": texts(rendered, defaults),
@@ -72,7 +72,7 @@ def declared_options(rendered: list[str], dirs: list[Path], tag: str) -> dict[st
         name, *given = analysis.split(":")
         info = next((d / f"{name}.info" for d in dirs if (d / f"{name}.info").is_file()), None)
         if info is None:
-            raise HepError(f"no analysis '{name}' (no {name}.info)", where=f"[tools.{tag}].analyses",
+            raise HeimdallError(f"no analysis '{name}' (no {name}.info)", where=f"[tools.{tag}].analyses",
                            hint=f"searched {', '.join(str(d) for d in dirs)}; a project plugin needs `heimdall build`")
         declared, inside = set(), False
         for raw in info.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -91,7 +91,7 @@ def declared_options(rendered: list[str], dirs: list[Path], tag: str) -> dict[st
         for option in given:
             key = option.split("=")[0]
             if key not in declared:
-                raise HepError(f"'{name}' does not declare the option {key}", where=f"[tools.{tag}]",
+                raise HeimdallError(f"'{name}' does not declare the option {key}", where=f"[tools.{tag}]",
                                hint=(f"declared: {', '.join(sorted(declared)) or 'none'} (in {info}). Rivet ignores "
                                      "an undeclared option silently, so the curves would be identical (see L19)"))
     return defaults

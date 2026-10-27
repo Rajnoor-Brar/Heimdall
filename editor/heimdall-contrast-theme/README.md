@@ -1,4 +1,4 @@
-# HEP Contrast — VSCode Theme
+# Heimdall Contrast — VSCode Theme
 
 High-contrast **light and dark** themes built for long sessions with C++ and Python in a physics / scientific computing context. Every color decision prioritizes unambiguous role differentiation over decoration.
 
@@ -18,13 +18,13 @@ F5  (with this folder open — launches Extension Development Host)
 ### Option B — VSIX package
 ```bash
 npm install -g @vscode/vsce
-cd hep-contrast-theme
-node build.js         # regenerate themes/hep-contrast-light.json + themes/hep-contrast-dark.json from palette.yaml
-vsce package          # produces hep-contrast-2.0.0.vsix
-code --install-extension hep-contrast-2.0.0.vsix
+cd heimdall-contrast-theme
+node build.js         # regenerate themes/heimdall-contrast-light.json + themes/heimdall-contrast-dark.json from palette.yaml
+vsce package          # produces heimdall-contrast-2.0.0.vsix
+code --install-extension heimdall-contrast-2.0.0.vsix
 ```
 
-Then: **Cmd/Ctrl+K → Cmd/Ctrl+T** → select **HEP Contrast Light** or **HEP Contrast Dark**.
+Then: **Cmd/Ctrl+K → Cmd/Ctrl+T** → select **Heimdall Contrast Light** or **Heimdall Contrast Dark**.
 
 ---
 

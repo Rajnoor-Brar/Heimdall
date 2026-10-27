@@ -35,13 +35,13 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | 1 Task L's follow-ups, quick fixes | **done** (V190–V194), but I-07's checks by hand |
 | 2 The safety net | I-10, I-11, I-12, I-13, I-76, I-77 (part) |
 | 3 One dialect | I-20, I-21, I-91 |
-| 4 Retirements, record formats | I-25, I-26, I-27, I-28, I-29, I-30, I-68, I-105 (drops) |
+| 4 Retirements, record formats | I-25, I-26, I-28, I-29, I-30, I-68, I-105 (drops) |
 | 5 Session layer, CLI | I-35, I-36, I-37, I-70, I-71, I-72, I-73, I-100, I-101 |
 | 6 Plot model | I-40 (closed: kept), I-41, I-42, I-43, I-44, I-45, I-46, I-47, I-48, I-97, I-99 |
 | 7 Package restructure | I-50, I-51, I-52 |
 | 8 The stack | I-55 … I-63, I-65, I-66, I-77 (rest), I-88 |
 | 9 Roots, cluster images | I-75, I-86 |
-| 10 Throughput, provenance | I-95, then I-90, I-96, I-98, I-67, I-102 |
+| 10 Throughput, provenance | I-95, then I-96, I-98, I-67, I-102 |
 | 11 Physics set-ups | I-103 (ep Delphes card, Geant4 module), I-104 (BeAGLE) |
 | parked | I-80, I-82 (the Mac), I-83 (the reinstall), I-85 (image downloads), I-87 (a Slurm site; HTCondor and PBS with it), I-81's roadmap and Herwig photoproduction (ideas) |
 
@@ -60,7 +60,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - **I-08:** cores adapt to the load (0 = the idle CPUs; ROOT compilers from available memory, about 1.3
   GB each).
 - **I-11:** the golden file is approved.
-- **I-17** and **I-90:** approved (I-90's `App_yd2rt` binary must stay byte-identical).
+- **I-17:** approved. **I-90** went into I-109 (2026-10-27: the user chose to rebuild every reader of the renamed
+  tool variables, App_yd2rt too, so its binary no longer stays byte-identical).
 - **I-86:** plan inside the image.
 - **I-66:** Herwig for MadGraph, plus MG5aMC_PY8.
 - **I-70:** `--logs` and `--journal` stay, as shorthands.
@@ -84,7 +85,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | **M3** | **Retirements** | | |
 | I-25 | Retire the migrations and the guards for retired names | P1 | blocked on I-21 |
 | I-26 | One table of retired names | P2 | blocked on I-25 |
-| I-27 | The marker `hep.toml` → `heimdall.toml` | P2 | open (decided) |
 | I-28 | Record files with a format version; `heimdall records upgrade` | P2 | open |
 | I-29 | Leftover names and stale hints | P3 | open |
 | I-30 | Mark unproven toolkits | P3 | open (decided) |
@@ -141,7 +141,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-87 | `heimdall cluster` on a real Slurm | P3 | open |
 | I-88 | The conda base's phase 3 | P3 | open |
 | **M12** | **Held: ask first** | | |
-| I-90 | `hep` in `Module.hh` and `App_yd2rt.cc` | P3 | held (identities) |
 | I-91 | `hep` and `setup.sh` in the frozen fixture | P3 | blocked on I-21 |
 | **M13** | **Ideas** | | |
 | I-95 | Per-group identity and skip | P3 | idea |
@@ -186,16 +185,16 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 
 ### I-10 A shadow machine root for the tests
 **P1 · test · open**
-- **Problem:** by default the suite runs with the real `HEP_MACHINE` (`conftest.py:31`). Your live
+- **Problem:** by default the suite runs with the real `HEIMDALL_MACHINE` (`conftest.py:31`). Your live
   `machine.toml` decides what tests keep (`paths.keep`, `paths.py:144`) and their `[cluster]` defaults
-  (`cluster.py:77`). Your `recipes.toml` and `toolkits/` decide `package_states`. Only `HEP_RUNS` and
-  `HEP_WORKDIRS` keep tests off the registry and the work-dir map, and a test once matched a live run.
+  (`cluster.py:77`). Your `recipes.toml` and `toolkits/` decide `package_states`. Only `HEIMDALL_RUNS` and
+  `HEIMDALL_WORKDIRS` keep tests off the registry and the work-dir map, and a test once matched a live run.
 - **Fix:**
-  - `conftest` builds `$HEP_FORGE/scratch/machine/`:
+  - `conftest` builds `$HEIMDALL_FORGE/scratch/machine/`:
     - the real `stack/`, `base/`, `apps/` and `forge/downloads/` linked in;
     - the tests' own empty `machine.toml` and `recipes.toml`;
     - an empty `runs/` and `workdirs.toml`.
-  - It sets `HEP_MACHINE` there.
+  - It sets `HEIMDALL_MACHINE` there.
   - The session guard checks `stack/.stamps/` and `apps/` are unchanged at the end, as it does for the
     fixtures.
 - **Done when:** the suites pass as before, and no test reads or writes `~/Himinbjorg`'s own files.
@@ -251,7 +250,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - **Delete:**
   - `migrate.py` (1,046 lines);
   - `main()`'s legacy-layout probes and `check_retired()` (`cli.py:2256-2270`);
-  - `paths.RETIRED` and `HEKIT_*` (`paths.py:49-60`, `hep_env.sh:24-28`, `conftest.py:58`); `{repo}`
+  - `paths.RETIRED` and `HEKIT_*` (`paths.py:49-60`, `heimdall_env.sh:24-28`, `conftest.py:58`); `{repo}`
     (`tools.py:307`); `[tool] formerly`; the export keys (`tools.EXPORT`);
   - `[config].master` and its overlay; `framework/tools/plotmerge/`;
   - `recipes/machine.py adopt`, its messages (`gjallarhorn.sh:30-32`, `launch.sh:48-50`) and its
@@ -264,12 +263,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - `retired.py`: `{old: (new, since)}`, which the schema check, the CLI and the shell's refusals read,
   emptied on a schedule. It replaces ad-hoc refusals (39 "heimdall migrate" hints today). A v1
   (hekit) file is refused by name here (intent CF1).
-
-### I-27 The marker `hep.toml` → `heimdall.toml`
-**P2 · rename · open (decided: audit 4 G22)**
-- `heimdall setup` writes `heimdall.toml`; `hep.toml` is read for one release; `setup --refresh`
-  renames it. `{hep}`, `HEP_*` and `hep_root()` stay: they are in identities.
-- Brookhaven's `hep.toml` and `Makefile` still say `hep setup`/`setup.sh`: refresh it there, with your yes.
 
 ### I-28 Record files with a format version; `heimdall records upgrade`
 **P2 · design · open**
@@ -284,7 +277,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - Dead names: `plot.BACKENDS` (`plot.py:48`), `layout.TILED`, `tools.ENV`
   (`tools.py:40`), `paths.forge_dir` (tests only).
 - Hints that name `heimdall plot FILE` instead of `overlay`. The wrappers `plot.objects_of`, `raws_of`,
-  `_sha` and `base_of` inlined. `{repo}` → `{hep}` in the recipes.
+  `_sha` and `base_of` inlined. `{repo}` → `{heimdall}` in the recipes.
 
 ### I-30 Mark unproven toolkits
 **P3 · stack · open (decided: audit 4 G7)**
@@ -388,10 +381,10 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - **Problem:** the flat package's god modules: `cli.py` (2,360), `plot.py` (2,001), `tools.py` (1,724:
   folders, placeholders, a subprocess merge, the stack's package states, run-folder layout, planning,
   cards, a presentation helper), `config.py` (1,459). There are also misplaced pieces: the keep policy
-  and hep.toml's schema in `paths.py`, the plot vocabulary in `sweep.py`, `house.py` as a grab bag. The
+  and heimdall.toml's schema in `paths.py`, the plot vocabulary in `sweep.py`, `house.py` as a grab bag. The
   draw ↔ statistics ↔ statistic-figure cycle blocked task K's split.
 - **Fix:** `core/`, `stack/`, `config/`, `plan/`, `run/`, `draw/`, `session/`, `machine/` and `cli/`, each a
-  layer, and `test_imports.py` by package. `runner.errors`, `runner.results` and `hepkit` keep their
+  layer, and `test_imports.py` by package. `runner.errors`, `runner.results` and `heimdallkit` keep their
   import paths. Moved one module at a time, with the fast suite after each.
 
 ### I-51 The plugin loader for tool folders only
@@ -404,8 +397,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 ### I-52 `env/` into `shell/` and `framework/make/`
 **P3 · layout · blocked on I-50**
 - `env/` mixes the bash environment, the flag probe, the stack registry and a generated list.
-  `hep_env.sh` goes to `shell/`; `rules.mk`, `work.mk` and `flags.sh` to `framework/make/`; the template's
-  `include` path follows. `recipes/pth.py` puts only `runner` and `hepkit` on the path, not
+  `heimdall_env.sh` goes to `shell/`; `rules.mk`, `work.mk` and `flags.sh` to `framework/make/`; the template's
+  `include` path follows. `recipes/pth.py` puts only `runner` and `heimdallkit` on the path, not
   `framework/`'s generic names.
 
 ## M7 — The stack
@@ -423,7 +416,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 - Four registries say what a package is: `standard.toml`, `env/stack.toml` with `stack.py`,
   `env/packages.sh` and `stack/.stamps/folders`.
 - `.stamps/folders` already lists every installed folder: all 18 in `~/Himinbjorg` (since V123).
-- Recipes gain `flags` and `version`; `hep_env.sh` reads `.stamps/folders` alone (diff `PATH` and
+- Recipes gain `flags` and `version`; `heimdall_env.sh` reads `.stamps/folders` alone (diff `PATH` and
   `LD_LIBRARY_PATH`: the order becomes build order). `env/stack.toml`, `stack.py`, `packages.sh` and
   `make registry` go.
 
@@ -499,7 +492,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 **P2 · CLI · blocked on I-35**
 - **Stages:** `--only`, `--stages`, `--no-plot`, `--no-stats`, `[run].plot` and `[run].stats` interleave
   (`cli.py:574-588`, `1035-1062`, `1139-1145`). Make `--stages` the selector, with `--no-plot` an alias.
-- **Keep:** `--keep`, `--logs` and `--journal` overlap, besides hep.toml's and machine.toml's
+- **Keep:** `--keep`, `--logs` and `--journal` overlap, besides heimdall.toml's and machine.toml's
   `[run] keep`. Make `--keep WORDS` the one flag.
 - **Plain:** `--plain` is both global and per command; make it global only.
 
@@ -524,8 +517,8 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 **P2 · refactor · blocked on I-10**
 - Eight root variables, and a record's configs root passed by mutating `os.environ`
   (`paths.configs_at`, `cli.opened`), plus a module-global keep set.
-- A `WorkDir` resolved once and passed down. `HEP_RESULTS`, `HEP_RECORDS`, `HEP_CACHE`, `HEP_REPORTS`,
-  `HEP_DECKS` and `HEP_CONFIGS` go; `HEP_RUNS` and `HEP_WORKDIRS` go once I-10 is in.
+- A `WorkDir` resolved once and passed down. `HEIMDALL_RESULTS`, `HEIMDALL_RECORDS`, `HEIMDALL_CACHE`, `HEIMDALL_REPORTS`
+  and `HEIMDALL_CONFIGS` go; `HEIMDALL_RUNS` and `HEIMDALL_WORKDIRS` go once I-10 is in.
 
 ### I-76 Tests independent of their order
 **P2 · test · open**
@@ -554,7 +547,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 ### I-80 Retire `base = "system"`
 **P3 · cleanup · blocked on I-82 (D6)**
 - The venv/apt/Homebrew path is carried beside the conda base:
-  - `gjallarhorn.sh:51-57` and `hep_env.sh`'s `deactivate` dance;
+  - `gjallarhorn.sh:51-57` and `heimdall_env.sh`'s `deactivate` dance;
   - `framework/bin/heimdall:13`, `launch.sh:59-71`, `cli._system_python`;
   - `bifrost`'s pip branch, `build_stack.system()`, and `platforms/mac/{Brewfile,system.toml}`.
 - Delete it once the Mac is on the conda base.
@@ -565,14 +558,14 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   before any public repository.
 - **Recommended:** move it to its own repository, or keep it here and move the icon bank out.
 - **What is left of its roadmap** (from `editor/Report.md`, removed; already done: `.cmnd`'s value,
-  namespace and disabled-line scopes, the theme's dark sibling and its 16 ANSI colours, the `hep-icons`
+  namespace and disabled-line scopes, the theme's dark sibling and its 16 ANSI colours, the `heimdall-icons`
   theme):
   - `cmnd-syntax`:
     - a PDG-id subscope;
     - an injection so `pythia.readString("…")` strings in C++ are highlighted;
     - snippets for the ~30 common keys;
     - version 0.1.0.
-  - `hep-contrast-theme`: ROOT/Cling tokens (`gROOT`, `gStyle`, `gPad`, `R__LOAD_LIBRARY`); the README's
+  - `heimdall-contrast-theme`: ROOT/Cling tokens (`gROOT`, `gStyle`, `gPad`, `R__LOAD_LIBRARY`); the README's
     palette table generated from the palette; the unused `fg4` slot and duplicated diff colours cut.
   - New packages, ranked:
     - `pythia-hover`: Pythia's settings from its manual XML, as hovers and completion in `.cmnd`;
@@ -619,12 +612,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   Python < 3.11; ROOT's and Geant4's GL viewers opened once (`libglvnd` with the OS's driver).
 
 ## M12 — Held: ask first
-
-### I-90 `hep` in `Module.hh` and `App_yd2rt.cc`
-**P3 · rename · held (identities)**
-- `src/Module.hh` says `hep run` in an error string and `hep explain` in a comment; `App_yd2rt.cc` says
-  `hep plot`. Editing `Module.hh` changes every module binary, and so every point that ran one: do it
-  with the next deliberate rebuild.
 
 ### I-91 `hep` and `setup.sh` in the frozen fixture
 **P3 · rename · blocked on I-21**

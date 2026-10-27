@@ -8,7 +8,7 @@ differs from the phase files is here (D11).
 - `git`, `curl`, `python3` ≥ 3.11 (with `venv`, `python3-venv`, only for `base=system`).
 - `sudo`, only for those and for `base=system`'s system packages: the conda base needs none. A
   password is fine: the gates ask before every `sudo`.
-- 60 GB free where `$HEP` goes.
+- 60 GB free where `$HEIMDALL` goes.
 
 ## System packages (P1 S1, `base=system` only)
 
@@ -33,7 +33,7 @@ These may be made without a gate, then recorded, reported and folded back:
 1. **A `-dev` package with no candidate whose only user builds its own copy when it is missing.**
    Drop it from `apt.txt`, then confirm in that package's log that it used its own copy. The known
    case is `libpcre3-dev`, which Debian has been removing: ROOT then builds its bundled PCRE, so
-   `grep -i pcre $HEP/logs/root.log` must show the builtin being switched on. If the log does not
+   `grep -i pcre $HEIMDALL/logs/root.log` must show the builtin being switched on. If the log does not
    show it, this is not allowed: it is a gate.
 2. **`python3-venv` with no candidate** while a versioned `python3.X-venv` matches `python3
    --version`: take that one.

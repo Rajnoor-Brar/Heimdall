@@ -21,7 +21,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 PREFIXES = ("LHAPDF6:", "LHAPDF5:")
 
@@ -36,7 +36,7 @@ def installed(name: str) -> bool:
 
 def require(name: str, where: str) -> None:
     if not installed(name):
-        raise HepError(f"the PDF set '{name}' is not installed", where=where,
+        raise HeimdallError(f"the PDF set '{name}' is not installed", where=where,
                        hint=f"lhapdf install {name}   (searched LHAPDF_DATA_PATH: {', '.join(data_dirs()) or 'unset'})")
 
 
@@ -59,7 +59,7 @@ def check(form: str, value, where: str):
     if form in ("bare", "set"):
         name = text.split(":", 1)[1] if text.startswith(PREFIXES) else text
         if form == "set" and "/" in name:
-            raise HepError(f"'{text}': this tool takes a set's name, not a member", where=where,
+            raise HeimdallError(f"'{text}': this tool takes a set's name, not a member", where=where,
                            hint=f"write '{name.split('/')[0]}', and choose the member in the tool's card")
         require(name.split("/")[0], where)
         return name if name != text else None
@@ -67,7 +67,7 @@ def check(form: str, value, where: str):
         if (isinstance(value, int) and not isinstance(value, bool)) or text.isdigit():
             sets = pythia_sets()
             if sets and int(text) not in sets:
-                raise HepError(f"PDF:pSet = {text} is not one of Pythia's own sets", where=where,
+                raise HeimdallError(f"PDF:pSet = {text} is not one of Pythia's own sets", where=where,
                                hint=f"Pythia's sets: {sets[0]}–{sets[-1]} (PDFSelection.xml); an LHAPDF set by its name")
             return None                                    # Pythia's own set: never prefixed (V40)
         if text.startswith(PREFIXES):
@@ -76,4 +76,4 @@ def check(form: str, value, where: str):
         if installed(text.split("/")[0]):
             return f"LHAPDF6:{text}"                       # Pythia reads a bare name as a file
         return None                                        # a grid file, as written
-    raise HepError(f"lhapdf has no check '{form}'", where=where, hint="bare, set or pythia")
+    raise HeimdallError(f"lhapdf has no check '{form}'", where=where, hint="bare, set or pythia")

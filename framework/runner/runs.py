@@ -1,7 +1,7 @@
 """The run registry (rank 1, V182): what runs on this machine now, and what ran in the last 30 days.
 
 The user, 2026-10-23: "heimdall can keep track of runs and jobs being run in Himinbjorg". One small JSON file a
-run (and a cluster submission), `<machine root>/runs/<id>.json` ($HEP_RUNS), beside a detached worker's log
+run (and a cluster submission), `<machine root>/runs/<id>.json` ($HEIMDALL_RUNS), beside a detached worker's log
 `<id>.log`: who (host, pid, uid, user, its PID and network namespaces, the boot, the pid's start time), where
 (the work dir, the checkout, the config, its configurations, the command line), when (started, finished),
 how it ended (exit code, verdict) and the record folders it wrote. `heimdall runs` lists them; `heimdall
@@ -35,11 +35,11 @@ from pathlib import Path
 from .events import namespace as _namespace
 from .paths import machine_root
 
-DIR_VAR = "HEP_RUNS"
+DIR_VAR = "HEIMDALL_RUNS"
 VERSION = 1
 KEEP_DAYS = 30
 #: A Heimdall cluster job's environment (V184): its submission is recorded, not each job.
-CLUSTER_VAR = "HEP_CLUSTER_JOB"
+CLUSTER_VAR = "HEIMDALL_CLUSTER_JOB"
 #: What a run's exit code says, in a listing and in an entry.
 VERDICTS = {0: "done", 1: "failed", 2: "not run", 6: "stopped"}
 #: An entry's id, as new_id makes it: <YYYYmmdd-HHMMSS>-<host>-<4 hex>. Nothing else is read as one.
@@ -47,7 +47,7 @@ ID = re.compile(r"\d{8}-\d{6}-[A-Za-z0-9_-]+-[0-9a-f]{4}")
 
 
 def folder() -> Path:
-    """Where the entries are: $HEP_RUNS, else <machine root>/runs."""
+    """Where the entries are: $HEIMDALL_RUNS, else <machine root>/runs."""
     given = os.environ.get(DIR_VAR)
     return Path(given).expanduser() if given else machine_root() / "runs"
 
@@ -116,12 +116,12 @@ def reserve(run_id: str, suffix: str) -> Path | None:
 
 
 def _fallback() -> Path:
-    """Where a worker's log goes when the registry cannot be written: <tmp>/hep-runs-<uid>/ (0700)."""
-    return Path(tempfile.gettempdir()) / f"hep-runs-{os.getuid()}"
+    """Where a worker's log goes when the registry cannot be written: <tmp>/heimdall-runs-<uid>/ (0700)."""
+    return Path(tempfile.gettempdir()) / f"heimdall-runs-{os.getuid()}"
 
 
 def log_file(run_id: str) -> Path:
-    """A detached worker's log: in the registry, else (a read-only machine root) <tmp>/hep-runs-<uid>/."""
+    """A detached worker's log: in the registry, else (a read-only machine root) <tmp>/heimdall-runs-<uid>/."""
     reserved = reserve(run_id, ".log")
     if reserved is not None:
         return reserved

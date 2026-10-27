@@ -27,12 +27,12 @@ Random:setSeed = on
 Random:seed = 4711
 """
 
-pytestmark = pytest.mark.skipif(not APP.exists(), reason="$HEP_APPS/App_Pythia.exe not built (heimdall build --framework)")
+pytestmark = pytest.mark.skipif(not APP.exists(), reason="$HEIMDALL_APPS/App_Pythia.exe not built (heimdall build --framework)")
 
 
 def run(*args, cwd: Path) -> subprocess.CompletedProcess:
     env = dict(os.environ)
-    env.pop("HEP_STATUS_FD", None)
+    env.pop("HEIMDALL_STATUS_FD", None)
     return subprocess.run([str(APP), *map(str, args)], cwd=cwd, env=env, capture_output=True,
                           text=True, encoding="utf-8", timeout=300)
 
@@ -154,7 +154,7 @@ def test_a_failed_init_is_asked_again_and_pythias_own_reason_quoted(scratch, mon
     import argparse
     from dataclasses import replace
     from runner import cli, execute
-    for var, name in (("HEP_RECORDS", "records"), ("HEP_CACHE", "cache"), ("HEP_RESULTS", "results")):
+    for var, name in (("HEIMDALL_RECORDS", "records"), ("HEIMDALL_CACHE", "cache"), ("HEIMDALL_RESULTS", "results")):
         monkeypatch.setenv(var, str(scratch / name))
     bad = scratch / "bad.cmnd"
     bad.write_text("Beams:eCM = 100.\nHardQCD:all = on\nPhaseSpace:pTHatMin = 60.\n", encoding="utf-8")

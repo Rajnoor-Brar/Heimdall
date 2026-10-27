@@ -8,7 +8,7 @@ import shutil
 import pytest
 
 from runner import config, quantities, sweep, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from helpers import parse, raw
 
@@ -25,7 +25,7 @@ def plan_all(data: dict, scratch) -> dict:
 def test_a_varied_value_no_tool_of_the_point_reads_is_refused(scratch):
     data = raw(run__cfgs__one__tools=[["@gen", "rivet"]], run__cfgs__one__sweeps=["gen", "pdf"], tools__other=OTHER,
                quantities__gen={"values": ["pythia", "other"], "tags": ["py", "ot"]})
-    with pytest.raises(HepError, match=r"ot_MSTW08lo: \[quantities.pdf\] is varied, but no tool of this point reads it "
+    with pytest.raises(HeimdallError, match=r"ot_MSTW08lo: \[quantities.pdf\] is varied, but no tool of this point reads it "
                                        r"\(other, rivet\)") as refused:
         plan_all(data, scratch)
     assert "a configuration of its own" in refused.value.hint
@@ -165,7 +165,7 @@ def test_one_pdf_quantity_feeds_every_generator_in_its_own_spelling(scratch):
         by = {p.name: tools.plan_point(run, conf, p, master) for p in sweep.points(run, conf)}
         for planned in by.values():
             tools.finalise(planned, 12345)                          # the cards written out
-    except HepError as error:
+    except HeimdallError as error:
         if "repository" not in error.message and "heimdall build" not in (error.hint or ""):
             raise
         pytest.skip(error.message)                                   # Herwig's repository: heimdall build
@@ -285,7 +285,7 @@ def test_inside_a_group_a_piece_s_tags_join_it(scratch):
     ('["@var", "d"]', '[{ tag = "num", value = 3 }]', "a selector's value is a tool tag or a list"),
 ])
 def test_a_piece_that_makes_no_valid_chain_is_refused_with_the_file(scratch, chain, points, message):
-    with pytest.raises(HepError, match=message) as refused:
+    with pytest.raises(HeimdallError, match=message) as refused:
         pieces(scratch, chain, points)
     assert "[quantities.var]" in refused.value.where
 
@@ -295,7 +295,7 @@ def test_a_value_no_point_runs_is_checked_too(scratch):
     path = scratch / "pieces.toml"
     path.write_text(PIECES.replace("CHAIN", '["@var", "d"]').replace("POINTS", text)
                     .replace('vary = ["var"]', 'fixed = { var = "ok" }'), encoding="utf-8")
-    with pytest.raises(HepError, match="'cc' is not a"):
+    with pytest.raises(HeimdallError, match="'cc' is not a"):
         config.load(str(path))
 
 
@@ -331,7 +331,7 @@ def test_listed_points_are_checked_with_the_file(scratch, rows, sweeps, message)
     data = listed(rows)
     if sweeps:
         data["run"]["cfgs"]["one"]["sweeps"] = sweeps + data["run"]["cfgs"]["one"]["sweeps"]
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         parse(data, scratch)
 
 
@@ -347,9 +347,9 @@ def test_a_page_axis_may_be_one_quantity_of_listed_points(scratch):
     master = quantities.load_master(run.project, run.master_toml)
     plans = [tools.plan_point(run, conf, p, master) for p in points]
     assert [p["page"] for p in record.points_manifest(plans, run, conf)["points"]] == [["py"], ["py"], ["ot"]]
-    with pytest.raises(HepError, match="plot_points names 'pt0ref', which listed point 3 leaves out"):
+    with pytest.raises(HeimdallError, match="plot_points names 'pt0ref', which listed point 3 leaves out"):
         parse(listed(rows, run__cfgs__one__plot_points=["pt0ref"]), scratch)
-    with pytest.raises(HepError, match="names pt0ref, a quantity of listed points"):
+    with pytest.raises(HeimdallError, match="names pt0ref, a quantity of listed points"):
         plot.check_figures(parse(listed(rows, plot={"band": ["pt0ref"]}), scratch), conf)
 
 

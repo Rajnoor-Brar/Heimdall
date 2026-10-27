@@ -30,7 +30,7 @@ The data says what is built; the engine knows only five steps (fetch, unpack, co
 install, stamp) and four kinds of package. A version bump, a new flag or a new package is a TOML
 edit, never a code change.
 
-**Where the build puts things:** the machine root, `~/Himinbjorg` (`$HEP_MACHINE`, or `machine=` in
+**Where the build puts things:** the machine root, `~/Himinbjorg` (`$HEIMDALL_MACHINE`, or `machine=` in
 settings), outside git. Sources and builds stay in `forge/`; `stack/` holds installs only:
 
 | Folder | Holds |
@@ -49,7 +49,7 @@ inside a checkout (`stack/`, `env/venv/`, `stash/`, `framework/Apps/`) into the 
 and moves only.
 
 The framework's own view of the stack (each library's flags and version) is `env/stack.toml`; the
-shell environment is `env/hep_env.sh`, which `gjallarhorn.sh` sources
+shell environment is `env/heimdall_env.sh`, which `gjallarhorn.sh` sources
 ([06 §15.3](../docs/06_Internals.md#153-the-flag-cache)).
 
 ---
@@ -90,7 +90,7 @@ graphics=OFF`); any key of a package is `<package>.<key>=value` (`root.release=6
 `madgraph.url=…`, `fastjet.patch=` for none, `root.extra="-Droofit=OFF"` for more arguments after a
 package's own). For many changes, `--config my.toml`: a file with `[settings]`, `[env]` and
 `[packages.<name>]` tables, as `machine.toml` below. The command line wins. `machine=` builds into another
-machine root than `$HEP_MACHINE` (`~/Himinbjorg`); the tests use it.
+machine root than `$HEIMDALL_MACHINE` (`~/Himinbjorg`); the tests use it.
 
 **This machine's settings: `machine.toml`,** in the machine root, written once from
 [machine.template.toml](machine.template.toml) and yours to edit (never in git, so editing it leaves
@@ -209,7 +209,7 @@ What a machine needs beyond it (`setup_extra`) goes to the machine root's `machi
 | `geant4` | 11.4.2 | CMake, MT, GDML, datasets (extra) | `// requires: geant4` |
 
 The installs go to `stack/<dir>` (a recipe's `install`, else its name). `env/packages.sh`, generated
-from the recipes (`make registry`; a test keeps it current), lists them for `env/hep_env.sh`, with
+from the recipes (`make registry`; a test keeps it current), lists them for `env/heimdall_env.sh`, with
 what this stack's own builds made (`stack/.stamps/folders`). `heimdall status --stack` (or `heimdall_status`)
 shows what is installed, from the recipes. More Python packages (scipy, pandas, scikit-learn, pyhf, …)
 go into `python_packages` (from conda-forge in the base; from pip in a venv).
@@ -278,7 +278,7 @@ Each of these was hit on the lab PC; the TOML files do what is in the right colu
 | MadGraph | not built: a tree that finds the other tools through its configuration file, and installs its loop libraries and MadAnalysis 5 at its prompt (`install …`, from the web) | unpacked into `stack/madgraph`; `recipes/madgraph.py` sets `lhapdf_py3`, `fastjet`, `pythia8_path`, `hepmc_path` (HepMC2), `delphes_path`, `rivet_path`, `yoda_path`, `madanalysis5_path` (a path not built here is left alone) and `automatic_html_opening = False`, then builds Ninja and OneLOop, COLLIER (into `HEPTools/`), CutTools and IREGI from the tarballs it ships, through its own offline installer |
 | MadGraph | its LO shower runs Pythia's `examples/main164`, which nothing builds; it hands Pythia `.lhe.gz` ("Les Houches initialization failed" without gzip); its Delphes step runs `DelphesHepMC2` | Pythia8 `--with-gzip` (the base's zlib: `base.toml`), and `main164` built in its `post`, writing HepMC2 when Pythia has it |
 | MadGraph | aMC@NLO's Pythia8 driver includes `aMCatNLOHooks.h` and `CombineMatchingInput.h`, and in Pythia 8.318 each plugin header defines the same `PYTHIA8_PLUGIN_VERSIONS` functions ("redefinition of `CHECK_COMPATIBLE_VERSION`") | `recipes/madgraph.py noplugin`: its `Pythia83` rule compiles with `-DNOPLUGIN` (in `Template/`; give it an existing process folder's `MCatNLO/` too) |
-| MadGraph | MadLoop's programs link the shared Ninja and COLLIER without a run path (`libninja.so.0: cannot open shared object file`); MadGraph asks the user to put `HEPTools/lib` on `LD_LIBRARY_PATH` | `env/hep_env.sh` does |
+| MadGraph | MadLoop's programs link the shared Ninja and COLLIER without a run path (`libninja.so.0: cannot open shared object file`); MadGraph asks the user to put `HEPTools/lib` on `LD_LIBRARY_PATH` | `env/heimdall_env.sh` does |
 | QCDLoop | MadGraph's tarball carries a macOS build (objects, a configured Makefile: `install QCDLoop` installs `.dylib`s on Linux); gfortran 10+ refuses its argument mismatches | `make distclean` first; `FFLAGS=-std=legacy` |
 | MadAnalysis 5 | its GitHub tarball lacks the `version.txt` its interpreter (MadGraph starts it so) reads; on the base it takes zlib from `/usr/include`; a failed compile still exits 0; its Delphes interface wants a Delphes source tree | `recipes/madanalysis5.py`: the file written, `zlib_includes` from the base, the core library checked, the Delphes interface off (as MadGraph's installer has it) |
 | Python | pip wheels of FastJet or HepMC3 do not match the stack's symbols | every compiled HEP library is built here; pip installs only pure-Python and ML packages |

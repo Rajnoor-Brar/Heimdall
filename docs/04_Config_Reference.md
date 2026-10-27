@@ -106,8 +106,8 @@ figure that say so: no gutter, the `.plot`'s log axes, the tool's own range (§1
 ## 2. Paths
 
 Every key that takes a path has **one** convention root. There is no search path and no fallback.
-The roots are the **work dir**'s: the folder whose `hep.toml` has a `[work]` table, found by walking
-up from the working directory (or `$HEP_WORK`), never the working directory itself (05 §2).
+The roots are the **work dir**'s: the folder whose `heimdall.toml` has a `[work]` table, found by walking
+up from the working directory (or `$HEIMDALL_WORK`), never the working directory itself (05 §2).
 
 | Written as | Resolves to |
 |---|---|
@@ -215,7 +215,7 @@ replot = true
 ```
 
 - **The command line wins:** a file's value fills only an option the command line left unset. Then
-  `[heimdall.<command>]`, then `[heimdall]`. `keep`'s words add to hep.toml's and machine.toml's
+  `[heimdall.<command>]`, then `[heimdall]`. `keep`'s words add to heimdall.toml's and machine.toml's
   `[run] keep`. Each command says which flags it took from the file (`heimdall: from [heimdall]:
   --journal …`).
 - **Never from a file**, each refused with why:
@@ -408,9 +408,9 @@ description = "Inclusive jets in ep collisions"
 | `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) A configuration inherits it from `[run]`. |
 | `pre` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[run]`. |
 | `post` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[run]`. |
-| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4) A configuration inherits it from `[run]`. |
+| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4) A configuration inherits it from `[run]`. |
 | `seed` | a string or an integer | `"identity"` | `"identity"`: from the generator's identity; `"random"`: drawn when the point runs; an integer: exactly that seed for every point (a replica, `to = { "pythia/seed" = true }`, gives a point its own: 04 §8.2; 06 §8) |
-| `commands` | a list |  | argv arrays run in each point's output folder before its tools, in order; output to the point's `prelim.log`; a nonzero exit fails the point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}` |
+| `commands` | a list |  | argv arrays run in each point's output folder before its tools, in order; output to the point's `prelim.log`; a nonzero exit fails the point. Placeholders: `{work}`, `{heimdall}`, `{out}`, `{res}`, `{file:<name>}` |
 <!-- /generated -->
 
 Any other key or table in `[run]` is an error (C1). `[run].run` is required unless `sweep_runs` is
@@ -541,7 +541,7 @@ Its `vars` merge through `extends`; its `data` is the nearest one. `[run]` takes
 | `plot_points` | a list (a string each) |  | 04 §5.2 |
 | `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) |
 | `chain` | a list |  | 04 §5.3; `[run]`'s when left out |
-| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEP_CONTEXT` (04 §9.4) |
+| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4) |
 | `pre` | a list |  | the form of `tools` (04 §5.4) |
 | `post` | a list |  | the form of `tools` (04 §5.4) |
 | `fixed` | a table |  | `{ quantity = "tag" }`: this configuration's fixed points, over each quantity's own `fixed` (04 §7) |
@@ -941,7 +941,7 @@ output   = "jets_hard.yoda"
 | `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in the point's working folder (04 §6). An array is fan-out; one writer per output (C6) |
 | `timeout` | a number, ≥ 0 |  | the tool fails when it runs longer |
 | `stall_after` | a number, ≥ 0 |  | the tool fails when silent this long: no log line, status message or heartbeat (a prepare step waits at least 3600) |
-| `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEP_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
+| `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEIMDALL_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
 | `filters` | a string |  | your own rules in place of the folder's, root `configs/<P>/`; implies `status = "filters"` |
 | `executable` | a string |  | exec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH` |
 | `arguments` | a list |  | exec and module: argv after the config; placeholders (04 §10). Not paths: the tool runs in the point's folder, so a script of yours is `{work}/modules/…` |
@@ -994,7 +994,7 @@ quantity. It passes it as the **first argument** (the folder's argv is
   - a value consumed **by its quantity name** (`consumes`, or `to = { fit = true }`) goes under
     `[quantities]`.
 
-The other tools' cards and configs are in the point's context file (§9.4), at `$HEP_CONTEXT`.
+The other tools' cards and configs are in the point's context file (§9.4), at `$HEIMDALL_CONTEXT`.
 
 An exec tool is count-checked only if its table sets `consumes_events = true` and its folder names
 how to read the count (the `exec` folder names none). A product it writes should go to
@@ -1025,7 +1025,7 @@ before the first event, with the nearest name, instead of running with its defau
 
 When a point starts, the runner writes **one context file** for it, `records/…/logs/<point>/context.toml`,
 and keeps it with the point's cards, beside `commands.sh`: the command line each tool was given, with its
-folder and environment, the FIFOs and the groups, as a shell script. Every tool of the point finds it through `$HEP_CONTEXT` (set in
+folder and environment, the FIFOs and the groups, as a shell script. Every tool of the point finds it through `$HEIMDALL_CONTEXT` (set in
 each tool's environment, never in your shell), or `{context}` in its arguments. It lists, by table
 name:
 
@@ -1093,7 +1093,7 @@ The rules:
 | Placeholder | Is |
 |---|---|
 | `{work}` | the work dir (its root folder) |
-| `{hep}` | Heimdall (`$HEP`): its apps are `{apps}/…` |
+| `{heimdall}` | Heimdall (`$HEIMDALL`): its apps are `{apps}/…` |
 | `{exe}` | the tool's executable |
 | `{out}`, `{res}` | the point's output and results directories |
 | `{config}` | the extracted config file (exec, module), or empty |
@@ -1118,8 +1118,8 @@ The rules:
 | `{points}` | pre and post: `points.json` |
 | `{<option>}` | every key of the folder's `[options]`: its value, empty when unset; `kind = "flag"` → the flag or nothing |
 
-`{repo}`, High-Energy's single root, is refused, naming `{work}` and `{hep}`; `heimdall migrate` rewrites
-it (`{repo}/build/App_*` → `{apps}/App_*`, `{repo}/utils/` → `{hep}/src/`, any other
+`{repo}`, High-Energy's single root, is refused, naming `{work}` and `{heimdall}`; `heimdall migrate` rewrites
+it (`{repo}/build/App_*` → `{apps}/App_*`, `{repo}/utils/` → `{heimdall}/src/`, any other
 `{repo}` → `{work}`).
 
 **In the run TOML itself**, `{var:name}` is a `[file.vars]` value (§3), replaced when the file is
@@ -1300,7 +1300,7 @@ checked:
   palette;
 - the runner checks at plan time, and Paint checks again.
 
-**What a page holds.** A page's document holds only what the layers changed; `$HEP_APPS/Paint.exe
+**What a page holds.** A page's document holds only what the layers changed; `$HEIMDALL_APPS/Paint.exe
 PAGE.toml --dump-style` prints the whole merged style. Sizes are **points** (1/72 in) of the page,
 unless said otherwise.
 
@@ -1444,7 +1444,7 @@ logs written there and `.lock`; scratch files, shards and what its tools left go
 
 **What a run keeps** beyond these, by `keep` word: `logs` (every tool's whole output), `journal`
 (`status.jsonl`), `work` (a finished point's whole working folder), `cache` (card checks). They come from `heimdall run --keep WORD,…` (`--logs` and `--journal`
-are two of them), the work dir's `hep.toml` and the machine's `machine.toml`, together:
+are two of them), the work dir's `heimdall.toml` and the machine's `machine.toml`, together:
 
 ```toml
 [run]
@@ -1582,7 +1582,7 @@ pages = ["d0[3-4]-*"]
 Slurm jobs with these options. They come in layers, lowest first:
 1. the machine root's `machine.toml` `[cluster]`: the machine's, for every work dir on it (account,
    partition, setup lines);
-2. the work dir's `hep.toml` `[cluster]`: this work dir's;
+2. the work dir's `heimdall.toml` `[cluster]`: this work dir's;
 3. the run TOML's `[cluster]`, into which an import's merges key by key, as `[plot]`;
 4. a configuration's `cluster` table, `[cfgs.<name>.cluster]`;
 5. `--set cluster.<key>=…`, for one submission.

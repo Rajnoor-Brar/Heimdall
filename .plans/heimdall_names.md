@@ -83,3 +83,24 @@ light and committed by named paths.
 | Phase | V-row | Commit | State |
 |---|---|---|---|
 | N0 this plan, I-109 | — | | decided 2026-10-27 |
+
+## 5. Log
+
+- 2026-10-27, **N1** (V213), in the worktree, branch `names`:
+  - **The sweep** (`scratchpad/names_sweep.py`, its rules §2's table): 184 files, then by hand what a rule
+    cannot tell: the venv's `(HEP)` prompt kept (the physics stack); `support.HEP` → `HEIMDALL`; local `hep`
+    variables (one f-string had read `{hep}` as the placeholder); runtime names (`heimdall-watch-<pid>`, threads,
+    `heimdall-runs-<uid>`, Slurm jobs); Whizard's `# heimdall:`; the extensions' display names.
+  - **Found on the way:** no identity holds `{hep}` or `HEP_` (Brookhaven's 579 `identity.json`; I-27 had said
+    they did), and the recipes' stamps hash none of the names, so the stack is not marked. `RETIRED`'s
+    `HEP_OUTPUT` and `HEP_LOGS` (retired names) had been swept: kept as they were; every renamed `HEP_*` is
+    retired too (`OLD_NAMES`), `heimdall_env.sh` unsets them, the test session drops them.
+  - **`heimdall migrate --names`**, for any work dir from before: limited to the top-level files, `.vscode/`,
+    `configs/`, `modules/` and `*.code-workspace` (High-Energy's `docs/Untitled-1.md` uses `$HEP` for the old
+    `~/HEP` stack: not Heimdall's); the old CLI name `hep <command>` too.
+  - **Tests**, with the apps built from the branch into `scratchpad/apps-names/`: the fast suite 1100 passed, 10
+    skipped, 1 failed (the old `test_stack_build` one; 25 more cases: `RETIRED`'s new names). The slow suite: the
+    5 known, and 6 more of the mixed set-up: `test_modules_p4`'s 5 (the fixture's modules were not rebuilt: their
+    deps name main's `Module.hh`; pass once `forge/scratch/work/build/` is cleared) and `test_cluster_emulated`
+    (`gjallarhorn.sh` gives a job the machine root's apps, built before: its points ran the old App_Pythia, so
+    `status` saw another identity; again at N2, with the apps rebuilt).

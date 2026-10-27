@@ -1,6 +1,6 @@
 # 04 — P1: The stack
 
-**Goal.** Build the software stack into the machine root, `~/Himinbjorg` (`$HEP_MACHINE`, outside
+**Goal.** Build the software stack into the machine root, `~/Himinbjorg` (`$HEIMDALL_MACHINE`, outside
 git): **`@primary`**, every package the lab PC had (`packages=all`: core and extra) plus MadAnalysis5 and HepMC2.
 The places (V109, V122) are:
 - `forge/downloads/` and `forge/src/` for the downloads and their unpacked sources;
@@ -10,7 +10,7 @@ The places (V109, V122) are:
 - `stack/` for the installs and their stamps (installs only).
 
 `gjallarhorn.sh` cannot be sourced before the root exists, so this phase's shell sets
-`export HEP_MACHINE=~/Himinbjorg` (the default) for the rows below.
+`export HEIMDALL_MACHINE=~/Himinbjorg` (the default) for the rows below.
 
 The steps:
 - **S1:** the base (no sudo).
@@ -22,8 +22,8 @@ The steps:
   (the base, or the system's packages), §6 (toolkits);
 - the annex `targets/<annex>.md`: the allowed adjustments (and its system packages, with `base=system`).
 
-**Writes:** `$HEP_MACHINE/{forge,base,stack}`, `$HEP_MACHINE/machine.sh` (when the annex has
-`setup_extra` lines), `$HEP/.setup/`.
+**Writes:** `$HEIMDALL_MACHINE/{forge,base,stack}`, `$HEIMDALL_MACHINE/machine.sh` (when the annex has
+`setup_extra` lines), `$HEIMDALL/.setup/`.
 
 **Gates:**
 - downloads: pixi and the base's packages (S1, once), the sources (S2, once);
@@ -36,20 +36,20 @@ The steps:
 
 **Preconditions:**
 - P0 is verified.
-- `git -C $HEP status --porcelain` is empty.
+- `git -C $HEIMDALL status --porcelain` is empty.
 
 **Tasks:**
 
 1. **The dry run,** which also checks the recipes on this machine:
    ```bash
-   cd $HEP && python3 recipes/build_stack.py --dry-run packages=@primary 2>/dev/null > .setup/build.sh
+   cd $HEIMDALL && python3 recipes/build_stack.py --dry-run packages=@primary 2>/dev/null > .setup/build.sh
    ```
 2. **The gate:** the base's downloads, asked once: pixi (about 34 MB, from github.com/prefix-dev/pixi,
    checked against `recipes/base.toml`'s sha256) and the base's conda-forge packages (about 1 GB of
    downloads, 2.3 GB installed: the compilers, the libraries, Python and its packages).
 3. **The base**, alone, before the long build:
    ```bash
-   cd $HEP && python3 recipes/build_stack.py --base packages=@primary > .setup/base.log 2>&1
+   cd $HEIMDALL && python3 recipes/build_stack.py --base packages=@primary > .setup/base.log 2>&1
    ```
    It needs no sudo, and nothing outside the machine root changes (pixi's settings and cache are in
    `forge/`). On the user's word, or where conda-forge cannot be reached, `base=system` is the way
@@ -60,18 +60,18 @@ The steps:
 
 | # | Command | Expected |
 |---|---|---|
-| R1 | `cd $HEP && bash -n .setup/build.sh && echo ok` | `ok` |
-| R2 | `grep -c '^# == ' $HEP/.setup/build.sh` | `22` (python lhapdf hepmc3 hepmc2 fastjet fjcontrib root hdf5 yoda rivet pythia8 thepeg herwig delphes pdfsets sherpa madanalysis5 qcdloop madgraph whizard onnxruntime geant4) |
-| R3 | `grep -c "$HEP_MACHINE/forge/\|$HEP_MACHINE/stack/" $HEP/.setup/build.sh` | ≥ `100` (131 in a scratch root, 2026-10-14: every package's paths in the machine root) |
-| R4 | `grep -c "recipes/patches/fastjet" $HEP/.setup/build.sh` | `1` (the SISCone patch, L29) |
-| R5 | `ls $HEP_MACHINE/base/.pixi/envs/default/conda-meta/*.json \| wc -l` | about `206` (a scratch root's, 2026-10-14) |
-| R6 | `source $HEP_MACHINE/base/activate.sh && $CXX --version \| head -1` | conda-forge's GCC `15.x` |
-| R7 | `source $HEP_MACHINE/base/activate.sh && echo \| $CXX -x c++ -E -v - 2>&1 \| grep -c '^ /usr/include'` | `0`: the base's compiler never reads the OS's headers |
+| R1 | `cd $HEIMDALL && bash -n .setup/build.sh && echo ok` | `ok` |
+| R2 | `grep -c '^# == ' $HEIMDALL/.setup/build.sh` | `22` (python lhapdf hepmc3 hepmc2 fastjet fjcontrib root hdf5 yoda rivet pythia8 thepeg herwig delphes pdfsets sherpa madanalysis5 qcdloop madgraph whizard onnxruntime geant4) |
+| R3 | `grep -c "$HEIMDALL_MACHINE/forge/\|$HEIMDALL_MACHINE/stack/" $HEIMDALL/.setup/build.sh` | ≥ `100` (131 in a scratch root, 2026-10-14: every package's paths in the machine root) |
+| R4 | `grep -c "recipes/patches/fastjet" $HEIMDALL/.setup/build.sh` | `1` (the SISCone patch, L29) |
+| R5 | `ls $HEIMDALL_MACHINE/base/.pixi/envs/default/conda-meta/*.json \| wc -l` | about `206` (a scratch root's, 2026-10-14) |
+| R6 | `source $HEIMDALL_MACHINE/base/activate.sh && $CXX --version \| head -1` | conda-forge's GCC `15.x` |
+| R7 | `source $HEIMDALL_MACHINE/base/activate.sh && echo \| $CXX -x c++ -E -v - 2>&1 \| grep -c '^ /usr/include'` | `0`: the base's compiler never reads the OS's headers |
 
 **On failure:**
 - R1–R4: the recipes do not plan here. Collect the dry run's stderr; this is a gate (the recipes
   are Heimdall's code).
-- R5–R7: the base did not install. Collect `$HEP_MACHINE/forge/logs/base.log` (pixi's solve and
+- R5–R7: the base did not install. Collect `$HEIMDALL_MACHINE/forge/logs/base.log` (pixi's solve and
   download); this is a gate.
 
 ---
@@ -82,7 +82,7 @@ The steps:
 
 **Tasks:**
 
-1. **Kept tarballs** (01 §8, optional). Copy them from `$HEP/.setup/kept/downloads/` into `$HEP_MACHINE/forge/downloads/`
+1. **Kept tarballs** (01 §8, optional). Copy them from `$HEIMDALL/.setup/kept/downloads/` into `$HEIMDALL_MACHINE/forge/downloads/`
    under the names `build_stack.py` looks for, `<package>-<release><ending>`. An archive already
    there is used as it is, which saves about 555 MB of downloads:
 
@@ -111,7 +111,7 @@ The steps:
    Give the total, and ask once.
 4. **Start the build** as the builder (02 §2), detached from the shell that starts it:
    ```bash
-   cd $HEP && setsid nohup python3 recipes/build_stack.py packages=@primary \
+   cd $HEIMDALL && setsid nohup python3 recipes/build_stack.py packages=@primary \
        cores=<cores> root_cores=<root_cores> > .setup/stack.log 2>&1 < /dev/null &
    ```
    - `root_cores` bounds ROOT's and Rivet's compilers, each about 1.3 GB at its peak: more than the
@@ -127,14 +127,14 @@ The steps:
 
 | # | Command | Expected |
 |---|---|---|
-| R1 | `ls $HEP_MACHINE/stack/.stamps \| grep -v '\.libs$\|^folders$' \| wc -l` | `23` (the 22 packages of S1's R2, and `cxx_std`) |
-| R2 | `cat $HEP_MACHINE/stack/.stamps/cxx_std` | `17` |
-| R3 | `tail -1 $HEP/.setup/stack.log` | `done: source <HEP>/gjallarhorn.sh` |
-| R4 | `grep -c 'failed' $HEP/.setup/stack.log` | `0` |
-| R5 | `git -C $HEP status --porcelain \| wc -l` | `0` (everything the build wrote is ignored) |
+| R1 | `ls $HEIMDALL_MACHINE/stack/.stamps \| grep -v '\.libs$\|^folders$' \| wc -l` | `23` (the 22 packages of S1's R2, and `cxx_std`) |
+| R2 | `cat $HEIMDALL_MACHINE/stack/.stamps/cxx_std` | `17` |
+| R3 | `tail -1 $HEIMDALL/.setup/stack.log` | `done: source <Heimdall>/gjallarhorn.sh` |
+| R4 | `grep -c 'failed' $HEIMDALL/.setup/stack.log` | `0` |
+| R5 | `git -C $HEIMDALL status --porcelain \| wc -l` | `0` (everything the build wrote is ignored) |
 
 **On failure:**
-- A package that fails twice is a gate (02 §5.2), with its log tail (`$HEP_MACHINE/forge/logs/<pkg>.log`) and
+- A package that fails twice is a gate (02 §5.2), with its log tail (`$HEIMDALL_MACHINE/forge/logs/<pkg>.log`) and
   the probable cause. The known suspects on a newer Ubuntu are in the annex: a GCC or Python too
   new for ROOT, ThePEG, Herwig or Whizard.
 - **MadAnalysis5**, **HepMC2** and **QCDLoop** were first built on 2026-10-21 (V155): a failure of one is a gate. Everything else of `@primary` is
@@ -147,7 +147,7 @@ The steps:
 
 **Preconditions:** S2 `done`.
 
-Every row runs in a fresh shell after `source $HEP/gjallarhorn.sh`. The expected values are the lab PC's
+Every row runs in a fresh shell after `source $HEIMDALL/gjallarhorn.sh`. The expected values are the lab PC's
 of 2026-10-10 (`heimdall status --stack`, `lhapdf list --installed`).
 
 **Verification:**
@@ -165,24 +165,24 @@ of 2026-10-10 (`heimdall status --stack`, `lhapdf list --installed`).
 | R9 | `Herwig --version \| head -1` | contains `7.3.0` |
 | R10 | `Sherpa-config --version` | `3.0.5` |
 | R11 | `whizard --version \| head -1` | contains `3.1.8` |
-| R12 | `grep -i version $HEP_INSTALL/madgraph/VERSION` | contains `3.8.1` |
-| R13 | `test -f $HEP_INSTALL/onnxruntime/lib/libonnxruntime.so && test -x $HEP_INSTALL/delphes/bin/DelphesHepMC3 && echo ok` | `ok` |
-| R14 | `test -x $HEP_INSTALL/madanalysis5/bin/ma5 && echo ok` | `ok` |
+| R12 | `grep -i version $HEIMDALL_INSTALL/madgraph/VERSION` | contains `3.8.1` |
+| R13 | `test -f $HEIMDALL_INSTALL/onnxruntime/lib/libonnxruntime.so && test -x $HEIMDALL_INSTALL/delphes/bin/DelphesHepMC3 && echo ok` | `ok` |
+| R14 | `test -x $HEIMDALL_INSTALL/madanalysis5/bin/ma5 && echo ok` | `ok` |
 | R15 | `lhapdf list --installed \| wc -l` | `21` |
 | R16 | `lhapdf list --installed \| tr '\n' ' '` | `CT10 CT14lo CT14nlo CT18NLO CT18NNLO MSHT20nlo_as118 MSTW2008lo68cl MSTW2008lo68cl_nf3 MSTW2008lo68cl_nf4 MSTW2008lo68cl_nf4as5 MSTW2008lo90cl MSTW2008lo90cl_nf3 MSTW2008lo90cl_nf4 MSTW2008lo90cl_nf4as5 NNPDF23_lo_as_0130_qed NNPDF23_nlo_as_0119_qed NNPDF40_nlo_as_01180 PDF4LHC21_40 PDF4LHC21_40_pdfas cteq6l1 nNNPDF30_nlo_as_0118_A208_Z82` |
-| R17 | `grep -rl thread_local $HEP_INSTALL/fastjet/include/siscone \| wc -l` | `1` (the SISCone patch, L29) |
+| R17 | `grep -rl thread_local $HEIMDALL_INSTALL/fastjet/include/siscone \| wc -l` | `1` (the SISCone patch, L29) |
 | R18 | `python -c "import ROOT, pythia8, yoda, rivet, lhapdf, pyHepMC3, uproot, tomli_w, yaml; print('ok')"` | `ok` |
-| R19 | `cat $(python -c "import site; print(site.getsitepackages()[0])")/heimdall.pth` | `<HEP>/framework`, expanded |
-| R20 | `which python; echo $HEP_BASE; echo $HEP_INSTALL` | `<machine root>/base/.pixi/envs/default/bin/python`, `<machine root>/base/.pixi/envs/default`, `<machine root>/stack` |
-| R21 | `heimdall where` | `hep=<HEP> <revision>` and `work=-`, and no warning about `heimdall.pth` |
-| R22 | `du -sh $HEP_MACHINE/stack/ \| cut -f1` | about `6.0G` (the lab set's; MadAnalysis5 adds little) |
+| R19 | `cat $(python -c "import site; print(site.getsitepackages()[0])")/heimdall.pth` | `<Heimdall>/framework`, expanded |
+| R20 | `which python; echo $HEIMDALL_BASE; echo $HEIMDALL_INSTALL` | `<machine root>/base/.pixi/envs/default/bin/python`, `<machine root>/base/.pixi/envs/default`, `<machine root>/stack` |
+| R21 | `heimdall where` | `heimdall=<Heimdall> <revision>` and `work=-`, and no warning about `heimdall.pth` |
+| R22 | `du -sh $HEIMDALL_MACHINE/stack/ \| cut -f1` | about `6.0G` (the lab set's; MadAnalysis5 adds little) |
 | R23 | `pkg-config --modversion tomlplusplus libzstd zlib` | the base's: `3.4.0 1.5.7 1.3.2` (2026-10-14). Recorded, not compared |
-| R24 | `ldd $HEP_INSTALL/rivet/lib/libRivet.so \| grep '=> /usr/lib\|=> /lib' \| grep -v 'libc\.\|libm\.\|libdl\.\|libpthread\.\|librt\.\|ld-linux'` | nothing: every library but glibc's from the base or the stack |
+| R24 | `ldd $HEIMDALL_INSTALL/rivet/lib/libRivet.so \| grep '=> /usr/lib\|=> /lib' \| grep -v 'libc\.\|libm\.\|libdl\.\|libpthread\.\|librt\.\|ld-linux'` | nothing: every library but glibc's from the base or the stack |
 
 **On failure:**
 - R17 = 0: the patch was not applied, and InprocJets' `rivet_threads > 1` will refuse. Collect
-  `$HEP_MACHINE/forge/logs/fastjet.log`.
-- R18: name the module that fails, and check its install's Python directory against `hep_env.sh`'s
+  `$HEIMDALL_MACHINE/forge/logs/fastjet.log`.
+- R18: name the module that fails, and check its install's Python directory against `heimdall_env.sh`'s
   `PYTHONPATH` lines.
 - R19 or R21's warning: `recipes/pth.py` did not run (the `python` package's last step); run it by
-  hand, `$HEP_VENV/bin/python recipes/pth.py $HEP`, and record a deviation.
+  hand, `$HEIMDALL_VENV/bin/python recipes/pth.py $HEIMDALL`, and record a deviation.

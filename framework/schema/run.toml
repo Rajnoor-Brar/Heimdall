@@ -21,7 +21,7 @@
 #
 # Tables: config, run, configuration ([run.cfgs.<cfg>]), prelim, quantity ([quantities.<q>]), tool
 # ([tools.<tag>]: the keys every tool table may carry; a folder's [options] add its own), plot,
-# figure ([plot.figures.<figure>]), data, cluster (also a work dir's hep.toml [cluster], V114).
+# figure ([plot.figures.<figure>]), data, cluster (also a work dir's heimdall.toml [cluster], V114).
 
 [sections]
 order = ["config", "run", "prelim", "static", "tools", "quantities", "plot", "stats", "report", "cluster", "heimdall"]
@@ -362,7 +362,7 @@ notes = """\
   for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and \
   `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's \
   `process`). The chain's tools are always in the context file, which every tool finds through \
-  `HEP_CONTEXT` (04 §9.4)"""
+  `HEIMDALL_CONTEXT` (04 §9.4)"""
 
 [configuration.pre]
 type = "list"
@@ -435,7 +435,7 @@ type = "list"
 doc  = "commands run in the point's folder before the tools"
 notes = """\
   run in the point's output directory; output to the point's `prelim.log`; a nonzero exit fails the \
-  point. Placeholders: `{work}`, `{hep}`, `{out}`, `{res}`, `{file:<name>}`"""
+  point. Placeholders: `{work}`, `{heimdall}`, `{out}`, `{res}`, `{file:<name>}`"""
 
 # ── [quantities.<q>] ─────────────────────────────────────────────────────────────────────────
 
@@ -569,7 +569,7 @@ type    = "str"
 choices = ["standard", "filters", "none"]
 doc     = "how its progress is read: the status protocol, its log's filter rules, or not at all"
 notes = """\
-  `\"standard\"` (`$HEP_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`"""
+  `\"standard\"` (`$HEIMDALL_STATUS_FD`), `\"filters\"` (the folder's `filters.toml`), `\"none\"`"""
 
 [tool.filters]
 path = "filters"
@@ -1197,7 +1197,7 @@ notes = """\
   A file without a map, or a map without a file, is an error."""
 
 # ── [cluster]: heimdall cluster, a run as Slurm jobs (V114) ───────────────────────────────────────────
-# Also the machine root's machine.toml [cluster] and a work dir's hep.toml [cluster] (the defaults, in
+# Also the machine root's machine.toml [cluster] and a work dir's heimdall.toml [cluster] (the defaults, in
 # that order); the run TOML's is over them, a configuration's ([run.cfgs.<cfg>].cluster) over that,
 # --set cluster.<key>=… over all (04 §16).
 

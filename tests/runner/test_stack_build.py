@@ -154,7 +154,7 @@ def test_the_templates_examples_are_the_tables_the_build_reads(bs, tmp_path):
 def test_the_dry_run_is_a_bash_script_and_writes_nothing(bs, tmp_path, capsys):
     """The default: the conda base first (pixi fetched and checked, the manifest, `pixi install`, the
     activation), then every build inside it (docs/conda/)."""
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=all", "root_cores=2"])
     script = capsys.readouterr().out
     assert not prefix.exists()
@@ -177,7 +177,7 @@ def test_the_dry_run_is_a_bash_script_and_writes_nothing(bs, tmp_path, capsys):
 
 def test_the_old_way_is_apt_and_a_venv(bs, tmp_path, capsys):
     """base=system: apt_packages and a venv, as before the base."""
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=all", "base=system", "root_cores=2"])
     script = capsys.readouterr().out
     for line in (f"-m venv --prompt HEP {prefix}/venv", f"{prefix}/venv/bin/python {REPO}/recipes/pth.py",
@@ -203,7 +203,7 @@ def test_the_mac_overlay(bs, tmp_path, monkeypatch, capsys):
     the macOS ONNX Runtime."""
     monkeypatch.setattr(bs, "MAC", True)
     monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=all", "base=system"])
     script = capsys.readouterr().out
     root = next(line for line in script.splitlines() if line.startswith(f"cmake -S {prefix}/forge/src/root "))
@@ -225,7 +225,7 @@ def test_the_mac_on_the_conda_base_needs_no_homebrew(bs, tmp_path, monkeypatch, 
     monkeypatch.setattr(bs, "MAC", True)
     monkeypatch.delenv("HOMEBREW_PREFIX", raising=False)
     monkeypatch.setattr(bs.os, "uname", lambda: type("U", (), {"sysname": "Darwin", "machine": "arm64"})())
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=@primary"])
     script = capsys.readouterr().out
     env = prefix / "base" / ".pixi" / "envs" / "default"
@@ -322,7 +322,7 @@ def test_an_unknown_toolkit_is_refused(bs, tmp_path, arg):
 
 
 def test_external_packages_are_never_built(bs, tmp_path, capsys):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=@key4hep @cms @fluka", "base=system", "system=false"])
     out = capsys.readouterr()
     assert "# == key4hep" not in out.out and "curl" not in out.out   # nothing fetched, nothing run
@@ -333,7 +333,7 @@ def test_external_packages_are_never_built(bs, tmp_path, capsys):
 
 
 def test_new_recipes_say_so_and_bring_their_system_packages(bs, tmp_path, capsys):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=@detector", "base=system"])
     out = capsys.readouterr()
     assert "dd4hep 01-38  (a recipe not yet proven by a build)" in out.err
@@ -350,7 +350,7 @@ def test_new_recipes_say_so_and_bring_their_system_packages(bs, tmp_path, capsys
 # ── isolated toolkits, and a machine's own (<machine root>/toolkits/) ──────────────────────────
 
 def test_an_isolated_toolkit_builds_a_stack_of_its_own(bs, tmp_path, capsys):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=@key4hep-src"])
     script = capsys.readouterr().out
     base = prefix / "stacks" / "key4hep-src"
@@ -359,7 +359,7 @@ def test_an_isolated_toolkit_builds_a_stack_of_its_own(bs, tmp_path, capsys):
     assert f"pixi install --manifest-path {base}/base/pixi.toml" in script      # a base of its own
     assert f"{prefix}/forge/pixi/bin/pixi" in script                            # one pixi per machine
     assert "-DGEANT4_BUILD_CXXSTD=20" in script                     # the toolkit's [packages.geant4]
-    assert f"cat > {base}/gjallarhorn.sh" in script and "HEP_STACK_REQUEST=key4hep-src" in script
+    assert f"cat > {base}/gjallarhorn.sh" in script and "HEIMDALL_STACK_REQUEST=key4hep-src" in script
     assert f"{prefix}/stack/" not in script                           # the default stack is not touched
 
 
@@ -536,7 +536,7 @@ def test_a_short_answer_is_retried_then_refused(bs, tmp_path, server, monkeypatc
 
 
 def test_the_dry_run_prints_the_whole_build_unless_resumed(bs, tmp_path, capsys):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     stamps = prefix / "stack" / ".stamps"
     stamps.mkdir(parents=True)
     (stamps / "hepmc3-3.3.1").touch()
@@ -577,13 +577,13 @@ def test_a_mac_build_goes_through_build_sh(bs, tmp_path, monkeypatch):
     """On macOS the platform's fixes are laid by themselves; Homebrew and the GNU tools are build.sh's."""
     monkeypatch.setattr(bs, "MAC", True)
     monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
-    monkeypatch.delenv("HEP_BUILD_SH", raising=False)
+    monkeypatch.delenv("HEIMDALL_BUILD_SH", raising=False)
     _, s, packages = bs.options([f"machine={tmp_path}"])
     assert "platform mac" in s["_layers"] and "-Dcocoa=ON" in packages["root"]["extra"]
     with pytest.raises(SystemExit) as stop:
         bs.preflight(s, bs.context(s), [])
     assert "recipes/platforms/mac/build.sh" in str(stop.value)
-    monkeypatch.setenv("HEP_BUILD_SH", "1")
+    monkeypatch.setenv("HEIMDALL_BUILD_SH", "1")
     monkeypatch.setattr(bs.shutil, "which", lambda name: None if name == "brew" else "/usr/bin/" + name)
     bs.preflight(s, bs.context(s), [])                              # through build.sh: no stop
 
@@ -596,7 +596,7 @@ def test_a_platform_is_laid_only_where_it_is(bs, tmp_path):
 
 
 def test_yoda_takes_hdf5_only_from_the_stack(bs, tmp_path, capsys):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=yoda", "system=false"])
     alone = next(line for line in capsys.readouterr().out.splitlines() if "./configure" in line and "/yoda " in line)
     assert "--disable-h5" in alone and "--enable-h5" not in alone
@@ -647,7 +647,7 @@ def test_a_stamp_knows_the_recipe_it_was_built_with(bs, tmp_path):
 
 
 def test_installed_is_used_failed_is_built_again(bs, tmp_path, capsys):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     _, s, packages = bs.options([f"machine={prefix}"])
     c = bs.context(s)
     (Path(c["inst"]) / "fastjet").mkdir(parents=True)                # installed some other way: used
@@ -659,7 +659,7 @@ def test_installed_is_used_failed_is_built_again(bs, tmp_path, capsys):
 
 
 def test_rebuild_takes_what_depends_on_it(bs, tmp_path, capsys):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     _, s, packages = bs.options([f"machine={prefix}"])
     c = bs.context(s)
     for name in ("python", "lhapdf", "hepmc3", "fastjet", "thepeg", "herwig", "rivet"):
@@ -684,7 +684,7 @@ def test_overrides_append_and_reach_the_environment(bs, tmp_path, monkeypatch):
 
 
 def test_another_cxx_standard_on_a_built_stack_is_refused(bs, tmp_path):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     stamps = prefix / "stack" / ".stamps"
     stamps.mkdir(parents=True)
     (stamps / "cxx_std").write_text("17\n", encoding="utf-8")
@@ -696,7 +696,7 @@ def test_another_cxx_standard_on_a_built_stack_is_refused(bs, tmp_path):
 def test_the_macs_fixes_are_recipe_lines(bs, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(bs, "MAC", True)
     monkeypatch.setenv("HOMEBREW_PREFIX", "/opt/homebrew")
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=@primary", "base=system"])
     lines = capsys.readouterr().out.splitlines()
     thepeg = next(line for line in lines if "./configure" in line and "/thepeg " in line)
@@ -722,7 +722,7 @@ def test_a_failure_shows_its_errors_first(bs, tmp_path):
 # ── after an OS upgrade (phase 2.3) ────────────────────────────────────────────────────────────
 
 def test_rebuild_broken_takes_what_lost_a_library_and_what_needs_it(bs, tmp_path, monkeypatch, capsys):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     _, s, packages = bs.options([f"machine={prefix}"])
     c = bs.context(s)
     for name in ("python", "lhapdf", "hepmc3", "fastjet", "root", "delphes", "rivet"):
@@ -775,7 +775,7 @@ def test_the_manifest_is_the_base_list_the_python_packages_and_the_runs_recipes(
 
 
 def test_a_conda_toolkit_takes_what_conda_forge_carries_ready_made(bs, tmp_path, capsys):
-    prefix = tmp_path / "hep"
+    prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=@lab-conda"])
     out = capsys.readouterr()
     import tomllib

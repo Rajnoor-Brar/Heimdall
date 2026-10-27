@@ -16,31 +16,31 @@ import pytest
 
 import support
 
-from support import apps, folder, hep_ok
+from support import apps, folder, heimdall_ok
 yoda = pytest.importorskip("yoda")
 
 pytestmark = pytest.mark.slow
 
 
-def hep_run(scratch: Path, *args: str) -> str:
-    return hep_ok(scratch, *args, timeout=3600)
+def heimdall_run(scratch: Path, *args: str) -> str:
+    return heimdall_ok(scratch, *args, timeout=3600)
 
 
 @pytest.mark.skipif(not shutil.which("mg5_aMC"), reason="gjallarhorn: mg5_aMC")
 def test_madgraph_to_pythia_to_rivet(scratch):
-    out = hep_run(scratch, "Demo/madgraph", "--set", "run.events=300", "--logs")   # its log is read (V72)
+    out = heimdall_run(scratch, "Demo/madgraph", "--set", "run.events=300", "--logs")   # its log is read (V72)
     assert "count ok: 300 events" in (support.point_records(scratch, folder("Demo/madgraph"), "point") / "provenance.json").read_text(encoding="utf-8", errors="replace")
     log = (support.point_logs(scratch, folder("Demo/madgraph"), "point") / "madgraph.log").read_text(encoding="utf-8", errors="replace")
     stated = float(re.findall(r"Cross-section :\s+([\d.eE+-]+)", log)[-1])
     rivet = yoda.read(str(support.point_results(scratch, folder("Demo/madgraph"), "point") / "jets.yoda"))["/RAW/_XSEC"].val()
     assert rivet == pytest.approx(stated, rel=1e-3)
-    again = hep_run(scratch, "Demo/madgraph", "--set", "run.events=300", "--rerun")
+    again = heimdall_run(scratch, "Demo/madgraph", "--set", "run.events=300", "--rerun")
     assert "madgraph:prepare: cached" in again and "madgraph:prepare" in out
 
 
 @pytest.mark.skipif(not shutil.which("whizard"), reason="gjallarhorn: whizard")
 def test_whizard_direct_photoproduction_runs(scratch):
-    hep_run(scratch, "Demo/whizard", "--set", "run.events=500", "--logs")
+    heimdall_run(scratch, "Demo/whizard", "--set", "run.events=500", "--logs")
     point = support.point_logs(scratch, folder("Demo/whizard"), "point")
     assert "count ok: 500 events" in (support.point_records(scratch, folder("Demo/whizard"), "point") / "provenance.json").read_text(encoding="utf-8", errors="replace")
     integration = (support.point_logs(scratch, folder("Demo/whizard"), "point") / "whizard.prepare.log").read_text(encoding="utf-8", errors="replace")
@@ -53,7 +53,7 @@ def test_whizard_direct_photoproduction_runs(scratch):
 @pytest.mark.skipif(not (shutil.which("Herwig") and shutil.which("Sherpa")) or
                     not (apps() / "Herwig" / "HerwigDefaults.rpo").exists(), reason="gjallarhorn and heimdall build --framework")
 def test_three_generators_one_page_per_spectrum(scratch):
-    out = hep_run(scratch, "Generators/generators", "--set", "run.events=500")
+    out = heimdall_run(scratch, "Generators/generators", "--set", "run.events=500")
     assert re.search(r"3 done(?: \(\d with warnings\))?, 0 failed", out) and "plot: 4 of 4 page(s) drawn" in out   # V200
     page = (support.pages(scratch, folder("Generators/generators", None, scratch)) / "nch.toml").read_text(encoding="utf-8", errors="replace")
     assert page.count("[[curve]]") == 3

@@ -3735,43 +3735,43 @@
     "folder-root-open": {
       "iconPath": "./icons/folder-root-open~1195470147.svg"
     },
-    "_hep_root": {
+    "_heimdall_root": {
       "iconPath": "./icons/root.svg"
     },
-    "_hep_cmnd": {
+    "_heimdall_cmnd": {
       "iconPath": "./icons/cmnd.svg"
     },
-    "_hep_lhe": {
+    "_heimdall_lhe": {
       "iconPath": "./icons/lhe.svg"
     },
-    "_hep_hepmc": {
+    "_heimdall_hepmc": {
       "iconPath": "./icons/hepmc.svg"
     },
-    "_hep_dec": {
+    "_heimdall_dec": {
       "iconPath": "./icons/dec.svg"
     },
-    "_hep_folder_paint": {
+    "_heimdall_folder_paint": {
       "iconPath": "./icons/folder-paint.svg"
     },
-    "_hep_folder_paint_o": {
+    "_heimdall_folder_paint_o": {
       "iconPath": "./icons/folder-paint-open.svg"
     },
-    "_hep_folder_monitor": {
+    "_heimdall_folder_monitor": {
       "iconPath": "./icons/folder-monitor.svg"
     },
-    "_hep_folder_monitor_o": {
+    "_heimdall_folder_monitor_o": {
       "iconPath": "./icons/folder-monitor-open.svg"
     },
-    "_hep_folder_record": {
+    "_heimdall_folder_record": {
       "iconPath": "./icons/folder-record.svg"
     },
-    "_hep_folder_record_o": {
+    "_heimdall_folder_record_o": {
       "iconPath": "./icons/folder-record-open.svg"
     },
-    "_hep_folder_probe": {
+    "_heimdall_folder_probe": {
       "iconPath": "./icons/folder-probe.svg"
     },
-    "_hep_folder_probe_o": {
+    "_heimdall_folder_probe_o": {
       "iconPath": "./icons/folder-probe-open.svg"
     }
   },
@@ -8434,10 +8434,10 @@
     "_redislabs": "folder-redis",
     "-redislabs": "folder-redis",
     "__redislabs__": "folder-redis",
-    "paint": "_hep_folder_paint",
-    "monitor": "_hep_folder_monitor",
-    "record": "_hep_folder_record",
-    "probe": "_hep_folder_probe",
+    "paint": "_heimdall_folder_paint",
+    "monitor": "_heimdall_folder_monitor",
+    "record": "_heimdall_folder_record",
+    "probe": "_heimdall_folder_probe",
     "physics": "folder-atom",
     "Physics": "folder-atom",
     "analysis": "folder-benchmark",
@@ -13125,10 +13125,10 @@
     "_redislabs": "folder-redis-open",
     "-redislabs": "folder-redis-open",
     "__redislabs__": "folder-redis-open",
-    "paint": "_hep_folder_paint_o",
-    "monitor": "_hep_folder_monitor_o",
-    "record": "_hep_folder_record_o",
-    "probe": "_hep_folder_probe_o"
+    "paint": "_heimdall_folder_paint_o",
+    "monitor": "_heimdall_folder_monitor_o",
+    "record": "_heimdall_folder_record_o",
+    "probe": "_heimdall_folder_probe_o"
   },
   "rootFolderNames": {},
   "rootFolderNamesExpanded": {},
@@ -14483,19 +14483,19 @@
     "instructions.md": "instructions",
     "instruction.md": "instructions",
     "mrpack": "mrpack",
-    "cmnd": "_hep_cmnd",
-    "root": "_hep_root",
+    "cmnd": "_heimdall_cmnd",
+    "root": "_heimdall_root",
     "in": "deepsource",
-    "lhe": "_hep_lhe",
-    "hepmc": "_hep_hepmc",
-    "hepmc2": "_hep_hepmc",
-    "hepmc3": "_hep_hepmc",
-    "dec": "_hep_dec",
+    "lhe": "_heimdall_lhe",
+    "hepmc": "_heimdall_hepmc",
+    "hepmc2": "_heimdall_hepmc",
+    "hepmc3": "_heimdall_hepmc",
+    "dec": "_heimdall_dec",
     "yoda": "table",
     "spc": "table",
     "slha": "table",
     "gdml": "xml",
-    "pwhg": "_hep_lhe",
+    "pwhg": "_heimdall_lhe",
     "mac": "console",
     "safetensors": "database",
     "keras": "database",

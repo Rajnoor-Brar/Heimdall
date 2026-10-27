@@ -1,6 +1,6 @@
 {
-  "name": "hep-contrast",
-  "displayName": "HEP Contrast",
+  "name": "heimdall-contrast",
+  "displayName": "Heimdall Contrast",
   "description": "High-contrast light and dark themes tuned for C++ and Python — deep ink on white or near-black, zero ambiguity. Built from a single TOML palette (palette.toml) via `node build.js`.",
   "version": "2.0.0",
   "publisher": "local",
@@ -13,14 +13,14 @@
   "contributes": {
     "themes": [
       {
-        "label": "HEP Contrast Light",
+        "label": "Heimdall Contrast Light",
         "uiTheme": "vs",
-        "path": "./themes/hep-contrast-light.json"
+        "path": "./themes/heimdall-contrast-light.json"
       },
       {
-        "label": "HEP Contrast Dark",
+        "label": "Heimdall Contrast Dark",
         "uiTheme": "vs-dark",
-        "path": "./themes/hep-contrast-dark.json"
+        "path": "./themes/heimdall-contrast-dark.json"
       }
     ]
   }

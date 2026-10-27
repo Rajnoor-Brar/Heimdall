@@ -30,7 +30,7 @@ from . import config as configmod
 from . import execute, house, paths, plot, plotdoc, post, record, runs, sweep, tools
 from . import doctor as doctormod
 from . import setup as setupmod
-from .errors import HepError, did_you_mean
+from .errors import HeimdallError, did_you_mean
 from .paths import cache_root, check_retired, find_work, records_root, results_root
 from .quantities import load_master
 from .events import Bus, Hub, Journal, RunBus, RunLog, greeting, connect, hubs
@@ -80,7 +80,7 @@ def parser() -> argparse.ArgumentParser:
                      help="keep every tool's whole output in records/…/logs/<point>/<tag>.full.log (its digest, <tag>.log, is always kept)")
     run.add_argument("--keep", action="append", default=[], metavar="WHAT",
                      help="also keep (comma-separated): logs, journal, work (a finished point's whole working folder), "
-                          "cache (card checks); also hep.toml's and "
+                          "cache (card checks); also heimdall.toml's and "
                           "machine.toml's [run] keep")
 
     draw = commands.add_parser("plot", help="draw a configuration's pages from its complete points")
@@ -165,6 +165,9 @@ def parser() -> argparse.ArgumentParser:
                       help="move the work dir's older layouts into today's: logs/ into records/<run>/logs/, points into "
                            "points/ (and output/ first, if any); no configs are read")
     move.add_argument("--list", action="store_true", help="with --layout: every move, one a line")
+    move.add_argument("--names", action="store_true",
+                      help="a work dir from before Heimdall's names moved (hep → heimdall): its marker hep.toml → "
+                           "heimdall.toml, and the old names in its own files (configs, modules, Makefile, editor settings)")
     move.add_argument("--snapshot", metavar="RECORD",
                       help="give a record that ran before snapshots one: copy a config's files into <record>/config/ "
                            "(--from, default the config its points.json names) and say which points it gives the same identity")
@@ -231,14 +234,14 @@ def parser() -> argparse.ArgumentParser:
     what.add_argument("--status", action="store_true", help="the latest submission: each point's state (sacct, squeue)")
     what.add_argument("--cancel", action="store_true", help="scancel the latest submission's jobs")
 
-    make = commands.add_parser("setup", help="make a work dir: the key folders, hep.toml and the template's files (never overwrites)")
+    make = commands.add_parser("setup", help="make a work dir: the key folders, heimdall.toml and the template's files (never overwrites)")
     make.add_argument("dir", help="the work dir's folder: new, empty, or a work dir to complete")
     make.add_argument("--project", metavar="P", help="also configs/<P>/ with a starter run TOML and card, and modules/<P>/")
     make.add_argument("--git", nargs="?", const="yes", choices=["yes", "new"],
                       help="commit what was added (only that), in the git repository the folder is in, or a new one "
                            "when it is in none; --git=new: a repository of its own even inside another")
-    make.add_argument("--adopt", action="store_true", help="make a work dir of a folder that has files but no hep.toml")
-    make.add_argument("--name", help="the work dir's name in hep.toml (default: the folder's)")
+    make.add_argument("--adopt", action="store_true", help="make a work dir of a folder that has files but no heimdall.toml")
+    make.add_argument("--name", help="the work dir's name in heimdall.toml (default: the folder's)")
     make.add_argument("--example", metavar="NAME", help="also a working example project to run first: jets "
                                                         "(the guide's Demo project: Pythia → Rivet → pages against ZEUS data)")
     make.add_argument("--refresh", action="store_true",
@@ -291,7 +294,7 @@ def parser() -> argparse.ArgumentParser:
     known = commands.add_parser("recognise", help="record work dirs by title, in the machine root's workdirs.toml "
                                                   "(gjallarhorn <title> goes to one)",
                                 description="A work dir (or a folder inside one) is recorded under its title, its "
-                                            "hep.toml's [work] name or else its folder's name; any other folder is "
+                                            "heimdall.toml's [work] name or else its folder's name; any other folder is "
                                             "searched for work dirs, 4 folders deep, and each is recorded.")
     known.add_argument("path", nargs="?", help="a work dir, or a folder to search below (default: here)")
     known.add_argument("--as", dest="title", metavar="TITLE", help="record the work dir under this title instead")
@@ -331,7 +334,7 @@ def parser() -> argparse.ArgumentParser:
 
     where = commands.add_parser("where", help="which Heimdall and which work dir this shell sees")
     which = where.add_mutually_exclusive_group()
-    which.add_argument("--hep", action="store_const", const="hep", dest="which", help="only Heimdall's folder")
+    which.add_argument("--heimdall", action="store_const", const="heimdall", dest="which", help="only Heimdall's folder")
     which.add_argument("--work", action="store_const", const="work", dest="which", help="only the work dir (exit 2 outside one)")
     return top
 
@@ -427,7 +430,7 @@ def refuse_overwrites(planned: Planned, args, stages=None) -> None:
         c = planned.configuration
         names = ", ".join(s.point.name if hasattr(s, "point") else "pre" for s in changed[:4]) + (", …" if len(changed) > 4 else "")
         where = c.origins.get("serial", "[run]").replace("[run.cfgs.", "[cfgs.")   # a v3 file: its own names
-        raise HepError(f"configuration '{c.key}': {len(changed)} of its points in {tools.run_dir(planned.run, c)} were "
+        raise HeimdallError(f"configuration '{c.key}': {len(changed)} of its points in {tools.run_dir(planned.run, c)} were "
                        f"made from other inputs ({names}); running would overwrite them",
                        where=f"{planned.run.path}: {where}",
                        hint=f"serial = {c.serial + 1} gives a fresh folder; or leave serial out and the runner numbers it; "
@@ -458,7 +461,7 @@ def _write_recipe(run, target: Path, say) -> None:
     from . import report as reportmod
     try:
         reportmod.write_recipe(run, target)
-    except (HepError, OSError) as error:
+    except (HeimdallError, OSError) as error:
         say(f"report: {target.with_name(reportmod.RECIPE)} not written: {getattr(error, 'message', error)}")
 
 
@@ -642,14 +645,14 @@ def stages_of(args) -> frozenset[str]:
     if given is None:
         return frozenset([args.only]) if getattr(args, "only", None) else frozenset(STAGES)
     if getattr(args, "only", None):
-        raise HepError("--only and --stages do not go together",
+        raise HeimdallError("--only and --stages do not go together",
                        hint="--only reruns one stage; --stages runs several, skipping what is unchanged")
     named = [s.strip() for s in given.split(",") if s.strip()]
     for stage in named:
         if stage not in STAGES:
-            raise HepError(f"--stages: '{stage}' is not a stage", hint=did_you_mean(stage, STAGES) or ", ".join(STAGES))
+            raise HeimdallError(f"--stages: '{stage}' is not a stage", hint=did_you_mean(stage, STAGES) or ", ".join(STAGES))
     if not named:
-        raise HepError("--stages names no stage", hint=", ".join(STAGES))
+        raise HeimdallError("--stages names no stage", hint=", ".join(STAGES))
     return frozenset(named)
 
 
@@ -670,7 +673,7 @@ def opened(args) -> Path | None:
     snap = record.read_snapshot(found)
     rel = found.relative_to(records_root())
     if getattr(args, "configuration", None) and args.configuration != snap["configuration"]:
-        raise HepError(f"the record {rel} is configuration '{snap['configuration']}', not '{args.configuration}'",
+        raise HeimdallError(f"the record {rel} is configuration '{snap['configuration']}', not '{args.configuration}'",
                        hint=f"leave the configuration out: heimdall {args.command} {rel}")
     os.environ[paths.CONFIGS_VAR] = str(found / "config")
     args.config, args.configuration = snap["config"], snap["configuration"]
@@ -697,10 +700,10 @@ def cmd_run(args) -> int:
         or getattr(args, "show_config", False)
     if getattr(args, "detach", False) and not worker:
         if nothing_runs:
-            raise HepError("--detach starts a run in the background, and --plan, --why, --show-config and --only plot run "
+            raise HeimdallError("--detach starts a run in the background, and --plan, --why, --show-config and --only plot run "
                            "nothing", hint="leave --detach out")
         if os.environ.get("SLURM_JOB_ID") or runs.cluster_job():
-            raise HepError("--detach in a Slurm job: its processes end with the job's allocation",
+            raise HeimdallError("--detach in a Slurm job: its processes end with the job's allocation",
                            hint="heimdall cluster submits a run as jobs; or run it here without --detach")
         return background(args, run, keys, attach=False)
     if not worker and not nothing_runs and live(args):
@@ -720,7 +723,7 @@ def cmd_run(args) -> int:
         work = find_work()
         entry = runs.begin(worker or runs.new_id(), {       # the registry (V182): nothing on a read-only root
             "config": str(run.path), "run": run.name, "configurations": keys, "argv": getattr(args, "argv", []),
-            "work": str(work) if work else None, "checkout": str(paths.hep_root()), "detached": bool(worker), "log": log})
+            "work": str(work) if work else None, "checkout": str(paths.heimdall_root()), "detached": bool(worker), "log": log})
         hub = Hub({"config": str(run.path), "run": run.name, "configurations": keys, "id": entry, "log": log,
                    "work": str(work) if work else None, "detached": bool(worker)})
         recorder = runs.Recorder()
@@ -730,7 +733,7 @@ def cmd_run(args) -> int:
     try:
         try:
             code = _runs(args, run, keys, stopper, bus)
-        except HepError as error:            # what main() prints, for a watcher too (V181)
+        except HeimdallError as error:            # what main() prints, for a watcher too (V181)
             if bus is not None:
                 bus.say(error.render())
             raise
@@ -753,11 +756,11 @@ def cmd_run(args) -> int:
 
 def live(args, stdin=None, stdout=None, environ=None) -> bool:
     """Whether this `heimdall run` is a live one (V183): a terminal in and out, in its foreground (not `… &`),
-    not --plain, not a worker, not in a Slurm job, and HEP_DETACH not "never". Then the run is a worker of its
+    not --plain, not a worker, not in a Slurm job, and HEIMDALL_DETACH not "never". Then the run is a worker of its
     own, followed here, and `d` leaves it running."""
     stdin, stdout = stdin or sys.stdin, stdout or sys.stdout
     environ = os.environ if environ is None else environ
-    if getattr(args, "plain", False) or getattr(args, "worker", None) or environ.get("HEP_DETACH") == "never":
+    if getattr(args, "plain", False) or getattr(args, "worker", None) or environ.get("HEIMDALL_DETACH") == "never":
         return False
     if environ.get("SLURM_JOB_ID") or environ.get(runs.CLUSTER_VAR):
         return False
@@ -843,22 +846,22 @@ def cmd_stop(args) -> int:
     if wanted is None and args.pid is None:                 # named by neither: this work dir's alone
         work = find_work()
         if work is None:
-            raise HepError("stop which job? outside a work dir, name it", hint="heimdall stop --pid N (heimdall runs lists them)")
+            raise HeimdallError("stop which job? outside a work dir, name it", hint="heimdall stop --pid N (heimdall runs lists them)")
         found = [(n, h) for n, h in found if h in house.runs_here(work)]
     if not found:
         cluster = next((e for e in runs.entries() if e.get("kind") == "cluster" and runs.state(e) == "submitted"
                         and (wanted is None or e.get("config") == str(wanted.path))), None)
-        raise HepError("no running job to stop" + (f" for {wanted.path}" if wanted else "")
+        raise HeimdallError("no running job to stop" + (f" for {wanted.path}" if wanted else "")
                        + (f" with pid {args.pid}" if args.pid else ""),
                        hint=(f"its cluster jobs: heimdall cluster {cluster.get('config')} {cluster.get('configuration', '')} --cancel"
                              if cluster else "heimdall runs lists what runs"))
     if len(found) > 1:
-        raise HepError(f"{len(found)} jobs match: " + "; ".join(
+        raise HeimdallError(f"{len(found)} jobs match: " + "; ".join(
             f"pid {h.get('pid')} {Path(h.get('config', '')).stem} · {', '.join(h.get('configurations', []))}" for _, h in found),
             hint="name one: heimdall stop --pid N")
     _, hello = found[0]
     if hello.get("pidns") and namespace("pid") and hello["pidns"] != namespace("pid"):
-        raise HepError(f"pid {hello.get('pid')} is another PID namespace's (a container's): stopping it from here could "
+        raise HeimdallError(f"pid {hello.get('pid')} is another PID namespace's (a container's): stopping it from here could "
                        "signal another process", hint="stop it from where it runs")
     pid = hello["pid"]
     os.kill(pid, signal.SIGINT)
@@ -895,20 +898,20 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus) -> int:
     if len(keys) == 1:
         return run_one(args, keys[0], stopper, bus=bus)
     if args.points:
-        raise HepError("--points picks points of one configuration, and this sweep runs several",
+        raise HeimdallError("--points picks points of one configuration, and this sweep runs several",
                        where=f"{run.path}: [run].sweep_runs", hint=f"name it: heimdall run {args.config} <configuration> --points …")
     skipped, ahead = {}, {}
     stamp = run.path.stat().st_mtime_ns
     for key in keys:
         try:
             ahead[key] = planned = build_plans(args, key)
-        except HepError as error:
+        except HeimdallError as error:
             error.message = f"configuration '{key}': {error.message}"
             raise
         if args.only in ("pre", "post") and getattr(planned, args.only) is None:
             skipped[key] = f"   no {args.only} tools: skipped"
     if len(skipped) == len(keys):
-        raise HepError(f"no configuration of this sweep has {args.only} tools", where=f"{run.path}: [run].sweep_runs")
+        raise HeimdallError(f"no configuration of this sweep has {args.only} tools", where=f"{run.path}: [run].sweep_runs")
     if bus is not None and args.only is None and getattr(args, "stages", None) is None:
         return _pipelined(args, run, keys, stopper, bus, ahead, stamp)
     failed = False
@@ -927,7 +930,7 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus) -> int:
             unchanged = run.path.stat().st_mtime_ns == stamp
             code = run_one(args, key, stopper, number=number, following=following,
                            planned=ahead[key] if unchanged else None, bus=bus)
-        except HepError as error:            # the TOML was edited since the check: this run fails alone
+        except HeimdallError as error:            # the TOML was edited since the check: this run fails alone
             print(("\n" if number > 1 else "") + header(number, run.configurations[key]))
             print(error.render(), file=sys.stderr)
             if bus is not None:
@@ -974,7 +977,7 @@ def _pipelined(args, run, keys: list[str], stopper: execute.Stopper, bus: Bus, a
                     codes[key] = run_one(args, key, stopper, number=number, following=following,
                                          planned=ahead[key] if unchanged else None, bus=voice, shown=shown,
                                          budget=budget, gate=gate)
-                except HepError as error:    # the TOML was edited since the check: this run fails alone
+                except HeimdallError as error:    # the TOML was edited since the check: this run fails alone
                     voice.say(header(number, run.configurations[key]))
                     voice.say(error.render())
                     not_run(journal_path(run, run.configurations[key]) if paths.keeping("journal") else None,
@@ -986,7 +989,7 @@ def _pipelined(args, run, keys: list[str], stopper: execute.Stopper, bus: Bus, a
                 finally:
                     gate.set()
 
-            thread = threading.Thread(target=job, name=f"hep-run-{key}")
+            thread = threading.Thread(target=job, name=f"heimdall-run-{key}")
             thread.start()
             threads.append(thread)
         while any(t.is_alive() for t in threads):        # the main thread takes the signals
@@ -1112,7 +1115,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         if args.plan:
             if getattr(args, "card", None):
                 if not plans:
-                    raise HepError("--card: no point to show", hint="--points picks one")
+                    raise HeimdallError("--card: no point to show", hint="--points picks one")
                 for line in tools.card_view(plans[0], args.card):
                     print(line)
                 return 0
@@ -1120,11 +1123,11 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             return 0
         return 1 if draw_run(run, configuration, combined or every, print) else 0
     if args.only == "post" and post_plan is None:
-        raise HepError(f"configuration '{configuration.key}' has no post tools", where=f"{run.path}: [run.cfgs.{configuration.key}].post")
+        raise HeimdallError(f"configuration '{configuration.key}' has no post tools", where=f"{run.path}: [run.cfgs.{configuration.key}].post")
     if args.only == "pre" and pre_plan is None:
-        raise HepError(f"configuration '{configuration.key}' has no pre tools", where=f"{run.path}: [run.cfgs.{configuration.key}].pre")
+        raise HeimdallError(f"configuration '{configuration.key}' has no pre tools", where=f"{run.path}: [run.cfgs.{configuration.key}].pre")
     if "points" in stages and "pre" not in stages and pre_plan is not None and not record.is_complete(pre_plan):
-        raise HepError(f"configuration '{configuration.key}': the pre stage is not complete, and the points need it",
+        raise HeimdallError(f"configuration '{configuration.key}': the pre stage is not complete, and the points need it",
                        hint="run --stages pre first (heimdall cluster's pre job does), or leave --stages out")
     refuse_overwrites(planned, args, stages)
     if stopper.requested:                    # Ctrl-C while this run was being planned
@@ -1247,7 +1250,7 @@ def cmd_cluster(args) -> int:
     run = configmod.load(args.config, sets=args.set)
     keys = run.runs(args.configuration)
     if len(keys) > 1 and args.points:
-        raise HepError("--points picks points of one configuration, and this sweep runs several",
+        raise HeimdallError("--points picks points of one configuration, and this sweep runs several",
                        where=f"{run.path}: [run].sweep_runs", hint=f"name it: heimdall cluster {args.config} <configuration> --points …")
     planned = {key: build_plans(argparse.Namespace(**{**vars(args), "only": None, "stages": None}), key) for key in keys}
     if not (args.status or args.cancel):
@@ -1274,12 +1277,12 @@ def cmd_overlay(args) -> int:
     """`heimdall overlay FILE…` (V74, was `heimdall plot FILE…`): any YODA/ROOT files overlaid through Paint."""
     bad = [f for f in args.files if not plot._is_plot_file(f)]
     if bad:
-        raise HepError(f"{bad[0]} is not a YODA or ROOT file", hint="heimdall overlay takes files ending .yoda, .yoda.gz "
+        raise HeimdallError(f"{bad[0]} is not a YODA or ROOT file", hint="heimdall overlay takes files ending .yoda, .yoda.gz "
                                                                    "or .root; a configuration's pages: heimdall plot CONFIG")
     formats = [f.strip() for f in args.formats.split(",") if f.strip()]
     wrong = [f for f in formats if f not in plot.FORMATS]
     if wrong:
-        raise HepError(f"format '{wrong[0]}' is not one of {', '.join(plot.FORMATS)}")
+        raise HeimdallError(f"format '{wrong[0]}' is not one of {', '.join(plot.FORMATS)}")
     labels = [x.strip() for x in args.labels.split(",")] if args.labels else None
     return 1 if plot.files(args.files, Path(args.output) if args.output else None, labels=labels,
                            objects=args.objects, formats=formats, ratio=args.ratio, style=args.style) else 0
@@ -1287,7 +1290,7 @@ def cmd_overlay(args) -> int:
 
 def cmd_deck(args) -> int:
     """`heimdall deck …`, retired (V212, as V74 retired `heimdall plot FILE`): it stops, naming heimdall report."""
-    raise HepError("heimdall deck is now heimdall report: an A4 report of runs' pages and numbers, its figures and "
+    raise HeimdallError("heimdall deck is now heimdall report: an A4 report of runs' pages and numbers, its figures and "
                    "LaTeX in its folder to lift into a talk",
                    hint="heimdall report <P>/<run>/<cfg> (docs/03_Plots.md §11); a deck's decks/<deck>/ is yours, left as it is")
 
@@ -1301,11 +1304,11 @@ def cmd_report(args) -> int:
     if args.init:
         name = args.names[0] if len(args.names) == 1 else ""
         if not name.endswith(".toml") or name.count("/") != 1 or name.startswith(("./", "/")):
-            raise HepError("--init writes a recipe under configs/: name it, <P>/<name>.toml",
+            raise HeimdallError("--init writes a recipe under configs/: name it, <P>/<name>.toml",
                            hint=f"heimdall report eic/weekly.toml --init {args.init}")
         target = configs_root() / name
         if target.exists():
-            raise HepError(f"{target} is there already", hint="--init writes a recipe once: edit it, or name another")
+            raise HeimdallError(f"{target} is there already", hint="--init writes a recipe once: edit it, or name another")
         (source, *_) = reportmod.sources([args.init], "--init")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(reportmod.starter(name, source), encoding="utf-8")
@@ -1329,7 +1332,7 @@ def cmd_plot(args) -> int:
     snapshot). `--plot FILE`: another file's [plot] for this drawing; `--points`: one set; `--plan`: the sets'
     cells, nothing drawn."""
     if plot._is_plot_file(args.config):                     # break and migrate (V74)
-        raise HepError("heimdall plot draws a configuration's pages; files are overlaid by heimdall overlay",
+        raise HeimdallError("heimdall plot draws a configuration's pages; files are overlaid by heimdall overlay",
                        hint=f"heimdall overlay {args.config} …")
     args.points = None
     if getattr(args, "across", False) and getattr(args, "style_sync", None):
@@ -1354,7 +1357,7 @@ def cmd_plot(args) -> int:
         if getattr(args, "draw_sets", None) and doc.plot:            # V167: these sets of the document's
             doc.plot = {**doc.plot, "draw": [s.strip() for s in args.draw_sets.split(",") if s.strip()]}
         if not doc.plot:
-            raise HepError(f"{target} has no [plot] table", hint="its config had none when it ran: add [plot] there and "
+            raise HeimdallError(f"{target} has no [plot] table", hint="its config had none when it ran: add [plot] there and "
                                                                  "take it with --style-sync, or edit [plot] here")
         plot.validate(doc)
         plot.check_figures(doc, configuration)
@@ -1379,10 +1382,10 @@ def style_sync(args) -> int:
     elif name.count("/") == 1 and (results_root() / name).is_dir():
         targets = sorted(p for p in (results_root() / name).glob(f"*/{plotdoc.FILE}"))
     else:
-        raise HepError(f"'{args.config}' names no plot document", hint="a run, <P>/<name>/<cfg>, or a run TOML's runs, "
+        raise HeimdallError(f"'{args.config}' names no plot document", hint="a run, <P>/<name>/<cfg>, or a run TOML's runs, "
                                                                       "<P>/<name> (results/<P>/<name>/*/plot.toml)")
     if not targets:
-        raise HepError(f"results/{name}/ holds no plot document", hint="heimdall migrate --plot-docs writes them")
+        raise HeimdallError(f"results/{name}/ holds no plot document", hint="heimdall migrate --plot-docs writes them")
     run = configmod.load(args.style_sync, sets=args.set)
     plot.validate(run)
     synced, left = [], 0
@@ -1403,7 +1406,7 @@ def style_sync(args) -> int:
         try:
             from dataclasses import replace as with_
             plot.check_figures(with_(doc, plot=new_plot, stats=new_stats), configuration)
-        except HepError as error:
+        except HeimdallError as error:
             print(f"left    {rel}: the config's [plot] cannot draw its points: {error.message}")
             left += 1
             continue
@@ -1457,7 +1460,7 @@ def across_of(args) -> Path:
     run = configmod.load(args.config, sets=args.set)
     target, written = plotdoc.write_across(run)
     if target is None:
-        raise HepError(f"{run.path} has no [plot.across] sets: nothing to draw its runs together",
+        raise HeimdallError(f"{run.path} has no [plot.across] sets: nothing to draw its runs together",
                        hint="[plot.across.<set>] pages = { … }, curves = { \"@events\" = \"all\", … }: 03 §3.3")
     if written:
         print(f"plot: wrote {target}, from {args.config}'s [plot.across]")
@@ -1472,7 +1475,7 @@ def style_sync_across(args) -> int:
     target = plotdoc.across_path(run.project, run.name)
     if not target.is_file():                                # none yet: written, as a run writes it
         if plotdoc.write_across(run)[0] is None:
-            raise HepError(f"{run.path} has no [plot.across] sets", hint="[plot.across.<set>]: 03 §3.3")
+            raise HeimdallError(f"{run.path} has no [plot.across] sets", hint="[plot.across.<set>]: 03 §3.3")
         print(f"plot: wrote {target}")
         return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
     new_plot, new_stats = plotdoc.across_chosen(run)
@@ -1512,7 +1515,7 @@ def documents_of(args) -> list[Path]:
         target = plotdoc.path_of(folders.results)
         if not target.is_file():
             if not folders.manifest.is_file():
-                raise HepError(f"configuration '{key}' has no record yet: nothing to draw", where=str(folders.record),
+                raise HeimdallError(f"configuration '{key}' has no record yet: nothing to draw", where=str(folders.record),
                                hint=f"heimdall run {args.config} {key}")
             target, notes = write_documents(run, configuration, plot.recorded(run, configuration))
             print(f"plot: wrote {target}, from the config and its points.json (heimdall migrate --plot-docs writes "
@@ -1556,7 +1559,7 @@ def cmd_check(args) -> int:
             print(f"ok    {name}: {len(run.configurations)} configuration(s), {points} point(s)")
             for warning in [*tools.meta_notes(run), *house.unused_tools(run)]:   # said, never failed
                 print(f"      warning: {warning}")
-        except HepError as error:
+        except HeimdallError as error:
             if importers.get(name) and not args.configs and not _has_configurations(name):
                 print(f"ok    {name}: shared, imported by {', '.join(importers[name])} (checked through them)")
                 continue
@@ -1568,7 +1571,7 @@ def cmd_check(args) -> int:
         try:
             recipe = reportmod.load_recipe(configs_root() / name)
             print(f"ok    {name}: a report, {len(recipe.get('section', []))} section(s)")
-        except HepError as error:
+        except HeimdallError as error:
             failed += 1
             print(f"FAIL  {name}")
             print("      " + error.render().replace("\n", "\n      "))
@@ -1580,7 +1583,7 @@ def _has_configurations(name: str) -> bool:
     without (a shared file of tools and quantities) is checked through the files that import it."""
     try:
         data = tomllib.loads(configmod.config_file(name).read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError, HepError):
+    except (OSError, tomllib.TOMLDecodeError, HeimdallError):
         return True
     return bool(data.get("cfgs") or data.get("run", {}).get("cfgs"))
 
@@ -1590,7 +1593,7 @@ def cmd_runs(args) -> int:
     from . import workdirs
     try:
         titles = {entry["path"]: title for title, entry in workdirs.load().items()}
-    except HepError:
+    except HeimdallError:
         titles = {}
     for line in house.runs_listing(runs.entries(), house.live_runs(), titles):
         print(line)
@@ -1604,10 +1607,10 @@ def cmd_log(args) -> int:
     record_dir, point, tag = house.log_target(args.target)
     if point is None:
         if args.full or args.attempt is not None:
-            raise HepError("--full and --attempt are a point's: name one", hint=f"heimdall log {args.target}/<point>")
+            raise HeimdallError("--full and --attempt are a point's: name one", hint=f"heimdall log {args.target}/<point>")
         path = record_dir / "run.jsonl"
         if not path.is_file():
-            raise HepError("this record has no run.jsonl: it ran before runs kept their own log", where=str(record_dir),
+            raise HeimdallError("this record has no run.jsonl: it ran before runs kept their own log", where=str(record_dir),
                            hint=f"heimdall log {args.target}/<point> shows a point's attempts and logs")
         shown = PlainView(stream=sys.stdout, every=float("inf"))
         try:
@@ -1633,7 +1636,7 @@ def cmd_watch(args) -> int:
     if args.file:
         path = Path(args.file)
         if not path.exists():
-            raise HepError("no such status file", where=str(path), hint="a run writes one with heimdall run … --journal")
+            raise HeimdallError("no such status file", where=str(path), hint="a run writes one with heimdall run … --journal")
         return follow_file(path, plain=args.plain)
     wanted = configmod.load(args.config) if args.config else None
     found = house.live_runs(str(wanted.path) if wanted else None, args.configuration, getattr(args, "pid", None))
@@ -1642,7 +1645,7 @@ def cmd_watch(args) -> int:
                      and (wanted is None or e.get("config") == str(wanted.path))), None)
         ended = (f"; the last ({last['id']}) ended {runs.state(last)}" + (f", its log {last['log']}" if last.get("log") else "")
                  if last else "")
-        raise HepError("no running job to watch" + (f" for {wanted.path}" if wanted else "")
+        raise HeimdallError("no running job to watch" + (f" for {wanted.path}" if wanted else "")
                        + (f" with pid {args.pid}" if getattr(args, "pid", None) else ""),
                        hint=f"heimdall runs lists them{ended}; a finished run's events: heimdall run … --journal, then "
                             "heimdall watch --file records/<P>/<run>/<cfg>/status.jsonl")
@@ -1690,7 +1693,7 @@ def _planned_all(names: list[str], configuration: str | None = None, sets=()) ->
             run = configmod.load(name, sets=list(sets))
             for key in ([configuration] if configuration else list(run.configurations)):
                 planned.append(build_plans(argparse.Namespace(config=name, set=list(sets), points=None, rerun=False, only=None), key))
-        except HepError as error:
+        except HeimdallError as error:
             failed.append(f"{name}: {error.message}")
     return planned, failed
 
@@ -1717,17 +1720,17 @@ def cmd_clean(args) -> int:
     leftovers and (with no config) unused run folders and prepare caches. It lists them first, and asks
     on a terminal (or needs --yes); results/ is never cleaned but for `.partial` leftovers."""
     if (going := house.runs_here(paths.work_root())):        # V182: this work dir's, this user's
-        raise HepError(f"a run of this work dir is going (pid {going[0].get('pid')})",
+        raise HeimdallError(f"a run of this work dir is going (pid {going[0].get('pid')})",
                        hint="clean when it has ended (heimdall runs lists it, heimdall watch shows it)")
     names = [args.config] if args.config else house.config_names()
     planned, failed = _planned_all(names, sets=getattr(args, "set", []))
     if failed and not args.config:
         for line in failed:
             print(f"not planned: {line}")
-        raise HepError("every config must plan before a whole clean: one that does not might own what would go",
+        raise HeimdallError("every config must plan before a whole clean: one that does not might own what would go",
                        hint="fix it, or clean one config: heimdall clean CONFIG")
     if failed:
-        raise HepError(failed[0])
+        raise HeimdallError(failed[0])
     records = getattr(args, "records", False)
     targets, kept = house.clean_targets(planned, everything=not args.config, records=records)
     for path in targets:
@@ -1744,13 +1747,13 @@ def cmd_clean(args) -> int:
     gone = [t for t in targets if t.is_relative_to(records_root()) and "points" in t.relative_to(records_root()).parts[3:4]]
     if gone:                                  # records are precious: always asked for, by name (U21)
         if not sys.stdin.isatty():
-            raise HepError(f"{len(gone)} record folders to remove: not deleted", hint="run it on a terminal, which asks")
+            raise HeimdallError(f"{len(gone)} record folders to remove: not deleted", hint="run it on a terminal, which asks")
         if input(f"remove {len(gone)} record folders (their points' provenance and completion)? type 'records': ").strip() != "records":
             print("nothing removed")
             return 0
     elif not args.yes:
         if not sys.stdin.isatty():
-            raise HepError(f"{len(targets)} to remove: not deleted", hint="--yes to delete, --dry-run to only list")
+            raise HeimdallError(f"{len(targets)} to remove: not deleted", hint="--yes to delete, --dry-run to only list")
         if input(f"remove these {len(targets)}? [y/N] ").strip().lower() not in ("y", "yes"):
             print("nothing removed")
             return 0
@@ -1763,6 +1766,8 @@ def cmd_migrate(args) -> int:
     """`heimdall migrate [CONFIG…] [--apply]` (V79): the diff of each file today's forms change, or (--apply)
     the files rewritten. Configs are read as they are (the forms the runner now refuses included)."""
     from . import migrate
+    if getattr(args, "names", False):
+        return migrate_names(args)
     if getattr(args, "layout", False):
         return migrate_layout(args)
     if getattr(args, "snapshot", None):
@@ -1786,6 +1791,41 @@ def cmd_migrate(args) -> int:
     return 0
 
 
+def migrate_names(args) -> int:
+    """`heimdall migrate --names [--apply]` (I-109, V213): a work dir from before the rename, here or above: its
+    marker hep.toml → heimdall.toml, and Heimdall's old names in its own files rewritten (migrate.names_changes:
+    `{hep}`, `HEP_*`, `$HEP`, `hepkit`, Whizard's `# hep:`, the editor's themes). A dry run prints each diff;
+    --apply writes them. `heimdall setup . --refresh` then brings the framework's own files to today's."""
+    from . import migrate
+    work = find_work() or migrate.old_marker()
+    if work is None:
+        raise HeimdallError("not inside a work dir", hint="run it in a work dir: one with heimdall.toml, or hep.toml from before the rename")
+    marker, today = work / migrate.OLD_MARKER, work / paths.MARKER_FILE
+    changes = migrate.names_changes(work)
+    for path, (old, new) in changes.items():
+        sys.stdout.write(migrate.diff(path, old, new))
+    moving = marker.is_file()
+    if moving:
+        print(f"rename {marker} → {today}")
+    if not changes and not moving:
+        print("nothing to migrate: the names are today's")
+        return 0
+    if not args.apply:
+        print(f"{len(changes)} file(s) to rewrite" + (", the marker to rename" if moving else "") + " (a dry run: --apply writes them)")
+        return 0
+    if moving:
+        if today.exists():
+            raise HeimdallError(f"{today} is there already, beside {marker}", hint="keep one marker: remove hep.toml by hand")
+        if marker in changes:
+            changes[today] = changes.pop(marker)
+        marker.rename(today)
+        paths._search.cache_clear()                  # the walk up finds it now
+    migrate.apply(changes)
+    print(f"migrated {len(changes)} file(s)" + (f", {migrate.OLD_MARKER} → {paths.MARKER_FILE}" if moving else "")
+          + ": heimdall setup . --refresh brings the framework's own files (Makefile, CLAUDE.md, …) to today's")
+    return 0
+
+
 def migrate_plot_docs(args) -> int:
     """`heimdall migrate --plot-docs [RECORD…] [--apply]` (V165): a plot document for each record that has none
     (every record's, or those named), from its snapshot's config (else the config its points.json names), its
@@ -1797,7 +1837,7 @@ def migrate_plot_docs(args) -> int:
         for name in names:
             folder = record.record_of(name, need_snapshot=False)
             if folder is None:
-                raise HepError(f"'{name}' is no record", hint="a record is <P>/<name>/<cfg>, a folder of records/")
+                raise HeimdallError(f"'{name}' is no record", hint="a record is <P>/<name>/<cfg>, a folder of records/")
             found.append(folder)
     else:
         root = records_root()
@@ -1867,7 +1907,7 @@ def _record_config(folder: Path):
     if head.isdigit():                                      # a serial is location only: the folder's own
         configuration.serial = int(head)
     if snapshot.is_file() and tools.run_folders(run, configuration).record.resolve() != folder.resolve():
-        raise HepError(f"{folder} is not where its config runs '{key}' ({tools.run_folders(run, configuration).record})",
+        raise HeimdallError(f"{folder} is not where its config runs '{key}' ({tools.run_folders(run, configuration).record})",
                        hint="the record's config has moved or been renamed: write its plot.toml by hand, or rerun it")
     return run, configuration
 
@@ -1880,13 +1920,13 @@ def migrate_snapshot(args) -> int:
     --apply. Edit the snapshot's files to match what ran (a value since left out), then `heimdall status RECORD`."""
     found = record.record_of(args.snapshot, need_snapshot=False)
     if found is None:
-        raise HepError(f"'{args.snapshot}' is no record", hint="a record is <P>/<run>/<NN_cfg>, a folder of records/")
+        raise HeimdallError(f"'{args.snapshot}' is no record", hint="a record is <P>/<run>/<NN_cfg>, a folder of records/")
     manifest = found / "points.json"
     if not manifest.is_file():
-        raise HepError("this record has no points.json", where=str(manifest))
+        raise HeimdallError("this record has no points.json", where=str(manifest))
     data = json.loads(manifest.read_text(encoding="utf-8"))
     if (found / "config" / record.SNAPSHOT).is_file() and not args.apply:
-        raise HepError(f"{found / 'config'} is there already", hint="--apply replaces it")
+        raise HeimdallError(f"{found / 'config'} is there already", hint="--apply replaces it")
     source = args.source or data.get("config_file", "")
     if not args.source:
         try:
@@ -1904,7 +1944,7 @@ def migrate_snapshot(args) -> int:
                           data.get("configuration"))
     rel = found.relative_to(records_root())
     if planned.every and planned.every[0].folders.record.resolve() != found.resolve():
-        raise HepError(f"{source} runs '{data.get('configuration')}' into {planned.every[0].folders.record.relative_to(records_root())}, "
+        raise HeimdallError(f"{source} runs '{data.get('configuration')}' into {planned.every[0].folders.record.relative_to(records_root())}, "
                        f"not {rel}", hint="--from the config that ran it (its serial and name)")
     made = record.write_snapshot(planned.run, planned.configuration, planned.every)
     print(f"snapshot: {made} ({len(list(made.rglob('*')))} files) from {source}" + (f" with {' '.join(sets)}" if sets else ""))
@@ -1933,7 +1973,7 @@ def migrate_layout(args) -> int:
     from . import migrate
     from .paths import work_root
     if (going := house.runs_here(work_root())):               # V182: this work dir's, this user's
-        raise HepError(f"a run of this work dir is going (pid {going[0].get('pid')})",
+        raise HeimdallError(f"a run of this work dir is going (pid {going[0].get('pid')})",
                        hint="move the layout when it has ended (heimdall runs lists it)")
     work = work_root()
     first = migrate.layout_moves(work)
@@ -1981,7 +2021,7 @@ def cmd_reproduce(args) -> int:
     try:
         record_ = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
-        raise HepError(f"cannot read {path}: {error}", hint="give a finished point's provenance.json")
+        raise HeimdallError(f"cannot read {path}: {error}", hint="give a finished point's provenance.json")
     from .paths import unportable
     config_file, key, name = unportable(record_["config_file"]), record_["configuration"], record_["point"]
     for line in record.revision_changes(record_.get("git", {})):    # the code may differ, though the setup does not
@@ -1990,13 +2030,13 @@ def cmd_reproduce(args) -> int:
     planned = build_plans(argparse.Namespace(config=config_file, set=given, points=None, rerun=False, only=None), key)
     plan = next((p for p in planned.every if p.point.name == name), None)
     if plan is None:
-        raise HepError(f"configuration '{key}' has no point '{name}' any more", where=config_file)
+        raise HeimdallError(f"configuration '{key}' has no point '{name}' any more", where=config_file)
     if plan.identity != record_["identity"]:
         print(f"the setup of {name} changed since it ran ({record_['identity'][:12]} → {plan.identity[:12]}):")
         for line in record.why(plan):
             print(f"  {line}")
         if not args.anyway:
-            raise HepError("not reproduced: this would be a different point", hint="--anyway runs today's setup with its seed")
+            raise HeimdallError("not reproduced: this would be a different point", hint="--anyway runs today's setup with its seed")
     where = cache_root() / record_["project"] / "reproduce" / record_["identity"][:12]
     sets = []
     if planned.configuration.seed_type == "random":                      # in the file's own names
@@ -2005,7 +2045,7 @@ def cmd_reproduce(args) -> int:
     argv = [sys.executable, str(Path(__file__).resolve().parents[1] / "bin" / "run"), "run", config_file, key,
             "--points", name, "--rerun", *[x for item in given for x in ("--set", item)], *sets,
             *(["--plain"] if args.plain else [])]
-    env = dict(os.environ, HEP_RECORDS=str(where / "records"), HEP_RESULTS=str(where / "results"))
+    env = dict(os.environ, HEIMDALL_RECORDS=str(where / "records"), HEIMDALL_RESULTS=str(where / "results"))
     print(f"reproducing {record_['run']} · {key} · {name} (seed {record_['seed']}) in {where}", flush=True)
     code = subprocess.run(argv, env=env).returncode
     if code != 0:
@@ -2086,7 +2126,7 @@ def parse(argv: list[str]) -> argparse.Namespace:
     if argv[0] not in commands.choices:
         if argv[0].startswith("-"):
             return top.parse_args(argv)
-        raise HepError(f"no command '{argv[0]}'", hint=did_you_mean(argv[0], commands.choices) or "heimdall help lists them")
+        raise HeimdallError(f"no command '{argv[0]}'", hint=did_you_mean(argv[0], commands.choices) or "heimdall help lists them")
     if argv[0] == "bifrost":                                       # -c, -b, -b@<toolkit> (runner/bifrost.py)
         from .bifrost import flags
         argv = [argv[0], *flags(argv[1:])]
@@ -2144,19 +2184,19 @@ def _flag_value(action, value, where: str):
     name = action.option_strings[-1]
     if switch:
         if not isinstance(value, bool):
-            raise HepError(f"{where}: {name} is a switch: true or false", where=where)
+            raise HeimdallError(f"{where}: {name} is a switch: true or false", where=where)
         return value if action.const is not False else not value
     if many:
         items = value if isinstance(value, list) else [value]
         if not all(isinstance(v, (str, int, float)) and not isinstance(v, bool) for v in items):
-            raise HepError(f"{where}: {name} takes values: a list of them", where=where)
+            raise HeimdallError(f"{where}: {name} takes values: a list of them", where=where)
         return [str(v) for v in items]
     if action.type is int:
         if not isinstance(value, int) or isinstance(value, bool):
-            raise HepError(f"{where}: {name} takes a whole number", where=where)
+            raise HeimdallError(f"{where}: {name} takes a whole number", where=where)
         return value
     if isinstance(value, (bool, dict, list)):
-        raise HepError(f"{where}: {name} takes one value", where=where)
+        raise HeimdallError(f"{where}: {name} takes one value", where=where)
     return str(value)
 
 
@@ -2173,19 +2213,19 @@ def heimdall_flags(table: dict, where: str, command: str | None = None) -> dict[
         """A known option that is not a preference: said, with why (V190)."""
         if dest not in PREFERENCES:
             what, hint = NOT_PREFERENCES.get(dest, ("not a preference", "type it on the command line"))
-            raise HepError(f"{at} {key}: {what}, which a file does not set", where=where,
+            raise HeimdallError(f"{at} {key}: {what}, which a file does not set", where=where,
                            hint=f"{hint}; [heimdall] takes {', '.join(PREFERENCES)}")
     every = {d for o in options.values() for d in o}
     mine: dict[str, tuple] = {}
     for key, value in table.items():
         if isinstance(value, dict):
             if key not in FLAGGED:
-                raise HepError(f"[heimdall.{key}]: no such command reads a config", where=where,
+                raise HeimdallError(f"[heimdall.{key}]: no such command reads a config", where=where,
                                hint=did_you_mean(key, FLAGGED) or f"the commands: {', '.join(FLAGGED)}")
             continue
         dest = dest_of(key)
         if dest not in every:
-            raise HepError(f"[heimdall] {key}: no command that reads a config has that option", where=where,
+            raise HeimdallError(f"[heimdall] {key}: no command that reads a config has that option", where=where,
                            hint=did_you_mean(dest, sorted(every)) or "a command's options: heimdall help <command>")
         refused(key, next(o[dest].dest for o in options.values() if dest in o), "[heimdall]")
         for name, actions in options.items():
@@ -2197,7 +2237,7 @@ def heimdall_flags(table: dict, where: str, command: str | None = None) -> dict[
         for key, value in sub.items():
             dest = dest_of(key)
             if dest not in options[name]:
-                raise HepError(f"[heimdall.{name}] {key}: heimdall {name} has no such option", where=where,
+                raise HeimdallError(f"[heimdall.{name}] {key}: heimdall {name} has no such option", where=where,
                                hint=did_you_mean(dest, list(options[name])) or f"heimdall help {name}")
             refused(key, options[name][dest].dest, f"[heimdall.{name}]")
             value_ = _flag_value(options[name][dest], value, f"{where}.{name}.{key}")
@@ -2214,7 +2254,7 @@ def config_flags(args) -> list[str]:
         return []
     try:
         path = paths.config_file(name)
-    except HepError:
+    except HeimdallError:
         return []
     if path.suffix != ".toml" or not path.is_file():
         return []
@@ -2243,7 +2283,7 @@ def cmd_help(args) -> int:
         top.print_help()
         return 0
     if args.topic not in commands.choices:
-        raise HepError(f"no command '{args.topic}'", hint=did_you_mean(args.topic, commands.choices) or "heimdall help lists them")
+        raise HeimdallError(f"no command '{args.topic}'", hint=did_you_mean(args.topic, commands.choices) or "heimdall help lists them")
     if args.topic in PASSED_ON:
         print(f"heimdall {args.topic}: {commands.choices[args.topic].description}")
         if args.topic == "stack":
@@ -2264,13 +2304,13 @@ def cmd_image(args) -> int:
     from . import image
     if args.action == "list":
         if args.settings:
-            raise HepError("heimdall image lists; heimdall image build packages=@kit builds")
+            raise HeimdallError("heimdall image lists; heimdall image build packages=@kit builds")
         for line in image.listing():
             print(line)
         return 0
     given = dict(item.split("=", 1) for item in args.settings if "=" in item)
     if unknown := sorted(set(given) - {"packages", "cores", "root_cores"}) or [s for s in args.settings if "=" not in s]:
-        raise HepError(f"heimdall image build takes packages=, cores=, root_cores=, not {', '.join(unknown)}")
+        raise HeimdallError(f"heimdall image build takes packages=, cores=, root_cores=, not {', '.join(unknown)}")
     return image.build(given.get("packages", "@primary"), given.get("cores", "0"), given.get("root_cores", "0"),
                        name=args.name, allow_dirty=args.dirty)
 
@@ -2296,11 +2336,11 @@ def cmd_recognise(args) -> int:
         return 0
     start = Path(args.path or ".").expanduser().resolve()
     if not start.is_dir():
-        raise HepError(f"{start} is not a folder", hint="heimdall recognise <work dir or a folder holding some>")
+        raise HeimdallError(f"{start} is not a folder", hint="heimdall recognise <work dir or a folder holding some>")
     inside = workdirs.enclosing(start)
     found = [inside] if inside else workdirs.scan(start)
     if args.title and len(found) != 1:
-        raise HepError(f"--as titles one work dir, and {len(found)} were found below {start}",
+        raise HeimdallError(f"--as titles one work dir, and {len(found)} were found below {start}",
                        hint="name the work dir itself: heimdall recognise <work dir> --as <title>")
     if not found:
         print(f"no work dir in or below {start} ({workdirs.DEPTH} folders deep): heimdall setup <dir> makes one")
@@ -2309,7 +2349,7 @@ def cmd_recognise(args) -> int:
     for where in found:
         try:
             title, happened = workdirs.record(where, args.title)
-        except HepError as error:
+        except HeimdallError as error:
             refused += 1
             print(error.render(), file=sys.stderr)
             continue
@@ -2320,13 +2360,13 @@ def cmd_recognise(args) -> int:
 def cmd_build(args) -> int:
     """`heimdall build` (U61): make, in the work dir (or, --framework, Heimdall): the module programs and
     Rivet plugins, or Heimdall's apps and (--tests) its C++ tests."""
-    from .paths import hep_root, work_root
+    from .paths import heimdall_root, work_root
     if args.tests and not args.framework:
-        raise HepError("--tests builds Heimdall's C++ tests", hint="heimdall build --framework --tests")
-    where = hep_root() if args.framework else work_root()
+        raise HeimdallError("--tests builds Heimdall's C++ tests", hint="heimdall build --framework --tests")
+    where = heimdall_root() if args.framework else work_root()
     make = ["make", "-C", str(where), "--no-print-directory"]
     if shutil.which("make") is None:
-        raise HepError("make is not on PATH", hint="install it (build-essential; on macOS, Xcode's command line tools)")
+        raise HeimdallError("make is not on PATH", hint="install it (build-essential; on macOS, Xcode's command line tools)")
     for step in (["clean"] if args.clean else []) + (["configure"] if args.configure else []):
         if subprocess.run(make + [step]).returncode:
             return 1
@@ -2337,22 +2377,22 @@ def cmd_build(args) -> int:
 
 def cmd_make(args) -> int:
     """`heimdall make [--framework] <path>/<X>.exe | <path>/<x>.so`: one source, through make."""
-    from .paths import hep_root, work_root
+    from .paths import heimdall_root, work_root
     rest = list(args.rest)
     framework = "--framework" in rest
     rest = [a for a in rest if a != "--framework"]
     if not rest or rest[0] in ("-h", "--help"):
         print("usage: heimdall make [--framework] <path>/<X>.exe | <path>/<x>.so   (docs/06_Internals.md §15)")
         return 0
-    os.execvp("make", ["make", "-C", str(hep_root() if framework else work_root()), "--no-print-directory", *rest])
+    os.execvp("make", ["make", "-C", str(heimdall_root() if framework else work_root()), "--no-print-directory", *rest])
 
 
 def _system_python() -> str:
     """The first python3 on PATH that is not the machine's venv's or base's: the stack's builder makes them."""
     from .paths import machine_root
     venvs = {str((machine_root() / "venv" / "bin").resolve())}
-    if os.environ.get("HEP_VENV"):
-        venvs.add(str((Path(os.environ["HEP_VENV"]) / "bin").resolve()))
+    if os.environ.get("HEIMDALL_VENV"):
+        venvs.add(str((Path(os.environ["HEIMDALL_VENV"]) / "bin").resolve()))
     for folder in os.environ.get("PATH", "").split(os.pathsep):
         candidate = Path(folder) / "python3"
         if folder and str(Path(folder).resolve()) not in venvs and candidate.is_file() and os.access(candidate, os.X_OK):
@@ -2364,7 +2404,7 @@ def cmd_stack(args) -> int:
     """`heimdall stack build|list|status|doctor` (U60): the stack's builder (recipes/build_stack.py; on macOS
     recipes/platforms/mac/build.sh), and the stack's status and checks, under one noun."""
     import platform
-    from .paths import hep_root
+    from .paths import heimdall_root
     rest = list(args.rest)
     action = rest.pop(0) if rest else "help"
     if action in ("help", "-h", "--help"):
@@ -2380,9 +2420,9 @@ def cmd_stack(args) -> int:
     if action == "doctor":
         return doctormod.main(quick="--quick" in rest, record_it="--record" in rest, show_matrix="--matrix" in rest)
     if action not in ("build", "list"):
-        raise HepError(f"no 'heimdall stack {action}'", hint=did_you_mean(action, ("build", "list", "status", "doctor"))
+        raise HeimdallError(f"no 'heimdall stack {action}'", hint=did_you_mean(action, ("build", "list", "status", "doctor"))
                        or "heimdall stack build|list|status|doctor")
-    root = hep_root()
+    root = heimdall_root()
     if platform.system() == "Darwin" and action == "build":
         argv = ["bash", str(root / "recipes" / "platforms" / "mac" / "build.sh"), *rest]
     else:
@@ -2392,23 +2432,26 @@ def cmd_stack(args) -> int:
 
 def cmd_shell_verb(args) -> int:
     """`heimdall refresh | quit | cd`: they change the shell they are typed in, which only gjallarhorn.sh's shell
-    function can (env/hep_env.sh)."""
-    from .paths import hep_root
-    raise HepError(f"heimdall {args.command} changes the shell it is typed in, so it is gjallarhorn.sh's shell function, "
+    function can (env/heimdall_env.sh)."""
+    from .paths import heimdall_root
+    raise HeimdallError(f"heimdall {args.command} changes the shell it is typed in, so it is gjallarhorn.sh's shell function, "
                    "and this shell does not have it (a script, or a shell started from one)",
-                   hint=f"source {hep_root() / 'gjallarhorn.sh'}")
+                   hint=f"source {heimdall_root() / 'gjallarhorn.sh'}")
 
 
 def main(argv: list[str]) -> int:
     try:
         args = parse(argv)
-    except HepError as error:
+    except HeimdallError as error:
         print(error.render(), file=sys.stderr)
         return 2
     try:
         _ask_keep(args)
         check_retired()                                            # a shell with High-Energy's names (K15)
-        from .migrate import old_plots
+        from .migrate import old_marker, old_plots
+        if args.command != "setup" and find_work() is None and not getattr(args, "names", False) and (old := old_marker()):
+            print(f"note: {old} is a work dir from before Heimdall's names moved (its marker is hep.toml): "
+                  "`heimdall migrate --names --apply` renames it and the old names in its files", file=sys.stderr)
         if args.command != "setup" and (work := find_work()) is not None:
             if warning := setupmod.expects_warning(work):          # once per command (framework/01 §4.2)
                 print(warning, file=sys.stderr)
@@ -2457,11 +2500,11 @@ def main(argv: list[str]) -> int:
             from . import tools as toolsmod
             if args.what[:1] == ["new"]:
                 if len(args.what) != 2 or not args.source:
-                    raise HepError("heimdall tools new <name> --from <tool>", hint="--from a template folder (copied) or any tool (extended): heimdall tools lists them")
+                    raise HeimdallError("heimdall tools new <name> --from <tool>", hint="--from a template folder (copied) or any tool (extended): heimdall tools lists them")
                 print(f"made {toolsmod.new_folder(args.what[1], args.source, args.package, args.runs)}/tool.toml")
                 return 0
             if len(args.what) > 1:
-                raise HepError("heimdall tools [<name>] | new <name> --from <tool>")
+                raise HeimdallError("heimdall tools [<name>] | new <name> --from <tool>")
             for line in (toolsmod.folder_lines(args.what[0]) if args.what else toolsmod.folder_rows()):
                 print(line)
             return 0
@@ -2510,7 +2553,7 @@ def main(argv: list[str]) -> int:
         if args.command == "log":
             return cmd_log(args)
         return cmd_watch(args)
-    except HepError as error:
+    except HeimdallError as error:
         print(error.render(), file=sys.stderr)
         return 2
     except KeyboardInterrupt:                                      # Ctrl-C before a run catches it (V181)

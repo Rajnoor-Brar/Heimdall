@@ -12,15 +12,15 @@ import tomllib
 import pytest
 
 from runner import cli, paths, plot, record
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 
 @pytest.fixture
 def trees(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
-    monkeypatch.setenv("HEP_RESULTS", str(scratch / "results"))
-    monkeypatch.delenv("HEP_CONFIGS", raising=False)
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEIMDALL_CACHE", str(scratch / "cache"))
+    monkeypatch.setenv("HEIMDALL_RESULTS", str(scratch / "results"))
+    monkeypatch.delenv("HEIMDALL_CONFIGS", raising=False)
     return scratch
 
 
@@ -62,7 +62,7 @@ def test_a_record_plans_to_the_identities_its_points_ran_with(trees, monkeypatch
     p = recorded_run("Demo/jets", "pdf", ["run.events=300"])
     rel = str(p.every[0].folders.record.relative_to(paths.records_root()))
     args = argparse.Namespace(command="run", config=rel, configuration=None, set=[])
-    monkeypatch.setenv("HEP_CONFIGS", os.environ.get("HEP_CONFIGS", ""))      # opened() sets it: undone after
+    monkeypatch.setenv("HEIMDALL_CONFIGS", os.environ.get("HEIMDALL_CONFIGS", ""))      # opened() sets it: undone after
     assert cli.opened(args) == p.every[0].folders.record
     assert (args.config, args.configuration, args.set) == ("Demo/jets", "pdf", ["run.events=300"])
     assert paths.configs_root() == p.every[0].folders.config
@@ -82,7 +82,7 @@ def test_a_record_is_named_by_its_folder_or_a_path(trees):
     assert record.record_of(str(folder / "points")) == folder
     assert record.record_of("Demo/jets") is None and record.record_of("Demo/x/y.toml") is None
     (folder / "config" / record.SNAPSHOT).unlink()
-    with pytest.raises(HepError, match="has no snapshot") as refused:
+    with pytest.raises(HeimdallError, match="has no snapshot") as refused:
         record.record_of(rel)
     assert "heimdall migrate --snapshot" in refused.value.hint
 
@@ -122,7 +122,7 @@ def test_migrate_gives_an_old_record_a_snapshot(trees, capsys):
     out = capsys.readouterr().out
     assert f"{len(p.every)} of {len(p.every)} recorded point(s) have the same identity under it" in out
     assert (p.every[0].folders.config / record.SNAPSHOT).is_file()
-    with pytest.raises(HepError, match="is there already"):
+    with pytest.raises(HeimdallError, match="is there already"):
         cli.migrate_snapshot(args)
 
 
@@ -131,11 +131,11 @@ def test_a_snapshot_holds_every_file_the_run_imports(scratch, monkeypatch):
     found on a real study's work dir, whose snapshot missed its common.toml at first."""
     work = scratch / "w"
     (work / "configs" / "P").mkdir(parents=True)
-    (work / "hep.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
-    for var, value in (("HEP_WORK", work), ("HEP_RECORDS", work / "records"), ("HEP_CACHE", work / "cache"),
-                       ("HEP_RESULTS", work / "results")):
+    (work / "heimdall.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
+    for var, value in (("HEIMDALL_WORK", work), ("HEIMDALL_RECORDS", work / "records"), ("HEIMDALL_CACHE", work / "cache"),
+                       ("HEIMDALL_RESULTS", work / "results")):
         monkeypatch.setenv(var, str(value))
-    monkeypatch.delenv("HEP_CONFIGS", raising=False)
+    monkeypatch.delenv("HEIMDALL_CONFIGS", raising=False)
     paths.reset()
     try:
         configs = work / "configs" / "P"
@@ -163,13 +163,13 @@ def test_heimdall_plot_takes_a_record_or_a_config_to_its_document(trees, capsys,
     from runner import plotdoc
     p = recorded_run("Demo/jets", "pdf")
     rel = str(p.every[0].folders.record.relative_to(paths.records_root()))
-    monkeypatch.setenv("HEP_CONFIGS", os.environ.get("HEP_CONFIGS", ""))
+    monkeypatch.setenv("HEIMDALL_CONFIGS", os.environ.get("HEIMDALL_CONFIGS", ""))
     args = argparse.Namespace(command="plot", config=rel, configuration=None, set=[])
     cli.opened(args)
     (target,) = cli.documents_of(args)
     assert target == p.every[0].folders.results / plotdoc.FILE and "from its snapshot" in capsys.readouterr().out
     assert plotdoc.find(rel) == target and plotdoc.find(str(p.every[0].folders.results)) == target
-    monkeypatch.delenv("HEP_CONFIGS")
+    monkeypatch.delenv("HEIMDALL_CONFIGS")
     assert cli.documents_of(argparse.Namespace(command="plot", config="Demo/jets", configuration="pdf", set=[])) == [target]
     doc, kept, members = plotdoc.load(target)
     assert kept.key == "pdf" and len(members) == len(p.every) and plot.drawable(members)[0] == members
@@ -281,7 +281,7 @@ def test_a_document_loaded_into_other_folders_reads_its_own_and_draws_there(tree
     from runner.tools import RunFolders
     p = recorded_run("Demo/jets", "pdf")
     rel = str(p.every[0].folders.record.relative_to(paths.records_root()))
-    monkeypatch.setenv("HEP_CONFIGS", os.environ.get("HEP_CONFIGS", ""))       # cli.opened points it at the snapshot
+    monkeypatch.setenv("HEIMDALL_CONFIGS", os.environ.get("HEIMDALL_CONFIGS", ""))       # cli.opened points it at the snapshot
     args = argparse.Namespace(command="plot", config=rel, configuration=None, set=[])
     cli.opened(args)
     (target,) = cli.documents_of(args)

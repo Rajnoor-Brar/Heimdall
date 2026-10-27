@@ -1,5 +1,5 @@
 """`bifrost`, the environment's packages (runner/bifrost.py, V144). The machine root is the test's own folder
-($HEP_MACHINE), the base update and pip are replaced: nothing is downloaded or installed here."""
+($HEIMDALL_MACHINE), the base update and pip are replaced: nothing is downloaded or installed here."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from runner import bifrost, cli, paths
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 REPO = Path(__file__).resolve().parents[2]
 TEMPLATE = (REPO / "recipes" / "machine.template.toml").read_text(encoding="utf-8")
@@ -20,7 +20,7 @@ TEMPLATE = (REPO / "recipes" / "machine.template.toml").read_text(encoding="utf-
 @pytest.fixture
 def root(tmp_path, monkeypatch):
     """A machine root on a conda base (no venv/), with the template's machine.toml; the base's update counted."""
-    monkeypatch.setenv("HEP_MACHINE", str(tmp_path / "Himinbjorg"))
+    monkeypatch.setenv("HEIMDALL_MACHINE", str(tmp_path / "Himinbjorg"))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     (tmp_path / "home").mkdir()
     (tmp_path / "Himinbjorg").mkdir()
@@ -65,7 +65,7 @@ def test_packages_are_recorded_once_dropped_and_the_base_made_again(root):
     assert len(updates) == 3 and (machine / "machine.toml").read_text(encoding="utf-8").startswith(TEMPLATE.rstrip("\n"))
     bifrost.change(["gsl"], python=False, drop=True, out=said.append)
     assert settings_of(machine)["base_packages"] == ["scipy"]
-    with pytest.raises(HepError, match="not among base_packages: numpy"):
+    with pytest.raises(HeimdallError, match="not among base_packages: numpy"):
         bifrost.change(["numpy"], python=False, drop=True)
 
 
@@ -76,7 +76,7 @@ def test_a_package_the_base_cannot_take_leaves_machine_toml_as_it_was(root, monk
     def fails():
         raise SystemExit("heimdall: base: pixi install failed")
     monkeypatch.setattr(bifrost, "update_base", fails)
-    with pytest.raises(HepError, match="could not be made with nosuch") as failed:
+    with pytest.raises(HeimdallError, match="could not be made with nosuch") as failed:
         bifrost.change(["nosuch"], python=False, drop=False, out=lambda _: None)
     assert "-python" in failed.value.hint and settings_of(machine)["base_packages"] == ["scipy"]
 
@@ -84,7 +84,7 @@ def test_a_package_the_base_cannot_take_leaves_machine_toml_as_it_was(root, monk
 def test_a_package_the_stack_builds_is_refused(root):
     machine, updates = root
     (machine / "stack" / "fastjet").mkdir(parents=True)
-    with pytest.raises(HepError, match="fastjet-cxx is fastjet's, which the stack builds") as refused:
+    with pytest.raises(HeimdallError, match="fastjet-cxx is fastjet's, which the stack builds") as refused:
         bifrost.change(["fastjet-cxx"], python=False, drop=False)
     assert "fastjet.from=conda-forge" in refused.value.hint and not updates
     bifrost.change(["eigen"], python=False, drop=False, out=lambda _: None)          # no recipe's: welcome
@@ -98,7 +98,7 @@ def test_on_a_system_root_python_packages_go_into_the_venv(root, monkeypatch):
     bifrost.change(["requests"], python=True, drop=False, out=lambda _: None)
     assert pips == [(machine / "venv", ["requests"], False)] and settings_of(machine) == {"python_packages": ["requests"]}
     assert not updates
-    with pytest.raises(HepError, match="no conda base"):
+    with pytest.raises(HeimdallError, match="no conda base"):
         bifrost.change(["scipy"], python=False, drop=False)
 
 
@@ -169,7 +169,7 @@ def test_the_flags_become_options():
     assert bifrost.flags(["-c", "root", "-conda"]) == ["--conda", "root", "--conda"]
     assert bifrost.flags(["-b@lab", "rivet", "-build", "--build@key4hep-src"]) == [
         "--build", "--toolkit", "lab", "rivet", "--build", "--build", "--toolkit", "key4hep-src"]
-    with pytest.raises(HepError, match="a toolkit goes with -b"):
+    with pytest.raises(HeimdallError, match="a toolkit goes with -b"):
         bifrost.flags(["-c@lab"])
     args = cli.parse(["bifrost", "-b@lab", "rivet", "--yes"])
     assert (args.build, args.toolkit, args.packages, args.yes) == (True, "lab", ["rivet"], True)
@@ -183,7 +183,7 @@ def test_a_tool_ready_made_brings_what_it_needs_ready_made(root, builds):
     assert builds == [["packages=rivet"]]
     assert any("need" in line and "fastjet" in line for line in said)
     assert (machine / "machine.toml").read_text(encoding="utf-8").startswith(TEMPLATE.rstrip("\n"))
-    with pytest.raises(HepError, match="conda-forge carries no madgraph"):
+    with pytest.raises(HeimdallError, match="conda-forge carries no madgraph"):
         bifrost.tools(["madgraph"], conda=True)
 
 
@@ -193,13 +193,13 @@ def test_switching_a_built_tool_says_what_it_costs_and_asks(root, builds, tmp_pa
         stamp_built(machine, name)
     study = tmp_path / "Study"
     (study / "records" / "P" / "run" / "cfg" / "p1").mkdir(parents=True)
-    (study / "hep.toml").write_text('[work]\nname = "Study"\n', encoding="utf-8")
+    (study / "heimdall.toml").write_text('[work]\nname = "Study"\n', encoding="utf-8")
     (study / "records" / "P" / "run" / "cfg" / "p1" / "provenance.json").write_text(
         '{"tools": [{"tool": "rivet"}, {"tool": "pythia", "packages": {"fastjet": "built 3.5.0"}}]}', encoding="utf-8")
-    monkeypatch.setenv("HEP_WORKDIRS", str(tmp_path / "workdirs.toml"))
+    monkeypatch.setenv("HEIMDALL_WORKDIRS", str(tmp_path / "workdirs.toml"))
     from runner import workdirs
     workdirs.record(study)
-    with pytest.raises(HepError, match="it asks first"):
+    with pytest.raises(HeimdallError, match="it asks first"):
         bifrost.tools(["fastjet"], conda=True, out=lambda _: None)
     assert not (machine / "machine.toml").read_text(encoding="utf-8").count("[packages.fastjet]") and not builds
     said: list[str] = []
@@ -218,7 +218,7 @@ def test_a_failed_switch_puts_everything_back(root, monkeypatch):
     def fails(argv):
         raise SystemExit("heimdall: fastjet: the base could not be made")
     monkeypatch.setattr(bifrost, "build", fails)
-    with pytest.raises(HepError, match="as they were"):
+    with pytest.raises(HeimdallError, match="as they were"):
         bifrost.tools(["fastjet"], conda=True, yes=True, out=lambda _: None)
     assert (machine / "stack" / "fastjet").is_dir() and (machine / "machine.toml").read_text(encoding="utf-8") == before
 
@@ -226,7 +226,7 @@ def test_a_failed_switch_puts_everything_back(root, monkeypatch):
 def test_building_a_ready_made_tool_is_refused_when_a_ready_made_one_needs_it(root, builds):
     machine, _ = root
     a_held_base(machine, rivet="4.1.4", fastjet_cxx="3.5.2", yoda="2.1.4", hepmc3="3.3.1", fastjet_contrib="1.105")
-    with pytest.raises(HepError, match="ready-made, brings conda-forge's fastjet: building it here would make two") as refused:
+    with pytest.raises(HeimdallError, match="ready-made, brings conda-forge's fastjet: building it here would make two") as refused:
         bifrost.tools(["fastjet"], conda=False, yes=True)
     assert refused.value.hint.startswith("build ") and "bifrost -b fastjet " in refused.value.hint and not builds
     assert bifrost.tools(["sherpa"], conda=False) == 0 and builds == [["packages=sherpa"]]   # not installed: built
@@ -235,7 +235,7 @@ def test_building_a_ready_made_tool_is_refused_when_a_ready_made_one_needs_it(ro
 
 
 def test_a_bare_recipe_name_asks_how_it_comes(root):
-    with pytest.raises(HepError, match="sherpa is a tool's recipe") as asked:
+    with pytest.raises(HeimdallError, match="sherpa is a tool's recipe") as asked:
         bifrost.change(["sherpa"], python=False, drop=False)
     assert "bifrost -c sherpa" in asked.value.hint and "bifrost -b sherpa" in asked.value.hint
 

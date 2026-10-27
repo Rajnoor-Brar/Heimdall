@@ -1,6 +1,6 @@
 """Helpers the integration tests share: run `heimdall` in the scratch work, with its outputs under a scratch folder.
 
-The work dir is forge/scratch/work, the fixture's synced copy (HEP_WORK, set by conftest.py and inherited
+The work dir is forge/scratch/work, the fixture's synced copy (HEIMDALL_WORK, set by conftest.py and inherited
 here): configs resolve under its configs/, module programs and plugins are in its build/ (`work_built`).
 """
 
@@ -11,8 +11,8 @@ import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]                  # Heimdall
-HEP = REPO / "framework" / "bin" / "heimdall"
-WORK = Path(os.environ.get("HEP_FORGE") or Path(os.environ.get("HEP_MACHINE") or "~/Himinbjorg").expanduser() / "forge") / "scratch" / "work"
+HEIMDALL = REPO / "framework" / "bin" / "heimdall"
+WORK = Path(os.environ.get("HEIMDALL_FORGE") or Path(os.environ.get("HEIMDALL_MACHINE") or "~/Himinbjorg").expanduser() / "forge") / "scratch" / "work"
 BUILD = WORK / "build"
 
 
@@ -24,15 +24,15 @@ def apps() -> Path:
 
 def env(where: Path) -> dict:
     """The environment of a run whose records/, cache/ and results/ are under `where`."""
-    return dict(os.environ, HEP_RECORDS=str(where / "records"), HEP_CACHE=str(where / "cache"),
-                HEP_RESULTS=str(where / "results"))
+    return dict(os.environ, HEIMDALL_RECORDS=str(where / "records"), HEIMDALL_CACHE=str(where / "cache"),
+                HEIMDALL_RESULTS=str(where / "results"))
 
 
-def hep(where: Path, *args: str, command: str = "run", plain: bool = True, timeout: float = 1800,
+def heimdall(where: Path, *args: str, command: str = "run", plain: bool = True, timeout: float = 1800,
         wait: bool = True):
     """`heimdall <command> ARGS [--plain]` with outputs under `where`: the finished process, or (wait=False) the
     running one, its output merged into stdout."""
-    argv = [str(HEP), command, *map(str, args), *(["--plain"] if plain else [])]
+    argv = [str(HEIMDALL), command, *map(str, args), *(["--plain"] if plain else [])]
     if not wait:
         return subprocess.Popen(argv, cwd=WORK, env=env(where), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 text=True, encoding="utf-8")
@@ -40,9 +40,9 @@ def hep(where: Path, *args: str, command: str = "run", plain: bool = True, timeo
                           errors="replace", timeout=timeout)
 
 
-def hep_ok(where: Path, *args: str, timeout: float = 1800) -> str:
+def heimdall_ok(where: Path, *args: str, timeout: float = 1800) -> str:
     """`heimdall run ARGS --plain`, which must succeed; its stdout."""
-    done = hep(where, *args, timeout=timeout)
+    done = heimdall(where, *args, timeout=timeout)
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     return done.stdout
 

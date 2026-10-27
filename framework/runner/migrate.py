@@ -20,14 +20,17 @@ and layout stay:
   headers in comments (a configuration commented out stays one to uncomment).
 * (V99) `[run.defaults]` → its keys moved into `[run]`, at the end of its keys; one [run] sets too is
   [run.defaults]'s value (it was the nearer layer). Its comments go with it.
-* (Heimdall, docs/framework/01_Target.md §5.3) `{repo}` → `{work}`, or `{hep}` for what moved into
-  Heimdall: `{repo}/build/App_*`, `Paint.exe` and `Herwig/` → `{apps}/…`, `{repo}/utils/` → `{hep}/src/`.
+* (Heimdall, docs/framework/01_Target.md §5.3) `{repo}` → `{work}`, or `{heimdall}` for what moved into
+  Heimdall: `{repo}/build/App_*`, `Paint.exe` and `Herwig/` → `{apps}/…`, `{repo}/utils/` → `{heimdall}/src/`.
   On the text, anywhere in the file (a comment's example too).
-* (audit 3, phase 3.1) `{hep}/framework/Apps/` → `{apps}/`: the compiled apps are in the machine root.
+* (audit 3, phase 3.1) `{heimdall}/framework/Apps/` → `{apps}/`: the compiled apps are in the machine root.
 * (audit 3, phase 4.2) `tool = "custom"` → `tool = "exec"`; the export keys of an exec or module table
   (`pythia_cmnd = true`, `herwig_run = true`) → `generate_cards` (the context file gives every tool's card
   and config), in each configuration whose chain runs that table, or in [run] when every one does;
   `{std:<key>}` → `{context:<tag>.<card or product>}`.
+
+`heimdall migrate --names [--apply]` (I-109, V213) is a work dir's own: Heimdall's old names in its files
+(`names_changes`), its marker `hep.toml` → `heimdall.toml` first.
 """
 
 from __future__ import annotations
@@ -43,7 +46,7 @@ import tomli_w
 
 from . import config as configmod
 from . import schema, tools
-from .errors import HepError
+from .errors import HeimdallError
 from .labels import is_tlatex, natural
 from .paths import config_file, resolve
 
@@ -117,14 +120,14 @@ def defaults_text(text: str) -> str:
 PLACEHOLDERS = (("{repo}/build/App_", "{apps}/App_"),
                 ("{repo}/build/Paint.exe", "{apps}/Paint.exe"),
                 ("{repo}/build/Herwig/", "{apps}/Herwig/"),
-                ("{hep}/framework/Apps/", "{apps}/"),
-                ("{repo}/utils/", "{hep}/src/"),
+                ("{heimdall}/framework/Apps/", "{apps}/"),
+                ("{repo}/utils/", "{heimdall}/src/"),
                 ("{repo}", "{work}"))
 _REPO = re.compile("|".join(re.escape(old) for old, _ in PLACEHOLDERS))
 
 
 def placeholder_text(text: str) -> str:
-    """{repo} as {work}, {apps} for the compiled apps, {hep} for Heimdall's files (PLACEHOLDERS)."""
+    """{repo} as {work}, {apps} for the compiled apps, {heimdall} for Heimdall's files (PLACEHOLDERS)."""
     return _REPO.sub(lambda match: dict(PLACEHOLDERS)[match[0]], text)
 
 
@@ -1008,7 +1011,7 @@ def plan(names: list[str], v3: bool = False) -> dict[Path, tuple[str, str]]:
             for base in tool.baseconfig if folder is not None else ():
                 try:
                     path = resolve(base, "baseconfig", project=run.project, where=f"[tools.{tool.tag}].baseconfig")
-                except HepError:
+                except HeimdallError:
                     continue
                 if path.is_file():
                     cards.setdefault(path, folder)
@@ -1028,3 +1031,89 @@ def diff(path: Path, old: str, new: str) -> str:
 def apply(changes: dict[Path, tuple[str, str]]) -> None:
     for path, (_, new) in changes.items():
         path.write_text(new, encoding="utf-8")
+
+
+# ── I-109: a work dir's uses of Heimdall's old names ─────────────────────────────────────────────
+
+#: A work dir's marker before I-109.
+OLD_MARKER = "hep.toml"
+#: The names that moved (hep → heimdall), as a work dir's files use them: its configs' placeholders and comments,
+#: its modules' imports and environment, its Makefile, its editor settings, Whizard's directive.
+NAME_RULES = [(re.compile(a, re.M), b) for a, b in (
+    (r"\{hep\}", "{heimdall}"),
+    (r"(?<![A-Za-z0-9])_HEP_", "_HEIMDALL_"),
+    (r"\bHEP_", "HEIMDALL_"),
+    (r"\$HEP\b", "$HEIMDALL"),
+    (r"\$\{HEP(?=[}:\-?+=#%])", "${HEIMDALL"),
+    (r"\$\(HEP\)", "$(HEIMDALL)"),
+    (r"\bifndef HEP\b", "ifndef HEIMDALL"),
+    (r"\bHEP is not set\b", "HEIMDALL is not set"),
+    (r"""(environ(?:\.get)?\(|environ\[|getenv\()(["'])HEP\2""", r"\1\2HEIMDALL\2"),
+    (r"\bhepkit\b", "heimdallkit"),
+    (r"\bHepError\b", "HeimdallError"),
+    (r"\bhep_root\b", "heimdall_root"),
+    (r"\bhep_env\.sh\b", "heimdall_env.sh"),
+    (r"\bhep\.toml\b", "heimdall.toml"),
+    (r"^(\s*#\s*)hep:", r"\1heimdall:"),
+    (r"\bHEP Contrast", "Heimdall Contrast"),
+    (r"\bHEP Icons\b", "Heimdall Icons"),
+    (r"\bhep-(contrast|icons)\b", r"heimdall-\1"),
+    (r"\b(heimdall|hep) where --hep\b", "heimdall where --heimdall"),
+    (r"\bhep (where|setup|run|plot|stats|status|check|build|ls|explain|migrate|report|watch|clean|overlay)\b", r"heimdall \1"),
+)]
+#: Where a work dir's files use Heimdall's names: its top-level files (the marker, Makefile, CLAUDE.md, HEIMDALL.md,
+#: README.md), its editor settings, its configs and modules. Anything else (notes, analyses) may mean another HEP.
+SOURCES = (".vscode", "configs", "modules")
+NOT_SOURCES = {".git", "results", "records", ".cache", "build", "reports", "datasets", "node_modules", "__pycache__"}
+SOURCE_LIMIT = 2_000_000
+
+
+def old_marker(start: Path | None = None) -> Path | None:
+    """The folder holding a pre-I-109 marker (hep.toml with a [work] table), here or above; None."""
+    here = (start or Path.cwd()).resolve()
+    for folder in (here, *here.parents):
+        marker = folder / OLD_MARKER
+        if marker.is_file():
+            try:
+                if isinstance(tomllib.loads(marker.read_text(encoding="utf-8")).get("work"), dict):
+                    return folder
+            except (OSError, tomllib.TOMLDecodeError):
+                return None
+    return None
+
+
+def _sources(work: Path) -> list[Path]:
+    out = []
+    for path in sorted(work.rglob("*")):
+        rel = path.relative_to(work)
+        if any(part in NOT_SOURCES for part in rel.parts) or not path.is_file() or path.is_symlink():
+            continue
+        if len(rel.parts) > 1 and rel.parts[0] not in SOURCES and path.suffix != ".code-workspace":
+            continue
+        if path.stat().st_size > SOURCE_LIMIT:
+            continue
+        data = path.read_bytes()
+        if b"\0" in data:
+            continue
+        try:
+            data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        out.append(path)
+    return out
+
+
+def names_changes(work: Path) -> dict[Path, tuple[str, str]]:
+    """Each of a work dir's own text files that uses Heimdall's old names (its top-level files, .vscode/, configs/,
+    modules/ and any *.code-workspace; never results/, records/, .cache/, build/, reports/, datasets/), before
+    and after NAME_RULES."""
+    changes = {}
+    for path in _sources(work):
+        old = path.read_text(encoding="utf-8")
+        new = old
+        for pattern, repl in NAME_RULES:
+            new = pattern.sub(repl, new)
+        if new != old:
+            changes[path] = (old, new)
+    return changes
+

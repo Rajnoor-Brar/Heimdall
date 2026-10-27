@@ -8,7 +8,7 @@ import tomllib
 import pytest
 
 from runner import cli, config, migrate, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 OLD = """\
 [run]
@@ -72,7 +72,7 @@ def test_a_card_loses_the_lines_the_runner_sets():
 def test_the_command_diffs_then_applies(scratch, capsys):
     path = scratch / "sw.toml"
     path.write_text(OLD, encoding="utf-8")
-    with pytest.raises(HepError, match=r"configurations are \[run.cfgs.<cfg>\] now"):
+    with pytest.raises(HeimdallError, match=r"configurations are \[run.cfgs.<cfg>\] now"):
         config.load(str(path))
     assert cli.cmd_migrate(argparse.Namespace(configs=[str(path)], apply=False)) == 0
     shown = capsys.readouterr().out
@@ -154,11 +154,11 @@ def test_master_becomes_config(scratch):
 
 def test_the_apps_become_the_machine_roots():
     """Audit 3, phase 3.1: the compiled apps left the checkout; High-Energy's {repo} paths go straight there."""
-    text = ('exe = "{hep}/framework/Apps/App_Pythia.exe"\nrpo = "{repo}/build/Herwig/HerwigDefaults.rpo"\n'
+    text = ('exe = "{heimdall}/framework/Apps/App_Pythia.exe"\nrpo = "{repo}/build/Herwig/HerwigDefaults.rpo"\n'
             'kit = "{repo}/utils/Kit.hh"\ncard = "{repo}/configs/a.cmnd"\n')
     new = migrate.placeholder_text(text)
     assert new == ('exe = "{apps}/App_Pythia.exe"\nrpo = "{apps}/Herwig/HerwigDefaults.rpo"\n'
-                   'kit = "{hep}/src/Kit.hh"\ncard = "{work}/configs/a.cmnd"\n')
+                   'kit = "{heimdall}/src/Kit.hh"\ncard = "{work}/configs/a.cmnd"\n')
     assert migrate.placeholder_text(new) == new
 
 
@@ -178,3 +178,42 @@ def test_exports_become_generate_cards_and_custom_becomes_exec():
     assert migrate.exports_text(new) == new
     every = text.replace('tools = [["pythia", "rivet"]]', 'tools = ["probe"]')
     assert tomllib.loads(migrate.exports_text(every))["run"]["generate_cards"] == ["pythia", "herwig:run"]
+
+
+def test_a_work_dir_from_before_the_rename_takes_heimdalls_names(scratch, monkeypatch, capsys):
+    """I-109, V213: `heimdall migrate --names`: hep.toml → heimdall.toml, and the old names in the work dir's own
+    files (configs, cards, modules, Makefile, editor settings); what runs made is left alone; a dry run writes
+    nothing."""
+    work = scratch / "old"
+    files = {
+        "hep.toml": '# hep.toml — the marker\n[work]\nname = "old"\n',
+        "Makefile": "ifndef HEP\n$(error HEP is not set)\nendif\ninclude $(HEP)/framework/work.mk\n",
+        "configs/P/a.toml": '# $HEP/docs/04\n[tools.x]\nprogram = ["{hep}/framework/x.py"]\n',
+        "configs/P/a.sin": "# hep: beam_structure = pdf_builtin, epa\nmodel = SM\n",
+        "modules/P/m.py": 'import os\nimport hepkit\npath = os.environ["HEP_CONTEXT"]\nrun = hepkit.Status()\n',
+        ".vscode/settings.json": '{"workbench.colorTheme": "HEP Contrast Light", "workbench.iconTheme": "hep-icons"}\n',
+        "results/P/r/c/plot.toml": "# {hep} as a run wrote it\n",
+    }
+    for name, text in files.items():
+        (work / name).parent.mkdir(parents=True, exist_ok=True)
+        (work / name).write_text(text, encoding="utf-8")
+    monkeypatch.delenv("HEIMDALL_WORK", raising=False)
+    monkeypatch.chdir(work / "configs")
+    assert migrate.old_marker() == work.resolve()
+    args = argparse.Namespace(names=True, apply=False)
+    assert cli.cmd_migrate(args) == 0
+    said = capsys.readouterr().out
+    assert "6 file(s) to rewrite, the marker to rename (a dry run" in said and "+program = [\"{heimdall}/framework/x.py\"]" in said
+    assert (work / "hep.toml").is_file() and not (work / "heimdall.toml").exists()
+    args.apply = True
+    assert cli.cmd_migrate(args) == 0
+    assert not (work / "hep.toml").exists()
+    assert (work / "heimdall.toml").read_text(encoding="utf-8").startswith("# heimdall.toml — the marker")
+    assert (work / "Makefile").read_text(encoding="utf-8") == \
+        "ifndef HEIMDALL\n$(error HEIMDALL is not set)\nendif\ninclude $(HEIMDALL)/framework/work.mk\n"
+    assert (work / "configs/P/a.sin").read_text(encoding="utf-8").startswith("# heimdall: beam_structure")
+    assert (work / "modules/P/m.py").read_text(encoding="utf-8") == \
+        'import os\nimport heimdallkit\npath = os.environ["HEIMDALL_CONTEXT"]\nrun = heimdallkit.Status()\n'
+    assert "Heimdall Contrast Light" in (work / ".vscode/settings.json").read_text(encoding="utf-8")
+    assert (work / "results/P/r/c/plot.toml").read_text(encoding="utf-8") == files["results/P/r/c/plot.toml"]
+    assert cli.cmd_migrate(args) == 0 and "nothing to migrate" in capsys.readouterr().out

@@ -67,7 +67,7 @@ def test_an_amegic_card_is_compiled_then_integrated(prepare, capfd):
 
 
 def test_the_compile_takes_its_jobs_from_the_environment(prepare, monkeypatch):
-    monkeypatch.setenv("HEP_MAKELIBS_JOBS", "6")
+    monkeypatch.setenv("HEIMDALL_MAKELIBS_JOBS", "6")
     code, entry = prepare("amegic")
     assert code == 0 and (entry / "makelibs.argv").read_text(encoding="utf-8").split() == ["-j", "6"]
 

@@ -1,8 +1,8 @@
 """runner/report.py (I-108 P2, P4–P6; V207, V209–V211): a report's sources and recipe resolved into sections of
 figures and statistics, the default recipe, both layouts, the ways in (a folder's report.toml, a recipe, a run TOML's
 [report] and its template), where each is built, what it draws for itself (resolved here, drawn by the build:
-tests/integration/test_report_draw.py), --list and --init. Every tree is tmp_path's: HEP_RESULTS, HEP_RECORDS,
-HEP_CONFIGS and HEP_REPORTS."""
+tests/integration/test_report_draw.py), --list and --init. Every tree is tmp_path's: HEIMDALL_RESULTS, HEIMDALL_RECORDS,
+HEIMDALL_CONFIGS and HEIMDALL_REPORTS."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from runner import cli, report
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 DOCUMENT = """[source]
 config = "P/study"
@@ -106,8 +106,8 @@ def folder(results, name: str, label: str, events: int, complete: bool = True, c
 
 @pytest.fixture
 def trees(tmp_path, monkeypatch):
-    for var in ("HEP_RESULTS", "HEP_RECORDS", "HEP_CONFIGS", "HEP_REPORTS"):
-        monkeypatch.setenv(var, str(tmp_path / var.removeprefix("HEP_").lower()))
+    for var in ("HEIMDALL_RESULTS", "HEIMDALL_RECORDS", "HEIMDALL_CONFIGS", "HEIMDALL_REPORTS"):
+        monkeypatch.setenv(var, str(tmp_path / var.removeprefix("HEIMDALL_").lower()))
     results = tmp_path / "results"
     folder(results, "01_pdf", "pdf", 10_000_000)
     folder(results, "02_events", "events", 10_000_000, complete=False)
@@ -128,7 +128,7 @@ def test_a_source_is_a_folder_a_run_a_path_or_a_glob(trees):
         ["P/validation/01_pdf", "P/validation/02_events"]                                       # each once
     path = trees / "results" / "P" / "validation" / "02_events"
     assert [s.folder for s in report.sources([str(path)], "here")] == [path]
-    with pytest.raises(HepError, match="no result folder P/validation/01_pfd") as error:
+    with pytest.raises(HeimdallError, match="no result folder P/validation/01_pfd") as error:
         report.sources(["P/validation/01_pfd"], "here")
     assert "01_pdf" in str(error.value.hint)
 
@@ -193,41 +193,41 @@ pages = ["d01-*"]
 
 def test_a_recipe_is_checked(trees):
     recipe(trees, "typo", '[report]\ntitle = "x"\n\n[[report.section]]\ntitle = "a"\npagez = ["*"]\n')
-    with pytest.raises(HepError, match="pagez") as error:
+    with pytest.raises(HeimdallError, match="pagez") as error:
         report.planned("P/typo.toml", ["P/validation/01_pdf"])
     assert "pages" in str(error.value.hint)
     recipe(trees, "two", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nstats = ["top5"]\n')
-    with pytest.raises(HepError, match="one of pages"):
+    with pytest.raises(HeimdallError, match="one of pages"):
         report.planned("P/two.toml", ["P/validation/01_pdf"])
     recipe(trees, "stat", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["chi2_ndf:rankin"]\n')
-    with pytest.raises(HepError, match="no section 'chi2_ndf:rankin'"):
+    with pytest.raises(HeimdallError, match="no section 'chi2_ndf:rankin'"):
         report.planned("P/stat.toml", ["P/validation/01_pdf"])
     recipe(trees, "look", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nplot = { normalize = "area" }\n')
-    with pytest.raises(HepError, match="normalize"):
+    with pytest.raises(HeimdallError, match="normalize"):
         report.planned("P/look.toml", ["P/validation/01_pdf"])
     recipe(trees, "toolish", '[report]\n\n[[report.section]]\ntitle = "a"\ntools = ["*"]\nplot = { normalise = "area" }\n')
-    with pytest.raises(HepError, match="plot is a pages, stats or bars section's"):
+    with pytest.raises(HeimdallError, match="plot is a pages, stats or bars section's"):
         report.planned("P/toolish.toml", ["P/validation/01_pdf"])
     recipe(trees, "old", '[report]\n\n[[section]]\ntitle = "a"\npages = ["*"]\n')            # P2's form
-    with pytest.raises(HepError, match=r"a recipe has \[report\] alone, not \[section\]"):
+    with pytest.raises(HeimdallError, match=r"a recipe has \[report\] alone, not \[section\]"):
         report.planned("P/old.toml", ["P/validation/01_pdf"])
-    with pytest.raises(HepError, match="no recipe P/none.toml"):
+    with pytest.raises(HeimdallError, match="no recipe P/none.toml"):
         report.planned("P/none.toml", ["P/validation/01_pdf"])
-    with pytest.raises(HepError, match="no result folder P/weekly"):              # no .toml: a source, always
+    with pytest.raises(HeimdallError, match="no result folder P/weekly"):              # no .toml: a source, always
         report.planned("P/weekly", [])
 
 
 def test_what_no_document_can_draw_is_refused_naming_what_it_has(trees):
     recipe(trees, "few", '[report]\n\n[[report.section]]\ntitle = "a"\nset = "few"\npages = ["*"]\n\n'
                          '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["top5"]\n')
-    with pytest.raises(HepError, match="has no set few drawn, and its plot document no set few to draw") as error:
+    with pytest.raises(HeimdallError, match="has no set few drawn, and its plot document no set few to draw") as error:
         report.planned("P/few.toml", ["P/validation/01_pdf"])
     assert error.value.hint == "drawn there: totality; its sets: totality; optional = true passes it over"
     recipe(trees, "numbers", '[report]\n\n[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["top5"]\n')
-    with pytest.raises(HepError, match="has no set few measured, and its plot document no set few to draw"):
+    with pytest.raises(HeimdallError, match="has no set few measured, and its plot document no set few to draw"):
         report.planned("P/numbers.toml", ["P/validation/01_pdf"])
     recipe(trees, "events", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["d01-*"]\nlayout = "sources"\nlabel = "events"\n')
-    with pytest.raises(HepError, match="two sources are labelled 10M"):
+    with pytest.raises(HeimdallError, match="two sources are labelled 10M"):
         report.planned("P/events.toml", ["P/validation"])
 
 
@@ -257,7 +257,7 @@ def test_what_a_source_has_not_drawn_is_drawn_for_the_report(trees):
     assert ('  drawn for the report: P/validation/03_few with normalise = "area" over its [plot]: pages of totality '
             "(its section's plot keys); numbers of totality (its section's plot keys)") in said
     assert "  1 a: 0 figure(s) in 0 grid(s), the pages of P/validation/03_few drawn for the report" in said
-    assert report.drawings_root(plan) == Path(os.environ["HEP_CACHE"]) / "P" / "reports" / "validation" / "03_few" / ".drawn"
+    assert report.drawings_root(plan) == Path(os.environ["HEIMDALL_CACHE"]) / "P" / "reports" / "validation" / "03_few" / ".drawn"
     for page in (trees / "results" / "P" / "validation" / "03_few" / "plots").rglob("*.pdf"):
         page.unlink()                                                                  # drawn there as PNG alone
     plan = report.planned("P/validation/03_few", [])
@@ -286,7 +286,7 @@ def test_reports_are_built_where_results_has_their_sources_unless_told(trees):
     folder(trees / "results", "01_pdf", "pdf", 1_000_000, run="other")
     assert report.planned("P/validation/01_pdf", ["P/other/01_pdf"]).out == reports / "P"          # two runs': P's
     folder(trees / "results", "01_pdf", "pdf", 1_000_000, project="Q")
-    with pytest.raises(HepError, match=r"several projects \(P, Q\)") as error:
+    with pytest.raises(HeimdallError, match=r"several projects \(P, Q\)") as error:
         report.planned("P/validation/01_pdf", ["Q/validation/01_pdf"])
     assert "-o DIR" in str(error.value.hint)
     elsewhere = trees / "elsewhere"
@@ -295,7 +295,7 @@ def test_reports_are_built_where_results_has_their_sources_unless_told(trees):
     assert report.planned("P/out.toml", []).out == reports / "P" / "weekly"
     lifted = trees / "lifted"
     shutil.copytree(trees / "results" / "P" / "validation" / "01_pdf", lifted)
-    with pytest.raises(HepError, match="is not under results/"):
+    with pytest.raises(HeimdallError, match="is not under results/"):
         report.planned(str(lifted), [])
 
 
@@ -319,7 +319,7 @@ def test_a_folder_reads_its_own_report_toml(trees):
 def study(trees):
     """A run TOML of the fixture's (Demo/validation) with a [report] naming a template, in tmp_path's configs/."""
     demo = trees / "configs" / "Demo"
-    shutil.copytree(Path(os.environ["HEP_WORK"]) / "configs" / "Demo", demo)
+    shutil.copytree(Path(os.environ["HEIMDALL_WORK"]) / "configs" / "Demo", demo)
     (demo / "weekly.toml").write_text('[report]\ntitle = "Weekly"\nsubtitle = "for the group"\nfrom = ["P/validation/01_pdf"]\n'
                                       'output = "Demo/weekly"\n\n[[report.section]]\ntitle = "Standings"\nstats = ["top5"]\n',
                                       encoding="utf-8")
@@ -336,7 +336,7 @@ def test_a_run_tomls_report_lays_its_own_over_its_template(study):
     assert plan.out.parts[-3:] == ("P", "validation", "01_pdf")              # the template's output: a recipe's own
     plain = report.planned("Demo/validation.toml", ["P/validation/01_pdf"])         # no [report]: the default
     assert [s.title for s in plain.sections] == ["Standings", "Pages: totality"]
-    with pytest.raises(HepError, match="name the folders"):
+    with pytest.raises(HeimdallError, match="name the folders"):
         report.planned("Demo/study.toml", [])
 
 
@@ -351,7 +351,7 @@ def test_a_run_tomls_report_is_checked_when_it_is_read(study, table, message):
     from runner import config
     text = (study / "validation.toml").read_text(encoding="utf-8")
     (study / "bad.toml").write_text(text + "\n" + table, encoding="utf-8")
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         config.load("Demo/bad")
 
 
@@ -361,7 +361,7 @@ def test_a_template_naming_itself_is_refused(study):
     (study / "loop2.toml").write_text('[report]\ntemplate = "loop"\n', encoding="utf-8")
     text = (study / "validation.toml").read_text(encoding="utf-8")
     (study / "round.toml").write_text(text + '\n[report]\ntemplate = "loop"\n', encoding="utf-8")
-    with pytest.raises(HepError, match="go round in a circle: round.toml → loop.toml → loop2.toml → loop.toml"):
+    with pytest.raises(HeimdallError, match="go round in a circle: round.toml → loop.toml → loop2.toml → loop.toml"):
         config.load("Demo/round")
 
 
@@ -389,9 +389,9 @@ def test_list_writes_nothing_and_init_writes_a_recipe_once(trees, capsys):
     assert "2 of 2 point(s), 10M events" in said and not (trees / "reports").exists()
     made = argparse.Namespace(names=["P/weekly.toml"], list=False, init="P/validation/01_pdf", output=None)
     assert cli.cmd_report(made) == 0 and (trees / "configs" / "P" / "weekly.toml").is_file()
-    with pytest.raises(HepError, match="there already"):
+    with pytest.raises(HeimdallError, match="there already"):
         cli.cmd_report(made)
-    with pytest.raises(HepError, match="name it, <P>/<name>.toml"):
+    with pytest.raises(HeimdallError, match="name it, <P>/<name>.toml"):
         cli.cmd_report(argparse.Namespace(names=["P/weekly"], list=False, init="P/validation/01_pdf", output=None))
     plan = report.planned("P/weekly.toml", [])
     assert [s.title for s in plan.sections] == ["Standings", "totality"] and plan.sources[0].address == "P/validation/01_pdf"
@@ -456,7 +456,7 @@ def test_a_tools_card_is_its_baseline_and_what_varied_point_by_point(trees):
     assert hidden.table() == (["PDF:pSet"], [{"PDF:pSet": "NNPDF"}, {"PDF:pSet": "CT18"}])
     (nothing,) = report.configured(source, ["yd2rt"], [], "here")                               # named: shown, and said
     assert nothing.notes == ["given no card and no options"]
-    with pytest.raises(HepError, match="have no tool 'pythai'") as error:
+    with pytest.raises(HeimdallError, match="have no tool 'pythai'") as error:
         report.configured(source, ["pythai"], [], "here")
     assert "pythia" in str(error.value.hint)
 
@@ -470,7 +470,7 @@ def test_a_point_without_a_record_is_said_and_an_older_record_read_from_its_card
     recorded(trees, "03_old", context=False)
     (old,) = report.sources(["P/validation/03_old"], "here")
     assert [g.tag for g in report.configured(old, ["*"], [], "here")] == ["pythia", "sherpa"]     # cards/<tag>.*, no .point.
-    with pytest.raises(HepError, match="no record of its points' tools"):
+    with pytest.raises(HeimdallError, match="no record of its points' tools"):
         report.configured(report.sources(["P/validation/02_events"], "here")[0], ["*"], [], "here")
 
 
@@ -488,5 +488,5 @@ def test_the_default_report_ends_with_its_tools_and_tools_chooses_them(trees):
     (where / report.RECIPE).write_text('[report]\ntools = ["sh*"]\n', encoding="utf-8")
     assert [g.tag for g in report.planned("P/validation/01_pdf", []).sections[-1].given] == ["sherpa"]
     recipe(trees, "bad", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nhide = ["x"]\n')
-    with pytest.raises(HepError, match="hide is a tools section's"):
+    with pytest.raises(HeimdallError, match="hide is a tools section's"):
         report.planned("P/bad.toml", ["P/validation/01_pdf"])

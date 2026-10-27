@@ -10,7 +10,7 @@ import re
 import pytest
 
 from runner import config, quantities, record, sweep, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from helpers import parse, raw
 
@@ -50,7 +50,7 @@ def test_the_keys_and_where_they_win(scratch):
     ({"run__seed_type": 3}, "must be a string"),
 ])
 def test_what_is_refused_when_read(scratch, changes, message):
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         parse(raw(**changes), scratch)
 
 
@@ -88,7 +88,7 @@ def test_a_swept_seed_quantity_gives_each_point_its_seed(scratch):
 
 def test_overlapping_seeds_on_one_setup_are_refused(scratch):
     close = {**SEEDS, "values": [1, 2], "tags": ["s1", "s2"]}
-    with pytest.raises(HepError, match="overlapping seed blocks at threads = 4"):
+    with pytest.raises(HeimdallError, match="overlapping seed blocks at threads = 4"):
         build(raw(run__threads=4, run__seed_type="manual", quantities__replica=close,
                   run__cfgs__one__sweeps=["replica"]), scratch)
     assert [p.seed for p in build(raw(run__seed_type="manual", quantities__replica=close,     # one thread each
@@ -109,7 +109,7 @@ def test_the_manual_seed_is_in_the_identity(scratch):
     ({"quantities__replica": {**SEEDS, "values": ["a", "b", "c"]}, "run__cfgs__one__sweeps": ["replica"]}, "not an integer"),
 ])
 def test_a_manual_point_without_a_usable_seed_is_refused(scratch, changes, message):
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         build(raw(run__seed_type="manual", **changes), scratch)
 
 
@@ -125,8 +125,8 @@ def test_random_seeds_are_drawn_again_and_disjoint(scratch):
 
 
 def test_a_complete_random_point_keeps_the_seed_it_ran_with(scratch, monkeypatch):
-    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEIMDALL_CACHE", str(scratch / "cache"))
     data = raw(run__seed_type="random", run__cfgs__one__sweeps=["pdf"])
     done = build(data, scratch)[0]
     record.record_dir(done).mkdir(parents=True)
@@ -154,7 +154,7 @@ def test_stages_keep_the_identity_rule(scratch):
 def test_a_manual_seed_past_the_generators_range_is_refused_when_planned(scratch):
     """The upper bound is the point's generators' [card] seed_range (V54): Pythia's 9·10⁸ here."""
     data = raw(run__seed_type="manual", run__cfgs__one__manual_seed=900_000_000)
-    with pytest.raises(HepError, match="not an integer from 1 to 899,999,999"):
+    with pytest.raises(HeimdallError, match="not an integer from 1 to 899,999,999"):
         build(data, scratch)
 
 

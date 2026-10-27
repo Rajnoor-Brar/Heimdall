@@ -3,7 +3,7 @@
 # extracted config as the first argument; an empty --input means an integrated program.
 [tool]
 config_file     = true             # its table's config and consumed quantities, written to config/<tag>.toml (its
-                                   # first argument); the context file comes through $HEP_CONTEXT (Module::Job::tool)
+                                   # first argument); the context file comes through $HEIMDALL_CONTEXT (Module::Job::tool)
 config_always   = true             # a Module.hh program takes its config even when it is empty
 template        = true             # heimdall tools new <name> --from module copies it
 category        = "analysis-application"

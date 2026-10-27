@@ -21,8 +21,8 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from .errors import HepError, did_you_mean
-from .paths import hep_root
+from .errors import HeimdallError, did_you_mean
+from .paths import heimdall_root
 
 DEFAULT = "default"
 NATIVE = "native"           # a page key: what the drawing tool does by itself (v2: [plot]'s own "default")
@@ -39,7 +39,7 @@ FIGURE_OWN = ("class", "type", "name", "objects", "labels", "over", "configurati
 
 
 def path(name: str = "run") -> Path:
-    return hep_root() / "framework" / "schema" / f"{name}.toml"
+    return heimdall_root() / "framework" / "schema" / f"{name}.toml"
 
 
 @functools.cache
@@ -47,7 +47,7 @@ def spec(name: str = "run") -> dict:
     try:
         return tomllib.loads(path(name).read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
-        raise HepError(f"cannot read the schema: {error}", where=str(path(name))) from None
+        raise HeimdallError(f"cannot read the schema: {error}", where=str(path(name))) from None
 
 
 #: Configuration keys [run] gives every configuration (V99; they were [run.defaults]'s), besides the
@@ -136,7 +136,7 @@ def check(values: dict, table: str, where: str, *, subtables: bool = False, extr
             if extra:
                 extras[key] = value
                 continue
-            raise HepError(f"unknown key '{key}'", where=where,
+            raise HeimdallError(f"unknown key '{key}'", where=where,
                            hint=home_of(key, table) or did_you_mean(key, known) or f"known keys: {', '.join(known)}")
         if subtables and isinstance(value, dict) and "table" not in entry["type"].split("|"):
             continue                                       # a configuration named like a key ([run.threads])
@@ -149,27 +149,27 @@ def check_value(key: str, value, entry: dict, where: str) -> None:
     if value == DEFAULT and entry.get("default_ok") or value == NATIVE and entry.get("native_ok"):
         return
     if value == DEFAULT and "str" not in kinds.split("|"):
-        raise HepError(f"'{key}' does not take \"default\"", where=where,
+        raise HeimdallError(f"'{key}' does not take \"default\"", where=where,
                        hint=f"give it {type_name(kinds)}, or leave it out")
     if not _is(value, kinds):
         if isinstance(value, bool):
-            raise HepError(f"'{key}' must be {type_name(kinds)}, not true/false", where=where)
-        raise HepError(f"'{key}' must be {type_name(kinds)}", where=where, hint=f"got {value!r}")
+            raise HeimdallError(f"'{key}' must be {type_name(kinds)}, not true/false", where=where)
+        raise HeimdallError(f"'{key}' must be {type_name(kinds)}", where=where, hint=f"got {value!r}")
     items = entry.get("items")
     members = value if isinstance(value, list) else [value]
     if items and isinstance(value, list):
         for item in value:
             if not _is(item, items):
-                raise HepError(f"'{key}' entries must be {type_name(items)}", where=where, hint=f"got {item!r}")
+                raise HeimdallError(f"'{key}' entries must be {type_name(items)}", where=where, hint=f"got {item!r}")
     choices = entry.get("choices")
     if choices:
         for item in members:                     # a choice may be false (normalise = "area" | false, V68)
             if isinstance(item, (str, bool)) and not any(type(item) is type(c) and item == c for c in choices):
                 shown = ", ".join(c if isinstance(c, str) else str(c).lower() for c in choices)
-                raise HepError(f"{key} must be one of {shown}, not {item!r}", where=where,
+                raise HeimdallError(f"{key} must be one of {shown}, not {item!r}", where=where,
                                hint=did_you_mean(item, [c for c in choices if isinstance(c, str)]) if isinstance(item, str) else None)
     if "min" in entry and _is(value, "float") and value < entry["min"]:
-        raise HepError(f"'{key}' must be at least {entry['min']}", where=where, hint=f"got {value!r}")
+        raise HeimdallError(f"'{key}' must be at least {entry['min']}", where=where, hint=f"got {value!r}")
 
 
 # ── the editor schema (F6) ───────────────────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ def _folder_options() -> dict[str, dict]:
     kinds = {"list": "array", "table": "object", "str": "string", "int": "integer", "float": "number",
              "bool": "boolean", "flag": "boolean"}
     out = {}
-    for spec_file in sorted((hep_root() / "framework" / "tools").glob("*/tool.toml")):
+    for spec_file in sorted((heimdall_root() / "framework" / "tools").glob("*/tool.toml")):
         options = tomllib.loads(spec_file.read_text(encoding="utf-8")).get("options", {})
         out[spec_file.parent.name] = {k: {"description": v.get("doc", ""), **({"type": kinds[v["kind"]]} if v.get("kind") in kinds else {})}
                                       for k, v in options.items()}
@@ -338,7 +338,7 @@ def style_entries() -> list[tuple[str, str, str]]:
     """base.toml's keys in file order: (dotted key, default as written, comment). A comment-only line
     under a key, indented to its comment, continues that key's comment; a key without one has its
     table's (`[page.margins]   # fractions of the page`)."""
-    path = hep_root() / "src" / "Apps" / "Paint" / "base.toml"
+    path = heimdall_root() / "src" / "Apps" / "Paint" / "base.toml"
     text = path.read_text(encoding="utf-8")
     values = tomllib.loads(text)
     out: list[list[str]] = []

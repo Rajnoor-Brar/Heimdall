@@ -41,8 +41,8 @@ import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .errors import HepError
-from .paths import find_work, hep_root, portable, work_meta
+from .errors import HeimdallError
+from .paths import find_work, heimdall_root, portable, work_meta
 from .image import inside
 from .tools import DEFAULT_SEED_RANGE, PointPlan, package_states, version_of
 
@@ -145,15 +145,15 @@ def manual_seed_of(plan: PointPlan) -> int:
     values = list(dict.fromkeys(v for step in plan.rendered.values() for v in step.identity_parts.get("replica", [])))
     where = f"point {plan.point.name}"
     if len(values) > 1:
-        raise HepError(f"two seed quantities give this point the seeds {values}", where=where,
+        raise HeimdallError(f"two seed quantities give this point the seeds {values}", where=where,
                        hint="a point has one seed: target <tool>/seed from one quantity")
     seed = values[0] if values else plan.manual_seed
     if seed is None:
-        raise HepError("seed_type is manual but this point has no seed", where=where,
+        raise HeimdallError("seed_type is manual but this point has no seed", where=where,
                        hint="set manual_seed in [run] or [run.cfgs.<cfg>], or sweep a quantity targeting <tool>/seed")
     lo, hi = plan.seed_range
     if isinstance(seed, bool) or not isinstance(seed, int) or not lo <= seed <= hi - plan.threads:
-        raise HepError(f"the seed {seed!r} is not an integer from {lo:,} to {hi - plan.threads:,}", where=where,
+        raise HeimdallError(f"the seed {seed!r} is not an integer from {lo:,} to {hi - plan.threads:,}", where=where,
                        hint=f"with threads = {plan.threads} the point uses seed … seed + {plan.threads - 1}; the range is "
                             "its generators' [card] seed_range")
     return seed
@@ -198,7 +198,7 @@ def assign_seeds(plans: list[PointPlan], rerun: frozenset[str] = frozenset()) ->
         plan.seed = manual_seed_of(plan)
         for other in by_setup.setdefault(seed_basis(plan, replica=False), []):
             if other.seed != plan.seed and plan.seed < other.seed + other.threads and other.seed < plan.seed + plan.threads:
-                raise HepError(f"points {other.point.name} (seed {other.seed}) and {plan.point.name} (seed {plan.seed}) "
+                raise HeimdallError(f"points {other.point.name} (seed {other.seed}) and {plan.point.name} (seed {plan.seed}) "
                                f"have one generator setup and overlapping seed blocks at threads = {plan.threads}",
                                where=f"point {plan.point.name}",
                                hint=f"they would repeat some of each other's events: space the seeds by ≥ {plan.threads}")
@@ -444,7 +444,7 @@ def git_state(root: Path) -> dict:
 
 
 def work_record() -> dict:
-    """The work dir a point ran in: its name (hep.toml) and folder; {} outside one (tests set the roots)."""
+    """The work dir a point ran in: its name (heimdall.toml) and folder; {} outside one (tests set the roots)."""
     work = find_work()
     if work is None:
         return {}
@@ -454,7 +454,7 @@ def work_record() -> dict:
 def revision_changes(recorded: dict) -> list[str]:
     """How a provenance's git states ({"heimdall": …, "work": …}) differ from today's: a line for each
     repo whose revision moved, or that had uncommitted changes then (`heimdall reproduce` warns, V77)."""
-    now = {"heimdall": git_state(hep_root()), "work": git_state(Path(w["root"])) if (w := work_record()) else {}}
+    now = {"heimdall": git_state(heimdall_root()), "work": git_state(Path(w["root"])) if (w := work_record()) else {}}
     out = []
     for repo in ("heimdall", "work"):
         then = recorded.get(repo) or {}
@@ -492,9 +492,9 @@ def provenance(plan: PointPlan, run, configuration, started: str, finished: str,
         "identity": plan.identity, "seed": plan.seed, "threads": plan.threads, "events": plan.events,
         "tools": tools,
         "host": socket.gethostname(), "platform": platform.platform(), "user": os.environ.get("USER", ""),
-        "git": {"heimdall": git_state(hep_root()),                # two repos (framework/01 §5.6)
+        "git": {"heimdall": git_state(heimdall_root()),                # two repos (framework/01 §5.6)
                 "work": git_state(Path(work["root"])) if (work := work_record()) else {}},
-        "hep": str(hep_root()), "work": work, "stack": os.environ.get("HEP_STACK", ""),
+        "heimdall": str(heimdall_root()), "work": work, "stack": os.environ.get("HEIMDALL_STACK", ""),
         **({"image": held} if (held := inside()) else {}),         # an Apptainer image's path and labels (V150)
         "started": started, "finished": finished,
     }
@@ -602,8 +602,8 @@ def constants(plans: list[PointPlan], run, configuration, machine: bool = True) 
     if data:
         out["data"] = data
     if machine:
-        out["git"] = {"heimdall": git_state(hep_root()), "work": git_state(Path(w["root"])) if (w := work_record()) else {}}
-        out["host"], out["stack"] = socket.gethostname(), os.environ.get("HEP_STACK", "")
+        out["git"] = {"heimdall": git_state(heimdall_root()), "work": git_state(Path(w["root"])) if (w := work_record()) else {}}
+        out["host"], out["stack"] = socket.gethostname(), os.environ.get("HEIMDALL_STACK", "")
         if held := inside():
             out["image"] = held
         out["points"] = dict(Counter(state_of(p)[0] for p in plans))
@@ -686,7 +686,7 @@ def write_snapshot(run, configuration, plans: list) -> Path | None:
         files[str(rel)] = hashlib.sha256(path.read_bytes()).hexdigest()
     import tomli_w
     meta = {"snapshot": {"config": name, "configuration": configuration.key, "sets": list(run.sets),
-                         "heimdall": git_state(hep_root()).get("revision", ""), "written": now()},
+                         "heimdall": git_state(heimdall_root()).get("revision", ""), "written": now()},
             "files": files, **({"live": {"files": live}} if live else {})}
     staging.mkdir(parents=True, exist_ok=True)
     (staging / SNAPSHOT).write_text("# A run's snapshot (V158): the config it ran with. heimdall plot|run|status "
@@ -721,7 +721,7 @@ def record_of(name: str, need_snapshot: bool = True) -> Path | None:
         return None
     if need_snapshot and not (candidate / "config" / SNAPSHOT).is_file():
         rel = candidate.relative_to(records_root())
-        raise HepError(f"the record {rel} has no snapshot: it ran before runs kept the config they ran with",
+        raise HeimdallError(f"the record {rel} has no snapshot: it ran before runs kept the config they ran with",
                        where=str(candidate / "config"),
                        hint=f"heimdall migrate --snapshot {rel} copies a config into it (default: the one it names) and "
                             "says which of its points that config gives the same identity")
@@ -732,5 +732,5 @@ def read_snapshot(record: Path) -> dict:
     data = tomllib.loads((record / "config" / SNAPSHOT).read_text(encoding="utf-8"))
     snap = data.get("snapshot", {})
     if not snap.get("config") or not snap.get("configuration"):
-        raise HepError("a snapshot names its config and configuration", where=str(record / "config" / SNAPSHOT))
+        raise HeimdallError("a snapshot names its config and configuration", where=str(record / "config" / SNAPSHOT))
     return snap

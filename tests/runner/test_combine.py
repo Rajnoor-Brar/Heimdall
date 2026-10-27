@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from runner import config, post, quantities, record, sweep, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from helpers import raw
 
@@ -74,5 +74,5 @@ def test_combining_everything_is_one_group_named_combined(scratch):
                                                                        "tags": ["s1", "s2"]}}, "axis of its own"),
 ])
 def test_what_cannot_be_combined_is_refused(scratch, changes, message):
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         build(seeded(**changes), scratch)

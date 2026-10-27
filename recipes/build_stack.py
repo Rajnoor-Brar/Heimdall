@@ -33,7 +33,7 @@ platform's fixes (platforms/mac/mac.toml on macOS); the toolkits asked for, each
 extends; the machine root's machine.toml; --config files; the command line. Each layer's [settings],
 [env] and [packages.<name>] change what is below: a list appends unless the table says
 replace = ["key"], a table merges, anything else replaces.
-Where things go: the machine root ($HEP_MACHINE, or the `machine` setting; ~/Himinbjorg by default),
+Where things go: the machine root ($HEIMDALL_MACHINE, or the `machine` setting; ~/Himinbjorg by default),
 apart from Heimdall's checkout (docs/audit_3/02_Organisation.md §3): downloads in forge/downloads/,
 unpacked sources in forge/src/, build trees in forge/build/, logs in forge/logs/, installs in stack/,
 this machine's shell lines in machine.sh.
@@ -132,7 +132,7 @@ ATTEMPTS, BACKOFF, TIMEOUT = 5, 3, 60
 STACK_SETUP = """#!/bin/bash
 # stacks/{stack}/gjallarhorn.sh — the isolated stack of toolkit @{stack} (C++{cxx_std}), written by recipes/build_stack.py.
 # Load it instead of Heimdall's gjallarhorn.sh, in a shell of its own (or after `quit`): its ABI differs.
-export HEP_MACHINE="{root}" HEP_STACK_REQUEST={stack}
+export HEIMDALL_MACHINE="{root}" HEIMDALL_STACK_REQUEST={stack}
 source "{repo}/gjallarhorn.sh" "$@"
 """
 
@@ -191,8 +191,8 @@ KIT_CACHE: dict[Path, dict] = {}
 
 
 def root_of(machine: str) -> Path:
-    """The machine root: the `machine` setting, else $HEP_MACHINE, else ~/Himinbjorg."""
-    return Path(machine or os.environ.get("HEP_MACHINE") or "~/Himinbjorg").expanduser().resolve()
+    """The machine root: the `machine` setting, else $HEIMDALL_MACHINE, else ~/Himinbjorg."""
+    return Path(machine or os.environ.get("HEIMDALL_MACHINE") or "~/Himinbjorg").expanduser().resolve()
 
 
 def lay(target: dict, values: dict, where: str, known, label: str = "", prefix: str = "") -> None:
@@ -894,7 +894,7 @@ def broken(packages: dict, c: dict) -> dict[str, list[str]]:
 
 
 def note_folder(folder: str, c: dict) -> None:
-    """<stack>/.stamps/folders: every install folder a build made here, which env/hep_env.sh puts on the
+    """<stack>/.stamps/folders: every install folder a build made here, which env/heimdall_env.sh puts on the
     paths with env/packages.sh's (a recipe of a machine's own toolkit is on no shipped list)."""
     file = Path(c["inst"], ".stamps", "folders")
     have = file.read_text(encoding="utf-8").split() if file.is_file() else []
@@ -994,7 +994,7 @@ class Progress:
 
     def __init__(self, shell: "Shell", step: str):
         self.shell, self.step, self.drawn, self.done = shell, step, 0, threading.Event()
-        self.live = sys.stderr.isatty() and not os.environ.get("HEP_PLAIN")
+        self.live = sys.stderr.isatty() and not os.environ.get("HEIMDALL_PLAIN")
         self.thread = threading.Thread(target=self.loop, daemon=True)
 
     def __enter__(self):
@@ -1354,8 +1354,8 @@ def activate_text(c: dict) -> str:
             'case ":${PATH-}:" in *":$CONDA_PREFIX/bin:"*) ;; *) export PATH="$CONDA_PREFIX/bin${PATH:+:$PATH}" ;; esac\n'
             f'case ":${{PKG_CONFIG_PATH-}}:" in *":"{pc}":"*) ;; '
             f'*) export PKG_CONFIG_PATH={pc}"${{PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}}" ;; esac\n'
-            'for _hep_f in "$CONDA_PREFIX"/etc/conda/activate.d/*.sh; do [ -r "$_hep_f" ] && . "$_hep_f"; done\n'
-            "unset _hep_f " + " ".join(CONDA_FLAGS) + "\n")
+            'for _heimdall_f in "$CONDA_PREFIX"/etc/conda/activate.d/*.sh; do [ -r "$_heimdall_f" ] && . "$_heimdall_f"; done\n'
+            "unset _heimdall_f " + " ".join(CONDA_FLAGS) + "\n")
 
 
 def pkgconfig_files(c: dict) -> dict[str, str]:
@@ -1497,7 +1497,7 @@ def clean_environment(c: dict) -> tuple[dict[str, str], list[str]]:
 
 def preflight(s: dict, c: dict, order: list[str]) -> None:
     """What will cause trouble, said before anything is downloaded (docs/audit_3/01_Process.md C, H)."""
-    if MAC and not os.environ.get("HEP_BUILD_SH"):
+    if MAC and not os.environ.get("HEIMDALL_BUILD_SH"):
         die("on macOS, build through recipes/platforms/mac/build.sh (Homebrew's packages, GNU tools first): "
             f"bash recipes/platforms/mac/build.sh {' '.join(sys.argv[1:])}".rstrip())
     notes = []
@@ -1587,7 +1587,7 @@ def show_toolkits(packages: dict, s: dict) -> None:
 
 
 def packages_sh() -> str:
-    """env/packages.sh: the install folders of every recipe Heimdall ships, for env/hep_env.sh's paths."""
+    """env/packages.sh: the install folders of every recipe Heimdall ships, for env/heimdall_env.sh's paths."""
     standard = read(STANDARD)["packages"]
     folders = []
     for file in [STANDARD, *sorted(SHIPPED.glob("*.toml"))]:
@@ -1600,10 +1600,10 @@ def packages_sh() -> str:
         if lines[-1] and len(lines[-1]) + len(folder) > 96:
             lines.append("")
         lines[-1] += (" " if lines[-1] else "") + folder
-    return ("# env/packages.sh — the install folders of every recipe Heimdall ships (recipes/toolkits/); env/hep_env.sh\n"
+    return ("# env/packages.sh — the install folders of every recipe Heimdall ships (recipes/toolkits/); env/heimdall_env.sh\n"
             "# puts those that are there on the paths. Generated by `make registry`; tests/runner/test_stack_build.py\n"
             "# checks it is current.\n"
-            '_HEP_PACKAGES="' + "\n  ".join(lines) + '"\n')
+            '_HEIMDALL_PACKAGES="' + "\n  ".join(lines) + '"\n')
 
 
 def machine_text(c: dict) -> str:
@@ -1641,7 +1641,7 @@ def main(argv: list[str]) -> None:
         check_urls(order, packages, c)
         return
     if mode == "verify":                                           # in the environment the user works in
-        if not os.environ.get("HEP_ENV_LOADED"):
+        if not os.environ.get("HEIMDALL_ENV_LOADED"):
             say("Heimdall's environment is not loaded here: the checks see only what this shell has")
         rows = doctor_rows(packages, c, dict(os.environ), quick=bool(s.get("_quick")))
         for row in rows:

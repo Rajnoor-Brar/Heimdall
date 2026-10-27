@@ -32,7 +32,7 @@ int main() {
     {
         int fds[2];
         CHECK(pipe(fds) == 0);
-        setenv("HEP_STATUS_FD", std::to_string(fds[1]).c_str(), 1);
+        setenv("HEIMDALL_STATUS_FD", std::to_string(fds[1]).c_str(), 1);
         {
             Status::Reporter status(0);
             CHECK(status.structured());
@@ -60,7 +60,7 @@ int main() {
     {
         int fds[2];
         CHECK(pipe(fds) == 0);
-        setenv("HEP_STATUS_FD", std::to_string(fds[1]).c_str(), 1);
+        setenv("HEIMDALL_STATUS_FD", std::to_string(fds[1]).c_str(), 1);
         Status::Reporter status(0);
         for (int i = 0; i < 20000; ++i) status.log("info", std::string(200, 'x'));  // ~4 MB into a 64 kB pipe
         CHECK(status.dropped() > 0);
@@ -72,7 +72,7 @@ int main() {
     {
         int fds[2];
         CHECK(pipe(fds) == 0);
-        setenv("HEP_STATUS_FD", std::to_string(fds[1]).c_str(), 1);
+        setenv("HEIMDALL_STATUS_FD", std::to_string(fds[1]).c_str(), 1);
         {
             Status::Reporter status(50);
             usleep(300000);
@@ -84,7 +84,7 @@ int main() {
 
     // ── no descriptor: plain lines on stderr ──
     {
-        unsetenv("HEP_STATUS_FD");
+        unsetenv("HEIMDALL_STATUS_FD");
         int fds[2];
         CHECK(pipe(fds) == 0);
         const int saved = dup(2);

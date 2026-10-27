@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * HEP Contrast — theme build script
+ * Heimdall Contrast — theme build script
  *
  * Reads palette.yaml, where every entry is [light_value, dark_value].
  * Emits:
- *   themes/hep-contrast-light.json
- *   themes/hep-contrast-dark.json
+ *   themes/heimdall-contrast-light.json
+ *   themes/heimdall-contrast-dark.json
  *
  * Usage:  node build.js
  */
@@ -72,7 +72,7 @@ function flatten(raw, idx) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function buildTheme(C, type) {
   return {
-    name: type === "light" ? "HEP Contrast" : "HEP Contrast Dark",
+    name: type === "light" ? "Heimdall Contrast" : "Heimdall Contrast Dark",
     type,
 
     colors: {
@@ -636,8 +636,8 @@ const outDir = path.join(__dirname, "themes");
 fs.mkdirSync(outDir, { recursive: true });
 
 for (const [C, label, file] of [
-  [light, "light", "hep-contrast-light.json"],
-  [dark,  "dark",  "hep-contrast-dark.json" ],
+  [light, "light", "heimdall-contrast-light.json"],
+  [dark,  "dark",  "heimdall-contrast-dark.json" ],
 ]) {
   const outPath = path.join(outDir, file);
   fs.writeFileSync(outPath, JSON.stringify(buildTheme(C, label), null, 2));

@@ -24,7 +24,7 @@ RULES = [{"match": r"\bWarning\b", "emit": "warn"}, {"match": r"\bERROR\b", "emi
 
 @pytest.fixture
 def trees(scratch, monkeypatch):
-    for var, name in (("HEP_RECORDS", "records"), ("HEP_CACHE", "cache"), ("HEP_RESULTS", "results")):
+    for var, name in (("HEIMDALL_RECORDS", "records"), ("HEIMDALL_CACHE", "cache"), ("HEIMDALL_RESULTS", "results")):
         monkeypatch.setenv(var, str(scratch / name))
     return scratch
 
@@ -115,7 +115,7 @@ def test_a_stopped_point_says_so(trees):
 
 
 def test_a_point_that_went_well_keeps_what_its_tools_reported(trees):
-    p, plan, tag = fake('printf \'{"k":"summary","written":10}\\n{"k":"xsec","value_pb":1.5,"err_pb":0.1}\\n\' >&"$HEP_STATUS_FD";'
+    p, plan, tag = fake('printf \'{"k":"summary","written":10}\\n{"k":"xsec","value_pb":1.5,"err_pb":0.1}\\n\' >&"$HEIMDALL_STATUS_FD";'
                         ' echo "Warning: careful"; echo "Warning: careful"', standard=True)
     result, events = run(p, plan)
     assert result.ok

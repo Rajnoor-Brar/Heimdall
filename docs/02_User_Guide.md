@@ -18,7 +18,7 @@ stack, one per machine; and your **work dirs**, where studies live.
 git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
 python3 recipes/build_stack.py packages=@primary     # a conda base, then the stack from source (hours)
 source gjallarhorn.sh                                      # the environment, in bash (any shell: ~/Github/Heimdall/launch.sh)
-heimdall build --framework                                # Heimdall's apps, into the machine root's apps/ ($HEP_APPS)
+heimdall build --framework                                # Heimdall's apps, into the machine root's apps/ ($HEIMDALL_APPS)
 ```
 
 The stack's recipes, its toolkits (one file each in `recipes/toolkits/`: `@primary` is the lab set plus
@@ -33,7 +33,7 @@ Homebrew) and a venv, as before. Packages for your own analyses go into it with 
 scipy pandas` (from conda-forge), `bifrost -python <pkg>` (from PyPI), `bifrost --drop <pkg>`; `bifrost`
 alone shows the base, what you added and whether `gjallarhorn` is in your shell.
 
-`source gjallarhorn.sh` sets `HEP` to Heimdall's folder, puts the stack and `heimdall` on `PATH`, activates the
+`source gjallarhorn.sh` sets `HEIMDALL` to Heimdall's folder, puts the stack and `heimdall` on `PATH`, activates the
 base (its compilers and Python; or the venv) and adds this machine's lines (the machine root's
 `machine.sh`). The stack's build writes the shell function **`gjallarhorn`** into your `~/.bashrc` (and
 `~/.zshrc`), in a marked block: in a new terminal, `gjallarhorn` loads the environment, and
@@ -58,21 +58,21 @@ environment: `PATH`, the base (or the venv) and `machine.sh`'s lines as they wer
 reloads the environment in the same shell, from scratch: `quit`, then the same stack again (an
 isolated toolkit's included). `heimdall_status` lists the stack's packages (`heimdall status --stack`) and
 `heimdall_help` the rest; `quit`, `heimdall_cd` and `heimdall_refresh` are the old names. Sourcing another stack's
-`gjallarhorn.sh` takes the loaded one out first. Use it after a stack's rebuild, an edit of `env/hep_env.sh` or of the machine
+`gjallarhorn.sh` takes the loaded one out first. Use it after a stack's rebuild, an edit of `env/heimdall_env.sh` or of the machine
 root's `machine.sh`, or a `git pull` of Heimdall. It is the shell function `heimdall` that `gjallarhorn.sh` defines
 (also `heimdall_refresh`), since a program cannot change its shell's variables.
 
 ### 1.2 A work dir
 
 ```bash
-heimdall setup ~/Github/My-Study --project Jets --git     # the folders, hep.toml, a starter, one commit
+heimdall setup ~/Github/My-Study --project Jets --git     # the folders, heimdall.toml, a starter, one commit
 cd ~/Github/My-Study
 heimdall build                                            # its module programs and Rivet plugins
 heimdall run Jets/jets                                    # the starter: Pythia → MC_JETS, two PDFs
 ```
 
 `heimdall setup <dir>` makes the folders every work dir has (`configs/ modules/ datasets/ results/
-records/ reports/ build/`), its `hep.toml` (the marker: `[work] name`, and `[framework] expects`, the
+records/ reports/ build/`), its `heimdall.toml` (the marker: `[work] name`, and `[framework] expects`, the
 Heimdall revision it was made by), a `Makefile`, `.gitignore`, `README.md`, `CLAUDE.md` and editor
 settings, then says the next commands. It never overwrites: run it again in a work dir (after a fresh
 clone, say) and it adds only what is missing. `--project P` adds `configs/P/p.toml` and `p.cmnd`, a
@@ -110,8 +110,8 @@ sha256 = "9f2c…"                 # sha256sum's: the file must be this one
 `Makefile`, Heimdall's `README.md` or `HEIMDALL.md`, `CLAUDE.md`, `.vscode/`, the `.gitignore` block)
 up to today's template, showing each diff first; your files are never touched.
 
-Every `heimdall` command finds its work dir by walking up from the working directory to a `hep.toml`
-with a `[work]` table; `$HEP_WORK` names one instead. Outside a work dir, `heimdall run` says so. A work
+Every `heimdall` command finds its work dir by walking up from the working directory to a `heimdall.toml`
+with a `[work]` table; `$HEIMDALL_WORK` names one instead. Outside a work dir, `heimdall run` says so. A work
 dir made by a newer Heimdall than the one running (its `expects` is not in Heimdall's history) is
 warned about, once per command.
 
@@ -123,7 +123,7 @@ program and library for libraries that no longer resolve (after an OS upgrade, s
 Heimdall's own: one row each, ok / MISSING / FAIL / n/a, exit 1 on a FAIL. `--quick` skips the
 slow runs; `--record` adds this machine to the support matrix (`heimdall doctor --matrix`).
 
-`heimdall build` compiles the work dir's sources (`make all`, by `$HEP/framework/work.mk`); `heimdall build
+`heimdall build` compiles the work dir's sources (`make all`, by `$HEIMDALL/framework/work.mk`); `heimdall build
 --framework` compiles Heimdall's own (its `Makefile`). Both take:
 - `--tests` (with `--framework`) also builds the C++ tests;
 - `--configure` probes the toolchain again (after installing a library);
@@ -137,8 +137,8 @@ make --framework …` in Heimdall); the output lands where the convention says:
 |---|---|---|
 | `modules/<P>/<X>.cc` | `make modules/<P>/<X>.exe` | `build/<P>/<X>.exe` |
 | `modules/<P>/Rivet/<x>.cc`, `modules/<P>/Rivet_<x>.cc` | `make modules/<P>/Rivet/<x>.so` | `build/Rivet/Rivet_<x>.so` + its `.info`, `.plot`, `.yoda` |
-| Heimdall's `src/App_<X>.cc` | `heimdall make --framework src/App_<X>.exe` | `$HEP_APPS/App_<X>.exe` |
-| Heimdall's `src/Apps/<X>/main.cc` | `heimdall make --framework src/Apps/<X>.exe` | `$HEP_APPS/<X>.exe` |
+| Heimdall's `src/App_<X>.cc` | `heimdall make --framework src/App_<X>.exe` | `$HEIMDALL_APPS/App_<X>.exe` |
+| Heimdall's `src/Apps/<X>/main.cc` | `heimdall make --framework src/Apps/<X>.exe` | `$HEIMDALL_APPS/<X>.exe` |
 
 A source says what it links in one line near the top: `// requires: pythia8 hepmc3 fastjet`. The
 names it may use are those of `env/stack.toml` (`pythia8 hepmc3 yoda root fastjet lhapdf rivet
@@ -643,7 +643,7 @@ executable = "InprocJets.exe"
 output     = "jets.yoda"
 ```
 
-**What it gets:** the point's context file (`$HEP_CONTEXT`, 04 §9.4) lists every tool's card and
+**What it gets:** the point's context file (`$HEIMDALL_CONTEXT`, 04 §9.4) lists every tool's card and
 config; the program reads `job.card("pythia")`, the same card, seeds included, that App_Pythia would
 have got, so `inproc` and `single` give the same events, and `job.tool("rivet")` for the analyses.
 
@@ -705,15 +705,15 @@ window = [1.09, 1.14]
 - **Its config:** the file `records/…/logs/<point>/config/fit.toml` is the first argument. A quantity
   with `to = { fit = "window" }` varies a key of it.
 - **Its products:** write them to `{partial:output}`; the runner renames them after the checks.
-- **The other tools:** their cards and configs are in the point's context file, `$HEP_CONTEXT`
+- **The other tools:** their cards and configs are in the point's context file, `$HEIMDALL_CONTEXT`
   (04 §9.4); a tool that is not in the chain goes in `generate_cards`.
 - **A tool of your own:** `heimdall tools new fit --from exec` makes `tools/fit/` in the work dir, a folder
   you can give options, a card or a status of its own, used as `[tools.fit]` (06 §16). A program you
   installed (`bifrost <package>`) is named by `--runs <command> --package <package>` (05 §9); the machine
   root's `tools/` holds folders every work dir sees.
 - **Its status:** set `filters = "my_rules.toml"` for a progress bar from your prints
-  ([06 §23](06_Internals.md#23-filterstoml)), or speak the status protocol with `framework/hepkit.py`
-  ([06 §22](06_Internals.md#22-statushh-and-the-status-protocol)). `hepkit` also gives the exit
+  ([06 §23](06_Internals.md#23-filterstoml)), or speak the status protocol with `framework/heimdallkit.py`
+  ([06 §22](06_Internals.md#22-statushh-and-the-status-protocol)). `heimdallkit` also gives the exit
   codes and the report a module writes.
 
 ---
@@ -838,11 +838,11 @@ points = [{ tag = "1001", value = 1001 }, { tag = "2001", value = 2001 }, { tag 
 Each job is an ordinary `heimdall run`, so it skips a complete point, writes where a run writes, and gives
 the same events as the same point run here. Run it on the cluster's login node, with Heimdall and
 the work dir on a filesystem the nodes see. The machine's settings go in the machine root's
-`machine.toml` (every work dir there) or the work dir's `hep.toml` (this one, which wins), the
+`machine.toml` (every work dir there) or the work dir's `heimdall.toml` (this one, which wins), the
 study's in the run TOML:
 
 ```toml
-[cluster]                     # machine.toml (or hep.toml): this machine's defaults
+[cluster]                     # machine.toml (or heimdall.toml): this machine's defaults
 account   = "my-group"
 partition = "standard"
 setup     = ["module load gcc/13"]
@@ -993,7 +993,7 @@ Common refusals, and what they mean:
 | `'…' is TLatex; labels are LaTeX` | write the LaTeX the hint gives, or `heimdall migrate` the file (§10) |
 | `[plot.overlay] is a figure now` | `[plot.figures.<name>] class = "overlay"`, or `heimdall migrate` |
 | `base config not found` | the card is not under `configs/<P>/` (write `./path` for elsewhere) |
-| `$HEP_APPS/App_Pythia.exe is not built` | `heimdall build --framework` |
+| `$HEIMDALL_APPS/App_Pythia.exe is not built` | `heimdall build --framework` |
 | `not inside a work dir` | `cd` into one, or `heimdall setup <dir>` (§1.2) |
 | `unknown section [schema]` | a v1 (hekit) run TOML: the schema is 04; `git show HEAD:<file>` has the current one |
 | `'event_count' is the v2 form: this file is v3, where it is events` | a v2 name in a v3 file: write the v3 name, or `heimdall migrate --v3` (04 §17) |
@@ -1038,7 +1038,7 @@ Each command is in [05 §1](05_Commands_and_Tools.md#1-commands).
 
 ```python
 from runner import results                  # Heimdall's venv has framework/ on its path; elsewhere,
-                                            # sys.path.insert(0, os.environ["HEP"] + "/framework")
+                                            # sys.path.insert(0, os.environ["HEIMDALL"] + "/framework")
 
 for point in results.load("Demo/jets", "energy_pdf"):
     print(point.name, point.values["pdf"].label, point.complete, point.yoda())

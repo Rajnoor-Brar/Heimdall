@@ -73,7 +73,7 @@ probe = "{venv}/bin/python"
 pre   = ["{python} -m venv --prompt {venv_prompt} {venv}",
          "{venv}/bin/python -m pip install --timeout 60 --retries 10 --upgrade pip",
          "{venv}/bin/python -m pip install --timeout 60 --retries 10 {python_packages}",
-         "{venv}/bin/python {repo}/recipes/pth.py {repo}"]       # heimdall.pth: $HEP/framework on the venv's path
+         "{venv}/bin/python {repo}/recipes/pth.py {repo}"]       # heimdall.pth: $HEIMDALL/framework on the venv's path
 
 [packages.lhapdf]
 release = "6.5.6"

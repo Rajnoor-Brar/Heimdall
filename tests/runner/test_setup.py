@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 
 from runner import paths, setup
-from runner.errors import HepError
-from support import HEP, REPO, WORK, apps
+from runner.errors import HeimdallError
+from support import HEIMDALL, REPO, WORK, apps
 
 PLACEHOLDERS = {"name", "revision", "date", "P", "p"}
 
@@ -44,13 +44,13 @@ def test_a_new_folder_gets_the_template_and_the_key_folders(scratch, quiet):
     out, lines = quiet
     target = scratch / "Top-Quark"
     added = setup.setup(target, out=out)
-    for name in ("hep.toml", "Makefile", ".gitignore", "README.md", "CLAUDE.md", ".vscode/settings.json"):
+    for name in ("heimdall.toml", "Makefile", ".gitignore", "README.md", "CLAUDE.md", ".vscode/settings.json"):
         assert name in added and (target / name).is_file()
     for folder in setup.FOLDERS:
         assert (target / folder).is_dir() and f"{folder}/" in added
     assert lines == [f"added {a}" for a in added] + ["recognised as Top-Quark (recorded): gjallarhorn Top-Quark goes here"]
     assert not (target / "configs" / "Starter").exists()            # no starter without --project
-    marker = tomllib.loads((target / "hep.toml").read_text(encoding="utf-8"))
+    marker = tomllib.loads((target / "heimdall.toml").read_text(encoding="utf-8"))
     assert marker["work"]["name"] == "Top-Quark" and marker["framework"]["expects"] == setup.revision()
     assert paths.is_work(target) and "{{" not in (target / "README.md").read_text(encoding="utf-8")
 
@@ -68,8 +68,8 @@ def test_a_project_gets_the_starter(scratch, quiet):
 def test_the_starter_passes_hep_check(scratch, quiet):
     target = scratch / "w"
     setup.setup(target, project="Starter", out=quiet[0])
-    done = subprocess.run([str(HEP), "check", "Starter/starter"], cwd=target, capture_output=True, text=True,
-                          env={**os.environ, "HEP_WORK": str(target)}, encoding="utf-8")
+    done = subprocess.run([str(HEIMDALL), "check", "Starter/starter"], cwd=target, capture_output=True, text=True,
+                          env={**os.environ, "HEIMDALL_WORK": str(target)}, encoding="utf-8")
     assert done.returncode == 0, done.stdout + done.stderr
     assert "ok    Starter/starter: 2 configuration(s), 3 point(s)" in done.stdout
 
@@ -89,7 +89,7 @@ def test_a_folder_with_files_is_adopted_only_when_asked(scratch, quiet):
     target = scratch / "old"
     target.mkdir()
     (target / ".gitignore").write_text("build/\n", encoding="utf-8")
-    with pytest.raises(HepError, match="is not empty and not a work dir") as caught:
+    with pytest.raises(HeimdallError, match="is not empty and not a work dir") as caught:
         setup.setup(target, out=out)
     assert "--adopt" in caught.value.hint
     setup.setup(target, adopt=True, out=out)
@@ -100,13 +100,13 @@ def test_a_folder_with_files_is_adopted_only_when_asked(scratch, quiet):
 
 @pytest.mark.parametrize("project", ["", "a/b", "_parked", ".hidden"])
 def test_a_project_must_be_a_folder_name(scratch, quiet, project):
-    with pytest.raises(HepError, match="is not a project name"):
+    with pytest.raises(HeimdallError, match="is not a project name"):
         setup.setup(scratch / "w", project=project, out=quiet[0])
 
 
 def test_a_file_is_not_a_work_dir(scratch, quiet):
     (scratch / "f").write_text("", encoding="utf-8")
-    with pytest.raises(HepError, match="is a file"):
+    with pytest.raises(HeimdallError, match="is a file"):
         setup.setup(scratch / "f", out=quiet[0])
 
 
@@ -117,7 +117,7 @@ def test_git_commits_what_was_added_once(scratch, quiet, git_identity):
     log = subprocess.run(["git", "log", "--format=%s"], cwd=target, capture_output=True, text=True, encoding="utf-8").stdout.splitlines()
     assert len(log) == 1 and log[0].startswith("heimdall setup: the work dir w (Heimdall ")
     tracked = subprocess.run(["git", "ls-files"], cwd=target, capture_output=True, text=True, encoding="utf-8").stdout.split()
-    assert "hep.toml" in tracked and "configs/Starter/starter.toml" in tracked
+    assert "heimdall.toml" in tracked and "configs/Starter/starter.toml" in tracked
 
 
 # ── heimdall where ───────────────────────────────────────────────────────────────────────────────────
@@ -125,12 +125,12 @@ def test_git_commits_what_was_added_once(scratch, quiet, git_identity):
 def test_where_names_heimdall_and_the_work_dir(quiet):
     out, lines = quiet
     assert setup.where(out=out, err=lambda line: None) == 0
-    assert lines[0].startswith(f"hep={REPO} ") and lines[1] == f"work={WORK}"
+    assert lines[0].startswith(f"heimdall={REPO} ") and lines[1] == f"work={WORK}"
 
 
 def test_where_work_outside_a_work_dir_is_exit_2(monkeypatch, scratch, quiet):
     errors: list[str] = []
-    monkeypatch.delenv("HEP_WORK")
+    monkeypatch.delenv("HEIMDALL_WORK")
     monkeypatch.chdir(scratch)
     paths.reset()
     try:
@@ -142,14 +142,14 @@ def test_where_work_outside_a_work_dir_is_exit_2(monkeypatch, scratch, quiet):
 
 def test_where_hep_is_one_line(quiet):
     out, lines = quiet
-    assert setup.where("hep", out=out) == 0 and lines == [str(REPO)]
+    assert setup.where("heimdall", out=out) == 0 and lines == [str(REPO)]
 
 
 # ── [framework] expects ─────────────────────────────────────────────────────────────────────────
 
 def expecting(folder: Path, revision: str) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "hep.toml").write_text(f'[work]\n[framework]\nexpects = "{revision}"\n', encoding="utf-8")
+    (folder / "heimdall.toml").write_text(f'[work]\n[framework]\nexpects = "{revision}"\n', encoding="utf-8")
     return folder
 
 
@@ -175,35 +175,35 @@ def shell(script: str) -> subprocess.CompletedProcess:
     return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True, timeout=120, encoding="utf-8")
 
 
-@pytest.mark.skipif(not Path(os.environ.get("HEP_VENV", "/nowhere"), "bin", "activate").exists(),
+@pytest.mark.skipif(not Path(os.environ.get("HEIMDALL_VENV", "/nowhere"), "bin", "activate").exists(),
                     reason="no venv in the machine root: build the stack")
 def test_heimdall_refresh_reloads_the_shell_in_place():
     out = shell(f"""set -e
         source {REPO}/gjallarhorn.sh >/dev/null
-        before=$_HEP_ADDED
+        before=$_HEIMDALL_ADDED
         export PATH=/nowhere:$PATH                       # the user's own, not the environment's: kept
         heimdall refresh >/dev/null
         type -t heimdall
-        echo "$HEP_ENV_LOADED"
-        [ "$_HEP_ADDED" = "$before" ] && echo same-additions
+        echo "$HEIMDALL_ENV_LOADED"
+        [ "$_HEIMDALL_ADDED" = "$before" ] && echo same-additions
         tr ':' '\\n' <<< "$PATH" | grep -c '^{REPO}/framework/bin$'
         tr ':' '\\n' <<< "$PATH" | grep -c '^/nowhere$'
-        heimdall where --hep""")
+        heimdall where --heimdall""")
     assert out.returncode == 0, out.stderr
-    assert out.stdout.split("\n")[:5] == ["function", os.environ["HEP_INSTALL"], "same-additions", "1", "1"]
+    assert out.stdout.split("\n")[:5] == ["function", os.environ["HEIMDALL_INSTALL"], "same-additions", "1", "1"]
     assert str(REPO) in out.stdout.split("\n")[5]
 
 
 @pytest.mark.parametrize("verb", ["refresh", "quit", "cd"])
 def test_the_shell_verbs_without_the_shell_function_say_to_source_setup(verb):
-    out = shell(f"{HEP} {verb}")
+    out = shell(f"{HEIMDALL} {verb}")
     assert out.returncode == 2
     assert "gjallarhorn.sh's shell function" in out.stderr and f"source {REPO}/gjallarhorn.sh" in out.stderr
 
 
 # ── the shell (docs/audit_3/06_Plan.md, phase 3.3) ──────────────────────────────────────────────
 
-NEEDS_VENV = pytest.mark.skipif(not Path(os.environ.get("HEP_VENV", "/nowhere"), "bin", "activate").exists(),
+NEEDS_VENV = pytest.mark.skipif(not Path(os.environ.get("HEIMDALL_VENV", "/nowhere"), "bin", "activate").exists(),
                                 reason="no venv in the machine root: build the stack")
 
 
@@ -213,9 +213,9 @@ def a_machine(root: Path, machine_sh: str = "") -> Path:
     for base in (root, root / "stacks" / "kit"):
         for sub in ("root/bin", "root/lib"):
             (base / "stack" / sub).mkdir(parents=True)
-        (base / "venv").symlink_to(os.environ["HEP_VENV"], target_is_directory=True)
+        (base / "venv").symlink_to(os.environ["HEIMDALL_VENV"], target_is_directory=True)
     (root / "stacks" / "kit" / "gjallarhorn.sh").write_text(
-        f'export HEP_MACHINE="{root}" HEP_STACK_REQUEST=kit\nsource "{REPO}/gjallarhorn.sh"\n', encoding="utf-8")
+        f'export HEIMDALL_MACHINE="{root}" HEIMDALL_STACK_REQUEST=kit\nsource "{REPO}/gjallarhorn.sh"\n', encoding="utf-8")
     if machine_sh:
         (root / "machine.sh").write_text(machine_sh, encoding="utf-8")
     return root
@@ -228,31 +228,31 @@ def test_a_shell_that_is_not_bash_is_turned_away_untouched(other):
     out = subprocess.run([other, "-c", f". {REPO}/gjallarhorn.sh; echo rc=$?; env"], capture_output=True, text=True,
                          env={"HOME": os.environ["HOME"], "PATH": "/usr/bin:/bin"}, timeout=60, encoding="utf-8")
     assert out.stderr.count("\n") == 1 and "launch.sh" in out.stderr
-    assert "rc=1" in out.stdout and not re.search(r"^(HEP|VIRTUAL_ENV|LD_LIBRARY_PATH)\w*=", out.stdout, re.M)
+    assert "rc=1" in out.stdout and not re.search(r"^(HEIMDALL|VIRTUAL_ENV|LD_LIBRARY_PATH)\w*=", out.stdout, re.M)
     assert re.search(r"^PATH=/usr/bin:/bin$", out.stdout, re.M)
 
 
 @NEEDS_VENV
 def test_heimdall_runs_without_the_environment_or_home():
     """bin/heimdall runs the machine's venv Python by path: cron, scripts and Slurm need no `source gjallarhorn.sh`."""
-    out = subprocess.run([str(HEP), "where"], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin"},
+    out = subprocess.run([str(HEIMDALL), "where"], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin"},
                          timeout=60, cwd="/", encoding="utf-8")
     assert out.returncode == 0, out.stderr
-    assert out.stdout.startswith(f"hep={REPO}") and "\nmachine=" in out.stdout
+    assert out.stdout.startswith(f"heimdall={REPO}") and "\nmachine=" in out.stdout
 
 
 @NEEDS_VENV
 def test_switching_to_an_isolated_stack_takes_the_other_out_and_refresh_keeps_it(scratch):
     root = a_machine(scratch / "machine")
     out = shell(f"""set -e
-        export HEP_MACHINE={root}
+        export HEIMDALL_MACHINE={root}
         source {REPO}/gjallarhorn.sh >/dev/null
-        echo "$HEP_ENV_LOADED"
+        echo "$HEIMDALL_ENV_LOADED"
         source {root}/stacks/kit/gjallarhorn.sh >/dev/null       # no quit first
-        echo "$HEP_STACK $HEP_ENV_LOADED"
+        echo "$HEIMDALL_STACK $HEIMDALL_ENV_LOADED"
         tr ':' '\n' <<< "$PATH" | grep -c '^{root}/stack/root/bin$' || true
         heimdall refresh >/dev/null
-        echo "$HEP_STACK $HEP_INSTALL"
+        echo "$HEIMDALL_STACK $HEIMDALL_INSTALL"
         tr ':' '\n' <<< "$PATH" | grep -c '^{root}/stacks/kit/stack/root/bin$'
         heimdall where | tail -n 1""")
     assert out.returncode == 0, out.stderr
@@ -268,10 +268,10 @@ def test_quit_undoes_machine_sh_and_refresh_never_piles_it_up(scratch):
     root = a_machine(scratch / "machine", "export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH\n"
                                            "PATH=/opt/gnubin:$PATH; export PATH\n"
                                            "export FOO=machine KEPT=changed\nunset GONE\n")
-    # (PS1 is the venv's: its deactivate leaves "(HEP) " when the prompt was empty, as only a script's is)
-    keep = "grep -v -e '^_=' -e '^HEP=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD=' -e '^PS1=' | sort"
+    # (PS1 is the venv's: its deactivate leaves "(HEIMDALL) " when the prompt was empty, as only a script's is)
+    keep = "grep -v -e '^_=' -e '^HEIMDALL=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD=' -e '^PS1=' | sort"
     out = shell(f"""set -e
-        export HEP_MACHINE={root} PATH=/opt/gnubin:/usr/bin:/bin KEPT=orig GONE=here
+        export HEIMDALL_MACHINE={root} PATH=/opt/gnubin:/usr/bin:/bin KEPT=orig GONE=here
         before=$(env | {keep})
         source {REPO}/gjallarhorn.sh >/dev/null
         echo "$FOO $KEPT ${{GONE-gone}}"
@@ -294,7 +294,7 @@ def a_base_machine(root: Path) -> Path:
     bs = plugins.load(REPO / "recipes" / "build_stack.py", "build_stack")
     env = root / "base" / ".pixi" / "envs" / "default"
     (env / "bin").mkdir(parents=True)
-    venv = Path(os.environ["HEP_VENV"])
+    venv = Path(os.environ["HEIMDALL_VENV"])
     (env / "pyvenv.cfg").write_text((venv / "pyvenv.cfg").read_text(encoding="utf-8"), encoding="utf-8")
     (env / "bin" / "python").symlink_to(venv / "bin" / "python")
     (env / "lib").symlink_to(venv / "lib", target_is_directory=True)
@@ -314,12 +314,12 @@ def test_a_conda_base_is_loaded_kept_off_ld_library_path_and_quit_takes_it_out(s
     the Python environment, its lib/ never joins LD_LIBRARY_PATH, and quit leaves the shell as it was."""
     root = a_base_machine(scratch / "machine")
     env = root / "base" / ".pixi" / "envs" / "default"
-    keep = "grep -v -e '^_=' -e '^HEP=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD=' -e '^PS1=' | sort"
+    keep = "grep -v -e '^_=' -e '^HEIMDALL=' -e '^SHLVL=' -e '^PWD=' -e '^OLDPWD=' -e '^PS1=' | sort"
     out = shell(f"""set -e
-        export HEP_MACHINE={root} CXXFLAGS=-O1
+        export HEIMDALL_MACHINE={root} CXXFLAGS=-O1
         before=$(env | {keep})
         source {REPO}/gjallarhorn.sh >/dev/null
-        echo "$HEP_BASE|$HEP_VENV|$CONDA_PREFIX|$CXX|${{CXXFLAGS-unset}}|$CMAKE_ARGS"
+        echo "$HEIMDALL_BASE|$HEIMDALL_VENV|$CONDA_PREFIX|$CXX|${{CXXFLAGS-unset}}|$CMAKE_ARGS"
         tr ':' '\n' <<< "$PATH" | grep -c '^{env}/bin$'
         tr ':' '\n' <<< "${{LD_LIBRARY_PATH-}}" | grep -c '^{env}' || true
         tr ':' '\n' <<< "$LD_LIBRARY_PATH" | grep -c '^{root}/stack/root/lib$'
@@ -336,7 +336,7 @@ def test_a_conda_base_is_loaded_kept_off_ld_library_path_and_quit_takes_it_out(s
 def test_heimdall_cd_goes_to_a_project_folder_of_the_work_dir():
     out = shell(f"""set -e
         source {REPO}/gjallarhorn.sh >/dev/null
-        export HEP_WORK={WORK}
+        export HEIMDALL_WORK={WORK}
         heimdall cd Demo
         pwd
         heimdall cd Demo modules >/dev/null 2>&1 || echo no-modules""")

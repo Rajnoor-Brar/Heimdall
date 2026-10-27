@@ -56,7 +56,7 @@ macOS; no recipe is copied. **The conda base on a Mac is not yet proven by a bui
 From Heimdall's folder:
 
 ```bash
-bash recipes/platforms/mac/build.sh --dry-run > ~/hep-build.sh     # look first: the whole build as bash; nothing installed
+bash recipes/platforms/mac/build.sh --dry-run > ~/heimdall-build.sh     # look first: the whole build as bash; nothing installed
 caffeinate -i bash recipes/platforms/mac/build.sh                  # pixi and the base, then the core stack into ~/Himinbjorg
 caffeinate -i bash recipes/platforms/mac/build.sh packages=all     # and Sherpa, MadGraph, Whizard, ONNX Runtime, Geant4
 bash recipes/platforms/mac/build.sh packages=@core-conda           # or the core ready-made from conda-forge: minutes
@@ -84,7 +84,7 @@ lines go to the machine root's `machine.sh`, which `gjallarhorn.sh` sources.
 ~/Github/Heimdall/launch.sh root -l            # one command in that environment
 ```
 
-The environment (`env/hep_env.sh`) is bash, and macOS's login shell is zsh, with a bash 3.2:
+The environment (`env/heimdall_env.sh`) is bash, and macOS's login shell is zsh, with a bash 3.2:
 `launch.sh` runs the base's bash 5 (or Homebrew's, with `base=system`) with your `~/.bashrc` and
 `gjallarhorn.sh`. Inside a bash already,
 `source ~/Github/Heimdall/gjallarhorn.sh` does the same; zsh sourcing it is turned away. The build writes
@@ -94,7 +94,7 @@ environment, and `gjallarhorn <title>` opens it in that work dir (`bifrost --she
 Then, in the launched shell, the framework against the new stack:
 
 ```bash
-heimdall build --framework && make -C "$HEP" test
+heimdall build --framework && make -C "$HEIMDALL" test
 ```
 
 ---

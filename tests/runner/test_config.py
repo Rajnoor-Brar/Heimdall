@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from helpers import parse, plan, raw
 
 
 def fails(data, scratch, match):
-    with pytest.raises(HepError, match=match) as caught:
+    with pytest.raises(HeimdallError, match=match) as caught:
         parse(data, scratch)
     assert caught.value.where
     return caught.value
@@ -44,13 +44,13 @@ def test_configurations_are_run_cfgs_and_run_holds_only_its_own_keys(scratch):
     """V98: [run.<cfg>] is refused with the form to write; a misspelt [run] table is no configuration; a
     configuration may be named like a [run] key, and a [run] key that is a table is a type error."""
     data = raw(); data["run"]["pdf"] = data["run"]["cfgs"].pop("one"); data["run"]["configuration"] = "pdf"
-    with pytest.raises(HepError, match=r"\[run.pdf\] is a configuration, and configurations are \[run.cfgs.<cfg>\] now") as error:
+    with pytest.raises(HeimdallError, match=r"\[run.pdf\] is a configuration, and configurations are \[run.cfgs.<cfg>\] now") as error:
         parse(data, scratch)
     assert "[run.cfgs.pdf]" in error.value.hint and "heimdall migrate" in error.value.hint
-    with pytest.raises(HepError, match=r"\[run.defualts\] is a configuration") as error:
+    with pytest.raises(HeimdallError, match=r"\[run.defualts\] is a configuration") as error:
         parse(raw(run__defualts={"event_count": 5}), scratch)
     assert "[run.cfgs.defualts]" in error.value.hint
-    with pytest.raises(HepError, match="'threads' must be an integer"):
+    with pytest.raises(HeimdallError, match="'threads' must be an integer"):
         parse(raw(run__threads={"tools": [["pythia", "rivet"]]}), scratch)
     run = parse(raw(run__configuration="threads", run__cfgs__threads={"tools": [["pythia", "rivet"]]}), scratch)
     assert "threads" in run.configurations
@@ -58,7 +58,7 @@ def test_configurations_are_run_cfgs_and_run_holds_only_its_own_keys(scratch):
 
 def test_c2_a_named_configuration_must_exist(scratch):
     run = parse(raw(), scratch)
-    with pytest.raises(HepError, match="no configuration 'on'") as caught:
+    with pytest.raises(HeimdallError, match="no configuration 'on'") as caught:
         run.configuration("on")
     assert "one" in caught.value.hint
 
@@ -86,7 +86,7 @@ def test_c5_groups_nest_one_level(scratch):
 
 
 def test_c12_climbing_out_is_refused(scratch):
-    with pytest.raises(HepError, match="climbs out"):
+    with pytest.raises(HeimdallError, match="climbs out"):
         plan(raw(tools__pythia__baseconfig="../ep.cmnd"), scratch)
 
 
@@ -97,7 +97,7 @@ def test_static_values_resolve_by_tag_value_or_index(scratch):
 
 
 def test_a_bad_static_value_names_the_choices(scratch):
-    with pytest.raises(HepError, match="not a value") as caught:
+    with pytest.raises(HeimdallError, match="not a value") as caught:
         plan(raw(static={"pdf": "NNPDF23"}), scratch)
     assert "NNPDF23lo" in caught.value.hint
 
@@ -138,9 +138,9 @@ def test_a_users_quantity_may_state_its_shape(scratch):
     """V76: shape = "pdg" (the vocabulary's grammar) checks a quantity the vocabulary does not name."""
     good = raw(quantities__lepton={"key": {"pythia": "Beams:idB"}, "values": [11, -11], "shape": "pdg"})
     parse(good, scratch)
-    with pytest.raises(HepError, match="value 2 is '-11', not"):
+    with pytest.raises(HeimdallError, match="value 2 is '-11', not"):
         parse(raw(quantities__lepton={"key": {"pythia": "Beams:idB"}, "values": [11, "-11"], "shape": "pdg"}), scratch)
-    with pytest.raises(HepError, match="is not one"):
+    with pytest.raises(HeimdallError, match="is not one"):
         parse(raw(quantities__lepton={"key": {"pythia": "Beams:idB"}, "values": [11], "shape": "integer"}), scratch)
-    with pytest.raises(HepError, match="the vocabulary's is"):
+    with pytest.raises(HeimdallError, match="the vocabulary's is"):
         parse(raw(quantities__energies={"values": [[275, 18]], "shape": "float"}), scratch)

@@ -1,6 +1,0 @@
-# hep.toml — the tests' work dir (docs/framework/01_Target.md §5.7). Frozen: changed only with the test that needs it.
-[work]
-name = "fixture"
-
-[framework]
-expects = ""

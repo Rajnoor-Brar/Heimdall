@@ -24,7 +24,7 @@
 
 ## Layout
 
-Heimdall is the framework: `$HEP` is this folder, what is authored, nothing built (V105, V122; the manual's
+Heimdall is the framework: `$HEIMDALL` is this folder, what is authored, nothing built (V105, V122; the manual's
 [06 §1](docs/06_Internals.md#1-layout-heimdall-and-work-dirs)). The manual's index is
 [docs/README.md](docs/README.md); setting Heimdall up on a fresh machine is [docs/framework/](docs/framework/README.md).
 
@@ -32,16 +32,16 @@ Heimdall is the framework: `$HEP` is this folder, what is authored, nothing buil
 | --- | --- |
 | `gjallarhorn.sh`, `launch.sh` | the environment, bash only (`source <Heimdall>/gjallarhorn.sh [title]`; the shell function `gjallarhorn [title]` the build writes into ~/.bashrc); `launch.sh` is it from any shell |
 | `recipes/` | the stack's recipes: `build_stack.py`, `base.toml` (the conda base), `toolkits/` (`standard.toml`: every recipe; one file per toolkit), `settings.toml`, the machine's templates, `patches/`, `platforms/{mac,container}/` (`container/heimdall.def`: the Apptainer image) |
-| `env/` | `hep_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
-| `framework/` | `bin/` (`heimdall`, `bifrost`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders), `plot/` (the plot backends and figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `hepkit.py` |
+| `env/` | `heimdall_env.sh`, `flags.sh`, `stack.toml`, `stack.py` |
+| `framework/` | `bin/` (`heimdall`, `bifrost`, `run`), `runner/` (the Python package), `tools/<folder>/` (the tool folders), `plot/` (the plot backends and figures), `schema/`, `templates/work/`, `rules.mk`, `work.mk`, `heimdallkit.py` |
 | `src/` | the C++ kits (`Status.hh`, `Kit.hh`, `Module.hh`, `PythiaRun.hh`) and the apps' sources (`App_*.cc`, `Apps/Paint/`) |
 | `docs/` | the manual `00`–`07`, `framework/` (the setup runbook), `conda/` (the base's design), `reporter/` (the retired decks' plan, history), `audit_2/`, `audit_3/`, `audit_4/` |
 | `.plans/` | `ISSUES.md` (pending work, one issue per task); plans, audits and plan execution maps (`restructure_plan.md`, `run_logging_audit.md`, `run_logging_plan.md`, `statistics_a4_plan.md`, `report/`: `heimdall report`'s audit and phases, `heimdall_names.md`: I-109) |
 | `tests/` | `runner/`, `integration/`, `cxx/`, `reference/`, `fixtures/work/` (the frozen work dir the tests use) |
-| `editor/` | the VS Code tooling: `cmnd-syntax/` (Pythia `.cmnd` highlighting), `hep-contrast-theme/`, `hep-icons/`, `icon-bank/` (from High-Energy's `aux/` at 2c4fcad) |
+| `editor/` | the VS Code tooling: `cmnd-syntax/` (Pythia `.cmnd` highlighting), `heimdall-contrast-theme/`, `heimdall-icons/`, `icon-bank/` (from High-Energy's `aux/` at 2c4fcad) |
 
-What this machine built is in the **machine root**, `~/Himinbjorg` (`$HEP_MACHINE`), outside git:
-`base/` (the conda base; `venv/` in an older root), `stack/`, `apps/` (`$HEP_APPS`), `forge/` (`$HEP_FORGE`:
+What this machine built is in the **machine root**, `~/Himinbjorg` (`$HEIMDALL_MACHINE`), outside git:
+`base/` (the conda base; `venv/` in an older root), `stack/`, `apps/` (`$HEIMDALL_APPS`), `forge/` (`$HEIMDALL_FORGE`:
 downloads, sources, builds, logs, the tests' scratch), `stacks/<toolkit>/`, `images/` (Apptainer images),
 `machine.toml`, `machine.sh`, `recipes.toml` (its own recipes), `workdirs.toml` (`heimdall recognise`),
 `runs/` (the run registry, `heimdall runs`), `toolkits/`, `tools/`. `recipes/machine.py adopt`
@@ -72,8 +72,8 @@ Work dirs (configs, modules, results) live elsewhere, one per workspace, made by
 
 ## Testing
 
-- Tests write only `forge/scratch/`, through `HEP_WORK`, `HEP_RECORDS`, `HEP_CACHE`,
-  `HEP_RESULTS`, `HEP_REPORTS`, `HEP_WORKDIRS` and `HEP_RUNS` (tests/conftest.py). Never name a real work dir in a test. Run them with the stack
+- Tests write only `forge/scratch/`, through `HEIMDALL_WORK`, `HEIMDALL_RECORDS`, `HEIMDALL_CACHE`,
+  `HEIMDALL_RESULTS`, `HEIMDALL_REPORTS`, `HEIMDALL_WORKDIRS` and `HEIMDALL_RUNS` (tests/conftest.py). Never name a real work dir in a test. Run them with the stack
   loaded (`source gjallarhorn.sh`): the session builds the fixture work dir's modules first.
 - The fixtures (`tests/fixtures/work/`) change only together with the test that needs the change.
 - The gates compare against `tests/reference/`: the legacy pipeline's cards, base card and YODAs,

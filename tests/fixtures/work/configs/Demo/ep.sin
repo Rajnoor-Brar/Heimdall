@@ -52,7 +52,7 @@ alias parton = q:gl
 # pseudorapidity distribution. What the plan cannot know is the **structure-function chain**, so the
 # card declares its half here and the adapter assembles the line:
 #
-# hep: beam_structure = pdf_builtin, epa
+# heimdall: beam_structure = pdf_builtin, epa
 
 # `Photon:Q2max = 1.0`. `epa_x_min` has no Pythia counterpart and is set low enough not to bite.
 epa_q_max = 1.0 GeV

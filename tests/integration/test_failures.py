@@ -20,7 +20,7 @@ import pytest
 
 import support
 
-from support import apps, hep
+from support import apps, heimdall
 
 pytestmark = [pytest.mark.slow,
               pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="heimdall build --framework")]
@@ -63,7 +63,7 @@ def marker(out: Path) -> Path:
 
 
 def start(config: str, where: Path) -> subprocess.Popen:
-    return hep(where, config, "--journal", plain=False, wait=False)          # the test reads its events (V72)
+    return heimdall(where, config, "--journal", plain=False, wait=False)          # the test reads its events (V72)
 
 
 def wait_for_progress(out: Path, tool: str, timeout: float = 120) -> None:

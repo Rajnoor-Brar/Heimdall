@@ -1,6 +1,6 @@
 {
-  "name": "hep-icons",
-  "displayName": "HEP Icons",
+  "name": "heimdall-icons",
+  "displayName": "Heimdall Icons",
   "description": "Material-derived file icon theme for High-Energy Physics — covers ROOT, Pythia8 (.cmnd), Les Houches Events (.lhe), HepMC (.hepmc), EvtGen decay (.dec), HDF5, NumPy, GDML, SLHA/YODA, and subsystem folders (paint, monitor, record, probe).",
   "version": "1.0.0",
   "publisher": "local",
@@ -14,9 +14,9 @@
   "contributes": {
     "iconThemes": [
       {
-        "id": "hep-icons",
-        "label": "HEP Icons",
-        "path": "./hep-icons.json"
+        "id": "heimdall-icons",
+        "label": "Heimdall Icons",
+        "path": "./heimdall-icons.json"
       }
     ]
   }

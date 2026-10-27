@@ -22,17 +22,17 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from . import plugins
-from .errors import HepError, did_you_mean
-from .paths import hep_root, resolve, tool_chains
+from .errors import HeimdallError, did_you_mean
+from .paths import heimdall_root, resolve, tool_chains
 
 @functools.cache
 def shipped_vocabulary() -> dict:
     """framework/schema/quantities.toml: what each quantity name means, for every tool (V58)."""
-    path = hep_root() / "framework" / "schema" / "quantities.toml"
+    path = heimdall_root() / "framework" / "schema" / "quantities.toml"
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as error:
-        raise HepError(f"cannot read the quantity vocabulary: {error}", where=str(path)) from None
+        raise HeimdallError(f"cannot read the quantity vocabulary: {error}", where=str(path)) from None
 
 
 #: What a folder's quantities.toml entry may say to declare a name the vocabulary lacks (audit 3, 4.3).
@@ -64,11 +64,11 @@ def _declared(chains: dict) -> dict:
                     continue
                 declared = {k: entry[k] for k in DECLARING if k in entry}
                 if key in shipped:
-                    raise HepError(f"{name} declares '{key}', which Heimdall's vocabulary has", where=str(path),
+                    raise HeimdallError(f"{name} declares '{key}', which Heimdall's vocabulary has", where=str(path),
                                    hint="map it without shape, unit and doc: its meaning is the vocabulary's")
                 _check_shape_text(declared["shape"], f"{path}: {key}.shape")
                 if key in where and {k: v for k, v in out[key].items() if k != "declared"} != declared:
-                    raise HepError(f"'{key}' is declared twice, differently", where=str(path), hint=f"and in {where[key]}")
+                    raise HeimdallError(f"'{key}' is declared twice, differently", where=str(path), hint=f"and in {where[key]}")
                 out[key], where[key] = {**declared, "declared": str(path)}, path
     return out
 
@@ -99,7 +99,7 @@ def _read(path: Path) -> dict:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as error:
-        raise HepError(f"not valid TOML: {error}", where=str(path)) from None
+        raise HeimdallError(f"not valid TOML: {error}", where=str(path)) from None
 
 
 _MASTER: tuple[dict, dict] | None = None              # (the chains it was made from, the master)
@@ -127,7 +127,7 @@ def _master_of() -> dict:
             mapped = _read(path)
             unknown = [key for key in mapped if key not in known]
             if unknown:
-                raise HepError(f"{name} maps {', '.join(unknown)}, which the vocabulary does not have",
+                raise HeimdallError(f"{name} maps {', '.join(unknown)}, which the vocabulary does not have",
                                where=str(path), hint="add it to framework/schema/quantities.toml, with its shape")
             table.update(mapped)
         if table:
@@ -143,7 +143,7 @@ def load_master(project: str, master_toml: str | None) -> dict:
     if master_toml:
         overlay_path = resolve(master_toml, "master", project=project, where="[config].master")
         if not overlay_path.exists():
-            raise HepError("the project master TOML does not exist", where=str(overlay_path))
+            raise HeimdallError("the project master TOML does not exist", where=str(overlay_path))
         overlay = read(overlay_path)
         for tool, table in overlay.get("quantities", {}).items():
             target = master.setdefault("quantities", {}).setdefault(tool, {}).setdefault("compatible_quantities", {})
@@ -164,13 +164,13 @@ def select(quantity, selector: Any, where: str) -> int:
             index = int(selector[1:]) - 1
             if 0 <= index < len(quantity.values):
                 return index
-            raise HepError(f"{selector} is outside 1..{len(quantity.values)}", where=where)
+            raise HeimdallError(f"{selector} is outside 1..{len(quantity.values)}", where=where)
     for index, value in enumerate(quantity.values):
         if value == selector or (isinstance(value, (int, float)) and isinstance(selector, (int, float))
                                  and not isinstance(value, bool) and float(value) == float(selector)):
             return index
     choices = quantity.tags or [str(v) for v in quantity.values]
-    raise HepError(f"'{selector}' is not a value of [quantities.{quantity.name}]", where=where,
+    raise HeimdallError(f"'{selector}' is not a value of [quantities.{quantity.name}]", where=where,
                    hint=did_you_mean(str(selector), choices) or f"tags: {', '.join(choices)}")
 
 
@@ -191,7 +191,7 @@ def mappings(run, master: dict, name: str, tags: list[str], configured: set = fr
         for target in quantity.target:
             tag, _, rest = target.partition("/")
             if tag not in run.tools:
-                raise HepError(f"target '{target}' names no tool table", where=f"{run.path}: [quantities.{name}].target",
+                raise HeimdallError(f"target '{target}' names no tool table", where=f"{run.path}: [quantities.{name}].target",
                                hint=did_you_mean(tag, run.tools))
             if tag not in tags:
                 continue
@@ -201,7 +201,7 @@ def mappings(run, master: dict, name: str, tags: list[str], configured: set = fr
                 out.append(Mapping(tag, "seed"))
             elif rest:
                 if not key:
-                    raise HepError(f"target '{target}' is an analysis option: give its name in key",
+                    raise HeimdallError(f"target '{target}' is an analysis option: give its name in key",
                                    where=f"{run.path}: [quantities.{name}]")
                 out.append(Mapping(tag, "option", key, quantity.format, analysis=rest))
             elif tag in configured:
@@ -211,11 +211,11 @@ def mappings(run, master: dict, name: str, tags: list[str], configured: set = fr
             elif name in compatible(master, tool.tool):
                 out.append(_from_master(tag, compatible(master, tool.tool)[name], f"master: {tool.tool}.{name}"))
             else:
-                raise HepError(f"target '{target}': no key, and the master has no mapping of '{name}' for {tool.tool}",
+                raise HeimdallError(f"target '{target}': no key, and the master has no mapping of '{name}' for {tool.tool}",
                                where=f"{run.path}: [quantities.{name}]", hint="give key = \"<native key>\"")
         return out
     if isinstance(quantity.key, str):
-        raise HepError("a string key needs a target", where=f"{run.path}: [quantities.{name}].key",
+        raise HeimdallError("a string key needs a target", where=f"{run.path}: [quantities.{name}].key",
                        hint="write key = { <tool or tag> = \"...\" }, or add target = \"<tag>\"")
     for tag in tags:
         tool = run.tools[tag]
@@ -234,7 +234,7 @@ def _from_master(tag: str, entry: dict, where: str) -> Mapping:
     applies them in its render.py."""
     forms = [f for f in ("key", "keys", "flag", "config") if f in entry]
     if len(forms) != 1:
-        raise HepError("a master mapping takes exactly one of key, keys, flag, config", where=where)
+        raise HeimdallError("a master mapping takes exactly one of key, keys, flag, config", where=where)
     return Mapping(tag, forms[0], entry[forms[0]], entry.get("format", ""), check=entry.get("check", ""))
 
 
@@ -262,7 +262,7 @@ def consumer_table(run, master: dict, active: list[str], tags: list[str],
             read_with = [o for o in (together or {}).get(name, ()) if o != name and o in active
                          and mappings(run, master, o, tags, configured)]
             if name in varied and not read_with:
-                raise HepError(f"{point}: [quantities.{name}] is varied, but no tool of this point reads it "
+                raise HeimdallError(f"{point}: [quantities.{name}] is varied, but no tool of this point reads it "
                                f"({', '.join(tags)}): its points would differ only by their seeds",
                                where=f"{run.path}: [quantities.{name}]",
                                hint=f"list the combinations, leaving {name} out of this point's row (vary = [{{ points = "
@@ -270,7 +270,7 @@ def consumer_table(run, master: dict, active: list[str], tags: list[str],
             table[name] = []
             continue
         if not found:
-            raise HepError(f"[quantities.{name}] is set but no tool in this chain consumes it",
+            raise HeimdallError(f"[quantities.{name}] is set but no tool in this chain consumes it",
                            where=f"{run.path}: [quantities.{name}]",
                            hint=f"tools here: {', '.join(tags)}. Give it a `to` (v2: a target or key), a master mapping, "
                                 "or drop it: a value that changes nothing is refused (see C7)")
@@ -304,7 +304,7 @@ def _check_shape_text(shape, where: str) -> None:
     parts = shape if isinstance(shape, list) else [shape]
     for part in parts:
         if not isinstance(part, str) or not set(part.split("|")) <= kinds:
-            raise HepError(f"shape {shape!r} is not one", where=where,
+            raise HeimdallError(f"shape {shape!r} is not one", where=where,
                            hint='"float", "int", "pdg", "str" or "bool", several joined by "|", or a list of them')
 
 
@@ -322,7 +322,7 @@ def check_shapes(quantity, where: str) -> None:
     entry = vocabulary().get(quantity.name)
     if quantity.shape:
         if entry is not None and quantity.shape != entry["shape"]:
-            raise HepError(f"[quantities.{quantity.name}] says shape = {quantity.shape!r}; the vocabulary's is "
+            raise HeimdallError(f"[quantities.{quantity.name}] says shape = {quantity.shape!r}; the vocabulary's is "
                            f"{entry['shape']!r}", where=where, hint="leave it out: a vocabulary quantity's shape is its own")
         _check_shape_text(quantity.shape, f"{where}.shape")
         entry = {"shape": quantity.shape}
@@ -331,7 +331,7 @@ def check_shapes(quantity, where: str) -> None:
     for place, value in enumerate(quantity.values, start=1):
         if not _fits(value, entry["shape"]):
             unit = f" in {entry['unit']}" if entry.get("unit") else ""
-            raise HepError(f"[quantities.{quantity.name}] value {place} is {value!r}, not {_shape_text(entry['shape'])}{unit}",
+            raise HeimdallError(f"[quantities.{quantity.name}] value {place} is {value!r}, not {_shape_text(entry['shape'])}{unit}",
                            where=where, hint=entry.get("doc", ""))
 
 
@@ -341,7 +341,7 @@ def _provider(name: str):
     """<name>/provider.py (V60): a provider's checks, loaded by name, from the nearest folder that has one."""
     path = next((d / "provider.py" for _, d in tool_chains().get(name, []) if (d / "provider.py").is_file()), None)
     if path is None:
-        raise HepError(f"no provider '{name}': no {name}/provider.py on the tool search path (heimdall tools)")
+        raise HeimdallError(f"no provider '{name}': no {name}/provider.py on the tool search path (heimdall tools)")
     return plugins.load(path, "provider")
 
 
@@ -351,6 +351,6 @@ def check_provider(kind: str, value, where: str):
     that tool writes it: the provider's spelling of it (V152), else the value given."""
     provider, _, form = kind.partition(":")
     if not form:
-        raise HepError(f"a provider check is '<provider>:<form>', not '{kind}'", where=where)
+        raise HeimdallError(f"a provider check is '<provider>:<form>', not '{kind}'", where=where)
     written = _provider(provider).check(form, value, where)
     return value if written is None else written

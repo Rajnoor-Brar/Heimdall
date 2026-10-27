@@ -28,13 +28,13 @@ import datetime
 import shutil
 
 from . import paths, plugins, shellrc, workdirs
-from .errors import HepError, did_you_mean
+from .errors import HeimdallError, did_you_mean
 
 KEYS = {False: "base_packages", True: "base_pypi"}
 
 
 def builder():
-    return plugins.load(paths.hep_root() / "recipes" / "build_stack.py", "build_stack")
+    return plugins.load(paths.heimdall_root() / "recipes" / "build_stack.py", "build_stack")
 
 
 def loaded():
@@ -113,17 +113,17 @@ def recorded(key: str, root: Path | None = None) -> list[str]:
     try:
         return list(tomllib.loads(file.read_text(encoding="utf-8")).get("settings", {}).get(key, []))
     except tomllib.TOMLDecodeError as error:
-        raise HepError(f"cannot read {file}: {error}", hint="fix it by hand first") from None
+        raise HeimdallError(f"cannot read {file}: {error}", hint="fix it by hand first") from None
 
 
 def record(key: str, values: list[str], root: Path | None = None) -> Path:
     """[settings] `key` = values in the machine root's machine.toml (made from the template when missing)."""
     file = (root or paths.machine_root()) / "machine.toml"
     text = file.read_text(encoding="utf-8") if file.is_file() else \
-        (paths.hep_root() / "recipes" / "machine.template.toml").read_text(encoding="utf-8")
+        (paths.heimdall_root() / "recipes" / "machine.template.toml").read_text(encoding="utf-8")
     new = set_list(text, key, values)
     if tomllib.loads(new).get("settings", {}).get(key) != values:      # never write what does not read back
-        raise HepError(f"could not set {key} in {file}", hint=f"set [settings] {key} by hand")
+        raise HeimdallError(f"could not set {key} in {file}", hint=f"set [settings] {key} by hand")
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_text(new, encoding="utf-8")
     return file
@@ -141,7 +141,7 @@ def refusals(specs: list[str], packages: dict, bs, c: dict) -> None:
     for spec in specs:
         if name_of(spec) in built:
             recipe = built[name_of(spec)]
-            raise HepError(f"{name_of(spec)} is {recipe}'s, which the stack builds from source: two of it would clash",
+            raise HeimdallError(f"{name_of(spec)} is {recipe}'s, which the stack builds from source: two of it would clash",
                            hint=f"take {recipe} ready-made instead: python3 recipes/build_stack.py {recipe}.from=conda-forge "
                                 f"(or an @…-conda toolkit)")
 
@@ -163,18 +163,18 @@ def pip(venv: Path, specs: list[str], drop: bool) -> None:
     argv = [str(venv / "bin" / "python"), "-m", "pip", "uninstall" if drop else "install", *(["-y"] if drop else []),
             *(s.replace(" ", "") for s in specs)]
     if subprocess.run(argv).returncode:
-        raise HepError(f"pip {'uninstall' if drop else 'install'} failed", hint=" ".join(argv))
+        raise HeimdallError(f"pip {'uninstall' if drop else 'install'} failed", hint=" ".join(argv))
 
 
 def change(words: list[str], python: bool, drop: bool, out=print) -> int:
     """bifrost [--drop] [-python] <pkg>…: machine.toml, then the base (or the venv)."""
     if not words:
-        raise HepError("which packages?", hint="bifrost <conda-forge package>…, or bifrost -python <PyPI package>…")
+        raise HeimdallError("which packages?", hint="bifrost <conda-forge package>…, or bifrost -python <PyPI package>…")
     bs, settings, packages, c = loaded()
     specs = [spec_of(w) for w in words]
     system = settings["base"] != "conda"
     if system and not python:
-        raise HepError("this machine root has no conda base (base = \"system\": apt or Homebrew, and a venv)",
+        raise HeimdallError("this machine root has no conda base (base = \"system\": apt or Homebrew, and a venv)",
                        hint="a system package with apt (or brew); a Python one: bifrost -python <pkg>")
     key = "python_packages" if system else KEYS[python]
     have = recorded(key)                     # machine.toml's own: its lists append to settings.toml's
@@ -182,13 +182,13 @@ def change(words: list[str], python: bool, drop: bool, out=print) -> int:
         gone = {name_of(s) for s in specs}
         missing = sorted(gone - {name_of(h) for h in have})
         if missing:
-            raise HepError(f"not among {key}: {', '.join(missing)}", hint="bifrost lists what you added")
+            raise HeimdallError(f"not among {key}: {', '.join(missing)}", hint="bifrost lists what you added")
         now = [h for h in have if name_of(h) not in gone]
     else:
         if not python:
             recipe = next((name_of(s) for s in specs if name_of(s) in packages), None)
             if recipe and not held(bs, recipe, packages[recipe], c):
-                raise HepError(f"{recipe} is a tool's recipe: say how it comes",
+                raise HeimdallError(f"{recipe} is a tool's recipe: say how it comes",
                                hint=f"bifrost -c {recipe} (ready-made from conda-forge) or bifrost -b {recipe} (built here)")
             refusals(specs, packages, bs, c)
             ready = {bs.conda_name(p): name for name, p in packages.items() if p.get("conda") and bs.ready_made(p)
@@ -209,7 +209,7 @@ def change(words: list[str], python: bool, drop: bool, out=print) -> int:
         update_base()
     except (SystemExit, Exception) as failure:              # build_stack.py dies with SystemExit
         record(key, have)                                    # never leave a list the base cannot take
-        raise HepError(f"the base could not be made with {', '.join(specs)}: machine.toml's {key} is as it was",
+        raise HeimdallError(f"the base could not be made with {', '.join(specs)}: machine.toml's {key} is as it was",
                        hint=("pixi's reason is above (forge/logs/base.log); a PyPI package? bifrost -python <pkg>"
                              if not python else "pixi's reason is above (forge/logs/base.log)")) from failure
     if not drop:
@@ -236,7 +236,7 @@ def flags(words: list[str]) -> list[str]:
             out.append(word)
         elif found[1] in ("c", "conda"):
             if found[2]:
-                raise HepError(f"{word}: a toolkit goes with -b", hint="bifrost -b@<toolkit> <tool>")
+                raise HeimdallError(f"{word}: a toolkit goes with -b", hint="bifrost -b@<toolkit> <tool>")
             out.append("--conda")
         else:
             out += ["--build", *(["--toolkit", found[2]] if found[2] else [])]
@@ -275,7 +275,7 @@ def cost(switching: list[str], packages: dict, bs, c: dict) -> list[str]:
     out.append(f"{sum(points.values())} recorded point(s) ran them ({', '.join(f'{t}: {n}' for t, n in points.items())}): "
                "they will run again, with new identities and seeds" if points else
                "no recorded point of a recognised work dir ran them (heimdall recognise --list)")
-    linked = sorted(n for n in names if n in plugins.load(paths.hep_root() / "env" / "stack.py", "stack").entries())
+    linked = sorted(n for n in names if n in plugins.load(paths.heimdall_root() / "env" / "stack.py", "stack").entries())
     if linked:
         out.append(f"Heimdall's apps and the module programs that require {', '.join(linked)} rebuild on their next build")
     return out
@@ -285,15 +285,15 @@ def tools(names: list[str], conda: bool, toolkit: str = "", yes: bool = False, o
     """bifrost -c|-b[@toolkit] <tool>…: the machine's choice recorded in machine.toml ([packages.<tool>] from),
     then build_stack.py with those tools. A switch of an installed package says what it costs and asks."""
     if not names:
-        raise HepError("which tools?", hint="bifrost -c <tool> (from conda-forge) or bifrost -b <tool> (built); "
+        raise HeimdallError("which tools?", hint="bifrost -c <tool> (from conda-forge) or bifrost -b <tool> (built); "
                                             "heimdall tools lists the tools and their packages")
     bs, settings, packages, c = loaded()
     unknown = [n for n in names if n not in packages]
     if unknown:
-        raise HepError(f"no recipe {', '.join(unknown)}", hint=did_you_mean(unknown[0], packages)
+        raise HeimdallError(f"no recipe {', '.join(unknown)}", hint=did_you_mean(unknown[0], packages)
                        or "python3 recipes/build_stack.py --list; your own go in the machine root's recipes.toml")
     if conda and settings["base"] != "conda":
-        raise HepError("this machine root has no conda base (base = \"system\"): nothing is taken ready-made",
+        raise HeimdallError("this machine root has no conda base (base = \"system\"): nothing is taken ready-made",
                        hint=f"bifrost -b {' '.join(names)}")
     choice: dict[str, str] = {}                                    # package → "conda-forge" | "source"
     if conda:
@@ -303,7 +303,7 @@ def tools(names: list[str], conda: bool, toolkit: str = "", yes: bool = False, o
                 return
             if not p.get("conda"):
                 if asked:
-                    raise HepError(f"conda-forge carries no {name}", hint=f"bifrost -b {name}")
+                    raise HeimdallError(f"conda-forge carries no {name}", hint=f"bifrost -b {name}")
                 return                                             # (python: the base's own)
             choice[name] = "conda-forge"
             for need in p.get("needs", []):
@@ -321,7 +321,7 @@ def tools(names: list[str], conda: bool, toolkit: str = "", yes: bool = False, o
                    if q not in choice and held(bs, q, packages[q], c)}
         for q, needs in needing.items():
             if needs:
-                raise HepError(f"{q}, ready-made, brings conda-forge's {', '.join(needs)}: building it here would make two",
+                raise HeimdallError(f"{q}, ready-made, brings conda-forge's {', '.join(needs)}: building it here would make two",
                                hint=f"build {q} too: bifrost -b {' '.join([*names, q])}")
     switching = [n for n, how in choice.items()
                  if (how == "conda-forge" and built_here(bs, n, packages[n], c)) or (how == "source" and held(bs, n, packages[n], c))]
@@ -330,7 +330,7 @@ def tools(names: list[str], conda: bool, toolkit: str = "", yes: bool = False, o
             out(line)
         if not yes:
             if ask is None:
-                raise HepError("a switch between built and ready-made reruns points and rebuilds: it asks first",
+                raise HeimdallError("a switch between built and ready-made reruns points and rebuilds: it asks first",
                                hint="run it in a terminal, or add --yes")
             if ask("go ahead? [y/N] ").strip().lower() not in ("y", "yes"):
                 out("nothing changed")
@@ -338,11 +338,11 @@ def tools(names: list[str], conda: bool, toolkit: str = "", yes: bool = False, o
     file = paths.machine_root() / "machine.toml"
     before = file.read_text(encoding="utf-8") if file.is_file() else None
     text = before if before is not None else \
-        (paths.hep_root() / "recipes" / "machine.template.toml").read_text(encoding="utf-8")
+        (paths.heimdall_root() / "recipes" / "machine.template.toml").read_text(encoding="utf-8")
     for name, how in choice.items():
         text = set_key(text, f"packages.{name}", "from", how)
         if tomllib.loads(text).get("packages", {}).get(name, {}).get("from") != how:
-            raise HepError(f"could not set [packages.{name}] from in {file}", hint=f"set from = \"{how}\" by hand")
+            raise HeimdallError(f"could not set [packages.{name}] from in {file}", hint=f"set from = \"{how}\" by hand")
     retired: list[tuple[Path, Path]] = []
     rebuild: list[str] = []
     try:
@@ -379,7 +379,7 @@ def tools(names: list[str], conda: bool, toolkit: str = "", yes: bool = False, o
         for src, dst in reversed(retired):                         # put back what was set aside
             if dst.exists() and not src.exists():
                 shutil.move(str(dst), str(src))
-        raise HepError(f"bifrost {'-c' if conda else '-b'} {' '.join(names)} failed: machine.toml and the stack are as "
+        raise HeimdallError(f"bifrost {'-c' if conda else '-b'} {' '.join(names)} failed: machine.toml and the stack are as "
                        "they were", hint="the build's reason is above (forge/logs/)") from failure
     return 0
 
@@ -419,7 +419,7 @@ def state() -> list[str]:
     rows = stack_rows()
     out.append(f"{'the tools:':17} " + (", ".join(f"{r['package']} {r['version']} ({r['how']})" for r in rows
                                                      if r["package"] != "python") or "none installed yet"))
-    want = {shell: shellrc.block(shell, paths.hep_root(), paths.machine_root()) for shell in ("bash", "zsh")}
+    want = {shell: shellrc.block(shell, paths.heimdall_root(), paths.machine_root()) for shell in ("bash", "zsh")}
     for shell, file in shellrc.rc_files(Path.home(), os.environ.get("SHELL", "")):
         status = shellrc.status(file, want[shell])
         out.append(f"{'the shell:':17} {file}: " + {"installed": "gjallarhorn and bifrost",
@@ -434,7 +434,7 @@ def shell(action: str, out=print) -> int:
     home = Path.home()
     for name, file in shellrc.rc_files(home, os.environ.get("SHELL", "")):
         if action == "install":
-            happened = shellrc.install(file, shellrc.block(name, paths.hep_root(), paths.machine_root()))
+            happened = shellrc.install(file, shellrc.block(name, paths.heimdall_root(), paths.machine_root()))
             out(f"{file}: {happened}" + (" (a new shell has gjallarhorn and bifrost)" if happened != "unchanged" else ""))
         elif shellrc.remove(file):
             out(f"{file}: removed")
@@ -444,19 +444,19 @@ def shell(action: str, out=print) -> int:
 def main(args) -> int:
     if args.conda or args.build:
         if args.python or args.drop or args.shell or (args.conda and args.build):
-            raise HepError("-c and -b take tools alone", hint="bifrost -c <tool>…, or bifrost -b[@toolkit] <tool>…")
+            raise HeimdallError("-c and -b take tools alone", hint="bifrost -c <tool>…, or bifrost -b[@toolkit] <tool>…")
         ask = input if sys.stdin.isatty() else None
         return tools(args.packages, conda=args.conda, toolkit=args.toolkit or "", yes=args.yes, ask=ask)
     if args.toolkit:
-        raise HepError("--toolkit goes with -b", hint="bifrost -b@<toolkit> <tool>")
+        raise HeimdallError("--toolkit goes with -b", hint="bifrost -b@<toolkit> <tool>")
     if args.shell:
         if args.packages:
-            raise HepError("--shell takes no packages", hint="bifrost --shell install|remove")
+            raise HeimdallError("--shell takes no packages", hint="bifrost --shell install|remove")
         return shell(args.shell)
     if args.packages:
         return change(args.packages, python=args.python, drop=args.drop)
     if args.drop or args.python:
-        raise HepError("which packages?", hint="bifrost [--drop] [-python] <pkg>…")
+        raise HeimdallError("which packages?", hint="bifrost [--drop] [-python] <pkg>…")
     for line in state():
         print(line)
     return 0

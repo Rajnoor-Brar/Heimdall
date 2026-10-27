@@ -32,9 +32,9 @@ display = ["BATCH_MODE: 23", "EVENT_DISPLAY_INTERVAL: {display_every}"]
 
 [prepare]
 # EVENT_OUTPUT: None, or Sherpa opens the FIFO at initialisation and waits for a reader (L12). prepare.py runs
-# Sherpa, and for an Amegic card compiles what Amegic wrote (./makelibs, $HEP_MAKELIBS_JOBS at once) and runs
+# Sherpa, and for an Amegic card compiles what Amegic wrote (./makelibs, $HEIMDALL_MAKELIBS_JOBS at once) and runs
 # it again; a run that sets up no process ends with Sherpa's reason, not a missing marker.
-argv   = ["python3", "{hep}/framework/tools/sherpa/prepare.py", "{exe}", "-f", "{card}", "-e", "0",
+argv   = ["python3", "{heimdall}/framework/tools/sherpa/prepare.py", "{exe}", "-f", "{card}", "-e", "0",
           "RESULT_DIRECTORY: {prepared}/Results", "EVENT_OUTPUT: None", "SHERPA_CPP_PATH: {prepared}"]
 ignore = ["EVENTS"]
 marker = "Results.zip"

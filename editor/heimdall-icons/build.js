@@ -2,7 +2,7 @@
 // build.js — Merge Material Icon Theme base with HEP additions
 // Reads MIT's dist/material-icons.json, re-roots icon paths from ./../icons/
 // to ./icons/ (our extension root), then injects HEP icon definitions and
-// file/folder name mappings on top.  Writes hep-icons.json.
+// file/folder name mappings on top.  Writes heimdall-icons.json.
 //
 // Run:  node build.js
 // Requires: MIT extension installed at MIT_ROOT below (auto-detected from
@@ -56,34 +56,34 @@ function fixThemeLayer(layer) {
 }
 
 // ── HEP icon definitions ───────────────────────────────────────────────────
-const HEP_DEFS = {
-  "_hep_root":             { iconPath: "./icons/root.svg" },
-  "_hep_cmnd":             { iconPath: "./icons/cmnd.svg" },
-  "_hep_lhe":              { iconPath: "./icons/lhe.svg" },
-  "_hep_hepmc":            { iconPath: "./icons/hepmc.svg" },
-  "_hep_dec":              { iconPath: "./icons/dec.svg" },
-  "_hep_folder_paint":     { iconPath: "./icons/folder-paint.svg" },
-  "_hep_folder_paint_o":   { iconPath: "./icons/folder-paint-open.svg" },
-  "_hep_folder_monitor":   { iconPath: "./icons/folder-monitor.svg" },
-  "_hep_folder_monitor_o": { iconPath: "./icons/folder-monitor-open.svg" },
-  "_hep_folder_record":    { iconPath: "./icons/folder-record.svg" },
-  "_hep_folder_record_o":  { iconPath: "./icons/folder-record-open.svg" },
-  "_hep_folder_probe":     { iconPath: "./icons/folder-probe.svg" },
-  "_hep_folder_probe_o":   { iconPath: "./icons/folder-probe-open.svg" },
+const HEIMDALL_DEFS = {
+  "_heimdall_root":             { iconPath: "./icons/root.svg" },
+  "_heimdall_cmnd":             { iconPath: "./icons/cmnd.svg" },
+  "_heimdall_lhe":              { iconPath: "./icons/lhe.svg" },
+  "_heimdall_hepmc":            { iconPath: "./icons/hepmc.svg" },
+  "_heimdall_dec":              { iconPath: "./icons/dec.svg" },
+  "_heimdall_folder_paint":     { iconPath: "./icons/folder-paint.svg" },
+  "_heimdall_folder_paint_o":   { iconPath: "./icons/folder-paint-open.svg" },
+  "_heimdall_folder_monitor":   { iconPath: "./icons/folder-monitor.svg" },
+  "_heimdall_folder_monitor_o": { iconPath: "./icons/folder-monitor-open.svg" },
+  "_heimdall_folder_record":    { iconPath: "./icons/folder-record.svg" },
+  "_heimdall_folder_record_o":  { iconPath: "./icons/folder-record-open.svg" },
+  "_heimdall_folder_probe":     { iconPath: "./icons/folder-probe.svg" },
+  "_heimdall_folder_probe_o":   { iconPath: "./icons/folder-probe-open.svg" },
 };
 
 // ── HEP file extension overrides/additions ─────────────────────────────────
 // MIT already covers: .py, .cpp, .h, .json, .yaml, .toml, .md, .ipynb, ...
 // We add HEP-specific formats and override a few (e.g. .mac → console, not g4mac yet)
-const HEP_FILE_EXTS = {
+const HEIMDALL_FILE_EXTS = {
   // ── HEP native formats ──────────────────────────────────────────────
-  "root":    "_hep_root",
-  "cmnd":    "_hep_cmnd",
-  "lhe":     "_hep_lhe",
-  "hepmc":   "_hep_hepmc",
-  "hepmc2":  "_hep_hepmc",
-  "hepmc3":  "_hep_hepmc",
-  "dec":     "_hep_dec",
+  "root":    "_heimdall_root",
+  "cmnd":    "_heimdall_cmnd",
+  "lhe":     "_heimdall_lhe",
+  "hepmc":   "_heimdall_hepmc",
+  "hepmc2":  "_heimdall_hepmc",
+  "hepmc3":  "_heimdall_hepmc",
+  "dec":     "_heimdall_dec",
   // ── These map to existing MIT icons (name-only additions) ───────────
   // .yoda → table/histogram (MIT table icon)
   "yoda":    "table",
@@ -93,7 +93,7 @@ const HEP_FILE_EXTS = {
   // .gdml → xml (it IS xml)
   "gdml":    "xml",
   // .pwhg → shares LHE scattering concept; use lhe icon for now
-  "pwhg":    "_hep_lhe",
+  "pwhg":    "_heimdall_lhe",
   // .mac (Geant4 macros) → console/shell
   "mac":     "console",
   // ── ML / data science ──────────────────────────────────────────────
@@ -120,17 +120,17 @@ const HEP_FILE_EXTS = {
 };
 
 // ── HEP file name additions ────────────────────────────────────────────────
-const HEP_FILE_NAMES = {
+const HEIMDALL_FILE_NAMES = {
   "CMakeLists.txt": "cmake",
 };
 
 // ── HEP folder name additions ──────────────────────────────────────────────
-const HEP_FOLDER_NAMES = {
+const HEIMDALL_FOLDER_NAMES = {
   // Project subsystem folders
-  "paint":   "_hep_folder_paint",
-  "monitor": "_hep_folder_monitor",
-  "record":  "_hep_folder_record",
-  "probe":   "_hep_folder_probe",
+  "paint":   "_heimdall_folder_paint",
+  "monitor": "_heimdall_folder_monitor",
+  "record":  "_heimdall_folder_record",
+  "probe":   "_heimdall_folder_probe",
   // Physics / HEP domain folders → MIT's atom icon
   "physics": "folder-atom",
   "Physics": "folder-atom",
@@ -170,44 +170,44 @@ const HEP_FOLDER_NAMES = {
   "macro":       "folder-script",
 };
 
-const HEP_FOLDER_NAMES_EXPANDED = {};
-for (const [k, v] of Object.entries(HEP_FOLDER_NAMES)) {
+const HEIMDALL_FOLDER_NAMES_EXPANDED = {};
+for (const [k, v] of Object.entries(HEIMDALL_FOLDER_NAMES)) {
   // MIT uses a naming convention: folder-X → folder-X-open
   // For our custom icons, map to the _open variant
   const openMap = {
-    "_hep_folder_paint":   "_hep_folder_paint_o",
-    "_hep_folder_monitor": "_hep_folder_monitor_o",
-    "_hep_folder_record":  "_hep_folder_record_o",
-    "_hep_folder_probe":   "_hep_folder_probe_o",
+    "_heimdall_folder_paint":   "_heimdall_folder_paint_o",
+    "_heimdall_folder_monitor": "_heimdall_folder_monitor_o",
+    "_heimdall_folder_record":  "_heimdall_folder_record_o",
+    "_heimdall_folder_probe":   "_heimdall_folder_probe_o",
   };
   // For MIT icons: folderExpanded is stored separately in MIT's JSON;
   // we don't need to add open variants here — MIT handles it.
   // Only add for our custom HEP icons.
   if (openMap[v]) {
-    HEP_FOLDER_NAMES_EXPANDED[k] = openMap[v];
+    HEIMDALL_FOLDER_NAMES_EXPANDED[k] = openMap[v];
   }
 }
 
 // ── Merge ──────────────────────────────────────────────────────────────────
 const merged = {
   ...base,
-  iconDefinitions:      { ...fixDefs(base.iconDefinitions), ...HEP_DEFS },
-  fileExtensions:       { ...base.fileExtensions,           ...HEP_FILE_EXTS },
-  fileNames:            { ...base.fileNames,                ...HEP_FILE_NAMES },
-  folderNames:          { ...base.folderNames,              ...HEP_FOLDER_NAMES },
-  folderNamesExpanded:  { ...base.folderNamesExpanded,      ...HEP_FOLDER_NAMES_EXPANDED },
+  iconDefinitions:      { ...fixDefs(base.iconDefinitions), ...HEIMDALL_DEFS },
+  fileExtensions:       { ...base.fileExtensions,           ...HEIMDALL_FILE_EXTS },
+  fileNames:            { ...base.fileNames,                ...HEIMDALL_FILE_NAMES },
+  folderNames:          { ...base.folderNames,              ...HEIMDALL_FOLDER_NAMES },
+  folderNamesExpanded:  { ...base.folderNamesExpanded,      ...HEIMDALL_FOLDER_NAMES_EXPANDED },
   // Fix paths in light + highContrast override layers too
   light:         fixThemeLayer(base.light),
   highContrast:  fixThemeLayer(base.highContrast),
 };
 
-const OUT = path.join(__dirname, "hep-icons.json");
+const OUT = path.join(__dirname, "heimdall-icons.json");
 fs.writeFileSync(OUT, JSON.stringify(merged, null, 2));
 
 const stats = fs.statSync(OUT);
-console.log(`Written: hep-icons.json  (${(stats.size / 1024).toFixed(1)} KB)`);
+console.log(`Written: heimdall-icons.json  (${(stats.size / 1024).toFixed(1)} KB)`);
 console.log(`  iconDefinitions: ${Object.keys(merged.iconDefinitions).length}`);
 console.log(`  fileExtensions:  ${Object.keys(merged.fileExtensions).length}`);
 console.log(`  fileNames:       ${Object.keys(merged.fileNames).length}`);
 console.log(`  folderNames:     ${Object.keys(merged.folderNames).length}`);
-console.log(`  HEP additions:   ${Object.keys(HEP_DEFS).length} defs, ${Object.keys(HEP_FILE_EXTS).length} exts, ${Object.keys(HEP_FOLDER_NAMES).length} folders`);
+console.log(`  HEP additions:   ${Object.keys(HEIMDALL_DEFS).length} defs, ${Object.keys(HEIMDALL_FILE_EXTS).length} exts, ${Object.keys(HEIMDALL_FOLDER_NAMES).length} folders`);

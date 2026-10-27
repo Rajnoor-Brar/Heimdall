@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from runner import plot
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 from helpers import parse, raw
 
@@ -49,7 +49,7 @@ def test_a_valid_plot_table_passes(scratch):
     ({"data": {"map": {"d01-x01-y01": "/REF/X/d01"}}}, "no file"),
 ])
 def test_keys_no_backend_honours_are_errors(scratch, table, message):
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         validated(scratch, **table)
 
 
@@ -157,7 +157,7 @@ def test_a_backslash_in_a_double_quoted_label_says_how_to_write_it(scratch):
     from runner import config
     path = scratch / "bad.toml"
     path.write_text('[run]\nname = "x"\n[quantities.pdf]\nlabels = ["PDF4LHC21\\_40"]\n', encoding="utf-8")
-    with pytest.raises(HepError, match="not valid TOML") as caught:
+    with pytest.raises(HeimdallError, match="not valid TOML") as caught:
         config.load(str(path))
     assert "single quotes" in caught.value.hint
 
@@ -166,9 +166,9 @@ def test_the_yoda_backend_refuses_what_mkhtml_cannot_do(scratch):
     validated(scratch, backend="yoda", style={"legend": {"position": "top-left"}})
     for style, key in (({"text": {"title": 12}}, "text.title"), ({"curves": {"palette": ["kRed"]}}, "palette"),
                        ({"legend": {"position": [0.5, 0.5]}}, "legend.position")):
-        with pytest.raises(HepError, match=key):
+        with pytest.raises(HeimdallError, match=key):
             validated(scratch, backend="yoda", style=style)
-    with pytest.raises(HepError, match="root_style"):
+    with pytest.raises(HeimdallError, match="root_style"):
         validated(scratch, backend="yoda", root_style="/x.toml")
 
 
@@ -187,10 +187,10 @@ def test_both_backends_draw_the_same_pages_and_the_style_is_paints(scratch):
     (scratch / "talk.toml").write_text("[text]\ntitle = 12\n", encoding="utf-8")
     validated(scratch, backend="both", root_style=str(scratch / "talk.toml"),       # Paint honours these
               style={"text": {"legend": 9}, "legend": {"position": "top-left"}})
-    with pytest.raises(HepError, match="legend.position"):                         # the pages would disagree
+    with pytest.raises(HeimdallError, match="legend.position"):                         # the pages would disagree
         validated(scratch, backend=["root", "yoda"], style={"legend": {"position": [0.5, 0.9]}})
     for bad, message in (([], "names no backend"), (["root", "matplotlib"], "backend")):
-        with pytest.raises(HepError, match=message):
+        with pytest.raises(HeimdallError, match=message):
             validated(scratch, backend=bad)
 
 
@@ -206,7 +206,7 @@ def test_a_root_style_file_goes_under_the_inline_style(scratch):
 
 def test_a_style_file_is_checked_like_the_inline_style(scratch):
     (scratch / "bad.toml").write_text('[legend]\nplace = "top-left"\n', encoding="utf-8")
-    with pytest.raises(HepError, match="place") as error:
+    with pytest.raises(HeimdallError, match="place") as error:
         validated(scratch, root_style=str(scratch / "bad.toml"))
     assert "position" in error.value.hint                                  # the nearest spelling
 
@@ -216,7 +216,7 @@ def test_references_are_cut_to_the_aligned_run_and_renamed(yoda_backend):
     from types import SimpleNamespace
     try:
         source = plot.data_source("rivet:ZEUS_2012_I1116258", SimpleNamespace(path="test", project="Demo"))
-    except HepError:
+    except HeimdallError:
         pytest.skip("no Rivet reference data")
     page = SimpleNamespace(object="/photo_eic:R=0.7/d01-x01-y01", ranges={"data_x": [17, 47]},
                            data=(source, "/REF/ZEUS_2012_I1116258/d01-x01-y01"), document={"page": {}})
@@ -300,7 +300,7 @@ def test_a_figure_band_must_be_a_curve_axis_too(scratch):
     from helpers import plan
     run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__plot_points=["pdf"],
                             plot={"figures": {"f": {"objects": ["d01-*"], "band": ["pdf"]}}}), scratch)
-    with pytest.raises(HepError, match=r"\[plot.figures.f\].band names pdf"):
+    with pytest.raises(HeimdallError, match=r"\[plot.figures.f\].band names pdf"):
         plot.check_figures(run, conf)
 
 
@@ -309,11 +309,11 @@ def test_a_merged_figure_merges_curve_axes_it_does_not_band(scratch):
     from helpers import plan
     run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__plot_points=["pdf"],
                             plot={"figures": {"m": {"class": "merged", "objects": ["d01-*"], "over": ["pdf"]}}}), scratch)
-    with pytest.raises(HepError, match=r"\[plot.figures.m\].over names pdf, which is not a curve axis"):
+    with pytest.raises(HeimdallError, match=r"\[plot.figures.m\].over names pdf, which is not a curve axis"):
         plot.check_figures(run, conf)
     run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"],
                             plot={"figures": {"m": {"class": "merged", "objects": ["d01-*"], "over": ["pdf"], "band": ["pdf"]}}}), scratch)
-    with pytest.raises(HepError, match="both merges and bands pdf"):
+    with pytest.raises(HeimdallError, match="both merges and bands pdf"):
         plot.check_figures(run, conf)
     run.plot["figures"]["m"].pop("band")
     plot.check_figures(run, conf)
@@ -324,11 +324,11 @@ def test_a_compare_figure_pairs_configurations_of_one_shape(scratch):
     from helpers import plan
     figure = {"class": "compare", "objects": ["d01-*"]}
     run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], plot={"figures": {"c": figure}}), scratch)
-    with pytest.raises(HepError, match="needs two configurations or more"):
+    with pytest.raises(HeimdallError, match="needs two configurations or more"):
         plot.check_figures(run, conf)
     run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__two={"tools": ["pythia"], "sweeps": []},
                             plot={"figures": {"c": {**figure, "configurations": ["one", "two"]}}}), scratch)
-    with pytest.raises(HepError, match=r"differ in their axes: one \(pages: none; curves: pdf\), two \(pages: none; curves: none\)"):
+    with pytest.raises(HeimdallError, match=r"differ in their axes: one \(pages: none; curves: pdf\), two \(pages: none; curves: none\)"):
         plot.check_figures(run, conf)
     from helpers import parse
     run = parse(raw(run__sweep_runs=True, run__configuration=None, run__cfgs__one__sweeps=["pdf"],
@@ -363,14 +363,14 @@ def test_a_compare_figure_pairs_configurations_of_one_shape(scratch):
     ({"class": "compare", "objects": ["d01-*"], "configurations": ["a", "b"], "labels": ["x"]}, "one label per configuration"),
 ])
 def test_a_figure_is_checked_when_the_file_is_read(scratch, figure, message):
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         validated(scratch, figures={"f": figure})
 
 
 @pytest.mark.parametrize("old", ["overlay", "object"])
 def test_the_tables_figures_replaced_are_refused_with_the_figure_to_write(scratch, old):
     """V81, break and migrate: heimdall migrate rewrites them."""
-    with pytest.raises(HepError, match=rf"\[plot.{old}\] is a figure now") as error:
+    with pytest.raises(HeimdallError, match=rf"\[plot.{old}\] is a figure now") as error:
         validated(scratch, **{old: {"d01-*": {"objects": ["d01-*"]}}})
     assert error.value.hint == "heimdall migrate rewrites it"
 
@@ -391,7 +391,7 @@ def test_a_style_default_falls_through_to_the_layer_below():
 
 
 def test_an_object_value_of_the_wrong_kind_is_refused(scratch):
-    with pytest.raises(HepError, match="must be true or false"):
+    with pytest.raises(HeimdallError, match="must be true or false"):
         validated(scratch, figures={"f": {"objects": ["d01-*"], "logy": "yes"}})
     validated(scratch, figures={"f": {"objects": ["d01-*"], "logy": "default", "ratio": True}})
 
@@ -447,9 +447,9 @@ def test_a_page_text_cites_the_points():
 
 
 def test_a_page_text_that_differs_between_its_curves_is_refused():
-    with pytest.raises(HepError, match="differs between the curves"):
+    with pytest.raises(HeimdallError, match="differs between the curves"):
         plot.filler([{"q:pdf": "MSTW"}, {"q:pdf": "NNPDF"}], "here")("{q:pdf}")
-    with pytest.raises(HepError, match="nothing the points have"):
+    with pytest.raises(HeimdallError, match="nothing the points have"):
         plot.filler([{"opt:ETMIN": "17"}], "here")("{opt:ETMN}")
 
 
@@ -469,13 +469,13 @@ def test_a_quantity_value_has_its_own_curve_look(scratch):
     ([{"line": "wavy"}, {}], "is not one"), ([{"colour": "#EE3311"}], "one entry per value"),
     ([{"color": "#EE3311"}, {}], "did you mean 'colour'"), ([{"width": 0}, {}], "is not one")])
 def test_a_curve_look_is_checked(scratch, styles, message):
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         parse(raw(quantities__pdf__styles=styles), scratch)
 
 
 def test_the_yoda_backend_draws_hex_colours_only(scratch):
     run = parse(raw(plot={"backend": "both"}, quantities__pdf__styles=[{"colour": "kRed"}, {}]), scratch)
-    with pytest.raises(HepError, match="cannot draw the curve colour"):
+    with pytest.raises(HeimdallError, match="cannot draw the curve colour"):
         plot.validate(run)
     plot.validate(parse(raw(plot={"backend": "both"}, quantities__pdf__styles=[{"colour": "#EE3311"}, {}]), scratch))
 
@@ -485,7 +485,7 @@ def test_normalise_is_a_page_key_a_child_may_set(scratch):
     assert page({})["normalise"] is False
     assert page({"normalise": "area"})["normalise"] == "area"
     assert page({"normalise": "area"}, child={"normalise": False})["normalise"] is False
-    with pytest.raises(HepError, match="must be one of area, false"):
+    with pytest.raises(HeimdallError, match="must be one of area, false"):
         validated(scratch, normalise="peak")
 
 
@@ -503,7 +503,7 @@ def test_a_cited_placeholder_is_checked_before_any_point_runs(scratch):
     run, _, p = plan(raw(static={"pdf": "MSTW08lo"}, plot={"title": "{opt:ETMIN} {q:pdf}", "figures": {"o": {"class": "overlay", "objects": ["d01-*"], "labels": ["{cell}"]}}}), scratch)
     plot.check_texts(run, [p])
     run, _, p = plan(raw(plot={"legend_header": "{opt:ETMN}"}), scratch)
-    with pytest.raises(HepError, match=r"cites \{opt:ETMN\}") as error:
+    with pytest.raises(HeimdallError, match=r"cites \{opt:ETMN\}") as error:
         plot.check_texts(run, [p])
     assert "opt:ETMIN" in error.value.hint
 
@@ -529,14 +529,14 @@ def test_a_configuration_checks_the_sets_it_draws(scratch):
     plot.check_figures(run, run.configuration("two"))
     for picked in ({"run__cfgs__one__plot": ["nn"]}, {"run__stats": ["nn"], "run__plot": False}, {}):
         run = parse(raw(plot={"sets": sets}, **picked), scratch)
-        with pytest.raises(HepError, match="which no point of the configuration sets"):
+        with pytest.raises(HeimdallError, match="which no point of the configuration sets"):
             plot.check_figures(run, run.configuration("one"))
 
 
 def test_a_band_must_be_a_curve_axis(scratch):
     from helpers import plan
     run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__plot_points=["pdf"], plot={"band": ["pdf"]}), scratch)
-    with pytest.raises(HepError, match="not a curve axis"):
+    with pytest.raises(HeimdallError, match="not a curve axis"):
         plot.check_figures(run, conf)
     run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], plot={"band": ["pdf"]}), scratch)
     plot.check_figures(run, conf)
@@ -570,7 +570,7 @@ def test_mpl_is_a_backend_and_both_is_still_root_and_yoda(scratch):
     """V71: "mpl" may be named; "both" keeps V28's meaning; mpl refuses what mkhtml cannot do, in its own name."""
     assert plot.backends({"backend": "both"}) == ["root", "yoda"]
     assert plot.backends({"backend": ["mpl", "root"]}) == ["root", "mpl"]
-    with pytest.raises(HepError, match='backend = "mpl"'):
+    with pytest.raises(HeimdallError, match='backend = "mpl"'):
         validated(scratch, backend="mpl", style={"page": {"dpi": 100}})
     mpl = plot.backend("mpl")
     from yoda.plotting.mlp_preprocessor import preprocess
@@ -590,9 +590,9 @@ def test_natural_latex_is_what_a_physicist_writes(label, latex):
 
 def test_a_tlatex_label_in_a_run_toml_is_refused_with_its_latex(scratch):
     """V79 (B5, break and migrate)."""
-    with pytest.raises(HepError, match="is TLatex") as error:
+    with pytest.raises(HeimdallError, match="is TLatex") as error:
         parse(raw(quantities__pdf__labels=["E_{T} > 4", "b"]), scratch)
     assert "$E_{T}$ > 4" in error.value.hint and "heimdall migrate" in error.value.hint
-    with pytest.raises(HepError, match="is TLatex"):
+    with pytest.raises(HeimdallError, match="is TLatex"):
         validated(scratch, figures={"o": {"class": "overlay", "objects": ["d01-*"], "labels": ["k_{T}"]}})
     validated(scratch, title="$E_T$ jets", data={"file": "jets_data.yoda", "legend": "ZEUS", "map": {"d01-x01-y01": "/REF/X/d01"}})

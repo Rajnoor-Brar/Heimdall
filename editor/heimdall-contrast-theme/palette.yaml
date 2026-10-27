@@ -1,9 +1,9 @@
-# hep-contrast palette
+# heimdall-contrast palette
 # Every entry is a pair:  key: [light_value, dark_value]
 # Colors that need transparency get two extra integers:  key: [lightColor, darkColor, lightA, darkA]
 # Alpha integers 0-15 map to hex steps 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff
 # Edit here, then run:  node build.js
-# Outputs: themes/hep-contrast-light.json  +  themes/hep-contrast-dark.json
+# Outputs: themes/heimdall-contrast-light.json  +  themes/heimdall-contrast-dark.json
 
 # ── Syntax roles ──────────────────────────────────────────────────────────────
 syntax:

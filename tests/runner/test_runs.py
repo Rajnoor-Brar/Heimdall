@@ -1,4 +1,4 @@
-"""The run registry (V182): an entry per run in $HEP_RUNS, its state, pruning, a read-only root, and `heimdall runs`."""
+"""The run registry (V182): an entry per run in $HEIMDALL_RUNS, its state, pruning, a read-only root, and `heimdall runs`."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def test_ids_are_unique_and_a_log_is_reserved_once():
 
 
 def test_a_read_only_registry_writes_nothing(tmp_path, monkeypatch):
-    """An Apptainer image's machine root: every write a no-op, and a worker's log in <tmp>/hep-runs-<uid>/."""
+    """An Apptainer image's machine root: every write a no-op, and a worker's log in <tmp>/heimdall-runs-<uid>/."""
     locked = tmp_path / "runs"
     locked.mkdir()
     locked.chmod(0o555)
@@ -43,7 +43,7 @@ def test_a_read_only_registry_writes_nothing(tmp_path, monkeypatch):
         run_id = runs.new_id()
         assert runs.begin(run_id, {}) is None and not runs.finish(run_id, 0) and runs.entries() == []
         log = runs.log_file(run_id)
-        assert log.parent.name == f"hep-runs-{os.getuid()}" and not log.is_relative_to(locked)
+        assert log.parent.name == f"heimdall-runs-{os.getuid()}" and not log.is_relative_to(locked)
         log.touch()                                    # as spawn opens it: the worker then names this one
         assert runs.log_of(run_id) == log
         log.unlink()
@@ -135,7 +135,7 @@ def test_heimdall_runs_lists_running_then_recent(capsys):
     done = runs.new_id(time.time() - 3600)
     runs.begin(done, {"config": "/w/configs/P/a.toml", "configurations": ["one"], "work": "/w", "log": "/l/x.log"})
     runs.finish(done, 0)
-    hub = Hub({"config": "/w/configs/P/b.toml", "configurations": ["two"], "work": "/w"}, name=f"hep-watch-{os.getpid()}-9")
+    hub = Hub({"config": "/w/configs/P/b.toml", "configurations": ["two"], "work": "/w"}, name=f"heimdall-watch-{os.getpid()}-9")
     try:
         assert cli.main(["runs"]) == 0
     finally:
@@ -168,11 +168,11 @@ def test_a_run_records_itself(scratch):
     data = raw(run__cfgs__one__tools=[["true"]], tools={"true": {"tool": "exec", "executable": "/bin/true"}},
                prelim={}, quantities={})
     (config / "rec.toml").write_text(tomli_w.dumps(data), encoding="utf-8")
-    os.environ["HEP_CONFIGS"] = str(scratch / "configs")
+    os.environ["HEIMDALL_CONFIGS"] = str(scratch / "configs")
     try:
         code = cli.main(["run", str(config / "rec.toml"), "--plain", "--rerun"])        # its point runs, however it last ran
     finally:
-        os.environ.pop("HEP_CONFIGS", None)
+        os.environ.pop("HEIMDALL_CONFIGS", None)
     (entry,) = runs.entries()
     assert entry["config"].endswith("rec.toml") and entry["argv"][:2] == ["run", str(config / "rec.toml")]
     assert (entry["code"], entry["verdict"]) == (code, runs.VERDICTS[code]) and entry["records"]

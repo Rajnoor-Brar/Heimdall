@@ -1,7 +1,7 @@
 #pragma once
 // src/Apps/Paint/Style.hh — a page's style: base.toml, with the page's [style] merged over it.
 //
-// base.toml (beside this file) is the one place a default lives. Paint finds it under $HEP
+// base.toml (beside this file) is the one place a default lives. Paint finds it under $HEIMDALL
 // (Heimdall's checkout, which gjallarhorn.sh exports and the runner passes on). The fallback from its own
 // executable on Linux only finds it when the apps sit in the checkout (the layout before the machine
 // root, ~/Himinbjorg/apps). A page's
@@ -113,15 +113,15 @@ namespace Paint {
     inline std::filesystem::path basePath() {
         namespace fs = std::filesystem;
         const fs::path rel = fs::path("src") / "Apps" / "Paint" / "base.toml";
-        if (const char* root = std::getenv("HEP"); root && fs::exists(fs::path(root) / rel)) return fs::path(root) / rel;
+        if (const char* root = std::getenv("HEIMDALL"); root && fs::exists(fs::path(root) / rel)) return fs::path(root) / rel;
         std::error_code ec;
-        const fs::path exe = fs::canonical("/proc/self/exe", ec);      // Linux only; $HEP is the portable way
+        const fs::path exe = fs::canonical("/proc/self/exe", ec);      // Linux only; $HEIMDALL is the portable way
         if (!ec) {
             const fs::path apps = exe.parent_path();
             for (const fs::path& root : {apps.parent_path().parent_path(), apps.parent_path().parent_path().parent_path()})
                 if (fs::exists(root / rel)) return root / rel;
         }
-        throw std::runtime_error("cannot find src/Apps/Paint/base.toml: set $HEP to Heimdall's folder (gjallarhorn.sh does)");
+        throw std::runtime_error("cannot find src/Apps/Paint/base.toml: set $HEIMDALL to Heimdall's folder (gjallarhorn.sh does)");
     }
 
     inline Style readStyle(const toml::table* over) {

@@ -6,7 +6,7 @@ LAST, the opposite of Pythia's "later wins", and a base that assigns what the pl
 n_events, beams, …) is refused, because it would run after the plan's value and replace it.
 
 * Beams are named, not numbered: PDG codes become the model's own names (SM.mdl), and the base
-  card states its structure-function chain in a comment, `# hep: beam_structure = pdf_builtin, epa`.
+  card states its structure-function chain in a comment, `# heimdall: beam_structure = pdf_builtin, epa`.
 * The events go to `$sample`, absolute, because generation runs in the prepare cache (where the
   compiled library and the grids are); Whizard appends `.hepmc` itself.
 * The integration card (`prepare_card`) is the point card without `n_events`, `$sample` and
@@ -19,11 +19,11 @@ import re
 import shutil
 from pathlib import Path
 
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 GENERATION = ("n_events", "$sample", "sample_format")
 ASSIGNMENT = re.compile(r"^\s*([?$]?[A-Za-z_][A-Za-z0-9_]*)\s*=")
-STRUCTURE = re.compile(r"^\s*#\s*hep:\s*beam_structure\s*=\s*(.+?)\s*$", re.M)
+STRUCTURE = re.compile(r"^\s*#\s*heimdall:\s*beam_structure\s*=\s*(.+?)\s*$", re.M)
 
 
 def names(model: str = "SM") -> dict[int, str]:
@@ -31,7 +31,7 @@ def names(model: str = "SM") -> dict[int, str]:
     exe = shutil.which("whizard")
     path = Path(exe).resolve().parent.parent / "share" / "whizard" / "models" / f"{model}.mdl" if exe else None
     if path is None or not path.is_file():
-        raise HepError(f"no Whizard model file for {model}", hint="gjallarhorn: whizard on PATH")
+        raise HeimdallError(f"no Whizard model file for {model}", hint="gjallarhorn: whizard on PATH")
     found: dict[int, str] = {}
     code = None
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -55,12 +55,12 @@ def literal(value) -> str:
 
 def card(bases: list[str], overrides: list, context: dict) -> str:
     if len(bases) != 1:
-        raise HepError("a Whizard tool takes one base card", where=f"[tools.{context.get('tag')}].baseconfig")
+        raise HeimdallError("a Whizard tool takes one base card", where=f"[tools.{context.get('tag')}].baseconfig")
     base = bases[0]
     owned = sorted({m.group(1).lower() for line in base.splitlines() if not line.lstrip().startswith("#")
                     and (m := ASSIGNMENT.match(line)) and m.group(1).lower() in context["owned"]})
     if owned:
-        raise HepError(f"the base card sets {', '.join(owned)}, which the plan owns",
+        raise HeimdallError(f"the base card sets {', '.join(owned)}, which the plan owns",
                        where=f"[tools.{context.get('tag')}].baseconfig",
                        hint="SINDARIN runs the base after the point card, so it would replace the plan's value (see L13)")
     lines = ["# SINDARIN runs in order: the plan's settings first, the base card (included last) after."]
@@ -70,7 +70,7 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
             table = names()
             missing = [c for c in value if int(c) not in table]
             if missing:
-                raise HepError(f"the SM model has no name for PDG {missing[0]}", where=origin)
+                raise HeimdallError(f"the SM model has no name for PDG {missing[0]}", where=origin)
             chain = f" => {structure.group(1)}" if structure else ""
             lines.append(f"beams = {', '.join(table[int(c)] for c in value)}{chain}    # {origin}")
         elif key == "beams_momentum":

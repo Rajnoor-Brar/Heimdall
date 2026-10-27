@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from runner import config, quantities, sweep, tools
-from runner.errors import HepError
+from runner.errors import HeimdallError
 from helpers import plans_of
 
 V2 = """[run]
@@ -166,7 +166,7 @@ def test_events_as_a_list_make_one_configuration_per_count(scratch):
     assert run.runs("pdf") == ["pdf_100", "pdf_2.5k"]
     assert [run.configurations[k].event_count for k in run.runs("pdf")] == [100, 2500]
     assert run.configurations["pdf_2.5k"].label == "pdf_2.5k"
-    with pytest.raises(HepError, match="several configurations, one per event count"):
+    with pytest.raises(HeimdallError, match="several configurations, one per event count"):
         run.configuration("pdf")
 
 
@@ -198,7 +198,7 @@ def test_the_v2_forms_are_refused_with_their_v3_names(scratch, change, message):
     text = V3.replace(*change)
     if "neither varied" in message:
         text = text.replace('[quantities.pdf]\nfixed  = "MSTW08lo"\n', "[quantities.pdf]\n")
-    with pytest.raises(HepError, match=message):
+    with pytest.raises(HeimdallError, match=message):
         load(scratch, text)
 
 
@@ -270,7 +270,7 @@ def test_the_migration_says_each_fact_once(scratch):
 ])
 def test_a_key_in_the_wrong_table_names_its_table(scratch, change, message):
     """03 §3, 06_Plan's row: `threads = 4` in a tool table says where threads goes."""
-    with pytest.raises(HepError) as caught:
+    with pytest.raises(HeimdallError) as caught:
         plans_of(written(scratch, V3.replace(*change)), "pdf")
     assert caught.value.hint and __import__("re").search(message, caught.value.hint), caught.value.hint
 
@@ -312,9 +312,9 @@ def _planned(path: str, key: str, sets=(), rerun: bool = False):
 @pytest.fixture
 def trees_of_its_own(scratch, monkeypatch):
     """records/, logs/ and results/ of this test alone: a folder's number depends on what is on disk."""
-    monkeypatch.setenv("HEP_RECORDS", str(scratch / "records"))
-    monkeypatch.setenv("HEP_CACHE", str(scratch / "cache"))
-    monkeypatch.setenv("HEP_RESULTS", str(scratch / "results"))
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(scratch / "records"))
+    monkeypatch.setenv("HEIMDALL_CACHE", str(scratch / "cache"))
+    monkeypatch.setenv("HEIMDALL_RESULTS", str(scratch / "results"))
     return scratch
 
 
@@ -353,7 +353,7 @@ def test_a_set_serial_refuses_to_overwrite_other_inputs(scratch, trees_of_its_ow
     same = _planned(path, "pdf")
     assert same.configuration.serial == 3 and not same.configuration.serial_auto and cli.overwrites(same) == []
     changed = _planned(path, "pdf", sets=["run.events=20"])
-    with pytest.raises(HepError, match="would overwrite them") as error:
+    with pytest.raises(HeimdallError, match="would overwrite them") as error:
         cli.refuse_overwrites(changed, argparse.Namespace(rerun=False))
     assert "serial = 4" in error.value.hint and "--rerun" in error.value.hint and "[run]" in error.value.where
     cli.refuse_overwrites(changed, argparse.Namespace(rerun=True))
@@ -367,9 +367,9 @@ def test_a_set_serial_refuses_to_overwrite_other_inputs(scratch, trees_of_its_ow
 
 def test_a_numbered_folder_is_one_configurations(scratch):
     text = V3 + '\n[cfgs.other]\nfolder = "pdf"\nserial = 1\nvary   = ["pdf"]\n'
-    with pytest.raises(HepError, match="'pdf' and 'other' would both write Demo/pair/NN_pdf"):
+    with pytest.raises(HeimdallError, match="'pdf' and 'other' would both write Demo/pair/NN_pdf"):
         load(scratch, text)
-    with pytest.raises(HepError, match="would both write Demo/pair/01_pdf"):                 # either form
+    with pytest.raises(HeimdallError, match="would both write Demo/pair/01_pdf"):                 # either form
         twice = V2.replace("[run.cfgs.pdf]", "[run.cfgs.pdf]\nserial = 1").replace(
             "[prelim]", '[run.cfgs.other]\nlabel  = "pdf"\nserial = 1\nsweeps = ["pdf"]\ntools  = ["pythia"]\n\n[prelim]')
         load(scratch, twice, "two.toml")
@@ -385,7 +385,7 @@ def test_default_is_the_layer_below_and_native_the_tools_own(scratch):
     assert plot.chosen("y_gutter", 0.5, "tool's", ({"y_gutter": "native"}, {"y_gutter": 0.3})) == "tool's"
     assert plot.chosen("y_gutter", 0.5, "tool's", ({"y_gutter": "default"}, {"y_gutter": 0.3})) == 0.3
     assert 'y_gutter = "native"' in migrate.v3_text(V2 + '\n[plot]\ny_gutter = "default"\n')
-    with pytest.raises(HepError, match="'threads' must be"):
+    with pytest.raises(HeimdallError, match="'threads' must be"):
         load(scratch, V3.replace("threads = 1", 'threads = "native"'))
 
 
@@ -398,7 +398,7 @@ def test_an_imports_only_and_drop_take_v3_names(scratch):
     assert list(run.configurations) == ["pdf"] and run.configuration("pdf").sweeps == ["pdf"]
     dropping = f'[file]\nimport = ["{common}"]\ndrop = ["cfgs.single"]\n\n[run]\nproject = "Demo"\nname = "dropper"\nrun = "pdf"\n'
     assert "single" not in load(scratch, dropping, "dropper.toml").configurations
-    with pytest.raises(HepError, match="drop names"):
+    with pytest.raises(HeimdallError, match="drop names"):
         load(scratch, dropping.replace("cfgs.single", "cfgs.singel"), "dropper.toml")
 
 

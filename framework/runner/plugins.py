@@ -11,14 +11,14 @@ import importlib.util
 import sys
 from pathlib import Path
 
-from .errors import HepError
+from .errors import HeimdallError
 
 
 @functools.cache
 def load(path: Path, kind: str):
     """The module at `path` (framework/tools/<folder>/<kind>.py), loaded once."""
     if not path.is_file():
-        raise HepError(f"no {kind} plugin", hint=f"expected {path}")
+        raise HeimdallError(f"no {kind} plugin", hint=f"expected {path}")
     spec = importlib.util.spec_from_file_location(f"hep_{kind}_{path.parent.name}", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module          # importable by name: a process pool's workers find it (V71)

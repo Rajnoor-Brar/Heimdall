@@ -42,8 +42,8 @@ from . import config as configmod
 from . import plot as plotting
 from . import plotdoc, plugins, record, statstable, viewer
 from .config import STATISTICS
-from .errors import HepError, did_you_mean
-from .paths import apps_dir, cache_root, config_file, configs_root, hep_root, reports_root, results_root, work_root
+from .errors import HeimdallError, did_you_mean
+from .paths import apps_dir, cache_root, config_file, configs_root, heimdall_root, reports_root, results_root, work_root
 from .sweep import TOTALITY, label_of, named_sets, totality
 from .tools import RunFolders
 
@@ -99,7 +99,7 @@ class Source:
         if how == "events":
             n = self.events()
             if not n:
-                raise HepError(f"{self.address}: no event count", hint='its points say none; label = "folder" labels it by its folder')
+                raise HeimdallError(f"{self.address}: no event count", hint='its points say none; label = "folder" labels it by its folder')
             return plotdoc.count_tag(n)
         return self.name
 
@@ -198,7 +198,7 @@ def _folders_of(address: str, where: str) -> list[Path]:
             return [path.resolve()]
         if path.is_dir() and (found := _run_sources(path)):
             return [p.resolve() for p in found]
-        raise HepError(f"no plot document in {path}", where=where, hint="a source is a result folder holding a plot.toml")
+        raise HeimdallError(f"no plot document in {path}", where=where, hint="a source is a result folder holding a plot.toml")
     root = results_root()
     matches = sorted(root.glob(address), key=lambda p: natural(str(p))) if GLOB.search(address) else [root / address]
     out: list[Path] = []
@@ -212,7 +212,7 @@ def _folders_of(address: str, where: str) -> list[Path]:
         return out
     parent = root / address.rsplit("/", 1)[0] if "/" in address else root
     present = sorted(p.name for p in parent.iterdir() if p.is_dir()) if parent.is_dir() and not GLOB.search(address) else []
-    raise HepError(f"no result folder {address} under {root}", where=where,
+    raise HeimdallError(f"no result folder {address} under {root}", where=where,
                    hint=did_you_mean(address.rsplit("/", 1)[-1], present) or "a source is <P>/<run>/<cfg>, <P>/<run>, a path or a glob")
 
 
@@ -236,15 +236,15 @@ def _read(path: Path) -> dict:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
     except OSError:
-        raise HepError("cannot read the recipe", where=str(path)) from None
+        raise HeimdallError("cannot read the recipe", where=str(path)) from None
     except tomllib.TOMLDecodeError as error:
-        raise HepError(f"cannot read the recipe: {error}", where=str(path)) from None
+        raise HeimdallError(f"cannot read the recipe: {error}", where=str(path)) from None
 
 
 def _is_recipe(path: Path) -> bool:
     try:
         return set(_read(path)) == {"report"}
-    except HepError:
+    except HeimdallError:
         return False
 
 
@@ -256,8 +256,8 @@ def recipe_of(name: str) -> Path | None:
         return None
     try:
         return config_file(name).resolve()
-    except HepError:
-        raise HepError(f"no recipe {name}", where=str(configs_root()),
+    except HeimdallError:
+        raise HeimdallError(f"no recipe {name}", where=str(configs_root()),
                        hint="a recipe is a .toml file: <P>/<name>.toml under configs/, ./… from the work dir, or /…") from None
 
 
@@ -275,7 +275,7 @@ def load_recipe(path: Path) -> dict:
         return dict(configmod.load(str(path)).report)
     if set(data) != {"report"}:
         others = sorted(set(data) - {"report"})
-        raise HepError(f"a recipe has [report] alone, not [{others[0]}]" if others else "a recipe has a [report] table",
+        raise HeimdallError(f"a recipe has [report] alone, not [{others[0]}]" if others else "a recipe has a [report] table",
                        where=str(path), hint="[report] title = …, then [[report.section]] tables (04 §15)")
     configmod.check_report(data["report"], f"{path}: [report]")
     project = configmod._project_of(path, data, "")
@@ -532,7 +532,7 @@ def configured(source: Source, globs: list[str], hide: list[str], where: str, op
     if not recorded:
         if optional:
             return []
-        raise HepError(f"{source.address}: no record of its points' tools in {logs}", where=f"{where}.tools",
+        raise HeimdallError(f"{source.address}: no record of its points' tools in {logs}", where=f"{where}.tools",
                        hint="a point's tools are read from its records/ (cards/, context.toml); results copied alone have none")
     tags = sorted(dict.fromkeys(t for _, tools in recorded for t in tools), key=natural)
     chosen: list[str] = []
@@ -543,7 +543,7 @@ def configured(source: Source, globs: list[str], hide: list[str], where: str, op
         elif glob in tags:
             chosen += [glob] if glob not in chosen else []
         elif not optional:
-            raise HepError(f"tools: {source.address}'s points have no tool {glob!r}", where=f"{where}.tools",
+            raise HeimdallError(f"tools: {source.address}'s points have no tool {glob!r}", where=f"{where}.tools",
                            hint=did_you_mean(glob, tags) or f"their tools: {', '.join(tags)}")
     out = []
     for tag in chosen:
@@ -733,7 +733,7 @@ def _refuse_missing(source: Source, set_: str, where: str, measured: bool = Fals
     kind, sets = ("measured", "statistics") if measured else ("drawn", "plots")
     has = sorted((d.name for d in (source.folder / sets).iterdir() if d.is_dir()), key=natural) if (source.folder / sets).is_dir() else []
     own = [TOTALITY, *(s for s in named_sets((source.doc.plot or {}).get("sets")) if s != TOTALITY)] if source.doc.plot else []
-    raise HepError(f"{source.address} has no set {set_} {kind}" + (", and no complete point to draw it from" if set_ in own else
+    raise HeimdallError(f"{source.address} has no set {set_} {kind}" + (", and no complete point to draw it from" if set_ in own else
                                                                    f", and its plot document no set {set_} to draw"), where=where,
                    hint="; ".join(part for part in (f"{kind} there: {', '.join(has)}" if has else "",
                                                      f"its sets: {', '.join(own)}" if own else "",
@@ -781,12 +781,12 @@ def _pages_section(section: dict, found: list[Source], where: str, drawings: lis
                 if not drawn:
                     if section.get("optional"):
                         continue
-                    raise HepError(f"{source.address}: {set_}, drawn for the report, has no page", where=where,
+                    raise HeimdallError(f"{source.address}: {set_}, drawn for the report, has no page", where=where,
                                    hint=f"its points give it none; the drawing's log: {drawing.logs}")
         names = [n for n in drawn if any(_matches(n, g) for g in globs)
                  and (cells is None or any(fnmatch.fnmatchcase(_cell(n), c) for c in cells))]
         if not names:
-            raise HepError(f"pages: {', '.join(globs)} names no page drawn in "
+            raise HeimdallError(f"pages: {', '.join(globs)} names no page drawn in "
                            f"{f'{root}/plots' if root else f'{source.address}/plots'}/{set_}/", where=f"{where}.pages",
                            hint=f"its pages: {', '.join(list(drawn)[:6])}{' …' if len(drawn) > 6 else ''}" if drawn else None)
         chosen[source.address] = {n: drawn[n] for n in names}
@@ -798,7 +798,7 @@ def _pages_section(section: dict, found: list[Source], where: str, drawings: lis
         named = labels(found, how)
         twice = [label for label in named.values() if list(named.values()).count(label) > 1]
         if twice:
-            raise HepError(f"two sources are labelled {twice[0]}", where=f"{where}.label",
+            raise HeimdallError(f"two sources are labelled {twice[0]}", where=f"{where}.label",
                            hint='label = "folder" labels them by their folders')
         if waiting:                                      # its pages are known once drawn
             return [Grid(f"{set_} · {', '.join(globs)}", [Figure(s, set_, ", ".join(globs), None if s.address in waiting else
@@ -808,7 +808,7 @@ def _pages_section(section: dict, found: list[Source], where: str, drawings: lis
         for name in names:
             absent = [s.address for s in found if name not in chosen[s.address]]
             if absent:
-                raise HepError(f"{absent[0]} has no page {name} in plots/{set_}/", where=f"{where}.pages",
+                raise HeimdallError(f"{absent[0]} has no page {name} in plots/{set_}/", where=f"{where}.pages",
                                hint="draw it there, or leave that source out of the section's from")
             grids.append(Grid(f"{set_} · {name}", [Figure(s, set_, name, chosen[s.address][name], named[s.address]) for s in found],
                               section.get("columns") or (3 if len(found) >= 3 else None)))
@@ -848,7 +848,7 @@ def _compare_section(section: dict, found: list[Source], where: str) -> list[Gri
                                                                          for rel, path in shown.items()], section.get("columns")))
                     break
             else:
-                raise HepError(f"compare: no page of {name} drawn in {_address(run)}/compare/", where=f"{where}.compare",
+                raise HeimdallError(f"compare: no page of {name} drawn in {_address(run)}/compare/", where=f"{where}.compare",
                                hint="a compare figure is drawn by its configurations' plot stage (03 §7.5)")
     return grids
 
@@ -858,7 +858,7 @@ def _files_section(section: dict, base: Path, where: str) -> list[Grid]:
     for glob in section["files"]:
         found = sorted((p for p in base.glob(glob) if p.suffix.lower() in (".pdf", ".png")), key=lambda p: natural(p.name))
         if not found:
-            raise HepError(f"files: '{glob}' names no PDF or PNG file in {base}", where=f"{where}.files")
+            raise HeimdallError(f"files: '{glob}' names no PDF or PNG file in {base}", where=f"{where}.files")
         files += [p for p in found if p not in files]
     return [Grid(section["title"], [Figure(None, "", p.stem, p.resolve(), p.stem) for p in files], section.get("columns"))]
 
@@ -881,7 +881,7 @@ def _numbers(spec: dict, found: list[Source], set_: str, where: str, drawings: l
                 if csv is None:
                     if spec.get("optional"):
                         continue
-                    raise HepError(f"{source.address}: {set_}, measured for the report, has no numbers", where=where,
+                    raise HeimdallError(f"{source.address}: {set_}, measured for the report, has no numbers", where=where,
                                    hint=f"no page of it has numbers; the drawing's log: {drawing.logs}")
         out.append((source, csv))
     return out
@@ -918,16 +918,16 @@ def _out(recipe: dict, used: list[Source], where: str) -> Path:
     given = recipe.get("output")
     if given:
         if given.startswith("../") or "/../" in given:
-            raise HepError(f"output '{given}' climbs out of reports/", where=f"{where}.output", hint="name a folder under reports/, or ./… or /…")
+            raise HeimdallError(f"output '{given}' climbs out of reports/", where=f"{where}.output", hint="name a folder under reports/, or ./… or /…")
         return Path(given) if given.startswith("/") else work_root() / given[2:] if given.startswith("./") else reports_root() / given
     outside = [s.address for s in used if Path(s.address).is_absolute()]
     if outside:
-        raise HepError(f"{outside[0]} is not under results/, so its report has no place of its own under reports/", where=where,
+        raise HeimdallError(f"{outside[0]} is not under results/, so its report has no place of its own under reports/", where=where,
                        hint='-o DIR builds it there, or output = "<folder>" in its [report]')
     common = _common(used)
     if not common:
         projects = ", ".join(dict.fromkeys(s.address.split("/", 1)[0] for s in used))
-        raise HepError(f"its sources are of several projects ({projects}), so its report has no one place under reports/",
+        raise HeimdallError(f"its sources are of several projects ({projects}), so its report has no one place under reports/",
                        where=where, hint='-o DIR builds it there, or output = "<folder>" in its [report]')
     return reports_root() / common
 
@@ -941,7 +941,7 @@ def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command
     where = str(path) if path else "the default report"
     named = given or recipe.get("from", [])
     if not named and not any(s.get("from") for s in recipe.get("section", [])):
-        raise HepError("a report needs a source", where=where,
+        raise HeimdallError("a report needs a source", where=where,
                        hint="heimdall report <recipe>.toml <P>/<run>/<cfg>, or from = [\"<P>/<run>/<cfg>\"] in [report]")
     every = found if found is not None else sources(named, "the command line" if given else f"{where}: [report].from") if named else []
     specs = recipe.get("section") or default_recipe(every, recipe.get("tools"))["section"]
@@ -988,12 +988,12 @@ def planned(first: str | None, rest: list[str], out: Path | None = None) -> Plan
         if path.name == RECIPE and not rest and not recipe.get("from") and (path.parent / plotdoc.FILE).is_file():
             rest = [str(path.parent)]                     # a folder's own report.toml: that folder
         if "run" in _read(path) and not rest:
-            raise HepError("a run TOML's [report] is its folders' reports: name the folders", where=str(path),
+            raise HeimdallError("a run TOML's [report] is its folders' reports: name the folders", where=str(path),
                            hint=f"heimdall report {first} <P>/<run>/<cfg>")
         return resolve(recipe, rest, path=path, command=command, out=out)
     given = [first, *rest] if first else list(rest)
     if not given:
-        raise HepError("a report needs a source", hint="heimdall report <P>/<run>/<cfg>; heimdall report <recipe>.toml <source>")
+        raise HeimdallError("a report needs a source", hint="heimdall report <P>/<run>/<cfg>; heimdall report <recipe>.toml <source>")
     found = sources(given, "the command line")
     own = found[0].folder / RECIPE if len(found) == 1 else None
     if own is not None and own.is_file():
@@ -1103,7 +1103,7 @@ def _key(*parts: str) -> str:
 
 
 def _layout():
-    return plugins.load(hep_root() / "framework" / "plot" / "figures" / "layout.py", "layout")
+    return plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "layout.py", "layout")
 
 
 @dataclass
@@ -1288,7 +1288,7 @@ def _bars(build: _Build, bars, item: Bars, folder: Path) -> Placed:
         pages.setdefault(row["page"], []).append(row)
     names = [n for n in sorted(pages, key=natural) if any(_matches(n, g) for g in item.pages)]
     if not names:
-        raise HepError(f"bars: {', '.join(item.pages)} names no page measured in {item.csv}",
+        raise HeimdallError(f"bars: {', '.join(item.pages)} names no page measured in {item.csv}",
                        hint=f"its pages: {', '.join(list(sorted(pages, key=natural))[:6])} …" if pages else None)
     base = _key(_sha(item.csv), _code(bars))
     files, options, pngs = [], [], []
@@ -1614,7 +1614,7 @@ def _stat(path: Path | None) -> str:
 
 def _drawing_code() -> list[str]:
     """What a drawing is drawn by: Paint as built, the plot stage's code and the backends'."""
-    framework = hep_root() / "framework"
+    framework = heimdall_root() / "framework"
     files = [framework / "runner" / "plot.py", framework / "runner" / "labels.py",
              *sorted((framework / "plot").rglob("*.py")), *sorted((framework / "plot").rglob("*.toml"))]
     return [_stat(apps_dir() / "Paint.exe"), *(_sha(f) for f in files if f.is_file())]
@@ -1709,11 +1709,11 @@ def build(plan: Plan, say=print) -> list[Path]:
     out = plan.out
     for place in (results_root(), *(s.folder for s in plan.sources)):
         if out.resolve().is_relative_to(Path(place).resolve()):
-            raise HepError(f"a report is never built into results/: {out}", hint="leave -o out (reports/ mirrors results/), or name another folder")
+            raise HeimdallError(f"a report is never built into results/: {out}", hint="leave -o out (reports/ mirrors results/), or name another folder")
     _draw_for(plan, say)
     _settle(plan)
     if plan.drawn():
-        raise HepError(f"{len(plan.drawn())} figure(s) or part(s) were not drawn for the report", where=str(drawings_root(plan)),
+        raise HeimdallError(f"{len(plan.drawn())} figure(s) or part(s) were not drawn for the report", where=str(drawings_root(plan)),
                        hint="the lines above say why")
     out.mkdir(parents=True, exist_ok=True)
     books = _Build(out)
@@ -1729,7 +1729,7 @@ def build(plan: Plan, say=print) -> list[Path]:
     source, pdf = out / "report.tex", out / "report.pdf"
     made = [source, out / "index.html"]
     stamp = books.old.get("report.pdf")
-    revision = record.git_state(hep_root()).get("revision", "")[:12]
+    revision = record.git_state(heimdall_root()).get("revision", "")[:12]
     when = f"on {datetime.now().strftime('%Y-%m-%d %H:%M')}" + (f", Heimdall {revision}" if revision else "")
     if stamp and stamp.get("key") == key and pdf.is_file() and source.is_file():
         books.new["report.pdf"] = stamp
@@ -1741,7 +1741,7 @@ def build(plan: Plan, say=print) -> list[Path]:
             try:
                 _layout().pdflatex(source, "the report", runs=2)
             except ValueError as error:
-                raise HepError(str(error), where=str(source), hint=f"pdflatex's log: {source.with_suffix('.log')}") from None
+                raise HeimdallError(str(error), where=str(source), hint=f"pdflatex's log: {source.with_suffix('.log')}") from None
             for suffix in LEFTOVERS:
                 source.with_suffix(suffix).unlink(missing_ok=True)
             books.new["report.pdf"] = {"key": key}

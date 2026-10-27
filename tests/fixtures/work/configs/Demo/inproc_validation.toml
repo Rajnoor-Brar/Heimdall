@@ -28,7 +28,7 @@ project       = "Demo"
 run           = "default"
 events        = 1_000_000
 threads       = 12            # Pythia's; 12 + 12 Rivets fill the 24 hardware threads
-generate_cards = ["pythia", "rivet"]   # not run: their cards, for inproc (HEP_CONTEXT)
+generate_cards = ["pythia", "rivet"]   # not run: their cards, for inproc (HEIMDALL_CONTEXT)
 chain         = ["inproc", "yd2rt"]   # every configuration's, unless it says its own
 
 [cfgs.default]

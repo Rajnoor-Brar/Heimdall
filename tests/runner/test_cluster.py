@@ -16,8 +16,8 @@ from types import SimpleNamespace
 import pytest
 
 from runner import cli, cluster, paths, record, sweep
-from runner.errors import HepError
-from support import HEP
+from runner.errors import HeimdallError
+from support import HEIMDALL
 
 STUB = {
     "sbatch": '#!/bin/bash\nn=$(( $(cat "$STUBLOG.n" 2>/dev/null || echo 100) + 1 )); echo $n > "$STUBLOG.n"\n'
@@ -80,20 +80,20 @@ class Work:
         self.tool = self.root / "make.py"
         self.tool.write_text(TOOL, encoding="utf-8")
         self.tool.chmod(0o755)
-        self.hep_toml('[work]\nname = "t"\n')
+        self.heimdall_toml('[work]\nname = "t"\n')
         self.config(**toml)
-        self.env = {**{k: v for k, v in os.environ.items() if k != "HEP_CONFIGS"}, "HEP_WORK": str(self.root),
-                    "HEP_RECORDS": str(self.root / "records"), "HEP_CACHE": str(self.root / "cache"), "HEP_RESULTS": str(self.root / "results"),
+        self.env = {**{k: v for k, v in os.environ.items() if k != "HEIMDALL_CONFIGS"}, "HEIMDALL_WORK": str(self.root),
+                    "HEIMDALL_RECORDS": str(self.root / "records"), "HEIMDALL_CACHE": str(self.root / "cache"), "HEIMDALL_RESULTS": str(self.root / "results"),
                     "PATH": f"{root / 'bin'}{os.pathsep}{os.environ['PATH']}", "STUBLOG": str(self.log)}
 
-    def hep_toml(self, text: str) -> None:
-        (self.root / "hep.toml").write_text(text, encoding="utf-8")
+    def heimdall_toml(self, text: str) -> None:
+        (self.root / "heimdall.toml").write_text(text, encoding="utf-8")
 
     def config(self, **toml) -> None:
         (self.root / "configs" / "P" / "c.toml").write_text(run_toml(self.tool, **toml), encoding="utf-8")
 
-    def hep(self, *args: str, **env) -> subprocess.CompletedProcess:
-        return subprocess.run([str(HEP), *args], cwd=self.root, env={**self.env, **env}, capture_output=True,
+    def heimdall(self, *args: str, **env) -> subprocess.CompletedProcess:
+        return subprocess.run([str(HEIMDALL), *args], cwd=self.root, env={**self.env, **env}, capture_output=True,
                               text=True, encoding="utf-8", errors="replace", timeout=300)
 
     def calls(self) -> list[str]:
@@ -114,8 +114,8 @@ def work(scratch):
 @pytest.fixture
 def inside(work, monkeypatch):
     """The work dir as this process's, for the tests that call the runner directly."""
-    for var, value in (("HEP_WORK", work.root), ("HEP_RECORDS", work.root / "records"), ("HEP_CACHE", work.root / "cache"), ("HEP_RESULTS", work.root / "results"),
-                       ("HEP_MACHINE", work.root.parent / "machine")):   # no machine.toml but the test's
+    for var, value in (("HEIMDALL_WORK", work.root), ("HEIMDALL_RECORDS", work.root / "records"), ("HEIMDALL_CACHE", work.root / "cache"), ("HEIMDALL_RESULTS", work.root / "results"),
+                       ("HEIMDALL_MACHINE", work.root.parent / "machine")):   # no machine.toml but the test's
         monkeypatch.setenv(var, str(value))
     paths.reset()
     yield work
@@ -130,7 +130,7 @@ def plans(name: str = "P/c", sets=()):
 
 def test_an_unknown_cluster_key_is_refused_with_its_nearest(work):
     work.config(cluster_lines='tme = "00:10:00"')
-    done = work.hep("check", "P/c")
+    done = work.heimdall("check", "P/c")
     said = done.stdout + done.stderr                                    # heimdall check reports on stdout
     assert done.returncode == 2 and "unknown key 'tme'" in said and "did you mean 'time'?" in said
 
@@ -138,52 +138,52 @@ def test_an_unknown_cluster_key_is_refused_with_its_nearest(work):
 def test_a_cluster_value_is_one_line_of_the_script():
     """V194: a newline in an #SBATCH value or a setup line would add a line of its own to the job script."""
     from runner.config import check_cluster
-    from runner.errors import HepError
+    from runner.errors import HeimdallError
     check_cluster({"account": "lab", "setup": ["module load gcc/13", "export X=1\t# a tab is fine"]}, "[cluster]")
     for values in ({"account": "lab\nrm -rf ~"}, {"setup": ["ok", "x\r"]}, {"sbatch": ["--x=\x00"]}):
-        with pytest.raises(HepError, match="a control character"):
+        with pytest.raises(HeimdallError, match="a control character"):
             check_cluster(values, "[cluster]")
 
 
 def test_pre_and_finish_take_only_a_jobs_resources(work):
     work.config(cluster_lines='time = "00:10:00"\n[cluster.finish]\nsetup = []')
-    done = work.hep("check", "P/c")
+    done = work.heimdall("check", "P/c")
     assert done.returncode == 2 and "unknown key 'setup'" in done.stdout + done.stderr
 
 
 def test_the_layers_lowest_first(inside):
-    inside.hep_toml('[work]\nname = "t"\n[cluster]\naccount = "lab"\npartition = "short"\ntime = "00:05:00"\n')
+    inside.heimdall_toml('[work]\nname = "t"\n[cluster]\naccount = "lab"\npartition = "short"\ntime = "00:05:00"\n')
     inside.config(cluster_lines='time = "00:10:00"\ncpus = 4', own='cluster = { partition = "long" }')
     merged = cluster.settings(plans(sets=['cluster.memory="2G"']).configuration)
     assert merged == {"account": "lab", "partition": "long", "time": "00:10:00", "cpus": 4, "memory": "2G"}
 
 
 def test_the_machines_defaults_lie_under_the_work_dirs(inside):
-    """Audit 3, phase 3.1: machine.toml's [cluster] is every work dir's on this machine; hep.toml's wins."""
-    machine = Path(os.environ["HEP_MACHINE"])
+    """Audit 3, phase 3.1: machine.toml's [cluster] is every work dir's on this machine; heimdall.toml's wins."""
+    machine = Path(os.environ["HEIMDALL_MACHINE"])
     machine.mkdir()
     (machine / "machine.toml").write_text('[cluster]\naccount = "site"\npartition = "all"\nsetup = ["module load x"]\n',
                                           encoding="utf-8")
-    inside.hep_toml('[work]\nname = "t"\n[cluster]\npartition = "short"\ntime = "00:05:00"\n')
+    inside.heimdall_toml('[work]\nname = "t"\n[cluster]\npartition = "short"\ntime = "00:05:00"\n')
     inside.config(cluster_lines="cpus = 2")
     merged = cluster.settings(plans().configuration)
     assert merged == {"account": "site", "partition": "short", "setup": ["module load x"], "time": "00:05:00", "cpus": 2}
     (machine / "machine.toml").write_text('[cluster]\nacount = "site"\n', encoding="utf-8")
-    with pytest.raises(HepError) as caught:
+    with pytest.raises(HeimdallError) as caught:
         cluster.settings(plans().configuration)
     assert "machine.toml" in str(caught.value.where)
 
 
 def test_an_isolated_stacks_jobs_load_it_from_the_machine_root(inside, monkeypatch):
-    monkeypatch.setenv("HEP_STACK", "kit")
-    assert cluster.loader() == Path(os.environ["HEP_MACHINE"]) / "stacks" / "kit" / "gjallarhorn.sh"
-    monkeypatch.delenv("HEP_STACK")
-    assert cluster.loader() == paths.hep_root() / "gjallarhorn.sh"
+    monkeypatch.setenv("HEIMDALL_STACK", "kit")
+    assert cluster.loader() == Path(os.environ["HEIMDALL_MACHINE"]) / "stacks" / "kit" / "gjallarhorn.sh"
+    monkeypatch.delenv("HEIMDALL_STACK")
+    assert cluster.loader() == paths.heimdall_root() / "gjallarhorn.sh"
 
 
 def test_a_time_limit_is_required_in_some_layer(inside):
     inside.config(cluster_lines='cpus = 2')
-    with pytest.raises(HepError, match="needs each job's time limit"):
+    with pytest.raises(HeimdallError, match="needs each job's time limit"):
         cluster.settings(plans().configuration)
 
 
@@ -196,9 +196,9 @@ def test_cluster_settings_are_in_no_identity(inside):
 # ── the scripts and the submission ──────────────────────────────────────────────────────────────
 
 def test_a_dry_run_writes_the_scripts_and_submits_nothing(work):
-    work.hep_toml('[work]\nname = "t"\n[cluster]\naccount = "lab"\nsetup = ["echo node"]\n')
+    work.heimdall_toml('[work]\nname = "t"\n[cluster]\naccount = "lab"\nsetup = ["echo node"]\n')
     work.config(cluster_lines='time = "00:10:00"\nmax_running = 2')
-    done = work.hep("cluster", "P/c", "--dry-run")
+    done = work.heimdall("cluster", "P/c", "--dry-run")
     assert done.returncode == 0, done.stderr
     assert "dry run: nothing submitted" in done.stdout and work.calls() == []
     [folder] = work.submissions()
@@ -206,9 +206,9 @@ def test_a_dry_run_writes_the_scripts_and_submits_nothing(work):
     assert (folder / "points.txt").read_text(encoding="utf-8") == "a\nb\nc\n"
     text = (folder / "points.sbatch").read_text(encoding="utf-8")
     for line in ("#SBATCH --array=1-3%2", "#SBATCH --cpus-per-task=3", "#SBATCH --time=00:10:00",
-                 "#SBATCH --account=lab", "echo node", f"source {paths.hep_root() / 'gjallarhorn.sh'}",
-                 f"export HEP_MACHINE={paths.machine_root()}",
-                 f"export HEP_WORK={work.root}", '--points "$point" --stages points --plain'):
+                 "#SBATCH --account=lab", "echo node", f"source {paths.heimdall_root() / 'gjallarhorn.sh'}",
+                 f"export HEIMDALL_MACHINE={paths.machine_root()}",
+                 f"export HEIMDALL_WORK={work.root}", '--points "$point" --stages points --plain'):
         assert line in text, line
     assert text.index("echo node") < text.index("source ")              # the setup lines first
     assert "--stages combine,post,plot" in (folder / "finish.sbatch").read_text(encoding="utf-8")
@@ -216,7 +216,7 @@ def test_a_dry_run_writes_the_scripts_and_submits_nothing(work):
 
 
 def test_the_points_then_the_finish_after_any(work):
-    done = work.hep("cluster", "P/c")
+    done = work.heimdall("cluster", "P/c")
     assert done.returncode == 0, done.stderr
     calls = [c for c in work.calls() if c.startswith("sbatch")]
     assert len(calls) == 2 and calls[0].startswith("sbatch --parsable ") and calls[0].endswith("points.sbatch")
@@ -227,7 +227,7 @@ def test_the_points_then_the_finish_after_any(work):
 
 def test_a_pre_job_comes_first_and_the_points_need_it_done(work):
     work.config(pre=True)
-    assert work.hep("cluster", "P/c").returncode == 0
+    assert work.heimdall("cluster", "P/c").returncode == 0
     calls = [c for c in work.calls() if c.startswith("sbatch")]
     assert calls[0].endswith("pre.sbatch")
     assert "--dependency=afterok:101" in calls[1] and calls[1].endswith("points.sbatch")
@@ -235,38 +235,38 @@ def test_a_pre_job_comes_first_and_the_points_need_it_done(work):
 
 
 def test_complete_points_are_not_submitted(work):
-    assert work.hep("run", "P/c", "--points", "a,b", "--stages", "points", "--plain").returncode == 0
-    assert work.hep("cluster", "P/c", "--dry-run").returncode == 0
+    assert work.heimdall("run", "P/c", "--points", "a,b", "--stages", "points", "--plain").returncode == 0
+    assert work.heimdall("cluster", "P/c", "--dry-run").returncode == 0
     assert (work.submissions()[-1] / "points.txt").read_text(encoding="utf-8") == "c\n"
 
 
 def test_nothing_to_run_submits_the_finish_job_alone(work):
-    assert work.hep("run", "P/c", "--stages", "points", "--plain").returncode == 0
-    done = work.hep("cluster", "P/c")
+    assert work.heimdall("run", "P/c", "--stages", "points", "--plain").returncode == 0
+    done = work.heimdall("cluster", "P/c")
     assert done.returncode == 0 and "only the finish job" in done.stdout
     [call] = [c for c in work.calls() if c.startswith("sbatch")]
     assert call.endswith("finish.sbatch") and "--dependency" not in call
 
 
 def test_a_second_submission_waits_for_the_first(work):
-    assert work.hep("cluster", "P/c").returncode == 0
+    assert work.heimdall("cluster", "P/c").returncode == 0
     work.stub("squeue", "101_2|PENDING|0:00|(JobArrayTaskLimit)\n")
-    done = work.hep("cluster", "P/c")
+    done = work.heimdall("cluster", "P/c")
     assert done.returncode == 2 and "still has jobs pending or running" in done.stderr and "--cancel" in done.stderr
     assert len(work.submissions()) == 1
 
 
 def test_no_sbatch_is_refused_unless_a_dry_run(work):
-    done = work.hep("cluster", "P/c", PATH=os.environ["PATH"])
+    done = work.heimdall("cluster", "P/c", PATH=os.environ["PATH"])
     assert done.returncode == 2 and "no sbatch here" in done.stderr
 
 
 def test_status_reads_the_markers_then_sacct_and_squeue(work):
-    assert work.hep("cluster", "P/c").returncode == 0
-    assert work.hep("run", "P/c", "--points", "a", "--stages", "points", "--plain").returncode == 0
+    assert work.heimdall("cluster", "P/c").returncode == 0
+    assert work.heimdall("run", "P/c", "--points", "a", "--stages", "points", "--plain").returncode == 0
     work.stub("sacct", "101_2|FAILED|1:0|00:00:40\n")
     work.stub("squeue", "101_3|RUNNING|1:02|node12\n102|PENDING|0:00|(Dependency)\n")
-    done = work.hep("cluster", "P/c", "--status")
+    done = work.heimdall("cluster", "P/c", "--status")
     lines = done.stdout.splitlines()
     assert done.returncode == 0 and lines[0].endswith("(points 101, finish 102)")
     assert lines[1].split() == ["a", "complete"]
@@ -277,25 +277,25 @@ def test_status_reads_the_markers_then_sacct_and_squeue(work):
 
 
 def test_cancel_cancels_the_latest_submission(work):
-    assert work.hep("cluster", "P/c").returncode == 0
-    done = work.hep("cluster", "P/c", "--cancel")
+    assert work.heimdall("cluster", "P/c").returncode == 0
+    done = work.heimdall("cluster", "P/c", "--cancel")
     assert done.returncode == 0 and work.calls()[-1] == "scancel 101 102"
-    (entry,) = [json.loads(p.read_text(encoding="utf-8")) for p in Path(os.environ["HEP_RUNS"]).glob("*.json")]
+    (entry,) = [json.loads(p.read_text(encoding="utf-8")) for p in Path(os.environ["HEIMDALL_RUNS"]).glob("*.json")]
     assert entry["verdict"] == "cancelled" and entry.get("finished")              # V184
 
 
 def test_a_submission_is_one_registry_entry_and_its_jobs_none(work):
     """V184: heimdall cluster records its submission (its jobs, folder, config); each job's own heimdall run, under
-    HEP_CLUSTER_JOB (exported by its script), records nothing; heimdall runs shows the submission."""
-    assert work.hep("cluster", "P/c").returncode == 0
-    entries = [json.loads(p.read_text(encoding="utf-8")) for p in Path(os.environ["HEP_RUNS"]).glob("*.json")]
+    HEIMDALL_CLUSTER_JOB (exported by its script), records nothing; heimdall runs shows the submission."""
+    assert work.heimdall("cluster", "P/c").returncode == 0
+    entries = [json.loads(p.read_text(encoding="utf-8")) for p in Path(os.environ["HEIMDALL_RUNS"]).glob("*.json")]
     assert [(e["kind"], e["jobs"], e["configuration"]) for e in entries] == [("cluster", ["101", "102"], "three")]
     assert Path(entries[0]["submission"], "jobs.toml").is_file()
     folder = Path(entries[0]["submission"])
-    assert all(f"export HEP_CLUSTER_JOB=" in (folder / s).read_text(encoding="utf-8")
+    assert all(f"export HEIMDALL_CLUSTER_JOB=" in (folder / s).read_text(encoding="utf-8")
                for s in ("points.sbatch", "finish.sbatch"))
     work.stub("squeue", "101_3|RUNNING|1:02|node12\n")
-    listed = work.hep("runs")
+    listed = work.heimdall("runs")
     assert listed.stdout.startswith("running") and "on Slurm" in listed.stdout and "heimdall cluster" in listed.stdout
 
 
@@ -308,27 +308,27 @@ def test_array_task_ids(given, expected):
 # ── heimdall run --stages: what a job is ─────────────────────────────────────────────────────────────
 
 def test_a_points_stage_runs_its_points_alone(work):
-    done = work.hep("run", "P/c", "--points", "b", "--stages", "points", "--plain")
+    done = work.heimdall("run", "P/c", "--points", "b", "--stages", "points", "--plain")
     assert done.returncode == 0, done.stdout + done.stderr
     base = work.root / "records" / "P" / "c" / "three"
     assert (work.root / "results" / "P" / "c" / "three" / "points" / "b" / "x.txt").exists()
     assert not (base / "points.json").exists()                          # the finish job writes it
-    done = work.hep("run", "P/c", "--stages", "combine,post,plot", "--plain")
+    done = work.heimdall("run", "P/c", "--stages", "combine,post,plot", "--plain")
     assert done.returncode == 0 and "combine, post, plot done" in done.stdout
     assert (base / "points.json").exists() and not (base / "points" / "a").exists()  # no point ran
 
 
 def test_the_points_need_their_pre_stage(work):
     work.config(pre=True)
-    done = work.hep("run", "P/c", "--stages", "points", "--plain")
+    done = work.heimdall("run", "P/c", "--stages", "points", "--plain")
     assert done.returncode == 2 and "the pre stage is not complete" in done.stderr
-    assert work.hep("run", "P/c", "--stages", "pre,points", "--plain").returncode == 0
+    assert work.heimdall("run", "P/c", "--stages", "pre,points", "--plain").returncode == 0
 
 
 @pytest.mark.parametrize("args,message", [(("--stages", "points,plots"), "'plots' is not a stage"),
                                           (("--stages", "post", "--only", "post"), "do not go together")])
 def test_stages_are_named_and_alone(work, args, message):
-    done = work.hep("run", "P/c", *args, "--plain")
+    done = work.heimdall("run", "P/c", *args, "--plain")
     assert done.returncode == 2 and message in done.stderr
 
 
@@ -358,13 +358,13 @@ def test_writers_on_one_file_never_rename_each_others(scratch):
 def test_jobs_run_in_an_image_when_the_work_dir_names_one(work):
     sif = work.root / "stack.sif"
     sif.write_text("an image", encoding="utf-8")
-    work.hep_toml(f'[work]\nname = "t"\n[cluster]\nsetup = ["module load apptainer"]\nimage = "{sif}"\n')
+    work.heimdall_toml(f'[work]\nname = "t"\n[cluster]\nsetup = ["module load apptainer"]\nimage = "{sif}"\n')
     work.config(cluster_lines='time = "00:10:00"')
-    done = work.hep("cluster", "P/c", "--dry-run")
+    done = work.heimdall("cluster", "P/c", "--dry-run")
     assert done.returncode == 0, done.stderr
     [folder] = work.submissions()
     text = (folder / "points.sbatch").read_text(encoding="utf-8")
     assert "module load apptainer" in text and "source " not in text             # the image's own environment
     assert 'runtime=$(command -v apptainer || command -v singularity)' in text
-    assert f'exec "$runtime" exec --cleanenv --bind {work.root}' in text and f"--env HEP_WORK={work.root}" in text
+    assert f'exec "$runtime" exec --cleanenv --bind {work.root}' in text and f"--env HEIMDALL_WORK={work.root}" in text
     assert f"{sif} /opt/heimdall/launch.sh heimdall run " in text and '--points "$point"' in text

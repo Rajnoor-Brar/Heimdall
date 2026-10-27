@@ -20,7 +20,7 @@ from typing import Any
 
 import yaml
 
-from runner.errors import HepError
+from runner.errors import HeimdallError
 
 _STEP = re.compile(r"^(?P<name>[^\[\]]+)(?:\[(?P<index>\d+)\])?$")
 
@@ -40,7 +40,7 @@ def assign(document: dict, path: str, value: Any, origin: str = "") -> None:
     for i, step in enumerate(steps):
         match = _STEP.match(step)
         if not match:
-            raise HepError(f"'{path}' is not a Sherpa key path", where=origin)
+            raise HeimdallError(f"'{path}' is not a Sherpa key path", where=origin)
         name, index, last = match["name"], match["index"], i == len(steps) - 1
         if index is None:
             if last:
@@ -48,11 +48,11 @@ def assign(document: dict, path: str, value: Any, origin: str = "") -> None:
             else:
                 node = node.setdefault(name, {})
                 if not isinstance(node, dict):
-                    raise HepError(f"'{path}': {name} is not a mapping in the card", where=origin)
+                    raise HeimdallError(f"'{path}': {name} is not a mapping in the card", where=origin)
             continue
         entries = node.get(name)
         if not isinstance(entries, list) or int(index) >= len(entries):
-            raise HepError(f"'{path}': the card has no {name}[{index}]", where=origin,
+            raise HeimdallError(f"'{path}': the card has no {name}[{index}]", where=origin,
                            hint=f"{name} must be a list in the base card with an entry {index}")
         if last:
             entries[int(index)] = value
@@ -66,10 +66,10 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
     for text in bases:
         loaded = yaml.safe_load(text) or {}
         if not isinstance(loaded, dict):
-            raise HepError("a Sherpa base card must be a YAML mapping", where=context.get("tag", "sherpa"))
+            raise HeimdallError("a Sherpa base card must be a YAML mapping", where=context.get("tag", "sherpa"))
         owned = [k for k in loaded if k in context["owned"]]
         if owned:
-            raise HepError(f"the base card sets {', '.join(owned)}, which the plan owns",
+            raise HeimdallError(f"the base card sets {', '.join(owned)}, which the plan owns",
                            where=f"[tools.{context.get('tag', 'sherpa')}].baseconfig",
                            hint="beams, energies, seed, events and outputs come from quantities and the runner (see L12)")
         document = merge(document, loaded)

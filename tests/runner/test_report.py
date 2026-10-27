@@ -603,3 +603,10 @@ def test_typeset_takes_any_colour_and_keeps_a_short_table_whole():
     long = paper.Table("t", "a table", ["a"], [paper.Row(f"r{k}", [paper.Cell("1")]) for k in range(40)])
     assert typeset.keep(short) == 24 + 3 * typeset.ROW + 5 * typeset.ROW
     assert typeset.keep(long) == 24 + 3 * typeset.ROW + typeset.HEAD_ROWS * typeset.ROW
+
+
+def test_index_titles_show_labels_as_text():
+    """index.html's titles and a set's facts: a label's $…$ as Unicode, as the statistics' own pages read it."""
+    assert report.shown_text("Inclusive $k_T$ jets") == "Inclusive kT jets"
+    assert report.shown_text("$e^{+}p$ at $\\sqrt{s}$ = 318 GeV") == "e+p at √s = 318 GeV"
+    assert report.shown_text("a & b") == "a & b"

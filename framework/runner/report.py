@@ -1610,7 +1610,7 @@ def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
                                 columns, _aspect(grid.figures[0].file), head=head,
                                 toc=(head.set if len(plan.sources) == 1 else f"{head.set} · {head.address}") if head else
                                 caption if "compare" in section.spec else "",
-                                title=" · ".join(part for part in (set_, plain(caption)) if part) or section.title))
+                                title=" · ".join(part for part in (set_, caption) if part) or section.title))
         for k, part in enumerate(section.parts, 1):
             shown = _part(build, bars, part, build.out / STATS / name, f"{k:02d}_{slug(part.source.folder.name)}", say)
             if shown is not None:
@@ -2055,6 +2055,12 @@ def _given_html(shown: Configs, out: Path, accent: str) -> str:
     return "\n".join(parts)
 
 
+def shown_text(label: str) -> str:
+    """A label as index.html's titles show it, plain Unicode: its $…$ as the statistics' pages read them
+    (webpage.text_of: `$k_T$` → kT, `$\\sqrt{s}$` → √s), tags dropped."""
+    return html.unescape(re.sub(r"<[^>]+>", "", statstable.bars().webpage.text_of(label)))
+
+
 def _index(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> Path:
     """index.html (the viewer): a block a grid, its panels the PNGs, a set's facts under its first grid's title,
     and a block a tool's configuration, as text; the sources and their summaries' pages up front."""
@@ -2062,7 +2068,7 @@ def _index(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> Path:
     for number, (section, grids) in enumerate(placed, 1):
         for k, grid in enumerate(grids, 1):
             if isinstance(grid, Configs):
-                blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {grid.given.caption}", [],
+                blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{shown_text(section.title)}: {grid.given.caption}", [],
                                            body=_given_html(grid, out, plan.look.accent)))
                 continue
             if isinstance(grid, Typeset):
@@ -2071,13 +2077,13 @@ def _index(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> Path:
                 said = [f"<p>Typeset in <a href=\"report.pdf\">report.pdf</a>"
                         + (f"; as one page: {link(grid.page)}" if grid.page else "") + ".</p>",
                         "<p>Its numbers: " + ", ".join(link(p) for p in grid.data) + "</p>"]
-                blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {plain(grid.title)}", [],
+                blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{shown_text(section.title)}: {shown_text(grid.title)}", [],
                                            body="\n".join(said)))
                 continue
             panels = [(label or (f"page {n}" if len(grid.pngs) > 1 else ""), png) for n, (label, png)
                       in enumerate(zip(grid.labels, grid.pngs), 1)]
-            notes = [f"{what}: " + "; ".join(plain(line) for line in lines) for what, lines in grid.head.facts] if grid.head else []
-            blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {grid.title}", panels, notes))
+            notes = [f"{what}: " + "; ".join(shown_text(line) for line in lines) for what, lines in grid.head.facts] if grid.head else []
+            blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{shown_text(section.title)}: {shown_text(grid.title)}", panels, notes))
     summaries = {p.name: p for p in sorted((out / STATS / "summaries").glob("*.html"))} if (out / STATS / "summaries").is_dir() else {}
     rows = []
     for source in plan.sources:

@@ -103,7 +103,7 @@ The execution map is §4; each phase's log is §5. Built in the worktree `scratc
 | R1 `reports/` | V214 | fbb7ad6 | done |
 | R2 the look | V215 | b6eeb22 | done |
 | R3 statistics typeset, data beside | V216 | 6ad07c6 | done |
-| R4 Brookhaven's zeus_report.toml, built read-only | V217 | | done |
+| R4 Brookhaven's zeus_report.toml, built read-only | V217 | fc929e6, and the closing commit | done |
 
 ## 5. Log
 
@@ -170,3 +170,5 @@ The execution map is §4; each phase's log is §5. Built in the worktree `scratc
   built read-only into `scratchpad/zeusbuild/`: 20 A4 pages. Its pages showed `\needspace`'s penalty breaking pages
   early, a lone "(continued)" table header, and a cell ink named `white`: `\hdKeep`, `typeset.keep`, `_hex` by name.
   ZEUS_2012_I1116258's legends corrected §2 R8's grouping (d09–d12: anti-k_T and SISCone).
+- 2026-10-27, **closed:** index.html's titles as Unicode (`shown_text`); the fast suite 1107 + the old stack-build failure;
+  the slow suite (below); I-110 deleted from ISSUES.md; main fast-forwarded, the worktree removed (branch `look` kept).

@@ -106,7 +106,9 @@ url    = "https://example.org/data/ZEUS_2012.yoda"
 sha256 = "9f2c…"                 # sha256sum's: the file must be this one
 ```
 
-**Reports** are built into `reports/`, which mirrors `results/`; their recipes are in `configs/` (03 §11). **`heimdall setup . --refresh`** brings the framework's own files (the
+**Reports** are built into `reports/`, which mirrors `results/`; their recipes are in `configs/` (03 §11).
+Like `build/`, `records/`, `.cache/` and `results/`, `reports/` is made, never written by hand: the work
+dir's `.gitignore` leaves it out. **`heimdall setup . --refresh`** brings the framework's own files (the
 `Makefile`, Heimdall's `README.md` or `HEIMDALL.md`, `CLAUDE.md`, `.vscode/`, the `.gitignore` block)
 up to today's template, showing each diff first; your files are never touched.
 

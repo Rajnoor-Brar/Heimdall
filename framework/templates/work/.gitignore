@@ -1,10 +1,10 @@
-# What the runner and the build make: reproducible from configs/ and modules/
+# What the runner and the build make: reproducible from configs/ and modules/ (reports/: heimdall report's, its
+# recipes in configs/)
 build/
 records/
 .cache/
 results/
-# Built reports (heimdall report: their recipes are in configs/); large inputs are listed in datasets.toml and
-# kept out by datasets/.gitignore (heimdall setup . fetches them)
-reports/*
+reports/
+# Large inputs are listed in datasets.toml and kept out by datasets/.gitignore (heimdall setup . fetches them)
 __pycache__/
 *.exe

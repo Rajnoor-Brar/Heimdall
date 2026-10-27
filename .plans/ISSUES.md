@@ -154,6 +154,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-103 | Physics set-ups to settle | P3 | decision |
 | I-104 | A tool's private dependencies (BeAGLE) | P3 | idea (set aside) |
 | I-105 | Smaller leftovers | P3 | idea |
+| I-110 | A report's look, native statistics, and its data | P2 | in progress (asked 2026-10-27) |
 
 ---
 
@@ -363,6 +364,13 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 **P3 · idea (audit 2 H15)**
 - Heat maps are Paint's only (no mpl). A scan's x must be numeric (no PDF-set scans). A sheet has no
   shared y title or legend.
+
+### I-110 A report's look, native statistics, and its data
+**P2 · feature · in progress (asked 2026-10-27)**
+- `reports/` a run's output in the work template; one look for `report.tex` (fonts, sizes, weights, colours,
+  spacing, the running header); a set's sub-header; code highlighted; the statistics and bar graphs typeset in the
+  report, their data beside them; Brookhaven's `zeus_report.toml`. The plan and its map:
+  [report_look.md](report_look.md).
 
 ## M6 — The package restructure
 

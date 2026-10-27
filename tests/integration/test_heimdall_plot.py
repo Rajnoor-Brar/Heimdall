@@ -67,7 +67,7 @@ def test_mistakes_are_named(scratch):
         plot.files([str(YODAS[0])], scratch / "pages", labels=["x", "y"])
 
 
-def test_hep_overlay_draws_files(scratch):
+def test_heimdall_overlay_draws_files(scratch):
     env = {"HEIMDALL_RECORDS": str(scratch / "records"), "HEIMDALL_CACHE": str(scratch / "cache"), "HEIMDALL_RESULTS": str(scratch / "results")}
     import os
     done = subprocess.run(["python3", str(REPO / "framework" / "bin" / "run"), "overlay", str(YODAS[0]), "--objects", "/photo_eic/d01*",

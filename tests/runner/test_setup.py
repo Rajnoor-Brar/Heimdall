@@ -65,7 +65,7 @@ def test_a_project_gets_the_starter(scratch, quiet):
 
 
 @pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="heimdall build --framework")
-def test_the_starter_passes_hep_check(scratch, quiet):
+def test_the_starter_passes_heimdall_check(scratch, quiet):
     target = scratch / "w"
     setup.setup(target, project="Starter", out=quiet[0])
     done = subprocess.run([str(HEIMDALL), "check", "Starter/starter"], cwd=target, capture_output=True, text=True,
@@ -140,7 +140,7 @@ def test_where_work_outside_a_work_dir_is_exit_2(monkeypatch, scratch, quiet):
     assert errors == ["not inside a work dir (heimdall setup <dir> makes one)"]
 
 
-def test_where_hep_is_one_line(quiet):
+def test_where_heimdall_is_one_line(quiet):
     out, lines = quiet
     assert setup.where("heimdall", out=out) == 0 and lines == [str(REPO)]
 

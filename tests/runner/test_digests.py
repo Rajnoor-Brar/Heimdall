@@ -115,7 +115,7 @@ def test_a_prepare_entry_keeps_its_digest_and_a_stamp_of_the_older_shape_is_stil
     assert results[f"{step.tag}:prepare"].cache == str(step.prepare_dir)
 
 
-def test_run_log_is_read_from_hep_toml_and_checked(scratch, monkeypatch):
+def test_run_log_is_read_from_heimdall_toml_and_checked(scratch, monkeypatch):
     work = scratch / "logwork"
     work.mkdir()
     (work / "heimdall.toml").write_text('[work]\nname = "w"\n[run]\nlog = { head = 5, full = 1 }\n', encoding="utf-8")

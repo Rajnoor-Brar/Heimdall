@@ -29,7 +29,7 @@ def test_an_unknown_command_gets_the_nearest():
     assert done.returncode == 2 and "no command 'rn'" in done.stderr and "did you mean 'run'" in done.stderr
 
 
-def test_every_command_has_a_description_and_hep_help_shows_it(capsys):
+def test_every_command_has_a_description_and_heimdall_help_shows_it(capsys):
     top = cli.parser()
     commands = cli._described(top)
     assert all(p.description for p in commands.choices.values())

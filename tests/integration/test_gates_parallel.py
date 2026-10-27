@@ -141,7 +141,7 @@ def test_ctrl_c_stops_the_running_points_and_starts_no_more(scratch):
     assert "d" not in started                                 # the fourth never started
 
 
-def test_hep_watch_follows_a_run_over_its_socket_and_nothing_runtime_is_on_disk(scratch):
+def test_heimdall_watch_follows_a_run_over_its_socket_and_nothing_runtime_is_on_disk(scratch):
     """V72: no --journal, no status.jsonl; `heimdall watch CONFIG` attaches to the running process's socket,
     shows the run so far and what follows, and ends with the run. Each tool's digest is on disk (V201), the
     whole output is not."""

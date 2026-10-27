@@ -59,7 +59,7 @@ def test_the_shipped_folders_are_the_last_on_the_path(roots):
     assert "lhapdf" not in known and "figures" not in known           # plugins and mappings only: no tool.toml
 
 
-def test_a_work_dirs_folder_is_a_tool_and_hep_tools_says_so(roots):
+def test_a_work_dirs_folder_is_a_tool_and_heimdall_tools_says_so(roots):
     work, _ = roots
     folder(work, "fit", copy_of="exec")
     assert tools.folders()["fit"].origin == "work" and tools.folders()["fit"].dir == work / "tools" / "fit"

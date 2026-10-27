@@ -32,7 +32,7 @@ def test_heimdall_is_where_the_code_is():
     assert paths.is_heimdall(REPO)
 
 
-def test_another_heimdalls_hep_is_refused(monkeypatch, scratch, fresh):
+def test_another_heimdalls_heimdall_is_refused(monkeypatch, scratch, fresh):
     monkeypatch.setenv("HEIMDALL", str(scratch))
     with pytest.raises(HeimdallError, match="two Heimdalls"):
         paths.heimdall_root()
@@ -85,7 +85,7 @@ def test_the_work_dir_is_found_by_walking_up(monkeypatch, scratch, fresh):
     assert paths.work_root() == work.resolve()
 
 
-def test_a_hep_toml_without_work_is_no_marker(monkeypatch, scratch, fresh):
+def test_a_heimdall_toml_without_work_is_no_marker(monkeypatch, scratch, fresh):
     monkeypatch.delenv("HEIMDALL_WORK")
     (scratch / "heimdall.toml").write_text('[framework]\nexpects = ""\n', encoding="utf-8")
     monkeypatch.chdir(scratch)
@@ -93,7 +93,7 @@ def test_a_hep_toml_without_work_is_no_marker(monkeypatch, scratch, fresh):
     assert paths.find_work() is None
 
 
-def test_outside_a_work_dir_is_an_error_naming_hep_setup(monkeypatch, scratch, fresh):
+def test_outside_a_work_dir_is_an_error_naming_heimdall_setup(monkeypatch, scratch, fresh):
     monkeypatch.delenv("HEIMDALL_WORK")
     monkeypatch.chdir(scratch)
     with pytest.raises(HeimdallError, match="not inside a work dir") as caught:
@@ -107,13 +107,13 @@ def test_markers_under_heimdalls_tests_are_skipped(monkeypatch, fresh):
     assert paths.find_work() is None                     # the fixture is found only through HEIMDALL_WORK
 
 
-def test_hep_work_must_be_a_work_dir(monkeypatch, scratch, fresh):
+def test_heimdall_work_must_be_a_work_dir(monkeypatch, scratch, fresh):
     monkeypatch.setenv("HEIMDALL_WORK", str(scratch))
     with pytest.raises(HeimdallError, match="is not a work dir"):
         paths.work_root()
 
 
-def test_hep_toml_refuses_what_it_does_not_know(scratch):
+def test_heimdall_toml_refuses_what_it_does_not_know(scratch):
     work = make_work(scratch / "w")
     (work / "heimdall.toml").write_text('[work]\nname = "w"\ncolour = "red"\n', encoding="utf-8")
     with pytest.raises(HeimdallError, match="unknown key 'work.colour'"):
@@ -185,7 +185,7 @@ def test_without_the_variables_the_work_dirs_folders(monkeypatch):
 
 # ── placeholders ────────────────────────────────────────────────────────────────────────────────
 
-def test_hep_and_work_are_the_placeholders():
+def test_heimdall_and_work_are_the_placeholders():
     assert paths.placeholders() == {"heimdall": str(REPO), "apps": str(paths.apps_dir()), "work": str(WORK)}
     assert tools.expand("{apps}/Paint.exe", paths.placeholders(), "t") == f"{paths.apps_dir()}/Paint.exe"
     assert tools.expand("{work}/build/Rivet", paths.placeholders(), "t") == f"{WORK}/build/Rivet"

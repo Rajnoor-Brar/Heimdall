@@ -82,7 +82,11 @@ light and committed by named paths.
 
 | Phase | V-row | Commit | State |
 |---|---|---|---|
-| N0 this plan, I-109 | — | | decided 2026-10-27 |
+| N0 this plan, I-109 | — | a82ec2b | decided 2026-10-27 |
+| N1 the rename | V213 | a9353e8 | done: the fast suite, the slow suite (with N2) |
+| N2 main, the apps rebuilt | — | — | done: the slow suite as P1's baseline |
+| N3 the work dirs, the machine root | — | (theirs, uncommitted) | done |
+| N4 the extensions; paperwork | — | | done; paused |
 
 ## 5. Log
 
@@ -104,3 +108,24 @@ light and committed by named paths.
     deps name main's `Module.hh`; pass once `forge/scratch/work/build/` is cleared) and `test_cluster_emulated`
     (`gjallarhorn.sh` gives a job the machine root's apps, built before: its points ran the old App_Pythia, so
     `status` saw another identity; again at N2, with the apps rebuilt).
+- **N2:** main fast-forwarded to `a9353e8`; the machine root's apps rebuilt from it (`heimdall build --framework`,
+  the old ones kept in `scratchpad/apps-before-names/`): App_Pythia, App_PythiaCheck, App_yd2rt, Paint (Paint by
+  hand: the scratch build had rewritten its deps file for the scratch target, so make saw nothing to do). Each reads
+  the new names alone. The slow suite on main with them: 44 passed, the 5 known failed (P1's baseline);
+  `test_cluster_emulated` and `test_modules_p4` pass.
+- **N3, the work dirs** (left uncommitted, for the user): `heimdall migrate --names --apply` in Brookhaven (18 files:
+  its marker, `CLAUDE.md`, `HEIMDALL.md`, `Makefile`, `.gitignore`'s block line, now today's marker; the legacy
+  configs' comments naming `hep run`; `photo_ep.sin`'s directive; `delphes_jets.py`'s `heimdallkit`) and
+  High-Energy (8: its marker, `.vscode/settings.json`, `_vs/High-Energy.code-workspace`, `CLAUDE.md`, `README.md`,
+  `Makefile`, two configs' comments). Their module programs rebuilt alone (`make modules/PhotoProduction/InprocJets.exe`,
+  `make modules/Lambda/Lambda.exe`; the old ones in `scratchpad/modules-before-names/`). **Not rebuilt:** Brookhaven's
+  Rivet plugin `Rivet_photo_eic.so`: its `build/flags.mk` differs from its Oct 16 build (the stack moved on Oct 22),
+  so its next `heimdall build` rebuilds it anyway; a rebuild is not byte-identical, and one record (a legacy run)
+  names it. `heimdall where`, `ls` and `check` pass in both. `setup . --refresh` would still change template text
+  beyond the names (Brookhaven: `CLAUDE.md`, `Makefile`, `HEIMDALL.md`; High-Energy: `.vscode/settings.json`,
+  `README.md`): the user's call.
+- **The machine root:** `machine.toml` (3 comment lines) and `recipes.toml` (1), each backed up beside itself as
+  `*.before-names`; their tables parse the same.
+- **N4:** the extensions repackaged (`heimdall-contrast-2.0.0.vsix`, `heimdall-icons-1.0.0.vsix`: the old files'
+  entries with the new ids, names and today's sources; no `vsce` here). The user installs them in VS Code and
+  removes `local.hep-contrast` and `local.hep-icons`.

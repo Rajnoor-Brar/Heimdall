@@ -1409,6 +1409,9 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
                         else did_you_mean(statistic, SUMMARY) or f"the sections: {', '.join(SUMMARY)}")
                 raise HepError(f"stats: no section {key!r}", where=f"{at}.stats", hint=hint)
         if "plot" in section:
+            if kinds[0] not in ("pages", "stats", "bars"):
+                raise HepError(f"plot is a pages, stats or bars section's: the [plot] keys its pages or numbers are drawn with, "
+                               f"not a {kinds[0]} section's", where=f"{at}.plot")
             check_plot(section["plot"], f"{at}.plot")
         if "hide" in section and "tools" not in section:
             raise HepError("hide is a tools section's: the varied lines it leaves out", where=f"{at}.hide")

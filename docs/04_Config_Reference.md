@@ -1546,20 +1546,20 @@ pages = ["d0[3-4]-*"]
 | `note` | a string |  | a line of text under the title |
 | `from` | a list (a string each) |  | this section's own sources (as [report].from), kept when the command line names others |
 | `pages` | a list (a string each) |  | globs of page names in each source's plots/<set>/<backend>/ (`d01-x01-y01`, `18x275/d0*`, `*`): a grid of them per page cell, or per page with layout = "sources" |
-| `set` | a string | `"totality"` | the set whose pages it takes: each source's plots/<set>/ and statistics/<set>/ |
+| `set` | a string | `"totality"` | the set whose pages or numbers it takes: each source's plots/<set>/ and statistics/<set>/, else drawn for the report (03 §11.3) |
 | `cells` | a list (a string each) |  | globs of page cells (the folders in a set: `18x275`), to take only those; default: every one |
 | `backend` | a string or a list (a string each): `"root"`, `"mpl"`, `"yoda"` |  | whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl, yoda) |
 | `layout` | a string: `"pages"`, `"sources"` | `"pages"` | pages: each source's pages in turn, a grid per page cell; sources: side by side, a grid per page, a panel per source |
 | `columns` | an integer, ≥ 1 |  | a grid's columns (default: 2 on an A4 page, 3 for a side-by-side grid of three or more) |
 | `label` | a string: `"events"`, `"folder"` | `"folder"` | a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its run, where two sources would share one); events, the events its points ran with (10M) |
-| `optional` | true or false | `false` | a source without the section's set drawn (or measured) is passed over, and the section left out when none has it; false: refused, naming the command that draws it |
+| `optional` | true or false | `false` | a source that neither has the section's set drawn (or measured) nor can draw it for the report (no such set, no complete point in it) is passed over, and the section left out when none has it; false: refused, naming the sets it has |
 | `compare` | a list (a string each) |  | compare figures' names (03 §7.5): their pages, from each source's run's compare/<name>/ |
-| `stats` | a list (a string each) |  | the statistics summary's sections, from each source's statistics/<set>/statistics.csv: top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts |
-| `bars` | a list (a string each) |  | globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv |
+| `stats` | a list (a string each) |  | the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts |
+| `bars` | a list (a string each) |  | globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv (else from the numbers measured for it) |
 | `files` | a list (a string each) |  | your own PDF or PNG files, globs relative to the recipe's folder (`extras/*.png`) |
 | `tools` | a list (a string each) |  | tool tags ([tools.<tag>]) or globs, "*" every tool given a card or options: what each was given, read from each source's records, over its complete points: the card's lines every point had (its baseline), then each point's other lines (a table when they are key = value or key: value lines), and its other options |
 | `hide` | a list (a string each) |  | a tools section's: globs of varied lines' keys (else of the lines) to leave out ("Random:seed", "RANDOM_SEED") |
-| `plot` | a table |  | [plot] keys over each source's own, for this section's pages: they are then drawn for the report (03 §11), never into results/ |
+| `plot` | a table |  | a pages, stats or bars section's: [plot] keys over each source's own (its sets and figures added, its style laid over), its pages and numbers then drawn for the report into its cache (03 §11.3), never into results/ |
 <!-- /generated -->
 
 - **A source** is a result folder holding a `plot.toml`: `<P>/<run>/<cfg>`, `<P>/<run>` (each of its

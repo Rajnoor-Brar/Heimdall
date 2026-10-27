@@ -60,7 +60,7 @@ A **work dir** holds a study. `heimdall setup <dir>` makes it from `framework/te
 | `decks/<deck>/` | a deck's sources: `deck.md`, `deck.toml`, its pictures | yes |
 | `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
 | `records/` | what a run needs while it runs or is launched, and what traces it back, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, each tool's digest, `history/` of earlier attempts; FIFOs and scratch files while it runs), `config/` (the run's snapshot), `points.json`, cluster submissions | no |
-| `.cache/` | what is rebuilt on demand: prepare caches, the drawing's page documents and working files (`plots/`), converted reference data; with `keep cache`, card checks | no |
+| `.cache/` | what is rebuilt on demand: prepare caches, the drawing's page documents and working files (`plots/`), what a report draws for itself (`reports/`), converted reference data; with `keep cache`, card checks | no |
 | `results/` | what matters once a run is done: products, pages by set (`plots/<set>/`), their numbers (`statistics/<set>/`) | no |
 | `reports/<P>/<run>/<cfg>/` | reports as `heimdall report` builds them, where `results/` has their sources (a run's in `reports/<P>/<run>/`): `figures/`, `stats/`, `report.tex`, `report.pdf`, `index.html` | no |
 | `reports/<deck>/` | a deck as `heimdall deck` builds it: panels, composites, the slides | no |
@@ -152,7 +152,7 @@ layering was not had nine cycles.)
 | 4 | `plotdoc.py` | a run's plot document, `results/<run>/plot.toml` (V165): written by the run (what it knows rewritten, the user's `[plot]` and `[stats]` kept), read by every drawing as a `Doc`, a `DocConfiguration` and members |
 | 4 | `statstable.py` | the statistics table (V160, V206): a page's numbers as rows, a set's `statistics.csv` written and read back (`read`), its bar graphs and summary (`write_set`, through `figures/bars.py`) |
 | 4 | `post.py` | the pre, combined and post stages |
-| 4 | `report.py` | `heimdall report` (I-108, V207): sources (result folders holding a `plot.toml`, by address, run, path or glob) and their facts, a recipe (`[report]`, `schema/report.toml`: a file of its own, a run TOML's, a folder's `report.toml`, which `write_recipe` writes beside `plot.toml`, V209) or the default one, resolved into a plan of sections, built where `results/` has its sources (`_out`), what each tool was given read from the records (`configured`: a card's baseline and what varied, `split`, `key_value`, V210), grids of figures and statistics parts; `--list`, `--init`; the build (V208): figures copied, statistics and bar graphs drawn from `statistics.csv` (`chosen`), `report.tex` in `figures/layout.py`'s pictures, `report.pdf`, `index.html` (`viewer`), each made again only when what it was made from changed (`.stamps.json`) |
+| 4 | `report.py` | `heimdall report` (I-108, V207): sources (result folders holding a `plot.toml`, by address, run, path or glob) and their facts, a recipe (`[report]`, `schema/report.toml`: a file of its own, a run TOML's, a folder's `report.toml`, which `write_recipe` writes beside `plot.toml`, V209) or the default one, resolved into a plan of sections, built where `results/` has its sources (`_out`), what each tool was given read from the records (`configured`: a card's baseline and what varied, `split`, `key_value`, V210), grids of figures and statistics parts; `--list`, `--init`; the build (V208): figures copied, statistics and bar graphs drawn from `statistics.csv` (`chosen`), `report.tex` in `figures/layout.py`'s pictures, `report.pdf`, `index.html` (`viewer`), each made again only when what it was made from changed (`.stamps.json`); drawn for itself (V211): what a source has not drawn or measured, and a section's `plot` keys (`looked`), as `Drawing`s that `_draw_for` makes with `plot.draw` and `plot.measure` from the source's document loaded into the report's cache (`plotdoc.load(…, folders=)`, stamped `drawn.key`), the waiting sections resolved again after (`_settle`) |
 | 4 | `deck.py` | `heimdall deck`: a deck's blocks from result folders or its own files, labelled and copied into `panels/` (V103); their composites, and `deck.md` through pandoc to Beamer, pptx, dzslides HTML and an Overleaf zip, the viewer, `--init` (V104) |
 | 4 | `cluster.py` | `heimdall cluster`: [cluster] in its layers, the Slurm scripts (a pre job, a points array, a finish job, each an ordinary `heimdall run --stages …`), `sbatch` and the dependencies, `jobs.toml`, `--status` from `sacct` and `squeue`, `--cancel` (V114) |
 | 5 | `cli.py` | `argparse`: `run`, `plot`, `overlay`, `watch`, `check`, …; the order of events |
@@ -879,6 +879,9 @@ records/<P>/<run>/<cfg>/
 .cache/<P>/<tool>/<key>/              prepare caches
 .cache/<P>/datasets/  [.cache/<P>/checks/]   reference data converted for Paint; keep cache: card checks
 .cache/<P>/reproduce/<identity>/      heimdall reproduce's run, beside the original
+.cache/<P>/reports/<run>/<cfg>/.drawn/<source>[-<keys>]/   what a report draws for itself (V211), its place under
+                                      reports/ without <P>: results/ (its pages and numbers), records/logs/plot/,
+                                      work/ (page documents, the sweep), drawn.key
 .cache/overlay/<key>/                 heimdall overlay's page configs
 $HEP_MACHINE/forge/scratch/           everything tests write: work/ (the fixture's copy), records/, cache/, results/, reports/, runs/, pytest/
 
@@ -896,10 +899,10 @@ results/<P>/<run>/<cfg>/
                                       figures/<backend>/<cell>/<figure>/<object>: statistic figures
 results/<P>/<run>/compare/<figure>/<backend>/  a compare figure's pages;  …/statistics/: its numbers
 
-reports/<P>/<run>/<cfg>/              a report (heimdall report, V207–V209), where results/ has its sources: a run's
+reports/<P>/<run>/<cfg>/              a report (heimdall report, V207–V211), where results/ has its sources: a run's
                                       reports/<P>/<run>/, several runs' where they meet; -o or [report].output elsewhere
-  figures/<NN>_<section>/<MMM>_<source>_<page>.{pdf,png}   every page it shows, copied as drawn (a PNG rendered when none)
-  stats/<NN>_<section>/<MM>_<source>.pdf, …/<MM>_<source>/<MM>_<source>_<NN>.png   statistics drawn from statistics.csv
+  figures/<NN>_<section>/<MMM>_<source>_<page>.{pdf,png}   every page it shows, copied as drawn or drawn for it (a PNG rendered when none)
+  stats/<NN>_<section>/<MM>_<source>.pdf, …/<MM>_<source>/<MM>_<source>_<NN>.png   statistics drawn from statistics.csv (or measured for it)
   stats/<NN>_<section>/<MMM>_<source>_<page>.{pdf,png}     bar graphs;  stats/summaries/<source>__<set>.html
   tools/<NN>_<section>/<MM>_<source>/<tag>.baseline.<ext>, <tag>.varied.csv   what each tool was given (V210)
   report.tex  report.pdf  index.html  .stamps.json (what each file was made from)

@@ -326,8 +326,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   `[report]`; a run TOML's `[report]` (a `template` and its own keys) is written into each result folder as
   `report.toml`. Formal presentation is not Heimdall's.
 - It supersedes I-105's deck `template` key and I-78 (both go with deck in P7).
-- **Done:** P1–P5 (V206–V210), on branch `report`. **Left:** P6, drawn for the report itself; P7, deck retired
-  (then main fast-forwarded).
+- **Done:** P1–P6 (V206–V211), on branch `report`. **Left:** P7, deck retired (then main fast-forwarded).
 
 ### I-40 `[plot]` lives in the config; the record keeps facts
 **P1 · design · decision (D2)**

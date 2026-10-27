@@ -576,25 +576,29 @@ to a colleague or a supervisor. It runs only when asked: no run, plot or stats s
   or a glob (`'eic/zeus_validation/0[2-4]_*'`).
 - **Its recipe's keys** are [04 §15](04_Config_Reference.md#15-a-reports-recipe-report).
 - **`--list`** (or `--dry-run`): its sources (each one's configuration, points complete, events, what it is
-  compared against), then each section and what it shows, and the optional sections left out. Nothing is
-  written.
+  compared against), what it would draw for itself and why, then each section and what it shows, and the
+  optional sections left out. Nothing is written.
 - **`--init SOURCE`:** writes `configs/<P>/<name>.toml` for `heimdall report <P>/<name>.toml --init
   SOURCE`, once, with SOURCE's sets, cells and pages listed.
 - **`-o DIR`:** builds into DIR instead of where `results/` has its sources (`reports/<P>/<run>/<cfg>/`,
   `reports/<P>/<run>/`, …) or its recipe's `[report].output`; never into `results/`.
-- **What it makes:** `figures/` (every page it shows, copied as drawn, with its PNG), `stats/` (the statistics
-  and bar graphs it shows, drawn from each source's `statistics.csv`), `tools/` (what each tool was given, from
-  the records: its card's lines alike in every point, and what varied as a CSV), `report.tex`, `report.pdf` (A4)
-  and `index.html`, again only what changed; what they are is [03 §11](03_Plots.md#11-reports-heimdall-report).
+- **What it draws for itself:** a set a source has not drawn (or drew as PNG alone), numbers it has not
+  measured, and every section with `plot = { … }`, from the source's plot document into the report's cache
+  (`.cache/<P>/reports/…/.drawn/`), never into `results/` ([03 §11.3](03_Plots.md#113-drawn-for-itself)).
+- **What it makes:** `figures/` (every page it shows, copied as drawn or drawn for it, with its PNG), `stats/`
+  (the statistics and bar graphs it shows, drawn from each source's `statistics.csv` or the numbers measured for
+  it), `tools/` (what each tool was given, from the records: its card's lines alike in every point, and what
+  varied as a CSV), `report.tex`, `report.pdf` (A4) and `index.html`, again only what changed; what they are is
+  [03 §11](03_Plots.md#11-reports-heimdall-report).
 - **What it needs:** pdflatex for `report.pdf` (without it, `report.tex` is still written, to compile
   elsewhere), with `longtable` and `fvextra` for the tools' pages, and poppler's `pdftoppm` for a page drawn
-  with no PNG.
+  with no PNG; to draw for itself, what `heimdall plot` needs (Paint, the backend's own).
 
 #### 1.8.1 `heimdall deck`
 
 `heimdall deck <deck>` makes slides from pages already drawn, in `reports/<deck>/` (a path
 starting `./`, `../` or `/` is taken as it is). How to make a talk with it is
-[03 §11.4](03_Plots.md#114-decks-heimdall-deck); its `deck.toml` keys are
+[03 §11.5](03_Plots.md#115-decks-heimdall-deck); its `deck.toml` keys are
 [04 §15.1](04_Config_Reference.md#151-a-decks-recipe-decktoml).
 - **What a run does, in order:**
   1. reads `deck.toml`'s blocks, or the folder's own files;

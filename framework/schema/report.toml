@@ -1,4 +1,4 @@
-# framework/schema/report.toml — a report's recipe (I-108, V207, V209): [report] and its [[report.section]]s, in a
+# framework/schema/report.toml — a report's recipe (I-108, V207, V209, V211): [report] and its [[report.section]]s, in a
 # recipe of its own (configs/<P>/<name>.toml, [report] alone), in a run TOML (what its folders' reports show), and
 # in the report.toml a run writes beside each folder's plot.toml.
 #
@@ -64,7 +64,7 @@ doc   = "globs of page names in each source's plots/<set>/<backend>/ (`d01-x01-y
 [section.set]
 type    = "str"
 default = "totality"
-doc     = "the set whose pages it takes: each source's plots/<set>/ and statistics/<set>/"
+doc     = "the set whose pages or numbers it takes: each source's plots/<set>/ and statistics/<set>/, else drawn for the report (03 §11.3)"
 
 [section.cells]
 type  = "list"
@@ -97,7 +97,7 @@ doc     = "a side-by-side panel's label: folder, its source's folder name withou
 [section.optional]
 type    = "bool"
 default = false
-doc     = "a source without the section's set drawn (or measured) is passed over, and the section left out when none has it; false: refused, naming the command that draws it"
+doc     = "a source that neither has the section's set drawn (or measured) nor can draw it for the report (no such set, no complete point in it) is passed over, and the section left out when none has it; false: refused, naming the sets it has"
 
 [section.compare]
 type  = "list"
@@ -107,12 +107,12 @@ doc   = "compare figures' names (03 §7.5): their pages, from each source's run'
 [section.stats]
 type  = "list"
 items = "str"
-doc   = "the statistics summary's sections, from each source's statistics/<set>/statistics.csv: top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts"
+doc   = "the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts"
 
 [section.bars]
 type  = "list"
 items = "str"
-doc   = "globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv"
+doc   = "globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv (else from the numbers measured for it)"
 
 [section.files]
 type  = "list"
@@ -131,4 +131,4 @@ doc   = "a tools section's: globs of varied lines' keys (else of the lines) to l
 
 [section.plot]
 type = "table"
-doc  = "[plot] keys over each source's own, for this section's pages: they are then drawn for the report (03 §11), never into results/"
+doc  = "a pages, stats or bars section's: [plot] keys over each source's own (its sets and figures added, its style laid over), its pages and numbers then drawn for the report into its cache (03 §11.3), never into results/"

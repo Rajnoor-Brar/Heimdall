@@ -13,6 +13,9 @@ for colleagues or a supervisor, made only when asked (rank 4).
   several runs' where their addresses meet; `-o` or the recipe's `output` says otherwise.
 * `resolve` turns a recipe and its sources into a `Plan`: its sections' grids of figures, each copied from its
   source or drawn for the report, and its statistics parts. Nothing is written until the build.
+* **Drawn for itself** (V211): what a source has not drawn or measured (or drew as PNG alone), and every section
+  with `plot = {…}`, is drawn by plot.draw and plot.measure from the source's plot document into the report's
+  cache, .cache/<P>/reports/<its place>/.drawn/; the source's results/ and records/ are only read.
 """
 
 from __future__ import annotations
@@ -36,11 +39,13 @@ from datetime import datetime
 from pathlib import Path
 
 from . import config as configmod
+from . import plot as plotting
 from . import plotdoc, plugins, record, statstable, viewer
 from .config import STATISTICS
 from .errors import HepError, did_you_mean
-from .paths import config_file, configs_root, hep_root, reports_root, results_root, work_root
-from .sweep import label_of
+from .paths import apps_dir, cache_root, config_file, configs_root, hep_root, reports_root, results_root, work_root
+from .sweep import TOTALITY, label_of, named_sets, totality
+from .tools import RunFolders
 
 #: What a run writes beside each folder's plot.toml: its report's recipe (V209).
 RECIPE = "report.toml"
@@ -107,12 +112,12 @@ class Source:
         return sorted((d.name for d in plots.iterdir() if d.is_dir() and any((d / b).is_dir() for b in BACKENDS)),
                       key=natural) if plots.is_dir() else []
 
-    def pages(self, set_: str, backends: tuple[str, ...]) -> dict[str, Path]:
+    def pages(self, set_: str, backends: tuple[str, ...], root: Path | None = None) -> dict[str, Path]:
         """A set's drawn pages, name → file: per page, the first of `backends` that drew it, its PDF (else its
-        PNG). Sheets and indexes are not pages."""
+        PNG). Sheets and indexes are not pages. `root`: a drawing's results/ instead of its folder (P6)."""
         out: dict[str, Path] = {}
         for backend in backends:
-            where = self.folder / "plots" / set_ / backend
+            where = (root or self.folder) / "plots" / set_ / backend
             found: dict[str, Path] = {}
             for path in sorted(where.rglob("*")) if where.is_dir() else ():
                 rel = path.relative_to(where)
@@ -125,10 +130,17 @@ class Source:
                 out.setdefault(name, path)
         return dict(sorted(out.items(), key=lambda item: natural(item[0])))
 
-    def numbers(self, set_: str) -> Path | None:
-        """A set's statistics.csv, when measured."""
-        path = self.folder / "statistics" / set_ / "statistics.csv"
+    def numbers(self, set_: str, root: Path | None = None) -> Path | None:
+        """A set's statistics.csv, when measured (`root`: a drawing's results/)."""
+        path = (root or self.folder) / "statistics" / set_ / "statistics.csv"
         return path if path.is_file() else None
+
+    def drawable(self, set_: str, look: dict) -> bool:
+        """Whether its document can draw or measure a set for the report (P6): a [plot] (its own, the section's
+        plot keys over it), the set the totality or one of its sets, and a complete point with its YODA."""
+        plot = looked(self.doc.plot or {}, look)
+        return bool(plot) and set_ in {TOTALITY, *named_sets(plot.get("sets"))} and \
+            any(m.yoda is not None and m.yoda.is_file() for m in self.complete())
 
     def facts(self) -> dict:
         """Where it came from (N2): its config and configuration, Heimdall's revision and when its document was
@@ -576,7 +588,7 @@ class Figure:
     source: Source | None
     set: str
     page: str                    # its name in the set ([<cell>/]<object>), or the file's
-    file: Path | None            # what is shown; None: drawn for the report (P6)
+    file: Path | None            # what is shown; None: to be drawn for the report (P6), its pages' globs as page
     label: str = ""              # a side-by-side panel's
     why: str = ""                # why it is drawn for the report
 
@@ -594,7 +606,8 @@ class Part:
     source: Source
     set: str
     keys: list[str]
-    csv: Path | None             # None: measured for the report (P6)
+    csv: Path | None             # None: to be measured for the report (P6)
+    look: bool = False           # measured with its section's plot keys
 
 
 @dataclass
@@ -604,6 +617,7 @@ class Bars:
     set: str
     pages: list[str]
     csv: Path | None
+    look: bool = False
 
 
 @dataclass
@@ -615,6 +629,72 @@ class Section:
     bars: list[Bars] = field(default_factory=list)
     given: list[Given] = field(default_factory=list)     # what its tools were given (A7)
     plot: dict = field(default_factory=dict)
+    spec: dict = field(default_factory=dict)             # its recipe's table, its sources and where it is written:
+    found: list = field(default_factory=list)            # resolved again once what it waits for is drawn (P6)
+    at: str = ""
+
+    def waiting(self) -> bool:
+        """Whether it shows something not drawn yet: a figure with no file, numbers with no CSV."""
+        return any(f.file is None for g in self.grids for f in g.figures) or any(p.csv is None for p in [*self.parts, *self.bars])
+
+
+@dataclass
+class Drawing:
+    """A source's document drawn or measured for the report (P6: N3, N8), never into results/: its [plot] with a
+    section's plot keys over it (`look`), drawing only the sets the report needs, into folders of its own under
+    .cache/<P>/reports/<the report's place>/.drawn/ (results/, records/ for its logs, work/)."""
+    source: Source
+    look: dict                                                  # a section's plot keys; {}: the document's own
+    sets: dict[str, str] = field(default_factory=dict)          # set → why its pages are drawn
+    measured: dict[str, str] = field(default_factory=dict)      # set → why its numbers are measured
+    backends: list[str] = field(default_factory=list)           # the ones its sections name, beside its own
+    folder: Path | None = None                                  # where, once the build has drawn it
+    failed: int = 0
+
+    def want(self, kind: str, set_: str, why: str, backends=()) -> "Drawing":
+        getattr(self, kind).setdefault(set_, why)
+        self.backends += [b for b in backends if b not in self.backends]
+        return self
+
+    @property
+    def results(self) -> Path | None:
+        return self.folder / "results" if self.folder else None
+
+    @property
+    def logs(self) -> Path | None:
+        return self.folder / "records" / "logs" / "plot" if self.folder else None
+
+    def describe(self) -> str:
+        """What it draws and why, for --list and the front page."""
+        said = [f"{kind} of " + ", ".join(f"{s} ({why})" for s, why in table.items())
+                for kind, table in (("pages", self.sets), ("numbers", self.measured)) if table]
+        look = ", ".join(f"{k} = {_value(v)}" for k, v in self.look.items())
+        return self.source.address + (f" with {look} over its [plot]" if look else "") + ": " + "; ".join(said)
+
+
+def _drawing(drawings: list[Drawing], source: Source, look: dict) -> Drawing:
+    """The drawing of this source with this look, one for every section that asks for it."""
+    key = json.dumps(look, sort_keys=True)
+    for drawing in drawings:
+        if drawing.source.folder == source.folder and json.dumps(drawing.look, sort_keys=True) == key:
+            return drawing
+    drawings.append(Drawing(source, dict(look)))
+    return drawings[-1]
+
+
+def looked(plot: dict, look: dict) -> dict:
+    """A document's [plot] with a section's plot keys over it (N8): its sets and figures added to the document's, its
+    style laid over the document's, any other key replacing the document's."""
+    if not look:
+        return dict(plot)
+    out = {**plot, **{k: v for k, v in look.items() if k not in ("sets", "figures", "style")}}
+    if "sets" in look:
+        out["sets"] = {**named_sets(plot.get("sets")), **named_sets(look["sets"])}
+    if "figures" in look:
+        out["figures"] = {**plot.get("figures", {}), **look["figures"]}
+    if "style" in look:
+        out["style"] = plotting.merge_style(plot.get("style") or {}, look["style"])
+    return out
 
 
 @dataclass
@@ -627,9 +707,10 @@ class Plan:
     out: Path
     recipe: Path | None = None
     left: list[str] = field(default_factory=list)      # optional sections no source has, and why
+    drawings: list[Drawing] = field(default_factory=list)
 
     def drawn(self) -> list:
-        """What is drawn or measured for the report: figures with no file, parts and bars with no CSV."""
+        """What is still to be drawn or measured for the report: figures with no file, parts and bars with no CSV."""
         return [f for s in self.sections for g in s.grids for f in g.figures if f.file is None] + \
                [p for s in self.sections for p in [*s.parts, *s.bars] if p.csv is None]
 
@@ -647,30 +728,70 @@ def _cell(name: str) -> str:
     return name.rsplit("/", 1)[0] if "/" in name else ""
 
 
-def _refuse_missing(source: Source, set_: str, where: str, allow_drawn: bool) -> None:
-    if not allow_drawn:
-        raise HepError(f"{source.address} has no set {set_} drawn", where=where,
-                       hint=f"heimdall plot {source.address} --sets {set_} draws it"
-                            + (f"; drawn there: {', '.join(source.sets())}" if source.sets() else "")
-                            + "; optional = true passes it over")
+def _refuse_missing(source: Source, set_: str, where: str, measured: bool = False) -> None:
+    """A source with a set neither on disk nor for its document to draw (P6): refused, naming what it has."""
+    kind, sets = ("measured", "statistics") if measured else ("drawn", "plots")
+    has = sorted((d.name for d in (source.folder / sets).iterdir() if d.is_dir()), key=natural) if (source.folder / sets).is_dir() else []
+    own = [TOTALITY, *(s for s in named_sets((source.doc.plot or {}).get("sets")) if s != TOTALITY)] if source.doc.plot else []
+    raise HepError(f"{source.address} has no set {set_} {kind}" + (", and no complete point to draw it from" if set_ in own else
+                                                                   f", and its plot document no set {set_} to draw"), where=where,
+                   hint="; ".join(part for part in (f"{kind} there: {', '.join(has)}" if has else "",
+                                                     f"its sets: {', '.join(own)}" if own else "",
+                                                     "optional = true passes it over") if part))
 
 
-def _pages_section(section: dict, found: list[Source], where: str, allow_drawn: bool) -> list[Grid]:
+def _from_drawing(source: Source, set_: str, look: dict, why: str, kind: str, section: dict, where: str,
+                  drawings: list[Drawing]) -> tuple[Drawing | None, bool]:
+    """A source's set drawn (or measured) for the report: (its drawing, True), or (None, False) when its document
+    cannot draw it and the section is optional (refused when it is not)."""
+    if not source.drawable(set_, look):
+        if section.get("optional"):
+            return None, False
+        _refuse_missing(source, set_, where, kind == "measured")
+    named = section.get("backend")
+    return _drawing(drawings, source, look).want(kind, set_, why, [named] if isinstance(named, str) else named or ()), True
+
+
+def _pages_section(section: dict, found: list[Source], where: str, drawings: list[Drawing]) -> list[Grid]:
+    """A pages section's grids. A source's pages are copied from its plots/<set>/, or drawn for the report (P6)
+    when it has not drawn the set, drew it as PNG alone, or the section has plot keys: until the build draws them
+    a grid waits, a figure with no file each."""
     set_, globs = section.get("set", "totality"), section["pages"]
-    cells, backends = section.get("cells"), _backends(section)
-    if section.get("optional"):
-        found = [s for s in found if s.pages(set_, backends)]
+    cells, backends, look = section.get("cells"), _backends(section), dict(section.get("plot") or {})
+    shown: list[Source] = []
     chosen: dict[str, dict[str, Path]] = {}
+    waiting: dict[str, str] = {}
     for source in found:
-        drawn = source.pages(set_, backends)
-        if not drawn:
-            _refuse_missing(source, set_, where, allow_drawn)
+        drawn = {} if look else source.pages(set_, backends)
+        why = ("its section's plot keys" if look else "not drawn there" if not drawn else
+               "drawn there as PNG alone" if any(p.suffix.lower() != ".pdf" for p in drawn.values()) else "")
+        root = None
+        if why:
+            drawing, ok = _from_drawing(source, set_, look, why, "sets", section, where, drawings) \
+                if look or not drawn or source.drawable(set_, look) else (None, True)
+            if not ok:
+                continue
+            if drawing is not None and drawing.folder is None:
+                waiting[source.address] = why
+                shown.append(source)
+                continue
+            if drawing is not None:
+                root = drawing.results
+                drawn = source.pages(set_, backends, root)
+                if not drawn:
+                    if section.get("optional"):
+                        continue
+                    raise HepError(f"{source.address}: {set_}, drawn for the report, has no page", where=where,
+                                   hint=f"its points give it none; the drawing's log: {drawing.logs}")
         names = [n for n in drawn if any(_matches(n, g) for g in globs)
                  and (cells is None or any(fnmatch.fnmatchcase(_cell(n), c) for c in cells))]
         if not names:
-            raise HepError(f"pages: {', '.join(globs)} names no page drawn in {source.address}/plots/{set_}/", where=f"{where}.pages",
+            raise HepError(f"pages: {', '.join(globs)} names no page drawn in "
+                           f"{f'{root}/plots' if root else f'{source.address}/plots'}/{set_}/", where=f"{where}.pages",
                            hint=f"its pages: {', '.join(list(drawn)[:6])}{' …' if len(drawn) > 6 else ''}" if drawn else None)
         chosen[source.address] = {n: drawn[n] for n in names}
+        shown.append(source)
+    found = shown
     grids: list[Grid] = []
     if section.get("layout", "pages") == "sources":
         how = section.get("label", "folder")
@@ -679,6 +800,10 @@ def _pages_section(section: dict, found: list[Source], where: str, allow_drawn: 
         if twice:
             raise HepError(f"two sources are labelled {twice[0]}", where=f"{where}.label",
                            hint='label = "folder" labels them by their folders')
+        if waiting:                                      # its pages are known once drawn
+            return [Grid(f"{set_} · {', '.join(globs)}", [Figure(s, set_, ", ".join(globs), None if s.address in waiting else
+                                                                 next(iter(chosen[s.address].values())), named[s.address],
+                                                                 waiting.get(s.address, "")) for s in found])]
         names = sorted({n for pages in chosen.values() for n in pages}, key=natural)
         for name in names:
             absent = [s.address for s in found if name not in chosen[s.address]]
@@ -689,6 +814,10 @@ def _pages_section(section: dict, found: list[Source], where: str, allow_drawn: 
                               section.get("columns") or (3 if len(found) >= 3 else None)))
         return grids
     for source in found:
+        if source.address in waiting:
+            grids.append(Grid(f"{source.address} · {set_}", [Figure(source, set_, ", ".join(globs), None, "", waiting[source.address])],
+                              section.get("columns")))
+            continue
         by_cell: dict[str, list[str]] = {}
         for name in chosen[source.address]:
             by_cell.setdefault(_cell(name), []).append(name)
@@ -734,18 +863,53 @@ def _files_section(section: dict, base: Path, where: str) -> list[Grid]:
     return [Grid(section["title"], [Figure(None, "", p.stem, p.resolve(), p.stem) for p in files], section.get("columns"))]
 
 
-def _numbers(spec: dict, found: list[Source], set_: str, where: str, allow_drawn: bool) -> list[tuple[Source, Path | None]]:
-    """A stats or bars section's sources and their set's statistics.csv; optional: those without it passed over."""
+def _numbers(spec: dict, found: list[Source], set_: str, where: str, drawings: list[Drawing]) -> list[tuple[Source, Path | None]]:
+    """A stats or bars section's sources and their set's statistics.csv: the source's, else measured for the report
+    (P6; None until the build measures it), as with the section's plot keys always; optional: a source whose
+    document cannot measure it passed over."""
+    look = dict(spec.get("plot") or {})
     out = []
     for source in found:
-        csv = source.numbers(set_)
-        if csv is None and spec.get("optional"):
-            continue
-        if csv is None and not allow_drawn:
-            raise HepError(f"{source.address} has no statistics for {set_}", where=where,
-                           hint=f"heimdall stats {source.address} --sets {set_} measures them; optional = true passes it over")
+        csv = None if look else source.numbers(set_)
+        if csv is None:
+            drawing, ok = _from_drawing(source, set_, look, "its section's plot keys" if look else "not measured there",
+                                        "measured", spec, where, drawings)
+            if not ok:
+                continue
+            if drawing.folder is not None:
+                csv = source.numbers(set_, drawing.results)
+                if csv is None:
+                    if spec.get("optional"):
+                        continue
+                    raise HepError(f"{source.address}: {set_}, measured for the report, has no numbers", where=where,
+                                   hint=f"no page of it has numbers; the drawing's log: {drawing.logs}")
         out.append((source, csv))
     return out
+
+
+def _section(spec: dict, found: list[Source], at: str, base: Path, drawings: list[Drawing]) -> tuple[Section | None, str]:
+    """A recipe's section over its sources (`base`: where its files are): (None, why) when it is optional and none
+    of them has what it shows."""
+    section = Section(spec["title"], spec.get("note", ""), plot=dict(spec.get("plot", {})), spec=spec, found=found, at=at)
+    set_, look = spec.get("set", "totality"), bool(spec.get("plot"))
+    if "pages" in spec:
+        section.grids = _pages_section(spec, found, at, drawings)
+    elif "compare" in spec:
+        section.grids = _compare_section(spec, found, at)
+    elif "files" in spec:
+        section.grids = _files_section(spec, base, at)
+    elif "stats" in spec:
+        section.parts = [Part(s, set_, list(spec["stats"]), csv, look) for s, csv in _numbers(spec, found, set_, f"{at}.stats", drawings)]
+    elif "tools" in spec:
+        section.given = [g for s in found for g in configured(s, list(spec["tools"]), list(spec.get("hide", [])), at,
+                                                             spec.get("optional", False))]
+    else:
+        section.bars = [Bars(s, set_, list(spec["bars"]), csv, look) for s, csv in _numbers(spec, found, set_, f"{at}.bars", drawings)]
+    if spec.get("optional") and not (section.grids or section.parts or section.bars or section.given):
+        return None, f"{spec['title']}: " + ("no source has a record of its points' tools" if "tools" in spec else
+                                             f"no source has {set_} drawn, or a page of it to draw" if "pages" in spec else
+                                             f"no source has {set_} measured, or a page of it to measure")
+    return section, ""
 
 
 def _out(recipe: dict, used: list[Source], where: str) -> Path:
@@ -769,11 +933,11 @@ def _out(recipe: dict, used: list[Source], where: str) -> Path:
 
 
 def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command: str = "", out: Path | None = None,
-            allow_drawn: bool = False, found: list[Source] | None = None) -> Plan:
+            found: list[Source] | None = None) -> Plan:
     """A recipe ([report], its sections) and its sources as a Plan; with no sections, the default's. `given`: the
     command line's sources, which replace [report].from (`found`: them, read already); a section's own from stays.
-    `allow_drawn`: what is not on disk is drawn for the report (P6), else refused naming the command that makes it.
-    An optional section no source has is left out, and said."""
+    What a source has not drawn or measured is drawn for the report by the build (P6: the plan's drawings); an
+    optional section no source has, nor can draw, is left out, and said."""
     where = str(path) if path else "the default report"
     named = given or recipe.get("from", [])
     if not named and not any(s.get("from") for s in recipe.get("section", [])):
@@ -783,35 +947,21 @@ def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command
     specs = recipe.get("section") or default_recipe(every, recipe.get("tools"))["section"]
     sections: list[Section] = []
     left: list[str] = []
+    drawings: list[Drawing] = []
     used: list[Source] = list(every)
     for number, spec in enumerate(specs, 1):
         at = f"{where}: section {number} ({spec.get('title', '')})"
         found_ = sources(spec["from"], f"{at}.from") if spec.get("from") else every
         used += [s for s in found_ if s not in used]
-        section = Section(spec["title"], spec.get("note", ""), plot=dict(spec.get("plot", {})))
-        set_ = spec.get("set", "totality")
-        if "pages" in spec:
-            section.grids = _pages_section(spec, found_, at, allow_drawn)
-        elif "compare" in spec:
-            section.grids = _compare_section(spec, found_, at)
-        elif "files" in spec:
-            section.grids = _files_section(spec, path.parent if path else Path.cwd(), at)
-        elif "stats" in spec:
-            section.parts = [Part(s, set_, list(spec["stats"]), csv) for s, csv in _numbers(spec, found_, set_, f"{at}.stats", allow_drawn)]
-        elif "tools" in spec:
-            section.given = [g for s in found_ for g in configured(s, list(spec["tools"]), list(spec.get("hide", [])), at,
-                                                               spec.get("optional", False))]
-        else:
-            section.bars = [Bars(s, set_, list(spec["bars"]), csv) for s, csv in _numbers(spec, found_, set_, f"{at}.bars", allow_drawn)]
-        if spec.get("optional") and not (section.grids or section.parts or section.bars or section.given):
-            left.append(f"{spec['title']}: " + ("no source has a record of its points' tools" if "tools" in spec else
-                                                f"no source has {set_} {'drawn' if 'pages' in spec else 'measured'}"))
+        section, why = _section(spec, found_, at, path.parent if path else Path.cwd(), drawings)
+        if section is None:
+            left.append(why)
             continue
         sections.append(section)
     facts = [s.doc.source for s in used]
     title = filled(recipe.get("title", ""), facts) or (used[0].address if len(used) == 1 else _common(used) or "report")
     return Plan(command or where, title, filled(recipe.get("subtitle", ""), facts), used, sections,
-                out or _out(recipe, used, where), path, left)
+                out or _out(recipe, used, where), path, left, drawings)
 
 
 def _common(found: list[Source]) -> str:
@@ -826,7 +976,7 @@ def _common(found: list[Source]) -> str:
     return "/".join(shared)
 
 
-def planned(first: str | None, rest: list[str], out: Path | None = None, allow_drawn: bool = False) -> Plan:
+def planned(first: str | None, rest: list[str], out: Path | None = None) -> Plan:
     """`heimdall report [RECIPE.toml] [SOURCE…]` (A5): a first argument ending .toml is a recipe (of its own, a run
     TOML's [report], a folder's report.toml), over the sources after it, else over its own from; else every
     argument is a source, and one folder's report is its report.toml (else the default), several sources' the
@@ -840,15 +990,15 @@ def planned(first: str | None, rest: list[str], out: Path | None = None, allow_d
         if "run" in _read(path) and not rest:
             raise HepError("a run TOML's [report] is its folders' reports: name the folders", where=str(path),
                            hint=f"heimdall report {first} <P>/<run>/<cfg>")
-        return resolve(recipe, rest, path=path, command=command, out=out, allow_drawn=allow_drawn)
+        return resolve(recipe, rest, path=path, command=command, out=out)
     given = [first, *rest] if first else list(rest)
     if not given:
         raise HepError("a report needs a source", hint="heimdall report <P>/<run>/<cfg>; heimdall report <recipe>.toml <source>")
     found = sources(given, "the command line")
     own = found[0].folder / RECIPE if len(found) == 1 else None
     if own is not None and own.is_file():
-        return resolve(load_recipe(own), given, path=own, command=command, out=out, allow_drawn=allow_drawn, found=found)
-    return resolve({}, given, command=command, out=out, allow_drawn=allow_drawn, found=found)
+        return resolve(load_recipe(own), given, path=own, command=command, out=out, found=found)
+    return resolve({}, given, command=command, out=out, found=found)
 
 
 def listing(plan: Plan) -> list[str]:
@@ -860,12 +1010,16 @@ def listing(plan: Plan) -> list[str]:
         lines.append(f"  source {f['address']}: {f['configuration'] or source.doc.name}, {f['complete']} of {f['points']} point(s)"
                      + (f", {f['events']} events" if f["events"] else "") + f", against {f['against']}"
                      + (", its points newer than its pages" if f["stale"] else ""))
+    lines += [f"  drawn for the report: {drawing.describe()}" for drawing in plan.drawings]
     for number, section in enumerate(plan.sections, 1):
-        figures = [fig for g in section.grids for fig in g.figures]
-        drawn = [fig for fig in figures if fig.file is None]
-        what, under = [], [f"{grid.caption}: {len(grid.figures)}" for grid in section.grids]
+        figures = [fig for g in section.grids for fig in g.figures if fig.file is not None]
+        drawn = list(dict.fromkeys(fig.source.address for g in section.grids for fig in g.figures if fig.file is None))
+        what = []
+        under = [f"{grid.caption}: " + (f"{len(grid.figures)}" if all(fig.file for fig in grid.figures) else "drawn for the report")
+                 for grid in section.grids]
         if section.grids:
-            what.append(f"{len(section.grids)} grid(s), {len(figures)} figure(s)" + (f", {len(drawn)} drawn for the report" if drawn else ""))
+            what.append(f"{len(figures)} figure(s) in {sum(all(fig.file for fig in g.figures) for g in section.grids)} grid(s)"
+                        + (f", the pages of {', '.join(drawn)} drawn for the report" if drawn else ""))
         for kind, items in (("statistics", section.parts), ("bar graphs", section.bars)):
             if not items:
                 continue
@@ -1089,7 +1243,8 @@ def _code(bars) -> str:
 
 def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say) -> Placed | None:
     """A source's statistics, the sections chosen, as A4 pages: stats/<section>/<stem>.pdf and a PNG a page."""
-    heading = statstable.heading_of(part.csv.parent)
+    heading = statstable.heading_of(part.csv.parent) if part.csv.is_relative_to(part.source.folder) else \
+        f"{part.source.address} · {part.set}" + (" · as this report measures it" if part.look else "")
     target = folder / stem
     missing: list[str] = []
 
@@ -1146,8 +1301,8 @@ def _bars(build: _Build, bars, item: Bars, folder: Path) -> Placed:
         files += [target.with_suffix(".pdf")] * len(shown)
         options += [f"page={k}" for k in range(1, len(shown) + 1)]
         pngs += shown
-    return Placed(f"Bar graphs: {item.source.address} · {item.set}", files, [""] * len(files), options, pngs, 1,
-                  paper_aspect(bars), 0.0)
+    return Placed(f"Bar graphs: {item.source.address} · {item.set}" + (" · as this report measures it" if item.look else ""),
+                  files, [""] * len(files), options, pngs, 1, paper_aspect(bars), 0.0)
 
 
 @dataclass
@@ -1272,13 +1427,20 @@ def _front(plan: Plan) -> list[str]:
             shown = ", ".join(f["incomplete"][:6]) + (" …" if len(f["incomplete"]) > 6 else "")
             flags.append(f"\\texttt{{{_breakable(f['address'])}}}: {len(f['incomplete'])} of {f['points']} point(s) not "
                          f"complete ({_breakable(shown)}); its pages show the complete ones.")
-        if f["stale"]:
+        copied = any(fig.source is not None and fig.source.folder == source.folder and fig.file is not None
+                     and fig.file.is_relative_to(source.folder) for s in plan.sections for g in s.grids for fig in g.figures)
+        if f["stale"] and copied:
             flags.append(f"\\texttt{{{_breakable(f['address'])}}}: its points are newer than its pages; "
                          f"\\texttt{{heimdall plot {_breakable(f['address'])}}} redraws them.")
     lines += [r"\end{tabular}\par}"]
     if flags:
         lines += [r"\vspace{6pt}", r"{\small\begin{itemize}\setlength{\itemsep}{1pt}",
                   *(r"\item " + flag for flag in flags), r"\end{itemize}\par}"]
+    if plan.drawings:
+        lines += [r"\vspace{6pt}", r"{\small Drawn for this report, into its cache (never into results/):\par}",
+                  r"{\small\begin{itemize}\setlength{\itemsep}{1pt}",
+                  *(r"\item \texttt{" + _breakable(d.source.address) + "}" + _breakable(d.describe()[len(d.source.address):])
+                    for d in plan.drawings), r"\end{itemize}\par}"]
     return lines + [r"\vspace{8pt}", r"\tableofcontents", r"\clearpage"]
 
 
@@ -1422,6 +1584,113 @@ def _index(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> Path:
     return viewer.page(out / "index.html", plan.title, blocks, front)
 
 
+def drawings_root(plan: Plan) -> Path:
+    """Where a report's drawings go (P6): .cache/<P>/reports/<its place under reports/, the project's folder
+    left out>/.drawn/ (a report built elsewhere: …/reports/elsewhere/<its path's hash>/.drawn/)."""
+    project = plan.sources[0].project if plan.sources else "report"
+    out, root = plan.out.resolve(), reports_root().resolve()
+    if out.is_relative_to(root) and out != root:
+        rel = out.relative_to(root).parts
+        place = Path(*rel[1:]) if rel[0] == project else Path(*rel)
+    else:
+        place = Path("elsewhere") / _key(str(out))[:12]
+    return cache_root() / project / "reports" / place / ".drawn"
+
+
+def _drawing_name(drawing: Drawing) -> str:
+    name = slug(drawing.source.address)
+    if len(name) > 80:
+        name = f"{slug(drawing.source.folder.name)}-{_key(str(drawing.source.folder))[:8]}"
+    return name + (f"-{_key(json.dumps(drawing.look, sort_keys=True))[:8]}" if drawing.look else "")
+
+
+def _stat(path: Path | None) -> str:
+    try:
+        info = path.stat()
+        return f"{info.st_size}:{info.st_mtime_ns}"
+    except (AttributeError, OSError):
+        return "-"
+
+
+def _drawing_code() -> list[str]:
+    """What a drawing is drawn by: Paint as built, the plot stage's code and the backends'."""
+    framework = hep_root() / "framework"
+    files = [framework / "runner" / "plot.py", framework / "runner" / "labels.py",
+             *sorted((framework / "plot").rglob("*.py")), *sorted((framework / "plot").rglob("*.toml"))]
+    return [_stat(apps_dir() / "Paint.exe"), *(_sha(f) for f in files if f.is_file())]
+
+
+def _draw_for(plan: Plan, say) -> None:
+    """Each drawing the report asks for (P6): the source's plot document loaded with its outputs sent to the
+    drawing's folders, its [plot] with the look over it, drawing only the sets wanted, in pdf and png, its compare,
+    sheet and statistic figures left out (the report shows a run's compare pages as drawn); its pages drawn
+    (plot.draw, no numbers), then the sets' numbers measured (plot.measure). Drawn again only when its document,
+    its points' YODAs, the look, the sets or the drawing's code changed (its stamp, drawn.key); a drawing no section
+    asks for any more is removed. The source's results/ and records/ are only read."""
+    root = drawings_root(plan)
+    code = _drawing_code() if plan.drawings else []
+    for drawing in plan.drawings:
+        source = drawing.source
+        drawing.folder = folder = root / _drawing_name(drawing)
+        folders = RunFolders(source.project, folder / "records", folder / "results", folder / "work")
+        doc, configuration, members = plotdoc.load(source.folder / plotdoc.FILE, folders=folders)
+        settings = looked(doc.plot or {}, drawing.look)
+        wanted = [*drawing.sets, *drawing.measured]
+        if "sets" in settings and TOTALITY in wanted and TOTALITY not in named_sets(settings["sets"]):
+            settings["sets"] = {TOTALITY: totality(configuration, members), **named_sets(settings["sets"])}
+        figures = {k: t for k, t in (settings.get("figures") or {}).items()
+                   if not isinstance(t, dict) or t.get("class") not in ("compare", "sheet", "statistic")}
+        settings = {**{k: v for k, v in settings.items() if k not in ("figures", "draw")}, **({"figures": figures} if figures else {}),
+                    "formats": ["pdf", "png"]}
+        if drawing.backends:
+            settings["backend"] = list(dict.fromkeys([*plotting.backends(settings), *drawing.backends]))
+        doc.plot = settings
+        doc.stats = {k: v for k, v in (doc.stats or {}).items() if k not in drawing.look}
+        key = _key(_sha(source.folder / plotdoc.FILE), json.dumps([settings, doc.stats], sort_keys=True, default=str),
+                   *drawing.sets, "|", *drawing.measured,
+                   *(f"{m.point.name}:{m.recorded}:{_stat(m.yoda)}" for m in members), *code)
+        stamp = folder / "drawn.key"
+        if stamp.is_file() and stamp.read_text(encoding="utf-8") == key and drawing.results.is_dir():
+            continue
+        stamp.unlink(missing_ok=True)
+        shutil.rmtree(drawing.results, ignore_errors=True)
+        say(f"report: drawing {drawing.describe()}")
+        plotting.validate(doc)
+        failed = 0
+        if drawing.sets:
+            doc.plot = {**settings, "draw": list(drawing.sets)}
+            plotting.check_figures(doc, configuration)
+            plotting.check_texts(doc, members)
+            failed += plotting.draw(doc, configuration, members, say, stats=False)
+        if drawing.measured:
+            doc.plot = settings
+            plotting.check_figures(plotting.measured(doc, list(drawing.measured)), configuration)
+            failed += plotting.measure(doc, configuration, members, say, picked=list(drawing.measured))
+        drawing.failed = failed
+        if failed:
+            say(f"report: {failed} page(s) of {source.address} could not be drawn for the report: {drawing.logs}")
+        else:
+            stamp.write_text(key, encoding="utf-8")
+    names = {_drawing_name(d) for d in plan.drawings}
+    for old in (p for p in root.iterdir() if p.is_dir() and p.name not in names) if root.is_dir() else ():
+        shutil.rmtree(old)
+
+
+def _settle(plan: Plan) -> None:
+    """Once drawn (P6): each section that waited for a drawing resolved again from what was drawn, and one that is
+    optional and came to nothing left out, and said."""
+    base = plan.recipe.parent if plan.recipe else Path.cwd()
+    kept = []
+    for section in plan.sections:
+        if section.waiting():
+            section, why = _section(section.spec, section.found, section.at, base, plan.drawings)
+            if section is None:
+                plan.left.append(why)
+                continue
+        kept.append(section)
+    plan.sections = kept
+
+
 def _pages_of(pdf: Path) -> int:
     try:
         done = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True, encoding="utf-8")
@@ -1432,17 +1701,20 @@ def _pages_of(pdf: Path) -> int:
 
 
 def build(plan: Plan, say=print) -> list[Path]:
-    """The report, into plan.out (I-108 P3): figures/ (each figure copied as drawn, its PNG beside it), stats/ (the
-    chosen statistics and bar graphs, drawn from each source's statistics.csv), report.tex (A4, naming only files in
-    the folder), report.pdf (pdflatex, twice: the contents) and index.html. Only what changed is copied or drawn
-    again (`.stamps.json`), and what no section holds any more is removed. The files made."""
+    """The report, into plan.out (I-108 P3, P6): first what it draws for itself, into its cache (_draw_for); then
+    figures/ (each figure copied as drawn, its PNG beside it), stats/ (the chosen statistics and bar graphs, drawn
+    from each source's statistics.csv, or the numbers measured for it), report.tex (A4, naming only files in the
+    folder), report.pdf (pdflatex, twice: the contents) and index.html. Only what changed is copied or drawn again
+    (`.stamps.json`, a drawing's drawn.key), and what no section holds any more is removed. The files made."""
     out = plan.out
     for place in (results_root(), *(s.folder for s in plan.sources)):
         if out.resolve().is_relative_to(Path(place).resolve()):
             raise HepError(f"a report is never built into results/: {out}", hint="leave -o out (reports/ mirrors results/), or name another folder")
+    _draw_for(plan, say)
+    _settle(plan)
     if plan.drawn():
-        raise HepError("this report needs pages or numbers drawn for it, which comes with its next step",
-                       hint="--list says which; heimdall plot or heimdall stats draws them in the source")
+        raise HepError(f"{len(plan.drawn())} figure(s) or part(s) were not drawn for the report", where=str(drawings_root(plan)),
+                       hint="the lines above say why")
     out.mkdir(parents=True, exist_ok=True)
     books = _Build(out)
     placed = _place(books, plan, say)
@@ -1479,5 +1751,7 @@ def build(plan: Plan, say=print) -> list[Path]:
             say("report: no pdflatex on PATH, so no report.pdf: report.tex compiles anywhere else as it is (Overleaf)")
     _index(plan, placed, out)
     books.save()
+    for why in plan.left:
+        say(f"report: left out: {why}")
     say(f"report: {', '.join(p.name for p in made)} in {out}")
     return made

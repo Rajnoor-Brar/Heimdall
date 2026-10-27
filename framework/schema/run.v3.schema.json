@@ -2707,7 +2707,7 @@
         }
        },
        "set": {
-        "description": "the set whose pages it takes: each source's plots/<set>/ and statistics/<set>/",
+        "description": "the set whose pages or numbers it takes: each source's plots/<set>/ and statistics/<set>/, else drawn for the report (03 §11.3)",
         "type": "string",
         "default": "totality"
        },
@@ -2757,7 +2757,7 @@
         "default": "folder"
        },
        "optional": {
-        "description": "a source without the section's set drawn (or measured) is passed over, and the section left out when none has it; false: refused, naming the command that draws it",
+        "description": "a source that neither has the section's set drawn (or measured) nor can draw it for the report (no such set, no complete point in it) is passed over, and the section left out when none has it; false: refused, naming the sets it has",
         "type": "boolean",
         "default": false
        },
@@ -2769,14 +2769,14 @@
         }
        },
        "stats": {
-        "description": "the statistics summary's sections, from each source's statistics/<set>/statistics.csv: top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts",
+        "description": "the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts",
         "type": "array",
         "items": {
          "type": "string"
         }
        },
        "bars": {
-        "description": "globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv",
+        "description": "globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv (else from the numbers measured for it)",
         "type": "array",
         "items": {
          "type": "string"
@@ -3641,7 +3641,7 @@
          }
         },
         "additionalProperties": false,
-        "description": "[plot] keys over each source's own, for this section's pages: they are then drawn for the report (03 §11), never into results/"
+        "description": "a pages, stats or bars section's: [plot] keys over each source's own (its sets and figures added, its style laid over), its pages and numbers then drawn for the report into its cache (03 §11.3), never into results/"
        }
       },
       "required": [

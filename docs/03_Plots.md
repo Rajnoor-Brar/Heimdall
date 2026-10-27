@@ -970,14 +970,15 @@ else is a source. Each report is a folder:
 |---|---|
 | `report.pdf` | A4: a front page (its sources, where they came from, any flags) and the contents, then each section from a new page |
 | `report.tex` | its LaTeX, naming only files in the folder: it compiles there as it is, or on Overleaf (upload the folder) |
-| `figures/` | every page it shows, copied as drawn: `<NN>_<section>/<MMM>_<source>_<page>.pdf`, and its `.png` |
-| `stats/` | the statistics it shows, drawn from each source's `statistics.csv`: a PDF, and a PNG a page; `summaries/`, each source's `summary.html` |
+| `figures/` | every page it shows, copied as drawn, or drawn for the report (§11.3): `<NN>_<section>/<MMM>_<source>_<page>.pdf`, and its `.png` |
+| `stats/` | the statistics it shows, drawn from each source's `statistics.csv` (or the numbers measured for the report): a PDF, and a PNG a page; `summaries/`, each source's `summary.html` |
 | `tools/` | what each tool was given (§11.2): `<NN>_<section>/<MM>_<source>/<tag>.baseline.<ext>`, the card's lines every point had, and `<tag>.varied.csv`, what varied point by point |
 | `index.html` | the same grids to browse (2, 3 or 4 columns, ← →), the tools' cards and tables as text, its sources up front |
 
 **A rebuild makes only what changed.** A page whose source changed is copied again, statistics whose numbers
-changed are drawn again, and `report.pdf` is remade only when something it shows changed (`.stamps.json` keeps
-what each file was made from). What no section shows any more is removed.
+changed are drawn again, what was drawn for the report is drawn again only when its source or its keys changed,
+and `report.pdf` is remade only when something it shows changed (`.stamps.json` keeps what each file was made
+from). What no section shows any more is removed.
 
 **Where it came from, up front.** For each source: its address, its configuration, when its pages were drawn and
 by which Heimdall, its points complete of all, its events, and what it is compared against (data, or each page's
@@ -1003,8 +1004,9 @@ folder builds into that folder's place unless it says otherwise, replacing what 
 statistics' headline (the top five and each statistic's ranking) on the first set measured, then the pages of
 every set the sources' documents draw (`[plot].draw`, else every set of `[plot].sets`), a grid per page cell,
 then a Tools section: what each tool was given (`[report].tools` picks them; every tool given a card or
-options when it is left out, none with `tools = []`). A set drawn nowhere is left out, and `--list` says so. A scan of many points or cells makes many pages:
-`--list` says how many first, and a recipe picks fewer.
+options when it is left out, none with `tools = []`). A set a source has not drawn is drawn for the report
+(§11.3); one it cannot draw (no complete point in it, as where a generator failed) is left out, and said. A scan
+of many points or cells makes many pages: `--list` says how many first, and a recipe picks fewer.
 
 ### 11.2 A recipe: of its own, a run's, a folder's
 
@@ -1046,14 +1048,15 @@ layout = "sources"
 - **`files`:** your own PDF or PNG files, relative to the recipe (`extras/*.png`).
 - **`tools`:** what each tool was given (below): tool tags (`[tools.<tag>]`) or globs, `"*"` every tool given a
   card or options; `hide` leaves varied lines out by their key (`"Random:seed"`).
-- **`optional = true`:** a source without the section's set drawn (or measured) is passed over, and the section
-  left out when none has it.
+- **`optional = true`:** a source that neither has the section's set drawn (or measured) nor can draw it is
+  passed over, and the section left out when none has it.
+- **`plot = { … }`:** `[plot]` keys over each source's own, for a `pages`, `stats` or `bars` section: its pages
+  and numbers are then drawn for the report (§11.3).
 - **`{project}`, `{run}`, `{configuration}`, `{title}`** in a title or subtitle are filled in from the sources.
 
 The sources on the command line replace `[report].from`, so one recipe serves many runs; a section's own
-`from` stays. **What is refused:** a set not drawn or numbers not measured in a source (naming the command that
-makes them), a glob that names nothing, two side-by-side panels of one label, an unknown key (with the nearest
-one).
+`from` stays. **What is refused:** a set a source has neither drawn nor can draw (naming the sets it has), a
+glob that names nothing, two side-by-side panels of one label, an unknown key (with the nearest one).
 
 **What the tools were given.** A `tools` section reads each source's records, never today's `configs/`: each
 complete point's `context.toml` names its tools, and its `cards/` hold each tool's card as it read it. For each
@@ -1096,13 +1099,41 @@ sections. `heimdall report <folder>` builds it. It is rewritten from the config 
 edits: to change a folder's report, change the config or its template (then `heimdall report <config>.toml
 <folder>` builds it as the config reads today), or copy `report.toml` into `configs/` as a recipe of your own.
 
-### 11.3 Talks and papers
+### 11.3 Drawn for itself
+
+A report does not need what `heimdall plot` and `heimdall stats` left on disk. It draws for itself, with the same
+code, when:
+- a source has not drawn a set a section shows (a run with `--no-plot`, a plot stage that failed), or drew it as
+  PNG alone (the report shows vectors);
+- a source has not measured the numbers a `stats` or `bars` section shows;
+- a section has `plot = { … }`: any `[plot]` key over the source's own (`normalise = "area"`, a
+  `legend_statistic`, a style, a set of its own, `sets = { mine = { pages = …, curves = …, objects = […] } }`).
+  Its pages and numbers are always drawn for the report.
+
+```toml
+[[report.section]]
+title = "Shapes"
+set   = "all_few"
+pages = ["d0[1-4]-*"]
+plot  = { normalise = "area" }
+```
+
+What it draws goes into the report's cache, `.cache/<P>/reports/<its place>/.drawn/<source>[-<keys>]/`: the
+source's plot document read with its outputs sent there (its pages and numbers in `results/`, its working files,
+a failure's log in `records/logs/plot/`). Only the sets the report needs are drawn, in PDF and PNG, without the
+source's compare, sheet or statistic figures. **The source is only read:** neither its `results/` folder nor its
+records is written. A drawing is done again only when the source's document or points, the section's keys or the
+drawing's code (Paint, the plot stage) changed. `--list` and the front page say what was drawn for the report and
+why, and statistics drawn with a section's keys say "as this report measures it". Drawing needs what
+`heimdall plot` needs: Paint, and the backend's own.
+
+### 11.4 Talks and papers
 
 A report is not a talk, a thesis or a paper, and Heimdall makes none of them. Take what it made into your own
 tools: the figures as vector PDFs from `figures/`, the statistics' pages from `stats/`, and `report.tex` as a
 start for Overleaf.
 
-### 11.4 Decks, `heimdall deck`
+### 11.5 Decks, `heimdall deck`
 
 `heimdall report` replaces it, and it goes once the report draws for itself. Until then:
 
@@ -1127,7 +1158,7 @@ the same picture in every target), and turns `deck.md` into:
 `heimdall deck <deck>` again copies what changed, redraws only the composites whose panels changed, and
 remakes the slides.
 
-#### 11.4.1 A talk from result folders
+#### 11.5.1 A talk from result folders
 
 ```toml
 # decks/batch_1/deck.toml
@@ -1155,7 +1186,7 @@ folders are taken as they are on disk, whichever config file made them.
 **What is refused:** a page a folder lacks (naming the backend that drew it there, if one did), two
 folders with one label, a glob that names nothing, an unknown key (with the nearest one).
 
-#### 11.4.2 The talk: `deck.md`
+#### 11.5.2 The talk: `deck.md`
 
 ```markdown
 ---
@@ -1189,7 +1220,7 @@ date: group meeting
 - **Beside words:** pandoc's `::: columns`, in every target; a `half` composite fits a column.
 - **Without `deck.md`:** a slide per block, generated each time and never written.
 
-#### 11.4.3 A folder of files
+#### 11.5.3 A folder of files
 
 With no block in `deck.toml` (or no `deck.toml`), a deck takes the PDF and PNG files in its folder
 (**folder mode**). It groups them into blocks by name: `validation_d01_PDFs_010M.pdf` is block

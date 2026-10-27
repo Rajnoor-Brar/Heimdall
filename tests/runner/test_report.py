@@ -1,6 +1,7 @@
-"""runner/report.py (I-108 P2, P4; V207, V209): a report's sources and recipe resolved into sections of figures and
-statistics, the default recipe, both layouts, the ways in (a folder's report.toml, a recipe, a run TOML's [report]
-and its template), where each is built, --list and --init. Every tree is tmp_path's: HEP_RESULTS, HEP_RECORDS,
+"""runner/report.py (I-108 P2, P4–P6; V207, V209–V211): a report's sources and recipe resolved into sections of
+figures and statistics, the default recipe, both layouts, the ways in (a folder's report.toml, a recipe, a run TOML's
+[report] and its template), where each is built, what it draws for itself (resolved here, drawn by the build:
+tests/integration/test_report_draw.py), --list and --init. Every tree is tmp_path's: HEP_RESULTS, HEP_RECORDS,
 HEP_CONFIGS and HEP_REPORTS."""
 
 from __future__ import annotations
@@ -43,7 +44,7 @@ points = [
 [plot]
 backend = ["mpl"]
 draw = {draw}
-
+{sets}
 [members.A]
 index = 0
 choice = {{ pdf = 0 }}
@@ -68,12 +69,15 @@ COLUMNS = ("page", "cell", "object", "curve", "point", "reference", "is_referenc
 
 
 def folder(results, name: str, label: str, events: int, complete: bool = True, cells=("18x275", "27x920"),
-           objects=("d01-x01-y01", "d02-x01-y01", "d10-x01-y01"), draw=("totality",), run="validation", project="P"):
-    """A configuration's result folder: its document, its points' YODAs, its totality pages (mpl) and their numbers."""
+           objects=("d01-x01-y01", "d02-x01-y01", "d10-x01-y01"), draw=("totality",), run="validation", project="P",
+           sets=()):
+    """A configuration's result folder: its document (`sets`: [plot].sets of its own, point A each), its points'
+    YODAs, its totality pages (mpl) and their numbers."""
     where = results / project / run / name
     (where / "points").mkdir(parents=True)
+    tables = "".join(f'\n[plot.sets.{s}]\npoints = ["A"]\n' for s in ("totality", *sets)) if sets else ""
     text = DOCUMENT.format(label=label, folder=name, events=events, complete=str(complete).lower(),
-                           draw="[" + ", ".join(f'"{s}"' for s in draw) + "]")
+                           draw="[" + ", ".join(f'"{s}"' for s in draw) + "]", sets=tables)
     (where / "plot.toml").write_text(text.replace('"validation"', f'"{run}"').replace('"P"', f'"{project}"')
                                      .replace("P/validation/", f"{project}/{run}/"), encoding="utf-8")
     for point in ("A", "B"):
@@ -152,8 +156,9 @@ def test_the_default_report_is_the_headline_and_each_set_its_document_draws(tree
     folder(trees / "results", "03_few", "few", 1_000_000, draw=("totality", "few"))                  # few: drawn nowhere
     plan = report.planned("P/validation/03_few", [])
     assert [s.title for s in plan.sections] == ["Standings", "Pages: totality"]
-    assert plan.left == ["Pages: few: no source has few drawn", "Tools: no source has a record of its points' tools"]
-    assert "  left out: Pages: few: no source has few drawn" in report.listing(plan)
+    assert plan.left == ["Pages: few: no source has few drawn, or a page of it to draw",          # nor a set few to draw
+                         "Tools: no source has a record of its points' tools"]
+    assert "  left out: Pages: few: no source has few drawn, or a page of it to draw" in report.listing(plan)
 
 
 
@@ -200,6 +205,9 @@ def test_a_recipe_is_checked(trees):
     recipe(trees, "look", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nplot = { normalize = "area" }\n')
     with pytest.raises(HepError, match="normalize"):
         report.planned("P/look.toml", ["P/validation/01_pdf"])
+    recipe(trees, "toolish", '[report]\n\n[[report.section]]\ntitle = "a"\ntools = ["*"]\nplot = { normalise = "area" }\n')
+    with pytest.raises(HepError, match="plot is a pages, stats or bars section's"):
+        report.planned("P/toolish.toml", ["P/validation/01_pdf"])
     recipe(trees, "old", '[report]\n\n[[section]]\ntitle = "a"\npages = ["*"]\n')            # P2's form
     with pytest.raises(HepError, match=r"a recipe has \[report\] alone, not \[section\]"):
         report.planned("P/old.toml", ["P/validation/01_pdf"])
@@ -209,15 +217,57 @@ def test_a_recipe_is_checked(trees):
         report.planned("P/weekly", [])
 
 
-def test_what_is_not_drawn_is_refused_with_the_command_that_draws_it(trees):
+def test_what_no_document_can_draw_is_refused_naming_what_it_has(trees):
     recipe(trees, "few", '[report]\n\n[[report.section]]\ntitle = "a"\nset = "few"\npages = ["*"]\n\n'
                          '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["top5"]\n')
-    with pytest.raises(HepError, match="has no set few drawn") as error:
+    with pytest.raises(HepError, match="has no set few drawn, and its plot document no set few to draw") as error:
         report.planned("P/few.toml", ["P/validation/01_pdf"])
-    assert "heimdall plot P/validation/01_pdf --sets few" in str(error.value.hint)
+    assert error.value.hint == "drawn there: totality; its sets: totality; optional = true passes it over"
+    recipe(trees, "numbers", '[report]\n\n[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["top5"]\n')
+    with pytest.raises(HepError, match="has no set few measured, and its plot document no set few to draw"):
+        report.planned("P/numbers.toml", ["P/validation/01_pdf"])
     recipe(trees, "events", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["d01-*"]\nlayout = "sources"\nlabel = "events"\n')
     with pytest.raises(HepError, match="two sources are labelled 10M"):
         report.planned("P/events.toml", ["P/validation"])
+
+
+def test_what_a_source_has_not_drawn_is_drawn_for_the_report(trees):
+    """P6: a set its document has but did not draw, numbers it did not measure, pages drawn as PNG alone and a
+    section's plot keys are drawn for the report by its build, one drawing per source and look, into the report's
+    cache; --list says which and why. Until drawn, a grid waits (a figure with no file) and so do its numbers."""
+    folder(trees / "results", "03_few", "few", 1_000_000, sets=("few",))
+    recipe(trees, "drawn", '[report]\n\n[[report.section]]\ntitle = "a"\nset = "few"\npages = ["*"]\n\n'
+                           '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["top5"]\n\n'
+                           '[[report.section]]\ntitle = "c"\npages = ["d01-*"]\nplot = { normalise = "area" }\n\n'
+                           '[[report.section]]\ntitle = "d"\nbars = ["*"]\nplot = { normalise = "area" }\n\n'
+                           '[[report.section]]\ntitle = "e"\npages = ["d01-*"]\n\n'
+                           '[[report.section]]\ntitle = "f"\nset = "none"\npages = ["*"]\noptional = true\n')
+    plan = report.planned("P/drawn.toml", ["P/validation/03_few"])
+    assert [s.title for s in plan.sections] == ["a", "b", "c", "d", "e"]
+    assert plan.left == ["f: no source has none drawn, or a page of it to draw"]
+    own, area = plan.drawings
+    assert (own.look, own.sets, own.measured) == ({}, {"few": "not drawn there"}, {"few": "not measured there"})
+    assert area.look == {"normalise": "area"} and area.sets == area.measured == {"totality": "its section's plot keys"}
+    a, b, c, d, e = plan.sections
+    assert [(f.page, f.file, f.why) for g in a.grids for f in g.figures] == [("*", None, "not drawn there")]
+    assert [p.csv for p in b.parts] == [None] and [(x.csv, x.look) for x in d.bars] == [(None, True)]
+    assert c.waiting() and not e.waiting() and len(plan.drawn()) == 4                 # e: copied, as drawn there
+    said = report.listing(plan)
+    assert "  drawn for the report: P/validation/03_few: pages of few (not drawn there); numbers of few (not measured there)" in said
+    assert ('  drawn for the report: P/validation/03_few with normalise = "area" over its [plot]: pages of totality '
+            "(its section's plot keys); numbers of totality (its section's plot keys)") in said
+    assert "  1 a: 0 figure(s) in 0 grid(s), the pages of P/validation/03_few drawn for the report" in said
+    assert report.drawings_root(plan) == Path(os.environ["HEP_CACHE"]) / "P" / "reports" / "validation" / "03_few" / ".drawn"
+    for page in (trees / "results" / "P" / "validation" / "03_few" / "plots").rglob("*.pdf"):
+        page.unlink()                                                                  # drawn there as PNG alone
+    plan = report.planned("P/validation/03_few", [])
+    pages = next(s for s in plan.sections if s.title == "Pages: totality")
+    assert [f.why for g in pages.grids for f in g.figures] == ["drawn there as PNG alone"]
+    for yoda in (trees / "results" / "P" / "validation" / "03_few" / "points").rglob("*.yoda"):
+        yoda.unlink()                                                                  # nothing to draw from: as it is
+    plan = report.planned("P/validation/03_few", [])
+    pages = next(s for s in plan.sections if s.title == "Pages: totality")
+    assert not plan.drawings and {f.file.suffix for g in pages.grids for f in g.figures} == {".png"}
 
 
 def test_a_configuration_run_again_is_labelled_by_its_serial(trees):

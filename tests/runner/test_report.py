@@ -396,6 +396,7 @@ def test_list_writes_nothing_and_init_writes_a_recipe_once(trees, capsys):
     plan = report.planned("P/weekly.toml", [])
     assert [s.title for s in plan.sections] == ["Standings", "totality"] and plan.sources[0].address == "P/validation/01_pdf"
     assert report.recipes("P") == ["P/weekly.toml"]
+    assert "# accent   = \"#2a78d6\"" in (trees / "configs" / "P" / "weekly.toml").read_text(encoding="utf-8")
 
 
 PYTHIA = """! from {base}
@@ -490,3 +491,104 @@ def test_the_default_report_ends_with_its_tools_and_tools_chooses_them(trees):
     recipe(trees, "bad", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nhide = ["x"]\n')
     with pytest.raises(HeimdallError, match="hide is a tools section's"):
         report.planned("P/bad.toml", ["P/validation/01_pdf"])
+
+
+GENERATORS = """[source]
+config = "P/study"
+configuration = "generator_pdf"
+run = "zeus"
+project = "P"
+folder = "P/zeus/01_generator_pdf"
+
+[axes]
+vary = ["generator", "pdf"]
+plot_points = ["generator"]
+combine = []
+fixed = { generator = "#1", beams = "#1", pdf = "#1" }
+
+[quantities.generator]
+points = [
+  { tag = "py8", value = "pythia", label = "Pythia 8.318" },
+  { tag = "sh3", value = "sherpa", label = "Sherpa 3.0.5" },
+]
+
+[quantities.beams]
+points = [{ tag = "ep", value = [-11, 2212], label = "$e^{+}p$" }]
+
+[quantities.pdf]
+points = [
+  { tag = "NNPDF23", value = "NNPDF23_nlo", label = "NNPDF 2.3" },
+  { tag = "NNPDF23_lo", value = "NNPDF23_lo", label = "NNPDF 2.3 LO" },
+  { tag = "CT18", value = "CT18NLO", label = "CT18" },
+]
+
+[plot]
+backend = ["mpl"]
+
+[plot.sets.few]
+pages = []
+curves = [{ generator = "py8", pdf = ["NNPDF23_lo", "CT18"] }, { generator = "sh3", pdf = "NNPDF23" }]
+
+[plot.sets.pythia]
+pages = { generator = "py8" }
+curves = { pdf = "all" }
+
+[members.py8_NNPDF23]
+index = 0
+choice = { generator = 0, pdf = 0 }
+values = { generator = 0, pdf = 0 }
+yoda = "points/py8_NNPDF23/run.yoda"
+identity = "one"
+complete = true
+events = 1000
+"""
+
+
+def test_a_sets_sub_header_names_its_axes_and_what_is_fixed_and_a_cell_its_labels(trees):
+    """I-110 R3: a set's pages and curves along its axes, as their labels, and the quantities held fixed; a page cell
+    read as its tags' labels, the longest tag first."""
+    where = trees / "results" / "P" / "zeus" / "01_generator_pdf"
+    where.mkdir(parents=True)
+    (where / "plot.toml").write_text(GENERATORS, encoding="utf-8")
+    (source,) = report.sources(["P/zeus/01_generator_pdf"], "here")
+    fixed = ("Fixed", ["beams: $e^{+}p$"])
+    assert report.set_head(source, "few").facts == [
+        ("Pages", ["a page per object, every curve on it"]),
+        ("Curves", ["generator: Pythia 8.318 · pdf: NNPDF 2.3 LO, CT18", "generator: Sherpa 3.0.5 · pdf: NNPDF 2.3"]), fixed]
+    assert report.set_head(source, "pythia").facts == [("Pages", ["generator: Pythia 8.318"]),
+                                                       ("Curves", ["pdf: NNPDF 2.3, NNPDF 2.3 LO, CT18"]), fixed]
+    assert report.set_head(source, "totality").facts == [("Pages", ["generator: Pythia 8.318, Sherpa 3.0.5"]),
+                                                         ("Curves", ["pdf: NNPDF 2.3, NNPDF 2.3 LO, CT18"]), fixed]
+    assert report.set_head(source, "pythia", {"sets": {"pythia": {"pages": {"generator": "py8"}, "curves": {"pdf": "!CT18"}}}}) \
+        .facts[1] == ("Curves", ["pdf: all but CT18"])                       # a section's plot keys over the document's
+    assert report.cell_label(source.doc, "py8") == "Pythia 8.318"
+    assert report.cell_label(source.doc, "NNPDF23_lo_py8") == "NNPDF 2.3 LO, Pythia 8.318"
+    assert report.cell_label(source.doc, "18x275") == "18x275"
+    plan = report.planned("P/validation/01_pdf", [])
+    first, second = plan.sections[1].grids
+    assert first.head.set == "totality" and first.head.address == "P/validation/01_pdf" and second.head is None
+    assert first.head.facts == [("Pages", ["a page per object, every curve on it"]), ("Curves", ["pdf: PDF A, PDF B"])]
+    assert (first.cell, second.cell) == ("18x275", "27x920")
+
+
+def test_a_recipes_look_is_kept_and_checked(trees):
+    """I-110 R2: [report]'s look keys on the plan; a bad one refused."""
+    assert report.planned("P/validation/01_pdf", []).look == report.Look()
+    recipe(trees, "look", '[report]\nfont = "serif"\nsize = 10.5\naccent = "#d62728"\ncolumns = 3\ncontents = false\n')
+    assert report.planned("P/look.toml", ["P/validation/01_pdf"]).look == report.Look("serif", 10.5, "#d62728", False, 3)
+    for line, message in (('accent = "red"', "accent is a colour as #rrggbb"), ("size = 13", "size is at most 12"),
+                          ("columns = 0", "columns"), ('font = "mono"', "mono"), ("size = 7", "size")):
+        recipe(trees, "bad", f"[report]\n{line}\n")
+        with pytest.raises(HeimdallError, match=message):
+            report.planned("P/bad.toml", ["P/validation/01_pdf"])
+
+
+def test_a_cards_lines_are_highlighted():
+    """I-110 R4: keys, = and :, numbers, words and comments marked for Verbatim's commandchars; \\, { and } escaped."""
+    assert report.highlight("Beams:eCM = 318. ! the energy") == r"\hdK{Beams:eCM} \hdP{=} \hdN{318.} {\hdC ! the energy}"
+    assert report.highlight("HadronLevel:all = off") == r"\hdK{HadronLevel:all} \hdP{=} \hdB{off}"
+    assert report.highlight("    Order: {QCD: 2}") == r"    \hdK{Order}\hdP{:} \hdLB{}QCD: 2\hdRB{}"
+    assert report.highlight("- 93 93 -> 93 93:") == "- 93 93 -> 93 93:"
+    assert report.highlight("set /Herwig/Gen:NumberOfEvents 1000") == r"\hdB{set} /Herwig/Gen:NumberOfEvents \hdN{1000}"
+    assert report.highlight(r"# a \path {x}") == r"{\hdC # a \hdBS{}path \hdLB{}x\hdRB{}}"
+    assert report.highlight('PDF:pSet = "a ! b" # yaml') == r'\hdK{PDF:pSet} \hdP{=} "a ! b" {\hdC # yaml}'

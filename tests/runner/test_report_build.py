@@ -249,7 +249,9 @@ def test_a_tools_section_holds_its_cards_and_tables_and_compiles(trees, tmp_path
         "point,label,PDF:pSet,Random:seed", "A,PDF A,LHAPDF6:PDF_A,7", "B,PDF B,LHAPDF6:PDF_B,8"]
     assert "3 tool configuration(s)" in said[0] and (out / "report.pdf").is_file()
     tex = (out / "report.tex").read_text(encoding="utf-8")
-    assert r"\VerbatimInput" in tex and r"\begin{longtable}" in tex and r"\DeclareUnicodeCharacter{2603}{?}" in tex
+    assert r"\begin{Verbatim}[commandchars=\\\{\}]" in tex and r"\hdK{Beams:eCM} \hdP{=} \hdN{318.}" in tex     # highlighted
+    assert r"\hdK{Order}\hdP{:} \hdLB{}QCD: 3\hdRB{}" in tex and r"\begin{hdTable}" in tex
+    assert r"\DeclareUnicodeCharacter{2603}{?}" in tex and r"\DeclareUnicodeCharacter{2264}{\ensuremath{\leq}}" in tex
     text = subprocess.run(["pdftotext", str(out / "report.pdf"), "-"], capture_output=True, text=True, encoding="utf-8").stdout
     assert "LHAPDF6:PDF_A" in text and "ZEUS_2012_I1116258" in text and "Order: {QCD: 3}" in text
     page = (out / "index.html").read_text(encoding="utf-8")
@@ -260,3 +262,21 @@ def test_a_tools_section_holds_its_cards_and_tables_and_compiles(trees, tmp_path
                    capture_output=True)
     _, said = built("P/given.toml", [])
     assert "0 file(s) copied or written" in said[0] and "report.pdf unchanged" in said[1]
+
+
+def test_a_recipes_look_is_its_preamble_and_a_set_has_its_sub_header(trees):
+    """I-110 R2, R3: [report]'s look keys in report.tex's preamble (the fonts, the body's size, the accent, a grid's
+    columns, no contents); a set's sub-header over its first grid, each grid captioned by its cell, a row a picture."""
+    recipe(trees, "look", '[report]\nfrom = ["P/validation/01_pdf"]\nfont = "serif"\nsize = 10.5\naccent = "#d62728"\n'
+                          'columns = 3\ncontents = false\n\n[[report.section]]\ntitle = "Spectra"\npages = ["*"]\n')
+    built("P/look.toml", [])
+    out = trees / "reports" / "P" / "validation" / "01_pdf"
+    tex = (out / "report.tex").read_text(encoding="utf-8")
+    preamble, body = tex.split(r"\begin{document}")
+    assert r"\definecolor{hdaccent}{HTML}{D62728}" in preamble and r"\usepackage{tgtermes}" in preamble and "sansmath" not in preamble
+    assert r"\@setfontsize\normalsize{10.5}{14.9}" in preamble and r"\hdContents" not in body
+    assert body.count(r"\hdSetHead{totality}{P/\allowbreak{}validation/\allowbreak{}01\_\allowbreak{}pdf}") == 1
+    assert r"\hdFact{Curves}{pdf: PDF A, PDF B}" in body and r"\hdCaption{18x275}" in body and r"\hdCaption{27x920}" in body
+    assert body.count(r"\begin{picture}") == 2 and r"{\hdPanel d01-x01-y01}" in body           # 3 columns: a row a cell
+    page = (out / "index.html").read_text(encoding="utf-8")
+    assert "Spectra: totality · 18x275" in page and "Curves: pdf: PDF A, PDF B" in page

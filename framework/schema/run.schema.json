@@ -2557,6 +2557,37 @@
      "items": {
       "type": "string"
      }
+    },
+    "font": {
+     "description": "the report's font: sans sets everything in TeX Gyre Heros (Helvetica's metrics, as the pages Paint draws), math too; serif sets the body (notes, prose) in TeX Gyre Termes, the titles, tables and labels still sans",
+     "type": "string",
+     "enum": [
+      "sans",
+      "serif"
+     ],
+     "default": "sans"
+    },
+    "size": {
+     "description": "the body's size in pt, 8 to 12, its line 1.42 times it; titles, tables, captions and labels keep their own sizes",
+     "type": "number",
+     "minimum": 8,
+     "default": 9.5
+    },
+    "accent": {
+     "description": "the accent colour, #rrggbb: section numbers, kickers, code's keys",
+     "type": "string",
+     "default": "#2a78d6"
+    },
+    "contents": {
+     "description": "a table of contents on the front page, under the sources",
+     "type": "boolean",
+     "default": true
+    },
+    "columns": {
+     "description": "a grid's columns when its section names none, 1 to 4 (a grid of one figure: 1; a side-by-side grid of three or more sources: 3)",
+     "type": "integer",
+     "minimum": 1,
+     "default": 2
     }
    },
    "additionalProperties": false

@@ -44,7 +44,7 @@ from . import plotdoc, plugins, record, statstable, viewer
 from .config import STATISTICS
 from .errors import HeimdallError, did_you_mean
 from .paths import apps_dir, cache_root, config_file, configs_root, heimdall_root, reports_root, results_root, work_root
-from .sweep import TOTALITY, label_of, named_sets, totality
+from .sweep import TOTALITY, label_of, named_sets, tag_of, totality
 from .tools import RunFolders
 
 #: What a run writes beside each folder's plot.toml: its report's recipe (V209).
@@ -594,10 +594,22 @@ class Figure:
 
 
 @dataclass
+class SetHead:
+    """A set's sub-header (I-110 R3), once over a source's grids of it (once a set, side by side): what its pages
+    and curves are along, and the quantities its configuration holds fixed, each as (what, its lines); the labels
+    as the run TOML wrote them (LaTeX, `$…$` math)."""
+    set: str
+    address: str
+    facts: list[tuple[str, list[str]]]
+
+
+@dataclass
 class Grid:
     caption: str
     figures: list[Figure]
     columns: int | None = None
+    head: SetHead | None = None   # the set's sub-header, over the first grid of a source's set
+    cell: str = ""                # its page cell as labels (Pythia 8.318), its caption once the head says the rest
 
 
 @dataclass
@@ -697,6 +709,23 @@ def looked(plot: dict, look: dict) -> dict:
     return out
 
 
+@dataclass(frozen=True)
+class Look:
+    """A report's look (I-110 R2), from [report]'s look keys: the body's font and size, the accent (section
+    numbers, kickers, ranking bars, code keys), whether the front page holds the contents, a grid's columns."""
+    font: str = "sans"           # "sans": TeX Gyre Heros throughout; "serif": TeX Gyre Termes for the body
+    size: float = 9.5            # the body's pt (its line 1.42 times it)
+    accent: str = "#2a78d6"
+    contents: bool = True
+    columns: int = 2
+
+
+def look_of(recipe: dict) -> Look:
+    """[report]'s look keys over the defaults."""
+    given = {k: recipe[k] for k in ("font", "size", "accent", "contents", "columns") if k in recipe}
+    return dataclasses.replace(Look(), **given)
+
+
 @dataclass
 class Plan:
     name: str                    # the command that builds it: heimdall report <name>
@@ -708,6 +737,7 @@ class Plan:
     recipe: Path | None = None
     left: list[str] = field(default_factory=list)      # optional sections no source has, and why
     drawings: list[Drawing] = field(default_factory=list)
+    look: Look = field(default_factory=Look)
 
     def drawn(self) -> list:
         """What is still to be drawn or measured for the report: figures with no file, parts and bars with no CSV."""
@@ -726,6 +756,99 @@ def _backends(section: dict) -> tuple[str, ...]:
 
 def _cell(name: str) -> str:
     return name.rsplit("/", 1)[0] if "/" in name else ""
+
+
+#: A filter's values named one by one up to this many; more are counted.
+NAMED = 8
+
+
+def _varied(doc) -> list[str]:
+    return [q for entry in doc.configuration.sweeps for q in (entry if isinstance(entry, list) else [entry])]
+
+
+def _values_of(doc, name: str, value) -> str:
+    """A set filter's value for one quantity, as its labels: "all" (each, or how many), a tag, "!tag", a list of
+    them (a styled value by its tag); a glob or a number as written."""
+    quantity = doc.quantities.get(name)
+    if quantity is None:
+        return str(value)
+    tags = [tag_of(quantity, i) for i in range(len(quantity.values))]
+
+    def one(item) -> str:
+        if isinstance(item, dict):
+            item = item.get("tag", item.get("value", ""))
+        text = str(item)
+        if text in tags:
+            return label_of(quantity, tags.index(text))
+        if text.startswith("!") and text[1:] in tags:
+            return f"all but {label_of(quantity, tags.index(text[1:]))}"
+        return text
+    if value == "all":
+        shown = [label_of(quantity, i) for i in range(len(tags)) if i + 1 not in quantity.exclude]
+        return ", ".join(shown) if len(shown) <= NAMED else f"all {len(shown)}"
+    if isinstance(value, list):
+        shown = [one(v) for v in value]
+        return ", ".join(shown) if len(shown) <= NAMED else f"{len(shown)} of {len(tags)}"
+    return one(value)
+
+
+def set_head(source: Source, set_: str, look: dict | None = None) -> SetHead:
+    """A source's set as its sub-header says it (I-110 R3): its table in the plot document ([plot].sets, a
+    section's plot keys over them; the totality's own when it names none): Pages (its page axes and their values,
+    as labels; none: a page per object), Curves (a line a curves filter), Objects, and Fixed (each quantity the
+    configuration does not vary, its value's label)."""
+    doc = source.doc
+    table = named_sets(looked(doc.plot or {}, look or {}).get("sets")).get(set_)
+    if table is None and set_ == TOTALITY:
+        table = totality(doc.configuration, source.members)
+    table = table if isinstance(table, dict) else {"points": table} if table else {}
+
+    def said(flt: dict) -> str:
+        return " · ".join(f"{q}: {_values_of(doc, q, v)}" for q, v in flt.items())
+    facts: list[tuple[str, list[str]]] = []
+    if "points" in table and not ("pages" in table or "curves" in table):
+        facts.append(("Points", [", ".join(str(p) for p in table["points"])]))
+    else:
+        pages, curves = table.get("pages"), table.get("curves")
+        filters = curves if isinstance(curves, list) else [curves] if isinstance(curves, dict) and curves else []
+        if pages is None and filters:                    # the varied quantities the curves leave: a page each
+            pages = {q: "all" for q in _varied(doc) if not any(q in f for f in filters)}
+        facts.append(("Pages", [said(pages) if isinstance(pages, dict) and pages else "a page per object, every curve on it"]))
+        if filters:
+            facts.append(("Curves", [said(f) for f in filters]))
+    if table.get("objects"):
+        facts.append(("Objects", [", ".join(str(o) for o in table["objects"])]))
+    varied = set(_varied(doc))
+    fixed = []
+    for name, mark in (doc.configuration.static or {}).items():
+        quantity = doc.quantities.get(name)
+        if name in varied or quantity is None or not str(mark).startswith("#"):
+            continue
+        index = int(str(mark)[1:]) - 1
+        if 0 <= index < len(quantity.values):
+            fixed.append(f"{name}: {label_of(quantity, index)}")
+    if fixed:
+        facts.append(("Fixed", [" · ".join(fixed)]))
+    return SetHead(set_, source.address, facts)
+
+
+def cell_label(doc, cell: str) -> str:
+    """A page cell (its page axes' tags joined by _: `py8_27x920`) as their labels (`Pythia 8.318, 27.5x920 GeV`):
+    the longest tag that starts it first; a cell no tag reads is itself."""
+    known: dict[str, str] = {}
+    for quantity in doc.quantities.values():
+        for index in range(len(quantity.values)):
+            known.setdefault(tag_of(quantity, index), label_of(quantity, index))
+    out, rest = [], cell
+    while rest:
+        for tag in sorted(known, key=len, reverse=True):
+            if rest == tag or rest.startswith(tag + "_"):
+                out.append(known[tag])
+                rest = rest[len(tag) + 1:]
+                break
+        else:
+            return cell
+    return ", ".join(out)
 
 
 def _refuse_missing(source: Source, set_: str, where: str, measured: bool = False) -> None:
@@ -805,13 +928,16 @@ def _pages_section(section: dict, found: list[Source], where: str, drawings: lis
                                                                  next(iter(chosen[s.address].values())), named[s.address],
                                                                  waiting.get(s.address, "")) for s in found])]
         names = sorted({n for pages in chosen.values() for n in pages}, key=natural)
+        head = dataclasses.replace(set_head(found[0], set_, look), address=", ".join(s.address for s in found)) if found else None
         for name in names:
             absent = [s.address for s in found if name not in chosen[s.address]]
             if absent:
                 raise HeimdallError(f"{absent[0]} has no page {name} in plots/{set_}/", where=f"{where}.pages",
                                hint="draw it there, or leave that source out of the section's from")
+            cell = cell_label(found[0].doc, _cell(name))
             grids.append(Grid(f"{set_} · {name}", [Figure(s, set_, name, chosen[s.address][name], named[s.address]) for s in found],
-                              section.get("columns") or (3 if len(found) >= 3 else None)))
+                              section.get("columns") or (3 if len(found) >= 3 else None), head if not grids else None,
+                              ", ".join(part for part in (cell, name.rsplit("/", 1)[-1]) if part)))
         return grids
     for source in found:
         if source.address in waiting:
@@ -821,10 +947,11 @@ def _pages_section(section: dict, found: list[Source], where: str, drawings: lis
         by_cell: dict[str, list[str]] = {}
         for name in chosen[source.address]:
             by_cell.setdefault(_cell(name), []).append(name)
-        for cell, names in by_cell.items():
+        head = set_head(source, set_, look)
+        for k, (cell, names) in enumerate(by_cell.items()):
             caption = " · ".join(part for part in (source.address, set_, cell) if part)
             grids.append(Grid(caption, [Figure(source, set_, n, chosen[source.address][n], n.rsplit("/", 1)[-1]) for n in names],
-                              section.get("columns")))
+                              section.get("columns"), head if k == 0 else None, cell_label(source.doc, cell) if cell else ""))
     return grids
 
 
@@ -961,7 +1088,7 @@ def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command
     facts = [s.doc.source for s in used]
     title = filled(recipe.get("title", ""), facts) or (used[0].address if len(used) == 1 else _common(used) or "report")
     return Plan(command or where, title, filled(recipe.get("subtitle", ""), facts), used, sections,
-                out or _out(recipe, used, where), path, left, drawings)
+                out or _out(recipe, used, where), path, left, drawings, look_of(recipe))
 
 
 def _common(found: list[Source]) -> str:
@@ -1046,7 +1173,11 @@ def starter(name: str, source: Source) -> str:
     lines = [f"# configs/{name}: a report, `heimdall report {name} <source>` (docs/03_Plots.md §11; its keys 04 §15).",
              "# The sources on the command line replace `from`; each [[report.section]] shows one of pages, compare,",
              "# stats, bars or files.", "", "[report]", f'title = "{source.doc.name} · {source.name}"',
-             '# subtitle = "for the group, <date>"', f'from  = ["{source.address}"]', ""]
+             '# subtitle = "for the group, <date>"', f'from  = ["{source.address}"]',
+             "# its look, each key's default (04 §15):", '# font     = "sans"      # "serif": TeX Gyre Termes for the body',
+             "# size     = 9.5         # the body's pt, 8 to 12", '# accent   = "#2a78d6"   # section numbers, kickers, code\'s keys',
+             "# columns  = 2           # a grid's, when its section names none", "# contents = true        # the contents on the front page",
+             ""]
     sections = default_recipe([source])["section"]
     shown = [s["set"] for s in sections if "pages" in s]
     for section in sections:
@@ -1074,16 +1205,27 @@ def starter(name: str, source: Source) -> str:
 FIGURES, STATS, TOOLS, STAMPS = "figures", "stats", "tools", ".stamps.json"
 #: A varied table's key columns on an A4 page; more are carried on in a further table, the points again.
 KEYS_PER_TABLE = 5
-#: Characters pdflatex sets as they are (T1, textcomp); any other is declared, shown as ?, so a card in any
-#: script never stops the report.
+#: Characters pdflatex sets as they are (T1, textcomp); MATH's as math; any other is declared, shown as ?, so a
+#: card in any script never stops the report.
 SAFE = set("–—‘’“”…•·±×÷→←€µ")
-#: A4 in bp and its text block (15 mm margins). A grid's picture is at most ROOM high, leaving its caption and, on a
-#: section's first page, the section's heading and note.
+MATH = {**{c: f"\\{n}" for c, n in zip("αβγδεζηθικλμνξπρστυφχψωΓΔΘΛΞΠΣΥΦΨΩ",
+                                        ("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi pi rho "
+                                         "sigma tau upsilon phi chi psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon "
+                                         "Phi Psi Omega").split())},
+        "∞": r"\infty", "−": "-", "≤": r"\leq", "≥": r"\geq", "≈": r"\approx", "≠": r"\neq", "≡": r"\equiv",
+        "√": r"\surd", "∑": r"\sum", "∫": r"\int", "∂": r"\partial", "∈": r"\in", "⊕": r"\oplus", "⊗": r"\otimes",
+        "∝": r"\propto", "∼": r"\sim", "↔": r"\leftrightarrow", "⇒": r"\Rightarrow", "ℓ": r"\ell", "ħ": r"\hbar",
+        "⁺": "^{+}", "⁻": "^{-}", "⁰": "^{0}", "⁴": "^{4}", "⁵": "^{5}", "⁶": "^{6}", "⁷": "^{7}", "⁸": "^{8}",
+        "⁹": "^{9}", "₀": "_{0}", "₁": "_{1}", "₂": "_{2}", "₃": "_{3}", "₄": "_{4}"}
+#: The page (I-110 R2), in bp: A4, 18 mm left and right, 22 mm top (the running header 8 mm over the body), 20 mm
+#: bottom (the footer 11 mm under it). A grid is placed a row of panels at a time, each at most ROW_MOST high, so a
+#: page breaks between rows; GAP between panels, LABEL a panel's label over it.
+MM = 72 / 25.4
 A4_BP = (595.28, 841.89)
-MARGIN = 42.52
-TEXT_W, TEXT_H = A4_BP[0] - 2 * MARGIN, A4_BP[1] - 2 * MARGIN
-ROOM = TEXT_H - 80.0
-GAP, LABEL = 6.0, 11.0
+SIDE, TOP, BOTTOM = 18 * MM, 22 * MM, 20 * MM
+TEXT_W, TEXT_H = A4_BP[0] - 2 * SIDE, A4_BP[1] - TOP - BOTTOM
+ROW_MOST = 0.55 * TEXT_H
+GAP, LABEL = 6.0, 12.0
 #: What pdflatex leaves beside report.tex, removed once report.pdf is made.
 LEFTOVERS = (".aux", ".log", ".out", ".toc")
 BUILT = "\0built\0"
@@ -1118,6 +1260,9 @@ class Placed:
     columns: int
     aspect: float
     label: float = LABEL
+    head: SetHead | None = None   # the set's sub-header over it
+    toc: str = ""                 # its line in the contents ("": none)
+    title: str = ""               # index.html's block title
 
 
 class _Build:
@@ -1272,7 +1417,7 @@ def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say) -> Plac
     if summary.is_file():
         build.copy(summary, build.out / STATS / "summaries" / f"{slug(part.source.address)}__{slug(part.set)}.html")
     return Placed(f"Statistics: {heading}", [pdf] * len(pngs), [""] * len(pngs), [f"page={k}" for k in range(1, len(pngs) + 1)],
-                  pngs, 1, paper_aspect(bars), 0.0)
+                  pngs, 1, paper_aspect(bars), 0.0, toc=f"Statistics: {heading}", title=f"Statistics: {heading}")
 
 
 def paper_aspect(bars) -> float:
@@ -1301,8 +1446,8 @@ def _bars(build: _Build, bars, item: Bars, folder: Path) -> Placed:
         files += [target.with_suffix(".pdf")] * len(shown)
         options += [f"page={k}" for k in range(1, len(shown) + 1)]
         pngs += shown
-    return Placed(f"Bar graphs: {item.source.address} · {item.set}" + (" · as this report measures it" if item.look else ""),
-                  files, [""] * len(files), options, pngs, 1, paper_aspect(bars), 0.0)
+    caption = f"Bar graphs: {item.source.address} · {item.set}" + (" · as this report measures it" if item.look else "")
+    return Placed(caption, files, [""] * len(files), options, pngs, 1, paper_aspect(bars), 0.0, toc=caption, title=caption)
 
 
 @dataclass
@@ -1352,9 +1497,13 @@ def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
                 shown, png = _figure(build, figure, build.out / FIGURES / name, stem)
                 files.append(shown)
                 pngs.append(png)
-            columns = grid.columns or (1 if len(files) == 1 else 2)
-            grids.append(Placed(grid.caption, files, [f.label for f in grid.figures], [""] * len(files), pngs,
-                                columns, _aspect(grid.figures[0].file)))
+            columns = grid.columns or (1 if len(files) == 1 else plan.look.columns)
+            caption = grid.cell if "pages" in section.spec else "" if "files" in section.spec else grid.caption
+            head, set_ = grid.head, grid.figures[0].set if "pages" in section.spec else ""
+            grids.append(Placed(caption, files, [f.label for f in grid.figures], [""] * len(files), pngs,
+                                columns, _aspect(grid.figures[0].file), head=head,
+                                toc=f"{head.set} · {head.address}" if head else caption if "compare" in section.spec else "",
+                                title=" · ".join(part for part in (set_, plain(caption)) if part) or section.title))
         for k, part in enumerate(section.parts, 1):
             shown = _part(build, bars, part, build.out / STATS / name, f"{k:02d}_{slug(part.source.folder.name)}", say)
             if shown is not None:
@@ -1374,53 +1523,171 @@ def _breakable(text: str) -> str:
     return _layout().tex(text).replace("/", "/\\allowbreak{}").replace("\\_", "\\_\\allowbreak{}")
 
 
-def _chunks(placed: Placed) -> list[tuple[int, int, tuple[float, float], float, float]]:
-    """A grid cut into pictures that each fit a page: (first, last figure, box, cell width, cell height)."""
+def _rows(placed: Placed) -> tuple[float, float, list[tuple[int, int]]]:
+    """A grid as rows of panels, a picture each, so that a page breaks between them: (cell width, cell height,
+    each row's first and last figure)."""
     columns = placed.columns
     cw = (TEXT_W - (columns - 1) * GAP) / columns
-    ch = min(cw / placed.aspect, ROOM - placed.label)
-    rows = max(1, int((ROOM + GAP) // (ch + placed.label + GAP)))
-    out = []
-    for start in range(0, len(placed.files), rows * columns):
-        end = min(len(placed.files), start + rows * columns)
-        shown_rows = math.ceil((end - start) / columns)
-        out.append((start, end, (TEXT_W, shown_rows * (ch + placed.label) + (shown_rows - 1) * GAP), cw, ch))
-    return out
+    ch = min(cw / placed.aspect, (ROW_MOST if placed.label else TEXT_H - 40.0) - placed.label)   # a page of statistics: a page
+    return cw, ch, [(start, min(len(placed.files), start + columns)) for start in range(0, len(placed.files), columns)]
 
 
-PREAMBLE = r"""\documentclass[a4paper,10pt]{article}
+#: report.tex's preamble (I-110 R2): its look, every size, colour and space set here once, as macros the body uses.
+#: @…@ are the look's (Look): the fonts, the body's size and line, the accent, the title in the running header.
+PREAMBLE = r"""\documentclass[a4paper]{article}
 %% Made by heimdall report: every file it names is in this folder, so it compiles here as it is (pdflatex, twice).
+%% Its look is set here, once: the fonts, sizes, colours and spaces as macros (\hd…), which the body uses alone.
 \usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{textcomp}
 \usepackage{lmodern}
-\usepackage[margin=15mm]{geometry}
-\usepackage{graphicx}
-\usepackage{array}
-\usepackage{longtable}
+\usepackage{tgheros}
+@FONT@
+\renewcommand{\ttdefault}{lmtt}
+\usepackage[a4paper,left=18mm,right=18mm,top=22mm,bottom=20mm,headheight=14pt,headsep=8mm,footskip=11mm]{geometry}
+\usepackage[table]{xcolor}
+\usepackage{graphicx,array,longtable,booktabs}
 \usepackage{fvextra}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage{titlesec,titletoc}
+\usepackage{fancyhdr,lastpage}
+\usepackage[letterspace=60]{microtype}
 \usepackage[hidelinks,bookmarksdepth=2]{hyperref}
-\renewcommand{\familydefault}{\sfdefault}
+%% colours: ink, muted (taglines, captions, labels, notes), rules, a band's fill, the accent, code's numbers and words
+\definecolor{hdink}{HTML}{0B0B0B}
+\definecolor{hdmuted}{HTML}{52514E}
+\definecolor{hdrule}{HTML}{E4E3DF}
+\definecolor{hdframe}{HTML}{A3A29D}
+\definecolor{hdband}{HTML}{EFEEEA}
+\definecolor{hdaccent}{HTML}{@ACCENT@}
+\definecolor{hdnumber}{HTML}{0B6E4F}
+\definecolor{hdkeyword}{HTML}{7B3FB5}
+%% sizes: \hdSize{pt}{line}; the body @SIZE@ on @LINE@
+\newcommand\hdSize[2]{\fontsize{#1}{#2}\selectfont}
+\makeatletter
+\renewcommand\normalsize{\@setfontsize\normalsize{@SIZE@}{@LINE@}\abovedisplayskip 6pt plus 2pt\belowdisplayskip 6pt plus 2pt%
+  \abovedisplayshortskip 3pt\belowdisplayshortskip 3pt}
+\newcommand\hdContents{\@starttoc{toc}}
+\makeatother
 \setlength{\parindent}{0pt}
-\setcounter{tocdepth}{1}
+\setlength{\parskip}{0pt}
 \setlength{\unitlength}{1bp}
+\setcounter{tocdepth}{2}
+\color{hdink}
+%% the page: the title left and the section right over a rule; "page n of N" centred under the body
+\newcommand\hdHeadFont{\sffamily\hdSize{7.5}{9}\color{hdmuted}}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\hdHeadFont @TITLE@}
+\fancyhead[R]{\hdHeadFont\leftmark}
+\fancyfoot[C]{\hdHeadFont page \thepage\ of \pageref*{LastPage}}
+\renewcommand\headrulewidth{0.5pt}
+\renewcommand\headrule{{\color{hdrule}\hrule height\headrulewidth width\headwidth\vskip-\headrulewidth}}
+\fancypagestyle{front}{\fancyhf{}\renewcommand\headrulewidth{0pt}\fancyfoot[C]{\hdHeadFont page \thepage\ of \pageref*{LastPage}}}
+\renewcommand\sectionmark[1]{\markboth{\thesection\quad #1}{}}
+%% titles: a section starts a page, its number in the accent
+\titleformat{\section}{\sffamily\hdSize{15}{18}\bfseries}{\textcolor{hdaccent}{\thesection}}{0.55em}{}
+\titlespacing*{\section}{0pt}{0pt}{6pt}
+\titleformat{\subsection}{\sffamily\hdSize{11}{14}\bfseries}{}{0pt}{}
+\titlespacing*{\subsection}{0pt}{16pt}{4pt}
+\titlecontents{section}[1.7em]{\addvspace{5pt}\sffamily\hdSize{9.5}{13}\bfseries}%
+  {\contentslabel[\textcolor{hdaccent}{\thecontentslabel}]{1.7em}}{\hspace*{-1.7em}}{\hfill\contentspage}
+\titlecontents{subsection}[1.7em]{\sffamily\hdSize{8.5}{11.5}\color{hdmuted}}{}{}{\titlerule*[5pt]{\hbox{.}}\contentspage}
+%% tables: booktabs rules, rows 1.3 lines high, 5pt each side of a cell, set left
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.3}
+\setlength{\aboverulesep}{0pt}
+\setlength{\belowrulesep}{0pt}
+\setlength{\heavyrulewidth}{0.6pt}
+\setlength{\lightrulewidth}{0.4pt}
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{\fill}
+\setlength{\LTpre}{3pt}
+\setlength{\LTpost}{0pt}
+\arrayrulecolor{hdframe}
+\newenvironment{hdTable}[1]{\par\sffamily\hdSize{8}{10.5}\begin{longtable}{#1}}{\end{longtable}\par}
+\newcommand\hdContinued{\textit{\color{hdmuted}(continued)}}
+\newcommand\hdBlockGap{\par\vspace{8pt}}
+\newcommand\hdSmall{\hdSize{7}{9}}
+\newcommand\hdMuted[1]{\textcolor{hdmuted}{#1}}
+%% text: a kicker (a block's name, small capitals in the accent), a tagline, a section's note, an item's title
+\newcommand\hdKicker[1]{{\sffamily\hdSize{7.5}{9}\bfseries\color{hdaccent}\textls{\MakeUppercase{#1}}}}
+\newcommand\hdTitle[1]{{\sffamily\hdSize{22}{26}\bfseries #1\par}}
+\newcommand\hdSubtitle[1]{{\sffamily\hdSize{12.5}{16}\color{hdmuted}#1\par}}
+\newcommand\hdTagline[1]{{\sffamily\hdSize{8}{11}\color{hdmuted}#1\par}}
+\newcommand\hdNote[1]{{\hdSize{9}{13.5}\color{hdmuted}#1\par}\vspace{10pt}}
+\newcommand\hdBlockTitle[2]{\par\addvspace{16pt}{\sffamily\hdSize{11}{14}\bfseries #1}\hspace{0.6em}{\sffamily\hdSize{8}{10}\color{hdmuted}#2}\par\vspace{4pt}}
+\newcommand\hdLabel[2]{\par\addvspace{9pt}{\sffamily\hdSize{8}{10}\bfseries #1}\hspace{0.5em}{\hdSize{7.5}{9}\ttfamily\color{hdmuted}#2}\par\vspace{3pt}}
+\newcommand\hdItem[1]{\par\addvspace{12pt}\needspace{4\baselineskip}{\sffamily\hdSize{9.5}{12}\bfseries #1\par}\vspace{2pt}}
+\newcommand\hdSub[1]{{\sffamily\hdSize{8}{10.5}\color{hdmuted}#1\par}\vspace{2pt}}
+\newcommand\hdStatSection[1]{\par\addvspace{16pt}\needspace{5\baselineskip}{\sffamily\hdSize{11}{14}\bfseries #1\par}\vspace{2pt}}
+%% a set's sub-header: its name and source, then a line a fact (Pages, Curves, Fixed); a grid's caption; a panel's label
+\newcommand\hdFact[2]{\par\hangindent=4.6em\hangafter=1\noindent\makebox[4.6em][l]{\textcolor{hdmuted}{#1}}#2\par}
+\newcommand\hdSetHead[3]{\par\addvspace{18pt}{\sffamily\hdSize{11}{14}\bfseries #1}\hspace{0.7em}%
+  {\hdSize{7.5}{9}\ttfamily\color{hdmuted}#2}\par\vspace{4pt}{\sffamily\hdSize{8.5}{12}#3\par}\vspace{8pt}}
+\newcommand\hdCaption[1]{{\sffamily\hdSize{8.5}{11}\bfseries #1\par}\vspace{4pt}}
+\newcommand\hdPanel{\sffamily\hdSize{7.5}{9}\color{hdmuted}}
+\newcommand\hdGridGap{\par\vspace{8pt}}
+\newenvironment{hdFacts}{\begin{itemize}[leftmargin=1.1em,itemsep=1pt,parsep=0pt,topsep=2pt,label={\textcolor{hdmuted}{\textbullet}}]%
+  \sffamily\hdSize{8.5}{12}}{\end{itemize}}
+\newenvironment{hdNotes}{\par\addvspace{14pt}{\color{hdrule}\rule{\linewidth}{0.5pt}}\par\vspace{4pt}\hdKicker{Notes}\par\vspace{2pt}%
+  \begin{itemize}[leftmargin=1.8em,labelsep=0.4em,itemsep=3pt,parsep=0pt,topsep=2pt,align=left]\hdSize{7.5}{11}\color{hdmuted}}{\end{itemize}}
+\newenvironment{hdFlags}{\begin{itemize}[leftmargin=1.1em,itemsep=2pt,parsep=0pt,topsep=3pt,label={\textcolor{hdmuted}{\textbullet}}]%
+  \sffamily\hdSize{8}{11}\color{hdmuted}\itshape}{\end{itemize}}
+%% code: Latin Modern Typewriter 7.5 on 9.5, a rule at its left; keys bold in the accent, = and : muted, numbers and
+%% words (on, off, true, false) their own colours, comments muted italic
+\newcommand\hdCode{\fontsize{7.5}{9.5}\selectfont}
+\fvset{fontsize=\hdCode,breaklines,breakafter={/_:=,.-},frame=leftline,framerule=1.5pt,rulecolor=\color{hdrule},framesep=8pt,xleftmargin=2pt}
+\newcommand\hdK[1]{\textcolor{hdaccent}{\bfseries #1}}
+\newcommand\hdP[1]{\textcolor{hdmuted}{#1}}
+\newcommand\hdN[1]{\textcolor{hdnumber}{#1}}
+\newcommand\hdB[1]{\textcolor{hdkeyword}{#1}}
+\newcommand\hdC{\color{hdmuted}\itshape}
+\newcommand\hdBS{\char`\\}
+\newcommand\hdLB{\char`\{}
+\newcommand\hdRB{\char`\}}
 """
+
+#: The fonts (Look.font): TeX Gyre Heros throughout, math in it too (sansmath; Greek capitals from Latin Modern
+#: Sans, lowercase from Latin Modern's math); or TeX Gyre Termes for the body, the titles, tables and labels sans.
+FONTS = {"sans": "\n".join([r"\renewcommand{\familydefault}{\sfdefault}", r"\usepackage[T1]{sansmath}",
+                            r"\SetSymbolFont{letters}{sans}{OML}{lmm}{m}{it}", r"\SetSymbolFont{symbols}{sans}{OMS}{lmsy}{m}{n}",
+                            r"\SetMathAlphabet{\mathsfsl}{sans}{T1}{qhv}{m}{it}", r"\DeclareSymbolFont{hdgreek}{OT1}{lmss}{m}{n}",
+                            *(rf'\DeclareMathSymbol{{\{name}}}{{\mathalpha}}{{hdgreek}}{{"{k:02X}}}' for k, name in
+                              enumerate("Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega".split())),
+                            r"\sansmath"]),
+         "serif": "\n".join([r"\usepackage{tgtermes}", r"\renewcommand{\familydefault}{\rmdefault}"])}
+
+
+def _preamble(plan: Plan) -> str:
+    """report.tex's preamble with the plan's look filled in."""
+    look = plan.look
+    title = plan.title if len(plan.title) <= 80 else plan.title[:78].rstrip() + "…"
+    return (PREAMBLE.replace("@FONT@", FONTS[look.font]).replace("@ACCENT@", look.accent.lstrip("#").upper())
+            .replace("@SIZE@", f"{look.size:g}").replace("@LINE@", f"{round(look.size * 1.42, 1):g}")
+            .replace("@TITLE@", _layout().tex(title)))
 
 
 def _front(plan: Plan) -> list[str]:
-    """The front page's lines: the title, when and by what it was made, each source's facts and its flags."""
+    """The front page: a kicker, the title, the subtitle, the tagline (by what, when, which Heimdall); the sources
+    (a table, each with when its document was written), flags, what was drawn for the report; the contents."""
     tex = _layout().tex
-    lines = [r"{\LARGE\bfseries " + tex(plan.title) + r"\par}"]
+    lines = [r"\thispagestyle{front}", r"\hdKicker{Heimdall report}\par\vspace{8pt}", rf"\hdTitle{{{tex(plan.title)}}}"]
     if plan.subtitle:
-        lines += [r"\vspace{3pt}", r"{\large " + tex(plan.subtitle) + r"\par}"]
-    lines += [r"\vspace{6pt}", r"{\small Made by \texttt{heimdall report " + _breakable(plan.name) + "} " + BUILT + r".\par}",
-              r"\vspace{12pt}", r"{\large\bfseries Sources\par}\vspace{4pt}",
-              r"{\small\begin{tabular}{@{}r>{\raggedright\arraybackslash}p{64mm}>{\raggedright\arraybackslash}p{30mm}"
+        lines += [r"\vspace{5pt}", rf"\hdSubtitle{{{tex(plan.subtitle)}}}"]
+    lines += [r"\vspace{8pt}", r"\hdTagline{Made by \texttt{heimdall report " + _breakable(plan.name) + "} " + BUILT + ".}",
+              rf"\hdBlockTitle{{Sources}}{{{len(plan.sources)} result folder{'s' if len(plan.sources) != 1 else ''}}}",
+              r"\begin{hdTable}{@{}r>{\raggedright\arraybackslash}p{64mm}>{\raggedright\arraybackslash}p{30mm}"
               r"rr>{\raggedright\arraybackslash}p{34mm}@{}}",
-              r" & Source & Configuration & Points & Events & Compared against\\", r"\hline"]
+              r"\toprule", r" & \textbf{Source} & \textbf{Configuration} & \textbf{Points} & \textbf{Events} & \textbf{Compared against}\\",
+              r"\midrule", r"\endhead", r"\bottomrule", r"\endfoot"]
     flags = []
     for number, source in enumerate(plan.sources, 1):
         f = source.facts()
         drawn = " · ".join(part for part in (f["written"][:16].replace("T", " "), f"Heimdall {f['heimdall']}" if f["heimdall"] else "") if part)
-        lines.append(f"{number} & \\texttt{{{_breakable(f['address'])}}}" + (f"\\newline{{\\scriptsize {tex(drawn)}}}" if drawn else "")
+        lines.append(f"\\hdMuted{{{number}}} & \\texttt{{{_breakable(f['address'])}}}"
+                     + (f"\\newline{{\\hdSmall\\color{{hdmuted}} {tex(drawn)}}}" if drawn else "")
                      + f" & {_breakable(f['configuration'] or source.doc.name)} & {f['complete']}/{f['points']}"
                      + f" & {tex(f['events'] or '?')} & {tex(f['against'])}\\\\")
         if f["incomplete"]:
@@ -1432,16 +1699,16 @@ def _front(plan: Plan) -> list[str]:
         if f["stale"] and copied:
             flags.append(f"\\texttt{{{_breakable(f['address'])}}}: its points are newer than its pages; "
                          f"\\texttt{{heimdall plot {_breakable(f['address'])}}} redraws them.")
-    lines += [r"\end{tabular}\par}"]
+    lines.append(r"\end{hdTable}")
     if flags:
-        lines += [r"\vspace{6pt}", r"{\small\begin{itemize}\setlength{\itemsep}{1pt}",
-                  *(r"\item " + flag for flag in flags), r"\end{itemize}\par}"]
+        lines += [r"\begin{hdFlags}", *(r"\item " + flag for flag in flags), r"\end{hdFlags}"]
     if plan.drawings:
-        lines += [r"\vspace{6pt}", r"{\small Drawn for this report, into its cache (never into results/):\par}",
-                  r"{\small\begin{itemize}\setlength{\itemsep}{1pt}",
+        lines += [r"\hdBlockTitle{Drawn for this report}{into its cache, never into results/}", r"\begin{hdFacts}",
                   *(r"\item \texttt{" + _breakable(d.source.address) + "}" + _breakable(d.describe()[len(d.source.address):])
-                    for d in plan.drawings), r"\end{itemize}\par}"]
-    return lines + [r"\vspace{8pt}", r"\tableofcontents", r"\clearpage"]
+                    for d in plan.drawings), r"\end{hdFacts}"]
+    if plan.look.contents:
+        lines += [r"\vspace{20pt}", r"\hdKicker{Contents}\par\vspace{4pt}", r"\hdContents"]
+    return lines + [r"\clearpage"]
 
 
 def _literal(text: str) -> str:
@@ -1449,105 +1716,213 @@ def _literal(text: str) -> str:
     return _breakable(text.replace("$", "\0"))
 
 
+#: A card's line read for highlighting (I-110 R4): `key = value` (Pythia, a context's options) or `key: value`
+#: (YAML, at any depth, a list's `- ` before it), Herwig's commands, a number, a word, a comment after the value.
+_KEYED = re.compile(r"(\s*(?:-\s+)?)([A-Za-z_][\w:.\-/\[\]]*)(\s*)(=|:(?=\s|$))(\s*)(.*)")
+_COMMAND = re.compile(r"(\s*)(set|insert|create|cd|read|saverun|newdef|erase|do|get|mkdir|library)(\s.*|$)")
+_NUMBER = re.compile(r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?")
+WORDS = ("on", "off", "true", "false", "yes", "no")
+VERBATIM = {"\\": r"\hdBS{}", "{": r"\hdLB{}", "}": r"\hdRB{}"}
+
+
+def _escaped(text: str) -> str:
+    """Text for Verbatim[commandchars=\\\\\\{\\}]: its \\, { and } as the preamble's \\hdBS, \\hdLB and \\hdRB."""
+    return "".join(VERBATIM.get(c, c) for c in text)
+
+
+def _comment_at(line: str) -> int:
+    """Where a line's comment starts: its first character that is not a space, on a comment line; else a ! or #
+    after a space, outside quotes (Pythia's, YAML's); -1 when it has none."""
+    stripped = line.lstrip()
+    if stripped.startswith(COMMENTS):
+        return len(line) - len(stripped)
+    quote = ""
+    for at, char in enumerate(line):
+        if quote:
+            quote = "" if char == quote else quote
+        elif char in "\"'":
+            quote = char
+        elif char in "!#" and at and line[at - 1].isspace():
+            return at
+    return -1
+
+
+def _word(text: str) -> str:
+    """A value as it is highlighted: a number, a word (on, off, true, …), else as it is."""
+    bare = text.strip()
+    if _NUMBER.fullmatch(bare):
+        return text.replace(bare, rf"\hdN{{{bare}}}", 1)
+    if bare.lower() in WORDS:
+        return text.replace(bare, rf"\hdB{{{bare}}}", 1)
+    return _escaped(text)
+
+
+def highlight(line: str) -> str:
+    """A card's line for Verbatim[commandchars=\\\\\\{\\}] (I-110 R4): its key bold in the accent, `=` or `:` muted,
+    a number or a word coloured, a comment muted italic; anything else as it is."""
+    at = _comment_at(line)
+    body, comment = (line[:at], line[at:]) if at >= 0 else (line, "")
+    tail = "{\\hdC " + _escaped(comment) + "}" if comment else ""
+    keyed = _KEYED.fullmatch(body)
+    if keyed:
+        lead, key, space, mark, after, value = keyed.groups()
+        trailing = value[len(value.rstrip()):]
+        return (_escaped(lead) + rf"\hdK{{{_escaped(key)}}}" + space + rf"\hdP{{{mark}}}" + after
+                + (_word(value.rstrip()) if value.strip() else "") + trailing + tail)
+    command = _COMMAND.fullmatch(body)
+    if command:
+        lead, word, rest = command.groups()
+        parts = rest.rsplit(" ", 1)
+        rest = _escaped(parts[0]) + " " + _word(parts[1]) if len(parts) == 2 and parts[1].strip() else _escaped(rest)
+        return lead + rf"\hdB{{{word}}}" + rest + tail
+    return _escaped(body) + tail
+
+
+def _verbatim(lines: list[str]) -> list[str]:
+    """Lines of a card, or of options, highlighted in a Verbatim."""
+    return [r"\begin{Verbatim}[commandchars=\\\{\}]", *(highlight(line) for line in lines), r"\end{Verbatim}"]
+
+
 def _given_tex(shown: Configs, out: Path) -> list[str]:
-    """A tool's configuration in report.tex: its caption, its points and notes, its options alike, its baseline
-    from its file (fvextra, long lines broken at spaces and after / _ : = , . -: breakanywhere splits a UTF-8
-    character under pdflatex), then what varied: tables of at most KEYS_PER_TABLE keys, the
-    points' column in each, or each point's lines."""
+    """A tool's configuration in report.tex: its tag and source, its points and notes; its options alike and its
+    card's baseline, highlighted (fvextra: long lines broken at spaces and after / _ : = , . -); then what varied:
+    tables of at most KEYS_PER_TABLE keys, the points' column in each, or each point's lines."""
     tex, item = _layout().tex, shown.given
-    lines = [r"\par\vspace{8pt}\phantomsection\addcontentsline{toc}{subsection}{" + tex(item.caption) + "}",
-             r"\noindent{\large\bfseries " + _breakable(item.caption) + r"\par}\vspace{2pt}",
-             r"{\small " + f"{item.points()} complete point(s)" + r"\par}"]
-    lines += [r"{\small\itshape " + tex(note) + r"\par}" for note in item.notes]
+    lines = [r"\phantomsection\addcontentsline{toc}{subsection}{" + tex(item.caption) + "}",
+             rf"\hdBlockTitle{{{tex(item.tag)}}}{{\texttt{{{_breakable(item.source.address)}}} · {item.points()} complete point(s)}}"]
+    if item.notes:
+        lines += [r"\begin{hdFlags}", *(r"\item " + tex(note) for note in item.notes), r"\end{hdFlags}"]
     if item.options:
-        lines += [r"\vspace{4pt}{\small Its options, alike in every point:\par}", r"\begin{itemize}\setlength{\itemsep}{0pt}",
-                  *(r"\item {\small\ttfamily " + _literal(f"{k} = {_value(v)}") + "}" for k, v in item.options.items()),
-                  r"\end{itemize}"]
+        lines += [r"\hdLabel{Options, alike in every point}{}", *_verbatim([f"{k} = {_value(v)}" for k, v in item.options.items()])]
     if shown.baseline is not None:
         rel = shown.baseline.relative_to(out).as_posix()
-        lines += [r"\vspace{4pt}{\small Its card, alike in every point (\texttt{" + _breakable(rel) + r"}):\par}",
-                  r"\VerbatimInput[breaklines,breakafter={/_:=,.-},fontsize=\footnotesize,frame=leftline,framesep=6pt]{" + rel + "}"]
+        lines += [r"\hdLabel{Its card, alike in every point}{" + _breakable(rel) + "}", *_verbatim(item.baseline)]
     if not any(own for _, _, own in item.varied):
-        return lines + [r"\vspace{4pt}{\small Nothing else varied from point to point.\par}"]
+        return lines + [r"\hdLabel{Nothing else varied from point to point}{}"]
     rel = shown.varied.relative_to(out).as_posix()
-    lines.append(r"\vspace{4pt}{\small What varied, point by point (\texttt{" + _breakable(rel) + r"}):\par}")
+    lines.append(r"\hdLabel{What varied, point by point}{" + _breakable(rel) + "}")
     table = item.table()
     if table is None:
         for _, label, own in item.varied:
             if own:
-                lines += [r"\par\noindent{\small\bfseries " + tex(label) + r"\par}",
-                          r"\begin{Verbatim}[breaklines,breakafter={/_:=,.-},fontsize=\footnotesize]", *own, r"\end{Verbatim}"]
+                lines += [rf"{{\sffamily\hdSize{{8}}{{10}}\bfseries {tex(label)}\par}}\vspace{{2pt}}", *_verbatim(own)]
         return lines
     keys, rows = table
     for start in range(0, len(keys), KEYS_PER_TABLE):
         shown_keys = keys[start:start + KEYS_PER_TABLE]
         n = len(shown_keys)
         point = 110.0 if n > 2 else 160.0
-        width = (TEXT_W - 8.0 * n - point - 4.0) / n
+        width = (TEXT_W - 10.0 * n - point - 5.0) / n
         spec = rf"@{{}}>{{\raggedright\arraybackslash}}p{{{point:.0f}bp}}" + \
-            "".join(rf">{{\raggedright\arraybackslash\ttfamily}}p{{{width:.0f}bp}}" for _ in shown_keys) + "@{}"
-        lines += [r"{\footnotesize\setlength{\tabcolsep}{4pt}\begin{longtable}{" + spec + "}",
-                  "Point & " + " & ".join(r"\texttt{" + _literal(k) + "}" for k in shown_keys) + r"\\ \hline", r"\endhead",
-                  *(_breakable(label) + " & " + " & ".join(_literal(row[k]) if k in row else "—" for k in shown_keys) + r"\\"
-                    for (_, label, _), row in zip(item.varied, rows)),
-                  r"\end{longtable}\par}"]
+            "".join(rf">{{\raggedright\arraybackslash\ttfamily}}p{{{width:.0f}bp}}" for _ in shown_keys)
+        head = r"\textbf{Point} & " + " & ".join(r"\textbf{\texttt{" + _literal(k) + "}}" for k in shown_keys) + r"\\"
+        lines += ([r"\hdBlockGap"] if start else []) + [
+            rf"\begin{{hdTable}}{{{spec}}}", r"\toprule", head, r"\midrule", r"\endfirsthead",
+            rf"\multicolumn{{{n + 1}}}{{@{{}}l}}{{\hdContinued}}\\", r"\toprule", head, r"\midrule", r"\endhead",
+            r"\bottomrule", r"\endfoot",
+            *(_breakable(label) + " & " + " & ".join(_literal(row[k]) if k in row else r"\hdMuted{—}" for k in shown_keys) + r"\\"
+              for (_, label, _), row in zip(item.varied, rows)),
+            r"\end{hdTable}"]
     return lines
 
 
 def _unicode(texts: list[str]) -> list[str]:
-    """Each character pdflatex would stop at (outside Latin-1, Latin Extended-A and SAFE), declared as ?."""
+    """Each character pdflatex would stop at (outside Latin-1, Latin Extended-A and SAFE): as its math when MATH
+    knows it (χ, Δ, ≤, …), else as ?."""
     odd = sorted({c for text in texts for c in text if ord(c) >= 0x180 and c not in SAFE})
-    return [f"\\DeclareUnicodeCharacter{{{ord(c):04X}}}{{?}}" for c in odd]
+    return [f"\\DeclareUnicodeCharacter{{{ord(c):04X}}}{{" + (f"\\ensuremath{{{MATH[c]}}}" if c in MATH else "?") + "}"
+            for c in odd]
+
+
+def _head_tex(head: SetHead) -> list[str]:
+    """A set's sub-header: its name and source, then its facts, a line each."""
+    tex = _layout().tex
+    facts = "".join(rf"\hdFact{{{what}}}{{" + r"\newline ".join(tex(line) for line in lines) + "}" for what, lines in head.facts)
+    return [rf"\hdSetHead{{{tex(head.set)}}}{{{_breakable(head.address)}}}{{{facts}}}"]
+
+
+def _grid_tex(grid: Placed, out: Path) -> list[str]:
+    """A grid: its set's sub-header when it starts one, its caption, then its rows, a picture each (the sub-header,
+    the caption and the first row kept on one page)."""
+    layout = _layout()
+    cw, ch, rows = _rows(grid)
+    row_h = ch + grid.label
+    lines = []
+    head = 0.0
+    if grid.head is not None:
+        head = 50.0 + 13.0 * sum(len(lines_) for _, lines_ in grid.head.facts)
+    lines.append(rf"\par\needspace{{{head + (15.0 if grid.caption else 0.0) + row_h + 4:.0f}bp}}")
+    if grid.toc:
+        lines.append(rf"\phantomsection\addcontentsline{{toc}}{{subsection}}{{{layout.tex(grid.toc)}}}")
+    if grid.head is not None:
+        lines += _head_tex(grid.head)
+    if grid.caption:
+        lines.append(rf"\hdCaption{{{layout.tex(grid.caption)}}}")
+    for k, (start, end) in enumerate(rows):
+        names = [f.relative_to(out).as_posix() for f in grid.files[start:end]]
+        lines += ([rf"\par\vspace{{{GAP:g}bp}}"] if k else []) + [
+            rf"\noindent\begin{{picture}}({TEXT_W:.2f},{row_h:.2f})",
+            *layout.picture(names, grid.labels[start:end], (TEXT_W, row_h), grid.columns, 1, cw, ch, grid.label,
+                            "", 0.0, GAP, grid.options[start:end], style=r"\hdPanel"),
+            r"\end{picture}"]
+    return lines + [r"\hdGridGap"]
 
 
 def _tex(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> str:
-    """report.tex, with BUILT for when and by what it was made: its front page, its contents, then each section
-    on a new page, each grid in pictures that fit a page, each file named relative to the folder."""
-    layout = _layout()
-    tex = layout.tex
-    lines = [PREAMBLE + f"\\hypersetup{{pdftitle={{{tex(plan.title)}}}}}", r"\begin{document}", *_front(plan)]
+    """report.tex, with BUILT for when and by what it was made: its preamble (the look), its front page, then
+    each section on a new page, its note, its grids a row of panels at a time, each file named relative to the
+    folder."""
+    tex = _layout().tex
+    lines = [r"\hypersetup{pdftitle={" + tex(plan.title) + "}}", r"\begin{document}", *_front(plan)]
     for section, grids in placed:
         lines += [r"\clearpage", f"\\section{{{tex(section.title)}}}"]
         if section.note:
-            lines += [tex(section.note) + r"\par", r"\vspace{6pt}"]
+            lines.append(rf"\hdNote{{{tex(section.note)}}}")
         for grid in grids:
-            if isinstance(grid, Configs):
-                lines += _given_tex(grid, out)
-                continue
-            pieces = _chunks(grid)
-            lines.append(f"\\phantomsection\\addcontentsline{{toc}}{{subsection}}{{{tex(grid.caption)}}}")
-            for k, (start, end, box, cw, ch) in enumerate(pieces, 1):
-                rows = math.ceil((end - start) / grid.columns)
-                caption = grid.caption + (f" ({k}/{len(pieces)})" if len(pieces) > 1 else "")
-                names = [f.relative_to(out).as_posix() for f in grid.files[start:end]]
-                lines += [r"\noindent\begin{minipage}{\textwidth}", r"{\small " + _breakable(caption) + r"\par}\vspace{3pt}",
-                          f"\\begin{{picture}}({box[0]:.2f},{box[1]:.2f})",
-                          *layout.picture(names, grid.labels[start:end], box, grid.columns, rows, cw, ch, grid.label,
-                                          "", 0.0, GAP, grid.options[start:end]),
-                          r"\end{picture}", r"\end{minipage}\par\vspace{10pt}"]
+            lines += _given_tex(grid, out) if isinstance(grid, Configs) else _grid_tex(grid, out)
     body = "\n".join([*lines, r"\end{document}", ""])
-    shown = [body, *(g.baseline.read_text(encoding="utf-8") for _, grids in placed for g in grids
-                     if isinstance(g, Configs) and g.baseline is not None)]
-    declared = _unicode(shown)
-    return body.replace(r"\begin{document}", "\n".join([*declared, r"\begin{document}"]), 1) if declared else body
+    return "\n".join([_preamble(plan), *_unicode([body, plan.title]), body])
 
 
-def _given_html(shown: Configs, out: Path) -> str:
-    """A tool's configuration as index.html shows it: its notes, its options, its baseline and what varied, as text."""
+def _highlight_html(line: str) -> str:
+    """A card's line as index.html shows it: highlight's colours as spans."""
+    marked = highlight(line)
+    out, at = [], 0
+    pattern = re.compile(r"\\hd(K|P|N|B)\{((?:[^{}]|\\hd(?:LB|RB|BS)\{\})*)\}|\{\\hdC (.*)\}$|\\hd(LB|RB|BS)\{\}")
+    colours = {"K": "var(--accent-code)", "P": "var(--muted)", "N": "#0b6e4f", "B": "#7b3fb5"}
+    for found in pattern.finditer(marked):
+        out.append(html.escape(marked[at:found.start()]))
+        if found[1]:
+            inner = re.sub(r"\\hd(LB|RB|BS)\{\}", lambda m: {"LB": "{", "RB": "}", "BS": "\\"}[m[1]], found[2])
+            weight = ";font-weight:600" if found[1] == "K" else ""
+            out.append(f'<span style="color:{colours[found[1]]}{weight}">{html.escape(inner)}</span>')
+        elif found[3] is not None:
+            inner = re.sub(r"\\hd(LB|RB|BS)\{\}", lambda m: {"LB": "{", "RB": "}", "BS": "\\"}[m[1]], found[3])
+            out.append(f'<span style="color:var(--muted);font-style:italic">{html.escape(inner)}</span>')
+        else:
+            out.append(html.escape({"LB": "{", "RB": "}", "BS": "\\"}[found[4]]))
+        at = found.end()
+    return "".join(out) + html.escape(marked[at:])
+
+
+def _given_html(shown: Configs, out: Path, accent: str) -> str:
+    """A tool's configuration as index.html shows it: its notes, its options, its baseline (highlighted) and what
+    varied, as text."""
     item, esc = shown.given, html.escape
     link = lambda path: f'<a href="{esc(path.relative_to(out).as_posix(), quote=True)}">{esc(path.name)}</a>'   # noqa: E731
+    code = lambda lines: (f'<pre style="--accent-code:{accent}">'                                            # noqa: E731
+                          + "\n".join(_highlight_html(line) for line in lines) + "</pre>")
     parts = [f"<p>{item.points()} complete point(s)</p>", *(f"<p><em>{esc(note)}</em></p>" for note in item.notes)]
     if item.options:
-        parts.append("<p>Its options, alike in every point:</p><ul>"
-                     + "".join(f"<li><code>{esc(f'{k} = {_value(v)}')}</code></li>" for k, v in item.options.items()) + "</ul>")
+        parts.append("<p>Its options, alike in every point:</p>" + code([f"{k} = {_value(v)}" for k, v in item.options.items()]))
     if shown.baseline is not None:
-        parts.append(f"<p>Its card, alike in every point ({link(shown.baseline)}):</p><pre>{esc(chr(10).join(item.baseline))}</pre>")
+        parts.append(f"<p>Its card, alike in every point ({link(shown.baseline)}):</p>{code(item.baseline)}")
     if not any(own for _, _, own in item.varied):
         return "\n".join([*parts, "<p>Nothing else varied from point to point.</p>"])
     parts.append(f"<p>What varied, point by point ({link(shown.varied)}):</p>")
     table = item.table()
     if table is None:
-        parts += [f"<p><strong>{esc(label)}</strong></p><pre>{esc(chr(10).join(own))}</pre>" for _, label, own in item.varied if own]
+        parts += [f"<p><strong>{esc(label)}</strong></p>{code(own)}" for _, label, own in item.varied if own]
     else:
         keys, rows = table
         parts.append("<table><tr><th>Point</th>" + "".join(f"<th><code>{esc(k)}</code></th>" for k in keys) + "</tr>"
@@ -1557,18 +1932,19 @@ def _given_html(shown: Configs, out: Path) -> str:
 
 
 def _index(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> Path:
-    """index.html (the viewer): a block a grid, its panels the PNGs, and a block a tool's configuration, as text; the
-    sources and their summaries' pages up front."""
+    """index.html (the viewer): a block a grid, its panels the PNGs, a set's facts under its first grid's title,
+    and a block a tool's configuration, as text; the sources and their summaries' pages up front."""
     blocks = []
     for number, (section, grids) in enumerate(placed, 1):
         for k, grid in enumerate(grids, 1):
             if isinstance(grid, Configs):
                 blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {grid.given.caption}", [],
-                                           body=_given_html(grid, out)))
+                                           body=_given_html(grid, out, plan.look.accent)))
                 continue
             panels = [(label or (f"page {n}" if len(grid.pngs) > 1 else ""), png) for n, (label, png)
                       in enumerate(zip(grid.labels, grid.pngs), 1)]
-            blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {grid.caption}", panels))
+            notes = [f"{what}: " + "; ".join(plain(line) for line in lines) for what, lines in grid.head.facts] if grid.head else []
+            blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{section.title}: {grid.title}", panels, notes))
     summaries = {p.name: p for p in sorted((out / STATS / "summaries").glob("*.html"))} if (out / STATS / "summaries").is_dir() else {}
     rows = []
     for source in plan.sources:

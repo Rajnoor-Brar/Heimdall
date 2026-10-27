@@ -80,10 +80,12 @@ def size_of(path: Path) -> tuple[float, float]:
 
 
 def picture(files: list[str], labels: list[str], box: tuple[float, float], columns: int, rows: int, cw: float,
-            ch: float, label: float, title: str, title_h: float, gap: float, options: list[str] | None = None) -> list[str]:
+            ch: float, label: float, title: str, title_h: float, gap: float, options: list[str] | None = None,
+            style: str = "") -> list[str]:
     """A grid as a LaTeX picture's lines (I-108 P1: sheets and the report's grids): each file (as the
     source names it) in its cell, aspect kept and centred, its label above it, the title on top. Units bp.
-    `options`: each file's further \\includegraphics keys (`page=2`, I-108 P3)."""
+    `options`: each file's further \\includegraphics keys (`page=2`, I-108 P3); `style`: the labels' font, a
+    command of the document's (a report's \\hdPanel, I-110), else sans at a size from `label`."""
     width, height = box
     label_pt = min(12.0, 0.75 * label) if label else 0.0
     title_pt = min(18.0, 0.7 * title_h) if title_h else 0.0
@@ -96,8 +98,9 @@ def picture(files: list[str], labels: list[str], box: tuple[float, float], colum
         lines.append(rf"\put({x:.2f},{top - label - ch:.2f}){{\makebox({cw:.2f},{ch:.2f}){{"
                      rf"\includegraphics[width={cw:.2f}bp,height={ch:.2f}bp,keepaspectratio{more}]{{{name}}}}}}}")
         if label and text:
+            font = style or rf"\fontsize{{{label_pt:.1f}}}{{{label_pt * 1.2:.1f}}}\selectfont\sffamily"
             lines.append(rf"\put({x:.2f},{top - label:.2f}){{\makebox({cw:.2f},{label:.2f})"
-                         rf"{{\fontsize{{{label_pt:.1f}}}{{{label_pt * 1.2:.1f}}}\selectfont\sffamily {tex(text)}}}}}")
+                         rf"{{{font} {tex(text)}}}}}")
     if title_h and title:
         lines.append(rf"\put(0,{height - title_h:.2f}){{\makebox({width:.2f},{title_h:.2f})"
                      rf"{{\fontsize{{{title_pt:.1f}}}{{{title_pt * 1.2:.1f}}}\selectfont\sffamily {tex(title)}}}}}")

@@ -42,6 +42,34 @@ type  = "list"
 items = "str"
 doc   = "the tools whose configurations the default sections show, last, in a Tools section: tags ([tools.<tag>]) or globs; default: every tool given a card or options; [] none"
 
+[report.font]
+type    = "str"
+choices = ["sans", "serif"]
+default = "sans"
+doc     = "the report's font: sans sets everything in TeX Gyre Heros (Helvetica's metrics, as the pages Paint draws), math too; serif sets the body (notes, prose) in TeX Gyre Termes, the titles, tables and labels still sans"
+
+[report.size]
+type    = "float"
+min     = 8
+default = 9.5
+doc     = "the body's size in pt, 8 to 12, its line 1.42 times it; titles, tables, captions and labels keep their own sizes"
+
+[report.accent]
+type    = "str"
+default = "#2a78d6"
+doc     = "the accent colour, #rrggbb: section numbers, kickers, code's keys"
+
+[report.contents]
+type    = "bool"
+default = true
+doc     = "a table of contents on the front page, under the sources"
+
+[report.columns]
+type    = "int"
+min     = 1
+default = 2
+doc     = "a grid's columns when its section names none, 1 to 4 (a grid of one figure: 1; a side-by-side grid of three or more sources: 3)"
+
 [section.title]
 type     = "str"
 required = true

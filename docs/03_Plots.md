@@ -1127,7 +1127,37 @@ drawing's code (Paint, the plot stage) changed. `--list` and the front page say 
 why, and statistics drawn with a section's keys say "as this report measures it". Drawing needs what
 `heimdall plot` needs: Paint, and the backend's own.
 
-### 11.4 Talks and papers
+### 11.4 Its look
+
+Every report has one look, set once in `report.tex`'s preamble and used by everything in it:
+
+- **Fonts:** TeX Gyre Heros (Helvetica's metrics, as the pages Paint draws) for titles, text, tables and labels,
+  math set in it too; Latin Modern Typewriter for code, addresses and keys.
+- **Sizes:** the title 22 pt, sections 15, a set's name 11, the body 9.5 (on 13.5), tables 8 (on 10.5), captions
+  8.5, notes, panel labels and code 7.5. Bold for titles, table headers and totals, and code's keys; italic only
+  for notes on what is missing and for comments in code.
+- **The page:** A4, 18 mm left and right, a running header (the report's title, the section) 8 mm over the body,
+  "page n of N" under it. Each section starts a page; its note is muted, in wide lines; tables have light rules
+  and rows of 1.3 lines.
+- **A set's sub-header**, once over a source's grids of a set: the set's name and its source, then its *Pages*
+  (its page axes and their values, as labels), its *Curves* (a line a curves filter) and what is *Fixed* (each
+  quantity the configuration does not vary). Each grid under it is captioned by its page cell's labels
+  (`Pythia 8.318`), and a grid is placed a row of panels at a time, so pages break between rows.
+- **Code:** a tool's card and options, highlighted: keys bold in the accent, `=` and `:` muted, numbers and words
+  (`on`, `off`, `true`, …) coloured, comments muted italic; `index.html` the same.
+
+`[report]` changes a little of it ([04 §15](04_Config_Reference.md#15-a-reports-recipe-report)):
+
+```toml
+[report]
+font     = "serif"      # the body in TeX Gyre Termes; titles, tables and labels stay sans
+size     = 10.5         # the body's pt, 8 to 12
+accent   = "#0b6e4f"    # section numbers, kickers, code's keys
+columns  = 3            # a grid's columns when its section names none
+contents = false        # no contents on the front page
+```
+
+### 11.5 Talks and papers
 
 A report is not a talk, a thesis or a paper, and Heimdall makes none of them. Take what it made into your own
 tools: the figures as vector PDFs from `figures/`, the statistics' pages from `stats/`, and `report.tex` as a

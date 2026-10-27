@@ -1388,6 +1388,11 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
     if not isinstance(table, dict):
         raise HeimdallError("[report] is a table", where=where)
     schema.check(table, "report", where)
+    if "accent" in table and not re.fullmatch(r"#[0-9A-Fa-f]{6}", table["accent"]):
+        raise HeimdallError(f"accent is a colour as #rrggbb, not {table['accent']!r}", where=f"{where}.accent", hint='accent = "#2a78d6"')
+    for key, most in (("size", 12), ("columns", 4)):
+        if key in table and table[key] > most:
+            raise HeimdallError(f"{key} is at most {most}, not {table[key]}", where=f"{where}.{key}")
     for key in NOT_IN_A_RUN if run_toml else ():
         if key in table:
             raise HeimdallError(f"a run TOML's [report] takes no {key}: each folder it writes is its report's source, "

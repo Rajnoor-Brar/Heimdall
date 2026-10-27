@@ -1535,6 +1535,11 @@ pages = ["d0[3-4]-*"]
 | `template` | a string |  | a recipe laid under this table, named as [config].import names a file (weekly, eic/weekly, ./…; .toml optional): its keys under these, its sections first |
 | `section` | a list (a table each) |  | its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars, files or tools |
 | `tools` | a list (a string each) |  | the tools whose configurations the default sections show, last, in a Tools section: tags ([tools.<tag>]) or globs; default: every tool given a card or options; [] none |
+| `font` | a string: `"sans"`, `"serif"` | `"sans"` | the report's font: sans sets everything in TeX Gyre Heros (Helvetica's metrics, as the pages Paint draws), math too; serif sets the body (notes, prose) in TeX Gyre Termes, the titles, tables and labels still sans |
+| `size` | a number, ≥ 8 | `9.5` | the body's size in pt, 8 to 12, its line 1.42 times it; titles, tables, captions and labels keep their own sizes |
+| `accent` | a string | `"#2a78d6"` | the accent colour, #rrggbb: section numbers, kickers, code's keys |
+| `contents` | true or false | `true` | a table of contents on the front page, under the sources |
+| `columns` | an integer, ≥ 1 | `2` | a grid's columns when its section names none, 1 to 4 (a grid of one figure: 1; a side-by-side grid of three or more sources: 3) |
 <!-- /generated -->
 
 **`[[report.section]]`:** each shows exactly one of `pages`, `compare`, `stats`, `bars`, `files` or `tools`.

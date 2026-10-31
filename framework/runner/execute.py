@@ -876,7 +876,8 @@ def _finished(plan: PointPlan, result: PointResult, bus, started: str = "") -> N
     except OSError as error:                       # a record that cannot be written: said, never the run's end
         bus.emit(plan.point.name, "", {"k": "note", "msg": f"   its attempt could not be recorded: {error}"})
     bus.emit(plan.point.name, "", {"k": "point", "state": "done" if result.ok else verdict, "cause": result.cause,
-                                   "msg": result.message, "res": str(plan.res)})
+                                   "msg": result.message, "res": str(plan.res),
+                                   **({"stage": plan.point.stage} if plan.point.stage else {})})
 
 
 def blame(result: PointResult) -> tuple[str, str]:

@@ -49,6 +49,10 @@ def test_a_valid_plot_table_passes(scratch):
     ({"y_range": [0, "auto"]}, "one of default"),
     ({"x_range": ["default", "default", 3]}, "2 entries"),
     ({"y_range": [2, 1]}, "less than its maximum"),
+    ({"y_range": [1, 1]}, "less than its maximum"),
+    ({"y_range": [float("nan"), 1]}, "finite"),                          # TOML's nan: no comparison refuses it
+    ({"x_range": ["default", float("inf")]}, "finite"),
+    ({"figures": {"f": {"objects": ["d01*"], "x_range": [float("-inf"), "default"]}}}, "finite"),
     ({"figures": {"f": {"objects": ["d01*"], "y_gutter": -0.5}}}, "gutter"),
     ({"data": {"file": "jets_data.yoda"}}, "no map"),                     # L18: explicit only
     ({"data": {"map": {"d01-x01-y01": "/REF/X/d01"}}}, "no file"),
@@ -288,6 +292,37 @@ def test_default_is_what_the_tool_does_by_itself():
     assert ours["x_range"] == ours["y_range"] == ["default", "default"]
 
 
+def test_each_end_of_a_range_is_the_layer_belows_when_default():
+    """"default" at one end is the layer below's end: a figure's over a set's over [plot]'s; at the bottom,
+    "default", the range Paint calculates."""
+    assert page({})["x_range"] == page({})["y_range"] == ["default", "default"]
+    assert page({"y_range": ["default", 1e4]})["y_range"] == ["default", 1e4]
+    here = plot.layered({"x_range": [1, 5], "y_range": [0.1, "default"]}, {"x_range": ["default", 4]})
+    assert here["x_range"] == [1, 4] and here["y_range"] == [0.1, "default"]           # a set's over [plot]'s
+    assert page(here, child={"x_range": [2, "default"]})["x_range"] == [2, 4]
+    assert plot.layered({"logy": True}, {"x_range": ["default", 3]})["x_range"] == ["default", 3]
+
+
+def test_a_heat_map_and_a_statistic_figure_take_only_their_own_ranges():
+    """[plot]'s and a set's ranges are a 1D page's (a heat map's y is not theirs; a statistic figure's x is its
+    curves); their own figure's still hold, each end over nothing."""
+    settings = {"x_range": [1, 5], "y_range": [0.1, 1e4]}
+    own = lambda child=None: plot.page_settings(settings, "/photo_eic/d01-x01-y01", "d01", Path("/tmp/x"), False,
+                                                child=child, own_ranges=True)[0]
+    assert own()["x_range"] == own()["y_range"] == ["default", "default"]
+    assert own({"x_range": ["default", 3]})["x_range"] == ["default", 3]
+    assert page(settings)["x_range"] == [1, 5]
+
+
+def test_an_entry_choice_alone_is_an_enum_in_the_editor_schema():
+    """item_choices on a list of strings: its strings are those choices, and nothing else (the build crashed)."""
+    from runner import schema
+    assert schema._json_key({"type": "list", "items": "str", "item_choices": ["default"]})["items"] == {"enum": ["default"]}
+    ranged = schema._json_key(schema.keys("plot")["y_range"])
+    assert ranged["items"] == {"anyOf": [{"type": "number"}, {"enum": ["default"]}]}
+    assert ranged["minItems"] == ranged["maxItems"] == 2
+
+
 def test_an_objects_default_keeps_what_plot_says():
     """V55: "default" in a child is its parent's value; only at the top level does the tool decide."""
     settings = {"logy": False, "title": "every page"}
@@ -308,7 +343,7 @@ def test_a_figure_overrides_every_page_key_of_plot(scratch):
     shown = page(settings, child={"auto_range": False, "min_entries": "default", "range_pad": 2, "void_empty": True})
     assert (shown["auto_range"], shown["min_entries"], shown["range_pad"], shown["void_empty"]) == (False, 5, 2, True)
     ranged = page({"x_range": [1, 5]}, child={"x_range": ["default", 4], "y_range": [-2, "default"]})
-    assert ranged["x_range"] == ["default", 4] and ranged["y_range"] == [-2, "default"]
+    assert ranged["x_range"] == [1, 4] and ranged["y_range"] == [-2, "default"]       # each end its own (V131)
     overlay = {"objects": ["d01-*"], "ratio": True, "style": {"ratio": {"range": [0.8, 1.1]}}, "use_data": False}
     validated(scratch, ratio=False, figures={"f": {**overlay, "class": "overlay"}, "g": {"objects": ["d03-*"], "min_entries": 3},
                                              "h": {"objects": ["d02-*"], "use_data": False, "band": []}})
@@ -626,6 +661,58 @@ def test_mpl_marks_values_outside_explicit_y_limits(y_range, values, expected_y)
     position = 1 + offset if expected_y > 0 else -offset
     assert all(line.get_ydata()[0] == pytest.approx(position) for line in lines)
     plt.close(fig)
+
+
+def mpl_marks(curves, y_range, *, ratio_gap=None, logy=False, xlim=(0, 1), ylim=(-1, 1)):
+    """mpl's overflow marks on a 2 × 2 inch figure: the main axes (above a ratio axes `ratio_gap` apart, as
+    hspace), and the marks drawn, as (colour, x0, x1, y in axes fractions)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    if ratio_gap is None:
+        fig, ax = plt.subplots(figsize=(2, 2), dpi=100)
+        rax = None
+    else:
+        fig, (ax, rax) = plt.subplots(2, 1, sharex=True, figsize=(2, 2), dpi=100, gridspec_kw={"hspace": ratio_gap})
+    ax.set_xlim(*xlim)
+    if logy:
+        ax.set_yscale("log")
+    ax.set_ylim(*ylim)
+    before = len(ax.lines)
+    plot.backend("mpl")._overflow_marks(ax, curves, y_range, rax)
+    marks = [(line.get_color(), *line.get_xdata(), line.get_ydata()[0]) for line in ax.lines[before:]]
+    height = ax.get_window_extent().height
+    plt.close(fig)
+    return marks, 2 / height
+
+
+def one_bin(colour, value, edges=(0.2, 0.8), linewidth=2):
+    values = [value] * (len(edges) - 1)
+    return {"edges": list(edges), "low": values, "high": values, "color": colour, "linestyle": "-",
+            "linewidth": linewidth, "alpha": 1, "zorder": 5}
+
+
+def test_mpl_marks_the_nearest_first_and_only_within_x():
+    marks, _ = mpl_marks([one_bin("red", 9.0), one_bin("blue", 1.5), one_bin("green", 3.0)], ["default", 1.0])
+    assert [(c, round(a, 3), round(b, 3)) for c, a, b, _ in marks] == [("blue", 0.2, 0.4), ("green", 0.4, 0.6),
+                                                                       ("red", 0.6, 0.8)]
+    clipped, _ = mpl_marks([one_bin("red", 2.0, edges=(-0.5, 0.5))], ["default", 1.0])
+    assert [(round(a, 3), round(b, 3)) for _, a, b, _ in clipped] == [(0.0, 0.5)]
+    other, _ = mpl_marks([one_bin("red", 2.0), one_bin("blue", 2.0, edges=(0.2, 0.5, 0.8))], ["default", 1.0])
+    assert len(other) == 3 and other[0][0] == "red" and other[0][1:3] == pytest.approx([0.2, 0.8])   # per shared bin
+
+
+def test_mpl_marks_no_empty_bin_on_a_log_axis():
+    marks, offset = mpl_marks([one_bin("red", 0.0), one_bin("blue", 0.05)], [0.1, "default"], logy=True, ylim=(0.1, 10))
+    assert [(c, y) for c, _, _, y in marks] == [("blue", pytest.approx(-offset))]
+
+
+@pytest.mark.parametrize("gap, inside", [(0.0, True), (0.5, False)])
+def test_mpl_lower_marks_go_inside_a_joined_ratio_pad(gap, inside):
+    marks, offset = mpl_marks([one_bin("red", -2.0)], [-1.0, "default"], ratio_gap=gap)
+    assert [y for *_, y in marks] == [pytest.approx(offset if inside else -offset)]
+    above, offset = mpl_marks([one_bin("red", 2.0)], ["default", 1.0], ratio_gap=gap)
+    assert [y for *_, y in above] == [pytest.approx(1 + offset)]                     # the top always has room
 
 
 def test_mpl_collects_curve_bins_for_overflow_marks():

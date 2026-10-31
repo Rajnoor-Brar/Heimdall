@@ -514,6 +514,27 @@ def page_keys(keys: dict) -> dict:
     return {k: v for k, v in keys.items() if k not in ("objects", "style")}
 
 
+RANGES = ("x_range", "y_range")
+
+
+def layered(below: dict, above: dict) -> dict:
+    """`above`'s page keys over `below`'s (a set's over [plot]'s, V163), a range's ends each over its own:
+    `"default"` at one end is the layer below's end (V131)."""
+    out = {**below, **above}
+    for name in RANGES:
+        if name in above:
+            out[name] = endpoints(name, (above, below))
+    return out
+
+
+def endpoints(name: str, tables: tuple) -> list:
+    """x_range or y_range for a page, `[minimum, maximum]`: each end from the most specific table that sets
+    it, `"default"` there being the layer below's (V131); at the bottom, `"default"`: the range Paint
+    calculates."""
+    return [next((t[name][i] for t in tables if isinstance(t.get(name), list) and t[name][i] != DEFAULT), DEFAULT)
+            for i in (0, 1)]
+
+
 def pages(run, configuration, plans, notes: list | None = None, documents: str = "") -> list[Page]:
     """Write the Paint config of every page from the points whose record is complete (drawable); returns the
     pages. `notes`: what the sets say (V163), for the stage to say. `documents`: a folder of the working
@@ -885,7 +906,7 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
         name, config, output, root, numbers = located(set_, rel)
         figure = claimed.get(path)
         override = override_of(figure.table if figure else None)
-        here = {**settings, **page_keys(keys)}             # a set's page keys over [plot]'s, a figure's over both (V163)
+        here = layered(settings, page_keys(keys))         # a set's page keys over [plot]'s, a figure's over both (V163)
         if path in two_d:                                  # V87: a page per member and variant
             made += [_heatmap(plan, full, *located(set_, place(key, f"{short}/{plan.point.name}")), here, override,
                               merged, (style, base), key, curve_fill(plan), set_)
@@ -935,7 +956,7 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
         for set_, key, members, cell_text, labelled, keys, _ in cells(override_of(table)):
             rel = place(key, name)
             full_name, config, output, root, numbers = located(set_, rel)
-            here = {**settings, **page_keys(keys)}
+            here = layered(settings, page_keys(keys))
             named = {}
             for plan in members:
                 for path, label in zip(paths, labels):
@@ -1033,7 +1054,8 @@ def statistic_pages(run, figure: Figure, todo: list[Page], where: Path) -> list[
                  "auto_range": False, "x_gutter": DEFAULT if "x_gutter" not in figure.table else figure.table["x_gutter"]}
         folder = page.numbers / "figures" if page.numbers else page.root
         name = f"{page.set}/figures/{rel}" if page.set else f"figures/{rel}"
-        settings_page, override = page_settings(run.plot, page.object, name, folder / "root" / rel, False, child=table)
+        settings_page, override = page_settings(run.plot, page.object, name, folder / "root" / rel, False, child=table,
+                                                own_ranges=True)    # [plot]'s ranges are for its own pages
         settings_page.update({"markers": True, "x_labels": [r["curve"] for r in kept]})
         layer = merge_style(style, override.get("style", {}))
         document = {"page": settings_page, "style": layer,
@@ -1052,11 +1074,12 @@ def statistic_pages(run, figure: Figure, todo: list[Page], where: Path) -> list[
 def _heatmap(plan, full: str, name: str, config: Path, output: Path, root: Path, numbers: Path, settings: dict,
              override: dict, merged: Path, styles: tuple[dict, dict], cell: str, fill, set_name: str) -> Page:
     """A heat map page (V87): one member's 2D object, its .plot labels (ZLabel, LogZ too), its figure's
-    and [plot]'s titles, coloured by Paint; no ratio, data, voiding or range. `styles`: the run's style
-    layers and base.toml."""
+    and [plot]'s titles, coloured by Paint; no ratio, data, voiding or calculated range: x_range and
+    y_range only from its own figure (a 1D page's y is not a heat map's). `styles`: the run's style layers
+    and base.toml."""
     style, base = styles
     labels = labels_of(full)
-    page, override = page_settings(settings, full, name, output, False, fill=fill, child=override)
+    page, override = page_settings(settings, full, name, output, False, fill=fill, child=override, own_ranges=True)
     page.update({"heatmap": True, "ratio": False, "z_label": canonical(fill(labels.get("ZLabel", ""))),
                  "logz": bool(chosen("logz", labels.get("LogZ") == "1", labels.get("LogZ") == "1", (override, settings)))})
     layer = merge_style(style, override.get("style", {}))
@@ -1333,9 +1356,10 @@ def filler(known: list[dict[str, str]], where: str):
 
 
 def page_settings(settings: dict, path: str, rel: str, output: Path, with_data: bool,
-                  child: dict | None = None, fill=lambda text: text) -> tuple[dict, dict]:
+                  child: dict | None = None, fill=lambda text: text, own_ranges: bool = False) -> tuple[dict, dict]:
     """A page's [page] table: labels from the analysis's .plot, its figure's own values (`child`), and the
-    [plot] values, their placeholders filled (`fill`, V66). Returns it and the figure's values."""
+    [plot] values, their placeholders filled (`fill`, V66). `own_ranges`: x_range and y_range from the
+    figure alone (a heat map's, a statistic figure's). Returns it and the figure's values."""
     labels = labels_of(path)
     override = override_of(child)
 
@@ -1361,8 +1385,7 @@ def page_settings(settings: dict, path: str, rel: str, output: Path, with_data: 
         "logy": bool(pick("logy", log_y, log_y)),
         "y_gutter": _gutter(pick("y_gutter", ours("y_gutter"), DEFAULT)),
         "x_gutter": _gutter(pick("x_gutter", DEFAULT, DEFAULT)),
-        "x_range": pick("x_range", ["default", "default"], ["default", "default"]),
-        "y_range": pick("y_range", ["default", "default"], ["default", "default"]),
+        **{name: endpoints(name, (override,) if own_ranges else (override, settings)) for name in RANGES},
         "ratio": bool(pick("ratio", ours("ratio"), ratio)),
         "ratio_label": "MC/Data" if with_data else "Ratio",
         "normalise": pick("normalise", ours("normalise"), False),                 # V68: "area" or false

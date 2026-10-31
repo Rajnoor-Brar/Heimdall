@@ -734,8 +734,11 @@ length      = 2
 ordered     = true
 doc         = "the x axis limits"
 notes = """\
-  the x axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the \
-  calculated limit"""
+  the x axis limits, `[minimum, maximum]`, each end a number or `\"default\"`: the layer below's end \
+  (a figure's `[\"default\", 10]` keeps `[plot]`'s minimum), and in `[plot]` the range the page \
+  calculates. They only show: the statistics are taken over the calculated range. A heat map and a \
+  statistic figure take them from their own figure alone; a heat map's are kept within its \
+  histogram and widened to whole bins, and a range that misses the histogram is refused"""
 
 [plot.y_range]
 page        = true
@@ -746,9 +749,11 @@ length      = 2
 ordered     = true
 doc         = "the y axis limits"
 notes = """\
-  the y axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the \
-  calculated limit. Numeric limits remain fixed when curve values exceed them: Paint and mpl clip \
-  those values at the frame and draw thinner, colour-matched overflow marks 2 px outside it"""
+  the y axis limits, `[minimum, maximum]`, each end as in `x_range`. A numeric end holds when a \
+  curve passes it: Paint and mpl clip the curve at the frame and mark each bin past it with a thin \
+  line in the curve's colour, 2 px outside the frame (inside where a joined ratio pad leaves no \
+  room); curves past it in one bin share its width. The data are never marked, nor a value <= 0 on \
+  a log axis"""
 
 [plot.logy]
 page       = true
@@ -897,8 +902,8 @@ default    = true
 default_ok = true
 doc        = "write results/…/statistics/<set>/statistics.csv and its bar graphs: each page's curves' area, area against the reference, χ² (V160, V162, V164)"
 notes = """\
-  each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the drawn x \
-  range), into each set's `results/…/statistics/<set>/statistics.csv` (V160, V164): per curve `area` (Σ y·Δx) and its error; \
+  each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span \
+  auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv` (V160, V164): per curve `area` (Σ y·Δx) and its error; \
   against the reference (the data, else the page's first curve), on the reference's bins the curve covers, \
   `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `rel_abs_area` (abs_area / \
   ref_area), `area_ratio` (cmp_area / ref_area: MC over data, V175), `ratio_mean` (the ratio pad's mean, \

@@ -183,7 +183,7 @@ ratio       = true
 y_gutter    = 0.5                 # the y axis reaches 1.5 × the largest value; "native": ROOT decides
 x_gutter    = "default"           # no x gutter; 0.1 widens x by 10 %
 x_range     = ["default", 100]    # keep the calculated minimum; cap the maximum at 100
-y_range     = [0, "default"]      # start y at 0; keep the calculated maximum
+y_range     = ["default", 1e4]    # keep the calculated minimum; cap y at 10⁴ (a log axis takes no 0)
 auto_range  = true                # trim x to the filled bins …
 range_pad   = 1                   # … keeping one bin either side
 void_empty  = true                # blank bins empty in every curve
@@ -210,8 +210,12 @@ file wrote that as `"default"` in `[plot]` itself; `heimdall migrate --v3` rewri
 
 **The order on a page** (load-bearing, inherited from v1): void across the page → align the data to
 the MC bins → normalise → auto-range over curves and data → gutters → `x_range` → y-range over the
-visible x span → `y_range` → draw. Each range is `[minimum, maximum]`; either end may be
-`"default"` to keep the value calculated by the preceding steps.
+visible x span → `y_range` → draw. Each range is `[minimum, maximum]`, and each end is resolved on its
+own: `"default"` at one end is the layer below's end, so a figure's `["default", 10]` keeps `[plot]`'s
+minimum, and in `[plot]` it is the end the steps before calculate. The ranges only show: the
+statistics (§3.2) are taken over the range before them. A range that leaves no increasing span, or
+an explicit minimum ≤ 0 on a log axis, fails that page (exit 1); an axis without an explicit end is
+never refused for its calculated range, so an empty log-y page still draws.
 
 ### 3.1 Pages of chosen points: `sets` and `split`
 
@@ -355,7 +359,8 @@ split = 8                                     # at most 8 points a page: all-1/,
 ### 3.2 Statistics of the pages
 
 Every page's curves get numbers, computed by Paint on the page (after voiding, the data's alignment and
-normalisation, over the drawn x range), so every backend's page agrees with them. Each set's go into
+normalisation, over the x range auto-range and the gutters give: `x_range` and `y_range` only show,
+and narrow nothing), so every backend's page agrees with them. Each set's go into
 `results/…/statistics/<set>/statistics.csv`, beside `plots/<set>/` and never in it, a row per page and curve.
 They are made two ways:
 
@@ -657,7 +662,8 @@ objects = ["d04-*"]           # globs: the short name, the option-free path, or 
 **What a figure inherits.** A figure takes **every page key of `[plot]`**:
 - the titles and `legend_header`;
 - `logx`, `logy`, `logz`;
-- the gutters and `x_range`, `y_range`;
+- the gutters and `x_range`, `y_range` (but a heat map and a statistic figure take these from
+  their own figure alone);
 - `ratio`, `normalise`, `auto_range`, `range_pad`, `void_empty`, `min_entries`;
 - `use_data`, `band`.
 
@@ -870,7 +876,10 @@ sort      = true                  # the smallest first; default: the curves' ord
 mkhtml and mpl draw its curves as they draw points (`ConnectBins=0`, with their x bars).
 
 **HeatMap pages.** A heat map is drawn per point of the cell, as `<cell>/<object>/<point>`. It has
-no ratio, data, voiding or range. **Paint alone draws heat maps**: mkhtml and mpl draw the 1D pages,
+no ratio, data, voiding or calculated range. Its `x_range` and `y_range` are its own figure's alone
+(`[plot]`'s and a set's are the 1D pages', whose y is not the heat map's), kept within the histogram,
+and each end widens to the edge of the bin that holds it; a range that misses the histogram fails
+that page (exit 1). **Paint alone draws heat maps**: mkhtml and mpl draw the 1D pages,
 and the plot stage says so.
 
 **What is refused:** a 1D object as a HeatMap, a 2D object as a Hist1D or Scatter2D, and a 2D object
@@ -887,11 +896,16 @@ in an overlay. To see a 2D object in 1D, project it with a derived figure.
 | `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/plot/yoda/backend.py`) | `plots/<set>/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | deprecated |
 | `["root", "mpl"]`, `"both"` | each, from the same page documents | each tree | as each; `"both"` is root and yoda |
 
-For an explicit numeric endpoint in `y_range`, Paint and mpl keep that axis limit even when curve
-values exceed it; the out-of-range data are clipped, not capped. Each over-range bin also gets a
-thinner, color-matched line 2 px beyond the corresponding frame edge. When several curves overflow
-the same bin and side, their marks divide that bin's width equally. The mpl marks are an intentional
-exception to pixel-for-pixel mkhtml matching. The deprecated YODA backend does not draw these marks.
+**Overflow marks.** A numeric end of `y_range` holds in Paint and mpl even when a curve passes it:
+the curve is clipped at the frame, and each bin past the end gets a thinner line in the curve's colour
+and line style, 2 px beyond that frame edge, over the part of the bin within x. Where the page has
+less room beyond the edge than the mark needs (a ratio pad joined to the frame, `ratio.gap = 0`, the
+default), the lower marks are drawn 2 px inside the frame's bottom edge instead. Curves past the same
+end in the same bin divide its width, the nearest the end first; the split is per shared bin, so
+curves of different binnings mark their own bins and may overlap. Only the curves are marked: data
+off the scale get no mark, and neither does a value ≤ 0 on a log axis (an empty bin). The mpl marks
+are an intentional exception to pixel-for-pixel mkhtml matching; the deprecated yoda backend draws
+none.
 
 **What the other backends honour.** They draw the same page documents with the ranges and voided
 bins Paint computed, so every backend shows the same window. They keep mkhtml's look, so only these

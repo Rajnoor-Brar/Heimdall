@@ -28,9 +28,11 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -250,6 +252,15 @@ namespace Paint {
         g->Draw("PZ");
     }
 
+    // ── overflow marks: a curve past an explicit y_range endpoint ─────────────────────────────
+    //
+    // A bin of a curve (or its band) beyond an explicit y limit gets a thin line in its pen, 2 px
+    // outside that frame edge, over the part of the bin within x. Curves past the same limit in the same
+    // bin (the split is per shared bin: curves of other binnings are grouped apart) share its width,
+    // the nearest the limit first. Where the pad has less room beyond the edge than the mark needs (a
+    // ratio pad joined to the frame, `ratio.gap = 0`), the mark is drawn 2 px inside the edge instead.
+    // On a log axis a value <= 0 (an empty bin) is not marked. Only curves are marked, never the data.
+
     struct Overflow {
         double distance;
         Pen pen;
@@ -262,9 +273,12 @@ namespace Paint {
         return (at - low) / (high - low);
     }
 
-    inline void overflowMarks(const std::vector<Series>& curves, const std::vector<Pen>& pens,
-                              Range x, const Frame& frame, bool logx,
-                              std::optional<double> lower, std::optional<double> upper, Keep& keep) {
+    inline int markWidth(const Pen& pen) { return std::max(1, static_cast<int>(std::lround(0.6 * pen.width))); }
+
+    inline void overflowMarks(const std::vector<Series>& curves, const std::vector<Pen>& pens, Range x,
+                              const Frame& frame, bool logx, bool logy, std::optional<double> lower,
+                              std::optional<double> upper, Keep& keep) {
+        constexpr double offset = 2.0;                       // pixels from the frame edge
         struct Group { double lo, hi; bool above; std::vector<Overflow> lines; };
         std::vector<Group> groups;
         for (size_t c = 0; c < curves.size(); ++c) {
@@ -273,13 +287,14 @@ namespace Paint {
                 if (!std::isfinite(series.y[i])) continue;
                 double low = series.y[i], high = series.y[i];
                 if (!series.bandLo.empty()) {
-                    if (std::isfinite(series.bandLo[i])) low = std::min(low, series.bandLo[i]);
+                    if (std::isfinite(series.bandLo[i]) && (!logy || series.bandLo[i] > 0))
+                        low = std::min(low, series.bandLo[i]);                  // a log axis: positive edges only
                     if (std::isfinite(series.bandHi[i])) high = std::max(high, series.bandHi[i]);
                 }
                 for (const bool above : {false, true}) {
                     const std::optional<double> limit = above ? upper : lower;
-                    if (!limit || (above ? high <= *limit : low >= *limit)) continue;
                     const double edge = above ? high : low;
+                    if (!limit || (above ? edge <= *limit : edge >= *limit) || (logy && edge <= 0)) continue;
                     auto group = std::find_if(groups.begin(), groups.end(), [&](const Group& candidate) {
                         return candidate.above == above && close(candidate.lo, series.lo[i]) &&
                                close(candidate.hi, series.hi[i]);
@@ -293,22 +308,26 @@ namespace Paint {
             }
         }
 
+        if (logx && x.lo <= 0) return;                         // a log x from 0 has no place for a mark
         for (Group& group : groups) {
-            if (logx && group.hi <= 0) continue;
             const double lo = std::max(x.lo, group.lo), hi = std::min(x.hi, group.hi);
             if (!(lo < hi) || (logx && lo <= 0)) continue;
             std::stable_sort(group.lines.begin(), group.lines.end(),
                              [](const Overflow& a, const Overflow& b) { return a.distance < b.distance; });
+            int widest = 1;
+            for (const Overflow& o : group.lines) widest = std::max(widest, markWidth(o.pen));
+            const double room = (group.above ? frame.t : frame.b) * frame.h;          // pixels beyond the edge
+            const double step = (room >= offset + 0.5 * widest ? offset : -offset) / frame.h;
+            const double edge = group.above ? 1 - frame.t + step : frame.b - step;
             const double x0 = frame.l + axisPosition(lo, x, logx) * (1 - frame.l - frame.r);
             const double x1 = frame.l + axisPosition(hi, x, logx) * (1 - frame.l - frame.r);
-            const double edge = group.above ? 1 - frame.t + 2.0 / frame.h : frame.b - 2.0 / frame.h;
             for (size_t i = 0; i < group.lines.size(); ++i) {
                 const double left = x0 + (x1 - x0) * double(i) / group.lines.size();
                 const double right = x0 + (x1 - x0) * double(i + 1) / group.lines.size();
                 const Pen& pen = group.lines[i].pen;
                 auto* line = keep.hold(new TLine(left, edge, right, edge));
                 line->SetNDC(), line->SetLineColor(pen.colour), line->SetLineStyle(pen.line);
-                line->SetLineWidth(std::max(1, static_cast<int>(std::lround(0.6 * pen.width))));
+                line->SetLineWidth(markWidth(pen));
                 line->Draw();
             }
         }
@@ -570,7 +589,7 @@ namespace Paint {
         } else {
             legend(page.legendHeader, entries, look, ft, keep, placed(drawn, x, Range{y.lo, y.hi}, page.logx, page.logy, ft));
         }
-        overflowMarks(curves, pen, x, ft, page.logx, page.yRangeMin, page.yRangeMax, keep);
+        overflowMarks(curves, pen, x, ft, page.logx, page.logy, page.yRangeMin, page.yRangeMax, keep);
         top->RedrawAxis();
 
         if (bottom) {
@@ -634,9 +653,45 @@ namespace Paint {
         }
     }
 
-    // V87: a heat map, the page's one 2D object (App_yd2rt's TH2D) coloured by value, its scale on the
-    // right; the frame, titles and text sizes are the 1D pages' (base.toml), the right margin wider.
-    inline void heatmap(const Page& page) {
+    // A heat map's one 2D object (App_yd2rt's TH2D), out of its file.
+    inline std::unique_ptr<TH2> heatmapHistogram(const Page& page) {
+        std::unique_ptr<TFile> file(TFile::Open(page.curves[0].file.c_str(), "READ"));
+        if (!file || file->IsZombie()) throw std::runtime_error("cannot open " + page.curves[0].file);
+        auto* found = dynamic_cast<TH2*>(file->Get(page.curves[0].object.c_str()));
+        if (!found) throw std::runtime_error(page.curves[0].file + " has no 2D " + page.curves[0].object);
+        std::unique_ptr<TH2> h(static_cast<TH2*>(found->Clone("heatmap")));
+        h->SetDirectory(nullptr);
+        return h;
+    }
+
+    // A heat map's x_range or y_range on its axis: each explicit end over the histogram's own, within it.
+    inline Range heatmapRange(const TAxis& axis, std::optional<double> min, std::optional<double> max) {
+        return {std::max(min.value_or(axis.GetXmin()), axis.GetXmin()), std::min(max.value_or(axis.GetXmax()), axis.GetXmax())};
+    }
+
+    // Why a heat map's x_range or y_range cannot be drawn ("" when it can): it leaves no increasing range,
+    // a lower end <= 0 on a log axis, or a range that misses the histogram.
+    inline std::string heatmapRefusal(const Page& page, const TH2& h) {
+        const auto one = [](const TAxis& axis, std::optional<double> min, std::optional<double> max, bool log,
+                            const std::string& key) -> std::string {
+            if (!min && !max) return "";
+            const double lo = min.value_or(axis.GetXmin()), hi = max.value_or(axis.GetXmax());
+            if (!(lo < hi) || (log && min && *min <= 0))
+                return "[page]." + key + " must leave an increasing range (positive on a log axis)";
+            if (hi > axis.GetXmin() && lo < axis.GetXmax()) return "";
+            char text[160];
+            std::snprintf(text, sizeof text, " [%g, %g] misses the heat map's %g to %g", lo, hi, axis.GetXmin(), axis.GetXmax());
+            return "[page]." + key + text;
+        };
+        const std::string x = one(*h.GetXaxis(), page.xRangeMin, page.xRangeMax, page.logx, "x_range");
+        return x.empty() ? one(*h.GetYaxis(), page.yRangeMin, page.yRangeMax, page.logy, "y_range") : x;
+    }
+
+    // V87: a heat map, the page's one 2D object coloured by value, its scale on the right; the frame, titles
+    // and text sizes are the 1D pages' (base.toml), the right margin wider. Its x_range and y_range (its own
+    // figure's: heatmapRefusal has checked them) are kept within the histogram, and ROOT widens each to
+    // the whole bins holding its ends.
+    inline void heatmap(const Page& page, std::unique_ptr<TH2> histogram) {
         const Style& st = page.style;
         gROOT->SetBatch(kTRUE);
         gStyle->SetOptStat(0), gStyle->SetOptTitle(0), gStyle->SetFrameLineWidth(1);
@@ -644,12 +699,7 @@ namespace Paint {
         gStyle->SetPaperSize(static_cast<float>(st.width * 2.54), static_cast<float>(st.height * 2.54));
         const Look look(st);
         Keep keep;
-        std::unique_ptr<TFile> file(TFile::Open(page.curves[0].file.c_str(), "READ"));
-        if (!file || file->IsZombie()) throw std::runtime_error("cannot open " + page.curves[0].file);
-        auto* found = dynamic_cast<TH2*>(file->Get(page.curves[0].object.c_str()));
-        if (!found) throw std::runtime_error(page.curves[0].file + " has no 2D " + page.curves[0].object);
-        auto* h = static_cast<TH2*>(keep.hold(found->Clone("heatmap")));
-        h->SetDirectory(nullptr);
+        TH2* h = keep.hold(histogram.release());
         const int W = st.pixelsWide(), H = st.pixelsHigh();
         TCanvas canvas("paint", page.name.c_str(), W, H);
         canvas.SetCanvasSize(W, H);
@@ -664,16 +714,12 @@ namespace Paint {
         TAxis* ay = h->GetYaxis();
         TAxis* az = h->GetZaxis();
         if (page.xRangeMin || page.xRangeMax) {
-            const double lo = page.xRangeMin.value_or(ax->GetXmin()), hi = page.xRangeMax.value_or(ax->GetXmax());
-            if (!(lo < hi) || (page.logx && lo <= 0))
-                throw std::runtime_error("[page].x_range must leave an increasing range (positive on log x)");
-            ax->SetRangeUser(lo, hi);
+            const Range r = heatmapRange(*ax, page.xRangeMin, page.xRangeMax);
+            ax->SetRangeUser(r.lo, r.hi);
         }
         if (page.yRangeMin || page.yRangeMax) {
-            const double lo = page.yRangeMin.value_or(ay->GetXmin()), hi = page.yRangeMax.value_or(ay->GetXmax());
-            if (!(lo < hi) || (page.logy && lo <= 0))
-                throw std::runtime_error("[page].y_range must leave an increasing range (positive on log y)");
-            ay->SetRangeUser(lo, hi);
+            const Range r = heatmapRange(*ay, page.yRangeMin, page.yRangeMax);
+            ay->SetRangeUser(r.lo, r.hi);
         }
         for (TAxis* a : {ax, ay, az}) {
             a->SetTitleFont(look.font), a->SetLabelFont(look.font);

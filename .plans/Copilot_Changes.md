@@ -139,6 +139,7 @@
 - Validation: `tests/runner/test_detach.py` passed (15 tests), including `d`/Ctrl-C detach, `q` clean
   stop, and the PID-namespace guard; `git diff --check` passed, and no docs or code references to the
   old `s` stop key remain.
+- Corrected in review (I-114): references to `s`, `y` did remain, in docs/06_Internals.md §10 and I-07's checklist.
 
 ## 2026-10-30 — point progress in `heimdall runs`
 

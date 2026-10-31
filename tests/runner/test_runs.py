@@ -114,6 +114,17 @@ def test_state_tells_lost_from_unknowable():
     assert runs.state({**base, "kind": "cluster"}) == "submitted"
 
 
+@pytest.mark.skipif(os.getuid() == 0 or not runs.started_at(1) or os.stat("/proc/1").st_uid == os.getuid(),
+                    reason="needs another user's process, readable in /proc")
+def test_a_pid_reused_by_another_users_process_is_lost():
+    """A pid now another user's (init's, here) is this user's run only if it started when the run did: a reused
+    pid is "lost", never "in another PID namespace" and listed as running."""
+    base = {**runs.here(), "id": "x", "started": time.time(), "pid": 1}
+    assert runs.state({**base, "pstart": "1"}) == "lost"
+    assert runs.state({**base, "pstart": ""}) == "lost"
+    assert runs.state({**base, "pstart": runs.started_at(1)}) == "running"
+
+
 def test_a_cluster_job_records_nothing_its_submission_does(monkeypatch):
     monkeypatch.setenv(runs.CLUSTER_VAR, "20261023-0000")
     assert runs.begin(runs.new_id(), {}) is None
@@ -143,7 +154,7 @@ def test_heimdall_runs_defaults_to_running_only_and_separates_entries(capsys, mo
     finally:
         hub.close()
     out = capsys.readouterr().out.splitlines()
-    assert out[0] == "running" and "P/b · 00 two" in out[2]
+    assert out[0] == "running" and out[2].endswith("P/b · two")                 # no serial known: no NN
     assert "running (unrecorded)" in out[3]
     assert f"heimdall watch --pid {os.getpid()}" in out[4]
     assert done not in "\n".join(out) and "P/a · one" not in "\n".join(out)
@@ -204,7 +215,8 @@ def test_heimdall_runs_uses_title_and_configuration_serial_columns():
     assert lines[5] == f"      log {entry['log']}"
 
 
-def test_runs_recorder_persists_live_point_progress():
+def test_runs_recorder_persists_live_point_progress(monkeypatch):
+    monkeypatch.setattr(runs.Recorder, "EVERY", 0.0)
     run_id = runs.new_id()
     runs.begin(run_id, {"points_completed": 0, "points_total": None, "active_parallel_points": 0})
     recorder = runs.Recorder(run_id)
@@ -219,6 +231,118 @@ def test_runs_recorder_persists_live_point_progress():
         recorder.event(event)
     entry = runs.entry(run_id)
     assert (entry["points_completed"], entry["points_total"], entry["active_parallel_points"]) == (1, 3, 2)
+
+
+def test_the_recorder_counts_configuration_points_not_stages():
+    """Pre, post and combined stages carry `stage`: only configuration points count, so a run's progress never
+    ends above its total (7/3)."""
+    recorder = runs.Recorder()
+    recorder.plan({"": 3})
+    stage = lambda name, state, **e: {"k": "point", "point": name, "state": state, **e}
+    for event in (stage("pre", "started", index=-1, stage="pre"), stage("pre", "done", stage="pre"),
+                  stage("a", "started", index=1), stage("a", "done"), stage("b", "skipped", index=2),
+                  stage("c", "started", index=3), stage("c", "failed"), stage("c", "done"),       # ended once
+                  stage("combined", "started", index=1, stage="combined"), stage("combined", "done", stage="combined"),
+                  stage("post", "started", index=0, stage="post"), stage("post", "done", stage="post")):
+        recorder.event(event)
+    assert recorder.progress()["points_completed"] == 3 and recorder.progress()["points_total"] == 3
+    assert recorder.progress()["active_parallel_points"] == 0
+
+
+def test_the_pre_and_post_stages_are_planned_as_stages(scratch):
+    from helpers import plan, raw
+    from runner import post
+    from runner.quantities import load_master
+    run, configuration, point = plan(raw(run__cfgs__one__pre=[["pythia"]], run__cfgs__one__post=[["pythia"]]), scratch)
+    master = load_master(run.project, run.master_toml)
+    pre = post.plan_pre(run, configuration, master, [point.point])
+    after = post.plan(run, configuration, master, [point])
+    assert (pre.point.index, pre.point.stage, after.point.index, after.point.stage) == (-1, "pre", 0, "post")
+    assert point.point.stage == ""
+
+
+def test_the_total_is_planned_up_front():
+    """The whole command's points from the start, not only the runs begun so far; a run planned again at its
+    turn (its TOML edited) brings its own count; a run with no points to end (--only post) stays at none."""
+    run_id = runs.new_id()
+    runs.begin(run_id, {"points_completed": 0, "points_total": None})
+    recorder = runs.Recorder(run_id)
+    recorder.plan({"a": 2, "b": 3, "c": 0})
+    assert runs.entry(run_id)["points_total"] == 5
+    recorder.event({"k": "run", "state": "started", "points": 2, "run": "a"})
+    recorder.event({"k": "run", "state": "started", "points": 4, "run": "b"})              # planned again
+    recorder.event({"k": "run", "state": "started", "points": 7, "run": "c"})
+    assert runs.entry(run_id)["points_total"] == 6
+    assert runs.Recorder().progress()["points_total"] is None                               # nothing planned yet
+
+
+def test_the_recorder_writes_at_most_every_few_seconds(monkeypatch):
+    """The entry is written at a run's start and end at once, and between them at most every EVERY seconds (a
+    timer writes what was left); after close, never: the run's finish writes the last state."""
+    monkeypatch.setattr(runs.Recorder, "EVERY", 0.5)
+    written = []
+    real = runs._write
+    monkeypatch.setattr(runs, "_write", lambda path, data: written.append(dict(data)) or real(path, data))
+    run_id = runs.new_id()
+    runs.begin(run_id, {})
+    written.clear()
+    recorder = runs.Recorder(run_id)
+    recorder.event({"k": "run", "state": "started", "points": 3})
+    assert len(written) == 1
+    for name in "abc":
+        recorder.event({"k": "point", "point": name, "state": "started", "index": 1})
+    assert len(written) == 1 and runs.entry(run_id)["active_parallel_points"] == 0
+    time.sleep(2.0)
+    assert len(written) == 2 and runs.entry(run_id)["active_parallel_points"] == 3
+    recorder.event({"k": "point", "point": "a", "state": "done"})
+    recorder.event({"k": "run", "state": "finished", "verdict": "1 done"})
+    assert runs.entry(run_id)["points_completed"] == 1
+    count = len(written)
+    recorder.event({"k": "point", "point": "b", "state": "done"})
+    assert recorder.close() == {"points_completed": 2, "points_total": 3, "active_parallel_points": 1,
+                                "configuration_serials": {}}
+    time.sleep(2.0)
+    assert len(written) == count and runs.entry(run_id)["points_completed"] == 1        # the timer was cancelled
+
+
+def test_a_sequential_sweep_keys_each_configuration(scratch, monkeypatch):
+    """--stages runs a sweep's configurations one after another, each on its own RunBus: two configurations'
+    points of the same name are two points, and their pre and post stages are none. The total is the whole
+    sweep's from the start, before the first run begins."""
+    from helpers import raw
+    import tomli_w
+    config = scratch / "configs" / "Demo"
+    config.mkdir(parents=True)
+    check = {"tool": "exec", "executable": "/bin/true"}
+    data = raw(run__sweep_runs=["a", "b"], run__configuration=None, run__cfgs__one=None, prelim=None, quantities=None,
+               static=None, tools={"check": check},
+               run__cfgs__a={"tools": ["check"], "pre": ["check"], "post": ["check"]}, run__cfgs__b={"tools": ["check"]})
+    (config / "two.toml").write_text(tomli_w.dumps(data), encoding="utf-8")
+    seen = []
+    event = runs.Recorder.event
+
+    def probe(self, message):
+        if message.get("k") == "run" and message.get("state") == "started" and message.get("run") == "a":
+            seen.append(runs.entry(self.run_id)["points_total"])
+        return event(self, message)
+
+    monkeypatch.setattr(runs.Recorder, "event", probe)
+    os.environ["HEIMDALL_CONFIGS"] = str(scratch / "configs")
+    try:
+        code = cli.main(["run", str(config / "two.toml"), "--plain", "--rerun", "--stages", "pre,points,post"])
+    finally:
+        os.environ.pop("HEIMDALL_CONFIGS", None)
+    (entry,) = runs.entries()
+    assert code == 0 and set(entry["verdicts"]) == {"a", "b"}
+    assert (entry["points_completed"], entry["points_total"], entry["active_parallel_points"]) == (2, 2, 0)
+    assert seen == [2]                                                    # planned up front, not as runs start
+
+
+def test_heimdall_runs_takes_no_abbreviated_count():
+    """--1 is no --10: the counts are four options, never abbreviated."""
+    with pytest.raises(SystemExit) as stopped:
+        cli.main(["runs", "--1"])
+    assert stopped.value.code == 2
 
 
 def test_runs_recorder_captures_runner_assigned_output_serial():

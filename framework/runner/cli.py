@@ -206,7 +206,9 @@ def parser() -> argparse.ArgumentParser:
                        help="follow a run's run.jsonl, or a --journal run's status.jsonl, instead")
     watch.add_argument("--pid", type=int, metavar="N", help="the run of this process (heimdall runs lists them)")
 
-    listed = commands.add_parser("runs", help="running jobs; --N, --week, or --month shows recent runs")
+    listed = commands.add_parser("runs", allow_abbrev=False,       # --1 is no --10
+                                 help="running jobs; with --5, --10, --20 or --50 the latest runs, with --week or --month "
+                                      "those of the last 7 or 28 days")
     run_limits = listed.add_mutually_exclusive_group()
     for limit in (5, 10, 20, 50):
         run_limits.add_argument(f"--{limit}", dest="limit", action="store_const", const=limit,
@@ -222,7 +224,8 @@ def parser() -> argparse.ArgumentParser:
     logged.add_argument("--full", action="store_true", help="the whole logs (a run with --logs) instead of the digests")
     logged.add_argument("--attempt", type=int, metavar="N", help="an earlier attempt's logs, from the point's history/")
 
-    stop = commands.add_parser("stop", help="stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes")
+    stop = commands.add_parser("stop", help="stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes "
+                                            "(a second stop kills its tools at once)")
     stop.add_argument("config", nargs="?", help="the run config whose job to stop (default: your only running job)")
     stop.add_argument("configuration", nargs="?", help="the configuration it runs")
     stop.add_argument("--pid", type=int, metavar="N", help="the job of this process (heimdall runs lists them)")
@@ -722,7 +725,7 @@ def cmd_run(args) -> int:
         return 0
     stopper = execute.Stopper()
     if getattr(args, "why", False) or args.plan or stages_of(args) == {"plot"}:
-        bus = None                           # nothing runs: nothing to watch
+        bus, recorder = None, None           # nothing runs: nothing to watch
     else:                                    # one stream for the whole process, served while it lives (V72)
         bus = Bus()
         worker = getattr(args, "worker", None)
@@ -748,7 +751,7 @@ def cmd_run(args) -> int:
     code, crashed = 2, None
     try:
         try:
-            code = _runs(args, run, keys, stopper, bus)
+            code = _runs(args, run, keys, stopper, bus, recorder=recorder)
         except HeimdallError as error:            # what main() prints, for a watcher too (V181)
             if bus is not None:
                 bus.say(error.render())
@@ -765,7 +768,7 @@ def cmd_run(args) -> int:
     finally:
         if bus is not None:
             runs.finish(entry, code, crashed, records=recorder.records, verdicts=recorder.verdicts,  # before the
-                        counts=recorder.counts())
+                        counts=recorder.counts(), **recorder.close())
             hub.close()                                                                              # stream ends
             notify(run, code)
 
@@ -882,7 +885,8 @@ def cmd_stop(args) -> int:
     pid = hello["pid"]
     os.kill(pid, signal.SIGINT)
     what = f"{Path(hello.get('config', '')).stem} · {', '.join(hello.get('configurations', []))}"
-    print(f"stopping pid {pid}: {what} (its points end cleanly; heimdall watch --pid {pid} shows it)")
+    print(f"stopping pid {pid}: {what} (a first stop lets its points end cleanly, a second kills its tools at once; "
+          f"heimdall watch --pid {pid} shows it)")
     if args.no_wait:
         return 0
     try:
@@ -910,9 +914,19 @@ def notify(run, code: int) -> bool:
     return True
 
 
-def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus) -> int:
+def _points_planned(args, planned: Planned) -> int:
+    """The configuration points a run will end (run, or skip as complete): none when its stages leave them out."""
+    return len(planned.plans) if "points" in stages_of(args) else 0
+
+
+def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus, recorder: runs.Recorder | None = None) -> int:
+    """The command's runs, each planned before the first starts; `recorder` is told how many points they plan
+    (the registry's progress, `heimdall runs`)."""
     if len(keys) == 1:
-        return run_one(args, keys[0], stopper, bus=bus)
+        planned = build_plans(args, keys[0])
+        if recorder is not None:
+            recorder.plan({"": _points_planned(args, planned)})
+        return run_one(args, keys[0], stopper, bus=bus, planned=planned)
     if args.points:
         raise HeimdallError("--points picks points of one configuration, and this sweep runs several",
                        where=f"{run.path}: [run].sweep_runs", hint=f"name it: heimdall run {args.config} <configuration> --points …")
@@ -928,6 +942,8 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus) -> int:
             skipped[key] = f"   no {args.only} tools: skipped"
     if len(skipped) == len(keys):
         raise HeimdallError(f"no configuration of this sweep has {args.only} tools", where=f"{run.path}: [run].sweep_runs")
+    if recorder is not None:
+        recorder.plan({key: 0 if key in skipped else _points_planned(args, ahead[key]) for key in keys})
     if bus is not None and args.only is None and getattr(args, "stages", None) is None:
         return _pipelined(args, run, keys, stopper, bus, ahead, stamp)
     failed = False
@@ -942,17 +958,18 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus) -> int:
             if bus is not None:                  # a watcher hears it too (V181)
                 bus.say(f"{header(number, run.configurations[key])}\n{skipped[key]}")
             continue
+        voice = RunBus(bus, key, alone=True) if bus is not None else None      # each run's events say which run (V75)
         try:                                 # planned again only if the TOML was edited meanwhile (V38, V54)
             unchanged = run.path.stat().st_mtime_ns == stamp
             code = run_one(args, key, stopper, number=number, following=following,
-                           planned=ahead[key] if unchanged else None, bus=bus)
+                           planned=ahead[key] if unchanged else None, bus=voice)
         except HeimdallError as error:            # the TOML was edited since the check: this run fails alone
             print(("\n" if number > 1 else "") + header(number, run.configurations[key]))
             print(error.render(), file=sys.stderr)
-            if bus is not None:
-                bus.say(f"{header(number, run.configurations[key])}\n{error.render()}")
+            if voice is not None:
+                voice.say(f"{header(number, run.configurations[key])}\n{error.render()}")
             not_run(journal_path(run, run.configurations[key]) if paths.keeping("journal") else None,
-                    header(number, run.configurations[key]), error.message, following, bus)
+                    header(number, run.configurations[key]), error.message, following, voice)
             code = 2
         if code == 6:
             return 6
@@ -1672,16 +1689,21 @@ def cmd_watch(args) -> int:
     from .events import namespace, open_stream
     from .watch import Keys, follow
     hint = "d or Ctrl-C: detach · q: stop the run"
+    stopping = []
 
-    def on_key(key: str, shown) -> str | None:
+    def on_key(key: str, shown) -> str | None:              # d leaves; q stops the run, once (V183)
         if key in "dD":
             return "detached"
-        if key in "qQ":
-            if hello.get("pidns") and namespace("pid") and hello["pidns"] != namespace("pid"):
-                shown.say("not stopped: its process is another PID namespace's; stop it from where it runs")
-            else:
-                os.kill(hello["pid"], signal.SIGINT)
-                shown.keys("stopping: each point ends cleanly · d or Ctrl-C: detach")
+        if key not in "qQ":
+            return None
+        if hello.get("pidns") and namespace("pid") and hello["pidns"] != namespace("pid"):
+            shown.say("not stopped: its process is another PID namespace's; stop it from where it runs")
+        elif stopping:                                      # a second q is no hard stop: that is asked for by name
+            shown.say(f"already stopping; heimdall stop --pid {hello['pid']} asks again: a hard stop, its tools killed at once")
+        else:
+            stopping.append(True)
+            os.kill(hello["pid"], signal.SIGINT)
+            shown.keys("stopping: each point ends cleanly · d or Ctrl-C: detach")
         return None
 
     with Keys(sys.stdin) as keys_in:

@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import select
 import selectors
 import signal
 import sys
@@ -576,6 +577,26 @@ class Keys:
         self._saved = None
 
 
+def _escape(fd: int, wait: float = 0.05) -> None:
+    """The rest of an escape sequence, its ESC read: read and dropped, so that F2's `ESC O Q` or an arrow's
+    `ESC [ A` is no `q` or `a`. CSI (`ESC [`, parameters, a final byte; the Linux console's F1–F5 `ESC [ [ A`),
+    SS3 (`ESC O` and one byte), or Alt and a key (`ESC` and it). A lone ESC (nothing follows within `wait`)
+    is dropped alone."""
+    def byte() -> bytes:
+        ready, _, _ = select.select([fd], [], [], wait)
+        return os.read(fd, 1) if ready else b""
+    second = byte()
+    if second == b"[":
+        first = byte()
+        if first == b"[":                                   # ESC [ [ A: the final byte follows
+            byte()
+            return
+        while first and not 0x40 <= first[0] <= 0x7e:       # parameters and intermediates, up to the final byte
+            first = byte()
+    elif second == b"O":
+        byte()
+
+
 def follow(source, *, plain: bool = False, keys: int | None = None, on_key=None, on_interrupt=None, proc=None,
            hint: str = "", every: float = 5.0) -> str:
     """Drive a view from a run's watch socket (V183), with keys. `source`: a connected socket, or a callable
@@ -616,6 +637,9 @@ def follow(source, *, plain: bool = False, keys: int | None = None, on_key=None,
                         continue
                     if pressed == b"\x03":                 # Ctrl-C as a byte (a pipe, a raw terminal)
                         interrupted.set()
+                        continue
+                    if pressed == b"\x1b":                 # a function or arrow key: no letter of it is a key
+                        _escape(keys)
                         continue
                     if on_key is not None and (outcome := on_key(pressed.decode("utf-8", "replace"), shown)):
                         return outcome

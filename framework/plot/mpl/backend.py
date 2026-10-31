@@ -13,8 +13,8 @@ everything mkhtml decides comes from the library mkhtml runs on, called directly
   (`LineProperties`) and text macros (`preprocess`), and YODA's `default.mplstyle`;
 * the drawing: the calls of mkhtml's generated script (YODA's `mkPlottingScript1D`), made here, then the
   yoda backend's own fixes (ratio ticks, a "best" legend, the titles), so no script is written or rerun.
-* explicit numeric `y_range` endpoints: thin, color-matched overflow marks 2 px outside the frame,
-  split across a bin when several curves exceed the same limit.
+* explicit numeric `y_range` ends: Paint's overflow marks, thin lines in a curve's colour 2 px beyond the
+  frame (inside it where the ratio pad joins), split across a bin when several curves pass the same end.
 
 The values are rounded to the 7 digits mkhtml's data files hold. Pages go to results/…/plots/mpl/, laid
 out as Paint's, with an index.html (INDEX). Like the yoda backend, it honours only the style keys mkhtml
@@ -363,7 +363,7 @@ def _figure(plt, hists: dict, features: dict, page, yb, window):
     _titles(ax, page)
     if page.style["legend"]["position"] in OWN[("legend", "position")]:
         _outside(fig, ax, rax, legend, page.style)
-    _overflow_marks(ax, overflow, page.document["page"].get("y_range", ["default", "default"]))
+    _overflow_marks(ax, overflow, page.document["page"].get("y_range", ["default", "default"]), rax)
     return fig
 
 
@@ -475,7 +475,7 @@ def _curves(ax, rax, data: dict, feats: list, colours: list, plt) -> tuple[dict,
             if band is not None:
                 low = np.minimum(low, band[0][1:])
                 high = np.maximum(high, band[1][1:])
-            overflow.append({"edges": edges, "low": low, "high": high, "color": s["color"],
+            overflow.append({"edges": edges, "y": y, "low": low, "high": high, "color": s["color"],
                              "linestyle": main["linestyle"], "linewidth": main["linewidth"],
                              "alpha": main["alpha"], "zorder": zorder})
         if not all(np.isnan(v) for v in y):
@@ -526,52 +526,63 @@ def _curves(ax, rax, data: dict, feats: list, colours: list, plt) -> tuple[dict,
     return handles, overflow
 
 
-def _overflow_marks(ax, curves: list[dict], y_range: list) -> None:
-    """Draw explicit y-range overflows as thin, split bin-width marks just beyond the frame."""
-    bounds = []
-    for endpoint in y_range:
-        bounds.append(float(endpoint) if isinstance(endpoint, (int, float)) and not isinstance(endpoint, bool) else None)
+def _overflow_marks(ax, curves: list[dict], y_range: list, rax=None) -> None:
+    """Paint's overflow marks (src/Apps/Paint/Draw.hh): a curve's bin past an explicit `y_range` end gets a
+    thin line in its colour 2 px beyond that frame edge, over the bin's part within x; curves past the same
+    end in the same bin share its width, the nearest first. Where the figure has less room beyond the edge
+    than the mark needs (the ratio pad `rax` joined to the frame), it is drawn 2 px inside instead. On a
+    log axis a value <= 0 is not marked; the data (`IsRef`) never are."""
+    bounds = [float(e) if isinstance(e, (int, float)) and not isinstance(e, bool) else None for e in y_range]
     if not any(bound is not None for bound in bounds):
         return
-
+    logy = ax.get_yscale() == "log"
     groups = {}
     for curve in curves:
-        edges = curve["edges"]
+        edges, values = curve["edges"], curve.get("y", curve["low"])
         for i, (low, high) in enumerate(zip(curve["low"], curve["high"])):
+            if logy and low <= 0 < values[i]:
+                low = values[i]                                      # a log axis: positive edges only
             if i + 1 >= len(edges) or not (math.isfinite(float(low)) and math.isfinite(float(high))):
                 continue
             for above, limit, value in ((False, bounds[0], low), (True, bounds[1], high)):
-                if limit is None or (value <= limit if above else value >= limit):
+                if limit is None or (value <= limit if above else value >= limit) or (logy and value <= 0):
                     continue
                 key = (float(edges[i]), float(edges[i + 1]), above)
                 groups.setdefault(key, []).append((abs(float(value) - limit), curve))
+    if not groups:
+        return
 
     fig = ax.figure
     fig.canvas.draw()
-    height = ax.get_window_extent().height
-    if height <= 0:
+    frame = ax.get_window_extent()
+    if frame.height <= 0:
         return
+    # pixels beyond each edge: with a ratio pad half the gap, as Paint's top pad is clipped there
+    below = 0.5 * (frame.y0 - rax.get_window_extent().y1) if rax is not None else frame.y0
+    room = {True: fig.bbox.height - frame.y1, False: below}
     xlo, xhi = ax.get_xlim()
+    if ax.get_xscale() == "log" and xlo <= 0:
+        return
     transform = ax.get_xaxis_transform()
     inverse = transform.inverted()
     for (lo, hi, above), members in groups.items():
         lo, hi = max(lo, xlo), min(hi, xhi)
-        if ax.get_xscale() == "log":
-            lo = max(lo, xlo)
         if not lo < hi:
             continue
         pixel_lo = transform.transform((lo, 0.5))[0]
         pixel_hi = transform.transform((hi, 0.5))[0]
         members.sort(key=lambda member: member[0])
-        y = 1 + 2 / height if above else -2 / height
-        for i, (_, curve) in enumerate(members):
+        widths = [max(0.5, 0.6 * float(curve["linewidth"])) for _, curve in members]
+        step = 2 if room[above] >= 2 + 0.5 * max(widths) * fig.dpi / 72 else -2
+        y = 1 + step / frame.height if above else -step / frame.height
+        for i, ((_, curve), width) in enumerate(zip(members, widths)):
             left = pixel_lo + (pixel_hi - pixel_lo) * i / len(members)
             right = pixel_lo + (pixel_hi - pixel_lo) * (i + 1) / len(members)
             x1 = inverse.transform((left, 0.5))[0]
             x2 = inverse.transform((right, 0.5))[0]
             ax.plot([x1, x2], [y, y], transform=transform, clip_on=False, color=curve["color"],
-                    linestyle=curve["linestyle"], linewidth=max(0.5, 0.6 * float(curve["linewidth"])),
-                    alpha=curve["alpha"], zorder=curve["zorder"], solid_capstyle="butt")
+                    linestyle=curve["linestyle"], linewidth=width, alpha=curve["alpha"], zorder=curve["zorder"],
+                    solid_capstyle="butt")
 
 
 def _titles(ax, page) -> None:

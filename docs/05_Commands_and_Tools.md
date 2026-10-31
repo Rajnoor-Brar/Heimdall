@@ -174,7 +174,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--file EVENTS.JSONL` | follow a run's run.jsonl, or a --journal run's status.jsonl, instead |
 | `--pid N` | the run of this process (heimdall runs lists them) |
 
-**`heimdall runs`**: running jobs; --N, --week, or --month shows recent runs
+**`heimdall runs`**: running jobs; with --5, --10, --20 or --50 the latest runs, with --week or --month those of the last 7 or 28 days
 
 | Argument | Meaning |
 |---|---|
@@ -193,7 +193,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--full` | the whole logs (a run with --logs) instead of the digests |
 | `--attempt N` | an earlier attempt's logs, from the point's history/ |
 
-**`heimdall stop`**: stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes
+**`heimdall stop`**: stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes (a second stop kills its tools at once)
 
 | Argument | Meaning |
 |---|---|
@@ -464,7 +464,10 @@ run` serves while it lives.
 - **`--pid N`** follows the run of that process (`heimdall runs` lists them). With no run to watch, it
   names the last one that ended and its log.
 - **Keys**, on a terminal: `d` and Ctrl-C detach, leaving the run going; `q` asks the run to stop
-  cleanly, as `heimdall stop [CONFIG [CFG]]` or `heimdall stop --pid N` would.
+  cleanly, as `heimdall stop [CONFIG [CFG]]` or `heimdall stop --pid N` would. A second `q` does
+  nothing more: it names the hard stop, `heimdall stop --pid N` again (the tools are killed at once).
+  That holds within one `heimdall watch`: a `q` after detaching and watching again is a second stop, the
+  hard one. Function and arrow keys are not read as letters.
 
 **A run on a terminal** (`heimdall run`, with a terminal for input and output, in its foreground) runs as
 a worker process of its own, started in the background; the command shows it as `heimdall watch` does.
@@ -493,10 +496,33 @@ are listed and none stopped. A cluster job is stopped with `heimdall cluster …
 work dir and Heimdall checkout. A count flag lists the latest N runs of any state; `--week` and
 `--month` list all runs of any state started in the last 7 or 28 days. These filters use the registry's
 last 30 days. Entries are ordered oldest to newest, so the latest is at the bottom, and separated by a
-blank line. Each shows its id, state, start time and duration, work dir, config and configurations;
-a running one also gives the pid to watch or stop it by, and an ended one says how its points went
-("14 done (5 with warnings), 2 failed"). A run from inside an Apptainer image is not recorded (its
-machine root is read-only) but is listed while it runs. The registry is `<machine root>/runs/`.
+blank line. Each is a block:
+
+```
+  20261030-084424-pp-exphep-e17e  |   Brookhaven
+      eic/zeus · 12 generator_pdf
+      10-30 08:44 (1h 25m) · running  ·  3/7 ·  2
+      pid 41872 : heimdall watch --pid 41872 · heimdall stop --pid 41872
+      log /home/you/Himinbjorg/runs/20261030-084424-pp-exphep-e17e.log
+```
+
+- **The id and the work dir** (its title, as `heimdall recognise` named it).
+- **The config and its configurations**, each after its serial when that is known (`12 generator_pdf`);
+  an ended run adds how its points went ("14 done (5 with warnings), 2 failed").
+- **When it started, for how long, its state, its progress:** `3/7` is the points ended (done,
+  failed, stopped, or skipped as complete) of those the command planned, every configuration's
+  together from the start; only configuration points count, not a pre or post stage or a combined
+  group. A running one adds how many points run now (`2`). The counts are written as the run goes, at
+  most every 2 seconds, and last when it ends. `NULL` is a count the entry does not hold: an entry
+  from before they were kept, or a cluster submission.
+- **The state:** `running`; how it ended (`done`, `failed`, `stopped`, `not run`); `lost`, its process
+  gone without saying how it ended (killed, or the machine restarted); or where it cannot be told from
+  here: `on <host>`, `in another PID namespace` (a container's), `running (not reachable from here)`.
+  A cluster submission is `submitted`, `on Slurm`, `ended` or `cancelled`, with its jobs' `--status` command.
+- **A running one's pid**, to watch or stop it by; then its log, a detached run's.
+
+A run from inside an Apptainer image is not recorded (its machine root is read-only) but is listed
+while it runs, as `running (unrecorded)`. The registry is `<machine root>/runs/`.
 
 **`heimdall log RECORD[/POINT[/TAG]] [--full] [--attempt N]`** reads what a record of this work dir kept:
 - **A record** (`<P>/<run>/<NN_cfg>`, as `heimdall runs` and `heimdall status` name it): its `run.jsonl`,

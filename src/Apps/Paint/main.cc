@@ -6,15 +6,17 @@
 //     Paint.exe [PAGE.toml] --dump-style
 //
 // Each page in the order v1 found load-bearing: load → void → align data → normalise (V68) →
-// auto-range → gutters → draw → save. Many pages are drawn in one process (V64: ROOT starts once, not once per page), and
-// with more than one page every page's outcome is a JSON line on stdout, {"page": …, "ok": …,
-// "error": …}, so one bad page does not stop the rest. `--ranges` also writes each page's final
+// auto-range → gutters → x_range → y range → y_range → draw → save. Many pages are drawn in one
+// process (V64: ROOT starts once, not once per page), and with more than one page every page's
+// outcome is a JSON line on stdout, {"page": …, "ok": …, "error": …}, so one bad page does not stop
+// the rest. `--ranges` also writes each page's final
 // ranges and voided bins beside its config, <PAGE>.ranges.json, for the other backends; `--ranges-only`
 // writes them and draws nothing (a run whose only backend is yoda).
 // `--dump-ranges` prints one page's ranges as JSON and draws nothing, which is how the arithmetic is
 // tested without looking at pixels. Every page read (drawn or not) gets <PAGE>.stats.json: each curve's area,
-// and its area and χ² against the reference (V160). `--dump-style` prints the page's style — src/Apps/Paint/base.toml
-// with the page's [style] over it — as TOML; with no page, base.toml's.
+// and its area and χ² against the reference (V160), over the x span before x_range (which only shows).
+// `--dump-style` prints the page's style — src/Apps/Paint/base.toml with the page's [style] over it — as
+// TOML; with no page, base.toml's.
 // Exit codes: src/Kit.hh's one table (V73): 0 ok, 1 page config, 2 usage, 4 input, 5 output (with
 // several pages: 1 when any failed).
 
@@ -28,7 +30,10 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -54,6 +59,16 @@ namespace {
                       haveData ? data.lo.front() : 0.0, haveData ? data.hi.back() : 0.0, xTool ? "true" : "false",
                       yTool ? "true" : "false");
         return buffer;
+    }
+
+    // An axis's explicit limits (x_range, y_range) over the calculated ones; false when they leave no
+    // increasing range, or set a lower limit <= 0 on a log axis. An axis with no explicit limit is not
+    // checked: an empty log-y page, or log x from a 0 edge, is drawn as it always was.
+    template <class R>
+    bool limited(R& range, std::optional<double> lo, std::optional<double> hi, bool log) {
+        if (!lo && !hi) return true;
+        range.lo = lo.value_or(range.lo), range.hi = hi.value_or(range.hi);
+        return range.lo < range.hi && !(log && lo && *lo <= 0);
     }
 
     std::string number(double v) {
@@ -103,8 +118,16 @@ namespace {
                 if (!out) return {Kit::Output, "cannot write " + pagePath + ".ranges.json"};
             }
             if (!drawIt) return {};
+            std::unique_ptr<TH2> histogram;
             try {
-                Paint::heatmap(page);
+                histogram = Paint::heatmapHistogram(page);
+            } catch (const std::exception& error) {
+                return {Kit::Input, error.what()};
+            }
+            if (const std::string refused = Paint::heatmapRefusal(page, *histogram); !refused.empty())
+                return {Kit::Config, refused};
+            try {
+                Paint::heatmap(page, std::move(histogram));
             } catch (const std::exception& error) {
                 return {Kit::Output, error.what()};
             }
@@ -160,12 +183,11 @@ namespace {
         Paint::Range x = page.autoRange ? Paint::autoRange(all, page.rangePad) : Paint::fullRange(all);
         if (!std::isfinite(x.lo) || !std::isfinite(x.hi)) x = Paint::fullRange(all);
         x = Paint::xWithGutter(x, page.xGutter, page.logx);
-        x.lo = page.xRangeMin.value_or(x.lo), x.hi = page.xRangeMax.value_or(x.hi);
-        if (!(x.lo < x.hi) || (page.logx && x.lo <= 0))
+        const Paint::Range span = x;                               // the statistics' span: the ranges only show
+        if (!limited(x, page.xRangeMin, page.xRangeMax, page.logx))
             return {Kit::Config, "[page].x_range must leave an increasing range (positive on log x)"};
         Paint::YRange y = Paint::yRange(all, x, page.yGutter, page.logy);
-        y.lo = page.yRangeMin.value_or(y.lo), y.hi = page.yRangeMax.value_or(y.hi);
-        if (!(y.lo < y.hi) || (page.logy && y.lo <= 0))
+        if (!limited(y, page.yRangeMin, page.yRangeMax, page.logy))
             return {Kit::Config, "[page].y_range must leave an increasing range (positive on log y)"};
 
         const std::string json = rangesJson(page, mask, x, y, haveData, data);
@@ -175,7 +197,7 @@ namespace {
         }
         if (!curves.empty()) {
             std::ofstream stats(pagePath + ".stats.json");
-            stats << statisticsJson(page, curves, haveData, data, x) << "\n";
+            stats << statisticsJson(page, curves, haveData, data, span) << "\n";
             if (!stats) return {Kit::Output, "cannot write " + pagePath + ".stats.json"};
         }
         if (ranges) {

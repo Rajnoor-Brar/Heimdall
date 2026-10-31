@@ -35,7 +35,7 @@ built and installed, outside git. A **work dir** holds a study.
 | `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `base/` (or `venv/`), `forge/`, `apps/` and `gjallarhorn.sh` (another C++ standard) |
 | `machine.toml`, `machine.sh` | this machine's settings; its extra lines for `gjallarhorn.sh` (`setup_extra`), written by the build |
 | `workdirs.toml` | the work dirs this machine knows, by title (`heimdall recognise`, `heimdall setup`; `gjallarhorn <title>` goes to one) |
-| `runs/` | the run registry (`$HEIMDALL_RUNS`, V182): `<id>.json` a run or cluster submission (who, where, when, its exit code and verdict, its record folders), `<id>.log` a detached run's output; `heimdall runs` lists them, 30 days kept. Nothing is written in a read-only root |
+| `runs/` | the run registry (`$HEIMDALL_RUNS`, V182): `<id>.json` a run or cluster submission (who, where, when, its configurations' serials, its points' progress, its exit code and verdict, its record folders), `<id>.log` a detached run's output; `heimdall runs` lists them, 30 days kept. Nothing is written in a read-only root |
 | `recipes.toml` | this machine's own recipes, laid right after `recipes/toolkits/standard.toml` (from `recipes/recipes.template.toml`, written by the first build) |
 | `toolkits/` | this machine's own toolkits, beside `recipes/toolkits/` |
 | `tools/` | tool folders every work dir on this machine sees, between a work dir's `tools/` and Heimdall's (§16) |
@@ -139,7 +139,7 @@ layering was not had nine cycles.)
 | 1 | `labels.py` | Rivet `.plot` keys, YODA's text macros, line breaks, LaTeX → TLatex for Paint, TLatex → LaTeX for `heimdall migrate` |
 | 1 | `events.py` | the event stream (V72): the bus, the watch socket (`Hub`), the `--journal` file, the run's own log (`RunLog`, V202) |
 | 1 | `workdirs.py` | the work dirs this machine knows, by title: `<machine root>/workdirs.toml` (`$HEIMDALL_WORKDIRS`); recording, the scan below a folder, a title's path, forgetting (`heimdall recognise`, `gjallarhorn <title>`, V143) |
-| 1 | `runs.py` | the run registry, `<machine root>/runs/` (`$HEIMDALL_RUNS`): an entry per run and cluster submission, written whole by one writer; a process's who and where (pid, its start time, namespaces, boot); its state (running, ended, lost, or not knowable from here); 30 days kept; a read-only root records nothing (V182) |
+| 1 | `runs.py` | the run registry, `<machine root>/runs/` (`$HEIMDALL_RUNS`): an entry per run and cluster submission, written whole by one writer; a process's who and where (pid, its start time, namespaces, boot); its state (running, ended, lost, or not knowable from here); the `Recorder`'s progress, at most every 2 s; 30 days kept; a read-only root records nothing (V182) |
 | 2 | `tools.py` | the tool folders; per point: interfaces, connections (C6), cards, configs, the context file, prepare keys, argv; seeds last; the combine command (`combiner`, `merge_files`) |
 | 3 | `execute.py` | `[prelim]`, prepare steps, groups as supervised process groups, the count checks, settling products |
 | 3 | `status.py` | the status and output pipes, read on a thread per tool; the filter rules; each tool's digest (V201) |
@@ -546,7 +546,8 @@ process directory.
   full pipe.
 - **Runtime state stays off disk** (the user's decision), but for the **run registry** (`runs.py`, the
   user's ask of 2026-10-23, V182): a small entry per run in `<machine root>/runs/`, written when it
-  begins and when it ends, and a detached run's output log beside it. A tool's output is kept as a
+  begins, at each of its runs' start and end, with its progress at most every 2 s between, and when it
+  ends; and a detached run's output log beside it. A tool's output is kept as a
   **digest** (V201): in memory its first 100 lines (`HEAD`), its last 200 (`TAIL`) and every line a rule
   matched with its number (at most 500; progress and ignored lines are counted, not kept), written to
   `records/…/logs/<point>/<tag>.log` when it ends however it ended (`Reader.write_digest`, `status.digest`):
@@ -600,6 +601,21 @@ process directory.
   - **the registry's counts** (V202): `runs.Recorder` tallies the points (`runs.Tally`), and the entry
     finishes with `counts` (done, failed, stopped, warned), which `heimdall runs` prints. A worker's plain
     view prints a progress line every `[run] log` `worker_every` seconds (600).
+  - **the registry's progress**: `cli._runs` plans every run before the first starts and hands the
+    `Recorder` each one's configuration points (`Recorder.plan`: none for a run whose stages leave the
+    points out); a run planned again at its turn brings its own count in `run started` (unless it was planned at none). The Recorder
+    counts a point ended (done, failed, stopped or skipped) once per run key, so a sweep's runs keep
+    apart (each on a `RunBus`, sequential or pipelined), and only points without `stage`: the pre and
+    post stages and a combined group carry theirs (`pre`, `post`, `combined`) on every point event.
+    The entry is kept in memory and written whole: at once at each run's start and end, else at most
+    every `Recorder.EVERY` (2 s; a timer writes what is left), never under a read-only root. `close`
+    ends its writes, and `runs.finish` writes the last `points_completed`, `points_total`,
+    `active_parallel_points` and `configuration_serials` (a v3 configuration's, from its record
+    folder's number). An entry without them (older, or a cluster submission's) lists `NULL`.
+  - **an entry's state** (`runs.state`, `runs.alive`): its verdict once finished; `lost` when its
+    process is gone without a verdict: no such pid, the pid another process's (another start time, or
+    another user's: `kill(pid, 0)`'s `PermissionError` is checked against the start time too), or
+    another boot; `on <host>` or `in another PID namespace` when this process cannot tell.
 - **A live run is a worker and a client** (V183). On a terminal (`cli.live`: a terminal in and out,
   its foreground, not `--plain`, not a Slurm job, `HEIMDALL_DETACH` not `never`), `heimdall run` starts the
   command again as typed with `--worker <id>` (`runs.spawn`: this checkout's `bin/run`, this Python,
@@ -611,10 +627,12 @@ process directory.
   worker's own. After its stream ends, the client takes the worker's exit code; a worker killed by a
   signal (128 + N) has its entry finished by the client. `--detach` waits for `run started` (or the
   worker's end, then prints its log's tail). A client killed by SIGKILL leaves the terminal unechoed:
-  `reset` mends it. In `heimdall watch`, `d` or Ctrl-C leaves; `s` then `y` sends SIGINT to the run,
+  `reset` mends it. In `heimdall watch`, `d` or Ctrl-C leaves; `q` sends SIGINT to the run, once (a
+  second `q` sends nothing and names `heimdall stop --pid N`, whose second SIGINT is the hard stop),
   refused for another PID namespace's pid (a container's, which could name another process here).
   `heimdall stop` does the same from the command line, then waits until the pid has ended (a zombie
-  counts as ended).
+  counts as ended). `watch.follow` drops an escape sequence whole (`_escape`: CSI, SS3, Alt and a key;
+  a lone ESC alone), so a function or arrow key is no letter.
 - **The views.** A view is one reducer of events (`watch.State`) and a renderer on its own thread,
   the same in the run, in `heimdall watch` and over a journal. The live view draws the keys under its
   frame; the plain view says them once.
@@ -1308,19 +1326,30 @@ It is built to `$HEIMDALL_APPS/Paint.exe`, with `// requires: root toml`. Its co
    all MC edges. Otherwise it is dropped with a warning.
 4. **Normalise** (V68): with `normalise = "area"`, every curve and the data are scaled to unit area,
    Σ value × width over the bins drawn.
-5. **x range**: auto-range (bins with content, plus `range_pad`) or the full range, then `x_gutter`,
-   then `x_range`'s explicit limits.
+5. **x range**: auto-range (bins with content, plus `range_pad`) or the full range, then `x_gutter`:
+   the span the statistics (`<PAGE>.stats.json`) are taken over. Then `x_range`'s explicit ends (the
+   runner has resolved each against the layers below, `page_settings`), which only show.
 6. **y range**: `(1 + y_gutter) ×` the largest drawn value within x. On a log axis, the gutter is
    that fraction of the decades shown. With no gutter it is ROOT's own choice for one histogram
    holding every drawn value (`THistPainter`): 5% of the span above, below as well unless that
-   crosses 0; on a log axis ×0.5 below and ×2·0.9/0.95 above. `y_range`'s explicit limits follow.
+   crosses 0; on a log axis ×0.5 below and ×2·0.9/0.95 above. `y_range`'s explicit ends follow. An
+   axis with an explicit end is refused (`Kit::Config`) when the ends leave no increasing range, or the
+   explicit minimum is ≤ 0 on a log axis; an axis without one is never checked, so an empty log-y page
+   (y from 0) draws with its calculated range.
 7. **Draw**:
    - **The MC:** steps per run of non-void bins (a voided bin is a gap), with error bars at the bin
      centres (or a band, or none). With `markers` (a Scatter2D figure, V86) each curve is instead a
      marker per bin with its error bar. A band (V69) is the members' envelope, shaded in the curve's
-     colour. For numeric `y_range` endpoints, an out-of-range curve bin also gets a thinner,
-     colour-matched line 2 px outside that frame edge; several curves in the same bin share its
-     width equally. The data values remain clipped by the fixed axis limits.
+     colour.
+   - **Overflow marks** (`overflowMarks`), after the legend and before the axes are redrawn: for a
+     numeric `y_range` end, each curve bin (or band) past it gets a line in the curve's pen at 0.6 of
+     its width, 2 px outside that frame edge, over the bin's part within x. Curves past the same end
+     in the same bin (bins matched by their edges, so other binnings group apart) split its width,
+     the nearest the end first. When the pad's room beyond the edge (`frame.b × frame.h` pixels below:
+     half the ratio gap with a ratio pad) is less than 2 px and half the mark, the mark is drawn 2 px
+     inside instead, as the default `ratio.gap = 0` always does. A value ≤ 0 on a log axis and the
+     data get no mark. mpl draws the same marks (`_overflow_marks`), the room measured to the ratio
+     axes.
    - **The data:** points with x bars, under the MC.
    - **The legend:** a "+" per entry, the header first, data first. A curve with every bin voided is
      listed as "(no entries)".
@@ -1332,8 +1361,11 @@ It is built to `$HEIMDALL_APPS/Paint.exe`, with `// requires: root toml`. Its co
 
 **A heat map page** (`heatmap = true`, V87) draws one 2D object instead: a `TH2D` from App_yd2rt,
 coloured by value (`COLZ`, ROOT's `kBird` palette), with its z scale on the right (`z_label`,
-`logz`). It has the 1D pages' frame, titles and text sizes, and no ratio, data or voiding; `x_range`
-and `y_range` set its displayed bounds.
+`logz`). It has the 1D pages' frame, titles and text sizes, and no ratio, data or voiding. Its
+`x_range` and `y_range` are its own figure's alone (`page_settings(own_ranges=True)`, as a statistic
+figure's), checked against the histogram before drawing (`heatmapRefusal`: no increasing range, a
+minimum ≤ 0 on a log axis, or a range that misses the histogram is `Kit::Config`), then kept within it
+and set with `SetRangeUser`, which widens each end to the edge of the bin holding it.
 
 **`--dump-ranges`** prints the result of steps 1–6 as JSON and draws nothing. Its fields:
 - `x`, `y`, `largest`;

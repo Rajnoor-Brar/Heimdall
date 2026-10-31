@@ -70,9 +70,19 @@ listing and progress, V222 the watch keys (superseding V183's key clause), each 
 
 | Step | What | Commit | State |
 |---|---|---|---|
-| F0 | this record, I-114 | | written |
-| F1 | ranges and overflow fixed, Paint rebuilt (scratch apps) | | |
-| F2 | runs and watch fixed | | |
-| F3 | V219–V222, fast and slow suites | | |
+| F0 | this record, I-114 | 4aba789 | done |
+| F1 | ranges and overflow fixed, Paint rebuilt (scratch apps) | F | done |
+| F2 | runs and watch fixed | F | done |
+| F3 | V219–V222, fast and slow suites | F | done |
 
 ## 3. Log
+
+- 2026-10-31: F1 and F2 by a workflow of two fixers in the worktree, each followed by a read-only reviewer
+  (tests behind one lock). The reviewers left 12 smaller defects, fixed by hand: the statistics' span worded
+  in `[plot].statistics` and `bars.COMPARED`; no marks on a log x from 0 (NaN positions); a band's lower edge
+  ≤ 0 on log y no longer hides the curve's own mark; mpl measures half the ratio gap, as Paint; a sequential
+  sweep's run is `alone` on its RunBus, so the watch socket's backlog starts again with it; `heimdall stop`
+  says a second stop is hard; the pid-1 test skipped where pid 1 is this user's; the throttle test's margin;
+  `--1` refused (a test); the up-front total tested through the CLI; 05 says the once-only `q` is per watch.
+  Also: test_plot_stage's report.toml order, left from I-111 (Tools first). The mpl/mkhtml pixel test's
+  `em/cuts.png` failure is one of the five known (it failed at I-110, before Copilot).

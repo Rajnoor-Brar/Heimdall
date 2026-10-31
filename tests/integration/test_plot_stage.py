@@ -256,9 +256,12 @@ def test_a_2d_object_is_a_heat_map_per_point(stage):
         product = plot.yoda_of(plan)
         product.write_text(product.read_text(encoding="utf-8") + "\n" + extra.read_text(encoding="utf-8"), encoding="utf-8")
     run.plot["figures"]["px"] = {"class": "derived", "op": "projection-x", "objects": ["d90-x01-y01"], "ratio": False}
+    run.plot["y_range"] = ["default", 1e9]                       # the 1D pages', not a heat map's
     by = {p.rel: p for p in plot.pages(run, configuration, plans)}
     maps = sorted(n for n in by if "/d90-x01-y01/" in n)
     assert len(maps) == len(plans) and all(by[n].document["page"]["heatmap"] for n in maps)
+    assert all(by[n].document["page"]["y_range"] == ["default", "default"] for n in maps)
+    assert by["em/d01-x01-y01"].document["page"]["y_range"] == ["default", 1e9]
     assert by["em/px"].document["page"]["x_label"] is not None
     said = []
     assert plot.draw(run, configuration, plans, said.append) == 0, said
@@ -663,7 +666,8 @@ def test_a_statistic_figure_ranks_the_points(stage):
     import csv
     run, configuration, plans = stage
     figure = {"class": "statistic", "statistic": "chi2_ndf", "objects": ["d01-*"], "sort": True}
-    ranked = replace(run, plot={**run.plot, "figures": {**run.plot["figures"], "rank": figure}})
+    ranked = replace(run, plot={**run.plot, "y_range": ["default", 1e9],                # [plot]'s: the 1D pages'
+                                "figures": {**run.plot["figures"], "rank": figure}})
     said = []
     assert plot.draw(ranked, configuration, plans, said.append) == 0
     assert "plot: statistic rank, 2 page(s)" in said
@@ -673,6 +677,7 @@ def test_a_statistic_figure_ranks_the_points(stage):
     rows = [r for r in csv.DictReader(open(numbers / "statistics.csv", encoding="utf-8")) if r["page"] == "em/d01-x01-y01"]
     best = sorted(rows, key=lambda r: float(r["chi2_ndf"]))
     assert page["page"]["x_labels"] == [labels.tlatex(r["curve"]) for r in best] and page["page"]["markers"]
+    assert page["page"]["y_range"] == ["default", "default"]
     assert (numbers / "figures" / "root" / "em" / "rank" / "d01-x01-y01.png").is_file()      # V164: with the numbers
     assert not any(r["page"].startswith("em/rank") for r in rows)              # the table is the pages' own
 
@@ -700,8 +705,8 @@ def test_a_run_draws_from_its_plot_document(stage):
     assert [m.point.name for m in members] == [p.point.name for p in plans] and kept.plot_points == ["lepton"]
     assert [p.document for p in plot.pages(doc, kept, members)] == [p.document for p in plot.pages(run, configuration, plans)]
     recipe = tomllib.loads(target.with_name("report.toml").read_text(encoding="utf-8"))
-    standings, pages, given = recipe["report"]["section"]
-    assert [s["title"] for s in (standings, pages, given)] == ["Standings", "Pages: totality", "Tools"]
+    given, standings, pages = recipe["report"]["section"]                                     # V218: what was run first
+    assert [s["title"] for s in (given, standings, pages)] == ["Tools", "Standings", "Pages: totality"]
     assert standings["set"] == pages["set"] == "totality" and given["tools"] == ["*"]          # V210: what they were given
     assert all(s["optional"] for s in (standings, pages, given))
 

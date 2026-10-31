@@ -1,4 +1,4 @@
-"""The run registry (rank 1, V182): running jobs, and the latest N runs of any state.
+"""The run registry (rank 1, V182): what runs on this machine now, and what ran in the last 30 days.
 
 The user, 2026-10-23: "heimdall can keep track of runs and jobs being run in Himinbjorg". One small JSON file a
 run (and a cluster submission), `<machine root>/runs/<id>.json` ($HEIMDALL_RUNS), beside a detached worker's log
@@ -243,7 +243,9 @@ def alive(data: dict) -> bool | None:
         os.kill(int(pid), 0)
     except ProcessLookupError:
         return False
-    except (PermissionError, TypeError, ValueError):
+    except PermissionError:                             # another user's process: the pid reused, unless it started
+        return bool(data.get("pstart")) and started_at(int(pid)) == data["pstart"]      # when the run's did
+    except (TypeError, ValueError):
         return None
     return not data.get("pstart") or started_at(int(pid)) == data["pstart"]
 
@@ -283,8 +285,14 @@ def cluster_job() -> bool:
 
 class Recorder:
     """A bus subscriber: the record folders a run wrote, each run's verdict and its points' counts (V202: done,
-    failed, stopped, done with warnings), in memory, for its entry. Point progress is also kept in its registry
-    entry while the run is active."""
+    failed, stopped, done with warnings), in memory, for its entry; and, while the run lives, its progress in the
+    entry: the configuration points ended (done, failed, stopped or skipped) of those planned, and those running.
+    Only a sweep's configuration points count, not its pre, post or combined stages (their events carry `stage`).
+    The entry is kept in memory and written at most every EVERY seconds, and at each run's start and end; the
+    run's own finish writes the last state (`progress`)."""
+
+    #: Seconds between two writes of the progress: the bus waits on a subscriber.
+    EVERY = 2.0
 
     def __init__(self, run_id: str | None = None, configuration_serials: dict | None = None,
                  configuration_labels: dict | None = None):
@@ -294,11 +302,29 @@ class Recorder:
         self.records: list[str] = []
         self.verdicts: dict[str, str] = {}
         self.tally = Tally()
-        self.points_total = 0
-        self.points_completed = 0
-        self.active_points: set[tuple[str, str]] = set()
-        self.started_runs: set[str] = set()
-        self.finished_points: set[tuple[str, str]] = set()
+        self.totals: dict[str, int] = {}                    # a run (its sweep key) → its points planned
+        self.planned: set[str] = set()                      # the runs whose total was given up front (plan)
+        self.ended: set[tuple[str, str]] = set()            # (run, point) of the points ended
+        self.active: set[tuple[str, str]] = set()           # … and of those running
+        self._kept: dict | None = None                      # the entry as last written
+        self._written = 0.0                                 # when (time.monotonic)
+        self._timer: threading.Timer | None = None
+        self._closed = False
+        self._lock = threading.Lock()
+
+    def plan(self, totals: dict[str, int]) -> None:
+        """Each run's points planned, before the first starts (a sweep's key, "" for one run): the total is the
+        whole command's from the start, not only of the runs begun so far."""
+        with self._lock:
+            self.totals.update(totals)
+            self.planned.update(totals)
+        self._save(now=True)
+
+    def progress(self) -> dict:
+        """The entry's progress fields: points ended, of the total (None until planned), and running now."""
+        return {"points_completed": len(self.ended), "points_total": sum(self.totals.values()) if self.totals else None,
+                "active_parallel_points": len(self.active),
+                "configuration_serials": self.configuration_serials}
 
     def counts(self) -> dict:
         """Every run's points together: done, failed, stopped, and done with warnings."""
@@ -306,15 +332,53 @@ class Recorder:
         return {"done": sum(r["done"] for r in runs), "failed": sum(len(r["failed"]) for r in runs),
                 "stopped": sum(r["stopped"] for r in runs), "warned": sum(len(r["warned"]) for r in runs)}
 
-    def _save_progress(self) -> None:
-        update(self.run_id, points_completed=self.points_completed, points_total=self.points_total,
-               active_parallel_points=len(self.active_points))
+    def _save(self, now: bool = False) -> None:
+        """The progress into the entry: at once (`now`), or once EVERY seconds have passed since the last write
+        (a timer writes what is left meanwhile)."""
+        if self.run_id is None:
+            return
+        with self._lock:
+            if self._closed:
+                return
+            wait = self._written + self.EVERY - time.monotonic()
+            if now or wait <= 0:
+                self._write_locked()
+            elif self._timer is None:
+                self._timer = threading.Timer(wait, self._flush)
+                self._timer.daemon = True
+                self._timer.start()
+
+    def _flush(self) -> None:
+        with self._lock:
+            self._timer = None
+            if not self._closed:
+                self._write_locked()
+
+    def _write_locked(self) -> None:
+        if self._timer is not None:
+            self._timer.cancel()
+            self._timer = None
+        if self._kept is None:
+            self._kept = entry(self.run_id)
+            if self._kept is None:                          # nothing recorded (a read-only root): nothing kept
+                self.run_id = None
+                return
+        self._kept.update(self.progress())
+        _write(folder() / f"{self.run_id}.json", self._kept)
+        self._written = time.monotonic()
+
+    def close(self) -> dict:
+        """No more writes of its own (the run's finish writes next): the last progress."""
+        with self._lock:
+            self._closed = True
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
+        return self.progress()
 
     def _record_serial(self, event: dict) -> None:
-        record = event.get("record")
-        if not record:
-            return
-        folder = Path(record).name
+        """A configuration's serial as the runner chose it (03 §6): the number its record folder begins with."""
+        folder = Path(event.get("record") or "").name
         match = re.match(r"^(\d+)_", folder)
         if match is None:
             return
@@ -323,35 +387,34 @@ class Recorder:
             key = next((name for name, label in sorted(self.configuration_labels.items(),
                                                        key=lambda item: len(item[1]), reverse=True)
                         if folder.endswith(f"_{label}")), "")
-        if key and self.configuration_serials.get(key) != int(match.group(1)):
+        if key:
             self.configuration_serials[key] = int(match.group(1))
-            update(self.run_id, configuration_serials=self.configuration_serials)
 
     def event(self, event: dict) -> None:
         self.tally.event(event)
-        kind, state, point, key = event.get("k"), event.get("state"), event.get("point", ""), event.get("run") or ""
-        if kind == "run" and state == "started" and key not in self.started_runs:
-            self.started_runs.add(key)
-            self.points_total += int(event.get("points", 0))
-            self._save_progress()
-        if kind == "run" and state == "started":
-            self._record_serial(event)
-        elif kind == "point" and point:
-            point_key = (key, point)
-            if state == "started" and point_key not in self.finished_points:
-                self.active_points.add(point_key)
-                self._save_progress()
-            elif state in ("done", "failed", "stopped", "skipped") and point_key not in self.finished_points:
-                self.active_points.discard(point_key)
-                self.finished_points.add(point_key)
-                self.points_completed += 1
-                self._save_progress()
-        if event.get("k") != "run":
-            return
-        if event.get("state") == "started" and event.get("record") and event["record"] not in self.records:
-            self.records.append(event["record"])
-        elif event.get("state") == "finished":
-            self.verdicts[event.get("run") or ""] = event.get("verdict", "")
+        kind, state, key = event.get("k"), event.get("state"), event.get("run") or ""
+        if kind == "point" and event.get("point") and not event.get("stage"):       # a configuration point
+            point = (key, event["point"])
+            with self._lock:                                # the timer's write reads them
+                if point in self.ended or state not in ("started", "done", "failed", "stopped", "skipped"):
+                    return
+                if state == "started":
+                    self.active.add(point)
+                else:
+                    self.active.discard(point)
+                    self.ended.add(point)
+            self._save()
+        elif kind == "run" and state == "started":
+            if event.get("record") and event["record"] not in self.records:
+                self.records.append(event["record"])
+            with self._lock:
+                if key not in self.planned or self.totals.get(key):     # planned again at its turn: its own count
+                    self.totals[key] = int(event.get("points", 0))
+                self._record_serial(event)
+            self._save(now=True)
+        elif kind == "run" and state == "finished":
+            self.verdicts[key] = event.get("verdict", "")
+            self._save(now=True)
 
 
 class Tally:

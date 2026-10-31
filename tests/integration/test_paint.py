@@ -205,6 +205,193 @@ def test_explicit_y_range_draws_clipped_overflow_marks_outside_the_frame(inputs,
         assert all(y - bottom == pytest.approx(gap, abs=0.01) for _, y, _ in markers)
 
 
+# ── x_range and y_range: explicit ends only, display only; overflow marks ───────────────────────
+
+def small_page(where: Path, name: str, curves: list[Path], **keys) -> Path:
+    document = {"page": {"name": name, "output": str(where / name), **keys},
+                "curve": [{"file": str(c), "object": "photo_eic/d01-x01-y01", "label": c.stem} for c in curves]}
+    path = where / f"{name}.toml"
+    path.write_text(tomli_w.dumps(document), encoding="utf-8")
+    return path
+
+
+def paint(*args) -> subprocess.CompletedProcess:
+    return subprocess.run([str(PAINT), *map(str, args)], capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+
+@pytest.mark.parametrize("name, values, edges, keys", [
+    ("empty_log_y", [0.0, 0.0, 0.0, 0.0], (0.0, 1.0, 2.0, 3.0, 4.0), {"logy": True}),                # y from 0
+    ("zero_mc_log_y", [0.0, 0.0], (0.0, 1.0, 2.0), {"logy": True, "y_gutter": 0.5}),
+    ("log_x_from_0", [5.0, 1.0, 2.0, 3.0], (0.0, 1.0, 2.0, 3.0, 4.0), {"logx": True}),
+])
+def test_a_calculated_range_is_never_refused(scratch, name, values, edges, keys):
+    """Only an axis with an explicit end is checked: these pages draw, and keep their statistics."""
+    config = small_page(scratch, name, [v1_curve(scratch, name, values, edges=edges)], formats=["png"], **keys)
+    done = paint(config, "--ranges")
+    assert done.returncode == 0, done.stderr
+    assert (scratch / f"{name}.png").is_file() and Path(f"{config}.stats.json").is_file()
+
+
+@pytest.mark.parametrize("keys, axis", [
+    ({"x_range": [5, "default"]}, "x_range"),                    # past the calculated maximum, 4
+    ({"x_range": ["default", -1]}, "x_range"),
+    ({"logx": True, "x_range": [0, 3]}, "x_range"),             # an explicit 0 on a log axis
+    ({"logy": True, "y_range": [-1, 10]}, "y_range"),
+    ({"y_range": ["default", -5]}, "y_range"),                   # below the calculated minimum, 0
+])
+def test_explicit_ranges_that_leave_nothing_are_the_pages_error(v1, keys, axis):
+    where, curves = v1
+    config = small_page(where, "refused", curves, **keys)
+    for mode in ("--dump-ranges", "--ranges-only"):
+        done = paint(config, mode)
+        assert done.returncode == 1 and axis in done.stdout + done.stderr, (keys, mode)
+
+
+def test_the_ranges_only_show_the_statistics_are_the_pages(v1):
+    """x_range and y_range narrow no statistic: they are taken over the span auto-range and the gutters give."""
+    where, curves = v1
+    numbers = []
+    for name, keys in (("whole", {}), ("narrow", {"x_range": [1.5, 2.5], "y_range": [0.5, 2]})):
+        config = small_page(where, name, curves, auto_range=True, **keys)
+        assert paint(config, "--ranges-only").returncode == 0
+        numbers.append(json.loads(Path(f"{config}.stats.json").read_text(encoding="utf-8")))
+        ranges = json.loads(Path(f"{config}.ranges.json").read_text(encoding="utf-8"))
+        assert ranges["x"] == ([0, 4] if not keys else [1.5, 2.5])
+    whole, narrow = numbers
+    assert narrow["x"] == whole["x"] == [0, 4]
+    assert narrow["curves"] == whole["curves"] and whole["curves"][1]["bins"] == 4      # all 4, though x_range holds none whole
+
+
+def test_paints_ranges_are_what_mkhtml_is_handed(v1):
+    """The handoff: Paint's --ranges, with explicit ends, read back as the yoda backend's plot block."""
+    from runner import plot
+    where, curves = v1
+    config = small_page(where, "handed", curves, auto_range=True, x_range=["default", 3.5], y_range=[0.5, "default"])
+    assert paint(config, "--ranges-only").returncode == 0
+    ranges = json.loads(Path(f"{config}.ranges.json").read_text(encoding="utf-8"))
+    assert ranges["x"] == [0, 3.5] and ranges["y"][0] == 0.5 and ranges["y"][1] > 5
+    assert not ranges["x_tool"] and not ranges["y_tool"]
+    page = plot.Page("handed", config, where / "handed", object="/photo_eic/d01-x01-y01",
+                     document={"page": {"logx": False, "logy": False, "ratio": False}}, style=plot.base_style(),
+                     ranges=ranges)
+    block = plot.backend("yoda")._plot_block(page)
+    assert "XMin=0\n" in block and "XMax=3.5\n" in block and "YMin=0.5\n" in block
+    assert f"YMax={ranges['y'][1]:.10g}" in block
+
+
+def svg_lines(svg: Path) -> tuple[list[tuple[float, float]], list[tuple[str, float, float, float, float]]]:
+    """A page's frames, (top, bottom) from the top down, and its one-segment horizontal lines in colour:
+    (colour, y, x, length, stroke width)."""
+    root = ET.parse(svg).getroot()
+    frames = sorted({(float(n.get("y")), float(n.get("y")) + float(n.get("height"))) for n in root.iter()
+                     if n.tag.endswith("rect") and n.get("fill") == "none" and n.get("stroke") == "black"})
+    lines = []
+    for node in root.iter():
+        found = re.fullmatch(r"M([-+\d.eE]+),([-+\d.eE]+)h\s*([-+\d.eE]+)", node.get("d", "")) if node.tag.endswith("path") else None
+        if found and node.get("stroke") not in (None, "black", "#000000"):
+            x, y, length = map(float, found.groups())
+            lines.append((node.get("stroke"), y, x, length, float(node.get("stroke-width", "0"))))
+    return frames, lines
+
+
+GAP = 2 * 72 / 300                      # 2 px at the base style's 300 dpi, in the SVG's points
+A, B = "#ee3311", "#3366ff"             # the palette's first two: curve a [5, 0, 0, 2], b [4, 0, 3, 1]
+
+
+def marks_at(lines, y: float) -> list[tuple[str, float, float]]:
+    return sorted((colour, x, length) for colour, at, x, length, _ in lines if at == pytest.approx(y, abs=0.01))
+
+
+def test_curves_past_one_end_split_a_bin_the_nearest_first(v1):
+    """Above 0.5: bin 1 b (3.5 past) then a (4.5), bin 3 b alone, bin 4 b (0.5) then a (1.5); bin 2 none."""
+    where, curves = v1
+    config = small_page(where, "split", curves, formats=["svg"], y_range=["default", 0.5])
+    assert paint(config).returncode == 0
+    frames, lines = svg_lines(where / "split.svg")
+    (top, _), = frames
+    marks = marks_at(lines, top - GAP)
+    assert [c for c, _, _ in sorted(marks, key=lambda m: m[1])] == [B, A, B, B, A]
+    halves, whole = [l for _, _, l in marks if l < 50], [l for _, _, l in marks if l > 50]
+    assert len(halves) == 4 and len(whole) == 1 and all(2 * h == pytest.approx(whole[0], abs=0.01) for h in halves)
+    assert all(width < 4 for _, y, _, _, width in lines if y == pytest.approx(top - GAP, abs=0.01))
+
+
+def test_a_mark_covers_only_the_bins_part_within_x(v1):
+    where, curves = v1
+    config = small_page(where, "clipped", curves, formats=["svg"], y_range=["default", 0.5], x_range=[0.5, 4])
+    assert paint(config).returncode == 0
+    frames, lines = svg_lines(where / "clipped.svg")
+    (top, _), = frames
+    marks = sorted(marks_at(lines, top - GAP), key=lambda m: m[1])
+    bin1 = marks[0][2] + marks[1][2]                              # bin 1 from 0.5: half a bin
+    assert bin1 == pytest.approx(0.5 * marks[2][2], abs=0.02)      # bin 3, whole, b alone
+
+
+def test_on_a_log_axis_an_empty_bin_gets_no_mark(v1):
+    """Below 1.5 on log y: a's and b's empty bins are not marked, b's 1 in bin 4 is."""
+    where, curves = v1
+    config = small_page(where, "log", curves, formats=["svg"], logy=True, y_range=[1.5, "default"])
+    assert paint(config).returncode == 0
+    frames, lines = svg_lines(where / "log.svg")
+    (_, bottom), = frames
+    assert [c for c, _, _ in marks_at(lines, bottom + GAP)] == [B]
+
+
+@pytest.mark.parametrize("gap, inside", [(0.0, True), (6.0, False)])
+def test_with_a_joined_ratio_pad_the_lower_marks_are_inside_the_frame(v1, gap, inside):
+    """Below 3.5 with a ratio pad: a mark where the pad leaves room for it, else 2 px inside the frame."""
+    where, curves = v1
+    config = small_page(where, f"ratio{gap:g}", curves, formats=["svg"], ratio=True, y_range=[3.5, "default"])
+    document = tomllib.loads(config.read_text(encoding="utf-8"))
+    document["style"] = {"ratio": {"gap": gap}}
+    config.write_text(tomli_w.dumps(document), encoding="utf-8")
+    assert paint(config).returncode == 0
+    frames, lines = svg_lines(where / f"ratio{gap:g}.svg")
+    (_, bottom), (ratio_top, _) = frames[0], frames[1]
+    assert (ratio_top - bottom == pytest.approx(gap, abs=0.05))
+    marks = marks_at(lines, bottom - GAP if inside else bottom + GAP)
+    assert sorted(c for c, _, _ in marks) == sorted([A, B, B, A, A, B])      # bins 2, 3, 4: both curves each
+    assert not marks_at(lines, bottom + GAP if inside else bottom - GAP)
+
+
+def heat_map(where: Path, name: str, **keys) -> Path:
+    yoda = pytest.importorskip("yoda")
+    h = yoda.Histo2D(4, 0, 4, 3, 0, 3, "/photo_eic/d90-x01-y01")
+    for i in range(60):
+        h.fill(i % 4 + 0.5, i % 3 + 0.5, 1.0 + i % 5)
+    source, target = where / "h2.yoda", where / "h2.root"
+    if not target.exists():
+        yoda.write([h], str(source))
+        assert subprocess.run([str(YD2RT), str(source), str(target)], capture_output=True).returncode == 0
+    document = {"page": {"name": name, "output": str(where / name), "heatmap": True, "formats": ["png"], **keys},
+                "curve": [{"file": str(target), "object": "photo_eic/d90-x01-y01", "label": "h"}]}
+    path = where / f"{name}.toml"
+    path.write_text(tomli_w.dumps(document), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("keys, refused", [
+    ({}, ""),
+    ({"x_range": [0.5, 2.5], "y_range": ["default", 2]}, ""),              # inside: widened to whole bins
+    ({"x_range": [-3, 10]}, ""),                                            # past it: kept within it
+    ({"x_range": [5, 9]}, "x_range"),                                       # misses it
+    ({"y_range": ["default", -1]}, "y_range"),
+    ({"logx": True, "x_range": [0, 2]}, "x_range"),
+])
+def test_a_heat_maps_range_is_checked_against_its_histogram(scratch, keys, refused):
+    config = heat_map(scratch, "map", **keys)
+    done = paint(config)
+    if refused:
+        assert done.returncode == 1 and refused in done.stdout + done.stderr
+        assert ("misses the heat map" in done.stdout + done.stderr) == (keys == {"x_range": [5, 9]})
+        assert not (scratch / "map.png").exists()
+    else:
+        assert done.returncode == 0, done.stderr
+        assert (scratch / "map.png").is_file()
+        (scratch / "map.png").unlink()
+    assert paint(config, "--dump-ranges").stdout.strip() == '{"heatmap": true}'
+
+
 def test_exit_codes(inputs):
     usage = subprocess.run([str(PAINT)], capture_output=True, text=True, encoding="utf-8")
     bad = inputs["dir"] / "bad.toml"

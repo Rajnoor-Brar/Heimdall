@@ -167,7 +167,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 **P1 · verification · open**
 - **By hand, on the lab PC** (your 15 minutes):
   - `heimdall run eic/zeus dis_generator_pdf --points 1`, press `d`, close the terminal;
-  - `heimdall runs`, then `heimdall watch` (`s`, `y`), then `heimdall runs` again for the verdict;
+  - `heimdall runs`, then `heimdall watch` (`q`), then `heimdall runs` again for the verdict;
   - the same from an ssh session.
 - The worker's log path and the docs of where a detached worker still ends are done (V191).
 

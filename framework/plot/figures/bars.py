@@ -37,7 +37,7 @@ PANELS = (("chi2_ndf", r"$\chi^{2}$/ndf"), ("rel_abs_area", r"$|\Delta|$ / refer
           ("area", "area"))
 
 #: What each summary page's number is and how Paint computes it (src/Apps/Paint/Transform.hh), as its footnote.
-COMPARED = ("Each page as drawn (after voiding, alignment and normalisation), over its drawn x range, against its "
+COMPARED = ("Each page as drawn (after voiding, alignment and normalisation), over its x span (after auto-range and the gutters), against its "
             "reference: the page's data, else its first curve. Compared bins: the reference's bins that the curve "
             "covers exactly, its own bins summed onto them.")
 #: Each statistic's definition (I-111): its formula as the notes write it, then what it sums over and what it means.
@@ -67,7 +67,7 @@ DEFINITIONS = {
                   "average across x. Every x counts alike, the tails as much as the peak; |Δ| / reference weights by "
                   "y_ref instead."),
     "area": ("area = Σ y·Δx",
-             "over the curve's finite bins inside the drawn x range, compared or not, in the page's units of y times x; "
+             "over the curve's finite bins inside the page's x span, compared or not, in the page's units of y times x; "
              "each page as drawn (after voiding, alignment and normalisation). Each object has its own units, so each "
              "column is shaded on its own."),
 }

@@ -228,7 +228,8 @@ namespace Paint {
         return {sum / covered, std::sqrt(var) / covered};
     }
 
-    // V160: a curve's numbers as it is drawn (after void, align, normalise), over the drawn x range: its area
+    // V160: a curve's numbers as it is drawn (after void, align, normalise), over the page's x span (auto-range
+    // and gutters; x_range and y_range only show, and narrow nothing here): its area
     // (Σ y·Δx over its finite bins inside the range) and that area's error; against a reference (the data, or
     // the page's first curve), on the reference's bins inside the range where the curve covers them exactly
     // (rebinned), the reference's area, the curve's area on those bins (V175), Σ |y − y_ref|·Δx, and

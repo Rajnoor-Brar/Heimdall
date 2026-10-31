@@ -387,8 +387,12 @@ def _config_name(config: str, work: str | None) -> str:
 
 def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str],
                  now: float | None = None, limit: int | None = None, days: int | None = None) -> list[str]:
-    """Running jobs by default; `limit` shows the latest N, or `days` all runs within that age. Entries are
-    chronological, each in a separate block; live sockets with no entry are included as unrecorded runs."""
+    """`heimdall runs` (V182): what runs now by default (recorded, and live sockets with no entry: unrecorded, as
+    from inside an image); `limit`, the latest N of any state; `days`, all begun within that age. Oldest first,
+    a block each: id and work dir (its title); the config and its configurations (`NN key` when the serial is
+    known), its points' counts once it ended; when, for how long, its state, and its progress, configuration
+    points ended of those planned (NULL: not recorded, as by an older entry or a cluster submission), and while
+    it runs those running; its pid's watch and stop commands, or a cluster submission's; its log."""
     now = time.time() if now is None else now
     by_pid = {hello.get("pid"): hello for _, hello in live}
     states = [(e, runs.state(e, by_pid)) for e in entries]
@@ -433,8 +437,8 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         what = _config_name(e.get("config", ""), e.get("work"))
         cfgs = ", ".join(e.get("configurations") or ([e["configuration"]] if e.get("configuration") else []))
         serials = e.get("configuration_serials", {})
-        configurations = ", ".join(f"{serials.get(key) if serials.get(key) is not None else '00'} {key}"
-                                   for key in cfgs.split(", ") if key)
+        configurations = ", ".join(f"{serials[key]:02d} {key}" if isinstance(serials.get(key), int) else key
+                                   for key in cfgs.split(", ") if key)          # NN only when it is known
         head = f"  {e.get('id', '?'):28s}  |   {where(e.get('work'))}"
         completed = e.get("points_completed")
         total = e.get("points_total")

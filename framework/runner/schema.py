@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import functools
 import json
+import math
 import re
 import tomllib
 from pathlib import Path
@@ -163,9 +164,13 @@ def check_value(key: str, value, entry: dict, where: str) -> None:
                 raise HeimdallError(f"'{key}' entries must be {type_name(items)}", where=where, hint=f"got {item!r}")
     if "length" in entry and isinstance(value, list) and len(value) != entry["length"]:
         raise HeimdallError(f"'{key}' must have {entry['length']} entries", where=where, hint=f"got {len(value)}")
+    if ("length" in entry or entry.get("ordered")) and isinstance(value, list):
+        for item in value:                       # TOML's nan and inf are floats, and no limit
+            if _is(item, "float") and not math.isfinite(item):
+                raise HeimdallError(f"'{key}' entries must be finite numbers", where=where, hint=f"got {item!r}")
     if entry.get("ordered") and isinstance(value, list) and len(value) == 2 and all(_is(item, "float") for item in value):
-        if value[0] >= value[1]:
-            raise HeimdallError(f"'{key}' minimum must be less than its maximum", where=where)
+        if not value[0] < value[1]:
+            raise HeimdallError(f"'{key}' minimum must be less than its maximum", where=where, hint=f"got {value!r}")
     choices = entry.get("choices")
     if choices:
         for item in members:                     # a choice may be false (normalise = "area" | false, V68)
@@ -199,14 +204,13 @@ def _json_key(entry: dict) -> dict:
     if entry.get("choices") and "array" not in types:
         one["enum"] = entry["choices"]
     if entry.get("items"):
-        item_types = _json_type(entry["items"])
-        if entry.get("item_choices"):
-            item_types = [kind for kind in item_types if kind != "string"]
-        item = {"type": item_types if len(item_types) > 1 else item_types[0]}
+        item_choices = entry.get("item_choices")
+        item_types = [kind for kind in _json_type(entry["items"]) if not (item_choices and kind == "string")]
+        item = {"type": item_types if len(item_types) > 1 else item_types[0]} if item_types else {}
         if entry.get("choices"):
             item["enum"] = entry["choices"]
-        if entry.get("item_choices"):
-            item = {"anyOf": [item, {"enum": entry["item_choices"]}]}
+        if item_choices:                         # its strings are the choices alone
+            item = {"anyOf": [item, {"enum": item_choices}]} if item_types else {"enum": item_choices}
         one["items"] = item
     if "length" in entry:
         one["minItems"] = one["maxItems"] = entry["length"]

@@ -5,7 +5,8 @@ one `Bus`; each is a dict with the stream's version `v`, the point and tool it i
 the time `t`, and its kind `k`:
 
     run    state = started (points, title, header) | finished (verdict)
-    point  state = started (index, stage) | done | stopped | failed (cause, msg, res) | skipped
+    point  state = started (index) | done | stopped | failed (cause, msg, res) | skipped; a stage's (pre, post,
+           a combined group) each with its `stage`
     tool   state = started                     exit   code, seconds, error
     phase, progress, xsec, log                  a tool's own status (src/Status.hh, or its filters)
     line   a tool's latest output line (at most twice a second per tool)
@@ -102,13 +103,15 @@ class Bus:
 
 
 class RunBus:
-    """One run's voice on a shared bus (V75): every event it emits says which run it is of."""
+    """One run's voice on a shared bus (V75): every event it emits says which run it is of. `alone`: the run
+    runs by itself (a sequential sweep's), so its start is a fresh start for the watch socket too."""
 
-    def __init__(self, bus: Bus, run: str):
-        self.bus, self.run = bus, run
+    def __init__(self, bus: Bus, run: str, *, alone: bool = False):
+        self.bus, self.run, self.alone = bus, run, alone
 
     def emit(self, point: str, tool: str, message: dict) -> dict:
-        return self.bus.emit(point, tool, {**message, "run": self.run})
+        extra = {"alone": True} if self.alone and message.get("k") == "run" else {}
+        return self.bus.emit(point, tool, {**message, "run": self.run, **extra})
 
     def say(self, text: str) -> None:
         self.emit("", "", {"k": "say", "msg": text})
@@ -232,8 +235,9 @@ class Hub:
 
     def event(self, event: dict) -> None:
         with self._lock:
-            if event.get("k") == "run" and event.get("state") == "started" and not event.get("run"):
-                self._kept, self._latest = [], {}             # a single run: the new run is all a watcher needs
+            if (event.get("k") == "run" and event.get("state") == "started"
+                    and (not event.get("run") or event.get("alone"))):
+                self._kept, self._latest = [], {}             # a run alone: the new run is all a watcher needs
             if event.get("k") in ("progress", "line"):
                 self._latest[(event["point"], event["tool"], event["k"])] = event
             else:

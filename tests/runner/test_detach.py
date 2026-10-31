@@ -208,8 +208,9 @@ def test_follow_takes_keys_from_a_pipe(fake):
     os.close(write)
 
 
-def test_watch_d_and_ctrl_c_detach_and_q_stops_the_run(fake, monkeypatch):
-    """V183: in `heimdall watch`, d and Ctrl-C leave; q asks the run to stop cleanly."""
+@pytest.fixture
+def keys(monkeypatch):
+    """`heimdall watch` as on a terminal, its keys from a pipe: write them to the fd it gives."""
     read, write = os.pipe()
 
     class Keys:
@@ -223,39 +224,77 @@ def test_watch_d_and_ctrl_c_detach_and_q_stops_the_run(fake, monkeypatch):
             return None
     monkeypatch.setattr(cli, "live", lambda args, *a, **k: True)
     monkeypatch.setattr(watch, "Keys", Keys)
-    proc = fake()
-    os.write(write, b"d")
-    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None
-    os.write(write, b"\x03")
-    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None
-    os.write(write, b"q")
-    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.wait(10) == 6
+    yield write
     os.close(read)
     os.close(write)
 
 
-def test_watch_q_refuses_to_signal_another_pid_namespace(fake, monkeypatch, capsys):
-    read, write = os.pipe()
+@pytest.fixture
+def interrupts(monkeypatch):
+    """The SIGINTs this process sends (to the fake run), each still sent."""
+    sent, real = [], os.kill
 
-    class Keys:
-        def __init__(self, fd):
-            self.fd = read
+    def kill(pid, signum):
+        if signum == signal.SIGINT:
+            sent.append(pid)
+        real(pid, signum)
+    monkeypatch.setattr(os, "kill", kill)
+    return sent
 
-        def __enter__(self):
-            return self
 
-        def __exit__(self, *exc):
-            return None
+def test_watch_d_and_ctrl_c_detach_and_q_stops_the_run(fake, keys):
+    """V183: in `heimdall watch`, d and Ctrl-C leave; q asks the run to stop cleanly."""
+    proc = fake()
+    os.write(keys, b"d")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None
+    os.write(keys, b"\x03")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None
+    os.write(keys, b"q")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.wait(10) == 6
 
-    monkeypatch.setattr(cli, "live", lambda args, *a, **k: True)
-    monkeypatch.setattr(watch, "Keys", Keys)
+
+def test_watch_a_real_sigint_detaches(fake, keys):
+    """Ctrl-C at the watching terminal is a SIGINT to `heimdall watch` itself: it leaves, the run goes on."""
+    import threading
+    proc = fake()
+    timer = threading.Timer(0.5, os.kill, (os.getpid(), signal.SIGINT))
+    timer.start()
+    try:
+        assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0
+    finally:
+        timer.cancel()
+    assert proc.poll() is None
+
+
+def test_watch_the_old_keys_s_and_y_stop_nothing(fake, keys, interrupts):
+    proc = fake()
+    os.write(keys, b"syd")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None and interrupts == []
+
+
+def test_watch_a_second_q_is_no_hard_stop(fake, keys, interrupts, capsys):
+    """The first q stops the run cleanly; a second sends nothing, and names the hard stop's command."""
+    proc = fake()
+    os.write(keys, b"qqd")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.wait(10) == 6
+    assert interrupts == [proc.pid]
+    assert f"already stopping; heimdall stop --pid {proc.pid} asks again: a hard stop" in capsys.readouterr().out
+
+
+def test_watch_function_and_arrow_keys_are_no_letters(fake, keys, interrupts):
+    """F2 (ESC O Q), an arrow (ESC [ A), F5 (ESC [ 1 5 ~), the Linux console's F2 (ESC [ [ B), Alt-q: no q among
+    them stops the run; the d after them leaves."""
+    proc = fake()
+    os.write(keys, b"\x1bOQ\x1b[A\x1b[15~\x1b[[B\x1bqd")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None and interrupts == []
+
+
+def test_watch_q_refuses_to_signal_another_pid_namespace(fake, keys, interrupts, monkeypatch, capsys):
     monkeypatch.setattr("runner.events.namespace", lambda kind: "pid:[another]")
     proc = fake()
-    os.write(write, b"qd")
-    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None
+    os.write(keys, b"qd")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None and interrupts == []
     assert "not stopped: its process is another PID namespace's" in capsys.readouterr().out
-    os.close(read)
-    os.close(write)
 
 
 def test_keys_set_cbreak_and_put_the_terminal_back():

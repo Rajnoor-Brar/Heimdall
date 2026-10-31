@@ -76,7 +76,7 @@ def plan_pre(run, configuration, master: dict, points: list) -> tools.PointPlan 
         return None
     _reserved(run, configuration, {p.name for p in points}, PRE, "pre")
     manifest = tools.run_folders(run, configuration).manifest
-    return _plan_stage(run, configuration, master, Point(index=-1, name=PRE), configuration.pre, {}, manifest)
+    return _plan_stage(run, configuration, master, Point(index=-1, name=PRE, stage=PRE), configuration.pre, {}, manifest)
 
 
 def run_pre(pre: tools.PointPlan | None, run_config, configuration, *, bus=None, stopper, logs: bool = False, rerun: bool) -> bool:
@@ -97,7 +97,7 @@ def plan(run, configuration, master: dict, plans: list) -> tools.PointPlan | Non
         for interface in p.interfaces.values():
             if interface.kind == "product" and not interface.shard:
                 products.setdefault(interface.name, []).append((p.point.name, interface.path))
-    return _plan_stage(run, configuration, master, Point(index=0, name=NAME), configuration.post, products,
+    return _plan_stage(run, configuration, master, Point(index=0, name=NAME, stage=NAME), configuration.post, products,
                        record.manifest_file(plans), upstream=[p.identity for p in plans])
 
 

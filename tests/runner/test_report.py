@@ -156,8 +156,8 @@ def test_the_default_report_is_the_headline_and_each_set_its_document_draws(tree
     folder(trees / "results", "03_few", "few", 1_000_000, draw=("totality", "few"))                  # few: drawn nowhere
     plan = report.planned("P/validation/03_few", [])
     assert [s.title for s in plan.sections] == ["Standings", "Pages: totality"]
-    assert plan.left == ["Pages: few: no source has few drawn, or a page of it to draw",          # nor a set few to draw
-                         "Tools: no source has a record of its points' tools"]
+    assert plan.left == ["Tools: no source has a record of its points' tools",
+                         "Pages: few: no source has few drawn, or a page of it to draw"]          # nor a set few to draw
     assert "  left out: Pages: few: no source has few drawn, or a page of it to draw" in report.listing(plan)
 
 
@@ -475,19 +475,19 @@ def test_a_point_without_a_record_is_said_and_an_older_record_read_from_its_card
         report.configured(report.sources(["P/validation/02_events"], "here")[0], ["*"], [], "here")
 
 
-def test_the_default_report_ends_with_its_tools_and_tools_chooses_them(trees):
+def test_the_default_report_begins_with_its_tools_and_tools_chooses_them(trees):
     recorded(trees)
     plan = report.planned("P/validation/01_pdf", [])
-    assert [s.title for s in plan.sections] == ["Standings", "Pages: totality", "Tools"]
-    assert [g.tag for g in plan.sections[-1].given] == ["pythia", "rivet", "sherpa"]
-    assert "  3 Tools: tools of P/validation/01_pdf: pythia (2 point(s), 2 card line(s) alike, 2 varied key(s)), rivet (2 " \
+    assert [s.title for s in plan.sections] == ["Tools", "Standings", "Pages: totality"]           # what was run first
+    assert [g.tag for g in plan.sections[0].given] == ["pythia", "rivet", "sherpa"]
+    assert "  1 Tools: tools of P/validation/01_pdf: pythia (2 point(s), 2 card line(s) alike, 2 varied key(s)), rivet (2 " \
            "point(s), 2 option(s) alike, 1 varied key(s)), sherpa (2 point(s), 3 card line(s) alike, a list of what varied)" \
            in report.listing(plan)
     where = trees / "results" / "P" / "validation" / "01_pdf"
     (where / report.RECIPE).write_text('[report]\ntools = []\n', encoding="utf-8")       # sections the default's
     assert [s.title for s in report.planned("P/validation/01_pdf", []).sections] == ["Standings", "Pages: totality"]
     (where / report.RECIPE).write_text('[report]\ntools = ["sh*"]\n', encoding="utf-8")
-    assert [g.tag for g in report.planned("P/validation/01_pdf", []).sections[-1].given] == ["sherpa"]
+    assert [g.tag for g in report.planned("P/validation/01_pdf", []).sections[0].given] == ["sherpa"]
     recipe(trees, "bad", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nhide = ["x"]\n')
     with pytest.raises(HeimdallError, match="hide is a tools section's"):
         report.planned("P/bad.toml", ["P/validation/01_pdf"])
@@ -610,3 +610,25 @@ def test_index_titles_show_labels_as_text():
     assert report.shown_text("Inclusive $k_T$ jets") == "Inclusive kT jets"
     assert report.shown_text("$e^{+}p$ at $\\sqrt{s}$ = 318 GeV") == "e+p at √s = 318 GeV"
     assert report.shown_text("a & b") == "a & b"
+
+
+def test_what_was_run_comes_first_and_how_the_numbers_are_made_after_it(trees):
+    """I-111: a recipe's tools sections first, in its order, then How the numbers are made, then its results in its
+    order; context = "last" puts them after; method = false leaves the method out."""
+    recorded(trees)
+    body = ('\n[[report.section]]\ntitle = "Spectra"\npages = ["d01-*"]\n\n[[report.section]]\ntitle = "Numbers"\n'
+            'stats = ["chi2_ndf"]\n\n[[report.section]]\ntitle = "Cards"\ntools = ["pythia"]\n\n'
+            '[[report.section]]\ntitle = "Options"\ntools = ["rivet"]\n')
+    recipe(trees, "order", '[report]\nfrom = ["P/validation/01_pdf"]\n' + body)
+    plan = report.planned("P/order.toml", [])
+    assert [s.title for s in plan.sections] == ["Cards", "Options", "Spectra", "Numbers"] and plan.method
+    listed = report.listing(plan)
+    assert "  How the numbers are made (unnumbered): each statistic's formula and meaning, after what was run, " \
+           "before the results" in listed and listed[-1].startswith("  How the numbers are made")
+    recipe(trees, "last", '[report]\nfrom = ["P/validation/01_pdf"]\ncontext = "last"\nmethod = false\n' + body)
+    plan = report.planned("P/last.toml", [])
+    assert [s.title for s in plan.sections] == ["Spectra", "Numbers", "Cards", "Options"] and not plan.method
+    assert not any("How the numbers are made" in line for line in report.listing(plan))
+    recipe(trees, "bad", '[report]\ncontext = "middle"\n')
+    with pytest.raises(HeimdallError, match="middle"):
+        report.planned("P/bad.toml", ["P/validation/01_pdf"])

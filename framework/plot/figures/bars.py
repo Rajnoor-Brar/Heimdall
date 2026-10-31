@@ -40,31 +40,49 @@ PANELS = (("chi2_ndf", r"$\chi^{2}$/ndf"), ("rel_abs_area", r"$|\Delta|$ / refer
 COMPARED = ("Each page as drawn (after voiding, alignment and normalisation), over its drawn x range, against its "
             "reference: the page's data, else its first curve. Compared bins: the reference's bins that the curve "
             "covers exactly, its own bins summed onto them.")
-NOTES = {
-    "chi2_ndf": "χ²/ndf = Σ (y − y_ref)² / (σ² + σ_ref²) over the compared bins whose errors are not both zero, "
-                "divided by their number, ndf. Near 1: the curve agrees with the reference within errors; "
-                "larger: further apart.",
-    "rel_abs_area": "|Δ| / reference = Σ |y − y_ref|·Δx / Σ y_ref·Δx over the compared bins: the area between "
-                    "the curve and the reference, as a fraction of the reference's area. 0: identical. Shape and "
-                    "normalisation differences both count; bins above and below do not cancel.",
-    "area_ratio": "area / reference = Σ y·Δx / Σ y_ref·Δx over the compared bins: the curve's area over the "
-                  "reference's (MC over data). 1: the same normalisation; above 1 (blue) the curve holds more, "
-                  "below 1 (orange) less. Each bin weighs "
-                  "as much as the reference holds there, so the peak decides; bins above and below the reference "
-                  "cancel: |Δ| / reference and mean |ratio − 1| show those.",
-    "ratio_mean": "mean ratio = Σ (y/y_ref)·Δx / Σ Δx over the compared bins where y_ref ≠ 0: the ratio pad's "
-                  "mean height (Δx in log10 x on a log-x page, as the pad draws it). Every x counts alike, the "
-                  "tails as much as the peak, where area / reference weighs by y_ref. 1: on par on average; blue "
-                  "above, orange below. Beside mean |ratio − 1|: equal distances from 1 mean the "
-                  "curve is off one way throughout (normalisation); a larger |ratio − 1| means it crosses the "
-                  "reference (shape).",
-    "ratio_dev": "mean |ratio − 1| = Σ |y/y_ref − 1|·Δx / Σ Δx over the compared bins where y_ref ≠ 0: the area "
-                 "between the ratio pad's curve and its line at one, over the width compared (Δx in log10 x on a "
-                 "log-x page, as the pad draws it). 0.1: 10% off on average across x. Every x counts alike, the "
-                 "tails as much as the peak; |Δ| / reference weights by y_ref instead.",
-    "area": "area = Σ y·Δx over the curve's finite bins inside the drawn x range, compared or not, in the page's "
-            "units of y times x; each page as drawn (after voiding, alignment and normalisation). Each object has "
-            "its own units, so each column is shaded on its own.",
+#: Each statistic's definition (I-111): its formula as the notes write it, then what it sums over and what it means.
+#: NOTES composes them; a report's "How the numbers are made" sets the formula as FORMULAS has it, the rest as prose.
+DEFINITIONS = {
+    "chi2_ndf": ("χ²/ndf = Σ (y − y_ref)² / (σ² + σ_ref²)",
+                 "over the compared bins whose errors are not both zero, divided by their number, ndf. Near 1: the "
+                 "curve agrees with the reference within errors; larger: further apart."),
+    "rel_abs_area": ("|Δ| / reference = Σ |y − y_ref|·Δx / Σ y_ref·Δx",
+                     "over the compared bins: the area between the curve and the reference, as a fraction of the "
+                     "reference's area. 0: identical. Shape and normalisation differences both count; bins above and "
+                     "below do not cancel."),
+    "area_ratio": ("area / reference = Σ y·Δx / Σ y_ref·Δx",
+                   "over the compared bins: the curve's area over the reference's (MC over data). 1: the same "
+                   "normalisation; above 1 (blue) the curve holds more, below 1 (orange) less. Each bin weighs as much "
+                   "as the reference holds there, so the peak decides; bins above and below the reference cancel: "
+                   "|Δ| / reference and mean |ratio − 1| show those."),
+    "ratio_mean": ("mean ratio = Σ (y/y_ref)·Δx / Σ Δx",
+                   "over the compared bins where y_ref ≠ 0: the ratio pad's mean height (Δx in log10 x on a log-x page, "
+                   "as the pad draws it). Every x counts alike, the tails as much as the peak, where area / reference "
+                   "weighs by y_ref. 1: on par on average; blue above, orange below. Beside mean |ratio − 1|: equal "
+                   "distances from 1 mean the curve is off one way throughout (normalisation); a larger |ratio − 1| "
+                   "means it crosses the reference (shape)."),
+    "ratio_dev": ("mean |ratio − 1| = Σ |y/y_ref − 1|·Δx / Σ Δx",
+                  "over the compared bins where y_ref ≠ 0: the area between the ratio pad's curve and its line at one, "
+                  "over the width compared (Δx in log10 x on a log-x page, as the pad draws it). 0.1: 10% off on "
+                  "average across x. Every x counts alike, the tails as much as the peak; |Δ| / reference weights by "
+                  "y_ref instead."),
+    "area": ("area = Σ y·Δx",
+             "over the curve's finite bins inside the drawn x range, compared or not, in the page's units of y times x; "
+             "each page as drawn (after voiding, alignment and normalisation). Each object has its own units, so each "
+             "column is shaded on its own."),
+}
+NOTES = {key: f"{formula} {rest}" for key, (formula, rest) in DEFINITIONS.items()}
+#: The same formulas as LaTeX (math mode), i running over the bins its definition says.
+FORMULAS = {
+    "chi2_ndf": r"\chi^2/\mathrm{ndf} = \frac{1}{\mathrm{ndf}} \sum_i "
+                r"\frac{(y_i - y_{\mathrm{ref},i})^2}{\sigma_i^2 + \sigma_{\mathrm{ref},i}^2}",
+    "rel_abs_area": r"\frac{|\Delta|}{\mathrm{reference}} = "
+                    r"\frac{\sum_i |y_i - y_{\mathrm{ref},i}|\,\Delta x_i}{\sum_i y_{\mathrm{ref},i}\,\Delta x_i}",
+    "area_ratio": r"\frac{\mathrm{area}}{\mathrm{reference}} = \frac{\sum_i y_i\,\Delta x_i}{\sum_i y_{\mathrm{ref},i}\,\Delta x_i}",
+    "ratio_mean": r"\mathrm{mean\ ratio} = \frac{\sum_i (y_i / y_{\mathrm{ref},i})\,\Delta x_i}{\sum_i \Delta x_i}",
+    "ratio_dev": r"\mathrm{mean}\,|\mathrm{ratio} - 1| = "
+                 r"\frac{\sum_i |y_i / y_{\mathrm{ref},i} - 1|\,\Delta x_i}{\sum_i \Delta x_i}",
+    "area": r"\mathrm{area} = \sum_i y_i\,\Delta x_i",
 }
 TABLE_NOTE = ("A row per point (its label, under its page cell's band), a column per object; mean: the {mean} mean of the "
               "row's numbers. ref: the page's reference curve itself (compared with nothing); –: no number (no bins "
@@ -525,17 +543,19 @@ def _tables(rows: list[dict], notes: dict) -> dict:
 POINTS = (5, 4, 3, 2, 1)
 #: The statistics ranked: those against a reference (the area is each object's own units).
 SCORED = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev")
-SCORE_NOTE = ("Scoring: each page ranks its own curves in each of χ²/ndf, |Δ| / reference, area / reference, the mean "
+SCORE_TEXT = ("Each page ranks its own curves in each of χ²/ndf, |Δ| / reference, area / reference, the mean "
               "ratio and mean |ratio − 1|, by the distance from agreement: the number itself, but the two ratios by "
               "|log10 r|, how far from 1 either way. 1st scores 5 points, 2nd 4, 3rd 3, 4th 2, 5th 1, the rest 0; "
               "equal numbers share the better place and its points (1, 1, 3, …). Points count how often a point is "
               "near the top, page after page, not by how much (the ranking pages' means say how good on average). "
               "Wins: its 1st places; mean rank: the mean of its places. Sorted by total, then wins, then mean rank; "
               "bold: the top three.")
-H2H_NOTE = ("Head to head: on every page counted, in each statistic, each pair of its curves is a match: the "
+H2H_TEXT = ("On every page counted, in each statistic, each pair of its curves is a match: the "
             "one closer to agreement wins it, equal numbers draw (half each). Win rate: the share of its matches a "
             "point won (75%: it beats the others 3 times in 4); every place counts and the number of curves on a "
             "page does not, where points end at the 5th.")
+SCORE_NOTE = "Scoring: " + SCORE_TEXT[0].lower() + SCORE_TEXT[1:]
+H2H_NOTE = "Head to head: " + H2H_TEXT[0].lower() + H2H_TEXT[1:]
 APART = "Points of different page cells never meet: a page holds one cell's points."
 
 

@@ -978,7 +978,7 @@ else is a source. Each report is a folder:
 
 | File | What it is |
 |---|---|
-| `report.pdf` | A4: a front page (its sources, where they came from, any flags) and the contents, then each section from a new page |
+| `report.pdf` | A4: a front page (its sources, where they came from, any flags) and the contents; then what was run, how the numbers are made (§11.4), and the results, each section from a new page |
 | `report.tex` | its LaTeX, naming only files in the folder: it compiles there as it is, or on Overleaf (upload the folder) |
 | `figures/` | every page it shows, copied as drawn, or drawn for the report (§11.3): `<NN>_<section>/<MMM>_<source>_<page>.pdf`, its `.png`, and its `.csv`: each curve's bins (`curve`, `label`, `xlow`, `xhigh`, `y`, `err_down`, `err_up`) as its point's YODA holds them, before the page's normalisation, and the data's, so a figure can be drawn again without reading a PDF |
 | `stats/` | the numbers of the statistics it shows, which are typeset in the report itself, not pictures: `<NN>_<section>/<MM>_<source>__<set>.csv` (the `statistics.csv` they come from) and `.html` (the same tables as one page); a bar table's rows, `<NN>_<section>/<MM>_<source>/<NNN>_<page>.csv`; `summaries/`, each source's `summary.html` |
@@ -1010,11 +1010,11 @@ own files. A recipe's `output` (a folder under `reports/`, or `./…`, `/…`) o
 never into `results/`; sources of two projects, or outside `results/`, need one of them. A recipe over a
 folder builds into that folder's place unless it says otherwise, replacing what was built there.
 
-**The default report**, of a folder with no `report.toml` and of several sources at once, holds the
-statistics' headline (the top five and each statistic's ranking) on the first set measured, then the pages of
-every set the sources' documents draw (`[plot].draw`, else every set of `[plot].sets`), a grid per page cell,
-then a Tools section: what each tool was given (`[report].tools` picks them; every tool given a card or
-options when it is left out, none with `tools = []`). A set a source has not drawn is drawn for the report
+**The default report**, of a folder with no `report.toml` and of several sources at once, holds a Tools section
+first: what each tool was given (`[report].tools` picks them; every tool given a card or options when it is left
+out, none with `tools = []`); then the statistics' headline (the top five and each statistic's ranking) on the
+first set measured, then the pages of every set the sources' documents draw (`[plot].draw`, else every set of
+`[plot].sets`), a grid per page cell. A set a source has not drawn is drawn for the report
 (§11.3); one it cannot draw (no complete point in it, as where a generator failed) is left out, and said. A scan
 of many points or cells makes many pages: `--list` says how many first, and a recipe picks fewer.
 
@@ -1137,7 +1137,28 @@ drawing's code (Paint, the plot stage) changed. `--list` and the front page say 
 why, and statistics drawn with a section's keys say "as this report measures it". Drawing needs what
 `heimdall plot` needs: Paint, and the backend's own.
 
-### 11.4 Its look
+### 11.4 What was run, and how the numbers are made, first
+
+A report gives its context before its results. Its **tools sections** (what each tool was given) come first, in
+the recipe's order, whatever their place in it; then **How the numbers are made**, an unnumbered section in the
+contents, whenever it shows statistics or bar tables:
+- **How a page is compared:** a page as drawn, against its reference (its data, else its first curve), over the
+  bins they share;
+- **the statistics** it shows, a paragraph each: the statistic's name, its formula set out, then what it sums over
+  and what it says (χ²/ndf, |Δ| / reference, area / reference, the mean ratio, mean |ratio − 1|, the area);
+- **How points are scored** and **Head to head**, when it shows the standings.
+
+Then every other section, in the recipe's order. The statistics parts no longer repeat these definitions as
+notes: each keeps only the notes on reading its own tables, and its line under its title points to the page
+that defines them. (Each part's HTML page in `stats/` keeps every note: it stands alone.)
+
+```toml
+[report]
+context = "last"     # what was run and How the numbers are made after the results, as an appendix
+method  = false      # no How the numbers are made: each statistics part keeps its own notes
+```
+
+### 11.5 Its look
 
 Every report has one look, set once in `report.tex`'s preamble and used by everything in it:
 
@@ -1167,7 +1188,7 @@ columns  = 3            # a grid's columns when its section names none
 contents = false        # no contents on the front page
 ```
 
-### 11.5 Talks and papers
+### 11.6 Talks and papers
 
 A report is not a talk, a thesis or a paper, and Heimdall makes none of them. Take what it made into your own
 tools: the figures as vector PDFs from `figures/` (their curves' numbers in the CSV beside each), the statistics'

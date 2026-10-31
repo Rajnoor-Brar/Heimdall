@@ -183,6 +183,21 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     rows = list(csv.DictReader(open(bars / "001_18x275_d01-x01-y01.csv", encoding="utf-8")))
     assert [r["curve"] for r in rows] == ["PDF A", "PDF B"] and rows[0]["chi2_ndf"] == "1.1"     # as the source wrote it
     assert "18x275, d01-x01-y01" in tex and "against ZEUS" in tex
+    # How the numbers are made (I-111): before the results, a paragraph a statistic shown (the bar tables show all six),
+    # its formula in display; the parts keep only the notes on reading their own items
+    body = tex.split(r"\begin{document}")[1]
+    assert body.index(r"\section*{How the numbers are made}") < body.index(r"\section{Standings}")
+    assert body.count(r"\hdDefinition{") == 6 and r"\hdDefinition{$\chi^{2}$/ndf}{\chi^2/\mathrm{ndf} = " in body
+    assert r"\hdStatSection{How a page is compared}" in body and "How points are scored" not in body
+    assert r"where $y_{\mathrm{ref}}$ ≠ 0" in body                                     # the notes' symbols as math
+    notes = body[body.index(r"\begin{hdNotes}"):body.index(r"\end{hdNotes}")]
+    assert "Per point" in notes and "χ²/ndf = Σ" not in notes and "Each page as drawn" not in notes
+    assert r"\hyperref[hd:method]{How the numbers are made, page~\pageref*{hd:method}}" in body
+    assert "Over the compared bins whose errors are not both zero" in text                 # in the PDF, as prose
+    html_part = (standings / "01_01_pdf__totality.html").read_text(encoding="utf-8")
+    assert "χ²/ndf = Σ" in html_part                                                       # its own page keeps them all
+    page = (out / "index.html").read_text(encoding="utf-8")
+    assert page.index('<section class="block" id="method"') < page.index('<section class="block" id="s01-001"')
 
 
 def test_what_no_section_holds_is_removed_and_own_files_are_copied(trees):

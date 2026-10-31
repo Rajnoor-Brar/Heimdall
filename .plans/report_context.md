@@ -49,6 +49,11 @@ the end. **Pause at the end:** the Brookhaven report's PDF sent.
 
 | Phase | V-row | Commit | State |
 |---|---|---|---|
-| C0 this plan, I-111 | — | | written |
+| C0 this plan, I-111 | — | ff8c30b | written |
+| C1–C3 | V218 | | done |
 
 ## 5. Log
+- 2026-10-27, **C1–C3** (V218): tools first (`resolve`), How the numbers are made (`_method`, `Prose`, `bars.DEFINITIONS`,
+  `FORMULAS`, `typeset.definition`), the parts' notes without the definitions; the method takes only the notes the
+  chosen items name (a summary keeps every note in `Document.notes`). Brookhaven's recipe: Tools first as "What was
+  run"; built read-only into `scratchpad/zeusbuild2/`, 22 pages.

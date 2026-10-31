@@ -306,16 +306,16 @@ def _drawn_sets(plot: dict) -> list[str]:
 
 
 def _sections(sets: list[str], measured: list[str], tools: list[str] | None) -> list[dict]:
+    first = [] if tools == [] else [{"title": "Tools", "tools": list(tools or ["*"]), "optional": True}]
     head = [{"title": "Standings", "set": measured[0], "stats": list(HEADLINE), "optional": True}] if measured else []
-    tail = [] if tools == [] else [{"title": "Tools", "tools": list(tools or ["*"]), "optional": True}]
-    return head + [{"title": f"Pages: {s}", "set": s, "pages": ["*"], "optional": True} for s in sets] + tail
+    return first + head + [{"title": f"Pages: {s}", "set": s, "pages": ["*"], "optional": True} for s in sets]
 
 
 def default_sections(plot: dict, stats: dict, tools: list[str] | None = None) -> list[dict]:
-    """The default report's sections for a plot document's [plot] and [stats] (A1, A8): Standings, the statistics'
-    headline, on the first set it measures ([stats].sets, else the sets drawn), then the pages of each set it
-    draws, then what its tools were given (`tools`: [report].tools; None every tool given a card or options, []
-    none); every one optional, so a set drawn nowhere is left out."""
+    """The default report's sections for a plot document's [plot] and [stats] (A1, A8, I-111): what its tools were
+    given (`tools`: [report].tools; None every tool given a card or options, [] none), then Standings, the
+    statistics' headline, on the first set it measures ([stats].sets, else the sets drawn), then the pages of each
+    set it draws; every one optional, so a set drawn nowhere is left out."""
     sets = _drawn_sets(plot)
     return _sections(sets, list((stats or {}).get("sets") or sets), tools)
 
@@ -645,6 +645,11 @@ class Section:
     found: list = field(default_factory=list)            # resolved again once what it waits for is drawn (P6)
     at: str = ""
 
+    @property
+    def context(self) -> bool:
+        """Whether it says what was run (a tools section), which a report shows before its results (I-111)."""
+        return "tools" in self.spec
+
     def waiting(self) -> bool:
         """Whether it shows something not drawn yet: a figure with no file, numbers with no CSV."""
         return any(f.file is None for g in self.grids for f in g.figures) or any(p.csv is None for p in [*self.parts, *self.bars])
@@ -738,6 +743,11 @@ class Plan:
     left: list[str] = field(default_factory=list)      # optional sections no source has, and why
     drawings: list[Drawing] = field(default_factory=list)
     look: Look = field(default_factory=Look)
+    method: bool = True          # How the numbers are made, when it shows statistics (I-111)
+    context: str = "first"       # where what was run and how the numbers are made go: before the results, or "last"
+
+    def shows_numbers(self) -> bool:
+        return any(s.parts or s.bars for s in self.sections)
 
     def drawn(self) -> list:
         """What is still to be drawn or measured for the report: figures with no file, parts and bars with no CSV."""
@@ -1087,8 +1097,11 @@ def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command
         sections.append(section)
     facts = [s.doc.source for s in used]
     title = filled(recipe.get("title", ""), facts) or (used[0].address if len(used) == 1 else _common(used) or "report")
+    context = recipe.get("context", "first")
+    tools, results = [s for s in sections if s.context], [s for s in sections if not s.context]
+    sections = tools + results if context == "first" else results + tools          # what was run first (I-111)
     return Plan(command or where, title, filled(recipe.get("subtitle", ""), facts), used, sections,
-                out or _out(recipe, used, where), path, left, drawings, look_of(recipe))
+                out or _out(recipe, used, where), path, left, drawings, look_of(recipe), recipe.get("method", True), context)
 
 
 def _common(found: list[Source]) -> str:
@@ -1163,6 +1176,9 @@ def listing(plan: Plan) -> list[str]:
             under += [f"{g.tag}: {note}" for g in mine for note in g.notes]
         lines.append(f"  {number} {section.title}: " + "; ".join(what))
         lines += [f"      {line}" for line in under]
+    if plan.method and plan.shows_numbers():
+        lines.append(f"  {METHOD_TITLE} (unnumbered): each statistic's formula and meaning, "
+                     + ("after what was run, before the results" if plan.context == "first" else "last"))
     lines += [f"  left out: {why}" for why in plan.left]
     return lines
 
@@ -1177,7 +1193,11 @@ def starter(name: str, source: Source) -> str:
              "# its look, each key's default (04 §15):", '# font     = "sans"      # "serif": TeX Gyre Termes for the body',
              "# size     = 9.5         # the body's pt, 8 to 12", '# accent   = "#2a78d6"   # section numbers, kickers, code\'s keys',
              "# columns  = 2           # a grid's, when its section names none", "# contents = true        # the contents on the front page",
-             ""]
+             "# context  = \"first\"     # what was run and How the numbers are made: before the results, or \"last\"",
+             "# method   = true        # How the numbers are made: each statistic's formula and meaning, a paragraph each",
+             "", "# what each tool was given, from the records: the card's lines every point had, then what varied (shown first)",
+             "[[report.section]]", 'title = "Tools"', 'tools = ["*"]', '# hide  = ["Random:seed", "RANDOM_SEED"]',
+             "optional = true", ""]
     sections = default_recipe([source])["section"]
     shown = [s["set"] for s in sections if "pages" in s]
     for section in sections:
@@ -1194,9 +1214,6 @@ def starter(name: str, source: Source) -> str:
                   f"#   {', '.join(objects[:12])}{' …' if len(objects) > 12 else ''}",
                   *(mark + line for line in ("[[report.section]]", f'title = "{set_}"', f'set   = "{set_}"', 'pages = ["*"]',
                                              "optional = true")), ""]
-    lines += ["# what each tool was given, from the records: the card's lines every point had, then what varied",
-              "[[report.section]]", 'title = "Tools"', 'tools = ["*"]', '# hide  = ["Random:seed", "RANDOM_SEED"]',
-              "optional = true", ""]
     return "\n".join(lines)
 
 
@@ -1395,6 +1412,18 @@ class Typeset:
     data: list[Path]             # the CSVs beside it
     page: Path | None = None     # the same document as one HTML page, for index.html
     toc: str = ""                # its line in the contents, when not its title
+    notes: dict = field(default_factory=dict)    # the notes its items name, every one (key → text)
+    refer: bool = False          # its definitions are How the numbers are made's, not its own (I-111)
+
+
+#: The notes How the numbers are made gives (I-111): each statistic's definition (stat-<key>), how a page is compared,
+#: and how points are scored and play their matches; a statistics part then leaves them out.
+METHOD_NOTES = ("compared", "counted", "apart", "score", "h2h")
+METHOD_TITLE = "How the numbers are made"
+
+
+def _method_note(key: str) -> bool:
+    return key.startswith("stat-") or key in METHOD_NOTES
 
 
 def _measuring():
@@ -1403,10 +1432,10 @@ def _measuring():
     matplotlib.use("Agg")
 
 
-def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say) -> Typeset | None:
-    """A source's statistics, the sections chosen, typeset (its facts, its items, its notes numbered at its end);
-    beside it its numbers, stats/<section>/<stem>__<set>.csv (the statistics.csv they were read from), and the same
-    document as one HTML page."""
+def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method: bool = False) -> Typeset | None:
+    """A source's statistics, the sections chosen, typeset (its facts, its items, its notes numbered at its end;
+    `method`: those How the numbers are made gives left out); beside it its numbers, stats/<section>/<stem>__<set>.csv
+    (the statistics.csv they were read from), and the same document, every note kept, as one HTML page."""
     heading = statstable.heading_of(part.csv.parent) if part.csv.is_relative_to(part.source.folder) else \
         f"{part.source.address} · {part.set}" + (" · as this report measures it" if part.look else "")
     _measuring()
@@ -1423,9 +1452,11 @@ def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say) -> Type
     summary = part.csv.with_name("summary.html")
     if summary.is_file():
         build.copy(summary, build.out / STATS / "summaries" / f"{slug(part.source.address)}__{slug(part.set)}.html")
-    lines = _typeset().document(document, numbers, bars.paper, _layout().tex, TEXT_W)
+    shown = dataclasses.replace(document, notes={k: v for k, v in document.notes.items() if not _method_note(k)}) \
+        if method else document
+    lines = _typeset().document(shown, bars.paper.note_numbers(shown), bars.paper, _layout().tex, TEXT_W)
     return Typeset(heading, "statistics" + (" · as this report measures it" if part.look and "measures" not in heading else ""),
-                   lines, [data], page)
+                   lines, [data], page, notes={k: document.notes[k] for k in numbers}, refer=method)
 
 
 def _raw_rows(path: Path) -> list[dict]:
@@ -1434,7 +1465,7 @@ def _raw_rows(path: Path) -> list[dict]:
         return list(csv.DictReader(handle))
 
 
-def _bars(build: _Build, bars, item: Bars, folder: Path, number: int) -> Typeset:
+def _bars(build: _Build, bars, item: Bars, folder: Path, number: int, method: bool = False) -> Typeset:
     """A source's pages' statistics, a table each (a row a curve, a column a statistic, each a small bar and its
     value), from its statistics.csv; beside each, its rows: stats/<section>/<MM>_<source>/<NNN>_<page>.csv."""
     rows = _raw_rows(item.csv)
@@ -1460,7 +1491,8 @@ def _bars(build: _Build, bars, item: Bars, folder: Path, number: int) -> Typeset
         out.writerows(mine)
         data.append(build.write(where / f"{k:03d}_{slug(name)}.csv", buffer.getvalue()))
     title = f"{item.source.address} · {item.set}" + (" · as this report measures it" if item.look else "")
-    return Typeset(title, f"{len(names)} page(s), a table each", lines, data)
+    notes = {"compared": bars.COMPARED, **{f"stat-{key}": bars.NOTES[key] for key, _ in bars.PANELS}}
+    return Typeset(title, f"{len(names)} page(s), a table each", lines, data, notes=notes, refer=method)
 
 
 #: A figure's data (I-110 R6): each curve's bins as the run made them (before the page's normalisation), and the
@@ -1576,11 +1608,12 @@ def _configs(build: _Build, item: Given, folder: Path) -> Configs:
     return Configs(item, baseline, varied)
 
 
-def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
+def _place(build: _Build, plan: Plan, say) -> tuple[list[tuple[Section, list]], "Prose | None"]:
     """Every section's figures copied into figures/<NN>_<section>/, each with its data (a CSV, from its page
     document's YODAs), its statistics and bar tables typeset, their numbers into stats/<NN>_<section>/; each grid
-    and part as the report shows it."""
+    and part as the report shows it; and How the numbers are made, for the statistics shown (I-111)."""
     bars = statstable.bars()
+    method = plan.method and plan.shows_numbers()
     yodas = _Yodas()
     figures = sum(1 for s in plan.sections for g in s.grids for f in g.figures if f.source is not None)
     if figures and yodas.yoda is None:
@@ -1612,12 +1645,12 @@ def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
                                 caption if "compare" in section.spec else "",
                                 title=" · ".join(part for part in (set_, caption) if part) or section.title))
         for k, part in enumerate(section.parts, 1):
-            shown = _part(build, bars, part, build.out / STATS / name, f"{k:02d}_{slug(part.source.folder.name)}", say)
+            shown = _part(build, bars, part, build.out / STATS / name, f"{k:02d}_{slug(part.source.folder.name)}", say, method)
             if shown is not None:
                 shown.toc = f"{part.set} · statistics" if len(plan.sources) == 1 and not part.look else ""
                 grids.append(shown)
         for k, item in enumerate(section.bars, 1):
-            grids.append(_bars(build, bars, item, build.out / STATS / name, k))
+            grids.append(_bars(build, bars, item, build.out / STATS / name, k, method))
             grids[-1].toc = f"{item.set} · a table a page" if len(plan.sources) == 1 and not item.look else ""
         sources = list(dict.fromkeys(g.source.address for g in section.given))
         for item in section.given:
@@ -1625,7 +1658,61 @@ def _place(build: _Build, plan: Plan, say) -> list[tuple[Section, list]]:
             grids.append(_configs(build, item, build.out / TOOLS / name / f"{mm:02d}_{slug(item.source.folder.name)}"))
         placed.append((section, grids))
     build.data = data
-    return placed
+    shown = [g for _, grids in placed for g in grids if isinstance(g, Typeset)]
+    return placed, _method(bars, shown, plan) if method and shown else None
+
+
+@dataclass
+class Prose:
+    """How the numbers are made (I-111), as report.tex and index.html show it."""
+    lines: list[str]
+    html: str
+
+
+def _sentence(text: str) -> str:
+    return text[:1].upper() + text[1:]
+
+
+def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
+    """How the numbers are made, from the notes of the statistics shown: how a page is compared; each statistic
+    shown, in the summary's order, its name, its formula set as display math and what it sums over and means, a
+    paragraph each; how points are scored (each part's rule on the pages counted) and play their matches."""
+    typeset, tex, esc = _typeset(), _layout().tex, html.escape
+    notes: dict = {}
+    for item in shown:
+        notes.update({k: v for k, v in item.notes.items() if k not in notes})
+    counted = list(dict.fromkeys(item.notes["counted"] for item in shown if "counted" in item.notes))
+    labels = dict(bars.PANELS)
+    used = [key for key, _, _ in bars.TABLES if f"stat-{key}" in notes]
+    where = "below" if plan.context == "first" else "above"
+    lines = [rf"\hdNote{{What each number in the statistics and bar tables {where} is: how a page is compared with its "
+             r"reference, each statistic's formula and what it says, and how points are scored.}"]
+    page = [f"<p>What each number in the statistics and bar tables {where} is.</p>"]
+
+    def heading(title: str) -> None:
+        lines.extend([r"\hdKeep{110bp}\phantomsection\addcontentsline{toc}{subsection}{" + tex(title) + "}",
+                      rf"\hdStatSection{{{tex(title)}}}"])
+        page.append(f"<h3>{esc(title)}</h3>")
+
+    def paragraphs(texts: list[str]) -> None:
+        lines.extend(typeset.paragraph(_sentence(text), tex) for text in texts)
+        page.extend(f"<p>{esc(_sentence(text))}</p>" for text in texts)
+    if "compared" in notes:
+        heading("How a page is compared")
+        paragraphs([bars.COMPARED])
+    if used:
+        heading("The statistics")
+        for key in used:
+            formula, rest = bars.DEFINITIONS[key]
+            lines.extend(typeset.definition(labels[key], bars.FORMULAS[key], _sentence(rest), tex))
+            page.append(f"<p><strong>{esc(bars.PLAIN[key])}</strong>: {esc(formula)}</p><p>{esc(_sentence(rest))}</p>")
+    if "score" in notes:
+        heading("How points are scored")
+        paragraphs([bars.SCORE_TEXT, bars.APART, *counted])
+    if "h2h" in notes:
+        heading("Head to head")
+        paragraphs([bars.H2H_TEXT])
+    return Prose(lines, "\n".join(page))
 
 
 def _breakable(text: str) -> str:
@@ -1734,6 +1821,10 @@ PREAMBLE = r"""\documentclass[a4paper]{article}
 \newcommand\hdItem[1]{\par\addvspace{12pt}{\sffamily\hdSize{9.5}{12}\bfseries #1\par}\vspace{2pt}}
 \newcommand\hdSub[1]{{\sffamily\hdSize{8}{10.5}\color{hdmuted}#1\par}\vspace{2pt}}
 \newcommand\hdStatSection[1]{\par\addvspace{16pt}{\sffamily\hdSize{11}{14}\bfseries #1\par}\vspace{2pt}}
+%% How the numbers are made: a statistic's name, its formula in display, what it means; a paragraph of prose
+\newcommand\hdDefinition[3]{\par\addvspace{14pt}{\sffamily\hdSize{10}{13}\bfseries #1\par}\vspace{6pt}%
+  {\centering\hdSize{11}{15}$\displaystyle #2$\par}\vspace{8pt}#3\par}
+\newcommand\hdPara[1]{\par\addvspace{6pt}#1\par}
 %% a set's sub-header: its name and source, then a line a fact (Pages, Curves, Fixed); a grid's caption; a panel's label
 \newcommand\hdFact[2]{\par\hangindent=4.6em\hangafter=1\noindent\makebox[4.6em][l]{\textcolor{hdmuted}{#1}}#2\par}
 \newcommand\hdSetHead[3]{\par\addvspace{18pt}{\sffamily\hdSize{11}{14}\bfseries #1}\hspace{0.7em}%
@@ -1987,17 +2078,31 @@ def _typeset_tex(item: Typeset, out: Path) -> list[str]:
     where = rel[0] if len(rel) == 1 else f"{rel[0].rsplit('/', 1)[0]}/, a CSV a page" if rel else ""
     return [r"\hdKeep{120bp}\phantomsection\addcontentsline{toc}{subsection}{" + tex(item.toc or item.title) + "}",
             rf"\hdBlockTitle{{{_breakable(item.title)}}}{{{tex(item.tagline)}}}",
-            *([r"\hdTagline{its numbers: \texttt{" + _breakable(where) + r"}}\vspace{2pt}"] if where else []),
+            *([r"\hdTagline{its numbers: \texttt{" + _breakable(where) + "}"
+                + (r" · each statistic's formula and meaning: \hyperref[hd:method]{" + METHOD_TITLE
+                   + r", page~\pageref*{hd:method}}" if item.refer else "") + r"}\vspace{2pt}"] if where else []),
             *item.lines, r"\hdGridGap"]
 
 
-def _tex(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> str:
+def _method_at(plan: Plan, placed: list) -> int:
+    """Where How the numbers are made goes among the sections: right after what was run (the tools sections), which
+    come first, or last with it."""
+    return sum(1 for section, _ in placed if section.context) if plan.context == "first" else len(placed)
+
+
+def _tex(plan: Plan, placed: list[tuple[Section, list]], method: Prose | None, out: Path) -> str:
     """report.tex, with BUILT for when and by what it was made: its preamble (the look), its front page, then
     each section on a new page, its note, its grids a row of panels at a time, each file named relative to the
-    folder."""
+    folder; How the numbers are made, unnumbered, after what was run (I-111)."""
     tex = _layout().tex
     lines = [r"\hypersetup{pdftitle={" + tex(plan.title) + "}}", r"\begin{document}", *_front(plan)]
-    for section, grids in placed:
+    at = _method_at(plan, placed) if method else -1
+    for number, (section, grids) in enumerate([*placed, (None, [])]):
+        if number == at:
+            lines += [r"\clearpage", rf"\section*{{{METHOD_TITLE}}}\markboth{{{METHOD_TITLE}}}{{}}",
+                      rf"\phantomsection\label{{hd:method}}\addcontentsline{{toc}}{{section}}{{{METHOD_TITLE}}}", *method.lines]
+        if section is None:
+            break
         lines += [r"\clearpage", f"\\section{{{tex(section.title)}}}"]
         if section.note:
             lines.append(rf"\hdNote{{{tex(section.note)}}}")
@@ -2061,11 +2166,15 @@ def shown_text(label: str) -> str:
     return html.unescape(re.sub(r"<[^>]+>", "", statstable.bars().webpage.text_of(label)))
 
 
-def _index(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> Path:
+def _index(plan: Plan, placed: list[tuple[Section, list]], method: Prose | None, out: Path) -> Path:
     """index.html (the viewer): a block a grid, its panels the PNGs, a set's facts under its first grid's title,
-    and a block a tool's configuration, as text; the sources and their summaries' pages up front."""
+    and a block a tool's configuration, as text, How the numbers are made where the PDF has it; the sources and their
+    summaries' pages up front."""
     blocks = []
+    at = _method_at(plan, placed) if method else -1
     for number, (section, grids) in enumerate(placed, 1):
+        if number - 1 == at:
+            blocks.append(viewer.Shown("method", METHOD_TITLE, [], body=method.html))
         for k, grid in enumerate(grids, 1):
             if isinstance(grid, Configs):
                 blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{shown_text(section.title)}: {grid.given.caption}", [],
@@ -2084,6 +2193,8 @@ def _index(plan: Plan, placed: list[tuple[Section, list]], out: Path) -> Path:
                       in enumerate(zip(grid.labels, grid.pngs), 1)]
             notes = [f"{what}: " + "; ".join(shown_text(line) for line in lines) for what, lines in grid.head.facts] if grid.head else []
             blocks.append(viewer.Shown(f"s{number:02d}-{k:03d}", f"{shown_text(section.title)}: {shown_text(grid.title)}", panels, notes))
+    if at == len(placed):
+        blocks.append(viewer.Shown("method", METHOD_TITLE, [], body=method.html))
     summaries = {p.name: p for p in sorted((out / STATS / "summaries").glob("*.html"))} if (out / STATS / "summaries").is_dir() else {}
     rows = []
     for source in plan.sources:
@@ -2232,7 +2343,7 @@ def build(plan: Plan, say=print) -> list[Path]:
                        hint="the lines above say why")
     out.mkdir(parents=True, exist_ok=True)
     books = _Build(out)
-    placed = _place(books, plan, say)
+    placed, method = _place(books, plan, say)
     books.prune()
     figures = sum(len(g.figures) for s in plan.sections for g in s.grids)
     tools = sum(len(s.given) for s in plan.sections)
@@ -2240,7 +2351,7 @@ def build(plan: Plan, say=print) -> list[Path]:
         + f", {books.copied} file(s) copied or written; "
         f"{sum(len(s.parts) + len(s.bars) for s in plan.sections)} statistics part(s), {books.drawn} drawn"
         + (f"; {tools} tool configuration(s)" if tools else ""))
-    text = _tex(plan, placed, out)
+    text = _tex(plan, placed, method, out)
     key = _key(text, *(f"{rel}:{sha}" for rel, sha in sorted(books.shas.items())))
     source, pdf = out / "report.tex", out / "report.pdf"
     made = [source, out / "index.html"]
@@ -2265,7 +2376,7 @@ def build(plan: Plan, say=print) -> list[Path]:
             made.insert(0, pdf)
         else:
             say("report: no pdflatex on PATH, so no report.pdf: report.tex compiles anywhere else as it is (Overleaf)")
-    _index(plan, placed, out)
+    _index(plan, placed, method, out)
     books.save()
     for why in plan.left:
         say(f"report: left out: {why}")

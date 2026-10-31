@@ -1542,6 +1542,8 @@ pages = ["d0[3-4]-*"]
 | `accent` | a string | `"#2a78d6"` | the accent colour, #rrggbb: section numbers, kickers, code's keys |
 | `contents` | true or false | `true` | a table of contents on the front page, under the sources |
 | `columns` | an integer, ≥ 1 | `2` | a grid's columns when its section names none, 1 to 4 (a grid of one figure: 1; a side-by-side grid of three or more sources: 3) |
+| `method` | true or false | `true` | a section How the numbers are made, whenever the report shows statistics or bar tables: how a page is compared, each statistic shown (its formula and what it means, a paragraph each) and how points are scored; the statistics parts then leave those notes out. false: each part keeps its own |
+| `context` | a string: `"first"`, `"last"` | `"first"` | where what was run (the tools sections) and How the numbers are made go: first, before every other section (the results, in the recipe's order); last, after them |
 <!-- /generated -->
 
 **`[[report.section]]`:** each shows exactly one of `pages`, `compare`, `stats`, `bars`, `files` or `tools`.

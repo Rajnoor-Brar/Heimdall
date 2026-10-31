@@ -14,6 +14,9 @@ the same facts, items and notes, set in the report's fonts and colours (the macr
   summing row after a rule.
 * A **ranking** is a table of bars drawn with rules: from 0, or both ways from its base (a ratio's 1), as far as
   paper.reach; a bar beyond is cut, its value marked, its colour paper.colour_of's (V205).
+* **`definition(name, formula, text, tex)`, `paragraph(text, tex)`** (I-111): a report's How the numbers are made, a
+  statistic's name, its formula as display math (LaTeX, as given), and what it sums over and means; prose, with the
+  notes' plain-text symbols (y_ref, Δx, log10 x) set as math.
 * **`bars(rows, title, subtitle, panels, scale, tex, width)`**: a page's statistics as a table, a row a curve, a
   column a statistic (`panels`: bars.PANELS, (key, label) each), each a small bar and its value: what bars.page
   draws as an image.
@@ -198,6 +201,27 @@ def text(item, numbers: dict, tex) -> list[str]:
         said = tex(said)
         out.append((f"\\hdMuted{{{number}.}}~" if number else "") + ("\\textbf{" + said + "}" if bold else said) + "\\par")
     return out
+
+
+#: The notes' plain-text symbols, set as math in prose (the longest first).
+PROSE_MATH = (("|log10 r|", r"$|\log_{10} r|$"), ("log10 x", r"$\log_{10} x$"), ("y_ref", r"$y_{\mathrm{ref}}$"),
+              ("σ_ref", r"$\sigma_{\mathrm{ref}}$"), ("Δx", r"$\Delta x$"))
+
+
+def prose(text: str, tex) -> str:
+    """A note's text for a paragraph: its symbols as math, the rest escaped."""
+    for word, math in PROSE_MATH:
+        text = text.replace(word, math)
+    return tex(text)
+
+
+def paragraph(text: str, tex) -> str:
+    return f"\\hdPara{{{prose(text, tex)}}}"
+
+
+def definition(name: str, formula: str, text: str, tex) -> list[str]:
+    """A statistic defined: its name, its formula (LaTeX math, set in display), then what it sums over and means."""
+    return ["\\hdKeep{120bp}", f"\\hdDefinition{{{tex(name)}}}{{{formula}}}{{{prose(text, tex)}}}"]
 
 
 def _item(item, numbers: dict, scale, tex, width: float) -> list[str]:

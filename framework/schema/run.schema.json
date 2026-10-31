@@ -2783,6 +2783,20 @@
      "type": "integer",
      "minimum": 1,
      "default": 2
+    },
+    "method": {
+     "description": "a section How the numbers are made, whenever the report shows statistics or bar tables: how a page is compared, each statistic shown (its formula and what it means, a paragraph each) and how points are scored; the statistics parts then leave those notes out. false: each part keeps its own",
+     "type": "boolean",
+     "default": true
+    },
+    "context": {
+     "description": "where what was run (the tools sections) and How the numbers are made go: first, before every other section (the results, in the recipe's order); last, after them",
+     "type": "string",
+     "enum": [
+      "first",
+      "last"
+     ],
+     "default": "first"
     }
    },
    "additionalProperties": false

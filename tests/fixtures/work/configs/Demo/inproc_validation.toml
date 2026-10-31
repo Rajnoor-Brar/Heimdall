@@ -13,18 +13,18 @@
 #
 # Seeds follow the generator's card, base card, binary, threads and event count (V22): with the same
 # event_count and threads as validation.toml, a point here and the same point there get the
-# same seeds, so the same events, comparable bin for bin (`--set run.threads=20 --set
-# run.event_count=10000000` matches it as it is now).
+# same seeds, so the same events, comparable bin for bin (`--set errand.threads=20 --set
+# errand.event_count=10000000` matches it as it is now).
 #
 # Speed: `rivet_threads` Rivets, each on its own thread, merged at the end (V34); they need the
 # SISCone patch (L29, utils/Env/patches/), without which the program refuses more than one.
 # Measured, 200k events of `single` with start-up: 10 + 14 Rivets 17.3 s; validation.toml's
 # chain with 12 + 10 shards 27.1 s.
 
-[run]
+[errand]
 serial        = 1
 name          = "inproc_validation"
-project       = "Demo"
+assignment    = "Demo"
 run           = "default"
 events        = 1_000_000
 threads       = 12            # Pythia's; 12 + 12 Rivets fill the 24 hardware threads

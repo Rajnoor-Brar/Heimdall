@@ -11,9 +11,9 @@ from runner.errors import HeimdallError
 FILE = """[file]
 schema = 3
 {extra}
-[run]
+[errand]
 name    = "f"
-project = "Demo"
+assignment = "Demo"
 
 [heimdall]
 journal = true
@@ -69,7 +69,7 @@ def test_every_option_is_a_preference_or_says_why_it_is_not():
     ('[heimdall.run]\ndraw = "x"\n', "heimdall run has no such option"),
     ('[heimdall.runs]\nplain = true\n', "no such command reads a config"),
     ('[heimdall]\njournal = "yes"\n', "is a switch: true or false"),
-    ('[heimdall.run]\nset = ["run.events=1"]\n', "heimdall run has no such option"),
+    ('[heimdall.run]\nset = ["errand.events=1"]\n', "heimdall run has no such option"),
     ('[heimdall.run]\nplan = true\n', "a mode"),
     ('[heimdall.cluster]\ncancel = true\n', "a mode"),
     ('[heimdall.watch]\npid = 12\n', "a target"),
@@ -78,13 +78,13 @@ def test_every_option_is_a_preference_or_says_why_it_is_not():
     ('[heimdall.run]\nno-plot = true\n', r"the study's own setting"),
 ])
 def test_what_heimdall_refuses(tmp_path, table, message):
-    path = written(tmp_path, f'[file]\nschema = 3\n\n[run]\nname = "f"\nproject = "Demo"\n\n{table}')
+    path = written(tmp_path, f'[file]\nschema = 3\n\n[errand]\nname = "f"\nassignment = "Demo"\n\n{table}')
     with pytest.raises(HeimdallError, match=message):
         flagged(["run", path])
 
 
 def test_the_study_s_own_settings_point_to_run(tmp_path):
-    path = written(tmp_path, '[file]\nschema = 3\n\n[run]\nname = "f"\nproject = "Demo"\n\n[heimdall]\nno-stats = true\n')
+    path = written(tmp_path, '[file]\nschema = 3\n\n[errand]\nname = "f"\nassignment = "Demo"\n\n[heimdall]\nno-stats = true\n')
     with pytest.raises(HeimdallError) as caught:
         flagged(["run", path])
-    assert "[run] stats = false" in caught.value.hint
+    assert "[errand] stats = false" in caught.value.hint

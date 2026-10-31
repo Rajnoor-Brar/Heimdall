@@ -5,9 +5,9 @@ either form is one RunConfig: the same points, folders and identities. What v3 w
 in several places comes out as v2 had it:
 
   [file]                  → [config]
-  [run] run, events,      → [run] configuration, event_count, tools, sweeps, seed_type/manual_seed;
-        chain, vary, seed     [run] commands → [prelim] commands
-  [cfgs.<name>]           → [run.cfgs.<name>]: folder → label, events → event_count (a list: one
+  [errand] run, events,   → [errand] configuration, event_count, tools, sweeps, seed_type/manual_seed;
+        chain, vary, seed     [errand] commands → [prelim] commands
+  [cfgs.<name>]           → [errand.cfgs.<name>]: folder → label, events → event_count (a list: one
                             configuration per count, <name>_<count>, run in turn as <name>), chain →
                             tools, vary → sweeps, fixed → static, seed → seed_type/manual_seed
   [tools.<name>]          → tool = <name> (uses = for a second instance), card → baseconfig,
@@ -33,11 +33,11 @@ import re
 from .errors import HeimdallError, did_you_mean
 
 #: The tables of a v3 file.
-TABLES = ("file", "run", "cfgs", "tools", "quantities", "plot", "stats", "report", "cluster", "heimdall")
+TABLES = ("file", "errand", "cfgs", "tools", "quantities", "plot", "stats", "report", "cluster", "heimdall")
 #: v2 tables a v3 file may not have: where their content goes.
 V2_TABLES = {"config": "[file]", "static": "each quantity's fixed (a configuration's own: fixed = { q = tag })",
              "prelim": "nothing: FIFOs and files are inferred from the chain (keep = false on a scratch file's producer; "
-                       "[run] commands for per-point commands)"}
+                       "[errand] commands for per-point commands)"}
 #: v2 keys renamed in v3, per table: the v2 name → the v3 name.
 RUN_RENAMED = {"configuration": "run", "event_count": "events", "tools": "chain", "sweeps": "vary",
                "seed_type": "seed", "manual_seed": "seed"}
@@ -49,13 +49,27 @@ QUANTITY_RENAMED = {"tags": "points", "labels": "points", "styles": "points", "k
 MARK, FAMILY, KEEP, SILENT = "_v3", "_family", "_keep", "_silent"
 
 
+#: What refuses an old name: the one command that rewrites it.
+NAMES_HINT = "heimdall migrate --names rewrites it"
+
+
+def refuse_old_names(raw: dict, where: str) -> None:
+    """A file in the names before I-112 ([run], [errand].project): refused, with the command that rewrites it."""
+    if "run" in raw:
+        raise HeimdallError("[run] is now [errand] (I-112's names)", where=f"{where}: [run]", hint=NAMES_HINT)
+    errand = raw.get("errand")
+    if isinstance(errand, dict) and "project" in errand:
+        raise HeimdallError("[errand].project is now [errand].assignment (I-112's names)", where=f"{where}: [errand].project",
+                            hint=NAMES_HINT)
+
+
 def is_v3(raw: dict) -> bool:
-    """A v3 file: [file] (unless it says schema = 2), [cfgs], or a [run] with a chain."""
+    """A v3 file: [file] (unless it says schema = 2), [cfgs], or an [errand] with a chain."""
     file = raw.get("file")
     if isinstance(file, dict) and file.get("schema") == 2:
         return False
-    run = raw.get("run")
-    return "file" in raw or "cfgs" in raw or (isinstance(run, dict) and "chain" in run)
+    errand = raw.get("errand")
+    return "file" in raw or "cfgs" in raw or (isinstance(errand, dict) and "chain" in errand)
 
 
 def _refuse_renamed(table: dict, renamed: dict, where: str) -> None:
@@ -89,9 +103,9 @@ def count_name(n) -> str:
 
 
 def _run(table: dict, where: str) -> tuple[dict, dict]:
-    """[run] → v2 [run] and the [prelim] its commands make."""
+    """[errand] → v2 [errand] and the [prelim] its commands make."""
     if not isinstance(table, dict):
-        raise HeimdallError("[run] is a table", where=where)
+        raise HeimdallError("[errand] is a table", where=where)
     _refuse_renamed(table, RUN_RENAMED, where)
     if "cfgs" in table:
         raise HeimdallError("configurations are [cfgs.<name>] at the top level in a v3 file", where=f"{where}.cfgs")
@@ -101,7 +115,7 @@ def _run(table: dict, where: str) -> tuple[dict, dict]:
             out["configuration"] = value
         elif key == "events":
             if isinstance(value, list):
-                raise HeimdallError("[run].events is one count; a configuration's may be a list (one folder per count)",
+                raise HeimdallError("[errand].events is one count; a configuration's may be a list (one folder per count)",
                                where=f"{where}.events")
             out["event_count"] = value
         elif key == "chain":
@@ -297,7 +311,7 @@ def _compounds(out: dict, compound: dict[str, list[str]]) -> None:
             else:
                 result.append(entry)
         return result
-    tables = [out.get("run", {}), *out.get("run", {}).get("cfgs", {}).values()]
+    tables = [out.get("errand", {}), *out.get("errand", {}).get("cfgs", {}).values()]
     for table in tables:
         if "sweeps" in table:
             table["sweeps"] = swept(table["sweeps"])
@@ -310,6 +324,7 @@ def _compounds(out: dict, compound: dict[str, list[str]]) -> None:
 
 def translate(raw: dict, where: str) -> dict:
     """A v3 file's tables as v2's (see the module's text), marked for the parser."""
+    refuse_old_names(raw, where)
     for table in raw:
         if table in V2_TABLES:
             raise HeimdallError(f"[{table}] is the v2 form: this file is v3, where it is {V2_TABLES[table]}",
@@ -325,8 +340,8 @@ def translate(raw: dict, where: str) -> dict:
         if config:
             out["config"] = config
     prelim: dict = {}
-    if "run" in raw:
-        out["run"], prelim = _run(raw["run"], f"{where}: [run]")
+    if "errand" in raw:
+        out["errand"], prelim = _run(raw["errand"], f"{where}: [errand]")
     cfgs: dict = {}
     for name, table in raw.get("cfgs", {}).items():
         for key, cfg in _cfg(name, table, f"{where}: [cfgs.{name}]").items():
@@ -337,7 +352,7 @@ def translate(raw: dict, where: str) -> dict:
             raise HeimdallError(f"'{cfg['extends']}' has several event counts: a configuration cannot extend it",
                            where=f"{where}: [cfgs.{key}].extends", hint="extend a configuration of one count")
     if cfgs:
-        out.setdefault("run", {})["cfgs"] = cfgs
+        out.setdefault("errand", {})["cfgs"] = cfgs
     if "tools" in raw:
         out["tools"] = {name: _tool(name, table, f"{where}: [tools.{name}]") for name, table in raw["tools"].items()}
     static: dict = {}
@@ -382,8 +397,8 @@ _V2_OF_TOOL = {"card": "baseconfig", "output": "output_file", "uses": "tool"}
 
 def v2_path(dotted: str) -> str:
     """A dotted key in v3's names (an import's `only`, `drop`) as the tables read as v2 have it:
-    cfgs.pdf → run.cfgs.pdf, file.vars.x → config.vars.x, run.events → run.event_count, tools.rivet.output
-    → tools.rivet.output_file, cfgs.pdf.folder → run.cfgs.pdf.label, quantities.pdf.fixed → static.pdf."""
+    cfgs.pdf → errand.cfgs.pdf, file.vars.x → config.vars.x, errand.events → errand.event_count, tools.rivet.output
+    → tools.rivet.output_file, cfgs.pdf.folder → errand.cfgs.pdf.label, quantities.pdf.fixed → static.pdf."""
     parts = dotted.strip().split(".")
     head = parts[0]
     if head == "file":
@@ -391,8 +406,8 @@ def v2_path(dotted: str) -> str:
     if head == "cfgs":
         if len(parts) >= 3:
             parts[2] = _V2_OF_CFG.get(parts[2], parts[2])
-        return ".".join(["run", *parts])
-    if head == "run" and len(parts) >= 2:
+        return ".".join(["errand", *parts])
+    if head == "errand" and len(parts) >= 2:
         parts[1] = _V2_OF_RUN.get(parts[1], parts[1])
     elif head == "tools" and len(parts) >= 3:
         parts[2] = _V2_OF_TOOL.get(parts[2], parts[2])
@@ -401,4 +416,4 @@ def v2_path(dotted: str) -> str:
     return ".".join(parts)
 
 
-__all__ = ["count_name", "is_v3", "translate", "v2_path"]
+__all__ = ["NAMES_HINT", "count_name", "is_v3", "refuse_old_names", "translate", "v2_path"]

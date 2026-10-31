@@ -6,10 +6,10 @@
 # dis_ep.herwig.in is DIS, not photoproduction: it checks the tool folder (read cached as a
 # prepare step, run into the FIFO, the count check), not physics against jets.toml.
 
-[run]
+[errand]
 serial        = 5
 name          = "herwig"
-project       = "Demo"
+assignment    = "Demo"
 run           = "single"
 events        = 2_000
 threads       = 1

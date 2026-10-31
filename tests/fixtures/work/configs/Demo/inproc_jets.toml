@@ -1,6 +1,6 @@
 # inproc_jets.toml — jets.toml with Pythia and Rivet in one process (InprocJets, V33).
 #
-#   hep run Demo/inproc_jets                the configuration named in [run] (pdf)
+#   hep run Demo/inproc_jets                the configuration named in [errand] (pdf)
 #   hep run Demo/inproc_jets energy_pdf     another one
 #   hep run Demo/inproc_jets radius --plan  look before running
 #
@@ -29,10 +29,10 @@
 #     (00/B27). The `pthatmin` configuration measures that.
 #   * photo_eic's ETMIN/ETMIN2 defaults are 17/21 GeV in the source (its .info still says 5/10).
 
-[run]
+[errand]
 serial        = 1
 name          = "inproc_jets"
-project       = "Demo"
+assignment    = "Demo"
 run           = "pdf"
 events        = 1_000_000
 threads       = 12            # Pythia's; as jets.toml, so the same seeds (10 + 14 Rivets is 7% faster)

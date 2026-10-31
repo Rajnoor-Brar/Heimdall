@@ -94,14 +94,14 @@ def test_a_declared_quantity_reaches_its_tool_in_a_run(roots):
     script.write_text('#!/usr/bin/env python3\nimport sys\nopen(sys.argv[2], "w").write(open(sys.argv[1]).read())\n',
                       encoding="utf-8")
     script.chmod(0o755)
-    (work / "configs" / "P" / "c.toml").write_text(f"""[run]
+    (work / "configs" / "P" / "c.toml").write_text(f"""[errand]
 name = "c"
-project = "P"
+assignment = "P"
 configuration = "one"
 event_count = 1
 threads = 1
 
-[run.cfgs.one]
+[errand.cfgs.one]
 tools  = ["fit"]
 sweeps = ["window"]
 

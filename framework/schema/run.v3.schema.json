@@ -11,7 +11,7 @@
      "type": "string"
     },
     "import": {
-     "description": "run TOMLs whose tables this one starts from, in order; this file wins (V56, V93, V94)\n\nrun TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own imports come first, depth-first; a circle is refused. Another project's file keeps its bare paths (cards, filters, styles, executables) its own project's, so its tools plan as they do in it. The file that imports sets its own `[run].name` and `project`; no folder of its configurations may be an imported run's (V100). An entry may be `{ from = \"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where each quantity, tool and configuration came from.",
+     "description": "run TOMLs whose tables this one starts from, in order; this file wins (V56, V93, V94)\n\nrun TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and `[errand]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own imports come first, depth-first; a circle is refused. Another project's file keeps its bare paths (cards, filters, styles, executables) its own project's, so its tools plan as they do in it. The file that imports sets its own `[errand].name` and `assignment`; no folder of its configurations may be an imported run's (V100). An entry may be `{ from = \"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where each quantity, tool and configuration came from.",
      "type": [
       "string",
       "array"
@@ -45,19 +45,19 @@
    },
    "additionalProperties": false
   },
-  "run": {
+  "errand": {
    "type": "object",
    "properties": {
     "name": {
      "description": "the run's folder: <project>/<name>/\n\nthe run's directory name",
      "type": "string"
     },
-    "project": {
-     "description": "the project; a config under configs/<X>/ belongs to X\n\nthe subfolder of `configs/`, `modules/`, `records/`, `results/`; must equal the folder the file is in, when it is under `configs/`",
+    "assignment": {
+     "description": "the assignment; a config under configs/<X>/ belongs to X\n\nthe subfolder of `configs/`, `modules/`, `records/`, `results/`; must equal the folder the file is in, when it is under `configs/`",
      "type": "string"
     },
     "run": {
-     "description": "the configuration heimdall run runs (required unless sweep_runs)\n\nmust name a `[run.cfgs.<cfg>]` table (C2). Under `sweep_runs` it may be left out; `heimdall run <config>` then ignores it",
+     "description": "the configuration heimdall run runs (required unless sweep_runs)\n\nmust name an `[errand.cfgs.<cfg>]` table (C2). Under `sweep_runs` it may be left out; `heimdall run <config>` then ignores it",
      "type": "string"
     },
     "serial": {
@@ -201,7 +201,7 @@
       "type": "string"
      },
      "serial": {
-      "description": "this configuration's NN_ (else [run]'s)\n\noverrides `[run].serial` for this configuration: its points go to `<P>/<run name>/NN_<label>/` (V45)",
+      "description": "this configuration's NN_ (else [errand]'s)\n\noverrides `[errand].serial` for this configuration: its points go to `<P>/<run name>/NN_<label>/` (V45)",
       "anyOf": [
        {
         "type": "integer"
@@ -212,7 +212,7 @@
       ]
      },
      "name": {
-      "description": "this configuration's run folder (else [run].name)\n\nthe run folder above this configuration's: `<P>/<name>/NN_<label>/` (V46)",
+      "description": "this configuration's run folder (else [errand].name)\n\nthe run folder above this configuration's: `<P>/<name>/NN_<label>/` (V46)",
       "type": "string"
      },
      "folder": {
@@ -220,7 +220,7 @@
       "type": "string"
      },
      "title": {
-      "description": "the run NN - <title> - header of a sweep\n\nthe header line of the run under `[run].sweep_runs`: `run 02 - <title> -` (04 §4.1)",
+      "description": "the run NN - <title> - header of a sweep\n\nthe header line of the run under `[errand].sweep_runs`: `run 02 - <title> -` (04 §4.1)",
       "type": "string"
      },
      "description": {
@@ -228,7 +228,7 @@
       "type": "string"
      },
      "tag": {
-      "description": "this configuration's folder's tag when a run gives none and it has none (else [run]'s); \"\": none\n\nthe tag a run gives this configuration's folder (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `\"\"` gives none over `[run]`'s. Never part of a point's identity",
+      "description": "this configuration's folder's tag when a run gives none and it has none (else [errand]'s); \"\": none\n\nthe tag a run gives this configuration's folder (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `\"\"` gives none over `[errand]`'s. Never part of a point's identity",
       "type": "string"
      },
      "events": {
@@ -240,7 +240,7 @@
       ]
      },
      "threads": {
-      "description": "threads per generator (else [run]'s); 0 = every core\n\n`0` = every core",
+      "description": "threads per generator (else [errand]'s); 0 = every core\n\n`0` = every core",
       "anyOf": [
        {
         "type": "integer",
@@ -252,7 +252,7 @@
       ]
      },
      "parallelism": {
-      "description": "points run at once (else [run]'s); \"auto\": cores ÷ a point's cores (V75)\n\npoints at once (`\"auto\"`: cores ÷ a point's cores, V75); `--plan` and the run's title say about how many cores that is, and warn past the machine's",
+      "description": "points run at once (else [errand]'s); \"auto\": cores ÷ a point's cores (V75)\n\npoints at once (`\"auto\"`: cores ÷ a point's cores, V75); `--plan` and the run's title say about how many cores that is, and warn past the machine's",
       "anyOf": [
        {
         "type": [
@@ -270,7 +270,7 @@
       ]
      },
      "plot": {
-      "description": "as [run].plot, for this configuration: true, false, or the sets it draws (V167)\n\nthe plot follow-up for this configuration (V167): `true`, `false`, or the sets it draws, so that sets defined once for the file are each drawn by the configurations they fit",
+      "description": "as [errand].plot, for this configuration: true, false, or the sets it draws (V167)\n\nthe plot follow-up for this configuration (V167): `true`, `false`, or the sets it draws, so that sets defined once for the file are each drawn by the configurations they fit",
       "anyOf": [
        {
         "type": [
@@ -287,7 +287,7 @@
       ]
      },
      "stats": {
-      "description": "as [run].stats, for this configuration: true, false, or the sets it measures (V168)",
+      "description": "as [errand].stats, for this configuration: true, false, or the sets it measures (V168)",
       "anyOf": [
        {
         "type": [
@@ -2105,7 +2105,7 @@
      "description": "which runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe runs together's `[from]`: written into `results/<P>/<name>/plot.toml` over its defaults (every run, `prefer = \"last\"`) when a run writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"
     },
     "draw": {
-     "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[run].plot`'s list here. A name no set has is refused",
+     "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[errand].plot`'s list here. A name no set has is refused",
      "type": "array",
      "items": {
       "type": "string"
@@ -3284,7 +3284,7 @@
           "description": "which runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe runs together's `[from]`: written into `results/<P>/<name>/plot.toml` over its defaults (every run, `prefer = \"last\"`) when a run writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"
          },
          "draw": {
-          "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[run].plot`'s list here. A name no set has is refused",
+          "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[errand].plot`'s list here. A name no set has is refused",
           "type": "array",
           "items": {
            "type": "string"

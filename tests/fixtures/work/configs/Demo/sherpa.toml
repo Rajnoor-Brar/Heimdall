@@ -8,10 +8,10 @@
 # Sherpa key and would be refused as unconsumed (C7). The card's DIFFERS notes say where the two
 # generators' setups cannot be matched.
 
-[run]
+[errand]
 serial        = 4
 name          = "sherpa"
-project       = "Demo"
+assignment    = "Demo"
 run           = "single"
 events        = 5_000
 threads       = 1                   # Sherpa runs one process per point

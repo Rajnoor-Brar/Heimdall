@@ -31,7 +31,7 @@ TYPES = {"int": int, "float": (int, float), "str": str, "bool": bool, "list": li
 NAMES = {"int": "an integer", "float": "a number", "str": "a string", "bool": "true or false", "list": "a list",
          "table": "a table"}
 #: The tables of run.toml that describe keys (the rest, [sections], describe the file).
-TABLES = ("config", "run", "configuration", "prelim", "quantity", "tool", "plot", "figure", "data", "across_from", "stats",
+TABLES = ("config", "errand", "configuration", "prelim", "quantity", "tool", "plot", "figure", "data", "across_from", "stats",
           "cluster")
 #: The tables of report.toml, a report's recipe (configs/<P>/<name>.toml with [report], V207).
 REPORT_TABLES = ("report", "section")
@@ -52,30 +52,30 @@ def spec(name: str = "run") -> dict:
         raise HeimdallError(f"cannot read the schema: {error}", where=str(path(name))) from None
 
 
-#: Configuration keys [run] gives every configuration (V99; they were [run.defaults]'s), besides the
-#: ones the schema marks `inherit` in [run] itself.
+#: Configuration keys [errand] gives every configuration (V99; they were [run.defaults]'s), besides the
+#: ones the schema marks `inherit` in [errand] itself.
 RUN_GIVES = ("tools", "sweeps", "plot_points", "combine", "pre", "post", "generate_cards")
 
 
 #: How a table is named in an error that sends a key to it.
-HOMES = {"run": "[run] (or a configuration)", "configuration": "a configuration ([cfgs.<name>], v2's [run.cfgs.<name>])",
+HOMES = {"errand": "[errand] (or a configuration)", "configuration": "a configuration ([cfgs.<name>], v2's [errand.cfgs.<name>])",
          "quantity": "[quantities.<q>]", "tool": "[tools.<tag>]", "plot": "[plot]", "figure": "a figure ([plot.figures.<f>])",
          "data": "[plot.data]", "across_from": "[plot.across_from]", "cluster": "[cluster]", "config": "[file] (v2's [config])", "prelim": "[prelim] (v2)"}
 #: v3's own keys (runner/v3.py), where they belong.
-V3_HOMES = {"events": "[run] (or a configuration)", "chain": "[run] (or a configuration)", "vary": "a configuration (or [run])",
-            "seed": "[run] (or a configuration)", "run": "[run]", "commands": "[run]", "folder": "a configuration",
+V3_HOMES = {"events": "[errand] (or a configuration)", "chain": "[errand] (or a configuration)", "vary": "a configuration (or [errand])",
+            "seed": "[errand] (or a configuration)", "run": "[errand]", "commands": "[errand]", "folder": "a configuration",
             "fixed": "a quantity, or a configuration's fixed = { q = tag }", "points": "[quantities.<q>]",
             "to": "[quantities.<q>]", "fields": "[quantities.<q>]", "card": "[tools.<tag>]", "output": "[tools.<tag>]",
             "uses": "[tools.<tag>]", "keep": "[tools.<tag>]"}
 
 
 def home_of(key: str, here: str) -> str:
-    """Where a key that is unknown in table `here` belongs: "threads belongs in [run] (or a configuration)",
+    """Where a key that is unknown in table `here` belongs: "threads belongs in [errand] (or a configuration)",
     or "" when no other table has it."""
     tables = [t for t in spec() if t not in ("sections", here) and key in keys(t)]
-    if here in ("run", "configuration"):
-        tables = [t for t in tables if t not in ("run", "configuration")]
-    if "run" in tables and "configuration" in tables:
+    if here in ("errand", "configuration"):
+        tables = [t for t in tables if t not in ("errand", "configuration")]
+    if "errand" in tables and "configuration" in tables:
         tables.remove("configuration")
     homes = [HOMES.get(t, f"[{t}]") for t in tables]
     if not homes and key in V3_HOMES:
@@ -94,9 +94,9 @@ def keys(table: str) -> dict[str, dict]:
     if table == "plot":
         return {k: e | {"native_ok": True} if e.get("page") and e.get("default_ok") else e
                 for k, e in spec().get("plot", {}).items()}
-    if table == "run":
+    if table == "errand":
         given = {k: {**spec()["configuration"][k], "inherit": True} for k in RUN_GIVES}
-        return spec().get("run", {}) | given
+        return spec().get("errand", {}) | given
     if table in REPORT_TABLES:
         return spec("report").get(table, {})
     return spec().get(table, {})
@@ -127,7 +127,7 @@ def check(values: dict, table: str, where: str, *, subtables: bool = False, extr
           only: tuple[str, ...] = ()) -> dict:
     """Unknown keys are errors (C1) and known keys have their type, choices and bounds. Returns the keys
     the schema does not know when `extra` (a tool's folder options); `subtables` lets a table-valued key
-    the schema does not know through (a configuration inside [run]); `only` restricts the known keys."""
+    the schema does not know through (a configuration inside [errand]); `only` restricts the known keys."""
     known = {k: v for k, v in keys(table).items() if not only or k in only}
     extras = {}
     for key, value in values.items():
@@ -141,7 +141,7 @@ def check(values: dict, table: str, where: str, *, subtables: bool = False, extr
             raise HeimdallError(f"unknown key '{key}'", where=where,
                            hint=home_of(key, table) or did_you_mean(key, known) or f"known keys: {', '.join(known)}")
         if subtables and isinstance(value, dict) and "table" not in entry["type"].split("|"):
-            continue                                       # a configuration named like a key ([run.threads])
+            continue                                       # a configuration named like a key ([errand.threads])
         check_value(key, value, entry, f"{where}.{key}" if not where.endswith("]") else f"{where}.{key}")
     return extras
 
@@ -225,7 +225,7 @@ def _json_key(entry: dict) -> dict:
 def _object(table: str, open_: bool = False) -> dict:
     properties = {k: _json_key(v) for k, v in keys(table).items()}
     required = [k for k, v in keys(table).items() if v.get("required")
-                and not (table in ("run", "configuration") and k in RUN_GIVES)]   # given by [run] or a configuration
+                and not (table in ("errand", "configuration") and k in RUN_GIVES)]   # given by [errand] or a configuration
     return {"type": "object", "properties": properties, **({"required": required} if required else {}),
             "additionalProperties": open_}
 
@@ -254,8 +254,8 @@ def _tools_v2() -> dict:
 def json_schema() -> dict:
     """run.schema.json: the run TOML for an editor (Even Better TOML / Taplo, `#:schema` or settings)."""
     configuration = _object("configuration")
-    run = _object("run")
-    run["properties"]["cfgs"] = {"type": "object", "additionalProperties": configuration}   # [run.cfgs.<cfg>] (V98)
+    errand = _object("errand")
+    errand["properties"]["cfgs"] = {"type": "object", "additionalProperties": configuration}   # [errand.cfgs.<cfg>] (V98)
     figure = _object("figure")
     plot = _object("plot")
     plot["properties"]["figures"] = {"type": "object", "additionalProperties": figure}
@@ -272,7 +272,7 @@ def json_schema() -> dict:
         "title": "heimdall run TOML (generated from framework/schema/run.toml)",
         "type": "object",
         "properties": {
-            "config": _object("config"), "run": run, "prelim": _object("prelim"),
+            "config": _object("config"), "errand": errand, "prelim": _object("prelim"),
             "static": {"type": "object", "description": "quantity = a tag, a value or \"#N\"",
                        "additionalProperties": {"type": ["string", "number", "boolean", "array"]}},
             "tools": _tools_v2(),
@@ -282,7 +282,7 @@ def json_schema() -> dict:
             "report": report,
             "cluster": _object("cluster"),
         },
-        "required": ["run"],
+        "required": ["errand"],
         "additionalProperties": False,
     }
 
@@ -303,7 +303,7 @@ def json_schema_v3() -> dict:
     events = {"description": "events per point; a configuration's may be a list: one configuration per count",
               "type": ["integer", "number", "array"]}
     names = {"configuration": "run", "event_count": "events", "tools": "chain", "sweeps": "vary"}
-    run = _renamed("run", names, drop=("cfgs", "seed_type", "manual_seed"),
+    errand = _renamed("errand", names, drop=("cfgs", "seed_type", "manual_seed"),
                    extra={"seed": seed, "events": events,
                           "commands": {"type": "array", "description": "run in each point's folder before its tools"}})
     cfg = _renamed("configuration", {**names, "label": "folder", "static": "fixed"}, drop=("seed_type", "manual_seed", "prelim"),
@@ -329,7 +329,7 @@ def json_schema_v3() -> dict:
         "properties": {
             "file": {**_object("config"), "properties": {**_object("config")["properties"],
                                                          "schema": {"const": 3, "description": "the form: 3 (2 keeps a file v2)"}}},
-            "run": run, "cfgs": {"type": "object", "additionalProperties": cfg},
+            "errand": errand, "cfgs": {"type": "object", "additionalProperties": cfg},
             "tools": {"type": "object", "properties": by_name, "additionalProperties": tool},
             "quantities": {"type": "object", "additionalProperties": quantity},
             "plot": v2["properties"]["plot"], "stats": v2["properties"]["stats"], "report": v2["properties"]["report"],

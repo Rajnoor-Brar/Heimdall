@@ -57,7 +57,7 @@ lab PC says:
    ```
 2. **Plan it** with its seed pinned (the fixture's `inproc_validation.toml` already asks for 12 threads):
    ```bash
-   SETS=(--set 'run.cfgs.default.threads=12' --set 'run.cfgs.default.seed_type="manual"' --set 'run.cfgs.default.manual_seed=246223968')
+   SETS=(--set 'errand.cfgs.default.threads=12' --set 'errand.cfgs.default.seed_type="manual"' --set 'errand.cfgs.default.manual_seed=246223968')
    heimdall run Demo/inproc_validation default --points NNPDF23lo "${SETS[@]}" --plan
    ```
    **The setup is the same:** diff the point card and the program's config against the kept ones.

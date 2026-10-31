@@ -37,7 +37,7 @@ def test_a_run_writes_only_its_work_dir(scratch):
     before = checkout_state()
     root.chmod(0o555)
     try:
-        done = subprocess.run([str(HEIMDALL), "run", "Demo/jets", "single", "--set", "run.events=200", "--set", "run.threads=1",
+        done = subprocess.run([str(HEIMDALL), "run", "Demo/jets", "single", "--set", "errand.events=200", "--set", "errand.threads=1",
                                "--plain"], cwd=WORK, env=environment, capture_output=True, text=True, encoding="utf-8",
                               errors="replace", timeout=1800)
     finally:

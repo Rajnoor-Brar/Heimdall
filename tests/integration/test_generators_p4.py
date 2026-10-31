@@ -36,7 +36,7 @@ def xsec(path: Path) -> tuple[float, float]:
 
 @pytest.mark.skipif(not shutil.which("DelphesHepMC3"), reason="gjallarhorn: DelphesHepMC3")
 def test_delphes_file_chain_counts_every_event(scratch):
-    heimdall_run(scratch, "Demo/jets", "delphes", "--set", "run.events=1000", "--set", "run.threads=2", "--keep", "work")
+    heimdall_run(scratch, "Demo/jets", "delphes", "--set", "errand.events=1000", "--set", "errand.threads=2", "--keep", "work")
     run = folder("Demo/jets", "delphes")
     work, products = support.point_logs(scratch, run, "point"), support.point_results(scratch, run, "point")
     written = json.loads((work / "showered.hepmc.json").read_text(encoding="utf-8", errors="replace"))["written"]
@@ -57,7 +57,7 @@ def test_sherpa_sigma_matches_v1_and_the_integration_is_cached(scratch):
 @pytest.mark.skipif(not shutil.which("Herwig") or not (apps() / "Herwig" / "HerwigDefaults.rpo").exists(),
                     reason="gjallarhorn and heimdall build --framework: Herwig and its repository")
 def test_herwig_sigma_is_its_own_and_the_run_file_is_shared(scratch):
-    heimdall_run(scratch, "Demo/herwig", "--set", "run.events=500", "--keep", "work")     # Herwig's .out is read (V149)
+    heimdall_run(scratch, "Demo/herwig", "--set", "errand.events=500", "--keep", "work")     # Herwig's .out is read (V149)
     point = support.point_logs(scratch, folder("Demo/herwig"), "point")
     report = next(point.glob("point-S*.out")).read_text(encoding="utf-8", errors="replace")
     stated = re.search(r"Total \(from generated events\):\s+(\d+)\s+\d+\s+([\d.]+)\((\d+)\)e([+-]\d+)", report)
@@ -75,9 +75,9 @@ def test_herwig_sigma_is_its_own_and_the_run_file_is_shared(scratch):
 def test_a_point_is_reproduced_from_its_provenance(scratch):
     """V77: heimdall reproduce runs a finished point again (its --set overrides too) beside it, and its
     products hold the same values (a sharded Rivet's bytes differ: merge order)."""
-    heimdall_run(scratch, "Demo/jets", "single", "--set", "run.events=400", "--set", "run.threads=2")
+    heimdall_run(scratch, "Demo/jets", "single", "--set", "errand.events=400", "--set", "errand.threads=2")
     provenance = support.point_records(scratch, folder("Demo/jets", "single"), "point") / "provenance.json"
-    assert json.loads(provenance.read_text(encoding="utf-8"))["sets"] == ["run.events=400", "run.threads=2"]
+    assert json.loads(provenance.read_text(encoding="utf-8"))["sets"] == ["errand.events=400", "errand.threads=2"]
     done = support.heimdall(scratch, provenance, command="reproduce")
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     assert "jets.yoda: the same values" in done.stdout or "jets.yoda: identical" in done.stdout

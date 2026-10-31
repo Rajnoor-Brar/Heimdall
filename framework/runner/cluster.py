@@ -15,7 +15,7 @@ identity or a seed, so a point run as a job equals the same point run by hand.
 
 [cluster] comes in layers, lowest first: the machine root's machine.toml (this machine's defaults for
 every work dir: account, partition, setup lines), the work dir's heimdall.toml, the run TOML's (imports merge
-it key by key), the configuration's ([run.cfgs.<cfg>].cluster), and --set cluster.<key>=…; `time`
+it key by key), the configuration's ([errand.cfgs.<cfg>].cluster), and --set cluster.<key>=…; `time`
 must be in one of them.
 
 The nodes see Heimdall and the work dir on a shared filesystem: each job sources Heimdall's gjallarhorn.sh

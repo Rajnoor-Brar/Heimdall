@@ -29,13 +29,18 @@ and layout stay:
   and config), in each configuration whose chain runs that table, or in [run] when every one does;
   `{std:<key>}` → `{context:<tag>.<card or product>}`.
 
+* (I-112) `[run]` → `[errand]`, `[run].project` → `[errand].assignment` (`errand_text`), first: the functions
+  above read today's names (`[errand.<cfg>]`, `[errand.defaults]`).
+
 `heimdall migrate --names [--apply]` (I-109, V213) is a work dir's own: Heimdall's old names in its files
-(`names_changes`), its marker `hep.toml` → `heimdall.toml` first.
+(`names_changes`), its marker `hep.toml` → `heimdall.toml` first; then I-112's (`errand_changes`): its configs, its
+records' snapshots and provenance, its plot documents' [source].
 """
 
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import re
 import shutil
@@ -70,14 +75,15 @@ def _slug(glob: str, taken: set) -> str:
     return name
 
 
-_RUN_TABLE = re.compile(r"^(\s*#*\s*)\[\s*run\.([A-Za-z0-9_\-]+)((?:\.[A-Za-z0-9_\-]+)*)\s*\](.*)$", re.S)
+_RUN_TABLE = re.compile(r"^(\s*#*\s*)\[\s*errand\.([A-Za-z0-9_\-]+)((?:\.[A-Za-z0-9_\-]+)*)\s*\](.*)$", re.S)
 
 
 def cfgs_text(text: str) -> str:
-    """[run.<cfg>] as [run.cfgs.<cfg>] (V98), by line: a table header (or a commented-out one) under
-    [run] that is not one of [run]'s own keys, `defaults` (V99's to move) or `cfgs`."""
+    """[run.<cfg>] as [run.cfgs.<cfg>] (V98), by line, in today's names ([errand.<cfg>] as [errand.cfgs.<cfg>],
+    after errand_text): a table header (or a commented-out one) under [errand] that is not one of [errand]'s own
+    keys, `defaults` (V99's to move) or `cfgs`."""
     from . import schema
-    own = set(schema.keys("run")) | {"defaults", "cfgs"}
+    own = set(schema.keys("errand")) | {"defaults", "cfgs"}
     out = []
     for line in text.splitlines(keepends=True):
         match = _RUN_TABLE.match(line)
@@ -86,19 +92,19 @@ def cfgs_text(text: str) -> str:
             pad = len(tail) - len(tail.lstrip(" "))
             if pad and tail.lstrip(" ").startswith("#"):             # a comment after it keeps its column
                 tail = " " * max(1, pad - len("cfgs.")) + tail.lstrip(" ")
-            line = f"{match[1]}[run.cfgs.{match[2]}{match[3]}]{tail}"
+            line = f"{match[1]}[errand.cfgs.{match[2]}{match[3]}]{tail}"
         out.append(line)
     return "".join(out)
 
 
 def defaults_text(text: str) -> str:
-    """[run.defaults]'s keys into [run] (V99), by line: the block is taken out (its header and its
-    lines up to the next table) and its lines go after [run]'s own; a key [run] sets too loses [run]'s
-    line, since [run.defaults] was the nearer layer."""
+    """[run.defaults]'s keys into [run] (V99), by line, in today's names ([errand.defaults] into [errand]): the
+    block is taken out (its header and its lines up to the next table) and its lines go after [errand]'s own; a
+    key [errand] sets too loses [errand]'s line, since [errand.defaults] was the nearer layer."""
     lines = text.splitlines(keepends=True)
     heads = [i for i, l in enumerate(lines) if _TABLE.match(l)]
-    start = next((i for i in heads if _TABLE.match(lines[i])[1].strip() == "run.defaults"), None)
-    run = next((i for i in heads if _TABLE.match(lines[i])[1].strip() == "run"), None)
+    start = next((i for i in heads if _TABLE.match(lines[i])[1].strip() == "errand.defaults"), None)
+    run = next((i for i in heads if _TABLE.match(lines[i])[1].strip() == "errand"), None)
     if start is None or run is None:
         return text
     end = next((i for i in heads if i > start), len(lines))
@@ -107,7 +113,7 @@ def defaults_text(text: str) -> str:
         block.pop()
     moved = {m[2] for l in block if (m := _KEY.match(l.rstrip("\n")))}
     rest = lines[:start] + lines[end:]
-    run = next(i for i, l in enumerate(rest) if _TABLE.match(l) and _TABLE.match(l)[1].strip() == "run")
+    run = next(i for i, l in enumerate(rest) if _TABLE.match(l) and _TABLE.match(l)[1].strip() == "errand")
     after = next((i for i in range(run + 1, len(rest)) if _TABLE.match(rest[i])), len(rest))
     body = [l for l in rest[run + 1:after] if not ((m := _KEY.match(l.rstrip("\n"))) and m[2] in moved)]
     tail = []
@@ -240,7 +246,7 @@ def toml_text(text: str, run=None, project: str = "") -> str:
     out: list[str] = []
     table = ""
     swept_members = run.runs(None) if run is not None and run.sweep_runs else None
-    has_swept = run is not None and any("swept" in run.raw.get("run", {}).get("cfgs", {}).get(k, {}) for k in run.configurations)
+    has_swept = run is not None and any("swept" in run.raw.get("errand", {}).get("cfgs", {}).get(k, {}) for k in run.configurations)
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -265,10 +271,10 @@ def toml_text(text: str, run=None, project: str = "") -> str:
                 new = _literal(natural(value))
             elif isinstance(value, list) and any(isinstance(v, str) and is_tlatex(v) for v in value):
                 new = "[" + ", ".join(_literal(natural(v)) if isinstance(v, str) else repr(v) for v in value) + "]"
-        elif key == "swept" and table.startswith("run."):
+        elif key == "swept" and table.startswith("errand."):
             i += taken                                     # gone: sweep_runs lists the members
             continue
-        elif key == "sweep_runs" and table == "run" and value is True and has_swept and swept_members:
+        elif key == "sweep_runs" and table == "errand" and value is True and has_swept and swept_members:
             new = "[" + ", ".join(_literal(k) for k in swept_members) + "]"
         elif key == "executable" and table.startswith("tools.") and isinstance(value, str) and run is not None:
             tag = table.split(".", 1)[1].strip('"')
@@ -357,7 +363,7 @@ def _block_end(lines: list[str], header: int) -> int:
 def exports_text(text: str, imported: dict | None = None) -> str:
     """An exec or module table's export keys (`pythia_cmnd = true`, C13) as generate_cards (audit 3,
     phase 4.2): the table each one named, as "<tag>:<product>" when its folder makes it on demand, in
-    every configuration whose chain runs the asking table (in [run] when every configuration does), and
+    every configuration whose chain runs the asking table (in [errand] when every configuration does), and
     `{std:<key>}` as `{context:<tag>.<card or product>}`. By line; the rest of the file is kept. `imported`
     ({tag: tool}) names the tables the file's imports give, which an export key may name too."""
     try:
@@ -404,7 +410,7 @@ def exports_text(text: str, imported: dict | None = None) -> str:
     text = "".join(lines)
     for key, new in renamed.items():
         text = text.replace("{std:" + key + "}", "{context:" + new + "}")
-    run = data.get("run", {})
+    run = data.get("errand", {})
     cfgs = run.get("cfgs", {}) if isinstance(run.get("cfgs"), dict) else {}
 
     def chain_of(name: str, seen=()) -> list[str]:
@@ -427,10 +433,10 @@ def exports_text(text: str, imported: dict | None = None) -> str:
         text = "".join(lines)
     every = list(dict.fromkeys(e for entries in wants.values() for e in entries))
     if not cfgs or (all(needs.values()) and len({tuple(v) for v in needs.values()}) == 1):
-        put("run", next(iter(needs.values())) if cfgs else every)
+        put("errand", next(iter(needs.values())) if cfgs else every)
     else:
         for name, entries in needs.items():
-            put(f"run.cfgs.{name}", entries)
+            put(f"errand.cfgs.{name}", entries)
     return text
 
 
@@ -566,7 +572,7 @@ def _quantity_v3(name: str, block: dict, q: dict, fixed) -> list[str]:
     return out
 
 
-_COMMENTED_CFG = re.compile(r"^(\s*#\s*)\[run\.cfgs\.([^\]]+)\](.*)$")
+_COMMENTED_CFG = re.compile(r"^(\s*#\s*)\[errand\.cfgs\.([^\]]+)\](.*)$")
 _COMMENTED_KEY = re.compile(r"^(\s*#\s*)([A-Za-z_]+)(\s*)=(.*)$")
 
 
@@ -592,15 +598,15 @@ def _commented_cfgs(text: str) -> str:
 
 
 def v3_text(text: str) -> str:
-    """A v2 run TOML in v3's form (03 §6), by table, comments kept: [config] → [file], [run.cfgs.<name>] →
+    """A v2 run TOML in v3's form (03 §6), by table, comments kept: [config] → [file], [errand.cfgs.<name>] →
     [cfgs.<name>], keys renamed, tools typed by their table's name, [prelim] inferred (keep = false on a
-    scratch file's producer; its commands to [run]), [static] into each quantity's fixed, quantities as
+    scratch file's producer; its commands to [errand]), [static] into each quantity's fixed, quantities as
     rows. A v3 file is left as it is."""
     from .v3 import is_v3
     data = tomllib.loads(text)
     if is_v3(data):
         return text
-    run, prelim, static = data.get("run", {}), data.get("prelim", {}), data.get("static", {})
+    run, prelim, static = data.get("errand", {}), data.get("prelim", {}), data.get("static", {})
     cfgs, tool_tables, quantities = run.get("cfgs", {}), data.get("tools", {}), data.get("quantities", {})
     scratch = set(prelim.get("files", []))
     for cfg in cfgs.values():
@@ -628,7 +634,7 @@ def v3_text(text: str) -> str:
         imported in part (only its rivet and merge tables, say) keeps the file's name, which whatever
         the importer runs may write."""
         return any(reader in tags and writer in tags for tags in runs)
-    hoisted = None                                                  # the chain most configurations share: [run]'s
+    hoisted = None                                                  # the chain most configurations share: [errand]'s
     if "tools" not in run and chains:
         common = max(set(chains), key=chains.count)
         if chains.count(common) >= 2:
@@ -640,12 +646,12 @@ def v3_text(text: str) -> str:
         if name is None:
             out += [l for _, chunk in entries for l in chunk]
             continue
-        if name in ("prelim", "static") or (name.startswith("run.cfgs.") and name.endswith(".prelim")):
+        if name in ("prelim", "static") or (name.startswith("errand.cfgs.") and name.endswith(".prelim")):
             continue                                                    # inferred, and into fixed
         if name == "config" or name.startswith("config."):
             header = block["header"].replace("[config", "[file", 1)
             lines = [l for _, chunk in entries for l in chunk]
-        elif name == "run":
+        elif name == "errand":
             header = block["header"]
             for key, chunk in entries:
                 if key in RUN_V3:
@@ -664,8 +670,8 @@ def v3_text(text: str) -> str:
             if prelim.get("commands"):
                 lines.append(f"commands      = {_tv(prelim['commands'])}   # in each point's folder, before its tools\n")
             lines += tail
-        elif name.startswith("run.cfgs."):
-            rest = name[len("run.cfgs."):]
+        elif name.startswith("errand.cfgs."):
+            rest = name[len("errand.cfgs."):]
             cfg_name, _, sub = rest.partition(".")
             sub = "fixed" if sub == "static" else sub
             header = block["header"].replace(f"[{name}]", f"[cfgs.{cfg_name}{'.' + sub if sub else ''}]", 1)
@@ -676,7 +682,7 @@ def v3_text(text: str) -> str:
                 elif key == "prelim":
                     continue
                 elif key == "tools" and hoisted is not None and repr(cfg.get("tools")) == repr(hoisted):
-                    continue                                            # [run]'s chain
+                    continue                                            # [errand]'s chain
                 elif key == "sweeps" and cfg.get("sweeps") == [] and "extends" not in cfg and "sweeps" not in run:
                     continue                                            # the default
                 elif key in CFG_V3:
@@ -996,7 +1002,7 @@ def plan(names: list[str], v3: bool = False) -> dict[Path, tuple[str, str]]:
     changes: dict[Path, tuple[str, str]] = {}
     for name in names:
         text = config_file(name).read_text(encoding="utf-8")
-        first = formerly_text(defaults_text(cfgs_text(config_text(figure_text(placeholder_text(text))))))
+        first = formerly_text(defaults_text(cfgs_text(config_text(figure_text(placeholder_text(errand_text(text)))))))
         given = configmod.load(name, strict=False, text=first)          # the tables its imports give, too
         first = exports_text(first, {tag: tool.tool for tag, tool in given.tools.items()})
         run = configmod.load(name, strict=False, text=first)
@@ -1117,3 +1123,213 @@ def names_changes(work: Path) -> dict[Path, tuple[str, str]]:
             changes[path] = (old, new)
     return changes
 
+
+
+# ── I-112: the result levels' names, <Assignment>/<Errand>/<Run> ────────────────────────────────
+
+#: A table header, or one commented out: `[run]`, `[run.cfgs.pdf]`, `# [[run.x]]` (the `run` at group 3).
+_OLD_HEADER = re.compile(r"^(\s*(?:#+\s*)?)(\[\[?\s*)run(\s*[.\]])")
+#: `[run]`, `[run.…]` anywhere else: a comment's, a string's.
+_OLD_TABLE = re.compile(r"\[run(?=[.\]])")
+#: A key `project` (or `run`, [source]'s), its `=` column: (indent, key, spaces, rest).
+_KEY_PAD = re.compile(r"^(\s*)([A-Za-z_]+)(\s*)(=.*)$", re.S)
+#: Dotted names on command lines and in prose, any file: `--set run.x=`, `heimdall explain run.x`.
+SET_RULES = [(re.compile(a), b) for a, b in (
+    (r"""(--set(?:=|\s+)["']?)run\.""", r"\1errand."),
+    (r"""(\bexplain\s+["']?)run\.""", r"\1errand."),
+    (r"""(\bexplain\s+["']?)\[run\]""", r"\1[errand]"),
+)]
+#: A dotted name in an import's `only` or `drop`: `"run.cfgs.x"` → `"errand.cfgs.x"`, `"run"` → `"errand"`.
+_DOTTED_NAME = re.compile(r"""(["'])run(?=[."'])""")
+#: A report title's placeholders ([source]'s keys).
+PLACEHOLDER_RULES = ((re.compile(r"\{project\}"), "{assignment}"), (re.compile(r"\{run\}"), "{errand}"))
+
+
+def _header(line: str) -> str:
+    """A table header (or a commented one) in today's names, a comment after it in its column when it can be."""
+    new = _OLD_HEADER.sub(r"\1\2errand\3", line)
+    if new != line and (tail := re.match(r"^(.*?\]\]?)( +)(#.*)$", new)):
+        new = tail[1] + " " * max(1, len(tail[2]) - len("errand") + len("run")) + tail[3]
+    return new
+
+
+def _renamed_key(line: str, new: str) -> str:
+    """`key   = value` with its key `new`, its `=` where it was when the spaces allow."""
+    match = _KEY_PAD.match(line)
+    pad = len(match[3]) - (len(new) - len(match[2]))
+    return f"{match[1]}{new}{' ' * max(1, pad) if match[3] else ''}{match[4]}"
+
+
+def _no_strings(text: str) -> str:
+    return re.sub(r'"[^"]*"|\'[^\']*\'', "", text)
+
+
+def _depth(text: str) -> int:
+    """How many brackets a line leaves open (its strings and comment aside)."""
+    bare = _no_strings(text).split("#", 1)[0]
+    return bare.count("[") - bare.count("]")
+
+
+def _only_names(text: str, key: str) -> str:
+    """Dotted names in today's: a drop's or only's whole value; an import's only its `only = [ … ]` (its `from` is
+    a file's name, left as it is)."""
+    if key != "import":
+        return _DOTTED_NAME.sub(r"\1errand", text)
+    return re.sub(r"(\bonly\s*=\s*\[)([^\]]*)", lambda m: m[1] + _DOTTED_NAME.sub(r"\1errand", m[2]), text)
+
+
+def errand_text(text: str) -> str:
+    """A config's text in I-112's names (by line, so comments and layout stay): `[run]` → `[errand]` and every
+    `[run.…]` → `[errand.…]` (its headers, commented ones too, and where a comment names them), `[run].project` →
+    `[errand].assignment` (its key, the `=` column kept), dotted names (a root's `run.x = …`, an import's `only`
+    and `drop`, `--set run.x=`, `heimdall explain run.x`), a report title's `{project}` and `{run}`. Idempotent."""
+    out: list[str] = []
+    table = ""
+    depth, listing, multi = 0, "", None    # a value spread over lines: the brackets it leaves open, its key; a """ string
+    for line in text.splitlines(keepends=True):
+        bare = line.rstrip("\n")
+        end = line[len(bare):]
+        line = bare
+        comment = line.lstrip().startswith("#")
+        value = None
+        if multi:
+            multi = None if line.count(multi) % 2 else multi
+        elif depth > 0:
+            line = _only_names(line, listing) if listing else line
+            depth = max(0, depth + _depth(line))
+            listing = listing if depth else ""
+        elif comment:
+            line = _header(line)
+        elif _TABLE.match(line):
+            line = _header(line)
+            table = _TABLE.match(line)[1].strip()
+        elif (dotted := _DOTTED.match(line)) and table == "" and dotted[2] == "run":      # run.x = … at the root
+            rest = dotted[3]
+            rest = ".assignment" + rest[len(".project"):] if re.match(r"\.project\s*=", rest) else rest
+            line, value = f"{dotted[1]}errand{rest}", rest.split("=", 1)[1]
+        elif (key := _KEY.match(line)):
+            name, value = key[2].strip('"'), key[4]
+            if table == "errand" and name == "project":
+                line = _renamed_key(line, "assignment")
+            elif table == "" and name == "run" and value.lstrip().startswith("{"):          # run = { … }, inline
+                line = key[1] + "errand" + line[len(key[1]) + len(key[2]):]
+                line = re.sub(r"(\{\s*|,\s*)project(\s*=)", r"\1assignment\2", line)
+            elif table in ("config", "file") and name in ("only", "drop", "import"):
+                line = key[1] + key[2] + key[3] + _only_names(value, name)
+                listing = name
+            elif table.startswith("report") and name in ("title", "subtitle"):
+                for pattern, repl in PLACEHOLDER_RULES:
+                    line = pattern.sub(repl, line)
+        if value is not None:
+            multi = next((q for q in ('"""', "'''") if value.count(q) % 2), None)
+            depth = 0 if multi else max(0, _depth(value))
+            listing = listing if depth else ""
+        line = _OLD_TABLE.sub("[errand", line).replace("[errand].project", "[errand].assignment")
+        line = re.sub(r"\b([Aa]) (`?)\[errand", r"\1n \2[errand", line) if comment else line    # a comment's "a [errand]"
+        for pattern, repl in SET_RULES:
+            line = pattern.sub(repl, line)
+        if out and re.search(r"--set\s*$", out[-1]):         # `--set` at a comment's line end, its key on the next
+            line = re.sub(r"^(\s*#\s*[`'\"]?)run\.", r"\1errand.", line)
+        out.append(line + end)
+    return "".join(out)
+
+
+def source_text(text: str) -> str:
+    """A plot document's text in I-112's names: [source].project → assignment, [source].run → errand. Idempotent."""
+    out, table = [], ""
+    for line in text.splitlines(keepends=True):
+        header = _TABLE.match(line)
+        if header:
+            table = header[1].strip()
+        elif table == "source" and (key := _KEY.match(line.rstrip("\n"))) and key[2] in OLD_SOURCE_KEYS:
+            line = _renamed_key(line, OLD_SOURCE_KEYS[key[2]])
+        out.append(line)
+    return "".join(out)
+
+
+#: [source]'s keys before I-112 (plotdoc.OLD_SOURCE, a higher rank's) → today's.
+OLD_SOURCE_KEYS = {"project": "assignment", "run": "errand"}
+
+
+def snapshot_text(text: str, digests: dict[str, str]) -> str:
+    """A record's snapshot.toml after its files were rewritten: each file's sha256 (`digests`: its path → the new
+    one) and its --set overrides in I-112's names; its comment kept."""
+    data = tomllib.loads(text)
+    snap, files = data.get("snapshot", {}), data.get("files", {})
+    sets = [_set_name(s) for s in snap.get("sets", [])]
+    changed = {k: v for k, v in digests.items() if k in files and files[k] != v}
+    if sets == snap.get("sets", []) and not changed:
+        return text
+    snap["sets"] = sets
+    files.update(changed)
+    head = "".join(l for l in text.splitlines(keepends=True)[:1] if l.startswith("#"))
+    return head + tomli_w.dumps(data)
+
+
+def _set_name(item: str) -> str:
+    """One --set override in I-112's names: run.x=… → errand.x=…"""
+    return "errand." + item[len("run."):] if isinstance(item, str) and item.startswith("run.") else item
+
+
+def provenance_text(text: str) -> str:
+    """A point's provenance.json with its --set overrides (`sets`, what reproduces it) in I-112's names, its layout
+    kept: each old override's JSON string replaced in place."""
+    try:
+        sets = json.loads(text).get("sets", [])
+    except (json.JSONDecodeError, AttributeError):
+        return text
+    for item in sets:
+        if _set_name(item) != item:
+            text = text.replace(json.dumps(item, ensure_ascii=False), json.dumps(_set_name(item), ensure_ascii=False), 1)
+            text = text.replace(json.dumps(item), json.dumps(_set_name(item)), 1)
+    return text
+
+
+def errand_changes(work: Path, changes: dict[Path, tuple[str, str]] | None = None) -> dict[Path, tuple[str, str]]:
+    """Each of a work dir's files I-112's names change: its configs (configs/**/*.toml, errand_text), its records'
+    snapshots (records/**/config/: the configs, snapshot.toml's digests and --set overrides) and points' provenance
+    (its --set overrides), its plot documents (results/**/plot.toml, source_text) and folders' report.toml (their
+    title's placeholders); --set and explain lines in its own sources (_sources; never modules/, whose source is
+    its programs' identity). Before and after, added to
+    `changes` (names_changes', which a file's text then starts from)."""
+    changes = {} if changes is None else changes
+
+    def put(path: Path, new_of) -> None:
+        try:
+            old = changes[path][0] if path in changes else path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return
+        now = changes[path][1] if path in changes else old
+        new = new_of(now)
+        if new != old:
+            changes[path] = (old, new)
+        else:
+            changes.pop(path, None)
+
+    def lines_of(text: str) -> str:
+        for pattern, repl in SET_RULES:
+            text = pattern.sub(repl, text)
+        return text
+
+    for path in _sources(work):
+        if path.is_relative_to(work / "modules"):          # a module's source is its programs' identity: left
+            continue
+        put(path, errand_text if path.suffix == ".toml" and path.is_relative_to(work / "configs") else lines_of)
+    records = work / "records"
+    for snapshot in sorted(records.glob("*/*/*/config/snapshot.toml")) if records.is_dir() else ():
+        folder, digests = snapshot.parent, {}
+        for path in sorted(folder.rglob("*.toml")):
+            if path == snapshot or path.is_symlink():
+                continue
+            put(path, errand_text)
+            if path in changes:
+                digests[str(path.relative_to(folder))] = hashlib.sha256(changes[path][1].encode("utf-8")).hexdigest()
+        put(snapshot, lambda text: snapshot_text(text, digests))
+    for provenance in sorted(records.glob("*/*/*/points/*/provenance.json")) if records.is_dir() else ():
+        put(provenance, provenance_text)
+    results = work / "results"
+    for document in sorted(results.rglob("plot.toml")) if results.is_dir() else ():
+        put(document, source_text)
+    for recipe in sorted(results.rglob("report.toml")) if results.is_dir() else ():
+        put(recipe, errand_text)
+    return changes

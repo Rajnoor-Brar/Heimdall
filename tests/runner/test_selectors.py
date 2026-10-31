@@ -23,7 +23,7 @@ def plan_all(data: dict, scratch) -> dict:
 
 
 def test_a_varied_value_no_tool_of_the_point_reads_is_refused(scratch):
-    data = raw(run__cfgs__one__tools=[["@gen", "rivet"]], run__cfgs__one__sweeps=["gen", "pdf"], tools__other=OTHER,
+    data = raw(errand__cfgs__one__tools=[["@gen", "rivet"]], errand__cfgs__one__sweeps=["gen", "pdf"], tools__other=OTHER,
                quantities__gen={"values": ["pythia", "other"], "tags": ["py", "ot"]})
     with pytest.raises(HeimdallError, match=r"ot_MSTW08lo: \[quantities.pdf\] is varied, but no tool of this point reads it "
                                        r"\(other, rivet\)") as refused:
@@ -32,14 +32,14 @@ def test_a_varied_value_no_tool_of_the_point_reads_is_refused(scratch):
 
 
 def test_a_fixed_value_one_alternative_does_not_read_is_accepted(scratch):
-    data = raw(run__cfgs__one__tools=[["@gen", "rivet"]], run__cfgs__one__sweeps=["gen"], tools__other=OTHER,
+    data = raw(errand__cfgs__one__tools=[["@gen", "rivet"]], errand__cfgs__one__sweeps=["gen"], tools__other=OTHER,
                quantities__gen={"values": ["pythia", "other"], "tags": ["py", "ot"]}, static={"pdf": "MSTW08lo"})
     plans = plan_all(data, scratch)
     assert plans["ot"].consumers["pdf"] == [] and [m.tag for m in plans["py"].consumers["pdf"]] == ["pythia"]
 
 
-SWITCH = """[run]
-project = "Demo"
+SWITCH = """[errand]
+assignment = "Demo"
 name    = "switch"
 run     = "all"
 events  = 10
@@ -110,8 +110,8 @@ def test_a_set_naming_a_compound_names_all_its_fields(scratch):
 
 # ── one pdf for every generator (V152) ────────────────────────────────────────────────────────
 
-PDFS = """[run]
-project = "Demo"
+PDFS = """[errand]
+assignment = "Demo"
 name    = "pdfs"
 run     = "all"
 events  = 10
@@ -180,8 +180,8 @@ def test_one_pdf_quantity_feeds_every_generator_in_its_own_spelling(scratch):
 
 # ── a selector's value may be a piece of chain (V153) ─────────────────────────────────────────
 
-PIECES = """[run]
-project = "Demo"
+PIECES = """[errand]
+assignment = "Demo"
 name    = "pieces"
 run     = "all"
 events  = 10
@@ -305,9 +305,9 @@ PT0 = {"values": [3.0, 3.4], "tags": ["p30", "p34"], "key": {"pythia": "Multipar
 
 
 def listed(rows: list, **changes) -> dict:
-    return raw(run__cfgs__one__tools=[["@gen", "rivet"]], tools__other=OTHER, quantities__pdf=None,
+    return raw(errand__cfgs__one__tools=[["@gen", "rivet"]], tools__other=OTHER, quantities__pdf=None,
                quantities__gen={"values": ["pythia", "other"], "tags": ["py", "ot"]}, quantities__pt0ref=PT0,
-               run__cfgs__one__sweeps=[{"points": rows}], **changes)
+               errand__cfgs__one__sweeps=[{"points": rows}], **changes)
 
 
 def test_listed_points_set_some_quantities_each(scratch):
@@ -330,7 +330,7 @@ def test_listed_points_set_some_quantities_each(scratch):
 def test_listed_points_are_checked_with_the_file(scratch, rows, sweeps, message):
     data = listed(rows)
     if sweeps:
-        data["run"]["cfgs"]["one"]["sweeps"] = sweeps + data["run"]["cfgs"]["one"]["sweeps"]
+        data["errand"]["cfgs"]["one"]["sweeps"] = sweeps + data["errand"]["cfgs"]["one"]["sweeps"]
     with pytest.raises(HeimdallError, match=message):
         parse(data, scratch)
 
@@ -338,7 +338,7 @@ def test_listed_points_are_checked_with_the_file(scratch, rows, sweeps, message)
 def test_a_page_axis_may_be_one_quantity_of_listed_points(scratch):
     from runner import plot, record
     rows = [{"gen": "py", "pt0ref": "p30"}, {"gen": "py", "pt0ref": "p34"}, {"gen": "ot"}]
-    run = parse(listed(rows, run__cfgs__one__plot_points=["gen"]), scratch)
+    run = parse(listed(rows, errand__cfgs__one__plot_points=["gen"]), scratch)
     conf = run.configuration(None)
     pages_, curves = plot.axes_of(conf)
     assert pages_ == [["gen"]] and curves == [["pt0ref"]]
@@ -348,13 +348,13 @@ def test_a_page_axis_may_be_one_quantity_of_listed_points(scratch):
     plans = [tools.plan_point(run, conf, p, master) for p in points]
     assert [p["page"] for p in record.points_manifest(plans, run, conf)["points"]] == [["py"], ["py"], ["ot"]]
     with pytest.raises(HeimdallError, match="plot_points names 'pt0ref', which listed point 3 leaves out"):
-        parse(listed(rows, run__cfgs__one__plot_points=["pt0ref"]), scratch)
+        parse(listed(rows, errand__cfgs__one__plot_points=["pt0ref"]), scratch)
     with pytest.raises(HeimdallError, match="names pt0ref, a quantity of listed points"):
         plot.check_figures(parse(listed(rows, plot={"band": ["pt0ref"]}), scratch), conf)
 
 
-COUPLED = """[run]
-project = "Demo"
+COUPLED = """[errand]
+assignment = "Demo"
 name    = "coupled"
 run     = "all"
 events  = 10

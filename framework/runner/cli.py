@@ -5,7 +5,7 @@ docs/05_Commands_and_Tools.md §1. `heimdall build` is handled by the shell disp
 (framework/bin/heimdall), which runs make.
 
 Exit codes: 0 every point done (or skipped), 1 a point failed, 2 a config error before anything ran,
-6 stopped by the user. Under [run].sweep_runs (V38), several runs one after another: 6 if one was
+6 stopped by the user. Under [errand].sweep_runs (V38), several runs one after another: 6 if one was
 stopped, else 1 if any failed (or could not be planned at its turn), else 0.
 """
 
@@ -46,7 +46,7 @@ def parser() -> argparse.ArgumentParser:
     run = commands.add_parser("run", help="plan and run a configuration")
     run.add_argument("config", help="configs/<Project>/<name>[.toml], ./path from the work dir, or a record "
                                     "<Project>/<run>/<NN_cfg> (what it ran with: its snapshot)")
-    run.add_argument("configuration", nargs="?", help="overrides [run].configuration; under [run].sweep_runs, runs only it")
+    run.add_argument("configuration", nargs="?", help="overrides [errand].configuration; under [errand].sweep_runs, runs only it")
     run.add_argument("--plan", "--dry-run", dest="plan", action="store_true", help="print the plan; run nothing")
     run.add_argument("--why", action="store_true",
                      help="for each point that would run, what changed since it last completed; run nothing")
@@ -61,7 +61,7 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--worker", metavar="ID", help=argparse.SUPPRESS)       # a detached run's own process (V183)
     run.add_argument("--set", metavar="KEY=VALUE", action="append", default=[],
                      help="override one value for this invocation (repeatable), in the file's own names: "
-                          "run.events=100 (v3), run.event_count=100 (v2)")
+                          "errand.events=100 (v3), errand.event_count=100 (v2)")
     run.add_argument("--tag", metavar="NAME",
                      help="tag each configuration folder this run makes or resumes (over the one it has and its "
                           "configuration's tag): a letter or digit, then letters, digits, . _ + -, at most 40")
@@ -69,9 +69,9 @@ def parser() -> argparse.ArgumentParser:
                                                           "overwrite points made from other inputs")
     run.add_argument("--only", choices=["pre", "post", "plot"], help="rerun only the pre tools, the post tools or the plots")
     run.add_argument("--no-plot", action="store_true", dest="no_plot",
-                     help="draw nothing after the points (its plot.toml is written all the same), whatever [run].plot says")
+                     help="draw nothing after the points (its plot.toml is written all the same), whatever [errand].plot says")
     run.add_argument("--no-stats", action="store_true", dest="no_stats",
-                     help="measure nothing after the points, whatever [run].stats says")
+                     help="measure nothing after the points, whatever [errand].stats says")
     run.add_argument("--stages", metavar="LIST",
                      help="run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; heimdall cluster's jobs)")
     run.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
@@ -107,7 +107,7 @@ def parser() -> argparse.ArgumentParser:
                       help="the runs of this run TOML together, results/<P>/<name>/plot.toml: its [plot.across] sets (V169)")
     draw.add_argument("--keep", action="append", default=[], metavar="WHAT",
                       help="cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway")
-    draw.add_argument("configuration", nargs="?", help="overrides [run].configuration; under sweep_runs, only it")
+    draw.add_argument("configuration", nargs="?", help="overrides [errand].configuration; under sweep_runs, only it")
     draw.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as for heimdall run")
 
     numbers = commands.add_parser("stats", help="a run's statistics alone: its pages' numbers against the data, drawing no page")
@@ -152,7 +152,7 @@ def parser() -> argparse.ArgumentParser:
     listing.add_argument("project", nargs="?", help="only this project's configs")
 
     explain = commands.add_parser("explain", help="a run TOML key: its type, default and meaning (the schema's)")
-    explain.add_argument("key", help="e.g. plot.y_gutter, run.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses")
+    explain.add_argument("key", help="e.g. plot.y_gutter, errand.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses")
 
     state = commands.add_parser("status", help="each configuration's points: complete, stale, running, failed or stopped "
                                                 "(when, and why), incomplete or to run; its events, seeds and tools")
@@ -169,8 +169,10 @@ def parser() -> argparse.ArgumentParser:
                            "points/ (and output/ first, if any); no configs are read")
     move.add_argument("--list", action="store_true", help="with --layout: every move, one a line")
     move.add_argument("--names", action="store_true",
-                      help="a work dir from before Heimdall's names moved (hep → heimdall): its marker hep.toml → "
-                           "heimdall.toml, and the old names in its own files (configs, modules, Makefile, editor settings)")
+                      help="a work dir from before Heimdall's names moved: hep → heimdall (its marker hep.toml → "
+                           "heimdall.toml, the old names in its own files: configs, modules, Makefile, editor settings) and "
+                           "[run] → [errand], [run].project → [errand].assignment (its configs, its records' snapshots, its "
+                           "plot documents' [source])")
     move.add_argument("--snapshot", metavar="RECORD",
                       help="give a record that ran before snapshots one: copy a config's files into <record>/config/ "
                            "(--from, default the config its points.json names) and say which points it gives the same identity")
@@ -198,12 +200,12 @@ def parser() -> argparse.ArgumentParser:
 
     check = commands.add_parser("check", help="check run TOMLs: every configuration loaded, validated and planned")
     check.add_argument("configs", nargs="*", metavar="CONFIG",
-                       help="configs to check (default: every configs/<Project>/*.toml with a [run])")
+                       help="configs to check (default: every configs/<Project>/*.toml with an [errand])")
     check.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as heimdall run's: check what that run would")
 
     watch = commands.add_parser("watch", help="attach the live view to a running job")
     watch.add_argument("config", nargs="?", help="the run config whose job to watch (default: the latest job)")
-    watch.add_argument("configuration", nargs="?", help="overrides [run].configuration (or the sweep's latest)")
+    watch.add_argument("configuration", nargs="?", help="overrides [errand].configuration (or the sweep's latest)")
     watch.add_argument("--plain", action="store_true", help="plain lines instead of the live view")
     watch.add_argument("--file", metavar="EVENTS.JSONL",
                        help="follow a run's run.jsonl, or a --journal run's status.jsonl, instead")
@@ -241,7 +243,7 @@ def parser() -> argparse.ArgumentParser:
 
     batch = commands.add_parser("cluster", help="run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job")
     batch.add_argument("config", help="the run config, as heimdall run names it")
-    batch.add_argument("configuration", nargs="?", help="overrides [run].configuration; under [run].sweep_runs, submits only it")
+    batch.add_argument("configuration", nargs="?", help="overrides [errand].configuration; under [errand].sweep_runs, submits only it")
     batch.add_argument("--points", metavar="SEL", help="submit a subset: tags, indices or quantity=tag")
     batch.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                        help="override one value for this submission (repeatable; cluster.time=… too); the jobs get it")
@@ -448,7 +450,7 @@ def refuse_overwrites(planned: Planned, args, stages=None) -> None:
     if changed:
         c = planned.configuration
         names = ", ".join(s.point.name if hasattr(s, "point") else "pre" for s in changed[:4]) + (", …" if len(changed) > 4 else "")
-        where = c.origins.get("serial", "[run]").replace("[run.cfgs.", "[cfgs.")   # a v3 file: its own names
+        where = c.origins.get("serial", "[errand]").replace("[errand.cfgs.", "[cfgs.")   # a v3 file: its own names
         raise HeimdallError(f"configuration '{c.key}': {len(changed)} of its points in {tools.run_dir(planned.run, c)} were "
                        f"made from other inputs ({names}); running would overwrite them",
                        where=f"{planned.run.path}: {where}",
@@ -715,7 +717,7 @@ def run_tag(args, run, configuration) -> tuple[str | None, str]:
         return kept or None, "its folder's"                    # "": cleared by heimdall tag, the key no more
     if configuration.tag:
         origin = configuration.origins.get("tag", "the configuration")
-        return configuration.tag, (origin.replace(f"[run.{configmod.CFGS}.", "[cfgs.") if run.form == 3 else origin)
+        return configuration.tag, (origin.replace(f"[errand.{configmod.CFGS}.", "[cfgs.") if run.form == 3 else origin)
     return None, ""
 
 
@@ -732,7 +734,7 @@ def give_tag(args, run, configuration) -> str | None:
 
 
 def cmd_run(args) -> int:
-    """One run; or, under [run].sweep_runs, every swept configuration as a run of its own, one after
+    """One run; or, under [errand].sweep_runs, every swept configuration as a run of its own, one after
     another (V38). Each is exactly `heimdall run CONFIG <cfg>`, after a `run NN - <title> -` line. All are
     planned before the first starts, so a config error anywhere exits 2 with nothing run; one is
     planned again at its turn only if the TOML was edited meanwhile, so edits still count. A failed run leaves the next to
@@ -940,9 +942,9 @@ def cmd_stop(args) -> int:
 
 
 def notify(run, code: int) -> bool:
-    """[run] notify = "desktop" (V76): a notify-send when the command ends, for runs of hours. Never
+    """[errand] notify = "desktop" (V76): a notify-send when the command ends, for runs of hours. Never
     fails the run: no notify-send, or no desktop, and it says nothing."""
-    if run.raw.get("run", {}).get("notify", "none") != "desktop" or not shutil.which("notify-send"):
+    if run.raw.get("errand", {}).get("notify", "none") != "desktop" or not shutil.which("notify-send"):
         return False
     verdict = {0: "done", 1: "a point failed", 2: "a config error", 6: "stopped"}.get(code, f"exit {code}")
     try:
@@ -968,7 +970,7 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus, recorder: r
         return run_one(args, keys[0], stopper, bus=bus, planned=planned)
     if args.points:
         raise HeimdallError("--points picks points of one configuration, and this sweep runs several",
-                       where=f"{run.path}: [run].sweep_runs", hint=f"name it: heimdall run {args.config} <configuration> --points …")
+                       where=f"{run.path}: [errand].sweep_runs", hint=f"name it: heimdall run {args.config} <configuration> --points …")
     skipped, ahead = {}, {}
     stamp = run.path.stat().st_mtime_ns
     for key in keys:
@@ -980,7 +982,7 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus, recorder: r
         if args.only in ("pre", "post") and getattr(planned, args.only) is None:
             skipped[key] = f"   no {args.only} tools: skipped"
     if len(skipped) == len(keys):
-        raise HeimdallError(f"no configuration of this sweep has {args.only} tools", where=f"{run.path}: [run].sweep_runs")
+        raise HeimdallError(f"no configuration of this sweep has {args.only} tools", where=f"{run.path}: [errand].sweep_runs")
     if recorder is not None:
         recorder.plan({key: 0 if key in skipped else _points_planned(args, ahead[key]) for key in keys})
     if bus is not None and args.only is None and getattr(args, "stages", None) is None:
@@ -1080,7 +1082,7 @@ def _pipelined(args, run, keys: list[str], stopper: execute.Stopper, bus: Bus, a
 
 def show_config(run, keys: list[str]) -> list[str]:
     """--show-config (V56): every resolved value of each configuration with the layer it came from (its
-    own table, one it extends, [run], the schema's default), each fixed quantity with where it was
+    own table, one it extends, [errand], the schema's default), each fixed quantity with where it was
     fixed, the interfaces (inferred from the chain in a v3 file), then every quantity and tool table
     with the file it came from. A v3 file is shown in v3's names."""
     from . import schema
@@ -1090,7 +1092,7 @@ def show_config(run, keys: list[str]) -> list[str]:
     lines = []
 
     def place(origin: str) -> str:
-        return origin.replace("[run.cfgs.", "[cfgs.") if v3 else origin
+        return origin.replace("[errand.cfgs.", "[cfgs.") if v3 else origin
 
     for key in keys:
         configuration = run.configurations[key]
@@ -1106,7 +1108,7 @@ def show_config(run, keys: list[str]) -> list[str]:
                   "post": configuration.post, "generate_cards": configuration.generate_cards,
                   "prelim": configuration.prelim, "cluster": configuration.cluster}
         width = max(len(names.get(n, "seed" if n == "seed_type" and v3 else n)) for n in order) + 2
-        own = run.raw.get("run", {}).get("cfgs", {}).get(key, {})
+        own = run.raw.get("errand", {}).get("cfgs", {}).get(key, {})
         for name in order:
             value = fields.get(name)
             if value in (None, [], {}, "") and name not in configuration.origins:
@@ -1115,12 +1117,12 @@ def show_config(run, keys: list[str]) -> list[str]:
             if name == "prelim" and v3:
                 origin = "inferred from the chain"
             else:
-                origin = place(configuration.origins.get(name, f"[run.cfgs.{key}]" if name in own else "default"))
+                origin = place(configuration.origins.get(name, f"[errand.cfgs.{key}]" if name in own else "default"))
             lines.append(f"  {shown:{width}s} = {json.dumps(value, default=str):40s} {origin}")
         mine = own.get("static", {}) if isinstance(own.get("static"), dict) else {}
         for quantity, tag in configuration.static.items():
             if quantity in mine:
-                origin = f"[cfgs.{key}].fixed" if v3 else f"[run.cfgs.{key}].static"
+                origin = f"[cfgs.{key}].fixed" if v3 else f"[errand.cfgs.{key}].static"
             elif f"quantities.{quantity}" in run.included and quantity not in run.raw.get("static", {}):
                 origin = f"included from {run.included[f'quantities.{quantity}']}"
             else:
@@ -1196,9 +1198,9 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         give_tag(args, run, configuration)
         return 1 if draw_run(run, configuration, combined or every, print) else 0
     if args.only == "post" and post_plan is None:
-        raise HeimdallError(f"configuration '{configuration.key}' has no post tools", where=f"{run.path}: [run.cfgs.{configuration.key}].post")
+        raise HeimdallError(f"configuration '{configuration.key}' has no post tools", where=f"{run.path}: [errand.cfgs.{configuration.key}].post")
     if args.only == "pre" and pre_plan is None:
-        raise HeimdallError(f"configuration '{configuration.key}' has no pre tools", where=f"{run.path}: [run.cfgs.{configuration.key}].pre")
+        raise HeimdallError(f"configuration '{configuration.key}' has no pre tools", where=f"{run.path}: [errand.cfgs.{configuration.key}].pre")
     if "points" in stages and "pre" not in stages and pre_plan is not None and not record.is_complete(pre_plan):
         raise HeimdallError(f"configuration '{configuration.key}': the pre stage is not complete, and the points need it",
                        hint="run --stages pre first (heimdall cluster's pre job does), or leave --stages out")
@@ -1292,7 +1294,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             drawing = not (getattr(args, "no_plot", False) or configuration.draw is False)     # V167, V168: the gates
             measuring = False if getattr(args, "no_stats", False) else configuration.measure
             if not drawing:
-                bus.say(f"plot: not drawn ({'--no-plot' if getattr(args, 'no_plot', False) else '[run].plot = false'}): "
+                bus.say(f"plot: not drawn ({'--no-plot' if getattr(args, 'no_plot', False) else '[errand].plot = false'}): "
                         f"heimdall plot {tools.run_dir(run, configuration)} draws it")
             failed += draw_run(run, configuration, combined or every, bus.say, draw=drawing, stats=measuring) > 0
             across, written = plotdoc.write_across(run)                    # V169: the runs together
@@ -1320,13 +1322,13 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
 
 
 def cmd_cluster(args) -> int:
-    """`heimdall cluster` (V114): each configuration (every swept one under [run].sweep_runs) planned as heimdall run
+    """`heimdall cluster` (V114): each configuration (every swept one under [errand].sweep_runs) planned as heimdall run
     plans it, then submitted, or its latest submission's state shown, or cancelled (runner/cluster.py)."""
     run = configmod.load(args.config, sets=args.set)
     keys = run.runs(args.configuration)
     if len(keys) > 1 and args.points:
         raise HeimdallError("--points picks points of one configuration, and this sweep runs several",
-                       where=f"{run.path}: [run].sweep_runs", hint=f"name it: heimdall cluster {args.config} <configuration> --points …")
+                       where=f"{run.path}: [errand].sweep_runs", hint=f"name it: heimdall cluster {args.config} <configuration> --points …")
     planned = {key: build_plans(argparse.Namespace(**{**vars(args), "only": None, "stages": None}), key) for key in keys}
     if not (args.status or args.cancel):
         for key in keys:
@@ -1617,16 +1619,7 @@ def cmd_check(args) -> int:
     points planned (the C-rules, paths, consumers, connections, cards), nothing run or written. 0 when
     all are well, 2 when any is not: for a pre-commit hook, or before a long sweep."""
     from .paths import configs_root
-    names = list(args.configs)
-    if not names:
-        root = configs_root()
-        for path in sorted(root.glob("*/*.toml")):
-            try:
-                has_run = "run" in tomllib.loads(path.read_text(encoding="utf-8"))
-            except (OSError, tomllib.TOMLDecodeError):
-                has_run = True                                   # a broken file is checked, and fails
-            if has_run:
-                names.append(str(path.relative_to(root).with_suffix("")))
+    names = list(args.configs) or house.config_names()     # a file with [run] too: it fails, saying what rewrites it
     importers = house.importers()                              # a shared file: checked through them
     failed = 0
     for name in names:
@@ -1667,7 +1660,7 @@ def _has_configurations(name: str) -> bool:
         data = tomllib.loads(configmod.config_file(name).read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError, HeimdallError):
         return True
-    return bool(data.get("cfgs") or data.get("run", {}).get("cfgs"))
+    return bool(data.get("cfgs") or data.get("errand", {}).get("cfgs"))
 
 
 def cmd_runs(args) -> int:
@@ -1886,16 +1879,19 @@ def cmd_migrate(args) -> int:
 
 
 def migrate_names(args) -> int:
-    """`heimdall migrate --names [--apply]` (I-109, V213): a work dir from before the rename, here or above: its
-    marker hep.toml → heimdall.toml, and Heimdall's old names in its own files rewritten (migrate.names_changes:
-    `{hep}`, `HEP_*`, `$HEP`, `hepkit`, Whizard's `# hep:`, the editor's themes). A dry run prints each diff;
-    --apply writes them. `heimdall setup . --refresh` then brings the framework's own files to today's."""
+    """`heimdall migrate --names [--apply]` (I-109, V213; I-112): a work dir from before the renames, here or above:
+    its marker hep.toml → heimdall.toml, and Heimdall's old names in its own files rewritten (migrate.names_changes:
+    `{hep}`, `HEP_*`, `$HEP`, `hepkit`, Whizard's `# hep:`, the editor's themes); then I-112's (migrate.errand_changes:
+    [run] → [errand] and [run].project → [errand].assignment in its configs and its records' snapshots, [source]'s
+    project and run → assignment and errand in its plot documents, `--set run.…` → `--set errand.…`). A dry run
+    prints each diff; --apply writes them. `heimdall setup . --refresh` then brings the framework's own files to
+    today's."""
     from . import migrate
     work = find_work() or migrate.old_marker()
     if work is None:
         raise HeimdallError("not inside a work dir", hint="run it in a work dir: one with heimdall.toml, or hep.toml from before the rename")
     marker, today = work / migrate.OLD_MARKER, work / paths.MARKER_FILE
-    changes = migrate.names_changes(work)
+    changes = migrate.errand_changes(work, migrate.names_changes(work))
     for path, (old, new) in changes.items():
         sys.stdout.write(migrate.diff(path, old, new))
     moving = marker.is_file()
@@ -2135,7 +2131,7 @@ def cmd_reproduce(args) -> int:
     sets = []
     if planned.configuration.seed_type == "random":                      # in the file's own names
         sets = (["--set", f"cfgs.{key}.seed={record_['seed']}"] if planned.run.form == 3 else
-                ["--set", f'run.cfgs.{key}.seed_type="manual"', "--set", f"run.cfgs.{key}.manual_seed={record_['seed']}"])
+                ["--set", f'errand.cfgs.{key}.seed_type="manual"', "--set", f"errand.cfgs.{key}.manual_seed={record_['seed']}"])
     argv = [sys.executable, str(Path(__file__).resolve().parents[1] / "bin" / "run"), "run", config_file, key,
             "--points", name, "--rerun", *[x for item in given for x in ("--set", item)], *sets,
             *(["--plain"] if args.plain else [])]
@@ -2238,7 +2234,7 @@ UNFLAGGED = {"set", "worker", "help"}
 #: What [heimdall] may set (the user, 2026-10-25): switches that say how you like a command to run, and keep.
 PREFERENCES = ("rerun", "wait", "detach", "plain", "journal", "logs", "replot", "keep")
 #: Every other option, by its dest, and why a file never sets it: a mode or a target is one command's job, a
-#: selection one run's choice, and the study's own settings are [run]'s keys.
+#: selection one run's choice, and the study's own settings are [errand]'s keys.
 NOT_PREFERENCES = {
     **dict.fromkeys(("plan", "why", "show_config", "dry_run", "status", "cancel", "style_sync", "across", "stack",
                      "no_wait"), ("a mode: what this one command does", "type it on the command line")),
@@ -2246,10 +2242,10 @@ NOT_PREFERENCES = {
                                                             "type it on the command line")),
     **dict.fromkeys(("points", "page_points", "draw_sets", "stages", "only"),
                     ("a selection: a part of the run, chosen when it is run",
-                     "type it on the command line; a run's sets are [run] plot = [...] or a configuration's plot")),
-    "tag": ("the study's own setting", "a configuration's tag key, or [run] tag = \"...\""),
-    "no_plot": ("the study's own setting", "[run] plot = false"),
-    "no_stats": ("the study's own setting", "[run] stats = false"),
+                     "type it on the command line; a run's sets are [errand] plot = [...] or a configuration's plot")),
+    "tag": ("the study's own setting", "a configuration's tag key, or [errand] tag = \"...\""),
+    "no_plot": ("the study's own setting", "[errand] plot = false"),
+    "no_stats": ("the study's own setting", "[errand] stats = false"),
 }
 
 

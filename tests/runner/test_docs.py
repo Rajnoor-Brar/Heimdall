@@ -80,15 +80,15 @@ def test_every_relative_link_resolves(page):
 def test_every_toml_block_parses_and_complete_runs_load(page, scratch):
     for block in blocks(page, "toml"):
         data = tomllib.loads(block)                    # raises on a bad block
-        run = data.get("run", {})
-        complete = {"name", "project", "configuration"} <= set(run) and isinstance(run.get(run["configuration"]), dict)
+        run = data.get("errand", {})
+        complete = {"name", "assignment", "configuration"} <= set(run) and isinstance(run.get(run["configuration"]), dict)
         if complete and data.get("config", {}).get("import"):   # V94: read through its imports (the fixtures')
             path = scratch / "example.toml"
             path.write_text(block, encoding="utf-8")
             config.load(str(path))
         elif complete:                                   # a whole run TOML, not a fragment of one
             config.parse(data, scratch / "example.toml")   # C1–C5 on the example itself
-        elif v3.is_v3(data) and {"name", "project"} <= set(run) and data.get("cfgs"):
+        elif v3.is_v3(data) and {"name", "assignment"} <= set(run) and data.get("cfgs"):
             path = scratch / "example.toml"              # a whole v3 file, its imports the fixture's: read as `heimdall run` reads it (U50)
             path.write_text(block, encoding="utf-8")
             config.load(str(path))
@@ -118,7 +118,7 @@ def test_the_generated_sections_are_current():
 
 def test_a_generated_block_is_rendered_from_the_code():
     from runner import docs
-    page = "<!-- generated: keys run -->\nold\n<!-- /generated -->\n"
+    page = "<!-- generated: keys errand -->\nold\n<!-- /generated -->\n"
     assert "| `name` | a string | **required** |" in docs.updated(page)
     assert "| `page.margins.left` | `0.16` | fractions of the page" in docs.style()
     assert "| `--only pre\\|post\\|plot` |" in docs.commands()          # a table's pipes escaped

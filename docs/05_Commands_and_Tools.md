@@ -34,19 +34,19 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | Argument | Meaning |
 |---|---|
 | `config` | configs/<Project>/<name>[.toml], ./path from the work dir, or a record <Project>/<run>/<NN_cfg> (what it ran with: its snapshot) |
-| `[configuration]` | overrides [run].configuration; under [run].sweep_runs, runs only it |
+| `[configuration]` | overrides [errand].configuration; under [errand].sweep_runs, runs only it |
 | `--plan, --dry-run` | print the plan; run nothing |
 | `--why` | for each point that would run, what changed since it last completed; run nothing |
 | `--show-config` | print each configuration's resolved values and where each came from; run nothing |
 | `--card TAG` | with --plan: that tool's card for the first point, each line with where its value comes from |
 | `--points SEL` | run a subset: tags, indices or quantity=tag |
 | `--detach` | start the run in the background and return: heimdall watch follows it, heimdall stop stops it (on a terminal, a run started without it leaves on d too) |
-| `--set KEY=VALUE` | override one value for this invocation (repeatable), in the file's own names: run.events=100 (v3), run.event_count=100 (v2) |
+| `--set KEY=VALUE` | override one value for this invocation (repeatable), in the file's own names: errand.events=100 (v3), errand.event_count=100 (v2) |
 | `--tag NAME` | tag each configuration folder this run makes or resumes (over the one it has and its configuration's tag): a letter or digit, then letters, digits, . _ + -, at most 40 |
 | `--rerun` | ignore skip-unchanged; under a serial the file sets, overwrite points made from other inputs |
 | `--only pre\|post\|plot` | rerun only the pre tools, the post tools or the plots |
-| `--no-plot` | draw nothing after the points (its plot.toml is written all the same), whatever [run].plot says |
-| `--no-stats` | measure nothing after the points, whatever [run].stats says |
+| `--no-plot` | draw nothing after the points (its plot.toml is written all the same), whatever [errand].plot says |
+| `--no-stats` | measure nothing after the points, whatever [errand].stats says |
 | `--stages LIST` | run only these stages, skip-unchanged: pre, points, combine, post, plot (comma-separated; heimdall cluster's jobs) |
 | `--plain` | plain lines instead of the live view |
 | `--wait` | a point another session is running: wait for it (default: skip it, naming who runs it) |
@@ -67,7 +67,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--replot` | with --style-sync: then draw what was synced |
 | `--across` | the runs of this run TOML together, results/<P>/<name>/plot.toml: its [plot.across] sets |
 | `--keep WHAT` | cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway |
-| `[configuration]` | overrides [run].configuration; under sweep_runs, only it |
+| `[configuration]` | overrides [errand].configuration; under sweep_runs, only it |
 | `--set KEY=VALUE` | as for heimdall run |
 
 **`heimdall stats`**: a run's statistics alone: its pages' numbers against the data, drawing no page
@@ -113,7 +113,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `key` | e.g. plot.y_gutter, run.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses |
+| `key` | e.g. plot.y_gutter, errand.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses |
 
 **`heimdall status`**: each configuration's points: complete, stale, running, failed or stopped (when, and why), incomplete or to run; its events, seeds and tools
 
@@ -132,7 +132,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--v3` | into the run TOML's third form (03 §6, runner/v3.py) |
 | `--layout` | move the work dir's older layouts into today's: logs/ into records/<run>/logs/, points into points/ (and output/ first, if any); no configs are read |
 | `--list` | with --layout: every move, one a line |
-| `--names` | a work dir from before Heimdall's names moved (hep → heimdall): its marker hep.toml → heimdall.toml, and the old names in its own files (configs, modules, Makefile, editor settings) |
+| `--names` | a work dir from before Heimdall's names moved: hep → heimdall (its marker hep.toml → heimdall.toml, the old names in its own files: configs, modules, Makefile, editor settings) and [run] → [errand], [run].project → [errand].assignment (its configs, its records' snapshots, its plot documents' [source]) |
 | `--snapshot RECORD` | give a record that ran before snapshots one: copy a config's files into <record>/config/ (--from, default the config its points.json names) and say which points it gives the same identity |
 | `--plot-docs RECORD…` | write the plot document (results/<run>/plot.toml) of every record without one, or of these (<P>/<name>/<cfg>), from its snapshot (else the config its points.json names) |
 | `--from CONFIG` | with --snapshot: the config to copy |
@@ -162,7 +162,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `CONFIG…` | configs to check (default: every configs/<Project>/*.toml with a [run]) |
+| `CONFIG…` | configs to check (default: every configs/<Project>/*.toml with an [errand]) |
 | `--set KEY=VALUE` | as heimdall run's: check what that run would |
 
 **`heimdall watch`**: attach the live view to a running job
@@ -170,7 +170,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | Argument | Meaning |
 |---|---|
 | `[config]` | the run config whose job to watch (default: the latest job) |
-| `[configuration]` | overrides [run].configuration (or the sweep's latest) |
+| `[configuration]` | overrides [errand].configuration (or the sweep's latest) |
 | `--plain` | plain lines instead of the live view |
 | `--file EVENTS.JSONL` | follow a run's run.jsonl, or a --journal run's status.jsonl, instead |
 | `--pid N` | the run of this process (heimdall runs lists them) |
@@ -216,7 +216,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | Argument | Meaning |
 |---|---|
 | `config` | the run config, as heimdall run names it |
-| `[configuration]` | overrides [run].configuration; under [run].sweep_runs, submits only it |
+| `[configuration]` | overrides [errand].configuration; under [errand].sweep_runs, submits only it |
 | `--points SEL` | submit a subset: tags, indices or quantity=tag |
 | `--set KEY=VALUE` | override one value for this submission (repeatable; cluster.time=… too); the jobs get it |
 | `--keep WHAT` | what each job's run also keeps (as heimdall run --keep) |
@@ -341,16 +341,16 @@ the others.
 - **`--why`** gives, for each point and stage that would run, what changed since it last completed,
   from its `identity.json`: `events: 10 → 20`, `tools.pythia.card: + PDF:pSet = …`.
 - **`--show-config`** prints each configuration's resolved values and the layer each came from (its
-  own, `extends`, `[run]`, default), what `[file].import` gave, and the interfaces the chain
+  own, `extends`, `[errand]`, default), what `[file].import` gave, and the interfaces the chain
   makes.
 - **`--points SEL`** takes comma-separated point names, single tags, 1-based indices, or
   `quantity=tag`. The other points keep their state, and `points.json` lists them all. It is
   refused under a sweep of several runs: name the configuration.
 - **`--set KEY=VALUE`** overrides one value of the TOML, by dotted key, before anything is checked.
   The keys are the file's own names. The value is read as TOML, else as a string: `--set
-  run.events=50000`, `--set cfgs.pdf.threads=8`, `--set quantities.energies.fixed=18x275`, `--set
-  'plot.formats=["png"]'`, `--set plot.min_entries=default` (a v2 file: `run.event_count`,
-  `run.cfgs.pdf.threads`, `static.energies`).
+  errand.events=50000`, `--set cfgs.pdf.threads=8`, `--set quantities.energies.fixed=18x275`, `--set
+  'plot.formats=["png"]'`, `--set plot.min_entries=default` (a v2 file: `errand.event_count`,
+  `errand.cfgs.pdf.threads`, `static.energies`).
 - **`--rerun`** runs complete points (and the stages) again.
 - **`--tag NAME`** tags every configuration folder the command runs (`02_generator_pdf [nlo]`): a short
   name (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40) that `heimdall runs`, `heimdall status`, the run's
@@ -384,14 +384,14 @@ the others.
 | 2 | a config error, before anything ran |
 | 6 | stopped by the user (Ctrl-C, SIGTERM or a closed terminal: SIGINT, then SIGTERM, then SIGKILL to the running tools; a second is a hard stop, the tools killed at once; a third kills the process) |
 
-Under `[run].sweep_runs` (04 §4.1), the command exits 6 if a run was stopped, else 1 if any failed,
-else 0. With `[run] notify = "desktop"`, the end is also a desktop notification.
+Under `[errand].sweep_runs` (04 §4.1), the command exits 6 if a run was stopped, else 1 if any failed,
+else 0. With `[errand] notify = "desktop"`, the end is also a desktop notification.
 
 ### 1.2 `heimdall plot` and `heimdall overlay`
 
 - **`heimdall plot CONFIG [CFG]`** draws a config's pages, as after a run (`--only plot`), from each point
   whose record is complete: a point that ran with other inputs than the config gives now (a card edited,
-  a binary rebuilt) is drawn as recorded and named. Under `[run].sweep_runs` it draws every swept
+  a binary rebuilt) is drawn as recorded and named. Under `[errand].sweep_runs` it draws every swept
   configuration's, each under its `run NN - <title> -` line, and the compare figures whose configurations
   are all complete.
 - **`heimdall plot <P>/<run>/<NN_cfg>`** (a record: a configuration's folder of `records/`, or a path to it
@@ -417,9 +417,9 @@ This is housekeeping.
 - **`ls`** lists every config and its configurations, with descriptions; a `*` marks what `heimdall run
   CONFIG` runs.
 - **`explain`** gives a key's type, default, choices, bounds, inheritance, doc and notes, from the
-  schema (`framework/schema/run.toml`): `plot.y_gutter`, `run.events`, `cfgs.pdf.threads`,
+  schema (`framework/schema/run.toml`): `plot.y_gutter`, `errand.events`, `cfgs.pdf.threads`,
   `quantities.<q>.points`, `plot.figures.<f>.logy`, or a bare key looked up in every table. It also
-  answers for a table (`heimdall explain cfgs`), a v2 name (`run.event_count`), a tool folder's option
+  answers for a table (`heimdall explain cfgs`), a v2 name (`errand.event_count`), a tool folder's option
   (`rivet.analyses`), a style key (`style.page.dpi`), a quantity of the vocabulary, a report's recipe
   (`report`, `report.section.<key>`) and `machine.toml`.
 - **`status`** gives every configuration's points and stages, each **complete**, **stale** (complete
@@ -459,7 +459,7 @@ This is housekeeping.
 ### 1.4 `heimdall check`
 
 `heimdall check` loads each config (with none given, every `configs/<Project>/*.toml` that has a
-`[run]`), validates its `[plot]` and its figures, and plans every configuration's points. That
+`[errand]`), validates its `[plot]` and its figures, and plans every configuration's points. That
 covers every C-rule, path, consumer, connection and card, with nothing run or written. It
 prints one line per config, and the error of each that fails. It exits 0, or 2 when any failed: for
 a pre-commit hook, or before a long sweep.
@@ -471,7 +471,7 @@ run` serves while it lives.
 - **Which job:** with no config, the latest job started on this machine; with one, the job running
   that config (and that configuration).
 - **What it shows:** the run so far, then what follows, as the same blocks as the run. It leaves when
-  the job's process ends. Under `[run].sweep_runs` the job is one process, so the watch follows it
+  the job's process ends. Under `[errand].sweep_runs` the job is one process, so the watch follows it
   from run to run.
 - **`--file`** follows a record's `run.jsonl` (every run writes one), or a `--journal` run's status
   file, instead; a finished run's too. Both are appended run after run, and it starts at the last run's
@@ -584,6 +584,20 @@ It reads each config leniently (the old forms included) before writing anything,
   `*.code-workspace`; a note elsewhere may mean another `HEP`): `{hep}` → `{heimdall}`, `$HEP` and `HEP_*` → `$HEIMDALL` and `HEIMDALL_*` (its Makefile's
   `$(HEP)` too), `import hepkit` → `import heimdallkit`, Whizard's `# hep:` → `# heimdall:`, and the editor's
   themes by their new names.
+
+It also takes a work dir made before the result levels were named `<Assignment>/<Errand>/<Run>`:
+- its configs (`configs/**/*.toml`): `[run]` → `[errand]`, every `[run.…]` → `[errand.…]` (commented-out
+  headers and a comment's mentions too), `[run].project` → `[errand].assignment` (its `=` column kept), a
+  root's dotted `run.x = …`, an import's `only` and `drop` (`"run.cfgs.x"` → `"errand.cfgs.x"`), a report
+  title's `{project}` and `{run}` → `{assignment}` and `{errand}`;
+- `--set run.x=…` → `--set errand.x=…` (and `heimdall explain run.x`) in its own files; never in `modules/`,
+  whose sources are their programs' identity;
+- each record's snapshot (`records/<A>/<E>/<R>/config/`): its files as its configs, `snapshot.toml`'s digests
+  of them and its `--set` overrides; each point's `provenance.json` overrides (what `heimdall reproduce` gives);
+- each plot document (`results/**/plot.toml`): `[source].project` → `assignment`, `[source].run` → `errand`.
+
+No point's identity moves: a snapshot is not hashed, and no card changes. A file in the old names is refused
+until then, each naming this command. Run again, it says there is nothing to migrate.
 
 A dry run prints each diff; `--apply` writes them. Then `heimdall setup . --refresh` brings the framework's own
 files (`Makefile`, `CLAUDE.md`, `HEIMDALL.md`, `.vscode/`) to today's template. Until then, every command in
@@ -1212,7 +1226,7 @@ output = "events.hepmc"
   to     = { "sherpa/seed" = true }        # only the seed (with @generator: "pythia/seed" too)
   points = [{ tag = "s1", value = 1 }, { tag = "s2", value = 2 }, { tag = "s3", value = 3 }, { tag = "s4", value = 4 }]
 
-  [run]
+  [errand]
   events      = 2_500_000                  # each: 10M in all
   parallelism = 4
 

@@ -8,9 +8,9 @@
 # `sqrts` reaches all three; `beams` only Pythia and Sherpa, because Herwig's pp snippet fixes its
 # own (an @-chain accepts a value that another alternative consumes, C7).
 
-[run]
+[errand]
 name          = "generators"
-project       = "Generators"
+assignment    = "Generators"
 run           = "compare"
 events        = 50_000
 threads       = 4                   # Pythia's; Herwig and Sherpa run one process each

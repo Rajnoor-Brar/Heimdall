@@ -29,14 +29,14 @@ def work(scratch, monkeypatch):
     script = root / "copy.py"
     script.write_text(SCRIPT, encoding="utf-8")
     script.chmod(0o755)
-    (root / "configs" / "P" / "c.toml").write_text(f"""[run]
+    (root / "configs" / "P" / "c.toml").write_text(f"""[errand]
 name = "c"
-project = "P"
+assignment = "P"
 configuration = "one"
 event_count = 1
 threads = 1
 
-[run.cfgs.one]
+[errand.cfgs.one]
 tools          = ["copy"]
 generate_cards = ["spare"]
 

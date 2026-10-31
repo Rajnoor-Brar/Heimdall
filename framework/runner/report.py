@@ -272,7 +272,7 @@ def load_recipe(path: Path) -> dict:
     """A recipe's [report] table, checked, its template laid under it (V209): a recipe of its own ([report] alone,
     every key against report.toml), or a run TOML's [report] as it is read (its from and output a recipe's)."""
     data = _read(path)
-    if "run" in data:
+    if "errand" in data or "run" in data:                     # [run]: the names before I-112, refused by load
         return dict(configmod.load(str(path)).report)
     if set(data) != {"report"}:
         others = sorted(set(data) - {"report"})
@@ -1147,7 +1147,7 @@ def planned(first: str | None, rest: list[str], out: Path | None = None) -> Plan
         recipe = load_recipe(path)
         if path.name == RECIPE and not rest and not recipe.get("from") and (path.parent / plotdoc.FILE).is_file():
             rest = [str(path.parent)]                     # a folder's own report.toml: that folder
-        if "run" in _read(path) and not rest:
+        if "errand" in _read(path) and not rest:
             raise HeimdallError("a run TOML's [report] is its folders' reports: name the folders", where=str(path),
                            hint=f"heimdall report {first} <P>/<run>/<cfg>")
         return resolve(recipe, rest, path=path, command=command, out=out)

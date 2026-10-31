@@ -1,11 +1,11 @@
 # jets.toml — inclusive jets in ep collisions (rework v2 schema, docs/04_Config_Reference.md).
 #
-#   hep run Demo/jets                 the configuration named in [run] (pdf)
+#   hep run Demo/jets                 the configuration named in [errand] (pdf)
 #   hep run Demo/jets energy_pdf      another one
 #   hep run Demo/jets radius --plan   look before running
 #
 # Translated from the v1 schema-2 file (High-Energy's v1 file at rework/v1-final):
-# each [study.<s>] is a [run.<s>], `across` is `sweeps`, `overlay` became `plot_points`, a study's
+# each [study.<s>] is an [errand.<s>], `across` is `sweeps`, `overlay` became `plot_points`, a study's
 # pin is its `static`, and v1's quantity types became per-tool keys (the master TOML knows how
 # pythia consumes energies and pdf).
 #
@@ -16,10 +16,10 @@
 #     (00/B27). The `pthatmin` configuration measures that.
 #   * photo_eic's ETMIN/ETMIN2 defaults are 17/21 GeV in the source (its .info still says 5/10).
 
-[run]
+[errand]
 serial        = 3
 name          = "jets"
-project       = "Demo"
+assignment    = "Demo"
 run           = "pdf"
 events        = 1_000_000
 threads       = 12            # Pythia's; with rivet's 10 shards that fills the 24 hardware threads

@@ -16,14 +16,14 @@ yoda = pytest.importorskip("yoda")
 pytestmark = pytest.mark.slow
 
 RUN = """\
-[run]
+[errand]
 name          = "seeds"
-project       = "Demo"
+assignment    = "Demo"
 configuration = "one"
 event_count   = 1000
 threads       = 2
 
-[run.cfgs.one]
+[errand.cfgs.one]
 sweeps  = ["pdf", "replica"]
 combine = ["replica"]
 tools   = [["pythia", "rivet"]]

@@ -7,9 +7,9 @@
 # validation.toml). v1 fixed the beams in [beams] (ids [2212, 11], energies [920, 27.5]) and
 # pinned the lepton to e+ through [static.use] beams = "ep"; here both are static quantities.
 
-[run]
+[errand]
 name          = "validation"
-project       = "Demo"
+assignment    = "Demo"
 run           = "default"
 events        = 1_000_000
 threads       = 20

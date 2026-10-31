@@ -27,7 +27,7 @@ def test_the_pythia_card_has_builtins_quantities_and_seeds(scratch):
 
 
 def test_several_threads_get_one_seed_each(scratch):
-    _, _, p = plan(raw(run__threads=3), scratch)
+    _, _, p = plan(raw(errand__threads=3), scratch)
     card = p.writes[p.rendered["pythia"].card_point]
     assert "Random:seed = 12345" in card and "Parallelism:seeds = {12345,12346,12347}" in card
 
@@ -41,7 +41,7 @@ def test_rivet_argv_writes_partial_then_reads_the_fifo(scratch):
 
 
 def test_an_analysis_option_quantity_reaches_rivet(scratch):
-    data = raw(run__cfgs__one__sweeps=["radius"],
+    data = raw(errand__cfgs__one__sweeps=["radius"],
                quantities__radius={"target": "rivet/photo_eic", "key": "R", "values": [0.4, 0.7], "tags": ["r04", "r07"]})
     _, _, p = plan(data, scratch, point=1)
     assert "photo_eic:R=0.7" in p.rendered["rivet"].argv
@@ -55,7 +55,7 @@ def test_an_inline_analysis_option_beats_the_tables_options(scratch):
     data = raw(tools__rivet__analyses=["photo_eic:R=0.4"], tools__rivet__options={"R": 1.0, "ETMIN": 6})
     _, _, p = plan(data, scratch)
     assert "photo_eic:ETMIN=6:R=0.4" in p.rendered["rivet"].argv
-    data["run"]["cfgs"]["one"]["sweeps"] = ["radius"]
+    data["errand"]["cfgs"]["one"]["sweeps"] = ["radius"]
     data["quantities"]["radius"] = {"target": "rivet/photo_eic", "key": "R", "values": [0.7], "tags": ["r07"]}
     _, _, p = plan(data, scratch)
     assert "photo_eic:ETMIN=6:R=0.7" in p.rendered["rivet"].argv
@@ -63,7 +63,7 @@ def test_an_inline_analysis_option_beats_the_tables_options(scratch):
 # ── C6: connections ────────────────────────────────────────────────────────────────────────────
 
 def test_c6_a_fifo_into_a_non_streamable_tool_is_refused(scratch):
-    data = raw(tools__rivet=None, run__cfgs__one__tools=[["pythia", "slow"]],
+    data = raw(tools__rivet=None, errand__cfgs__one__tools=[["pythia", "slow"]],
                tools__slow={**CUSTOM, "input": "events.hepmc", "streamable": False})
     with pytest.raises(HeimdallError, match="cannot read a FIFO"):
         plan(data, scratch)
@@ -71,12 +71,12 @@ def test_c6_a_fifo_into_a_non_streamable_tool_is_refused(scratch):
 
 def test_c6_a_fifo_across_groups_is_refused(scratch):
     with pytest.raises(HeimdallError, match="across groups") as caught:
-        plan(raw(run__cfgs__one__tools=["pythia", "rivet"]), scratch)
+        plan(raw(errand__cfgs__one__tools=["pythia", "rivet"]), scratch)
     assert "L8" in caught.value.hint
 
 
 def test_c6_a_fifo_has_one_reader(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet", "second"]],
+    data = raw(errand__cfgs__one__tools=[["pythia", "rivet", "second"]],
                tools__second={**CUSTOM, "input": "events.hepmc"})
     with pytest.raises(HeimdallError, match="2 readers") as caught:
         plan(data, scratch)
@@ -85,18 +85,18 @@ def test_c6_a_fifo_has_one_reader(scratch):
 
 def test_c6_a_fifo_needs_a_writer(scratch):
     with pytest.raises(HeimdallError, match="no writer"):
-        plan(raw(run__cfgs__one__tools=[["rivet"]]), scratch)
+        plan(raw(errand__cfgs__one__tools=[["rivet"]]), scratch)
 
 
 def test_c6_an_output_has_one_writer(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "again"],
+    data = raw(errand__cfgs__one__tools=[["pythia", "rivet"], "again"],
                tools__again={**CUSTOM, "output_file": "jets.yoda"})
     with pytest.raises(HeimdallError, match="written by both"):
         plan(data, scratch)
 
 
 def test_fan_out_gives_each_reader_its_own_fifo(scratch):
-    data = raw(prelim={"fifo": ["a.hepmc", "b.hepmc"]}, run__cfgs__one__tools=[["pythia", "rivet", "other"]],
+    data = raw(prelim={"fifo": ["a.hepmc", "b.hepmc"]}, errand__cfgs__one__tools=[["pythia", "rivet", "other"]],
                tools__pythia__output_file=["a.hepmc", "b.hepmc"], tools__rivet__input="a.hepmc",
                tools__other={**CUSTOM, "input": "b.hepmc", "streamable": True})
     _, _, p = plan(data, scratch)
@@ -106,7 +106,7 @@ def test_fan_out_gives_each_reader_its_own_fifo(scratch):
 # ── C7, C8: consumers ──────────────────────────────────────────────────────────────────────────
 
 def test_c7_a_quantity_nobody_consumes_is_refused(scratch):
-    data = raw(run__cfgs__one__sweeps=["nothing"], quantities__nothing={"values": [1, 2], "tags": ["a", "b"]})
+    data = raw(errand__cfgs__one__sweeps=["nothing"], quantities__nothing={"values": [1, 2], "tags": ["a", "b"]})
     with pytest.raises(HeimdallError, match="no tool in this chain consumes it"):
         plan(data, scratch)
 
@@ -127,7 +127,7 @@ def context_of(p) -> dict:
 
 def test_the_context_file_gives_every_tool_its_card_and_config(scratch):
     """04 §9.4: one file per point, the chain's tools in it; reached by $HEIMDALL_CONTEXT or {context}."""
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"],
+    data = raw(errand__cfgs__one__tools=[["pythia", "rivet"], "probe"],
                tools__probe={**CUSTOM, "config": {"model": "gauss"}, "arguments": ["{context}", "{context:pythia.card}"]})
     _, _, p = plan(data, scratch)
     tools_ = context_of(p)
@@ -144,7 +144,7 @@ def test_the_context_file_gives_every_tool_its_card_and_config(scratch):
 
 
 def test_generate_cards_renders_a_tool_without_running_it(scratch):
-    data = raw(run__cfgs__one__tools=["probe"], run__cfgs__one__generate_cards=["pythia"], prelim={},
+    data = raw(errand__cfgs__one__tools=["probe"], errand__cfgs__one__generate_cards=["pythia"], prelim={},
                static={"pdf": "MSTW08lo"}, tools__probe=dict(CUSTOM))
     _, _, p = plan(data, scratch)
     assert [s.tag for g in p.groups for s in g] == ["probe"]
@@ -154,26 +154,26 @@ def test_generate_cards_renders_a_tool_without_running_it(scratch):
 
 
 def test_a_product_is_asked_for_by_tag_and_name(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"],
-               run__cfgs__one__generate_cards=["pythia:run"], tools__probe=dict(CUSTOM))
+    data = raw(errand__cfgs__one__tools=[["pythia", "rivet"], "probe"],
+               errand__cfgs__one__generate_cards=["pythia:run"], tools__probe=dict(CUSTOM))
     with pytest.raises(HeimdallError, match="pythia makes no product 'run'") as caught:
         plan(data, scratch)
     assert '"pythia" alone' in caught.value.hint
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"]], run__cfgs__one__generate_cards=["nope"])
+    data = raw(errand__cfgs__one__tools=[["pythia", "rivet"]], errand__cfgs__one__generate_cards=["nope"])
     with pytest.raises(HeimdallError, match="generate_cards names 'nope'"):
         plan(data, scratch)
 
 
 @pytest.mark.parametrize("key", ["pythia_cmnd", "rivet_analyses", "pythia_card"])
 def test_the_export_keys_are_retired_with_a_way_on(scratch, key):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={**CUSTOM, key: True})
+    data = raw(errand__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={**CUSTOM, key: True})
     with pytest.raises(HeimdallError, match=f"'{key}' is retired") as caught:
         plan(data, scratch)
     assert "generate_cards" in caught.value.hint and "heimdall migrate" in caught.value.hint
 
 
 def test_a_custom_tool_gets_its_config_and_consumed_quantities(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "fit"], static={"pdf": "MSTW08lo"},
+    data = raw(errand__cfgs__one__tools=[["pythia", "rivet"], "fit"], static={"pdf": "MSTW08lo"},
                tools__fit={**CUSTOM, "consumes": ["pdf"], "config": {"model": "gauss"}, "arguments": ["{res}/fit.json"]})
     _, _, p = plan(data, scratch)
     import tomllib
@@ -185,14 +185,14 @@ def test_a_custom_tool_gets_its_config_and_consumed_quantities(scratch):
 # ── V54: an executable is built, or asked for on PATH by name ─────────────────────────────────
 
 def test_a_bare_executable_must_be_built_and_never_falls_back_to_path(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={"tool": "exec", "executable": "true"})
+    data = raw(errand__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={"tool": "exec", "executable": "true"})
     with pytest.raises(HeimdallError, match="is not built") as caught:
         plan(data, scratch)
     assert 'path:true' in caught.value.hint
 
 
 def test_path_prefix_takes_the_command_from_path(scratch):
-    data = raw(run__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={"tool": "exec", "executable": "path:true"})
+    data = raw(errand__cfgs__one__tools=[["pythia", "rivet"], "probe"], tools__probe={"tool": "exec", "executable": "path:true"})
     _, _, p = plan(data, scratch)
     assert p.rendered["probe"].exe.name == "true" and p.rendered["probe"].exe.is_absolute()
     data["tools"]["probe"]["executable"] = "path:no-such-command-here"
@@ -234,7 +234,7 @@ def test_repeatable_commands_are_kept_every_time(scratch):
 def test_settings_reach_the_card_and_a_second_source_is_refused(scratch):
     _, _, p = plan(raw(tools__pythia__settings={"HeavyIon:mode": 1}), scratch)
     assert "HeavyIon:mode = 1" in p.writes[p.rendered["pythia"].card_point]
-    data = raw(tools__pythia__settings={"PDF:pSet": 8}, run__cfgs__one__sweeps=["pdf"])
+    data = raw(tools__pythia__settings={"PDF:pSet": 8}, errand__cfgs__one__sweeps=["pdf"])
     with pytest.raises(HeimdallError, match="set by both"):
         plan(data, scratch)
     with pytest.raises(HeimdallError, match="no card for settings"):

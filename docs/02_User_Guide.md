@@ -163,7 +163,7 @@ heimdall setup ~/Study --example jets   # a work dir with the demo project (or i
 cd ~/Study && heimdall build            # its Rivet analysis and module programs
 heimdall check Demo/jets                # every configuration planned; nothing run
 heimdall run Demo/jets single --plan    # what would run: cards, argv, connections; runs nothing
-heimdall run Demo/jets single --set run.events=50000
+heimdall run Demo/jets single --set errand.events=50000
 ```
 
 `single` is one point:
@@ -217,15 +217,15 @@ A detached run still ends when what holds its session ends:
 
 ## 3. Anatomy of a run TOML
 
-A run TOML has a table per concern: `[run]` (the run, and what every configuration starts from),
+A run TOML has a table per concern: `[errand]` (the run, and what every configuration starts from),
 `[cfgs.<name>]` (each configuration), `[tools.<name>]`, `[quantities.<name>]` and `[plot]`. Here is a
 small, complete one:
 
 ```toml
 # configs/Demo/mini.toml
-[run]
+[errand]
 name    = "mini"
-project = "Demo"
+assignment = "Demo"
 run     = "pdf"                   # what `heimdall run Demo/mini` runs
 events  = 100_000
 threads = 8
@@ -306,7 +306,7 @@ No `vary`: one point. Every active quantity takes its `fixed` point. → `jets s
 
 ```toml
 [cfgs.pdf]
-vary = ["pdf"]                    # the chain is [run]'s
+vary = ["pdf"]                    # the chain is [errand]'s
 ```
 
 One page per histogram, with a curve per PDF. → `jets pdf`, `validation default`.
@@ -393,7 +393,7 @@ in another configuration (§5.1 shows the file interface). → `jets radius`, `l
 To run several of a TOML's configurations in one go, list them, or say `true` for all:
 
 ```toml
-[run]
+[errand]
 sweep_runs = ["pdf", "energies"]   # heimdall run jets: these, in this order (true: every one, in file order)
 
 [cfgs.pdf]
@@ -412,7 +412,7 @@ title = "Proton PDFs"              # the header line: run 01 - Proton PDFs -
 
 That is what a shell loop can't do. In `for c in …; do heimdall run jets $c; done`, a Ctrl-C only ends the
 current run (heimdall exits 6 and bash carries on), and a typo in a later configuration shows up hours in.
-`heimdall run jets pdf` still runs only `pdf`, and `--set run.sweep_runs=false` turns the sweep off for one
+`heimdall run jets pdf` still runs only `pdf`, and `--set errand.sweep_runs=false` turns the sweep off for one
 call.
 
 ### 4.9 A study built on another
@@ -425,9 +425,9 @@ instead of copying it, and write only what differs:
 import = [{ from = "validation", only = ["tools", "quantities", "plot"] }]
 drop   = ["tools.yd2rt"]                      # its ROOT conversion: this study draws from the YODA
 
-[run]
+[errand]
 name       = "seed_study"                     # a file that imports always names its own run
-project    = "Demo"
+assignment = "Demo"
 sweep_runs = ["default", "spread"]
 events     = 1_000_000                        # per seed
 chain      = [["pythia", "rivet"]]
@@ -665,9 +665,9 @@ the chain's event count and `threads` gets the chain's seeds, so the same events
 [file]
 import = [{ from = "validation", only = ["quantities", "tools", "plot"] }]
 
-[run]
+[errand]
 name           = "inproc_study"
-project        = "Demo"
+assignment     = "Demo"
 run            = "default"
 events         = 1_000_000
 threads        = 12
@@ -754,7 +754,7 @@ When one point cannot fill the machine (a Rivet that stops scaling, or many shor
 spending ~5 s in Pythia's init), run several points at once:
 
 ```toml
-[run]
+[errand]
 threads     = 5                  # each point's Pythia threads, as before
 parallelism = 4                  # 4 points at a time: ~4 × (5 + its Rivets) cores; "auto": as many as fit
 ```
@@ -764,7 +764,7 @@ parallelism = 4                  # 4 points at a time: ~4 × (5 + its Rivets) co
 - **The output stays apart:** each point keeps its own folder, and the view prints each point's
   block whole when it ends (in the order they finish).
 - **Planning:** `--plan` prints the estimate ("4 at once (~24 of 24 cores)") and warns past the
-  machine. For one run: `--set run.parallelism=4`.
+  machine. For one run: `--set errand.parallelism=4`.
 
 ### 7.3 Replicas, merged
 
@@ -810,7 +810,7 @@ events. A `Random:seed` in your card is ignored, because the runner writes its o
 choose the seeds yourself:
 
 ```toml
-[run]
+[errand]
 seed = 3245364                   # every point's seed: "identity" (the default), "random" or an integer;
                                  # a configuration can say its own
 
@@ -895,10 +895,10 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 | what would rerun, and why | `--why` (what changed since each point last completed) |
 | each value and where it came from | `--show-config` |
 | a subset | `--points 27x920_MSTW08lo,pdf=NNPDF23lo,3` (names, tags, `q=tag`, indices) |
-| fewer events, once | `--set run.events=50000` (dotted keys into the TOML, in its own names; repeatable) |
+| fewer events, once | `--set errand.events=50000` (dotted keys into the TOML, in its own names; repeatable) |
 | a finished point again | `--rerun` (with `--points` for one) |
 | only the pages | `--only plot`, or `heimdall plot CONFIG CFG` |
-| no pages after this run | `--no-plot`, or `[run] plot = false` (a configuration's own `plot`); `plot = ["totality", …]` draws those sets only (03 §3.1) |
+| no pages after this run | `--no-plot`, or `[errand] plot = false` (a configuration's own `plot`); `plot = ["totality", …]` draws those sets only (03 §3.1) |
 | a run's pages as it ran, whatever the configs say now | `heimdall plot <P>/<run>/<NN_cfg>` (its record, §8.1) |
 | pages of chosen points, or N points a page | `--points 1,4,6,8`, `--set 'plot.sets=[[1,4],"all"]'`, `--set plot.split=8` (03 §3.1) |
 | how far each curve is from the data | `results/…/statistics/<set>/statistics.csv` (with each drawing, or `heimdall stats <P>/<name>/<cfg>` alone), `[stats]`, `legend_statistic`, a `statistic` figure (03 §3.2, §7.9) |
@@ -910,7 +910,7 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 | running jobs | `heimdall runs` |
 | recent runs, of any state | `heimdall runs --5`, `--10`, `--20`, `--50`, `--week` (7 days), or `--month` (28 days; latest at bottom) |
 | a name for a run's folder, to tell it from the others | `--tag nlo`, a configuration's `tag = "nlo"`, or later `heimdall tag <P>/<run>/<NN_cfg> nlo` (§8.1) |
-| a desktop notification at the end | `[run] notify = "desktop"` |
+| a desktop notification at the end | `[errand] notify = "desktop"` |
 | a point faster | `shards = K` on the Rivet table (§7.1); more Pythia `threads` alone do not help |
 | many points faster | `parallelism = K` or `"auto"` (§7.2) |
 
@@ -1072,7 +1072,7 @@ installed: for notebooks and statistics tools.
 A new study that shares nothing with the others is a new work dir: `heimdall setup <dir> --project
 <Project> --git` (§1.2). A new project in a work dir:
 
-1. `configs/<Project>/`: the native base card(s) and a run TOML with `project = "<Project>"`.
+1. `configs/<Project>/`: the native base card(s) and a run TOML with `[errand] assignment = "<Project>"`.
 2. `modules/<Project>/`: Rivet plugins in `Rivet/<name>.cc` (with `.info`, `.plot`, `.yoda`), and
    programs as `<Name>.cc` with a `// requires:` line. Headers beside them are shared by both.
 3. `heimdall build`, then `heimdall check <Project>/<run>`, then `heimdall run <Project>/<run> --plan`.

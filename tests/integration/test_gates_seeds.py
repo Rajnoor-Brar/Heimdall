@@ -18,16 +18,16 @@ yoda = pytest.importorskip("yoda")
 pytestmark = pytest.mark.slow
 
 PHYSICS = """\
-[run]
+[errand]
 name          = "seeds"
-project       = "Demo"
+assignment    = "Demo"
 configuration = "one"
 event_count   = 2000
 threads       = 2
 seed_type     = "{seed_type}"
 manual_seed   = 4242
 
-[run.cfgs.one]
+[errand.cfgs.one]
 tools = [["pythia", "rivet"]]
 
 [prelim]

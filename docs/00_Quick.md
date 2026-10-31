@@ -14,13 +14,13 @@ heimdall build                             # the work dir's Rivet analyses and m
 heimdall check                             # every config: loaded, validated, every point planned; nothing run
 heimdall run Demo/jets pdf --dry-run       # the plan: cards, argv, connections (also --why, --show-config)
 heimdall run Demo/jets pdf                 # run what is not complete, then draw the pages
-heimdall run Demo/jets pdf --set run.events=50000 --points 2   # one value changed, one point, for this run
+heimdall run Demo/jets pdf --set errand.events=50000 --points 2   # one value changed, one point, for this run
 heimdall status Demo/jets                  # each point: complete, stale, running, incomplete, to run
 heimdall plot Demo/jets pdf                # redraw from what is on disk
 heimdall watch                             # follow a run from another terminal (d/Ctrl-C detach; q stops it)
 heimdall runs                              # active jobs on this machine (--5 shows recent runs)
 heimdall stop --pid 12345                  # stop a run as Ctrl-C would (a run's own terminal: d leaves it running)
-heimdall explain run.events                # any key, table, tool option or style key
+heimdall explain errand.events                # any key, table, tool option or style key
 heimdall help run                          # any command
 ```
 
@@ -34,8 +34,8 @@ Housekeeping: `heimdall clean` (logs and caches nothing uses), `heimdall migrate
 
 ```toml
 # configs/Demo/mini.toml
-[run]
-project = "Demo"
+[errand]
+assignment = "Demo"
 name    = "mini"
 run     = "pdf"                           # what `heimdall run Demo/mini` runs
 events  = 100_000

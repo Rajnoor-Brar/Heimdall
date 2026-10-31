@@ -77,5 +77,18 @@ at each commit. The runs-together, report and tag code of I-108–I-113 is renam
 | Phase | V-row | Commit | State |
 |---|---|---|---|
 | E0 this plan, the inventory | — | | written |
+| E1 the dialect: `[errand]`, `[errand].assignment`, dotted names, the schema, v3, the walkers, `[run]` refused; the migration (`heimdall migrate --names`: configs, snapshots, provenance, documents), the fixture's configs and the starter by it; docs 00–06's examples | V225 | | done |
 
 ## 6. Log
+
+- 2026-11-01: E1 built (V225). `[run]` → `[errand]`, `[run].project` → `[errand].assignment`, every other key's
+  name kept; refused in the old names with `heimdall migrate --names rewrites it` (`v3.refuse_old_names`, at
+  `config._form` and `parse`; `--set run.x`, an import's `run.…` keys, `explain run.x` each with today's form). The
+  migration written now, for E3: `migrate.errand_changes` after I-109's `names_changes` (configs by `errand_text`,
+  scripts' `--set`, records' snapshots with their digests and sets, points' provenance sets, plot documents'
+  `[source]`, folders' report.toml; never `modules/`). Beyond the plan: a report title's `{project}`/`{run}` →
+  `{assignment}`/`{errand}` (E2); provenance's `sets` rewritten too (what `heimdall reproduce` reruns); the
+  fixture migrated by `errand_changes` alone, so I-91's held `hep run` comments stay; heimdall.toml's and
+  machine.toml's `[run] keep`/`log` kept (the command's settings, not the errand file); `tests/reference/v2_configs/`
+  read through `errand_text` by the tests that compare against it. Fast suite: the one known failure; slow: the
+  five known. Next: E2 (V226).

@@ -165,7 +165,7 @@ def test_paint_gets_root_labels_and_the_page_keeps_them_as_written():
 def test_a_backslash_in_a_double_quoted_label_says_how_to_write_it(scratch):
     from runner import config
     path = scratch / "bad.toml"
-    path.write_text('[run]\nname = "x"\n[quantities.pdf]\nlabels = ["PDF4LHC21\\_40"]\n', encoding="utf-8")
+    path.write_text('[errand]\nname = "x"\n[quantities.pdf]\nlabels = ["PDF4LHC21\\_40"]\n', encoding="utf-8")
     with pytest.raises(HeimdallError, match="not valid TOML") as caught:
         config.load(str(path))
     assert "single quotes" in caught.value.hint
@@ -351,7 +351,7 @@ def test_a_figure_overrides_every_page_key_of_plot(scratch):
 
 def test_a_figure_band_must_be_a_curve_axis_too(scratch):
     from helpers import plan
-    run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__plot_points=["pdf"],
+    run, conf, _ = plan(raw(errand__cfgs__one__sweeps=["pdf"], errand__cfgs__one__plot_points=["pdf"],
                             plot={"figures": {"f": {"objects": ["d01-*"], "band": ["pdf"]}}}), scratch)
     with pytest.raises(HeimdallError, match=r"\[plot.figures.f\].band names pdf"):
         plot.check_figures(run, conf)
@@ -360,11 +360,11 @@ def test_a_figure_band_must_be_a_curve_axis_too(scratch):
 def test_a_merged_figure_merges_curve_axes_it_does_not_band(scratch):
     """V82: over names curve axes, checked at plan time, and is not banded too."""
     from helpers import plan
-    run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__plot_points=["pdf"],
+    run, conf, _ = plan(raw(errand__cfgs__one__sweeps=["pdf"], errand__cfgs__one__plot_points=["pdf"],
                             plot={"figures": {"m": {"class": "merged", "objects": ["d01-*"], "over": ["pdf"]}}}), scratch)
     with pytest.raises(HeimdallError, match=r"\[plot.figures.m\].over names pdf, which is not a curve axis"):
         plot.check_figures(run, conf)
-    run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"],
+    run, conf, _ = plan(raw(errand__cfgs__one__sweeps=["pdf"],
                             plot={"figures": {"m": {"class": "merged", "objects": ["d01-*"], "over": ["pdf"], "band": ["pdf"]}}}), scratch)
     with pytest.raises(HeimdallError, match="both merges and bands pdf"):
         plot.check_figures(run, conf)
@@ -376,16 +376,16 @@ def test_a_compare_figure_pairs_configurations_of_one_shape(scratch):
     """V83: two configurations or more, the sweep_runs ones by default, each with the same axes."""
     from helpers import plan
     figure = {"class": "compare", "objects": ["d01-*"]}
-    run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], plot={"figures": {"c": figure}}), scratch)
+    run, conf, _ = plan(raw(errand__cfgs__one__sweeps=["pdf"], plot={"figures": {"c": figure}}), scratch)
     with pytest.raises(HeimdallError, match="needs two configurations or more"):
         plot.check_figures(run, conf)
-    run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__two={"tools": ["pythia"], "sweeps": []},
+    run, conf, _ = plan(raw(errand__cfgs__one__sweeps=["pdf"], errand__cfgs__two={"tools": ["pythia"], "sweeps": []},
                             plot={"figures": {"c": {**figure, "configurations": ["one", "two"]}}}), scratch)
     with pytest.raises(HeimdallError, match=r"differ in their axes: one \(pages: none; curves: pdf\), two \(pages: none; curves: none\)"):
         plot.check_figures(run, conf)
     from helpers import parse
-    run = parse(raw(run__sweep_runs=True, run__configuration=None, run__cfgs__one__sweeps=["pdf"],
-                    run__cfgs__two={"tools": ["pythia"], "sweeps": ["pdf"]}, plot={"figures": {"c": figure}}), scratch)
+    run = parse(raw(errand__sweep_runs=True, errand__configuration=None, errand__cfgs__one__sweeps=["pdf"],
+                    errand__cfgs__two={"tools": ["pythia"], "sweeps": ["pdf"]}, plot={"figures": {"c": figure}}), scratch)
     assert [c.ref for c in plot.compared(run, plot.figures(run)[0])] == ["one", "two"]
 
 
@@ -510,7 +510,7 @@ def test_a_quantity_value_has_its_own_curve_look(scratch):
     """V67: styles = [...], one per value, reach the value's curves; a later curve axis's key wins."""
     from helpers import plan
     styles = [{"colour": "#EE3311", "line": "dashed"}, {"width": 2.0, "colour": "default"}]
-    data = raw(run__cfgs__one__sweeps=["pdf"], quantities__pdf__styles=styles)
+    data = raw(errand__cfgs__one__sweeps=["pdf"], quantities__pdf__styles=styles)
     run, _, first = plan(data, scratch)
     _, _, second = plan(data, scratch, point=1)
     assert plot._curve_look(run, first, [["pdf"]]) == {"colour": "#EE3311", "line": "dashed"}
@@ -577,10 +577,10 @@ def test_a_configuration_checks_the_sets_it_draws(scratch):
     every configuration: the file's sets are there to be picked. Drawing every set (the default) checks them all."""
     sets = {"nn": {"curves": {"pdf": "NNPDF23lo"}}}                            # one sets no pdf
     two = {"tools": [["pythia", "rivet"]], "sweeps": ["pdf"], "plot": ["totality", "nn"]}
-    run = parse(raw(plot={"sets": sets}, run__plot=["totality"], run__cfgs__two=two), scratch)
+    run = parse(raw(plot={"sets": sets}, errand__plot=["totality"], errand__cfgs__two=two), scratch)
     plot.check_figures(run, run.configuration("one"))                           # it draws totality alone
     plot.check_figures(run, run.configuration("two"))
-    for picked in ({"run__cfgs__one__plot": ["nn"]}, {"run__stats": ["nn"], "run__plot": False}, {}):
+    for picked in ({"errand__cfgs__one__plot": ["nn"]}, {"errand__stats": ["nn"], "errand__plot": False}, {}):
         run = parse(raw(plot={"sets": sets}, **picked), scratch)
         with pytest.raises(HeimdallError, match="which no point of the configuration sets"):
             plot.check_figures(run, run.configuration("one"))
@@ -588,10 +588,10 @@ def test_a_configuration_checks_the_sets_it_draws(scratch):
 
 def test_a_band_must_be_a_curve_axis(scratch):
     from helpers import plan
-    run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__plot_points=["pdf"], plot={"band": ["pdf"]}), scratch)
+    run, conf, _ = plan(raw(errand__cfgs__one__sweeps=["pdf"], errand__cfgs__one__plot_points=["pdf"], plot={"band": ["pdf"]}), scratch)
     with pytest.raises(HeimdallError, match="not a curve axis"):
         plot.check_figures(run, conf)
-    run, conf, _ = plan(raw(run__cfgs__one__sweeps=["pdf"], plot={"band": ["pdf"]}), scratch)
+    run, conf, _ = plan(raw(errand__cfgs__one__sweeps=["pdf"], plot={"band": ["pdf"]}), scratch)
     plot.check_figures(run, conf)
 
 

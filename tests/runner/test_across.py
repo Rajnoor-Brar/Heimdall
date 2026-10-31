@@ -187,10 +187,10 @@ def test_plot_across_from_is_checked_and_written_into_from(scratch):
 
     config = scratch / "synced.toml"
     args = argparse.Namespace(style_sync=str(config), set=[], plan=False, replot=False)
-    config.write_text(tomli_w.dumps(raw(run__cfgs__one__sweeps=["pdf"], plot={"across": across})), encoding="utf-8")
+    config.write_text(tomli_w.dumps(raw(errand__cfgs__one__sweeps=["pdf"], plot={"across": across})), encoding="utf-8")
     assert cli.style_sync_across(args) == 0                    # no table: [from] kept
     assert tomllib.loads(target.read_text(encoding="utf-8"))["from"]["ignore"] == ["generator"]
-    config.write_text(tomli_w.dumps(raw(run__cfgs__one__sweeps=["pdf"], plot={"across": across, "across_from": {"prefer": "all"}})),
+    config.write_text(tomli_w.dumps(raw(errand__cfgs__one__sweeps=["pdf"], plot={"across": across, "across_from": {"prefer": "all"}})),
                       encoding="utf-8")
     assert cli.style_sync_across(args) == 0
     text = target.read_text(encoding="utf-8")
@@ -239,7 +239,7 @@ def test_a_sync_mends_a_from_in_error(scratch):
     with pytest.raises(HeimdallError, match="prefer"):
         plotdoc.load(target)
     config = scratch / "mended.toml"
-    config.write_text(tomli_w.dumps(raw(run__cfgs__one__sweeps=["pdf"], plot={"across": across, "across_from": {"prefer": "all"}})),
+    config.write_text(tomli_w.dumps(raw(errand__cfgs__one__sweeps=["pdf"], plot={"across": across, "across_from": {"prefer": "all"}})),
                       encoding="utf-8")
     args = argparse.Namespace(style_sync=str(config), set=[], plan=False, replot=False)
     assert cli.style_sync_across(args) == 0

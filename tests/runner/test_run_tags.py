@@ -27,7 +27,7 @@ def study(scratch, name: str = "tagged", **changes):
         shutil.rmtree(root / "Demo" / name, ignore_errors=True)
     folder = scratch / "configs" / "Demo"
     folder.mkdir(parents=True, exist_ok=True)
-    data = raw(run__name=name, run__cfgs__one__tools=[["true"]], tools=TRUE, prelim={}, quantities={}, **changes)
+    data = raw(errand__name=name, errand__cfgs__one__tools=[["true"]], tools=TRUE, prelim={}, quantities={}, **changes)
     path = folder / f"{name}.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     return path
@@ -61,13 +61,13 @@ def test_a_tag_is_a_short_name():
 
 
 def test_a_configuration_inherits_its_tag_and_a_bad_one_is_refused(scratch):
-    assert parse(raw(run__tag="lo"), scratch).configuration("one").tag == "lo"
-    assert parse(raw(run__tag="lo", run__cfgs__one__tag=""), scratch).configuration("one").tag == ""    # "": none
-    assert parse(raw(run__cfgs__one__tag="nlo"), scratch).configuration("one").tag == "nlo"
+    assert parse(raw(errand__tag="lo"), scratch).configuration("one").tag == "lo"
+    assert parse(raw(errand__tag="lo", errand__cfgs__one__tag=""), scratch).configuration("one").tag == ""    # "": none
+    assert parse(raw(errand__cfgs__one__tag="nlo"), scratch).configuration("one").tag == "nlo"
     assert parse(raw(), scratch).configuration("one").tag == ""
     with pytest.raises(HeimdallError) as error:
-        parse(raw(run__cfgs__one__tag="n lo"), scratch)
-    assert "[run.cfgs.one].tag" in str(error.value.where)
+        parse(raw(errand__cfgs__one__tag="n lo"), scratch)
+    assert "[errand.cfgs.one].tag" in str(error.value.where)
 
 
 def test_a_tag_moves_no_identity(scratch):
@@ -80,11 +80,11 @@ def test_a_tag_moves_no_identity(scratch):
         master = quantities.load_master(run_.project, run_.master_toml)
         return [record.identity(tools.plan_point(run_, conf, p, master)) for p in sweep.points(run_, conf)]
 
-    assert identities(raw(run__cfgs__one__tag="nlo")) == identities(raw())
+    assert identities(raw(errand__cfgs__one__tag="nlo")) == identities(raw())
 
 
 def test_the_tag_comes_from_the_flag_else_the_folder_else_the_configuration(configs):
-    path = study(configs, run__cfgs__one__tag="cfg")
+    path = study(configs, errand__cfgs__one__tag="cfg")
     assert run(path, "--rerun") == 0
     assert kept() == ("cfg", "cfg")                                     # the configuration's key, the first time
     assert cli.main(["tag", "Demo/tagged/one", "mine"]) == 0
@@ -107,11 +107,11 @@ def test_an_untagged_run_writes_no_tag(configs):
 
 
 def test_a_plan_says_the_tag_and_writes_none(configs, capsys):
-    path = study(configs, "planned", run__tag="lo")
+    path = study(configs, "planned", errand__tag="lo")
     assert run(path, "--plan", "--tag", "nlo") == 0
     assert "tag: nlo (--tag)" in capsys.readouterr().out
     assert run(path, "--plan") == 0
-    assert "tag: lo ([run])" in capsys.readouterr().out
+    assert "tag: lo ([errand])" in capsys.readouterr().out
     assert record.run_tag(records_root() / "Demo/planned/one") is None
 
 
@@ -147,7 +147,7 @@ def test_heimdall_tag_shows_sets_and_clears(configs, capsys):
 def test_a_cleared_tag_is_not_given_again_by_the_key(configs, capsys):
     """--clear lasts: the configuration's `tag` key gives a folder its tag once, never after heimdall tag took it;
     --tag gives one again. A path into the folder (its plot.toml) names the folder."""
-    path = study(configs, "keyed", run__cfgs__one__tag="lo")
+    path = study(configs, "keyed", errand__cfgs__one__tag="lo")
     assert run(path, "--rerun") == 0
     assert kept("keyed") == ("lo", "lo")
     assert cli.main(["tag", str(results_root() / "Demo/keyed/one/plot.toml"), "--clear"]) == 0
@@ -200,7 +200,7 @@ def test_runs_and_status_show_the_tag(configs, capsys):
              "code": 0, "pid": 1, "host": runs.host()}
     lines = house.runs_listing([entry], [], {}, now=3.0, limit=5)
     assert "      Demo/t · 02 one [nlo], two" in lines
-    path = study(configs, "status", run__cfgs__one__tag="lo")
+    path = study(configs, "status", errand__cfgs__one__tag="lo")
     assert run(path, "--rerun") == 0
     capsys.readouterr()
     assert cli.main(["status", str(path)]) == 0

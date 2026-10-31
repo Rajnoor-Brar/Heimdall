@@ -19,17 +19,17 @@ yoda = pytest.importorskip("yoda")
 pytestmark = pytest.mark.slow
 
 RUN = """\
-[run]
+[errand]
 name          = "shards"
-project       = "Demo"
+assignment    = "Demo"
 configuration = "one"
 event_count   = 4000
 threads       = 4
 
-[run.cfgs.one]
+[errand.cfgs.one]
 tools = [["pythia", "rivet"]]
 
-[run.cfgs.four]
+[errand.cfgs.four]
 tools = [["pythia", "rivet4"]]
 
 [prelim]

@@ -8,7 +8,7 @@ from pathlib import Path
 from runner import config, quantities, record, sweep, tools
 
 BASE = {
-    "run": {"name": "t", "project": "Demo", "configuration": "one", "event_count": 10, "threads": 1,
+    "errand": {"name": "t", "assignment": "Demo", "configuration": "one", "event_count": 10, "threads": 1,
             "cfgs": {"one": {"tools": [["pythia", "rivet"]]}}},
     "prelim": {"fifo": ["events.hepmc"]},
     "tools": {

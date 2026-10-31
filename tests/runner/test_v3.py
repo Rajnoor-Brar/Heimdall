@@ -11,18 +11,18 @@ from runner import config, quantities, sweep, tools
 from runner.errors import HeimdallError
 from helpers import plans_of
 
-V2 = """[run]
+V2 = """[errand]
 name          = "pair"
-project       = "Demo"
+assignment    = "Demo"
 configuration = "single"
 event_count   = 10
 threads       = 1
 
-[run.cfgs.single]
+[errand.cfgs.single]
 sweeps = []
 tools  = [["pythia", "rivet"], "yd2rt"]
 
-[run.cfgs.pdf]
+[errand.cfgs.pdf]
 sweeps = ["pdf"]
 tools  = [["pythia", "rivet"], "yd2rt"]
 
@@ -60,8 +60,8 @@ tags   = ["MSTW08lo", "NNPDF23lo"]
 labels = ["MSTW 2008 LO", "NNPDF 2.3 LO"]
 """
 
-V3 = """[run]
-project = "Demo"
+V3 = """[errand]
+assignment = "Demo"
 name    = "pair"
 run     = "single"
 events  = 10
@@ -213,7 +213,7 @@ def test_an_imported_tool_table_merges_key_by_key(scratch):
     common = scratch / "common.toml"
     common.write_text(V3.replace('[cfgs.single]\ndescription = "One run at the fixed point"\n', "")
                       .replace('[cfgs.pdf]\nvary = ["pdf"]\n', ""), encoding="utf-8")
-    mine = f'[file]\nimport = ["{common}"]\n\n[run]\nproject = "Demo"\nname = "mine"\nrun = "one"\n\n' \
+    mine = f'[file]\nimport = ["{common}"]\n\n[errand]\nassignment = "Demo"\nname = "mine"\nrun = "one"\n\n' \
            '[tools.rivet]\nanalyses = ["photo_eic:R=0.7"]\n\n[cfgs.one]\nvary = ["pdf"]\n'
     run = load(scratch, mine, "mine.toml")
     assert run.form == 3 and run.tools["rivet"].extra["analyses"] == ["photo_eic:R=0.7"]
@@ -242,12 +242,12 @@ def _identities(run) -> dict:
 
 def test_every_fixture_config_is_its_v2_text_in_v3():
     """06_Plan's phase-6 row: the fixture's configs were migrated by heimdall migrate --v3; their v2 texts
-    (tests/reference/v2_configs/) and they plan every point to the same name and identity, and the v2
-    text migrates to the file as it is."""
+    (tests/reference/v2_configs/, in the names before I-112: read through heimdall migrate --names' errand_text)
+    and they plan every point to the same name and identity, and the v2 text migrates to the file as it is."""
     from runner import house, migrate
     from support import REPO
     for name in house.config_names():
-        v2 = (REPO / "tests" / "reference" / "v2_configs" / f"{name}.toml").read_text(encoding="utf-8")
+        v2 = migrate.errand_text((REPO / "tests" / "reference" / "v2_configs" / f"{name}.toml").read_text(encoding="utf-8"))
         mine = _identities(config.load(name))
         theirs = _identities(config.load(name, text=v2))
         assert {k: [(n, i) for n, _, i in v] for k, v in mine.items()} == \
@@ -264,7 +264,7 @@ def test_the_migration_says_each_fact_once(scratch):
 
 
 @pytest.mark.parametrize("change, message", [
-    (('analyses = ["photo_eic"]', 'analyses = ["photo_eic"]\nthreads  = 4'), "'threads' belongs in \\[run\\] \\(or a configuration\\)"),
+    (('analyses = ["photo_eic"]', 'analyses = ["photo_eic"]\nthreads  = 4'), "'threads' belongs in \\[errand\\] \\(or a configuration\\)"),
     (('[cfgs.pdf]\nvary = ["pdf"]', '[cfgs.pdf]\nvary = ["pdf"]\nformats = ["png"]'), "'formats' belongs in \\[plot\\]"),
     (('analyses = ["photo_eic"]', 'analyses = ["photo_eic"]\nvary = ["pdf"]'), "'vary' belongs in a configuration"),
 ])
@@ -293,8 +293,9 @@ def test_the_editor_schemas_take_the_fixture_and_catch_a_typo():
     v2, v3 = schema.json_schema(), schema.json_schema_v3()
     for path in (REPO / "tests" / "fixtures" / "work" / "configs").rglob("*.toml"):
         assert not list(jsonschema.Draft7Validator(v3).iter_errors(tomllib.loads(path.read_text(encoding="utf-8")))), path.name
-    for path in (REPO / "tests" / "reference" / "v2_configs").rglob("*.toml"):
-        assert not list(jsonschema.Draft7Validator(v2).iter_errors(tomllib.loads(path.read_text(encoding="utf-8")))), path.name
+    from runner import migrate
+    for path in (REPO / "tests" / "reference" / "v2_configs").rglob("*.toml"):              # in I-112's names
+        assert not list(jsonschema.Draft7Validator(v2).iter_errors(tomllib.loads(migrate.errand_text(path.read_text(encoding="utf-8"))))), path.name
     wrong = tomllib.loads(V3.replace('analyses = ["photo_eic"]', 'analysis = ["photo_eic"]'))
     assert any("analysis" in e.message for e in jsonschema.Draft7Validator(v3).iter_errors(wrong))
     for name in ("run.schema.json", "run.v3.schema.json"):                     # make schema keeps them current
@@ -335,12 +336,12 @@ def test_the_runner_numbers_a_folder_without_a_serial(scratch, trees_of_its_own)
     assert "the first" in first.configuration.serial_note
     _complete(first)
     assert _planned(path, "pdf").configuration.serial == 1                     # made from these inputs
-    changed = _planned(path, "pdf", sets=["run.events=20"])                     # --set in v3's own names
+    changed = _planned(path, "pdf", sets=["errand.events=20"])                     # --set in v3's own names
     assert changed.configuration.event_count == 20 and changed.configuration.serial == 2
     assert "01 holds other inputs" in changed.configuration.serial_note
     _complete(changed)
     assert _planned(path, "pdf").configuration.serial == 1                     # the change undone: its folder
-    assert _planned(path, "pdf", sets=["run.events=20"]).configuration.serial == 2
+    assert _planned(path, "pdf", sets=["errand.events=20"]).configuration.serial == 2
 
 
 def test_a_set_serial_refuses_to_overwrite_other_inputs(scratch, trees_of_its_own, capsys):
@@ -352,17 +353,17 @@ def test_a_set_serial_refuses_to_overwrite_other_inputs(scratch, trees_of_its_ow
     _complete(_planned(path, "pdf"))
     same = _planned(path, "pdf")
     assert same.configuration.serial == 3 and not same.configuration.serial_auto and cli.overwrites(same) == []
-    changed = _planned(path, "pdf", sets=["run.events=20"])
+    changed = _planned(path, "pdf", sets=["errand.events=20"])
     with pytest.raises(HeimdallError, match="would overwrite them") as error:
         cli.refuse_overwrites(changed, argparse.Namespace(rerun=False))
-    assert "serial = 4" in error.value.hint and "--rerun" in error.value.hint and "[run]" in error.value.where
+    assert "serial = 4" in error.value.hint and "--rerun" in error.value.hint and "[errand]" in error.value.where
     cli.refuse_overwrites(changed, argparse.Namespace(rerun=True))
     cli.refuse_overwrites(changed, argparse.Namespace(rerun=False), frozenset({"post", "plot"}))   # no point runs
     cli.print_plan(changed.run, changed.configuration, changed.plans, pre_plan=changed.pre)
     assert "running refuses to overwrite them (serial = 4, or --rerun)" in capsys.readouterr().out
     v2 = written(scratch, V2.replace('name          = "pair"', 'name          = "kept2"\nserial        = 3'), "kept2.toml")
     _complete(_planned(v2, "pdf"))
-    assert cli.overwrites(_planned(v2, "pdf", sets=["run.event_count=20"])) == []
+    assert cli.overwrites(_planned(v2, "pdf", sets=["errand.event_count=20"])) == []
 
 
 def test_a_numbered_folder_is_one_configurations(scratch):
@@ -370,8 +371,8 @@ def test_a_numbered_folder_is_one_configurations(scratch):
     with pytest.raises(HeimdallError, match="'pdf' and 'other' would both write Demo/pair/NN_pdf"):
         load(scratch, text)
     with pytest.raises(HeimdallError, match="would both write Demo/pair/01_pdf"):                 # either form
-        twice = V2.replace("[run.cfgs.pdf]", "[run.cfgs.pdf]\nserial = 1").replace(
-            "[prelim]", '[run.cfgs.other]\nlabel  = "pdf"\nserial = 1\nsweeps = ["pdf"]\ntools  = ["pythia"]\n\n[prelim]')
+        twice = V2.replace("[errand.cfgs.pdf]", "[errand.cfgs.pdf]\nserial = 1").replace(
+            "[prelim]", '[errand.cfgs.other]\nlabel  = "pdf"\nserial = 1\nsweeps = ["pdf"]\ntools  = ["pythia"]\n\n[prelim]')
         load(scratch, twice, "two.toml")
 
 
@@ -392,11 +393,11 @@ def test_default_is_the_layer_below_and_native_the_tools_own(scratch):
 def test_an_imports_only_and_drop_take_v3_names(scratch):
     """A v3 file names what it takes and drops of an import in its own names: cfgs.<name>, file.vars."""
     common = written(scratch, V3, "shared.toml")
-    mine = f'[file]\nimport = [{{ from = "{common}", only = ["cfgs.pdf", "tools", "quantities", "run.chain"] }}]\n\n' \
-           '[run]\nproject = "Demo"\nname = "taker"\nrun = "pdf"\nevents = 10\n'
+    mine = f'[file]\nimport = [{{ from = "{common}", only = ["cfgs.pdf", "tools", "quantities", "errand.chain"] }}]\n\n' \
+           '[errand]\nassignment = "Demo"\nname = "taker"\nrun = "pdf"\nevents = 10\n'
     run = load(scratch, mine, "taker.toml")
     assert list(run.configurations) == ["pdf"] and run.configuration("pdf").sweeps == ["pdf"]
-    dropping = f'[file]\nimport = ["{common}"]\ndrop = ["cfgs.single"]\n\n[run]\nproject = "Demo"\nname = "dropper"\nrun = "pdf"\n'
+    dropping = f'[file]\nimport = ["{common}"]\ndrop = ["cfgs.single"]\n\n[errand]\nassignment = "Demo"\nname = "dropper"\nrun = "pdf"\n'
     assert "single" not in load(scratch, dropping, "dropper.toml").configurations
     with pytest.raises(HeimdallError, match="drop names"):
         load(scratch, dropping.replace("cfgs.single", "cfgs.singel"), "dropper.toml")
@@ -405,10 +406,10 @@ def test_an_imports_only_and_drop_take_v3_names(scratch):
 def test_a_commented_out_configuration_is_migrated_to_uncomment():
     """A configuration commented out in a v2 file stays one to uncomment in v3: header and keys renamed."""
     from runner import migrate
-    text = V2 + '\n# [run.cfgs.pthatmin]\n# serial      = 7\n# sweeps      = ["pdf"]\n# static      = { energies = "18x275" }\n'
+    text = V2 + '\n# [errand.cfgs.pthatmin]\n# serial      = 7\n# sweeps      = ["pdf"]\n# static      = { energies = "18x275" }\n'
     new = migrate.v3_text(text)
     assert '# [cfgs.pthatmin]' in new and '# vary        = ["pdf"]' in new and '# fixed       = { energies' in new
-    assert "# serial      = 7" in new and "[run.cfgs" not in new
+    assert "# serial      = 7" in new and "[errand.cfgs" not in new
 
 
 

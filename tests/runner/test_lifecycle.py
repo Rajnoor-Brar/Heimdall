@@ -97,15 +97,15 @@ def test_a_lock_dies_with_its_process(trees):
 def test_a_reserved_name_is_refused(scratch):
     """U30: plots, pre, post and cluster live beside the points; compare beside a run's configurations."""
     from runner import config, sweep
-    text = ('[run]\nname = "r"\nproject = "Demo"\nconfiguration = "c"\nevent_count = 1\n\n'
-            '[run.cfgs.c]\nsweeps = ["q"]\ntools = ["x"]\n\n[tools.x]\ntool = "exec"\nexecutable = "path:true"\n'
+    text = ('[errand]\nname = "r"\nassignment = "Demo"\nconfiguration = "c"\nevent_count = 1\n\n'
+            '[errand.cfgs.c]\nsweeps = ["q"]\ntools = ["x"]\n\n[tools.x]\ntool = "exec"\nexecutable = "path:true"\n'
             'consumes = ["q"]\n\n[quantities.q]\nvalues = [1, 2]\ntags = ["plots", "b"]\n')
     path = scratch / "reserved.toml"
     path.write_text(text, encoding="utf-8")
     run = config.load(str(path))
     with pytest.raises(HeimdallError, match="a point is named 'plots'"):
         sweep.points(run, run.configuration("c"))
-    clash = (text.replace('[run.cfgs.c]\n', '[run.cfgs.c]\nlabel = "compare"\n').replace('tags = ["plots", "b"]', 'tags = ["a", "b"]')
+    clash = (text.replace('[errand.cfgs.c]\n', '[errand.cfgs.c]\nlabel = "compare"\n').replace('tags = ["plots", "b"]', 'tags = ["a", "b"]')
              + '\n[plot.figures.both]\nclass = "compare"\nobjects = ["/x/*"]\nconfigurations = ["c"]\n')
     path.write_text(clash, encoding="utf-8")
     with pytest.raises(HeimdallError, match="where this run's compare figures go"):

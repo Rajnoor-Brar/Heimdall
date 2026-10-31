@@ -62,14 +62,14 @@ def test_heimdall_deck_stops_naming_heimdall_report():
 def test_plain_and_dry_run_anywhere():
     args = cli.parse(["--plain", "run", "Demo/jets", "--dry-run", "pdf"])
     assert args.plain and args.plan and args.configuration == "pdf"
-    assert cli.parse(["status", "--set", "run.events=10"]).set == ["run.events=10"]
-    assert cli.parse(["check", "--set", "run.events=10"]).set == ["run.events=10"]
-    assert cli.parse(["clean", "--set", "run.events=10", "--dry-run"]).set == ["run.events=10"]
+    assert cli.parse(["status", "--set", "errand.events=10"]).set == ["errand.events=10"]
+    assert cli.parse(["check", "--set", "errand.events=10"]).set == ["errand.events=10"]
+    assert cli.parse(["clean", "--set", "errand.events=10", "--dry-run"]).set == ["errand.events=10"]
 
 
 def test_check_plans_what_the_set_run_would(capsys):
-    assert cli.main(["check", "Demo/jets", "--set", "run.events=10"]) == 0
-    assert cli.main(["check", "Demo/jets", "--set", "run.eventz=10"]) == 2
+    assert cli.main(["check", "Demo/jets", "--set", "errand.events=10"]) == 0
+    assert cli.main(["check", "Demo/jets", "--set", "errand.eventz=10"]) == 2
     assert "unknown key 'eventz'" in capsys.readouterr().out
 
 

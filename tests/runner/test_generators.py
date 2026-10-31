@@ -81,7 +81,7 @@ def test_render_refuses_what_the_plan_owns_and_missing_entries():
 
 @pytest.mark.skipif(not NEEDS["sherpa"], reason="gjallarhorn: Sherpa")
 def test_sherpa_integration_is_keyed_by_the_card_without_its_event_count():
-    few, many = plans("Demo/sherpa", sets=["run.events=100"]), plans("Demo/sherpa", sets=["run.events=9000"])
+    few, many = plans("Demo/sherpa", sets=["errand.events=100"]), plans("Demo/sherpa", sets=["errand.events=9000"])
     assert few[0].rendered["sherpa"].prepare_dir == many[0].rendered["sherpa"].prepare_dir
     assert few[0].identity != many[0].identity
     by_pdf = plans("Demo/sherpa", "pdf")
@@ -96,12 +96,12 @@ def test_sherpa_integration_is_keyed_by_the_card_without_its_event_count():
 def test_sherpas_display_arguments_are_given_but_not_in_its_identity(monkeypatch):
     """[command] display (V156): BATCH_MODE and the interval reach Sherpa's command line; a point planned
     without them has the same identity and seed, so no Sherpa point reruns for them."""
-    shown = plans("Demo/sherpa", sets=["run.events=250000"])[0]
+    shown = plans("Demo/sherpa", sets=["errand.events=250000"])[0]
     step = shown.rendered["sherpa"]
     assert step.argv[-2:] == ["BATCH_MODE: 23", "EVENT_DISPLAY_INTERVAL: 250"]
     assert not any("BATCH_MODE" in a for a in step.identity_parts["argv"])
     monkeypatch.setitem(tools.folders()["sherpa"].spec["command"], "display", [])
-    plain = plans("Demo/sherpa", sets=["run.events=250000"])[0]
+    plain = plans("Demo/sherpa", sets=["errand.events=250000"])[0]
     assert "BATCH_MODE: 23" not in plain.rendered["sherpa"].argv
     assert (plain.identity, plain.seed) == (shown.identity, shown.seed)
 

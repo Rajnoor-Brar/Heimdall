@@ -59,7 +59,7 @@ def test_madgraph_launch_script_and_proc_card():
 
 @pytest.mark.skipif(not shutil.which("mg5_aMC"), reason="gjallarhorn: mg5_aMC")
 def test_madgraph_is_built_once_per_proc_card_and_showered_from_a_file():
-    few, many = plans("Demo/madgraph", sets=["run.events=10"]), plans("Demo/madgraph")
+    few, many = plans("Demo/madgraph", sets=["errand.events=10"]), plans("Demo/madgraph")
     mg = few[0].rendered["madgraph"]
     assert mg.prepare_dir == many[0].rendered["madgraph"].prepare_dir      # key = "base": the proc card only
     assert f"r{few[0].seed}" in mg.argv[-2] and mg.argv[-1] == str(few[0].interfaces["unweighted.lhe"].path)
@@ -90,7 +90,7 @@ def test_each_point_runs_its_own_generator_and_takes_what_it_consumes():
 
 
 def test_an_at_chain_still_refuses_a_value_no_alternative_consumes(scratch):
-    data = raw(run__cfgs__one__tools=[["@gen", "rivet"]], run__cfgs__one__sweeps=["gen"],
+    data = raw(errand__cfgs__one__tools=[["@gen", "rivet"]], errand__cfgs__one__sweeps=["gen"],
                quantities__gen={"values": ["pythia"], "tags": ["py"]},
                quantities__nothing={"values": [1], "key": {"herwig": "X"}}, static={"nothing": 1})
     run = parse(data, scratch)

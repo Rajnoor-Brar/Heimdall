@@ -232,7 +232,7 @@ defines one of that name: every point, nothing left out. Its pages and curves:
 The choice is written into the document as the set's `pages` and `curves`, so the file says what it draws,
 and a later run keeps it.
 
-**Which sets are drawn.** By default, every set. `[run] plot` (or a configuration's own `plot`) chooses
+**Which sets are drawn.** By default, every set. `[errand] plot` (or a configuration's own `plot`) chooses
 after a run:
 - `true` draws every set;
 - `false` draws none (the document is still written, for `heimdall plot` later);
@@ -365,11 +365,11 @@ and narrow nothing), so every backend's page agrees with them. Each set's go int
 They are made two ways:
 
 - **With each drawing:** a set's pages give `statistics/<set>/`. `[plot] statistics = false` stops it,
-  `[run] stats = false` (or `--no-stats`) for a run's follow-up.
+  `[errand] stats = false` (or `--no-stats`) for a run's follow-up.
 - **Alone:** `heimdall stats <P>/<name>/<cfg>` (a folder with a `plot.toml`, `<P>/<name>` for each of its
   runs, or a run TOML for its configurations' newest) measures a run without drawing a page: the same page
   documents, read by Paint with `--ranges-only`, in a fraction of the time. `--sets a,b` measures those sets.
-  A run with `[run] plot = false` and `stats = true` does this after its points.
+  A run with `[errand] plot = false` and `stats = true` does this after its points.
 
 **`[stats]`** (in the run TOML, kept in the plot document) measures otherwise than the pages draw. What it
 leaves unset is the pages' own:
@@ -382,7 +382,7 @@ normalise = "area"                                 # compare shapes, whatever th
 reference = { generator = "py8", pdf = "NNPDF23lo" }   # against this curve, data or not ("data": the default; "curves": each page's first)
 ```
 
-With a `[stats]` table, or `[run] stats = [sets]`, the numbers come from a pass of their own over the pages'
+With a `[stats]` table, or `[errand] stats = [sets]`, the numbers come from a pass of their own over the pages'
 documents (in the working folder's `stats/`), even after a drawing, so `statistics/<set>/` always holds the
 same kind of numbers, whoever made them. The columns:
 

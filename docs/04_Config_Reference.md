@@ -28,8 +28,8 @@ folders and identities. §17 maps its names, and `heimdall migrate --v3` rewrite
 A whole file, to see the tables together:
 
 ```toml
-[run]
-project = "Demo"
+[errand]
+assignment = "Demo"
 name    = "pair"
 run     = "pdf"                          # the configuration `heimdall run Demo/pair` runs
 events  = 500
@@ -83,17 +83,17 @@ YAML merge for Sherpa, and so on (see [05](05_Commands_and_Tools.md)).
 ```
 <tool>/quantities.toml (shipped < machine < work dir)  <  [file].master  <  [quantities.<q>].to  <  --set
 a quantity's fixed  <  [cfgs.<name>].fixed  <  --set …fixed…  <  the value a vary gives the point
-[run]  <  extends  <  [cfgs.<name>]  <  --set
+[errand]  <  extends  <  [cfgs.<name>]  <  --set
 [file].import files  <  this file
 base.toml  <  machine style.toml  <  work dir style.toml  <  [plot].root_style file  <  [plot.style]  <  [plot.figures.<figure>].style
 [plot]  <  [plot.figures.<figure>]
 ```
 
-A run TOML has exactly these top-level tables, and any other is an error (C1): `[file]`, `[run]`,
+A run TOML has exactly these top-level tables, and any other is an error (C1): `[file]`, `[errand]`,
 `[cfgs]`, `[tools]`, `[quantities]`, `[plot]`, `[cluster]`.
 
 **`"default"` means "the layer below's value"**, as if the key were left out (03 §6): in a
-configuration, `[run]`'s or the one it extends; in a figure, `[plot]`'s; in a style layer, the one
+configuration, `[errand]`'s or the one it extends; in a figure, `[plot]`'s; in a style layer, the one
 below; at the top, the runner's default (the tables' *Default*). Only a key whose type says so takes
 it, and `--set key=default` works for one run.
 
@@ -151,19 +151,19 @@ records and results is little unless asked (§14). Deleting a configuration's `l
 nothing; deleting its `points/` makes every point "to run" again. A point another session is running is
 skipped, naming who runs it, unless `--wait`.
 
-- `<run>` is `[run].name`, or the configuration's own `name`.
+- `<run>` is `[errand].name`, or the configuration's own `name`.
 - `<cfg>` is `NN_<folder>`. `<folder>` is the configuration's `folder`, or its table key when that is
   empty or unset.
 - `<point>` is the varied quantities' tags joined by `_`, in `vary` order, or `point` when nothing
   is varied. Two points with the same name are an error (C11).
 
 **The serial `NN`** is where a configuration's results go, never part of an identity (03 §6):
-- **Left out** (in the configuration and in `[run]`), the runner numbers the folder. It takes the
+- **Left out** (in the configuration and in `[errand]`), the runner numbers the folder. It takes the
   newest folder whose points were made from the configuration as it stands now, or an older one
   when a change was undone. When nothing there was made yet, it takes the newest folder. Otherwise
   it takes a new number, so a changed configuration never overwrites what it made. `--plan` says
   which folder and why (`note: folder 02: new (01 holds other inputs)`).
-- **Set** (`serial = 3`, the configuration's or `[run]`'s), the folder is yours: `03_<folder>`. A
+- **Set** (`serial = 3`, the configuration's or `[errand]`'s), the folder is yours: `03_<folder>`. A
   run that would overwrite points made there from other inputs is refused, with the bump as the
   hint (`serial = 4`). `--rerun` overwrites them, and `--why` says what changed. `heimdall cluster`
   checks before it submits.
@@ -187,7 +187,7 @@ master = "master.toml"           # optional: configs/<project>/master.toml overl
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `master` | a string |  | overlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an entry for a (tool, quantity) pair replaces the framework's. The file must exist. |
-| `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins**: a quantity or configuration of the file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[run]`'s own keys merge key by key, tables recursively. Imports nest, depth-first; a circle is refused. Another project's file keeps its bare paths its own project's. The file that imports sets its own `[run].name` and `project`. An entry may be `{ from = "<config>", only = ["quantities", "cfgs.default", …] }`: only those tables or dotted keys, each of which the file must have |
+| `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins**: a quantity or configuration of the file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[errand]`'s own keys merge key by key, tables recursively. Imports nest, depth-first; a circle is refused. Another project's file keeps its bare paths its own project's. The file that imports sets its own `[errand].name` and `assignment`. An entry may be `{ from = "<config>", only = ["quantities", "cfgs.default", …] }`: only those tables or dotted keys, each of which the file must have |
 | `drop` | a list (a string each) |  | dotted keys (`cfgs.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken out of what the imports brought in, before this file's own tables are laid over them. Each must name something an import gave, so a misspelt drop is refused rather than keeping what it meant to remove; a file that imports nothing has nothing to drop. |
 | `vars` | a table |  | `name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result. A string that is exactly one var takes its value as it is: `events = "{var:events}"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`"rivet:{var:ana}"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value; its own `[file.vars]` come with whatever is taken of it, under this file's. `--set file.vars.<name>=…` changes one for a run |
 | `meta` | a table |  | descriptive: it never changes a run. Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `heimdall check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
@@ -223,8 +223,8 @@ replot = true
     `dry-run`, plot `style-sync` and `across`, `status --stack`, stop `no-wait`);
   - **targets**, what it acts on (`card`, `pid`, `file`, plot's `plot`);
   - **selections**, a part of the run (`points`, `sets`, `stages`, `only`): a run's sets are
-    `[run] plot = [...]` or a configuration's `plot`.
-  - `no-plot` and `no-stats` are the study's own settings: `[run] plot = false`, `[run] stats = false`.
+    `[errand] plot = [...]` or a configuration's `plot`.
+  - `no-plot` and `no-stats` are the study's own settings: `[errand] plot = false`, `[errand] stats = false`.
 - **Imports give theirs too,** and this file's are laid over them, like every other table.
 - **Checked:** an option no such command has, or a value of the wrong kind, is refused (with the
   nearest name), also by `heimdall check`. `--set` is not taken; the file says it itself.
@@ -234,7 +234,7 @@ them:
 - a quantity or configuration of the file replaces the imported one whole;
 - a **tool table merges key by key**: `[tools.rivet] analyses = ["photo_eic:R=0.7"]` changes that
   key of the imported rivet table and keeps the rest (03 §6);
-- `[plot]`, `[cluster]` and `[run]`'s own keys merge key by key, tables recursively;
+- `[plot]`, `[cluster]` and `[errand]`'s own keys merge key by key, tables recursively;
 - `"default"` in this file keeps the imported value.
 
 Its rules:
@@ -245,7 +245,7 @@ Its rules:
 - **Another project's file:** its bare paths stay its own project's (the keys the schema marks
   `path`: `card`, `filters`, `executable`, `root_style`, `master`). They are made absolute when it
   is read, so its tools find their cards and plan to the same identities as in their own file.
-- **Location:** the file that imports sets its own `[run].name` and `project`; location is never
+- **Location:** the file that imports sets its own `[errand].name` and `assignment`; location is never
   imported. It may share an imported run's name, so its results sit beside the other's
   (`results/Demo/validation/03_PDFs_150M` beside validation's own `02_PDFs_150M`), but no
   configuration of the two may have the same folder, or their points would overwrite each
@@ -260,7 +260,7 @@ Its rules:
   written in the importing file's own names.
 
 `--show-config` lists where each quantity, tool and configuration came from, through every file
-(`run.cfgs.default from validation.toml ← validation_common.toml`).
+(`errand.cfgs.default from validation.toml ← validation_common.toml`).
 
 **`vars`**. Names said once and cited anywhere in the file:
 
@@ -269,7 +269,7 @@ Its rules:
 ana    = "ZEUS_2012_I1116258"
 events = 1_000_000
 
-[run]
+[errand]
 events = "{var:events}"             # one var, the whole value: an integer, as written there
 
 [tools.rivet]
@@ -371,14 +371,14 @@ always targeted explicitly (§8.1).
 
 ---
 
-## 4. `[run]`
+## 4. `[errand]`
 
 What the run is, and what every configuration starts from.
 
 ```toml
-[run]
+[errand]
 name    = "jets"
-project = "Demo"
+assignment = "Demo"
 run     = "pdf"                     # the default; `heimdall run <config> <configuration>` picks another
 events  = 1_000_000                 # every configuration's, unless it says its own
 threads = 20
@@ -387,35 +387,38 @@ seed    = "identity"                # the default: from the generator's identity
 description = "Inclusive jets in ep collisions"
 ```
 
-<!-- generated: keys3 run -->
+<!-- generated: keys3 errand -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `name` | a string | **required** | the run's directory name |
-| `project` | a string | **required** | the subfolder of `configs/`, `modules/`, `records/`, `results/`; must equal the folder the file is in, when it is under `configs/` |
+| `assignment` | a string | **required** | the subfolder of `configs/`, `modules/`, `records/`, `results/`; must equal the folder the file is in, when it is under `configs/` |
 | `run` | a string |  | the configuration `heimdall run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may be left out |
-| `serial` | an integer |  | the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[run]`. |
-| `events` | an integer, ≥ 1 |  | every configuration's event count, unless it gives its own A configuration inherits it from `[run]`. |
-| `threads` | an integer, ≥ 0 | `1` | default for configurations. `0` means every core, **resolved to a number at plan time** A configuration inherits it from `[run]`. |
-| `parallelism` | an integer or a string: `"auto"`, ≥ 1 | `1` | default for configurations: how many points run at once; `"auto"`: as many as the cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never part of an identity or a seed, so changing it reruns nothing A configuration inherits it from `[run]`. |
-| `plot` | true or false or a list (a string each) | `true` | the plot follow-up: `true` draws every set of the run's plot document (its `totality` and the `[plot].sets`), `false` none (the document is written all the same, for `heimdall plot` later), a list draws those sets (`["totality", "pdf_by_generator"]`) and is the document's `[plot].draw`. A configuration may set its own; `heimdall run … --no-plot` turns it off for one run A configuration inherits it from `[run]`. |
-| `stats` | true or false or a list (a string each) | `true` | the statistics follow-up: `true` measures the sets the run draws (or, with `plot = false`, every set, undrawn), `false` none, a list those sets (the document's `[stats].sets`). A configuration may set its own; `heimdall run … --no-stats` turns it off for one run A configuration inherits it from `[run]`. |
+| `serial` | an integer |  | the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[errand]`. |
+| `events` | an integer, ≥ 1 |  | every configuration's event count, unless it gives its own A configuration inherits it from `[errand]`. |
+| `threads` | an integer, ≥ 0 | `1` | default for configurations. `0` means every core, **resolved to a number at plan time** A configuration inherits it from `[errand]`. |
+| `parallelism` | an integer or a string: `"auto"`, ≥ 1 | `1` | default for configurations: how many points run at once; `"auto"`: as many as the cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never part of an identity or a seed, so changing it reruns nothing A configuration inherits it from `[errand]`. |
+| `plot` | true or false or a list (a string each) | `true` | the plot follow-up: `true` draws every set of the run's plot document (its `totality` and the `[plot].sets`), `false` none (the document is written all the same, for `heimdall plot` later), a list draws those sets (`["totality", "pdf_by_generator"]`) and is the document's `[plot].draw`. A configuration may set its own; `heimdall run … --no-plot` turns it off for one run A configuration inherits it from `[errand]`. |
+| `stats` | true or false or a list (a string each) | `true` | the statistics follow-up: `true` measures the sets the run draws (or, with `plot = false`, every set, undrawn), `false` none, a list those sets (the document's `[stats].sets`). A configuration may set its own; `heimdall run … --no-stats` turns it off for one run A configuration inherits it from `[errand]`. |
 | `description` | a string |  | what the run is for |
-| `tag` | a string |  | default for configurations: a short name kept with the configuration's folder (its record's `tag` file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` gives one for a run; a folder that has a tag keeps it (`heimdall tag` changes it); `""` is none A configuration inherits it from `[run]`. |
+| `tag` | a string |  | default for configurations: a short name kept with the configuration's folder (its record's `tag` file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` gives one for a run; a folder that has a tag keeps it (`heimdall tag` changes it); `""` is none A configuration inherits it from `[errand]`. |
 | `sweep_runs` | true or false or a list (a string each) | `false` | `true`: `heimdall run <config>` runs every configuration, one after another, in the order of the file; `["a", "b"]`: these, in this order (04 §4.1) |
 | `notify` | a string: `"none"`, `"desktop"` | `"none"` | `"desktop"`: a desktop notification (`notify-send`) when `heimdall run` ends, with its verdict; never fails a run |
-| `chain` | a list |  | every configuration's tools, unless it gives its own (04 §5.3) A configuration inherits it from `[run]`. |
-| `vary` | a list |  | 04 §5.1; `[]` is one point A configuration inherits it from `[run]`. |
-| `plot_points` | a list (a string each) |  | 04 §5.2 A configuration inherits it from `[run]`. |
-| `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) A configuration inherits it from `[run]`. |
-| `pre` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[run]`. |
-| `post` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[run]`. |
-| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4) A configuration inherits it from `[run]`. |
+| `chain` | a list |  | every configuration's tools, unless it gives its own (04 §5.3) A configuration inherits it from `[errand]`. |
+| `vary` | a list |  | 04 §5.1; `[]` is one point A configuration inherits it from `[errand]`. |
+| `plot_points` | a list (a string each) |  | 04 §5.2 A configuration inherits it from `[errand]`. |
+| `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) A configuration inherits it from `[errand]`. |
+| `pre` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[errand]`. |
+| `post` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[errand]`. |
+| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4) A configuration inherits it from `[errand]`. |
 | `seed` | a string or an integer | `"identity"` | `"identity"`: from the generator's identity; `"random"`: drawn when the point runs; an integer: exactly that seed for every point (a replica, `to = { "pythia/seed" = true }`, gives a point its own: 04 §8.2; 06 §8) |
 | `commands` | a list |  | argv arrays run in each point's output folder before its tools, in order; output to the point's `prelim.log`; a nonzero exit fails the point. Placeholders: `{work}`, `{heimdall}`, `{out}`, `{res}`, `{file:<name>}` |
 <!-- /generated -->
 
-Any other key or table in `[run]` is an error (C1). `[run].run` is required unless `sweep_runs` is
+Any other key or table in `[errand]` is an error (C1). `[errand].run` is required unless `sweep_runs` is
 set. An event count must be set here or in every configuration. `serial` is optional (§2).
+
+`[errand]` was `[run]`, and `assignment` was `project`: a file in those names is refused, naming
+`heimdall migrate --names`, which rewrites it (05 §1.6), with `--set run.…` and an import's `"run.…"` keys.
 
 ### 4.1 `sweep_runs`: every configuration, one run after another
 
@@ -460,20 +463,20 @@ jets · 01  ·  pdf
 ## 5. `[cfgs.<name>]`
 
 A configuration is a table of `[cfgs]`, picked by `heimdall run <file> <name>`. It says only what differs
-from `[run]`: what it varies, fixes and runs. Any name may be used, `threads` or `default`
+from `[errand]`: what it varies, fixes and runs. Any name may be used, `threads` or `default`
 included. A configuration's dotted path is `cfgs.<name>.<key>`: `--set cfgs.pdf.threads=8`,
 `drop = ["cfgs.default4"]`, `heimdall explain cfgs.pdf.threads`.
 
 ```toml
-[run]                                        # what every configuration starts from …
+[errand]                                     # what every configuration starts from …
 chain   = [["pythia", "rivet"], "yd2rt"]
 threads = 20
 
 [cfgs.energy_pdf]
 serial      = 3                              # optional: 03_energy_pdf (§2)
-title       = "Beams x PDFs"                 # the header line under [run].sweep_runs (§4.1)
+title       = "Beams x PDFs"                 # the header line under [errand].sweep_runs (§4.1)
 description = "Beams x PDF grid: one page per energy, PDF curves on each"
-events      = 500_000                        # over [run]'s
+events      = 500_000                        # over [errand]'s
 vary        = ["energies", "pdf"]            # 4 × 4 = 16 points
 plot_points = ["energies"]                   # 4 pages; the PDFs are the curves on each
 
@@ -490,10 +493,10 @@ folder  = "PDFs_100M"                        # its folder name; the table key wh
 A configuration's value is, in order:
 1. its own;
 2. else the one it `extends`'s, in turn;
-3. else `[run]`'s;
+3. else `[errand]`'s;
 4. else the default.
 
-`[run]` takes every configuration key (the tables of §4 and §5 say which) but `folder`, `title`,
+`[errand]` takes every configuration key (the tables of §4 and §5 say which) but `folder`, `title`,
 `extends` and `fixed`, which belong to each configuration alone; a quantity's own `fixed` is the
 file-wide one. `"default"` in a layer is the next layer's value. A chain of `extends` is followed,
 and a circle is refused. `heimdall run CONFIG --show-config` prints every value with the layer it came
@@ -522,27 +525,27 @@ file = "rivet:ZEUS_2010_I875006"
 map  = { "d01-x01-y01" = "/REF/ZEUS_2010_I875006/d01-x01-y01" }
 ```
 
-Its `vars` merge through `extends`; its `data` is the nearest one. `[run]` takes neither.
+Its `vars` merge through `extends`; its `data` is the nearest one. `[errand]` takes neither.
 
 <!-- generated: keys3 cfgs -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `extends` | a string |  | another configuration this one starts from (chains are followed; a circle is refused) |
-| `serial` | an integer, or `"default"` |  | this configuration's `NN_`, over `[run]`'s; left out in both, the runner numbers it (04 §2) |
+| `serial` | an integer, or `"default"` |  | this configuration's `NN_`, over `[errand]`'s; left out in both, the runner numbers it (04 §2) |
 | `name` | a string |  | the run folder above this configuration's: `<P>/<name>/NN_<label>/` |
 | `folder` | a string |  | the configuration's folder, after the serial: `NN_<folder>`; empty means the table key |
-| `title` | a string |  | the header line of the run under `[run].sweep_runs`: `run 02 - <title> -` (04 §4.1) |
+| `title` | a string |  | the header line of the run under `[errand].sweep_runs`: `run 02 - <title> -` (04 §4.1) |
 | `description` | a string |  | what the configuration is for |
-| `tag` | a string |  | the tag a run gives this configuration's folder (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `""` gives none over `[run]`'s. Never part of a point's identity |
-| `events` | an integer, ≥ 1, or `"default"` |  | required here if `[run]` has none. A list is one configuration per count, `<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6) |
+| `tag` | a string |  | the tag a run gives this configuration's folder (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `""` gives none over `[errand]`'s. Never part of a point's identity |
+| `events` | an integer, ≥ 1, or `"default"` |  | required here if `[errand]` has none. A list is one configuration per count, `<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6) |
 | `threads` | an integer, ≥ 0, or `"default"` |  | `0` = every core |
 | `parallelism` | an integer or a string: `"auto"`, ≥ 1, or `"default"` |  | points at once (`"auto"`: cores ÷ a point's cores); `--plan` and the run's title say about how many cores that is, and warn past the machine's |
 | `plot` | true or false or a list (a string each), or `"default"` |  | the plot follow-up for this configuration: `true`, `false`, or the sets it draws, so that sets defined once for the file are each drawn by the configurations they fit |
-| `stats` | true or false or a list (a string each), or `"default"` |  | as [run].stats, for this configuration: true, false, or the sets it measures |
+| `stats` | true or false or a list (a string each), or `"default"` |  | as [errand].stats, for this configuration: true, false, or the sets it measures |
 | `vary` | a list |  | 04 §5.1; `[]` is one point |
 | `plot_points` | a list (a string each) |  | 04 §5.2 |
 | `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) |
-| `chain` | a list |  | 04 §5.3; `[run]`'s when left out |
+| `chain` | a list |  | 04 §5.3; `[errand]`'s when left out |
 | `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4) |
 | `pre` | a list |  | the form of `tools` (04 §5.4) |
 | `post` | a list |  | the form of `tools` (04 §5.4) |
@@ -691,7 +694,7 @@ How one tool's output reaches another is not written: it follows from the chain 
 | nobody | a product | the point's results directory |
 
 ```toml
-[run]
+[errand]
 chain = ["pythia_file", "delphes", "jets_reco"]   # three groups: files between them
 
 [tools.pythia_file]
@@ -704,7 +707,7 @@ keep   = false                                    # a scratch file of the point,
 - A FIFO connects tools **in one group** only, has **one reader**, and never feeds a tool whose
   folder is not `streamable` (C6): put that tool in a later group, so it reads a file.
 - A configuration with another chain has its own interfaces, worked out from its chain.
-- `[run] commands`, argv arrays, run in each point's output directory before its first group, in
+- `[errand] commands`, argv arrays, run in each point's output directory before its first group, in
   order. Their output goes to `logs/prelim.log`, and a nonzero exit fails the point.
 
 `heimdall run … --show-config` lists each configuration's interfaces, "inferred from the chain". v2
@@ -959,7 +962,7 @@ output   = "jets_hard.yoda"
 
 Every other key is **tool-specific**. It is checked against the tool folder's `[options]` (type and
 `required`, 05 §4–15). An unknown key is an error that lists the keys the tool takes (C1), or names
-the table it belongs in (`'threads' belongs in [run] (or a configuration)`); an old export key
+the table it belongs in (`'threads' belongs in [errand] (or a configuration)`); an old export key
 (`pythia_cmnd = true`) is refused with the way on (§9.4). A tool table no configuration's chain,
 `pre`, `post` or `generate_cards` names is reported by `heimdall check`. In your editor, the schema
 (`run.v3.schema.json`) knows each standard tool's keys.
@@ -1060,7 +1063,7 @@ generate_cards = ["pythia", "rivet"]          # not run: their cards and configs
 
 | Rule | |
 |---|---|
-| Where | `generate_cards` in `[run]` or a configuration (the nearer one wins), a list of tool tables |
+| Where | `generate_cards` in `[errand]` or a configuration (the nearer one wins), a list of tool tables |
 | Rendered as in a chain | the same card a process of that tool would get for this point, **seeds included** |
 | Consumed | the quantities such a tool consumes count as consumed (C7) |
 | Products on demand | `"<name>:<product>"` (`"herwig:run"`, `"sherpa:results"`, `"madgraph:process"`) runs that tool's prepare step (cached) and puts the product's path in its table: `run = "…/point.run"`. A tool makes only the products its folder declares (`[context.products]`) |
@@ -1171,7 +1174,7 @@ The plot stage, and how to use it, is [03](03_Plots.md). A configuration whose r
 | `looks` | a table |  | [plot.looks.<quantity>]: a value's look on every page and in every run, by its tag: a colour (`"#rrggbb"`, a ROOT name or number) or `{ colour, line, width }`. A tag a run does not have is unused, so a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's styled values, over it; a set's automatic look leaves an axis with looks alone |
 | `across` | a table |  | sets of the runs of this run TOML together, as `[plot.sets.<name>]` are of one run's points, with more axes: `@events` (each run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, when a run is tagged, `@tag` (each run's tag; an untagged run's labelled `untagged`). `@events` and `@tag` each page a set that does not name it. Kept in `results/<P>/<name>/plot.toml`, drawn by `heimdall plot <P>/<name> --across` into `results/<P>/<name>/plots/<set>/` and `statistics/<set>/`; which runs, and how, is `[plot.across_from]` |
 | `across_from` | a table |  | the runs together's `[from]`: written into `results/<P>/<name>/plot.toml` over its defaults (every run, `prefer = "last"`) when a run writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4 |
-| `draw` | a list (a string each) |  | the names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[run].plot`'s list here. A name no set has is refused |
+| `draw` | a list (a string each) |  | the names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[errand].plot`'s list here. A name no set has is refused |
 | `split` | an integer, ≥ 1 |  | at most this many points on a page: each cell (a `plot_points` cell, or a set) cut into pages in point order, `<cell>-<k>` (`part<k>` with no cell): 24 points, `split = 3`, 8 pages. A curve is labelled by the quantities that differ on its page |
 | `statistics` | true or false, or `"default"` | `true` | each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ \|y − y_ref\|·Δx), `rel_abs_area` (abs_area / ref_area), `area_ratio` (cmp_area / ref_area: MC over data), `ratio_mean` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `ratio_dev` (its area about one over the width compared, Σ \|y/y_ref − 1\|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table |
 | `legend_statistic` | a string: `"none"`, `"area"`, `"abs_area"`, `"rel_abs_area"`, `"area_ratio"`, `"ratio_mean"`, `"ratio_dev"`, `"chi2"`, `"chi2_ndf"` | `"none"` | one of the statistics (see `statistics`) after each curve's legend entry: `chi2_ndf` → `(χ²/ndf 1.31)`; the reference's own entry gets none |
@@ -1387,7 +1390,7 @@ them, before anything runs.
 | # | Rule | Example message |
 |---|---|---|
 | **C1** | An unknown section or key is an error; a tool-specific key is checked against the tool folder's `[options]` (type, `required`). | `unknown key 'min_entry'` · `did you mean 'min_entries'?` |
-| **C2** | `[run].run`, and a configuration named on the command line, must name a `[cfgs.<name>]`. | `no configuration 'energy-pdf'` |
+| **C2** | `[errand].run`, and a configuration named on the command line, must name a `[cfgs.<name>]`. | `no configuration 'energy-pdf'` |
 | **C3** | Every `vary` entry names a declared quantity; entangled quantities have equal point counts; no quantity is varied twice. | `entangled quantities need equal value counts` · `pdf: 4, alphas: 3` |
 | **C4** | `plot_points` names only quantities varied in this configuration. | `plot_points names 'mpi', which is not swept here` |
 | **C5** | Every `chain`/`pre`/`post` entry is a `[tools.<name>]` table; groups nest one level; an `@q` entry's values are tool tables or pieces of chain that splice into a valid chain (no tool twice). | `'pythya' is not a [tools.<tag>] table` · `did you mean 'pythia'?` |
@@ -1465,7 +1468,7 @@ logs written there and `.lock`; scratch files, shards and what its tools left go
 are two of them), the work dir's `heimdall.toml` and the machine's `machine.toml`, together:
 
 ```toml
-[run]
+[errand]
 keep = ["logs", "cache"]
 log = { head = 100, tail = 200, digests = 9, full = 3, worker_every = 600 }
 ```
@@ -1485,7 +1488,7 @@ Where everything goes, as a tree, is [06 §14](06_Internals.md#14-where-files-go
 A report's recipe is a `[report]` table and its `[[report.section]]`s; `framework/schema/report.toml` holds
 every key, as below. One table, in three places:
 
-- **A recipe of its own:** `configs/<P>/<name>.toml` holding `[report]` and nothing else (no `[run]`).
+- **A recipe of its own:** `configs/<P>/<name>.toml` holding `[report]` and nothing else (no `[errand]`).
   `heimdall report <P>/<name>.toml <source>…` builds it over those sources, or over its own `from`
   (05 §1.8).
 - **A run TOML's `[report]`:** what its folders' reports show. It takes neither `from` nor `output`: each
@@ -1641,27 +1644,27 @@ identity or a seed: changing it reruns nothing. `time` is required in one of the
 
 ## 17. The v2 form
 
-A file is **v3** when it has `[file]` (unless it says `schema = 2`), `[cfgs]`, or a `[run]` with a
+A file is **v3** when it has `[file]` (unless it says `schema = 2`), `[cfgs]`, or an `[errand]` with a
 `chain`; any other file is read as **v2**, for one release. `[file] schema = 2` keeps a file v2
 while you migrate. Both forms are the same run: the same points, folders and identities.
 
 `heimdall migrate --v3` shows the rewrite of a v2 file as a diff, and `--apply` writes it, comments kept.
 Each v2 name is refused in a v3 file, naming its v3 name, and `heimdall explain` answers either
-(`heimdall explain run.event_count`, `heimdall explain events`).
+(`heimdall explain errand.event_count`, `heimdall explain events`).
 
 | v2 | v3 |
 |---|---|
 | `[config]` | `[file]` |
-| `[run]`'s `configuration` | `[run]`'s `run` |
+| `[errand]`'s `configuration` | `[errand]`'s `run` |
 | `event_count` | `events`; a list in a configuration is one configuration per count (§5.6) |
-| `tools` (a configuration's chain) | `chain`; `[run]`'s is every configuration's |
+| `tools` (a configuration's chain) | `chain`; `[errand]`'s is every configuration's |
 | `sweeps` | `vary` |
 | `seed_type`, `manual_seed` | `seed = "identity"`, `"random"` or an integer |
-| `[run.cfgs.<cfg>]` (the `cfgs` table of `[run]`) | `[cfgs.<name>]` |
+| `[errand.cfgs.<cfg>]` (the `cfgs` table of `[errand]`) | `[cfgs.<name>]` |
 | a configuration's `label` | `folder` |
 | `[static]`, a configuration's `static` | each quantity's `fixed`; a configuration's `fixed = { q = "tag" }` (§7) |
 | `[prelim]`'s `fifo` and `files`, a configuration's `prelim` | inferred from the chain (§6); `keep = false` on a scratch file's producer |
-| `[prelim]`'s `commands` | `[run]`'s `commands` |
+| `[prelim]`'s `commands` | `[errand]`'s `commands` |
 | a tool table's `tool` | the table's name; `uses` for any other name |
 | `baseconfig` | `card` |
 | `output_file` | `output` |
@@ -1673,4 +1676,4 @@ Each v2 name is refused in a v3 file, naming its v3 name, and `heimdall explain`
 | `"default"` in `[plot]` itself: the tool's own | `"native"`; `"default"` is always the layer below |
 | a serial, bumped by hand | optional: the runner numbers the folder when none is set; a set one refuses to overwrite (§2) |
 | an imported tool table, replaced whole | merged key by key (§3) |
-| `--set run.event_count=…`, `only = ["run.default"]` | a file's own names: `--set run.events=…`, `only = ["cfgs.default"]` |
+| `--set errand.event_count=…`, `only = ["errand.cfgs.default"]` | a file's own names: `--set errand.events=…`, `only = ["cfgs.default"]` |

@@ -253,7 +253,7 @@ def test_the_pre_and_post_stages_are_planned_as_stages(scratch):
     from helpers import plan, raw
     from runner import post
     from runner.quantities import load_master
-    run, configuration, point = plan(raw(run__cfgs__one__pre=[["pythia"]], run__cfgs__one__post=[["pythia"]]), scratch)
+    run, configuration, point = plan(raw(errand__cfgs__one__pre=[["pythia"]], errand__cfgs__one__post=[["pythia"]]), scratch)
     master = load_master(run.project, run.master_toml)
     pre = post.plan_pre(run, configuration, master, [point.point])
     after = post.plan(run, configuration, master, [point])
@@ -314,9 +314,9 @@ def test_a_sequential_sweep_keys_each_configuration(scratch, monkeypatch):
     config = scratch / "configs" / "Demo"
     config.mkdir(parents=True)
     check = {"tool": "exec", "executable": "/bin/true"}
-    data = raw(run__sweep_runs=["a", "b"], run__configuration=None, run__cfgs__one=None, prelim=None, quantities=None,
+    data = raw(errand__sweep_runs=["a", "b"], errand__configuration=None, errand__cfgs__one=None, prelim=None, quantities=None,
                static=None, tools={"check": check},
-               run__cfgs__a={"tools": ["check"], "pre": ["check"], "post": ["check"]}, run__cfgs__b={"tools": ["check"]})
+               errand__cfgs__a={"tools": ["check"], "pre": ["check"], "post": ["check"]}, errand__cfgs__b={"tools": ["check"]})
     (config / "two.toml").write_text(tomli_w.dumps(data), encoding="utf-8")
     seen = []
     event = runs.Recorder.event
@@ -413,7 +413,7 @@ def test_a_run_records_itself(scratch):
     import tomli_w
     config = scratch / "configs" / "Demo"
     config.mkdir(parents=True)
-    data = raw(run__cfgs__one__tools=[["true"]], tools={"true": {"tool": "exec", "executable": "/bin/true"}},
+    data = raw(errand__cfgs__one__tools=[["true"]], tools={"true": {"tool": "exec", "executable": "/bin/true"}},
                prelim={}, quantities={})
     (config / "rec.toml").write_text(tomli_w.dumps(data), encoding="utf-8")
     os.environ["HEIMDALL_CONFIGS"] = str(scratch / "configs")

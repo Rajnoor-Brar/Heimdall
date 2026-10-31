@@ -11,17 +11,17 @@ from runner import cli, config, migrate, tools
 from runner.errors import HeimdallError
 
 OLD = """\
-[run]
+[errand]
 name        = "sw"
-project     = "Demo"
+assignment  = "Demo"
 event_count = 1
 sweep_runs  = true                 # every configuration but c
 
-[run.a]
+[errand.a]
 tools  = ["jets"]
 sweeps = ["cut"]
 
-[run.c]
+[errand.c]
 swept  = false
 tools  = ["jets"]
 sweeps = ["cut"]
@@ -51,8 +51,8 @@ def test_a_toml_is_rewritten_line_by_line(scratch):
     assert 'executable = "path:python3" # the interpreter' in new
     assert 'labels = ["$E_{T}$ > 4 GeV", "$E_{T}$ > 5 GeV"] # thresholds' in new
     assert "title = '$\\sqrt{s}$ = 318 GeV'" in new
-    new = migrate.cfgs_text(new)                                    # V98: [run.a] → [run.cfgs.a]
-    assert "[run.cfgs.a]" in new and "[run.cfgs.c]" in new
+    new = migrate.cfgs_text(new)                                    # V98: [errand.a] → [errand.cfgs.a]
+    assert "[errand.cfgs.a]" in new and "[errand.cfgs.c]" in new
     path.write_text(new, encoding="utf-8")
     config.load(str(path))                                          # it reads strictly now
 
@@ -72,11 +72,11 @@ def test_a_card_loses_the_lines_the_runner_sets():
 def test_the_command_diffs_then_applies(scratch, capsys):
     path = scratch / "sw.toml"
     path.write_text(OLD, encoding="utf-8")
-    with pytest.raises(HeimdallError, match=r"configurations are \[run.cfgs.<cfg>\] now"):
+    with pytest.raises(HeimdallError, match=r"configurations are \[errand.cfgs.<cfg>\] now"):
         config.load(str(path))
     assert cli.cmd_migrate(argparse.Namespace(configs=[str(path)], apply=False)) == 0
     shown = capsys.readouterr().out
-    assert "-swept  = false" in shown and "+[run.cfgs.a]" in shown and "(a dry run" in shown
+    assert "-swept  = false" in shown and "+[errand.cfgs.a]" in shown and "(a dry run" in shown
     assert path.read_text(encoding="utf-8") == OLD
     assert cli.cmd_migrate(argparse.Namespace(configs=[str(path)], apply=True)) == 0
     assert "migrated 1 file(s)" in capsys.readouterr().out
@@ -86,13 +86,13 @@ def test_the_command_diffs_then_applies(scratch, capsys):
 
 
 FIGURES = """\
-[run]
+[errand]
 name    = "fig"
 configuration = "a"
 event_count = 1
-project = "Demo"
+assignment = "Demo"
 
-[run.a]
+[errand.a]
 tools  = ["jets"]
 sweeps = []
 
@@ -135,10 +135,10 @@ def test_the_old_figure_tables_become_figures(scratch, capsys):
 
 
 def test_run_defaults_move_into_run():
-    """V99: its keys after [run]'s own, its value where both set one (it was the nearer layer)."""
-    text = '[run]\nname = "x"\nthreads = 4      # all\n\n[run.defaults]\nthreads = 8\ntools = ["a"]   # every one\n\n[run.cfgs.a]\nsweeps = []\n'
+    """V99: its keys after [errand]'s own, its value where both set one (it was the nearer layer)."""
+    text = '[errand]\nname = "x"\nthreads = 4      # all\n\n[errand.defaults]\nthreads = 8\ntools = ["a"]   # every one\n\n[errand.cfgs.a]\nsweeps = []\n'
     new = migrate.defaults_text(text)
-    assert new == '[run]\nname = "x"\nthreads = 8\ntools = ["a"]   # every one\n\n[run.cfgs.a]\nsweeps = []\n'
+    assert new == '[errand]\nname = "x"\nthreads = 8\ntools = ["a"]   # every one\n\n[errand.cfgs.a]\nsweeps = []\n'
     assert migrate.defaults_text(new) == new
 
 
@@ -146,7 +146,7 @@ def test_master_becomes_config(scratch):
     """V93: the table and its two keys renamed, by line; the file then reads."""
     common = scratch / "common.toml"
     common.write_text('[static]\nenergies = "27x920"\n', encoding="utf-8")
-    text = OLD.replace("[run]\n", f'[master]                           # how the file is read\ninclude     = ["{common}"]\n\n[run]\n', 1)
+    text = OLD.replace("[errand]\n", f'[master]                           # how the file is read\ninclude     = ["{common}"]\n\n[errand]\n', 1)
     new = migrate.config_text(text)
     assert new.startswith(f'[config]                           # how the file is read\nimport     = ["{common}"]\n')
     assert migrate.config_text(new) == new
@@ -164,8 +164,8 @@ def test_the_apps_become_the_machine_roots():
 
 def test_exports_become_generate_cards_and_custom_becomes_exec():
     """Audit 3, phase 4.2: the keys move to the configurations whose chain runs the asking table (all of
-    them: [run]); {std:<key>} names the context file's value; tool = "custom" is "exec"."""
-    text = ('[run]\nname = "x"\n\n[run.cfgs.a]\ntools = ["probe"]\n\n[run.cfgs.b]\ntools = [["pythia", "rivet"]]\n\n'
+    them: [errand]); {std:<key>} names the context file's value; tool = "custom" is "exec"."""
+    text = ('[errand]\nname = "x"\n\n[errand.cfgs.a]\ntools = ["probe"]\n\n[errand.cfgs.b]\ntools = [["pythia", "rivet"]]\n\n'
             '[tools.probe]\ntool = "custom"\nexecutable = "x"\narguments = ["{std:herwig_run}"]\npythia_cmnd = true\n'
             'herwig_run = true\n\n[tools.pythia]\ntool = "pythia"\n\n[tools.rivet]\ntool = "rivet"\n\n'
             '[tools.herwig]\ntool = "herwig"\n')
@@ -173,11 +173,11 @@ def test_exports_become_generate_cards_and_custom_becomes_exec():
     data = tomllib.loads(new)
     assert data["tools"]["probe"]["tool"] == "exec" and "pythia_cmnd" not in data["tools"]["probe"]
     assert data["tools"]["probe"]["arguments"] == ["{context:herwig.run}"]
-    assert data["run"]["cfgs"]["a"]["generate_cards"] == ["pythia", "herwig:run"]
-    assert "generate_cards" not in data["run"]["cfgs"]["b"] and "generate_cards" not in data["run"]
+    assert data["errand"]["cfgs"]["a"]["generate_cards"] == ["pythia", "herwig:run"]
+    assert "generate_cards" not in data["errand"]["cfgs"]["b"] and "generate_cards" not in data["errand"]
     assert migrate.exports_text(new) == new
     every = text.replace('tools = [["pythia", "rivet"]]', 'tools = ["probe"]')
-    assert tomllib.loads(migrate.exports_text(every))["run"]["generate_cards"] == ["pythia", "herwig:run"]
+    assert tomllib.loads(migrate.exports_text(every))["errand"]["generate_cards"] == ["pythia", "herwig:run"]
 
 
 def test_a_work_dir_from_before_the_rename_takes_heimdalls_names(scratch, monkeypatch, capsys):
@@ -217,3 +217,127 @@ def test_a_work_dir_from_before_the_rename_takes_heimdalls_names(scratch, monkey
     assert "Heimdall Contrast Light" in (work / ".vscode/settings.json").read_text(encoding="utf-8")
     assert (work / "results/P/r/c/plot.toml").read_text(encoding="utf-8") == files["results/P/r/c/plot.toml"]
     assert cli.cmd_migrate(args) == 0 and "nothing to migrate" in capsys.readouterr().out
+
+
+ERRAND_OLD = """\
+# study.toml — the configuration named in [run] (a), a [run.cfgs.<cfg>] each; `--set run.threads=2` for less
+[config]
+import = [{ from = "common", only = ["quantities", "run.cfgs.b", "run.cfgs.c"] }]
+drop   = ["run.cfgs.c"]
+
+[run]
+name          = "s"
+project       = "P"
+configuration = "a"
+event_count   = 1
+
+[run.cfgs.a]                  # the first
+tools = ["x"]
+
+# [run.cfgs.later]
+# tools = ["x"]
+
+[tools.x]
+tool       = "exec"
+executable = "path:true"
+
+[report]
+title = "{project} · {run} · {configuration}"
+"""
+COMMON_OLD = """\
+[run]
+name    = "common"
+project = "P"
+
+[run.cfgs.b]
+tools = ["x"]
+
+[run.cfgs.c]
+tools = ["x"]
+
+[quantities.q]
+values = [1]
+"""
+DOCUMENT_OLD = """\
+# A run's plot document
+[source]
+config = "P/study"
+configuration = "a"
+run = "s"
+project = "P"
+folder = "P/s/01_a"
+
+[axes]
+vary = []
+"""
+
+
+def test_a_work_dir_in_the_names_before_i112_takes_errand_and_assignment(scratch, monkeypatch, capsys):
+    """I-112: `heimdall migrate --names` rewrites [run] → [errand] and [run].project → [errand].assignment in the
+    work dir's configs (headers, commented ones, keys, an import's only and drop, a title's placeholders, --set in
+    a comment), in its scripts (--set run.x), in each record's snapshot (its files, their digests, its --set
+    overrides) and each point's provenance (its overrides), and [source]'s project and run in its plot documents;
+    a module's source is left (its programs' identity). A dry run writes nothing; --apply makes it read; again,
+    nothing to migrate."""
+    import hashlib
+    import json
+    work = scratch / "old112"
+    snapshot = ('# A run\'s snapshot (V158)\n[snapshot]\nconfig = "P/study"\nconfiguration = "a"\nsets = ["run.threads=2", '
+                f'"static.q=1"]\n\n[files]\n"P/study.toml" = "{hashlib.sha256(ERRAND_OLD.encode()).hexdigest()}"\n')
+    files = {
+        "heimdall.toml": '[work]\nname = "old112"\n',
+        "go.sh": "heimdall run P/study --set run.threads=8 --set=run.event_count=5\n",
+        "configs/P/study.toml": ERRAND_OLD,
+        "configs/P/common.toml": COMMON_OLD,
+        "modules/P/m.cc": "// heimdall run P/study --set run.threads=8\n",
+        "records/P/s/01_a/config/P/study.toml": ERRAND_OLD,
+        "records/P/s/01_a/config/snapshot.toml": snapshot,
+        "records/P/s/01_a/points/q-1/provenance.json": json.dumps({"point": "q-1", "run": "s", "project": "P",
+                                                                   "sets": ["run.threads=2"]}, indent=1),
+        "results/P/s/01_a/plot.toml": DOCUMENT_OLD,
+    }
+    for name, text in files.items():
+        (work / name).parent.mkdir(parents=True, exist_ok=True)
+        (work / name).write_text(text, encoding="utf-8")
+    monkeypatch.delenv("HEIMDALL_WORK", raising=False)
+    monkeypatch.chdir(work)
+    args = argparse.Namespace(names=True, apply=False)
+    assert cli.cmd_migrate(args) == 0
+    said = capsys.readouterr().out
+    assert "7 file(s) to rewrite (a dry run" in said and "+[errand]\n" in said and "+assignment    = \"P\"\n" in said
+    assert (work / "configs/P/study.toml").read_text(encoding="utf-8") == ERRAND_OLD
+    args.apply = True
+    assert cli.cmd_migrate(args) == 0
+    capsys.readouterr()
+    new = (work / "configs/P/study.toml").read_text(encoding="utf-8")
+    assert new.startswith("# study.toml — the configuration named in [errand] (a), an [errand.cfgs.<cfg>] each; "
+                          "`--set errand.threads=2`")
+    assert 'import = [{ from = "common", only = ["quantities", "errand.cfgs.b", "errand.cfgs.c"] }]\ndrop   = ["errand.cfgs.c"]\n' in new
+    assert '[errand]\nname          = "s"\nassignment    = "P"\n' in new and "[errand.cfgs.a]               # the first" in new
+    assert "# [errand.cfgs.later]" in new and 'title = "{assignment} · {errand} · {configuration}"' in new
+    assert "[run" not in (work / "configs/P/common.toml").read_text(encoding="utf-8")
+    assert (work / "go.sh").read_text(encoding="utf-8") == "heimdall run P/study --set errand.threads=8 --set=errand.event_count=5\n"
+    assert (work / "modules/P/m.cc").read_text(encoding="utf-8") == files["modules/P/m.cc"]
+    kept = (work / "records/P/s/01_a/config/P/study.toml").read_text(encoding="utf-8")
+    assert kept == new
+    meta = tomllib.loads((work / "records/P/s/01_a/config/snapshot.toml").read_text(encoding="utf-8"))
+    assert meta["snapshot"]["sets"] == ["errand.threads=2", "static.q=1"]
+    assert meta["files"]["P/study.toml"] == hashlib.sha256(kept.encode("utf-8")).hexdigest()
+    assert (work / "records/P/s/01_a/config/snapshot.toml").read_text(encoding="utf-8").startswith("# A run's snapshot")
+    provenance = json.loads((work / "records/P/s/01_a/points/q-1/provenance.json").read_text(encoding="utf-8"))
+    assert provenance == {"point": "q-1", "run": "s", "project": "P", "sets": ["errand.threads=2"]}
+    source = tomllib.loads((work / "results/P/s/01_a/plot.toml").read_text(encoding="utf-8"))["source"]
+    assert source == {"config": "P/study", "configuration": "a", "errand": "s", "assignment": "P", "folder": "P/s/01_a"}
+    monkeypatch.setenv("HEIMDALL_CONFIGS", str(work / "configs"))
+    run = config.load("P/study")
+    assert (run.project, run.name, sorted(run.configurations)) == ("P", "s", ["a", "b"])
+    assert cli.cmd_migrate(args) == 0 and "nothing to migrate" in capsys.readouterr().out
+
+
+def test_the_plain_migration_reads_the_names_before_i112_first():
+    """`heimdall migrate` rewrites [run] → [errand] before its older forms (V98's [run.<cfg>], V99's [run.defaults]),
+    so a file of any age comes out in today's names."""
+    old = '[run]\nname = "x"\nproject = "P"\nthreads = 4\n\n[run.defaults]\nthreads = 8\n\n[run.a]\ntools = ["t"]\n'
+    new = migrate.defaults_text(migrate.cfgs_text(migrate.errand_text(old)))
+    assert new == '[errand]\nname = "x"\nassignment = "P"\nthreads = 8\n\n[errand.cfgs.a]\ntools = ["t"]\n'
+    assert migrate.errand_text(new) == new

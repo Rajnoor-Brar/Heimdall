@@ -7,10 +7,10 @@
 # scattered lepton. MC_JETS and MC_XS read any record. Whizard writes no σ into its events, so the
 # point's σ is the integration's (its prepare log), and Rivet's normalisation has none to use.
 
-[run]
+[errand]
 serial        = 6
 name          = "whizard"
-project       = "Demo"
+assignment    = "Demo"
 run           = "single"
 events        = 2_000
 threads       = 1

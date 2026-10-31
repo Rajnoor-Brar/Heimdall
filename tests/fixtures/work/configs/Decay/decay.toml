@@ -13,9 +13,9 @@
 # quantities are targeted quantities. A module option can now be swept (masstol, costheta), which v1
 # could not do (00/B40). The v1 `RESERVED = 2` (pp's 2 × Z) is kept with Ne–Ne beams, as v1 had it.
 
-[run]
+[errand]
 name          = "decay"
-project       = "Decay"
+assignment    = "Decay"
 run           = "single"
 events        = 20_000
 threads       = 16

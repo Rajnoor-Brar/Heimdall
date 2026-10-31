@@ -1,4 +1,4 @@
-"""Layers (V56): [run] for every configuration (V99, was [run.defaults]), extends, [run.cfgs.<cfg>] (V98), [config].import (V93), "default" in a child, sweeping events, --show-config."""
+"""Layers (V56): [errand] for every configuration (V99, was [errand.defaults]), extends, [errand.cfgs.<cfg>] (V98), [config].import (V93), "default" in a child, sweeping events, --show-config."""
 
 from __future__ import annotations
 
@@ -14,12 +14,12 @@ from helpers import parse, plan, raw
 
 
 def configurations(**tables) -> dict:
-    """raw() with [run.cfgs.one] replaced by these configurations ([run.configuration] = the first);
-    `run` adds keys to [run] itself, which every configuration starts from (V99)."""
+    """raw() with [errand.cfgs.one] replaced by these configurations ([errand.configuration] = the first);
+    `errand` adds keys to [errand] itself, which every configuration starts from (V99)."""
     data = raw()
-    data["run"].update(tables.pop("run", {}))
-    data["run"]["cfgs"] = tables
-    data["run"]["configuration"] = next(iter(tables))
+    data["errand"].update(tables.pop("errand", {}))
+    data["errand"]["cfgs"] = tables
+    data["errand"]["configuration"] = next(iter(tables))
     return data
 
 
@@ -33,12 +33,12 @@ def used(data: dict, *more: str) -> dict:
     return data
 
 def test_run_gives_every_configuration_its_keys_and_their_own_win(scratch):
-    run = parse(configurations(run={"tools": [["pythia", "rivet"]], "event_count": 50},
+    run = parse(configurations(errand={"tools": [["pythia", "rivet"]], "event_count": 50},
                                a={}, b={"event_count": 7}), scratch)
     a, b = run.configurations["a"], run.configurations["b"]
     assert a.tools == b.tools == [["pythia", "rivet"]] and (a.event_count, b.event_count) == (50, 7)
-    assert a.origins["event_count"] == "[run]" and b.origins["event_count"] == "[run.cfgs.b]"
-    assert a.origins["tools"] == "[run]"
+    assert a.origins["event_count"] == "[errand]" and b.origins["event_count"] == "[errand.cfgs.b]"
+    assert a.origins["tools"] == "[errand]"
 
 
 def test_extends_takes_the_parents_keys_but_not_its_folder_or_title(scratch):
@@ -47,7 +47,7 @@ def test_extends_takes_the_parents_keys_but_not_its_folder_or_title(scratch):
     big = run.configurations["big"]
     assert big.sweeps == ["pdf"] and big.event_count == 900 and big.tools == [["pythia", "rivet"]]
     assert big.label == "big" and big.title == "big"                  # its own label and title
-    assert big.origins["sweeps"] == "[run.cfgs.base]"
+    assert big.origins["sweeps"] == "[errand.cfgs.base]"
 
 
 def test_extends_chains_and_refuses_a_circle_or_a_missing_parent(scratch):
@@ -62,12 +62,12 @@ def test_extends_chains_and_refuses_a_circle_or_a_missing_parent(scratch):
 
 
 def test_run_cannot_set_a_configurations_own_keys_and_run_defaults_is_gone(scratch):
-    """V99: label, title and extends are each configuration's own; [run.defaults] is refused, read
-    leniently (heimdall migrate's) as keys of [run], and `defaults` may now name a configuration."""
+    """V99: label, title and extends are each configuration's own; [errand.defaults] is refused, read
+    leniently (heimdall migrate's) as keys of [errand], and `defaults` may now name a configuration."""
     with pytest.raises(HeimdallError, match="unknown key 'label'"):
-        parse(configurations(run={"label": "x"}, a={"tools": [["pythia", "rivet"]]}), scratch)
-    data = raw(run__defaults={"threads": 3})
-    with pytest.raises(HeimdallError, match=r"\[run.defaults\] is \[run\] now") as error:
+        parse(configurations(errand={"label": "x"}, a={"tools": [["pythia", "rivet"]]}), scratch)
+    data = raw(errand__defaults={"threads": 3})
+    with pytest.raises(HeimdallError, match=r"\[errand.defaults\] is \[errand\] now") as error:
         parse(data, scratch)
     assert "heimdall migrate" in error.value.hint
     assert config.parse(data, scratch / "t.toml", strict=False).configuration(None).threads == 3
@@ -75,8 +75,8 @@ def test_run_cannot_set_a_configurations_own_keys_and_run_defaults_is_gone(scrat
 
 
 def test_default_in_a_child_is_the_next_layers_value(scratch):
-    run = parse(configurations(run={"threads": 4}, a={"tools": [["pythia", "rivet"]], "threads": "default"}), scratch)
-    assert run.configurations["a"].threads == 4 and run.configurations["a"].origins["threads"] == "[run]"
+    run = parse(configurations(errand={"threads": 4}, a={"tools": [["pythia", "rivet"]], "threads": "default"}), scratch)
+    assert run.configurations["a"].threads == 4 and run.configurations["a"].origins["threads"] == "[errand]"
 
 
 def test_static_merges_through_the_layers_and_default_at_the_top_unsets(scratch):
@@ -99,10 +99,10 @@ def test_include_gives_tables_and_the_file_wins(scratch):
         "quantities": {"energies": {"values": [[275, 18]], "tags": ["18x275"]},
                        "pdf": {"values": ["LHAPDF6:MSTW2008lo68cl"], "tags": ["old"]}},
         "plot": {"ratio": True, "y_gutter": 2.0},
-        "run": {"event_count": 33},
+        "errand": {"event_count": 33},
     }), encoding="utf-8")
     data = used(raw(config={"import": [str(common)]}, plot={"y_gutter": 0.3}))
-    del data["run"]["event_count"]
+    del data["errand"]["event_count"]
     path = scratch / "run.toml"
     path.write_text(tomli_w.dumps(data), encoding="utf-8")
     run = config.load(str(path))
@@ -129,27 +129,27 @@ def test_imports_nest_depth_first_and_say_where_from(scratch):
 
 def test_an_import_circle_is_refused(scratch):
     a, b = scratch / "a.toml", scratch / "b.toml"
-    a.write_text(tomli_w.dumps(raw(run__name="a", config={"import": str(b)})), encoding="utf-8")
+    a.write_text(tomli_w.dumps(raw(errand__name="a", config={"import": str(b)})), encoding="utf-8")
     b.write_text(tomli_w.dumps({"config": {"import": str(a)}}), encoding="utf-8")
     with pytest.raises(HeimdallError, match="imports go round in a circle: a.toml → b.toml → a.toml"):
         config.load(str(a))
 
 
 def test_a_file_that_imports_has_its_own_location(scratch):
-    """V94, V100: [run].name and project are never imported; a run may share an imported run's name (its
+    """V94, V100: [errand].name and project are never imported; a run may share an imported run's name (its
     results beside the other's), but no folder: a configuration's NN_label is its own."""
     other = scratch / "other.toml"
-    other.write_text(tomli_w.dumps(raw(run__serial=2)), encoding="utf-8")
+    other.write_text(tomli_w.dumps(raw(errand__serial=2)), encoding="utf-8")
     path = scratch / "run.toml"
-    path.write_text(tomli_w.dumps({"config": {"import": str(other)}, "run": {"project": "Demo"}}), encoding="utf-8")
-    with pytest.raises(HeimdallError, match=r"sets its own \[run\].name"):
+    path.write_text(tomli_w.dumps({"config": {"import": str(other)}, "errand": {"assignment": "Demo"}}), encoding="utf-8")
+    with pytest.raises(HeimdallError, match=r"sets its own \[errand\].name"):
         config.load(str(path))
-    beside = {"config": {"import": str(other)}, "run": {"project": "Demo", "name": "t", "serial": 3}}
+    beside = {"config": {"import": str(other)}, "errand": {"assignment": "Demo", "name": "t", "serial": 3}}
     path.write_text(tomli_w.dumps(beside), encoding="utf-8")
     assert set(config.load(str(path)).configurations) == {"one"}                 # t/03_one beside t/02_one
-    beside["run"]["serial"] = 2
+    beside["errand"]["serial"] = 2
     path.write_text(tomli_w.dumps(beside), encoding="utf-8")
-    with pytest.raises(HeimdallError, match=r"\[run.cfgs.one\] and other.toml's \[run.cfgs.one\] would both write Demo/t/02_one"):
+    with pytest.raises(HeimdallError, match=r"\[errand.cfgs.one\] and other.toml's \[errand.cfgs.one\] would both write Demo/t/02_one"):
         config.load(str(path))
 
 
@@ -164,9 +164,9 @@ def test_another_projects_file_brings_its_cards_and_plans_the_same(scratch, monk
     (root / "Demo").mkdir()
     shutil.copy(fixtures / "Demo" / "ep.cmnd", root / "Other" / "ep.cmnd")
     monkeypatch.setenv("HEIMDALL_CONFIGS", str(root))
-    (root / "Other" / "other.toml").write_text(tomli_w.dumps(used(raw(run__name="other", run__project="Other"))), encoding="utf-8")
+    (root / "Other" / "other.toml").write_text(tomli_w.dumps(used(raw(errand__name="other", errand__assignment="Other"))), encoding="utf-8")
     (root / "Demo" / "mine.toml").write_text(tomli_w.dumps(
-        {"config": {"import": "Other/other"}, "run": {"name": "mine", "project": "Demo"}}), encoding="utf-8")
+        {"config": {"import": "Other/other"}, "errand": {"name": "mine", "assignment": "Demo"}}), encoding="utf-8")
 
     def identity(name):
         run = config.load(name)
@@ -182,7 +182,7 @@ def test_another_projects_file_brings_its_cards_and_plans_the_same(scratch, monk
 
 def _other(scratch) -> Path:
     """A run with two configurations, a figure and an extra quantity, to import parts of."""
-    data = raw(run__name="other", run__cfgs__two={"tools": [["pythia", "rivet"]], "event_count": 99},
+    data = raw(errand__name="other", errand__cfgs__two={"tools": [["pythia", "rivet"]], "event_count": 99},
                quantities__energies={"values": [[275, 18]], "tags": ["18x275"]},
                plot={"ratio": True, "figures": {"tails": {"objects": ["d04-*"]}, "keep": {"objects": ["d05-*"]}}})
     path = scratch / "other.toml"
@@ -194,14 +194,14 @@ def test_an_import_may_take_only_some_of_a_file(scratch):
     """V95: `only` keeps those sections or dotted keys; one the file has not is refused, with the nearest."""
     other = _other(scratch)
     path = scratch / "run.toml"
-    mine = {"run": {"name": "mine", "project": "Demo", "configuration": "two"}}
-    path.write_text(tomli_w.dumps({**mine, "config": {"import": [{"from": str(other), "only": ["run.cfgs.two", "quantities", "tools", "prelim"]}]}}),
+    mine = {"errand": {"name": "mine", "assignment": "Demo", "configuration": "two"}}
+    path.write_text(tomli_w.dumps({**mine, "config": {"import": [{"from": str(other), "only": ["errand.cfgs.two", "quantities", "tools", "prelim"]}]}}),
                     encoding="utf-8")
     run = config.load(str(path))
     assert set(run.configurations) == {"two"} and run.configuration(None).event_count == 99
     assert not run.plot and set(run.quantities) == {"pdf", "energies"}
-    path.write_text(tomli_w.dumps({**mine, "config": {"import": [{"from": str(other), "only": ["run.cfgs.tow"]}]}}), encoding="utf-8")
-    with pytest.raises(HeimdallError, match="only names 'run.cfgs.tow', which other.toml has not") as error:
+    path.write_text(tomli_w.dumps({**mine, "config": {"import": [{"from": str(other), "only": ["errand.cfgs.tow"]}]}}), encoding="utf-8")
+    with pytest.raises(HeimdallError, match="only names 'errand.cfgs.tow', which other.toml has not") as error:
         config.load(str(path))
     assert "two" in error.value.hint
 
@@ -210,17 +210,17 @@ def test_drop_takes_out_what_an_import_gave(scratch):
     """V95: before this file's tables; a drop that names nothing is refused, and so is one with no import."""
     other = _other(scratch)
     path = scratch / "run.toml"
-    mine = {"run": {"name": "mine", "project": "Demo"}}
-    path.write_text(tomli_w.dumps({**mine, "config": {"import": str(other), "drop": ["run.cfgs.two", "plot.figures.tails", "quantities.energies"]}}),
+    mine = {"errand": {"name": "mine", "assignment": "Demo"}}
+    path.write_text(tomli_w.dumps({**mine, "config": {"import": str(other), "drop": ["errand.cfgs.two", "plot.figures.tails", "quantities.energies"]}}),
                     encoding="utf-8")
     run = config.load(str(path))
     assert set(run.configurations) == {"one"} and set(run.plot["figures"]) == {"keep"} and "energies" not in run.quantities
-    assert "quantities.energies" not in run.included and run.included["run.cfgs.one"] == "other.toml"
+    assert "quantities.energies" not in run.included and run.included["errand.cfgs.one"] == "other.toml"
     path.write_text(tomli_w.dumps({**mine, "config": {"import": str(other), "drop": ["plot.figures.tials"]}}), encoding="utf-8")
     with pytest.raises(HeimdallError, match="drop names 'plot.figures.tials', which no import gave") as error:
         config.load(str(path))
     assert "tails" in error.value.hint
-    path.write_text(tomli_w.dumps(raw(config={"drop": ["run.cfgs.one"]})), encoding="utf-8")
+    path.write_text(tomli_w.dumps(raw(config={"drop": ["errand.cfgs.one"]})), encoding="utf-8")
     with pytest.raises(HeimdallError, match="this file imports nothing"):
         config.load(str(path))
 
@@ -235,13 +235,13 @@ def test_vars_are_said_once_and_keep_their_type(scratch):
     """V96: a whole-value var keeps its type, an inline one is text; --set reaches them; the file plans as
     if written out (the run it parses to is the same)."""
     data = raw(config={"vars": {"events": 500, "ana": "photo_eic", "cuts": [4.0, 5.0]}},
-               run__event_count="{var:events}", tools__rivet__analyses=["{var:ana}"],
+               errand__event_count="{var:events}", tools__rivet__analyses=["{var:ana}"],
                quantities__cut={"values": "{var:cuts}", "target": "rivet/photo_eic", "key": "ETMIN"},
                plot={"title": "{var:ana}: {var:events} events"})
     run = config.load(_written(scratch, used(data, "cut")))
     assert run.configuration(None).event_count == 500 and run.tools["rivet"].extra["analyses"] == ["photo_eic"]
     assert run.quantities["cut"].values == [4.0, 5.0] and run.plot["title"] == "photo_eic: 500 events"
-    written = raw(run__event_count=500, quantities__cut={"values": [4.0, 5.0], "target": "rivet/photo_eic", "key": "ETMIN"},
+    written = raw(errand__event_count=500, quantities__cut={"values": [4.0, 5.0], "target": "rivet/photo_eic", "key": "ETMIN"},
                   plot={"title": "photo_eic: 500 events"})
     plain = config.load(_written(scratch, used(written, "cut"), "plain.toml"))
     assert (plain.quantities["cut"].values, plain.plot) == (run.quantities["cut"].values, run.plot)
@@ -256,9 +256,9 @@ def test_a_configuration_may_have_its_own_vars_and_data(scratch):
     data = raw(config={"vars": {"ana": "photo_eic"}}, tools__rivet__analyses=["{var:ana}"],
                tools__rivet__output_file="{var:ana}.yoda",
                plot={"data": {"file": "./photo.yoda", "legend": "photo", "map": {"d01-x01-y01": "/REF/A/d01-x01-y01"}}},
-               run__cfgs__dis={"tools": [["pythia", "rivet"]], "vars": {"ana": "dis_eic"},
+               errand__cfgs__dis={"tools": [["pythia", "rivet"]], "vars": {"ana": "dis_eic"},
                                "data": {"file": "./dis.yoda", "legend": "dis", "map": {"d01-x01-y01": "/REF/B/d01-x01-y01"}}},
-               run__cfgs__more={"extends": "dis", "event_count": 20})
+               errand__cfgs__more={"extends": "dis", "event_count": 20})
     path = _written(scratch, used(data))
     run = config.load(path)                                                    # read for one, the default
     assert run.tools["rivet"].extra["analyses"] == ["photo_eic"] and run.plot["data"]["legend"] == "photo"
@@ -275,7 +275,7 @@ def test_a_configuration_may_have_its_own_vars_and_data(scratch):
 
 def test_a_var_is_checked(scratch):
     with pytest.raises(HeimdallError, match=r"\{var:evnts\} is not in \[config.vars\]") as error:
-        config.load(_written(scratch, raw(config={"vars": {"events": 5}}, run__event_count="{var:evnts}")))
+        config.load(_written(scratch, raw(config={"vars": {"events": 5}}, errand__event_count="{var:evnts}")))
     assert "events" in error.value.hint
     with pytest.raises(HeimdallError, match="is a list: it can only be a whole value"):
         config.load(_written(scratch, raw(config={"vars": {"l": [1, 2]}}, plot={"title": "a {var:l}"})))
@@ -325,7 +325,7 @@ def test_master_is_config_now(scratch):
 
 
 def test_events_swept_as_a_quantity_set_each_points_count(scratch):
-    data = raw(run__cfgs__one__sweeps=["events"], quantities__events={"values": [100, 2500], "tags": ["e100", "e2500"]})
+    data = raw(errand__cfgs__one__sweeps=["events"], quantities__events={"values": [100, 2500], "tags": ["e100", "e2500"]})
     _, _, small = plan(data, scratch, point=0)
     _, _, large = plan(data, scratch, point=1)
     assert (small.events, large.events) == (100, 2500)
@@ -334,9 +334,9 @@ def test_events_swept_as_a_quantity_set_each_points_count(scratch):
 
 
 def test_show_config_says_where_each_value_came_from(scratch):
-    run = parse(configurations(run={"tools": [["pythia", "rivet"]]}, a={"event_count": 5}), scratch)
+    run = parse(configurations(errand={"tools": [["pythia", "rivet"]]}, a={"event_count": 5}), scratch)
     lines = cli.show_config(run, ["a"])
-    assert any(l.split()[0] == "tools" and l.endswith("[run]") for l in lines[1:])
-    assert any(l.split()[0] == "event_count" and l.endswith("[run.cfgs.a]") for l in lines[1:])
+    assert any(l.split()[0] == "tools" and l.endswith("[errand]") for l in lines[1:])
+    assert any(l.split()[0] == "event_count" and l.endswith("[errand.cfgs.a]") for l in lines[1:])
     assert any(l.split()[0] == "parallelism" and l.endswith("default") for l in lines[1:])
     assert any(l.split()[0] == "label" and l.endswith("default") for l in lines[1:])

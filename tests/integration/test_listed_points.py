@@ -19,8 +19,8 @@ from support import HEIMDALL, REPO, apps, env
 pytestmark = [pytest.mark.slow,
               pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="heimdall build --framework")]
 
-LISTED = """[run]
-project = "T"
+LISTED = """[errand]
+assignment = "T"
 name    = "listed"
 run     = "listed"
 events  = 200

@@ -663,9 +663,9 @@ def location(serial: int | None, name: str) -> str:
 
 
 def run_dir(run, configuration) -> Path:
-    """<project>/<name>/<NN_><label> (V45, V46): `name` is [run]'s, or the configuration's own; the
+    """<project>/<name>/<NN_><label> (V45, V46): `name` is [errand]'s, or the configuration's own; the
     configuration's folder is its `label` (its table key when empty or unset), after one serial, the
-    configuration's if it has one, else [run]'s."""
+    configuration's if it has one, else [errand]'s."""
     return Path(run.project) / (configuration.run_folder or run.name) / location(configuration.serial, configuration.label)
 
 
@@ -782,7 +782,7 @@ def _resolve_chain(run, configuration, point) -> list[list[str]]:
     chain spliced in (V19, V153; config.resolve_chain)."""
     def choose(name: str):
         if name not in point.choice and name not in configuration.static:
-            raise HeimdallError(f"'@{name}' needs {name} swept or static", where=f"[run.cfgs.{configuration.key}].tools")
+            raise HeimdallError(f"'@{name}' needs {name} swept or static", where=f"[errand.cfgs.{configuration.key}].tools")
         quantity = run.quantities[name]
         index = point.choice.get(name)
         if index is None:

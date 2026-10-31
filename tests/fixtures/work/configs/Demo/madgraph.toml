@@ -5,10 +5,10 @@
 # Every hop that crosses a group is a file: the LHE must be complete before Pythia opens it. The
 # process directory is built once per proc card (.cache/madgraph/); each point is one launch.
 
-[run]
+[errand]
 serial        = 7
 name          = "madgraph"
-project       = "Demo"
+assignment    = "Demo"
 run           = "single"
 events        = 1_000
 threads       = 1                   # Pythia reads one LHE: one instance (no PythiaParallel split)

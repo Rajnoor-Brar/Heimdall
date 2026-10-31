@@ -39,15 +39,15 @@ def card(plan) -> str:
 def test_the_keys_and_where_they_win(scratch):
     conf = parse(raw(), scratch).configuration(None)
     assert (conf.seed_type, conf.manual_seed) == ("identity", None)
-    conf = parse(raw(run__seed_type="manual", run__manual_seed=5, run__cfgs__one__manual_seed=7), scratch).configuration(None)
+    conf = parse(raw(errand__seed_type="manual", errand__manual_seed=5, errand__cfgs__one__manual_seed=7), scratch).configuration(None)
     assert (conf.seed_type, conf.manual_seed) == ("manual", 7)
-    assert parse(raw(run__manual_seed=5), scratch).configuration(None).manual_seed == 5     # unused: allowed
+    assert parse(raw(errand__manual_seed=5), scratch).configuration(None).manual_seed == 5     # unused: allowed
 
 
 @pytest.mark.parametrize("changes, message", [
-    ({"run__seed_type": "fixed"}, "one of identity, manual, random"),
-    ({"run__manual_seed": 0}, "at least 1"),
-    ({"run__seed_type": 3}, "must be a string"),
+    ({"errand__seed_type": "fixed"}, "one of identity, manual, random"),
+    ({"errand__manual_seed": 0}, "at least 1"),
+    ({"errand__seed_type": 3}, "must be a string"),
 ])
 def test_what_is_refused_when_read(scratch, changes, message):
     with pytest.raises(HeimdallError, match=message):
@@ -57,22 +57,22 @@ def test_what_is_refused_when_read(scratch, changes, message):
 def test_the_default_rule_is_what_every_identity_said_before(scratch):
     """No complete point reruns because V39 exists: the default rule is still "generator", and an
     unused manual_seed changes nothing."""
-    plain, = build(raw(run__threads=4), scratch)
+    plain, = build(raw(errand__threads=4), scratch)
     assert record.seed_rule(plain) == "generator"
-    unused, = build(raw(run__threads=4, run__manual_seed=12345, run__seed_type="identity"), scratch)
+    unused, = build(raw(errand__threads=4, errand__manual_seed=12345, errand__seed_type="identity"), scratch)
     assert (unused.identity, unused.seed) == (plain.identity, plain.seed)
     assert plain.seed == record.seed_of(record.seed_basis(plain), 4)
 
 
 def test_one_manual_point_is_exactly_its_seed(scratch):
-    plan, = build(raw(run__seed_type="manual", run__manual_seed=3245364), scratch)
+    plan, = build(raw(errand__seed_type="manual", errand__manual_seed=3245364), scratch)
     assert plan.seed == 3245364
     assert "Random:seed = 3245364" in card(plan) and "Parallelism:seeds" not in card(plan)
 
 
 def test_every_point_shares_the_manual_seed_and_its_threads_follow(scratch):
-    plans = build(raw(run__threads=4, run__seed_type="manual", run__manual_seed=1000,
-                      run__cfgs__one__sweeps=["pdf"]), scratch)
+    plans = build(raw(errand__threads=4, errand__seed_type="manual", errand__manual_seed=1000,
+                      errand__cfgs__one__sweeps=["pdf"]), scratch)
     assert [p.seed for p in plans] == [1000, 1000]                 # two PDFs: one seed, different physics
     for plan in plans:
         seeds = re.search(r"Parallelism:seeds = \{([^}]*)\}", card(plan)).group(1)
@@ -80,8 +80,8 @@ def test_every_point_shares_the_manual_seed_and_its_threads_follow(scratch):
 
 
 def test_a_swept_seed_quantity_gives_each_point_its_seed(scratch):
-    plans = build(raw(run__threads=4, run__seed_type="manual", quantities__replica=SEEDS,
-                      run__cfgs__one__sweeps=["replica"]), scratch)
+    plans = build(raw(errand__threads=4, errand__seed_type="manual", quantities__replica=SEEDS,
+                      errand__cfgs__one__sweeps=["replica"]), scratch)
     assert [p.seed for p in plans] == [1, 101, 201]
     assert "Random:seed = 101" in card(plans[1])
 
@@ -89,32 +89,32 @@ def test_a_swept_seed_quantity_gives_each_point_its_seed(scratch):
 def test_overlapping_seeds_on_one_setup_are_refused(scratch):
     close = {**SEEDS, "values": [1, 2], "tags": ["s1", "s2"]}
     with pytest.raises(HeimdallError, match="overlapping seed blocks at threads = 4"):
-        build(raw(run__threads=4, run__seed_type="manual", quantities__replica=close,
-                  run__cfgs__one__sweeps=["replica"]), scratch)
-    assert [p.seed for p in build(raw(run__seed_type="manual", quantities__replica=close,     # one thread each
-                                      run__cfgs__one__sweeps=["replica"]), scratch)] == [1, 2]
+        build(raw(errand__threads=4, errand__seed_type="manual", quantities__replica=close,
+                  errand__cfgs__one__sweeps=["replica"]), scratch)
+    assert [p.seed for p in build(raw(errand__seed_type="manual", quantities__replica=close,     # one thread each
+                                      errand__cfgs__one__sweeps=["replica"]), scratch)] == [1, 2]
 
 
 def test_the_manual_seed_is_in_the_identity(scratch):
-    a, = build(raw(run__seed_type="manual", run__manual_seed=11), scratch)
-    b, = build(raw(run__seed_type="manual", run__manual_seed=12), scratch)
-    c, = build(raw(run__seed_type="manual", run__manual_seed=11, run__cfgs__one__threads=1), scratch)
+    a, = build(raw(errand__seed_type="manual", errand__manual_seed=11), scratch)
+    b, = build(raw(errand__seed_type="manual", errand__manual_seed=12), scratch)
+    c, = build(raw(errand__seed_type="manual", errand__manual_seed=11, errand__cfgs__one__threads=1), scratch)
     assert a.identity != b.identity and a.identity == c.identity
     assert record.seed_rule(a) == ["manual", 11]
 
 
 @pytest.mark.parametrize("changes, message", [
     ({}, "has no seed"),
-    ({"run__manual_seed": 899_999_999, "run__threads": 4}, "not an integer from 1 to 899,999,996"),
-    ({"quantities__replica": {**SEEDS, "values": ["a", "b", "c"]}, "run__cfgs__one__sweeps": ["replica"]}, "not an integer"),
+    ({"errand__manual_seed": 899_999_999, "errand__threads": 4}, "not an integer from 1 to 899,999,996"),
+    ({"quantities__replica": {**SEEDS, "values": ["a", "b", "c"]}, "errand__cfgs__one__sweeps": ["replica"]}, "not an integer"),
 ])
 def test_a_manual_point_without_a_usable_seed_is_refused(scratch, changes, message):
     with pytest.raises(HeimdallError, match=message):
-        build(raw(run__seed_type="manual", **changes), scratch)
+        build(raw(errand__seed_type="manual", **changes), scratch)
 
 
 def test_random_seeds_are_drawn_again_and_disjoint(scratch):
-    data = raw(run__threads=4, run__seed_type="random", quantities__replica=SEEDS, run__cfgs__one__sweeps=["pdf", "replica"])
+    data = raw(errand__threads=4, errand__seed_type="random", quantities__replica=SEEDS, errand__cfgs__one__sweeps=["pdf", "replica"])
     first, second = build(data, scratch), build(data, scratch)
     assert [p.identity for p in first] == [p.identity for p in second]      # skip-unchanged still works
     assert [p.seed for p in first] != [p.seed for p in second]
@@ -127,7 +127,7 @@ def test_random_seeds_are_drawn_again_and_disjoint(scratch):
 def test_a_complete_random_point_keeps_the_seed_it_ran_with(scratch, monkeypatch):
     monkeypatch.setenv("HEIMDALL_RECORDS", str(scratch / "records"))
     monkeypatch.setenv("HEIMDALL_CACHE", str(scratch / "cache"))
-    data = raw(run__seed_type="random", run__cfgs__one__sweeps=["pdf"])
+    data = raw(errand__seed_type="random", errand__cfgs__one__sweeps=["pdf"])
     done = build(data, scratch)[0]
     record.record_dir(done).mkdir(parents=True)
     record.complete_marker(done).write_text(done.identity + "\n", encoding="utf-8")
@@ -143,8 +143,8 @@ def test_a_complete_random_point_keeps_the_seed_it_ran_with(scratch, monkeypatch
 def test_stages_keep_the_identity_rule(scratch):
     """A combined group (a stage, V35) merges points; it has no seeds of its own to give."""
     from runner import post
-    data = raw(run__seed_type="manual", quantities__replica=SEEDS, run__cfgs__one__sweeps=["pdf", "replica"],
-               run__cfgs__one__combine=["replica"])
+    data = raw(errand__seed_type="manual", quantities__replica=SEEDS, errand__cfgs__one__sweeps=["pdf", "replica"],
+               errand__cfgs__one__combine=["replica"])
     run = config.parse(data, scratch / "t.toml")
     conf = run.configuration(None)
     groups = post.plan_combined(run, conf, quantities.load_master(run.project, run.master_toml), build(data, scratch))
@@ -153,7 +153,7 @@ def test_stages_keep_the_identity_rule(scratch):
 
 def test_a_manual_seed_past_the_generators_range_is_refused_when_planned(scratch):
     """The upper bound is the point's generators' [card] seed_range (V54): Pythia's 9·10⁸ here."""
-    data = raw(run__seed_type="manual", run__cfgs__one__manual_seed=900_000_000)
+    data = raw(errand__seed_type="manual", errand__cfgs__one__manual_seed=900_000_000)
     with pytest.raises(HeimdallError, match="not an integer from 1 to 899,999,999"):
         build(data, scratch)
 

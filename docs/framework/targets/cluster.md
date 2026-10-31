@@ -41,7 +41,7 @@ P0 S1 records `apptainer` in `[machine]`. With it, propose A at P0's end.
   `memory` and `max_running` in the run TOML's. Way A: `[cluster] image = "<name>"` (and `setup =
   ["module load apptainer"]`) runs every job in the image, the work dir bound at its own path.
 - **Another batch system** (HTCondor, PBS): not yet. Submit a job script that runs `heimdall run` inside
-  one allocation, and size `threads` and `parallelism` to it (`--set run.threads=$SLURM_CPUS_PER_TASK`).
+  one allocation, and size `threads` and `parallelism` to it (`--set errand.threads=$SLURM_CPUS_PER_TASK`).
 - **`records/` and `logs/` stay on the shared filesystem** with `heimdall cluster`: the points' `.complete`
   markers and the jobs' logs are in `records/`, and the finish job reads them. `[prelim]`'s FIFOs are made in `logs/`;
   NFSv4 and Lustre take them (a FIFO's two ends are on one node). A filesystem that refuses `mkfifo`

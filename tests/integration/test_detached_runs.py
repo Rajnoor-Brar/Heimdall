@@ -33,14 +33,14 @@ def config_of(scratch: Path, sleep: float, fails=(0, 1, 0, 0)) -> Path:
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
     config = scratch / "det.toml"
     config.write_text(f"""\
-[run]
+[errand]
 name          = "det"
-project       = "Demo"
+assignment    = "Demo"
 configuration = "one"
 event_count   = 1
 parallelism   = 2
 
-[run.cfgs.one]
+[errand.cfgs.one]
 sweeps = ["fail"]
 tools  = ["sleepy"]
 

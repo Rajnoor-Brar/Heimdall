@@ -1,4 +1,4 @@
-"""V38, the gate (slow: real `heimdall run` processes): under `[run].sweep_runs = true` the swept
+"""V38, the gate (slow: real `heimdall run` processes): under `[errand].sweep_runs = true` the swept
 configurations run one after another, each exactly the run `heimdall run CONFIG <cfg>` makes, after a
 `run NN - <title> -` line; `swept = false` leaves one out; a failed run leaves the next to start; a
 config error anywhere stops everything before it starts; Ctrl-C starts no more runs."""
@@ -33,24 +33,24 @@ def sweep_config(scratch: Path, d_static: str = "{}", b_nap: str = "no") -> Path
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
     config = scratch / "sw.toml"
     config.write_text(f"""\
-[run]
+[errand]
 name        = "sw"
-project     = "Demo"
+assignment  = "Demo"
 sweep_runs  = ["a", "b", "d"]                # V79: c is not in the sweep
 event_count = 1
 
-[run.cfgs.a]
+[errand.cfgs.a]
 tools = ["check"]
 
-[run.cfgs.b]
+[errand.cfgs.b]
 title  = "Bee"
 tools  = ["check"]
 static = {{ fail = "bad", nap = "{b_nap}" }}
 
-[run.cfgs.c]
+[errand.cfgs.c]
 tools = ["check"]
 
-[run.cfgs.d]
+[errand.cfgs.d]
 tools  = ["check"]
 static = {d_static}
 
@@ -142,18 +142,18 @@ def test_ctrl_c_starts_no_more_runs(scratch):
 
 
 PIPE = """\
-[run]
+[errand]
 name        = "pipe"
-project     = "Demo"
+assignment  = "Demo"
 sweep_runs  = true
 event_count = 1
 parallelism = 2
 
-[run.cfgs.x]
+[errand.cfgs.x]
 sweeps = ["slot"]
 tools  = ["check"]
 
-[run.cfgs.y]
+[errand.cfgs.y]
 sweeps = ["slot"]
 tools  = ["check"]
 

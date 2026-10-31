@@ -24,7 +24,7 @@ from .paths import cache_root, configs_root, find_work, records_root, results_ro
 from .record import (cause_text, constants, constants_lines, held_by, holder, provenance_file, record_dir,
                      run_tag, state_of, write_run_tag)
 
-TABLES = {"run": "run", "config": "config", "prelim": "prelim", "plot": "plot", "data": "data",
+TABLES = {"errand": "errand", "config": "config", "prelim": "prelim", "plot": "plot", "data": "data",
           "across_from": "across_from", "configuration": "configuration", "quantity": "quantity", "quantities": "quantity", "tool": "tool",
           "tools": "tool", "figure": "figure", "figures": "figure"}
 
@@ -69,12 +69,14 @@ def unused_tools(run) -> list[str]:
 
 
 def config_names(project: str | None = None) -> list[str]:
-    """Every configs/<Project>/<name>.toml that has a [run], as <Project>/<name>."""
+    """Every configs/<Project>/<name>.toml that has an [errand], as <Project>/<name>; one with [run] too (the names
+    before I-112), so that reading it says what rewrites it."""
     root = configs_root()
     names = []
     for path in sorted(root.glob(f"{project or '*'}/*.toml")):
         try:
-            has_run = "run" in tomllib.loads(path.read_text(encoding="utf-8"))
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+            has_run = "errand" in data or "run" in data
         except (OSError, tomllib.TOMLDecodeError):
             has_run = True                                   # a broken file is listed, and says so
         if has_run:
@@ -86,7 +88,7 @@ def ls(project: str | None = None) -> list[str]:
     """Each config, then each configuration: its title and description, and whether a sweep runs it."""
     names = config_names(project)
     if not names:
-        raise HeimdallError(f"no run TOML under {configs_root() / (project or '')}", hint="a config has a [run] table")
+        raise HeimdallError(f"no run TOML under {configs_root() / (project or '')}", hint="a config has an [errand] table")
     lines = []
     for name in names:
         try:
@@ -94,7 +96,7 @@ def ls(project: str | None = None) -> list[str]:
         except HeimdallError as error:
             lines.append(f"{name}   (does not load: {error.message})")
             continue
-        swept = set(run.runs(None)) if run.sweep_runs else {run.raw.get("run", {}).get("configuration")}
+        swept = set(run.runs(None)) if run.sweep_runs else {run.raw.get("errand", {}).get("configuration")}
         lines.append(f"{name}   run {run.name}" + ("   sweep_runs" if run.sweep_runs else ""))
         for key, configuration in run.configurations.items():
             mark = "*" if key in swept else " "
@@ -165,8 +167,8 @@ def _quantity_lines(key: str) -> list[str]:
 
 #: v3's names (runner/v3.py): the v2 key each stands for, and what v3 adds.
 V3_NAMES = {
-    "events": ("run", "event_count", "a configuration's may be a list: one configuration per count, <name>_<count>"),
-    "chain": ("run", "tools", "[run]'s is every configuration's, unless one gives its own"),
+    "events": ("errand", "event_count", "a configuration's may be a list: one configuration per count, <name>_<count>"),
+    "chain": ("errand", "tools", "[errand]'s is every configuration's, unless one gives its own"),
     "vary": ("configuration", "sweeps", "a compound quantity's name sweeps its fields together"),
     "fixed": ("configuration", "static", "a quantity's own fixed = \"<tag>\" ([static] in v2), or a configuration's "
                                           "fixed = { quantity = \"<tag>\" }"),
@@ -175,14 +177,14 @@ V3_NAMES = {
     "card": ("tool", "baseconfig", ""), "output": ("tool", "output_file", ""),
     "uses": ("tool", "tool", "the tool folder of a second table of one tool; else the table's name is the tool"),
     "folder": ("configuration", "label", ""),
-    "seed": ("run", "seed_type", "\"identity\", \"random\" or an integer (v2's seed_type and manual_seed)"),
-    "commands": ("prelim", "commands", "[run] commands: run in each point's folder before its tools"),
+    "seed": ("errand", "seed_type", "\"identity\", \"random\" or an integer (v2's seed_type and manual_seed)"),
+    "commands": ("prelim", "commands", "[errand] commands: run in each point's folder before its tools"),
 }
 #: What a table is, for `heimdall explain <table>`.
 TABLE_TEXT = {
     "config": "[file] (v2's [config]): how the file is read: imports, a master, vars, meta",
-    "run": "[run]: the run's name, project and defaults, which every configuration starts from",
-    "configuration": "[cfgs.<name>] (v2's [run.cfgs.<name>]): one configuration: what it varies, fixes and runs",
+    "errand": "[errand]: the errand's name, assignment and defaults, which every configuration starts from",
+    "configuration": "[cfgs.<name>] (v2's [errand.cfgs.<name>]): one configuration: what it varies, fixes and runs",
     "quantity": "[quantities.<q>]: a quantity: its points, fixed point and bindings",
     "tool": "[tools.<tag>]: a tool table; its folder's own keys are `heimdall tools <folder>`",
     "plot": "[plot]: the pages", "figure": "[plot.figures.<f>]: one figure's pages", "data": "[plot.data]: reference data",
@@ -197,13 +199,16 @@ def _special(key: str) -> list[str] | None:
     style key, a report's recipe, machine.toml, [static]."""
     from . import tools as toolsmod
     word = key.strip("[]")
+    if word.split(".")[0].split("]")[0] == "run":                         # I-112's names
+        raise HeimdallError(f"[run] is now [errand] (I-112's names): {key}",
+                       hint="heimdall explain errand" + word.removeprefix("run").replace("]", ""))
     table = TABLES.get(word, {"file": "config", "cfgs": "configuration"}.get(word))
     if table and "." not in word:
         entries = schema.keys(table)
         return [TABLE_TEXT.get(table, f"[{table}]"), *(f"  {k:16} {e.get('doc', '')}" for k, e in entries.items()),
                 "  (heimdall explain <table>.<key> for one in full)"]
-    last = word.rsplit(".", 1)[-1]                                       # events, run.events, tools.<tag>.card
-    if last in V3_NAMES and (word == last or word.split(".")[0] in ("run", "cfgs", "quantities", "tools")):
+    last = word.rsplit(".", 1)[-1]                                       # events, errand.events, tools.<tag>.card
+    if last in V3_NAMES and (word == last or word.split(".")[0] in ("errand", "cfgs", "quantities", "tools")):
         word = last
         table, old, note = V3_NAMES[word]
         entry = schema.keys(table).get(old, {})
@@ -249,8 +254,8 @@ def _special(key: str) -> list[str] | None:
 
 def explain(key: str) -> list[str]:
     """A key's type, default, choices, bounds, inheritance and doc, from framework/schema/run.toml.
-    `plot.y_gutter`, `[plot].y_gutter`, `run.event_count`, `quantities.<q>.styles`, `tools.<tag>.shards`,
-    `plot.figures.<figure>.logy`, `run.cfgs.<cfg>.threads` (a configuration's, V98); a bare key is looked
+    `plot.y_gutter`, `[plot].y_gutter`, `errand.event_count`, `quantities.<q>.styles`, `tools.<tag>.shards`,
+    `plot.figures.<figure>.logy`, `errand.cfgs.<cfg>.threads` (a configuration's, V98); a bare key is looked
     up in every table."""
     if ".exe" in key:                                                   # a module program's own settings
         return module_settings(key)
@@ -265,13 +270,13 @@ def explain(key: str) -> list[str]:
     if not parts:
         raise HeimdallError("explain which key?", hint="e.g. heimdall explain plot.y_gutter")
     if parts[0] == "cfgs" and len(parts) >= 3:                          # v3's names: cfgs.pdf.threads, file.vars
-        parts = ["run", *parts]
+        parts = ["errand", *parts]
     elif parts[0] == "file":
         parts[0] = "config"
     found = []
     if len(parts) >= 2 and parts[0] in TABLES:
         table = TABLES[parts[0]]
-        if parts[0] == "run" and len(parts) >= 3 and parts[1] == "cfgs":   # a configuration's (V98)
+        if parts[0] == "errand" and len(parts) >= 3 and parts[1] == "cfgs":   # a configuration's (V98)
             table = "configuration"
         elif parts[0] == "plot" and len(parts) >= 3 and parts[1] in ("data", "across_from"):   # a table of [plot]'s
             table = TABLES[parts[1]]
@@ -283,7 +288,7 @@ def explain(key: str) -> list[str]:
     if not found:
         every = sorted({k for t in schema.spec() if t != "sections" for k in schema.keys(t)})
         raise HeimdallError(f"no key '{key}' in the schema", hint=did_you_mean(parts[-1], every) or
-                       "keys are written as plot.y_gutter, run.events, cfgs.<name>.threads, quantities.<q>.points")
+                       "keys are written as plot.y_gutter, errand.events, cfgs.<name>.threads, quantities.<q>.points")
     lines = []
     for table, name in found:
         entry = schema.keys(table)[name]
@@ -299,7 +304,7 @@ def explain(key: str) -> list[str]:
         if entry.get("required"):
             lines.append("  required")
         if entry.get("inherit"):
-            lines.append("  a configuration inherits it from [run]")
+            lines.append("  a configuration inherits it from [errand]")
         if entry.get("default_ok"):
             lines.append('  "default": the layer below\'s value, as if left out (v2\'s [plot] itself: the drawing tool\'s own)')
         if entry.get("native_ok"):

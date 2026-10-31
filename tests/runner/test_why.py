@@ -39,7 +39,7 @@ def test_the_identity_is_the_hash_of_its_recorded_parts(scratch):
 
 def test_why_names_what_changed(scratch):
     completed(raw(), scratch)
-    _, _, again = plan(raw(run__event_count=20, tools__rivet__analyses=["photo_eic:R=0.4"]), scratch)
+    _, _, again = plan(raw(errand__event_count=20, tools__rivet__analyses=["photo_eic:R=0.4"]), scratch)
     again.identity = record.identity(again)
     lines = record.why(again)
     assert "events: 10 → 20" in lines
@@ -57,7 +57,7 @@ def test_check_plans_every_configuration_and_fails_with_2(scratch, capsys):
     ok = argparse.Namespace(configs=["Demo/jets", "Demo/validation"])
     assert cli.cmd_check(ok) == 0
     bad = scratch / "bad.toml"
-    bad.write_text(tomli_w.dumps(raw(run__cfgs__one__sweeps=["pfd"])), encoding="utf-8")
+    bad.write_text(tomli_w.dumps(raw(errand__cfgs__one__sweeps=["pfd"])), encoding="utf-8")
     assert cli.cmd_check(argparse.Namespace(configs=[str(bad)])) == 2
     out = capsys.readouterr().out
     assert "ok    Demo/jets: 13 configuration(s)" in out and "FAIL  " + str(bad) in out

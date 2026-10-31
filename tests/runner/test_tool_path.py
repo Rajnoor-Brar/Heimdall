@@ -125,14 +125,14 @@ def test_a_run_uses_a_work_dirs_tool(roots):
     script = work / "make.py"
     script.write_text(SCRIPT, encoding="utf-8")
     script.chmod(0o755)
-    (work / "configs" / "P" / "c.toml").write_text(f"""[run]
+    (work / "configs" / "P" / "c.toml").write_text(f"""[errand]
 name = "c"
-project = "P"
+assignment = "P"
 configuration = "two"
 event_count = 1
 threads = 1
 
-[run.cfgs.two]
+[errand.cfgs.two]
 sweeps = ["q"]
 tools  = ["make"]
 

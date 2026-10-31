@@ -18,10 +18,10 @@
 # pages are drawn from the groups. Five seeds of 1M are one sample of 5M: the curves' statistical
 # errors shrink by √5 against one seed.
 
-[run]
+[errand]
 serial        = 1
 name          = "seed_sweep"
-project       = "Demo"
+assignment    = "Demo"
 run           = "default"
 events        = 1_000_000                 # per seed, as the paper's per PDF
 threads       = 12                        # Pythia's; with rivet's 10 shards it fills the 24 hardware threads

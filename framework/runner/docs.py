@@ -58,7 +58,7 @@ def keys(table: str) -> str:
         default = "**required**" if entry.get("required") else f"`{_value(entry['default'])}`" if "default" in entry else ""
         meaning = entry.get("notes") or entry.get("doc", "")
         if entry.get("inherit"):
-            meaning += " A configuration inherits it from `[run]`."
+            meaning += " A configuration inherits it from `[errand]`."
         rows.append(f"| `{name}` | {_cell(_type(entry))} | {default} | {_cell(meaning)} |")
     if table == "figure":
         inherited = [k for k, e in schema.spec().get("plot", {}).items() if e.get("page")]
@@ -77,7 +77,7 @@ _SEED = {"type": "str|int", "default": "identity",
 V3_TABLES = {
     "file": ("config", {}, {"schema": {"type": "int", "doc": "`3`, or `2` to keep a v2 file v2 for one release; "
                                                               "a file with `[file]` is v3 without it"}}, ()),
-    "run": ("run", {"configuration": "run", "event_count": "events", "tools": "chain", "sweeps": "vary"},
+    "errand": ("errand", {"configuration": "run", "event_count": "events", "tools": "chain", "sweeps": "vary"},
             {"seed": _SEED, "commands": {"type": "list", "doc": "argv arrays run in each point's output folder before "
                                          "its tools, in order; output to the point's `prelim.log`; a nonzero exit fails the "
                                          "point. Placeholders: `{work}`, `{heimdall}`, `{out}`, `{res}`, `{file:<name>}`"}},
@@ -99,20 +99,20 @@ V3_TABLES = {
                    ("values", "tags", "labels", "styles", "target")),
 }
 V3_DOCS = {
-    ("run", "run"): "the configuration `heimdall run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may "
+    ("errand", "run"): "the configuration `heimdall run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may "
                     "be left out",
-    ("run", "events"): "every configuration's event count, unless it gives its own",
-    ("run", "chain"): "every configuration's tools, unless it gives its own (04 §5.3)",
-    ("run", "vary"): "04 §5.1; `[]` is one point",
-    ("run", "serial"): "the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never "
+    ("errand", "events"): "every configuration's event count, unless it gives its own",
+    ("errand", "chain"): "every configuration's tools, unless it gives its own (04 §5.3)",
+    ("errand", "vary"): "04 §5.1; `[]` is one point",
+    ("errand", "serial"): "the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never "
                        "identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a "
                        "new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it "
                        "made (`--rerun` overwrites)",
-    ("cfgs", "serial"): "this configuration's `NN_`, over `[run]`'s; left out in both, the runner numbers it (04 §2)",
+    ("cfgs", "serial"): "this configuration's `NN_`, over `[errand]`'s; left out in both, the runner numbers it (04 §2)",
     ("cfgs", "folder"): "the configuration's folder, after the serial: `NN_<folder>`; empty means the table key",
-    ("cfgs", "events"): "required here if `[run]` has none. A list is one configuration per count, "
+    ("cfgs", "events"): "required here if `[errand]` has none. A list is one configuration per count, "
                         "`<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6)",
-    ("cfgs", "chain"): "04 §5.3; `[run]`'s when left out",
+    ("cfgs", "chain"): "04 §5.3; `[errand]`'s when left out",
     ("cfgs", "vary"): "04 §5.1; `[]` is one point",
     ("cfgs", "fixed"): "`{ quantity = \"tag\" }`: this configuration's fixed points, over each quantity's own "
                        "`fixed` (04 §7)",
@@ -138,10 +138,10 @@ V3_DOCS = {
     ("file", "import"): "run TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this "
                         "project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from "
                         "the work dir; `.toml` optional. **This file wins** (V56): a quantity or configuration of the "
-                        "file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[run]`'s own "
+                        "file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[errand]`'s own "
                         "keys merge key by key, tables recursively. Imports nest (V94), depth-first; a circle is "
                         "refused. Another project's file keeps its bare paths its own project's. The file that "
-                        "imports sets its own `[run].name` and `project` (V100). An entry may be `{ from = "
+                        "imports sets its own `[errand].name` and `assignment` (V100). An entry may be `{ from = "
                         "\"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those tables or dotted "
                         "keys, each of which the file must have (V95)",
     ("file", "vars"): "`name = value`, cited in any string of the file as `{var:name}` and replaced when the file is "
@@ -170,8 +170,8 @@ def keys3(table: str) -> str:
     for name, entry in entries.items():
         default = "**required**" if entry.get("required") else f"`{_value(entry['default'])}`" if "default" in entry else ""
         meaning = entry.get("notes") or entry.get("doc", "")
-        if entry.get("inherit") and table == "run":
-            meaning += " A configuration inherits it from `[run]`."
+        if entry.get("inherit") and table == "errand":
+            meaning += " A configuration inherits it from `[errand]`."
         rows.append(f"| `{name}` | {_cell(_type(entry))} | {default} | {_cell(meaning)} |")
     return "\n".join(rows)
 

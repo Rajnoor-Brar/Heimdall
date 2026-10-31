@@ -51,7 +51,7 @@ def test_every_eic_configuration_plans_and_its_seed_blocks_are_disjoint():
 
 
 def test_entangled_quantities_move_together_and_axes_form_a_grid(scratch):
-    data = raw(run__cfgs__one__sweeps=["pdf", ["a", "b"]],
+    data = raw(errand__cfgs__one__sweeps=["pdf", ["a", "b"]],
                quantities__a={"values": [1, 2, 3], "tags": ["a1", "a2", "a3"], "key": {"pythia": "A:x"}},
                quantities__b={"values": [4, 5, 6], "tags": ["b1", "b2", "b3"], "key": {"pythia": "B:y"}})
     run = config.parse(data, scratch / "t.toml")
@@ -161,7 +161,7 @@ def swept(scratch, **changes):
 
 
 def test_exclude_leaves_values_out_of_the_sweep(scratch):
-    got = swept(scratch, quantities__pt0ref={**THREE, "exclude": [2]}, run__cfgs__one__sweeps=["pdf", "pt0ref"])
+    got = swept(scratch, quantities__pt0ref={**THREE, "exclude": [2]}, errand__cfgs__one__sweeps=["pdf", "pt0ref"])
     assert [p.name for p in got] == ["MSTW08lo_pt30", "MSTW08lo_pt34", "NNPDF23lo_pt30", "NNPDF23lo_pt34"]
     assert [p.index for p in got] == [1, 2, 3, 4]                     # numbered over what is swept
     assert got[1].choice == {"pdf": 0, "pt0ref": 2}                    # the value keeps its own place
@@ -170,7 +170,7 @@ def test_exclude_leaves_values_out_of_the_sweep(scratch):
 def test_an_entangled_group_loses_the_value_any_of_its_quantities_excludes(scratch):
     alphas = {"values": [0.118, 0.130], "tags": ["as118", "as130"], "key": {"pythia": "SigmaProcess:alphaSvalue"},
               "exclude": [1]}
-    got = swept(scratch, quantities__alphas=alphas, run__cfgs__one__sweeps=[["pdf", "alphas"]])
+    got = swept(scratch, quantities__alphas=alphas, errand__cfgs__one__sweeps=[["pdf", "alphas"]])
     assert [p.name for p in got] == ["NNPDF23lo_as130"]
 
 
@@ -180,8 +180,8 @@ def test_a_static_value_may_still_be_an_excluded_one(scratch):
 
 
 def test_exclude_changes_no_remaining_point(scratch):
-    _, _, before = plan(raw(quantities__pt0ref=THREE, run__cfgs__one__sweeps=["pt0ref"]), scratch)
-    _, _, after = plan(raw(quantities__pt0ref={**THREE, "exclude": [2, 3]}, run__cfgs__one__sweeps=["pt0ref"]), scratch)
+    _, _, before = plan(raw(quantities__pt0ref=THREE, errand__cfgs__one__sweeps=["pt0ref"]), scratch)
+    _, _, after = plan(raw(quantities__pt0ref={**THREE, "exclude": [2, 3]}, errand__cfgs__one__sweeps=["pt0ref"]), scratch)
     assert (before.point.name, before.identity) == (after.point.name, after.identity)
 
 
@@ -191,7 +191,7 @@ def test_exclude_changes_no_remaining_point(scratch):
 ])
 def test_what_exclude_refuses(scratch, exclude, message):
     with pytest.raises(HeimdallError, match=message):
-        swept(scratch, quantities__pt0ref={**THREE, "exclude": exclude}, run__cfgs__one__sweeps=["pt0ref"])
+        swept(scratch, quantities__pt0ref={**THREE, "exclude": exclude}, errand__cfgs__one__sweeps=["pt0ref"])
 
 
 def test_an_entangled_group_with_nothing_left_is_refused(scratch):
@@ -199,7 +199,7 @@ def test_an_entangled_group_with_nothing_left_is_refused(scratch):
               "exclude": [2]}
     with pytest.raises(HeimdallError, match="no value"):
         swept(scratch, quantities__alphas=alphas, quantities__pdf={**raw()["quantities"]["pdf"], "exclude": [1]},
-              run__cfgs__one__sweeps=[["pdf", "alphas"]])
+              errand__cfgs__one__sweeps=[["pdf", "alphas"]])
 
 
 def test_a_set_entry_names_its_folder():
@@ -231,7 +231,7 @@ SET2 = {"name": "set2", "pages": {"events": "all"},
 
 
 def four(scratch):
-    run = config.parse(raw(quantities=FOUR, run__cfgs__one__sweeps=["generator", "energies", "events", "pdf"]), scratch / "t.toml")
+    run = config.parse(raw(quantities=FOUR, errand__cfgs__one__sweeps=["generator", "energies", "events", "pdf"]), scratch / "t.toml")
     return run, sweep.points(run, run.configuration(None))
 
 
@@ -366,7 +366,7 @@ def test_what_a_set_table_refuses(scratch, entry, message):
 
 
 def test_a_value_no_point_has_is_refused_at_plan_time(scratch):
-    run = config.parse(raw(quantities=FOUR, run__cfgs__one__sweeps=["generator", "pdf"]), scratch / "t.toml")
+    run = config.parse(raw(quantities=FOUR, errand__cfgs__one__sweeps=["generator", "pdf"]), scratch / "t.toml")
     points = sweep.points(run, run.configuration(None))
     spec, = sweep.set_entries([{"curves": {"events": "10M"}}], "w")
     with pytest.raises(HeimdallError, match="no point of the configuration sets"):
@@ -387,14 +387,14 @@ def test_totality_curves_the_axis_closest_to_five(scratch):
     conf = run.configuration(None)
     assert sweep.totality(conf, points) == {"pages": {"generator": "all", "energies": "all", "events": "all"},
                                             "curves": {"pdf": "all"}}
-    two = config.parse(raw(quantities=FOUR, run__cfgs__one__sweeps=["generator", "energies"]), scratch / "t2.toml")
+    two = config.parse(raw(quantities=FOUR, errand__cfgs__one__sweeps=["generator", "energies"]), scratch / "t2.toml")
     assert sweep.totality(two.configuration(None), sweep.points(two, two.configuration(None))) == \
         {"pages": {"generator": "all"}, "curves": {"energies": "all"}}          # 3 is closer to 5 than 2
-    paged = config.parse(raw(quantities=FOUR, run__cfgs__one__sweeps=["generator", "pdf"],
-                             run__cfgs__one__plot_points=["pdf"]), scratch / "t3.toml")
+    paged = config.parse(raw(quantities=FOUR, errand__cfgs__one__sweeps=["generator", "pdf"],
+                             errand__cfgs__one__plot_points=["pdf"]), scratch / "t3.toml")
     assert sweep.totality(paged.configuration(None), sweep.points(paged, paged.configuration(None))) == \
         {"pages": {"pdf": "all"}, "curves": {"generator": "all"}}
-    alone = config.parse(raw(run__cfgs__one__sweeps=[]), scratch / "t4.toml")
+    alone = config.parse(raw(errand__cfgs__one__sweeps=[]), scratch / "t4.toml")
     assert sweep.totality(alone.configuration(None), sweep.points(alone, alone.configuration(None))) == {"points": ["all"]}
     cells, notes = cells_of(run, points, {"name": "totality", **sweep.totality(conf, points)})
     assert len(cells) == 2 * 3 * 3 and all(len(c.members) == 5 for c in cells) and notes == []
@@ -412,16 +412,16 @@ def test_sets_may_be_named_tables(scratch):
 
 
 def test_run_plot_is_a_gate_and_a_pick(scratch):
-    """[run].plot (V167): true, false or the sets drawn; a configuration's own over [run]'s."""
-    run = config.parse(raw(run__plot=False, run__cfgs__two={"tools": [["pythia", "rivet"]], "plot": ["totality"]}),
+    """[errand].plot (V167): true, false or the sets drawn; a configuration's own over [errand]'s."""
+    run = config.parse(raw(errand__plot=False, errand__cfgs__two={"tools": [["pythia", "rivet"]], "plot": ["totality"]}),
                        scratch / "t.toml")
     assert run.configuration("one").draw is False and run.configuration("two").draw == ["totality"]
     assert config.parse(raw(), scratch / "u.toml").configuration(None).draw is True
 
 
 def test_stats_is_a_section_and_a_gate(scratch):
-    """[stats] (V168) is checked when the file is read; [run].stats gates the statistics as [run].plot the pages."""
-    run = config.parse(raw(stats={"normalise": "area", "reference": {"pdf": "NNPDF23lo"}}, run__stats=["totality"]),
+    """[stats] (V168) is checked when the file is read; [errand].stats gates the statistics as [errand].plot the pages."""
+    run = config.parse(raw(stats={"normalise": "area", "reference": {"pdf": "NNPDF23lo"}}, errand__stats=["totality"]),
                        scratch / "t.toml")
     assert run.stats == {"normalise": "area", "reference": {"pdf": "NNPDF23lo"}} and run.configuration(None).measure == ["totality"]
     for bad, message in (({"normalize": "area"}, "unknown key 'normalize'"), ({"reference": "first"}, "must be one of"),

@@ -23,8 +23,30 @@ def test_the_base_config_parses(scratch):
 
 
 def test_c1_an_unknown_key_suggests_the_right_one(scratch):
-    error = fails(raw(run__cfgs__one__sweps=["pdf"]), scratch, "unknown key 'sweps'")
+    error = fails(raw(errand__cfgs__one__sweps=["pdf"]), scratch, "unknown key 'sweps'")
     assert "sweeps" in error.hint
+
+
+def test_the_names_before_i112_are_refused_with_what_rewrites_them(scratch):
+    """I-112: [run] is [errand], [run].project its assignment; the old forms (a table, a key, --set run.x, an import's
+    only = ["run.…"]) are refused, each naming `heimdall migrate --names`."""
+    from runner import config
+    old = raw()
+    old["run"] = {**old.pop("errand"), "project": "Demo"}
+    error = fails(old, scratch, r"\[run\] is now \[errand\] \(I-112's names\)")
+    assert error.hint == "heimdall migrate --names rewrites it" and error.where.endswith("[run]")
+    error = fails(raw(errand__project="Demo"), scratch, r"\[errand\]\.project is now \[errand\]\.assignment")
+    assert "heimdall migrate --names" in error.hint
+    with pytest.raises(HeimdallError, match=r"--set run\.threads: \[run\] is now \[errand\]") as caught:
+        config.apply_sets(raw(), ["run.threads=4"])
+    assert caught.value.hint.startswith("--set errand.threads=4")
+    path = scratch / "old.toml"
+    path.write_text('[run]\nname = "t"\nproject = "Demo"\nconfiguration = "one"\n', encoding="utf-8")
+    with pytest.raises(HeimdallError, match=r"\[run\] is now \[errand\]") as caught:
+        config.load(str(path))
+    assert caught.value.hint == "heimdall migrate --names rewrites it"
+    with pytest.raises(HeimdallError, match=r"'run\.cfgs\.one': \[run\] is now \[errand\]"):
+        config._parts("run.cfgs.one", "an import's only")
 
 
 def test_c1_an_unknown_section(scratch):
@@ -33,26 +55,26 @@ def test_c1_an_unknown_section(scratch):
 
 
 def test_c1_a_wrong_type(scratch):
-    fails(raw(run__event_count="many"), scratch, "must be an integer")
+    fails(raw(errand__event_count="many"), scratch, "must be an integer")
 
 
 def test_c2_the_default_configuration_must_exist(scratch):
-    fails(raw(run__configuration="nope"), scratch, "not a \\[run.cfgs.<cfg>\\] table")
+    fails(raw(errand__configuration="nope"), scratch, "not a \\[errand.cfgs.<cfg>\\] table")
 
 
 def test_configurations_are_run_cfgs_and_run_holds_only_its_own_keys(scratch):
-    """V98: [run.<cfg>] is refused with the form to write; a misspelt [run] table is no configuration; a
-    configuration may be named like a [run] key, and a [run] key that is a table is a type error."""
-    data = raw(); data["run"]["pdf"] = data["run"]["cfgs"].pop("one"); data["run"]["configuration"] = "pdf"
-    with pytest.raises(HeimdallError, match=r"\[run.pdf\] is a configuration, and configurations are \[run.cfgs.<cfg>\] now") as error:
+    """V98: [errand.<cfg>] is refused with the form to write; a misspelt [errand] table is no configuration; a
+    configuration may be named like a [errand] key, and a [errand] key that is a table is a type error."""
+    data = raw(); data["errand"]["pdf"] = data["errand"]["cfgs"].pop("one"); data["errand"]["configuration"] = "pdf"
+    with pytest.raises(HeimdallError, match=r"\[errand.pdf\] is a configuration, and configurations are \[errand.cfgs.<cfg>\] now") as error:
         parse(data, scratch)
-    assert "[run.cfgs.pdf]" in error.value.hint and "heimdall migrate" in error.value.hint
-    with pytest.raises(HeimdallError, match=r"\[run.defualts\] is a configuration") as error:
-        parse(raw(run__defualts={"event_count": 5}), scratch)
-    assert "[run.cfgs.defualts]" in error.value.hint
+    assert "[errand.cfgs.pdf]" in error.value.hint and "heimdall migrate" in error.value.hint
+    with pytest.raises(HeimdallError, match=r"\[errand.defualts\] is a configuration") as error:
+        parse(raw(errand__defualts={"event_count": 5}), scratch)
+    assert "[errand.cfgs.defualts]" in error.value.hint
     with pytest.raises(HeimdallError, match="'threads' must be an integer"):
-        parse(raw(run__threads={"tools": [["pythia", "rivet"]]}), scratch)
-    run = parse(raw(run__configuration="threads", run__cfgs__threads={"tools": [["pythia", "rivet"]]}), scratch)
+        parse(raw(errand__threads={"tools": [["pythia", "rivet"]]}), scratch)
+    run = parse(raw(errand__configuration="threads", errand__cfgs__threads={"tools": [["pythia", "rivet"]]}), scratch)
     assert "threads" in run.configurations
 
 
@@ -64,25 +86,25 @@ def test_c2_a_named_configuration_must_exist(scratch):
 
 
 def test_c3_sweeps_name_declared_quantities(scratch):
-    fails(raw(run__cfgs__one__sweeps=["pfd"]), scratch, "not a \\[quantities")
+    fails(raw(errand__cfgs__one__sweeps=["pfd"]), scratch, "not a \\[quantities")
 
 
 def test_c3_entangled_groups_have_equal_lengths(scratch):
-    data = raw(run__cfgs__one__sweeps=[["pdf", "other"]], quantities__other={"values": [1, 2, 3]})
+    data = raw(errand__cfgs__one__sweeps=[["pdf", "other"]], quantities__other={"values": [1, 2, 3]})
     fails(data, scratch, "equal value counts")
 
 
 def test_c4_plot_points_must_be_swept(scratch):
-    fails(raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__plot_points=["energies"]), scratch, "not swept")
+    fails(raw(errand__cfgs__one__sweeps=["pdf"], errand__cfgs__one__plot_points=["energies"]), scratch, "not swept")
 
 
 def test_c5_tools_name_tool_tables(scratch):
-    error = fails(raw(run__cfgs__one__tools=[["pythia", "rivt"]]), scratch, "not a \\[tools.<tag>\\] table")
+    error = fails(raw(errand__cfgs__one__tools=[["pythia", "rivt"]]), scratch, "not a \\[tools.<tag>\\] table")
     assert "rivet" in error.hint
 
 
 def test_c5_groups_nest_one_level(scratch):
-    fails(raw(run__cfgs__one__tools=[[["pythia"]]]), scratch, "nest one level")
+    fails(raw(errand__cfgs__one__tools=[[["pythia"]]]), scratch, "nest one level")
 
 
 def test_c12_climbing_out_is_refused(scratch):
@@ -105,7 +127,7 @@ def test_a_bad_static_value_names_the_choices(scratch):
 def test_set_overrides_one_value(scratch):
     from runner.config import apply_sets
     data = raw()
-    apply_sets(data, ["run.cfgs.one.threads=4", "static.pdf=MSTW08lo"])
+    apply_sets(data, ["errand.cfgs.one.threads=4", "static.pdf=MSTW08lo"])
     run = parse(data, scratch)
     assert run.configuration("one").threads == 4 and run.static == {"pdf": "MSTW08lo"}
 

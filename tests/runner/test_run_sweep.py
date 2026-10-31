@@ -1,4 +1,4 @@
-"""`[run].sweep_runs = true` (V38): `heimdall run` executes every configuration not `swept = false`, in the
+"""`[errand].sweep_runs = true` (V38): `heimdall run` executes every configuration not `swept = false`, in the
 order of the file, each as a run of its own after a `run NN - <title> -` line. All are planned
 before the first starts; a failed run leaves the next to start, a stop starts no more; each run's
 journal (--journal) names the next, so `heimdall watch --file` follows on; the watch socket is the process's,
@@ -24,10 +24,10 @@ CUSTOM = {"tool": "exec", "executable": "/bin/true"}
 
 def several(**changes):
     """Four configurations a, b, c, d; the sweep runs a, b and d (V79: sweep_runs lists them)."""
-    return raw(**{"run__sweep_runs": ["a", "b", "d"], "run__configuration": None, "run__cfgs__one": None, "prelim": None,
+    return raw(**{"errand__sweep_runs": ["a", "b", "d"], "errand__configuration": None, "errand__cfgs__one": None, "prelim": None,
                   "quantities": None, "static": None,
-                  "tools__check": CUSTOM, "run__cfgs__a": {"tools": ["check"]}, "run__cfgs__b": {"tools": ["check"], "title": "Bee"},
-                  "run__cfgs__c": {"tools": ["check"]}, "run__cfgs__d": {"tools": ["check"]}, **changes})
+                  "tools__check": CUSTOM, "errand__cfgs__a": {"tools": ["check"]}, "errand__cfgs__b": {"tools": ["check"], "title": "Bee"},
+                  "errand__cfgs__c": {"tools": ["check"]}, "errand__cfgs__d": {"tools": ["check"]}, **changes})
 
 
 def test_the_keys_and_their_defaults(scratch):
@@ -35,16 +35,16 @@ def test_the_keys_and_their_defaults(scratch):
     assert run.sweep_runs is False and run.runs(None) == ["one"]
     conf = run.configuration(None)
     assert conf.swept is True and conf.title == "one"
-    assert parse(raw(run__cfgs__one__title="PDFs at 27x920"), scratch).configuration(None).title == "PDFs at 27x920"
+    assert parse(raw(errand__cfgs__one__title="PDFs at 27x920"), scratch).configuration(None).title == "PDFs at 27x920"
 
 
 @pytest.mark.parametrize("changes, message", [
-    ({"run__sweep_runs": 1}, "must be true or false or a list"),
-    ({"run__cfgs__one__swept": False}, "swept is gone"),                  # V79: sweep_runs lists the members
-    ({"run__configuration": None}, "needs 'configuration'"),
-    ({"run__sweep_runs": ["one", "nope"]}, "names 'nope', which is not a"),
-    ({"run__sweep_runs": ["one", "one"]}, "names a configuration twice"),
-    ({"run__sweep_runs": True, "run__configuration": "nope"}, "not a \\[run.cfgs.<cfg>\\] table"),
+    ({"errand__sweep_runs": 1}, "must be true or false or a list"),
+    ({"errand__cfgs__one__swept": False}, "swept is gone"),                  # V79: sweep_runs lists the members
+    ({"errand__configuration": None}, "needs 'configuration'"),
+    ({"errand__sweep_runs": ["one", "nope"]}, "names 'nope', which is not a"),
+    ({"errand__sweep_runs": ["one", "one"]}, "names a configuration twice"),
+    ({"errand__sweep_runs": True, "errand__configuration": "nope"}, "not a \\[errand.cfgs.<cfg>\\] table"),
 ])
 def test_what_is_refused(scratch, changes, message):
     with pytest.raises(HeimdallError, match=message):
@@ -55,21 +55,21 @@ def test_a_sweep_runs_its_listed_configurations_in_its_order(scratch):
     run = parse(several(), scratch)
     assert run.runs(None) == ["a", "b", "d"]
     assert run.runs("c") == ["c"]                                  # named: even one left out of the sweep
-    assert parse(several(run__sweep_runs=["d", "a"]), scratch).runs(None) == ["d", "a"]
-    assert parse(several(run__sweep_runs=True), scratch).runs(None) == ["a", "b", "c", "d"]   # true: every one
+    assert parse(several(errand__sweep_runs=["d", "a"]), scratch).runs(None) == ["d", "a"]
+    assert parse(several(errand__sweep_runs=True), scratch).runs(None) == ["a", "b", "c", "d"]   # true: every one
     with pytest.raises(HeimdallError, match=r"runs every configuration \(sweep_runs\) and names none"):
         run.configuration(None)
-    assert parse(several(run__sweep_runs=False, run__configuration="b"), scratch).runs(None) == ["b"]
+    assert parse(several(errand__sweep_runs=False, errand__configuration="b"), scratch).runs(None) == ["b"]
 
 
 def test_a_configuration_may_still_be_named_sweep(scratch):
-    run = parse(raw(run__cfgs__sweep={"tools": [["pythia", "rivet"]]}), scratch)
+    run = parse(raw(errand__cfgs__sweep={"tools": [["pythia", "rivet"]]}), scratch)
     assert run.sweep_runs is False and set(run.configurations) == {"one", "sweep"}
 
 
 def test_a_sweep_changes_neither_identity_nor_seeds(scratch):
     _, _, alone = plan(raw(), scratch)
-    _, _, swept = plan(raw(run__sweep_runs=True, run__cfgs__two={"tools": [["pythia", "rivet"]]}), scratch)
+    _, _, swept = plan(raw(errand__sweep_runs=True, errand__cfgs__two={"tools": [["pythia", "rivet"]]}), scratch)
     assert record.identity(alone) == record.identity(swept)
     assert record.seed_basis(alone) == record.seed_basis(swept)
 
@@ -233,12 +233,12 @@ def test_an_unchanged_toml_is_planned_once(sweep_file, monkeypatch):
 
 
 def test_notify_desktop_sends_one_note_and_never_fails(scratch, monkeypatch):
-    """V76: [run] notify = "desktop" calls notify-send with the verdict; without it, nothing."""
+    """V76: [errand] notify = "desktop" calls notify-send with the verdict; without it, nothing."""
     sent = []
     monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/notify-send")
     monkeypatch.setattr(cli.subprocess, "Popen", lambda argv, **kw: sent.append(argv))
-    run = parse(raw(run__notify="desktop"), scratch)
+    run = parse(raw(errand__notify="desktop"), scratch)
     assert cli.notify(run, 1) and sent[-1][-1].endswith(": a point failed")
     assert not cli.notify(parse(raw(), scratch), 0) and len(sent) == 1
     with pytest.raises(HeimdallError, match="one of none, desktop"):
-        parse(raw(run__notify="email"), scratch)
+        parse(raw(errand__notify="email"), scratch)

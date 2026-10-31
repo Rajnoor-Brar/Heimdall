@@ -37,7 +37,7 @@ json.dump({"inputs": inputs, "points": [{"name": p["name"], "pdf": p["values"]["
 def stage(scratch, name="poststage", **changes):
     script = scratch / "summary.py"
     script.write_text(SCRIPT, encoding="utf-8")
-    changes = {"run__name": name, "run__cfgs__one__sweeps": ["pdf"], "run__cfgs__one__post": ["summary"],
+    changes = {"errand__name": name, "errand__cfgs__one__sweeps": ["pdf"], "errand__cfgs__one__post": ["summary"],
                "tools__summary": {"tool": "exec", "executable": sys.executable, "input": "jets.yoda",
                                   "output_file": "summary.json",
                                   "arguments": [str(script), "{points}", "{partial:output}", "{inputs}"]},
@@ -121,7 +121,7 @@ def test_a_post_tool_may_not_overwrite_the_points_product(scratch):
 
 
 def test_no_post_tools_no_post_plan(scratch):
-    run, configuration, master, plans = stage(scratch, run__cfgs__one__post=[])
+    run, configuration, master, plans = stage(scratch, errand__cfgs__one__post=[])
     assert post.plan(run, configuration, master, plans) is None
 
 
@@ -136,8 +136,8 @@ open(sys.argv[1], "w").write("made before every point\\n")
 def pre_stage(scratch, marker="first"):
     script = scratch / "pre.py"
     script.write_text(PRE_SCRIPT, encoding="utf-8")
-    data = raw(run__name="prestage", run__cfgs__one__sweeps=["pdf"], run__cfgs__one__pre=["fetch"],
-               run__cfgs__one__tools=[["pythia", "rivet"], "use"],
+    data = raw(errand__name="prestage", errand__cfgs__one__sweeps=["pdf"], errand__cfgs__one__pre=["fetch"],
+               errand__cfgs__one__tools=[["pythia", "rivet"], "use"],
                tools__fetch={"tool": "exec", "executable": sys.executable, "output_file": "shared.txt",
                              "arguments": [str(script), "{partial:output}", marker]},
                tools__use={"tool": "exec", "executable": sys.executable, "input": "shared.txt",
@@ -182,7 +182,7 @@ def test_a_failing_pre_stops_the_run(scratch):
 
 
 def test_a_point_may_not_be_named_pre(scratch):
-    data = raw(run__cfgs__one__sweeps=["pdf"], run__cfgs__one__pre=["fetch"], quantities__pdf__tags=["pre", "x"],
+    data = raw(errand__cfgs__one__sweeps=["pdf"], errand__cfgs__one__pre=["fetch"], quantities__pdf__tags=["pre", "x"],
                tools__fetch={"tool": "exec", "executable": sys.executable, "arguments": ["-c", "pass"]})
     run = parse(data, scratch)
     configuration = run.configuration(None)
@@ -199,7 +199,7 @@ LEGACY = REPO / "tests" / "reference" / "legacy_run"
 @pytest.mark.skipif(not (apps() / "App_yd2rt.exe").exists(), reason="heimdall build --framework")
 @pytest.mark.parametrize("target", ["sweep.root", "sweep.yoda"])
 def test_plotmerge_puts_every_point_in_one_file(scratch, target):
-    run, configuration, master, plans = stage(scratch, name=f"plotmerge_{target.split('.')[1]}", run__cfgs__one__post=["bundle"],
+    run, configuration, master, plans = stage(scratch, name=f"plotmerge_{target.split('.')[1]}", errand__cfgs__one__post=["bundle"],
                                               tools__bundle={"tool": "plotmerge", "input": "jets.yoda", "output_file": target})
     complete(plans, run, configuration)
     for plan, name in zip(plans, ("mini_27x920_ep_MSTW.yoda", "mini_27x920_ep_NNLO.yoda")):

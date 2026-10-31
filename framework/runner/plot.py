@@ -1142,7 +1142,7 @@ def check_figures(run, configuration) -> None:
     from .sweep import TOTALITY, named_sets
     from .sweep import points as sweep_points
     for key, given in (("plot", getattr(configuration, "draw", True)), ("stats", getattr(configuration, "measure", True))):
-        known = {TOTALITY, *named_sets(settings.get("sets"))}                    # V167, V168: what [run] picks
+        known = {TOTALITY, *named_sets(settings.get("sets"))}                    # V167, V168: what [errand] picks
         for name in given if isinstance(given, list) else ():
             if name not in known:
                 raise HeimdallError(f"{key} = [...] names '{name}', which is no set", where=f"{run.path}: {key}",
@@ -1219,7 +1219,7 @@ def compared(run, figure: Figure) -> list[Compared]:
     keys = list(figure.configurations) or (run.runs(None) if run.sweep_runs else [])
     if len(keys) < 2:
         raise HeimdallError("a compare figure needs two configurations or more", where=at,
-                       hint='configurations = ["a", "b"], or [run].sweep_runs: its configurations')
+                       hint='configurations = ["a", "b"], or [errand].sweep_runs: its configurations')
     if len(set(keys)) != len(keys):
         raise HeimdallError("a compare figure names a configuration twice", where=at)
     out = []

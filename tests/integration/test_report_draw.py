@@ -33,7 +33,7 @@ pytestmark = [pytest.mark.slow, pytest.mark.skipif(not BUILT, reason="heimdall b
 def folder(scratch):
     """A configuration whose points are complete and whose run wrote its plot document (its sets: the totality and
     by_pdf; PNG alone) and report.toml, nothing drawn or measured: (run, configuration, plans, its address)."""
-    data = raw(run__name="reportdraw", run__cfgs__one__sweeps=["lepton", "pdf"], run__cfgs__one__plot_points=["lepton"],
+    data = raw(errand__name="reportdraw", errand__cfgs__one__sweeps=["lepton", "pdf"], errand__cfgs__one__plot_points=["lepton"],
                quantities__lepton={"key": {"pythia": "Beams:idB"}, "values": [11, -11], "tags": ["em", "ep"]},
                quantities__pdf__labels=["MSTW 2008 LO", "NNPDF 2.3 LO"],
                plot={"backend": "root", "formats": ["png"], "ratio": True, "min_entries": 10, "range_pad": 1,

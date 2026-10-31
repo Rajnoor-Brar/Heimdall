@@ -18,14 +18,14 @@ yoda = pytest.importorskip("yoda")
 pytestmark = pytest.mark.slow
 
 PHYSICS = """\
-[run]
+[errand]
 name          = "par"
-project       = "Demo"
+assignment    = "Demo"
 configuration = "one"
 event_count   = 2000
 threads       = 2
 
-[run.cfgs.one]
+[errand.cfgs.one]
 sweeps = ["pdf", "replica"]
 tools  = [["pythia", "rivet"]]
 
@@ -71,14 +71,14 @@ def checker(scratch: Path, sweep: str, extra: str = "") -> Path:
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
     config = scratch / "check.toml"
     config.write_text(f"""\
-[run]
+[errand]
 name          = "chk"
-project       = "Demo"
+assignment    = "Demo"
 configuration = "one"
 event_count   = 1
 parallelism   = 3
 
-[run.cfgs.one]
+[errand.cfgs.one]
 sweeps = ["{sweep}"]
 tools  = ["check"]
 
@@ -98,7 +98,7 @@ def test_four_at_once_give_every_point_its_one_at_a_time_result(scratch):
     config = scratch / "par.toml"
     config.write_text(PHYSICS, encoding="utf-8")
     one = run(config, scratch / "one")
-    four = run(config, scratch / "four", "--set", "run.parallelism=4")
+    four = run(config, scratch / "four", "--set", "errand.parallelism=4")
     assert one.returncode == 0 and four.returncode == 0, four.stdout[-2000:]
     assert "4 at once" in four.stdout and four.stdout.count(" ── ok after ") == 4
     for point in ("MSTW08lo_s1", "MSTW08lo_s2", "NNPDF23nlo_s1", "NNPDF23nlo_s2"):

@@ -31,14 +31,14 @@ TOOL = ('#!/usr/bin/env python3\nimport sys\nargs = [a for a in sys.argv[1:] if 
 
 
 def run_toml(tool: Path, *, cluster_lines: str = 'time = "00:10:00"', pre: bool = False, own: str = "") -> str:
-    return f"""[run]
+    return f"""[errand]
 name = "c"
-project = "P"
+assignment = "P"
 configuration = "three"
 event_count = 10
 threads = 1
 
-[run.cfgs.three]
+[errand.cfgs.three]
 sweeps = ["q"]
 tools  = ["make"]
 {'pre = ["prep"]' if pre else ''}

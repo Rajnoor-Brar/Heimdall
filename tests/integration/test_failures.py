@@ -29,13 +29,13 @@ pytestmark = [pytest.mark.slow,
 def write_config(where: Path, *, events: int, extra_base: str = "") -> str:
     base = '"ep.cmnd"' if not extra_base else f'["ep.cmnd", "{extra_base}"]'
     (where / "f.toml").write_text(f"""
-[run]
+[errand]
 name = "fail"
-project = "Demo"
+assignment = "Demo"
 configuration = "one"
 event_count = {events}
 threads = 1
-[run.cfgs.one]
+[errand.cfgs.one]
 tools = [["pythia", "rivet"]]
 [prelim]
 fifo = ["events.hepmc"]

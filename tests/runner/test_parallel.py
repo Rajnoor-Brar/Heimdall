@@ -24,15 +24,15 @@ from helpers import parse, plan, raw
 
 def test_parallelism_is_read_from_run_and_the_configuration(scratch):
     assert parse(raw(), scratch).configuration(None).parallelism == 1
-    assert parse(raw(run__parallelism=4), scratch).configuration(None).parallelism == 4
-    assert parse(raw(run__parallelism=4, run__cfgs__one__parallelism=2), scratch).configuration(None).parallelism == 2
+    assert parse(raw(errand__parallelism=4), scratch).configuration(None).parallelism == 4
+    assert parse(raw(errand__parallelism=4, errand__cfgs__one__parallelism=2), scratch).configuration(None).parallelism == 2
     with pytest.raises(HeimdallError, match="at least 1"):
-        parse(raw(run__parallelism=0), scratch)
+        parse(raw(errand__parallelism=0), scratch)
 
 
 def test_parallelism_changes_neither_identity_nor_seeds(scratch):
-    _, _, one = plan(raw(run__threads=2), scratch)
-    _, _, four = plan(raw(run__threads=2, run__parallelism=4), scratch)
+    _, _, one = plan(raw(errand__threads=2), scratch)
+    _, _, four = plan(raw(errand__threads=2, errand__parallelism=4), scratch)
     assert record.identity(one) == record.identity(four)
     assert record.seed_basis(one) == record.seed_basis(four)
 
@@ -147,12 +147,12 @@ def test_auto_parallelism_is_the_cores_over_a_points_cores(scratch, monkeypatch)
     import os
     from runner import cli
     monkeypatch.setattr(os, "cpu_count", lambda: 24)
-    _, conf, p = plan(raw(run__threads=6, run__parallelism="auto"), scratch)
+    _, conf, p = plan(raw(errand__threads=6, errand__parallelism="auto"), scratch)
     assert conf.parallelism_auto and execute.auto_parallelism([p]) == 24 // execute.cores(p)
     monkeypatch.setattr(os, "cpu_count", lambda: 2)
     assert execute.auto_parallelism([p]) == 1
     with pytest.raises(HeimdallError, match="one of auto"):
-        parse(raw(run__parallelism="many"), scratch)
+        parse(raw(errand__parallelism="many"), scratch)
 
 
 def test_the_budget_holds_a_point_until_its_cores_are_free():

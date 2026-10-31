@@ -26,7 +26,7 @@ def planned(name: str, key: str):
 def test_ls_lists_every_configuration_and_marks_what_runs():
     lines = house.ls("Demo")
     assert "Demo/jets   run jets" in lines
-    assert any(line.startswith("  * pdf ") for line in lines)                 # [run].configuration
+    assert any(line.startswith("  * pdf ") for line in lines)                 # [errand].configuration
     assert any(line.startswith("    single ") for line in lines)
     with pytest.raises(HeimdallError, match="no run TOML"):
         house.ls("NoSuchProject")
@@ -34,14 +34,23 @@ def test_ls_lists_every_configuration_and_marks_what_runs():
 
 @pytest.mark.parametrize("key, shown", [
     ("plot.y_gutter", "default  0.5"), ("[plot].normalise", "choices  area, false"),
-    ("quantities.pdf.styles", "(a table each)"), ("run.cfgs.one.event_count", "[configuration].event_count"),
-    ("event_count", "[run].event_count"), ("tools.rivet.shards", "min      1"),
+    ("quantities.pdf.styles", "(a table each)"), ("errand.cfgs.one.event_count", "[configuration].event_count"),
+    ("event_count", "[errand].event_count"), ("tools.rivet.shards", "min      1"),
     ("plot.band", "(<q> envelope)"),                                          # V90: a key's notes
-    ("run.events", "v2's [run].event_count"), ("tools.pythia.card", "card (v3"), ("cfgs", "[cfgs.<name>]"),
+    ("errand.events", "v2's [errand].event_count"), ("tools.pythia.card", "card (v3"), ("cfgs", "[cfgs.<name>]"),
     ("tools.rivet.analyses", "kind     list, required"), ("style.page.dpi", "default  300"),
     ("machine.toml", "[cluster]"), ("report", "report.section.pages"), ("static", "fixed")])  # U47: every table and name
 def test_explain_reads_the_schema(key, shown):
     assert any(shown in line for line in house.explain(key))
+
+
+def test_explain_takes_errand_and_refuses_run():
+    """I-112: `heimdall explain errand.events`; `run.events` and `[run]` say what they are now."""
+    assert any("event_count" in line for line in house.explain("errand.events"))
+    for key, hint in (("run.threads", "heimdall explain errand.threads"), ("[run]", "heimdall explain errand")):
+        with pytest.raises(HeimdallError, match=r"\[run\] is now \[errand\]") as caught:
+            house.explain(key)
+        assert caught.value.hint == hint
 
 
 def test_explain_suggests_a_near_key():

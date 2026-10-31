@@ -1,4 +1,4 @@
-# Copilot's changes reviewed, and their fixes (I-114)
+# Copilot's changes reviewed, and their fixes (I-114, done)
 
 Asked by the user on 2026-10-31: "read .plans/Copilot_Changes.md and check the quality of implementation". Copilot's
 work (2026-10-28 to 30, four changes, found uncommitted on main) is commit `c45b6d0` (branch `copilot`); the fixes
@@ -71,9 +71,9 @@ listing and progress, V222 the watch keys (superseding V183's key clause), each 
 | Step | What | Commit | State |
 |---|---|---|---|
 | F0 | this record, I-114 | 4aba789 | done |
-| F1 | ranges and overflow fixed, Paint rebuilt (scratch apps) | F | done |
-| F2 | runs and watch fixed | F | done |
-| F3 | V219–V222, fast and slow suites | F | done |
+| F1 | ranges and overflow fixed, Paint rebuilt (scratch apps) | a76143d | done |
+| F2 | runs and watch fixed | a76143d | done |
+| F3 | V219–V222, fast and slow suites | a76143d | done |
 
 ## 3. Log
 
@@ -86,3 +86,4 @@ listing and progress, V222 the watch keys (superseding V183's key clause), each 
   `--1` refused (a test); the up-front total tested through the CLI; 05 says the once-only `q` is per watch.
   Also: test_plot_stage's report.toml order, left from I-111 (Tools first). The mpl/mkhtml pixel test's
   `em/cuts.png` failure is one of the five known (it failed at I-110, before Copilot).
+- I-114 done: the fast suite 1175 passed (the old stack-build test the one failure), the slow 44 and the five known.

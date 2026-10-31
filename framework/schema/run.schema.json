@@ -88,6 +88,10 @@
         "description": "what the configuration is for",
         "type": "string"
        },
+       "tag": {
+        "description": "this configuration's folder's tag when a run gives none and it has none (else [run]'s); \"\": none\n\nthe tag a run gives this configuration's folder (letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `\"\"` gives none over `[run]`'s. Never part of a point's identity",
+        "type": "string"
+       },
        "event_count": {
         "description": "events per point (else [run]'s)\n\nrequired here if `[run]` has none",
         "anyOf": [
@@ -308,6 +312,10 @@
     },
     "description": {
      "description": "what the run is for",
+     "type": "string"
+    },
+    "tag": {
+     "description": "the tag each configuration's folder is given when it runs, unless it has one (letters, digits, . _ + -; at most 40)\n\ndefault for configurations: a short name kept with the configuration's folder (its record's `tag` file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` gives one for a run; a folder that has a tag keeps it (`heimdall tag` changes it); `\"\"` is none",
      "type": "string"
     },
     "sweep_runs": {

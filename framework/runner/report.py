@@ -143,8 +143,8 @@ class Source:
             any(m.yoda is not None and m.yoda.is_file() for m in self.complete())
 
     def facts(self) -> dict:
-        """Where it came from (N2): its config and configuration, Heimdall's revision and when its document was
-        written, its points (complete or not), its events, what it is compared against, and whether its points
+        """Where it came from (N2): its config and configuration, its tag (V223), Heimdall's revision and when its
+        document was written, its points (complete or not), its events, what it is compared against, and whether its points
         are newer than its pages."""
         given = self.doc.source
         complete = self.complete()
@@ -158,6 +158,7 @@ class Source:
         yodas = [m.yoda.stat().st_mtime for m in complete if m.yoda is not None and m.yoda.is_file()]
         drawn = [p.stat().st_mtime for set_ in self.sets() for p in (self.folder / "plots" / set_).rglob("*.p[dn][fg]")]
         return {"address": self.address, "config": given.get("config", ""), "configuration": given.get("configuration", ""),
+                "tag": str(given.get("tag", "") or ""),
                 "heimdall": str(given.get("heimdall", ""))[:12], "written": str(given.get("written", "")),
                 "points": len(self.members), "complete": len(complete),
                 "incomplete": [m.point.name for m in self.members if m not in complete],
@@ -1147,7 +1148,8 @@ def listing(plan: Plan) -> list[str]:
              f"about {plan.pages()} page(s) of figures" + (f"; from {plan.recipe}" if plan.recipe else "; the default")]
     for source in plan.sources:
         f = source.facts()
-        lines.append(f"  source {f['address']}: {f['configuration'] or source.doc.name}, {f['complete']} of {f['points']} point(s)"
+        lines.append(f"  source {f['address']}: {f['configuration'] or source.doc.name}" + (f" [{f['tag']}]" if f["tag"] else "")
+                     + f", {f['complete']} of {f['points']} point(s)"
                      + (f", {f['events']} events" if f["events"] else "") + f", against {f['against']}"
                      + (", its points newer than its pages" if f["stale"] else ""))
     lines += [f"  drawn for the report: {drawing.describe()}" for drawing in plan.drawings]
@@ -1891,7 +1893,9 @@ def _front(plan: Plan) -> list[str]:
         drawn = " · ".join(part for part in (f["written"][:16].replace("T", " "), f"Heimdall {f['heimdall']}" if f["heimdall"] else "") if part)
         lines.append(f"\\hdMuted{{{number}}} & \\texttt{{{_breakable(f['address'])}}}"
                      + (f"\\newline{{\\hdSmall\\color{{hdmuted}} {tex(drawn)}}}" if drawn else "")
-                     + f" & {_breakable(f['configuration'] or source.doc.name)} & {f['complete']}/{f['points']}"
+                     + f" & {_breakable(f['configuration'] or source.doc.name)}"
+                     + (f"\\newline{{\\hdSmall\\color{{hdmuted}} tag {tex(f['tag'])}}}" if f["tag"] else "")
+                     + f" & {f['complete']}/{f['points']}"
                      + f" & {tex(f['events'] or '?')} & {tex(f['against'])}\\\\")
         if f["incomplete"]:
             shown = ", ".join(f["incomplete"][:6]) + (" …" if len(f["incomplete"]) > 6 else "")
@@ -2201,7 +2205,8 @@ def _index(plan: Plan, placed: list[tuple[Section, list]], method: Prose | None,
         f = source.facts()
         links = [f'<a href="{STATS}/summaries/{html.escape(n, quote=True)}">{html.escape(n.split("__", 1)[1][:-5])}</a>'
                  for n in summaries if n.startswith(slug(source.address) + "__")]
-        rows.append(f"<tr><td><code>{html.escape(f['address'])}</code></td><td>{html.escape(f['configuration'])}</td>"
+        tagged = f" [{html.escape(f['tag'])}]" if f["tag"] else ""
+        rows.append(f"<tr><td><code>{html.escape(f['address'])}</code></td><td>{html.escape(f['configuration'])}{tagged}</td>"
                     f"<td>{f['complete']}/{f['points']}</td><td>{html.escape(f['events'])}</td><td>{html.escape(f['against'])}</td>"
                     f"<td>{' · '.join(links)}</td></tr>")
     front = ('    <header><h2>Sources</h2><span class="more"><a href="report.pdf">report.pdf</a></span></header>\n'

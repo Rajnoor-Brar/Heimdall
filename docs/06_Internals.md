@@ -35,7 +35,7 @@ built and installed, outside git. A **work dir** holds a study.
 | `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `base/` (or `venv/`), `forge/`, `apps/` and `gjallarhorn.sh` (another C++ standard) |
 | `machine.toml`, `machine.sh` | this machine's settings; its extra lines for `gjallarhorn.sh` (`setup_extra`), written by the build |
 | `workdirs.toml` | the work dirs this machine knows, by title (`heimdall recognise`, `heimdall setup`; `gjallarhorn <title>` goes to one) |
-| `runs/` | the run registry (`$HEIMDALL_RUNS`, V182): `<id>.json` a run or cluster submission (who, where, when, its configurations' serials, its points' progress, its exit code and verdict, its record folders), `<id>.log` a detached run's output; `heimdall runs` lists them, 30 days kept. Nothing is written in a read-only root |
+| `runs/` | the run registry (`$HEIMDALL_RUNS`, V182): `<id>.json` a run or cluster submission (who, where, when, its configurations' serials and tags, its points' progress, its exit code and verdict, its record folders), `<id>.log` a detached run's output; `heimdall runs` lists them, 30 days kept. Nothing is written in a read-only root |
 | `recipes.toml` | this machine's own recipes, laid right after `recipes/toolkits/standard.toml` (from `recipes/recipes.template.toml`, written by the first build) |
 | `toolkits/` | this machine's own toolkits, beside `recipes/toolkits/` |
 | `tools/` | tool folders every work dir on this machine sees, between a work dir's `tools/` and Heimdall's (§16) |
@@ -58,7 +58,7 @@ A **work dir** holds a study. `heimdall setup <dir>` makes it from `framework/te
 | `modules/<Project>/` | programs (`<Name>.cc`), shared headers, Rivet plugins (`Rivet/<x>.{cc,info,plot,yoda}` or `Rivet_<x>.cc`); `_`-prefixed folders are parked | yes |
 | `datasets/` | your own reference data: small files tracked; large ones in `datasets.toml` (url, sha256), fetched by `heimdall setup` and kept out by `datasets/.gitignore` | yes |
 | `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
-| `records/` | what a run needs while it runs or is launched, and what traces it back, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, each tool's digest, `history/` of earlier attempts; FIFOs and scratch files while it runs), `config/` (the run's snapshot), `points.json`, cluster submissions | no |
+| `records/` | what a run needs while it runs or is launched, and what traces it back, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, each tool's digest, `history/` of earlier attempts; FIFOs and scratch files while it runs), `config/` (the run's snapshot), `points.json`, `tag` (the folder's tag, V223), cluster submissions | no |
 | `.cache/` | what is rebuilt on demand: prepare caches, the drawing's page documents and working files (`plots/`), what a report draws for itself (`reports/`), converted reference data; with `keep cache`, card checks | no |
 | `results/` | what matters once a run is done: products, pages by set (`plots/<set>/`), their numbers (`statistics/<set>/`) | no |
 | `reports/<P>/<run>/<cfg>/` | reports as `heimdall report` builds them, where `results/` has their sources (a run's in `reports/<P>/<run>/`): `figures/`, `stats/`, `report.tex`, `report.pdf`, `index.html` | no |
@@ -611,7 +611,8 @@ process directory.
     every `Recorder.EVERY` (2 s; a timer writes what is left), never under a read-only root. `close`
     ends its writes, and `runs.finish` writes the last `points_completed`, `points_total`,
     `active_parallel_points` and `configuration_serials` (a v3 configuration's, from its record
-    folder's number). An entry without them (older, or a cluster submission's) lists `NULL`.
+    folder's number), and `configuration_tags` when a run gave a folder a tag (V223: from `run started`'s
+    `tag`). An entry without them (older, or a cluster submission's) lists `NULL`.
   - **an entry's state** (`runs.state`, `runs.alive`): its verdict once finished; `lost` when its
     process is gone without a verdict: no such pid, the pid another process's (another start time, or
     another user's: `kill(pid, 0)`'s `PermissionError` is checked against the start time too), or
@@ -752,6 +753,11 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `heimdallkit.Exit` in Python:
   and image, and the points by state; the `run started` event carries them too. Post tools, the plot
   stage and `runner.results` read it, so none of them has to know the layout. It is also stored inside
   the merged sweep file.
+- **`records/…/<cfg>/tag`** (V223): the folder's tag, one line, the source of truth (`record.run_tag`,
+  `record.write_run_tag`); no file, no tag. `cli.run_one` writes it before the run starts (`cli.give_tag`: `--tag`,
+  else the tag the file holds, else the configuration's `tag` key, `cli.run_tag`), `heimdall tag` rewrites or
+  removes it (`house.tag_lines`), and the plot document's `[source].tag` is written from it each time the
+  document is (`plotdoc.known`; `plotdoc.write_tag` for `heimdall tag`). Nothing reads it into an identity.
 - **`identity.json`** beside `.complete` (V57): what the identity hashed, for `--why`.
 - **Sidecars and reports** travel with their products (04 §14).
 
@@ -877,6 +883,7 @@ machine root (§1): `apps/`, `forge/`. `tools.RunFolders` names them all; nothin
 ```
 records/<P>/<run>/<cfg>/
   points.json   run.jsonl (the run's own log, every run's, V202)   [status.jsonl: keep journal]
+  tag           the folder's tag, one line (V223): only when it has one
   points/<point>/       provenance.json  identity.json  .complete  attempts.jsonl   (kept; clean --records only)
   points/pre/, post/, <combined group>/   the same, for the stages
   logs/<point>/         cards/  config/  context.toml  commands.sh  .lock  <tag>.log (each tool's digest)  [<tag>.full.log: keep logs]

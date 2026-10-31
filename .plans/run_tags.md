@@ -50,5 +50,11 @@ changes (I-114, V219–V222), before I-112 renames everything (its sweep then re
 | Phase | V-row | Commit | State |
 |---|---|---|---|
 | T0 this plan, I-113 | — | | written |
+| T1–T2 `--tag`, the `tag` key, the record and `[source].tag`, `heimdall tag`, runs, status, a report's sources | V223 | (this commit) | done |
 
 ## 5. Log
+
+- 2026-10-31: T1–T2 built (V223), the precedence `--tag` > the folder's record > the configuration's `tag` key,
+  `[run].tag` inherited; `records/…/tag` the truth, `[source].tag` written from it; `heimdall tag`; runs, status,
+  the run's title, `--plan` and a report's sources show it. `heimdall cluster` has no `--tag` (its jobs keep the
+  folder's or take the key). Next: T3–T4 (V224).

@@ -24,6 +24,17 @@ from .sweep import Listed, check_curve_style, set_entries
 #: How a point's seeds are chosen (V39, 06 §8); the schema's [run.seed_type].choices.
 SEED_TYPES = tuple(schema.keys("run")["seed_type"]["choices"])
 DEFAULT = schema.DEFAULT
+#: A run's tag (V223): a short name that tells its configuration folder apart, never part of an identity.
+TAG = re.compile(r"[A-Za-z0-9._+-]{1,40}")
+
+
+def check_tag(tag, where: str | None = None) -> str:
+    """A tag as given (`--tag`, a configuration's `tag`, `heimdall tag`): letters, digits, `.`, `_`, `+` and `-`,
+    1 to 40 of them; anything else refused, naming the rule."""
+    if not isinstance(tag, str) or not TAG.fullmatch(tag):
+        raise HeimdallError(f"the tag {tag!r} is not a tag: letters, digits, '.', '_', '+' and '-', at most 40",
+                            where=where, hint="e.g. nlo, run2.v1, pdf+scale")
+    return tag
 
 
 @dataclass
@@ -97,6 +108,7 @@ class Configuration:
     serial_note: str = ""                               # why the runner chose the number it did (--plan)
     inference: dict | None = None                       # v3: what infers a resolved chain's interfaces per point (V153)
     own: dict = field(default_factory=dict)             # V179: its own vars and data (OWN_TABLES), over the file's
+    tag: str = ""                                       # its folder's tag when a run gives none and it has none (V223)
 
 
 @dataclass
@@ -1220,6 +1232,9 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
         if event_count is None:
             raise HeimdallError("no event_count: set it here or in [run]", where=at)
         static_values = {k: v for k, v in _deep(static, local_static).items() if v != DEFAULT}   # top-level "default": unset
+        if tag := inherited("tag", ""):                                  # "": none, over [run]'s
+            origin = origins["tag"].replace(f"[run.{CFGS}.", "[cfgs.") if form == 3 else origins["tag"]
+            check_tag(tag, f"{where}: {origin}.tag")
         configurations[key] = Configuration(
             key=key, label=table.get("label") or key, serial=inherited("serial"),                     # V45
             serial_auto=form == 3 and inherited("serial") is None,
@@ -1239,7 +1254,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
                     else _own_prelim(chain, prelim, origins)),                 # replaced whole: its chain's interfaces
             origins=origins, cluster=merged("cluster", cluster), draw=inherited("plot", True),
             measure=inherited("stats", True),
-            inference={"keep": keep, "base": prelim} if form == 3 else None, own=_own_of(raw, key))
+            inference={"keep": keep, "base": prelim} if form == 3 else None, own=_own_of(raw, key), tag=tag)
         check_selectors(configurations[key], quantities, tools, f"{at}.tools")
 
     a_cfg = "[cfgs.<name>]" if form == 3 else "[run.cfgs.<cfg>]"   # in the file's own names

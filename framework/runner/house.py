@@ -22,7 +22,7 @@ from . import runs
 from .events import greeting, hubs
 from .paths import cache_root, configs_root, find_work, records_root, results_root
 from .record import (cause_text, constants, constants_lines, held_by, holder, provenance_file, record_dir,
-                     state_of)
+                     run_tag, state_of, write_run_tag)
 
 TABLES = {"run": "run", "config": "config", "prelim": "prelim", "plot": "plot", "data": "data",
           "configuration": "configuration", "quantity": "quantity", "quantities": "quantity", "tool": "tool",
@@ -436,8 +436,9 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         when = time.strftime("%m-%d %H:%M", time.localtime(started))
         what = _config_name(e.get("config", ""), e.get("work"))
         cfgs = ", ".join(e.get("configurations") or ([e["configuration"]] if e.get("configuration") else []))
-        serials = e.get("configuration_serials", {})
-        configurations = ", ".join(f"{serials[key]:02d} {key}" if isinstance(serials.get(key), int) else key
+        serials, tags = e.get("configuration_serials", {}), e.get("configuration_tags", {})
+        configurations = ", ".join((f"{serials[key]:02d} {key}" if isinstance(serials.get(key), int) else key)
+                                   + (f" [{tags[key]}]" if tags.get(key) else "")
                                    for key in cfgs.split(", ") if key)          # NN only when it is known
         head = f"  {e.get('id', '?'):28s}  |   {where(e.get('work'))}"
         completed = e.get("points_completed")
@@ -504,6 +505,28 @@ def log_target(target: str) -> tuple[Path, str | None, str | None]:
     return record, (rest[0] if rest else None), tag
 
 
+def tag_lines(record: Path, name: str | None = None, clear: bool = False) -> list[str]:
+    """`heimdall tag RECORD [NAME] [--clear]` (V223): the folder's tag, or it set to `name` or removed, in its record
+    (records/<run>/tag, the source of truth) and, when the folder has one, its plot document's [source].tag."""
+    from .config import check_tag
+    from .plotdoc import path_of, write_tag
+    rel = record.relative_to(records_root())
+    if clear and name is not None:
+        raise HeimdallError("a tag to give and --clear: one or the other", hint=f"heimdall tag {rel} --clear")
+    had = run_tag(record)
+    if name is None and not clear:
+        return [f"{rel}: {had}" if had else f"{rel} has no tag"]
+    if name is not None:
+        check_tag(name, "heimdall tag NAME")
+    write_run_tag(record, name)
+    document = path_of(results_root() / rel)
+    if document.is_file():
+        write_tag(document, name)
+    if name is None:
+        return [f"{rel}: its tag {had} removed" if had else f"{rel} has no tag"]
+    return [f"{rel}: tagged {name}" + (f" (was {had})" if had and had != name else "")]
+
+
 def point_log(record: Path, point: str, tag: str | None = None, full: bool = False,
               attempt: int | None = None) -> list[str]:
     """`heimdall log RECORD/POINT[/TAG]` (V202): a point's attempts (when, verdict, why), then each of its tools'
@@ -568,8 +591,9 @@ def status(planned: list, running: dict[str, list[str]]) -> list[str]:
         states = [state for state, _ in found]
         live = p.configuration.key in running.get(str(p.run.path), [])
         counts = ", ".join(f"{states.count(s)} {s}" for s in STATES if states.count(s))
-        lines.append(f"{p.run.name} · {p.configuration.key} ({tools.run_dir(p.run, p.configuration)}): {counts}"
-                     + ("   [running]" if live else ""))
+        tag = run_tag(tools.run_folders(p.run, p.configuration).record)            # V223
+        lines.append(f"{p.run.name} · {p.configuration.key}{f' [{tag}]' if tag else ''} "
+                     f"({tools.run_dir(p.run, p.configuration)}): {counts}" + ("   [running]" if live else ""))
         lines += constants_lines(constants(p.every, p.run, p.configuration, machine=False))
         width = max([24] + [len(s.point.name) for s in stages])        # the states in one column
         for stage, (state, last) in zip(stages, found):

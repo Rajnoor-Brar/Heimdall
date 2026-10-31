@@ -299,6 +299,7 @@ class Recorder:
         self.run_id = run_id
         self.configuration_serials = dict(configuration_serials or {})
         self.configuration_labels = dict(configuration_labels or {})
+        self.configuration_tags: dict[str, str] = {}         # a configuration → its folder's tag (V223)
         self.records: list[str] = []
         self.verdicts: dict[str, str] = {}
         self.tally = Tally()
@@ -324,7 +325,8 @@ class Recorder:
         """The entry's progress fields: points ended, of the total (None until planned), and running now."""
         return {"points_completed": len(self.ended), "points_total": sum(self.totals.values()) if self.totals else None,
                 "active_parallel_points": len(self.active),
-                "configuration_serials": self.configuration_serials}
+                "configuration_serials": self.configuration_serials,
+                **({"configuration_tags": self.configuration_tags} if self.configuration_tags else {})}
 
     def counts(self) -> dict:
         """Every run's points together: done, failed, stopped, and done with warnings."""
@@ -377,18 +379,19 @@ class Recorder:
         return self.progress()
 
     def _record_serial(self, event: dict) -> None:
-        """A configuration's serial as the runner chose it (03 §6): the number its record folder begins with."""
+        """A configuration's serial as the runner chose it (03 §6): the number its record folder begins with; and
+        its folder's tag, when the run gave it one (V223)."""
         folder = Path(event.get("record") or "").name
         match = re.match(r"^(\d+)_", folder)
-        if match is None:
-            return
         key = event.get("run") or ""
         if key not in self.configuration_serials:
             key = next((name for name, label in sorted(self.configuration_labels.items(),
                                                        key=lambda item: len(item[1]), reverse=True)
-                        if folder.endswith(f"_{label}")), "")
-        if key:
+                        if folder == label or folder.endswith(f"_{label}")), "")
+        if key and match is not None:
             self.configuration_serials[key] = int(match.group(1))
+        if key and event.get("tag"):
+            self.configuration_tags[key] = str(event["tag"])
 
     def event(self, event: dict) -> None:
         self.tally.event(event)

@@ -19,6 +19,7 @@ docs/06_Internals.md §8 and §12.
     seed its provenance.json records.
 * A point is complete when records/…/<point>/.complete holds its identity. It is written last,
   after the count checks, so a half-written point is never skipped.
+* A configuration folder may have a tag (V223), records/<run>/tag: a name for people, never in an identity.
 * Each attempt at a point ends with a line in its records' attempts.jsonl (V200): when, with what identity
   and cards, its verdict and cause, and each tool's exit, stall, warnings, errors and what it reported. A
   record without the file (it ran before V200) has no cause to give.
@@ -696,6 +697,28 @@ def write_snapshot(run, configuration, plans: list) -> Path | None:
         shutil.rmtree(target)
     staging.rename(target)
     return target
+
+
+#: A configuration folder's tag (V223): records/<run>/tag, one line, the source of truth; its plot document's
+#: [source].tag is written from it. No file, no tag.
+TAG_FILE = "tag"
+
+
+def run_tag(record: Path) -> str | None:
+    """The tag of the configuration folder whose record is `record`, or None."""
+    try:
+        line = (record / TAG_FILE).read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return line.splitlines()[0].strip() if line else None
+
+
+def write_run_tag(record: Path, tag: str | None) -> None:
+    """A folder's tag written into its record (None: removed). The plot document is the caller's."""
+    if tag:
+        write_atomic(record / TAG_FILE, tag + "\n")
+    else:
+        (record / TAG_FILE).unlink(missing_ok=True)
 
 
 def record_of(name: str, need_snapshot: bool = True) -> Path | None:

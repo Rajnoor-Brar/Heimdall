@@ -3,7 +3,7 @@
 docs/03_Plots.md §2.2. It holds two kinds of table:
 
 * **what the run knows**, rewritten by every run of that folder: [source] (the config, the configuration, the
-  folder, Heimdall's revision, when), [axes] (the sweep's axes, plot_points, combine, the fixed values),
+  folder, its tag from its record, Heimdall's revision, when), [axes] (the sweep's axes, plot_points, combine, the fixed values),
   [quantities.<q>] (its points, in its order, as a run TOML's: points = [{ tag, value, label, style }], V172)
   and [members.<point>] (each point
   or combined group the pages draw: its value indices, its YODA under the folder, the identity it ran with,
@@ -309,6 +309,7 @@ def from_manifest(record: Path, run, configuration) -> Path:
     its events (provenance); its axes the quantities its points swept, its plot_points points.json's. Only
     [plot] and [stats] come from the config, `run` (its configuration's)."""
     import json
+    from .record import run_tag
     data = json.loads((record / "points.json").read_text(encoding="utf-8"))
     rel = record.relative_to(records_root())
     folders = _folders(results_root() / rel, run.project)
@@ -351,7 +352,8 @@ def from_manifest(record: Path, run, configuration) -> Path:
                        "configuration": data.get("configuration", configuration.key),
                        "label": head[1] if len(head) == 2 and head[0].isdigit() else record.name, "title": "",
                        "run": data.get("run", run.name), "project": data.get("project", run.project), "folder": str(rel),
-                       **({"serial": int(head[0])} if head[0].isdigit() else {}), "from": "points.json",
+                       **({"serial": int(head[0])} if head[0].isdigit() else {}),
+                       **({"tag": tag} if (tag := run_tag(record)) else {}), "from": "points.json",
                        "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
             "axes": {"vary": swept, "plot_points": list(data.get("plot_points", [])), "combine": [], "fixed": fixed},
             "quantities": quantities, "members": members}
@@ -404,13 +406,14 @@ def chosen_of(run, configuration, members: list, picks=None) -> tuple[dict, dict
 def known(run, configuration, members: list) -> dict:
     """The tables a run rewrites: [source], [axes], [quantities], [members]."""
     from .quantities import static_values
-    from .record import config_name
+    from .record import config_name, run_tag
     names = {q for m in members for q in m.values}
     static = static_values(run, configuration) if hasattr(configuration, "tools") else {}
     from .paths import heimdall_root
     from .record import git_state
     revision = git_state(heimdall_root()).get("revision", "")
     results = members[0].folders.results if members else None
+    tag = run_tag(members[0].folders.record) if members else None             # V223: the record's, the truth
     return {
         "source": {"config": config_name(run) if hasattr(run, "imported") else run.source.get("config", ""),
                    "configuration": configuration.key, "label": configuration.label,
@@ -418,6 +421,7 @@ def known(run, configuration, members: list) -> dict:
                    "run": run.name, "project": run.project,
                    "folder": str(results.relative_to(results_root())) if results and results.is_relative_to(results_root()) else "",
                    **({"serial": configuration.serial} if configuration.serial is not None else {}),
+                   **({"tag": tag} if tag else {}),
                    **({"heimdall": revision} if revision else {}),
                    "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
         "axes": {"vary": _sweeps(configuration), "plot_points": list(configuration.plot_points),
@@ -470,6 +474,23 @@ def write_chosen(target: Path, plot: dict, stats: dict) -> None:
     data.pop("stats", None)
     if stats:
         data["stats"] = stats
+    partial = target.with_name(target.name + ".partial")
+    partial.write_text(HEADER + dumps(data), encoding="utf-8")
+    partial.replace(target)
+
+
+def write_tag(target: Path, tag: str | None) -> None:
+    """A document's [source].tag set from its record's (None: removed), the rest left as it is (`heimdall tag`)."""
+    import tomllib
+    try:
+        data = tomllib.loads(target.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise HeimdallError(f"the plot document cannot be read: {error}", where=str(target),
+                            hint="fix it, or remove it: the next run writes it again from the config") from None
+    source = data.setdefault("source", {})
+    source.pop("tag", None)
+    if tag:
+        source["tag"] = tag
     partial = target.with_name(target.name + ".partial")
     partial.write_text(HEADER + dumps(data), encoding="utf-8")
     partial.replace(target)

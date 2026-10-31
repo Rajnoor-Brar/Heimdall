@@ -191,6 +191,16 @@ notes = """\
 type = "str"
 doc  = "what the run is for"
 
+[run.tag]
+type    = "str"
+inherit = true
+doc     = "the tag each configuration's folder is given when it runs, unless it has one (letters, digits, . _ + -; at most 40)"
+notes = """\
+  default for configurations: a short name kept with the configuration's folder (its record's `tag` \
+  file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report \
+  show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` \
+  gives one for a run; a folder that has a tag keeps it (`heimdall tag` changes it); `\"\"` is none"""
+
 [run.sweep_runs]
 type    = "bool|list"
 items   = "str"
@@ -269,6 +279,15 @@ notes = """\
 [configuration.description]
 type = "str"
 doc  = "what the configuration is for"
+
+[configuration.tag]
+type = "str"
+doc  = "this configuration's folder's tag when a run gives none and it has none (else [run]'s); \"\": none"
+notes = """\
+  the tag a run gives this configuration's folder (letters, digits, `.`, `_`, `+`, `-`; at most 40), \
+  unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run \
+  again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `\"\"` gives none over \
+  `[run]`'s. Never part of a point's identity"""
 
 [configuration.event_count]
 type       = "int"

@@ -62,6 +62,9 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--set", metavar="KEY=VALUE", action="append", default=[],
                      help="override one value for this invocation (repeatable), in the file's own names: "
                           "run.events=100 (v3), run.event_count=100 (v2)")
+    run.add_argument("--tag", metavar="NAME",
+                     help="tag each configuration folder this run makes or resumes (over the one it has and its "
+                          "configuration's tag): letters, digits, . _ + -, at most 40")
     run.add_argument("--rerun", action="store_true", help="ignore skip-unchanged; under a serial the file sets, "
                                                           "overwrite points made from other inputs")
     run.add_argument("--only", choices=["pre", "post", "plot"], help="rerun only the pre tools, the post tools or the plots")
@@ -217,6 +220,11 @@ def parser() -> argparse.ArgumentParser:
                             help="show all runs from the last 7 days")
     run_limits.add_argument("--month", dest="days", action="store_const", const=28,
                             help="show all runs from the last 28 days")
+
+    tagged = commands.add_parser("tag", help="a configuration folder's tag: show it, set it, or --clear it")
+    tagged.add_argument("target", metavar="RECORD", help="a configuration's folder, <P>/<run>/<NN_cfg>, or a path under records/ or results/")
+    tagged.add_argument("name", nargs="?", metavar="NAME", help="the tag to give it (letters, digits, . _ + -, at most 40)")
+    tagged.add_argument("--clear", action="store_true", help="remove its tag")
 
     logged = commands.add_parser("log", help="a record's own account, a point's attempts and logs, or a tool's log")
     logged.add_argument("target", metavar="RECORD[/POINT[/TAG]]",
@@ -511,15 +519,17 @@ def _print_stage(title: str, stage, run) -> None:
     print(f"  results {stage.res}   ({'complete' if record.is_complete(stage) else 'to run'})")
 
 
-def run_title(run, configuration, plans) -> str:
+def run_title(run, configuration, plans, tag: str | None = None) -> str:
     """A run's title, two lines (the user's form, 2026-10-26):
 
-        zeus_validation · 12  ·  generator_pdf
+        zeus_validation · 12  ·  generator_pdf [nlo]
            - 16 point(s), 1000000 events, 1 threads, 19 at once (~38 of 24 cores)
 
-    the run's name, its record's serial (none when the folder has none) and the configuration; then its size."""
+    the run's name, its record's serial (none when the folder has none) and the configuration, with its tag when
+    it has one; then its size."""
     serial = re.match(r"(\d+)_", tools.run_dir(run, configuration).name)
     head = f"{run.name} · {serial.group(1)}  ·  {configuration.key}" if serial else f"{run.name}  ·  {configuration.key}"
+    head += f" [{tag}]" if tag else ""
     return (f"{head}\n   - {len(plans)} point(s), {configuration.event_count} events, {configuration.threads} threads"
             + parallel_note(configuration, plans))
 
@@ -557,9 +567,11 @@ def totality_pages(run, configuration, points: list) -> tuple[int, str]:
     return count, f", and {len(others)} more set(s) ({', '.join(others)})" if others else ""
 
 
-def print_plan(run, configuration, plans, post_plan=None, pre_plan=None, combined=()) -> None:
+def print_plan(run, configuration, plans, post_plan=None, pre_plan=None, combined=(), tag=(None, "")) -> None:
     print(f"run {run.name} ({run.path}) · configuration {configuration.key}: {len(plans)} point(s), "
           f"{configuration.event_count} events, {configuration.threads} threads" + parallel_note(configuration, plans))
+    if tag[0]:
+        print(f"tag: {tag[0]} ({tag[1]})")
     if crowded(configuration, plans):
         print(f"note: {crowded(configuration, plans)}")
     for note in notes_of(plans):
@@ -694,6 +706,28 @@ def opened(args) -> Path | None:
     return found
 
 
+def run_tag(args, run, configuration) -> tuple[str | None, str]:
+    """A run's tag (V223) and where it comes from: --tag, else the one its folder's record has (a folder run again
+    keeps what heimdall tag gave it), else its configuration's `tag` key; (None, "") for none."""
+    if getattr(args, "tag", None):
+        return args.tag, "--tag"
+    if kept := record.run_tag(tools.run_folders(run, configuration).record):
+        return kept, "its folder's"
+    if configuration.tag:
+        return configuration.tag, configuration.origins.get("tag", "the configuration")
+    return None, ""
+
+
+def give_tag(args, run, configuration) -> str | None:
+    """The run's tag written into its folder's record (records/<run>/tag), the plot document's [source].tag
+    being written from it; nothing for an untagged run."""
+    tag, _ = run_tag(args, run, configuration)
+    folder = tools.run_folders(run, configuration).record
+    if tag and tag != record.run_tag(folder):
+        record.write_run_tag(folder, tag)
+    return tag
+
+
 def cmd_run(args) -> int:
     """One run; or, under [run].sweep_runs, every swept configuration as a run of its own, one after
     another (V38). Each is exactly `heimdall run CONFIG <cfg>`, after a `run NN - <title> -` line. All are
@@ -705,6 +739,8 @@ def cmd_run(args) -> int:
     if worker:
         _worker_signals()
     _ask_keep(args)
+    if getattr(args, "tag", None) is not None:              # refused here, before a worker is started
+        configmod.check_tag(args.tag, "--tag")
     run = configmod.load(args.config, sets=args.set)
     keys = run.runs(args.configuration)
     nothing_runs = getattr(args, "why", False) or args.plan or stages_of(args) == {"plot"} \
@@ -1058,7 +1094,7 @@ def show_config(run, keys: list[str]) -> list[str]:
         lines.append(f"run {run.name} ({run.path}) · configuration {key}")
         seed = configuration.manual_seed if configuration.seed_type == "manual" else configuration.seed_type
         fields = {"serial": configuration.serial, "name": configuration.run_folder, "label": configuration.label,
-                  "title": configuration.title, "description": configuration.description,
+                  "title": configuration.title, "description": configuration.description, "tag": configuration.tag,
                   "event_count": configuration.event_count, "threads": configuration.threads,
                   "parallelism": "auto" if configuration.parallelism_auto else configuration.parallelism,
                   "swept": configuration.swept, "seed_type": seed,
@@ -1152,8 +1188,9 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                 for line in tools.card_view(plans[0], args.card):
                     print(line)
                 return 0
-            print_plan(run, configuration, plans, post_plan, pre_plan, combined)
+            print_plan(run, configuration, plans, post_plan, pre_plan, combined, tag=run_tag(args, run, configuration))
             return 0
+        give_tag(args, run, configuration)
         return 1 if draw_run(run, configuration, combined or every, print) else 0
     if args.only == "post" and post_plan is None:
         raise HeimdallError(f"configuration '{configuration.key}' has no post tools", where=f"{run.path}: [run.cfgs.{configuration.key}].post")
@@ -1165,6 +1202,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     refuse_overwrites(planned, args, stages)
     if stopper.requested:                    # Ctrl-C while this run was being planned
         return 6
+    tag = give_tag(args, run, configuration)
 
     bus = bus if bus is not None else Bus()
     own_view = shown is None                 # a pipelined sweep's runs share the sweep's view (V75)
@@ -1182,7 +1220,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         bus.subscribe(journal)
     run_log = RunLog(tools.run_folders(run, configuration).run_log, run=getattr(bus, "run", None))   # always (V202)
     bus.subscribe(run_log)
-    title = run_title(run, configuration, plans)
+    title = run_title(run, configuration, plans, tag)
     tally = runs.Tally()                     # the verdict's counts and failures (V200)
     bus.subscribe(tally)
     known = record.constants(every, run, configuration) if every else {}       # what every point shares (V200)
@@ -1190,6 +1228,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         bus.say("")
     bus.emit("", "", {"k": "run", "state": "started", "points": len(plans), "title": title,
                       "record": str(records_root() / tools.run_dir(run, configuration)),       # the registry's (V182)
+                      **({"tag": tag} if tag else {}),
                       **({"header": title_line} if title_line else {}), **({"constants": known} if known else {})})
     if crowded(configuration, plans):
         bus.say(f"   note: {crowded(configuration, plans)}")
@@ -1659,6 +1698,18 @@ def cmd_log(args) -> int:
         return 0
     full = args.full or args.target.endswith(".full.log")              # a whole log named by its path
     for line in house.point_log(record_dir, point, tag, full=full, attempt=args.attempt):
+        print(line)
+    return 0
+
+
+def cmd_tag(args) -> int:
+    """`heimdall tag RECORD [NAME] [--clear]` (V223): a configuration folder's tag shown, set or removed, in its
+    record (the source of truth) and its plot document's [source].tag."""
+    folder, point, _ = house.log_target(args.target)
+    if point is not None:
+        raise HeimdallError(f"'{args.target}' names a point: a tag is a configuration folder's",
+                            hint=f"heimdall tag {folder.relative_to(records_root())} [NAME]")
+    for line in house.tag_lines(folder, args.name, args.clear):
         print(line)
     return 0
 
@@ -2582,6 +2633,8 @@ def main(argv: list[str]) -> int:
             return cmd_stop(args)
         if args.command == "log":
             return cmd_log(args)
+        if args.command == "tag":
+            return cmd_tag(args)
         return cmd_watch(args)
     except HeimdallError as error:
         print(error.render(), file=sys.stderr)

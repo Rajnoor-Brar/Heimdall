@@ -909,6 +909,7 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 | to stop a run from elsewhere | `heimdall stop [CONFIG [CFG]]`, `--pid N` (as Ctrl-C would) |
 | running jobs | `heimdall runs` |
 | recent runs, of any state | `heimdall runs --5`, `--10`, `--20`, `--50`, `--week` (7 days), or `--month` (28 days; latest at bottom) |
+| a name for a run's folder, to tell it from the others | `--tag nlo`, a configuration's `tag = "nlo"`, or later `heimdall tag <P>/<run>/<NN_cfg> nlo` (§8.1) |
 | a desktop notification at the end | `[run] notify = "desktop"` |
 | a point faster | `shards = K` on the Rivet table (§7.1); more Pythia `threads` alone do not help |
 | many points faster | `parallelism = K` or `"auto"` (§7.2) |
@@ -944,6 +945,12 @@ heimdall run Demo/jets/01_pdf        # what it misses, with the cards it ran wit
   document's, it says so: the document's is drawn until `--style-sync` takes the config's.
 - **A run of the same folder replaces its record**, points.json and snapshot both; it says when points
   recorded there are not in the config now. A serial of its own keeps a run whole.
+- **A folder may have a tag**, a short name of yours (`nlo`, `run2.v1`): `heimdall run … --tag nlo` gives
+  it to each folder the run makes or resumes, a configuration's `tag` key is the default, and `heimdall tag
+  Demo/jets/01_pdf [NAME | --clear]` shows or changes it afterwards. The record holds it, `records/…/<cfg>/tag`,
+  and the plot document's `[source].tag` is written from it, so a copied `results/` keeps it; a run of the folder
+  keeps the tag it has unless `--tag` gives another. `heimdall runs`, `heimdall status` and a report show it
+  beside the folder (`01 pdf [nlo]`). It is never part of a point's identity: tagging reruns nothing.
 - **A record from before plot documents** gets one the first time it is drawn, from its snapshot;
   `heimdall migrate --plot-docs` writes every record's at once.
 - **A record from before snapshots** gets one with `heimdall migrate --snapshot <P>/<run>/<NN_cfg>`

@@ -142,6 +142,20 @@ def test_a_source_says_where_it_came_from(trees):
     assert second.facts()["incomplete"] == ["B"] and first.label("events") == "10M" and first.label("folder") == "pdf"
 
 
+def test_a_tagged_source_names_its_tag(trees):
+    """V223: a source's facts carry its document's [source].tag, and --list and the front pages show it."""
+    document = trees / "results" / "P" / "validation" / "01_pdf" / "plot.toml"
+    document.write_text(document.read_text(encoding="utf-8").replace('serial = 1\n', 'serial = 1\ntag = "nlo_v2"\n'),
+                        encoding="utf-8")
+    first, second = report.sources(["P/validation"], "here")
+    assert (first.facts()["tag"], second.facts()["tag"]) == ("nlo_v2", "")
+    plan = report.planned("P/validation", [])
+    listed = report.listing(plan)
+    assert any(line.startswith("  source P/validation/01_pdf: pdf [nlo_v2], 2 of 2") for line in listed)
+    assert any(line.startswith("  source P/validation/02_events: events, ") for line in listed)
+    assert r"\hdSmall\color{hdmuted} tag nlo\_v2" in "\n".join(report._front(plan))
+
+
 def test_the_default_report_is_the_headline_and_each_set_its_document_draws(trees):
     plan = report.planned("P/validation/01_pdf", [])
     assert plan.name == "P/validation/01_pdf" and plan.out == trees / "reports" / "P" / "validation" / "01_pdf"

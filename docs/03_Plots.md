@@ -126,7 +126,7 @@ run TOML, snapshot, tool folder or stack beyond Paint. A run writes it before it
 be copied anywhere and drawn there (`heimdall plot <folder>`). It holds two kinds of table:
 
 - **What the run knows**, rewritten by every run of the folder:
-  - `[source]`: the config, the configuration, the folder, Heimdall's revision, when;
+  - `[source]`: the config, the configuration, the folder, its tag (when it has one: from its record, 05 §1.1), Heimdall's revision, when;
   - `[axes]`: the sweep's axes, `plot_points`, `combine` and the fixed values;
   - `[quantities.<q>]`: its points in its order, as a run TOML writes them, `points = [{ tag, value, label }]`
     (with `style` on a point that has one);

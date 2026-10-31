@@ -203,7 +203,7 @@ heimdall plot Demo/jets energy_pdf      # redraw its pages from what is on disk
 
 **A run on a terminal runs in the background, shown here.** Press `d` and the prompt comes back while
 the run goes on; closing the terminal leaves it running too. `heimdall watch` shows it again (from
-another terminal, or an ssh session), `heimdall stop` stops it, `heimdall runs` lists what runs. Ctrl-C
+another terminal, or an ssh session), `heimdall stop` stops it, `heimdall runs` lists active jobs. Ctrl-C
 stops it as before. `heimdall run … --detach` starts one without showing it. A run with `--plain`, or
 not on a terminal, runs in the shell's own process, as in a script or a cluster job.
 
@@ -875,8 +875,8 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 - A second submission of a configuration waits until the first's jobs have ended (`--status`,
   `--cancel`).
 - The scripts, the job ids and the jobs' logs are in `records/<P>/<run>/<cfg>/cluster/<stamp>/`.
-  `heimdall watch` cannot reach a node: the logs and `--status` stand in. `heimdall runs` lists each
-  submission (whether its jobs are still on Slurm), and `--cancel` marks it cancelled there.
+  `heimdall watch` cannot reach a node: the logs and `--status` stand in. `heimdall runs` lists active
+  submissions; `heimdall runs --50` can show recent submissions too. `--cancel` marks it cancelled there.
 - Each script's last line is the `heimdall run` it makes, which can be typed by hand: `heimdall run C cfg
   --points <name> --stages points`, then `heimdall run C cfg --stages combine,post,plot`.
 - The points' FIFOs and the prepare caches' locks are on the shared filesystem: NFSv4 and Lustre
@@ -904,10 +904,11 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 | how far each curve is from the data | `results/…/statistics/<set>/statistics.csv` (with each drawing, or `heimdall stats <P>/<name>/<cfg>` alone), `[stats]`, `legend_statistic`, a `statistic` figure (03 §3.2, §7.9) |
 | only the post (or pre) tools | `--only post` / `--only pre` |
 | plain lines (logs, CI) | `--plain` (automatic when not a terminal) |
-| to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]`, `--pid N` (a `--journal` run's file: `heimdall watch --file …`); `d` or Ctrl-C leaves, `s` then `y` stops it |
+| to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]`, `--pid N` (a `--journal` run's file: `heimdall watch --file …`); `d` or Ctrl-C detaches, `q` stops it |
 | to leave a run running | `d` at its terminal; or start it with `--detach` |
 | to stop a run from elsewhere | `heimdall stop [CONFIG [CFG]]`, `--pid N` (as Ctrl-C would) |
-| what runs, and ran lately | `heimdall runs` (this machine, every work dir, 30 days) |
+| running jobs | `heimdall runs` |
+| recent runs, of any state | `heimdall runs --5`, `--10`, `--20`, `--50`, `--week` (7 days), or `--month` (28 days; latest at bottom) |
 | a desktop notification at the end | `[run] notify = "desktop"` |
 | a point faster | `shards = K` on the Rivet table (§7.1); more Pythia `threads` alone do not help |
 | many points faster | `parallelism = K` or `"auto"` (§7.2) |

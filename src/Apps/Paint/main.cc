@@ -44,14 +44,15 @@ namespace {
         for (size_t i = 0; i < mask.size(); ++i)
             if (mask[i]) voided += (voided.empty() ? "" : ", ") + std::to_string(i + 1);
         // x_tool / y_tool: the range is the drawing tool's own choice, which another backend may make itself
-        const bool xTool = !page.xGutter && !page.autoRange;
+        const bool xTool = !page.xRangeMin && !page.xRangeMax && !page.xGutter && !page.autoRange;
+        const bool yTool = !page.yRangeMin && !page.yRangeMax && y.tool;
         char buffer[512];
         std::snprintf(buffer, sizeof buffer,
                       "{\"x\": [%.10g, %.10g], \"y\": [%.10g, %.10g], \"largest\": %.10g, \"voided\": [%s], "
                       "\"data_bins\": %zu, \"data_x\": [%.10g, %.10g], \"x_tool\": %s, \"y_tool\": %s}",
                       x.lo, x.hi, y.lo, y.hi, y.largest, voided.c_str(), haveData ? data.size() : 0,
                       haveData ? data.lo.front() : 0.0, haveData ? data.hi.back() : 0.0, xTool ? "true" : "false",
-                      y.tool ? "true" : "false");
+                      yTool ? "true" : "false");
         return buffer;
     }
 
@@ -159,7 +160,13 @@ namespace {
         Paint::Range x = page.autoRange ? Paint::autoRange(all, page.rangePad) : Paint::fullRange(all);
         if (!std::isfinite(x.lo) || !std::isfinite(x.hi)) x = Paint::fullRange(all);
         x = Paint::xWithGutter(x, page.xGutter, page.logx);
-        const Paint::YRange y = Paint::yRange(all, x, page.yGutter, page.logy);
+        x.lo = page.xRangeMin.value_or(x.lo), x.hi = page.xRangeMax.value_or(x.hi);
+        if (!(x.lo < x.hi) || (page.logx && x.lo <= 0))
+            return {Kit::Config, "[page].x_range must leave an increasing range (positive on log x)"};
+        Paint::YRange y = Paint::yRange(all, x, page.yGutter, page.logy);
+        y.lo = page.yRangeMin.value_or(y.lo), y.hi = page.yRangeMax.value_or(y.hi);
+        if (!(y.lo < y.hi) || (page.logy && y.lo <= 0))
+            return {Kit::Config, "[page].y_range must leave an increasing range (positive on log y)"};
 
         const std::string json = rangesJson(page, mask, x, y, haveData, data);
         if (dump) {

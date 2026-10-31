@@ -1,4 +1,4 @@
-"""The run registry (rank 1, V182): what runs on this machine now, and what ran in the last 30 days.
+"""The run registry (rank 1, V182): running jobs, and the latest N runs of any state.
 
 The user, 2026-10-23: "heimdall can keep track of runs and jobs being run in Himinbjorg". One small JSON file a
 run (and a cluster submission), `<machine root>/runs/<id>.json` ($HEIMDALL_RUNS), beside a detached worker's log
@@ -283,12 +283,22 @@ def cluster_job() -> bool:
 
 class Recorder:
     """A bus subscriber: the record folders a run wrote, each run's verdict and its points' counts (V202: done,
-    failed, stopped, done with warnings), in memory, for its entry."""
+    failed, stopped, done with warnings), in memory, for its entry. Point progress is also kept in its registry
+    entry while the run is active."""
 
-    def __init__(self):
+    def __init__(self, run_id: str | None = None, configuration_serials: dict | None = None,
+                 configuration_labels: dict | None = None):
+        self.run_id = run_id
+        self.configuration_serials = dict(configuration_serials or {})
+        self.configuration_labels = dict(configuration_labels or {})
         self.records: list[str] = []
         self.verdicts: dict[str, str] = {}
         self.tally = Tally()
+        self.points_total = 0
+        self.points_completed = 0
+        self.active_points: set[tuple[str, str]] = set()
+        self.started_runs: set[str] = set()
+        self.finished_points: set[tuple[str, str]] = set()
 
     def counts(self) -> dict:
         """Every run's points together: done, failed, stopped, and done with warnings."""
@@ -296,8 +306,46 @@ class Recorder:
         return {"done": sum(r["done"] for r in runs), "failed": sum(len(r["failed"]) for r in runs),
                 "stopped": sum(r["stopped"] for r in runs), "warned": sum(len(r["warned"]) for r in runs)}
 
+    def _save_progress(self) -> None:
+        update(self.run_id, points_completed=self.points_completed, points_total=self.points_total,
+               active_parallel_points=len(self.active_points))
+
+    def _record_serial(self, event: dict) -> None:
+        record = event.get("record")
+        if not record:
+            return
+        folder = Path(record).name
+        match = re.match(r"^(\d+)_", folder)
+        if match is None:
+            return
+        key = event.get("run") or ""
+        if key not in self.configuration_serials:
+            key = next((name for name, label in sorted(self.configuration_labels.items(),
+                                                       key=lambda item: len(item[1]), reverse=True)
+                        if folder.endswith(f"_{label}")), "")
+        if key and self.configuration_serials.get(key) != int(match.group(1)):
+            self.configuration_serials[key] = int(match.group(1))
+            update(self.run_id, configuration_serials=self.configuration_serials)
+
     def event(self, event: dict) -> None:
         self.tally.event(event)
+        kind, state, point, key = event.get("k"), event.get("state"), event.get("point", ""), event.get("run") or ""
+        if kind == "run" and state == "started" and key not in self.started_runs:
+            self.started_runs.add(key)
+            self.points_total += int(event.get("points", 0))
+            self._save_progress()
+        if kind == "run" and state == "started":
+            self._record_serial(event)
+        elif kind == "point" and point:
+            point_key = (key, point)
+            if state == "started" and point_key not in self.finished_points:
+                self.active_points.add(point_key)
+                self._save_progress()
+            elif state in ("done", "failed", "stopped", "skipped") and point_key not in self.finished_points:
+                self.active_points.discard(point_key)
+                self.finished_points.add(point_key)
+                self.points_completed += 1
+                self._save_progress()
         if event.get("k") != "run":
             return
         if event.get("state") == "started" and event.get("record") and event["record"] not in self.records:

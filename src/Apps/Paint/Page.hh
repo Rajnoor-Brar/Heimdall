@@ -2,7 +2,8 @@
 // src/Apps/Paint/Page.hh — one page's config, as the runner writes it (docs/05_Commands_and_Tools.md §18).
 //
 //     [page]    name, output (path without extension), formats, title, x_label, y_label, logx, logy,
-//               y_gutter, x_gutter, ratio, ratio_label, void_empty, min_entries, auto_range, range_pad
+//               y_gutter, x_gutter, x_range, y_range, ratio, ratio_label, void_empty, min_entries,
+//               auto_range, range_pad
 //     [style]   what differs from src/Apps/Paint/base.toml, in its tables (Style.hh)
 //     [[curve]] file, object, raw (optional: the /RAW twin, for min_entries), label
 //     [data]    file, object, label                       (optional: reference data)
@@ -11,6 +12,8 @@
 
 #include <toml++/toml.hpp>
 
+#include <cmath>
+#include <cstdint>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -38,6 +41,7 @@ namespace Paint {
         std::string zLabel;
         std::vector<std::string> xLabels;                       // V160: a label under each bin centre 1, 2, … (a statistic figure)
         std::optional<double> yGutter, xGutter;                 // none: ROOT's own range ("default")
+        std::optional<double> xRangeMin, xRangeMax, yRangeMin, yRangeMax;
         int minEntries = 0, rangePad = 0;
         Style style;
         std::vector<Source> curves;
@@ -56,6 +60,27 @@ namespace Paint {
             return *value;
         }
         throw std::runtime_error("[page]." + key + " must be a number >= 0 or \"default\"");
+    }
+
+    inline std::optional<double> rangeEnd(const toml::node& node, const std::string& key) {
+        if (const auto text = node.value<std::string>()) {
+            if (*text == "default") return std::nullopt;
+        } else if (const auto number = node.value<double>()) {
+            if (std::isfinite(*number)) return *number;
+        } else if (const auto integer = node.value<int64_t>()) {
+            return static_cast<double>(*integer);
+        }
+        throw std::runtime_error("[page]." + key + " entries must be finite numbers or \"default\"");
+    }
+
+    inline void ranges(toml::node_view<toml::node> node, const std::string& key,
+                       std::optional<double>& low, std::optional<double>& high) {
+        if (!node) return;
+        const auto* values = node.as_array();
+        if (!values || values->size() != 2)
+            throw std::runtime_error("[page]." + key + " must be [minimum, maximum]");
+        low = rangeEnd((*values)[0], key);
+        high = rangeEnd((*values)[1], key);
     }
 
     inline Page readPage(const std::string& path) {
@@ -99,6 +124,8 @@ namespace Paint {
         }
         page.yGutter = gutter(p["y_gutter"], "y_gutter", page.yGutter);
         page.xGutter = gutter(p["x_gutter"], "x_gutter", page.xGutter);
+        ranges(p["x_range"], "x_range", page.xRangeMin, page.xRangeMax);
+        ranges(p["y_range"], "y_range", page.yRangeMin, page.yRangeMax);
         page.minEntries = p["min_entries"].value_or(0);
         page.rangePad = p["range_pad"].value_or(0);
         page.style = readStyle(doc["style"].as_table());

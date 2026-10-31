@@ -5,6 +5,9 @@
 # [<table>.<key>] fields:
 #   type     "int" | "float" | "str" | "bool" | "list" | "table", or several joined by "|"
 #   items    for a list: the type of its entries
+#   item_choices  for a list: allowed string/boolean entries
+#   length   for a list: its exact number of entries
+#   ordered  for a numeric pair: its first entry must be smaller than its second
 #   choices  the values allowed
 #   min      the smallest number allowed
 #   required true: the table must set it
@@ -651,11 +654,11 @@ items      = "str"
 choices    = ["root", "yoda", "mpl", "both"]
 default    = "root"
 default_ok = true
-doc        = "root (Paint), yoda (rivet-mkhtml), mpl (matplotlib, V71), a list of them, or both (root and yoda)"
+doc        = "root (Paint), yoda (deprecated, rivet-mkhtml), mpl (matplotlib, V71), a list of them, or both (root and yoda)"
 notes = """\
-  `\"root\"` (Paint), `\"yoda\"` (rivet-mkhtml; frozen, V71), `\"mpl\"` (matplotlib, mkhtml's \
-  pages drawn in-process: V71), `\"both\"` (root and yoda, V28) or an array of them, from the same \
-  pages"""
+  `\"root\"` (Paint), `\"yoda\"` (deprecated, rivet-mkhtml; frozen, V71), `\"mpl\"` (matplotlib, \
+  mkhtml's pages drawn in-process: V71), `\"both\"` (root and yoda, V28) or an array of them, from \
+  the same pages"""
 
 [plot.formats]
 type       = "list"
@@ -721,6 +724,31 @@ doc        = "x widened by g of its span"
 notes = """\
   widens x by g of its span, symmetrically (in decades on a log axis). `\"default\"`: the range \
   the bins give"""
+
+[plot.x_range]
+page        = true
+type        = "list"
+items       = "float|str"
+item_choices = ["default"]
+length      = 2
+ordered     = true
+doc         = "the x axis limits"
+notes = """\
+  the x axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the \
+  calculated limit"""
+
+[plot.y_range]
+page        = true
+type        = "list"
+items       = "float|str"
+item_choices = ["default"]
+length      = 2
+ordered     = true
+doc         = "the y axis limits"
+notes = """\
+  the y axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the \
+  calculated limit. Numeric limits remain fixed when curve values exceed them: Paint and mpl clip \
+  those values at the frame and draw thinner, colour-matched overflow marks 2 px outside it"""
 
 [plot.logy]
 page       = true

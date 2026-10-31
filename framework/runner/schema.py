@@ -161,6 +161,11 @@ def check_value(key: str, value, entry: dict, where: str) -> None:
         for item in value:
             if not _is(item, items):
                 raise HeimdallError(f"'{key}' entries must be {type_name(items)}", where=where, hint=f"got {item!r}")
+    if "length" in entry and isinstance(value, list) and len(value) != entry["length"]:
+        raise HeimdallError(f"'{key}' must have {entry['length']} entries", where=where, hint=f"got {len(value)}")
+    if entry.get("ordered") and isinstance(value, list) and len(value) == 2 and all(_is(item, "float") for item in value):
+        if value[0] >= value[1]:
+            raise HeimdallError(f"'{key}' minimum must be less than its maximum", where=where)
     choices = entry.get("choices")
     if choices:
         for item in members:                     # a choice may be false (normalise = "area" | false, V68)
@@ -168,6 +173,12 @@ def check_value(key: str, value, entry: dict, where: str) -> None:
                 shown = ", ".join(c if isinstance(c, str) else str(c).lower() for c in choices)
                 raise HeimdallError(f"{key} must be one of {shown}, not {item!r}", where=where,
                                hint=did_you_mean(item, [c for c in choices if isinstance(c, str)]) if isinstance(item, str) else None)
+    item_choices = entry.get("item_choices")
+    if item_choices and isinstance(value, list):
+        for item in value:
+            if isinstance(item, (str, bool)) and not any(type(item) is type(c) and item == c for c in item_choices):
+                shown = ", ".join(c if isinstance(c, str) else str(c).lower() for c in item_choices)
+                raise HeimdallError(f"'{key}' entries must be one of {shown}, not {item!r}", where=where)
     if "min" in entry and _is(value, "float") and value < entry["min"]:
         raise HeimdallError(f"'{key}' must be at least {entry['min']}", where=where, hint=f"got {value!r}")
 
@@ -188,7 +199,17 @@ def _json_key(entry: dict) -> dict:
     if entry.get("choices") and "array" not in types:
         one["enum"] = entry["choices"]
     if entry.get("items"):
-        one["items"] = {"type": _json_type(entry["items"])[0], **({"enum": entry["choices"]} if entry.get("choices") else {})}
+        item_types = _json_type(entry["items"])
+        if entry.get("item_choices"):
+            item_types = [kind for kind in item_types if kind != "string"]
+        item = {"type": item_types if len(item_types) > 1 else item_types[0]}
+        if entry.get("choices"):
+            item["enum"] = entry["choices"]
+        if entry.get("item_choices"):
+            item = {"anyOf": [item, {"enum": entry["item_choices"]}]}
+        one["items"] = item
+    if "length" in entry:
+        one["minItems"] = one["maxItems"] = entry["length"]
     words = [{"const": DEFAULT}] * bool(entry.get("default_ok")) + [{"const": NATIVE}] * bool(entry.get("native_ok"))
     out.update({"anyOf": [one, *words]} if words else one)
     if "default" in entry:

@@ -208,8 +208,8 @@ def test_follow_takes_keys_from_a_pipe(fake):
     os.close(write)
 
 
-def test_watch_s_then_y_stops_the_run_and_d_leaves_it(fake, monkeypatch):
-    """V183: in heimdall watch, d (or Ctrl-C) leaves; s asks, y stops it as Ctrl-C would; another key does not."""
+def test_watch_d_and_ctrl_c_detach_and_q_stops_the_run(fake, monkeypatch):
+    """V183: in `heimdall watch`, d and Ctrl-C leave; q asks the run to stop cleanly."""
     read, write = os.pipe()
 
     class Keys:
@@ -224,10 +224,36 @@ def test_watch_s_then_y_stops_the_run_and_d_leaves_it(fake, monkeypatch):
     monkeypatch.setattr(cli, "live", lambda args, *a, **k: True)
     monkeypatch.setattr(watch, "Keys", Keys)
     proc = fake()
-    os.write(write, b"snd")                                   # s, then n (not stopped), then d: left running
+    os.write(write, b"d")
     assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None
-    os.write(write, b"sy")                                    # s, then y: stopped, followed to its end
+    os.write(write, b"\x03")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None
+    os.write(write, b"q")
     assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.wait(10) == 6
+    os.close(read)
+    os.close(write)
+
+
+def test_watch_q_refuses_to_signal_another_pid_namespace(fake, monkeypatch, capsys):
+    read, write = os.pipe()
+
+    class Keys:
+        def __init__(self, fd):
+            self.fd = read
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return None
+
+    monkeypatch.setattr(cli, "live", lambda args, *a, **k: True)
+    monkeypatch.setattr(watch, "Keys", Keys)
+    monkeypatch.setattr("runner.events.namespace", lambda kind: "pid:[another]")
+    proc = fake()
+    os.write(write, b"qd")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None
+    assert "not stopped: its process is another PID namespace's" in capsys.readouterr().out
     os.close(read)
     os.close(write)
 

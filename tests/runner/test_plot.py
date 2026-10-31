@@ -23,6 +23,7 @@ def validated(scratch, **plot_table):
 
 def test_a_valid_plot_table_passes(scratch):
     validated(scratch, backend="root", formats=["pdf", "png", "svg"], y_gutter=1.5, range_pad=1,
+              x_range=["default", 100], y_range=[0, "default"],
               data={"file": "jets_data.yoda", "legend": "ZEUS", "map": {"d01-x01-y01": "/REF/X/d01-x01-y01"}},
               style={"page": {"dpi": 300}, "legend": {"position": "top-left"}},
               figures={"f": {"objects": ["d04-*"], "logy": True, "style": {"legend": {"position": [0.5, 0.9]}}}})
@@ -44,6 +45,10 @@ def test_a_valid_plot_table_passes(scratch):
     ({"figures": {"f": {"objects": ["d01*"], "legend": "centre"}}}, "legend"),
     ({"y_gutter": -1}, "gutter"),
     ({"x_gutter": "auto"}, "gutter"),
+    ({"x_range": [1]}, "2 entries"),
+    ({"y_range": [0, "auto"]}, "one of default"),
+    ({"x_range": ["default", "default", 3]}, "2 entries"),
+    ({"y_range": [2, 1]}, "less than its maximum"),
     ({"figures": {"f": {"objects": ["d01*"], "y_gutter": -0.5}}}, "gutter"),
     ({"data": {"file": "jets_data.yoda"}}, "no map"),                     # L18: explicit only
     ({"data": {"map": {"d01-x01-y01": "/REF/X/d01"}}}, "no file"),
@@ -181,6 +186,15 @@ def test_no_gutter_leaves_mkhtml_its_own_range(yoda_backend, scratch):
     assert "XMin=0" in block and "YMin" not in block and "YMax" not in block
 
 
+def test_explicit_ranges_are_handed_to_mkhtml_even_when_data_exceed_them(yoda_backend, scratch):
+    page = plot.Page("d01", scratch / "d01.toml", scratch / "d01", object="/photo_eic/d01-x01-y01",
+                     document={"page": {"logx": False, "logy": False, "ratio": False}},
+                     style=plot.base_style(), ranges={"x": [0, 1], "y": [-2, 1], "largest": 100,
+                                                     "x_tool": False, "y_tool": False})
+    block = yoda_backend._plot_block(page)
+    assert "YMin=-2" in block and "YMax=1" in block
+
+
 def test_both_backends_draw_the_same_pages_and_the_style_is_paints(scratch):
     assert plot.backends({}) == ["root"] and plot.backends({"backend": "yoda"}) == ["yoda"]
     assert plot.backends({"backend": "both"}) == plot.backends({"backend": ["yoda", "root", "yoda"]}) == ["root", "yoda"]
@@ -271,6 +285,7 @@ def test_default_is_what_the_tool_does_by_itself():
     assert (native["void_empty"], native["min_entries"]) == (False, 0)
     assert native["logy"] and native["y_gutter"] == "default"          # photo_eic's .plot says LogY=1
     assert native["ratio"] and not page({"ratio": "default"}, with_data=False)["ratio"]   # mkhtml's rule
+    assert ours["x_range"] == ours["y_range"] == ["default", "default"]
 
 
 def test_an_objects_default_keeps_what_plot_says():
@@ -285,12 +300,15 @@ def test_a_figure_overrides_every_page_key_of_plot(scratch):
     """Every [plot] key marked `page` in the schema is a figure's too, meaning the same for its pages."""
     from runner import schema
     page_keys = {k for k, e in schema.keys("plot").items() if e.get("page")}
-    assert {"auto_range", "void_empty", "min_entries", "range_pad", "use_data", "band", "ratio"} <= page_keys
+    assert {"auto_range", "void_empty", "min_entries", "range_pad", "use_data", "band", "ratio",
+            "x_range", "y_range"} <= page_keys
     assert page_keys | {"x_label", "y_label", "style"} | set(schema.FIGURE_OWN) == set(schema.keys("figure"))
     assert not {"backend", "formats", "data", "root_style"} & set(schema.keys("figure"))
     settings = {"auto_range": True, "min_entries": 5}
     shown = page(settings, child={"auto_range": False, "min_entries": "default", "range_pad": 2, "void_empty": True})
     assert (shown["auto_range"], shown["min_entries"], shown["range_pad"], shown["void_empty"]) == (False, 5, 2, True)
+    ranged = page({"x_range": [1, 5]}, child={"x_range": ["default", 4], "y_range": [-2, "default"]})
+    assert ranged["x_range"] == ["default", 4] and ranged["y_range"] == [-2, "default"]
     overlay = {"objects": ["d01-*"], "ratio": True, "style": {"ratio": {"range": [0.8, 1.1]}}, "use_data": False}
     validated(scratch, ratio=False, figures={"f": {**overlay, "class": "overlay"}, "g": {"objects": ["d03-*"], "min_entries": 3},
                                              "h": {"objects": ["d02-*"], "use_data": False, "band": []}})
@@ -575,6 +593,59 @@ def test_mpl_is_a_backend_and_both_is_still_root_and_yoda(scratch):
     mpl = plot.backend("mpl")
     from yoda.plotting.mlp_preprocessor import preprocess
     assert mpl._raw(preprocess(r"$a$\newline$b$")) == "$a$\n$b$" and mpl.INDEX
+
+
+@pytest.mark.parametrize(("y_range", "values", "expected_y"), [
+    (["default", 1.0], [1.5, 5.0], 1),
+    ([-1.0, "default"], [-2.0, -5.0], -1),
+])
+def test_mpl_marks_values_outside_explicit_y_limits(y_range, values, expected_y):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    mpl = plot.backend("mpl")
+    fig, ax = plt.subplots(figsize=(2, 2), dpi=100)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-1, 1)
+    curves = [
+        {"edges": [0.2, 0.8], "low": [values[0]], "high": [values[0]], "color": "red",
+         "linestyle": "-", "linewidth": 2, "alpha": 1, "zorder": 5},
+        {"edges": [0.2, 0.8], "low": [values[1]], "high": [values[1]], "color": "blue",
+         "linestyle": "-", "linewidth": 2, "alpha": 1, "zorder": 6},
+    ]
+    mpl._overflow_marks(ax, curves, y_range)
+    fig.canvas.draw()
+    lines = ax.lines
+    assert len(lines) == 2
+    assert [line.get_color() for line in lines] == ["red", "blue"]
+    assert lines[0].get_xdata() == pytest.approx([0.2, 0.5])
+    assert lines[1].get_xdata() == pytest.approx([0.5, 0.8])
+    assert all(not line.get_clip_on() and line.get_linewidth() < 2 for line in lines)
+    offset = 2 / ax.get_window_extent().height
+    position = 1 + offset if expected_y > 0 else -offset
+    assert all(line.get_ydata()[0] == pytest.approx(position) for line in lines)
+    plt.close(fig)
+
+
+def test_mpl_collects_curve_bins_for_overflow_marks():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import yoda
+    import yoda.plotting.utils as putils
+
+    estimate = yoda.BinnedEstimate1D([0.0, 1.0, 2.0], "/x")
+    for i, value in enumerate((2.0, 5.0), start=1):
+        estimate.bin(i).setVal(value)
+        estimate.bin(i).setErr(0.0)
+    fig, ax = plt.subplots()
+    _, overflow = plot.backend("mpl")._curves(ax, None, {"curve": putils.mkPlotFriendlyScatter(estimate)},
+                                               [{"Title": "curve"}], ["red"], plt)
+    assert len(overflow) == 1
+    assert overflow[0]["edges"].tolist() == [0.0, 1.0, 2.0]
+    assert overflow[0]["low"].tolist() == overflow[0]["high"].tolist() == [2.0, 5.0]
+    plt.close(fig)
 
 
 @pytest.mark.parametrize("label, latex", [

@@ -1,11 +1,11 @@
-"""framework/plot/yoda/backend.py — `[plot] backend = "yoda"`: the same pages drawn by rivet-mkhtml.
+"""framework/plot/yoda/backend.py — deprecated `[plot] backend = "yoda"`: pages drawn by rivet-mkhtml.
 
 Frozen (V71, B4c option B): no new features; the mpl backend draws these pages without mkhtml, and uses
 this module's transforms until it goes.
 
 docs/04_Config_Reference.md §11, V10/V11. The runner hands over the pages it wrote for Paint, with
-Paint's --dump-ranges of each: the x and y ranges (auto_range, gutters; none where no gutter leaves
-them to the tool) and the voided bins. Per
+Paint's --dump-ranges of each: the x and y ranges (auto_range, gutters, explicit axis limits; none
+where no gutter or explicit limit leaves them to the tool) and the voided bins. Per
 plot_points cell this writes
 
 * the curves' YODAs with the voided bins blanked (value NaN, no errors), as v1 did;

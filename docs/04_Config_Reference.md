@@ -1147,13 +1147,15 @@ The plot stage, and how to use it, is [03](03_Plots.md). A configuration whose r
 <!-- generated: keys plot -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `backend` | a string or a list (a string each): `"root"`, `"yoda"`, `"mpl"`, `"both"`, or `"default"` | `"root"` | `"root"` (Paint), `"yoda"` (rivet-mkhtml; frozen), `"mpl"` (matplotlib, mkhtml's pages drawn in-process), `"both"` (root and yoda) or an array of them, from the same pages |
+| `backend` | a string or a list (a string each): `"root"`, `"yoda"`, `"mpl"`, `"both"`, or `"default"` | `"root"` | `"root"` (Paint), `"yoda"` (deprecated, rivet-mkhtml; frozen), `"mpl"` (matplotlib, mkhtml's pages drawn in-process), `"both"` (root and yoda) or an array of them, from the same pages |
 | `formats` | a list (a string each): `"pdf"`, `"png"`, `"svg"`, `"eps"`, or `"default"` | `["pdf"]` | `pdf`, `png`, `svg`, `eps`. mkhtml writes pdf and png always. The root backend writes `plots/<set>/root/index.html`: a section per cell, each page by its PNG or SVG, else an embedded PDF, linked to every format; add `png` for thumbnails a browser shows at once |
 | `band` | a list (a string each) |  | curve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band |
 | `objects` | a list (a string each), or `"default"` |  | matched against the option-free YODA path (`/photo_eic/d01-x01-y01`) or any variant's path. No object matching is an error. |
 | `ratio` | true or false, or `"default"` or `"native"` | `false` | a ratio pad: each curve over the data, or over the first curve when there are no data |
 | `y_gutter` | a number, ≥ 0, or `"default"` or `"native"` | `0.5` | the top of the y axis at (1 + g) × the largest drawn value (on a log axis, g of the decades shown); `0`: no headroom. `"native"`: no gutter, the tool's own range (a v2 file's [plot] says `"default"`) |
 | `x_gutter` | a number, ≥ 0, or `"default"` or `"native"` |  | widens x by g of its span, symmetrically (in decades on a log axis). `"default"`: the range the bins give |
+| `x_range` | a list (a number or a string each) |  | the x axis limits, `[minimum, maximum]`; each end may be a number or `"default"` to keep the calculated limit |
+| `y_range` | a list (a number or a string each) |  | the y axis limits, `[minimum, maximum]`; each end may be a number or `"default"` to keep the calculated limit. Numeric limits remain fixed when curve values exceed them: Paint and mpl clip those values at the frame and draw thinner, colour-matched overflow marks 2 px outside it |
 | `logy` | true or false, or `"default"` or `"native"` |  | log y (default: the .plot's) |
 | `logx` | true or false, or `"default"` or `"native"` |  | log x (default: the .plot's) |
 | `logz` | true or false, or `"default"` or `"native"` |  | a heat map's colour scale |
@@ -1241,7 +1243,7 @@ A figure is a recipe for pages; its classes, each with an example, are
 | `x_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
 | `y_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
 | `style` | a table |  | a style layer for these pages (04 §12) |
-| *every page key of `[plot]`* | as there | `[plot]`'s | `band`, `ratio`, `y_gutter`, `x_gutter`, `logy`, `logx`, `logz`, `auto_range`, `normalise`, `void_empty`, `use_data`, `min_entries`, `range_pad`, `sets`, `split`, `legend_statistic`, `title`, `title_left`, `title_right`, `legend_header`: the figure's value, for its pages only |
+| *every page key of `[plot]`* | as there | `[plot]`'s | `band`, `ratio`, `y_gutter`, `x_gutter`, `x_range`, `y_range`, `logy`, `logx`, `logz`, `auto_range`, `normalise`, `void_empty`, `use_data`, `min_entries`, `range_pad`, `sets`, `split`, `legend_statistic`, `title`, `title_left`, `title_right`, `legend_header`: the figure's value, for its pages only |
 <!-- /generated -->
 
 When each rule is checked:

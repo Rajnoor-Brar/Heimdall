@@ -12,6 +12,7 @@ import math
 import re
 import subprocess
 import tomllib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -111,6 +112,15 @@ def test_x_gutter_widens_symmetrically(inputs):
     assert wide[0] + wide[1] == pytest.approx(plain[0] + plain[1])
 
 
+def test_axis_ranges_override_only_the_requested_limits(inputs):
+    plain = dump(page(inputs, "d02-x01-y01", auto_range=False))
+    ranged = dump(page(inputs, "d02-x01-y01", auto_range=False, x_range=["default", 20], y_range=[-2, 1]))
+    assert ranged["x"] == pytest.approx([plain["x"][0], 20])
+    assert ranged["largest"] > ranged["y"][1]
+    assert ranged["y"] == pytest.approx([-2, 1])
+    assert not ranged["x_tool"] and not ranged["y_tool"]
+
+
 def test_log_y_gutter_is_a_fraction_of_the_decades(inputs):
     ranges = dump(page(inputs, "d01-x01-y01", logy=True, y_gutter=0.5, **LEGACY_PAGE))
     low, high, largest = ranges["y"][0], ranges["y"][1], ranges["largest"]
@@ -159,6 +169,40 @@ def test_a_page_is_saved_in_every_format(inputs):
     assert done.returncode == 0, done.stderr
     for fmt in ("pdf", "png", "svg"):
         assert (inputs["dir"] / f"d01-x01-y01.{fmt}").stat().st_size > 1000
+
+
+@pytest.mark.parametrize(("y_range", "edge"), [
+    (["default", 10_000], "top"),
+    ([10_000, "default"], "bottom"),
+])
+def test_explicit_y_range_draws_clipped_overflow_marks_outside_the_frame(inputs, y_range, edge):
+    config = page(inputs, "d02-x01-y01", formats=["svg"], auto_range=False, y_range=y_range)
+    done = subprocess.run([str(PAINT), str(config)], capture_output=True, text=True, encoding="utf-8")
+    assert done.returncode == 0, done.stderr
+
+    root = ET.parse(inputs["dir"] / "d02-x01-y01.svg").getroot()
+    frame = next(node for node in root.iter() if node.tag.endswith("rect")
+                 and node.get("fill") == "none" and node.get("stroke") == "black")
+    top = float(frame.get("y"))
+    bottom = top + float(frame.get("height"))
+    markers = []
+    for node in root.iter():
+        if not node.tag.endswith("path") or node.get("stroke") not in {"#ee3311", "#3366ff"}:
+            continue
+        path = re.fullmatch(r"M([-+\d.eE]+),([-+\d.eE]+)h\s*([-+\d.eE]+)", node.get("d", ""))
+        if path:
+            y, width = float(path.group(2)), float(node.get("stroke-width", "0"))
+            outside = y < top if edge == "top" else y > bottom
+            if outside:
+                markers.append((node.get("stroke"), y, width))
+    assert len(markers) >= 2
+    assert {colour for colour, _, _ in markers} == {"#ee3311", "#3366ff"}
+    assert all(width < 4 for _, _, width in markers)
+    gap = 2 * 72 / 300
+    if edge == "top":
+        assert all(top - y == pytest.approx(gap, abs=0.01) for _, y, _ in markers)
+    else:
+        assert all(y - bottom == pytest.approx(gap, abs=0.01) for _, y, _ in markers)
 
 
 def test_exit_codes(inputs):

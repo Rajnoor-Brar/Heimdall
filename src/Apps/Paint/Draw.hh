@@ -250,6 +250,70 @@ namespace Paint {
         g->Draw("PZ");
     }
 
+    struct Overflow {
+        double distance;
+        Pen pen;
+    };
+
+    inline double axisPosition(double value, Range range, bool logarithmic) {
+        const double low = logarithmic ? std::log10(range.lo) : range.lo;
+        const double high = logarithmic ? std::log10(range.hi) : range.hi;
+        const double at = logarithmic ? std::log10(value) : value;
+        return (at - low) / (high - low);
+    }
+
+    inline void overflowMarks(const std::vector<Series>& curves, const std::vector<Pen>& pens,
+                              Range x, const Frame& frame, bool logx,
+                              std::optional<double> lower, std::optional<double> upper, Keep& keep) {
+        struct Group { double lo, hi; bool above; std::vector<Overflow> lines; };
+        std::vector<Group> groups;
+        for (size_t c = 0; c < curves.size(); ++c) {
+            const Series& series = curves[c];
+            for (size_t i = 0; i < series.size(); ++i) {
+                if (!std::isfinite(series.y[i])) continue;
+                double low = series.y[i], high = series.y[i];
+                if (!series.bandLo.empty()) {
+                    if (std::isfinite(series.bandLo[i])) low = std::min(low, series.bandLo[i]);
+                    if (std::isfinite(series.bandHi[i])) high = std::max(high, series.bandHi[i]);
+                }
+                for (const bool above : {false, true}) {
+                    const std::optional<double> limit = above ? upper : lower;
+                    if (!limit || (above ? high <= *limit : low >= *limit)) continue;
+                    const double edge = above ? high : low;
+                    auto group = std::find_if(groups.begin(), groups.end(), [&](const Group& candidate) {
+                        return candidate.above == above && close(candidate.lo, series.lo[i]) &&
+                               close(candidate.hi, series.hi[i]);
+                    });
+                    if (group == groups.end()) {
+                        groups.push_back({series.lo[i], series.hi[i], above, {}});
+                        group = std::prev(groups.end());
+                    }
+                    group->lines.push_back({above ? edge - *limit : *limit - edge, pens[c]});
+                }
+            }
+        }
+
+        for (Group& group : groups) {
+            if (logx && group.hi <= 0) continue;
+            const double lo = std::max(x.lo, group.lo), hi = std::min(x.hi, group.hi);
+            if (!(lo < hi) || (logx && lo <= 0)) continue;
+            std::stable_sort(group.lines.begin(), group.lines.end(),
+                             [](const Overflow& a, const Overflow& b) { return a.distance < b.distance; });
+            const double x0 = frame.l + axisPosition(lo, x, logx) * (1 - frame.l - frame.r);
+            const double x1 = frame.l + axisPosition(hi, x, logx) * (1 - frame.l - frame.r);
+            const double edge = group.above ? 1 - frame.t + 2.0 / frame.h : frame.b - 2.0 / frame.h;
+            for (size_t i = 0; i < group.lines.size(); ++i) {
+                const double left = x0 + (x1 - x0) * double(i) / group.lines.size();
+                const double right = x0 + (x1 - x0) * double(i + 1) / group.lines.size();
+                const Pen& pen = group.lines[i].pen;
+                auto* line = keep.hold(new TLine(left, edge, right, edge));
+                line->SetNDC(), line->SetLineColor(pen.colour), line->SetLineStyle(pen.line);
+                line->SetLineWidth(std::max(1, static_cast<int>(std::lround(0.6 * pen.width))));
+                line->Draw();
+            }
+        }
+    }
+
     struct Entry {
         std::string label;
         int colour;
@@ -506,6 +570,7 @@ namespace Paint {
         } else {
             legend(page.legendHeader, entries, look, ft, keep, placed(drawn, x, Range{y.lo, y.hi}, page.logx, page.logy, ft));
         }
+        overflowMarks(curves, pen, x, ft, page.logx, page.yRangeMin, page.yRangeMax, keep);
         top->RedrawAxis();
 
         if (bottom) {
@@ -598,6 +663,18 @@ namespace Paint {
         TAxis* ax = h->GetXaxis();
         TAxis* ay = h->GetYaxis();
         TAxis* az = h->GetZaxis();
+        if (page.xRangeMin || page.xRangeMax) {
+            const double lo = page.xRangeMin.value_or(ax->GetXmin()), hi = page.xRangeMax.value_or(ax->GetXmax());
+            if (!(lo < hi) || (page.logx && lo <= 0))
+                throw std::runtime_error("[page].x_range must leave an increasing range (positive on log x)");
+            ax->SetRangeUser(lo, hi);
+        }
+        if (page.yRangeMin || page.yRangeMax) {
+            const double lo = page.yRangeMin.value_or(ay->GetXmin()), hi = page.yRangeMax.value_or(ay->GetXmax());
+            if (!(lo < hi) || (page.logy && lo <= 0))
+                throw std::runtime_error("[page].y_range must leave an increasing range (positive on log y)");
+            ay->SetRangeUser(lo, hi);
+        }
         for (TAxis* a : {ax, ay, az}) {
             a->SetTitleFont(look.font), a->SetLabelFont(look.font);
             a->SetTitleSize(look.title), a->SetLabelSize(look.labels);

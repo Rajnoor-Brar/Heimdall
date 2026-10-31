@@ -174,7 +174,16 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--file EVENTS.JSONL` | follow a run's run.jsonl, or a --journal run's status.jsonl, instead |
 | `--pid N` | the run of this process (heimdall runs lists them) |
 
-**`heimdall runs`**: what runs on this machine now, and what ran in the last 30 days
+**`heimdall runs`**: running jobs; --N, --week, or --month shows recent runs
+
+| Argument | Meaning |
+|---|---|
+| `--5` | show the latest 5 runs, including non-running runs |
+| `--10` | show the latest 10 runs, including non-running runs |
+| `--20` | show the latest 20 runs, including non-running runs |
+| `--50` | show the latest 50 runs, including non-running runs |
+| `--week` | show all runs from the last 7 days |
+| `--month` | show all runs from the last 28 days |
 
 **`heimdall log`**: a record's own account, a point's attempts and logs, or a tool's log
 
@@ -454,8 +463,8 @@ run` serves while it lives.
 - **Only your own runs** can be watched: a run's socket refuses another user.
 - **`--pid N`** follows the run of that process (`heimdall runs` lists them). With no run to watch, it
   names the last one that ended and its log.
-- **Keys**, on a terminal: `d` or Ctrl-C leaves (the run goes on); `s`, then `y`, stops the run as
-  Ctrl-C at its own terminal would. They are written under the live view.
+- **Keys**, on a terminal: `d` and Ctrl-C detach, leaving the run going; `q` asks the run to stop
+  cleanly, as `heimdall stop [CONFIG [CFG]]` or `heimdall stop --pid N` would.
 
 **A run on a terminal** (`heimdall run`, with a terminal for input and output, in its foreground) runs as
 a worker process of its own, started in the background; the command shows it as `heimdall watch` does.
@@ -480,13 +489,14 @@ points end cleanly, partial outputs are kept, a rerun resumes. It waits until th
 neither a config nor a pid, it looks only at the jobs of the work dir it is in; several matching jobs
 are listed and none stopped. A cluster job is stopped with `heimdall cluster … --cancel`.
 
-**`heimdall runs`** lists what runs on this machine now, then what ran in the last 30 days, across every
-work dir and Heimdall checkout: each run's id, its state (running, done, failed, stopped, not run, or
-*lost* when its process ended without saying how), when it started and for how long, its work dir, its
-config and configurations, and for a running one the pid to watch or stop it by; an ended one also says
-how its points went ("14 done (5 with warnings), 2 failed"). A run from inside an
-Apptainer image is not recorded (its machine root is read-only) but is listed while it runs. The
-registry is `<machine root>/runs/`.
+**`heimdall runs [--5|--10|--20|--50|--week|--month]`** lists running jobs by default, across every
+work dir and Heimdall checkout. A count flag lists the latest N runs of any state; `--week` and
+`--month` list all runs of any state started in the last 7 or 28 days. These filters use the registry's
+last 30 days. Entries are ordered oldest to newest, so the latest is at the bottom, and separated by a
+blank line. Each shows its id, state, start time and duration, work dir, config and configurations;
+a running one also gives the pid to watch or stop it by, and an ended one says how its points went
+("14 done (5 with warnings), 2 failed"). A run from inside an Apptainer image is not recorded (its
+machine root is read-only) but is listed while it runs. The registry is `<machine root>/runs/`.
 
 **`heimdall log RECORD[/POINT[/TAG]] [--full] [--attempt N]`** reads what a record of this work dir kept:
 - **A record** (`<P>/<run>/<NN_cfg>`, as `heimdall runs` and `heimdall status` name it): its `run.jsonl`,
@@ -1355,6 +1365,8 @@ logx        = false
 logy        = true
 y_gutter    = 0.5                  # or "default"
 x_gutter    = "default"
+x_range     = ["default", 100]     # either limit can be "default"
+y_range     = [0, "default"]
 ratio       = true
 ratio_label = "MC/Data"
 normalise   = false

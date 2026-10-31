@@ -1361,6 +1361,8 @@ def page_settings(settings: dict, path: str, rel: str, output: Path, with_data: 
         "logy": bool(pick("logy", log_y, log_y)),
         "y_gutter": _gutter(pick("y_gutter", ours("y_gutter"), DEFAULT)),
         "x_gutter": _gutter(pick("x_gutter", DEFAULT, DEFAULT)),
+        "x_range": pick("x_range", ["default", "default"], ["default", "default"]),
+        "y_range": pick("y_range", ["default", "default"], ["default", "default"]),
         "ratio": bool(pick("ratio", ours("ratio"), ratio)),
         "ratio_label": "MC/Data" if with_data else "Ratio",
         "normalise": pick("normalise", ours("normalise"), False),                 # V68: "area" or false

@@ -13,6 +13,8 @@ everything mkhtml decides comes from the library mkhtml runs on, called directly
   (`LineProperties`) and text macros (`preprocess`), and YODA's `default.mplstyle`;
 * the drawing: the calls of mkhtml's generated script (YODA's `mkPlottingScript1D`), made here, then the
   yoda backend's own fixes (ratio ticks, a "best" legend, the titles), so no script is written or rerun.
+* explicit numeric `y_range` endpoints: thin, color-matched overflow marks 2 px outside the frame,
+  split across a bin when several curves exceed the same limit.
 
 The values are rounded to the 7 digits mkhtml's data files hold. Pages go to results/…/plots/mpl/, laid
 out as Paint's, with an index.html (INDEX). Like the yoda backend, it honours only the style keys mkhtml
@@ -317,7 +319,7 @@ def _figure(plt, hists: dict, features: dict, page, yb, window):
         if f.get("IsRef"):
             h.setAnnotation("ConnectBins", 0)
 
-    handles = _curves(ax, rax, data, feats, colours, plt)
+    handles, overflow = _curves(ax, rax, data, feats, colours, plt)
 
     legend = ax.legend(list(handles.values()), entries, title=_raw(str(features.get("LegendTitle", ""))),
                        alignment="right" if align == "r" else "left",
@@ -361,6 +363,7 @@ def _figure(plt, hists: dict, features: dict, page, yb, window):
     _titles(ax, page)
     if page.style["legend"]["position"] in OWN[("legend", "position")]:
         _outside(fig, ax, rax, legend, page.style)
+    _overflow_marks(ax, overflow, page.document["page"].get("y_range", ["default", "default"]))
     return fig
 
 
@@ -423,7 +426,7 @@ def _ylim(features: dict, data: dict) -> tuple[float, float]:
     return float(ymin), float(ymax)
 
 
-def _curves(ax, rax, data: dict, feats: list, colours: list, plt) -> dict:
+def _curves(ax, rax, data: dict, feats: list, colours: list, plt) -> tuple[dict, list]:
     """mkCurves1D's numbers and the script's drawing of them: the main panel, then the ratio panel."""
     import numpy as np
     import yoda.plotting.utils as putils
@@ -435,7 +438,7 @@ def _curves(ax, rax, data: dict, feats: list, colours: list, plt) -> dict:
     ref_x = 0.5 * (ref.xMins() + ref.xMaxs())
     ref_edges = np.append(ref.xMins(), max(ref.xMaxs()))
     ratio_keys = ["RatioPlot"] if rax is not None else []
-    handles, styles = {}, {}
+    handles, styles, overflow = {}, {}, []
     for i, (k, ao) in enumerate(data.items()):
         colidx, linestyle = next(props)
         zorder = 5 + i
@@ -467,6 +470,14 @@ def _curves(ax, rax, data: dict, feats: list, colours: list, plt) -> dict:
                 s["histstyle"] = histstyle
         styles[k] = s
         main = s[""]
+        if not feats[i].get("IsRef"):
+            low, high = y.copy(), y.copy()
+            if band is not None:
+                low = np.minimum(low, band[0][1:])
+                high = np.maximum(high, band[1][1:])
+            overflow.append({"edges": edges, "low": low, "high": high, "color": s["color"],
+                             "linestyle": main["linestyle"], "linewidth": main["linewidth"],
+                             "alpha": main["alpha"], "zorder": zorder})
         if not all(np.isnan(v) for v in y):
             if main["histstyle"]:
                 xpos = edges if main["steps"] else x
@@ -484,7 +495,7 @@ def _curves(ax, rax, data: dict, feats: list, colours: list, plt) -> dict:
                 ax.fill_between(edges, band[0], band[1], color=s["color"], alpha=0.2, hatch=None, step="pre",
                                 zorder=zorder, edgecolor=None)
     if rax is None:
-        return handles
+        return handles, overflow
 
     # the ratio panel: every curve over the first (the reference), on its bins (mkhtml's rebinning)
     ref_y = putils.reshape(ref_x, ref_edges, ref, True)[0]
@@ -512,7 +523,55 @@ def _curves(ax, rax, data: dict, feats: list, colours: list, plt) -> dict:
             dn, up = by - np.abs(be[0]), by + np.abs(be[1])
             rax.fill_between(ref_edges, _r(putils.safeDiv(np.insert(dn, 0, dn[0]), den)), _r(putils.safeDiv(np.insert(up, 0, up[0]), den)),
                              color=s["color"], hatch=None, alpha=0.2, step="pre", zorder=s["zorder"], edgecolor=None)
-    return handles
+    return handles, overflow
+
+
+def _overflow_marks(ax, curves: list[dict], y_range: list) -> None:
+    """Draw explicit y-range overflows as thin, split bin-width marks just beyond the frame."""
+    bounds = []
+    for endpoint in y_range:
+        bounds.append(float(endpoint) if isinstance(endpoint, (int, float)) and not isinstance(endpoint, bool) else None)
+    if not any(bound is not None for bound in bounds):
+        return
+
+    groups = {}
+    for curve in curves:
+        edges = curve["edges"]
+        for i, (low, high) in enumerate(zip(curve["low"], curve["high"])):
+            if i + 1 >= len(edges) or not (math.isfinite(float(low)) and math.isfinite(float(high))):
+                continue
+            for above, limit, value in ((False, bounds[0], low), (True, bounds[1], high)):
+                if limit is None or (value <= limit if above else value >= limit):
+                    continue
+                key = (float(edges[i]), float(edges[i + 1]), above)
+                groups.setdefault(key, []).append((abs(float(value) - limit), curve))
+
+    fig = ax.figure
+    fig.canvas.draw()
+    height = ax.get_window_extent().height
+    if height <= 0:
+        return
+    xlo, xhi = ax.get_xlim()
+    transform = ax.get_xaxis_transform()
+    inverse = transform.inverted()
+    for (lo, hi, above), members in groups.items():
+        lo, hi = max(lo, xlo), min(hi, xhi)
+        if ax.get_xscale() == "log":
+            lo = max(lo, xlo)
+        if not lo < hi:
+            continue
+        pixel_lo = transform.transform((lo, 0.5))[0]
+        pixel_hi = transform.transform((hi, 0.5))[0]
+        members.sort(key=lambda member: member[0])
+        y = 1 + 2 / height if above else -2 / height
+        for i, (_, curve) in enumerate(members):
+            left = pixel_lo + (pixel_hi - pixel_lo) * i / len(members)
+            right = pixel_lo + (pixel_hi - pixel_lo) * (i + 1) / len(members)
+            x1 = inverse.transform((left, 0.5))[0]
+            x2 = inverse.transform((right, 0.5))[0]
+            ax.plot([x1, x2], [y, y], transform=transform, clip_on=False, color=curve["color"],
+                    linestyle=curve["linestyle"], linewidth=max(0.5, 0.6 * float(curve["linewidth"])),
+                    alpha=curve["alpha"], zorder=curve["zorder"], solid_capstyle="butt")
 
 
 def _titles(ax, page) -> None:

@@ -130,22 +130,146 @@ def test_the_recorder_keeps_the_record_folders_and_verdicts():
     assert recorder.records == ["/r/01_a"] and recorder.verdicts == {"a": "done"}
 
 
-def test_heimdall_runs_lists_running_then_recent(capsys):
-    """Running first (an unrecorded live socket too: a run from inside an image), then the registry's days."""
+def test_heimdall_runs_defaults_to_running_only_and_separates_entries(capsys, monkeypatch):
+    """An unrecorded live socket (a run from inside an image) is shown, but completed entries are not."""
     done = runs.new_id(time.time() - 3600)
     runs.begin(done, {"config": "/w/configs/P/a.toml", "configurations": ["one"], "work": "/w", "log": "/l/x.log"})
     runs.finish(done, 0)
     hub = Hub({"config": "/w/configs/P/b.toml", "configurations": ["two"], "work": "/w"}, name=f"heimdall-watch-{os.getpid()}-9")
+    monkeypatch.setattr(runs, "entries", lambda: [runs.entry(done)])
+    monkeypatch.setattr(house, "live_runs", lambda: [(hub.name, hub.greeting)])
     try:
         assert cli.main(["runs"]) == 0
     finally:
         hub.close()
     out = capsys.readouterr().out.splitlines()
-    assert out[0] == "running" and "running (unrecorded)" in out[1] and "P/b · two" in out[1]
-    assert f"heimdall watch --pid {os.getpid()}" in out[2]
-    ended = out.index("the last 30 days")
-    assert done in out[ended + 1] and "done" in out[ended + 1] and "P/a · one" in out[ended + 1]
-    assert out[ended + 2].strip() == "log /l/x.log"
+    assert out[0] == "running" and "P/b · 00 two" in out[2]
+    assert "running (unrecorded)" in out[3]
+    assert f"heimdall watch --pid {os.getpid()}" in out[4]
+    assert done not in "\n".join(out) and "P/a · one" not in "\n".join(out)
+
+
+@pytest.mark.parametrize(("flag", "count"), [("--5", 5), ("--10", 10), ("--20", 20), ("--50", 50)])
+def test_heimdall_runs_count_flags_show_latest_entries_oldest_first(capsys, monkeypatch, flag, count):
+    now = time.time()
+    ids = []
+    for i in range(12):
+        started = now - (12 - i) * 60
+        run_id = runs.new_id(started)
+        runs.begin(run_id, {"config": f"/w/configs/P/run{i}.toml", "work": "/w", "started": started})
+        if i < 11:
+            runs.finish(run_id, 0)
+        ids.append(run_id)
+    monkeypatch.setattr(runs, "entries", lambda: [runs.entry(run_id) for run_id in ids])
+    monkeypatch.setattr(house, "live_runs", lambda: [])
+
+    try:
+        assert cli.main(["runs", flag]) == 0
+        out = capsys.readouterr().out.splitlines()
+    finally:
+        runs.finish(ids[-1], 0)
+    listed = [line.split()[0] for line in out if line.startswith("  ") and line.split()[0] in ids]
+    expected_count = min(count, len(ids))
+    assert out[0] == f"latest {count} runs"
+    assert listed == ids[-expected_count:]
+    assert any("· running  ·" in line for line in out)
+    assert any("· done  ·" in line for line in out)
+    assert out.count("") == expected_count - 1
+
+
+def test_heimdall_runs_uses_title_and_configuration_serial_columns():
+    pid = os.getpid()
+    entry = {
+        **runs.here(),
+        "id": "20261030-084424-pp-exphep-e17e",
+        "kind": "run",
+        "started": time.mktime((2026, 10, 30, 8, 44, 0, 0, 0, -1)),
+        "config": "/w/configs/eic/zeus.toml",
+        "configurations": ["generator_pdf"],
+        "configuration_serials": {"generator_pdf": 12},
+        "work": "/w",
+        "pid": pid,
+        "pstart": runs.started_at(pid),
+        "points_completed": 3,
+        "points_total": 7,
+        "active_parallel_points": 2,
+        "log": "/runs/20261030-084424-pp-exphep-e17e.log",
+    }
+    lines = house.runs_listing([entry], [], {"/w": "Brookhaven"}, now=entry["started"] + 5101)
+    assert lines[1] == f"  {entry['id']:28s}  |   Brookhaven"
+    assert lines[2] == "      eic/zeus · 12 generator_pdf"
+    assert lines[3] == (f"      {time.strftime('%m-%d %H:%M', time.localtime(entry['started']))} "
+                        "(1h 25m) · running  ·  3/7 ·  2")
+    assert lines[4] == f"      pid {pid} : heimdall watch --pid {pid} · heimdall stop --pid {pid}"
+    assert lines[5] == f"      log {entry['log']}"
+
+
+def test_runs_recorder_persists_live_point_progress():
+    run_id = runs.new_id()
+    runs.begin(run_id, {"points_completed": 0, "points_total": None, "active_parallel_points": 0})
+    recorder = runs.Recorder(run_id)
+    events = [
+        {"k": "run", "state": "started", "points": 3},
+        {"k": "point", "point": "a", "state": "started"},
+        {"k": "point", "point": "b", "state": "started"},
+        {"k": "point", "point": "a", "state": "done"},
+        {"k": "point", "point": "c", "state": "started"},
+    ]
+    for event in events:
+        recorder.event(event)
+    entry = runs.entry(run_id)
+    assert (entry["points_completed"], entry["points_total"], entry["active_parallel_points"]) == (1, 3, 2)
+
+
+def test_runs_recorder_captures_runner_assigned_output_serial():
+    run_id = runs.new_id()
+    initial_serials = {"generator_pdf": None}
+    runs.begin(run_id, {"configuration_serials": initial_serials})
+    recorder = runs.Recorder(run_id, initial_serials, {"generator_pdf": "generator_pdf"})
+    recorder.event({"k": "run", "state": "started",
+                    "record": "/work/records/eic/zeus/03_generator_pdf"})
+    assert runs.entry(run_id)["configuration_serials"] == {"generator_pdf": 3}
+
+
+def test_heimdall_runs_historical_entry_uses_null_counts_without_active_count():
+    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0,
+             "verdict": "done", "config": "/w/configs/eic/zeus.toml", "configurations": ["generator_pdf"]}
+    lines = house.runs_listing([entry], [], {}, now=20.0, limit=5)
+    when = time.strftime("%m-%d %H:%M", time.localtime(0))
+    assert lines[3] == f"      {when} (0m) · done  ·  NULL/NULL"
+    assert all("active_parallel_points" not in line for line in lines)
+
+
+@pytest.mark.parametrize(("flag", "days", "expected"), [
+    ("--week", 7, {"day1", "day6", "day7"}),
+    ("--month", 28, {"day1", "day6", "day7", "day8", "day27", "day28"}),
+])
+def test_heimdall_runs_period_flags_show_all_states_in_the_period(capsys, monkeypatch, flag, days, expected):
+    now = time.time()
+    entries = []
+    for label, age in (("day1", 1), ("day6", 6), ("day7", 7), ("day8", 8),
+                       ("day27", 27), ("day28", 28), ("day29", 29)):
+        started = now - age * 86400 + 1
+        entries.append({"id": label, "kind": "run", "started": started, "finished": started + 10,
+                        "verdict": "failed" if label == "day6" else "done", "config": f"/w/configs/P/{label}.toml",
+                        "work": "/w"})
+    monkeypatch.setattr(runs, "entries", lambda: entries)
+    monkeypatch.setattr(house, "live_runs", lambda: [])
+
+    assert cli.main(["runs", flag]) == 0
+    out = capsys.readouterr().out.splitlines()
+    listed = [line.split()[0] for line in out if line.startswith("  ") and line.split()[0] in {e["id"] for e in entries}]
+    assert out[0] == f"runs from the last {days} days"
+    assert set(listed) == expected
+    assert listed == sorted(expected, key=lambda run_id: int(run_id.removeprefix("day")), reverse=True)
+    assert out.count("") == len(expected) - 1
+
+
+def test_heimdall_runs_period_and_count_flags_are_mutually_exclusive(capsys):
+    with pytest.raises(SystemExit) as error:
+        cli.main(["runs", "--week", "--10"])
+    assert error.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
 
 
 def test_clean_waits_only_for_a_run_of_its_own_work_dir(monkeypatch):

@@ -17,7 +17,10 @@
       "array"
      ],
      "items": {
-      "type": "string"
+      "type": [
+       "string",
+       "object"
+      ]
      }
     },
     "drop": {
@@ -658,7 +661,7 @@
    "type": "object",
    "properties": {
     "backend": {
-     "description": "root (Paint), yoda (rivet-mkhtml), mpl (matplotlib, V71), a list of them, or both (root and yoda)\n\n`\"root\"` (Paint), `\"yoda\"` (rivet-mkhtml; frozen, V71), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process: V71), `\"both\"` (root and yoda, V28) or an array of them, from the same pages",
+     "description": "root (Paint), yoda (deprecated, rivet-mkhtml), mpl (matplotlib, V71), a list of them, or both (root and yoda)\n\n`\"root\"` (Paint), `\"yoda\"` (deprecated, rivet-mkhtml; frozen, V71), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process: V71), `\"both\"` (root and yoda, V28) or an array of them, from the same pages",
      "anyOf": [
       {
        "type": [
@@ -770,6 +773,42 @@
        "const": "native"
       }
      ]
+    },
+    "x_range": {
+     "description": "the x axis limits\n\nthe x axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the calculated limit",
+     "type": "array",
+     "items": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "enum": [
+         "default"
+        ]
+       }
+      ]
+     },
+     "minItems": 2,
+     "maxItems": 2
+    },
+    "y_range": {
+     "description": "the y axis limits\n\nthe y axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the calculated limit. Numeric limits remain fixed when curve values exceed them: Paint and mpl clip those values at the frame and draw thinner, colour-matched overflow marks 2 px outside it",
+     "type": "array",
+     "items": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "enum": [
+         "default"
+        ]
+       }
+      ]
+     },
+     "minItems": 2,
+     "maxItems": 2
     },
     "logy": {
      "description": "log y (default: the .plot's)",
@@ -909,7 +948,12 @@
       "object"
      ],
      "items": {
-      "type": "integer"
+      "type": [
+       "integer",
+       "string",
+       "array",
+       "object"
+      ]
      }
     },
     "looks": {
@@ -1115,6 +1159,56 @@
          }
         ]
        },
+       "x_range": {
+        "description": "as [plot].x_range, for these pages\n\nthe x axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the calculated limit",
+        "anyOf": [
+         {
+          "type": "array",
+          "items": {
+           "anyOf": [
+            {
+             "type": "number"
+            },
+            {
+             "enum": [
+              "default"
+             ]
+            }
+           ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+         },
+         {
+          "const": "default"
+         }
+        ]
+       },
+       "y_range": {
+        "description": "as [plot].y_range, for these pages\n\nthe y axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the calculated limit. Numeric limits remain fixed when curve values exceed them: Paint and mpl clip those values at the frame and draw thinner, colour-matched overflow marks 2 px outside it",
+        "anyOf": [
+         {
+          "type": "array",
+          "items": {
+           "anyOf": [
+            {
+             "type": "number"
+            },
+            {
+             "enum": [
+              "default"
+             ]
+            }
+           ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+         },
+         {
+          "const": "default"
+         }
+        ]
+       },
        "logy": {
         "description": "as [plot].logy, for these pages",
         "anyOf": [
@@ -1256,7 +1350,12 @@
            "object"
           ],
           "items": {
-           "type": "integer"
+           "type": [
+            "integer",
+            "string",
+            "array",
+            "object"
+           ]
           }
          },
          {
@@ -1708,7 +1807,7 @@
         "type": "object",
         "properties": {
          "backend": {
-          "description": "root (Paint), yoda (rivet-mkhtml), mpl (matplotlib, V71), a list of them, or both (root and yoda)\n\n`\"root\"` (Paint), `\"yoda\"` (rivet-mkhtml; frozen, V71), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process: V71), `\"both\"` (root and yoda, V28) or an array of them, from the same pages",
+          "description": "root (Paint), yoda (deprecated, rivet-mkhtml), mpl (matplotlib, V71), a list of them, or both (root and yoda)\n\n`\"root\"` (Paint), `\"yoda\"` (deprecated, rivet-mkhtml; frozen, V71), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process: V71), `\"both\"` (root and yoda, V28) or an array of them, from the same pages",
           "anyOf": [
            {
             "type": [
@@ -1820,6 +1919,42 @@
             "const": "native"
            }
           ]
+         },
+         "x_range": {
+          "description": "the x axis limits\n\nthe x axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the calculated limit",
+          "type": "array",
+          "items": {
+           "anyOf": [
+            {
+             "type": "number"
+            },
+            {
+             "enum": [
+              "default"
+             ]
+            }
+           ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+         },
+         "y_range": {
+          "description": "the y axis limits\n\nthe y axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the calculated limit. Numeric limits remain fixed when curve values exceed them: Paint and mpl clip those values at the frame and draw thinner, colour-matched overflow marks 2 px outside it",
+          "type": "array",
+          "items": {
+           "anyOf": [
+            {
+             "type": "number"
+            },
+            {
+             "enum": [
+              "default"
+             ]
+            }
+           ]
+          },
+          "minItems": 2,
+          "maxItems": 2
          },
          "logy": {
           "description": "log y (default: the .plot's)",
@@ -1959,7 +2094,12 @@
            "object"
           ],
           "items": {
-           "type": "integer"
+           "type": [
+            "integer",
+            "string",
+            "array",
+            "object"
+           ]
           }
          },
          "looks": {
@@ -2165,6 +2305,56 @@
               }
              ]
             },
+            "x_range": {
+             "description": "as [plot].x_range, for these pages\n\nthe x axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the calculated limit",
+             "anyOf": [
+              {
+               "type": "array",
+               "items": {
+                "anyOf": [
+                 {
+                  "type": "number"
+                 },
+                 {
+                  "enum": [
+                   "default"
+                  ]
+                 }
+                ]
+               },
+               "minItems": 2,
+               "maxItems": 2
+              },
+              {
+               "const": "default"
+              }
+             ]
+            },
+            "y_range": {
+             "description": "as [plot].y_range, for these pages\n\nthe y axis limits, `[minimum, maximum]`; each end may be a number or `\"default\"` to keep the calculated limit. Numeric limits remain fixed when curve values exceed them: Paint and mpl clip those values at the frame and draw thinner, colour-matched overflow marks 2 px outside it",
+             "anyOf": [
+              {
+               "type": "array",
+               "items": {
+                "anyOf": [
+                 {
+                  "type": "number"
+                 },
+                 {
+                  "enum": [
+                   "default"
+                  ]
+                 }
+                ]
+               },
+               "minItems": 2,
+               "maxItems": 2
+              },
+              {
+               "const": "default"
+              }
+             ]
+            },
             "logy": {
              "description": "as [plot].logy, for these pages",
              "anyOf": [
@@ -2306,7 +2496,12 @@
                 "object"
                ],
                "items": {
-                "type": "integer"
+                "type": [
+                 "integer",
+                 "string",
+                 "array",
+                 "object"
+                ]
                }
               },
               {

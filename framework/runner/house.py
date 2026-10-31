@@ -385,10 +385,10 @@ def _config_name(config: str, work: str | None) -> str:
     return str(path)
 
 
-def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str], now: float | None = None) -> list[str]:
-    """`heimdall runs` (V182): what runs now (recorded, and live sockets with no entry: unrecorded, as from inside
-    an image), then what ran in the registry's days, newest first. A line each: id, state, when and for how
-    long, the work dir (its title), the config and its configurations, then its log or record."""
+def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str],
+                 now: float | None = None, limit: int | None = None, days: int | None = None) -> list[str]:
+    """Running jobs by default; `limit` shows the latest N, or `days` all runs within that age. Entries are
+    chronological, each in a separate block; live sockets with no entry are included as unrecorded runs."""
     now = time.time() if now is None else now
     by_pid = {hello.get("pid"): hello for _, hello in live}
     states = [(e, runs.state(e, by_pid)) for e in entries]
@@ -402,6 +402,26 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
                or (e.get("kind") == "cluster" and s in ("submitted", "on Slurm"))]
     recorded = {e.get("pid") for e, s in running if e.get("host") == runs.host()}
     unrecorded = [hello for pid, hello in by_pid.items() if pid not in recorded]
+    if limit is None and days is None:
+        selected = [(e, s) for e, s in running]
+        selected += [({"id": f"(pid {hello.get('pid')})", **hello,
+                       "configurations": hello.get("configurations")}, "running (unrecorded)") for hello in unrecorded]
+        heading = "running"
+    elif limit is not None:
+        selected = list(states)
+        selected += [({"id": f"(pid {hello.get('pid')})", **hello,
+                       "configurations": hello.get("configurations")}, "running (unrecorded)") for hello in unrecorded]
+        selected.sort(key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")), reverse=True)
+        selected = selected[:limit]
+        heading = f"latest {limit} runs"
+    else:
+        cutoff = now - (days or 0) * 86400
+        selected = [(e, s) for e, s in states if cutoff <= (e.get("started") or 0) <= now]
+        selected += [({"id": f"(pid {hello.get('pid')})", **hello,
+                       "configurations": hello.get("configurations")}, "running (unrecorded)") for hello in unrecorded
+                     if cutoff <= (hello.get("started") or 0) <= now]
+        heading = f"runs from the last {days} days"
+    selected.sort(key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")))
 
     def where(work: str | None) -> str:
         return titles.get(work or "", "") or (Path(work).name if work else "")
@@ -412,34 +432,45 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         when = time.strftime("%m-%d %H:%M", time.localtime(started))
         what = _config_name(e.get("config", ""), e.get("work"))
         cfgs = ", ".join(e.get("configurations") or ([e["configuration"]] if e.get("configuration") else []))
-        head = f"  {e.get('id', '?'):28s} {state:12s} {when} ({span})  {where(e.get('work')):14s} {what} · {cfgs}"
+        serials = e.get("configuration_serials", {})
+        configurations = ", ".join(f"{serials.get(key) if serials.get(key) is not None else '00'} {key}"
+                                   for key in cfgs.split(", ") if key)
+        head = f"  {e.get('id', '?'):28s}  |   {where(e.get('work'))}"
+        completed = e.get("points_completed")
+        total = e.get("points_total")
+        progress = f"{completed if completed is not None else 'NULL'}/{total if total is not None else 'NULL'}"
+        detail = f"      {when} ({span}) · {state}  ·  {progress}"
+        if state.startswith("running"):
+            active = e.get("active_parallel_points")
+            detail += f" ·  {active if active is not None else 'NULL'}"
+        config_line = f"      {what} · {configurations}"
         if counts := e.get("counts"):                                   # V202: its points
-            head += (f"   {counts.get('done', 0)} done" + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
-                     + f", {counts.get('failed', 0)} failed" + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
+            config_line += (f"   {counts.get('done', 0)} done"
+                            + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
+                            + f", {counts.get('failed', 0)} failed"
+                            + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
         tail = []
         if e.get("kind") == "cluster":
             tail.append(f"      cluster jobs {', '.join(map(str, e.get('jobs', [])))}: heimdall cluster {what} "
                         f"{e.get('configuration', '')} --status")
         elif state.startswith("running"):
-            tail.append(f"      pid {e.get('pid')}: heimdall watch --pid {e.get('pid')} · heimdall stop --pid {e.get('pid')}")
+            tail.append(f"      pid {e.get('pid')} : heimdall watch --pid {e.get('pid')} · heimdall stop --pid {e.get('pid')}")
         if e.get("log"):
             tail.append(f"      log {e['log']}")
-        return [head.rstrip(), *tail]
+        return [head.rstrip(), config_line.rstrip(), detail.rstrip(), *tail]
 
-    lines = []
-    if running or unrecorded:
-        lines.append("running")
-        for e, s in running:
-            lines += row(e, s)
-        for hello in unrecorded:
-            lines += row({"id": f"(pid {hello.get('pid')})", **hello, "configurations": hello.get("configurations")},
-                         "running (unrecorded)")
-    ended = [(e, s) for e, s in states if (e, s) not in running]
-    if ended:
-        lines.append(f"the last {runs.KEEP_DAYS} days")
-        for e, s in ended:
-            lines += row(e, s)
-    return lines or [f"no runs on this machine in the last {runs.KEEP_DAYS} days ({runs.folder()})"]
+    if not selected:
+        if limit is None:
+            if days is not None:
+                return [f"no runs in the last {days} days on this machine ({runs.folder()})"]
+            return [f"no running runs on this machine ({runs.folder()})"]
+        return [f"no runs on this machine in the last {runs.KEEP_DAYS} days ({runs.folder()})"]
+    lines = [heading]
+    for i, (entry, state) in enumerate(selected):
+        if i:
+            lines.append("")
+        lines += row(entry, state)
+    return lines
 
 
 def log_target(target: str) -> tuple[Path, str | None, str | None]:

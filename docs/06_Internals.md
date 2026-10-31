@@ -1308,16 +1308,19 @@ It is built to `$HEIMDALL_APPS/Paint.exe`, with `// requires: root toml`. Its co
    all MC edges. Otherwise it is dropped with a warning.
 4. **Normalise** (V68): with `normalise = "area"`, every curve and the data are scaled to unit area,
    Σ value × width over the bins drawn.
-5. **x range**: auto-range (bins with content, plus `range_pad`) or the full range, then `x_gutter`.
+5. **x range**: auto-range (bins with content, plus `range_pad`) or the full range, then `x_gutter`,
+   then `x_range`'s explicit limits.
 6. **y range**: `(1 + y_gutter) ×` the largest drawn value within x. On a log axis, the gutter is
    that fraction of the decades shown. With no gutter it is ROOT's own choice for one histogram
    holding every drawn value (`THistPainter`): 5% of the span above, below as well unless that
-   crosses 0; on a log axis ×0.5 below and ×2·0.9/0.95 above.
+   crosses 0; on a log axis ×0.5 below and ×2·0.9/0.95 above. `y_range`'s explicit limits follow.
 7. **Draw**:
    - **The MC:** steps per run of non-void bins (a voided bin is a gap), with error bars at the bin
      centres (or a band, or none). With `markers` (a Scatter2D figure, V86) each curve is instead a
      marker per bin with its error bar. A band (V69) is the members' envelope, shaded in the curve's
-     colour.
+     colour. For numeric `y_range` endpoints, an out-of-range curve bin also gets a thinner,
+     colour-matched line 2 px outside that frame edge; several curves in the same bin share its
+     width equally. The data values remain clipped by the fixed axis limits.
    - **The data:** points with x bars, under the MC.
    - **The legend:** a "+" per entry, the header first, data first. A curve with every bin voided is
      listed as "(no entries)".
@@ -1329,7 +1332,8 @@ It is built to `$HEIMDALL_APPS/Paint.exe`, with `// requires: root toml`. Its co
 
 **A heat map page** (`heatmap = true`, V87) draws one 2D object instead: a `TH2D` from App_yd2rt,
 coloured by value (`COLZ`, ROOT's `kBird` palette), with its z scale on the right (`z_label`,
-`logz`). It has the 1D pages' frame, titles and text sizes, and no ratio, data, voiding or ranges.
+`logz`). It has the 1D pages' frame, titles and text sizes, and no ratio, data or voiding; `x_range`
+and `y_range` set its displayed bounds.
 
 **`--dump-ranges`** prints the result of steps 1–6 as JSON and draws nothing. Its fields:
 - `x`, `y`, `largest`;

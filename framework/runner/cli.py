@@ -206,7 +206,15 @@ def parser() -> argparse.ArgumentParser:
                        help="follow a run's run.jsonl, or a --journal run's status.jsonl, instead")
     watch.add_argument("--pid", type=int, metavar="N", help="the run of this process (heimdall runs lists them)")
 
-    listed = commands.add_parser("runs", help="what runs on this machine now, and what ran in the last 30 days")
+    listed = commands.add_parser("runs", help="running jobs; --N, --week, or --month shows recent runs")
+    run_limits = listed.add_mutually_exclusive_group()
+    for limit in (5, 10, 20, 50):
+        run_limits.add_argument(f"--{limit}", dest="limit", action="store_const", const=limit,
+                                help=f"show the latest {limit} runs, including non-running runs")
+    run_limits.add_argument("--week", dest="days", action="store_const", const=7,
+                            help="show all runs from the last 7 days")
+    run_limits.add_argument("--month", dest="days", action="store_const", const=28,
+                            help="show all runs from the last 28 days")
 
     logged = commands.add_parser("log", help="a record's own account, a point's attempts and logs, or a tool's log")
     logged.add_argument("target", metavar="RECORD[/POINT[/TAG]]",
@@ -721,12 +729,20 @@ def cmd_run(args) -> int:
         opened = runs.log_of(worker) if worker else None    # the log its parent opened, wherever it is
         log = str(opened) if opened else None
         work = find_work()
+        configuration_serials = {key: run.configurations[key].serial for key in keys}
         entry = runs.begin(worker or runs.new_id(), {       # the registry (V182): nothing on a read-only root
             "config": str(run.path), "run": run.name, "configurations": keys, "argv": getattr(args, "argv", []),
+            "configuration_serials": configuration_serials,
+            "points_completed": 0, "points_total": None, "active_parallel_points": 0,
             "work": str(work) if work else None, "checkout": str(paths.heimdall_root()), "detached": bool(worker), "log": log})
         hub = Hub({"config": str(run.path), "run": run.name, "configurations": keys, "id": entry, "log": log,
+                   "configuration_serials": configuration_serials,
                    "work": str(work) if work else None, "detached": bool(worker)})
-        recorder = runs.Recorder()
+        recorder = runs.Recorder(
+            entry,
+            configuration_serials,
+            {key: run.configurations[key].label for key in keys},
+        )
         bus.subscribe(hub)
         bus.subscribe(recorder)
     code, crashed = 2, None
@@ -1589,13 +1605,13 @@ def _has_configurations(name: str) -> bool:
 
 
 def cmd_runs(args) -> int:
-    """`heimdall runs` (V182): this machine's registry, what runs now first, then the last 30 days."""
+    """`heimdall runs [--5|--10|--20|--50|--week|--month]`: active jobs or recent runs."""
     from . import workdirs
     try:
         titles = {entry["path"]: title for title, entry in workdirs.load().items()}
     except HeimdallError:
         titles = {}
-    for line in house.runs_listing(runs.entries(), house.live_runs(), titles):
+    for line in house.runs_listing(runs.entries(), house.live_runs(), titles, limit=args.limit, days=args.days):
         print(line)
     return 0
 
@@ -1655,25 +1671,17 @@ def cmd_watch(args) -> int:
         return follow_events(connect(where), plain=args.plain)
     from .events import namespace, open_stream
     from .watch import Keys, follow
-    hint = "d or Ctrl-C: leave it running · s: stop it"
-    asking = []
+    hint = "d or Ctrl-C: detach · q: stop the run"
 
-    def on_key(key: str, shown) -> str | None:              # V183: d leaves; s, then y, stops the run
+    def on_key(key: str, shown) -> str | None:
         if key in "dD":
             return "detached"
-        if asking:
-            asking.clear()
-            if key in "yY":
-                if hello.get("pidns") and namespace("pid") and hello["pidns"] != namespace("pid"):
-                    shown.say("not stopped: its process is another PID namespace's; stop it from where it runs")
-                else:
-                    os.kill(hello["pid"], signal.SIGINT)
-                    shown.keys("stopping: each point ends cleanly · d or Ctrl-C: leave")
-                    return None
-            shown.keys(hint)
-        elif key in "sS":
-            asking.append(True)
-            shown.keys("stop the run? y stops it (as Ctrl-C in its terminal would); any other key does not")
+        if key in "qQ":
+            if hello.get("pidns") and namespace("pid") and hello["pidns"] != namespace("pid"):
+                shown.say("not stopped: its process is another PID namespace's; stop it from where it runs")
+            else:
+                os.kill(hello["pid"], signal.SIGINT)
+                shown.keys("stopping: each point ends cleanly · d or Ctrl-C: detach")
         return None
 
     with Keys(sys.stdin) as keys_in:

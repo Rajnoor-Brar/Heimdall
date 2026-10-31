@@ -182,6 +182,8 @@ objects     = ["/photo_eic/d0*"]  # which objects get their own pages (default: 
 ratio       = true
 y_gutter    = 0.5                 # the y axis reaches 1.5 × the largest value; "native": ROOT decides
 x_gutter    = "default"           # no x gutter; 0.1 widens x by 10 %
+x_range     = ["default", 100]    # keep the calculated minimum; cap the maximum at 100
+y_range     = [0, "default"]      # start y at 0; keep the calculated maximum
 auto_range  = true                # trim x to the filled bins …
 range_pad   = 1                   # … keeping one bin either side
 void_empty  = true                # blank bins empty in every curve
@@ -207,7 +209,9 @@ file wrote that as `"default"` in `[plot]` itself; `heimdall migrate --v3` rewri
 [04 §11](04_Config_Reference.md#11-plot).
 
 **The order on a page** (load-bearing, inherited from v1): void across the page → align the data to
-the MC bins → normalise → auto-range over curves and data → gutters → draw.
+the MC bins → normalise → auto-range over curves and data → gutters → `x_range` → y-range over the
+visible x span → `y_range` → draw. Each range is `[minimum, maximum]`; either end may be
+`"default"` to keep the value calculated by the preceding steps.
 
 ### 3.1 Pages of chosen points: `sets` and `split`
 
@@ -653,7 +657,7 @@ objects = ["d04-*"]           # globs: the short name, the option-free path, or 
 **What a figure inherits.** A figure takes **every page key of `[plot]`**:
 - the titles and `legend_header`;
 - `logx`, `logy`, `logz`;
-- the gutters;
+- the gutters and `x_range`, `y_range`;
 - `ratio`, `normalise`, `auto_range`, `range_pad`, `void_empty`, `min_entries`;
 - `use_data`, `band`.
 
@@ -880,8 +884,14 @@ in an overlay. To see a 2D object in 1D, project it with a derived figure.
 |---|---|---|---|
 | `"root"` (default) | `$HEIMDALL_APPS/Paint.exe`, up to 200 pages per process | `plots/<set>/root/` | every `[plot]` key, every figure and type, the whole style |
 | `"mpl"` | matplotlib in this process, a pool of workers (`framework/plot/mpl/backend.py`) | `plots/<set>/mpl/` + `index.html` | **mkhtml's pages, pixel for pixel** (until the user has verified it), about 18× faster than mkhtml; 1D pages only |
-| `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/plot/yoda/backend.py`) | `plots/<set>/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | the same pages with Paint's ranges and voids; frozen |
+| `"yoda"` | `rivet-mkhtml`, one call per page set (`framework/plot/yoda/backend.py`) | `plots/<set>/yoda/[<cell>/]<analysis>/<object>.{pdf,png}` + `index.html` | deprecated |
 | `["root", "mpl"]`, `"both"` | each, from the same page documents | each tree | as each; `"both"` is root and yoda |
+
+For an explicit numeric endpoint in `y_range`, Paint and mpl keep that axis limit even when curve
+values exceed it; the out-of-range data are clipped, not capped. Each over-range bin also gets a
+thinner, color-matched line 2 px beyond the corresponding frame edge. When several curves overflow
+the same bin and side, their marks divide that bin's width equally. The mpl marks are an intentional
+exception to pixel-for-pixel mkhtml matching. The deprecated YODA backend does not draw these marks.
 
 **What the other backends honour.** They draw the same page documents with the ranges and voided
 bins Paint computed, so every backend shows the same window. They keep mkhtml's look, so only these

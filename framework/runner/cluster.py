@@ -291,7 +291,9 @@ def submit(planned, args, out=print) -> int:
               "jobs": ids, "sbatch": {job: argv for job, (_, argv) in jobs.items()}}
     write_atomic(folder / RECORD, tomli_w.dumps(record))
     runs.begin(runs.new_id(), {"kind": "cluster", "config": str(run.path), "configuration": configuration.key,     # V184
-                               "configurations": [configuration.key], "jobs": list(ids.values()), "submission": str(folder),
+                               "configurations": [configuration.key],
+                               "configuration_serials": {configuration.key: configuration.serial},
+                               "jobs": list(ids.values()), "submission": str(folder),
                                "work": str(work_root()), "points": len(todo)})
     out(f"heimdall cluster {args.config} {configuration.key} --status: where they are")
     return 0

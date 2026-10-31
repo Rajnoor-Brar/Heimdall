@@ -499,20 +499,20 @@ def unportable(text: str) -> str:
 #: Keys whose root is the point's own directory: resolve() is always given it (`root=`).
 POINT_KEYS = ("prelim", "input", "output")
 
-#: The convention root of each path-taking key, as a function of the project (04 §2).
+#: The convention root of each path-taking key, as a function of the assignment (04 §2).
 ROOTS = {
-    "config":     lambda project: configs_root(),
-    "master":     lambda project: configs_root() / project,
-    "import":     lambda project: configs_root() / project,
-    "baseconfig": lambda project: configs_root() / project,
-    "executable": lambda project: work_build() / project,
-    "data":       lambda project: datasets_root(),
-    "filters":    lambda project: configs_root() / project,
-    "root_style": lambda project: configs_root() / project,
+    "config":     lambda assignment: configs_root(),
+    "master":     lambda assignment: configs_root() / assignment,
+    "import":     lambda assignment: configs_root() / assignment,
+    "baseconfig": lambda assignment: configs_root() / assignment,
+    "executable": lambda assignment: work_build() / assignment,
+    "data":       lambda assignment: datasets_root(),
+    "filters":    lambda assignment: configs_root() / assignment,
+    "root_style": lambda assignment: configs_root() / assignment,
 }
 
 
-def resolve(value: str, key: str, *, project: str = "", root: Path | None = None,
+def resolve(value: str, key: str, *, assignment: str = "", root: Path | None = None,
             where: str | None = None) -> Path:
     """The path a config value names, under the rules above.
 
@@ -533,7 +533,7 @@ def resolve(value: str, key: str, *, project: str = "", root: Path | None = None
             raise HeimdallError(f"'{key}' paths are under a point's directory, which was not given", where=where)
         if key not in ROOTS:
             raise HeimdallError(f"no convention root for key '{key}'", where=where)
-        root = ROOTS[key](project)
+        root = ROOTS[key](assignment)
     return root / value
 
 

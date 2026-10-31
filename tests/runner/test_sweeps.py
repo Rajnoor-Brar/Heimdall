@@ -22,9 +22,9 @@ CASES = [(f"Demo/{'jets' if run == 'jets' else 'validation'}", cfg, counts)
 
 @pytest.mark.parametrize(("name", "cfg", "counts"), CASES, ids=[f"{n.split('/')[1]}/{c}" for n, c, _ in CASES])
 def test_point_and_page_counts_equal_the_legacy_table(name, cfg, counts):
-    run = config.load(name)
-    conf = run.configuration(None if cfg == "default" else cfg)
-    points = sweep.points(run, conf)
+    errand = config.load(name)
+    conf = errand.configuration(None if cfg == "default" else cfg)
+    points = sweep.points(errand, conf)
     assert (len(points), len(sweep.pages(conf, points))) == (counts["points"], counts["pages_v2"])
 
 
@@ -34,8 +34,8 @@ def test_every_eic_configuration_plans_and_its_seed_blocks_are_disjoint():
     seeds, and different setups never overlap."""
     by_basis: dict[str, int] = {}
     blocks = []
-    run = config.load("Demo/jets")
-    for key in run.configurations:
+    errand = config.load("Demo/jets")
+    for key in errand.configurations:
         _, _, _, plans = plans_of("Demo/jets", key)
         spans = sorted((p.seed, p.seed + p.threads) for p in plans)
         assert all(a_end <= b_start for (_, a_end), (b_start, _) in zip(spans, spans[1:])), key
@@ -54,24 +54,24 @@ def test_entangled_quantities_move_together_and_axes_form_a_grid(scratch):
     data = raw(errand__cfgs__one__sweeps=["pdf", ["a", "b"]],
                quantities__a={"values": [1, 2, 3], "tags": ["a1", "a2", "a3"], "key": {"pythia": "A:x"}},
                quantities__b={"values": [4, 5, 6], "tags": ["b1", "b2", "b3"], "key": {"pythia": "B:y"}})
-    run = config.parse(data, scratch / "t.toml")
-    points = sweep.points(run, run.configuration(None))
+    errand = config.parse(data, scratch / "t.toml")
+    points = sweep.points(errand, errand.configuration(None))
     assert len(points) == 2 * 3
     assert [p.name for p in points[:3]] == ["MSTW08lo_a1_b1", "MSTW08lo_a2_b2", "MSTW08lo_a3_b3"]
 
 
 def test_pages_are_the_plot_points_grid():
-    run, conf, points, _ = plans_of("Demo/jets", "energy_pdf")
+    errand, conf, points, _ = plans_of("Demo/jets", "energy_pdf")
     pages = sweep.pages(conf, points)
     assert len(pages) == 4 and all(len(members) == 4 for members in pages.values())
 
 
 def test_the_consumer_table_of_energy_pdf(capsys):
     from runner.cli import print_plan
-    run, conf, _, plans = plans_of("Demo/jets", "energy_pdf")
+    errand, conf, _, plans = plans_of("Demo/jets", "energy_pdf")
     for p in plans:
         tools.finalise(p, p.seed)
-    print_plan(run, conf, plans[:1])
+    print_plan(errand, conf, plans[:1])
     text = capsys.readouterr().out
     assert "energies     = 5x41           → pythia:['Beams:eA', 'Beams:eB']" in text
     assert "pdf          = MSTW08lo       → pythia:PDF:pSet" in text
@@ -142,12 +142,12 @@ def test_an_override_equal_to_the_base_card_does_not_change_the_identity(scratch
 
 
 def test_points_selects_by_tag_index_and_quantity():
-    run, conf, points, _ = plans_of("Demo/jets", "energy_pdf")
-    assert [p.name for p in sweep.select_points(run, conf, points, "MSTW08lo")][:1] == ["5x41_MSTW08lo"]
-    assert len(sweep.select_points(run, conf, points, "energies=18x275")) == 4
-    assert [p.index for p in sweep.select_points(run, conf, points, "3,16")] == [3, 16]
+    errand, conf, points, _ = plans_of("Demo/jets", "energy_pdf")
+    assert [p.name for p in sweep.select_points(errand, conf, points, "MSTW08lo")][:1] == ["5x41_MSTW08lo"]
+    assert len(sweep.select_points(errand, conf, points, "energies=18x275")) == 4
+    assert [p.index for p in sweep.select_points(errand, conf, points, "3,16")] == [3, 16]
     with pytest.raises(HeimdallError, match="matches no point"):
-        sweep.select_points(run, conf, points, "nothing")
+        sweep.select_points(errand, conf, points, "nothing")
 
 
 # ── exclude (V42): values a sweep leaves out, by their 1-based place ───────────────────────────
@@ -156,8 +156,8 @@ THREE = {"values": [3.0, 3.2, 3.4], "tags": ["pt30", "pt32", "pt34"], "key": {"p
 
 
 def swept(scratch, **changes):
-    run = config.parse(raw(**changes), scratch / "t.toml")
-    return sweep.points(run, run.configuration(None))
+    errand = config.parse(raw(**changes), scratch / "t.toml")
+    return sweep.points(errand, errand.configuration(None))
 
 
 def test_exclude_leaves_values_out_of_the_sweep(scratch):
@@ -231,29 +231,29 @@ SET2 = {"name": "set2", "pages": {"events": "all"},
 
 
 def four(scratch):
-    run = config.parse(raw(quantities=FOUR, errand__cfgs__one__sweeps=["generator", "energies", "events", "pdf"]), scratch / "t.toml")
-    return run, sweep.points(run, run.configuration(None))
+    errand = config.parse(raw(quantities=FOUR, errand__cfgs__one__sweeps=["generator", "energies", "events", "pdf"]), scratch / "t.toml")
+    return errand, sweep.points(errand, errand.configuration(None))
 
 
-def cells_of(run, points, entry, palette=("#a", "#b", "#c", "#d", "#e", "#f")):
+def cells_of(errand, points, entry, palette=("#a", "#b", "#c", "#d", "#e", "#f")):
     spec, = sweep.set_entries([entry], "w")
-    sweep.check_set(run, spec, points)
-    return sweep.set_cells(run, points, spec, list(palette))
+    sweep.check_set(errand, spec, points)
+    return sweep.set_cells(errand, points, spec, list(palette))
 
 
 def test_a_set_table_is_a_product_of_page_axes_and_of_curve_axes(scratch):
     """set1: a page per generator × chosen energy, in the order written; on each, every event count × pdf,
     the counts in their written order, outermost; labelled by both, the pdf coloured and the count dashed;
     a palette shorter than the colour axis is said."""
-    run, points = four(scratch)
-    cells, notes = cells_of(run, points, SET1, palette=list("abcde"))
+    errand, points = four(scratch)
+    cells, notes = cells_of(errand, points, SET1, palette=list("abcde"))
     assert [c.key for c in cells] == ["py8_10x20", "py8_15x60", "sh3_10x20", "sh3_15x60"] and notes == []
     assert cells[0].text == "Pythia, 10x20"
     names = [m.name for m in cells[0].members]
     assert len(names) == 15 and names[:6] == [f"py8_10x20_10M_pdf{i}" for i in range(1, 6)] + ["py8_10x20_100M_pdf1"]
     assert names[-1] == "py8_10x20_100k_pdf5" and cells[0].labelled == [["events"], ["pdf"]]
     assert cells[0].roles == {"colour": "pdf", "line": "events"}
-    assert notes == [] and cells_of(run, points, SET1, palette=["#a", "#b"])[1] == [
+    assert notes == [] and cells_of(errand, points, SET1, palette=["#a", "#b"])[1] == [
         "set set1: 36 curve(s) look like another on its page (py8_10x20_10M_pdf1 and py8_10x20_10M_pdf3 on py8_10x20): "
         'give them colours of their own, or the set a longer palette, style = { curves = { palette = ["#rrggbb", …] } }']
     looks = cells[3].looks                          # the same value, the same look, on every page
@@ -264,55 +264,55 @@ def test_a_set_table_is_a_product_of_page_axes_and_of_curve_axes(scratch):
 def test_a_list_of_curve_tables_is_their_union_in_order(scratch):
     """set2: py8 × {pdf1, pdf2, pdf5}, then sh3 × {pdf1, pdf3, pdf4}: 6 curves, not 2 × 5. energies, which
     neither names and which takes 3 values, pages too, and the stage is told."""
-    run, points = four(scratch)
-    cells, notes = cells_of(run, points, SET2)
+    errand, points = four(scratch)
+    cells, notes = cells_of(errand, points, SET2)
     assert [c.key for c in cells][:4] == ["10M_10x20", "10M_15x60", "10M_18x275", "100M_10x20"] and len(cells) == 9
     assert [m.name for m in cells[0].members] == ["py8_10x20_10M_pdf1", "py8_10x20_10M_pdf2", "py8_10x20_10M_pdf5",
                                                   "sh3_10x20_10M_pdf1", "sh3_10x20_10M_pdf3", "sh3_10x20_10M_pdf4"]
     assert notes == ["set set2: energies is named by neither pages nor curves and takes several values: a page each"]
     fixed = {**SET2, "pages": {"events": "all", "energies": "18x275"}}
-    assert [c.key for c in cells_of(run, points, fixed)[0]] == ["10M_18x275", "100M_18x275", "100k_18x275"]
+    assert [c.key for c in cells_of(errand, points, fixed)[0]] == ["10M_18x275", "100M_18x275", "100k_18x275"]
 
 
 @pytest.mark.parametrize("none", ["none", [], {}])
 def test_pages_none_puts_every_curve_on_one_page(scratch, none):
     """V178: pages = "none" (or [] or {}): no page axis, a page per object holding every curve; what the curves
     leave out (energies, events) joins the curves, where without pages it would page, said."""
-    run, points = four(scratch)
-    cells, notes = cells_of(run, points, {**SET2, "pages": none})
+    errand, points = four(scratch)
+    cells, notes = cells_of(errand, points, {**SET2, "pages": none})
     (cell,) = cells
     assert cell.key == "" and notes == [] and len(cell.members) == 6 * 3 * 3
     assert cell.labelled == [["generator"], ["pdf"], ["energies"], ["events"]]
-    assert {m.name for m in cell.members} == {m.name for c in cells_of(run, points, SET2)[0] for m in c.members}
+    assert {m.name for m in cell.members} == {m.name for c in cells_of(errand, points, SET2)[0] for m in c.members}
     only = {"pages": none, "curves": {"generator": "all", "pdf": "pdf1", "events": "10M", "energies": "10x20"}}
-    (cell,), notes = cells_of(run, points, only)
+    (cell,), notes = cells_of(errand, points, only)
     assert [m.name for m in cell.members] == ["py8_10x20_10M_pdf1", "sh3_10x20_10M_pdf1"] and notes == []
 
 
 def test_a_filter_takes_globs_exclusions_and_numbers(scratch):
-    run, points = four(scratch)
+    errand, points = four(scratch)
     entry = {"pages": {"generator": "py8", "energies": "10x20"}, "curves": {"events": 100_000, "pdf": ["!pdf2", "!pdf4"]}}
-    (cell,), _ = cells_of(run, points, entry)
+    (cell,), _ = cells_of(errand, points, entry)
     assert [m.name for m in cell.members] == [f"py8_10x20_100k_pdf{i}" for i in (1, 3, 5)]
     assert cell.labelled == [["pdf"]] and cell.roles == {}       # one axis varies: the palette in turn
     globbed = {"pages": {"energies": "1*x*0", "generator": "py8"}, "curves": {"events": "10*", "pdf": "pdf1"}}
-    cells, _ = cells_of(run, points, globbed)
+    cells, _ = cells_of(errand, points, globbed)
     assert [c.key for c in cells] == ["10x20_py8", "15x60_py8"]
     assert [m.name for m in cells[0].members] == ["py8_10x20_10M_pdf1", "py8_10x20_100M_pdf1", "py8_10x20_100k_pdf1"]
 
 
 def test_a_reference_is_moved_first_and_a_look_is_chosen(scratch):
-    run, points = four(scratch)
+    errand, points = four(scratch)
     entry = {**SET2, "pages": {"events": "10M", "energies": "10x20"}, "reference": {"generator": "sh3", "pdf": "pdf3"},
              "look": {"colour": "generator"}}
-    (cell,), notes = cells_of(run, points, entry)
+    (cell,), notes = cells_of(errand, points, entry)
     assert cell.members[0].name == "sh3_10x20_10M_pdf3"
     assert cell.looks["sh3_10x20_10M_pdf3"] == {"colour": "#b"} and cell.looks["py8_10x20_10M_pdf5"] == {"colour": "#a"}
     assert notes == ["set set2: 4 curve(s) look like another on its page (py8_10x20_10M_pdf1 and py8_10x20_10M_pdf2 on 10M_10x20): "
                      'give them colours of their own, or the set a longer palette, style = { curves = { palette = ["#rrggbb", …] } }']
-    assert cells_of(run, points, {**entry, "look": "palette"})[0][0].looks == {}
+    assert cells_of(errand, points, {**entry, "look": "palette"})[0][0].looks == {}
     missed = {**entry, "reference": {"generator": "sh3", "pdf": "pdf2"}, "look": "palette"}   # each there, not together
-    assert cells_of(run, points, missed)[1] == ["set set2: reference matches no curve on 1 of 1 page cell(s): "
+    assert cells_of(errand, points, missed)[1] == ["set set2: reference matches no curve on 1 of 1 page cell(s): "
                                                  "their first curve is the reference"]
 
 
@@ -320,11 +320,11 @@ def test_a_curves_value_may_carry_its_own_look(scratch):
     """{ tag, colour (or color), line, width }: the look of the curves that filter draws with it, over the set's
     look; the same value in another filter keeps the set's. { tags (or all = true), colours, lines, widths }:
     several values' looks in their order, one each."""
-    run, points = four(scratch)
+    errand, points = four(scratch)
     entry = {"pages": {"events": "10M", "energies": "10x20"},
              "curves": [{"generator": "py8", "pdf": [{"tag": "pdf1", "color": "#d62728", "line": "dashed"}, "pdf2"]},
                         {"generator": "sh3", "pdf": ["pdf1", {"tag": "pdf*", "width": 2}]}]}
-    (cell,), _ = cells_of(run, points, entry)
+    (cell,), _ = cells_of(errand, points, entry)
     assert [m.name for m in cell.members] == ["py8_10x20_10M_pdf1", "py8_10x20_10M_pdf2"] + \
         [f"sh3_10x20_10M_pdf{i}" for i in range(1, 6)]
     assert cell.roles == {"colour": "pdf", "line": "generator"}
@@ -333,10 +333,10 @@ def test_a_curves_value_may_carry_its_own_look(scratch):
     assert cell.looks["sh3_10x20_10M_pdf1"] == {"colour": "#a", "line": "dashed", "width": 2}
     listed = {"pages": {"generator": "sh3", "events": "10M", "energies": "10x20"},
               "curves": {"pdf": {"all": True, "colors": ["#1", "#2", "#3", "#4", "#5"], "lines": ["dotted"] * 5}}}
-    (cell,), _ = cells_of(run, points, listed)
+    (cell,), _ = cells_of(errand, points, listed)
     assert [cell.looks[m.name] for m in cell.members] == [{"colour": f"#{i}", "line": "dotted"} for i in range(1, 6)]
     picked = {**listed, "curves": {"pdf": {"tags": ["pdf4", "pdf2"], "colours": ["#4", "#2"]}}}
-    (cell,), _ = cells_of(run, points, picked)
+    (cell,), _ = cells_of(errand, points, picked)
     assert {m.name: cell.looks[m.name]["colour"] for m in cell.members} == {"sh3_10x20_10M_pdf4": "#4", "sh3_10x20_10M_pdf2": "#2"}
     for bad, message in ((({"pages": {"pdf": [{"tag": "pdf1", "colour": "#000000"}]}}), "a curves filter's"),
                          ({"curves": {"pdf": {"all": True, "colours": ["#1", "#2"]}}}, r"pdf: 2 colours for 5 values"),
@@ -344,7 +344,7 @@ def test_a_curves_value_may_carry_its_own_look(scratch):
                          ({"curves": {"pdf": [{"tag": "pdf1"}]}}, "is { tag"),
                          ({"curves": {"pdf": [{"tag": "pdf1", "line": "wavy"}]}}, "style line = 'wavy' is not one")):
         with pytest.raises(HeimdallError, match=message):
-            cells_of(run, points, bad)
+            cells_of(errand, points, bad)
 
 
 @pytest.mark.parametrize("entry, message", [
@@ -360,20 +360,20 @@ def test_a_curves_value_may_carry_its_own_look(scratch):
     ({"pages": "nothing", "curves": {"pdf": "all"}}, 'or "none"'),
 ])
 def test_what_a_set_table_refuses(scratch, entry, message):
-    run, points = four(scratch)
+    errand, points = four(scratch)
     with pytest.raises(HeimdallError, match=message):
-        cells_of(run, points, entry)
+        cells_of(errand, points, entry)
 
 
 def test_a_value_no_point_has_is_refused_at_plan_time(scratch):
-    run = config.parse(raw(quantities=FOUR, errand__cfgs__one__sweeps=["generator", "pdf"]), scratch / "t.toml")
-    points = sweep.points(run, run.configuration(None))
+    errand = config.parse(raw(quantities=FOUR, errand__cfgs__one__sweeps=["generator", "pdf"]), scratch / "t.toml")
+    points = sweep.points(errand, errand.configuration(None))
     spec, = sweep.set_entries([{"curves": {"events": "10M"}}], "w")
     with pytest.raises(HeimdallError, match="no point of the configuration sets"):
-        sweep.check_set(run, spec, points)
+        sweep.check_set(errand, spec, points)
     spec, = sweep.set_entries([{"curves": {"pdf": ["pdf1", "pdf9"]}}], "w")
     with pytest.raises(HeimdallError, match="no value of it") as refused:
-        sweep.check_set(run, spec, points)
+        sweep.check_set(errand, spec, points)
     assert "pdf: pdf1, pdf2, pdf3, pdf4, pdf5" in refused.value.hint
 
 
@@ -383,8 +383,8 @@ def test_a_value_no_point_has_is_refused_at_plan_time(scratch):
 def test_totality_curves_the_axis_closest_to_five(scratch):
     """The user's rule: the curves along the axis of 4–7 values closest to 5 (else the closest to 5, the earlier
     on a tie), the pages along every other axis with several values; plot_points, when set, win."""
-    run, points = four(scratch)                                         # generator 2, energies 3, events 3, pdf 5
-    conf = run.configuration(None)
+    errand, points = four(scratch)                                      # generator 2, energies 3, events 3, pdf 5
+    conf = errand.configuration(None)
     assert sweep.totality(conf, points) == {"pages": {"generator": "all", "energies": "all", "events": "all"},
                                             "curves": {"pdf": "all"}}
     two = config.parse(raw(quantities=FOUR, errand__cfgs__one__sweeps=["generator", "energies"]), scratch / "t2.toml")
@@ -396,7 +396,7 @@ def test_totality_curves_the_axis_closest_to_five(scratch):
         {"pages": {"pdf": "all"}, "curves": {"generator": "all"}}
     alone = config.parse(raw(errand__cfgs__one__sweeps=[]), scratch / "t4.toml")
     assert sweep.totality(alone.configuration(None), sweep.points(alone, alone.configuration(None))) == {"points": ["all"]}
-    cells, notes = cells_of(run, points, {"name": "totality", **sweep.totality(conf, points)})
+    cells, notes = cells_of(errand, points, {"name": "totality", **sweep.totality(conf, points)})
     assert len(cells) == 2 * 3 * 3 and all(len(c.members) == 5 for c in cells) and notes == []
 
 
@@ -413,17 +413,17 @@ def test_sets_may_be_named_tables(scratch):
 
 def test_run_plot_is_a_gate_and_a_pick(scratch):
     """[errand].plot (V167): true, false or the sets drawn; a configuration's own over [errand]'s."""
-    run = config.parse(raw(errand__plot=False, errand__cfgs__two={"tools": [["pythia", "rivet"]], "plot": ["totality"]}),
-                       scratch / "t.toml")
-    assert run.configuration("one").draw is False and run.configuration("two").draw == ["totality"]
+    errand = config.parse(raw(errand__plot=False, errand__cfgs__two={"tools": [["pythia", "rivet"]], "plot": ["totality"]}),
+                          scratch / "t.toml")
+    assert errand.configuration("one").draw is False and errand.configuration("two").draw == ["totality"]
     assert config.parse(raw(), scratch / "u.toml").configuration(None).draw is True
 
 
 def test_stats_is_a_section_and_a_gate(scratch):
     """[stats] (V168) is checked when the file is read; [errand].stats gates the statistics as [errand].plot the pages."""
-    run = config.parse(raw(stats={"normalise": "area", "reference": {"pdf": "NNPDF23lo"}}, errand__stats=["totality"]),
-                       scratch / "t.toml")
-    assert run.stats == {"normalise": "area", "reference": {"pdf": "NNPDF23lo"}} and run.configuration(None).measure == ["totality"]
+    errand = config.parse(raw(stats={"normalise": "area", "reference": {"pdf": "NNPDF23lo"}}, errand__stats=["totality"]),
+                          scratch / "t.toml")
+    assert errand.stats == {"normalise": "area", "reference": {"pdf": "NNPDF23lo"}} and errand.configuration(None).measure == ["totality"]
     for bad, message in (({"normalize": "area"}, "unknown key 'normalize'"), ({"reference": "first"}, "must be one of"),
                          ({"reference": {}}, "a filter is a table")):
         with pytest.raises(HeimdallError, match=message):

@@ -133,7 +133,7 @@ layering was not had nine cycles.)
 | 0 | `viewer.py` | the viewer: a page of blocks of labelled panels, sizes and columns, ← → (V104), with a front block (a report's sources, V208) and blocks of text (`body`: a report's tools' configurations, V210) |
 | 0 | `image.py` | Apptainer images: the system's runtime (`apptainer`, else `singularity`), an image by name in the machine root's `images/` or by path, `heimdall image build` (heimdall.def filled, a clean copy of the checkout, `--fakeroot`) and the listing, the image a point runs in for provenance (V150) |
 | 0 | `shellrc.py` | the block Heimdall keeps in ~/.bashrc and ~/.zshrc: `gjallarhorn [title]` and `bifrost`, between marker lines; written, replaced, removed, the rest of the file kept (standard library only: `build_stack.py` loads it by path; V143) |
-| 1 | `config.py` | load the TOML, `[config].import`, `--set`, the strict schema check and the figure rules; `[report]` checked (`check_report`) and its template laid under it (`report_of`, V209); the typed model (`RunConfig`, `Configuration`, `Tool`, `Quantity`); a chain's `@<quantity>` entries resolved, a piece of chain spliced (`resolve_chain`, every value checked with the file by `check_selectors`), and a resolved chain's interfaces (`chain_prelim`, V153) |
+| 1 | `config.py` | load the TOML, `[config].import`, `--set`, the strict schema check and the figure rules; `[report]` checked (`check_report`) and its template laid under it (`report_of`, V209); the typed model (`Errand`, `Configuration`, `Tool`, `Quantity`); a chain's `@<quantity>` entries resolved, a piece of chain spliced (`resolve_chain`, every value checked with the file by `check_selectors`), and a resolved chain's interfaces (`chain_prelim`, V153) |
 | 1 | `quantities.py` | the master TOML, static values and selectors, who consumes what (C7), provider checks (C10) |
 | 1 | `sweep.py` | points from `sweeps` (grid, zip and listed rows: `Listed`, V154), point names, pages (`split_axes`: a listed group's paged members), a group's key, tag and labels at a point (`group_key`, `group_tag`, `group_labels`), `--points` |
 | 1 | `labels.py` | Rivet `.plot` keys, YODA's text macros, line breaks, LaTeX → TLatex for Paint, TLatex → LaTeX for `heimdall migrate` |
@@ -194,7 +194,7 @@ what their `// requires:` line names.
 
 | Type | Module | Holds |
 |---|---|---|
-| `RunConfig` | `config` | the parsed run TOML: `path`, `project`, `name`, `serial`, `default_configuration` (None under `sweep_runs`), `configurations`, `prelim`, `static`, `tools`, `quantities`, `plot`, `master_toml`, `raw`, `sweep_runs`, `sweep_list` (`sweep_runs = ["a", "b"]`), `sets` (the `--set`s it was loaded with), `included` (what came from `[config].import`) |
+| `Errand` | `config` | the parsed errand file: `path`, `assignment`, `name` (the errand's), `serial`, `default_configuration` (None under `sweep_runs`), `configurations`, `prelim`, `static`, `tools`, `quantities`, `plot`, `master_toml`, `raw`, `sweep_runs`, `sweep_list` (`sweep_runs = ["a", "b"]`), `sets` (the `--set`s it was loaded with), `included` (what came from `[config].import`) |
 | `Configuration` | `config` | one `[errand.cfgs.<cfg>]`: `key`, `label` (its folder: `[errand.cfgs.<cfg>].label`, else the key), `run_folder` (`[errand.cfgs.<cfg>].name`, else `[errand].name`), `serial`, `title`, `description`, `event_count`, `threads` (resolved), `parallelism` (and `parallelism_auto`), `sweeps`, `plot_points`, `combine`, `tools`/`pre`/`post` (lists of groups; `@<quantity>` entries resolved per point), `static` (merged), `prelim` (and `inference`: what infers a point's own interfaces from its resolved chain, v3), `swept`, `seed_type`, `manual_seed`, `origins` (where each value came from, for `--show-config`) |
 | `Tool`, `Quantity` | `config` | one table each; a tool's folder-specific keys are in `Tool.extra`; a quantity's `values`, `tags`, `labels`, `styles` (a look per value), `shape`, `exclude` |
 | `Point` | `sweep` | `index` (1-based; −1 pre, 0 post), `name`, `choice` (quantity → value index; a listed row's quantities only), `page`, `stage` (`"combined"`) |
@@ -209,9 +209,9 @@ what their `// requires:` line names.
 | `State`, `PlainView`, `LiveView` | `watch` | the reducer of events, and the views that render it |
 | `ToolResult`, `PointResult`, `Stopper`, `Budget` | `execute` | exits, causes and messages; the stop flag; the cores runs share (V75) |
 | `Figure` | `plot` | one `[plot.figures.<key>]`: `kind` (its class), `type`, `name`, `objects`, `labels`, `table` (the page keys it sets), and each class's own: `over`, `configurations`, `op`, `x`, `y`, `table_pages`, `columns` |
-| `Compared` | `plot` | one configuration of a compare figure: `ref` (`"cfg"` or `"<Project>/<config>:<cfg>"`), its `run` and `configuration` (V83, V88) |
+| `Compared` | `plot` | one configuration of a compare figure: `ref` (`"cfg"` or `"<Project>/<config>:<cfg>"`), its `errand` and `configuration` (V83, V88) |
 | `Page` | `plot` | one page: its name, config path, output, cell, object, document, sources, variants, data, overrides, ranges, merged style, `overlay`, `bands`; its `set`, `rel` (its name in the set), `root` (its set's folder, `<root>/<backend>/<rel>`) and `numbers` (its set's statistics folder) (V164) |
-| `Doc`, `DocConfiguration` | `plotdoc` | a run and its configuration as a drawing reads them from `plot.toml`: `path`, `project`, `name`, `plot`, `stats`, `quantities`, `source`; `key`, `label`, `sweeps`, `plot_points`, `combine`, `static` (V165) |
+| `Doc`, `DocConfiguration` | `plotdoc` | a run and its configuration as a drawing reads them from `plot.toml`: `path`, `assignment`, `name` (the errand's, as an `Errand` names it), `plot`, `stats`, `quantities`, `source`; `key`, `label`, `sweeps`, `plot_points`, `combine`, `static` (V165) |
 
 ---
 
@@ -311,7 +311,7 @@ written, its working folder stays whole, and the run goes on to the next point.
     `<entry>.lock`, and the `.prepared` stamp is checked again inside).
 
 **Several runs** (`[errand].sweep_runs`, V38, V75):
-- `cmd_run` asks `RunConfig.runs(name)` which configurations to run, in this order of precedence:
+- `cmd_run` asks `Errand.runs(name)` which configurations to run, in this order of precedence:
   the named one; else `sweep_runs`'s list, or every `swept` configuration in file order; else
   `[errand].configuration`.
 - It plans every one first. A `HeimdallError` names the configuration, and nothing runs.

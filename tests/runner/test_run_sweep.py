@@ -31,9 +31,9 @@ def several(**changes):
 
 
 def test_the_keys_and_their_defaults(scratch):
-    run = parse(raw(), scratch)
-    assert run.sweep_runs is False and run.runs(None) == ["one"]
-    conf = run.configuration(None)
+    errand = parse(raw(), scratch)
+    assert errand.sweep_runs is False and errand.runs(None) == ["one"]
+    conf = errand.configuration(None)
     assert conf.swept is True and conf.title == "one"
     assert parse(raw(errand__cfgs__one__title="PDFs at 27x920"), scratch).configuration(None).title == "PDFs at 27x920"
 
@@ -52,19 +52,19 @@ def test_what_is_refused(scratch, changes, message):
 
 
 def test_a_sweep_runs_its_listed_configurations_in_its_order(scratch):
-    run = parse(several(), scratch)
-    assert run.runs(None) == ["a", "b", "d"]
-    assert run.runs("c") == ["c"]                                  # named: even one left out of the sweep
+    errand = parse(several(), scratch)
+    assert errand.runs(None) == ["a", "b", "d"]
+    assert errand.runs("c") == ["c"]                               # named: even one left out of the sweep
     assert parse(several(errand__sweep_runs=["d", "a"]), scratch).runs(None) == ["d", "a"]
     assert parse(several(errand__sweep_runs=True), scratch).runs(None) == ["a", "b", "c", "d"]   # true: every one
     with pytest.raises(HeimdallError, match=r"runs every configuration \(sweep_runs\) and names none"):
-        run.configuration(None)
+        errand.configuration(None)
     assert parse(several(errand__sweep_runs=False, errand__configuration="b"), scratch).runs(None) == ["b"]
 
 
 def test_a_configuration_may_still_be_named_sweep(scratch):
-    run = parse(raw(errand__cfgs__sweep={"tools": [["pythia", "rivet"]]}), scratch)
-    assert run.sweep_runs is False and set(run.configurations) == {"one", "sweep"}
+    errand = parse(raw(errand__cfgs__sweep={"tools": [["pythia", "rivet"]]}), scratch)
+    assert errand.sweep_runs is False and set(errand.configurations) == {"one", "sweep"}
 
 
 def test_a_sweep_changes_neither_identity_nor_seeds(scratch):
@@ -237,8 +237,8 @@ def test_notify_desktop_sends_one_note_and_never_fails(scratch, monkeypatch):
     sent = []
     monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/notify-send")
     monkeypatch.setattr(cli.subprocess, "Popen", lambda argv, **kw: sent.append(argv))
-    run = parse(raw(errand__notify="desktop"), scratch)
-    assert cli.notify(run, 1) and sent[-1][-1].endswith(": a point failed")
+    errand = parse(raw(errand__notify="desktop"), scratch)
+    assert cli.notify(errand, 1) and sent[-1][-1].endswith(": a point failed")
     assert not cli.notify(parse(raw(), scratch), 0) and len(sent) == 1
     with pytest.raises(HeimdallError, match="one of none, desktop"):
         parse(raw(errand__notify="email"), scratch)

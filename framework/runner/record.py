@@ -469,7 +469,7 @@ def revision_changes(recorded: dict) -> list[str]:
     return out
 
 
-def provenance(plan: PointPlan, run, configuration, started: str, finished: str, results: dict) -> dict:
+def provenance(plan: PointPlan, errand, configuration, started: str, finished: str, results: dict) -> dict:
     tools = []
     for tag, step in plan.rendered.items():
         entry = {"tag": tag, "tool": step.tool.tool, "exe": portable(step.exe), "version": version_of(step.folder),
@@ -486,9 +486,9 @@ def provenance(plan: PointPlan, run, configuration, started: str, finished: str,
         tools.append(entry)
     return {
         "point": plan.point.name,
-        "run": run.name, "project": run.project, "configuration": configuration.key,
-        "config_file": portable(run.path), "sets": list(getattr(run, "sets", [])),    # what reproduces it (V77)
-        "values": {name: {"index": index, "tag": _tag(run, name, index), "value": run.quantities[name].values[index]}
+        "run": errand.name, "project": errand.assignment, "configuration": configuration.key,
+        "config_file": portable(errand.path), "sets": list(getattr(errand, "sets", [])),    # what reproduces it (V77)
+        "values": {name: {"index": index, "tag": _tag(errand, name, index), "value": errand.quantities[name].values[index]}
                    for name, index in plan.values.items()},
         "identity": plan.identity, "seed": plan.seed, "threads": plan.threads, "events": plan.events,
         "tools": tools,
@@ -501,9 +501,9 @@ def provenance(plan: PointPlan, run, configuration, started: str, finished: str,
     }
 
 
-def _tag(run, name: str, index: int) -> str:
+def _tag(errand, name: str, index: int) -> str:
     from .sweep import tag_of
-    return tag_of(run.quantities[name], index)
+    return tag_of(errand.quantities[name], index)
 
 
 def now() -> str:
@@ -519,14 +519,14 @@ def write_atomic(path: Path, text: str) -> None:
     partial.replace(path)
 
 
-def points_manifest(plans: list[PointPlan], run, configuration, known: dict | None = None) -> dict:
+def points_manifest(plans: list[PointPlan], errand, configuration, known: dict | None = None) -> dict:
     """points.json (06 §7): every point's values, page, products and state, for plot and post tools, and the run's
     constants (V200; `known`: as the run began, its points' counts made again)."""
     from .sweep import label_of, split_axes, tag_of
     page_names = [name for group in split_axes(configuration)[0] for name in group]    # a listed group's paged members (V154)
     points = []
     for plan in plans:
-        quantity = run.quantities
+        quantity = errand.quantities
         points.append({
             "name": plan.point.name, "index": plan.point.index,
             "values": {name: {"tag": tag_of(quantity[name], i), "label": label_of(quantity[name], i),
@@ -539,9 +539,9 @@ def points_manifest(plans: list[PointPlan], run, configuration, known: dict | No
             "texts": {k: v for step in plan.rendered.values() for k, v in step.texts.items()},   # {opt:…} (V158)
             **_last(plan),                                                                     # V200
         })
-    return {"run": run.name, "project": run.project, "configuration": configuration.key,
-            "config_file": str(run.path), "plot_points": configuration.plot_points,
-            "constants": _counted(known, plans) if known else constants(plans, run, configuration), "points": points}
+    return {"run": errand.name, "project": errand.assignment, "configuration": configuration.key,
+            "config_file": str(errand.path), "plot_points": configuration.plot_points,
+            "constants": _counted(known, plans) if known else constants(plans, errand, configuration), "points": points}
 
 
 def _counted(known: dict, plans: list[PointPlan]) -> dict:
@@ -555,7 +555,7 @@ def _last(plan: PointPlan) -> dict:
     return {"state": state, **({"cause": cause_text(last)} if last and state in ("failed", "stopped") else {})}
 
 
-def constants(plans: list[PointPlan], run, configuration, machine: bool = True) -> dict:
+def constants(plans: list[PointPlan], errand, configuration, machine: bool = True) -> dict:
     """What every point of a run shares (V200, the user's ask): its events, threads, parallelism and seed rule;
     its chain and stages; its fixed quantities; each tool (folder, executable, version, packages, analyses); the
     base cards and their sha256s; the data it is compared with; and (`machine`) the revisions, host, stack and
@@ -574,7 +574,7 @@ def constants(plans: list[PointPlan], run, configuration, machine: bool = True) 
     for name, tag in configuration.static.items():
         if name in swept:                              # a file's default the configuration varies
             continue
-        quantity = run.quantities.get(name)
+        quantity = errand.quantities.get(name)
         index = next((i for i in range(len(quantity.values)) if tag_of(quantity, i) == tag), None) if quantity else None
         fixed[name] = {"tag": tag, **({"label": label_of(quantity, index), "value": quantity.values[index]}
                                       if index is not None else {})}
@@ -599,7 +599,7 @@ def constants(plans: list[PointPlan], run, configuration, machine: bool = True) 
     out["tools"] = tools
     if cards:
         out["base_cards"] = cards
-    data = (configuration.own or {}).get("data") or (run.plot or {}).get("data")
+    data = (configuration.own or {}).get("data") or (errand.plot or {}).get("data")
     if data:
         out["data"] = data
     if machine:
@@ -629,34 +629,34 @@ def constants_lines(data: dict) -> list[str]:
 SNAPSHOT = "snapshot.toml"
 
 
-def snapshot_files(run, plans: list) -> list[Path]:
+def snapshot_files(errand, plans: list) -> list[Path]:
     """The files a run read from its configs: its run TOML, every file it imports, its [report]'s templates, the
     base cards and configs its points read, its tools' own filters, its [plot].root_style file and its master."""
     from .paths import resolve
-    wanted = [Path(run.path), *map(Path, run.imported), *map(Path, getattr(run, "templates", []))]   # V209: its reports' too
+    wanted = [Path(errand.path), *map(Path, errand.imported), *map(Path, getattr(errand, "templates", []))]   # V209: its reports' too
     wanted += [base for plan in plans for step in plan.rendered.values() for base in step.card_base]
-    for tool in run.tools.values():
+    for tool in errand.tools.values():
         if tool.filters:
-            wanted.append(resolve(tool.filters, "filters", project=run.project))
-    style = (run.plot or {}).get("root_style")
+            wanted.append(resolve(tool.filters, "filters", assignment=errand.assignment))
+    style = (errand.plot or {}).get("root_style")
     if isinstance(style, str) and style not in ("default", "native"):
-        wanted.append(resolve(style if style.endswith(".toml") else f"{style}.toml", "root_style", project=run.project))
-    if run.master_toml:
-        wanted.append(resolve(run.master_toml, "master", project=run.project))
+        wanted.append(resolve(style if style.endswith(".toml") else f"{style}.toml", "root_style", assignment=errand.assignment))
+    if errand.master_toml:
+        wanted.append(resolve(errand.master_toml, "master", assignment=errand.assignment))
     return list(dict.fromkeys(p.resolve() for p in wanted if p.is_file()))
 
 
-def config_name(run) -> str:
+def config_name(errand) -> str:
     """How `heimdall run` names a run's config: <P>/<name>, its path under configs/ without .toml."""
     from .paths import configs_root
-    path = Path(run.path).resolve()
+    path = Path(errand.path).resolve()
     try:
         return str(path.relative_to(configs_root().resolve()).with_suffix(""))
     except ValueError:
-        return f"{run.project}/{path.stem}"
+        return f"{errand.assignment}/{path.stem}"
 
 
-def write_snapshot(run, configuration, plans: list) -> Path | None:
+def write_snapshot(errand, configuration, plans: list) -> Path | None:
     """records/<run>/config/ (V158): the files the run read from its configs, as configs/ holds them (a run TOML
     given by path goes in as <project>/<its name>), and snapshot.toml: the config's name, the configuration,
     the --set overrides, each file's sha256, the files read from elsewhere (./… and absolute: datasets,
@@ -666,16 +666,16 @@ def write_snapshot(run, configuration, plans: list) -> Path | None:
     if not plans:
         return None
     target = plans[0].folders.config
-    if Path(run.path).resolve().is_relative_to(target.resolve()):
+    if Path(errand.path).resolve().is_relative_to(target.resolve()):
         return None
     root = configs_root().resolve()
-    name = config_name(run)
+    name = config_name(errand)
     files: dict[str, str] = {}
     live: list[str] = []
     staging = target.with_name(f"{target.name}.{os.getpid()}.tmp")
     shutil.rmtree(staging, ignore_errors=True)
-    for path in snapshot_files(run, plans):
-        if path == Path(run.path).resolve() and not path.is_relative_to(root):
+    for path in snapshot_files(errand, plans):
+        if path == Path(errand.path).resolve() and not path.is_relative_to(root):
             rel = Path(f"{name}.toml")                         # a run TOML given by path: under its project
         elif path.is_relative_to(root):
             rel = path.relative_to(root)
@@ -686,7 +686,7 @@ def write_snapshot(run, configuration, plans: list) -> Path | None:
         shutil.copy2(path, staging / rel)
         files[str(rel)] = hashlib.sha256(path.read_bytes()).hexdigest()
     import tomli_w
-    meta = {"snapshot": {"config": name, "configuration": configuration.key, "sets": list(run.sets),
+    meta = {"snapshot": {"config": name, "configuration": configuration.key, "sets": list(errand.sets),
                          "heimdall": git_state(heimdall_root()).get("revision", ""), "written": now()},
             "files": files, **({"live": {"files": live}} if live else {})}
     staging.mkdir(parents=True, exist_ok=True)

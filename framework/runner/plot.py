@@ -118,14 +118,14 @@ class Figure:
     sort: bool = False       # … best first
 
 
-def figures(run) -> list[Figure]:
+def figures(errand) -> list[Figure]:
     """The declared figures, in file order. The implicit one, [plot].objects as defined pages, is pages()'."""
     from .config import figure_tables
     out = []
-    for key, (table, written) in figure_tables(run.plot or {}).items():
+    for key, (table, written) in figure_tables(errand.plot or {}).items():
         out.append(Figure(key, table.get("class", "defined"), table.get("type", ""), table.get("name", key),
                           tuple(table.get("objects", ())), tuple(table.get("labels", ())),
-                          {k: v for k, v in table.items() if k not in schema.FIGURE_OWN}, f"{run.path}: {written}",
+                          {k: v for k, v in table.items() if k not in schema.FIGURE_OWN}, f"{errand.path}: {written}",
                           tuple(table.get("over", ())), tuple(table.get("configurations", ())), table.get("op", ""),
                           table.get("x", ""), table.get("y", ""), tuple(table.get("pages", ())), table.get("columns", 0),
                           table.get("statistic", ""), bool(table.get("sort", False))))
@@ -155,21 +155,21 @@ def backends(settings: dict) -> list[str]:
     return sorted(dict.fromkeys(names), key=lambda n: n != "root")
 
 
-def validate(run) -> None:
+def validate(errand) -> None:
     """What [plot] needs beyond the schema (config.check_plot has every key, type and bound): the style
     layers against base.toml, the backends' own limits, and [plot.data]'s file and map together. Keys
     a backend cannot honour are errors at plan time, never dropped (v1's LegendXPos)."""
-    settings = run.plot
-    where = f"{run.path}: [plot]"
+    settings = errand.plot
+    where = f"{errand.path}: [plot]"
     names = backends(settings)
     if not names:
         raise HeimdallError("[plot].backend names no backend", where=f"{where}.backend", hint='"root", "yoda" or "both"')
-    run_style(run)
-    for figure in figures(run):
+    errand_style(errand)
+    for figure in figures(errand):
         check_style(figure.table.get("style", {}), f"{figure.where}.style")
     for name in names[1:] if names[0] == "root" else names:
         backend(name).validate(settings, beside_root=names[0] == "root",
-                               curve_styles=[s for q in run.quantities.values() for s in q.styles])
+                               curve_styles=[s for q in errand.quantities.values() for s in q.styles])
     data = settings.get("data", {})
     if data and not data.get("map"):
         raise HeimdallError("[plot.data] names a file but no map", where=f"{where}.data",
@@ -237,9 +237,9 @@ def merge_style(*layers: dict) -> dict:
     return out
 
 
-def style_file(value: str, project: str = "", where: str = "") -> dict:
+def style_file(value: str, assignment: str = "", where: str = "") -> dict:
     """A style layer from a file: [plot].root_style (configs/<Project>/…), or `heimdall plot --style`."""
-    path = resolve(value, "root_style", project=project, where=where) if project else Path(value).resolve()
+    path = resolve(value, "root_style", assignment=assignment, where=where) if assignment else Path(value).resolve()
     if path.suffix != ".toml":
         path = path.with_name(path.name + ".toml")
     try:
@@ -268,13 +268,13 @@ def house_style() -> dict:
     return merge_style(*layers)
 
 
-def run_style(run) -> dict:
+def errand_style(errand) -> dict:
     """What a run changes of the base style: the machine's and the work dir's style.toml, its root_style
     file, then [plot.style]."""
-    settings = run.plot
-    where = f"{run.path}: [plot]"
+    settings = errand.plot
+    where = f"{errand.path}: [plot]"
     named = settings.get("root_style", DEFAULT)
-    layer = style_file(named, run.project, f"{where}.root_style") if named != DEFAULT else {}
+    layer = style_file(named, errand.assignment, f"{where}.root_style") if named != DEFAULT else {}
     check_style(settings.get("style", {}), f"{where}.style")
     return merge_style(house_style(), layer, settings.get("style", {}))
 
@@ -368,7 +368,7 @@ def convert(yoda: Path, target: Path) -> Path:
     return target
 
 
-def data_source(name: str, run) -> Path:
+def data_source(name: str, errand) -> Path:
     """[plot.data].file: `rivet:<Analysis>` is Rivet's own reference file (its data directory, or
     build/Rivet for ours), which every installation has; anything else is under datasets/."""
     if name.startswith("rivet:"):
@@ -378,9 +378,9 @@ def data_source(name: str, run) -> Path:
             for candidate in (place / f"{analysis}.yoda", place / f"{analysis}.yoda.gz"):
                 if candidate.is_file():
                     return candidate
-        raise HeimdallError(f"Rivet has no reference data for {analysis}", where=f"{run.path}: [plot.data].file",
+        raise HeimdallError(f"Rivet has no reference data for {analysis}", where=f"{errand.path}: [plot.data].file",
                        hint=f"looked for {analysis}.yoda[.gz] in {', '.join(map(str, places))}")
-    source = resolve(name, "data", project=run.project, where=f"{run.path}: [plot.data].file")
+    source = resolve(name, "data", assignment=errand.assignment, where=f"{errand.path}: [plot.data].file")
     if not source.is_file():
         from .paths import dataset_listed
         raise HeimdallError("the reference data file does not exist", where=str(source),
@@ -432,18 +432,18 @@ class Member:
     recorded: str | None = None        # … and the one its .complete holds (None: not complete)
 
 
-def recorded(run, configuration) -> list[Member]:
+def recorded(errand, configuration) -> list[Member]:
     """A configuration's points as its record has them: points.json's (every point the run planned), the run
     (the record's snapshot) giving their quantities; combined groups (`combine`) in their place. Each is
     complete when its .complete holds the identity points.json names."""
     from . import quantities as qmod
     from .sweep import points as sweep_points
-    here = run_folders(run, configuration)
+    here = run_folders(errand, configuration)
     if not here.manifest.is_file():
         raise HeimdallError("this configuration has no record yet", where=str(here.manifest), hint="heimdall run it first")
     entries = json.loads(here.manifest.read_text(encoding="utf-8")).get("points", [])
-    made = {p.name: p for p in sweep_points(run, configuration)}
-    static = qmod.static_values(run, configuration)
+    made = {p.name: p for p in sweep_points(errand, configuration)}
+    static = qmod.static_values(errand, configuration)
 
     def marker(name: str) -> str | None:
         path = here.points / name / ".complete"
@@ -467,7 +467,7 @@ def recorded(run, configuration) -> list[Member]:
     merged = []
     for number, (key, members) in enumerate(groups.items(), start=1):
         choice = {q: i for q, i in zip(kept, key) if i != -1}
-        name = "_".join(tag_of(run.quantities[q], choice[q]) for q in kept if q in choice and not run.quantities[q].silent) or "combined"
+        name = "_".join(tag_of(errand.quantities[q], choice[q]) for q in kept if q in choice and not errand.quantities[q].silent) or "combined"
         first = members[0]
         point = replace(first.point, index=number, name=name, choice=choice, stage="combined")
         group = here.products / name / first.yoda.name if first.yoda else None
@@ -535,38 +535,38 @@ def endpoints(name: str, tables: tuple) -> list:
             for i in (0, 1)]
 
 
-def pages(run, configuration, plans, notes: list | None = None, documents: str = "") -> list[Page]:
+def pages(errand, configuration, plans, notes: list | None = None, documents: str = "") -> list[Page]:
     """Write the Paint config of every page from the points whose record is complete (drawable); returns the
     pages. `notes`: what the sets say (V163), for the stage to say. `documents`: a folder of the working
     folder's for the page documents (the statistics' own, V168), the merged sweep shared."""
     complete = drawable(plans)[0]
     if not complete:
         return []
-    check_figures(run, configuration)
-    declared = figures(run)
+    check_figures(errand, configuration)
+    declared = figures(errand)
     here = complete[0].folders
     out_dir = here.pages                                          # .cache/<P>/plots/<run>: documents, working files (V164)
     page_groups, curve_groups = axes_of(configuration)
-    sources = point_yodas(run, complete)
+    sources = point_yodas(errand, complete)
     root = merge(sources, out_dir / f"{configuration.label}.root", out_dir / "merged.sha256",
                  manifest_file(complete))
     drawn = [f for f in declared if f.kind in ("defined", "overlay")] + derived_figures(declared)
-    made = _pages(run, complete, sources, root, drawn, page_groups, curve_groups, out_dir / documents if documents else out_dir,
+    made = _pages(errand, complete, sources, root, drawn, page_groups, curve_groups, out_dir / documents if documents else out_dir,
                   here.plots, here.statistics, implicit=True, labels_from=_labels_from(declared, sources), notes=notes)
     for figure in (f for f in declared if f.kind == "merged"):        # V82: points merged over an axis, for it alone
-        members, yodas = _merged(run, figure, complete, sources, page_groups + curve_groups, out_dir / "merged" / figure.name)
+        members, yodas = _merged(errand, figure, complete, sources, page_groups + curve_groups, out_dir / "merged" / figure.name)
         kept = [g for g in curve_groups if not set(g) & set(figure.over)]
         root = merge(yodas, out_dir / "merged" / f"{figure.name}.root", out_dir / "merged" / f"{figure.name}.sha256")
-        made += _pages(run, members, yodas, root, [replace(figure, kind="defined")], page_groups, kept,
+        made += _pages(errand, members, yodas, root, [replace(figure, kind="defined")], page_groups, kept,
                        out_dir / documents if documents else out_dir, here.plots, here.statistics, implicit=False,
                        folder=figure.name, grouped=False)
     for figure in (f for f in declared if f.kind == "scan"):          # V85: a number per point against a quantity
-        members, yodas = _scanned(run, figure, complete, sources, page_groups + curve_groups, out_dir / "scan" / figure.name)
+        members, yodas = _scanned(errand, figure, complete, sources, page_groups + curve_groups, out_dir / "scan" / figure.name)
         kept = [g for g in curve_groups if figure.x not in g]
         root = merge(yodas, out_dir / "scan" / f"{figure.name}.root", out_dir / "scan" / f"{figure.name}.sha256")
         table = {"x_label": figure.x, "y_label": SCAN_LABELS.get(figure.y, figure.y.replace(":", " ")), **figure.table}
-        made += _pages(run, members, yodas, root, [replace(figure, kind="defined", objects=(f"/FIGURES/{figure.name}",),
-                                                           table=table, type=figure.type or "Scatter2D")],
+        made += _pages(errand, members, yodas, root, [replace(figure, kind="defined", objects=(f"/FIGURES/{figure.name}",),
+                                                              table=table, type=figure.type or "Scatter2D")],
                        page_groups, kept, out_dir / documents if documents else out_dir, here.plots, here.statistics,
                        implicit=False, grouped=False)
     return made
@@ -576,14 +576,14 @@ def pages(run, configuration, plans, notes: list | None = None, documents: str =
 SCAN_LABELS = {"sigma": r"$\sigma$ [pb]", "entries": "entries", "integral": "integral", "mean": "mean"}
 
 
-def _scanned(run, figure: Figure, complete: list, sources: dict, groups: list, where: Path) -> tuple[list, dict]:
+def _scanned(errand, figure: Figure, complete: list, sources: dict, groups: list, where: Path) -> tuple[list, dict]:
     """A scan figure's members (V85): per value of the axes other than x, a stand-in plan named by their
     tags, its YODA one Scatter2D /FIGURES/<name>: a point per value of x, at that value, its y the number
     the figure reads of the point (framework/plot/figures/derive.py), its x range reaching halfway to its
     nearer neighbour on both sides, so it is centred on its value and every backend can draw it as a
     bin (a scan is drawn as markers, V86). Remade only when a member's YODA or the figure changed."""
     module = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
-    quantity = run.quantities[figure.x]
+    quantity = errand.quantities[figure.x]
     kept = [g for g in groups if figure.x not in g]
     by: dict[tuple, list] = {}
     for plan in complete:
@@ -592,7 +592,7 @@ def _scanned(run, figure: Figure, complete: list, sources: dict, groups: list, w
     glob = figure.objects[0] if figure.objects else ""
     members, yodas = [], {}
     for key, plans in by.items():
-        name = "_".join(group_tag(run.quantities, g, plans[0].point.choice) for g in kept) or "scan"
+        name = "_".join(group_tag(errand.quantities, g, plans[0].point.choice) for g in kept) or "scan"
         plans = sorted(plans, key=lambda p: float(quantity.values[p.values[figure.x]]))
         target, stamp = where / f"{name}.yoda", where / f"{name}.sha256"
         xs = [float(quantity.values[p.values[figure.x]]) for p in plans]
@@ -623,7 +623,7 @@ def _scanned(run, figure: Figure, complete: list, sources: dict, groups: list, w
 CONFIGURATION = "@configuration"
 
 
-def compare_pages(run, figure: Figure, sets: list[tuple]) -> list[Page]:
+def compare_pages(errand, figure: Figure, sets: list[tuple]) -> list[Page]:
     """A compare figure's pages (V83): its objects' pages, one per page cell of the configurations, whose
     curves are every configuration's points (or combined groups), labelled by the configuration first.
     `sets`: (configuration, its complete plans) in the figure's order. Into
@@ -631,18 +631,18 @@ def compare_pages(run, figure: Figure, sets: list[tuple]) -> list[Page]:
     members, yodas = [], {}
     for number, (c, plans) in enumerate(sets):
         label = figure.labels[number] if figure.labels else c.configuration.label if c.own \
-            else f"{c.run.name} {c.configuration.label}"
-        sources = point_yodas(c.run, plans)
+            else f"{c.errand.name} {c.configuration.label}"
+        sources = point_yodas(c.errand, plans)
         for plan in plans:
             name = f"{re.sub(r'[^A-Za-z0-9_.-]+', '_', c.ref)}_{plan.point.name}"
             members.append(replace(plan, point=replace(plan.point, name=name, choice={**plan.point.choice, CONFIGURATION: number}),
-                                   context={**plan.context, "curve_label": label, **({} if c.run is run else {"run": c.run})}))
+                                   context={**plan.context, "curve_label": label, **({} if c.errand is errand else {"errand": c.errand})}))
             yodas[name] = sources[plan.point.name]
-    first = next(plans[0] for c, plans in sets if c.run is run)          # this run's folder (V88)
+    first = next(plans[0] for c, plans in sets if c.errand is errand)    # this run's folder (V88)
     out_dir, res_dir = first.folders.compare(figure.name)
     page_groups, curve_groups = axes_of(sets[0][0].configuration)
     root = merge(yodas, out_dir / f"{figure.name}.root", out_dir / "merged.sha256")
-    return _pages(run, members, yodas, root, [replace(figure, kind="defined")], page_groups,
+    return _pages(errand, members, yodas, root, [replace(figure, kind="defined")], page_groups,
                   [[CONFIGURATION]] + curve_groups, out_dir, res_dir, res_dir / "statistics", implicit=False,
                   grouped=False, set_name="")
 
@@ -663,12 +663,12 @@ def _labels_from(declared: list, sources: dict) -> dict[str, str]:
     return out
 
 
-def point_yodas(run, complete: list) -> dict[str, Path]:
+def point_yodas(errand, complete: list) -> dict[str, Path]:
     """Each complete point's YODA, as the pages read it: its product, or with a derived figure (V84) a
     copy with the derived objects after its own (records/…/plots/derived/<point>.yoda), made by
     framework/plot/figures/derive.py and remade only when the product or the figures changed."""
     plain = {p.point.name: yoda_of(p) for p in complete}
-    derived = [f for f in figures(run) if f.kind == "derived"]
+    derived = [f for f in figures(errand) if f.kind == "derived"]
     if not derived:
         return plain
     module = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
@@ -692,7 +692,7 @@ def point_yodas(run, complete: list) -> dict[str, Path]:
     return out
 
 
-def _merged(run, figure: Figure, complete: list, sources: dict, groups: list, where: Path) -> tuple[list, dict]:
+def _merged(errand, figure: Figure, complete: list, sources: dict, groups: list, where: Path) -> tuple[list, dict]:
     """A merged figure's members: per value of the axes it does not merge, one stand-in plan named by
     their tags, its YODA the members' merged by the combine folder's command; rebuilt only when a
     member's YODA changed (a stamp of their sha256, as merge's)."""
@@ -702,7 +702,7 @@ def _merged(run, figure: Figure, complete: list, sources: dict, groups: list, wh
         by.setdefault(tuple(group_key(g, plan.point.choice) for g in kept), []).append(plan)
     members, yodas = [], {}
     for key, plans in by.items():
-        name = "_".join(group_tag(run.quantities, g, plans[0].point.choice) for g in kept) or "merged"
+        name = "_".join(group_tag(errand.quantities, g, plans[0].point.choice) for g in kept) or "merged"
         target = where / f"{name}.yoda"
         stamp = where / f"{name}.sha256"
         digest = "\n".join(f"{p.point.name} {_sha(sources[p.point.name])}" for p in plans)
@@ -716,7 +716,7 @@ def _merged(run, figure: Figure, complete: list, sources: dict, groups: list, wh
     return members, yodas
 
 
-def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_groups: list, curve_groups: list,
+def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, page_groups: list, curve_groups: list,
            out_dir: Path, plots_dir: Path, stats_dir: Path, *, implicit: bool, folder: str = "",
            labels_from: dict | None = None, grouped: bool = True, notes: list | None = None,
            set_name: str = "totality") -> list[Page]:
@@ -727,7 +727,7 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
     `notes`: what the sets say (an axis they page by themselves, a reference matching nothing). V164: a page is
     drawn into <plots_dir>/<set>/<backend>/<cell>/<object> (`set_name` with no [plot].sets: totality; "" none, a
     compare figure's), its numbers into <stats_dir>/<set>/, its document into <out_dir>/<set>/."""
-    settings = run.plot
+    settings = errand.plot
     variants: dict[str, dict[str, list[str]]] = {}      # member → base path → its full paths
     raws = {plan.point.name: raws_of(yodas[plan.point.name]) for plan in complete}
     two_d: set[str] = set()                                # V87: heat maps, a page per member
@@ -752,7 +752,7 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
                                              for g in wanted)]
         if not objects:
             raise HeimdallError(f"[plot].objects {wanted} match no object of the points' YODAs",
-                           where=f"{run.path}: [plot].objects")
+                           where=f"{errand.path}: [plot].objects")
     claimed: dict[str, Figure] = {}                        # a declared defined figure takes its objects' pages
     for figure in (f for f in declared if f.kind == "defined"):
         found = [o for o in every if any(_matches(o, g, fulls(o)) for g in figure.objects)]
@@ -777,14 +777,14 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
 
     by_page: dict[str, list] = {}
     for plan in complete:                                  # a member of another run reads its own quantities (V88)
-        key = "_".join(group_tag(_run_of(run, plan).quantities, g, plan.point.choice) for g in page_groups)
+        key = "_".join(group_tag(_errand_of(errand, plan).quantities, g, plan.point.choice) for g in page_groups)
         by_page.setdefault(key, []).append(plan)
 
-    style, base = run_style(run), base_style()
-    known = {plan.point.name: texts_of(_run_of(run, plan), plan, ", ".join(
-                 label for g in page_groups for label in group_labels(_run_of(run, plan).quantities, g, plan.point.choice)))
+    style, base = errand_style(errand), base_style()
+    known = {plan.point.name: texts_of(_errand_of(errand, plan), plan, ", ".join(
+                 label for g in page_groups for label in group_labels(_errand_of(errand, plan).quantities, g, plan.point.choice)))
              for plan in complete}
-    where = f"{run.path}: [plot]"
+    where = f"{errand.path}: [plot]"
 
     def page_fill(plans, cell: str | None = None):
         texts = {p.point.name: known[p.point.name] if cell is None else {**known[p.point.name], "cell": cell} for p in plans}
@@ -808,8 +808,8 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
                 if drawing not in (None, DEFAULT) and spec.name not in drawing:
                     continue
                 if spec.axes:                         # V163: a cell per combination of its page axes
-                    found, said = set_cells(run, complete, spec, merge_style({"curves": {"palette": palette}},
-                                                                             spec.keys.get("style", {}))["curves"]["palette"],
+                    found, said = set_cells(errand, complete, spec, merge_style({"curves": {"palette": palette}},
+                                                                                spec.keys.get("style", {}))["curves"]["palette"],
                                             looked=set(settings.get("looks") or {}))
                     if notes is not None:
                         notes.extend(said)
@@ -818,7 +818,7 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
                 picked = []
                 for selector in spec.selectors:
                     try:
-                        found = chosen_points(run, complete, selector, f"{where}.sets")
+                        found = chosen_points(errand, complete, selector, f"{where}.sets")
                     except HeimdallError:                  # its points are not complete (plan time names a typo)
                         found = []
                     picked += [m for m in found if m not in picked]
@@ -915,8 +915,8 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
         drawn = data if chosen("use_data", True, True, (override, here)) is not False else {}
         reference = drawn.get("map", {}).get(short) if drawn else None
         if reference and data_file is None:                # converted once, when a page draws it
-            source = data_source(data["file"], run)
-            data_file = convert(source, cache_root() / run.project / "datasets" / f"{source.stem}.root")   # V149, V164
+            source = data_source(data["file"], errand)
+            data_file = convert(source, cache_root() / errand.assignment / "datasets" / f"{source.stem}.root")   # V149, V164
         band = band_of(override, keys)
         line_groups = [g for g in labelled if not set(g) & set(band)]     # what tells a band curve from another
         curves = [(plan, full) for plan in members for full in variants.get(plan.point.name, {}).get(path, [])]
@@ -931,10 +931,10 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
         layer = merge_style(style, keys.get("style", {}), override.get("style", {}))
         made.append(written(
             name, config, output, key, path, page, layer, folded,
-            lambda plan, full, folded_members: _curve_label(run, plan, line_groups, curve_fill(plan))
+            lambda plan, full, folded_members: _curve_label(errand, plan, line_groups, curve_fill(plan))
             + (f" [{full.strip('/').split('/')[0].partition(':')[2]}]" if plan.point.name in several else "")
             + (envelope if folded_members else ""),
-            lambda plan: {**_curve_look(run, plan, line_groups, settings.get("looks")), **looks.get(plan.point.name, {})},
+            lambda plan: {**_curve_look(errand, plan, line_groups, settings.get("looks")), **looks.get(plan.point.name, {})},
             override, keys, here, (set_, rel, root, numbers),
             data_entry={"file": str(data_file), "object": root_name(reference),
                         "label": canonical(fill(data.get("legend", "Data")))} if reference else None,
@@ -976,7 +976,7 @@ def _pages(run, complete: list, yodas: dict, merged: Path, declared: list, page_
             made.append(written(
                 full_name, config, output, key, f"/overlay/{name}", page, layer, folded,
                 lambda plan, full, folded_members: named[(plan.point.name, full)]
-                + (f", {_curve_label(run, plan, line_groups, curve_fill(plan))}" if len(lines) > 1 else "")
+                + (f", {_curve_label(errand, plan, line_groups, curve_fill(plan))}" if len(lines) > 1 else "")
                 + (envelope if folded_members else ""),
                 lambda plan: {}, override, keys, here, (set_, rel, root, numbers), overlay=name))
     return made
@@ -1016,7 +1016,7 @@ def _with_statistics(paint: Path, todo: list[Page]) -> None:
         page.config.write_text(tomli_w.dumps(for_root(page.document)), encoding="utf-8")
 
 
-def statistic_pages(run, figure: Figure, todo: list[Page], where: Path) -> list[Page]:
+def statistic_pages(errand, figure: Figure, todo: list[Page], where: Path) -> list[Page]:
     """A statistic figure's pages (V160): per cell and object its globs match among the drawn defined pages,
     the page's curves (its own reference curve left out) as bins 1, 2, …, labelled by the curves' labels, y
     their `statistic` against the page's reference; `sort`: the smallest first. A Scatter2D per page, as a
@@ -1024,7 +1024,7 @@ def statistic_pages(run, figure: Figure, todo: list[Page], where: Path) -> list[
     set's statistics/<set>/figures/<backend>/<cell>/<name>/<object> (V164)."""
     module = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
     where.mkdir(parents=True, exist_ok=True)
-    style, base = run_style(run), base_style()
+    style, base = errand_style(errand), base_style()
     made = []
     for page in todo:
         if page.overlay or page.document["page"].get("heatmap") or page.object.startswith("/statistic/"):
@@ -1054,7 +1054,7 @@ def statistic_pages(run, figure: Figure, todo: list[Page], where: Path) -> list[
                  "auto_range": False, "x_gutter": DEFAULT if "x_gutter" not in figure.table else figure.table["x_gutter"]}
         folder = page.numbers / "figures" if page.numbers else page.root
         name = f"{page.set}/figures/{rel}" if page.set else f"figures/{rel}"
-        settings_page, override = page_settings(run.plot, page.object, name, folder / "root" / rel, False, child=table,
+        settings_page, override = page_settings(errand.plot, page.object, name, folder / "root" / rel, False, child=table,
                                                 own_ranges=True)    # [plot]'s ranges are for its own pages
         settings_page.update({"markers": True, "x_labels": [r["curve"] for r in kept]})
         layer = merge_style(style, override.get("style", {}))
@@ -1093,13 +1093,13 @@ def _heatmap(plan, full: str, name: str, config: Path, output: Path, root: Path,
                 style=merge_style(base, layer), set=set_name, rel=rel, root=root, numbers=numbers)
 
 
-def texts_of(run, plan, cell: str) -> dict[str, str]:
+def texts_of(errand, plan, cell: str) -> dict[str, str]:
     """What a page text may cite at a point (V66): {cell}, {q:<quantity>} (the label of its value at the
     point, swept or static) and the texts the tools' folders give (rivet: {opt:NAME})."""
     out = {"cell": cell}
     for name, index in plan.values.items():
-        if name in run.quantities:
-            out[f"q:{name}"] = label_of(run.quantities[name], index)
+        if name in errand.quantities:
+            out[f"q:{name}"] = label_of(errand.quantities[name], index)
     if isinstance(plan, Member):
         out.update(plan.texts)
     else:
@@ -1116,27 +1116,27 @@ def axes_of(configuration) -> tuple[list, list]:
     return [g for g in pages_ if not set(g) & combined], [g for g in curves if not set(g) & combined]
 
 
-def check_figures(run, configuration) -> None:
+def check_figures(errand, configuration) -> None:
     """At plan time too: a band (V69), [plot]'s or a figure's, and a merged figure's `over` (V82) name
     curve axes of the configuration, and a figure does not band what it merges."""
     curve_groups = axes_of(configuration)[1]
     listed = {name for group in axes(configuration) if isinstance(group, Listed) for name in group}
-    settings = run.plot or {}
+    settings = errand.plot or {}
     hint = f"curve axes: {', '.join(g[0] for g in curve_groups) or 'none'} (swept, not plot_points or combined)"
-    tables = [("[plot]", settings, ())] + [(f.where.split(": ", 1)[1], f.table, f.over) for f in figures(run)]
+    tables = [("[plot]", settings, ())] + [(f.where.split(": ", 1)[1], f.table, f.over) for f in figures(errand)]
     for at, table, over in tables:
         band = table.get("band", [])
         for key, names in (("band", band if isinstance(band, list) else []), ("over", over)):
             for name in names:
                 if not any(name in g for g in curve_groups):
                     raise HeimdallError(f"{at}.{key} names {name}, which is not a curve axis of {configuration.key}",
-                                   where=f"{run.path}: {at}.{key}", hint=hint)
+                                   where=f"{errand.path}: {at}.{key}", hint=hint)
                 if name in listed:
                     raise HeimdallError(f"{at}.{key} names {name}, a quantity of listed points (vary's {{ points = … }})",
-                                   where=f"{run.path}: {at}.{key}",
+                                   where=f"{errand.path}: {at}.{key}",
                                    hint="listed points are not a grid to band or merge across: sweep it as an axis of its own")
         if set(band if isinstance(band, list) else []) & set(over):
-            raise HeimdallError(f"{at} both merges and bands {sorted(set(band) & set(over))[0]}", where=f"{run.path}: {at}.band",
+            raise HeimdallError(f"{at} both merges and bands {sorted(set(band) & set(over))[0]}", where=f"{errand.path}: {at}.band",
                            hint="a merged axis is one curve already: band another, or merge less")
     from .quantities import static_values
     from .sweep import TOTALITY, named_sets
@@ -1145,7 +1145,7 @@ def check_figures(run, configuration) -> None:
         known = {TOTALITY, *named_sets(settings.get("sets"))}                    # V167, V168: what [errand] picks
         for name in given if isinstance(given, list) else ():
             if name not in known:
-                raise HeimdallError(f"{key} = [...] names '{name}', which is no set", where=f"{run.path}: {key}",
+                raise HeimdallError(f"{key} = [...] names '{name}', which is no set", where=f"{errand.path}: {key}",
                                hint=did_you_mean(name, sorted(known)) or f"sets: {', '.join(sorted(known))}")
     def mine(at: str, table: dict):
         """The sets of [plot] this configuration draws or measures (V179), None for every one: a file's sets are
@@ -1162,31 +1162,31 @@ def check_figures(run, configuration) -> None:
     made = None
     for at, table, _ in tables:                                                     # V159, V163: what each set names
         if table.get("sets") and table.get("sets") != DEFAULT:
-            made = made if made is not None else sweep_points(run, configuration)
-            static = static_values(run, configuration)
-            specs = set_entries(table["sets"], f"{run.path}: {at}.sets")
+            made = made if made is not None else sweep_points(errand, configuration)
+            static = static_values(errand, configuration)
+            specs = set_entries(table["sets"], f"{errand.path}: {at}.sets")
             picked = table.get("draw")
             for name in picked if isinstance(picked, list) else ():                  # V167: what it draws
                 if name not in {s.name for s in specs}:
-                    raise HeimdallError(f"{at}.draw names '{name}', which is no set", where=f"{run.path}: {at}.draw",
+                    raise HeimdallError(f"{at}.draw names '{name}', which is no set", where=f"{errand.path}: {at}.draw",
                                    hint=did_you_mean(name, [s.name for s in specs]) or f"sets: {', '.join(s.name for s in specs)}")
             checked = mine(at, table)
             for spec in specs:
                 if checked is not None and spec.name not in checked:
                     continue                                                        # its shape is checked: set_entries
                 for selector in spec.selectors:
-                    chosen_points(run, made, selector, f"{run.path}: {at}.sets")
+                    chosen_points(errand, made, selector, f"{errand.path}: {at}.sets")
                 if spec.axes:
-                    check_set(run, spec, made, set(configuration.combine),
+                    check_set(errand, spec, made, set(configuration.combine),
                               values=lambda p: {**static, **p.choice})
-    for figure in (f for f in figures(run) if f.kind == "compare"):
-        compared(run, figure)
-    for figure in (f for f in figures(run) if f.kind == "scan"):                    # V85
-        at = f"{run.path}: {figure.where.split(': ', 1)[1]}.x"
+    for figure in (f for f in figures(errand) if f.kind == "compare"):
+        compared(errand, figure)
+    for figure in (f for f in figures(errand) if f.kind == "scan"):                 # V85
+        at = f"{errand.path}: {figure.where.split(': ', 1)[1]}.x"
         if not any(figure.x in g for g in curve_groups) or figure.x in listed:
             raise HeimdallError(f"a scan figure's x names {figure.x}, which is not a curve axis of {configuration.key}"
                            + (" of its own (it is in listed points)" if figure.x in listed else ""), where=at, hint=hint)
-        if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in run.quantities[figure.x].values):
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in errand.quantities[figure.x].values):
             raise HeimdallError(f"a scan figure's x, {figure.x}, has values that are not numbers", where=at,
                            hint="its values are the x axis: a quantity of numbers (a scan of named values is not drawn yet)")
         if figure.x in (figure.table.get("band") or []):
@@ -1198,7 +1198,7 @@ class Compared:
     """One configuration of a compare figure: `ref` as the figure names it ("cfg", or
     "<Project>/<config>:<cfg>" in another run TOML, V88), its run and its configuration."""
     ref: str
-    run: object
+    errand: object
     configuration: object
     record: bool = False     # "<P>/<run>/<NN_cfg>": a record, drawn as it recorded its points (V158)
     members: list | None = None   # a plot document's (V165): the other document's members ([] when it has none yet)
@@ -1208,15 +1208,15 @@ class Compared:
         return ":" not in self.ref and not self.record
 
 
-def compared(run, figure: Figure) -> list[Compared]:
+def compared(errand, figure: Figure) -> list[Compared]:
     """A compare figure's configurations (V83): those it names, else the sweep_runs ones; two at least,
     one of them this file's, every one with the same page and curve axes (another run's page axes with
     the same tags too), so that their pages pair up."""
     from .config import load
     at = f"{figure.where}.configurations"
-    if hasattr(run, "sibling"):                              # a plot document's (V165): the others are documents too
-        return _compared_documents(run, figure, at)
-    keys = list(figure.configurations) or (run.runs(None) if run.sweep_runs else [])
+    if hasattr(errand, "sibling"):                           # a plot document's (V165): the others are documents too
+        return _compared_documents(errand, figure, at)
+    keys = list(figure.configurations) or (errand.runs(None) if errand.sweep_runs else [])
     if len(keys) < 2:
         raise HeimdallError("a compare figure needs two configurations or more", where=at,
                        hint='configurations = ["a", "b"], or [errand].sweep_runs: its configurations')
@@ -1239,9 +1239,9 @@ def compared(run, figure: Figure) -> list[Compared]:
                 owner = load(snap["config"], sets=list(snap.get("sets", [])), configuration=snap["configuration"])
             out.append(Compared(ref, owner, owner.configurations[snap["configuration"]], record=True))
             continue
-        owner, key = (run, ref) if ":" not in ref else (None, ref.rsplit(":", 1)[1])
-        if owner is run and key in run.configurations and run.configurations[key].own != run.applied:
-            owner = load(str(run.path), sets=list(run.sets), configuration=key)       # V179: its own vars and data
+        owner, key = (errand, ref) if ":" not in ref else (None, ref.rsplit(":", 1)[1])
+        if owner is errand and key in errand.configurations and errand.configurations[key].own != errand.applied:
+            owner = load(str(errand.path), sets=list(errand.sets), configuration=key)       # V179: its own vars and data
         if owner is None:
             try:
                 owner = load(ref.rsplit(":", 1)[0], configuration=key)
@@ -1264,7 +1264,7 @@ def compared(run, figure: Figure) -> list[Compared]:
     for c in (c for c in out if not c.own):              # another run's page cells must be this run's
         for group in shapes[c.ref][0]:
             for name in (group if isinstance(group, Listed) else group[:1]):
-                mine, theirs = run.quantities[name], c.run.quantities[name]
+                mine, theirs = errand.quantities[name], c.errand.quantities[name]
                 if [tag_of(mine, i) for i in range(len(mine.values))] != [tag_of(theirs, i) for i in range(len(theirs.values))]:
                     raise HeimdallError(f"'{c.ref}' has other values of {name}, a page axis, than this file", where=at,
                                    hint="its pages pair with this run's by the page axes' tags")
@@ -1273,7 +1273,7 @@ def compared(run, figure: Figure) -> list[Compared]:
     return out
 
 
-def _compared_documents(run, figure: Figure, at: str) -> list[Compared]:
+def _compared_documents(errand, figure: Figure, at: str) -> list[Compared]:
     """A compare figure drawn from a plot document (V165): this document's configuration, and each other one's
     latest plot document (run.sibling: a configuration of the same run TOML, a record, "<config>:<cfg>"); one
     with no document yet has no members (the figure waits). The found ones' axes must match, as compared's."""
@@ -1284,19 +1284,19 @@ def _compared_documents(run, figure: Figure, at: str) -> list[Compared]:
     out = []
     for ref in keys:
         record = ":" not in ref and ref.count("/") == 2
-        if ref == run.configuration.key:
-            out.append(Compared(ref, run, run.configuration))
+        if ref == errand.configuration.key:
+            out.append(Compared(ref, errand, errand.configuration))
             continue
-        found = run.sibling(ref)
+        found = errand.sibling(ref)
         out.append(Compared(ref, found[0] if found else None, found[1] if found else None, record=record,
                             members=found[2] if found else []))
-    if not any(c.ref == run.configuration.key for c in out):
+    if not any(c.ref == errand.configuration.key for c in out):
         raise HeimdallError("a compare figure names a configuration of its own file too", where=at)
     shapes = {c.ref: axes_of(c.configuration) for c in out if c.configuration is not None}
     for c in out:
-        if c.configuration is not None and shapes[c.ref] != shapes[run.configuration.key]:
-            raise HeimdallError(f"a compare figure's configurations differ in their axes: {run.configuration.key} "
-                           f"{_shape(shapes[run.configuration.key])}, {c.ref} {_shape(shapes[c.ref])}", where=at,
+        if c.configuration is not None and shapes[c.ref] != shapes[errand.configuration.key]:
+            raise HeimdallError(f"a compare figure's configurations differ in their axes: {errand.configuration.key} "
+                           f"{_shape(shapes[errand.configuration.key])}, {c.ref} {_shape(shapes[c.ref])}", where=at,
                            hint="compared configurations sweep the same quantities, with the same plot_points and combine")
     if figure.labels and len(figure.labels) != len(out):
         raise HeimdallError(f"a compare figure's labels give one label per configuration ({len(out)})", where=f"{figure.where}.labels")
@@ -1308,11 +1308,11 @@ def _shape(shape) -> str:
     return f"(pages: {', '.join(g[0] for g in pages_) or 'none'}; curves: {', '.join(g[0] for g in curves) or 'none'})"
 
 
-def check_texts(run, plans) -> None:
+def check_texts(errand, plans) -> None:
     """V66 at plan time: every placeholder the run TOML's texts cite ([plot] and its children, the
     quantities' labels) is one the points have, so a typo costs no point run. Whether a page text has one
     value on its page is known only with the pages, at the plot stage."""
-    if not run.plot:
+    if not errand.plot:
         return
     cited: list[tuple[str, str]] = []
 
@@ -1325,13 +1325,13 @@ def check_texts(run, plans) -> None:
         elif isinstance(value, list):
             for v in value:
                 walk(v, at)
-    walk(run.plot, "[plot]")
-    for name, quantity in run.quantities.items():
+    walk(errand.plot, "[plot]")
+    for name, quantity in errand.quantities.items():
         walk(quantity.labels, f"[quantities.{name}].labels")
-    known = {"cell"} | {k for plan in plans for k in texts_of(run, plan, "")}
+    known = {"cell"} | {k for plan in plans for k in texts_of(errand, plan, "")}
     for key, at in cited:
         if key not in known:
-            raise HeimdallError(f"a page text cites {{{key}}}, which is nothing the points have", where=f"{run.path}: {at}",
+            raise HeimdallError(f"a page text cites {{{key}}}, which is nothing the points have", where=f"{errand.path}: {at}",
                            hint=did_you_mean(key, sorted(known)) or f"they have: {', '.join('{' + k + '}' for k in sorted(known))}")
 
 
@@ -1438,21 +1438,21 @@ def _banded(curves: list, curve_groups: list, band: list, of_plan) -> list:
     return out
 
 
-def _run_of(run, plan):
+def _errand_of(errand, plan):
     """The run whose quantities a member's choice indexes: its own, for another run's (V88)."""
-    return plan.context.get("run") or run
+    return plan.context.get("errand") or errand
 
 
-def _curve_look(run, plan, curve_groups, looks=None) -> dict:
+def _curve_look(errand, plan, curve_groups, looks=None) -> dict:
     """A curve's own look (V67): the styles of its curve axes' values at its point, a later axis's key
     over an earlier's, each under [plot.looks]' look of its tag (V171). Empty: the page style's palette, in turn."""
-    run = _run_of(run, plan)
+    errand = _errand_of(errand, plan)
     look: dict = {}
     for group in curve_groups:
         for name in group:
-            if name not in run.quantities or name not in plan.point.choice:
+            if name not in errand.quantities or name not in plan.point.choice:
                 continue
-            quantity, index = run.quantities[name], plan.point.choice[name]
+            quantity, index = errand.quantities[name], plan.point.choice[name]
             if quantity.styles:
                 look.update(quantity.styles[index])
             given = (looks or {}).get(name, {}).get(tag_of(quantity, index)) if looks not in (None, DEFAULT) else None
@@ -1461,15 +1461,15 @@ def _curve_look(run, plan, curve_groups, looks=None) -> dict:
     return look
 
 
-def _curve_label(run, plan, curve_groups, fill=lambda text: text) -> str:
+def _curve_label(errand, plan, curve_groups, fill=lambda text: text) -> str:
     """The curve axes' labels at its point, after its own (a compared configuration's, V83); the run's
     name when it has neither."""
-    run = _run_of(run, plan)
+    errand = _errand_of(errand, plan)
     own = [canonical(fill(plan.context["curve_label"]))] if plan.context.get("curve_label") else []
     known = {**(getattr(plan, "values", None) or {}), **plan.point.choice}   # a fixed quantity's value too
-    labels = [canonical(fill(label)) for g in curve_groups if g[0] in run.quantities and g[0] in known
-              for label in group_labels(run.quantities, g, known)]
-    return ", ".join(own + labels) or run.name
+    labels = [canonical(fill(label)) for g in curve_groups if g[0] in errand.quantities and g[0] in known
+              for label in group_labels(errand.quantities, g, known)]
+    return ", ".join(own + labels) or errand.name
 
 
 def _paint(paint: Path, configs: list[Path], mode: list[str] = (), sets: dict[str, str] | None = None
@@ -1552,20 +1552,20 @@ def for_backend(page: Page, name: str) -> Page:
     return replace(page, output=page.root / name / page.rel) if page.root else page
 
 
-def draw(run, configuration, plans, say, others=None, stats=True) -> int:
+def draw(errand, configuration, plans, say, others=None, stats=True) -> int:
     """The plot stage: Paint on every page, then any other backend on the same pages. Returns the
     number of pages that failed, summed over the backends. Then each compare figure that names this
     configuration (V83), once all of its configurations have complete points: `others(key)` gives
     another configuration's plans. A failed program's output is logged in records/<run>/logs/plot/ (V204)."""
     token = _LOGS.set(logs_of(plans))
     try:
-        return _draw_stage(run, configuration, plans, say, others, stats)
+        return _draw_stage(errand, configuration, plans, say, others, stats)
     finally:
         _LOGS.reset(token)
 
 
-def _draw_stage(run, configuration, plans, say, others=None, stats=True) -> int:
-    if not run.plot:
+def _draw_stage(errand, configuration, plans, say, others=None, stats=True) -> int:
+    if not errand.plot:
         return 0
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
@@ -1576,27 +1576,27 @@ def _draw_stage(run, configuration, plans, say, others=None, stats=True) -> int:
         say(f"plot: {len(other)} point(s) ran with other inputs than the config gives now ({names}): drawn as "
             f"recorded; heimdall run … --why says what changed")
     notes: list[str] = []
-    todo = pages(run, configuration, plans, notes)
+    todo = pages(errand, configuration, plans, notes)
     for note in dict.fromkeys(notes):                # V163: an axis a set pages by itself, a reference that matched nothing
         say(f"plot: {note}")
-    separate = bool(getattr(run, "stats", None)) or isinstance(stats, list)   # V168: [stats], or sets picked: a pass of its own
-    failed = _draw(run, paint, todo, f"{run.name} · {configuration.label}", say, table=bool(stats) and not separate) if todo else 0
+    separate = bool(getattr(errand, "stats", None)) or isinstance(stats, list)   # V168: [stats], or sets picked: a pass of its own
+    failed = _draw(errand, paint, todo, f"{errand.name} · {configuration.label}", say, table=bool(stats) and not separate) if todo else 0
     if todo and stats and separate:
-        failed += measure(run, configuration, plans, say, picked=stats if isinstance(stats, list) else None)
+        failed += measure(errand, configuration, plans, say, picked=stats if isinstance(stats, list) else None)
     elif todo and stats:                                # V160: from what was drawn
-        failed += _statistic_figures(run, configuration, todo, plans, paint, say)
+        failed += _statistic_figures(errand, configuration, todo, plans, paint, say)
     if not todo:
         say("plot: no complete point has a YODA product to draw")
-    for figure in (f for f in figures(run) if f.kind == "sheet") if todo else ():
-        failed += sheet(run, figure, todo, say)
-    for figure in (f for f in figures(run) if f.kind == "compare"):
-        named = compared(run, figure)
-        if configuration.key not in {c.ref for c in named if c.own or c.run is run}:
+    for figure in (f for f in figures(errand) if f.kind == "sheet") if todo else ():
+        failed += sheet(errand, figure, todo, say)
+    for figure in (f for f in figures(errand) if f.kind == "compare"):
+        named = compared(errand, figure)
+        if configuration.key not in {c.ref for c in named if c.own or c.errand is errand}:
             continue
         sets, waiting = [], []
         for c in named:
-            mine = (plans if c.ref == configuration.key and c.run is run else c.members if c.members is not None
-                    else recorded(c.run, c.configuration) if c.record else others(c.ref) if others else [])
+            mine = (plans if c.ref == configuration.key and c.errand is errand else c.members if c.members is not None
+                    else recorded(c.errand, c.configuration) if c.record else others(c.ref) if others else [])
             complete = drawable(mine)[0]
             if complete:
                 sets.append((c, complete))
@@ -1605,9 +1605,9 @@ def _draw_stage(run, configuration, plans, say, others=None, stats=True) -> int:
         if waiting:
             say(f"plot: compare {figure.name} waits for {', '.join(waiting)}: no complete point yet")
             continue
-        made = compare_pages(run, figure, sets)
+        made = compare_pages(errand, figure, sets)
         say(f"plot: compare {figure.name}, {len(named)} configurations")
-        failed += _draw(run, paint, made, f"{run.name} · {figure.name}", say)
+        failed += _draw(errand, paint, made, f"{errand.name} · {figure.name}", say)
     return failed
 
 
@@ -1621,22 +1621,22 @@ FIGURE_PLANS = {"defined": "its objects' pages, its keys over [plot]'s", "overla
                 "statistic": "{statistic} per curve: statistics/<set>/figures/<backend>/<cell>/{name}/<object>"}
 
 
-def _plan_outputs(run, configuration, complete: list) -> list[str]:
+def _plan_outputs(errand, configuration, complete: list) -> list[str]:
     """--plan's lines for what else a drawing makes (V170): where its pages go, its figures, its statistics, and
     the runs drawn together."""
-    settings = run.plot or {}
+    settings = errand.plot or {}
     lines = []
     if complete:
         here = complete[0].folders
         lines.append(f"pages ({', '.join(backends(settings))}; {', '.join(formats_of(settings))}): {here.plots}/<set>/<backend>/; "
                      f"documents in {here.pages}/<set>/")
-    for figure in figures(run):
+    for figure in figures(errand):
         what = FIGURE_PLANS.get(figure.kind, figure.kind).format(
             name=figure.name, over=", ".join(figure.over) or "?", y=figure.y, x=figure.x, statistic=figure.statistic,
             configurations=", ".join(figure.configurations) or "the swept configurations")
         objects = f", objects {', '.join(figure.objects)}" if figure.objects else ""
         lines.append(f"figure {figure.key} ({figure.kind}{objects}): {what}")
-    recipe = getattr(run, "stats", None) or {}
+    recipe = getattr(errand, "stats", None) or {}
     if chosen("statistics", True, True, (settings,)) is False:
         lines.append("statistics: none ([plot].statistics = false)")
     else:
@@ -1649,13 +1649,13 @@ def _plan_outputs(run, configuration, complete: list) -> list[str]:
     return lines
 
 
-def plan_lines(run, configuration, plans) -> list[str]:
+def plan_lines(errand, configuration, plans) -> list[str]:
     """`heimdall plot … --plan` (V163): each set's page cells and their curves, from the points whose record is
     complete, drawing nothing; with no sets, the plot_points cells. For writing sets against the real points."""
     complete = drawable(plans)[0]
-    lines = [f"{run.name} · {configuration.label}: {len(complete)} of {len(plans)} point(s) complete"]
-    settings = run.plot or {}
-    tables = [("[plot]", settings)] + [(f.where.split(": ", 1)[1], f.table) for f in figures(run)
+    lines = [f"{errand.name} · {configuration.label}: {len(complete)} of {len(plans)} point(s) complete"]
+    settings = errand.plot or {}
+    tables = [("[plot]", settings)] + [(f.where.split(": ", 1)[1], f.table) for f in figures(errand)
                                        if f.kind in ("defined", "overlay")]
     shown = False
     for at, table in tables:
@@ -1664,7 +1664,7 @@ def plan_lines(run, configuration, plans) -> list[str]:
             continue
         shown = True
         drawing = table.get("draw") if table is settings else None
-        for spec in set_entries(wanted, f"{run.path}: {at}.sets"):
+        for spec in set_entries(wanted, f"{errand.path}: {at}.sets"):
             if drawing not in (None, DEFAULT) and spec.name not in drawing:
                 lines.append(f"set {spec.name} ({at}): not drawn ([plot].draw: {', '.join(drawing)})")
                 continue
@@ -1675,37 +1675,37 @@ def plan_lines(run, configuration, plans) -> list[str]:
                 picked = []
                 for selector in spec.selectors:
                     try:
-                        picked += [m for m in chosen_points(run, complete, selector, at) if m not in picked]
+                        picked += [m for m in chosen_points(errand, complete, selector, at) if m not in picked]
                     except HeimdallError:
                         pass
                 lines.append(f"set {spec.name} ({at}): {len(picked)} curve(s){extra}: "
                              + "; ".join(m.point.name for m in picked))
                 continue
-            palette = merge_style(base_style(), run_style(run), spec.keys.get("style", {})).get("curves", {}).get("palette", [])
-            cells, notes = set_cells(run, complete, spec, list(palette))
+            palette = merge_style(base_style(), errand_style(errand), spec.keys.get("style", {})).get("curves", {}).get("palette", [])
+            cells, notes = set_cells(errand, complete, spec, list(palette))
             roles = cells[0].roles if cells else {}
             look = ", ".join(f"{role} by {q}" for role, q in roles.items())
             lines.append(f"set {spec.name} ({at}): {len(cells)} page cell(s), {sum(len(c.members) for c in cells)} "
                          f"curve(s){extra}" + (f"; {look}" if look else ""))
             for c in cells:
-                labels = [_curve_label(run, m, c.labelled) for m in c.members]
+                labels = [_curve_label(errand, m, c.labelled) for m in c.members]
                 lines.append(f"  {spec.name}/{c.key}" if c.key else f"  {spec.name}")
                 lines[-1] += f": {len(c.members)} curve(s): {'; '.join(labels)}"
             lines += [f"  note: {note}" for note in notes]
-    lines += _plan_outputs(run, configuration, complete)
+    lines += _plan_outputs(errand, configuration, complete)
     if not shown:
         page_groups, curve_groups = axes_of(configuration)
         by: dict[str, list] = {}
         for m in complete:
-            by.setdefault("_".join(group_tag(run.quantities, g, m.point.choice) for g in page_groups), []).append(m)
+            by.setdefault("_".join(group_tag(errand.quantities, g, m.point.choice) for g in page_groups), []).append(m)
         lines.append(f"no sets: {len(by)} page cell(s) by plot_points ({', '.join(g[0] for g in page_groups) or 'none'})")
         for key, members in by.items():
             lines.append(f"  {key or '(one cell)'}: {len(members)} curve(s): "
-                         + "; ".join(_curve_label(run, m, curve_groups) for m in members))
+                         + "; ".join(_curve_label(errand, m, curve_groups) for m in members))
     return lines
 
 
-def sheet(run, figure: Figure, todo: list[Page], say) -> int:
+def sheet(errand, figure: Figure, todo: list[Page], say) -> int:
     """A sheet figure (V89): in each set (V164), the drawn pages its globs name (by their names in the set), in
     their order, tiled `columns` wide by framework/plot/figures/layout.py into plots/<set>/<backend>/sheets/
     <name>.pdf, and its .png rendered from that PDF (V102), for Paint's pages and mpl's (mkhtml lays its files
@@ -1732,9 +1732,9 @@ def sheet(run, figure: Figure, todo: list[Page], say) -> int:
             return 1
         columns = figure.columns or min(3, len(chosen_pages))
         made = []
-        for name in (n for n in backends(run.plot) if n in ("root", "mpl")):
+        for name in (n for n in backends(errand.plot) if n in ("root", "mpl")):
             drawn = [p if name == "root" else for_backend(p, name) for p in chosen_pages]
-            files = {fmt: [Path(f"{p.output}.{fmt}") for p in drawn] for fmt in formats_of(run.plot)}
+            files = {fmt: [Path(f"{p.output}.{fmt}") for p in drawn] for fmt in formats_of(errand.plot)}
             try:
                 formats = module.tile(files, chosen_pages[0].root / name / "sheets" / figure.name, columns)
             except ValueError as error:
@@ -1777,7 +1777,7 @@ def write_sets_index(plots: Path, title: str) -> Path | None:
     return index
 
 
-def _tables(run, groups: dict, outcomes: dict, say, who: str) -> int:
+def _tables(errand, groups: dict, outcomes: dict, say, who: str) -> int:
     """Each set's statistics (V160, V164): statistics/<set>/statistics.csv, cleared first, its bar graphs and
     summary; the rows written."""
     bars = statstable.bars()                                    # V162
@@ -1788,7 +1788,7 @@ def _tables(run, groups: dict, outcomes: dict, say, who: str) -> int:
             continue
         _clear(numbers)
         read = [p for p in pages_ if outcomes[str(p.config)][0]]
-        count, drawn = statstable.write_set(read, numbers, formats_of(run.plot), bars)
+        count, drawn = statstable.write_set(read, numbers, formats_of(errand.plot), bars)
         if count:
             counted += count
             tables.append(numbers)
@@ -1803,13 +1803,13 @@ def _tables(run, groups: dict, outcomes: dict, say, who: str) -> int:
 STATS_PAGE_KEYS = ("normalise", "void_empty", "min_entries", "auto_range", "range_pad")
 
 
-def measured(run, picked=None):
+def measured(errand, picked=None):
     """The run as its statistics read it (V168): [stats]'s page keys over [plot]'s, its objects the implicit
     figure's, the sets it measures (`picked`, else [stats].sets, else [plot].draw, else every set) as `draw`;
     its reference "curves" (or a filter, given to every set of axes) drawing no data."""
     from .sweep import named_sets
-    recipe = dict(getattr(run, "stats", None) or {})
-    settings = dict(run.plot or {})
+    recipe = dict(getattr(errand, "stats", None) or {})
+    settings = dict(errand.plot or {})
     settings.update({k: recipe[k] for k in STATS_PAGE_KEYS if k in recipe})
     if "objects" in recipe:                             # a short name (d01-*) as a figure's objects take it
         settings["objects"] = [g if "/" in g else f"*/{g}" for g in recipe["objects"]]
@@ -1823,31 +1823,31 @@ def measured(run, picked=None):
         settings["sets"] = {name: {**table, "reference": reference}
                             if isinstance(table, dict) and ("pages" in table or "curves" in table) and "reference" not in table
                             else table for name, table in named_sets(settings.get("sets")).items()}
-    return replace(run, plot=settings)
+    return replace(errand, plot=settings)
 
 
-def measure(run, configuration, plans, say, picked=None) -> int:
+def measure(errand, configuration, plans, say, picked=None) -> int:
     """`heimdall stats`'s pass (V168), its failures logged as a drawing's (V204): see _measure."""
     token = _LOGS.set(logs_of(plans) or _LOGS.get())
     try:
-        return _measure(run, configuration, plans, say, picked)
+        return _measure(errand, configuration, plans, say, picked)
     finally:
         _LOGS.reset(token)
 
 
-def _measure(run, configuration, plans, say, picked=None) -> int:
+def _measure(errand, configuration, plans, say, picked=None) -> int:
     """The statistics alone (V168): the pages [plot] defines (as `measured` reads them), their documents in the
     working folder's stats/, read by Paint --ranges-only (numbers, no images); each set's statistics/<set>/,
     its bar graphs, and the statistic figures' pages. The pages Paint could not read."""
-    if not run.plot:
+    if not errand.plot:
         return 0
     paint = apps_dir() / "Paint.exe"
     if not paint.exists():
         raise HeimdallError(f"{paint} is not built", hint="heimdall build --framework")
-    numbers = measured(run, picked)
+    numbers = measured(errand, picked)
     notes: list[str] = []
     todo = pages(numbers, configuration, plans, notes, documents="stats")
-    wanted = (getattr(run, "stats", None) or {}).get("objects")
+    wanted = (getattr(errand, "stats", None) or {}).get("objects")
     if wanted:                                          # a figure's own pages too: [stats].objects alone
         todo = [p for p in todo if p.overlay == "" and any(_matches(p.object, g) for g in wanted)]
     for note in dict.fromkeys(notes):
@@ -1872,23 +1872,23 @@ def _measure(run, configuration, plans, say, picked=None) -> int:
     return failed
 
 
-def _statistic_figures(run, configuration, todo: list, plans: list, paint: Path, say) -> int:
+def _statistic_figures(errand, configuration, todo: list, plans: list, paint: Path, say) -> int:
     """The statistic figures' pages (V160): from the numbers of these pages, drawn into statistics/<set>/figures/."""
     failed = 0
-    for figure in (f for f in figures(run) if f.kind == "statistic") if todo else ():
-        drawn = statistic_pages(run, figure, todo, plans[0].folders.pages / "statistic" / figure.name)
+    for figure in (f for f in figures(errand) if f.kind == "statistic") if todo else ():
+        drawn = statistic_pages(errand, figure, todo, plans[0].folders.pages / "statistic" / figure.name)
         if drawn:
             say(f"plot: statistic {figure.name}, {len(drawn)} page(s)")
-            failed += _draw(run, paint, drawn, f"{run.name} · {figure.name}", say, table=False)
+            failed += _draw(errand, paint, drawn, f"{errand.name} · {figure.name}", say, table=False)
         else:
             say(f"plot: statistic {figure.name}: no drawn page of {', '.join(figure.objects)} has its numbers")
     return failed
 
 
-def _draw(run, paint: Path, todo: list[Page], title: str, say, table: bool = True) -> int:
+def _draw(errand, paint: Path, todo: list[Page], title: str, say, table: bool = True) -> int:
     """Paint on these pages, then the other backends on the same pages, an index each, and the statistics of
     each set (V164: plots/<set>/<backend>/ and statistics/<set>/, cleared first)."""
-    names = backends(run.plot)
+    names = backends(errand.plot)
     others = [n for n in names if n != "root"]
     # One Paint for many pages (V64): it draws them (root) and writes each page's ranges beside its config
     # for the other backends (--ranges), or only the ranges (--ranges-only, a yoda-only run).
@@ -1912,8 +1912,8 @@ def _draw(run, paint: Path, todo: list[Page], title: str, say, table: bool = Tru
     if "root" in names:
         where = Path(os.path.commonpath([str(p.config.parent) for p in todo]))  # the documents' folder
         say(f"plot: {len(todo) - failed} of {len(todo)} page(s) drawn; configs in {where}")
-    if table and chosen("statistics", True, True, (run.plot,)) is not False:          # V160, V164: a set's own
-        _tables(run, groups, outcomes, say, "plot")
+    if table and chosen("statistics", True, True, (errand.plot,)) is not False:       # V160, V164: a set's own
+        _tables(errand, groups, outcomes, say, "plot")
     if "root" in names:
         for (root, set_), pages_ in groups.items():             # V70: the ROOT pages' own index, a set's
             drawn = [(p.cell, p.rel, p.output) for p in pages_ if outcomes[str(p.config)][0]]
@@ -1930,7 +1930,7 @@ def _draw(run, paint: Path, todo: list[Page], title: str, say, table: bool = Tru
         for page in todo:
             cells.setdefault(page.name.rpartition("/")[0], []).append(for_backend(page, name))
         module = backend(name)
-        failed += module.draw(cells, run.plot, say)
+        failed += module.draw(cells, errand.plot, say)
         if getattr(module, "INDEX", False):                  # a backend without its own index.html (V71)
             for (root, set_), pages_ in groups.items():
                 drawn = [for_backend(p, name) for p in pages_ if p in todo]

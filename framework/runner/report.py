@@ -82,8 +82,8 @@ class Source:
     members: list                # plot.Member
 
     @property
-    def project(self) -> str:
-        return self.doc.project
+    def assignment(self) -> str:
+        return self.doc.assignment
 
     @property
     def name(self) -> str:
@@ -184,11 +184,11 @@ def _address(folder: Path) -> str:
     return folder.relative_to(root).as_posix() if folder.is_relative_to(root) else str(folder)
 
 
-def _run_sources(run: Path) -> list[Path]:
-    """A run's folder: each configuration's folder with a plot document, then its own when it is drawn."""
-    found = sorted((d for d in run.iterdir() if d.is_dir() and (d / plotdoc.FILE).is_file()), key=lambda d: natural(d.name))
-    if (run / plotdoc.FILE).is_file() and (run / "plots").is_dir():
-        found.append(run)
+def _errand_sources(errand: Path) -> list[Path]:
+    """An errand's folder: each configuration's folder with a plot document, then its own when it is drawn."""
+    found = sorted((d for d in errand.iterdir() if d.is_dir() and (d / plotdoc.FILE).is_file()), key=lambda d: natural(d.name))
+    if (errand / plotdoc.FILE).is_file() and (errand / "plots").is_dir():
+        found.append(errand)
     return found
 
 
@@ -197,7 +197,7 @@ def _folders_of(address: str, where: str) -> list[Path]:
     if address.startswith(("./", "../", "/", "~")):
         if (path / plotdoc.FILE).is_file():
             return [path.resolve()]
-        if path.is_dir() and (found := _run_sources(path)):
+        if path.is_dir() and (found := _errand_sources(path)):
             return [p.resolve() for p in found]
         raise HeimdallError(f"no plot document in {path}", where=where, hint="a source is a result folder holding a plot.toml")
     root = results_root()
@@ -208,7 +208,7 @@ def _folders_of(address: str, where: str) -> list[Path]:
         if depth == 3 and (match / plotdoc.FILE).is_file():
             out.append(match.resolve())
         elif depth == 2:
-            out += [p.resolve() for p in _run_sources(match)]
+            out += [p.resolve() for p in _errand_sources(match)]
     if out:
         return out
     parent = root / address.rsplit("/", 1)[0] if "/" in address else root
@@ -262,10 +262,10 @@ def recipe_of(name: str) -> Path | None:
                        hint="a recipe is a .toml file: <P>/<name>.toml under configs/, ./… from the work dir, or /…") from None
 
 
-def recipes(project: str | None = None) -> list[str]:
+def recipes(assignment: str | None = None) -> list[str]:
     """Every recipe of its own under configs/ ([report] alone), as <P>/<name>.toml (heimdall ls, check)."""
     root = configs_root()
-    return [p.relative_to(root).as_posix() for p in sorted(root.glob(f"{project or '*'}/*.toml")) if _is_recipe(p)]
+    return [p.relative_to(root).as_posix() for p in sorted(root.glob(f"{assignment or '*'}/*.toml")) if _is_recipe(p)]
 
 
 def load_recipe(path: Path) -> dict:
@@ -279,8 +279,8 @@ def load_recipe(path: Path) -> dict:
         raise HeimdallError(f"a recipe has [report] alone, not [{others[0]}]" if others else "a recipe has a [report] table",
                        where=str(path), hint="[report] title = …, then [[report.section]] tables (04 §15)")
     configmod.check_report(data["report"], f"{path}: [report]")
-    project = configmod._project_of(path, data, "")
-    table, _ = configmod.report_of(data["report"], path, project, f"{path}: [report]")
+    assignment = configmod._assignment_of(path, data, "")
+    table, _ = configmod.report_of(data["report"], path, assignment, f"{path}: [report]")
     return table
 
 
@@ -351,21 +351,21 @@ def _named(path: Path) -> str:
     return path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
 
 
-def write_recipe(run, document: Path) -> Path:
+def write_recipe(errand, document: Path) -> Path:
     """results/<P>/<run>/<cfg>/report.toml (V209), beside the plot document just written: the run TOML's [report]
     (its template laid under it), else the default report for the document's sets, its title's placeholders filled
     in. Rewritten whole each time; `heimdall report <folder>` builds it."""
     data = _read(document)
-    table = {k: v for k, v in (getattr(run, "report", None) or {}).items()}
+    table = {k: v for k, v in (getattr(errand, "report", None) or {}).items()}
     if not table.get("section"):
         table["section"] = default_sections(data.get("plot", {}), data.get("stats", {}), table.get("tools"))
     for key in ("title", "subtitle"):
         if table.get(key):
             table[key] = filled(table[key], [data.get("source", {})])
     address = _address(document.parent)
-    config = f"{record.config_name(run)}.toml"
-    templates = [_named(Path(p)) for p in getattr(run, "templates", [])]
-    own = getattr(run, "report", None) or {}
+    config = f"{record.config_name(errand)}.toml"
+    templates = [_named(Path(p)) for p in getattr(errand, "templates", [])]
+    own = getattr(errand, "report", None) or {}
     given = (f"{config}'s [report]" + (f" and its template {', '.join(templates)}" if templates else "")
              + ("" if own.get("section") else ", its sections the default report's") if own
              else f"the default report ({config} has no [report])")
@@ -526,7 +526,7 @@ def configured(source: Source, globs: list[str], hide: list[str], where: str, op
     """What the tools `globs` name were given in a source's complete points (A7), from its records (never today's
     configs/): a tag by name even when it was given nothing, a glob only the tools given a card or options, each
     once, in natural order a glob. Points with no record are said; with none at all, refused (optional: none)."""
-    logs = plotdoc._folders(source.folder, source.project).logs
+    logs = plotdoc._folders(source.folder, source.assignment).logs
     points = [(m, _point_tools(logs / m.point.name)) for m in source.complete()]
     recorded = [(m, tools) for m, tools in points if tools is not None]
     missing = [m.point.name for m, tools in points if tools is None]
@@ -987,11 +987,11 @@ def _pages_section(section: dict, found: list[Source], where: str, drawings: lis
 
 def _compare_section(section: dict, found: list[Source], where: str) -> list[Grid]:
     grids: list[Grid] = []
-    runs = list(dict.fromkeys(s.folder.parent for s in found))
-    for run in runs:
+    errands = list(dict.fromkeys(s.folder.parent for s in found))
+    for errand in errands:
         for name in section["compare"]:
             for backend in _backends(section):
-                where_ = run / "compare" / name / backend
+                where_ = errand / "compare" / name / backend
                 pages = sorted((p for p in where_.rglob("*.p[dn][fg]")), key=lambda p: natural(str(p))) if where_.is_dir() else []
                 shown: dict[str, Path] = {}
                 for p in pages:
@@ -1001,11 +1001,11 @@ def _compare_section(section: dict, found: list[Source], where: str) -> list[Gri
                     if rel not in shown or p.suffix.lower() == ".pdf":
                         shown[rel] = p
                 if shown:
-                    grids.append(Grid(f"{_address(run)} · compare {name}", [Figure(None, "", rel, path, rel.rsplit('/', 1)[-1])
+                    grids.append(Grid(f"{_address(errand)} · compare {name}", [Figure(None, "", rel, path, rel.rsplit('/', 1)[-1])
                                                                          for rel, path in shown.items()], section.get("columns")))
                     break
             else:
-                raise HeimdallError(f"compare: no page of {name} drawn in {_address(run)}/compare/", where=f"{where}.compare",
+                raise HeimdallError(f"compare: no page of {name} drawn in {_address(errand)}/compare/", where=f"{where}.compare",
                                hint="a compare figure is drawn by its configurations' plot stage (03 §7.5)")
     return grids
 
@@ -1528,7 +1528,7 @@ def _page_document(figure: Figure, drawings: list[Drawing]) -> Path | None:
     if source is None or figure.file is None:
         return None
     drawn = next((d for d in drawings if d.results is not None and figure.file.is_relative_to(d.results)), None)
-    work = drawn.folder / "work" if drawn else plotdoc._folders(source.folder, source.project).cache
+    work = drawn.folder / "work" if drawn else plotdoc._folders(source.folder, source.assignment).cache
     path = work / figure.set / f"{figure.page}.toml"
     return path if path.is_file() else None
 
@@ -2237,14 +2237,14 @@ def _index(plan: Plan, placed: list[tuple[Section, list]], method: Prose | None,
 def drawings_root(plan: Plan) -> Path:
     """Where a report's drawings go (P6): .cache/<P>/reports/<its place under reports/, the project's folder
     left out>/.drawn/ (a report built elsewhere: …/reports/elsewhere/<its path's hash>/.drawn/)."""
-    project = plan.sources[0].project if plan.sources else "report"
+    assignment = plan.sources[0].assignment if plan.sources else "report"
     out, root = plan.out.resolve(), reports_root().resolve()
     if out.is_relative_to(root) and out != root:
         rel = out.relative_to(root).parts
-        place = Path(*rel[1:]) if rel[0] == project else Path(*rel)
+        place = Path(*rel[1:]) if rel[0] == assignment else Path(*rel)
     else:
         place = Path("elsewhere") / _key(str(out))[:12]
-    return cache_root() / project / "reports" / place / ".drawn"
+    return cache_root() / assignment / "reports" / place / ".drawn"
 
 
 def _drawing_name(drawing: Drawing) -> str:
@@ -2282,7 +2282,7 @@ def _draw_for(plan: Plan, say) -> None:
     for drawing in plan.drawings:
         source = drawing.source
         drawing.folder = folder = root / _drawing_name(drawing)
-        folders = RunFolders(source.project, folder / "records", folder / "results", folder / "work")
+        folders = RunFolders(source.assignment, folder / "records", folder / "results", folder / "work")
         doc, configuration, members = plotdoc.load(source.folder / plotdoc.FILE, folders=folders)
         settings = looked(doc.plot or {}, drawing.look)
         wanted = [*drawing.sets, *drawing.measured]

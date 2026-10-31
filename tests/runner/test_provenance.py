@@ -21,8 +21,8 @@ def head(folder) -> str:
 
 
 def provenance_of(scratch):
-    run, conf, point = plan(raw(), scratch)
-    return record.provenance(point, run, conf, "2026-10-10T00:00:00", "2026-10-10T00:00:01", {})
+    errand, conf, point = plan(raw(), scratch)
+    return record.provenance(point, errand, conf, "2026-10-10T00:00:00", "2026-10-10T00:00:01", {})
 
 
 def test_a_folder_that_is_not_a_repo_has_no_git_state(scratch):

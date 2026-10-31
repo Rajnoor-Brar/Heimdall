@@ -132,25 +132,25 @@ def test_a_work_dirs_name_is_its_folders_unless_given(scratch):
 # ── resolution ──────────────────────────────────────────────────────────────────────────────────
 
 def test_a_bare_name_takes_its_keys_convention_root():
-    assert paths.resolve("ep.cmnd", "baseconfig", project="Demo") == \
+    assert paths.resolve("ep.cmnd", "baseconfig", assignment="Demo") == \
         WORK / "configs" / "Demo" / "ep.cmnd"
-    assert paths.resolve("Decay.exe", "executable", project="Decay") == WORK / "build" / "Decay" / "Decay.exe"
+    assert paths.resolve("Decay.exe", "executable", assignment="Decay") == WORK / "build" / "Decay" / "Decay.exe"
     assert paths.resolve("jets_data.yoda", "data") == WORK / "datasets" / "jets_data.yoda"
 
 
 def test_dot_slash_is_the_work_dir_not_the_working_directory(monkeypatch, scratch):
     monkeypatch.chdir(scratch)
-    assert paths.resolve("./datasets/jets_data.yoda", "baseconfig", project="X") == WORK / "datasets" / "jets_data.yoda"
+    assert paths.resolve("./datasets/jets_data.yoda", "baseconfig", assignment="X") == WORK / "datasets" / "jets_data.yoda"
 
 
 def test_an_absolute_path_is_kept():
-    assert paths.resolve("/tmp/x.cmnd", "baseconfig", project="P") == Path("/tmp/x.cmnd")
+    assert paths.resolve("/tmp/x.cmnd", "baseconfig", assignment="P") == Path("/tmp/x.cmnd")
 
 
 @pytest.mark.parametrize("value", ["../x.cmnd", "a/../b", ".."])
 def test_climbing_out_is_refused(value):
     with pytest.raises(HeimdallError, match="climbs out") as caught:
-        paths.resolve(value, "baseconfig", project="P")
+        paths.resolve(value, "baseconfig", assignment="P")
     assert "./" in caught.value.hint
 
 

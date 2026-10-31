@@ -80,15 +80,15 @@ def test_every_relative_link_resolves(page):
 def test_every_toml_block_parses_and_complete_runs_load(page, scratch):
     for block in blocks(page, "toml"):
         data = tomllib.loads(block)                    # raises on a bad block
-        run = data.get("errand", {})
-        complete = {"name", "assignment", "configuration"} <= set(run) and isinstance(run.get(run["configuration"]), dict)
+        errand = data.get("errand", {})
+        complete = {"name", "assignment", "configuration"} <= set(errand) and isinstance(errand.get(errand["configuration"]), dict)
         if complete and data.get("config", {}).get("import"):   # V94: read through its imports (the fixtures')
             path = scratch / "example.toml"
             path.write_text(block, encoding="utf-8")
             config.load(str(path))
         elif complete:                                   # a whole run TOML, not a fragment of one
             config.parse(data, scratch / "example.toml")   # C1–C5 on the example itself
-        elif v3.is_v3(data) and {"name", "assignment"} <= set(run) and data.get("cfgs"):
+        elif v3.is_v3(data) and {"name", "assignment"} <= set(errand) and data.get("cfgs"):
             path = scratch / "example.toml"              # a whole v3 file, its imports the fixture's: read as `heimdall run` reads it (U50)
             path.write_text(block, encoding="utf-8")
             config.load(str(path))

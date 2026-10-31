@@ -63,7 +63,7 @@ def fake(script: str, configuration: str = "single"):
 def test_twelve_attempts_leave_nine_digests_and_three_whole_logs(trees):
     p, plan, tag = fake('for i in $(seq 1 400); do echo "line $i"; done; exit 1')
     for _ in range(12):
-        execute.run_point(plan, p.run, p.configuration, bus=Bus(), logs=True)
+        execute.run_point(plan, p.errand, p.configuration, bus=Bus(), logs=True)
     history = plan.out / execute.HISTORY
     kept = sorted(int(f.name) for f in history.iterdir())
     assert kept == list(range(3, 12))                                  # attempts 3…11; the 12th's are the point's own

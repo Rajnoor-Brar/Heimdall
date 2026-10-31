@@ -40,8 +40,8 @@ def recorded_run(name: str, key: str, sets=()):
     p = planned(name, key, sets)
     for plan in p.every:
         finished(plan)
-    record.write_atomic(record.manifest_file(p.every), json.dumps(record.points_manifest(p.every, p.run, p.configuration)))
-    record.write_snapshot(p.run, p.configuration, p.every)
+    record.write_atomic(record.manifest_file(p.every), json.dumps(record.points_manifest(p.every, p.errand, p.configuration)))
+    record.write_snapshot(p.errand, p.configuration, p.every)
     return p
 
 
@@ -53,7 +53,7 @@ def test_a_snapshot_holds_what_the_run_read(trees):
     meta = tomllib.loads((folder / record.SNAPSHOT).read_text(encoding="utf-8"))
     assert meta["snapshot"]["config"] == "Demo/jets" and meta["snapshot"]["configuration"] == "pdf"
     assert meta["snapshot"]["sets"] == ["errand.events=300"] and set(meta["files"]) == {"Demo/jets.toml", "Demo/ep.cmnd"}
-    assert (folder / "Demo" / "jets.toml").read_bytes() == p.run.path.read_bytes()
+    assert (folder / "Demo" / "jets.toml").read_bytes() == p.errand.path.read_bytes()
 
 
 def test_a_record_plans_to_the_identities_its_points_ran_with(trees, monkeypatch):
@@ -67,10 +67,10 @@ def test_a_record_plans_to_the_identities_its_points_ran_with(trees, monkeypatch
     assert (args.config, args.configuration, args.set) == ("Demo/jets", "pdf", ["errand.events=300"])
     assert paths.configs_root() == p.every[0].folders.config
     again = planned(args.config, args.configuration, args.set)
-    assert again.run.path.is_relative_to(p.every[0].folders.config)
+    assert again.errand.path.is_relative_to(p.every[0].folders.config)
     assert [plan.identity for plan in again.every] == [plan.identity for plan in p.every]
     assert all(record.is_complete(plan) for plan in again.every)
-    assert record.write_snapshot(again.run, again.configuration, again.every) is None     # its own: nothing written
+    assert record.write_snapshot(again.errand, again.configuration, again.every) is None  # its own: nothing written
 
 
 def test_a_record_is_named_by_its_folder_or_a_path(trees):
@@ -91,12 +91,12 @@ def test_a_record_is_drawn_as_it_was_recorded(trees):
     """plot.recorded: points.json's points, complete when their .complete holds the identity it names; no
     tool is planned. A point since run with other inputs is not the record's."""
     p = recorded_run("Demo/jets", "pdf")
-    members = plot.recorded(p.run, p.configuration)
+    members = plot.recorded(p.errand, p.configuration)
     assert [m.point.name for m in members] == [plan.point.name for plan in p.every]
     assert [m.yoda for m in members] == [plot.yoda_of(plan) for plan in p.every]
     assert plot.drawable(members) == (members, [])
     record.write_atomic(record.complete_marker(p.every[1]), "another identity\n")
-    assert [m.point.name for m in plot.drawable(plot.recorded(p.run, p.configuration))[0]] == \
+    assert [m.point.name for m in plot.drawable(plot.recorded(p.errand, p.configuration))[0]] == \
         [plan.point.name for plan in p.every if plan is not p.every[1]]
 
 
@@ -147,10 +147,10 @@ def test_a_snapshot_holds_every_file_the_run_imports(scratch, monkeypatch):
                                           'run = "c"\nevents = 1\nchain = ["x"]\n\n'
                                           '[cfgs.c]\nvary = ["q"]\n', encoding="utf-8")
         from runner import config
-        run = config.load("P/run")
-        assert run.imported == [(configs / "common.toml").resolve(), (configs / "base.toml").resolve()]
+        errand = config.load("P/run")
+        assert errand.imported == [(configs / "common.toml").resolve(), (configs / "base.toml").resolve()]
         p = planned("P/run", "c")
-        folder = record.write_snapshot(p.run, p.configuration, p.every)
+        folder = record.write_snapshot(p.errand, p.configuration, p.every)
         assert sorted(str(f.relative_to(folder)) for f in folder.rglob("*.toml")) == \
             ["P/base.toml", "P/common.toml", "P/run.toml", "snapshot.toml"]
     finally:

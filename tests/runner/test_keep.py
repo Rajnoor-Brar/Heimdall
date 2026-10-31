@@ -80,8 +80,8 @@ def test_the_drawings_working_files_are_the_caches(scratch, monkeypatch):
     """V164: the page documents and the drawing's working files are .cache/<P>/plots/<name>/<NN_cfg>/, rebuilt on
     demand and kept; records/ holds none of them, and heimdall clean does not take them for a tool's caches."""
     from runner import tools
-    run, configuration, made = plan(raw(), scratch)
+    errand, configuration, made = plan(raw(), scratch)
     assert made.folders.pages == paths.cache_root() / "Demo" / "plots" / made.folders.record.relative_to(paths.records_root() / "Demo")
     assert not made.folders.pages.is_relative_to(paths.records_root())
     assert made.folders.statistics == made.folders.results / "statistics"
-    assert tools.run_folders(run, configuration) == made.folders
+    assert tools.run_folders(errand, configuration) == made.folders

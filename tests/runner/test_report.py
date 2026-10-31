@@ -69,17 +69,17 @@ COLUMNS = ("page", "cell", "object", "curve", "point", "reference", "is_referenc
 
 
 def folder(results, name: str, label: str, events: int, complete: bool = True, cells=("18x275", "27x920"),
-           objects=("d01-x01-y01", "d02-x01-y01", "d10-x01-y01"), draw=("totality",), run="validation", project="P",
+           objects=("d01-x01-y01", "d02-x01-y01", "d10-x01-y01"), draw=("totality",), errand="validation", assignment="P",
            sets=()):
     """A configuration's result folder: its document (`sets`: [plot].sets of its own, point A each), its points'
     YODAs, its totality pages (mpl) and their numbers."""
-    where = results / project / run / name
+    where = results / assignment / errand / name
     (where / "points").mkdir(parents=True)
     tables = "".join(f'\n[plot.sets.{s}]\npoints = ["A"]\n' for s in ("totality", *sets)) if sets else ""
     text = DOCUMENT.format(label=label, folder=name, events=events, complete=str(complete).lower(),
                            draw="[" + ", ".join(f'"{s}"' for s in draw) + "]", sets=tables)
-    (where / "plot.toml").write_text(text.replace('"validation"', f'"{run}"').replace('"P"', f'"{project}"')
-                                     .replace("P/validation/", f"{project}/{run}/"), encoding="utf-8")
+    (where / "plot.toml").write_text(text.replace('"validation"', f'"{errand}"').replace('"P"', f'"{assignment}"')
+                                     .replace("P/validation/", f"{assignment}/{errand}/"), encoding="utf-8")
     for point in ("A", "B"):
         (where / "points" / point).mkdir()
         (where / "points" / point / "run.yoda").write_text("# a YODA\n", encoding="utf-8")
@@ -297,9 +297,9 @@ def test_reports_are_built_where_results_has_their_sources_unless_told(trees):
     reports = trees / "reports"
     assert report.planned("P/validation/01_pdf", []).out == reports / "P" / "validation" / "01_pdf"
     assert report.planned("P/validation/0*", []).out == reports / "P" / "validation"
-    folder(trees / "results", "01_pdf", "pdf", 1_000_000, run="other")
+    folder(trees / "results", "01_pdf", "pdf", 1_000_000, errand="other")
     assert report.planned("P/validation/01_pdf", ["P/other/01_pdf"]).out == reports / "P"          # two runs': P's
-    folder(trees / "results", "01_pdf", "pdf", 1_000_000, project="Q")
+    folder(trees / "results", "01_pdf", "pdf", 1_000_000, assignment="Q")
     with pytest.raises(HeimdallError, match=r"several projects \(P, Q\)") as error:
         report.planned("P/validation/01_pdf", ["Q/validation/01_pdf"])
     assert "-o DIR" in str(error.value.hint)

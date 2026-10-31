@@ -106,7 +106,7 @@ def written(scratch: Path, text: str, name: str = "run.toml") -> str:
     return str(path)
 
 
-def load(scratch: Path, text: str, name: str = "run.toml") -> config.RunConfig:
+def load(scratch: Path, text: str, name: str = "run.toml") -> config.Errand:
     return config.load(written(scratch, text, name))
 
 
@@ -122,9 +122,9 @@ def test_the_v3_file_is_the_v2_file(scratch, cfg):
 
 
 def test_an_input_names_its_producer(scratch):
-    run = load(scratch, V3)
-    assert run.tools["rivet"].input == ["events.hepmc"] and run.tools["yd2rt"].input == ["jets.yoda"]
-    assert run.tools["pythia"].tool == "pythia" and run.tools["pythia"].baseconfig == ["ep.cmnd"]
+    errand = load(scratch, V3)
+    assert errand.tools["rivet"].input == ["events.hepmc"] and errand.tools["yd2rt"].input == ["jets.yoda"]
+    assert errand.tools["pythia"].tool == "pythia" and errand.tools["pythia"].baseconfig == ["ep.cmnd"]
 
 
 def test_interfaces_are_inferred_from_the_chain(scratch):
@@ -132,10 +132,10 @@ def test_interfaces_are_inferred_from_the_chain(scratch):
     text = V3.replace('chain   = [["pythia", "rivet"], "yd2rt"]', 'chain   = ["pythia", "rivet", "yd2rt"]')
     text = text.replace('output = "events.hepmc"            # a FIFO: rivet reads it in the same group',
                         'output = "events.hepmc"\nkeep   = false')
-    run = load(scratch, text)
-    assert run.configuration("single").prelim == {"files": ["events.hepmc"]}         # scratch, in the point's folder
-    run = load(scratch, text.replace("keep   = false", ""))
-    assert run.configuration("single").prelim == {}                                 # a product: results/
+    errand = load(scratch, text)
+    assert errand.configuration("single").prelim == {"files": ["events.hepmc"]}      # scratch, in the point's folder
+    errand = load(scratch, text.replace("keep   = false", ""))
+    assert errand.configuration("single").prelim == {}                              # a product: results/
 
 
 def test_a_compound_quantity_sweeps_its_fields_together(scratch):
@@ -153,21 +153,21 @@ points = [
 fixed  = "18x275"
 points = [{ tag = "18x275", value = [275, 18], label = "18x275 GeV" }]
 ''', "")
-    run, conf, points, plans = plans_of(written(scratch, text), "nuclei")
+    errand, conf, points, plans = plans_of(written(scratch, text), "nuclei")
     assert [p.name for p in points] == ["p", "Au"]                                    # not p_p_p
-    assert run.quantities["collision_npdf"].silent and not run.quantities["energies"].silent
+    assert errand.quantities["collision_npdf"].silent and not errand.quantities["energies"].silent
     card = plans[1].rendered["pythia"].card_lines
     assert "PDF:nPDFBeamA = 1000791970" in card and "PDF:useHardNPDFA = on" in card
     assert "Beams:eA = 100" in card and "Beams:eB = 9" in card
 
 
 def test_events_as_a_list_make_one_configuration_per_count(scratch):
-    run = load(scratch, V3.replace('[cfgs.pdf]\nvary = ["pdf"]', '[cfgs.pdf]\nvary   = ["pdf"]\nevents = [100, 2500]'))
-    assert run.runs("pdf") == ["pdf_100", "pdf_2.5k"]
-    assert [run.configurations[k].event_count for k in run.runs("pdf")] == [100, 2500]
-    assert run.configurations["pdf_2.5k"].label == "pdf_2.5k"
+    errand = load(scratch, V3.replace('[cfgs.pdf]\nvary = ["pdf"]', '[cfgs.pdf]\nvary   = ["pdf"]\nevents = [100, 2500]'))
+    assert errand.runs("pdf") == ["pdf_100", "pdf_2.5k"]
+    assert [errand.configurations[k].event_count for k in errand.runs("pdf")] == [100, 2500]
+    assert errand.configurations["pdf_2.5k"].label == "pdf_2.5k"
     with pytest.raises(HeimdallError, match="several configurations, one per event count"):
-        run.configuration("pdf")
+        errand.configuration("pdf")
 
 
 def test_beams_are_one_quantity(scratch):
@@ -176,14 +176,14 @@ fixed  = "18x275"
 points = [{ tag = "18x275", value = [275, 18], label = "18x275 GeV" }]''', '''[quantities.beams]
 fixed  = "ep275"
 points = [{ tag = "ep275", label = "18x275 GeV e-p", a = { id = 2212, energy = 275 }, b = { id = 11, energy = 18 } }]''')
-    run = load(scratch, text)
-    assert run.quantities["beams"].values == [[2212, 11]] and run.quantities["energies"].values == [[275, 18]]
-    assert run.configuration("single").static == {"beams": "ep275", "energies": "ep275", "pdf": "MSTW08lo"}
+    errand = load(scratch, text)
+    assert errand.quantities["beams"].values == [[2212, 11]] and errand.quantities["energies"].values == [[275, 18]]
+    assert errand.configuration("single").static == {"beams": "ep275", "energies": "ep275", "pdf": "MSTW08lo"}
 
 
 def test_the_seed_is_one_key(scratch):
-    run = load(scratch, V3.replace("threads = 1\n", "threads = 1\nseed    = 7\n", 1))
-    assert (run.configuration("single").seed_type, run.configuration("single").manual_seed) == ("manual", 7)
+    errand = load(scratch, V3.replace("threads = 1\n", "threads = 1\nseed    = 7\n", 1))
+    assert (errand.configuration("single").seed_type, errand.configuration("single").manual_seed) == ("manual", 7)
 
 
 @pytest.mark.parametrize("change, message", [
@@ -215,9 +215,9 @@ def test_an_imported_tool_table_merges_key_by_key(scratch):
                       .replace('[cfgs.pdf]\nvary = ["pdf"]\n', ""), encoding="utf-8")
     mine = f'[file]\nimport = ["{common}"]\n\n[errand]\nassignment = "Demo"\nname = "mine"\nrun = "one"\n\n' \
            '[tools.rivet]\nanalyses = ["photo_eic:R=0.7"]\n\n[cfgs.one]\nvary = ["pdf"]\n'
-    run = load(scratch, mine, "mine.toml")
-    assert run.form == 3 and run.tools["rivet"].extra["analyses"] == ["photo_eic:R=0.7"]
-    assert run.tools["rivet"].output_file == ["jets.yoda"] and run.tools["rivet"].input == ["events.hepmc"]
+    errand = load(scratch, mine, "mine.toml")
+    assert errand.form == 3 and errand.tools["rivet"].extra["analyses"] == ["photo_eic:R=0.7"]
+    assert errand.tools["rivet"].output_file == ["jets.yoda"] and errand.tools["rivet"].input == ["events.hepmc"]
 
 
 def test_the_card_shows_where_each_line_comes_from(scratch, capsys):
@@ -230,12 +230,12 @@ def test_the_card_shows_where_each_line_comes_from(scratch, capsys):
     assert "← the runner (seeds, the footer)" in shown
 
 
-def _identities(run) -> dict:
+def _identities(errand) -> dict:
     from runner import record
-    master = quantities.load_master(run.project, run.master_toml)
+    master = quantities.load_master(errand.assignment, errand.master_toml)
     out = {}
-    for key, conf in run.configurations.items():
-        plans = [tools.plan_point(run, conf, p, master) for p in sweep.points(run, conf)]
+    for key, conf in errand.configurations.items():
+        plans = [tools.plan_point(errand, conf, p, master) for p in sweep.points(errand, conf)]
         out[key] = [(p.point.name, conf.prelim, record.identity(p)) for p in plans]
     return out
 
@@ -277,8 +277,8 @@ def test_a_key_in_the_wrong_table_names_its_table(scratch, change, message):
 
 def test_heimdall_check_names_tool_tables_nothing_uses(scratch):
     from runner import house
-    run = load(scratch, V3.replace("[tools.yd2rt]", '[tools.spare]\nuses = "yd2rt"\ninput = "rivet"\noutput = "x.root"\n\n[tools.yd2rt]'))
-    assert house.unused_tools(run) == ["[tools.spare] is defined but no configuration runs it or names it in generate_cards"]
+    errand = load(scratch, V3.replace("[tools.yd2rt]", '[tools.spare]\nuses = "yd2rt"\ninput = "rivet"\noutput = "x.root"\n\n[tools.yd2rt]'))
+    assert house.unused_tools(errand) == ["[tools.spare] is defined but no configuration runs it or names it in generate_cards"]
     assert house.unused_tools(load(scratch, V3)) == []
 
 
@@ -359,7 +359,7 @@ def test_a_set_serial_refuses_to_overwrite_other_inputs(scratch, trees_of_its_ow
     assert "serial = 4" in error.value.hint and "--rerun" in error.value.hint and "[errand]" in error.value.where
     cli.refuse_overwrites(changed, argparse.Namespace(rerun=True))
     cli.refuse_overwrites(changed, argparse.Namespace(rerun=False), frozenset({"post", "plot"}))   # no point runs
-    cli.print_plan(changed.run, changed.configuration, changed.plans, pre_plan=changed.pre)
+    cli.print_plan(changed.errand, changed.configuration, changed.plans, pre_plan=changed.pre)
     assert "running refuses to overwrite them (serial = 4, or --rerun)" in capsys.readouterr().out
     v2 = written(scratch, V2.replace('name          = "pair"', 'name          = "kept2"\nserial        = 3'), "kept2.toml")
     _complete(_planned(v2, "pdf"))
@@ -395,8 +395,8 @@ def test_an_imports_only_and_drop_take_v3_names(scratch):
     common = written(scratch, V3, "shared.toml")
     mine = f'[file]\nimport = [{{ from = "{common}", only = ["cfgs.pdf", "tools", "quantities", "errand.chain"] }}]\n\n' \
            '[errand]\nassignment = "Demo"\nname = "taker"\nrun = "pdf"\nevents = 10\n'
-    run = load(scratch, mine, "taker.toml")
-    assert list(run.configurations) == ["pdf"] and run.configuration("pdf").sweeps == ["pdf"]
+    errand = load(scratch, mine, "taker.toml")
+    assert list(errand.configurations) == ["pdf"] and errand.configuration("pdf").sweeps == ["pdf"]
     dropping = f'[file]\nimport = ["{common}"]\ndrop = ["cfgs.single"]\n\n[errand]\nassignment = "Demo"\nname = "dropper"\nrun = "pdf"\n'
     assert "single" not in load(scratch, dropping, "dropper.toml").configurations
     with pytest.raises(HeimdallError, match="drop names"):

@@ -135,13 +135,13 @@ def _master_of() -> dict:
     return master
 
 
-def load_master(project: str, master_toml: str | None) -> dict:
+def load_master(assignment: str, master_toml: str | None) -> dict:
     """The tool folders' mappings (framework/tools/<tool>/quantities.toml), overlaid key by key by the project's
     master if [config].master names one ([quantities.<tool>.compatible_quantities], as before)."""
     master = copy.deepcopy(_folders_master())
     read = _read
     if master_toml:
-        overlay_path = resolve(master_toml, "master", project=project, where="[config].master")
+        overlay_path = resolve(master_toml, "master", assignment=assignment, where="[config].master")
         if not overlay_path.exists():
             raise HeimdallError("the project master TOML does not exist", where=str(overlay_path))
         overlay = read(overlay_path)
@@ -174,35 +174,35 @@ def select(quantity, selector: Any, where: str) -> int:
                    hint=did_you_mean(str(selector), choices) or f"tags: {', '.join(choices)}")
 
 
-def static_values(run, configuration) -> dict[str, int]:
+def static_values(errand, configuration) -> dict[str, int]:
     """quantity → value index for every static value (file-wide, then the configuration's own)."""
     out = {}
     for name, selector in configuration.static.items():
-        out[name] = select(run.quantities[name], selector, f"{run.path}: static.{name}")
+        out[name] = select(errand.quantities[name], selector, f"{errand.path}: static.{name}")
     return out
 
 
-def mappings(run, master: dict, name: str, tags: list[str], configured: set = frozenset()) -> list[Mapping]:
+def mappings(errand, master: dict, name: str, tags: list[str], configured: set = frozenset()) -> list[Mapping]:
     """Every way quantity `name` reaches the tools `tags` of this configuration. `configured`: the tags whose
     folder writes a config file ([tool] config_file: custom, module), where a target lands as a config key."""
-    quantity = run.quantities[name]
+    quantity = errand.quantities[name]
     out: list[Mapping] = []
     if quantity.target:
         for target in quantity.target:
             tag, _, rest = target.partition("/")
-            if tag not in run.tools:
-                raise HeimdallError(f"target '{target}' names no tool table", where=f"{run.path}: [quantities.{name}].target",
-                               hint=did_you_mean(tag, run.tools))
+            if tag not in errand.tools:
+                raise HeimdallError(f"target '{target}' names no tool table", where=f"{errand.path}: [quantities.{name}].target",
+                               hint=did_you_mean(tag, errand.tools))
             if tag not in tags:
                 continue
-            tool = run.tools[tag]
+            tool = errand.tools[tag]
             key = quantity.key.get(tag, quantity.key.get(tool.tool)) if isinstance(quantity.key, dict) else quantity.key
             if rest == "seed":
                 out.append(Mapping(tag, "seed"))
             elif rest:
                 if not key:
                     raise HeimdallError(f"target '{target}' is an analysis option: give its name in key",
-                                   where=f"{run.path}: [quantities.{name}]")
+                                   where=f"{errand.path}: [quantities.{name}]")
                 out.append(Mapping(tag, "option", key, quantity.format, analysis=rest))
             elif tag in configured:
                 out.append(Mapping(tag, "config", key or name, quantity.format))
@@ -212,13 +212,13 @@ def mappings(run, master: dict, name: str, tags: list[str], configured: set = fr
                 out.append(_from_master(tag, compatible(master, tool.tool)[name], f"master: {tool.tool}.{name}"))
             else:
                 raise HeimdallError(f"target '{target}': no key, and the master has no mapping of '{name}' for {tool.tool}",
-                               where=f"{run.path}: [quantities.{name}]", hint="give key = \"<native key>\"")
+                               where=f"{errand.path}: [quantities.{name}]", hint="give key = \"<native key>\"")
         return out
     if isinstance(quantity.key, str):
-        raise HeimdallError("a string key needs a target", where=f"{run.path}: [quantities.{name}].key",
+        raise HeimdallError("a string key needs a target", where=f"{errand.path}: [quantities.{name}].key",
                        hint="write key = { <tool or tag> = \"...\" }, or add target = \"<tag>\"")
     for tag in tags:
-        tool = run.tools[tag]
+        tool = errand.tools[tag]
         if isinstance(quantity.key, dict) and (tag in quantity.key or tool.tool in quantity.key):
             out.append(Mapping(tag, "key", quantity.key.get(tag, quantity.key.get(tool.tool)), quantity.format))
         elif name in compatible(master, tool.tool):
@@ -238,13 +238,13 @@ def _from_master(tag: str, entry: dict, where: str) -> Mapping:
     return Mapping(tag, forms[0], entry[forms[0]], entry.get("format", ""), check=entry.get("check", ""))
 
 
-def builtin_mappings(master: dict, run, tags: list[str], name: str) -> list[Mapping]:
+def builtin_mappings(master: dict, errand, tags: list[str], name: str) -> list[Mapping]:
     """events/threads reach a tool only through the master (they need no consumer)."""
-    return [_from_master(tag, compatible(master, run.tools[tag].tool)[name], f"master: {run.tools[tag].tool}.{name}")
-            for tag in tags if name in compatible(master, run.tools[tag].tool)]
+    return [_from_master(tag, compatible(master, errand.tools[tag].tool)[name], f"master: {errand.tools[tag].tool}.{name}")
+            for tag in tags if name in compatible(master, errand.tools[tag].tool)]
 
 
-def consumer_table(run, master: dict, active: list[str], tags: list[str],
+def consumer_table(errand, master: dict, active: list[str], tags: list[str],
                    alternatives: list[str] = (), configured: set = frozenset(), varied: frozenset = frozenset(),
                    point: str = "", together: dict | None = None) -> dict[str, list[Mapping]]:
     """quantity → mappings, and rule C7: an active quantity must reach at least one tool.
@@ -257,21 +257,21 @@ def consumer_table(run, master: dict, active: list[str], tags: list[str],
     generator its own field of one switch."""
     table = {}
     for name in active:
-        found = mappings(run, master, name, tags, configured)
-        if not found and alternatives and mappings(run, master, name, list(alternatives), configured):
+        found = mappings(errand, master, name, tags, configured)
+        if not found and alternatives and mappings(errand, master, name, list(alternatives), configured):
             read_with = [o for o in (together or {}).get(name, ()) if o != name and o in active
-                         and mappings(run, master, o, tags, configured)]
+                         and mappings(errand, master, o, tags, configured)]
             if name in varied and not read_with:
                 raise HeimdallError(f"{point}: [quantities.{name}] is varied, but no tool of this point reads it "
                                f"({', '.join(tags)}): its points would differ only by their seeds",
-                               where=f"{run.path}: [quantities.{name}]",
+                               where=f"{errand.path}: [quantities.{name}]",
                                hint=f"list the combinations, leaving {name} out of this point's row (vary = [{{ points = "
                                     "[...] }], 04 §5.1), or vary it in a configuration of its own")
             table[name] = []
             continue
         if not found:
             raise HeimdallError(f"[quantities.{name}] is set but no tool in this chain consumes it",
-                           where=f"{run.path}: [quantities.{name}]",
+                           where=f"{errand.path}: [quantities.{name}]",
                            hint=f"tools here: {', '.join(tags)}. Give it a `to` (v2: a target or key), a master mapping, "
                                 "or drop it: a value that changes nothing is refused (see C7)")
         table[name] = found

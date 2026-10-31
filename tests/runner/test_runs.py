@@ -253,10 +253,10 @@ def test_the_pre_and_post_stages_are_planned_as_stages(scratch):
     from helpers import plan, raw
     from runner import post
     from runner.quantities import load_master
-    run, configuration, point = plan(raw(errand__cfgs__one__pre=[["pythia"]], errand__cfgs__one__post=[["pythia"]]), scratch)
-    master = load_master(run.project, run.master_toml)
-    pre = post.plan_pre(run, configuration, master, [point.point])
-    after = post.plan(run, configuration, master, [point])
+    errand, configuration, point = plan(raw(errand__cfgs__one__pre=[["pythia"]], errand__cfgs__one__post=[["pythia"]]), scratch)
+    master = load_master(errand.assignment, errand.master_toml)
+    pre = post.plan_pre(errand, configuration, master, [point.point])
+    after = post.plan(errand, configuration, master, [point])
     assert (pre.point.index, pre.point.stage, after.point.index, after.point.stage) == (-1, "pre", 0, "post")
     assert point.point.stage == ""
 

@@ -75,10 +75,10 @@ def test_a_tag_moves_no_identity(scratch):
     from runner import quantities, sweep
 
     def identities(data):
-        run_ = parse(data, scratch)
-        conf = run_.configuration("one")
-        master = quantities.load_master(run_.project, run_.master_toml)
-        return [record.identity(tools.plan_point(run_, conf, p, master)) for p in sweep.points(run_, conf)]
+        errand = parse(data, scratch)
+        conf = errand.configuration("one")
+        master = quantities.load_master(errand.assignment, errand.master_toml)
+        return [record.identity(tools.plan_point(errand, conf, p, master)) for p in sweep.points(errand, conf)]
 
     assert identities(raw(errand__cfgs__one__tag="nlo")) == identities(raw())
 

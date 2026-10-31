@@ -91,13 +91,13 @@ def group_labels(quantities: dict, group, choice: dict) -> list[str]:
     return [label_of(quantities[group[0]], choice[group[0]])]
 
 
-def kept(run, group: list[str]) -> list[int]:
+def kept(errand, group: list[str]) -> list[int]:
     """The value indices an axis sweeps: all but those its quantities `exclude` (1-based, V42). An
     entangled group moves together, so a value excluded by any of its quantities leaves the group."""
-    dropped = {i - 1 for name in group for i in run.quantities[name].exclude}
-    indices = [i for i in range(len(run.quantities[group[0]].values)) if i not in dropped]
+    dropped = {i - 1 for name in group for i in errand.quantities[name].exclude}
+    indices = [i for i in range(len(errand.quantities[group[0]].values)) if i not in dropped]
     if not indices:
-        raise HeimdallError(f"exclude leaves the entangled group {group} no value", where=f"{run.path}",
+        raise HeimdallError(f"exclude leaves the entangled group {group} no value", where=f"{errand.path}",
                        hint="its quantities' exclude lists together cover every value")
     return indices
 
@@ -106,17 +106,17 @@ def kept(run, group: list[str]) -> list[int]:
 RESERVED = ("plots", "pre", "post", "cluster")
 
 
-def points(run, configuration) -> list[Point]:
+def points(errand, configuration) -> list[Point]:
     groups = axes(configuration)
-    ranges = [range(len(group.rows)) if isinstance(group, Listed) else kept(run, group) for group in groups]
+    ranges = [range(len(group.rows)) if isinstance(group, Listed) else kept(errand, group) for group in groups]
     page_groups = split_axes(configuration)[0]
     out: list[Point] = []
     for number, combination in enumerate(itertools.product(*ranges), start=1):
         choice: dict[str, int] = {}
         for group, index in zip(groups, combination):
             choice.update(group.rows[index] if isinstance(group, Listed) else {name: index for name in group})
-        tags = [tag_of(run.quantities[name], choice[name]) for group in groups for name in group
-                if name in choice and not run.quantities[name].silent]   # a compound quantity's later fields (v3)
+        tags = [tag_of(errand.quantities[name], choice[name]) for group in groups for name in group
+                if name in choice and not errand.quantities[name].silent]   # a compound quantity's later fields (v3)
         page = tuple(group_key(group, choice) for group in page_groups)
         out.append(Point(index=number, name="_".join(tags) or "point", choice=choice, page=page))
     names = [p.name for p in out]
@@ -124,11 +124,11 @@ def points(run, configuration) -> list[Point]:
         if name in RESERVED:
             raise HeimdallError(f"a point is named '{name}', which is where the configuration's "
                            + {"plots": "pages", "pre": "pre stage", "post": "post stage", "cluster": "cluster submissions"}[name]
-                           + " live", where=f"{run.path}",
+                           + " live", where=f"{errand.path}",
                            hint=f"give that value another tag; {', '.join(RESERVED)} are reserved")
     clashes = sorted({n for n in names if names.count(n) > 1})
     if clashes:
-        raise HeimdallError(f"these points would share a directory: {', '.join(clashes)}", where=f"{run.path}",
+        raise HeimdallError(f"these points would share a directory: {', '.join(clashes)}", where=f"{errand.path}",
                        hint="give the swept quantities distinct tags (see C11)")
     return out
 
@@ -141,7 +141,7 @@ def pages(configuration, point_list: list[Point]) -> dict[tuple, list[Point]]:
     return out
 
 
-def select_points(run, configuration, point_list: list[Point], selector: str | None) -> list[Point]:
+def select_points(errand, configuration, point_list: list[Point], selector: str | None) -> list[Point]:
     """--points: comma-separated tags, 1-based indices, point names or quantity=tag filters. A whole
     point name picks that point alone (heimdall cluster's jobs name theirs, V114), before any tag match."""
     if not selector:
@@ -150,9 +150,9 @@ def select_points(run, configuration, point_list: list[Point], selector: str | N
     for item in [s.strip() for s in selector.split(",") if s.strip()]:
         if "=" in item:
             name, _, wanted = item.partition("=")
-            if name not in run.quantities:
+            if name not in errand.quantities:
                 raise HeimdallError(f"--points: '{name}' is not a quantity")
-            matched = [p for p in point_list if name in p.choice and tag_of(run.quantities[name], p.choice[name]) == wanted]
+            matched = [p for p in point_list if name in p.choice and tag_of(errand.quantities[name], p.choice[name]) == wanted]
         elif item.isdigit():
             matched = [p for p in point_list if p.index == int(item)]
         else:
@@ -434,21 +434,21 @@ def _bare(item) -> list:
     return [item.get("tag", item.get("value"))]
 
 
-def value_styles(run, name: str, what, where: str) -> dict[int, dict]:
+def value_styles(errand, name: str, what, where: str) -> dict[int, dict]:
     """A curves filter's styled values for one quantity: value index → the look its table gives (a styled
     list's i-th look to its i-th value; fewer looks than values is refused)."""
     out = {}
     for item in what if isinstance(what, list) else [what]:
         if not isinstance(item, dict):
             continue
-        indices = resolve(run, name, _bare(item), where)
+        indices = resolve(errand, name, _bare(item), where)
         if "tags" in item:
             for key, one in LIST_KEYS.items():
                 given = item.get(key)
                 if given is None:
                     continue
                 if len(given) < len(indices):
-                    tags = ", ".join(tag_of(run.quantities[name], i) for i in indices)
+                    tags = ", ".join(tag_of(errand.quantities[name], i) for i in indices)
                     raise HeimdallError(f"{name}: {len(given)} {key} for {len(indices)} values ({tags})", where=f"{where}.{name}",
                                    hint=f"one each, in that order; fewer would repeat: give {len(indices) - len(given)} more")
                 for index, look in zip(indices, given):
@@ -479,14 +479,14 @@ def values_of(member) -> dict:
     return values if isinstance(values, dict) else getattr(member, "point", member).choice
 
 
-def resolve(run, name: str, what, where: str) -> list[int]:
+def resolve(errand, name: str, what, where: str) -> list[int]:
     """A filter's value for one quantity as its value indices, in the order written: "all" (the quantity's
     order), a tag, a glob of tags, a number (a value equal to it), a list of those; "!tag" leaves values out
     (a list of only those: every other value). A tag or glob naming no value is refused, with the tags."""
-    if name not in run.quantities:
+    if name not in errand.quantities:
         raise HeimdallError(f"a set names '{name}', which is not a quantity", where=where,
-                       hint=did_you_mean(name, list(run.quantities)) or f"quantities: {', '.join(run.quantities)}")
-    quantity = run.quantities[name]
+                       hint=did_you_mean(name, list(errand.quantities)) or f"quantities: {', '.join(errand.quantities)}")
+    quantity = errand.quantities[name]
     tags = [tag_of(quantity, i) for i in range(len(quantity.values))]
     items = [bare for i in (what if isinstance(what, list) else [what]) for bare in _bare(i)]
     kept: list[int] = []
@@ -528,7 +528,7 @@ class Cell:
     roles: dict = field(default_factory=dict)
 
 
-def set_cells(run, members: list, spec: SetSpec, palette=(), *, values=values_of, looked=()) -> tuple[list[Cell], list[str]]:
+def set_cells(errand, members: list, spec: SetSpec, palette=(), *, values=values_of, looked=()) -> tuple[list[Cell], list[str]]:
     """A V163 set's page cells from these members (in point order), and what the plot stage says of them.
     The members are those that match `points` (if any), `pages` and one of `curves` (none: every member);
     a cell per combination of the page axes present, in the order written (\"all\": the quantity's); its
@@ -545,17 +545,17 @@ def set_cells(run, members: list, spec: SetSpec, palette=(), *, values=values_of
         picked = []
         for selector in spec.selectors:
             try:
-                found = chosen_points(run, members, selector, where)
+                found = chosen_points(errand, members, selector, where)
             except HeimdallError:                          # its points are not complete (plan time names a typo)
                 found = []
             picked += [m for m in found if m not in picked]
         if spec.axes:                                 # a filter then: the curves' order is theirs
             picked.sort(key=members.index)
-    pages_ = {q: resolve(run, q, what, f"{where}.pages") for q, what in (spec.pages or {}).items()}
-    curves = [{q: resolve(run, q, what, f"{where}.curves") for q, what in c.items()} for c in spec.curves]
-    styled = [{q: value_styles(run, q, what, f"{where}.curves") for q, what in c.items()} for c in spec.curves]
+    pages_ = {q: resolve(errand, q, what, f"{where}.pages") for q, what in (spec.pages or {}).items()}
+    curves = [{q: resolve(errand, q, what, f"{where}.curves") for q, what in c.items()} for c in spec.curves]
+    styled = [{q: value_styles(errand, q, what, f"{where}.curves") for q, what in c.items()} for c in spec.curves]
 
-    every = {q: len(run.quantities[q].values) for flt in [pages_, *curves] for q in flt}
+    every = {q: len(errand.quantities[q].values) for flt in [pages_, *curves] for q in flt}
 
     def matches(m, flt) -> bool:                      # "all" takes a point a listed row leaves without the quantity
         got = values(m)
@@ -576,7 +576,7 @@ def set_cells(run, members: list, spec: SetSpec, palette=(), *, values=values_of
             ordered += mine
         picked = ordered
     notes = []
-    quantities = run.quantities                       # a compound's later fields ride with its first (V186):
+    quantities = errand.quantities                    # a compound's later fields ride with its first (V186):
     swept = list(dict.fromkeys(q for m in picked for q in getattr(m, "point", m).choice    # never an axis of their own
                                if not getattr(quantities.get(q), "silent", False)))
     named = set(pages_) | {q for flt in curves for q in flt}
@@ -602,10 +602,10 @@ def set_cells(run, members: list, spec: SetSpec, palette=(), *, values=values_of
     for m in picked:
         cells.setdefault(tuple(values(m).get(q, -1) for q in page_axes), []).append(m)
     keys = sorted(cells, key=lambda key: tuple(order_of(q, i) for q, i in zip(page_axes, key)))
-    look = _look_of(run, spec, curve_axes, picked, values, looked)
+    look = _look_of(errand, spec, curve_axes, picked, values, looked)
     slots = {role: look_slots(q, picked, values) for role, q in look.items()}
     out = []
-    reference = {q: resolve(run, q, what, f"{where}.reference") for q, what in (spec.reference or {}).items()}
+    reference = {q: resolve(errand, q, what, f"{where}.reference") for q, what in (spec.reference or {}).items()}
     missed = []
     for key in keys:
         mine = cells[key]
@@ -655,7 +655,7 @@ def set_cells(run, members: list, spec: SetSpec, palette=(), *, values=values_of
     return out, notes
 
 
-def check_set(run, spec: SetSpec, points: list, combined=(), *, values=values_of) -> None:
+def check_set(errand, spec: SetSpec, points: list, combined=(), *, values=values_of) -> None:
     """At plan time (V163): a set table's filters name quantities of the configuration's points (swept or
     fixed, not combined away), each value they name is a value some point has, and its look names curve
     axes, the line one with at most len(CURVE_LINES) values among the set's points."""
@@ -668,7 +668,7 @@ def check_set(run, spec: SetSpec, points: list, combined=(), *, values=values_of
     for at, flt in filters:
         for q, what in flt.items():
             here = f"{spec.where}.{at}.{q}"
-            resolve(run, q, what, here)                   # its quantity and tags
+            resolve(errand, q, what, here)                # its quantity and tags
             if q in combined:
                 raise HeimdallError(f"a set names {q}, which the configuration combines away", where=here,
                                hint="its points are merged over it: name another axis")
@@ -676,17 +676,17 @@ def check_set(run, spec: SetSpec, points: list, combined=(), *, values=values_of
                 raise HeimdallError(f"a set names {q}, which no point of the configuration sets", where=here,
                                hint="vary it or fix it in the configuration, or leave it out of the set")
             if at.startswith("curves"):
-                value_styles(run, q, what, here)             # a styled list's looks: one per value
-            quantity = run.quantities[q]
+                value_styles(errand, q, what, here)          # a styled list's looks: one per value
+            quantity = errand.quantities[q]
             named = [b for item in (what if isinstance(what, list) else [what]) for b in _bare(item)
                      if not (isinstance(b, str) and (b == "all" or b.startswith("!") or any(c in b for c in "*?[")))]
             for one in named:                             # a tag or number named alone is a value some point has
-                if not set(resolve(run, q, one, here)) & present[q]:
+                if not set(resolve(errand, q, one, here)) & present[q]:
                     shown = [tag_of(quantity, i) for i in sorted(present[q])]
                     raise HeimdallError(f"a set names {q} = {one!r}, which no point of the configuration has",
                                    where=here, hint=f"its points have {q}: {', '.join(shown)}")
     if isinstance(spec.look, dict):
-        cells, _ = set_cells(run, points, spec, values=values)
+        cells, _ = set_cells(errand, points, spec, values=values)
         picked = [m for c in cells for m in c.members]
         curve_axes = [q for flt in spec.curves for q in flt] + (list(present) if spec.pages == {} else []) \
             if spec.curves else [q for q in present if q not in (spec.pages or {})]
@@ -701,7 +701,7 @@ def check_set(run, spec: SetSpec, points: list, combined=(), *, values=values_of
                            hint="give the line to an axis of at most 4 values, and the colour to this one")
 
 
-def _look_of(run, spec: SetSpec, curve_axes: list, picked: list, values, looked=()) -> dict[str, str]:
+def _look_of(errand, spec: SetSpec, curve_axes: list, picked: list, values, looked=()) -> dict[str, str]:
     """role → quantity: the set's look, or with none the automatic one (V163): two curve axes varying in the
     set, neither with styles of its own (V67), one with at most len(CURVE_LINES) values: it takes the line style,
     the other the colour."""
@@ -710,7 +710,7 @@ def _look_of(run, spec: SetSpec, curve_axes: list, picked: list, values, looked=
     if isinstance(spec.look, dict):
         return dict(spec.look)
     varying = [q for q in curve_axes if len({values(m).get(q) for m in picked}) > 1]
-    if len(varying) != 2 or any(run.quantities[q].styles or q in looked for q in varying):   # V171: [plot.looks] too
+    if len(varying) != 2 or any(errand.quantities[q].styles or q in looked for q in varying):   # V171: [plot.looks] too
         return {}
     counts = {q: len({values(m).get(q) for m in picked}) for q in varying}
     line = min(varying, key=lambda q: (counts[q], varying.index(q)))
@@ -725,7 +725,7 @@ def look_slots(q: str, picked: list, values) -> dict[int, int]:
     return {index: slot for slot, index in enumerate(seen)}
 
 
-def chosen_points(run, point_list: list, selector, where: str) -> list:
+def chosen_points(errand, point_list: list, selector, where: str) -> list:
     """What one selector of a set names, in point order: a 1-based index, "all", a point's name, a glob of
     names, "quantity=tag", or a tag of any swept or fixed quantity's (every point with it). `point_list`
     holds sweep Points, or anything with a `.point` that is one. An unknown selector is refused."""
@@ -738,16 +738,16 @@ def chosen_points(run, point_list: list, selector, where: str) -> list:
         found = list(point_list)
     elif "=" in selector:
         name, _, wanted = selector.partition("=")
-        if name not in run.quantities:
+        if name not in errand.quantities:
             raise HeimdallError(f"a set names '{selector}', and '{name}' is not a quantity", where=where,
-                           hint=did_you_mean(name, list(run.quantities)))
-        found = [m for m in point_list if name in point(m).choice and tag_of(run.quantities[name], point(m).choice[name]) == wanted]
+                           hint=did_you_mean(name, list(errand.quantities)))
+        found = [m for m in point_list if name in point(m).choice and tag_of(errand.quantities[name], point(m).choice[name]) == wanted]
     elif any(c in selector for c in "*?["):
         found = [m for m in point_list if fnmatch.fnmatchcase(point(m).name, selector)]
     else:
         found = [m for m in point_list if point(m).name == selector] or \
-                [m for m in point_list if any(tag_of(run.quantities[q], i) == selector
-                                              for q, i in point(m).choice.items() if q in run.quantities)]
+                [m for m in point_list if any(tag_of(errand.quantities[q], i) == selector
+                                              for q, i in point(m).choice.items() if q in errand.quantities)]
     if not found:
         raise HeimdallError(f"a set names '{selector}', which matches no point", where=where,
                        hint=", ".join(point(m).name for m in point_list[:6]) + (", …" if len(point_list) > 6 else ""))

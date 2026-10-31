@@ -93,10 +93,10 @@ def test_an_at_chain_still_refuses_a_value_no_alternative_consumes(scratch):
     data = raw(errand__cfgs__one__tools=[["@gen", "rivet"]], errand__cfgs__one__sweeps=["gen"],
                quantities__gen={"values": ["pythia"], "tags": ["py"]},
                quantities__nothing={"values": [1], "key": {"herwig": "X"}}, static={"nothing": 1})
-    run = parse(data, scratch)
-    conf = run.configuration(None)
+    errand = parse(data, scratch)
+    conf = errand.configuration(None)
     with pytest.raises(HeimdallError, match="no tool in this chain consumes"):
-        tools.plan_point(run, conf, sweep.points(run, conf)[0], quantities.load_master(run.project, run.master_toml))
+        tools.plan_point(errand, conf, sweep.points(errand, conf)[0], quantities.load_master(errand.assignment, errand.master_toml))
 
 
 # ── the plot stage ────────────────────────────────────────────────────────────────────────────

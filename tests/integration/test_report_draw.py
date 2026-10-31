@@ -40,13 +40,13 @@ def folder(scratch):
                      "data": {"file": str(LEGACY / "ydmrg" / "photo_eic_data.yoda"), "legend": "legacy",
                               "map": {"d01-x01-y01": "/REF/photo_eic/d01-x01-y01"}},
                      "sets": [BY_PDF], "style": {"page": {"dpi": 100}}})
-    run = parse(data, scratch)
-    configuration = run.configuration(None)
-    plans = completed(run, configuration)
-    assert cli.draw_run(run, configuration, plans, lambda line: None, draw=False, stats=False) == 0
+    errand = parse(data, scratch)
+    configuration = errand.configuration(None)
+    plans = completed(errand, configuration)
+    assert cli.draw_run(errand, configuration, plans, lambda line: None, draw=False, stats=False) == 0
     here = plans[0].folders
     assert (here.results / "report.toml").is_file() and not here.plots.exists() and not here.statistics.exists()
-    return run, configuration, plans, tools.run_dir(run, configuration).as_posix()
+    return errand, configuration, plans, tools.run_dir(errand, configuration).as_posix()
 
 
 def tree(*roots: Path) -> dict[str, str]:
@@ -62,7 +62,7 @@ def text_of(pdf: Path) -> str:
 def test_a_folder_never_drawn_is_drawn_for_its_report(folder):
     """Its report.toml's default sections: the totality's numbers measured and both sets' pages drawn, into the
     report's cache, never into results/; a rebuild draws and copies nothing."""
-    run, configuration, plans, address = folder
+    errand, configuration, plans, address = folder
     here = plans[0].folders
     before = tree(here.results, here.record)
     plan = report.planned(address, [])
@@ -75,7 +75,7 @@ def test_a_folder_never_drawn_is_drawn_for_its_report(folder):
     assert f"report: drawing {address}: pages of totality (not drawn there), by_pdf (not drawn there); " \
            "numbers of totality (not measured there)" in said
     root = report.drawings_root(plan)
-    assert root == paths.cache_root() / run.project / "reports" / Path(address).relative_to(run.project) / ".drawn"
+    assert root == paths.cache_root() / errand.assignment / "reports" / Path(address).relative_to(errand.assignment) / ".drawn"
     drawn = root / report.slug(address) / "results"
     assert (drawn / "plots" / "totality" / "root" / "em" / "d01-x01-y01.pdf").is_file()       # pdf and png, for the report
     assert (drawn / "statistics" / "totality" / "statistics.csv").is_file() and (root / report.slug(address) / "drawn.key").is_file()
@@ -100,9 +100,9 @@ def test_a_sections_plot_keys_and_a_set_of_its_own_are_drawn_for_the_report(fold
     """Drawn as PNG alone, the folder's pages are drawn again for the report (as PDFs); a section's plot = {…}
     draws its pages and measures its numbers so (normalise = "area": every area one), its bar graphs from those
     numbers; a set the run never had is drawn from the section's own sets."""
-    run, configuration, plans, address = folder
+    errand, configuration, plans, address = folder
     here = plans[0].folders
-    assert cli.draw_run(run, configuration, plans, lambda line: None) == 0          # pages as PNG, and their numbers
+    assert cli.draw_run(errand, configuration, plans, lambda line: None) == 0       # pages as PNG, and their numbers
     before = tree(here.results, here.record)
     recipe = scratch / "shapes.toml"
     recipe.write_text("""[report]

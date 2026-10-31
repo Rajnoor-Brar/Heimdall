@@ -383,7 +383,7 @@ def merge_files(sources: list[Path], target: Path) -> Path:
     return target
 
 
-def executable_of(tool, folder: Folder, project: str) -> Path:
+def executable_of(tool, folder: Folder, assignment: str) -> Path:
     """A folder's executable (`{heimdall}`/`{work}` expanded, else PATH), or a custom table's (04 §2): bare →
     build/<project>/<name>, which must exist; `path:<command>` → that command on PATH, asked for by
     name. A bare name never falls back to PATH (V54): a missing build would run a system binary."""
@@ -395,13 +395,13 @@ def executable_of(tool, folder: Folder, project: str) -> Path:
             if not found:
                 raise HeimdallError(f"'{command}' is not a command on PATH", where=where, hint="gjallarhorn first")
             return Path(found)
-        candidate = resolve(tool.executable, "executable", project=project, where=where)
+        candidate = resolve(tool.executable, "executable", assignment=assignment, where=where)
         if candidate.exists():
             return candidate
         on_path = "/" not in tool.executable and shutil.which(tool.executable)
         raise HeimdallError(f"executable '{tool.executable}' is not built: {candidate}", where=where,
                        hint=(f"for the command on PATH write executable = \"path:{tool.executable}\"" if on_path
-                             else f"build it (make modules/{project}/{Path(tool.executable).stem}.cc → .exe)"))
+                             else f"build it (make modules/{assignment}/{Path(tool.executable).stem}.cc → .exe)"))
     template = folder.get("tool", "executable")
     if not template:
         raise HeimdallError(f"[tools.{tool.tag}] needs executable = \"...\"", where=f"[tools.{tool.tag}]")
@@ -496,18 +496,18 @@ def _numbers(text: str) -> tuple[int, ...] | None:
     return tuple(int(part) for part in found[0].split(".")) if found else None
 
 
-def meta_notes(run) -> list[str]:
+def meta_notes(errand) -> list[str]:
     """[config.meta].versions (V97) against the stack: a warning for each package whose version is not
     the one the file was run with (`6.5` matches 6.5.6: what is written is compared). Never a refusal:
     the run goes ahead at the user's own risk."""
     out = []
-    for name, written in run.meta.get("versions", {}).items():
+    for name, written in errand.meta.get("versions", {}).items():
         found = _stack_version(name)
         want, have = _numbers(written), _numbers(found)
         if have is None:
-            out.append(f"{run.path.name} was run with {name} {written}; the stack gives no version of it to compare")
+            out.append(f"{errand.path.name} was run with {name} {written}; the stack gives no version of it to compare")
         elif want is None or have[:len(want)] != want:
-            out.append(f"{run.path.name} was run with {name} {written}; the stack has {found} (it runs anyway, at your own risk)")
+            out.append(f"{errand.path.name} was run with {name} {written}; the stack has {found} (it runs anyway, at your own risk)")
     return out
 
 
@@ -605,7 +605,7 @@ class RunFolders:
     """A configuration's folders (06 §1, V157, V164), `<run>` = <P>/<name>/<NN_label>: records/<run>/, what a run
     needs while it runs or is launched and what traces it back; results/<run>/, everything that matters once it
     is done; .cache/<P>/plots/<name>/<NN_label>/, the drawing's working files, rebuilt on demand."""
-    project: str
+    assignment: str
     record: Path                       # records/<run>
     results: Path                      # results/<run>
     cache: Path                        # .cache/<P>/plots/<name>/<NN_label>
@@ -662,17 +662,17 @@ def location(serial: int | None, name: str) -> str:
     return f"{serial:02d}_{name}" if serial is not None else name
 
 
-def run_dir(run, configuration) -> Path:
+def run_dir(errand, configuration) -> Path:
     """<project>/<name>/<NN_><label> (V45, V46): `name` is [errand]'s, or the configuration's own; the
     configuration's folder is its `label` (its table key when empty or unset), after one serial, the
     configuration's if it has one, else [errand]'s."""
-    return Path(run.project) / (configuration.run_folder or run.name) / location(configuration.serial, configuration.label)
+    return Path(errand.assignment) / (configuration.run_folder or errand.name) / location(configuration.serial, configuration.label)
 
 
-def serials_taken(run, configuration) -> set[int]:
+def serials_taken(errand, configuration) -> set[int]:
     """The numbers of a configuration's folders on disk, <project>/<name>/NN_<label>, in records/ and
     results/: where a v3 configuration without a serial may already have run (03 §6)."""
-    parent = Path(run.project) / (configuration.run_folder or run.name)
+    parent = Path(errand.assignment) / (configuration.run_folder or errand.name)
     numbered = re.compile(r"(\d{2,})_" + re.escape(configuration.label))
     found = set()
     for root in (records_root(), results_root()):
@@ -681,17 +681,17 @@ def serials_taken(run, configuration) -> set[int]:
     return found
 
 
-def run_folders(run, configuration) -> RunFolders:
-    tail = run_dir(run, configuration)
-    return RunFolders(run.project, records_root() / tail, results_root() / tail,
-                      cache_root() / run.project / "plots" / tail.relative_to(run.project))
+def run_folders(errand, configuration) -> RunFolders:
+    tail = run_dir(errand, configuration)
+    return RunFolders(errand.assignment, records_root() / tail, results_root() / tail,
+                      cache_root() / errand.assignment / "plots" / tail.relative_to(errand.assignment))
 
 
-def point_dirs(run, configuration, point) -> tuple[Path, Path]:
+def point_dirs(errand, configuration, point) -> tuple[Path, Path]:
     """A point's working folder, records/<run>/logs/<name>, and its products' folder: results/<run>/points/<name>
     for a point or a combined group, results/<run>/<pre|post> for a stage (index ≤ 0), whose products a later
     stage names, so they stay where they were (V157)."""
-    here = run_folders(run, configuration)
+    here = run_folders(errand, configuration)
     results = here.results if point.index <= 0 else here.products
     return here.logs / point.name, results / point.name
 
@@ -719,21 +719,21 @@ def _check_options(tool, folder: Folder, where: str) -> None:
             raise HeimdallError(f"a {folder.name} tool needs '{key}'", where=where)
 
 
-def _generated(run, configuration, chain: list[str]) -> tuple[list[str], dict[str, list[str]]]:
+def _generated(errand, configuration, chain: list[str]) -> tuple[list[str], dict[str, list[str]]]:
     """generate_cards (04 §9.4): the tool tables beyond the chain whose cards and configs the context file
     gets, and the products asked for ("herwig:run"), each one its folder's [context.products]."""
     tags, products = [], {}
     for entry in configuration.generate_cards:
         tag, _, product = entry.partition(":")
-        if tag not in run.tools:
+        if tag not in errand.tools:
             raise HeimdallError(f"generate_cards names '{tag}', which is not a tool table", where="generate_cards",
-                           hint=did_you_mean(tag, run.tools))
+                           hint=did_you_mean(tag, errand.tools))
         if product:
-            offered = folder_of(run.tools[tag]).spec.get("context", {}).get("products", {})
+            offered = folder_of(errand.tools[tag]).spec.get("context", {}).get("products", {})
             if product not in offered:
-                raise HeimdallError(f"{run.tools[tag].tool} makes no product '{product}'", where=f"generate_cards: \"{entry}\"",
+                raise HeimdallError(f"{errand.tools[tag].tool} makes no product '{product}'", where=f"generate_cards: \"{entry}\"",
                                hint=(f"its products: {', '.join(offered)}" if offered else
-                                     f"{run.tools[tag].tool} has none; \"{tag}\" alone gives its card and config"))
+                                     f"{errand.tools[tag].tool} has none; \"{tag}\" alone gives its card and config"))
             products.setdefault(tag, []).append(product)
         if tag not in chain:
             tags.append(tag)
@@ -777,25 +777,25 @@ def context_text(plan: PointPlan) -> str:
             + tomli_w.dumps({"tools": plan.context_tools}))
 
 
-def _resolve_chain(run, configuration, point) -> list[list[str]]:
+def _resolve_chain(errand, configuration, point) -> list[list[str]]:
     """Groups with `@quantity` entries replaced by the point's value of that quantity: a tool tag, or a piece of
     chain spliced in (V19, V153; config.resolve_chain)."""
     def choose(name: str):
         if name not in point.choice and name not in configuration.static:
             raise HeimdallError(f"'@{name}' needs {name} swept or static", where=f"[errand.cfgs.{configuration.key}].tools")
-        quantity = run.quantities[name]
+        quantity = errand.quantities[name]
         index = point.choice.get(name)
         if index is None:
             index = qmod.select(quantity, configuration.static[name], f"static.{name}")
         tag = quantity.tags[index] if index < len(quantity.tags) else str(quantity.values[index])
         return quantity.values[index], f"[quantities.{name}] {tag}"
-    return resolve_chain(configuration.tools, choose, run.tools)
+    return resolve_chain(configuration.tools, choose, errand.tools)
 
 
-def _builtin_value(run, name: str, index: int) -> int:
+def _builtin_value(errand, name: str, index: int) -> int:
     """A quantity named events or threads (V56: swept or static) is the point's event count or thread
     count, in place of the configuration's; it reaches the tools as the built-ins do."""
-    value = run.quantities[name].values[index]
+    value = errand.quantities[name].values[index]
     least = 1 if name == "events" else 0
     if isinstance(value, bool) or not isinstance(value, int) or value < least:
         raise HeimdallError(f"[quantities.{name}] value {value!r} is not an integer ≥ {least}", where=f"[quantities.{name}]")
@@ -805,7 +805,7 @@ def _builtin_value(run, name: str, index: int) -> int:
     return value
 
 
-def _shard(run, configuration, groups_tags: list[list[str]], out: Path):
+def _shard(errand, configuration, groups_tags: list[list[str]], out: Path):
     """`shards = K` on a table (V31): the table becomes K copies in its group, each reading a share of
     the events (`events.s1.hepmc` … `events.sK.hepmc`) and writing its product under the point's
     records/…/logs/<point>/shards/; the folder's merge tool ([shard] merge) runs as its own group right after,
@@ -815,18 +815,18 @@ def _shard(run, configuration, groups_tags: list[list[str]], out: Path):
     Seeds follow the generator's cards, not its argv, so a sharded point has the same events as the
     same point unsharded, and its merged product is the same up to rounding.
     Returns (run, configuration, groups, deal, shard products), rewritten for this point only."""
-    sharded = [tag for group in groups_tags for tag in group if run.tools[tag].shards > 1]
+    sharded = [tag for group in groups_tags for tag in group if errand.tools[tag].shards > 1]
     if not sharded:
-        return run, configuration, groups_tags, {}, set()
-    tables = dict(run.tools)
-    quantities = dict(run.quantities)
+        return errand, configuration, groups_tags, {}, set()
+    tables = dict(errand.tools)
+    quantities = dict(errand.quantities)
     prelim = {key: list(value) for key, value in configuration.prelim.items()}
     groups = [list(group) for group in groups_tags]
     deal: dict[str, str] = {}
     shard_products: set[str] = set()
     for tag in sharded:
-        tool = run.tools[tag]
-        where = f"{run.path}: [tools.{tag}].shards"
+        tool = errand.tools[tag]
+        where = f"{errand.path}: [tools.{tag}].shards"
         folder = folder_of(tool)
         merge = folder.get("shard", "merge")
         if not merge:
@@ -872,7 +872,7 @@ def _shard(run, configuration, groups_tags: list[list[str]], out: Path):
                 group[at:at + 1] = copies
                 groups.insert(g + 1, [joined])
                 break
-    return (replace(run, tools=tables, quantities=quantities), replace(configuration, prelim=prelim), groups, deal,
+    return (replace(errand, tools=tables, quantities=quantities), replace(configuration, prelim=prelim), groups, deal,
             shard_products)
 
 
@@ -893,37 +893,37 @@ def _retarget(quantities: dict, tag: str, copies: list[str]) -> dict:
     return out
 
 
-def plan_point(run, configuration, point, master: dict, *, post: dict | None = None,
+def plan_point(errand, configuration, point, master: dict, *, post: dict | None = None,
                pre: "PointPlan | None" = None) -> PointPlan:
     """The plan of one point. With `post` ({"manifest": Path, "products": {name: [Path]}}) it is a
     stage's (pre or post): no quantities, and an `input` naming a product of the points reads all of
     them. With `pre`, the pre stage's products are inputs the point may name, and its identity is
     part of the point's."""
-    check_read_for(run, configuration)                                          # V179: never another's cards
-    out, res = point_dirs(run, configuration, point)
-    groups_tags = _resolve_chain(run, configuration, point)
+    check_read_for(errand, configuration)                                       # V179: never another's cards
+    out, res = point_dirs(errand, configuration, point)
+    groups_tags = _resolve_chain(errand, configuration, point)
     if groups_tags != configuration.tools:                           # chosen by a quantity: its own interfaces (V153)
-        configuration = replace(configuration, prelim=chain_prelim(configuration, groups_tags, run.tools, run.quantities))
-    run, configuration, groups_tags, deal, shard_products = _shard(run, configuration, groups_tags, out)
+        configuration = replace(configuration, prelim=chain_prelim(configuration, groups_tags, errand.tools, errand.quantities))
+    errand, configuration, groups_tags, deal, shard_products = _shard(errand, configuration, groups_tags, out)
     chain = [tag for group in groups_tags for tag in group]
     for tag in chain:                                  # every table names a standard tool (or refuses)
-        folder_of(run.tools[tag])
+        folder_of(errand.tools[tag])
 
     # generate_cards: tables configured but not run, whose cards the context file gives (04 §9.4)
-    generated, products = _generated(run, configuration, chain)
+    generated, products = _generated(errand, configuration, chain)
     rendered_tags = chain + generated
 
     # quantities: swept, then static where not swept; who consumes each (C7)
     values = dict(point.choice)
-    for name, index in ({} if post else qmod.static_values(run, configuration)).items():
+    for name, index in ({} if post else qmod.static_values(errand, configuration)).items():
         values.setdefault(name, index)
     selectors = [m[1:] for group in configuration.tools for m in group if m.startswith("@")]
-    alternatives = [t for name in selectors if name in run.quantities for v in run.quantities[name].values
-                    for t in fragment_tags(v) if t in run.tools]
-    builtin = {name: _builtin_value(run, name, values[name]) for name in qmod.BUILTIN if name in values}   # V56
-    configured = {t for t in rendered_tags if folder_of(run.tools[t]).get("tool", "config_file")}
+    alternatives = [t for name in selectors if name in errand.quantities for v in errand.quantities[name].values
+                    for t in fragment_tags(v) if t in errand.tools]
+    builtin = {name: _builtin_value(errand, name, values[name]) for name in qmod.BUILTIN if name in values}   # V56
+    configured = {t for t in rendered_tags if folder_of(errand.tools[t]).get("tool", "config_file")}
     together = {n: list(entry) for entry in configuration.sweeps if isinstance(entry, list) for n in entry}   # V180
-    consumers = qmod.consumer_table(run, master, [n for n in values if n not in selectors and n not in builtin],
+    consumers = qmod.consumer_table(errand, master, [n for n in values if n not in selectors and n not in builtin],
                                     rendered_tags, alternatives, configured, frozenset(point.choice), point.name,
                                     together)
     consumers.update({name: [] for name in selectors if name in values})   # it chooses the tool itself
@@ -933,7 +933,7 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
                      groups=[], rendered={}, interfaces={}, consumers=consumers,
                      threads=builtin.get("threads", configuration.threads),
                      events=builtin.get("events", configuration.event_count), deal=deal,
-                     folders=run_folders(run, configuration))
+                     folders=run_folders(errand, configuration))
     if post is None:                                   # a point, not a pre, post or combined stage
         plan.seed_type, plan.manual_seed = configuration.seed_type, configuration.manual_seed
 
@@ -957,9 +957,9 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
 
     group_of = {tag: g for g, group in enumerate(groups_tags) for tag in group}
     for tag in rendered_tags:
-        tool = run.tools[tag]
+        tool = errand.tools[tag]
         folder = folder_of(tool)
-        where = f"{run.path}: [tools.{tag}]"
+        where = f"{errand.path}: [tools.{tag}]"
         _check_options(tool, folder, where)
         for pattern in folder.get("checks", "files", []):          # what the tool needs built first
             needed = Path(expand(pattern, placeholders(), f"{folder.name}/tool.toml [checks].files"))
@@ -968,10 +968,10 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
                                hint=("heimdall build --framework" if needed.is_relative_to(heimdall_root()) else "heimdall build")
                                     + f" (see framework/tools/{folder.name}/tool.toml)")
         step = Step(tag=tag, tool=tool, folder=folder, group=group_of.get(tag, -1),
-                    exe=executable_of(tool, folder, run.project))
+                    exe=executable_of(tool, folder, errand.assignment))
         step.status = tool.status or folder.get("tool", "status", "none")
         if tool.filters:                                    # your rules, configs/<P>/… (V61)
-            rules = resolve(tool.filters, "filters", project=run.project, where=f"{where}.filters")
+            rules = resolve(tool.filters, "filters", assignment=errand.assignment, where=f"{where}.filters")
             step.filters = tomllib.loads(rules.read_text(encoding="utf-8")).get("rule", [])
             step.status = "filters"
         else:                                               # a folder's rules read its output whatever its status (V203)
@@ -981,22 +981,22 @@ def plan_point(run, configuration, point, master: dict, *, post: dict | None = N
         step.log = out / f"{tag}.log"
         plan.rendered[tag] = step
         if step.group >= 0:
-            _outputs(plan, step, run)
+            _outputs(plan, step, errand)
     for name in shard_products:
         plan.interfaces[name].shard = True
     for tag in chain:
-        _inputs(plan, plan.rendered[tag], run)
-    _check_connections(plan, run)
+        _inputs(plan, plan.rendered[tag], errand)
+    _check_connections(plan, errand)
 
     for tag in rendered_tags:
-        _render(plan, plan.rendered[tag], run, master)
+        _render(plan, plan.rendered[tag], errand, master)
         _prepare_argv(plan, plan.rendered[tag])
     for tag in rendered_tags:
-        _config(plan, plan.rendered[tag], run)
+        _config(plan, plan.rendered[tag], errand)
     plan.context_tools = _context_tables(plan, products)
     plan.products = sorted(f"{tag}:{p}" for tag, names in products.items() for p in names)
     for tag in chain:
-        _argv(plan, plan.rendered[tag], run)
+        _argv(plan, plan.rendered[tag], errand)
         if plan.rendered[tag].prepare_dir is not None:
             plan.rendered[tag].prepare_needed = True   # a chain step always runs its prepare (cached)
     plan.writes[plan.out / CONTEXT_FILE] = context_text(plan)
@@ -1038,7 +1038,7 @@ def seed_range_of(steps) -> tuple[int, int]:
     return lo, hi
 
 
-def _outputs(plan: PointPlan, step: Step, run) -> None:
+def _outputs(plan: PointPlan, step: Step, errand) -> None:
     for name in step.tool.output_file:
         if name in plan.interfaces and plan.interfaces[name].kind == "points":
             raise HeimdallError(f"'{name}' is the name of the points' product", where=f"[tools.{step.tag}].output_file",
@@ -1060,7 +1060,7 @@ def _outputs(plan: PointPlan, step: Step, run) -> None:
                                    {"output": str(step.outputs[0].path)}, step.folder.name))
 
 
-def _inputs(plan: PointPlan, step: Step, run) -> None:
+def _inputs(plan: PointPlan, step: Step, errand) -> None:
     for name in step.tool.input:
         interface = plan.interfaces.get(name)
         if interface is None:                          # a path: bare names under the point's output dir
@@ -1071,7 +1071,7 @@ def _inputs(plan: PointPlan, step: Step, run) -> None:
         step.inputs.append(interface)
 
 
-def _check_connections(plan: PointPlan, run) -> None:
+def _check_connections(plan: PointPlan, errand) -> None:
     """C6 (06 §6): FIFOs inside one group, one reader each, never into a non-streamable tool; files
     between groups; every input made by someone earlier or already on disk."""
     for interface in plan.interfaces.values():
@@ -1112,7 +1112,7 @@ def _check_connections(plan: PointPlan, run) -> None:
                                    where=f"[tools.{reader.tag}].input", hint=f"expected at {interface.path}")
 
 
-def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
+def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
     """The point card (before seeds), extracted config values, flags and Rivet-style options."""
     folder, tool = step.folder, step.tool
     step.identity_parts = {"tag": step.tag, "tool": tool.tool, "exe": portable(step.exe)}
@@ -1120,7 +1120,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
         step.identity_parts["exe_sha256"] = sha256_file(step.exe)
     style = folder.card_style
     bools = folder.get("card", "bools", ["true", "false"])
-    base_values = _base_values(tool, run, folder) if style == "append" else {}
+    base_values = _base_values(tool, errand, folder) if style == "append" else {}
     lines: list[str] = []
     redundant: list[str] = []          # overrides equal to the base card: rendered, not in the identity
     owners: dict[str, str] = {}
@@ -1167,7 +1167,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
 
     for name in ("events", "threads"):
         value = plan.events if name == "events" else plan.threads
-        for mapping in qmod.builtin_mappings(master, run, [step.tag], name):
+        for mapping in qmod.builtin_mappings(master, errand, [step.tag], name):
             apply(mapping, value, f"built-in {name}")
     if tool.settings and style == "none":
         raise HeimdallError(f"a {folder.name} tool has no card for settings", where=f"[tools.{step.tag}].settings",
@@ -1175,9 +1175,9 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
     for key, value in tool.settings.items():                                # native settings, as written (V59)
         if value != "default":
             claim(key, value, f"[tools.{step.tag}].settings")
-    order = beam_order(plan, run, folder)                  # V62: the card's slots, when it has fixed ones
+    order = beam_order(plan, errand, folder)               # V62: the card's slots, when it has fixed ones
     for name, found in plan.consumers.items():
-        quantity = run.quantities[name]
+        quantity = errand.quantities[name]
         index = plan.values[name]
         origin = f"[quantities.{name}] = {tag_of(quantity, index)}"
         value = quantity.values[index]
@@ -1191,7 +1191,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
     if style in ("append", "render"):
         ext = folder.get("card", "ext", "txt")
         comment = folder.get("card", "comment", "#")
-        step.card_base = [resolve(b, "baseconfig", project=run.project, where=f"[tools.{step.tag}].baseconfig")
+        step.card_base = [resolve(b, "baseconfig", assignment=errand.assignment, where=f"[tools.{step.tag}].baseconfig")
                           for b in tool.baseconfig]
         for base in step.card_base:
             if not base.is_file():
@@ -1225,7 +1225,7 @@ def _render(plan: PointPlan, step: Step, run, master: dict) -> None:
                 if key and key[0] in owned:
                     plan.notes.append(f"{base.name} sets {key[2]}, which the runner sets: the card's value is not used")
         step.identity_parts["card"] = [line for line in step.card_lines if line not in redundant]
-        _prepare_key(plan, step, run)
+        _prepare_key(plan, step, errand)
     elif lines:
         raise HeimdallError(f"{folder.name} has no card, but quantities set native keys on it: {', '.join(lines)}",
                        where=f"[tools.{step.tag}]", hint="target an option or a config key instead")
@@ -1253,7 +1253,7 @@ def beam_class(pdg: int) -> str:
     return "lepton" if abs(int(pdg)) in (11, 12, 13, 14, 15, 16) else "photon" if int(pdg) == 22 else "hadron"
 
 
-def beam_order(plan: PointPlan, run, folder: Folder) -> tuple[int, int] | None:
+def beam_order(plan: PointPlan, errand, folder: Folder) -> tuple[int, int] | None:
     """V62: how the run's [beam A, beam B] maps onto a card's fixed slots ([beams] slots), or None when
     the card takes them as given. The run's order is named by the point's beam ids (a per-beam quantity
     of PDG ids: `beams`, or beam_a with beam_b), else it is the vocabulary's `unnamed` order."""
@@ -1264,11 +1264,11 @@ def beam_order(plan: PointPlan, run, folder: Folder) -> tuple[int, int] | None:
     classes = None
     for name, index in plan.values.items():
         entry = vocabulary.get(name, {})
-        value = run.quantities[name].values[index]
+        value = errand.quantities[name].values[index]
         if entry.get("per_beam") and entry.get("shape") == ["pdg", "pdg"]:
             classes = [beam_class(v) for v in value]
     if classes is None and "beam_a" in plan.values and "beam_b" in plan.values:
-        classes = [beam_class(run.quantities[n].values[plan.values[n]]) for n in ("beam_a", "beam_b")]
+        classes = [beam_class(errand.quantities[n].values[plan.values[n]]) for n in ("beam_a", "beam_b")]
     if classes is None:
         classes = next((e["unnamed"] for e in vocabulary.values() if e.get("unnamed")), ["hadron", "lepton"])
     if sorted(classes) != sorted(slots):
@@ -1280,7 +1280,7 @@ def beam_order(plan: PointPlan, run, folder: Folder) -> tuple[int, int] | None:
     return (first, 1 - first)
 
 
-def _prepare_key(plan: PointPlan, step: Step, run) -> None:
+def _prepare_key(plan: PointPlan, step: Step, errand) -> None:
     """[prepare]: a cache entry per card, .cache/<P>/<tool>/<key>/. The key is the card before
     seeds, the base cards and the binary, without the lines setting `ignore` keys (the event count,
     say), so every point, replica and rerun with the same physics shares one integration."""
@@ -1298,7 +1298,7 @@ def _prepare_key(plan: PointPlan, step: Step, run) -> None:
              if not line.startswith(comment) and not (pattern and pattern.match(line))]
     text = "\n".join([step.folder.name, step.identity_parts.get("exe_sha256", str(step.exe)),
                       *step.identity_parts["base_sha256"], *keyed])
-    step.prepare_dir = cache_root() / run.project / step.folder.name / hashlib.sha256(text.encode()).hexdigest()[:16]
+    step.prepare_dir = cache_root() / errand.assignment / step.folder.name / hashlib.sha256(text.encode()).hexdigest()[:16]
     step.identity_parts["prepare"] = step.prepare_dir.name
     if step.folder.card_style == "render" and hasattr(step.folder.plugin, "prepare_card"):
         ext = step.folder.get("card", "ext", "txt")
@@ -1319,12 +1319,12 @@ def _prepare_argv(plan: PointPlan, step: Step) -> None:
     step.prepare_argv = argv
 
 
-def _base_values(tool, run, folder: Folder) -> dict[str, str]:
+def _base_values(tool, errand, folder: Folder) -> dict[str, str]:
     """The base cards' `Key = value` settings (last wins), for spotting redundant overrides."""
     comment = folder.get("card", "comment", "#")
     values: dict[str, str] = {}
     for base in tool.baseconfig:
-        path = resolve(base, "baseconfig", project=run.project, where=f"[tools.{tool.tag}].baseconfig")
+        path = resolve(base, "baseconfig", assignment=errand.assignment, where=f"[tools.{tool.tag}].baseconfig")
         if not path.is_file():
             continue
         for raw in path.read_text(encoding="utf-8").splitlines():
@@ -1358,7 +1358,7 @@ def _info_dirs(folder: Folder) -> list[Path]:
     return dirs
 
 
-def _config(plan: PointPlan, step: Step, run) -> None:
+def _config(plan: PointPlan, step: Step, errand) -> None:
     """A folder with [tool] config_file (exec, module): its table's config and the consumed values, as
     config/<tag>.toml (its first argument, and in the context file), for every rendered tool (04 §9.2)."""
     tool, folder = step.tool, step.folder
@@ -1366,9 +1366,9 @@ def _config(plan: PointPlan, step: Step, run) -> None:
         return
     data = dict(tool.config or {})
     consumed = {k: v for k, v in step.identity_parts.get("config_values", {}).items()}
-    quantities_table = {k: v for k, v in consumed.items() if k in run.quantities}
+    quantities_table = {k: v for k, v in consumed.items() if k in errand.quantities}
     for key, value in consumed.items():
-        if key not in run.quantities:
+        if key not in errand.quantities:
             target = data
             *head, last = key.split(".")
             for part in head:
@@ -1382,7 +1382,7 @@ def _config(plan: PointPlan, step: Step, run) -> None:
         step.identity_parts["config"] = tomli_w.dumps(data)
 
 
-def _argv(plan: PointPlan, step: Step, run) -> None:
+def _argv(plan: PointPlan, step: Step, errand) -> None:
     folder, tool = step.folder, step.tool
     context: dict[str, Any] = {
         **placeholders(), "out": str(plan.out), "res": str(plan.res), "exe": str(step.exe),
@@ -1400,7 +1400,7 @@ def _argv(plan: PointPlan, step: Step, run) -> None:
         "partial:": {"output": str(step.products[0][1]) if step.products else ""},
         "in:": {i.name: str(i.path) for i in step.inputs},
         "file:": {name: str(i.path) for name, i in plan.interfaces.items() if i.kind in ("fifo", "file")},
-        "q:": {name: str(run.quantities[name].values[i]) for name, i in plan.values.items()},
+        "q:": {name: str(errand.quantities[name].values[i]) for name, i in plan.values.items()},
         "cards": [str(p) for p in step.card_base] + ([str(step.card_point)] if step.card_point else []),
         "card": str(step.card_combined or ""),
         "context": str(plan.out / CONTEXT_FILE),             # the context file (04 §9.4); also $HEIMDALL_CONTEXT
@@ -1679,7 +1679,7 @@ def check_cards(plan: PointPlan) -> None:
             lines.append((line, step.card_origins.get(parsed[0], "the point card") if parsed else "the point card"))
         text = "\n".join(line for line, _ in lines) + "\n"
         key = hashlib.sha256((step.folder.name + str(step.identity_parts.get("exe_sha256")) + text).encode()).hexdigest()[:16]
-        cache = cache_root() / plan.folders.project / "checks" / step.folder.name / f"{key}.json"
+        cache = cache_root() / plan.folders.assignment / "checks" / step.folder.name / f"{key}.json"
         if key not in _CHECKED:
             kept = keeping("cache")                                    # on disk only when kept (V149)
             if cache.is_file():
@@ -1728,12 +1728,12 @@ def _unsharded(tag: str, plan: PointPlan) -> str:
     return f"{head}.1–{count}" if head and index.isdigit() and f"{head}.merge" in plan.rendered else tag
 
 
-def describe(plan: PointPlan, run) -> list[str]:
+def describe(plan: PointPlan, errand) -> list[str]:
     """--plan: the groups, argv, connections and files of one point."""
     drawn = "  (random: drawn again by each run)" if plan.seed_type == "random" and not plan.seed_kept else ""
     lines = [f"point {plan.point.index} {plan.point.name}   identity {plan.identity[:12]}   seed {plan.seed}{drawn}"]
     for name, index in plan.values.items():
-        quantity = run.quantities[name]
+        quantity = errand.quantities[name]
         where = ", ".join(dict.fromkeys(f"{_unsharded(m.tag, plan)}:{m.key if m.form != 'seed' else 'seed'}"
                                         for m in plan.consumers.get(name, [])))
         lines.append(f"  {name:12s} = {tag_of(quantity, index):14s} → {where}")

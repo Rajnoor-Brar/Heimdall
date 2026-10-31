@@ -65,8 +65,8 @@ def test_a_missing_program_says_how_to_get_its_package(machine, monkeypatch):
 
 
 def test_a_point_records_how_its_tools_packages_were_installed(scratch):
-    run, conf, point = plan(raw(), scratch)
-    made = record.provenance(point, run, conf, "a", "b", {})
+    errand, conf, point = plan(raw(), scratch)
+    made = record.provenance(point, errand, conf, "a", "b", {})
     pythia = next(t for t in made["tools"] if t["tool"] == "pythia")
     assert set(pythia["packages"]) == {"pythia8", "hepmc3"}
     assert all(isinstance(s, str) and s for s in pythia["packages"].values())

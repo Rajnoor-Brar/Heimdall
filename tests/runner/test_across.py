@@ -179,9 +179,9 @@ def test_plot_across_from_is_checked_and_written_into_from(scratch):
     assert "across_from" not in plotdoc.across_chosen(plain)[0]
     target.unlink()
     given = {"runs": ["0*"], "ignore": ["generator"]}
-    run = parse(raw(plot={"across": across, "across_from": given}), scratch)
-    assert "across_from" not in plotdoc.chosen_of(run, run.configuration("one"), [])[0]
-    target, _ = plotdoc.write_across(run)
+    errand = parse(raw(plot={"across": across, "across_from": given}), scratch)
+    assert "across_from" not in plotdoc.chosen_of(errand, errand.configuration("one"), [])[0]
+    target, _ = plotdoc.write_across(errand)
     data = tomllib.loads(target.read_text(encoding="utf-8"))
     assert data["from"] == {"runs": ["0*"], "prefer": "last", "ignore": ["generator"]} and "across_from" not in data["plot"]
 

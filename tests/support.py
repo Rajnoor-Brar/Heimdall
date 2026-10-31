@@ -52,16 +52,16 @@ def folder(config: str, configuration: str | None = None, where: Path | None = N
     tests never spell the layout out. A v3 configuration without a serial is numbered by the runner
     (V131): its newest folder under `where`'s records/ or results/, else 01, its first."""
     from runner import config as configmod, tools
-    run = configmod.load(config)
-    c = run.configuration(configuration)
+    errand = configmod.load(config)
+    c = errand.configuration(configuration)
     if c.serial_auto:
         taken = set()
         for root in ((where / "records", where / "results") if where is not None else ()):
-            parent = root / run.project / (c.run_folder or run.name)
+            parent = root / errand.assignment / (c.run_folder or errand.name)
             taken |= {int(p.name.split("_", 1)[0]) for p in (parent.iterdir() if parent.is_dir() else ())
                       if p.name.split("_", 1)[0].isdigit() and p.name.split("_", 1)[-1] == c.label}
         c.serial = max(taken, default=1)
-    return tools.run_dir(run, c)
+    return tools.run_dir(errand, c)
 
 
 def records(where: Path) -> Path:

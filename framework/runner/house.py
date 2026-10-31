@@ -52,28 +52,28 @@ def importers() -> dict[str, list[str]]:
     return out
 
 
-def unused_tools(run) -> list[str]:
+def unused_tools(errand) -> list[str]:
     """This file's own tool tables that no configuration runs (tools, pre, post, an @quantity's choice)
     or names in generate_cards: likely left over (an import's spare tables are its own business)."""
     used: set[str] = set()
-    for configuration in run.configurations.values():
+    for configuration in errand.configurations.values():
         for groups in (configuration.tools, configuration.pre, configuration.post):
             for group in groups:
                 for entry in group:
-                    if entry.startswith("@") and entry[1:] in run.quantities:
-                        used |= {t for v in run.quantities[entry[1:]].values for t in configmod.fragment_tags(v)}
+                    if entry.startswith("@") and entry[1:] in errand.quantities:
+                        used |= {t for v in errand.quantities[entry[1:]].values for t in configmod.fragment_tags(v)}
                     used.add(entry)
         used |= {entry.partition(":")[0] for entry in configuration.generate_cards}
     return [f"[tools.{tag}] is defined but no configuration runs it or names it in generate_cards"
-            for tag in run.tools if tag not in used and f"tools.{tag}" not in run.included]
+            for tag in errand.tools if tag not in used and f"tools.{tag}" not in errand.included]
 
 
-def config_names(project: str | None = None) -> list[str]:
+def config_names(assignment: str | None = None) -> list[str]:
     """Every configs/<Project>/<name>.toml that has an [errand], as <Project>/<name>; one with [run] too (the names
     before I-112), so that reading it says what rewrites it."""
     root = configs_root()
     names = []
-    for path in sorted(root.glob(f"{project or '*'}/*.toml")):
+    for path in sorted(root.glob(f"{assignment or '*'}/*.toml")):
         try:
             data = tomllib.loads(path.read_text(encoding="utf-8"))
             has_run = "errand" in data or "run" in data
@@ -84,26 +84,26 @@ def config_names(project: str | None = None) -> list[str]:
     return names
 
 
-def ls(project: str | None = None) -> list[str]:
+def ls(assignment: str | None = None) -> list[str]:
     """Each config, then each configuration: its title and description, and whether a sweep runs it."""
-    names = config_names(project)
+    names = config_names(assignment)
     if not names:
-        raise HeimdallError(f"no run TOML under {configs_root() / (project or '')}", hint="a config has an [errand] table")
+        raise HeimdallError(f"no run TOML under {configs_root() / (assignment or '')}", hint="a config has an [errand] table")
     lines = []
     for name in names:
         try:
-            run = configmod.load(name)
+            errand = configmod.load(name)
         except HeimdallError as error:
             lines.append(f"{name}   (does not load: {error.message})")
             continue
-        swept = set(run.runs(None)) if run.sweep_runs else {run.raw.get("errand", {}).get("configuration")}
-        lines.append(f"{name}   run {run.name}" + ("   sweep_runs" if run.sweep_runs else ""))
-        for key, configuration in run.configurations.items():
+        swept = set(errand.runs(None)) if errand.sweep_runs else {errand.raw.get("errand", {}).get("configuration")}
+        lines.append(f"{name}   run {errand.name}" + ("   sweep_runs" if errand.sweep_runs else ""))
+        for key, configuration in errand.configurations.items():
             mark = "*" if key in swept else " "
             about = configuration.description or (configuration.title if configuration.title != key else "")
             lines.append(f"  {mark} {key:16s} {about}")
     from . import report as reportmod
-    found = reportmod.recipes(project)                     # V207: the reports' recipes
+    found = reportmod.recipes(assignment)                  # V207: the reports' recipes
     if found:
         lines.append("reports: " + ", ".join(found) + "   (heimdall report <recipe>.toml <source>)")
     return lines
@@ -597,12 +597,12 @@ def status(planned: list, running: dict[str, list[str]]) -> list[str]:
         stages = [*([p.pre] if p.pre else []), *p.every, *p.combined, *([p.post] if p.post else [])]
         found = [state_of(s) for s in stages]
         states = [state for state, _ in found]
-        live = p.configuration.key in running.get(str(p.run.path), [])
+        live = p.configuration.key in running.get(str(p.errand.path), [])
         counts = ", ".join(f"{states.count(s)} {s}" for s in STATES if states.count(s))
-        tag = run_tag(tools.run_folders(p.run, p.configuration).record)            # V223
-        lines.append(f"{p.run.name} · {p.configuration.key}{f' [{tag}]' if tag else ''} "
-                     f"({tools.run_dir(p.run, p.configuration)}): {counts}" + ("   [running]" if live else ""))
-        lines += constants_lines(constants(p.every, p.run, p.configuration, machine=False))
+        tag = run_tag(tools.run_folders(p.errand, p.configuration).record)         # V223
+        lines.append(f"{p.errand.name} · {p.configuration.key}{f' [{tag}]' if tag else ''} "
+                     f"({tools.run_dir(p.errand, p.configuration)}): {counts}" + ("   [running]" if live else ""))
+        lines += constants_lines(constants(p.every, p.errand, p.configuration, machine=False))
         width = max([24] + [len(s.point.name) for s in stages])        # the states in one column
         for stage, (state, last) in zip(stages, found):
             when, why = "", ""
@@ -664,7 +664,7 @@ def clean_targets(planned: list, everything: bool, records: bool = False) -> tup
     outs, ress = _stage_dirs(planned)
     recs = {record_dir(s) for s in outs_stages(planned)}
     for p in planned:
-        run_folders = tools.run_folders(p.run, p.configuration)
+        run_folders = tools.run_folders(p.errand, p.configuration)
         base_out, base_res, base_rec = run_folders.logs, run_folders.products, run_folders.points
         for folder in sorted(base_out.iterdir()) if base_out.is_dir() else ():
             if folder.is_dir() and folder not in outs and folder.name not in KEEP_NAMES:
@@ -682,20 +682,20 @@ def clean_targets(planned: list, everything: bool, records: bool = False) -> tup
         used_runs: dict[str, set[Path]] = {}
         referenced: set[Path] = set()
         for p in planned:
-            used_runs.setdefault(p.run.project, set()).add(tools.run_folders(p.run, p.configuration).record)
+            used_runs.setdefault(p.errand.assignment, set()).add(tools.run_folders(p.errand, p.configuration).record)
             for stage in [*p.every, *p.combined, *([p.pre] if p.pre else []), *([p.post] if p.post else [])]:
                 for step in stage.rendered.values():
                     if step.prepare_dir is not None:
                         referenced.add(step.prepare_dir)
-        for project, used in used_runs.items():
-            root = records_root() / project
+        for assignment, used in used_runs.items():
+            root = records_root() / assignment
             for run_folder in sorted(root.iterdir()) if root.is_dir() else ():
                 if run_folder.name.startswith(".") or not run_folder.is_dir():
                     continue
                 for cfg in sorted(run_folder.iterdir()):           # another configuration's: its working folders only
                     if cfg.is_dir() and cfg not in used and (cfg / "logs").is_dir():
                         remove.append(cfg / "logs")
-            cache = cache_root() / project
+            cache = cache_root() / assignment
             for tool_dir in sorted(cache.iterdir()) if cache.is_dir() else ():
                 if tool_dir.name in ("checks", "datasets", "plots") or not tool_dir.is_dir():   # plots/: the drawings' (V164)
                     continue

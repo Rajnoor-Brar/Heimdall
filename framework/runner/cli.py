@@ -363,7 +363,7 @@ def parser() -> argparse.ArgumentParser:
 @dataclass
 class Planned:
     """One run, planned: what `heimdall run CONFIG CONFIGURATION` executes."""
-    run: configmod.RunConfig
+    errand: configmod.Errand
     configuration: configmod.Configuration
     every: list                                    # every point's plan
     plans: list                                    # the points to run (--points)
@@ -373,15 +373,15 @@ class Planned:
 
 
 def build_plans(args, key: str | None) -> Planned:
-    run, configuration = configmod.for_configuration(configmod.load(args.config, sets=args.set), key)   # V179
-    plot.validate(run)                       # before anything is planned (V54): a [plot] typo costs no planning
-    master = load_master(run.project, run.master_toml)
-    points = sweep.points(run, configuration)
-    chosen = {p.index for p in sweep.select_points(run, configuration, points, args.points)}
+    errand, configuration = configmod.for_configuration(configmod.load(args.config, sets=args.set), key)   # V179
+    plot.validate(errand)                    # before anything is planned (V54): a [plot] typo costs no planning
+    master = load_master(errand.assignment, errand.master_toml)
+    points = sweep.points(errand, configuration)
+    chosen = {p.index for p in sweep.select_points(errand, configuration, points, args.points)}
     if configuration.serial_auto:
-        pre_plan, plans = _numbered(run, configuration, master, points)
+        pre_plan, plans = _numbered(errand, configuration, master, points)
     else:
-        pre_plan, plans = _planned_points(run, configuration, master, points)
+        pre_plan, plans = _planned_points(errand, configuration, master, points)
     again = getattr(args, "rerun", False) and getattr(args, "only", None) is None   # the points run anew
     record.assign_seeds(plans, frozenset(p.point.name for p in plans if again and p.point.index in chosen))
     for plan in plans:
@@ -389,34 +389,34 @@ def build_plans(args, key: str | None) -> Planned:
         tools.check_cards(plan)                  # the tools read their cards (V59), cached by text
     if configuration.parallelism_auto:           # "auto" (V75): from the plans' cores
         configuration.parallelism = execute.auto_parallelism(plans)
-    plot.check_texts(run, plans)                 # a placeholder typo costs no point run (V66) …
-    plot.check_figures(run, configuration)       # … nor a band's (V69), nor what a figure merges (V82)
-    return Planned(run, configuration, plans, [p for p in plans if p.point.index in chosen],
-                   post.plan(run, configuration, master, plans), pre_plan,
-                   post.plan_combined(run, configuration, master, plans))
+    plot.check_texts(errand, plans)              # a placeholder typo costs no point run (V66) …
+    plot.check_figures(errand, configuration)    # … nor a band's (V69), nor what a figure merges (V82)
+    return Planned(errand, configuration, plans, [p for p in plans if p.point.index in chosen],
+                   post.plan(errand, configuration, master, plans), pre_plan,
+                   post.plan_combined(errand, configuration, master, plans))
 
 
-def _planned_points(run, configuration, master, points):
+def _planned_points(errand, configuration, master, points):
     """The pre stage and every point, planned in the configuration's folder, with their identities."""
-    pre_plan = post.plan_pre(run, configuration, master, points)
+    pre_plan = post.plan_pre(errand, configuration, master, points)
     plans = []
     for point in points:
-        plan = tools.plan_point(run, configuration, point, master, pre=pre_plan)
+        plan = tools.plan_point(errand, configuration, point, master, pre=pre_plan)
         plan.identity = record.identity(plan)
         plans.append(plan)
     return pre_plan, plans
 
 
-def _numbered(run, configuration, master, points):
+def _numbered(errand, configuration, master, points):
     """A v3 configuration without a serial (03 §6): the runner numbers its folder. The newest folder its
     points completed in as it stands now (an older one, when a change was undone); else the newest, when
     nothing in it was made from other inputs (a run under way, or one never begun); else a new number,
     so that a change never overwrites what was made."""
-    taken = tools.serials_taken(run, configuration)
+    taken = tools.serials_taken(errand, configuration)
     newest = None
     for number in sorted(taken, reverse=True):
         configuration.serial = number
-        pre_plan, plans = _planned_points(run, configuration, master, points)
+        pre_plan, plans = _planned_points(errand, configuration, master, points)
         stages = [s for s in (pre_plan, *plans) if s is not None]
         clash = record.overwritten(stages)
         if newest is None:
@@ -431,13 +431,13 @@ def _numbered(run, configuration, master, points):
     held = ", ".join(f"{n:02d}" for n in sorted(taken))
     configuration.serial_note = (f"folder {configuration.serial:02d}: new ({held} {'holds' if len(taken) == 1 else 'hold'} "
                                  "other inputs)" if taken else f"folder {configuration.serial:02d}: the first")
-    return _planned_points(run, configuration, master, points)
+    return _planned_points(errand, configuration, master, points)
 
 
 def overwrites(planned: Planned, stages=None) -> list:
     """What running would replace that was made from other inputs, under a serial the file sets (v3,
     03 §6): the pre stage and the chosen points, as the stages run them."""
-    if planned.run.form != 3 or planned.configuration.serial_auto:
+    if planned.errand.form != 3 or planned.configuration.serial_auto:
         return []
     stages = STAGES if stages is None else stages
     return record.overwritten([s for s in ([planned.pre] if "pre" in stages and planned.pre is not None else [])
@@ -451,9 +451,9 @@ def refuse_overwrites(planned: Planned, args, stages=None) -> None:
         c = planned.configuration
         names = ", ".join(s.point.name if hasattr(s, "point") else "pre" for s in changed[:4]) + (", …" if len(changed) > 4 else "")
         where = c.origins.get("serial", "[errand]").replace("[errand.cfgs.", "[cfgs.")   # a v3 file: its own names
-        raise HeimdallError(f"configuration '{c.key}': {len(changed)} of its points in {tools.run_dir(planned.run, c)} were "
+        raise HeimdallError(f"configuration '{c.key}': {len(changed)} of its points in {tools.run_dir(planned.errand, c)} were "
                        f"made from other inputs ({names}); running would overwrite them",
-                       where=f"{planned.run.path}: {where}",
+                       where=f"{planned.errand.path}: {where}",
                        hint=f"serial = {c.serial + 1} gives a fresh folder; or leave serial out and the runner numbers it; "
                             f"--rerun replaces them; --why says what changed")
 
@@ -469,29 +469,29 @@ def others_of(args):
     return plans_of
 
 
-def write_documents(run, configuration, members: list, say=print) -> tuple[Path | None, list[str]]:
+def write_documents(errand, configuration, members: list, say=print) -> tuple[Path | None, list[str]]:
     """A folder's plot document (plotdoc.write, V165) and beside it its report's recipe, report.toml (V209): the run
     TOML's [report], else the default report, written again each time. Its failure is said, never the run's."""
-    target, notes = plotdoc.write(run, configuration, members)
+    target, notes = plotdoc.write(errand, configuration, members)
     if target is not None:
-        _write_recipe(run, target, say)
+        _write_recipe(errand, target, say)
     return target, notes
 
 
-def _write_recipe(run, target: Path, say) -> None:
+def _write_recipe(errand, target: Path, say) -> None:
     from . import report as reportmod
     try:
-        reportmod.write_recipe(run, target)
+        reportmod.write_recipe(errand, target)
     except (HeimdallError, OSError) as error:
         say(f"report: {target.with_name(reportmod.RECIPE)} not written: {getattr(error, 'message', error)}")
 
 
-def draw_run(run, configuration, members: list, say, draw: bool = True, stats=True) -> int:
+def draw_run(errand, configuration, members: list, say, draw: bool = True, stats=True) -> int:
     """A run's plot stage (V165): its plot document written, results/<run>/plot.toml (what the run knows
     rewritten, the user's [plot] and [stats] kept), then its pages drawn from that document alone, as
     `heimdall plot` draws them, and their statistics (V168: `stats` true, false or the sets measured); with
     `draw` false, the statistics alone. The pages that failed."""
-    target, notes = write_documents(run, configuration, members, say)
+    target, notes = write_documents(errand, configuration, members, say)
     for note in notes:
         say(f"plot: note: {note}")
     if target is None:
@@ -504,9 +504,9 @@ def draw_run(run, configuration, members: list, say, draw: bool = True, stats=Tr
     return plot.draw(doc, kept, drawn, say, stats=stats)
 
 
-def journal_path(run, configuration) -> Path:
+def journal_path(errand, configuration) -> Path:
     """records/<P>/<run>/<cfg>/status.jsonl: a --journal run's events, which heimdall watch --file follows."""
-    return tools.run_folders(run, configuration).journal
+    return tools.run_folders(errand, configuration).journal
 
 
 def header(number: int, configuration) -> str:
@@ -514,14 +514,14 @@ def header(number: int, configuration) -> str:
     return f"run {number:02d} - {configuration.title} -"
 
 
-def _print_stage(title: str, stage, run) -> None:
+def _print_stage(title: str, stage, errand) -> None:
     print(f"{title}   identity {stage.identity[:12]}")
-    for line in tools.describe(stage, run)[1:]:
+    for line in tools.describe(stage, errand)[1:]:
         print(line)
     print(f"  results {stage.res}   ({'complete' if record.is_complete(stage) else 'to run'})")
 
 
-def run_title(run, configuration, plans, tag: str | None = None) -> str:
+def run_title(errand, configuration, plans, tag: str | None = None) -> str:
     """A run's title, two lines (the user's form, 2026-10-26):
 
         zeus_validation · 12  ·  generator_pdf [nlo]
@@ -529,8 +529,8 @@ def run_title(run, configuration, plans, tag: str | None = None) -> str:
 
     the run's name, its record's serial (none when the folder has none) and the configuration, with its tag when
     it has one; then its size."""
-    serial = re.match(r"(\d+)_", tools.run_dir(run, configuration).name)
-    head = f"{run.name} · {serial.group(1)}  ·  {configuration.key}" if serial else f"{run.name}  ·  {configuration.key}"
+    serial = re.match(r"(\d+)_", tools.run_dir(errand, configuration).name)
+    head = f"{errand.name} · {serial.group(1)}  ·  {configuration.key}" if serial else f"{errand.name}  ·  {configuration.key}"
     head += f" [{tag}]" if tag else ""
     return (f"{head}\n   - {len(plans)} point(s), {configuration.event_count} events, {configuration.threads} threads"
             + parallel_note(configuration, plans))
@@ -555,22 +555,22 @@ def crowded(configuration, plans) -> str:
             f"here: lower threads, shards or parallelism, or accept the oversubscription")
 
 
-def totality_pages(run, configuration, points: list) -> tuple[int, str]:
+def totality_pages(errand, configuration, points: list) -> tuple[int, str]:
     """The pages per object the totality set draws (V195: its own axes, not plot_points'), and what other sets
     the configuration draws, for --plan's plot line."""
     try:
         spec = sweep.set_entries({sweep.TOTALITY: sweep.totality(configuration, points)}, sweep.TOTALITY)[0]
-        count = len(sweep.set_cells(run, points, spec)[0])
+        count = len(sweep.set_cells(errand, points, spec)[0])
     except Exception:                    # a count never stops a plan (listed points' KeyError): plot_points'
         count = len(sweep.pages(configuration, points))
     drawn = configuration.draw
     others = ([s for s in drawn if s != sweep.TOTALITY] if isinstance(drawn, list)
-              else [s for s in (run.plot or {}).get("sets", {}) if s != sweep.TOTALITY] if drawn else [])
+              else [s for s in (errand.plot or {}).get("sets", {}) if s != sweep.TOTALITY] if drawn else [])
     return count, f", and {len(others)} more set(s) ({', '.join(others)})" if others else ""
 
 
-def print_plan(run, configuration, plans, post_plan=None, pre_plan=None, combined=(), tag=(None, "")) -> None:
-    print(f"run {run.name} ({run.path}) · configuration {configuration.key}: {len(plans)} point(s), "
+def print_plan(errand, configuration, plans, post_plan=None, pre_plan=None, combined=(), tag=(None, "")) -> None:
+    print(f"run {errand.name} ({errand.path}) · configuration {configuration.key}: {len(plans)} point(s), "
           f"{configuration.event_count} events, {configuration.threads} threads" + parallel_note(configuration, plans))
     if tag[0]:
         print(f"tag: {tag[0]} ({tag[1]})")
@@ -578,11 +578,11 @@ def print_plan(run, configuration, plans, post_plan=None, pre_plan=None, combine
         print(f"note: {crowded(configuration, plans)}")
     for note in notes_of(plans):
         print(f"note: {note}")
-    for warning in tools.meta_notes(run):                       # V97
+    for warning in tools.meta_notes(errand):                    # V97
         print(f"warning: {warning}")
     if configuration.serial_note:
         print(f"note: {configuration.serial_note} (no serial set: the runner numbers the folder)")
-    if run.form == 3 and not configuration.serial_auto:
+    if errand.form == 3 and not configuration.serial_auto:
         changed = record.overwritten([s for s in (pre_plan, *plans) if s is not None])
         if changed:
             print(f"warning: {len(changed)} of these were made from other inputs: running refuses to overwrite them "
@@ -592,28 +592,28 @@ def print_plan(run, configuration, plans, post_plan=None, pre_plan=None, combine
     if configuration.manual_seed is not None and configuration.seed_type != "manual":
         print(f"note: manual_seed = {configuration.manual_seed} is unused: seed_type is '{configuration.seed_type}'")
     if pre_plan is not None:
-        _print_stage("pre (before every point)", pre_plan, run)
+        _print_stage("pre (before every point)", pre_plan, errand)
     for plan in plans:
         state = "complete" if record.is_complete(plan) else "to run"
-        for line in tools.describe(plan, run):
+        for line in tools.describe(plan, errand):
             print(line)
         print(f"  output  {plan.out}\n  results {plan.res}   ({state})")
     for group in combined:
         _print_stage(f"combined {group.point.name} (merges {len(group.upstream)} points: "
-                     f"{', '.join(configuration.combine)})", group, run)
+                     f"{', '.join(configuration.combine)})", group, errand)
     if post_plan is not None:
-        _print_stage("post (after every point)", post_plan, run)
-    if run.plot and plans:
-        count, more = totality_pages(run, configuration, [p.point for p in plans])
-        print(f"plot ({', '.join(plot.backends(run.plot))}): {count} page(s) per object in totality{more}, "
-              f"{', '.join(plot.formats_of(run.plot))} → {plans[0].folders.plots}")
+        _print_stage("post (after every point)", post_plan, errand)
+    if errand.plot and plans:
+        count, more = totality_pages(errand, configuration, [p.point for p in plans])
+        print(f"plot ({', '.join(plot.backends(errand.plot))}): {count} page(s) per object in totality{more}, "
+              f"{', '.join(plot.formats_of(errand.plot))} → {plans[0].folders.plots}")
 
 
-def print_why(run, configuration, plans, post_plan=None, pre_plan=None, combined=()) -> None:
+def print_why(errand, configuration, plans, post_plan=None, pre_plan=None, combined=()) -> None:
     """--why (V57): each point and stage that would run, and what changed since it last completed."""
     stages = [*([pre_plan] if pre_plan else []), *plans, *combined, *([post_plan] if post_plan else [])]
     todo = [p for p in stages if not record.is_complete(p)]
-    print(f"run {run.name} · configuration {configuration.key}: {len(todo)} of {len(stages)} to run")
+    print(f"run {errand.name} · configuration {configuration.key}: {len(todo)} of {len(stages)} to run")
     for plan in todo:
         print(f"{plan.point.name}   identity {plan.identity[:12]}")
         for line in record.why(plan):
@@ -708,24 +708,24 @@ def opened(args) -> Path | None:
     return found
 
 
-def run_tag(args, run, configuration) -> tuple[str | None, str]:
+def run_tag(args, errand, configuration) -> tuple[str | None, str]:
     """A run's tag (V223) and where it comes from: --tag, else the one its folder's record has (a folder run again
     keeps what heimdall tag gave it), else its configuration's `tag` key; (None, "") for none."""
     if getattr(args, "tag", None):
         return args.tag, "--tag"
-    if (kept := record.run_tag(tools.run_folders(run, configuration).record)) is not None:
+    if (kept := record.run_tag(tools.run_folders(errand, configuration).record)) is not None:
         return kept or None, "its folder's"                    # "": cleared by heimdall tag, the key no more
     if configuration.tag:
         origin = configuration.origins.get("tag", "the configuration")
-        return configuration.tag, (origin.replace(f"[errand.{configmod.CFGS}.", "[cfgs.") if run.form == 3 else origin)
+        return configuration.tag, (origin.replace(f"[errand.{configmod.CFGS}.", "[cfgs.") if errand.form == 3 else origin)
     return None, ""
 
 
-def give_tag(args, run, configuration) -> str | None:
+def give_tag(args, errand, configuration) -> str | None:
     """The run's tag written into its folder's record (records/<run>/tag), the plot document's [source].tag
     being written from it; nothing for an untagged run."""
-    tag, _ = run_tag(args, run, configuration)
-    folders = tools.run_folders(run, configuration)
+    tag, _ = run_tag(args, errand, configuration)
+    folders = tools.run_folders(errand, configuration)
     if tag and tag != record.run_tag(folders.record):
         record.write_run_tag(folders.record, tag)
         if (document := plotdoc.path_of(folders.results)).is_file():
@@ -746,8 +746,8 @@ def cmd_run(args) -> int:
     _ask_keep(args)
     if getattr(args, "tag", None) is not None:              # refused here, before a worker is started
         configmod.check_tag(args.tag, "--tag")
-    run = configmod.load(args.config, sets=args.set)
-    keys = run.runs(args.configuration)
+    errand = configmod.load(args.config, sets=args.set)
+    keys = errand.runs(args.configuration)
     nothing_runs = getattr(args, "why", False) or args.plan or stages_of(args) == {"plot"} \
         or getattr(args, "show_config", False)
     if getattr(args, "detach", False) and not worker:
@@ -757,11 +757,11 @@ def cmd_run(args) -> int:
         if os.environ.get("SLURM_JOB_ID") or runs.cluster_job():
             raise HeimdallError("--detach in a Slurm job: its processes end with the job's allocation",
                            hint="heimdall cluster submits a run as jobs; or run it here without --detach")
-        return background(args, run, keys, attach=False)
+        return background(args, errand, keys, attach=False)
     if not worker and not nothing_runs and live(args):
-        return background(args, run, keys, attach=True)
+        return background(args, errand, keys, attach=True)
     if getattr(args, "show_config", False):
-        for line in show_config(run, keys):
+        for line in show_config(errand, keys):
             print(line)
         return 0
     stopper = execute.Stopper()
@@ -773,26 +773,26 @@ def cmd_run(args) -> int:
         opened = runs.log_of(worker) if worker else None    # the log its parent opened, wherever it is
         log = str(opened) if opened else None
         work = find_work()
-        configuration_serials = {key: run.configurations[key].serial for key in keys}
+        configuration_serials = {key: errand.configurations[key].serial for key in keys}
         entry = runs.begin(worker or runs.new_id(), {       # the registry (V182): nothing on a read-only root
-            "config": str(run.path), "run": run.name, "configurations": keys, "argv": getattr(args, "argv", []),
+            "config": str(errand.path), "run": errand.name, "configurations": keys, "argv": getattr(args, "argv", []),
             "configuration_serials": configuration_serials,
             "points_completed": 0, "points_total": None, "active_parallel_points": 0,
             "work": str(work) if work else None, "checkout": str(paths.heimdall_root()), "detached": bool(worker), "log": log})
-        hub = Hub({"config": str(run.path), "run": run.name, "configurations": keys, "id": entry, "log": log,
+        hub = Hub({"config": str(errand.path), "run": errand.name, "configurations": keys, "id": entry, "log": log,
                    "configuration_serials": configuration_serials,
                    "work": str(work) if work else None, "detached": bool(worker)})
         recorder = runs.Recorder(
             entry,
             configuration_serials,
-            {key: run.configurations[key].label for key in keys},
+            {key: errand.configurations[key].label for key in keys},
         )
         bus.subscribe(hub)
         bus.subscribe(recorder)
     code, crashed = 2, None
     try:
         try:
-            code = _runs(args, run, keys, stopper, bus, recorder=recorder)
+            code = _runs(args, errand, keys, stopper, bus, recorder=recorder)
         except HeimdallError as error:            # what main() prints, for a watcher too (V181)
             if bus is not None:
                 bus.say(error.render())
@@ -811,7 +811,7 @@ def cmd_run(args) -> int:
             runs.finish(entry, code, crashed, records=recorder.records, verdicts=recorder.verdicts,  # before the
                         counts=recorder.counts(), **recorder.close())
             hub.close()                                                                              # stream ends
-            notify(run, code)
+            notify(errand, code)
 
 
 def live(args, stdin=None, stdout=None, environ=None) -> bool:
@@ -841,7 +841,7 @@ def _worker_signals() -> None:
     signal.signal(signal.SIGHUP, interrupt)
 
 
-def background(args, run, keys: list[str], *, attach: bool) -> int:
+def background(args, errand, keys: list[str], *, attach: bool) -> int:
     """The run as a worker of its own (V183): this command again with --worker <id>, in a session of its own,
     its output in the registry's <id>.log. `attach`: followed here as heimdall watch does (`d` leaves it
     running; Ctrl-C stops it, once cleanly, twice hard); else (--detach) left once its run has started."""
@@ -849,7 +849,7 @@ def background(args, run, keys: list[str], *, attach: bool) -> int:
     run_id = runs.new_id()
     log = runs.log_file(run_id)
     proc = runs.spawn(getattr(args, "argv", []), run_id, log)
-    what = f"{run.name} · {', '.join(keys)}"
+    what = f"{errand.name} · {', '.join(keys)}"
 
     def left() -> None:
         print(f"left running: {what} (pid {proc.pid})\n  heimdall watch --pid {proc.pid}   follow it again\n"
@@ -941,14 +941,14 @@ def cmd_stop(args) -> int:
     return 0
 
 
-def notify(run, code: int) -> bool:
+def notify(errand, code: int) -> bool:
     """[errand] notify = "desktop" (V76): a notify-send when the command ends, for runs of hours. Never
     fails the run: no notify-send, or no desktop, and it says nothing."""
-    if run.raw.get("errand", {}).get("notify", "none") != "desktop" or not shutil.which("notify-send"):
+    if errand.raw.get("errand", {}).get("notify", "none") != "desktop" or not shutil.which("notify-send"):
         return False
     verdict = {0: "done", 1: "a point failed", 2: "a config error", 6: "stopped"}.get(code, f"exit {code}")
     try:
-        subprocess.Popen(["notify-send", "--app-name=heimdall", f"heimdall run {run.name}", f"{run.path.name}: {verdict}"],
+        subprocess.Popen(["notify-send", "--app-name=heimdall", f"heimdall run {errand.name}", f"{errand.path.name}: {verdict}"],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError:
         return False
@@ -960,7 +960,7 @@ def _points_planned(args, planned: Planned) -> int:
     return len(planned.plans) if "points" in stages_of(args) else 0
 
 
-def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus, recorder: runs.Recorder | None = None) -> int:
+def _runs(args, errand, keys: list[str], stopper: execute.Stopper, bus, recorder: runs.Recorder | None = None) -> int:
     """The command's runs, each planned before the first starts; `recorder` is told how many points they plan
     (the registry's progress, `heimdall runs`)."""
     if len(keys) == 1:
@@ -970,9 +970,9 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus, recorder: r
         return run_one(args, keys[0], stopper, bus=bus, planned=planned)
     if args.points:
         raise HeimdallError("--points picks points of one configuration, and this sweep runs several",
-                       where=f"{run.path}: [errand].sweep_runs", hint=f"name it: heimdall run {args.config} <configuration> --points …")
+                       where=f"{errand.path}: [errand].sweep_runs", hint=f"name it: heimdall run {args.config} <configuration> --points …")
     skipped, ahead = {}, {}
-    stamp = run.path.stat().st_mtime_ns
+    stamp = errand.path.stat().st_mtime_ns
     for key in keys:
         try:
             ahead[key] = planned = build_plans(args, key)
@@ -982,35 +982,35 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus, recorder: r
         if args.only in ("pre", "post") and getattr(planned, args.only) is None:
             skipped[key] = f"   no {args.only} tools: skipped"
     if len(skipped) == len(keys):
-        raise HeimdallError(f"no configuration of this sweep has {args.only} tools", where=f"{run.path}: [errand].sweep_runs")
+        raise HeimdallError(f"no configuration of this sweep has {args.only} tools", where=f"{errand.path}: [errand].sweep_runs")
     if recorder is not None:
         recorder.plan({key: 0 if key in skipped else _points_planned(args, ahead[key]) for key in keys})
     if bus is not None and args.only is None and getattr(args, "stages", None) is None:
-        return _pipelined(args, run, keys, stopper, bus, ahead, stamp)
+        return _pipelined(args, errand, keys, stopper, bus, ahead, stamp)
     failed = False
     for number, key in enumerate(keys, 1):
         if stopper.requested:
             return 6
-        following = next((journal_path(run, run.configurations[k]) for k in keys[number:] if k not in skipped), None) \
+        following = next((journal_path(errand, errand.configurations[k]) for k in keys[number:] if k not in skipped), None) \
             if paths.keeping("journal") else None
         if key in skipped:
-            print(("\n" if number > 1 else "") + header(number, run.configurations[key]))
+            print(("\n" if number > 1 else "") + header(number, errand.configurations[key]))
             print(skipped[key])
             if bus is not None:                  # a watcher hears it too (V181)
-                bus.say(f"{header(number, run.configurations[key])}\n{skipped[key]}")
+                bus.say(f"{header(number, errand.configurations[key])}\n{skipped[key]}")
             continue
         voice = RunBus(bus, key, alone=True) if bus is not None else None      # each run's events say which run (V75)
         try:                                 # planned again only if the TOML was edited meanwhile (V38, V54)
-            unchanged = run.path.stat().st_mtime_ns == stamp
+            unchanged = errand.path.stat().st_mtime_ns == stamp
             code = run_one(args, key, stopper, number=number, following=following,
                            planned=ahead[key] if unchanged else None, bus=voice)
         except HeimdallError as error:            # the TOML was edited since the check: this run fails alone
-            print(("\n" if number > 1 else "") + header(number, run.configurations[key]))
+            print(("\n" if number > 1 else "") + header(number, errand.configurations[key]))
             print(error.render(), file=sys.stderr)
             if voice is not None:
-                voice.say(f"{header(number, run.configurations[key])}\n{error.render()}")
-            not_run(journal_path(run, run.configurations[key]) if paths.keeping("journal") else None,
-                    header(number, run.configurations[key]), error.message, following, voice)
+                voice.say(f"{header(number, errand.configurations[key])}\n{error.render()}")
+            not_run(journal_path(errand, errand.configurations[key]) if paths.keeping("journal") else None,
+                    header(number, errand.configurations[key]), error.message, following, voice)
             code = 2
         if code == 6:
             return 6
@@ -1018,7 +1018,7 @@ def _runs(args, run, keys: list[str], stopper: execute.Stopper, bus, recorder: r
     return 1 if failed else 0
 
 
-def _pipelined(args, run, keys: list[str], stopper: execute.Stopper, bus: Bus, ahead: dict, stamp: int) -> int:
+def _pipelined(args, errand, keys: list[str], stopper: execute.Stopper, bus: Bus, ahead: dict, stamp: int) -> int:
     """A sweep of runs, pipelined (V75, the user's B8 decision): each run starts once the one before has
     started all its points, and its points take the free cores of a budget the runs share (never more
     than the largest run alone would use), so a run's last points and the next run's first overlap. Each
@@ -1040,22 +1040,22 @@ def _pipelined(args, run, keys: list[str], stopper: execute.Stopper, bus: Bus, a
                 pass
             if stopper.requested:
                 break
-            following = next((journal_path(run, run.configurations[k]) for k in keys[number:]), None) \
+            following = next((journal_path(errand, errand.configurations[k]) for k in keys[number:]), None) \
                 if paths.keeping("journal") else None
             gate = threading.Event()
 
             def job(key=key, number=number, following=following, gate=gate) -> None:
                 voice = RunBus(bus, key)
                 try:                         # planned again only if the TOML was edited meanwhile (V38, V54)
-                    unchanged = run.path.stat().st_mtime_ns == stamp
+                    unchanged = errand.path.stat().st_mtime_ns == stamp
                     codes[key] = run_one(args, key, stopper, number=number, following=following,
                                          planned=ahead[key] if unchanged else None, bus=voice, shown=shown,
                                          budget=budget, gate=gate)
                 except HeimdallError as error:    # the TOML was edited since the check: this run fails alone
-                    voice.say(header(number, run.configurations[key]))
+                    voice.say(header(number, errand.configurations[key]))
                     voice.say(error.render())
-                    not_run(journal_path(run, run.configurations[key]) if paths.keeping("journal") else None,
-                            header(number, run.configurations[key]), error.message, following, voice)
+                    not_run(journal_path(errand, errand.configurations[key]) if paths.keeping("journal") else None,
+                            header(number, errand.configurations[key]), error.message, following, voice)
                     codes[key] = 2
                 except BaseException as error:           # the runner's own error: raised once all have ended
                     errors.append(error)
@@ -1080,13 +1080,13 @@ def _pipelined(args, run, keys: list[str], stopper: execute.Stopper, bus: Bus, a
     return 1 if any(codes.values()) else 0
 
 
-def show_config(run, keys: list[str]) -> list[str]:
+def show_config(errand, keys: list[str]) -> list[str]:
     """--show-config (V56): every resolved value of each configuration with the layer it came from (its
     own table, one it extends, [errand], the schema's default), each fixed quantity with where it was
     fixed, the interfaces (inferred from the chain in a v3 file), then every quantity and tool table
     with the file it came from. A v3 file is shown in v3's names."""
     from . import schema
-    v3 = run.form == 3
+    v3 = errand.form == 3
     names = {"event_count": "events", "tools": "chain", "sweeps": "vary", "label": "folder", "prelim": "interfaces"} if v3 else {}
     order = [k for k in schema.keys("configuration") if k not in ("extends", "static", "manual_seed")]
     lines = []
@@ -1095,8 +1095,8 @@ def show_config(run, keys: list[str]) -> list[str]:
         return origin.replace("[errand.cfgs.", "[cfgs.") if v3 else origin
 
     for key in keys:
-        configuration = run.configurations[key]
-        lines.append(f"run {run.name} ({run.path}) · configuration {key}")
+        configuration = errand.configurations[key]
+        lines.append(f"run {errand.name} ({errand.path}) · configuration {key}")
         seed = configuration.manual_seed if configuration.seed_type == "manual" else configuration.seed_type
         fields = {"serial": configuration.serial, "name": configuration.run_folder, "label": configuration.label,
                   "title": configuration.title, "description": configuration.description, "tag": configuration.tag,
@@ -1108,7 +1108,7 @@ def show_config(run, keys: list[str]) -> list[str]:
                   "post": configuration.post, "generate_cards": configuration.generate_cards,
                   "prelim": configuration.prelim, "cluster": configuration.cluster}
         width = max(len(names.get(n, "seed" if n == "seed_type" and v3 else n)) for n in order) + 2
-        own = run.raw.get("errand", {}).get("cfgs", {}).get(key, {})
+        own = errand.raw.get("errand", {}).get("cfgs", {}).get(key, {})
         for name in order:
             value = fields.get(name)
             if value in (None, [], {}, "") and name not in configuration.origins:
@@ -1123,17 +1123,17 @@ def show_config(run, keys: list[str]) -> list[str]:
         for quantity, tag in configuration.static.items():
             if quantity in mine:
                 origin = f"[cfgs.{key}].fixed" if v3 else f"[errand.cfgs.{key}].static"
-            elif f"quantities.{quantity}" in run.included and quantity not in run.raw.get("static", {}):
-                origin = f"included from {run.included[f'quantities.{quantity}']}"
+            elif f"quantities.{quantity}" in errand.included and quantity not in errand.raw.get("static", {}):
+                origin = f"included from {errand.included[f'quantities.{quantity}']}"
             else:
                 origin = f"[quantities.{quantity}].fixed" if v3 else "[static]"
             label = f"fixed {quantity}" if v3 else f"static.{quantity}"
             lines.append(f"  {label:{width}s} = {json.dumps(tag, default=str):40s} {origin}")
-    for quantity, q in run.quantities.items():
-        source = f"included from {run.included[f'quantities.{quantity}']}" if f"quantities.{quantity}" in run.included else "this file"
+    for quantity, q in errand.quantities.items():
+        source = f"included from {errand.included[f'quantities.{quantity}']}" if f"quantities.{quantity}" in errand.included else "this file"
         lines.append(f"  quantity {quantity}: {len(q.values)} point(s){' (a compound field)' if q.silent else ''}   {source}")
-    for tag, tool in run.tools.items():
-        source = f"included from {run.included[f'tools.{tag}']}" if f"tools.{tag}" in run.included else "this file"
+    for tag, tool in errand.tools.items():
+        source = f"included from {errand.included[f'tools.{tag}']}" if f"tools.{tag}" in errand.included else "this file"
         lines.append(f"  tool {tag} ({tool.tool})   {source}")
     return lines
 
@@ -1174,14 +1174,14 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     first), and `following` is the next run's journal (--journal), named in this one's `run finished`
     event so that heimdall watch --file follows on."""
     planned = planned or build_plans(args, key)
-    run, configuration, every, plans = planned.run, planned.configuration, planned.every, planned.plans
+    errand, configuration, every, plans = planned.errand, planned.configuration, planned.every, planned.plans
     post_plan, pre_plan, combined = planned.post, planned.pre, planned.combined
     stages, again = stages_of(args), getattr(args, "only", None)       # again: the stage --only reruns
     title_line = header(number, configuration) if number else ""
     if getattr(args, "why", False):
         if title_line:
             print(("\n" if number > 1 else "") + title_line)
-        print_why(run, configuration, plans, post_plan, pre_plan, combined)
+        print_why(errand, configuration, plans, post_plan, pre_plan, combined)
         return 0
     if args.plan or stages == {"plot"}:
         if title_line:
@@ -1193,21 +1193,21 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                 for line in tools.card_view(plans[0], args.card):
                     print(line)
                 return 0
-            print_plan(run, configuration, plans, post_plan, pre_plan, combined, tag=run_tag(args, run, configuration))
+            print_plan(errand, configuration, plans, post_plan, pre_plan, combined, tag=run_tag(args, errand, configuration))
             return 0
-        give_tag(args, run, configuration)
-        return 1 if draw_run(run, configuration, combined or every, print) else 0
+        give_tag(args, errand, configuration)
+        return 1 if draw_run(errand, configuration, combined or every, print) else 0
     if args.only == "post" and post_plan is None:
-        raise HeimdallError(f"configuration '{configuration.key}' has no post tools", where=f"{run.path}: [errand.cfgs.{configuration.key}].post")
+        raise HeimdallError(f"configuration '{configuration.key}' has no post tools", where=f"{errand.path}: [errand.cfgs.{configuration.key}].post")
     if args.only == "pre" and pre_plan is None:
-        raise HeimdallError(f"configuration '{configuration.key}' has no pre tools", where=f"{run.path}: [errand.cfgs.{configuration.key}].pre")
+        raise HeimdallError(f"configuration '{configuration.key}' has no pre tools", where=f"{errand.path}: [errand.cfgs.{configuration.key}].pre")
     if "points" in stages and "pre" not in stages and pre_plan is not None and not record.is_complete(pre_plan):
         raise HeimdallError(f"configuration '{configuration.key}': the pre stage is not complete, and the points need it",
                        hint="run --stages pre first (heimdall cluster's pre job does), or leave --stages out")
     refuse_overwrites(planned, args, stages)
     if stopper.requested:                    # Ctrl-C while this run was being planned
         return 6
-    tag = give_tag(args, run, configuration)
+    tag = give_tag(args, errand, configuration)
 
     bus = bus if bus is not None else Bus()
     own_view = shown is None                 # a pipelined sweep's runs share the sweep's view (V75)
@@ -1223,40 +1223,40 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         if plans and paths.keeping("journal") else None
     if journal:
         bus.subscribe(journal)
-    run_log = RunLog(tools.run_folders(run, configuration).run_log, run=getattr(bus, "run", None))   # always (V202)
+    run_log = RunLog(tools.run_folders(errand, configuration).run_log, run=getattr(bus, "run", None))   # always (V202)
     bus.subscribe(run_log)
-    title = run_title(run, configuration, plans, tag)
+    title = run_title(errand, configuration, plans, tag)
     tally = runs.Tally()                     # the verdict's counts and failures (V200)
     bus.subscribe(tally)
-    known = record.constants(every, run, configuration) if every else {}       # what every point shares (V200)
+    known = record.constants(every, errand, configuration) if every else {}    # what every point shares (V200)
     if number > 1:
         bus.say("")
     bus.emit("", "", {"k": "run", "state": "started", "points": len(plans), "title": title,
-                      "record": str(records_root() / tools.run_dir(run, configuration)),       # the registry's (V182)
+                      "record": str(records_root() / tools.run_dir(errand, configuration)),    # the registry's (V182)
                       **({"tag": tag} if tag else {}),
                       **({"header": title_line} if title_line else {}), **({"constants": known} if known else {})})
     if crowded(configuration, plans):
         bus.say(f"   note: {crowded(configuration, plans)}")
     for note in notes_of(plans):
         bus.say(f"   note: {note}")
-    for warning in tools.meta_notes(run):                       # V97
+    for warning in tools.meta_notes(errand):                    # V97
         bus.say(f"   warning: {warning}")
     def manifest() -> None:                  # a points-only run (a cluster job) leaves it to the finish job
         if plans and stages != {"points"}:
             record.write_atomic(record.manifest_file(every), json.dumps(
-                record.points_manifest(every, run, configuration, known), indent=1, default=str) + "\n")
+                record.points_manifest(every, errand, configuration, known), indent=1, default=str) + "\n")
     dropped = dropped_points(every) if every and stages != {"points"} else []     # read before it is rewritten
     manifest()
     if every and stages != {"points"}:              # V158: the config it ran with, beside points.json
-        if record.write_snapshot(run, configuration, every) is not None and dropped:
-            bus.say(f"   note: {len(dropped)} point(s) recorded in {tools.run_dir(run, configuration)} are not in the config now "
+        if record.write_snapshot(errand, configuration, every) is not None and dropped:
+            bus.say(f"   note: {len(dropped)} point(s) recorded in {tools.run_dir(errand, configuration)} are not in the config now "
                     f"({', '.join(dropped[:4])}{', …' if len(dropped) > 4 else ''}): its snapshot and points.json describe "
                     "the config as it is; give the configuration a serial of its own to keep a run whole")
     failed = done = 0
     verdict = "stopped"
     try:
         if "pre" in stages:
-            if not post.run_pre(pre_plan, run, configuration, bus=bus, stopper=stopper, logs=logs,
+            if not post.run_pre(pre_plan, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                                 rerun=args.rerun or again == "pre"):
                 verdict = "pre failed: no point ran"
                 return 6 if stopper.requested else 1
@@ -1264,7 +1264,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                 verdict = "pre done"
                 return 0
         if "points" in stages:
-            done, failed, stopped = execute.run_points(plans, run, configuration, bus=bus, stopper=stopper,
+            done, failed, stopped = execute.run_points(plans, errand, configuration, bus=bus, stopper=stopper,
                                                        rerun=args.rerun, logs=logs, budget=budget,
                                                        started_all=gate.set if gate is not None else None,
                                                        wait_held=getattr(args, "wait", False))
@@ -1275,14 +1275,14 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                    f"{len(plans) - done - failed} skipped") if "points" in stages else ""
         manifest()                           # post tools read it: it must say which points are complete
         if combined and "combine" in stages:
-            bad = post.run_combined(combined, every, run, configuration, bus=bus, stopper=stopper, logs=logs,
+            bad = post.run_combined(combined, every, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                                     rerun=args.rerun, say=bus.say)
             if stopper.requested:
                 return 6
             if bad:
                 failed += bad
                 verdict = f"{verdict}, {bad} combined group(s) failed"
-        if "post" in stages and not post.run(post_plan, every, run, configuration, bus=bus, stopper=stopper, logs=logs,
+        if "post" in stages and not post.run(post_plan, every, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                                              rerun=args.rerun or again == "post", say=bus.say):
             if stopper.requested:
                 return 6
@@ -1295,12 +1295,12 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             measuring = False if getattr(args, "no_stats", False) else configuration.measure
             if not drawing:
                 bus.say(f"plot: not drawn ({'--no-plot' if getattr(args, 'no_plot', False) else '[errand].plot = false'}): "
-                        f"heimdall plot {tools.run_dir(run, configuration)} draws it")
-            failed += draw_run(run, configuration, combined or every, bus.say, draw=drawing, stats=measuring) > 0
-            across, written = plotdoc.write_across(run)                    # V169: the runs together
+                        f"heimdall plot {tools.run_dir(errand, configuration)} draws it")
+            failed += draw_run(errand, configuration, combined or every, bus.say, draw=drawing, stats=measuring) > 0
+            across, written = plotdoc.write_across(errand)                 # V169: the runs together
             if across is not None:
                 bus.say(f"plot: {'wrote ' + str(across) + ': ' if written else ''}heimdall plot "
-                        f"{record.config_name(run)} --across draws this run with the others of {run.name}")
+                        f"{record.config_name(errand)} --across draws this run with the others of {errand.name}")
         verdict = verdict or ", ".join(s for s in STAGES if s in stages) + " done"         # a run without its points
         bus.say(verdict)                     # before end(): the view's thread prints it (V32)
         if failures := tally.failures(getattr(bus, "run", "") or ""):          # V200: which failed, and why
@@ -1324,11 +1324,11 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
 def cmd_cluster(args) -> int:
     """`heimdall cluster` (V114): each configuration (every swept one under [errand].sweep_runs) planned as heimdall run
     plans it, then submitted, or its latest submission's state shown, or cancelled (runner/cluster.py)."""
-    run = configmod.load(args.config, sets=args.set)
-    keys = run.runs(args.configuration)
+    errand = configmod.load(args.config, sets=args.set)
+    keys = errand.runs(args.configuration)
     if len(keys) > 1 and args.points:
         raise HeimdallError("--points picks points of one configuration, and this sweep runs several",
-                       where=f"{run.path}: [errand].sweep_runs", hint=f"name it: heimdall cluster {args.config} <configuration> --points …")
+                       where=f"{errand.path}: [errand].sweep_runs", hint=f"name it: heimdall cluster {args.config} <configuration> --points …")
     planned = {key: build_plans(argparse.Namespace(**{**vars(args), "only": None, "stages": None}), key) for key in keys}
     if not (args.status or args.cancel):
         for key in keys:
@@ -1344,7 +1344,7 @@ def cmd_cluster(args) -> int:
         else:
             for note in notes_of(planned[key].plans):
                 print(f"note: {note}")
-            for warning in tools.meta_notes(run):
+            for warning in tools.meta_notes(errand):
                 print(f"warning: {warning}")
             code = max(code, clustermod.submit(planned[key], args))
     return code
@@ -1463,17 +1463,17 @@ def style_sync(args) -> int:
                                                                       "<P>/<name> (results/<P>/<name>/*/plot.toml)")
     if not targets:
         raise HeimdallError(f"results/{name}/ holds no plot document", hint="heimdall migrate --plot-docs writes them")
-    run = configmod.load(args.style_sync, sets=args.set)
-    plot.validate(run)
+    errand = configmod.load(args.style_sync, sets=args.set)
+    plot.validate(errand)
     synced, left = [], 0
     for target in targets:
         doc, configuration, members = plotdoc.load(target)
         rel = target.parent.relative_to(results_root()) if target.parent.is_relative_to(results_root()) else target.parent
-        if configuration.key not in run.configurations:
+        if configuration.key not in errand.configurations:
             print(f"left    {rel}: {args.style_sync} has no configuration '{configuration.key}'")
             left += 1
             continue
-        live, picks = configmod.for_configuration(run, configuration.key)   # V179: its own data
+        live, picks = configmod.for_configuration(errand, configuration.key)   # V179: its own data
         new_plot, new_stats = plotdoc.chosen_of(live, configuration, members, picks=picks)
         changed = sorted(k for k in {*doc.plot, *new_plot} if doc.plot.get(k) != new_plot.get(k))
         changed += ["[stats]"] if doc.stats != new_stats else []
@@ -1534,10 +1534,10 @@ def across_of(args) -> Path:
     found = plotdoc.find(args.config)
     if found is not None:
         return found
-    run = configmod.load(args.config, sets=args.set)
-    target, written = plotdoc.write_across(run)
+    errand = configmod.load(args.config, sets=args.set)
+    target, written = plotdoc.write_across(errand)
     if target is None:
-        raise HeimdallError(f"{run.path} has no [plot.across] sets: nothing to draw its runs together",
+        raise HeimdallError(f"{errand.path} has no [plot.across] sets: nothing to draw its runs together",
                        hint="[plot.across.<set>] pages = { … }, curves = { \"@events\" = \"all\", … }: 03 §3.3")
     if written:
         print(f"plot: wrote {target}, from {args.config}'s [plot.across]")
@@ -1548,16 +1548,16 @@ def style_sync_across(args) -> int:
     """`heimdall plot CONFIG --across --style-sync CONFIG`: the Name level's [plot] and [stats] become the config's
     (its [plot] with its [plot.across] sets), and its [from] the config's [plot.across_from] when it has one (V224);
     --plan says what would change; --replot draws."""
-    run = configmod.load(args.style_sync, sets=args.set)
-    plot.validate(run)
-    target = plotdoc.across_path(run.project, run.name)
+    errand = configmod.load(args.style_sync, sets=args.set)
+    plot.validate(errand)
+    target = plotdoc.across_path(errand.assignment, errand.name)
     if not target.is_file():                                # none yet: written, as a run writes it
-        if plotdoc.write_across(run)[0] is None:
-            raise HeimdallError(f"{run.path} has no [plot.across] sets", hint="[plot.across.<set>]: 03 §3.3")
+        if plotdoc.write_across(errand)[0] is None:
+            raise HeimdallError(f"{errand.path} has no [plot.across] sets", hint="[plot.across.<set>]: 03 §3.3")
         print(f"plot: wrote {target}")
         return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
-    new_plot, new_stats = plotdoc.across_chosen(run)
-    wanted = plotdoc.from_of(run) if (run.plot or {}).get(plotdoc.FROM) is not None else None
+    new_plot, new_stats = plotdoc.across_chosen(errand)
+    wanted = plotdoc.from_of(errand) if (errand.plot or {}).get(plotdoc.FROM) is not None else None
     try:                                                    # read as it is: a [from] in error is what a sync mends
         had = dict(tomllib.loads(target.read_text(encoding="utf-8")).get("plot", {}))
     except (OSError, tomllib.TOMLDecodeError) as error:
@@ -1581,32 +1581,32 @@ def documents_of(args) -> list[Path]:
     if found is not None:
         return [found]
     if getattr(args, "record", None) is not None:          # a record from before plot documents: its own, written
-        run, configuration = _record_config(args.record)
-        target, _ = write_documents(run, configuration, plot.recorded(run, configuration))
+        errand, configuration = _record_config(args.record)
+        target, _ = write_documents(errand, configuration, plot.recorded(errand, configuration))
         print(f"plot: wrote {target}, from its snapshot and its points.json (heimdall migrate --plot-docs writes "
               "every record's)")
         return [target]
-    run = configmod.load(args.config, sets=args.set)
-    plot.validate(run)
-    out, read = [], run
+    errand = configmod.load(args.config, sets=args.set)
+    plot.validate(errand)
+    out, read = [], errand
     for key in read.runs(args.configuration):
-        run, configuration = configmod.for_configuration(read, key)        # V179: its own vars and data
+        errand, configuration = configmod.for_configuration(read, key)     # V179: its own vars and data
         if configuration.serial_auto:                       # the newest folder: what a run last made
-            taken = tools.serials_taken(run, configuration)
+            taken = tools.serials_taken(errand, configuration)
             if taken:
                 configuration.serial = max(taken)
-        folders = tools.run_folders(run, configuration)
+        folders = tools.run_folders(errand, configuration)
         target = plotdoc.path_of(folders.results)
         if not target.is_file():
             if not folders.manifest.is_file():
                 raise HeimdallError(f"configuration '{key}' has no record yet: nothing to draw", where=str(folders.record),
                                hint=f"heimdall run {args.config} {key}")
-            target, notes = write_documents(run, configuration, plot.recorded(run, configuration))
+            target, notes = write_documents(errand, configuration, plot.recorded(errand, configuration))
             print(f"plot: wrote {target}, from the config and its points.json (heimdall migrate --plot-docs writes "
                   "every record's)")
         else:
             kept, axes, members = plotdoc.load(target)
-            if (kept.plot, kept.stats) != plotdoc.chosen_of(run, axes, members, picks=configuration):
+            if (kept.plot, kept.stats) != plotdoc.chosen_of(errand, axes, members, picks=configuration):
                 rel = folders.results.relative_to(results_root())
                 print(f"note: the config's [plot] differs from {rel}/{plotdoc.FILE}'s, which is drawn: heimdall plot {rel} "
                       f"--style-sync {args.config} takes the config's", file=sys.stderr)
@@ -1625,14 +1625,14 @@ def cmd_check(args) -> int:
     for name in names:
         try:
             sets = list(getattr(args, "set", []))
-            run = configmod.load(name, sets=sets)
-            heimdall_flags(configmod.heimdall_table(name, sets=sets), f"{run.path}: [heimdall]")   # V188
+            errand = configmod.load(name, sets=sets)
+            heimdall_flags(configmod.heimdall_table(name, sets=sets), f"{errand.path}: [heimdall]")   # V188
             points = 0
-            for key in run.configurations:
+            for key in errand.configurations:
                 planned = build_plans(argparse.Namespace(config=name, set=sets, points=None, rerun=False, only=None), key)
                 points += len(planned.every)
-            print(f"ok    {name}: {len(run.configurations)} configuration(s), {points} point(s)")
-            for warning in [*tools.meta_notes(run), *house.unused_tools(run)]:   # said, never failed
+            print(f"ok    {name}: {len(errand.configurations)} configuration(s), {points} point(s)")
+            for warning in [*tools.meta_notes(errand), *house.unused_tools(errand)]:   # said, never failed
                 print(f"      warning: {warning}")
         except HeimdallError as error:
             if importers.get(name) and not args.configs and not _has_configurations(name):
@@ -1777,8 +1777,8 @@ def _planned_all(names: list[str], configuration: str | None = None, sets=()) ->
     planned, failed = [], []
     for name in names:
         try:
-            run = configmod.load(name, sets=list(sets))
-            for key in ([configuration] if configuration else list(run.configurations)):
+            errand = configmod.load(name, sets=list(sets))
+            for key in ([configuration] if configuration else list(errand.configurations)):
                 planned.append(build_plans(argparse.Namespace(config=name, set=list(sets), points=None, rerun=False, only=None), key))
         except HeimdallError as error:
             failed.append(f"{name}: {error.message}")
@@ -1963,12 +1963,12 @@ def migrate_plot_docs(args) -> int:
     if upgraded:
         print(f"upgraded {upgraded}: in today's layout")
     for folder in todo:
-        run, configuration = _record_config(folder)
+        errand, configuration = _record_config(folder)
         if (folder / "config" / record.SNAPSHOT).is_file():
-            target, _ = write_documents(run, configuration, plot.recorded(run, configuration))
+            target, _ = write_documents(errand, configuration, plot.recorded(errand, configuration))
         else:                                               # no snapshot: its points as points.json has them
-            target = plotdoc.from_manifest(folder, run, configuration)
-            _write_recipe(run, target, print)
+            target = plotdoc.from_manifest(folder, errand, configuration)
+            _write_recipe(errand, target, print)
         drawn = sum(1 for m in plotdoc.load(target)[2] if m.recorded is not None and m.recorded == m.identity)
         print(f"wrote   {target} ({drawn} complete member(s))")
     return 0
@@ -1983,7 +1983,7 @@ def _record_config(folder: Path):
         snap = record.read_snapshot(folder)
         key = snap["configuration"]
         with paths.configs_at(folder / "config"):                          # V179: read for its configuration
-            run = configmod.load(snap["config"], sets=list(snap.get("sets", [])), configuration=key)
+            errand = configmod.load(snap["config"], sets=list(snap.get("sets", [])), configuration=key)
     else:
         source = data.get("config_file", "")
         try:
@@ -1991,15 +1991,15 @@ def _record_config(folder: Path):
         except ValueError:
             pass
         key = data.get("configuration")
-        run = configmod.load(source, configuration=key)                     # V179: read for its configuration
-    configuration = run.configuration(key)
+        errand = configmod.load(source, configuration=key)                  # V179: read for its configuration
+    configuration = errand.configuration(key)
     head = folder.name.split("_", 1)[0]
     if head.isdigit():                                      # a serial is location only: the folder's own
         configuration.serial = int(head)
-    if snapshot.is_file() and tools.run_folders(run, configuration).record.resolve() != folder.resolve():
-        raise HeimdallError(f"{folder} is not where its config runs '{key}' ({tools.run_folders(run, configuration).record})",
+    if snapshot.is_file() and tools.run_folders(errand, configuration).record.resolve() != folder.resolve():
+        raise HeimdallError(f"{folder} is not where its config runs '{key}' ({tools.run_folders(errand, configuration).record})",
                        hint="the record's config has moved or been renamed: write its plot.toml by hand, or rerun it")
-    return run, configuration
+    return errand, configuration
 
 
 def migrate_snapshot(args) -> int:
@@ -2036,7 +2036,7 @@ def migrate_snapshot(args) -> int:
     if planned.every and planned.every[0].folders.record.resolve() != found.resolve():
         raise HeimdallError(f"{source} runs '{data.get('configuration')}' into {planned.every[0].folders.record.relative_to(records_root())}, "
                        f"not {rel}", hint="--from the config that ran it (its serial and name)")
-    made = record.write_snapshot(planned.run, planned.configuration, planned.every)
+    made = record.write_snapshot(planned.errand, planned.configuration, planned.every)
     print(f"snapshot: {made} ({len(list(made.rglob('*')))} files) from {source}" + (f" with {' '.join(sets)}" if sets else ""))
     plans = {p.point.name: p for p in planned.every}
     same = 0
@@ -2130,7 +2130,7 @@ def cmd_reproduce(args) -> int:
     where = cache_root() / record_["project"] / "reproduce" / record_["identity"][:12]
     sets = []
     if planned.configuration.seed_type == "random":                      # in the file's own names
-        sets = (["--set", f"cfgs.{key}.seed={record_['seed']}"] if planned.run.form == 3 else
+        sets = (["--set", f"cfgs.{key}.seed={record_['seed']}"] if planned.errand.form == 3 else
                 ["--set", f'errand.cfgs.{key}.seed_type="manual"', "--set", f"errand.cfgs.{key}.manual_seed={record_['seed']}"])
     argv = [sys.executable, str(Path(__file__).resolve().parents[1] / "bin" / "run"), "run", config_file, key,
             "--points", name, "--rerun", *[x for item in given for x in ("--set", item)], *sets,

@@ -1,4 +1,4 @@
-"""Building run configs in tests: a dict in, a parsed RunConfig out (never written under configs/)."""
+"""Building run configs in tests: a dict in, a parsed Errand out (never written under configs/)."""
 
 from __future__ import annotations
 
@@ -35,32 +35,32 @@ def raw(**changes) -> dict:
     return data
 
 
-def parse(data: dict, scratch: Path) -> config.RunConfig:
+def parse(data: dict, scratch: Path) -> config.Errand:
     return config.parse(data, scratch / "t.toml")
 
 
 def plan(data: dict, scratch: Path, configuration: str | None = None, point: int = 0):
-    run = parse(data, scratch)
-    conf = run.configuration(configuration)
-    master = quantities.load_master(run.project, run.master_toml)
-    points = sweep.points(run, conf)
-    result = tools.plan_point(run, conf, points[point], master)
+    errand = parse(data, scratch)
+    conf = errand.configuration(configuration)
+    master = quantities.load_master(errand.assignment, errand.master_toml)
+    points = sweep.points(errand, conf)
+    result = tools.plan_point(errand, conf, points[point], master)
     tools.finalise(result, 12345)
-    return run, conf, result
+    return errand, conf, result
 
 
 def plans_of(name: str, configuration: str | None = None, sets=()):
     """A config by name (it resolves under the scratch work's configs/): its run, configuration, points and the
     points' plans, with identities and seeds, before the seeds are written into the cards."""
-    run = config.load(name, sets=list(sets))
-    conf = run.configuration(configuration)
-    master = quantities.load_master(run.project, run.master_toml)
-    points = sweep.points(run, conf)
-    out = [tools.plan_point(run, conf, point, master) for point in points]
+    errand = config.load(name, sets=list(sets))
+    conf = errand.configuration(configuration)
+    master = quantities.load_master(errand.assignment, errand.master_toml)
+    points = sweep.points(errand, conf)
+    out = [tools.plan_point(errand, conf, point, master) for point in points]
     for p in out:
         p.identity = record.identity(p)
     record.assign_seeds(out)
-    return run, conf, points, out
+    return errand, conf, points, out
 
 
 def plans(name: str, configuration: str | None = None, sets=()):

@@ -46,43 +46,43 @@ def stage(scratch, name="poststage", **changes):
     for key, value in changes.items():
         if key.startswith("tools__summary__"):
             data["tools"]["summary"][key.removeprefix("tools__summary__")] = value
-    run = parse(data, scratch)
-    configuration = run.configuration(None)
-    master = quantities.load_master(run.project, run.master_toml)
+    errand = parse(data, scratch)
+    configuration = errand.configuration(None)
+    master = quantities.load_master(errand.assignment, errand.master_toml)
     plans = []
-    for point in sweep.points(run, configuration):
-        plan = tools.plan_point(run, configuration, point, master)
+    for point in sweep.points(errand, configuration):
+        plan = tools.plan_point(errand, configuration, point, master)
         plan.identity = record.identity(plan)
         plans.append(plan)
     shutil.rmtree(plans[0].folders.results, ignore_errors=True)
     shutil.rmtree(plans[0].folders.record, ignore_errors=True)
-    return run, configuration, master, plans
+    return errand, configuration, master, plans
 
 
-def complete(plans, run, configuration):
+def complete(plans, errand, configuration):
     for plan in plans:
         product = next(i.path for i in plan.interfaces.values() if i.kind == "product")
         product.parent.mkdir(parents=True, exist_ok=True)
         product.write_text(f"yoda of {plan.point.name}\n", encoding="utf-8")
         record.complete_marker(plan).parent.mkdir(parents=True, exist_ok=True)
         record.complete_marker(plan).write_text(plan.identity + "\n", encoding="utf-8")
-    record.write_atomic(record.manifest_file(plans), json.dumps(record.points_manifest(plans, run, configuration), default=str))
+    record.write_atomic(record.manifest_file(plans), json.dumps(record.points_manifest(plans, errand, configuration), default=str))
 
 
-def run_post(post_plan, plans, run, configuration, rerun=False):
+def run_post(post_plan, plans, errand, configuration, rerun=False):
     out = io.StringIO()
     view, bus = PlainView(stream=out), Bus()
     bus.subscribe(view)
-    ok = post.run(post_plan, plans, run, configuration, bus=bus, stopper=execute.Stopper(), rerun=rerun, say=bus.say)
+    ok = post.run(post_plan, plans, errand, configuration, bus=bus, stopper=execute.Stopper(), rerun=rerun, say=bus.say)
     view.flush()                                                       # the view writes on its own thread (V32)
     return ok, out.getvalue()
 
 
 def test_a_post_tool_gets_every_point_and_its_products(scratch):
-    run, configuration, master, plans = stage(scratch)
-    complete(plans, run, configuration)
-    post_plan = post.plan(run, configuration, master, plans)
-    ok, said = run_post(post_plan, plans, run, configuration)
+    errand, configuration, master, plans = stage(scratch)
+    complete(plans, errand, configuration)
+    post_plan = post.plan(errand, configuration, master, plans)
+    ok, said = run_post(post_plan, plans, errand, configuration)
     assert ok, said
     got = json.loads((post_plan.res / "summary.json").read_text(encoding="utf-8"))
     products = [str(next(i.path for i in p.interfaces.values() if i.kind == "product")) for p in plans]
@@ -94,35 +94,35 @@ def test_a_post_tool_gets_every_point_and_its_products(scratch):
 
 
 def test_post_is_skipped_when_nothing_changed_and_reruns_when_a_point_did(scratch):
-    run, configuration, master, plans = stage(scratch)
-    complete(plans, run, configuration)
-    first = post.plan(run, configuration, master, plans)
-    assert run_post(first, plans, run, configuration)[0]
-    ok, said = run_post(post.plan(run, configuration, master, plans), plans, run, configuration)
+    errand, configuration, master, plans = stage(scratch)
+    complete(plans, errand, configuration)
+    first = post.plan(errand, configuration, master, plans)
+    assert run_post(first, plans, errand, configuration)[0]
+    ok, said = run_post(post.plan(errand, configuration, master, plans), plans, errand, configuration)
     assert ok and "skipped" in said
     plans[0].identity = "changed"
-    assert post.plan(run, configuration, master, plans).identity != first.identity
+    assert post.plan(errand, configuration, master, plans).identity != first.identity
 
 
 def test_post_does_not_run_over_a_subset(scratch):
-    run, configuration, master, plans = stage(scratch)
-    complete(plans, run, configuration)
+    errand, configuration, master, plans = stage(scratch)
+    complete(plans, errand, configuration)
     record.complete_marker(plans[1]).unlink()
-    post_plan = post.plan(run, configuration, master, plans)
-    ok, said = run_post(post_plan, plans, run, configuration)
+    post_plan = post.plan(errand, configuration, master, plans)
+    ok, said = run_post(post_plan, plans, errand, configuration)
     assert ok and "1 point(s) incomplete" in said
     assert not (post_plan.res / "summary.json").exists()
 
 
 def test_a_post_tool_may_not_overwrite_the_points_product(scratch):
-    run, configuration, master, plans = stage(scratch, tools__summary__output_file="jets.yoda")
+    errand, configuration, master, plans = stage(scratch, tools__summary__output_file="jets.yoda")
     with pytest.raises(HeimdallError, match="points' product"):
-        post.plan(run, configuration, master, plans)
+        post.plan(errand, configuration, master, plans)
 
 
 def test_no_post_tools_no_post_plan(scratch):
-    run, configuration, master, plans = stage(scratch, errand__cfgs__one__post=[])
-    assert post.plan(run, configuration, master, plans) is None
+    errand, configuration, master, plans = stage(scratch, errand__cfgs__one__post=[])
+    assert post.plan(errand, configuration, master, plans) is None
 
 
 # ── the pre stage ─────────────────────────────────────────────────────────────────────────────
@@ -142,19 +142,19 @@ def pre_stage(scratch, marker="first"):
                              "arguments": [str(script), "{partial:output}", marker]},
                tools__use={"tool": "exec", "executable": sys.executable, "input": "shared.txt",
                            "arguments": ["-c", "pass", "{input}"]})
-    run = parse(data, scratch)
-    configuration = run.configuration(None)
-    master = quantities.load_master(run.project, run.master_toml)
-    points = sweep.points(run, configuration)
-    pre = post.plan_pre(run, configuration, master, points)
-    plans = [tools.plan_point(run, configuration, point, master, pre=pre) for point in points]
+    errand = parse(data, scratch)
+    configuration = errand.configuration(None)
+    master = quantities.load_master(errand.assignment, errand.master_toml)
+    points = sweep.points(errand, configuration)
+    pre = post.plan_pre(errand, configuration, master, points)
+    plans = [tools.plan_point(errand, configuration, point, master, pre=pre) for point in points]
     for plan in plans:
         plan.identity = record.identity(plan)
-    return run, configuration, pre, plans
+    return errand, configuration, pre, plans
 
 
 def test_a_pre_product_is_an_input_every_point_may_name(scratch):
-    run, configuration, pre, plans = pre_stage(scratch)
+    errand, configuration, pre, plans = pre_stage(scratch)
     shared = pre.interfaces["shared.txt"].path
     assert shared == pre.res / "shared.txt" and pre.res.name == "pre" and pre.point.index == -1
     for plan in plans:
@@ -164,19 +164,19 @@ def test_a_pre_product_is_an_input_every_point_may_name(scratch):
     shutil.rmtree(pre.res, ignore_errors=True)
     shutil.rmtree(pre.out, ignore_errors=True)
     shutil.rmtree(record.record_dir(pre), ignore_errors=True)
-    ok = post.run_pre(pre, run, configuration, stopper=execute.Stopper(), rerun=False)
+    ok = post.run_pre(pre, errand, configuration, stopper=execute.Stopper(), rerun=False)
     assert ok and shared.read_text(encoding="utf-8") == "made before every point\n" and record.is_complete(pre)
 
 
 def test_a_failing_pre_stops_the_run(scratch):
-    run, configuration, pre, plans = pre_stage(scratch)
+    errand, configuration, pre, plans = pre_stage(scratch)
     pre.rendered["fetch"].argv = [sys.executable, "-c", "raise SystemExit(3)"]
     shutil.rmtree(pre.out, ignore_errors=True)
     shutil.rmtree(record.record_dir(pre), ignore_errors=True)
     out = io.StringIO()
     view, bus = PlainView(stream=out), Bus()
     bus.subscribe(view)
-    assert not post.run_pre(pre, run, configuration, bus=bus, stopper=execute.Stopper(), rerun=True)
+    assert not post.run_pre(pre, errand, configuration, bus=bus, stopper=execute.Stopper(), rerun=True)
     view.flush()
     assert "── pre (before every point) ── FAILED [fetch]" in out.getvalue()
 
@@ -184,11 +184,11 @@ def test_a_failing_pre_stops_the_run(scratch):
 def test_a_point_may_not_be_named_pre(scratch):
     data = raw(errand__cfgs__one__sweeps=["pdf"], errand__cfgs__one__pre=["fetch"], quantities__pdf__tags=["pre", "x"],
                tools__fetch={"tool": "exec", "executable": sys.executable, "arguments": ["-c", "pass"]})
-    run = parse(data, scratch)
-    configuration = run.configuration(None)
+    errand = parse(data, scratch)
+    configuration = errand.configuration(None)
     with pytest.raises(HeimdallError, match="named 'pre'"):
-        post.plan_pre(run, configuration, quantities.load_master(run.project, run.master_toml),
-                      sweep.points(run, configuration))
+        post.plan_pre(errand, configuration, quantities.load_master(errand.assignment, errand.master_toml),
+                      sweep.points(errand, configuration))
 
 
 # ── plotmerge: one file for a sweep ───────────────────────────────────────────────────────────
@@ -199,15 +199,15 @@ LEGACY = REPO / "tests" / "reference" / "legacy_run"
 @pytest.mark.skipif(not (apps() / "App_yd2rt.exe").exists(), reason="heimdall build --framework")
 @pytest.mark.parametrize("target", ["sweep.root", "sweep.yoda"])
 def test_plotmerge_puts_every_point_in_one_file(scratch, target):
-    run, configuration, master, plans = stage(scratch, name=f"plotmerge_{target.split('.')[1]}", errand__cfgs__one__post=["bundle"],
-                                              tools__bundle={"tool": "plotmerge", "input": "jets.yoda", "output_file": target})
-    complete(plans, run, configuration)
+    errand, configuration, master, plans = stage(scratch, name=f"plotmerge_{target.split('.')[1]}", errand__cfgs__one__post=["bundle"],
+                                                 tools__bundle={"tool": "plotmerge", "input": "jets.yoda", "output_file": target})
+    complete(plans, errand, configuration)
     for plan, name in zip(plans, ("mini_27x920_ep_MSTW.yoda", "mini_27x920_ep_NNLO.yoda")):
         shutil.copy(LEGACY / name, next(i.path for i in plan.interfaces.values() if i.kind == "product"))
-    post_plan = post.plan(run, configuration, master, plans)
+    post_plan = post.plan(errand, configuration, master, plans)
     assert post_plan.rendered["bundle"].argv[3:5] == [f"{p.point.name}={next(i.path for i in p.interfaces.values() if i.kind == 'product')}"
                                                      for p in plans]
-    ok, said = run_post(post_plan, plans, run, configuration)
+    ok, said = run_post(post_plan, plans, errand, configuration)
     assert ok, said
     merged = post_plan.res / target
     if target.endswith(".root"):

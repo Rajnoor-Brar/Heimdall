@@ -21,18 +21,18 @@ def seeded(**changes):
 
 
 def build(data, scratch):
-    run = config.parse(data, scratch / "t.toml")
-    conf = run.configuration(None)
-    master = quantities.load_master(run.project, run.master_toml)
+    errand = config.parse(data, scratch / "t.toml")
+    conf = errand.configuration(None)
+    master = quantities.load_master(errand.assignment, errand.master_toml)
     plans = []
-    for point in sweep.points(run, conf):
-        plan = tools.plan_point(run, conf, point, master)
+    for point in sweep.points(errand, conf):
+        plan = tools.plan_point(errand, conf, point, master)
         plan.identity = record.identity(plan)
         plans.append(plan)
     record.assign_seeds(plans)
     for plan in plans:
         tools.finalise(plan, plan.seed)
-    return run, conf, plans, post.plan_combined(run, conf, master, plans)
+    return errand, conf, plans, post.plan_combined(errand, conf, master, plans)
 
 
 def test_the_replicas_of_each_pdf_are_one_group(scratch):

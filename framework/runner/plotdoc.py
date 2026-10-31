@@ -59,9 +59,9 @@ class DocConfiguration:
 
 @dataclass
 class Doc:
-    """A run as a drawing reads it (plot.py's `run`): its plot document."""
+    """An errand as a drawing reads it (plot.py's `errand`): its plot document."""
     path: Path                    # the plot.toml (the page code's messages name it)
-    project: str
+    assignment: str
     name: str
     plot: dict
     stats: dict
@@ -317,16 +317,16 @@ def _provenance_events(folders, name: str) -> int:
     return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
 
 
-def from_manifest(record: Path, run, configuration) -> Path:
+def from_manifest(record: Path, errand, configuration) -> Path:
     """A plot document for a record that has no snapshot (V165), from its points.json alone: each point's tags,
     labels and values (as they ran, whatever the config says now), its products, identity and completion, and
     its events (provenance); its axes the quantities its points swept, its plot_points points.json's. Only
-    [plot] and [stats] come from the config, `run` (its configuration's)."""
+    [plot] and [stats] come from the config, `errand` (its configuration's)."""
     import json
     from .record import run_tag
     data = json.loads((record / "points.json").read_text(encoding="utf-8"))
     rel = record.relative_to(records_root())
-    folders = _folders(results_root() / rel, run.project)
+    folders = _folders(results_root() / rel, errand.assignment)
     names: dict[str, dict] = {}                                  # quantity → tag → (label, value)
     swept: list[str] = []
     for entry in data.get("points", []):
@@ -336,7 +336,7 @@ def from_manifest(record: Path, run, configuration) -> Path:
                 swept.append(q)
     quantities = {}
     for q, tags in names.items():
-        live = run.quantities.get(q)
+        live = errand.quantities.get(q)
         styles = [live.styles[live.tags.index(tag)] if live and live.styles and tag in live.tags else {} for tag in tags] \
             if live is not None and live.styles else []
         quantities[q] = {"points": _rows([v for _, v in tags.values()], list(tags), [l for l, _ in tags.values()],
@@ -365,7 +365,7 @@ def from_manifest(record: Path, run, configuration) -> Path:
     made = {"source": {"config": data.get("config", "") or _config_name(data.get("config_file", "")),
                        "configuration": data.get("configuration", configuration.key),
                        "label": head[1] if len(head) == 2 and head[0].isdigit() else record.name, "title": "",
-                       "errand": data.get("run", run.name), "assignment": data.get("project", run.project), "folder": str(rel),
+                       "errand": data.get("run", errand.name), "assignment": data.get("project", errand.assignment), "folder": str(rel),
                        **({"serial": int(head[0])} if head[0].isdigit() else {}),
                        **({"tag": tag} if (tag := run_tag(record)) else {}), "from": "points.json",
                        "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
@@ -375,7 +375,7 @@ def from_manifest(record: Path, run, configuration) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(HEADER + dumps(made), encoding="utf-8")
     _, kept, loaded = load(target)
-    plot, stats = chosen_of(run, kept, loaded, picks=configuration)
+    plot, stats = chosen_of(errand, kept, loaded, picks=configuration)
     write_chosen(target, plot, stats)
     return target
 
@@ -388,7 +388,7 @@ def _config_name(path: str) -> str:
         return Path(path).stem
 
 
-def chosen_of(run, configuration, members: list, picks=None) -> tuple[dict, dict]:
+def chosen_of(errand, configuration, members: list, picks=None) -> tuple[dict, dict]:
     """The run TOML's [plot] and [stats] as a document keeps them: root_style laid into [plot.style], the data
     file's path absolute (Rivet's own data named as it is); its sets named (V167), the totality set first
     (sweep.totality, from these members and `configuration`'s axes: the run's own, unless the config defines
@@ -396,7 +396,7 @@ def chosen_of(run, configuration, members: list, picks=None) -> tuple[dict, dict
     `configuration`) as `draw` and `[stats].sets`."""
     picks = picks if picks is not None else configuration
     from .sweep import TOTALITY, named_sets, totality
-    plot = {k: v for k, v in (run.plot or {}).items() if k not in (ACROSS, FROM)}   # the Name level's (V169, V224)
+    plot = {k: v for k, v in (errand.plot or {}).items() if k not in (ACROSS, FROM)}   # the Name level's (V169, V224)
     if plot:
         sets = named_sets(plot.get("sets"))
         plot["sets"] = {TOTALITY: totality(configuration, members), **sets} if TOTALITY not in sets else sets
@@ -406,33 +406,33 @@ def chosen_of(run, configuration, members: list, picks=None) -> tuple[dict, dict
     named = plot.pop("root_style", DEFAULT)
     if named not in (DEFAULT, None, schema.NATIVE):
         from .plot import merge_style
-        plot["style"] = merge_style(style_file(named, run.project, f"{run.path}: [plot].root_style"), plot.get("style", {}))
+        plot["style"] = merge_style(style_file(named, errand.assignment, f"{errand.path}: [plot].root_style"), plot.get("style", {}))
     data = plot.get("data")
     if isinstance(data, dict) and isinstance(data.get("file"), str) and not data["file"].startswith("rivet:"):
-        plot["data"] = {**data, "file": str(data_source(data["file"], run))}
-    stats = dict(getattr(run, "stats", None) or {})
+        plot["data"] = {**data, "file": str(data_source(data["file"], errand))}
+    stats = dict(getattr(errand, "stats", None) or {})
     measured = getattr(picks, "measure", True)
     if isinstance(measured, list) and "sets" not in stats:
         stats["sets"] = list(measured)
     return plot, stats
 
 
-def known(run, configuration, members: list) -> dict:
+def known(errand, configuration, members: list) -> dict:
     """The tables a run rewrites: [source], [axes], [quantities], [members]."""
     from .quantities import static_values
     from .record import config_name, run_tag
     names = {q for m in members for q in m.values}
-    static = static_values(run, configuration) if hasattr(configuration, "tools") else {}
+    static = static_values(errand, configuration) if hasattr(configuration, "tools") else {}
     from .paths import heimdall_root
     from .record import git_state
     revision = git_state(heimdall_root()).get("revision", "")
     results = members[0].folders.results if members else None
     tag = run_tag(members[0].folders.record) if members else None             # V223: the record's, the truth
     return {
-        "source": {"config": config_name(run) if hasattr(run, "imported") else run.source.get("config", ""),
+        "source": {"config": config_name(errand) if hasattr(errand, "imported") else errand.source.get("config", ""),
                    "configuration": configuration.key, "label": configuration.label,
                    "title": getattr(configuration, "title", "") or "",
-                   "errand": run.name, "assignment": run.project,
+                   "errand": errand.name, "assignment": errand.assignment,
                    "folder": str(results.relative_to(results_root())) if results and results.is_relative_to(results_root()) else "",
                    **({"serial": configuration.serial} if configuration.serial is not None else {}),
                    **({"tag": tag} if tag else {}),
@@ -441,22 +441,22 @@ def known(run, configuration, members: list) -> dict:
         "axes": {"vary": _sweeps(configuration), "plot_points": list(configuration.plot_points),
                  "combine": list(configuration.combine),
                  "fixed": {q: f"#{i + 1}" for q, i in static.items()} if static else dict(getattr(configuration, "static", {}))},
-        "quantities": {q: _quantity(run.quantities[q]) for q in run.quantities if q in names},
+        "quantities": {q: _quantity(errand.quantities[q]) for q in errand.quantities if q in names},
         "members": {m.point.name: _member(m) for m in members},
     }
 
 
-def write(run, configuration, members: list) -> tuple[Path | None, list[str]]:
+def write(errand, configuration, members: list) -> tuple[Path | None, list[str]]:
     """results/<run>/plot.toml (V165) for these members (the points, or the combined groups): what the run knows
     rewritten, what the user chose kept (written from the config the first time). Returns the file and what to
     say: the config's [plot] differing from the document's kept one."""
     if not members:
         return None, []
-    check_read_for(run, configuration)                                          # V179: its own data, not another's
+    check_read_for(errand, configuration)                                       # V179: its own data, not another's
     target = path_of(members[0].folders.results)
-    made = known(run, configuration, members)
+    made = known(errand, configuration, members)
     notes = []
-    plot, stats = chosen_of(run, configuration, members)
+    plot, stats = chosen_of(errand, configuration, members)
     if target.is_file():
         import tomllib
         try:
@@ -515,16 +515,16 @@ def write_tag(target: Path, tag: str | None) -> None:
 
 # ── reading ─────────────────────────────────────────────────────────────────────────────────────
 
-def _folders(results: Path, project: str) -> RunFolders:
+def _folders(results: Path, assignment: str) -> RunFolders:
     """A document's folders: records/ and .cache/ where its folder of results/ says; a folder copied elsewhere
     has its working files in .cache/<P>/plots/elsewhere/<its path's hash>/."""
     results = results.resolve()
     root = results_root().resolve()
     if results.is_relative_to(root) and len(results.relative_to(root).parts) == 3:
         rel = results.relative_to(root)
-        return RunFolders(project, records_root() / rel, results, cache_root() / rel.parts[0] / "plots" / Path(*rel.parts[1:]))
+        return RunFolders(assignment, records_root() / rel, results, cache_root() / rel.parts[0] / "plots" / Path(*rel.parts[1:]))
     key = hashlib.sha256(str(results).encode()).hexdigest()[:12]
-    return RunFolders(project, results / ".records", results, cache_root() / project / "plots" / "elsewhere" / key)
+    return RunFolders(assignment, results / ".records", results, cache_root() / assignment / "plots" / "elsewhere" / key)
 
 
 def _sweeps_of(entries: list) -> list:
@@ -565,7 +565,7 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
                                      source.get("title", ""))
     doc = Doc(path, source.get("assignment", ""), source.get("errand", ""), dict(data.get("plot", {})), dict(data.get("stats", {})),
               quantities, configuration, dict(source))
-    own = _folders(path.parent, doc.project)
+    own = _folders(path.parent, doc.assignment)
     members = []
     for name, entry in data["members"].items():
         yoda = entry.get("yoda")
@@ -620,8 +620,8 @@ ACROSS_HEADER = ("# The runs of a run TOML together (V169): their members, drawn
                  "# [plot] and [stats] are yours (from the config's [plot] and its [plot.across] sets, by a run or --style-sync).\n\n")
 
 
-def across_path(project: str, name: str) -> Path:
-    return results_root() / project / name / FILE
+def across_path(assignment: str, errand: str) -> Path:
+    return results_root() / assignment / errand / FILE
 
 
 def count_tag(events: int) -> str:
@@ -633,31 +633,31 @@ def count_tag(events: int) -> str:
     return str(events)
 
 
-def across_chosen(run) -> tuple[dict, dict]:
+def across_chosen(errand) -> tuple[dict, dict]:
     """The Name level's [plot] and [stats], from a run TOML: its [plot] (resolved as a run's) with its
     [plot.across] sets as the sets, and its [stats]."""
     from .sweep import named_sets
-    plot = {k: v for k, v in (run.plot or {}).items()}
+    plot = {k: v for k, v in (errand.plot or {}).items()}
     named = plot.pop("root_style", DEFAULT)
     if named not in (DEFAULT, None, schema.NATIVE):
         from .plot import merge_style
-        plot["style"] = merge_style(style_file(named, run.project, f"{run.path}: [plot].root_style"), plot.get("style", {}))
+        plot["style"] = merge_style(style_file(named, errand.assignment, f"{errand.path}: [plot].root_style"), plot.get("style", {}))
     data = plot.get("data")
     if isinstance(data, dict) and isinstance(data.get("file"), str) and not data["file"].startswith("rivet:"):
-        plot["data"] = {**data, "file": str(data_source(data["file"], run))}
+        plot["data"] = {**data, "file": str(data_source(data["file"], errand))}
     plot["sets"] = named_sets(plot.pop(ACROSS, None))
     plot.pop(FROM, None)                                    # the document's [from] (from_of)
     plot.pop("draw", None)
     figures = {k: v for k, v in (plot.get("figures") or {}).items() if not (isinstance(v, dict) and v.get("class") == "compare")}
     if "figures" in plot:                                   # a compare figure is one run's view of others: not here
         plot["figures"] = figures
-    return plot, dict(getattr(run, "stats", None) or {})
+    return plot, dict(getattr(errand, "stats", None) or {})
 
 
-def from_of(run) -> dict:
+def from_of(errand) -> dict:
     """The Name level's [from] as a run TOML gives it (V224): [plot.across_from] over the defaults (every run, the
     later of two the same point)."""
-    return {**FROM_DEFAULT, **dict((run.plot or {}).get(FROM) or {})}
+    return {**FROM_DEFAULT, **dict((errand.plot or {}).get(FROM) or {})}
 
 
 def from_in(target: Path) -> dict:
@@ -669,19 +669,19 @@ def from_in(target: Path) -> dict:
         raise HeimdallError(f"the plot document cannot be read: {error}", where=str(target)) from None
 
 
-def write_across(run) -> tuple[Path | None, bool]:
+def write_across(errand) -> tuple[Path | None, bool]:
     """results/<P>/<name>/plot.toml for a run TOML with [plot.across] sets: written when there is none (what the
     user chooses is theirs after: --style-sync rewrites it). Returns it and whether it was written now."""
-    if not (run.plot or {}).get(ACROSS):
+    if not (errand.plot or {}).get(ACROSS):
         return None, False
-    target = across_path(run.project, run.name)
+    target = across_path(errand.assignment, errand.name)
     if target.is_file():
         return target, False
     from .record import config_name
-    plot, stats = across_chosen(run)
-    made = {"source": {"config": config_name(run), "errand": run.name, "assignment": run.project, "level": "name",
+    plot, stats = across_chosen(errand)
+    made = {"source": {"config": config_name(errand), "errand": errand.name, "assignment": errand.assignment, "level": "name",
                        "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
-            "from": from_of(run), "plot": plot}
+            "from": from_of(errand), "plot": plot}
     if stats:
         made["stats"] = stats
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -749,11 +749,11 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
             blank += "_"
         quantities["@tag"] = Quantity("@tag", tagged, tags=[t or blank for t in tagged],
                                       labels=[t or blank for t in tagged])
-    project = source.get("assignment") or loaded[0][1].project
-    name = source.get("errand") or loaded[0][1].name
-    rel = folder.relative_to(results_root()) if folder.is_relative_to(results_root()) else Path(project) / name
-    folders = into or RunFolders(project, records_root() / rel, folder,
-                                 cache_root() / project / "plots" / Path(*rel.parts[1:]) / "_across")
+    assignment = source.get("assignment") or loaded[0][1].assignment
+    errand = source.get("errand") or loaded[0][1].name
+    rel = folder.relative_to(results_root()) if folder.is_relative_to(results_root()) else Path(assignment) / errand
+    folders = into or RunFolders(assignment, records_root() / rel, folder,
+                                 cache_root() / assignment / "plots" / Path(*rel.parts[1:]) / "_across")
     members, seen, shadowed = [], {}, {}
     kept: dict[str, dict[str, str]] = {}                     # each run's ignored quantities' one value
     swept: list[str] = []
@@ -802,8 +802,8 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                                     "of ignore), or leave the run out (runs = [\"<its folder's glob>\", …])")
         if ignored:
             kept[run_name] = {q: found[0] for q, found in held.items() if found}
-    configuration = DocConfiguration(ACROSS, name, [[q] for q in swept], [], [], {}, None, f"{name}: its runs together")
-    doc = Doc(path, project, name, dict(data.get("plot", {})), dict(data.get("stats", {})), quantities, configuration,
+    configuration = DocConfiguration(ACROSS, errand, [[q] for q in swept], [], [], {}, None, f"{errand}: its runs together")
+    doc = Doc(path, assignment, errand, dict(data.get("plot", {})), dict(data.get("stats", {})), quantities, configuration,
               {**source, "shadowed": shadowed, **({"ignored": kept} if kept else {})})
     return doc, configuration, members
 

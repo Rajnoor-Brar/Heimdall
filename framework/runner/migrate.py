@@ -240,13 +240,13 @@ def _value(lines: list[str], start: int, head: str) -> tuple[int, str, str]:
                 comments.append(extra)
 
 
-def toml_text(text: str, run=None, project: str = "") -> str:
+def toml_text(text: str, errand=None, assignment: str = "") -> str:
     """One run TOML migrated (see the module's doc): its new text."""
     lines = text.splitlines(keepends=True)
     out: list[str] = []
     table = ""
-    swept_members = run.runs(None) if run is not None and run.sweep_runs else None
-    has_swept = run is not None and any("swept" in run.raw.get("errand", {}).get("cfgs", {}).get(k, {}) for k in run.configurations)
+    swept_members = errand.runs(None) if errand is not None and errand.sweep_runs else None
+    has_swept = errand is not None and any("swept" in errand.raw.get("errand", {}).get("cfgs", {}).get(k, {}) for k in errand.configurations)
     i = 0
     while i < len(lines):
         line = lines[i]
@@ -276,11 +276,11 @@ def toml_text(text: str, run=None, project: str = "") -> str:
             continue
         elif key == "sweep_runs" and table == "errand" and value is True and has_swept and swept_members:
             new = "[" + ", ".join(_literal(k) for k in swept_members) + "]"
-        elif key == "executable" and table.startswith("tools.") and isinstance(value, str) and run is not None:
+        elif key == "executable" and table.startswith("tools.") and isinstance(value, str) and errand is not None:
             tag = table.split(".", 1)[1].strip('"')
-            tool = run.tools.get(tag)
+            tool = errand.tools.get(tag)
             if tool is not None and tool.executable and not value.startswith("path:") and "/" not in value:
-                built = resolve(value, "executable", project=project, where="")
+                built = resolve(value, "executable", assignment=assignment, where="")
                 if not built.exists() and shutil.which(value):
                     new = _literal("path:" + value)
         if new is None:
@@ -410,8 +410,8 @@ def exports_text(text: str, imported: dict | None = None) -> str:
     text = "".join(lines)
     for key, new in renamed.items():
         text = text.replace("{std:" + key + "}", "{context:" + new + "}")
-    run = data.get("errand", {})
-    cfgs = run.get("cfgs", {}) if isinstance(run.get("cfgs"), dict) else {}
+    errand = data.get("errand", {})
+    cfgs = errand.get("cfgs", {}) if isinstance(errand.get("cfgs"), dict) else {}
 
     def chain_of(name: str, seen=()) -> list[str]:
         table = cfgs.get(name, {})
@@ -419,7 +419,7 @@ def exports_text(text: str, imported: dict | None = None) -> str:
             return _flat(table["tools"])
         if isinstance(table.get("extends"), str) and table["extends"] not in seen:
             return chain_of(table["extends"], (*seen, name))
-        return _flat(run.get("tools"))
+        return _flat(errand.get("tools"))
 
     needs = {name: list(dict.fromkeys(e for tag in chain_of(name) for e in wants.get(tag, []))) for name in cfgs}
     def put(header_name: str, entries: list[str]) -> None:
@@ -606,8 +606,8 @@ def v3_text(text: str) -> str:
     data = tomllib.loads(text)
     if is_v3(data):
         return text
-    run, prelim, static = data.get("errand", {}), data.get("prelim", {}), data.get("static", {})
-    cfgs, tool_tables, quantities = run.get("cfgs", {}), data.get("tools", {}), data.get("quantities", {})
+    errand, prelim, static = data.get("errand", {}), data.get("prelim", {}), data.get("static", {})
+    cfgs, tool_tables, quantities = errand.get("cfgs", {}), data.get("tools", {}), data.get("quantities", {})
     scratch = set(prelim.get("files", []))
     for cfg in cfgs.values():
         if isinstance(cfg, dict) and isinstance(cfg.get("prelim"), dict):
@@ -627,7 +627,7 @@ def v3_text(text: str) -> str:
     def tags_of(layer: dict) -> set:
         return {t for key in ("tools", "pre", "post", "generate_cards") for g in layer.get(key, []) or []
                 for t in (g if isinstance(g, list) else [g]) if isinstance(t, str)}
-    runs = [tags_of(run) | tags_of(cfg) for cfg in cfgs.values() if isinstance(cfg, dict)] or [tags_of(run)]
+    runs = [tags_of(errand) | tags_of(cfg) for cfg in cfgs.values() if isinstance(cfg, dict)] or [tags_of(errand)]
 
     def together(reader: str, writer: str) -> bool:
         """An input is written as its producer only where they run together in this file: a file
@@ -635,7 +635,7 @@ def v3_text(text: str) -> str:
         the importer runs may write."""
         return any(reader in tags and writer in tags for tags in runs)
     hoisted = None                                                  # the chain most configurations share: [errand]'s
-    if "tools" not in run and chains:
+    if "tools" not in errand and chains:
         common = max(set(chains), key=chains.count)
         if chains.count(common) >= 2:
             hoisted = next(cfg["tools"] for cfg in cfgs.values() if isinstance(cfg, dict) and repr(cfg.get("tools")) == common)
@@ -657,7 +657,7 @@ def v3_text(text: str) -> str:
                 if key in RUN_V3:
                     lines += _renamed(chunk, RUN_V3[key])
                 elif key == "seed_type":
-                    lines += _seed_entry(run, chunk)
+                    lines += _seed_entry(errand, chunk)
                 elif key == "manual_seed":
                     continue
                 else:
@@ -683,7 +683,7 @@ def v3_text(text: str) -> str:
                     continue
                 elif key == "tools" and hoisted is not None and repr(cfg.get("tools")) == repr(hoisted):
                     continue                                            # [errand]'s chain
-                elif key == "sweeps" and cfg.get("sweeps") == [] and "extends" not in cfg and "sweeps" not in run:
+                elif key == "sweeps" and cfg.get("sweeps") == [] and "extends" not in cfg and "sweeps" not in errand:
                     continue                                            # the default
                 elif key in CFG_V3:
                     lines += _renamed(chunk, CFG_V3[key])
@@ -739,7 +739,7 @@ def v3_text(text: str) -> str:
             out += [f"\n[quantities.{_tk(qname)}]                # the imported quantity, fixed here\n",
                     f"fixed = {_tv(fixed)}\n"]
     text = "".join(out)
-    if "[cfgs." not in text and "chain" not in run and "[file]" not in text:
+    if "[cfgs." not in text and "chain" not in errand and "[file]" not in text:
         text = "[file]\nschema = 3                     # the run TOML's third form (heimdall migrate --v3)\n\n" + text
     return re.sub(r"\n{3,}", "\n\n", _commented_cfgs(text))
 
@@ -780,7 +780,7 @@ def _configurations(root: Path) -> list[Path]:
     """A tree's configuration folders, <P>/<name>/<cfg> relative to it (not compare/, nothing hidden)."""
     def dirs(folder: Path) -> list[Path]:
         return sorted(p for p in folder.iterdir() if p.is_dir() and not p.name.startswith(".")) if folder.is_dir() else []
-    return [cfg.relative_to(root) for project in dirs(root) for name in dirs(project) for cfg in dirs(name)
+    return [cfg.relative_to(root) for assignment in dirs(root) for name in dirs(assignment) for cfg in dirs(name)
             if cfg.name != "compare"]
 
 
@@ -940,12 +940,12 @@ def sets_moves(work: Path) -> list[tuple[Path, Path]]:
                 else:
                     moves.append((entry, plots / "totality" / backend / entry.name))
         numbers(plots / "statistics", plots / "statistics.csv", results / rel / "statistics" / "totality")
-    for project in sorted(p for p in records.iterdir() if p.is_dir()) if records.is_dir() else ():
-        for name in sorted(p for p in project.iterdir() if p.is_dir()):
+    for assignment in sorted(p for p in records.iterdir() if p.is_dir()) if records.is_dir() else ():
+        for name in sorted(p for p in assignment.iterdir() if p.is_dir()):
             for figure in sorted((name / "compare").iterdir()) if (name / "compare").is_dir() else ():
                 moves.append((figure, cache_of(figure.relative_to(records))))
-    for project in sorted(p for p in results.iterdir() if p.is_dir()) if results.is_dir() else ():
-        for name in sorted(p for p in project.iterdir() if p.is_dir()):
+    for assignment in sorted(p for p in results.iterdir() if p.is_dir()) if results.is_dir() else ():
+        for name in sorted(p for p in assignment.iterdir() if p.is_dir()):
             for figure in sorted((name / "compare").iterdir()) if (name / "compare").is_dir() else ():
                 if (figure / "statistics.csv").is_file():                      # the old layout's table beside its pages
                     old = figure / "statistics"
@@ -1005,18 +1005,18 @@ def plan(names: list[str], v3: bool = False) -> dict[Path, tuple[str, str]]:
         first = formerly_text(defaults_text(cfgs_text(config_text(figure_text(placeholder_text(errand_text(text)))))))
         given = configmod.load(name, strict=False, text=first)          # the tables its imports give, too
         first = exports_text(first, {tag: tool.tool for tag, tool in given.tools.items()})
-        run = configmod.load(name, strict=False, text=first)
-        new = toml_text(first, run, run.project)
+        errand = configmod.load(name, strict=False, text=first)
+        new = toml_text(first, errand, errand.assignment)
         if v3:
             new = v3_text(new)
         if new != text:
-            changes[run.path] = (text, new)
+            changes[errand.path] = (text, new)
         cards: dict[Path, object] = {}
-        for tool in run.tools.values():                    # each base card, by its folder's rules (no planning)
+        for tool in errand.tools.values():                 # each base card, by its folder's rules (no planning)
             folder = tools.folders().get(tool.tool)
             for base in tool.baseconfig if folder is not None else ():
                 try:
-                    path = resolve(base, "baseconfig", project=run.project, where=f"[tools.{tool.tag}].baseconfig")
+                    path = resolve(base, "baseconfig", assignment=errand.assignment, where=f"[tools.{tool.tag}].baseconfig")
                 except HeimdallError:
                     continue
                 if path.is_file():

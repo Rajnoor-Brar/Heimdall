@@ -71,7 +71,7 @@ def test_status_says_what_each_point_is(trees):
     states = {line.split()[0]: line[27:37].strip() for line in lines[1:]}     # "  <name:24> <state:10> …"
     assert states[first.point.name] == "to run" and states[second.point.name] == "incomplete"
     assert states[third.point.name] == "stale"
-    assert house.status([p], {str(p.run.path): ["pdf"]})[0].endswith("[running]")
+    assert house.status([p], {str(p.errand.path): ["pdf"]})[0].endswith("[running]")
 
 
 def test_clean_takes_only_what_no_plan_uses_and_never_results(trees):
@@ -133,7 +133,7 @@ def test_results_load_reads_the_manifest(trees):
     from runner import record
     path = record.manifest_file(p.every)
     path.parent.mkdir(parents=True)
-    path.write_text(json.dumps(record.points_manifest(p.every, p.run, p.configuration), default=str), encoding="utf-8")
+    path.write_text(json.dumps(record.points_manifest(p.every, p.errand, p.configuration), default=str), encoding="utf-8")
     points = results.load("Demo/jets", "pdf")
     assert [q.name for q in points] == [q.point.name for q in p.every]
     first = points[0]
@@ -151,7 +151,7 @@ def test_reproduce_refuses_a_setup_that_changed(trees, capsys):
     point = p.every[0]
     record.record_dir(point).mkdir(parents=True)
     record.provenance_file(point).write_text(json.dumps({
-        "config_file": str(p.run.path), "configuration": "single", "point": point.point.name, "run": "jets",
+        "config_file": str(p.errand.path), "configuration": "single", "point": point.point.name, "run": "jets",
         "project": "Demo", "identity": "0" * 64, "seed": 1, "sets": []}), encoding="utf-8")
     with pytest.raises(HeimdallError, match="not reproduced"):
         cli.cmd_reproduce(argparse.Namespace(provenance=str(record.record_dir(point)), anyway=False, plain=True))

@@ -151,13 +151,13 @@ def test_the_runs_beam_order_is_reordered_into_herwigs_slots(scratch):
             self.values = values
 
     from helpers import parse, raw
-    run = parse(raw(quantities__beams={"values": [[2212, 11], [11, 2212], [2212, 2212]]},
-                    quantities__energies={"values": [[275, 18]]}), scratch)
-    assert tools.beam_order(Plan({"beams": 0}), run, folder) == (1, 0)      # proton first → lepton to slot A
-    assert tools.beam_order(Plan({"beams": 1}), run, folder) == (0, 1)      # already lepton first
-    assert tools.beam_order(Plan({"beams": 2}), run, folder) is None        # pp: two of a kind
-    assert tools.beam_order(Plan({"energies": 0}), run, folder) == (1, 0)   # unnamed: [hadron, lepton]
-    assert tools.beam_order(Plan({"beams": 0}), run, tools.folders()["pythia"]) is None   # given as is
+    errand = parse(raw(quantities__beams={"values": [[2212, 11], [11, 2212], [2212, 2212]]},
+                       quantities__energies={"values": [[275, 18]]}), scratch)
+    assert tools.beam_order(Plan({"beams": 0}), errand, folder) == (1, 0)   # proton first → lepton to slot A
+    assert tools.beam_order(Plan({"beams": 1}), errand, folder) == (0, 1)   # already lepton first
+    assert tools.beam_order(Plan({"beams": 2}), errand, folder) is None     # pp: two of a kind
+    assert tools.beam_order(Plan({"energies": 0}), errand, folder) == (1, 0)   # unnamed: [hadron, lepton]
+    assert tools.beam_order(Plan({"beams": 0}), errand, tools.folders()["pythia"]) is None   # given as is
 
 
 def test_herwigs_card_puts_the_lepton_energy_on_beam_a():

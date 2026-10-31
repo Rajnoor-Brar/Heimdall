@@ -49,12 +49,12 @@ def test_the_count_check_reads_the_report_and_it_follows_its_product(scratch):
 
 
 def _plans(data, scratch, configuration):
-    run = parse(data, scratch)
-    conf = run.configuration(configuration)
-    master = quantities.load_master(run.project, run.master_toml)
+    errand = parse(data, scratch)
+    conf = errand.configuration(configuration)
+    master = quantities.load_master(errand.assignment, errand.master_toml)
     plans = []
-    for point in sweep.points(run, conf):
-        p = tools.plan_point(run, conf, point, master)
+    for point in sweep.points(errand, conf):
+        p = tools.plan_point(errand, conf, point, master)
         p.identity = record.identity(p)
         plans.append(p)
     record.assign_seeds(plans)

@@ -102,7 +102,7 @@ def test_a_failure_quotes_its_reason_and_diagnose_asks_the_tool_again(trees):
                             products=[], count_check=None, sidecar=None, sidecar_written=None, status="filters",
                             filters=rules("pythia"))]]
     plan.interfaces, plan.prelim = {}, {}
-    result = execute.run_point(plan, p.run, p.configuration, bus=Bus())
+    result = execute.run_point(plan, p.errand, p.configuration, bus=Bus())
     assert not result.ok
     assert result.message == (f"{step.tag} exited with exit code 3: PYTHIA Error in quietness: nothing said; asked again: "
                               "PYTHIA Abort from Pythia::init: all processes have vanishing cross sections")

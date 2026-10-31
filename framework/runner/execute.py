@@ -142,7 +142,7 @@ class Budget:
             self.used = max(0, self.used - count)
 
 
-def run_points(plans: list[PointPlan], run, configuration, *, bus=None, stopper: Stopper,
+def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopper: Stopper,
                rerun: bool, logs: bool = False, budget: Budget | None = None,
                started_all=None, wait_held: bool = False) -> tuple[int, int, bool]:
     """Every point not already complete, `configuration.parallelism` at a time, in order: (done,
@@ -174,7 +174,7 @@ def run_points(plans: list[PointPlan], run, configuration, *, bus=None, stopper:
         for i, plan in enumerate(todo):
             if i == len(todo) - 1:
                 all_started()
-            result = run_point(plan, run, configuration, bus=bus, stopper=stopper, logs=logs, wait=wait_held)
+            result = run_point(plan, errand, configuration, bus=bus, stopper=stopper, logs=logs, wait=wait_held)
             if result.stopped or stopper.requested:
                 return done, failed, True
             failed += not result.ok and not result.held
@@ -192,7 +192,7 @@ def run_points(plans: list[PointPlan], run, configuration, *, bus=None, stopper:
                 if budget is not None and not budget.take(need):
                     break                             # its cores are another run's for now
                 todo.pop(0)
-                future = pool.submit(run_point, plan, run, configuration, bus=bus, stopper=stopper, logs=logs, wait=wait_held)
+                future = pool.submit(run_point, plan, errand, configuration, bus=bus, stopper=stopper, logs=logs, wait=wait_held)
                 held[future] = need
                 running.add(future)
             if not todo:
@@ -668,7 +668,7 @@ def _describe(code: int) -> str:
 
 # ── one point ──────────────────────────────────────────────────────────────────────────────────
 
-def run_point(plan: PointPlan, run, configuration, *, bus=None, stopper: Stopper | None = None,
+def run_point(plan: PointPlan, errand, configuration, *, bus=None, stopper: Stopper | None = None,
               logs: bool = False, wait: bool = False) -> PointResult:
     """One point, under its lock (U66): a point another session runs is skipped, naming who runs it,
     or (`wait`) waited for, then skipped if that session completed it."""
@@ -687,12 +687,12 @@ def run_point(plan: PointPlan, run, configuration, *, bus=None, stopper: Stopper
         if wait and is_complete(plan):                # the other session completed it meanwhile
             bus.emit(plan.point.name, "", {"k": "point", "state": "skipped", "index": plan.point.index, **stage})
             return PointResult(False, held=True)
-        return _run_point(plan, run, configuration, bus=bus, stopper=stopper, logs=logs)
+        return _run_point(plan, errand, configuration, bus=bus, stopper=stopper, logs=logs)
     finally:
         lock.release()
 
 
-def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, logs: bool) -> PointResult:
+def _run_point(plan: PointPlan, errand, configuration, *, bus, stopper: Stopper, logs: bool) -> PointResult:
     started = now()
     attempt = len(attempts(plan)) + 1                 # this attempt's number (V200, V201)
     results: dict[str, ToolResult] = {}
@@ -732,7 +732,7 @@ def _run_point(plan: PointPlan, run, configuration, *, bus, stopper: Stopper, lo
             bus.emit(plan.point.name, tag, {"k": "log", "level": "warn", "msg": note})
 
     _cleanup(plan)
-    record = provenance(plan, run, configuration, started, now(),
+    record = provenance(plan, errand, configuration, started, now(),
                         {tag: {"exit": r.exit, "seconds": round(r.seconds, 3), "note": r.message,
                                **{k: v for k, v in (("warnings", r.warnings), ("errors", r.errors),
                                                     ("reported", r.reported)) if v}}

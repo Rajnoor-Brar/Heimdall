@@ -130,8 +130,8 @@ def test_the_live_view_keeps_a_messages_brackets():
 
 
 def test_a_runs_title_is_its_name_serial_and_configuration_then_its_size():
-    run, configuration, _, _ = plans_of("Demo/sherpa", "single")
-    title = cli.run_title(run, configuration, plans("Demo/sherpa", "single"))
+    errand, configuration, _, _ = plans_of("Demo/sherpa", "single")
+    title = cli.run_title(errand, configuration, plans("Demo/sherpa", "single"))
     assert title.split("\n") == ["sherpa · 04  ·  single", "   - 1 point(s), 5000 events, 1 threads"]
 
 

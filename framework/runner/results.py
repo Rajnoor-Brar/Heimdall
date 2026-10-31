@@ -54,8 +54,8 @@ class Point:
 
 def manifest(config: str, configuration: str | None = None) -> Path:
     """Where a configuration's points.json is."""
-    run = configmod.load(config)
-    return records_root() / run_dir(run, run.configuration(configuration)) / "points.json"
+    errand = configmod.load(config)
+    return records_root() / run_dir(errand, errand.configuration(configuration)) / "points.json"
 
 
 def load(config: str, configuration: str | None = None) -> list[Point]:
@@ -79,9 +79,9 @@ def load(config: str, configuration: str | None = None) -> list[Point]:
 
 def runs(config: str) -> dict[str, list[Point]]:
     """Every configuration of a config that has run: its key → its points."""
-    run = configmod.load(config)
+    errand = configmod.load(config)
     found = {}
-    for key in run.configurations:
+    for key in errand.configurations:
         try:
             found[key] = load(config, key)
         except HeimdallError:

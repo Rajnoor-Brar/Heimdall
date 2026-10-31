@@ -67,7 +67,7 @@ def test_a_point_another_session_runs_is_skipped_naming_it(trees):
             def emit(self, point, tag, event):
                 heard.append(event)
 
-        result = execute.run_point(plan, p.run, p.configuration, bus=Bus())
+        result = execute.run_point(plan, p.errand, p.configuration, bus=Bus())
         assert result.held and not result.ok and not result.stopped
         assert heard[-1]["state"] == "skipped" and "running in another session (pid" in heard[-1]["msg"]
         assert not plan.res.exists() and not (plan.out / "cards").exists()    # nothing written twice
@@ -102,9 +102,9 @@ def test_a_reserved_name_is_refused(scratch):
             'consumes = ["q"]\n\n[quantities.q]\nvalues = [1, 2]\ntags = ["plots", "b"]\n')
     path = scratch / "reserved.toml"
     path.write_text(text, encoding="utf-8")
-    run = config.load(str(path))
+    errand = config.load(str(path))
     with pytest.raises(HeimdallError, match="a point is named 'plots'"):
-        sweep.points(run, run.configuration("c"))
+        sweep.points(errand, errand.configuration("c"))
     clash = (text.replace('[errand.cfgs.c]\n', '[errand.cfgs.c]\nlabel = "compare"\n').replace('tags = ["plots", "b"]', 'tags = ["a", "b"]')
              + '\n[plot.figures.both]\nclass = "compare"\nobjects = ["/x/*"]\nconfigurations = ["c"]\n')
     path.write_text(clash, encoding="utf-8")
@@ -117,9 +117,9 @@ def test_the_provenance_is_portable(trees):
     machine root still reads; heimdall reproduce turns them back."""
     from runner.paths import unportable
     p = planned("Demo/jets", "single")
-    made = record.provenance(p.every[0], p.run, p.configuration, "a", "b", {})
+    made = record.provenance(p.every[0], p.errand, p.configuration, "a", "b", {})
     assert made["config_file"].startswith("{work}/configs/Demo/")
-    assert unportable(made["config_file"]) == str(p.run.path)
+    assert unportable(made["config_file"]) == str(p.errand.path)
     pythia = next(t for t in made["tools"] if t["tag"] == "pythia")
     assert pythia["card"].startswith("{") and not any(a.startswith(str(records_root())) for a in pythia["argv"])
 

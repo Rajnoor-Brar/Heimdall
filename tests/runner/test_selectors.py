@@ -16,10 +16,10 @@ OTHER = {"tool": "exec", "executable": "/bin/true", "output_file": "events.hepmc
 
 
 def plan_all(data: dict, scratch) -> dict:
-    run = parse(data, scratch)
-    conf = run.configuration(None)
-    master = quantities.load_master(run.project, run.master_toml)
-    return {p.name: tools.plan_point(run, conf, p, master) for p in sweep.points(run, conf)}
+    errand = parse(data, scratch)
+    conf = errand.configuration(None)
+    master = quantities.load_master(errand.assignment, errand.master_toml)
+    return {p.name: tools.plan_point(errand, conf, p, master) for p in sweep.points(errand, conf)}
 
 
 def test_a_varied_value_no_tool_of_the_point_reads_is_refused(scratch):
@@ -78,10 +78,10 @@ def test_a_compound_s_fields_are_read_one_a_generator(scratch):
     generator takes its own field of one switch, and the points still differ by it."""
     path = scratch / "switch.toml"
     path.write_text(SWITCH, encoding="utf-8")
-    run = config.load(str(path))
-    conf = run.configuration("all")
-    master = quantities.load_master(run.project, run.master_toml)
-    by = {p.name: tools.plan_point(run, conf, p, master) for p in sweep.points(run, conf)}
+    errand = config.load(str(path))
+    conf = errand.configuration("all")
+    master = quantities.load_master(errand.assignment, errand.master_toml)
+    by = {p.name: tools.plan_point(errand, conf, p, master) for p in sweep.points(errand, conf)}
     assert sorted(by) == ["p1_off", "p1_on", "p2_off", "p2_on"]
     assert [m.tag for m in by["p1_on"].consumers["mpi"]] == ["first"] and by["p1_on"].consumers["mpi_b"] == []
     assert [m.tag for m in by["p2_off"].consumers["mpi_b"]] == ["other"] and by["p2_off"].consumers["mpi"] == []
@@ -97,14 +97,14 @@ def test_a_set_naming_a_compound_names_all_its_fields(scratch):
     not a page per value of mpi_b, which varies with mpi and was taken for an axis the set leaves out."""
     path = scratch / "switch.toml"
     path.write_text(SWITCH, encoding="utf-8")
-    run = config.load(str(path))
-    points = sweep.points(run, run.configuration("all"))
+    errand = config.load(str(path))
+    points = sweep.points(errand, errand.configuration("all"))
     spec, = sweep.set_entries({"few": {"pages": {"gen": "p1"}, "curves": {"mpi": "all"}}}, "w")
-    sweep.check_set(run, spec, points)
-    cells, notes = sweep.set_cells(run, points, spec)
+    sweep.check_set(errand, spec, points)
+    cells, notes = sweep.set_cells(errand, points, spec)
     assert [c.key for c in cells] == ["p1"] and notes == []
     assert [m.name for m in cells[0].members] == ["p1_on", "p1_off"] and cells[0].labelled == [["mpi"]]
-    by_page, notes = sweep.set_cells(run, points, sweep.set_entries({"m": {"curves": {"gen": "all"}}}, "w")[0])
+    by_page, notes = sweep.set_cells(errand, points, sweep.set_entries({"m": {"curves": {"gen": "all"}}}, "w")[0])
     assert [c.key for c in by_page] == ["on", "off"]                         # mpi left out: it pages, once
 
 
@@ -159,10 +159,10 @@ def test_one_pdf_quantity_feeds_every_generator_in_its_own_spelling(scratch):
     path = scratch / "pdfs.toml"
     path.write_text(PDFS, encoding="utf-8")
     try:
-        run = config.load(str(path))
-        conf = run.configuration("all")
-        master = quantities.load_master(run.project, run.master_toml)
-        by = {p.name: tools.plan_point(run, conf, p, master) for p in sweep.points(run, conf)}
+        errand = config.load(str(path))
+        conf = errand.configuration("all")
+        master = quantities.load_master(errand.assignment, errand.master_toml)
+        by = {p.name: tools.plan_point(errand, conf, p, master) for p in sweep.points(errand, conf)}
         for planned in by.values():
             tools.finalise(planned, 12345)                          # the cards written out
     except HeimdallError as error:
@@ -224,10 +224,10 @@ vary = ["var"]
 def pieces(scratch, chain: str, points: str) -> dict:
     path = scratch / "pieces.toml"
     path.write_text(PIECES.replace("CHAIN", chain).replace("POINTS", points), encoding="utf-8")
-    run = config.load(str(path))
-    conf = run.configuration("all")
-    master = quantities.load_master(run.project, run.master_toml)
-    return {p.name: tools.plan_point(run, conf, p, master) for p in sweep.points(run, conf)}
+    errand = config.load(str(path))
+    conf = errand.configuration("all")
+    master = quantities.load_master(errand.assignment, errand.master_toml)
+    return {p.name: tools.plan_point(errand, conf, p, master) for p in sweep.points(errand, conf)}
 
 
 def tags(plan) -> list[list[str]]:
@@ -262,10 +262,10 @@ vary = ["var"]
 def test_each_point_s_chain_infers_its_own_interfaces(scratch):
     path = scratch / "stream.toml"
     path.write_text(STREAM, encoding="utf-8")
-    run = config.load(str(path))
-    conf = run.configuration("all")
-    master = quantities.load_master(run.project, run.master_toml)
-    by = {p.name: tools.plan_point(run, conf, p, master) for p in sweep.points(run, conf)}
+    errand = config.load(str(path))
+    conf = errand.configuration("all")
+    master = quantities.load_master(errand.assignment, errand.master_toml)
+    by = {p.name: tools.plan_point(errand, conf, p, master) for p in sweep.points(errand, conf)}
     assert tags(by["together"]) == [["pythia", "rivet"]] and by["together"].prelim.get("fifo") == ["events.hepmc"]
     assert tags(by["after"]) == [["pythia"], ["rivet"]] and "fifo" not in by["after"].prelim   # a file, read later
 
@@ -338,15 +338,15 @@ def test_listed_points_are_checked_with_the_file(scratch, rows, sweeps, message)
 def test_a_page_axis_may_be_one_quantity_of_listed_points(scratch):
     from runner import plot, record
     rows = [{"gen": "py", "pt0ref": "p30"}, {"gen": "py", "pt0ref": "p34"}, {"gen": "ot"}]
-    run = parse(listed(rows, errand__cfgs__one__plot_points=["gen"]), scratch)
-    conf = run.configuration(None)
+    errand = parse(listed(rows, errand__cfgs__one__plot_points=["gen"]), scratch)
+    conf = errand.configuration(None)
     pages_, curves = plot.axes_of(conf)
     assert pages_ == [["gen"]] and curves == [["pt0ref"]]
-    points = sweep.points(run, conf)
+    points = sweep.points(errand, conf)
     assert {k: [p.name for p in v] for k, v in sweep.pages(conf, points).items()} == {((0,),): ["py_p30", "py_p34"], ((1,),): ["ot"]}
-    master = quantities.load_master(run.project, run.master_toml)
-    plans = [tools.plan_point(run, conf, p, master) for p in points]
-    assert [p["page"] for p in record.points_manifest(plans, run, conf)["points"]] == [["py"], ["py"], ["ot"]]
+    master = quantities.load_master(errand.assignment, errand.master_toml)
+    plans = [tools.plan_point(errand, conf, p, master) for p in points]
+    assert [p["page"] for p in record.points_manifest(plans, errand, conf)["points"]] == [["py"], ["py"], ["ot"]]
     with pytest.raises(HeimdallError, match="plot_points names 'pt0ref', which listed point 3 leaves out"):
         parse(listed(rows, errand__cfgs__one__plot_points=["pt0ref"]), scratch)
     with pytest.raises(HeimdallError, match="names pt0ref, a quantity of listed points"):
@@ -382,9 +382,9 @@ def test_coupled_selectors_choose_their_tools_together(scratch, vary, names):
     tables = "".join(f'[tools.{t}]\nuses       = "exec"\nexecutable = "/bin/true"\noutput     = "{t}.dat"\n\n' for t in "abcefg")
     path = scratch / "coupled.toml"
     path.write_text(COUPLED.replace("TOOLS", tables).replace("VARY", vary), encoding="utf-8")
-    run = config.load(str(path))
-    conf = run.configuration("all")
-    master = quantities.load_master(run.project, run.master_toml)
-    by = {p.name: tags(tools.plan_point(run, conf, p, master)) for p in sweep.points(run, conf)}
+    errand = config.load(str(path))
+    conf = errand.configuration("all")
+    master = quantities.load_master(errand.assignment, errand.master_toml)
+    by = {p.name: tags(tools.plan_point(errand, conf, p, master)) for p in sweep.points(errand, conf)}
     pairs = {"AE": [["a", "e"]], "BE": [["b", "e"]], "BG": [["b", "g"]], "CF": [["c", "f"]]}
     assert by == {name: pairs[name] for name in names}            # a listed row naming a compound sets every field

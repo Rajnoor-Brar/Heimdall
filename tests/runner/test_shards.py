@@ -37,9 +37,9 @@ def test_a_sharded_rivet_is_k_copies_and_a_merge(scratch):
 
 
 def test_the_shards_are_technical_and_the_product_is_the_tables(scratch):
-    run, conf, p = plan(sharded(3), scratch)
+    errand, conf, p = plan(sharded(3), scratch)
     assert plot.yoda_of(p) == p.res / "jets.yoda"
-    manifest = record.points_manifest([p], run, conf)
+    manifest = record.points_manifest([p], errand, conf)
     assert manifest["points"][0]["products"] == {"jets.yoda": str(p.res / "jets.yoda")}
 
 

@@ -78,7 +78,8 @@ at each commit. The runs-together, report and tag code of I-108–I-113 is renam
 |---|---|---|---|
 | E0 this plan, the inventory | — | | written |
 | E1 the dialect: `[errand]`, `[errand].assignment`, dotted names, the schema, v3, the walkers, `[run]` refused; the migration (`heimdall migrate --names`: configs, snapshots, provenance, documents), the fixture's configs and the starter by it; docs 00–06's examples | V225 | 8293eeb | done |
-| E2 plot documents: `[source].assignment`, `[source].errand`, read and written; a report title's `{assignment}`, `{errand}`; the old ones refused | V226 | | done |
+| E2 plot documents: `[source].assignment`, `[source].errand`, read and written; a report title's `{assignment}`, `{errand}`; the old ones refused | V226 | 9e9658f | done |
+| E3 the code identifiers (D2): `Errand`, `.assignment` (Errand, Doc, RunFolders, Source), `errand` for every local, parameter and attribute holding one, `assignment` for an assignment's name, by scope; `Doc.name` kept | V227 | | done |
 
 ## 6. Log
 
@@ -98,3 +99,14 @@ at each commit. The runs-together, report and tag code of I-108–I-113 is renam
   the migration's `source_text`. A report title's `{project}`/`{run}` are `{assignment}`/`{errand}` (they are filled
   from `[source]`), the old ones refused by `config.check_report`. `Doc.project`/`Doc.name` and `RunConfig.project`
   keep their names for E3. Fast suite: the one known failure. Next: E3 (V227), the code identifiers (D2).
+- 2026-11-01: E3 built (V227). `RunConfig` → `Errand`, `.project` → `.assignment` on it, `RunFolders`, `Doc`,
+  `report.Source`; `Planned.run`, `Compared.run` and every local/parameter holding an errand → `errand` (a scope-aware
+  AST rename, about 1400 sites in 42 files; `run` left where it is a job, a bus key, a Run's folder or a function);
+  `project` → `assignment` where it holds an assignment's name (`paths.resolve(assignment=)`, `across_path(assignment,
+  errand)`, …). Beyond the plan: **`Doc.name` kept**, not `Doc.errand`: plot.py takes an `Errand` or a `Doc` alike and
+  reads `.name` of either (`_curve_label`, the titles), and `Errand.name` stays (D2); the `[errand]` table's dict is
+  `errand` too (`config.parse`, `_marks`, `_layers`, migrate); `_project_of` → `_assignment_of`, `run_style` →
+  `errand_style`, `_run_of` → `_errand_of`, `report._run_sources` → `_errand_sources`. Left for E4: the CLI's
+  `--project`, `ls [project]` and `setup.setup(project=)` (the flag's name), prose and messages ("run TOML",
+  `<P>/<run>`); a record's `points.json`/`provenance.json` keys `run`, `project` (data, not code). The fixture was
+  already rewritten in E1. Fast suite: the one known failure; slow: the five known. Next: E4 (V228).

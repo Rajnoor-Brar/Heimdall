@@ -33,13 +33,13 @@ COMBINED = "combined"            # the group's name when every swept quantity is
 MERGE_TAG = "combine"
 
 
-def _plan_stage(run, configuration, master: dict, point: Point, groups: list, products: dict, manifest,
+def _plan_stage(errand, configuration, master: dict, point: Point, groups: list, products: dict, manifest,
                 upstream: list | None = None) -> tools.PointPlan:
     """One stage, planned as a point is (V63): its tool groups, no quantities, `{points}` the manifest, an
     `input` naming a product of the points reads `products`; its identity holds `upstream` (the
     identities it follows), and its seed follows from its identity."""
     stage = replace(configuration, tools=groups, static={}, prelim={}, pre=[], post=[], combine=[])
-    plan = tools.plan_point(run, stage, point, master, post={"manifest": manifest, "products": products})
+    plan = tools.plan_point(errand, stage, point, master, post={"manifest": manifest, "products": products})
     if upstream is not None:
         plan.upstream = upstream
     plan.identity = record.identity(plan)
@@ -47,7 +47,7 @@ def _plan_stage(run, configuration, master: dict, point: Point, groups: list, pr
     return plan
 
 
-def _run_stage(stage: tools.PointPlan, waits_on: list, run_config, configuration, *, bus=None, stopper, logs: bool = False,
+def _run_stage(stage: tools.PointPlan, waits_on: list, errand, configuration, *, bus=None, stopper, logs: bool = False,
                rerun: bool, say, missing: str):
     """One stage, once every plan it waits on is complete (V63): its result, or None when it did not run
     (incomplete upstream: `missing`, formatted with the count and the names, is said; or complete)."""
@@ -60,53 +60,53 @@ def _run_stage(stage: tools.PointPlan, waits_on: list, run_config, configuration
             bus.emit(stage.point.name, "", {"k": "point", "state": "skipped", "index": stage.point.index,
                                             **({"stage": stage.point.stage} if stage.point.stage else {})})
         return None
-    return execute.run_point(stage, run_config, configuration, bus=bus, stopper=stopper, logs=logs)
+    return execute.run_point(stage, errand, configuration, bus=bus, stopper=stopper, logs=logs)
 
 
-def _reserved(run, configuration, names, name: str, stage: str) -> None:
+def _reserved(errand, configuration, names, name: str, stage: str) -> None:
     if name in names:
         raise HeimdallError(f"a point is named '{name}', which is where the {stage} stage lives",
-                       where=f"{run.path}: [errand.cfgs.{configuration.key}]", hint="give that value another tag")
+                       where=f"{errand.path}: [errand.cfgs.{configuration.key}]", hint="give that value another tag")
 
 
-def plan_pre(run, configuration, master: dict, points: list) -> tools.PointPlan | None:
+def plan_pre(errand, configuration, master: dict, points: list) -> tools.PointPlan | None:
     """The pre stage: once, before every point, in <cfg>/pre/. No quantities; `{points}` is the
     manifest. Its products are inputs every point may name, and its identity is in theirs."""
     if not configuration.pre:
         return None
-    _reserved(run, configuration, {p.name for p in points}, PRE, "pre")
-    manifest = tools.run_folders(run, configuration).manifest
-    return _plan_stage(run, configuration, master, Point(index=-1, name=PRE, stage=PRE), configuration.pre, {}, manifest)
+    _reserved(errand, configuration, {p.name for p in points}, PRE, "pre")
+    manifest = tools.run_folders(errand, configuration).manifest
+    return _plan_stage(errand, configuration, master, Point(index=-1, name=PRE, stage=PRE), configuration.pre, {}, manifest)
 
 
-def run_pre(pre: tools.PointPlan | None, run_config, configuration, *, bus=None, stopper, logs: bool = False, rerun: bool) -> bool:
+def run_pre(pre: tools.PointPlan | None, errand, configuration, *, bus=None, stopper, logs: bool = False, rerun: bool) -> bool:
     """True unless the pre stage ran and failed (the points then do not run)."""
     if pre is None:
         return True
-    result = _run_stage(pre, [], run_config, configuration, bus=bus, stopper=stopper, logs=logs,
+    result = _run_stage(pre, [], errand, configuration, bus=bus, stopper=stopper, logs=logs,
                         rerun=rerun, say=print, missing="")
     return result is None or result.ok
 
 
-def plan(run, configuration, master: dict, plans: list) -> tools.PointPlan | None:
+def plan(errand, configuration, master: dict, plans: list) -> tools.PointPlan | None:
     if not configuration.post:
         return None
-    _reserved(run, configuration, {p.point.name for p in plans}, NAME, "post")
+    _reserved(errand, configuration, {p.point.name for p in plans}, NAME, "post")
     products: dict[str, list] = {}                  # name → [(point, path)], in point order
     for p in plans:
         for interface in p.interfaces.values():
             if interface.kind == "product" and not interface.shard:
                 products.setdefault(interface.name, []).append((p.point.name, interface.path))
-    return _plan_stage(run, configuration, master, Point(index=0, name=NAME, stage=NAME), configuration.post, products,
+    return _plan_stage(errand, configuration, master, Point(index=0, name=NAME, stage=NAME), configuration.post, products,
                        record.manifest_file(plans), upstream=[p.identity for p in plans])
 
 
-def run(post: tools.PointPlan | None, every: list, run_config, configuration, *, bus=None, stopper, logs: bool = False,
+def run(post: tools.PointPlan | None, every: list, errand, configuration, *, bus=None, stopper, logs: bool = False,
         rerun: bool, say) -> bool:
     """True unless the post stage ran and failed. It runs only when every point is complete."""
     if post is None:
         return True
-    result = _run_stage(post, every, run_config, configuration, bus=bus, stopper=stopper, logs=logs,
+    result = _run_stage(post, every, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                         rerun=rerun, say=say, missing="post: not run, {count} point(s) incomplete ({names})")
     return result is None or result.ok
 
@@ -121,15 +121,15 @@ def _yoda_product(plan) -> tuple[str, object] | None:
     return None
 
 
-def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.PointPlan]:
+def plan_combined(errand, configuration, master: dict, plans: list) -> list[tools.PointPlan]:
     """One stage per group, planned like post in <cfg>/<group>/: the merge folder (rivet-merge -e) of
     the group's YODA product into a file of the same name. The group is named by its other swept
     quantities' tags, "combined" when there are none, and its point carries their choice, so the
     plot stage draws the groups as it would draw points."""
     if not configuration.combine:
         return []
-    where = f"{run.path}: [errand.cfgs.{configuration.key}].combine"
-    if MERGE_TAG in run.tools:
+    where = f"{errand.path}: [errand.cfgs.{configuration.key}].combine"
+    if MERGE_TAG in errand.tools:
         raise HeimdallError(f"[tools.{MERGE_TAG}] is the name combine uses for its merges", where=where,
                        hint="rename that table")
     combined = set(configuration.combine)
@@ -143,7 +143,7 @@ def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.P
     out = []
     for number, (key, members) in enumerate(groups.items(), start=1):
         choice = {q: i for q, i in zip(kept, key) if i != -1}
-        name = "_".join(tag_of(run.quantities[q], choice[q]) for q in kept if q in choice and not run.quantities[q].silent) or COMBINED
+        name = "_".join(tag_of(errand.quantities[q], choice[q]) for q in kept if q in choice and not errand.quantities[q].silent) or COMBINED
         if name in taken:
             raise HeimdallError(f"the combined group '{name}' would share a directory with a point or stage", where=where,
                            hint="give the swept quantities distinct tags (see C11)")
@@ -152,7 +152,7 @@ def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.P
             raise HeimdallError("combine merges the points' YODA product, and these points have none", where=where)
         product = found[0][0]
         source = f"{product} of the combined points"           # not the product's own name: the output is
-        stage_run = replace(run, tools={**run.tools, MERGE_TAG: Tool(tag=MERGE_TAG, tool=tools.combiner()[0], input=[source],
+        stage_run = replace(errand, tools={**errand.tools, MERGE_TAG: Tool(tag=MERGE_TAG, tool=tools.combiner()[0], input=[source],
                                                                       output_file=[product])})
         plan = _plan_stage(stage_run, configuration, master, Point(index=number, name=name, stage=COMBINED), [[MERGE_TAG]],
                            {source: [(m.point.name, f[1]) for m, f in zip(members, found)]}, manifest,
@@ -162,13 +162,13 @@ def plan_combined(run, configuration, master: dict, plans: list) -> list[tools.P
     return out
 
 
-def run_combined(groups: list, every: list, run_config, configuration, *, bus=None, stopper, logs: bool = False, rerun: bool,
+def run_combined(groups: list, every: list, errand, configuration, *, bus=None, stopper, logs: bool = False, rerun: bool,
                  say) -> int:
     """Each group once its own points are complete; the number that failed."""
     failed = 0
     for group in groups:
         members = [p for p in every if p.identity in set(group.upstream)]
-        result = _run_stage(group, members, run_config, configuration, bus=bus, stopper=stopper, logs=logs,
+        result = _run_stage(group, members, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                             rerun=rerun, say=say, missing=f"combine: {group.point.name} not merged, {{count}} of its points incomplete")
         if result is None:
             continue

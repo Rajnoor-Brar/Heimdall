@@ -17,9 +17,9 @@ def fails(data, scratch, match):
 
 
 def test_the_base_config_parses(scratch):
-    run = parse(raw(), scratch)
-    assert run.configuration(None).tools == [["pythia", "rivet"]]
-    assert run.configuration(None).threads == 1
+    errand = parse(raw(), scratch)
+    assert errand.configuration(None).tools == [["pythia", "rivet"]]
+    assert errand.configuration(None).threads == 1
 
 
 def test_c1_an_unknown_key_suggests_the_right_one(scratch):
@@ -74,14 +74,14 @@ def test_configurations_are_run_cfgs_and_run_holds_only_its_own_keys(scratch):
     assert "[errand.cfgs.defualts]" in error.value.hint
     with pytest.raises(HeimdallError, match="'threads' must be an integer"):
         parse(raw(errand__threads={"tools": [["pythia", "rivet"]]}), scratch)
-    run = parse(raw(errand__configuration="threads", errand__cfgs__threads={"tools": [["pythia", "rivet"]]}), scratch)
-    assert "threads" in run.configurations
+    errand = parse(raw(errand__configuration="threads", errand__cfgs__threads={"tools": [["pythia", "rivet"]]}), scratch)
+    assert "threads" in errand.configurations
 
 
 def test_c2_a_named_configuration_must_exist(scratch):
-    run = parse(raw(), scratch)
+    errand = parse(raw(), scratch)
     with pytest.raises(HeimdallError, match="no configuration 'on'") as caught:
-        run.configuration("on")
+        errand.configuration("on")
     assert "one" in caught.value.hint
 
 
@@ -128,8 +128,8 @@ def test_set_overrides_one_value(scratch):
     from runner.config import apply_sets
     data = raw()
     apply_sets(data, ["errand.cfgs.one.threads=4", "static.pdf=MSTW08lo"])
-    run = parse(data, scratch)
-    assert run.configuration("one").threads == 4 and run.static == {"pdf": "MSTW08lo"}
+    errand = parse(data, scratch)
+    assert errand.configuration("one").threads == 4 and errand.static == {"pdf": "MSTW08lo"}
 
 
 # ── V58: the vocabulary's shapes ──────────────────────────────────────────────────────────────

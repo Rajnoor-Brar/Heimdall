@@ -1,7 +1,7 @@
 """The run TOML's third form (docs/audit_3/03_Configuration.md §6), read as the second's (rank 0).
 
 A v3 file is translated, table by table, into the v2 tables the loader has always read, so a study in
-either form is one RunConfig: the same points, folders and identities. What v3 writes once and v2 wrote
+either form is one Errand: the same points, folders and identities. What v3 writes once and v2 wrote
 in several places comes out as v2 had it:
 
   [file]                  → [config]

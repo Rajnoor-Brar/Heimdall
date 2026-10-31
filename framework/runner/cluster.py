@@ -146,7 +146,7 @@ def script(directive_list: list[str], keys: dict, command: list[str], *, title: 
 def heimdall_run(planned, args, stages: str, point: bool = False) -> list[str]:
     """The heimdall run a job makes: the same config file, configuration and --set's as the submission."""
     q = shlex.quote
-    argv = [q(str(heimdall_root() / "framework" / "bin" / "heimdall")), "run", q(str(planned.run.path)), q(planned.configuration.key)]
+    argv = [q(str(heimdall_root() / "framework" / "bin" / "heimdall")), "run", q(str(planned.errand.path)), q(planned.configuration.key)]
     if point:
         argv += ["--points", '"$point"']
     argv += ["--stages", stages, "--plain"]
@@ -159,7 +159,7 @@ def heimdall_run(planned, args, stages: str, point: bool = False) -> list[str]:
 
 def base(planned) -> Path:
     """records/<P>/<run>/<cfg>/cluster: every submission's folder."""
-    return records_root() / tools.run_dir(planned.run, planned.configuration) / FOLDER
+    return records_root() / tools.run_dir(planned.errand, planned.configuration) / FOLDER
 
 
 def _stamp(folder: Path) -> Path:
@@ -214,7 +214,7 @@ def notes(planned) -> list[str]:
 
 def submit(planned, args, out=print) -> int:
     """Write a submission's scripts and submit them (--dry-run: write them, and print the sbatch lines)."""
-    run, configuration = planned.run, planned.configuration
+    errand, configuration = planned.errand, planned.configuration
     merged = settings(configuration)
     rerun, dry = bool(getattr(args, "rerun", False)), bool(getattr(args, "dry_run", False))
     todo = [p for p in planned.plans if rerun or not is_complete(p)]
@@ -224,18 +224,18 @@ def submit(planned, args, out=print) -> int:
         if (last := latest(planned)) is not None:
             ids = list(tomllib.loads((last / RECORD).read_text(encoding="utf-8"))["jobs"].values())
             if ids and shutil.which("squeue") and active(ids):
-                raise HeimdallError(f"{run.name} · {configuration.key}: the submission {last.name} still has jobs pending or "
+                raise HeimdallError(f"{errand.name} · {configuration.key}: the submission {last.name} still has jobs pending or "
                                "running, and a second would run the same points in the same folders",
                                where=str(last), hint=f"heimdall cluster {args.config} {configuration.key} --status, or --cancel")
     folder = _stamp(base(planned))
     (folder / "logs").mkdir(parents=True)              # a dry run's folder has no record: never a submission
-    name = f"heimdall-{run.name}-{configuration.key}"
+    name = f"heimdall-{errand.name}-{configuration.key}"
     jobs: dict[str, tuple[Path, list[str]]] = {}       # job → (its script, its sbatch line once known)
     if pre is not None:
         keys = job_settings(merged, "pre")
         text = script(directives(keys, name=f"{name}-pre", log=folder / "logs" / "pre-%j.log",
                                  cpus=int(keys.get("cpus") or cores(pre))),
-                      keys, heimdall_run(planned, args, "pre"), title=f"{run.name} · {configuration.key}: pre")
+                      keys, heimdall_run(planned, args, "pre"), title=f"{errand.name} · {configuration.key}: pre")
         jobs["pre"] = (folder / "pre.sbatch", [])
         (folder / "pre.sbatch").write_text(text, encoding="utf-8")
     if todo:
@@ -246,19 +246,19 @@ def submit(planned, args, out=print) -> int:
                                  cpus=int(keys.get("cpus") or max(cores(p) for p in todo)),
                                  array=f"1-{len(todo)}{throttle}"),
                       keys, heimdall_run(planned, args, "points", point=True),
-                      title=f"{run.name} · {configuration.key}: points", points=folder / POINTS)
+                      title=f"{errand.name} · {configuration.key}: points", points=folder / POINTS)
         jobs["points"] = (folder / "points.sbatch", [])
         (folder / "points.sbatch").write_text(text, encoding="utf-8")
     keys = job_settings(merged, "finish")
     text = script(directives(keys, name=f"{name}-finish", log=folder / "logs" / "finish-%j.log",
                              cpus=int(merged.get("finish", {}).get("cpus") or 1)),
-                  keys, heimdall_run(planned, args, "combine,post,plot"), title=f"{run.name} · {configuration.key}: finish")
+                  keys, heimdall_run(planned, args, "combine,post,plot"), title=f"{errand.name} · {configuration.key}: finish")
     jobs["finish"] = (folder / "finish.sbatch", [])
     (folder / "finish.sbatch").write_text(text, encoding="utf-8")
 
     for note in notes(planned):
         out(f"note: {note}")
-    out(f"{run.name} · {configuration.key}: {len(todo)} point(s) to run of {len(planned.plans)}"
+    out(f"{errand.name} · {configuration.key}: {len(todo)} point(s) to run of {len(planned.plans)}"
         + (", and the pre tools" if pre is not None else "") + f" → {folder}")
     if not todo:
         out("every point is complete: only the finish job (combined groups, post tools, plots)")
@@ -285,12 +285,12 @@ def submit(planned, args, out=print) -> int:
     if dry:
         out("dry run: nothing submitted; the scripts are in the folder above")
         return 0
-    record = {"stamp": folder.name, "scheduler": merged.get("scheduler", "slurm"), "config": str(run.path),
+    record = {"stamp": folder.name, "scheduler": merged.get("scheduler", "slurm"), "config": str(errand.path),
               "configuration": configuration.key, "sets": list(getattr(args, "set", None) or []), "rerun": rerun,
               "work": str(work_root()), "heimdall": git_state(heimdall_root()), "points": [p.point.name for p in todo],
               "jobs": ids, "sbatch": {job: argv for job, (_, argv) in jobs.items()}}
     write_atomic(folder / RECORD, tomli_w.dumps(record))
-    runs.begin(runs.new_id(), {"kind": "cluster", "config": str(run.path), "configuration": configuration.key,     # V184
+    runs.begin(runs.new_id(), {"kind": "cluster", "config": str(errand.path), "configuration": configuration.key,  # V184
                                "configurations": [configuration.key],
                                "configuration_serials": {configuration.key: configuration.serial},
                                "jobs": list(ids.values()), "submission": str(folder),
@@ -354,17 +354,17 @@ def _states(ids: list[str]) -> dict:
 
 def status(planned, out=print) -> int:
     """Each point of the latest submission: complete (its marker), else what Slurm says of its task."""
-    run, configuration = planned.run, planned.configuration
+    errand, configuration = planned.errand, planned.configuration
     folder = latest(planned)
     complete = sum(is_complete(p) for p in planned.every)
     if folder is None:
-        out(f"{run.name} · {configuration.key}: no submission ({complete} of {len(planned.every)} point(s) complete)")
+        out(f"{errand.name} · {configuration.key}: no submission ({complete} of {len(planned.every)} point(s) complete)")
         return 0
     record = tomllib.loads((folder / RECORD).read_text(encoding="utf-8"))
     ids = record["jobs"]
     states = _states(list(ids.values())) if ids else {}
     by_name = {p.point.name: p for p in planned.every}
-    out(f"{run.name} · {configuration.key}: submission {record['stamp']} ("
+    out(f"{errand.name} · {configuration.key}: submission {record['stamp']} ("
         + ", ".join(f"{job} {job_id}" for job, job_id in ids.items()) + ")")
     width = max([len(n) for n in record["points"]] + [6])
     counts: dict[str, int] = {}
@@ -396,13 +396,13 @@ def cancel(planned, out=print) -> int:
     _need("scancel")
     folder = latest(planned)
     if folder is None:
-        out(f"{planned.run.name} · {planned.configuration.key}: no submission to cancel")
+        out(f"{planned.errand.name} · {planned.configuration.key}: no submission to cancel")
         return 0
     ids = list(tomllib.loads((folder / RECORD).read_text(encoding="utf-8"))["jobs"].values())
     done = subprocess.run(["scancel", *ids], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if done.returncode != 0:
         raise HeimdallError(f"scancel failed: {(done.stderr or done.stdout).strip()[-300:]}", where=str(folder))
-    out(f"{planned.run.name} · {planned.configuration.key}: cancelled the submission {folder.name} (jobs {' '.join(ids)})")
+    out(f"{planned.errand.name} · {planned.configuration.key}: cancelled the submission {folder.name} (jobs {' '.join(ids)})")
     for entry in runs.entries():                                 # its registry entry (V184)
         if entry.get("kind") == "cluster" and entry.get("submission") == str(folder):
             runs.update(entry["id"], verdict="cancelled", finished=round(time.time(), 3))

@@ -45,7 +45,7 @@ def run(p, plan, stopper=None):
     events: list[dict] = []
     bus = Bus()
     bus.subscribe(events.append)
-    result = execute.run_point(plan, p.run, p.configuration, bus=bus, stopper=stopper or execute.Stopper())
+    result = execute.run_point(plan, p.errand, p.configuration, bus=bus, stopper=stopper or execute.Stopper())
     return result, events
 
 
@@ -133,7 +133,7 @@ def test_a_point_that_went_well_keeps_what_its_tools_reported(trees):
 def test_points_json_holds_each_points_state_and_the_runs_constants(trees):
     p, plan, tag = fake("exit 1")
     run(p, plan)
-    data = record.points_manifest(p.every, p.run, p.configuration)
+    data = record.points_manifest(p.every, p.errand, p.configuration)
     entry = next(e for e in data["points"] if e["name"] == plan.point.name)
     assert entry["state"] == "failed" and entry["cause"] == f"{tag} failed (exit code 1)"
     constants = data["constants"]

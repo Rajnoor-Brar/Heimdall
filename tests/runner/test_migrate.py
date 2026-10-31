@@ -44,8 +44,8 @@ title = "#sqrt{s} = 318 GeV"
 def test_a_toml_is_rewritten_line_by_line(scratch):
     path = scratch / "sw.toml"
     path.write_text(OLD, encoding="utf-8")
-    run = config.load(str(path), strict=False)
-    new = migrate.toml_text(OLD, run, run.project)
+    errand = config.load(str(path), strict=False)
+    new = migrate.toml_text(OLD, errand, errand.assignment)
     assert 'sweep_runs  = ["a"] # every configuration but c' in new
     assert "swept" not in new
     assert 'executable = "path:python3" # the interpreter' in new
@@ -129,9 +129,9 @@ def test_the_old_figure_tables_become_figures(scratch, capsys):
     path = scratch / "fig.toml"
     path.write_text(FIGURES, encoding="utf-8")
     assert cli.cmd_migrate(argparse.Namespace(configs=[str(path)], apply=True)) == 0
-    run = config.load(str(path))
-    assert run.plot["figures"]["eta"]["style"] == {"ratio": {"range": [0.8, 1.1], "limits": [0.8, 1.1]}}
-    assert run.plot["figures"]["d04"] == {"objects": ["d04-*"], "logy": True}
+    errand = config.load(str(path))
+    assert errand.plot["figures"]["eta"]["style"] == {"ratio": {"range": [0.8, 1.1], "limits": [0.8, 1.1]}}
+    assert errand.plot["figures"]["d04"] == {"objects": ["d04-*"], "logy": True}
 
 
 def test_run_defaults_move_into_run():
@@ -329,8 +329,8 @@ def test_a_work_dir_in_the_names_before_i112_takes_errand_and_assignment(scratch
     source = tomllib.loads((work / "results/P/s/01_a/plot.toml").read_text(encoding="utf-8"))["source"]
     assert source == {"config": "P/study", "configuration": "a", "errand": "s", "assignment": "P", "folder": "P/s/01_a"}
     monkeypatch.setenv("HEIMDALL_CONFIGS", str(work / "configs"))
-    run = config.load("P/study")
-    assert (run.project, run.name, sorted(run.configurations)) == ("P", "s", ["a", "b"])
+    errand = config.load("P/study")
+    assert (errand.assignment, errand.name, sorted(errand.configurations)) == ("P", "s", ["a", "b"])
     assert cli.cmd_migrate(args) == 0 and "nothing to migrate" in capsys.readouterr().out
 
 

@@ -18,12 +18,12 @@ SEEDS = {"target": "pythia/seed", "values": [1, 101, 201], "tags": ["s1", "s101"
 
 
 def build(data, scratch, configuration=None):
-    run = config.parse(data, scratch / "t.toml")
-    conf = run.configuration(configuration)
-    master = quantities.load_master(run.project, run.master_toml)
+    errand = config.parse(data, scratch / "t.toml")
+    conf = errand.configuration(configuration)
+    master = quantities.load_master(errand.assignment, errand.master_toml)
     plans = []
-    for point in sweep.points(run, conf):
-        plan = tools.plan_point(run, conf, point, master)
+    for point in sweep.points(errand, conf):
+        plan = tools.plan_point(errand, conf, point, master)
         plan.identity = record.identity(plan)
         plans.append(plan)
     record.assign_seeds(plans)
@@ -145,9 +145,9 @@ def test_stages_keep_the_identity_rule(scratch):
     from runner import post
     data = raw(errand__seed_type="manual", quantities__replica=SEEDS, errand__cfgs__one__sweeps=["pdf", "replica"],
                errand__cfgs__one__combine=["replica"])
-    run = config.parse(data, scratch / "t.toml")
-    conf = run.configuration(None)
-    groups = post.plan_combined(run, conf, quantities.load_master(run.project, run.master_toml), build(data, scratch))
+    errand = config.parse(data, scratch / "t.toml")
+    conf = errand.configuration(None)
+    groups = post.plan_combined(errand, conf, quantities.load_master(errand.assignment, errand.master_toml), build(data, scratch))
     assert groups and all(g.seed_type == "identity" and record.seed_rule(g) == "generator" for g in groups)
 
 

@@ -113,9 +113,9 @@ class Configuration:
 
 
 @dataclass
-class RunConfig:
+class Errand:
     path: Path
-    project: str
+    assignment: str
     name: str
     serial: int | None
     default_configuration: str | None                  # None only under sweep_runs
@@ -179,10 +179,10 @@ DEFAULTS = "defaults"
 CFGS = "cfgs"
 
 
-def _layers(run: dict, where: str) -> dict[str, list[tuple[str, dict]]]:
+def _layers(errand: dict, where: str) -> dict[str, list[tuple[str, dict]]]:
     """Each configuration's layers, most specific first (V56): its own table ([errand.cfgs.<cfg>], V98), the
     ones it `extends`, in turn. [errand] (V99) and the schema's defaults come after, in `inherited`."""
-    tables = run.get(CFGS, {})
+    tables = errand.get(CFGS, {})
     for key, table in tables.items():
         if not isinstance(table, dict):
             raise HeimdallError("a configuration is a table", where=f"{where}: [errand.{CFGS}.{key}]")
@@ -554,14 +554,14 @@ def _over(base: dict, over: dict) -> dict:
     return out
 
 
-def _import_path(name, project: str, where: str) -> Path:
+def _import_path(name, assignment: str, where: str) -> Path:
     """An import, named as `heimdall run` names a config (V94): `name` is this project's file
     (configs/<project>/), `<Project>/<name>` another project's, `./…` from the repository root, `/…`
     absolute; `.toml` optional."""
     if not isinstance(name, str) or not name:
         raise HeimdallError(f"an import names a file, got {name!r}", where=where)
     plain = "/" in name and not name.startswith(("./", "/"))
-    source = resolve(name, "config" if plain else "import", project=project, where=where)
+    source = resolve(name, "config" if plain else "import", assignment=assignment, where=where)
     if source.suffix != ".toml" and not source.exists():
         source = source.with_name(source.name + ".toml")
     if not source.is_file():
@@ -631,8 +631,8 @@ def _entry(entry, where: str) -> tuple[str, list | None]:
     return entry, None
 
 
-def _project_of(path: Path, raw: dict, fallback: str) -> str:
-    """The project a file's bare paths are relative to: its folder under configs/, else its [errand].assignment."""
+def _assignment_of(path: Path, raw: dict, fallback: str) -> str:
+    """The assignment a file's bare paths are relative to: its folder under configs/, else its [errand].assignment."""
     try:
         parts = path.resolve().relative_to(configs_root().resolve()).parts
     except ValueError:
@@ -640,7 +640,7 @@ def _project_of(path: Path, raw: dict, fallback: str) -> str:
     return parts[0] if len(parts) > 1 else raw.get("errand", {}).get("assignment") or fallback
 
 
-def _rebased(raw: dict, project: str) -> dict:
+def _rebased(raw: dict, assignment: str) -> dict:
     """A file of another project, its bare path keys made absolute against its own project (V94), so its
     tools find their cards wherever it is imported. The keys are those the schema marks `path`; a value
     that is ./…, /… or path:<command> is left as it is. Paths are resolved alike either way, so no
@@ -650,7 +650,7 @@ def _rebased(raw: dict, project: str) -> dict:
             return [fixed(v, root) for v in value]
         if not isinstance(value, str) or not value or value.startswith(("./", "/", "path:")) or value == DEFAULT:
             return value
-        return str(resolve(value, root, project=project))
+        return str(resolve(value, root, assignment=assignment))
 
     def marked(table: str) -> dict[str, str]:
         return {k: e["path"] for k, e in schema.spec().get(table, {}).items() if "path" in e}
@@ -665,7 +665,7 @@ def _rebased(raw: dict, project: str) -> dict:
     return out
 
 
-def _imports(raw: dict, path: Path, project: str, chain: tuple[Path, ...]) -> tuple[dict, dict, list]:
+def _imports(raw: dict, path: Path, assignment: str, chain: tuple[Path, ...]) -> tuple[dict, dict, list]:
     """[config].import = ["common", "Other/run"]: the run starts from those files' tables, in order, and its
     own win (V56, V93). Each imported file is read the same way first, so imports nest (V94), depth-first;
     a circle is refused. Returns the merged tables, which file gave each quantity, tool and configuration
@@ -683,7 +683,7 @@ def _imports(raw: dict, path: Path, project: str, chain: tuple[Path, ...]) -> tu
     for entry in names:
         name, only = _entry(entry, where)
         only = None if only is None else [named(k) for k in only]
-        source = _import_path(name, project, where)
+        source = _import_path(name, assignment, where)
         if source.resolve() in chain:
             circle = " → ".join(p.name for p in (*chain, source.resolve()))
             raise HeimdallError(f"imports go round in a circle: {circle}", where=where)
@@ -691,14 +691,14 @@ def _imports(raw: dict, path: Path, project: str, chain: tuple[Path, ...]) -> tu
         if "master" in part:
             raise HeimdallError("[master] is [config] now: master_toml is master, include is import (see V93)",
                            where=f"{source}: [master]", hint="heimdall migrate rewrites it")
-        theirs = _project_of(source, part, project)
+        theirs = _assignment_of(source, part, assignment)
         part, inner, deeper = _imports(part, source, theirs, (*chain, source.resolve()))
         if only is not None:                     # V101: a file's vars come with whatever is taken of it
             given = part.get("config", {}).get("vars")
             part = _only(part, only, source, where)
             if given:
                 part = {**part, "config": {**part.get("config", {}), "vars": given}}
-        if theirs != project:
+        if theirs != assignment:
             part = _rebased(part, theirs)
         if "name" in part.get("errand", {}):
             located.append((part["errand"].get("assignment", theirs), part["errand"]["name"], source))
@@ -745,35 +745,35 @@ def _with_imports(raw: dict, path: Path) -> tuple[dict, dict, list]:
     return merged, origins, sorted({source for *_, source in located})
 
 
-def _imported_files(raw: dict, path: Path, project: str, chain: tuple[Path, ...] = ()) -> list[Path]:
+def _imported_files(raw: dict, path: Path, assignment: str, chain: tuple[Path, ...] = ()) -> list[Path]:
     """Every file a run TOML imports, at every level, depth-first (a record's snapshot copies them, V158);
     _imports' own list holds only the imported runs."""
     out: list[Path] = []
     chain = chain or (path.resolve(),)
     for entry in _as_list(raw.get("config", {}).get("import")):
         name, _ = _entry(entry, f"{path}: [config].import")
-        source = _import_path(name, project, f"{path}: [config].import")
+        source = _import_path(name, assignment, f"{path}: [config].import")
         if source.resolve() in chain or source.resolve() in out:
             continue
         out.append(source.resolve())
         part = _read(source)
-        out += [f for f in _imported_files(part, source, _project_of(source, part, project), (*chain, source.resolve()))
+        out += [f for f in _imported_files(part, source, _assignment_of(source, part, assignment), (*chain, source.resolve()))
                 if f not in out]
     return out
 
 
-def _folder_list(run) -> list[tuple[str, str]]:
+def _folder_list(errand) -> list[tuple[str, str]]:
     """Each configuration's folder, <project>/<run>/<NN_><label> (as tools.run_dir makes it; NN_ literally
     when the runner numbers it), with its key."""
     out = []
-    for key, c in run.configurations.items():
+    for key, c in errand.configurations.items():
         folder = f"{c.serial:02d}_{c.label}" if c.serial is not None else f"NN_{c.label}" if c.serial_auto else c.label
-        out.append((f"{run.project}/{c.run_folder or run.name}/{folder}", key))
+        out.append((f"{errand.assignment}/{c.run_folder or errand.name}/{folder}", key))
     return out
 
 
-def _folders(run) -> dict[str, str]:
-    return dict(_folder_list(run))
+def _folders(errand) -> dict[str, str]:
+    return dict(_folder_list(errand))
 
 
 def _clash(one: str, other: str) -> bool:
@@ -788,28 +788,28 @@ def _clash(one: str, other: str) -> bool:
     return label(a[1]) is not None and label(a[1]) == label(b[1])
 
 
-def _own_folders(run) -> None:
+def _own_folders(errand) -> None:
     """A configuration the runner numbers has its folder to itself: another of this file with its label
     would share the numbers. A run with compare figures keeps the folder `compare` for them (U30)."""
-    figures = (run.plot or {}).get("figures") or {}
+    figures = (errand.plot or {}).get("figures") or {}
     if any(isinstance(f, dict) and f.get("class") == "compare" for f in figures.values()):
-        for key, c in run.configurations.items():
+        for key, c in errand.configurations.items():
             if c.serial is None and not c.serial_auto and c.label == "compare":
                 raise HeimdallError(f"configuration '{key}' would write the folder 'compare', where this run's compare "
-                               "figures go", where=f"{run.path}", hint="give it another folder (label), or a serial")
-    mine = _folder_list(run)
+                               "figures go", where=f"{errand.path}", hint="give it another folder (label), or a serial")
+    mine = _folder_list(errand)
     for i, (folder, key) in enumerate(mine):
         for other, other_key in mine[i + 1:]:
             if _clash(folder, other):
                 shown = folder if folder == other else f"{folder.rsplit('/', 1)[0]}/NN_{folder.rsplit('/', 1)[1].split('_', 1)[1]}"
-                raise HeimdallError(f"configurations '{key}' and '{other_key}' would both write {shown}", where=f"{run.path}",
+                raise HeimdallError(f"configurations '{key}' and '{other_key}' would both write {shown}", where=f"{errand.path}",
                                hint="give one of them another folder (or name); a folder the runner numbers is one configuration's")
 
 
-def _shared_folders(run, imported: list[Path]) -> None:
+def _shared_folders(errand, imported: list[Path]) -> None:
     """V100: an imported run may share this file's [errand].name (its results beside the other's), but no
     configuration of the two may have the same folder, or their points would overwrite each other's."""
-    mine = _folders(run)
+    mine = _folders(errand)
     for source in imported:
         try:
             theirs = _folders(load(str(source), strict=False))
@@ -818,7 +818,7 @@ def _shared_folders(run, imported: list[Path]) -> None:
         for folder in sorted(f for f in mine if any(_clash(f, t) for t in theirs)):
             other = next(theirs[t] for t in theirs if _clash(folder, t))
             raise HeimdallError(f"[errand.cfgs.{mine[folder]}] and {source.name}'s [errand.cfgs.{other}] would both write "
-                           f"{folder}", where=f"{run.path}: [errand]",
+                           f"{folder}", where=f"{errand.path}: [errand]",
                            hint="give one of them another serial, label or name: a folder belongs to one configuration")
 
 
@@ -908,27 +908,27 @@ def _with_own(raw: dict, own: dict) -> dict:
     return out
 
 
-def for_configuration(run: RunConfig, name: str | None) -> tuple[RunConfig, Configuration]:
-    """The file read for one configuration (V179): `run` itself when that configuration sets nothing of its
-    own (OWN_TABLES) or `run` was read with what it sets, else the file read again with it."""
-    configuration = run.configuration(name)
-    if configuration.own == run.applied:
-        return run, configuration
-    again = load(str(run.path), sets=list(run.sets), configuration=configuration.key)
+def for_configuration(errand: Errand, name: str | None) -> tuple[Errand, Configuration]:
+    """The file read for one configuration (V179): `errand` itself when that configuration sets nothing of its
+    own (OWN_TABLES) or `errand` was read with what it sets, else the file read again with it."""
+    configuration = errand.configuration(name)
+    if configuration.own == errand.applied:
+        return errand, configuration
+    again = load(str(errand.path), sets=list(errand.sets), configuration=configuration.key)
     return again, again.configuration(configuration.key)
 
 
-def check_read_for(run: RunConfig, configuration: Configuration) -> None:
+def check_read_for(errand: Errand, configuration: Configuration) -> None:
     """A configuration planned or drawn from a file read for another (V179): refused, never quietly with the
     other's cards or data."""
-    if configuration.own != run.applied:
+    if configuration.own != errand.applied:
         raise HeimdallError(f"configuration '{configuration.key}' sets its own {' and '.join(configuration.own) or 'nothing'}, "
-                       "and this file was read for another", where=str(run.path),
+                       "and this file was read for another", where=str(errand.path),
                        hint="(Heimdall's) read it with config.for_configuration(run, name)")
 
 
 def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | None = None,
-         configuration: str | None = None) -> RunConfig:
+         configuration: str | None = None) -> Errand:
     """A run TOML, checked. `strict=False` (heimdall migrate only, V79) still reads the forms it rewrites;
     `text` (heimdall migrate's, V81) is read in place of the file's. Read for `configuration` (else the
     default one), with its own vars and data (V179)."""
@@ -948,18 +948,18 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
         apply_sets(raw, list(sets))
     key = configuration or (raw.get("errand", {}).get("configuration") if isinstance(raw.get("errand"), dict) else None)
     raw = with_vars(_with_own(raw, _own_of(raw, key)), path)
-    run = parse(raw, path, strict=strict)
-    run.applied = run.configurations[key].own if key in run.configurations else {}
-    _own_folders(run)
-    _shared_folders(run, imported)
-    run.included = included
-    run.imported = _imported_files(_form(given, path), path, run.project)
-    report, run.templates = report_of(raw.get("report", {}), path, run.project, f"{path}: [report]")
-    run.report = {k: v for k, v in report.items() if k not in NOT_IN_A_RUN}   # a template's from and output: a recipe's
-    run.sets = list(sets)
+    errand = parse(raw, path, strict=strict)
+    errand.applied = errand.configurations[key].own if key in errand.configurations else {}
+    _own_folders(errand)
+    _shared_folders(errand, imported)
+    errand.included = included
+    errand.imported = _imported_files(_form(given, path), path, errand.assignment)
+    report, errand.templates = report_of(raw.get("report", {}), path, errand.assignment, f"{path}: [report]")
+    errand.report = {k: v for k, v in report.items() if k not in NOT_IN_A_RUN}   # a template's from and output: a recipe's
+    errand.sets = list(sets)
     if strict:
-        _check_used(run)
-    return run
+        _check_used(errand)
+    return errand
 
 
 def heimdall_table(name: str, *, sets: list[str] = ()) -> dict:
@@ -995,24 +995,24 @@ def plot_of(name: str) -> dict:
     return plot
 
 
-def _check_used(run: RunConfig) -> None:
+def _check_used(errand: Errand) -> None:
     """A quantity of this file's own (not an import's) that no configuration varies, fixes or chooses a tool
     by would change nothing: refused, with the fix (U36)."""
     used: set[str] = set()
-    for configuration in run.configurations.values():
+    for configuration in errand.configurations.values():
         used |= {n for entry in configuration.sweeps for n in (entry if isinstance(entry, list) else [entry])}
         used |= set(configuration.static)
         used |= {m[1:] for groups in (configuration.tools, configuration.pre, configuration.post)
                  for group in groups for m in group if m.startswith("@")}
-    for name in run.quantities:
-        if name in used or f"quantities.{name}" in run.included:
+    for name in errand.quantities:
+        if name in used or f"quantities.{name}" in errand.included:
             continue
-        if run.form == 3:
+        if errand.form == 3:
             raise HeimdallError(f"quantity '{name}' is declared but neither varied nor fixed: it would change nothing",
-                           where=f"{run.path}: [quantities.{name}]",
+                           where=f"{errand.path}: [quantities.{name}]",
                            hint="give it fixed = \"<tag>\", vary it in a configuration (vary = [...]), or remove it")
         raise HeimdallError(f"quantity '{name}' is declared but neither swept nor static: it would change nothing",
-                       where=f"{run.path}: [quantities.{name}]",
+                       where=f"{errand.path}: [quantities.{name}]",
                        hint="set it in [static] (or a configuration's static), sweep it in a configuration, or remove it")
 
 
@@ -1030,19 +1030,19 @@ def _marks(raw: dict) -> tuple[dict, int, dict, dict, dict]:
         silent = {q for q, tb in raw["quantities"].items() if isinstance(tb, dict) and tb.get(v3.SILENT)}
         raw["quantities"] = {q: ({k: v for k, v in tb.items() if k != v3.SILENT} if isinstance(tb, dict) else tb)
                              for q, tb in raw["quantities"].items()}
-    run = raw.get("errand")
-    if isinstance(run, dict) and isinstance(run.get(CFGS), dict):
+    errand = raw.get("errand")
+    if isinstance(errand, dict) and isinstance(errand.get(CFGS), dict):
         cfgs = {}
-        for key, tb in run[CFGS].items():
+        for key, tb in errand[CFGS].items():
             if isinstance(tb, dict) and v3.FAMILY in tb:
                 families.setdefault(tb[v3.FAMILY], []).append(key)
                 tb = {k: v for k, v in tb.items() if k != v3.FAMILY}
             cfgs[key] = tb
-        raw["errand"] = {**run, CFGS: cfgs}
+        raw["errand"] = {**errand, CFGS: cfgs}
     return raw, form, keep, silent, families
 
 
-def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
+def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
     where = str(path)
     raw, form, keep, silent, families = _marks(raw)
     sections = schema.sections()
@@ -1059,38 +1059,38 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     schema.check(file_config, "config", f"{where}: [config]")
     check_meta(file_config.get("meta", {}), f"{where}: [config.meta]")
 
-    run = raw.get("errand")
-    if not isinstance(run, dict):
+    errand = raw.get("errand")
+    if not isinstance(errand, dict):
         raise HeimdallError("missing [errand]", where=where, hint="every run TOML has [errand] name, assignment, configuration")
-    if isinstance(run.get(DEFAULTS), dict):                         # V99: [errand] gives what it gave
+    if isinstance(errand.get(DEFAULTS), dict):                      # V99: [errand] gives what it gave
         if strict:
             raise HeimdallError(f"[errand.{DEFAULTS}] is [errand] now: its keys go in [errand] itself, which every configuration "
                            "starts from (see V99)", where=f"{where}: [errand.{DEFAULTS}]", hint="heimdall migrate moves them")
-        run = {**{k: v for k, v in run.items() if k != DEFAULTS}, **run[DEFAULTS]}   # it was above [errand]
-        raw = {**raw, "errand": run}
-    old = [k for k, v in run.items() if isinstance(v, dict) and k != CFGS and k not in schema.keys("errand")]
+        errand = {**{k: v for k, v in errand.items() if k != DEFAULTS}, **errand[DEFAULTS]}   # it was above [errand]
+        raw = {**raw, "errand": errand}
+    old = [k for k, v in errand.items() if isinstance(v, dict) and k != CFGS and k not in schema.keys("errand")]
     if old and strict:                                                # break and migrate (V98)
         raise HeimdallError(f"[errand.{old[0]}] is a configuration, and configurations are [errand.{CFGS}.<cfg>] now (see V98)",
                        where=f"{where}: [errand.{old[0]}]",
                        hint=f"write [errand.{CFGS}.{old[0]}]; heimdall migrate rewrites the file")
     if old:                                      # heimdall migrate reads the old form it rewrites (V79, V98)
-        run = {**{k: v for k, v in run.items() if k not in old}, CFGS: {**{k: run[k] for k in old}, **run.get(CFGS, {})}}
-        raw = {**raw, "errand": run}
-    schema.check(run, "errand", f"{where}: [errand]")
-    sweep_on = run.get("sweep_runs") is True or (isinstance(run.get("sweep_runs"), list) and bool(run["sweep_runs"]))
+        errand = {**{k: v for k, v in errand.items() if k not in old}, CFGS: {**{k: errand[k] for k in old}, **errand.get(CFGS, {})}}
+        raw = {**raw, "errand": errand}
+    schema.check(errand, "errand", f"{where}: [errand]")
+    sweep_on = errand.get("sweep_runs") is True or (isinstance(errand.get("sweep_runs"), list) and bool(errand["sweep_runs"]))
     if strict:                                  # V79: the forms heimdall migrate rewrites
-        for key, table in run.get(CFGS, {}).items():
+        for key, table in errand.get(CFGS, {}).items():
             if isinstance(table, dict) and "swept" in table:
                 raise HeimdallError(f"[errand.{CFGS}.{key}].swept is gone: [errand].sweep_runs lists the configurations it runs (see V79)",
                                where=f"{where}: [errand.{CFGS}.{key}].swept",
                                hint="sweep_runs = [\"a\", \"b\"], in the order to run them; heimdall migrate rewrites this file")
     for required in ("name", "assignment") + (() if sweep_on else ("configuration",)):
-        if required not in run:
+        if required not in errand:
             raise HeimdallError(f"[errand] needs '{required}'", where=f"{where}: [errand]")
-    project = run["assignment"]
+    assignment = errand["assignment"]
     # A config under configs/<X>/ belongs to assignment X; one given as ./path elsewhere (tests) need not.
-    if path.parent.parent == configs_root() and path.parent.name != project:
-        raise HeimdallError(f"[errand].assignment is '{project}' but the file is in configs/{path.parent.name}/",
+    if path.parent.parent == configs_root() and path.parent.name != assignment:
+        raise HeimdallError(f"[errand].assignment is '{assignment}' but the file is in configs/{path.parent.name}/",
                        where=f"{where}: [errand].assignment", hint="they must match")
 
     prelim = raw.get("prelim", {})
@@ -1174,7 +1174,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     check_cluster(cluster, f"{where}: [cluster]")
 
     configurations: dict[str, Configuration] = {}
-    for key, chain in _layers(run, where).items():
+    for key, chain in _layers(errand, where).items():
         table = chain[0][1]
         at = f"{where}: [errand.{CFGS}.{key}]"
         origins: dict[str, str] = {}
@@ -1184,7 +1184,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
             "default" in a layer is the next one's (V55); else the schema's default."""
             layers = chain
             if name in schema.keys("errand"):
-                layers = [*layers, ("[errand]", run)]
+                layers = [*layers, ("[errand]", errand)]
             for origin, layer in layers:
                 if name in layer and layer[name] != DEFAULT:
                     origins[name] = origin
@@ -1247,7 +1247,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
         configurations[key] = Configuration(
             key=key, label=table.get("label") or key, serial=inherited("serial"),                     # V45
             serial_auto=form == 3 and inherited("serial") is None,
-            run_folder=inherited("name") or run["name"],                                              # V46
+            run_folder=inherited("name") or errand["name"],                                           # V46
             swept=table.get("swept", True), title=table.get("title", key),
             seed_type=inherited("seed_type"), manual_seed=inherited("manual_seed"),
             description=inherited("description", ""), event_count=int(event_count),
@@ -1267,8 +1267,8 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
         check_selectors(configurations[key], quantities, tools, f"{at}.tools")
 
     a_cfg = "[cfgs.<name>]" if form == 3 else "[errand.cfgs.<cfg>]"   # in the file's own names
-    if isinstance(run.get("sweep_runs"), list):            # V79: the members, in order
-        listed = run["sweep_runs"]
+    if isinstance(errand.get("sweep_runs"), list):         # V79: the members, in order
+        listed = errand["sweep_runs"]
         for name in listed:
             if name not in configurations:
                 raise HeimdallError(f"[errand].sweep_runs names '{name}', which is not a {a_cfg} table",
@@ -1279,10 +1279,10 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     if sweep_on and not any(c.swept for c in configurations.values()):
         raise HeimdallError("[errand].sweep_runs is on but every configuration has swept = false", where=f"{where}: [errand].sweep_runs",
                        hint="leave one in, or turn the sweep off")
-    if "configuration" in run and run["configuration"] not in configurations:
+    if "configuration" in errand and errand["configuration"] not in configurations:
         key = "run" if form == 3 else "configuration"
-        raise HeimdallError(f"[errand].{key} is '{run['configuration']}', which is not a {a_cfg} table", where=f"{where}: [errand].{key}",
-                       hint=did_you_mean(run["configuration"], configurations)
+        raise HeimdallError(f"[errand].{key} is '{errand['configuration']}', which is not a {a_cfg} table", where=f"{where}: [errand].{key}",
+                       hint=did_you_mean(errand["configuration"], configurations)
                        or f"configurations: {', '.join(configurations) or '(none)'}")
 
     plot = raw.get("plot", {})
@@ -1295,12 +1295,12 @@ def parse(raw: dict, path: Path, strict: bool = True) -> RunConfig:
     if "report" in raw:                                    # V209: what its folders' reports show
         check_report(raw["report"], f"{where}: [report]", run_toml=True)
 
-    return RunConfig(path=path, project=project, name=run["name"], serial=run.get("serial"),
-                     default_configuration=run.get("configuration"), configurations=configurations,
-                     prelim=prelim, static=static, tools=tools, quantities=quantities, plot=plot,
-                     master_toml=file_config.get("master"), meta=dict(file_config.get("meta", {})), raw=raw, sweep_runs=sweep_on,
-                     sweep_list=list(run["sweep_runs"]) if isinstance(run.get("sweep_runs"), list) else [],
-                     families=families, form=form, stats=dict(stats))
+    return Errand(path=path, assignment=assignment, name=errand["name"], serial=errand.get("serial"),
+                  default_configuration=errand.get("configuration"), configurations=configurations,
+                  prelim=prelim, static=static, tools=tools, quantities=quantities, plot=plot,
+                  master_toml=file_config.get("master"), meta=dict(file_config.get("meta", {})), raw=raw, sweep_runs=sweep_on,
+                  sweep_list=list(errand["sweep_runs"]) if isinstance(errand.get("sweep_runs"), list) else [],
+                  families=families, form=form, stats=dict(stats))
 
 
 TEXT_KEYS = ("labels", "title", "title_left", "title_right", "legend_header", "x_label", "y_label", "legend")
@@ -1454,7 +1454,7 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
             raise HeimdallError("hide is a tools section's: the varied lines it leaves out", where=f"{at}.hide")
 
 
-def report_of(table: dict, path: Path, project: str, where: str, chain: tuple[Path, ...] = ()) -> tuple[dict, list[Path]]:
+def report_of(table: dict, path: Path, assignment: str, where: str, chain: tuple[Path, ...] = ()) -> tuple[dict, list[Path]]:
     """[report] with its template laid under it (V209): `template` names a recipe as [config].import names a file
     (a bare name this project's, <P>/<name> another's, ./… the work dir's; .toml optional), whose keys this
     table's replace and whose sections come first; a template naming its own is followed, a circle refused.
@@ -1464,7 +1464,7 @@ def report_of(table: dict, path: Path, project: str, where: str, chain: tuple[Pa
         return dict(table), []
     at = f"{where}.template"
     try:
-        source = _import_path(named, project, at)
+        source = _import_path(named, assignment, at)
     except HeimdallError:
         raise HeimdallError(f"no report template '{named}'", where=at,
                        hint="a bare name is this project's (configs/<project>/); <Project>/<name> another's; ./… the work dir's") from None
@@ -1476,7 +1476,7 @@ def report_of(table: dict, path: Path, project: str, where: str, chain: tuple[Pa
         raise HeimdallError("a report's template is a recipe: a file with a [report] table and nothing else", where=str(source),
                        hint=f"its tables: {', '.join(data) or '(none)'}")
     check_report(data["report"], f"{source}: [report]")
-    below, read = report_of(data["report"], source, _project_of(source, data, project), f"{source}: [report]",
+    below, read = report_of(data["report"], source, _assignment_of(source, data, assignment), f"{source}: [report]",
                             (*chain, source.resolve()))
     merged = {k: v for k, v in below.items() if k != "section"}
     merged.update({k: v for k, v in table.items() if k not in ("section", "template")})

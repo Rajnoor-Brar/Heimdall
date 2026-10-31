@@ -25,7 +25,7 @@ from .record import (cause_text, constants, constants_lines, held_by, holder, pr
                      run_tag, state_of, write_run_tag)
 
 TABLES = {"run": "run", "config": "config", "prelim": "prelim", "plot": "plot", "data": "data",
-          "configuration": "configuration", "quantity": "quantity", "quantities": "quantity", "tool": "tool",
+          "across_from": "across_from", "configuration": "configuration", "quantity": "quantity", "quantities": "quantity", "tool": "tool",
           "tools": "tool", "figure": "figure", "figures": "figure"}
 
 
@@ -186,6 +186,7 @@ TABLE_TEXT = {
     "quantity": "[quantities.<q>]: a quantity: its points, fixed point and bindings",
     "tool": "[tools.<tag>]: a tool table; its folder's own keys are `heimdall tools <folder>`",
     "plot": "[plot]: the pages", "figure": "[plot.figures.<f>]: one figure's pages", "data": "[plot.data]: reference data",
+    "across_from": "[plot.across_from]: the runs drawn together and how (the drawing's [from])",
     "cluster": "[cluster]: heimdall cluster's Slurm keys (machine.toml, heimdall.toml, the run TOML, a configuration)",
     "prelim": "[prelim] (v2 only; v3 infers it): FIFOs, files and commands of each point",
 }
@@ -272,6 +273,8 @@ def explain(key: str) -> list[str]:
         table = TABLES[parts[0]]
         if parts[0] == "run" and len(parts) >= 3 and parts[1] == "cfgs":   # a configuration's (V98)
             table = "configuration"
+        elif parts[0] == "plot" and len(parts) >= 3 and parts[1] in ("data", "across_from"):   # a table of [plot]'s
+            table = TABLES[parts[1]]
         name = parts[-1]
         if name in schema.keys(table):
             found.append((table, name))

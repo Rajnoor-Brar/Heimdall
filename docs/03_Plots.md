@@ -491,23 +491,50 @@ curves = { pdf = "all" }
 ```
 
 - **The members** are every run's points (each run's plot document's), named `<run>__<point>`, with their
-  quantities matched by tag across the runs, and three attributes:
+  quantities matched by tag across the runs, and these attributes:
   - `@events`: the run's event count, tags like `10M`, labels `10M events`; it is an axis, so a set that does
     not name it gets a page per event count;
+  - `@tag`: the run's tag (`heimdall run … --tag nlo`, the configuration's `tag` key or `heimdall tag`: 05 §1.1),
+    there only when at least one of the runs is tagged; an untagged run among them has the value `""`, labelled
+    and named `untagged`. It is an axis as `@events` is: a set that does not name it gets a page per tag, so the
+    curves of two tags never share a page unseen;
   - `@run`: the run's folder (`04_generator_pdf`);
   - `@configuration`: its configuration.
 
-  The last two are not paged by themselves; name them to use them.
+  The last two are not paged by themselves; name them to use them. With no run tagged there is no `@tag`, and
+  the drawing is as it always was.
 - **Where:** `results/<P>/<name>/plot.toml`, written by a run of the run TOML when it has none, holds
   `[from]` and the run TOML's `[plot]` with these sets. The pages go to `results/<P>/<name>/plots/<set>/`, their
   numbers to `statistics/<set>/`.
-- **`[from]`:** `runs = ["04_*", "0[5-7]_*"]` names the runs, by folder globs (every run by default).
-  `prefer = "last"` (the default) draws a point two runs have (every tag and the event count the same) from
-  the later one that completed it, and says so; `"all"` keeps both.
+- **`[from]`:**
+  - `runs = ["04_*", "0[5-7]_*"]` names the runs, by folder globs (every run by default).
+  - `prefer = "last"` (the default) draws a point two runs have (every tag, the event count and the run's tag the
+    same) from the later one that completed it, and says so; `"all"` keeps both. Runs of different tags never
+    stand for each other: the same point run again under a new tag is a curve of its own, and run again under
+    its tag it replaces the earlier.
+  - `ignore = ["generator"]` names quantities (or `"@events"`) that are no axis across the runs: an ignored
+    quantity never pages a set or tells its curves apart, and never keeps two runs' points apart. Two runs that
+    differ only by their generator, each tagged, are then one set of curves, a curve per tag. It must hold one
+    value within each run (else the drawing is refused, naming the run and its values), and it stays each
+    point's value: a page text citing `{q:generator}` shows it when the page's curves share it. A name no run
+    has is refused, with the nearest.
+- **From the config:** `[plot.across_from]` (04 §11.4) holds the same keys; a run writes it into the document's
+  `[from]` (over the defaults) when it writes the document, and `--style-sync` with `--across` writes it again.
+  Without the table a sync leaves `[from]` as it is.
+
+  ```toml
+  [plot.across_from]
+  runs   = ["0[3-9]_*"]
+  ignore = ["generator"]          # the runs' tags tell them apart
+
+  [plot.across.by_tag]
+  pages  = { pdf = "all" }
+  curves = { "@tag" = "all" }
+  ```
 - **Drawn by** `heimdall plot <config> --across` (or `heimdall plot results/<P>/<name>`), measured by
-  `heimdall stats <config> --across`. `--style-sync <config>` with `--across` takes the config's `[plot]` and
-  `[plot.across]` into it. A compare figure (§7.5) still draws configurations side by side from one run's
-  plot stage; `@configuration` here is the same over any runs.
+  `heimdall stats <config> --across`. `--style-sync <config>` with `--across` takes the config's `[plot]`,
+  `[plot.across]` and `[plot.across_from]` into it. A compare figure (§7.5) still draws configurations side by
+  side from one run's plot stage; `@configuration` here is the same over any runs.
 
 ---
 

@@ -31,7 +31,8 @@ TYPES = {"int": int, "float": (int, float), "str": str, "bool": bool, "list": li
 NAMES = {"int": "an integer", "float": "a number", "str": "a string", "bool": "true or false", "list": "a list",
          "table": "a table"}
 #: The tables of run.toml that describe keys (the rest, [sections], describe the file).
-TABLES = ("config", "run", "configuration", "prelim", "quantity", "tool", "plot", "figure", "data", "stats", "cluster")
+TABLES = ("config", "run", "configuration", "prelim", "quantity", "tool", "plot", "figure", "data", "across_from", "stats",
+          "cluster")
 #: The tables of report.toml, a report's recipe (configs/<P>/<name>.toml with [report], V207).
 REPORT_TABLES = ("report", "section")
 #: A figure's own keys: the rest are what it sets for its pages.
@@ -59,7 +60,7 @@ RUN_GIVES = ("tools", "sweeps", "plot_points", "combine", "pre", "post", "genera
 #: How a table is named in an error that sends a key to it.
 HOMES = {"run": "[run] (or a configuration)", "configuration": "a configuration ([cfgs.<name>], v2's [run.cfgs.<name>])",
          "quantity": "[quantities.<q>]", "tool": "[tools.<tag>]", "plot": "[plot]", "figure": "a figure ([plot.figures.<f>])",
-         "data": "[plot.data]", "cluster": "[cluster]", "config": "[file] (v2's [config])", "prelim": "[prelim] (v2)"}
+         "data": "[plot.data]", "across_from": "[plot.across_from]", "cluster": "[cluster]", "config": "[file] (v2's [config])", "prelim": "[prelim] (v2)"}
 #: v3's own keys (runner/v3.py), where they belong.
 V3_HOMES = {"events": "[run] (or a configuration)", "chain": "[run] (or a configuration)", "vary": "a configuration (or [run])",
             "seed": "[run] (or a configuration)", "run": "[run]", "commands": "[run]", "folder": "a configuration",
@@ -260,6 +261,8 @@ def json_schema() -> dict:
     plot["properties"]["figures"] = {"type": "object", "additionalProperties": figure}
     plot["properties"]["data"] = _object("data")
     plot["properties"]["data"]["properties"]["map"] = {"type": "object", "additionalProperties": {"type": "string"}}
+    plot["properties"]["across_from"] = {**_object("across_from"),
+                                         "description": plot["properties"]["across_from"]["description"]}   # V224
     section = _object("section")
     section["properties"]["plot"] = {**plot, "description": section["properties"]["plot"]["description"]}
     report = _object("report")

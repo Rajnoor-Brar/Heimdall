@@ -1541,7 +1541,8 @@ def across_of(args) -> Path:
 
 def style_sync_across(args) -> int:
     """`heimdall plot CONFIG --across --style-sync CONFIG`: the Name level's [plot] and [stats] become the config's
-    (its [plot] with its [plot.across] sets); --plan says what would change; --replot draws."""
+    (its [plot] with its [plot.across] sets), and its [from] the config's [plot.across_from] when it has one (V224);
+    --plan says what would change; --replot draws."""
     run = configmod.load(args.style_sync, sets=args.set)
     plot.validate(run)
     target = plotdoc.across_path(run.project, run.name)
@@ -1551,12 +1552,15 @@ def style_sync_across(args) -> int:
         print(f"plot: wrote {target}")
         return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
     new_plot, new_stats = plotdoc.across_chosen(run)
+    wanted = plotdoc.from_of(run) if (run.plot or {}).get(plotdoc.FROM) is not None else None
     doc = plotdoc.load(target)[0]
-    changed = sorted(k for k in {*doc.plot, *new_plot} if doc.plot.get(k) != new_plot.get(k))
-    print(f"{'would sync' if args.plan else 'synced '} {target}: " + (", ".join(f"[plot].{k}" for k in changed) or "the same"))
+    changed = [f"[plot].{k}" for k in sorted(k for k in {*doc.plot, *new_plot} if doc.plot.get(k) != new_plot.get(k))]
+    if wanted is not None and wanted != plotdoc.from_in(target):
+        changed.insert(0, "[from]")
+    print(f"{'would sync' if args.plan else 'synced '} {target}: " + (", ".join(changed) or "the same"))
     if args.plan or not changed:
         return 0
-    plotdoc.write_chosen(target, new_plot, new_stats)
+    plotdoc.write_chosen(target, new_plot, new_stats, wanted)
     return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
 
 

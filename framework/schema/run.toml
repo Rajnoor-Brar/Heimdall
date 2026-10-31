@@ -24,7 +24,8 @@
 #
 # Tables: config, run, configuration ([run.cfgs.<cfg>]), prelim, quantity ([quantities.<q>]), tool
 # ([tools.<tag>]: the keys every tool table may carry; a folder's [options] add its own), plot,
-# figure ([plot.figures.<figure>]), data, cluster (also a work dir's heimdall.toml [cluster], V114).
+# figure ([plot.figures.<figure>]), data, across_from ([plot.across_from]), cluster (also a work dir's
+# heimdall.toml [cluster], V114).
 
 [sections]
 order = ["config", "run", "prelim", "static", "tools", "quantities", "plot", "stats", "report", "cluster", "heimdall"]
@@ -890,12 +891,21 @@ notes = """\
 
 [plot.across]
 type = "table"
-doc  = "the run TOML's sets across its runs, [plot.across.<set>]: drawn at results/<P>/<name>/, by @run, @events, @configuration and the quantities (V169)"
+doc  = "the run TOML's sets across its runs, [plot.across.<set>]: drawn at results/<P>/<name>/, by @run, @events, @configuration, @tag and the quantities (V169)"
 notes = """\
   sets of the runs of this run TOML together (V169), as `[plot.sets.<name>]` are of one run's points, with \
-  three more axes: `@events` (each run's event count, tags like `10M`), `@run` (its folder) and \
-  `@configuration`. Kept in `results/<P>/<name>/plot.toml`, drawn by `heimdall plot <P>/<name> --across` into \
-  `results/<P>/<name>/plots/<set>/` and `statistics/<set>/`"""
+  more axes: `@events` (each run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, \
+  when a run is tagged, `@tag` (each run's tag; an untagged run's labelled `untagged`). `@events` and `@tag` each \
+  page a set that does not name it. Kept in `results/<P>/<name>/plot.toml`, drawn by `heimdall plot <P>/<name> --across` into \
+  `results/<P>/<name>/plots/<set>/` and `statistics/<set>/`; which runs, and how, is `[plot.across_from]`"""
+
+[plot.across_from]
+type = "table"
+doc  = "which runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)"
+notes = """\
+  the runs together's `[from]`: written into `results/<P>/<name>/plot.toml` over its defaults (every run, \
+  `prefer = \"last\"`) when a run writes that document, and by `heimdall plot … --across --style-sync`; \
+  without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"""
 
 [plot.draw]
 type  = "list"
@@ -1224,6 +1234,38 @@ type = "table"
 doc  = "a style layer for these pages"
 notes = """\
   a style layer for these pages (04 §12)"""
+
+# ── [plot.across_from]: the runs together's [from] (V224) ───────────────────────────────────
+
+[across_from.runs]
+type    = "list"
+items   = "str"
+default = ["*"]
+doc     = "the runs drawn together: globs of their folders (04_*, 0[5-7]_*)"
+notes = """\
+  the runs drawn together, by globs of their folders beside the document (`[\"04_*\", \"0[5-7]_*\"]`); \
+  every run by default"""
+
+[across_from.prefer]
+type    = "str"
+choices = ["last", "all"]
+default = "last"
+doc     = "a point two runs of one tag have: drawn from the later (last) or from both (all)"
+notes = """\
+  a point two runs have (every quantity's tag, the event count and the run's tag the same, the ignored \
+  quantities aside): `\"last\"` draws it from the later run that completed it, and says so; `\"all\"` keeps \
+  both. Runs of different tags never stand for each other"""
+
+[across_from.ignore]
+type  = "list"
+items = "str"
+doc   = "quantities (or \"@events\") that are no axis across the runs: one value within each run (V224)"
+notes = """\
+  quantities of the runs (or `\"@events\"`) that are no axis across them: an ignored quantity never pages \
+  a set or tells its curves apart, and never keeps two runs' points apart (with `prefer = \"last\"` the \
+  later stands for both, unless their tags differ). It must hold one value within each run, else the \
+  drawing is refused, naming the run and its values; its value stays each point's, so a page text that \
+  cites it (`{q:generator}`) shows it when the page's curves share it. A name no run has is refused"""
 
 # ── [plot.data] ──────────────────────────────────────────────────────────────────────────────
 

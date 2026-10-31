@@ -28,7 +28,7 @@ import tomli_w
 
 from . import schema
 from .config import Quantity, check_read_for
-from .errors import HeimdallError
+from .errors import HeimdallError, did_you_mean
 from .paths import cache_root, records_root, results_root
 from .plot import DEFAULT, Member, data_source, style_file, yoda_of
 from .sweep import Listed, Point
@@ -382,7 +382,7 @@ def chosen_of(run, configuration, members: list, picks=None) -> tuple[dict, dict
     `configuration`) as `draw` and `[stats].sets`."""
     picks = picks if picks is not None else configuration
     from .sweep import TOTALITY, named_sets, totality
-    plot = {k: v for k, v in (run.plot or {}).items() if k != ACROSS}       # across: the Name level's (V169)
+    plot = {k: v for k, v in (run.plot or {}).items() if k not in (ACROSS, FROM)}   # the Name level's (V169, V224)
     if plot:
         sets = named_sets(plot.get("sets"))
         plot["sets"] = {TOTALITY: totality(configuration, members), **sets} if TOTALITY not in sets else sets
@@ -466,16 +466,19 @@ def write(run, configuration, members: list) -> tuple[Path | None, list[str]]:
     return target, notes
 
 
-def write_chosen(target: Path, plot: dict, stats: dict) -> None:
-    """A document's [plot] and [stats] replaced (--style-sync), what the run knows left as it is."""
+def write_chosen(target: Path, plot: dict, stats: dict, wanted: dict | None = None) -> None:
+    """A document's [plot] and [stats] replaced (--style-sync), and a Name level's [from] when `wanted` (V224);
+    what the run knows left as it is."""
     import tomllib
     data = tomllib.loads(target.read_text(encoding="utf-8"))
+    if wanted is not None:
+        data["from"] = dict(wanted)
     data["plot"] = plot
     data.pop("stats", None)
     if stats:
         data["stats"] = stats
     partial = target.with_name(target.name + ".partial")
-    partial.write_text(HEADER + dumps(data), encoding="utf-8")
+    partial.write_text((ACROSS_HEADER if "members" not in data and "from" in data else HEADER) + dumps(data), encoding="utf-8")
     partial.replace(target)
 
 
@@ -587,9 +590,16 @@ def find(name: str) -> Path | None:
 
 # ── the runs of a run TOML together (V169): results/<P>/<name>/plot.toml ─────────────────────────────────
 
-#: A run TOML's sets across its runs, [plot.across.<set>] (V169); the attributes each member carries.
+#: A run TOML's sets across its runs, [plot.across.<set>] (V169); the attributes each member carries (@tag only
+#: when a run is tagged, V224).
 ACROSS = "across"
-ATTRIBUTES = ("@run", "@events", "@configuration")
+ATTRIBUTES = ("@run", "@events", "@configuration", "@tag")
+#: [plot.across_from] (V224): the run TOML's [from], its keys the schema's table of that name.
+FROM = "across_from"
+#: [from]'s keys when the config gives none (V169).
+FROM_DEFAULT = {"runs": ["*"], "prefer": "last"}
+#: An untagged run's @tag among tagged ones: its label (its value is "").
+UNTAGGED = "untagged"
 ACROSS_HEADER = ("# The runs of a run TOML together (V169): their members, drawn into this folder's plots/<set>/ and\n"
                  "# statistics/<set>/. [from] says which runs (globs of their folders) and which point a duplicate is;\n"
                  "# [plot] and [stats] are yours (from the config's [plot] and its [plot.across] sets, by a run or --style-sync).\n\n")
@@ -621,11 +631,27 @@ def across_chosen(run) -> tuple[dict, dict]:
     if isinstance(data, dict) and isinstance(data.get("file"), str) and not data["file"].startswith("rivet:"):
         plot["data"] = {**data, "file": str(data_source(data["file"], run))}
     plot["sets"] = named_sets(plot.pop(ACROSS, None))
+    plot.pop(FROM, None)                                    # the document's [from] (from_of)
     plot.pop("draw", None)
     figures = {k: v for k, v in (plot.get("figures") or {}).items() if not (isinstance(v, dict) and v.get("class") == "compare")}
     if "figures" in plot:                                   # a compare figure is one run's view of others: not here
         plot["figures"] = figures
     return plot, dict(getattr(run, "stats", None) or {})
+
+
+def from_of(run) -> dict:
+    """The Name level's [from] as a run TOML gives it (V224): [plot.across_from] over the defaults (every run, the
+    later of two the same point)."""
+    return {**FROM_DEFAULT, **dict((run.plot or {}).get(FROM) or {})}
+
+
+def from_in(target: Path) -> dict:
+    """The [from] a Name level's document holds."""
+    import tomllib
+    try:
+        return dict(tomllib.loads(target.read_text(encoding="utf-8")).get("from", {}))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise HeimdallError(f"the plot document cannot be read: {error}", where=str(target)) from None
 
 
 def write_across(run) -> tuple[Path | None, bool]:
@@ -640,7 +666,7 @@ def write_across(run) -> tuple[Path | None, bool]:
     plot, stats = across_chosen(run)
     made = {"source": {"config": config_name(run), "run": run.name, "project": run.project, "level": "name",
                        "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
-            "from": {"runs": ["*"], "prefer": "last"}, "plot": plot}
+            "from": from_of(run), "plot": plot}
     if stats:
         made["stats"] = stats
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -651,15 +677,18 @@ def write_across(run) -> tuple[Path | None, bool]:
 def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple[Doc, DocConfiguration, list[Member]]:
     """The Name level (V169): every run's plot document beside it ([from].runs, globs of their folders), their
     members together, each named <run>__<point>, its quantities' indices by tag across the runs, with the
-    attributes @run (its folder), @events (its event count, a tag like 10M) and @configuration; @events counts
-    as an axis (pages and labels may follow it), the others are named to be used. A point two runs have (every
-    tag and the event count the same) is the later run's with prefer = "last" (said), both with "all"."""
+    attributes @run (its folder), @events (its event count, a tag like 10M), @configuration and, when a run is
+    tagged, @tag (its [source].tag; "" for an untagged one, labelled untagged; V224); @events and @tag count as
+    axes (pages and labels may follow them), the others are named to be used. A point two runs of one tag have
+    (every tag and the event count the same) is the later run's with prefer = "last" (said), both with "all".
+    [from].ignore (V224): quantities (or @events) that are no axis: out of every member's choice and of what makes
+    two points the same, kept in its values; each holds one value within a run."""
     import fnmatch
     from dataclasses import replace
     source, wanted = dict(data.get("source", {})), dict(data.get("from", {}))
-    globs, prefer = list(wanted.get("runs", ["*"])), wanted.get("prefer", "last")
-    if prefer not in ("last", "all"):
-        raise HeimdallError(f"[from].prefer is \"last\" or \"all\", not {prefer!r}", where=f"{path}: [from].prefer")
+    schema.check(wanted, FROM, f"{path}: [from]")             # as [plot.across_from] is (V224)
+    globs, prefer = list(wanted.get("runs", FROM_DEFAULT["runs"])), wanted.get("prefer", FROM_DEFAULT["prefer"])
+    ignored = list(dict.fromkeys(wanted.get("ignore", [])))
     folder = path.parent
     runs = [d for d in sorted(folder.iterdir()) if d.is_dir() and (d / FILE).is_file() and any(fnmatch.fnmatchcase(d.name, g) for g in globs)]
     if not runs:
@@ -678,10 +707,17 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                 tag = q.tags[i] if q.tags else str(q.values[i])
                 if tag not in [t for t, *_ in have]:
                     have.append((tag, q.labels[i] if q.labels else tag, q.values[i], q.styles[i] if q.styles else {}))
+    for name in ignored:                                     # V224: a quantity of the runs, or @events
+        if name != "@events" and name not in tags:
+            allowed = [*tags, "@events"]
+            raise HeimdallError(f"[from].ignore names '{name}', which is no quantity of the runs", where=f"{path}: [from].ignore",
+                           hint=did_you_mean(name, allowed) or f"it takes: {', '.join(allowed)}")
     counts = sorted({n for run_name, doc, _, own in loaded for n in
                      [_member_events(doc, m) or usual[run_name] for m in own] if n})
     configurations = list(dict.fromkeys(conf.key for _, _, conf, _ in loaded))
     labels = {conf.key: conf.label for _, _, conf, _ in loaded}
+    run_tags = {run_name: str(doc.source.get("tag") or "") for run_name, doc, _, _ in loaded}
+    tagged = list(dict.fromkeys(run_tags.values())) if any(run_tags.values()) else []
     quantities = {name: Quantity(name, [v for _, _, v, _ in have], tags=[t for t, *_ in have], labels=[l for _, l, _, _ in have],
                                  styles=[s for *_, s in have] if any(s for *_, s in have) else [])
                   for name, have in tags.items()}
@@ -690,6 +726,12 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                                      labels=[f"{count_tag(n)} events" for n in counts])
     quantities["@configuration"] = Quantity("@configuration", configurations, tags=configurations,
                                             labels=[labels[k] for k in configurations])
+    if tagged:                                               # V224: only when a run is tagged
+        blank = UNTAGGED
+        while blank in tagged:                               # a run tagged "untagged" keeps its name
+            blank += "_"
+        quantities["@tag"] = Quantity("@tag", tagged, tags=[t or blank for t in tagged],
+                                      labels=[t or UNTAGGED for t in tagged])
     project = source.get("project") or loaded[0][1].project
     name = source.get("run") or loaded[0][1].name
     rel = folder.relative_to(results_root()) if folder.is_relative_to(results_root()) else Path(project) / name
@@ -700,6 +742,7 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
     for number, (run_name, doc, conf, own) in enumerate(loaded):
         index = {q: {(qq.tags[i] if qq.tags else str(qq.values[i])): i for i in range(len(qq.values))}
                  for q, qq in quantities.items()}
+        held: dict[str, list] = {q: [] for q in ignored}     # what each ignored quantity holds in this run
         for m in own:
             def moved(choice: dict) -> dict:
                 out = {}
@@ -710,13 +753,19 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                 return out
             events = _member_events(doc, m) or usual[run_name]
             attributes = {"@run": number, "@configuration": configurations.index(conf.key),
-                          **({"@events": counts.index(events)} if events else {})}
-            choice = {**moved(m.point.choice), **({"@events": attributes["@events"]} if "@events" in attributes else {})}
-            swept += [q for q in choice if q not in swept]
+                          **({"@events": counts.index(events)} if events else {}),
+                          **({"@tag": tagged.index(run_tags[run_name])} if tagged else {})}
             values = {**moved(m.values), **attributes}
+            choice = {**{q: i for q, i in moved(m.point.choice).items() if q not in ignored},
+                      **{q: attributes[q] for q in ("@events", "@tag") if q in attributes and q not in ignored}}
+            for q in ignored:
+                if q in values and quantities[q].tags[values[q]] not in held[q]:
+                    held[q].append(quantities[q].tags[values[q]])
+            swept += [q for q in choice if q not in swept]
             point = replace(m.point, name=f"{run_name}__{m.point.name}", choice=choice)
             member = replace(m, point=point, values=values, folders=folders)
-            key = (tuple(sorted((q, quantities[q].tags[i]) for q, i in values.items() if not q.startswith("@"))), events)
+            key = (tuple(sorted((q, quantities[q].tags[i]) for q, i in values.items() if not q.startswith("@") and q not in ignored)),
+                   events if "@events" not in ignored else None, run_tags[run_name])
             complete = member.recorded is not None and member.recorded == member.identity
             if prefer == "last" and key in seen:
                 earlier, was_complete = seen[key]
@@ -727,6 +776,12 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                     continue
             seen[key] = (member, complete)
             members.append(member)
+        for q, found in held.items():
+            if len(found) > 1:
+                raise HeimdallError(f"[from].ignore names {q}, which takes {len(found)} values in the run {run_name}: "
+                               f"{', '.join(found)}", where=f"{path}: [from].ignore",
+                               hint=f"an ignored quantity holds one value in each run: draw {q} as an axis (leave it out "
+                                    "of ignore), or leave the run out (runs = [\"<its folder's glob>\", …])")
     configuration = DocConfiguration(ACROSS, name, [[q] for q in swept], [], [], {}, None, f"{name}: its runs together")
     doc = Doc(path, project, name, dict(data.get("plot", {})), dict(data.get("stats", {})), quantities, configuration,
               {**source, "shadowed": shadowed})

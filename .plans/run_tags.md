@@ -50,7 +50,8 @@ changes (I-114, V219–V222), before I-112 renames everything (its sweep then re
 | Phase | V-row | Commit | State |
 |---|---|---|---|
 | T0 this plan, I-113 | — | | written |
-| T1–T2 `--tag`, the `tag` key, the record and `[source].tag`, `heimdall tag`, runs, status, a report's sources | V223 | (this commit) | done |
+| T1–T2 `--tag`, the `tag` key, the record and `[source].tag`, `heimdall tag`, runs, status, a report's sources | V223 | 4962bca | done |
+| T3–T4 `@tag` across, the tag in the shadowing key, `[from].ignore`, `[plot.across_from]`; 03 §3.3, 04 §11.4 | V224 | (this commit) | done |
 
 ## 5. Log
 
@@ -58,3 +59,8 @@ changes (I-114, V219–V222), before I-112 renames everything (its sweep then re
   `[run].tag` inherited; `records/…/tag` the truth, `[source].tag` written from it; `heimdall tag`; runs, status,
   the run's title, `--plan` and a report's sources show it. `heimdall cluster` has no `--tag` (its jobs keep the
   folder's or take the key). Next: T3–T4 (V224).
+- 2026-10-31: T3–T4 built (V224): `@tag` only when a run is tagged (an untagged one `""`, labelled `untagged`), an
+  axis in each choice; the run's tag in the shadowing key; `[from].ignore` (quantities or `@events`; out of the choice
+  and the key, kept in the values; one value a run, else refused); `[from]` checked as the schema's `across_from`;
+  `[plot.across_from]` written into `[from]` by a run and by `--style-sync` (with no table a sync keeps `[from]`).
+  Untagged drawings byte for byte as before.

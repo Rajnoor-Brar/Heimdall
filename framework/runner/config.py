@@ -1471,7 +1471,7 @@ def report_of(table: dict, path: Path, project: str, where: str, chain: tuple[Pa
 
 def check_plot(plot: dict, where: str, strict: bool = True) -> None:
     """[plot] and its figures against the schema, when the file is read (C11, V55): every key, type and
-    bound of [plot], [plot.data] and [plot.figures.<figure>]. What needs the style (base.toml), the
+    bound of [plot], [plot.data], [plot.across_from] and [plot.figures.<figure>]. What needs the style (base.toml), the
     objects or a backend is plot.validate's and plot.pages'."""
     for old, new in FIGURE_TABLES.items():                 # break and migrate (V81)
         if old in plot:
@@ -1481,6 +1481,7 @@ def check_plot(plot: dict, where: str, strict: bool = True) -> None:
         _plot_texts(plot, where)
     schema.check(plot, "plot", where)
     schema.check(plot.get("data", {}), "data", f"{where}.data")
+    schema.check(plot.get("across_from") or {}, "across_from", f"{where}.across_from")   # V224: as [from] is
     if plot.get("sets") and plot["sets"] != schema.DEFAULT:                 # V159, V163: their shapes, when read
         set_entries(plot["sets"], f"{where}.sets")
     if plot.get("across"):                                                 # V169: the sets across the runs

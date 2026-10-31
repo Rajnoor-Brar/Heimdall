@@ -840,6 +840,44 @@ def test_the_runs_of_a_run_toml_draw_together(stage):
     assert (plans[0].folders.results.parent / "statistics" / "by_events" / "statistics.csv").is_file()
 
 
+def test_the_runs_together_by_their_tags(stage):
+    """V224: a run tagged, @tag pages a set that does not name it and labels the curves of one that does; the tag
+    cleared, the page documents are byte for byte those of the runs never tagged."""
+    import hashlib
+    from runner import cli, plotdoc
+    run, configuration, plans = stage
+    two = replace(configuration, key="two", label="Second", event_count=20)
+    run.configurations["two"] = two
+    others = completed(run, two)
+    plotdoc.across_path(run.project, run.name).unlink(missing_ok=True)
+    shown = replace(run, plot={**run.plot, "across": {"plain": {"curves": {"pdf": "all"}}}})
+    for conf, members in ((configuration, plans), (two, others)):
+        assert cli.draw_run(shown, conf, members, lambda line: None) == 0
+    target, _ = plotdoc.write_across(shown)
+    second = others[0].folders.results / plotdoc.FILE
+
+    def drawn() -> dict[str, str]:
+        doc, kept, members = plotdoc.load(target)
+        assert plot.draw(doc, kept, members, lambda line: None) == 0
+        pages = members[0].folders.pages
+        return {str(p.relative_to(pages)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(pages.rglob("*.toml"))}
+
+    never = drawn()
+    assert "plain/em_10/d01-x01-y01.toml" in never
+    plotdoc.write_tag(second, "nlo")
+    tagged = drawn()
+    assert "plain/em_10_untagged/d01-x01-y01.toml" in tagged and "plain/em_20_nlo/d01-x01-y01.toml" in tagged
+    by_tag = {"by_tag": {"pages": {"lepton": "all"}, "curves": {"@tag": "all", "@events": "all", "pdf": "NNPDF23lo"}}}
+    plotdoc.write_chosen(target, {**plotdoc.load(target)[0].plot, "sets": by_tag}, {})
+    doc, kept, members = plotdoc.load(target)
+    assert plot.draw(doc, kept, members, lambda line: None) == 0
+    page = tomllib.loads((members[0].folders.pages / "by_tag" / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
+    assert [c["label"] for c in page["curve"]] == ["nlo, 20 events", "untagged, 10 events"]      # in folder order
+    plotdoc.write_tag(second, None)
+    plotdoc.write_chosen(target, {**doc.plot, "sets": shown.plot["across"]}, {})
+    assert drawn() == never                                  # nothing left of the tagged pages either
+
+
 def test_plot_looks_give_a_value_its_look_by_tag(stage, scratch):
     """[plot.looks.<quantity>] (V171): a value's look on every page, by tag; a tag no point has is unused; a set's
     automatic look leaves the axis alone; a bad look is refused when the file is read."""

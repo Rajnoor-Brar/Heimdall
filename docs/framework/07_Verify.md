@@ -47,7 +47,7 @@ lab PC says:
 
 **Tasks:**
 
-1. **A scratch work dir with the reference's project,** filled from Heimdall's own fixture work dir
+1. **A scratch work dir with the reference's assignment,** filled from Heimdall's own fixture work dir
    (frozen copies of the study's configs and modules, and `jets_data.yoda`, V112),
    so no High-Energy clone is needed:
    ```bash
@@ -163,7 +163,7 @@ informative case. Keep both outputs, and report `sigma_from` and the threads tha
      ```bash
      source ~/Github/Heimdall/gjallarhorn.sh     # gjallarhorn
      cd ~/Github/Top-Quark && heimdall run Starter/starter --plan
-     heimdall setup ~/Github/<new> --project <P> --git     # another work dir
+     heimdall setup ~/Github/<new> --assignment <A> --git     # another work dir
      heimdall build --framework                 # after changing Heimdall's apps (identities change, 06 §27)
      heimdall where                             # which Heimdall and work dir this shell sees
      ```

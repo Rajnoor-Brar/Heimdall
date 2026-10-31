@@ -2,20 +2,20 @@
 for colleagues or a supervisor, made only when asked (rank 4).
 
 * **Sources** are result folders holding a plot document (plot.toml): a configuration's, or a run's runs-together
-  folder (V169). They are named `<P>/<run>/<cfg>`, `<P>/<run>` (each of its configurations, then its own when it
+  folder (V169). They are named `<A>/<E>/<R>`, `<A>/<E>` (each of its configurations, then its own when it
   is drawn), a path, or a glob of them under results/.
 * **A recipe** is a `[report]` table and its `[[report.section]]`s (framework/schema/report.toml), each section one
-  kind of item: pages, compare, stats, bars, files or tools (what each tool was given, read from the records). It is a file of its own (`configs/<P>/<name>.toml`, `[report]`
-  alone), a run TOML's `[report]` (what its folders' reports show, its `template` laid under it), or the
+  kind of item: pages, compare, stats, bars, files or tools (what each tool was given, read from the records). It is a file of its own (`configs/<A>/<E>.toml`, `[report]`
+  alone), an errand file's `[report]` (what its folders' reports show, its `template` laid under it), or the
   `report.toml` a run writes beside each folder's plot.toml from that (V209). With no sections, the default: the
   statistics' headline, then each set the sources' documents draw, then what their tools were given (V210).
-* **Where:** reports/ mirrors results/: a folder's report in reports/<P>/<run>/<cfg>/, a run's in reports/<P>/<run>/,
+* **Where:** reports/ mirrors results/: a folder's report in reports/<A>/<E>/<R>/, a run's in reports/<A>/<E>/,
   several runs' where their addresses meet; `-o` or the recipe's `output` says otherwise.
 * `resolve` turns a recipe and its sources into a `Plan`: its sections' grids of figures, each copied from its
   source or drawn for the report, and its statistics parts. Nothing is written until the build.
 * **Drawn for itself** (V211): what a source has not drawn or measured (or drew as PNG alone), and every section
   with `plot = {…}`, is drawn by plot.draw and plot.measure from the source's plot document into the report's
-  cache, .cache/<P>/reports/<its place>/.drawn/; the source's results/ and records/ are only read.
+  cache, .cache/<A>/reports/<its place>/.drawn/; the source's results/ and records/ are only read.
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ def _matches(name: str, glob: str) -> bool:
 @dataclass
 class Source:
     """A result folder holding a plot document, as a report reads it."""
-    address: str                 # <P>/<run>/<cfg> (or <P>/<run>) under results/, else its path
+    address: str                 # <A>/<E>/<R> (or <A>/<E>) under results/, else its path
     folder: Path
     doc: object                  # plotdoc.Doc
     members: list                # plot.Member
@@ -214,7 +214,7 @@ def _folders_of(address: str, where: str) -> list[Path]:
     parent = root / address.rsplit("/", 1)[0] if "/" in address else root
     present = sorted(p.name for p in parent.iterdir() if p.is_dir()) if parent.is_dir() and not GLOB.search(address) else []
     raise HeimdallError(f"no result folder {address} under {root}", where=where,
-                   hint=did_you_mean(address.rsplit("/", 1)[-1], present) or "a source is <P>/<run>/<cfg>, <P>/<run>, a path or a glob")
+                   hint=did_you_mean(address.rsplit("/", 1)[-1], present) or "a source is <A>/<E>/<R>, <A>/<E>, a path or a glob")
 
 
 def sources(addresses: list[str], where: str) -> list[Source]:
@@ -250,8 +250,8 @@ def _is_recipe(path: Path) -> bool:
 
 
 def recipe_of(name: str) -> Path | None:
-    """The recipe a command's first argument names, always a .toml file, named as a run config is: <P>/<name>.toml
-    under configs/, ./… the work dir's, /… a path. A recipe of its own, a run TOML or a folder's report.toml. None:
+    """The recipe a command's first argument names, always a .toml file, named as an errand file is: <A>/<E>.toml
+    under configs/, ./… the work dir's, /… a path. A recipe of its own, an errand file or a folder's report.toml. None:
     the argument is a source."""
     if not name.endswith(".toml"):
         return None
@@ -259,18 +259,18 @@ def recipe_of(name: str) -> Path | None:
         return config_file(name).resolve()
     except HeimdallError:
         raise HeimdallError(f"no recipe {name}", where=str(configs_root()),
-                       hint="a recipe is a .toml file: <P>/<name>.toml under configs/, ./… from the work dir, or /…") from None
+                       hint="a recipe is a .toml file: <A>/<E>.toml under configs/, ./… from the work dir, or /…") from None
 
 
 def recipes(assignment: str | None = None) -> list[str]:
-    """Every recipe of its own under configs/ ([report] alone), as <P>/<name>.toml (heimdall ls, check)."""
+    """Every recipe of its own under configs/ ([report] alone), as <A>/<E>.toml (heimdall ls, check)."""
     root = configs_root()
     return [p.relative_to(root).as_posix() for p in sorted(root.glob(f"{assignment or '*'}/*.toml")) if _is_recipe(p)]
 
 
 def load_recipe(path: Path) -> dict:
     """A recipe's [report] table, checked, its template laid under it (V209): a recipe of its own ([report] alone,
-    every key against report.toml), or a run TOML's [report] as it is read (its from and output a recipe's)."""
+    every key against report.toml), or an errand file's [report] as it is read (its from and output a recipe's)."""
     data = _read(path)
     if "errand" in data or "run" in data:                     # [run]: the names before I-112, refused by load
         return dict(configmod.load(str(path)).report)
@@ -352,7 +352,7 @@ def _named(path: Path) -> str:
 
 
 def write_recipe(errand, document: Path) -> Path:
-    """results/<P>/<run>/<cfg>/report.toml (V209), beside the plot document just written: the run TOML's [report]
+    """results/<A>/<E>/<R>/report.toml (V209), beside the plot document just written: the errand file's [report]
     (its template laid under it), else the default report for the document's sets, its title's placeholders filled
     in. Rewritten whole each time; `heimdall report <folder>` builds it."""
     data = _read(document)
@@ -372,7 +372,7 @@ def write_recipe(errand, document: Path) -> Path:
     header = [f"# This folder's report (V209): `heimdall report {address}` builds it into reports/.",
               f"# The run wrote it from {given}.",
               "# It is written again each time plot.toml is: edit the config (or its template), or copy this file",
-              f"# into configs/ as a recipe of your own: heimdall report <P>/<name>.toml {address}"]
+              f"# into configs/ as a recipe of your own: heimdall report <A>/<E>.toml {address}"]
     target = document.with_name(RECIPE)
     partial = target.with_name(f"{target.name}.{os.getpid()}.partial")
     partial.write_text("\n".join(header) + "\n\n" + dumps(table), encoding="utf-8")
@@ -598,7 +598,7 @@ class Figure:
 class SetHead:
     """A set's sub-header (I-110 R3), once over a source's grids of it (once a set, side by side): what its pages
     and curves are along, and the quantities its configuration holds fixed, each as (what, its lines); the labels
-    as the run TOML wrote them (LaTeX, `$…$` math)."""
+    as the errand file wrote them (LaTeX, `$…$` math)."""
     set: str
     address: str
     facts: list[tuple[str, list[str]]]
@@ -660,7 +660,7 @@ class Section:
 class Drawing:
     """A source's document drawn or measured for the report (P6: N3, N8), never into results/: its [plot] with a
     section's plot keys over it (`look`), drawing only the sets the report needs, into folders of its own under
-    .cache/<P>/reports/<the report's place>/.drawn/ (results/, records/ for its logs, work/)."""
+    .cache/<A>/reports/<the report's place>/.drawn/ (results/, records/ for its logs, work/)."""
     source: Source
     look: dict                                                  # a section's plot keys; {}: the document's own
     sets: dict[str, str] = field(default_factory=dict)          # set → why its pages are drawn
@@ -1083,8 +1083,8 @@ def _out(recipe: dict, used: list[Source], where: str) -> Path:
                        hint='-o DIR builds it there, or output = "<folder>" in its [report]')
     common = _common(used)
     if not common:
-        projects = ", ".join(dict.fromkeys(s.address.split("/", 1)[0] for s in used))
-        raise HeimdallError(f"its sources are of several projects ({projects}), so its report has no one place under reports/",
+        assignments = ", ".join(dict.fromkeys(s.address.split("/", 1)[0] for s in used))
+        raise HeimdallError(f"its sources are of several assignments ({assignments}), so its report has no one place under reports/",
                        where=where, hint='-o DIR builds it there, or output = "<folder>" in its [report]')
     return reports_root() / common
 
@@ -1099,7 +1099,7 @@ def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command
     named = given or recipe.get("from", [])
     if not named and not any(s.get("from") for s in recipe.get("section", [])):
         raise HeimdallError("a report needs a source", where=where,
-                       hint="heimdall report <recipe>.toml <P>/<run>/<cfg>, or from = [\"<P>/<run>/<cfg>\"] in [report]")
+                       hint="heimdall report <recipe>.toml <A>/<E>/<R>, or from = [\"<A>/<E>/<R>\"] in [report]")
     every = found if found is not None else sources(named, "the command line" if given else f"{where}: [report].from") if named else []
     specs = recipe.get("section") or default_recipe(every, recipe.get("tools"))["section"]
     sections: list[Section] = []
@@ -1126,7 +1126,7 @@ def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command
 
 def _common(found: list[Source]) -> str:
     """The sources' common address: one source's own, else what their addresses share (eic/zeus_validation); ""
-    when they share no project."""
+    when they share no assignment."""
     parts = [s.address.split("/") for s in found]
     shared = []
     for column in zip(*parts):
@@ -1148,12 +1148,12 @@ def planned(first: str | None, rest: list[str], out: Path | None = None) -> Plan
         if path.name == RECIPE and not rest and not recipe.get("from") and (path.parent / plotdoc.FILE).is_file():
             rest = [str(path.parent)]                     # a folder's own report.toml: that folder
         if "errand" in _read(path) and not rest:
-            raise HeimdallError("a run TOML's [report] is its folders' reports: name the folders", where=str(path),
-                           hint=f"heimdall report {first} <P>/<run>/<cfg>")
+            raise HeimdallError("an errand file's [report] is its folders' reports: name the folders", where=str(path),
+                           hint=f"heimdall report {first} <A>/<E>/<R>")
         return resolve(recipe, rest, path=path, command=command, out=out)
     given = [first, *rest] if first else list(rest)
     if not given:
-        raise HeimdallError("a report needs a source", hint="heimdall report <P>/<run>/<cfg>; heimdall report <recipe>.toml <source>")
+        raise HeimdallError("a report needs a source", hint="heimdall report <A>/<E>/<R>; heimdall report <recipe>.toml <source>")
     found = sources(given, "the command line")
     own = found[0].folder / RECIPE if len(found) == 1 else None
     if own is not None and own.is_file():
@@ -1523,7 +1523,7 @@ FIGURE_COLUMNS = ("curve", "label", "xlow", "xhigh", "y", "err_down", "err_up")
 
 def _page_document(figure: Figure, drawings: list[Drawing]) -> Path | None:
     """A figure's page document: in its drawing's work/ when it was drawn for the report, else in its source's
-    cache (.cache/<P>/plots/<run>/<cfg>/<set>/<page>.toml); None when there is none."""
+    cache (.cache/<A>/plots/<E>/<R>/<set>/<page>.toml); None when there is none."""
     source = figure.source
     if source is None or figure.file is None:
         return None
@@ -2235,7 +2235,7 @@ def _index(plan: Plan, placed: list[tuple[Section, list]], method: Prose | None,
 
 
 def drawings_root(plan: Plan) -> Path:
-    """Where a report's drawings go (P6): .cache/<P>/reports/<its place under reports/, the project's folder
+    """Where a report's drawings go (P6): .cache/<A>/reports/<its place under reports/, the assignment's folder
     left out>/.drawn/ (a report built elsewhere: …/reports/elsewhere/<its path's hash>/.drawn/)."""
     assignment = plan.sources[0].assignment if plan.sources else "report"
     out, root = plan.out.resolve(), reports_root().resolve()

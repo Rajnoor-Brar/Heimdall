@@ -73,7 +73,7 @@ def declared_options(rendered: list[str], dirs: list[Path], tag: str) -> dict[st
         info = next((d / f"{name}.info" for d in dirs if (d / f"{name}.info").is_file()), None)
         if info is None:
             raise HeimdallError(f"no analysis '{name}' (no {name}.info)", where=f"[tools.{tag}].analyses",
-                           hint=f"searched {', '.join(str(d) for d in dirs)}; a project plugin needs `heimdall build`")
+                           hint=f"searched {', '.join(str(d) for d in dirs)}; an assignment's plugin needs `heimdall build`")
         declared, inside = set(), False
         for raw in info.read_text(encoding="utf-8", errors="replace").splitlines():
             if re.match(r"^Options:", raw):

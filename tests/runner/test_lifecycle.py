@@ -108,7 +108,7 @@ def test_a_reserved_name_is_refused(scratch):
     clash = (text.replace('[errand.cfgs.c]\n', '[errand.cfgs.c]\nlabel = "compare"\n').replace('tags = ["plots", "b"]', 'tags = ["a", "b"]')
              + '\n[plot.figures.both]\nclass = "compare"\nobjects = ["/x/*"]\nconfigurations = ["c"]\n')
     path.write_text(clash, encoding="utf-8")
-    with pytest.raises(HeimdallError, match="where this run's compare figures go"):
+    with pytest.raises(HeimdallError, match="where this errand's compare figures go"):
         config.load(str(path))
 
 

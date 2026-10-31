@@ -1,5 +1,5 @@
-"""The run TOML's schema: framework/schema/run.toml, and checking a table against it (rank 0). A report's recipe
-has its own, framework/schema/report.toml (tables "report" and "section", V207), which a run TOML's [report] is too
+"""The errand file's schema: framework/schema/run.toml, and checking a table against it (rank 0). A report's recipe
+has its own, framework/schema/report.toml (tables "report" and "section", V207), which an errand file's [report] is too
 (V209).
 
 docs/04_Config_Reference.md. Every key's type, allowed values, smallest value, default, inheritance and
@@ -33,7 +33,7 @@ NAMES = {"int": "an integer", "float": "a number", "str": "a string", "bool": "t
 #: The tables of run.toml that describe keys (the rest, [sections], describe the file).
 TABLES = ("config", "errand", "configuration", "prelim", "quantity", "tool", "plot", "figure", "data", "across_from", "stats",
           "cluster")
-#: The tables of report.toml, a report's recipe (configs/<P>/<name>.toml with [report], V207).
+#: The tables of report.toml, a report's recipe (configs/<A>/<E>.toml with [report], V207).
 REPORT_TABLES = ("report", "section")
 #: A figure's own keys: the rest are what it sets for its pages.
 FIGURE_OWN = ("class", "type", "name", "objects", "labels", "over", "configurations", "op", "x", "y", "pages", "columns",
@@ -252,7 +252,7 @@ def _tools_v2() -> dict:
 
 
 def json_schema() -> dict:
-    """run.schema.json: the run TOML for an editor (Even Better TOML / Taplo, `#:schema` or settings)."""
+    """run.schema.json: the errand file for an editor (Even Better TOML / Taplo, `#:schema` or settings)."""
     configuration = _object("configuration")
     errand = _object("errand")
     errand["properties"]["cfgs"] = {"type": "object", "additionalProperties": configuration}   # [errand.cfgs.<cfg>] (V98)
@@ -269,7 +269,7 @@ def json_schema() -> dict:
     report["properties"]["section"] = {**report["properties"]["section"], "items": section}   # [[report.section]] (V209)
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "heimdall run TOML (generated from framework/schema/run.toml)",
+        "title": "heimdall errand file (generated from framework/schema/run.toml)",
         "type": "object",
         "properties": {
             "config": _object("config"), "errand": errand, "prelim": _object("prelim"),
@@ -298,7 +298,7 @@ def _renamed(table: str, names: dict[str, str], drop=(), extra: dict | None = No
 
 
 def json_schema_v3() -> dict:
-    """run.v3.schema.json: the run TOML's third form for an editor (03 §6, runner/v3.py)."""
+    """run.v3.schema.json: the errand file's third form for an editor (03 §6, runner/v3.py)."""
     seed = {"description": "\"identity\", \"random\" or an integer: the points' seeds", "type": ["string", "integer"]}
     events = {"description": "events per point; a configuration's may be a list: one configuration per count",
               "type": ["integer", "number", "array"]}
@@ -324,7 +324,7 @@ def json_schema_v3() -> dict:
     v2 = json_schema()
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "heimdall run TOML, the third form (generated from framework/schema/run.toml)",
+        "title": "heimdall errand file, the third form (generated from framework/schema/run.toml)",
         "type": "object",
         "properties": {
             "file": {**_object("config"), "properties": {**_object("config")["properties"],

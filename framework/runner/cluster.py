@@ -8,13 +8,13 @@ does exactly what the same command does when typed:
     finish job     heimdall run C cfg --stages combine,post,plot         after the array, whatever its outcome
 
 `heimdall cluster` plans everything first (every check of `heimdall run --plan`), writes the scripts into
-records/<P>/<run>/<cfg>/cluster/<stamp>/ and submits them with sbatch, chained by dependencies: the
+records/<A>/<E>/<R>/cluster/<stamp>/ and submits them with sbatch, chained by dependencies: the
 points after the pre job succeeded (afterok), the finish job after every point ended (afterany). A
 point is skipped in its job when its identity is complete, as anywhere. Nothing here enters an
 identity or a seed, so a point run as a job equals the same point run by hand.
 
 [cluster] comes in layers, lowest first: the machine root's machine.toml (this machine's defaults for
-every work dir: account, partition, setup lines), the work dir's heimdall.toml, the run TOML's (imports merge
+every work dir: account, partition, setup lines), the work dir's heimdall.toml, the errand file's (imports merge
 it key by key), the configuration's ([errand.cfgs.<cfg>].cluster), and --set cluster.<key>=…; `time`
 must be in one of them.
 
@@ -81,7 +81,7 @@ def settings(configuration) -> dict:
     merged = _deep(_deep(machine, here), configuration.cluster)
     if not merged.get("time"):
         raise HeimdallError("heimdall cluster needs each job's time limit", where="[cluster] time",
-                       hint='[cluster] time = "02:00:00" in the run TOML (or the work dir\'s heimdall.toml): a site\'s default '
+                       hint='[cluster] time = "02:00:00" in the errand file (or the work dir\'s heimdall.toml): a site\'s default '
                             'limit is a surprise TIMEOUT')
     return merged
 
@@ -158,7 +158,7 @@ def heimdall_run(planned, args, stages: str, point: bool = False) -> list[str]:
 
 
 def base(planned) -> Path:
-    """records/<P>/<run>/<cfg>/cluster: every submission's folder."""
+    """records/<A>/<E>/<R>/cluster: every submission's folder."""
     return records_root() / tools.run_dir(planned.errand, planned.configuration) / FOLDER
 
 

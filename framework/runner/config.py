@@ -1,4 +1,4 @@
-"""The run TOML: load it, check it strictly, and hand back a typed model (rank 1).
+"""The errand file: load it, check it strictly, and hand back a typed model (rank 1).
 
 docs/04_Config_Reference.md. The checks here are the ones that need only the file (rules C1, C2,
 C3, C5 and the shape of every key). The ones that need the tool folders, the master TOML or the
@@ -57,7 +57,7 @@ class Tool:
     shards: int = 1                                  # K > 1: K processes on a share of the events each (V31)
     settings: dict = field(default_factory=dict)     # native card settings, as written (V59)
     cores: int = 0                                   # cores it keeps busy, for --plan's note (0: estimated, V60)
-    filters: str = ""                                # its own filters.toml (configs/<P>/…), V61
+    filters: str = ""                                # its own filters.toml (configs/<A>/…), V61
     extra: dict = field(default_factory=dict)       # tool-specific keys and export requests
 
 
@@ -98,7 +98,7 @@ class Configuration:
     parallelism_auto: bool = False                      # "auto" (V75): set from the plans, cores ÷ a point's
     swept: bool = True                                  # run by [errand].sweep_runs (V38)
     title: str = ""                                     # the `run NN - <title> -` header of a sweep
-    run_folder: str = ""                                # <project>/<run_folder>/…: [errand.cfgs.<cfg>].name, else [errand].name (V46)
+    run_folder: str = ""                                # <A>/<run_folder>/…: [errand.cfgs.<cfg>].name, else [errand].name (V46)
     seed_type: str = "identity"                         # SEED_TYPES (V39)
     manual_seed: int | None = None                      # seed_type = "manual": every point's seed
     origins: dict = field(default_factory=dict)         # key → where its value came from (--show-config, V56)
@@ -489,7 +489,7 @@ def apply_sets(raw: dict, sets: list[str]) -> None:
 # ── loading ────────────────────────────────────────────────────────────────────────────────────
 
 def _read(path: Path) -> dict:
-    """A run TOML's tables, a v3 file's as v2's (runner/v3.py)."""
+    """An errand file's tables, a v3 file's as v2's (runner/v3.py)."""
     return _form(_toml(path), path)
 
 
@@ -555,8 +555,8 @@ def _over(base: dict, over: dict) -> dict:
 
 
 def _import_path(name, assignment: str, where: str) -> Path:
-    """An import, named as `heimdall run` names a config (V94): `name` is this project's file
-    (configs/<project>/), `<Project>/<name>` another project's, `./…` from the repository root, `/…`
+    """An import, named as `heimdall run` names a config (V94): `name` is this assignment's file
+    (configs/<A>/), `<A>/<E>` another assignment's, `./…` from the repository root, `/…`
     absolute; `.toml` optional."""
     if not isinstance(name, str) or not name:
         raise HeimdallError(f"an import names a file, got {name!r}", where=where)
@@ -566,7 +566,7 @@ def _import_path(name, assignment: str, where: str) -> Path:
         source = source.with_name(source.name + ".toml")
     if not source.is_file():
         raise HeimdallError(f"no file '{name}' to import", where=where,
-                       hint="a bare name is this project's (configs/<project>/); <Project>/<name> another's; ./… the repository's")
+                       hint="a bare name is this assignment's (configs/<A>/); <A>/<E> another's; ./… the repository's")
     return source
 
 
@@ -641,7 +641,7 @@ def _assignment_of(path: Path, raw: dict, fallback: str) -> str:
 
 
 def _rebased(raw: dict, assignment: str) -> dict:
-    """A file of another project, its bare path keys made absolute against its own project (V94), so its
+    """A file of another assignment, its bare path keys made absolute against its own assignment (V94), so its
     tools find their cards wherever it is imported. The keys are those the schema marks `path`; a value
     that is ./…, /… or path:<command> is left as it is. Paths are resolved alike either way, so no
     identity moves."""
@@ -669,7 +669,7 @@ def _imports(raw: dict, path: Path, assignment: str, chain: tuple[Path, ...]) ->
     """[config].import = ["common", "Other/run"]: the run starts from those files' tables, in order, and its
     own win (V56, V93). Each imported file is read the same way first, so imports nest (V94), depth-first;
     a circle is refused. Returns the merged tables, which file gave each quantity, tool and configuration
-    ("b.toml" or, through b, "b.toml ← c.toml"), and every imported file's (project, name)."""
+    ("b.toml" or, through b, "b.toml ← c.toml"), and every imported file's (assignment, name)."""
     names = _as_list(raw.get("config", {}).get("import"))
     if not names:
         if raw.get("config", {}).get("drop"):
@@ -746,7 +746,7 @@ def _with_imports(raw: dict, path: Path) -> tuple[dict, dict, list]:
 
 
 def _imported_files(raw: dict, path: Path, assignment: str, chain: tuple[Path, ...] = ()) -> list[Path]:
-    """Every file a run TOML imports, at every level, depth-first (a record's snapshot copies them, V158);
+    """Every file an errand file imports, at every level, depth-first (a record's snapshot copies them, V158);
     _imports' own list holds only the imported runs."""
     out: list[Path] = []
     chain = chain or (path.resolve(),)
@@ -763,7 +763,7 @@ def _imported_files(raw: dict, path: Path, assignment: str, chain: tuple[Path, .
 
 
 def _folder_list(errand) -> list[tuple[str, str]]:
-    """Each configuration's folder, <project>/<run>/<NN_><label> (as tools.run_dir makes it; NN_ literally
+    """Each configuration's folder, <A>/<E>/<NN_><label> (as tools.run_dir makes it; NN_ literally
     when the runner numbers it), with its key."""
     out = []
     for key, c in errand.configurations.items():
@@ -795,7 +795,7 @@ def _own_folders(errand) -> None:
     if any(isinstance(f, dict) and f.get("class") == "compare" for f in figures.values()):
         for key, c in errand.configurations.items():
             if c.serial is None and not c.serial_auto and c.label == "compare":
-                raise HeimdallError(f"configuration '{key}' would write the folder 'compare', where this run's compare "
+                raise HeimdallError(f"configuration '{key}' would write the folder 'compare', where this errand's compare "
                                "figures go", where=f"{errand.path}", hint="give it another folder (label), or a serial")
     mine = _folder_list(errand)
     for i, (folder, key) in enumerate(mine):
@@ -822,7 +822,7 @@ def _shared_folders(errand, imported: list[Path]) -> None:
                            hint="give one of them another serial, label or name: a folder belongs to one configuration")
 
 
-#: A var cited in a run TOML's text (V96); a page text's {q:…}/{opt:…} placeholders are the plot stage's.
+#: A var cited in an errand file's text (V96); a page text's {q:…}/{opt:…} placeholders are the plot stage's.
 VAR = re.compile(r"\{var:([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
@@ -929,7 +929,7 @@ def check_read_for(errand: Errand, configuration: Configuration) -> None:
 
 def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | None = None,
          configuration: str | None = None) -> Errand:
-    """A run TOML, checked. `strict=False` (heimdall migrate only, V79) still reads the forms it rewrites;
+    """An errand file, checked. `strict=False` (heimdall migrate only, V79) still reads the forms it rewrites;
     `text` (heimdall migrate's, V81) is read in place of the file's. Read for `configuration` (else the
     default one), with its own vars and data (V179)."""
     path = config_file(name)
@@ -963,7 +963,7 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
 
 
 def heimdall_table(name: str, *, sets: list[str] = ()) -> dict:
-    """[heimdall] (V188): the flags a run TOML gives the commands that read it, its imports' under its own,
+    """[heimdall] (V188): the flags an errand file gives the commands that read it, its imports' under its own,
     --set applied as load applies it. {} when it has none."""
     path = config_file(name)
     given = _toml(path)
@@ -982,12 +982,12 @@ def heimdall_table(name: str, *, sets: list[str] = ()) -> dict:
 
 def plot_of(name: str) -> dict:
     """`heimdall plot … --plot FILE` (V158): a file's [plot], in either form, checked as a run's is, for one
-    drawing in place of the run's own. The file is named as a config is (configs/<P>/<name>, ./…, /…); it
+    drawing in place of the run's own. The file is named as a config is (configs/<A>/<E>, ./…, /…); it
     needs nothing but [plot] (and [file] schema = 3)."""
     path = config_file(name)
     raw = _form(_toml(path), path)
     if "plot" not in raw:
-        raise HeimdallError("a plot file holds a [plot] table", where=str(path), hint="[plot] and its figures, as a run TOML's")
+        raise HeimdallError("a plot file holds a [plot] table", where=str(path), hint="[plot] and its figures, as an errand file's")
     plot = raw["plot"]
     if "legend" in plot:
         raise HeimdallError("[plot].legend is now part of the style", where=f"{path}: [plot].legend")
@@ -1061,7 +1061,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
 
     errand = raw.get("errand")
     if not isinstance(errand, dict):
-        raise HeimdallError("missing [errand]", where=where, hint="every run TOML has [errand] name, assignment, configuration")
+        raise HeimdallError("missing [errand]", where=where, hint="every errand file has [errand] name, assignment, configuration")
     if isinstance(errand.get(DEFAULTS), dict):                      # V99: [errand] gives what it gave
         if strict:
             raise HeimdallError(f"[errand.{DEFAULTS}] is [errand] now: its keys go in [errand] itself, which every configuration "
@@ -1358,7 +1358,7 @@ CLUSTER_JOB_KEYS = ("time", "partition", "account", "qos", "constraint", "gres",
 
 
 def check_cluster(values, where: str) -> None:
-    """[cluster] (V114), in a run TOML, a configuration or a work dir's heimdall.toml: the schema's keys, and its
+    """[cluster] (V114), in an errand file, a configuration or a work dir's heimdall.toml: the schema's keys, and its
     pre and finish tables the resource keys only."""
     if not isinstance(values, dict):
         raise HeimdallError("[cluster] is a table", where=where)
@@ -1401,7 +1401,7 @@ REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files", "tools")
 STATISTICS = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "area")
 SUMMARY = ("top5", "scoreboard", "scoreboard-cells", "head-to-head", "scoreboards", *STATISTICS)
 PARTS = ("ranking", "crossed", "table")
-#: A run TOML's [report] says neither: each folder is its own report's source, built where results/ has it (V209).
+#: An errand file's [report] says neither: each folder is its own report's source, built where results/ has it (V209).
 NOT_IN_A_RUN = ("from", "output")
 
 
@@ -1411,7 +1411,7 @@ OLD_PLACEHOLDERS = {"project": "assignment", "run": "errand"}
 
 def check_report(table, where: str, run_toml: bool = False) -> None:
     """[report], a report's recipe (I-108, V209): every key against schema/report.toml, each [[report.section]]
-    titled and showing one item, its stats keys known and its plot keys checked as [plot]'s. A run TOML's
+    titled and showing one item, its stats keys known and its plot keys checked as [plot]'s. An errand file's
     names neither from nor output: each of its folders is its report's source, and is built where it is."""
     if not isinstance(table, dict):
         raise HeimdallError("[report] is a table", where=where)
@@ -1427,9 +1427,9 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
             raise HeimdallError(f"{key} is at most {most}, not {table[key]}", where=f"{where}.{key}")
     for key in NOT_IN_A_RUN if run_toml else ():
         if key in table:
-            raise HeimdallError(f"a run TOML's [report] takes no {key}: each folder it writes is its report's source, "
+            raise HeimdallError(f"an errand file's [report] takes no {key}: each folder it writes is its report's source, "
                            "built into reports/ where results/ has it", where=f"{where}.{key}",
-                           hint="a recipe of its own (configs/<P>/<name>.toml, [report] alone) takes from and output")
+                           hint="a recipe of its own (configs/<A>/<E>.toml, [report] alone) takes from and output")
     for number, section in enumerate(table.get("section", []), 1):
         at = f"{where} section {number}"
         schema.check(section, "section", at)
@@ -1456,7 +1456,7 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
 
 def report_of(table: dict, path: Path, assignment: str, where: str, chain: tuple[Path, ...] = ()) -> tuple[dict, list[Path]]:
     """[report] with its template laid under it (V209): `template` names a recipe as [config].import names a file
-    (a bare name this project's, <P>/<name> another's, ./… the work dir's; .toml optional), whose keys this
+    (a bare name this assignment's, <A>/<E> another's, ./… the work dir's; .toml optional), whose keys this
     table's replace and whose sections come first; a template naming its own is followed, a circle refused.
     The table (without template), and the templates read."""
     named = table.get("template")
@@ -1467,7 +1467,7 @@ def report_of(table: dict, path: Path, assignment: str, where: str, chain: tuple
         source = _import_path(named, assignment, at)
     except HeimdallError:
         raise HeimdallError(f"no report template '{named}'", where=at,
-                       hint="a bare name is this project's (configs/<project>/); <Project>/<name> another's; ./… the work dir's") from None
+                       hint="a bare name is this assignment's (configs/<A>/); <A>/<E> another's; ./… the work dir's") from None
     chain = chain or (path.resolve(),)
     if source.resolve() in chain:
         raise HeimdallError("report templates go round in a circle: " + " → ".join(p.name for p in (*chain, source.resolve())), where=at)

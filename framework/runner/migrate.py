@@ -1,4 +1,4 @@
-"""`heimdall migrate [CONFIG…] [--apply]` (rank 5, V79): run TOMLs and their cards in today's forms.
+"""`heimdall migrate [CONFIG…] [--apply]` (rank 5, V79): errand files and their cards in today's forms.
 
 audit 1's final phase, "break and migrate": what the runner now refuses, rewritten in what it takes.
 A dry run (the default) prints a diff per file; `--apply` writes them. Only these, by line, so comments
@@ -157,7 +157,7 @@ def config_text(text: str) -> str:
 
 
 def figure_text(text: str) -> str:
-    """The old figure tables of a run TOML as [plot.figures] (V81), by line; see the module's doc."""
+    """The old figure tables of an errand file as [plot.figures] (V81), by line; see the module's doc."""
     taken = set(re.findall(r"^\s*\[\s*plot\.figures\.([A-Za-z0-9_\-]+)", text, re.M))
     names: dict[tuple[str, str], str] = {}
     out, in_figure = [], False
@@ -241,7 +241,7 @@ def _value(lines: list[str], start: int, head: str) -> tuple[int, str, str]:
 
 
 def toml_text(text: str, errand=None, assignment: str = "") -> str:
-    """One run TOML migrated (see the module's doc): its new text."""
+    """One errand file migrated (see the module's doc): its new text."""
     lines = text.splitlines(keepends=True)
     out: list[str] = []
     table = ""
@@ -598,7 +598,7 @@ def _commented_cfgs(text: str) -> str:
 
 
 def v3_text(text: str) -> str:
-    """A v2 run TOML in v3's form (03 §6), by table, comments kept: [config] → [file], [errand.cfgs.<name>] →
+    """A v2 errand file in v3's form (03 §6), by table, comments kept: [config] → [file], [errand.cfgs.<name>] →
     [cfgs.<name>], keys renamed, tools typed by their table's name, [prelim] inferred (keep = false on a
     scratch file's producer; its commands to [errand]), [static] into each quantity's fixed, quantities as
     rows. A v3 file is left as it is."""
@@ -740,7 +740,7 @@ def v3_text(text: str) -> str:
                     f"fixed = {_tv(fixed)}\n"]
     text = "".join(out)
     if "[cfgs." not in text and "chain" not in errand and "[file]" not in text:
-        text = "[file]\nschema = 3                     # the run TOML's third form (heimdall migrate --v3)\n\n" + text
+        text = "[file]\nschema = 3                     # the errand file's third form (heimdall migrate --v3)\n\n" + text
     return re.sub(r"\n{3,}", "\n\n", _commented_cfgs(text))
 
 
@@ -751,7 +751,7 @@ RECORDED = ("provenance.json", "identity.json", ".complete", "points.json")
 def layout_moves(work: Path) -> list[tuple[Path, Path]]:
     """`heimdall migrate --layout` (5.1): every file of a work dir's output/ and where it goes now. Records
     (provenance, identity, .complete, points.json, cluster submissions) to records/; prepare caches,
-    card checks and converted data (output/<P>/.cache/) to .cache/<P>/; everything else (cards, configs,
+    card checks and converted data (output/<A>/.cache/) to .cache/<A>/; everything else (cards, configs,
     logs, scratch files, journals, page documents, reproductions) to logs/."""
     output = work / "output"
     moves = []
@@ -777,7 +777,7 @@ RESULT_FOLDERS = ("points", "plots", "pre", "post")
 
 
 def _configurations(root: Path) -> list[Path]:
-    """A tree's configuration folders, <P>/<name>/<cfg> relative to it (not compare/, nothing hidden)."""
+    """A tree's configuration folders, <A>/<E>/<R> relative to it (not compare/, nothing hidden)."""
     def dirs(folder: Path) -> list[Path]:
         return sorted(p for p in folder.iterdir() if p.is_dir() and not p.name.startswith(".")) if folder.is_dir() else []
     return [cfg.relative_to(root) for assignment in dirs(root) for name in dirs(assignment) for cfg in dirs(name)
@@ -787,12 +787,12 @@ def _configurations(root: Path) -> list[Path]:
 def logs_moves(work: Path) -> list[tuple[Path, Path]]:
     """`heimdall migrate --layout` (V157): a work dir's logs/ into records/, and each configuration's points
     into points/ of records/ and results/ (renames of whole folders):
-    * records/<P>/<name>/<cfg>/<point>/ → records/…/<cfg>/points/<point>/ (a stage's too);
-    * results/<P>/<name>/<cfg>/<point>/ → results/…/<cfg>/points/<point>/ (pre/, post/ and plots/ stay);
-    * logs/<P>/<name>/<cfg>/<point>/ → records/…/<cfg>/logs/<point>/ (apply_logs takes its logs/*.log up one);
-    * logs/<P>/<name>/<cfg>/plots/ and status.jsonl → records/…/<cfg>/; logs/<P>/<name>/compare/<figure>/ →
-      records/<P>/<name>/compare/<figure>/;
-    * logs/<P>/.reproduce/ → .cache/<P>/reproduce/; logs/plots/ (heimdall overlay's page documents) →
+    * records/<A>/<E>/<R>/<point>/ → records/…/<R>/points/<point>/ (a stage's too);
+    * results/<A>/<E>/<R>/<point>/ → results/…/<R>/points/<point>/ (pre/, post/ and plots/ stay);
+    * logs/<A>/<E>/<R>/<point>/ → records/…/<R>/logs/<point>/ (apply_logs takes its logs/*.log up one);
+    * logs/<A>/<E>/<R>/plots/ and status.jsonl → records/…/<R>/; logs/<A>/<E>/compare/<figure>/ →
+      records/<A>/<E>/compare/<figure>/;
+    * logs/<A>/.reproduce/ → .cache/<A>/reproduce/; logs/plots/ (heimdall overlay's page documents) →
       .cache/overlay/."""
     records, results, logs = work / "records", work / "results", work / "logs"
     moves: list[tuple[Path, Path]] = []
@@ -886,13 +886,13 @@ def _point_manifest(work: Path, rel: Path) -> None:
     path.write_text(json.dumps(data, indent=1, default=str) + "\n", encoding="utf-8")
 
 
-#: The backends' folders of results/<run>/plots/ before sets had folders of their own (V164).
+#: The backends' folders of results/<A>/<E>/<R>/plots/ before sets had folders of their own (V164).
 OLD_BACKENDS = ("root", "mpl", "yoda")
 
 
 def old_plots(work: Path) -> bool:
-    """A configuration's pages still in results/<run>/plots/<backend>/, its numbers in plots/statistics*, or its
-    page documents in records/<run>/plots/: from before V164."""
+    """A configuration's pages still in results/<A>/<E>/<R>/plots/<backend>/, its numbers in plots/statistics*, or its
+    page documents in records/<A>/<E>/<R>/plots/: from before V164."""
     results, records = work / "results", work / "records"
     for rel in _configurations(results):
         plots = results / rel / "plots"
@@ -904,13 +904,13 @@ def old_plots(work: Path) -> bool:
 def sets_moves(work: Path) -> list[tuple[Path, Path]]:
     """`heimdall migrate --layout` (V164): each configuration's pages into its totality set, its numbers out of
     plots/, the drawing's working files out of records/ (renames of whole folders and files):
-    * results/<run>/plots/<backend>/<entry> → results/<run>/plots/totality/<backend>/<entry> (but the merged
-      sweep, plots/root/<cfg>.root → .cache/<P>/plots/<name>/<cfg>/, beside its stamp);
-    * results/<run>/plots/statistics.csv → results/<run>/statistics/totality/statistics.csv, the bar graphs of
+    * results/<A>/<E>/<R>/plots/<backend>/<entry> → results/<A>/<E>/<R>/plots/totality/<backend>/<entry> (but the merged
+      sweep, plots/root/<cfg>.root → .cache/<A>/plots/<name>/<cfg>/, beside its stamp);
+    * results/<A>/<E>/<R>/plots/statistics.csv → results/<A>/<E>/<R>/statistics/totality/statistics.csv, the bar graphs of
       plots/statistics/<cell>/ → statistics/totality/bars/<cell>/, plots/statistics/summary.* →
       statistics/totality/;
-    * records/<run>/plots/ → .cache/<P>/plots/<name>/<cfg>/ (the page documents, rebuilt by the next drawing);
-    * a compare figure's: records/<P>/<name>/compare/<figure>/ → .cache/<P>/plots/<name>/compare/<figure>/, its
+    * records/<A>/<E>/<R>/plots/ → .cache/<A>/plots/<name>/<cfg>/ (the page documents, rebuilt by the next drawing);
+    * a compare figure's: records/<A>/<E>/compare/<figure>/ → .cache/<A>/plots/<name>/compare/<figure>/, its
       statistics.csv and bar graphs into its statistics/."""
     records, results = work / "records", work / "results"
     moves: list[tuple[Path, Path]] = []

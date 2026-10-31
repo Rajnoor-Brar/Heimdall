@@ -32,7 +32,7 @@ the design the code cites by section (`framework/01 §5.2`).
 | P0 | [03_Preflight.md](03_Preflight.md) | survey the machine and choose the annex; clone Heimdall; `.setup/`; bring back what was kept | — | sudo, if `git` or `curl` is missing |
 | P1 | [04_Stack.md](04_Stack.md) | the conda base (no sudo); `recipes/build_stack.py packages=@primary` into the machine root (`~/Himinbjorg`: `base/ stack/ forge/`); the stack's checks | the build (hours) | downloads, a new recipe (MadAnalysis5) that fails; sudo/apt only with `base=system` |
 | P2 | [05_Framework.md](05_Framework.md) | `heimdall build --framework`; the C++ tests and the fast suite; the slow suite and its physics gates; the manual's checks | the slow suite | a gate row that differs twice |
-| P3 | [06_Workdirs.md](06_Workdirs.md) | Top-Quark made by `heimdall setup --project Starter --git`, built, checked and run; a throwaway second work dir, and independence | — | none |
+| P3 | [06_Workdirs.md](06_Workdirs.md) | Top-Quark made by `heimdall setup --assignment Starter --git`, built, checked and run; a throwaway second work dir, and independence | — | none |
 | P4 | [07_Verify.md](07_Verify.md) | the reference point on its seed against the lab PC's kept products; the handover: report, memory, publishing | — | push / publish |
 
 [02_Agents.md](02_Agents.md) is how the agents run them: the roles, the state in `$HEIMDALL/.setup/`, the step
@@ -81,7 +81,7 @@ The user's, through round 2c (2026-10-08 to 10-10), as built. Each is a V-row of
 | D11 | one framework for every target; portability is framework code | V113 |
 | D12 | three agents: orchestrator, builder, verifier (02) | — |
 | D31 | High-Energy is left alone | — |
-| D32 | Top-Quark is made fresh by `heimdall setup --project Starter --git`, as the test work dir | — |
+| D32 | Top-Quark is made fresh by `heimdall setup --assignment Starter --git`, as the test work dir | — |
 | D33 | never `git clean -x` in Heimdall: it would delete the stack | V105 |
 | — | `@primary` is the stack a fresh machine gets: the lab set (`packages=all`) plus MadAnalysis5 (the user, 2026-10-10) | V110 |
 

@@ -1,7 +1,7 @@
 # framework/schema/quantities.toml — the vocabulary: what a quantity name means, for every tool (V58).
 #
-# A quantity named here ([quantities.<name>] in a run TOML) has this meaning wherever it goes, and its
-# values are checked against the shape when the run TOML is read. How each tool consumes it is the
+# A quantity named here ([quantities.<name>] in an errand file) has this meaning wherever it goes, and its
+# values are checked against the shape when the errand file is read. How each tool consumes it is the
 # tool's own: framework/tools/<tool>/quantities.toml (docs/04_Config_Reference.md §3). A quantity not named
 # here is the user's own, reaching a tool through its `key` or `target`.
 #

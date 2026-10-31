@@ -77,7 +77,7 @@ def test_a_points_commands_are_written_as_its_tools_were_given_them(scratch, mon
 
 
 def test_the_drawings_working_files_are_the_caches(scratch, monkeypatch):
-    """V164: the page documents and the drawing's working files are .cache/<P>/plots/<name>/<NN_cfg>/, rebuilt on
+    """V164: the page documents and the drawing's working files are .cache/<P>/plots/<E>/<R>/, rebuilt on
     demand and kept; records/ holds none of them, and heimdall clean does not take them for a tool's caches."""
     from runner import tools
     errand, configuration, made = plan(raw(), scratch)

@@ -1,6 +1,6 @@
 # 00 — Quick reference
 
-One page: the commands, a whole run TOML, where things go. Each line points to the page that says
+One page: the commands, a whole errand file, where things go. Each line points to the page that says
 it in full.
 
 ## Every day
@@ -9,28 +9,28 @@ it in full.
 gjallarhorn Study                          # Heimdall's environment, and cd to the work dir titled Study (from anywhere)
 heimdall recognise ~/Github                # record the work dirs found there, by title (--list: every one this machine knows)
 bifrost scipy                              # a package into the environment (-python <pkg>: from PyPI; bifrost: what is there)
-heimdall setup ~/Study --example jets      # a work dir, with the demo project (--project P: a starter; --git: commit)
+heimdall setup ~/Study --example jets      # a work dir, with the demo assignment (--assignment A: a starter; --git: commit)
 heimdall build                             # the work dir's Rivet analyses and module programs
 heimdall check                             # every config: loaded, validated, every point planned; nothing run
 heimdall run Demo/jets pdf --dry-run       # the plan: cards, argv, connections (also --why, --show-config)
 heimdall run Demo/jets pdf                 # run what is not complete, then draw the pages
-heimdall run Demo/jets pdf --set errand.events=50000 --points 2   # one value changed, one point, for this run
+heimdall run Demo/jets pdf --set errand.events=50000 --points 2   # one value changed, one point, for this job
 heimdall status Demo/jets                  # each point: complete, stale, running, incomplete, to run
 heimdall plot Demo/jets pdf                # redraw from what is on disk
-heimdall watch                             # follow a run from another terminal (d/Ctrl-C detach; q stops it)
-heimdall runs                              # active jobs on this machine (--5 shows recent runs)
-heimdall stop --pid 12345                  # stop a run as Ctrl-C would (a run's own terminal: d leaves it running)
-heimdall explain errand.events                # any key, table, tool option or style key
+heimdall watch                             # follow a job from another terminal (d/Ctrl-C detach; q stops it)
+heimdall runs                              # active jobs on this machine (--5 shows recent ones)
+heimdall stop --pid 12345                  # stop a job as Ctrl-C would (a job's own terminal: d leaves it running)
+heimdall explain errand.events             # any key, table, tool option or style key
 heimdall help run                          # any command
 ```
 
 Housekeeping: `heimdall clean` (logs and caches nothing uses), `heimdall migrate --v3` (a v2 file in v3),
 `heimdall migrate --layout` (a work dir from before `records/`), `heimdall reproduce records/…/provenance.json`,
-`heimdall cluster CONFIG CFG` (Slurm), `heimdall report <P>/<run>/<cfg>` (an A4 report of a run's pages and numbers),
+`heimdall cluster CONFIG CFG` (Slurm), `heimdall report <A>/<E>/<R>` (an A4 report of a Run's pages and numbers),
 `heimdall stack build|list|status|doctor`
 (the machine's stack). [05 §1](05_Commands_and_Tools.md#1-commands).
 
-## A run TOML
+## An errand file
 
 ```toml
 # configs/Demo/mini.toml
@@ -89,12 +89,17 @@ ratio   = true
 
 | Folder of a work dir | Holds | git |
 |---|---|---|
-| `configs/<P>/`, `modules/<P>/` | yours: run TOMLs, cards and report recipes; programs and Rivet analyses | tracked |
+| `configs/<A>/`, `modules/<A>/` | yours: errand files, cards and report recipes; programs and Rivet analyses | tracked |
 | `datasets/` | reference data (large ones listed in `datasets.toml`, fetched by `heimdall setup .`) | tracked |
-| `results/<P>/<run>/<NN_cfg>/` | `points/<point>/` the products, `plots/` the pages | no |
-| `records/<P>/<run>/<NN_cfg>/` | `points/<point>/` each point's provenance, identity and `.complete` (delete it and the point reruns); `logs/<point>/` its cards and configs, each tool's digest `<tag>.log`, earlier attempts in `history/` (deleting it reruns nothing: `heimdall clean`; more with `--keep`); `plots/` the page configs; `config/` the run TOML and cards it ran with | no |
+| `results/<A>/<E>/<R>/` | `points/<point>/` the products, `plots/` the pages | no |
+| `records/<A>/<E>/<R>/` | `points/<point>/` each point's provenance, identity and `.complete` (delete it and the point reruns); `logs/<point>/` its cards and configs, each tool's digest `<tag>.log`, earlier attempts in `history/` (deleting it reruns nothing: `heimdall clean`; more with `--keep`); `plots/` the page configs; `config/` the errand file and cards it ran with | no |
 | `.cache/` | prepare caches: safe to delete | no |
-| `build/`, `reports/<P>/<run>/<cfg>/` | compiled modules; reports, where `results/` has their sources | no |
+| `build/`, `reports/<A>/<E>/<R>/` | compiled modules; reports, where `results/` has their sources | no |
+
+`<A>/<E>/<R>` is an address: an **assignment** `<A>` (`configs/<A>/`), an **errand** `<E>` (its errand file
+`configs/<A>/<E>.toml`, `[errand]`), a **Run** `<R>` (one configuration's folder, `NN_<label>`, with its record
+and cache). One `heimdall run` is a job: it makes or resumes the Runs of the configurations it runs.
+[02 §2](02_User_Guide.md#2-a-first-run).
 
 When something fails: read `records/…/logs/<point>/<tool>.log`, fix, run again (complete points are
 skipped). [02 §9](02_User_Guide.md#9-when-something-fails).

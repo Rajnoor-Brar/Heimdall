@@ -16,7 +16,7 @@ from runner import paths, setup
 from runner.errors import HeimdallError
 from support import HEIMDALL, REPO, WORK, apps
 
-PLACEHOLDERS = {"name", "revision", "date", "P", "p"}
+PLACEHOLDERS = {"name", "revision", "date", "A", "a"}
 
 
 @pytest.fixture
@@ -49,25 +49,34 @@ def test_a_new_folder_gets_the_template_and_the_key_folders(scratch, quiet):
     for folder in setup.FOLDERS:
         assert (target / folder).is_dir() and f"{folder}/" in added
     assert lines == [f"added {a}" for a in added] + ["recognised as Top-Quark (recorded): gjallarhorn Top-Quark goes here"]
-    assert not (target / "configs" / "Starter").exists()            # no starter without --project
+    assert not (target / "configs" / "Starter").exists()            # no starter without --assignment
     marker = tomllib.loads((target / "heimdall.toml").read_text(encoding="utf-8"))
     assert marker["work"]["name"] == "Top-Quark" and marker["framework"]["expects"] == setup.revision()
     assert paths.is_work(target) and "{{" not in (target / "README.md").read_text(encoding="utf-8")
 
 
-def test_a_project_gets_the_starter(scratch, quiet):
+def test_an_assignment_gets_the_starter(scratch, quiet):
     target = scratch / "w"
-    setup.setup(target, project="Jets", name="My study", out=quiet[0])
+    setup.setup(target, assignment="Jets", name="My study", out=quiet[0])
     toml = (target / "configs" / "Jets" / "jets.toml").read_text(encoding="utf-8")
     assert 'assignment = "Jets"' in toml and 'card   = "jets.cmnd"' in toml          # the v3 starter (03 §6)
     assert (target / "configs" / "Jets" / "jets.cmnd").is_file() and (target / "modules" / "Jets").is_dir()
     assert paths.work_meta(target)["name"] == "My study"
 
 
+def test_project_is_refused_naming_assignment(scratch, capsys):
+    """I-112: `--project` was the flag's name; it is refused with the line that works, and nothing is made."""
+    from runner import cli
+    assert cli.main(["setup", str(scratch / "w"), "--project", "Jets"]) == 2
+    err = capsys.readouterr().err
+    assert "--project is now --assignment" in err and f"heimdall setup {scratch / 'w'} --assignment Jets" in err
+    assert not (scratch / "w").exists()
+
+
 @pytest.mark.skipif(not (apps() / "App_Pythia.exe").exists(), reason="heimdall build --framework")
 def test_the_starter_passes_heimdall_check(scratch, quiet):
     target = scratch / "w"
-    setup.setup(target, project="Starter", out=quiet[0])
+    setup.setup(target, assignment="Starter", out=quiet[0])
     done = subprocess.run([str(HEIMDALL), "check", "Starter/starter"], cwd=target, capture_output=True, text=True,
                           env={**os.environ, "HEIMDALL_WORK": str(target)}, encoding="utf-8")
     assert done.returncode == 0, done.stdout + done.stderr
@@ -98,10 +107,10 @@ def test_a_folder_with_files_is_adopted_only_when_asked(scratch, quiet):
     assert any(line.startswith("merged .gitignore: records/ .cache/ results/") for line in lines)
 
 
-@pytest.mark.parametrize("project", ["", "a/b", "_parked", ".hidden"])
-def test_a_project_must_be_a_folder_name(scratch, quiet, project):
-    with pytest.raises(HeimdallError, match="is not a project name"):
-        setup.setup(scratch / "w", project=project, out=quiet[0])
+@pytest.mark.parametrize("assignment", ["", "a/b", "_parked", ".hidden"])
+def test_an_assignment_must_be_a_folder_name(scratch, quiet, assignment):
+    with pytest.raises(HeimdallError, match="is not an assignment name"):
+        setup.setup(scratch / "w", assignment=assignment, out=quiet[0])
 
 
 def test_a_file_is_not_a_work_dir(scratch, quiet):
@@ -113,7 +122,7 @@ def test_a_file_is_not_a_work_dir(scratch, quiet):
 @pytest.mark.skipif(not shutil.which("git"), reason="git")
 def test_git_commits_what_was_added_once(scratch, quiet, git_identity):
     target = scratch / "w"
-    setup.setup(target, project="Starter", git=True, out=quiet[0])
+    setup.setup(target, assignment="Starter", git=True, out=quiet[0])
     log = subprocess.run(["git", "log", "--format=%s"], cwd=target, capture_output=True, text=True, encoding="utf-8").stdout.splitlines()
     assert len(log) == 1 and log[0].startswith("heimdall setup: the work dir w (Heimdall ")
     tracked = subprocess.run(["git", "ls-files"], cwd=target, capture_output=True, text=True, encoding="utf-8").stdout.split()
@@ -333,7 +342,7 @@ def test_a_conda_base_is_loaded_kept_off_ld_library_path_and_quit_takes_it_out(s
                                            "1", "0", "1", "1", "as-before"], out.stdout
 
 
-def test_heimdall_cd_goes_to_a_project_folder_of_the_work_dir():
+def test_heimdall_cd_goes_to_an_assignment_folder_of_the_work_dir():
     out = shell(f"""set -e
         source {REPO}/gjallarhorn.sh >/dev/null
         export HEIMDALL_WORK={WORK}

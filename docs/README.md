@@ -1,7 +1,7 @@
 # The manual
 
 Heimdall, a framework for Monte Carlo studies in high-energy physics: **tools are processes, chained
-by a TOML**. A run TOML under a work dir's `configs/<Project>/` names a configuration; its sweeps
+by a TOML**. An errand file under a work dir's `configs/<A>/` names a configuration; its sweeps
 expand into points; for each point the runner writes every tool's native card, connects the tools
 through agreed files and FIFOs, runs them in order, watches them, checks what they made, and records
 it; after all points it draws the pages with ROOT (Paint) or rivet-mkhtml.
@@ -12,7 +12,7 @@ on, its compiled apps) and your **work dirs**, as many as you like (`configs/`, 
 
 ```bash
 gjallarhorn                                            # the environment (or: source ~/Github/Heimdall/gjallarhorn.sh)
-heimdall setup ~/Github/My-Study --project Jets --git  # a work dir, with a starter run TOML (--example jets: the demo)
+heimdall setup ~/Github/My-Study --assignment Jets --git  # a work dir, with a starter errand file (--example jets: the demo)
 gjallarhorn My-Study && heimdall build                 # there, from anywhere (heimdall recognise); its modules (none yet)
 heimdall run Jets/jets --dry-run                       # look
 heimdall run Jets/jets                                 # run: 2 points, a page per histogram
@@ -22,9 +22,9 @@ heimdall run Jets/jets                                 # run: 2 points, a page p
 
 | | For | |
 |---|---|---|
-| [00_Quick.md](00_Quick.md) | everyone | **one page**: the everyday commands, a whole run TOML and what to write for the common needs, where things go |
+| [00_Quick.md](00_Quick.md) | everyone | **one page**: the everyday commands, a whole errand file and what to write for the common needs, where things go |
 | [01_Overview.md](01_Overview.md) | everyone | what it is, the model in one picture, the vocabulary (object, figure, page …), the principles and what each buys, what is refused, where it came from |
-| [02_User_Guide.md](02_User_Guide.md) | users | set up (Heimdall and work dirs), a first run, the anatomy of a run TOML, **the pipelines** as recipes (sweeps, generators and chains, your own programs, scale and seeds), reruns, failures, housekeeping, results from Python, a new project |
+| [02_User_Guide.md](02_User_Guide.md) | users | set up (Heimdall and work dirs), a first run, the anatomy of an errand file, **the pipelines** as recipes (sweeps, generators and chains, your own programs, scale and seeds), reruns, failures, housekeeping, results from Python, a new assignment |
 | [03_Plots.md](03_Plots.md) | users | the plot stage, `[plot]` in practice, data and ratios, curves and bands, the style, **the seven figure classes** with examples, Hist1D/Scatter2D/HeatMap, the backends, `heimdall overlay`, **reports** (`heimdall report`) |
 | [04_Config_Reference.md](04_Config_Reference.md) | users | **every accepted key**, as tables generated from the schema; paths, precedence and `"default"`; quantities and consumers; placeholders; the style keys; the validation rules C1–C14; the files the runner writes; a report's recipe |
 | [05_Commands_and_Tools.md](05_Commands_and_Tools.md) | users, developers | **every command** (generated from the CLI) and what it does; the build and the environment; every standard tool; App_Pythia, App_yd2rt and Paint's command line |
@@ -55,7 +55,7 @@ What is open is the ghosts-and-gaps audit [audit_4/](audit_4/README.md) (G1–G2
 carried unused, half-built, retired but lingering, or of unclear use), which carries the health check
 [audit_2/01_Health.md](audit_2/01_Health.md)'s open findings (H1–H16). The
 user-experience audit [audit_3/](audit_3/README.md) (U1–U66, 2026-10-12: the process, the layout,
-the run TOML, extending, the CLI) was remediated in seven phases, V116–V136. The finished audit 1
+the errand file, extending, the CLI) was remediated in seven phases, V116–V136. The finished audit 1
 (V52–V89) and the manual's rebuild plan (V90–V92) are in High-Energy's git: `git show 3a5ec16:docs/audit_1/README.md`,
 `git show 3a5ec16:docs/audit_2/02_Manual.md`.
 

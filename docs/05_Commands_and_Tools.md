@@ -33,16 +33,16 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `config` | configs/<Project>/<name>[.toml], ./path from the work dir, or a record <Project>/<run>/<NN_cfg> (what it ran with: its snapshot) |
+| `config` | configs/<A>/<E>[.toml], ./path from the work dir, or a record <A>/<E>/<R> (what it ran with: its snapshot) |
 | `[configuration]` | overrides [errand].configuration; under [errand].sweep_runs, runs only it |
 | `--plan, --dry-run` | print the plan; run nothing |
 | `--why` | for each point that would run, what changed since it last completed; run nothing |
 | `--show-config` | print each configuration's resolved values and where each came from; run nothing |
 | `--card TAG` | with --plan: that tool's card for the first point, each line with where its value comes from |
 | `--points SEL` | run a subset: tags, indices or quantity=tag |
-| `--detach` | start the run in the background and return: heimdall watch follows it, heimdall stop stops it (on a terminal, a run started without it leaves on d too) |
+| `--detach` | start the job in the background and return: heimdall watch follows it, heimdall stop stops it (on a terminal, a job started without it leaves on d too) |
 | `--set KEY=VALUE` | override one value for this invocation (repeatable), in the file's own names: errand.events=100 (v3), errand.event_count=100 (v2) |
-| `--tag NAME` | tag each configuration folder this run makes or resumes (over the one it has and its configuration's tag): a letter or digit, then letters, digits, . _ + -, at most 40 |
+| `--tag NAME` | tag each Run this job makes or resumes (over the one it has and its configuration's tag): a letter or digit, then letters, digits, . _ + -, at most 40 |
 | `--rerun` | ignore skip-unchanged; under a serial the file sets, overwrite points made from other inputs |
 | `--only pre\|post\|plot` | rerun only the pre tools, the post tools or the plots |
 | `--no-plot` | draw nothing after the points (its plot.toml is written all the same), whatever [errand].plot says |
@@ -58,29 +58,29 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `config` | the run config, or a record <Project>/<run>/<NN_cfg>: its points as they were recorded, with the config they ran with (its snapshot, which you may edit) |
-| `--plot FILE` | a file whose [plot] draws instead of the run's: configs/<P>/<name>, ./… or /… |
+| `config` | the errand file, or a record <A>/<E>/<R>: its points as they were recorded, with the config they ran with (its snapshot, which you may edit) |
+| `--plot FILE` | a file whose [plot] draws instead of the run's: configs/<A>/<E>, ./… or /… |
 | `--sets NAMES` | draw these sets only (comma-separated; default: the document's [plot].draw, else every set) |
 | `--points SEL` | pages of these points only, in this order, in the folder points/: indices, names, globs, tags or quantity=tag, comma-separated ([plot].sets for one set) |
 | `--plan` | say each set's page cells and their curves, from the complete points; draw nothing; with --style-sync: what would change, written nowhere |
-| `--style-sync CONFIG` | take this config's [plot] and [stats] into the plot documents named (<P>/<name>/<cfg>, or <P>/<name>: each of its runs), what each run knows left as it is; nothing is drawn unless --replot |
+| `--style-sync CONFIG` | take this config's [plot] and [stats] into the plot documents named (<A>/<E>/<R>, or <A>/<E>: each of its Runs), what each Run knows left as it is; nothing is drawn unless --replot |
 | `--replot` | with --style-sync: then draw what was synced |
-| `--across` | the runs of this run TOML together, results/<P>/<name>/plot.toml: its [plot.across] sets |
+| `--across` | the Runs of this errand together, results/<A>/<E>/plot.toml: its [plot.across] sets |
 | `--keep WHAT` | cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway |
 | `[configuration]` | overrides [errand].configuration; under sweep_runs, only it |
 | `--set KEY=VALUE` | as for heimdall run |
 
-**`heimdall stats`**: a run's statistics alone: its pages' numbers against the data, drawing no page
+**`heimdall stats`**: a Run's statistics alone: its pages' numbers against the data, drawing no page
 
 | Argument | Meaning |
 |---|---|
-| `config` | a run <P>/<name>/<cfg>, a folder with a plot.toml, <P>/<name> (each of its runs), or a run TOML (its configurations' newest runs) |
-| `[configuration]` | with a run TOML: only this configuration |
+| `config` | a Run <A>/<E>/<R>, a folder with a plot.toml, <A>/<E> (each of its Runs), or an errand file (its configurations' newest Runs) |
+| `[configuration]` | with an errand file: only this configuration |
 | `--sets NAMES` | measure these sets only (default: [stats].sets, else [plot].draw, else every set) |
 | `--set KEY=VALUE` | as for heimdall run |
-| `--across` | the runs of this run TOML together (as heimdall plot --across) |
+| `--across` | the Runs of this errand together (as heimdall plot --across) |
 
-**`heimdall overlay`**: overlay any YODA/ROOT files through Paint, with no run TOML
+**`heimdall overlay`**: overlay any YODA/ROOT files through Paint, with no errand file
 
 | Argument | Meaning |
 |---|---|
@@ -92,24 +92,24 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--ratio` | a ratio panel against the first curve |
 | `--style FILE` | a style file over src/Apps/Paint/base.toml |
 
-**`heimdall deck`**: retired: heimdall report makes a report of runs' pages and numbers
+**`heimdall deck`**: retired: heimdall report makes a report of Runs' pages and numbers
 
-**`heimdall report`**: a quick report of runs' pages and numbers, built only when asked into reports/, where results/ has its sources (a folder's: its report.toml)
+**`heimdall report`**: a quick report of Runs' pages and numbers, built only when asked into reports/, where results/ has its sources (a folder's: its report.toml)
 
 | Argument | Meaning |
 |---|---|
-| `RECIPE.toml\|SOURCE…` | sources alone: one folder's report.toml (else the default report), or the default over several: <P>/<run>/<cfg>, <P>/<run>, a path or a glob; or a recipe first, always named .toml (<P>/<name>.toml under configs/, ./… or /…: a recipe of its own, a run TOML's [report], a report.toml), then its sources, which replace its [report].from |
+| `RECIPE.toml\|SOURCE…` | sources alone: one folder's report.toml (else the default report), or the default over several: <A>/<E>/<R>, <A>/<E>, a path or a glob; or a recipe first, always named .toml (<A>/<E>.toml under configs/, ./… or /…: a recipe of its own, an errand file's [report], a report.toml), then its sources, which replace its [report].from |
 | `--list, --dry-run` | its sources, sections and figures, each copied or drawn for the report; nothing written |
-| `--init SOURCE` | write the recipe RECIPE.toml (<P>/<name>.toml) once: SOURCE's sets and pages, listed |
-| `-o, --output DIR` | build into DIR (default: its recipe's [report].output, else reports/<P>/<run>/<cfg>/ as results/ has its sources) |
+| `--init SOURCE` | write the recipe RECIPE.toml (<A>/<E>.toml) once: SOURCE's sets and pages, listed |
+| `-o, --output DIR` | build into DIR (default: its recipe's [report].output, else reports/<A>/<E>/<R>/ as results/ has its sources) |
 
 **`heimdall ls`**: every config and its configurations
 
 | Argument | Meaning |
 |---|---|
-| `[project]` | only this project's configs |
+| `[assignment]` | only this assignment's errand files |
 
-**`heimdall explain`**: a run TOML key: its type, default and meaning (the schema's)
+**`heimdall explain`**: a key of an errand file: its type, default and meaning (the schema's)
 
 | Argument | Meaning |
 |---|---|
@@ -119,22 +119,22 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `[config]` | one config, or a record <P>/<run>/<NN_cfg> (default: every config) |
+| `[config]` | one config, or a record <A>/<E>/<R> (default: every config) |
 | `[configuration]` | one configuration of it |
 | `--set KEY=VALUE` | as heimdall run's, for the view |
 | `--stack` | the loaded stack instead: each package installed, its release and state; the libraries' versions |
 
-**`heimdall migrate`**: rewrite run TOMLs and their cards in today's forms (a diff, or --apply)
+**`heimdall migrate`**: rewrite errand files and their cards in today's forms (a diff, or --apply)
 
 | Argument | Meaning |
 |---|---|
 | `CONFIG…` | configs to migrate (default: every config) |
-| `--v3` | into the run TOML's third form (03 §6, runner/v3.py) |
-| `--layout` | move the work dir's older layouts into today's: logs/ into records/<run>/logs/, points into points/ (and output/ first, if any); no configs are read |
+| `--v3` | into the errand file's third form (03 §6, runner/v3.py) |
+| `--layout` | move the work dir's older layouts into today's: logs/ into records/<A>/<E>/<R>/logs/, points into points/ (and output/ first, if any); no configs are read |
 | `--list` | with --layout: every move, one a line |
 | `--names` | a work dir from before Heimdall's names moved: hep → heimdall (its marker hep.toml → heimdall.toml, the old names in its own files: configs, modules, Makefile, editor settings) and [run] → [errand], [run].project → [errand].assignment (its configs, its records' snapshots, its plot documents' [source]) |
 | `--snapshot RECORD` | give a record that ran before snapshots one: copy a config's files into <record>/config/ (--from, default the config its points.json names) and say which points it gives the same identity |
-| `--plot-docs RECORD…` | write the plot document (results/<run>/plot.toml) of every record without one, or of these (<P>/<name>/<cfg>), from its snapshot (else the config its points.json names) |
+| `--plot-docs RECORD…` | write the plot document (results/<A>/<E>/<R>/plot.toml) of every record without one, or of these (<A>/<E>/<R>), from its snapshot (else the config its points.json names) |
 | `--from CONFIG` | with --snapshot: the config to copy |
 | `--set KEY=VALUE` | with --snapshot: the overrides it ran with (default: those its points' provenance records) |
 | `--apply` | write the changes (default: print the diff) |
@@ -158,39 +158,39 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--yes` | delete without asking |
 | `--records` | also the records no plan has (provenance, identities, completion): asked for even with --yes |
 
-**`heimdall check`**: check run TOMLs: every configuration loaded, validated and planned
+**`heimdall check`**: check errand files: every configuration loaded, validated and planned
 
 | Argument | Meaning |
 |---|---|
-| `CONFIG…` | configs to check (default: every configs/<Project>/*.toml with an [errand]) |
-| `--set KEY=VALUE` | as heimdall run's: check what that run would |
+| `CONFIG…` | configs to check (default: every configs/<A>/*.toml with an [errand]) |
+| `--set KEY=VALUE` | as heimdall run's: check what that job would |
 
 **`heimdall watch`**: attach the live view to a running job
 
 | Argument | Meaning |
 |---|---|
-| `[config]` | the run config whose job to watch (default: the latest job) |
+| `[config]` | the errand file whose job to watch (default: the latest job) |
 | `[configuration]` | overrides [errand].configuration (or the sweep's latest) |
 | `--plain` | plain lines instead of the live view |
-| `--file EVENTS.JSONL` | follow a run's run.jsonl, or a --journal run's status.jsonl, instead |
-| `--pid N` | the run of this process (heimdall runs lists them) |
+| `--file EVENTS.JSONL` | follow a Run's run.jsonl, or a --journal job's status.jsonl, instead |
+| `--pid N` | the job of this process (heimdall runs lists them) |
 
-**`heimdall runs`**: running jobs; with --5, --10, --20 or --50 the latest runs, with --week or --month those of the last 7 or 28 days
-
-| Argument | Meaning |
-|---|---|
-| `--5` | show the latest 5 runs, including non-running runs |
-| `--10` | show the latest 10 runs, including non-running runs |
-| `--20` | show the latest 20 runs, including non-running runs |
-| `--50` | show the latest 50 runs, including non-running runs |
-| `--week` | show all runs from the last 7 days |
-| `--month` | show all runs from the last 28 days |
-
-**`heimdall tag`**: a configuration folder's tag: show it, set it, or --clear it
+**`heimdall runs`**: running jobs; with --5, --10, --20 or --50 the latest jobs, with --week or --month jobs of the last 7 or 28 days
 
 | Argument | Meaning |
 |---|---|
-| `RECORD` | a configuration's folder, <P>/<run>/<NN_cfg>, or a path under records/ or results/ |
+| `--5` | show the latest 5 jobs, including ended ones |
+| `--10` | show the latest 10 jobs, including ended ones |
+| `--20` | show the latest 20 jobs, including ended ones |
+| `--50` | show the latest 50 jobs, including ended ones |
+| `--week` | show all jobs from the last 7 days |
+| `--month` | show all jobs from the last 28 days |
+
+**`heimdall tag`**: a Run's tag: show it, set it, or --clear it
+
+| Argument | Meaning |
+|---|---|
+| `RECORD` | a Run, <A>/<E>/<R>, or a path under records/ or results/ |
 | `[NAME]` | the tag to give it (a letter or digit, then letters, digits, . _ + -, at most 40) |
 | `--clear` | remove its tag |
 
@@ -198,15 +198,15 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `RECORD[/POINT[/TAG]]` | a record, <P>/<run>/<NN_cfg>, then a point and a tool, or a path under records/ |
-| `--full` | the whole logs (a run with --logs) instead of the digests |
+| `RECORD[/POINT[/TAG]]` | a record, <A>/<E>/<R>, then a point and a tool, or a path under records/ |
+| `--full` | the whole logs (a job with --logs) instead of the digests |
 | `--attempt N` | an earlier attempt's logs, from the point's history/ |
 
 **`heimdall stop`**: stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes (a second stop kills its tools at once)
 
 | Argument | Meaning |
 |---|---|
-| `[config]` | the run config whose job to stop (default: your only running job) |
+| `[config]` | the errand file whose job to stop (default: your only running job) |
 | `[configuration]` | the configuration it runs |
 | `--pid N` | the job of this process (heimdall runs lists them) |
 | `--no-wait` | ask it to stop and return, without waiting for it to end |
@@ -215,11 +215,11 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 | Argument | Meaning |
 |---|---|
-| `config` | the run config, as heimdall run names it |
+| `config` | the errand file, as heimdall run names it |
 | `[configuration]` | overrides [errand].configuration; under [errand].sweep_runs, submits only it |
 | `--points SEL` | submit a subset: tags, indices or quantity=tag |
 | `--set KEY=VALUE` | override one value for this submission (repeatable; cluster.time=… too); the jobs get it |
-| `--keep WHAT` | what each job's run also keeps (as heimdall run --keep) |
+| `--keep WHAT` | what each job also keeps (as heimdall run --keep) |
 | `--rerun` | submit complete points too, and rerun them |
 | `--dry-run` | write the job scripts and print the sbatch lines; submit nothing |
 | `--status` | the latest submission: each point's state (sacct, squeue) |
@@ -230,11 +230,11 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | Argument | Meaning |
 |---|---|
 | `dir` | the work dir's folder: new, empty, or a work dir to complete |
-| `--project P` | also configs/<P>/ with a starter run TOML and card, and modules/<P>/ |
+| `--assignment A` | also configs/<A>/ with a starter errand file and card, and modules/<A>/ |
 | `--git yes\|new` | commit what was added (only that), in the git repository the folder is in, or a new one when it is in none; --git=new: a repository of its own even inside another |
 | `--adopt` | make a work dir of a folder that has files but no heimdall.toml |
 | `--name NAME` | the work dir's name in heimdall.toml (default: the folder's) |
-| `--example NAME` | also a working example project to run first: jets (the guide's Demo project: Pythia → Rivet → pages against ZEUS data) |
+| `--example NAME` | also a working example assignment to run first: jets (the guide's Demo assignment: Pythia → Rivet → pages against ZEUS data) |
 | `--refresh` | bring the framework's own files (Makefile, README/HEIMDALL.md, CLAUDE.md, .vscode, the .gitignore block) up to today's template, as a diff; never the user's files |
 | `--yes` | with --refresh: write without asking |
 
@@ -281,7 +281,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 **`heimdall quit`**: leave this shell's environment (gjallarhorn.sh's shell function)
 
-**`heimdall cd`**: cd to a work dir's folder: heimdall cd PROJECT [configs|modules|results|records|logs] (gjallarhorn.sh's shell function)
+**`heimdall cd`**: cd to a work dir's folder: heimdall cd ASSIGNMENT [configs|modules|results|records|logs] (gjallarhorn.sh's shell function)
 
 **`heimdall recognise`**: record work dirs by title, in the machine root's workdirs.toml (gjallarhorn <title> goes to one)
 
@@ -324,7 +324,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 
 ### 1.1 `heimdall run`
 
-A run TOML may give the commands that read it their preference switches (`rerun`, `wait`, `detach`, `plain`,
+An errand file may give the commands that read it their preference switches (`rerun`, `wait`, `detach`, `plain`,
 `journal`, `logs`, `replot`, `keep`), in `[heimdall]` (04 §3); the command line wins over it.
 
 The order is: the pre stage → every point not complete (in point order, `parallelism` at a time) →
@@ -356,7 +356,7 @@ the others.
   name (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40) that `heimdall runs`, `heimdall status`, the run's
   title and a report show beside the folder. Without it, a folder keeps the tag it has, else takes its
   configuration's `tag` key (04 §5); an untagged run writes none. The folder keeps it in its record,
-  `records/…/<cfg>/tag`, and its plot document's `[source].tag` is written from that. A tag is never part
+  `records/…/<R>/tag`, and its plot document's `[source].tag` is written from that. A tag is never part
   of a point's identity: tagging reruns nothing. `--plan` says the tag a run would give, and from where.
 - **`--only`:** `--only plot` draws the pages and runs nothing; `--only pre` and `--only post` run
   that stage whether or not it is complete.
@@ -364,7 +364,7 @@ the others.
   what is unchanged (`--rerun` as usual): what `heimdall cluster`'s jobs run (§1.9). A run of the points
   alone writes no `points.json` and draws nothing; the points refuse to start without their pre
   stage complete.
-- **`--journal`** also writes the run's events to `records/…/<cfg>/status.jsonl`. Without it,
+- **`--journal`** also writes the run's events to `records/…/<R>/status.jsonl`. Without it,
   nothing of the run's state is on disk.
 - **`--logs`** keeps every tool's whole output (`<tag>.full.log`). Without it, each tool's digest is
   kept (`<tag>.log`: its first 100 lines, every line its rules matched, its last 200).
@@ -394,7 +394,7 @@ else 0. With `[errand] notify = "desktop"`, the end is also a desktop notificati
   a binary rebuilt) is drawn as recorded and named. Under `[errand].sweep_runs` it draws every swept
   configuration's, each under its `run NN - <title> -` line, and the compare figures whose configurations
   are all complete.
-- **`heimdall plot <P>/<run>/<NN_cfg>`** (a record: a configuration's folder of `records/`, or a path to it
+- **`heimdall plot <A>/<E>/<R>`** (a record: a configuration's folder of `records/`, or a path to it
   or to its `results/` twin) draws the points that run recorded, with the config they ran with: its
   snapshot, `records/…/config/` (02 §8.1). Nothing is planned. `heimdall run` and `heimdall status` take a
   record too: they read the snapshot as `configs/` (its imports and cards), with its configuration and
@@ -451,14 +451,14 @@ This is housekeeping.
   documents and journal beside them, and the points into `points/` of `records/…/` and `results/…/`,
   `points.json` pointed at them; before that, `output/` (5.1) by lifecycle. A work dir still holding
   `logs/` says so on every command: its points would rerun until it is moved.
-- **`migrate --snapshot <P>/<run>/<NN_cfg>`** gives a record from before snapshots one: the config its
+- **`migrate --snapshot <A>/<E>/<R>`** gives a record from before snapshots one: the config its
   `points.json` names (or `--from CONFIG`, with `--set`; by default its points' recorded overrides) is
   planned and its files copied into `records/…/config/`; each recorded point is said to have the same
   identity under it, or what differs. `--apply` replaces a snapshot already there.
 
 ### 1.4 `heimdall check`
 
-`heimdall check` loads each config (with none given, every `configs/<Project>/*.toml` that has a
+`heimdall check` loads each config (with none given, every `configs/<A>/*.toml` that has a
 `[errand]`), validates its `[plot]` and its figures, and plans every configuration's points. That
 covers every C-rule, path, consumer, connection and card, with nothing run or written. It
 prints one line per config, and the error of each that fails. It exits 0, or 2 when any failed: for
@@ -541,13 +541,13 @@ A run from inside an Apptainer image is not recorded (its machine root is read-o
 while it runs, as `running (unrecorded)`. The registry is `<machine root>/runs/`.
 
 **`heimdall tag RECORD [NAME] [--clear]`** shows a configuration folder's tag (`RECORD` is
-`<P>/<run>/<NN_cfg>`, as `heimdall log` takes it, or a path under `records/` or `results/`), gives it `NAME`,
+`<A>/<E>/<R>`, as `heimdall log` takes it, or a path under `records/` or `results/`), gives it `NAME`,
 or with `--clear` removes it. Each change is written into its record and, when the folder has one, into its
 plot document's `[source].tag`; a later run of the folder keeps it unless `--tag` gives another. A tag
 removed stays removed: the configuration's `tag` key gives a folder its tag only when it has never had one.
 
 **`heimdall log RECORD[/POINT[/TAG]] [--full] [--attempt N]`** reads what a record of this work dir kept:
-- **A record** (`<P>/<run>/<NN_cfg>`, as `heimdall runs` and `heimdall status` name it): its `run.jsonl`,
+- **A record** (`<A>/<E>/<R>`, as `heimdall runs` and `heimdall status` name it): its `run.jsonl`,
   printed as the run printed itself, each of its runs in turn. A record from before runs kept their own
   log has none.
 - **A point** (`…/<point>`): its attempts, a line each (when, how it ended, why), then each of its tools'
@@ -558,7 +558,7 @@ removed stays removed: the configuration's `tag` key gives a folder its tag only
 
 ### 1.6 `heimdall migrate`
 
-`heimdall migrate` rewrites run TOMLs, and the base cards they name, in the forms the runner takes today
+`heimdall migrate` rewrites errand files, and the base cards they name, in the forms the runner takes today
 . By default it prints a diff of each file; with `--apply` it writes the files (with no
 config, every config). It works by line, so comments and layout stay. It rewrites:
 
@@ -608,7 +608,7 @@ such a work dir says so. A shell still holding the old names (`$HEP_MACHINE`, �
 
 `heimdall reproduce` runs a finished point again, exactly as it ran: its config, its configuration,
 its `--set` overrides (the provenance records them) and its seed.
-- **Where it runs:** into `.cache/<P>/reproduce/<identity>/`, with its own `records/` and `results/`,
+- **Where it runs:** into `.cache/<A>/reproduce/<identity>/`, with its own `records/` and `results/`,
   never over the original.
 - **The comparison:** each product against the original's, giving `identical`, `the same values` or
   `differs`, with exit 1 if any differs:
@@ -623,29 +623,29 @@ its `--set` overrides (the provenance records them) and its seed.
 `heimdall report [RECIPE.toml] [SOURCE…]` makes a quick, informal report of runs' pages and numbers, to send
 to a colleague or a supervisor. It runs only when asked: no run, plot or stats step calls it.
 - **The ways in:**
-  1. `heimdall report <P>/<run>/<cfg>`: that folder's `report.toml`, which its run wrote from its config's
+  1. `heimdall report <A>/<E>/<R>`: that folder's `report.toml`, which its run wrote from its config's
      `[report]`; a folder drawn before runs wrote one gets the default report.
   2. `heimdall report <recipe>.toml <source>…`: that recipe over those sources, which replace its
-     `[report].from` (a section's own `from` stays). The recipe may be a run TOML: its `[report]` (with its
+     `[report].from` (a section's own `from` stays). The recipe may be an errand file: its `[report]` (with its
      template) as the config reads today; the folders' `report.toml` are not rewritten.
   3. `heimdall report <recipe>.toml`: a recipe of its own over its `from`.
-  4. Several sources, or `<P>/<run>`, with no recipe: the default report over them all.
+  4. Several sources, or `<A>/<E>`, with no recipe: the default report over them all.
 
-  A recipe is always named with `.toml`: `<P>/<name>.toml` under `configs/`, `./…` from the work dir, or
+  A recipe is always named with `.toml`: `<A>/<E>.toml` under `configs/`, `./…` from the work dir, or
   `/…`. A first argument without `.toml` is a source.
-- **A source:** `<P>/<run>/<cfg>`, `<P>/<run>` (each configuration's folder, then the run's own), a path,
+- **A source:** `<A>/<E>/<R>`, `<A>/<E>` (each configuration's folder, then the run's own), a path,
   or a glob (`'eic/zeus_validation/0[2-4]_*'`).
 - **Its recipe's keys** are [04 §15](04_Config_Reference.md#15-a-reports-recipe-report).
 - **`--list`** (or `--dry-run`): its sources (each one's configuration, points complete, events, what it is
   compared against), what it would draw for itself and why, then each section and what it shows, and the
   optional sections left out. Nothing is written.
-- **`--init SOURCE`:** writes `configs/<P>/<name>.toml` for `heimdall report <P>/<name>.toml --init
+- **`--init SOURCE`:** writes `configs/<A>/<E>.toml` for `heimdall report <A>/<E>.toml --init
   SOURCE`, once, with SOURCE's sets, cells and pages listed.
-- **`-o DIR`:** builds into DIR instead of where `results/` has its sources (`reports/<P>/<run>/<cfg>/`,
-  `reports/<P>/<run>/`, …) or its recipe's `[report].output`; never into `results/`.
+- **`-o DIR`:** builds into DIR instead of where `results/` has its sources (`reports/<A>/<E>/<R>/`,
+  `reports/<A>/<E>/`, …) or its recipe's `[report].output`; never into `results/`.
 - **What it draws for itself:** a set a source has not drawn (or drew as PNG alone), numbers it has not
   measured, and every section with `plot = { … }`, from the source's plot document into the report's cache
-  (`.cache/<P>/reports/…/.drawn/`), never into `results/` ([03 §11.3](03_Plots.md#113-drawn-for-itself)).
+  (`.cache/<A>/reports/…/.drawn/`), never into `results/` ([03 §11.3](03_Plots.md#113-drawn-for-itself)).
 - **What it makes:** `figures/` (every page it shows, copied as drawn or drawn for it, with its PNG and its
   curves' bins as a CSV), `stats/` (the numbers behind the statistics and bar tables it typesets, from each
   source's `statistics.csv` or the numbers measured for it), `tools/` (what each tool was given, from the records: its card's lines alike in every point, and what
@@ -662,7 +662,7 @@ to a colleague or a supervisor. It runs only when asked: no run, plot or stats s
 `heimdall cluster <config> [<configuration>]` runs a configuration as Slurm jobs, from the cluster's login
 node (how to, [02 §7.5](02_User_Guide.md#75-on-a-slurm-cluster); the keys,
 [04 §16](04_Config_Reference.md#16-cluster-running-on-slurm)). It plans as `heimdall run --plan` does, with
-every check, then writes three scripts into `records/<P>/<run>/<cfg>/cluster/<stamp>/` and submits
+every check, then writes three scripts into `records/<A>/<E>/<R>/cluster/<stamp>/` and submits
 them with `sbatch --parsable`:
 
 | Job | Runs | Waits for |
@@ -706,7 +706,7 @@ The make rules are in [06 §15](06_Internals.md#15-the-build). Run them with the
 (`gjallarhorn`, the shell function the build writes into `~/.bashrc`; `source <Heimdall>/gjallarhorn.sh`
 in bash; or `launch.sh` from any shell).
 
-`heimdall refresh`, `heimdall quit` and `heimdall cd PROJECT [DIR]` change the shell they are typed in. `gjallarhorn.sh`
+`heimdall refresh`, `heimdall quit` and `heimdall cd ASSIGNMENT [DIR]` change the shell they are typed in. `gjallarhorn.sh`
 defines `heimdall` as a shell function that does them there, and runs `framework/bin/heimdall` for everything
 else. `refresh` is `quit`, then the same stack again (`$HEIMDALL_STACK`: an isolated toolkit's included);
 `quit` takes out everything the environment added, `machine.sh`'s lines too. In a shell without that
@@ -810,7 +810,7 @@ checkout and the machine root are not entered. `heimdall setup` records the work
 | `HEIMDALL_DETACH` | you | `never`: a `heimdall run` on a terminal stays in the command's own process (a debugger, `pytest -s`) |
 | `HEIMDALL_CLUSTER_JOB` | `heimdall cluster`'s job scripts | set in a cluster job: its `heimdall run` records nothing in the registry (its submission is recorded) and stays in-process |
 | `HEIMDALL_RECORDS`, `HEIMDALL_CACHE`, `HEIMDALL_RESULTS`, `HEIMDALL_REPORTS` | you, tests | replace the work dir's `records/`, `.cache/`, `results/` and `reports/` (the tests point them into `forge/scratch/`) |
-| `HEIMDALL_CONFIGS` | you | replaces the work dir's `configs/` as the root of run TOMLs and their cards |
+| `HEIMDALL_CONFIGS` | you | replaces the work dir's `configs/` as the root of errand files and their cards |
 | `HEIMDALL_STATUS_FD` | the runner, per tool | the status pipe of a `status = "standard"` tool |
 | `RIVET_ANALYSIS_PATH` | the rivet and merge folders, per run | the work dir's `build/Rivet` (not set in the shell on purpose) |
 | `LHAPDF_DATA_PATH`, `GEANT4_DATA_DIR`, `ONNXRUNTIME_DIR`, `DELPHES_DIR` | `env/heimdall_env.sh` | the toolchain's data; the base's, for a package taken ready-made |
@@ -876,7 +876,7 @@ Paint (`src/Apps/Paint/`) is driven by the plot stage, and is never named in `to
 
 ```toml
 [tools.pythia]
-card   = "ep.cmnd"              # configs/<P>/ep.cmnd
+card   = "ep.cmnd"              # configs/<A>/ep.cmnd
 output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04 §6); an array fans out
 ```
 
@@ -903,7 +903,7 @@ output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04
     lacks) refuses the plan, with the line's source.
   - No list of keys is kept: a nucleus or an `id:new` particle earlier in the card is read as Pythia
     reads it.
-  - Answers are kept by the card's text for the process, and in `.cache/<P>/checks/` with `keep cache`.
+  - Answers are kept by the card's text for the process, and in `.cache/<A>/checks/` with `keep cache`.
 - **Footer** `Beams:LHEF = <input>`, only when the tool has an input: a shower of an LHE file from an
   earlier group (MadGraph). The base card sets `Beams:frameType = 4`.
 - **Consumes** through the vocabulary: `energies`, `sqrts`, `beam_a`, `beam_b`, `beams`, `pdf`
@@ -949,7 +949,7 @@ output   = "jets.yoda"
 - **Consumes** nothing through the vocabulary: beams and energies come from the events.
 - **σ** is the last event's `GenCrossSection`: App_Pythia re-stamps it with the combined value.
 - **Count check**: `/RAW/_EVTCOUNT`'s entries against the producer's sidecar `written`.
-- **Identity** includes each project plugin's `.so` (`build/Rivet/Rivet_<analysis>.so`); the
+- **Identity** includes each assignment plugin's `.so` (`build/Rivet/Rivet_<analysis>.so`); the
   version is the stack's.
 - **In the context file** (04 §9.4): `analyses` (with this point's options applied, e.g.
   `photo_eic:R=0.4`) and `plugin_path` (`build/Rivet`): its folder's `[context] values`.
@@ -1073,7 +1073,7 @@ It runs `App_yd2rt.exe --merge <partial output> <point>=<yoda>… --keep-raw --p
 - **Into `.yoda`:** one YODA file, with the point as a path prefix.
 
 It is not a statistical merge (that is `merge`). The plot stage makes the same file itself, in
-`.cache/<P>/plots/<name>/<cfg>/<cfg>.root`, so this tool is for a copy elsewhere, or a YODA version.
+`.cache/<A>/plots/<E>/<R>/<cfg>.root`, so this tool is for a copy elsewhere, or a YODA version.
 
 ## 9. `exec`
 
@@ -1412,7 +1412,7 @@ Paint draws many pages in one ROOT process (the plot stage sends up to 200 at a 
 - **Exit codes**: 0 ok, 1 page config or style (with several pages: any failed), 2 usage, 4 input,
   5 output.
 
-**The page document**, written by the runner to `.cache/<P>/plots/<name>/<cfg>/<set>/[<cell>/]<object>.toml`. Its labels
+**The page document**, written by the runner to `.cache/<A>/plots/<E>/<R>/<set>/[<cell>/]<object>.toml`. Its labels
 are LaTeX converted to TLatex, which Paint draws:
 
 ```toml
@@ -1452,7 +1452,7 @@ style  = { colour = "#EE3311" }                         # optional: the value's 
 band   = [{ file = "/…/default.root", object = "…" }]   # optional: the envelope's members
 
 [data]                             # optional
-file   = "/…/plots/datasets/ZEUS_2012_I1116258.yoda.root"   # .cache/<P>/datasets/ with keep cache
+file   = "/…/plots/datasets/ZEUS_2012_I1116258.yoda.root"   # .cache/<A>/datasets/ with keep cache
 object = "REF/ZEUS_2012_I1116258/d06-x01-y01"
 label  = "ZEUS 2012"
 ```

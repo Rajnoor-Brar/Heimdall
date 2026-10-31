@@ -141,7 +141,7 @@ def test_an_ignored_quantity_holding_several_values_in_a_run_is_refused(scratch)
     where = folder_of("several")
     a_run(where, "01_one", tag="py", generator=[0])
     a_run(where, "02_one", tag="both", generator=[0, 1], swept=True)
-    with pytest.raises(HeimdallError, match="ignore names generator, which takes 2 values in the run 02_one: py8, hw7") as error:
+    with pytest.raises(HeimdallError, match="ignore names generator, which takes 2 values in the Run 02_one: py8, hw7") as error:
         together(where, ignore=["generator"])
     assert "[from].ignore" in str(error.value.where)
 
@@ -149,7 +149,7 @@ def test_an_ignored_quantity_holding_several_values_in_a_run_is_refused(scratch)
 def test_an_unknown_name_in_ignore_and_a_bad_from_are_refused(scratch):
     where = folder_of("unknown")
     a_run(where, "01_one")
-    with pytest.raises(HeimdallError, match="ignore names 'generater', which is no quantity of the runs") as error:
+    with pytest.raises(HeimdallError, match="ignore names 'generater', which is no quantity of the Runs") as error:
         together(where, ignore=["generater"])
     assert "did you mean 'generator'" in error.value.hint
     with pytest.raises(HeimdallError, match="which is no quantity"):

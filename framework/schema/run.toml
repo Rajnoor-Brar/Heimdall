@@ -1,4 +1,4 @@
-# framework/schema/run.toml — every key a run TOML may hold (docs/04_Config_Reference.md), in one place
+# framework/schema/run.toml — every key an errand file may hold (docs/04_Config_Reference.md), in one place
 # (V55). The runner validates against it (runner/schema.py), the editor schema is generated from it
 # (`make schema` → run.schema.json), and test_docs.py holds docs/04 to it.
 #
@@ -16,8 +16,8 @@
 #   default_ok  true: the value "default" is accepted. "default" means "keep it as it is" (V55): in a
 #            child it is the parent's value; at the top level nothing is set, and the tool decides.
 #   page     a [plot] key a figure ([plot.figures.<figure>]) may override
-#   path     a path key: its convention root (paths.ROOTS); an imported file of another project has
-#            these made absolute against its own project (V94)
+#   path     a path key: its convention root (paths.ROOTS); an imported file of another assignment has
+#            these made absolute against its own assignment (V94)
 #   doc      one line, for `heimdall explain` and the editor
 #   notes    what a line cannot say: the reference's text for the key (docs/04_Config_Reference.md is
 #            generated from doc and notes, `make docs`), shown by `heimdall explain` and the editor too
@@ -37,7 +37,7 @@ order = ["config", "errand", "prelim", "static", "tools", "quantities", "plot", 
 [config.master]
 path = "master"
 type = "str"
-doc  = "a project master overlaid on the tool folders' quantities.toml (configs/<Project>/…)"
+doc  = "a assignment master overlaid on the tool folders' quantities.toml (configs/<A>/…)"
 notes = """\
   overlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an \
   entry for a (tool, quantity) pair replaces the framework's. The file must exist."""
@@ -45,17 +45,17 @@ notes = """\
 [config.import]
 type  = "str|list"
 items = "str|table"
-doc   = "run TOMLs whose tables this one starts from, in order; this file wins (V56, V93, V94)"
+doc   = "errand files whose tables this one starts from, in order; this file wins (V56, V93, V94)"
 notes = """\
-  run TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this \
-  project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the \
+  errand files this one starts from, in order, named as `heimdall run` names a config: `name` is this \
+  assignment's (`configs/<A>/name.toml`), `<A>/<E>` another assignment's, `./…` from the \
   work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or \
   configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and \
   `[errand]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own \
-  imports come first, depth-first; a circle is refused. Another project's file keeps its bare paths \
-  (cards, filters, styles, executables) its own project's, so its tools plan as they do in it. The \
+  imports come first, depth-first; a circle is refused. Another assignment's file keeps its bare paths \
+  (cards, filters, styles, executables) its own assignment's, so its tools plan as they do in it. The \
   file that imports sets its own `[errand].name` and `assignment`; no folder of its configurations may be \
-  an imported run's (V100). \
+  an imported errand's (V100). \
   An entry may be `{ from = \"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those \
   sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where \
   each quantity, tool and configuration came from."""
@@ -81,17 +81,17 @@ notes = """\
   unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value, \
   so a shared file can be written with parameters; its own `[config.vars]` come with whatever is \
   taken of it (`only` included, V101), under this file's. Imports are read before vars, so an import's \
-  name cannot cite one; `--set config.vars.<name>=…` changes one for a run."""
+  name cannot cite one; `--set config.vars.<name>=…` changes one for a job."""
 
 [config.meta]
 type  = "table"
 doc   = "about the file, for people; versions: the stack it was run with, warned about, never enforced (V97)"
 notes = """\
-  descriptive: it never changes a run (V97). Any key is free text for people (`author`, \
+  descriptive: it never changes a point (V97). Any key is free text for people (`author`, \
   `references`, …) except `versions = { pythia8 = \"8.317\", rivet = \"4.1.3\" }`: the packages of \
   `env/stack.toml` the file was run with, each version a string. A version the stack does \
-  not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in \
-  `heimdall check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does \
+  not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the job's start and in \
+  `heimdall check`, which still passes: the job goes ahead, at your own risk. A package stack.toml does \
   not name is refused, since its warning could never come."""
 
 # ── [errand] ──────────────────────────────────────────────────────────────────────────────────
@@ -99,9 +99,9 @@ notes = """\
 [errand.name]
 type     = "str"
 required = true
-doc      = "the run's folder: <project>/<name>/"
+doc      = "the errand's name, <E>: its folder <A>/<E>/"
 notes = """\
-  the run's directory name"""
+  the errand's folder name, `<E>` in `results/<A>/<E>/` (its Runs below it)"""
 
 [errand.assignment]
 type     = "str"
@@ -130,9 +130,9 @@ notes = """\
 [errand.serial]
 type    = "int"
 inherit = true
-doc     = "the NN_ before each configuration's folder"
+doc     = "the NN_ before each Run's folder name"
 notes = """\
-  the prefix `NN_` of each configuration's folder, `<name>/NN_<label>`: **location, never \
+  the prefix `NN_` of each Run's folder, `<E>/NN_<label>`: **location, never \
   identity** (V12). A configuration's `serial` overrides it (V45). Changing it starts a fresh \
   location."""
 
@@ -170,12 +170,12 @@ type    = "bool|list"
 items   = "str"
 default = true
 inherit = true
-doc     = "after the points: draw the run's pages (true: every set), none (false: its plot.toml is still written), or these sets (V167)"
+doc     = "after the points: draw the Run's pages (true: every set), none (false: its plot.toml is still written), or these sets (V167)"
 notes = """\
-  the plot follow-up (V167): `true` draws every set of the run's plot document (its `totality` and the \
+  the plot follow-up (V167): `true` draws every set of the Run's plot document (its `totality` and the \
   `[plot].sets`), `false` none (the document is written all the same, for `heimdall plot` later), a list \
   draws those sets (`["totality", "pdf_by_generator"]`) and is the document's `[plot].draw`. A \
-  configuration may set its own; `heimdall run … --no-plot` turns it off for one run"""
+  configuration may set its own; `heimdall run … --no-plot` turns it off for one job"""
 
 [errand.stats]
 type    = "bool|list"
@@ -184,23 +184,23 @@ default = true
 inherit = true
 doc     = "after the pages: their statistics (true: every set drawn), none (false), or these sets'; with plot = false, measured alone (V168)"
 notes = """\
-  the statistics follow-up (V168): `true` measures the sets the run draws (or, with `plot = false`, every \
+  the statistics follow-up (V168): `true` measures the sets the Run draws (or, with `plot = false`, every \
   set, undrawn), `false` none, a list those sets (the document's `[stats].sets`). A configuration may set its \
-  own; `heimdall run … --no-stats` turns it off for one run"""
+  own; `heimdall run … --no-stats` turns it off for one job"""
 
 [errand.description]
 type = "str"
-doc  = "what the run is for"
+doc  = "what the errand is for"
 
 [errand.tag]
 type    = "str"
 inherit = true
-doc     = "the tag each configuration's folder is given when it runs, unless it has one (a letter or digit, then letters, digits, . _ + -; at most 40)"
+doc     = "the tag each Run is given when it runs, unless it has one (a letter or digit, then letters, digits, . _ + -; at most 40)"
 notes = """\
-  default for configurations: a short name kept with the configuration's folder (its record's `tag` \
+  default for configurations: a short name kept with the Run (its record's `tag` \
   file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report \
   show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` \
-  gives one for a run; a folder that has a tag keeps it (`heimdall tag` changes it); `\"\"` is none"""
+  gives one for a job; a Run that has a tag keeps it (`heimdall tag` changes it); `\"\"` is none"""
 
 [errand.sweep_runs]
 type    = "bool|list"
@@ -218,7 +218,7 @@ default = "none"
 doc     = "\"desktop\": a notify-send when heimdall run ends, with its verdict (V76)"
 notes = """\
   `\"desktop\"` (V76): a desktop notification (`notify-send`) when `heimdall run` ends, with its \
-  verdict; never fails a run"""
+  verdict; never fails a job"""
 
 [errand.seed_type]
 type    = "str"
@@ -256,26 +256,26 @@ type       = "int"
 default_ok = true
 doc        = "this configuration's NN_ (else [errand]'s)"
 notes = """\
-  overrides `[errand].serial` for this configuration: its points go to `<P>/<run name>/NN_<label>/` \
+  overrides `[errand].serial` for this configuration: its points go to `<A>/<E>/NN_<label>/` \
   (V45)"""
 
 [configuration.name]
 type = "str"
-doc  = "this configuration's run folder (else [errand].name)"
+doc  = "this configuration's errand folder, <E> (else [errand].name)"
 notes = """\
-  the run folder above this configuration's: `<P>/<name>/NN_<label>/` (V46)"""
+  the errand folder above this configuration's Run: `<A>/<E>/NN_<label>/` (V46)"""
 
 [configuration.label]
 type = "str"
-doc  = "this configuration's folder: NN_<label> (else its table key)"
+doc  = "this configuration's Run: NN_<label> (else its table key)"
 notes = """\
-  the configuration's folder, after the serial: `NN_<label>`; empty means the table key (V45)"""
+  the Run's folder name, after the serial: `NN_<label>`; empty means the table key (V45)"""
 
 [configuration.title]
 type = "str"
 doc  = "the run NN - <title> - header of a sweep"
 notes = """\
-  the header line of the run under `[errand].sweep_runs`: `run 02 - <title> -` (04 §4.1)"""
+  the header line of the Run under `[errand].sweep_runs`: `run 02 - <title> -` (04 §4.1)"""
 
 [configuration.description]
 type = "str"
@@ -283,11 +283,11 @@ doc  = "what the configuration is for"
 
 [configuration.tag]
 type = "str"
-doc  = "this configuration's folder's tag when a run gives none and it has none (else [errand]'s); \"\": none"
+doc  = "this configuration's Run's tag when a job gives none and it has none (else [errand]'s); \"\": none"
 notes = """\
-  the tag a run gives this configuration's folder (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), \
-  unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run \
-  again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `\"\"` gives none over \
+  the tag a job gives this configuration's Run (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), \
+  unless `--tag` gives another or the Run already has one: a Run keeps its tag when it is run \
+  again, and `heimdall tag <A>/<E>/<R>` shows or changes it. `\"\"` gives none over \
   `[errand]`'s. Never part of a point's identity"""
 
 [configuration.event_count]
@@ -313,7 +313,7 @@ min        = 1
 default_ok = true
 doc        = "points run at once (else [errand]'s); \"auto\": cores ÷ a point's cores (V75)"
 notes = """\
-  points at once (`\"auto\"`: cores ÷ a point's cores, V75); `--plan` and the run's title say \
+  points at once (`\"auto\"`: cores ÷ a point's cores, V75); `--plan` and the job's title say \
   about how many cores that is, and warn past the machine's"""
 
 [configuration.plot]
@@ -430,9 +430,9 @@ notes = """\
 
 [configuration.cluster]
 type = "table"
-doc  = "this configuration's [cluster] keys, over the run's (heimdall cluster, V114)"
+doc  = "this configuration's [cluster] keys, over the errand file's (heimdall cluster, V114)"
 notes = """\
-  merged over the run TOML's `[cluster]`, key by key, for this configuration's jobs (a longer \
+  merged over the errand file's `[cluster]`, key by key, for this configuration's jobs (a longer \
   `time` for its many events, say); the same keys (04 §16)"""
 
 # ── [prelim] ─────────────────────────────────────────────────────────────────────────────────
@@ -480,8 +480,8 @@ notes = """\
 type  = "list"
 doc   = "one per value: legend text"
 notes = """\
-  legend text, in **LaTeX** (`$e^-$`, `$\\sqrt{s}$`), the one label language of every text a run \
-  TOML gives a page (V65): math in `$…$`, the rest text, where a bare `_` or `^` is the character \
+  legend text, in **LaTeX** (`$e^-$`, `$\\sqrt{s}$`), the one label language of every text an errand \
+  file gives a page (V65): math in `$…$`, the rest text, where a bare `_` or `^` is the character \
   (`\"PDF4LHC21_40\"`). A label written in ROOT's TLatex (`#sqrt{s}`, `p_{T}` with no `$`) is \
   refused, with its LaTeX as the hint; `heimdall migrate` rewrites it (V79). `\\_`, `\\^` and `\\#` \
   also give the character, even before a brace; in TOML write them in single quotes, \
@@ -554,9 +554,9 @@ notes = """\
 [tool.baseconfig]
 path = "baseconfig"
 type = "str|list"
-doc  = "base card(s), configs/<Project>/…"
+doc  = "base card(s), configs/<A>/…"
 notes = """\
-  native base card(s), read in order (root `configs/<project>/`). Tools with a card only."""
+  native base card(s), read in order (root `configs/<A>/`). Tools with a card only."""
 
 [tool.input]
 type = "str|list"
@@ -597,17 +597,17 @@ notes = """\
 [tool.filters]
 path = "filters"
 type = "str"
-doc  = "a filters.toml of your own (configs/<Project>/…), in place of its folder's"
+doc  = "a filters.toml of your own (configs/<A>/…), in place of its folder's"
 notes = """\
-  your own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` \
+  your own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` \
   (V61)"""
 
 [tool.executable]
 path = "executable"
 type = "str"
-doc  = "custom/module: build/<project>/<name>, or path:<command>"
+doc  = "custom/module: build/<A>/<E>, or path:<command>"
 notes = """\
-  exec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`"""
+  exec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`"""
 
 [tool.arguments]
 type = "list"
@@ -884,27 +884,27 @@ notes = """\
 type = "table"
 doc  = "each value's look on every page, by quantity and tag: [plot.looks.pdf] NNPDF23lo = \"#0067A5\" (or { colour, line, width }) (V171)"
 notes = """\
-  [plot.looks.<quantity>] (V171): a value's look on every page and in every run, by its tag: a colour \
-  (`\"#rrggbb\"`, a ROOT name or number) or `{ colour, line, width }`. A tag a run does not have is unused, so \
+  [plot.looks.<quantity>] (V171): a value's look on every page and in every Run, by its tag: a colour \
+  (`\"#rrggbb\"`, a ROOT name or number) or `{ colour, line, width }`. A tag a Run does not have is unused, so \
   a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's \
   styled values, over it; a set's automatic look leaves an axis with looks alone"""
 
 [plot.across]
 type = "table"
-doc  = "the run TOML's sets across its runs, [plot.across.<set>]: drawn at results/<P>/<name>/, by @run, @events, @configuration, @tag and the quantities (V169)"
+doc  = "the errand's sets across its Runs, [plot.across.<set>]: drawn at results/<A>/<E>/, by @run, @events, @configuration, @tag and the quantities (V169)"
 notes = """\
-  sets of the runs of this run TOML together (V169), as `[plot.sets.<name>]` are of one run's points, with \
-  more axes: `@events` (each run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, \
-  when a run is tagged, `@tag` (each run's tag; an untagged run's labelled `untagged`). `@events` and `@tag` each \
-  page a set that does not name it. Kept in `results/<P>/<name>/plot.toml`, drawn by `heimdall plot <P>/<name> --across` into \
-  `results/<P>/<name>/plots/<set>/` and `statistics/<set>/`; which runs, and how, is `[plot.across_from]`"""
+  sets of the Runs of this errand together (V169), as `[plot.sets.<name>]` are of one Run's points, with \
+  more axes: `@events` (each Run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, \
+  when a Run is tagged, `@tag` (each Run's tag; an untagged Run's labelled `untagged`). `@events` and `@tag` each \
+  page a set that does not name it. Kept in `results/<A>/<E>/plot.toml`, drawn by `heimdall plot <A>/<E> --across` into \
+  `results/<A>/<E>/plots/<set>/` and `statistics/<set>/`; which Runs, and how, is `[plot.across_from]`"""
 
 [plot.across_from]
 type = "table"
-doc  = "which runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)"
+doc  = "which Runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)"
 notes = """\
-  the runs together's `[from]`: written into `results/<P>/<name>/plot.toml` over its defaults (every run, \
-  `prefer = \"last\"`) when a run writes that document, and by `heimdall plot … --across --style-sync`; \
+  the Runs together's `[from]`: written into `results/<A>/<E>/plot.toml` over its defaults (every Run, \
+  `prefer = \"last\"`) when a job writes that document, and by `heimdall plot … --across --style-sync`; \
   without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"""
 
 [plot.draw]
@@ -912,7 +912,7 @@ type  = "list"
 items = "str"
 doc   = "the sets a drawing draws (default: every one): their names, totality included (V167)"
 notes = """\
-  the names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run \
+  the names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a job \
   writes `[errand].plot`'s list here. A name no set has is refused"""
 
 [plot.split]
@@ -953,7 +953,7 @@ notes = """\
 path = "root_style"
 type       = "str"
 default_ok = true
-doc        = "a style file over base.toml (configs/<Project>/…)"
+doc        = "a style file over base.toml (configs/<A>/…)"
 notes = """\
   a style file over base.toml (04 §12). Refused by the yoda backend alone."""
 
@@ -1075,7 +1075,7 @@ notes = """\
   run keeps its points apart; the figure alone merges them (`combine` merges them for the whole \
   configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). \
   `compare` (V83): the objects' pages across configurations, \
-  `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and \
+  `<E>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and \
   `results/`, a folder per backend). A curve per configuration and point (or combined group), \
   labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The \
   configurations must have the same page and curve axes (checked at plan time); the figure is \
@@ -1202,10 +1202,10 @@ items = "str"
 doc   = "a compare figure's configurations (default: the sweep_runs ones), each a curve per point (V83)"
 notes = """\
   a compare figure's, two or more, in curve order; one at least of this file. \
-  `\"<Project>/<config>:<cfg>\"` (V88) names a configuration of another run TOML: its points (as \
-  its last run left them) are curves beside this run's, labelled `<its run> <its label>` by \
-  default and by its own quantities; its page axes must have this run's tags. The pages are this \
-  run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `heimdall plot`"""
+  `\"<A>/<E>:<cfg>\"` (V88) names a configuration of another errand file: its points (as \
+  its last job left them) are curves beside this file's, labelled `<its errand> <its label>` by \
+  default and by its own quantities; its page axes must have this file's tags. The pages are this \
+  errand's (`<E>/compare/<name>/`), drawn by this errand's plot stage or `heimdall plot`"""
 
 [figure.labels]
 type  = "list"
@@ -1235,37 +1235,37 @@ doc  = "a style layer for these pages"
 notes = """\
   a style layer for these pages (04 §12)"""
 
-# ── [plot.across_from]: the runs together's [from] (V224) ───────────────────────────────────
+# ── [plot.across_from]: the Runs together's [from] (V224) ───────────────────────────────────
 
 [across_from.runs]
 type    = "list"
 items   = "str"
 default = ["*"]
-doc     = "the runs drawn together: globs of their folders (04_*, 0[5-7]_*)"
+doc     = "the Runs drawn together: globs of their folders (04_*, 0[5-7]_*)"
 notes = """\
-  the runs drawn together, by globs of their folders beside the document (`[\"04_*\", \"0[5-7]_*\"]`); \
-  every run by default"""
+  the Runs drawn together, by globs of their folders beside the document (`[\"04_*\", \"0[5-7]_*\"]`); \
+  every Run by default"""
 
 [across_from.prefer]
 type    = "str"
 choices = ["last", "all"]
 default = "last"
-doc     = "a point two runs of one tag have: drawn from the later (last) or from both (all)"
+doc     = "a point two Runs of one tag have: drawn from the later (last) or from both (all)"
 notes = """\
-  a point two runs have (every quantity's tag, the event count and the run's tag the same, the ignored \
-  quantities aside): `\"last\"` draws it from the later run that completed it, and says so; `\"all\"` keeps \
+  a point two Runs have (every quantity's tag, the event count and the Run's tag the same, the ignored \
+  quantities aside): `\"last\"` draws it from the later Run that completed it, and says so; `\"all\"` keeps \
   both. Runs of different tags never stand for each other"""
 
 [across_from.ignore]
 type  = "list"
 items = "str"
-doc   = "quantities (or \"@events\") that are no axis across the runs: one value within each run (V224)"
+doc   = "quantities (or \"@events\") that are no axis across the Runs: one value within each Run (V224)"
 notes = """\
-  quantities of the runs (or `\"@events\"`) that are no axis across them: an ignored quantity never pages \
-  a set or tells its curves apart, and never keeps two runs' points apart (with `prefer = \"last\"` the \
-  later stands for both, unless their tags differ). It must hold one value within each run, else the \
-  drawing is refused, naming the run and its values; its value stays each point's, so a page text that \
-  cites it (`{q:generator}`) shows it when the page's curves share it. A name no run has is refused"""
+  quantities of the Runs (or `\"@events\"`) that are no axis across them: an ignored quantity never pages \
+  a set or tells its curves apart, and never keeps two Runs' points apart (with `prefer = \"last\"` the \
+  later stands for both, unless their tags differ). It must hold one value within each Run, else the \
+  drawing is refused, naming the Run and its values; its value stays each point's, so a page text that \
+  cites it (`{q:generator}`) shows it when the page's curves share it. A name no Run has is refused"""
 
 # ── [plot.data] ──────────────────────────────────────────────────────────────────────────────
 
@@ -1290,9 +1290,9 @@ notes = """\
   MC object name (`d01-x01-y01`) → reference path. **Explicit only**, never matched by name (L18). \
   A file without a map, or a map without a file, is an error."""
 
-# ── [cluster]: heimdall cluster, a run as Slurm jobs (V114) ───────────────────────────────────────────
+# ── [cluster]: heimdall cluster, a configuration as Slurm jobs (V114) ───────────────────────────────────────────
 # Also the machine root's machine.toml [cluster] and a work dir's heimdall.toml [cluster] (the defaults, in
-# that order); the run TOML's is over them, a configuration's ([errand.cfgs.<cfg>].cluster) over that,
+# that order); the errand file's is over them, a configuration's ([errand.cfgs.<cfg>].cluster) over that,
 # --set cluster.<key>=… over all (04 §16).
 
 [cluster.scheduler]

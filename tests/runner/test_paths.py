@@ -162,7 +162,7 @@ def test_config_lookup_makes_toml_optional():
     target = WORK / "configs" / "Demo" / "jets.toml"
     assert paths.config_file("Demo/jets") == target
     assert paths.config_file("Demo/jets.toml") == target
-    with pytest.raises(HeimdallError, match="no run config"):
+    with pytest.raises(HeimdallError, match="no errand file"):
         paths.config_file("Demo/nope")
 
 

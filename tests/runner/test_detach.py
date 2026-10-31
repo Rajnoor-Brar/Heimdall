@@ -156,7 +156,7 @@ def test_a_worker_is_the_command_again_in_a_session_of_its_own(monkeypatch, tmp_
 def test_detach_refuses_what_runs_nothing(capsys):
     for extra in (["--plan"], ["--why"], ["--show-config"], ["--only", "plot"]):
         assert cli.main(["run", "Demo/jets", "single", "--detach", *extra]) == 2
-        assert "--detach starts a run in the background" in capsys.readouterr().err
+        assert "--detach starts a job in the background" in capsys.readouterr().err
 
 
 def test_the_worker_flag_is_hidden():

@@ -6,7 +6,7 @@
     for point in results.load("Demo/jets", "pdf"):
         print(point.name, point.values["pdf"].label, point.complete, point.yoda())
 
-It reads what a run wrote, its `points.json` manifest (records/<P>/<run>/<cfg>/points.json, every point
+It reads what a run wrote, its `points.json` manifest (records/<A>/<E>/<R>/points.json, every point
 even under --points), and plans nothing, so it is quick and needs no tool installed. `complete` is the
 manifest's, as of the run that wrote it.
 """

@@ -46,7 +46,7 @@ def test_a_fresh_git_init_needs_no_adopt(scratch, quiet):
     target = scratch / "w"
     target.mkdir()
     git(target, "init", "-q")
-    setup.setup(target, project="P", out=quiet[0])
+    setup.setup(target, assignment="P", out=quiet[0])
     assert (target / "heimdall.toml").is_file() and (target / ".git").is_dir()
     assert git(target, "rev-parse", "--verify", "-q", "HEAD") == ""                 # .git untouched: no commit
 
@@ -55,7 +55,7 @@ def test_a_hosting_sites_repo_keeps_its_files_and_commits_only_what_was_added(sc
     target = fresh_repo(scratch / "study")
     (target / "README.md").write_text("# My study\n\nWhat it is about, and more.\n", encoding="utf-8")
     git(target, "add", "README.md")                                                 # staged by the user
-    added = setup.setup(target, project="P", git="yes", out=quiet[0])
+    added = setup.setup(target, assignment="P", git="yes", out=quiet[0])
     assert (target / "README.md").read_text(encoding="utf-8") == "# My study\n\nWhat it is about, and more.\n"
     assert (target / "LICENSE").read_text(encoding="utf-8") == "MIT\n"
     assert setup.GUIDE in added and "A Heimdall work dir" in (target / setup.GUIDE).read_text(encoding="utf-8")
@@ -106,7 +106,7 @@ def test_an_unborn_repository_is_recorded_as_one(scratch):
 
 def test_next_steps_say_git_add_when_not_committed(scratch, quiet):
     target = fresh_repo(scratch / "r")
-    added = setup.setup(target, project="P", out=quiet[0])
+    added = setup.setup(target, assignment="P", out=quiet[0])
     lines = setup.next_steps(target, added, "P", None)
     assert "  heimdall check P/p" in lines and any(l.startswith("  git add -- ") for l in lines)
 

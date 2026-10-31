@@ -23,7 +23,7 @@ point at a time may fill (`_prepare_lock`: a lock in this process and flock acro
 
 **What is said** goes onto the run's event bus (events.py, V72): a point's and a tool's start and end,
 and every status message. A tool's output is read from a pipe (status.Reader); only a failed tool's last
-lines reach the point's <tag>.log (records/<run>/logs/<point>/), unless `logs` (--logs) keeps every tool's whole log.
+lines reach the point's <tag>.log (records/<A>/<E>/<R>/logs/<point>/), unless `logs` (--logs) keeps every tool's whole log.
 
 **Logs** (V201): each tool's <tag>.log is its digest, written at its end however it ended (status.Reader); with
 `logs` its whole output is <tag>.full.log. A new attempt first moves the last one's logs, with a copy of its cards,

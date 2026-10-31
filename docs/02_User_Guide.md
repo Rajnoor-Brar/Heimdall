@@ -1,7 +1,7 @@
 # 02 — User guide
 
 How to get work done: set up, run, read what came out, and build the pipelines you need, each shown
-as a recipe from a run TOML. Every key is in [04](04_Config_Reference.md), every command and tool in
+as a recipe from an errand file. Every key is in [04](04_Config_Reference.md), every command and tool in
 [05](05_Commands_and_Tools.md), the plots and figures in [03](03_Plots.md). Why it works this way is
 [01](01_Overview.md); how, [06](06_Internals.md).
 
@@ -53,7 +53,7 @@ that work dir, which stays outside and is bound at its own path. [docs/framework
 has the rest.
 
 Three verbs change the shell itself, so they are the shell function `heimdall` that `gjallarhorn.sh` defines:
-`heimdall cd PROJECT [configs|modules|results|records|logs]` (in the current work dir), `heimdall quit` (leave the
+`heimdall cd ASSIGNMENT [configs|modules|results|records|logs]` (in the current work dir), `heimdall quit` (leave the
 environment: `PATH`, the base (or the venv) and `machine.sh`'s lines as they were) and **`heimdall refresh`**, which
 reloads the environment in the same shell, from scratch: `quit`, then the same stack again (an
 isolated toolkit's included). `heimdall_status` lists the stack's packages (`heimdall status --stack`) and
@@ -65,7 +65,7 @@ root's `machine.sh`, or a `git pull` of Heimdall. It is the shell function `heim
 ### 1.2 A work dir
 
 ```bash
-heimdall setup ~/Github/My-Study --project Jets --git     # the folders, heimdall.toml, a starter, one commit
+heimdall setup ~/Github/My-Study --assignment Jets --git  # the folders, heimdall.toml, a starter, one commit
 cd ~/Github/My-Study
 heimdall build                                            # its module programs and Rivet plugins
 heimdall run Jets/jets                                    # the starter: Pythia → MC_JETS, two PDFs
@@ -75,8 +75,8 @@ heimdall run Jets/jets                                    # the starter: Pythia 
 records/ reports/ build/`), its `heimdall.toml` (the marker: `[work] name`, and `[framework] expects`, the
 Heimdall revision it was made by), a `Makefile`, `.gitignore`, `README.md`, `CLAUDE.md` and editor
 settings, then says the next commands. It never overwrites: run it again in a work dir (after a fresh
-clone, say) and it adds only what is missing. `--project P` adds `configs/P/p.toml` and `p.cmnd`, a
-starter that `heimdall check` accepts, and `modules/P/`; `--adopt` makes a work dir of a folder that
+clone, say) and it adds only what is missing. `--assignment A` adds `configs/A/a.toml` and `a.cmnd`, a
+starter that `heimdall check` accepts, and `modules/A/`; `--adopt` makes a work dir of a folder that
 already has files.
 
 **In a git repository**. A fresh repository (`git init`, or a hosting site's new repo with its
@@ -84,7 +84,7 @@ already has files.
 
 ```bash
 git clone git@github.com:me/my-study.git && cd my-study
-heimdall setup . --project Jets --git                      # README.md and LICENSE kept; one commit of what it added
+heimdall setup . --assignment Jets --git                   # README.md and LICENSE kept; one commit of what it added
 ```
 
 - **Nothing of yours is overwritten.** Your `README.md` and `CLAUDE.md` stay, and Heimdall's guide
@@ -137,8 +137,8 @@ make --framework …` in Heimdall); the output lands where the convention says:
 
 | Source | `make` | Output |
 |---|---|---|
-| `modules/<P>/<X>.cc` | `make modules/<P>/<X>.exe` | `build/<P>/<X>.exe` |
-| `modules/<P>/Rivet/<x>.cc`, `modules/<P>/Rivet_<x>.cc` | `make modules/<P>/Rivet/<x>.so` | `build/Rivet/Rivet_<x>.so` + its `.info`, `.plot`, `.yoda` |
+| `modules/<A>/<X>.cc` | `make modules/<A>/<X>.exe` | `build/<A>/<X>.exe` |
+| `modules/<A>/Rivet/<x>.cc`, `modules/<A>/Rivet_<x>.cc` | `make modules/<A>/Rivet/<x>.so` | `build/Rivet/Rivet_<x>.so` + its `.info`, `.plot`, `.yoda` |
 | Heimdall's `src/App_<X>.cc` | `heimdall make --framework src/App_<X>.exe` | `$HEIMDALL_APPS/App_<X>.exe` |
 | Heimdall's `src/Apps/<X>/main.cc` | `heimdall make --framework src/Apps/<X>.exe` | `$HEIMDALL_APPS/<X>.exe` |
 
@@ -154,12 +154,12 @@ folder or file whose name starts with `_` is parked: `heimdall build` skips it.
 
 ## 2. A first run
 
-The examples from here on are the demo project, `Demo`. `heimdall setup --example jets` copies it into a
-work dir of your own (its run TOMLs, cards, Rivet analysis, module programs and reference data), and
+The examples from here on are the demo assignment, `Demo`. `heimdall setup --example jets` copies it into a
+work dir of your own (its errand files, cards, Rivet analysis, module programs and reference data), and
 `heimdall setup` says the commands that follow:
 
 ```bash
-heimdall setup ~/Study --example jets   # a work dir with the demo project (or into one you have: heimdall setup . --example jets)
+heimdall setup ~/Study --example jets   # a work dir with the demo assignment (or into one you have: heimdall setup . --example jets)
 cd ~/Study && heimdall build            # its Rivet analysis and module programs
 heimdall check Demo/jets                # every configuration planned; nothing run
 heimdall run Demo/jets single --plan    # what would run: cards, argv, connections; runs nothing
@@ -187,10 +187,15 @@ The terminal shows the running tools, then one block:
 | `results/Demo/jets/03_single/plots/totality/root/` | the pages (`d01-x01-y01.pdf`, …) and `index.html`; `plots/<set>/` for each set (03 §3.1) |
 | `results/Demo/jets/03_single/statistics/totality/` | `statistics.csv`, the pages' numbers against the data, and their bar graphs |
 | `.cache/Demo/plots/jets/03_single/` | the page documents and `single.root`, the sweep in one file: rebuilt on demand |
-| `records/Demo/jets/03_single/points/point/` | `provenance.json`, `identity.json`, `.complete`: what the run recorded |
+| `records/Demo/jets/03_single/points/point/` | `provenance.json`, `identity.json`, `.complete`: what the job recorded |
 | `records/Demo/jets/03_single/logs/point/` | `cards/`, `context.toml` (every tool's card and config), `commands.sh` (each tool's command line, as it ran), a failed tool's `<tool>.log`: safe to delete (`heimdall clean`) |
-| `records/Demo/jets/03_single/config/` | the run TOML and cards it ran with: what traces it back |
+| `records/Demo/jets/03_single/config/` | the errand file and cards it ran with: what traces it back |
 | `results/Demo/jets/03_single/plot.toml` | its plot document: what every drawing of it reads (`heimdall plot Demo/jets/03_single`); its `[plot]` is yours to edit |
+
+`Demo/jets/03_single` is the Run's address, `<A>/<E>/<R>`: the **assignment** `Demo` (the folder `configs/Demo/`
+and its fellows in `modules/`, `results/`, `records/`), the **errand** `jets` (its errand file
+`configs/Demo/jets.toml`) and the **Run** `03_single`, the folder its configuration `single` made, with its record
+and cache. Every command that takes or prints a folder names it so.
 
 Run the same command again and nothing happens: the point is complete with the same identity. Change
 anything that decides the result (a card, an event count, a binary) and it runs again.
@@ -201,13 +206,13 @@ heimdall watch                                    # from another terminal: follo
 heimdall plot Demo/jets energy_pdf      # redraw its pages from what is on disk
 ```
 
-**A run on a terminal runs in the background, shown here.** Press `d` and the prompt comes back while
-the run goes on; closing the terminal leaves it running too. `heimdall watch` shows it again (from
+**A job on a terminal runs in the background, shown here.** Press `d` and the prompt comes back while
+the job goes on; closing the terminal leaves it running too. `heimdall watch` shows it again (from
 another terminal, or an ssh session), `heimdall stop` stops it, `heimdall runs` lists active jobs. Ctrl-C
-stops it as before. `heimdall run … --detach` starts one without showing it. A run with `--plain`, or
+stops it as before. `heimdall run … --detach` starts one without showing it. A job with `--plain`, or
 not on a terminal, runs in the shell's own process, as in a script or a cluster job.
 
-A detached run still ends when what holds its session ends:
+A detached job still ends when what holds its session ends:
 - **logging out**, where systemd ends a user's processes at logout (`KillUserProcesses`):
   `loginctl enable-linger` keeps them;
 - **an allocation's end** (`salloc`), on a cluster;
@@ -215,9 +220,9 @@ A detached run still ends when what holds its session ends:
 
 ---
 
-## 3. Anatomy of a run TOML
+## 3. Anatomy of an errand file
 
-A run TOML has a table per concern: `[errand]` (the run, and what every configuration starts from),
+An errand file has a table per concern: `[errand]` (the errand, and what every configuration starts from),
 `[cfgs.<name>]` (each configuration), `[tools.<name>]`, `[quantities.<name>]` and `[plot]`. Here is a
 small, complete one:
 
@@ -282,9 +287,9 @@ ratio   = true
   varies or fixes.
 - **Connections follow from the chain**: `input` names what a tool reads, by its producer. A reader
   in the producer's group reads a FIFO; a later group reads a file, a product in `results/` (04 §6).
-- **Paths**: a bare name goes under its key's convention root (`card` under `configs/<P>/`), `./x`
+- **Paths**: a bare name goes under its key's convention root (`card` under `configs/<A>/`), `./x`
   is from the work dir, and `/x` is absolute (04 §2).
-- **Folders**: a configuration's results go to `results/Demo/mini/01_pdf/`. The runner numbers the
+- **Folders**: a configuration's results go to its Run, `results/Demo/mini/01_pdf/`. The runner numbers the
   folder, and a changed configuration gets a new number rather than overwriting; `serial = 3` makes
   it yours (04 §2).
 - **Labels are LaTeX**, as a physicist writes them (`$p_{T}$ > 4 GeV`, `$\sqrt{s}$`). Words outside
@@ -388,7 +393,7 @@ page, labelled `… [R=0.4]`.
 avoid that, keep the events once as a file (the generator in a group of its own) and analyse them
 in another configuration (§5.1 shows the file interface). → `jets radius`, `lambda sets`.
 
-### 4.8 Every configuration, one run after another
+### 4.8 Every configuration, one after another
 
 To run several of a TOML's configurations in one go, list them, or say `true` for all:
 
@@ -402,22 +407,22 @@ title = "Proton PDFs"              # the header line: run 01 - Proton PDFs -
 [cfgs.delphes]                     # not listed: heimdall run jets delphes still runs it
 ```
 
-- **Each configuration is an ordinary run**, with its own title, blocks, verdict and folder, exactly
+- **Each configuration makes an ordinary Run**, with its own title, blocks, verdict and folder, exactly
   as `heimdall run jets <cfg>` would make it.
 - **They are all checked before the first starts**, so a typo in the last one costs nothing.
-- **They are pipelined**: a run starts once the run before has started all its points, and they
+- **They are pipelined**: a Run starts once the Run before has started all its points, and they
   share the machine's cores.
-- **A failed run lets the next one start**; Ctrl-C stops everything.
-- **`heimdall watch` follows the whole sweep**, from one run to the next.
+- **A failed Run lets the next one start**; Ctrl-C stops everything.
+- **`heimdall watch` follows the whole sweep**, from one Run to the next.
 
 That is what a shell loop can't do. In `for c in …; do heimdall run jets $c; done`, a Ctrl-C only ends the
-current run (heimdall exits 6 and bash carries on), and a typo in a later configuration shows up hours in.
+current job (heimdall exits 6 and bash carries on), and a typo in a later configuration shows up hours in.
 `heimdall run jets pdf` still runs only `pdf`, and `--set errand.sweep_runs=false` turns the sweep off for one
 call.
 
 ### 4.9 A study built on another
 
-When a run shares most of another's set-up (its beams, tools, quantities, data and plots), import it
+When an errand shares most of another's set-up (its beams, tools, quantities, data and plots), import it
 instead of copying it, and write only what differs:
 
 ```toml
@@ -426,7 +431,7 @@ import = [{ from = "validation", only = ["tools", "quantities", "plot"] }]
 drop   = ["tools.yd2rt"]                      # its ROOT conversion: this study draws from the YODA
 
 [errand]
-name       = "seed_study"                     # a file that imports always names its own run
+name       = "seed_study"                     # a file that imports always names its own errand
 assignment = "Demo"
 sweep_runs = ["default", "spread"]
 events     = 1_000_000                        # per seed
@@ -456,7 +461,7 @@ points = [{ tag = "s1", value = 1 }, { tag = "s2", value = 2 }, { tag = "s3", va
 - **Overriding:** this file's tables then win. Its own quantity or configuration replaces the
   imported one whole; its tool table's keys go over the imported table's one by one (`shards`
   above), as its `[plot]` keys go over the imported `[plot]`.
-- **Nesting:** imports nest, and `Other/run` imports another project's file, whose cards stay its
+- **Nesting:** imports nest, and `Other/study` imports another assignment's file, whose cards stay its
   own. The points of an unchanged tool keep their identities, so nothing reruns for being imported.
 - **Checking:** `heimdall run … --show-config` says where every value and table came from.
 
@@ -499,7 +504,7 @@ point's working folder, so another configuration can read it with
 
 The chain is the same; only the generator's table changes. Their slow preparation (Sherpa's and
 Whizard's integration, `Herwig read`, MadGraph's process directory) is cached per card under
-`.cache/<P>/`, so a rerun, a replica or another event count reuses it.
+`.cache/<A>/`, so a rerun, a replica or another event count reuses it.
 
 ```toml
 [tools.sherpa]
@@ -517,7 +522,7 @@ output = "events.hepmc"
 A MadGraph chain is `chain = ["madgraph", ["shower", "rivet"], "yd2rt"]`: the LHE file between
 the first two groups, a FIFO from the shower to Rivet (05 §15).
 
-Keep each generator's configurations in a run TOML of their own when their quantities differ:
+Keep each generator's configurations in an errand file of their own when their quantities differ:
 jets's `pt0ref` is a Pythia key, and in a Sherpa chain nothing would consume it (C7). The shipped
 examples are in Heimdall's fixture work dir, `tests/fixtures/work/configs/Demo/` (`herwig.toml`, `sherpa.toml`,
 `whizard.toml`, `madgraph.toml`).
@@ -571,7 +576,7 @@ This needs a `[tools.pythia]`, a `[tools.herwig]` and a `[tools.sherpa]`, each w
 - **Tools chosen together** (a generator and the analysis that suits it): a quantity with fields, one
   field per selector, `chain = [["@gen", "@ana"]]` (04 §8.4).
 - **Results from elsewhere**, or configurations with other axes: a `compare` figure puts
-  configurations side by side, another run TOML's too (03 §7.5), and `heimdall overlay` any files
+  configurations side by side, another errand file's too (03 §7.5), and `heimdall overlay` any files
   (03 §10).
 
 ### 5.4 Something every point needs, made once
@@ -588,7 +593,7 @@ arguments  = ["{partial:output}"]
 output     = "shared.lhe"                         # every point may name it: input = "shared.lhe"
 ```
 
-A changed pre stage reruns the points; a failed one stops the run.
+A changed pre stage reruns the points; a failed one stops the Run.
 
 ---
 
@@ -656,8 +661,8 @@ counting.
 `[tools.jets.config]` runs K Rivets on threads of their own, merged at the end. With 12 + 12 it is
 about 1.5× faster than the sharded chain (§7.1). K above 1 needs the SISCone patch in the stack's FastJet (`recipes/patches/`, applied by the build).
 
-**A whole study in one process** imports the chain's run TOML (§4.9) and writes only what differs: the
-program, the configurations that run it, and a run name of its own. The physics (quantities, the
+**A whole study in one process** imports the chain's errand file (§4.9) and writes only what differs: the
+program, the configurations that run it, and an errand name of its own. The physics (quantities, the
 pythia and rivet tables, plots) is the chain's, so an edit there is an edit here, and a point with
 the chain's event count and `threads` gets the chain's seeds, so the same events:
 
@@ -745,7 +750,7 @@ merges them with `rivet-merge -e` ([05 §5.1](05_Commands_and_Tools.md#51-sharde
 - **The result:** the events are the same as unsharded, so the result is the same. The point
   reruns, since its commands changed.
 - **Cores:** keep `threads + shards` within the machine's cores.
-- **For one run only:** `--set tools.rivet.shards=10 --set cfgs.default.threads=12`.
+- **For one job only:** `--set tools.rivet.shards=10 --set cfgs.default.threads=12`.
 - **Analyses:** every analysis must be re-entrant (`Reentrant: true` in its `.info`).
 
 ### 7.2 Several points at once
@@ -764,7 +769,7 @@ parallelism = 4                  # 4 points at a time: ~4 × (5 + its Rivets) co
 - **The output stays apart:** each point keeps its own folder, and the view prints each point's
   block whole when it ends (in the order they finish).
 - **Planning:** `--plan` prints the estimate ("4 at once (~24 of 24 cores)") and warns past the
-  machine. For one run: `--set errand.parallelism=4`.
+  machine. For one job: `--set errand.parallelism=4`.
 
 ### 7.3 Replicas, merged
 
@@ -800,10 +805,10 @@ combine = ["replica"]                # one curve per PDF: its 5 seeds merged, 5�
 - **The spread:** a second configuration with the same vary and no `combine` gets the same seeds,
   and draws each as its own curve: how far one seed's result wanders. → `seed_sweep` (and its
   `spread`).
-- **For one figure only:** to merge for one figure while the run keeps the seeds apart, use a
+- **For one figure only:** to merge for one figure while the Run keeps the seeds apart, use a
   `merged` figure ([03 §7.4](03_Plots.md#74-merged-points-merged-for-this-figure)).
 
-### 7.4 Seeds, and repeating a run
+### 7.4 Seeds, and repeating a point
 
 By default a point's seeds follow its generator's identity, so the same setup always gives the same
 events. A `Random:seed` in your card is ignored, because the runner writes its own after it. To
@@ -824,7 +829,7 @@ points = [{ tag = "1001", value = 1001 }, { tag = "2001", value = 2001 }, { tag 
   repeat events, so the plan refuses them. Points with different physics may share one seed.
 - **`"random"`:** a new seed is drawn each time a point runs. A complete point keeps its sample (it
   is skipped as usual), and `--rerun` draws again.
-- **Repeating a run:** every point's `provenance.json` records the seed it used, and `--plan` shows
+- **Repeating a point:** every point's `provenance.json` records the seed it used, and `--plan` shows
   each point's seed.
   - `heimdall reproduce records/…/<point>/provenance.json` runs the point again exactly as it ran, beside
     the original, and compares the products (§10).
@@ -837,11 +842,11 @@ points = [{ tag = "1001", value = 1001 }, { tag = "2001", value = 2001 }, { tag 
 - a **points array**, a task per point to run;
 - a **finish job** after every point has ended: the combined groups, the post tools and the plots.
 
-Each job is an ordinary `heimdall run`, so it skips a complete point, writes where a run writes, and gives
+Each job is an ordinary `heimdall run`, so it skips a complete point, writes where any job writes, and gives
 the same events as the same point run here. Run it on the cluster's login node, with Heimdall and
 the work dir on a filesystem the nodes see. The machine's settings go in the machine root's
 `machine.toml` (every work dir there) or the work dir's `heimdall.toml` (this one, which wins), the
-study's in the run TOML:
+study's in the errand file:
 
 ```toml
 [cluster]                     # machine.toml (or heimdall.toml): this machine's defaults
@@ -851,7 +856,7 @@ setup     = ["module load gcc/13"]
 ```
 
 ```toml
-[cluster]                     # the run TOML: the study's
+[cluster]                     # the errand file: the study's
 time        = "04:00:00"      # each point's limit: required in one of the two
 memory      = "8G"
 max_running = 20              # at most 20 points at once
@@ -867,14 +872,14 @@ heimdall cluster Demo/jets energy_pdf --status    # each point: complete, runnin
 heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submission
 ```
 
-- A configuration's own `cluster = { time = "08:00:00" }` is over the run's, and `--set
+- A configuration's own `cluster = { time = "08:00:00" }` is over the errand file's, and `--set
   cluster.time=…` is over everything, for one submission. Every key is in
   [04 §16](04_Config_Reference.md#16-cluster-running-on-slurm).
 - `cpus` defaults to what a point keeps busy (its generator's `threads`, its shards, …), as `--plan`
   counts it. `parallelism` is not used: `max_running` is how many points run at once.
 - A second submission of a configuration waits until the first's jobs have ended (`--status`,
   `--cancel`).
-- The scripts, the job ids and the jobs' logs are in `records/<P>/<run>/<cfg>/cluster/<stamp>/`.
+- The scripts, the job ids and the jobs' logs are in `records/<A>/<E>/<R>/cluster/<stamp>/`.
   `heimdall watch` cannot reach a node: the logs and `--status` stand in. `heimdall runs` lists active
   submissions; `heimdall runs --50` can show recent submissions too. `--cancel` marks it cancelled there.
 - Each script's last line is the `heimdall run` it makes, which can be typed by hand: `heimdall run C cfg
@@ -898,18 +903,18 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 | fewer events, once | `--set errand.events=50000` (dotted keys into the TOML, in its own names; repeatable) |
 | a finished point again | `--rerun` (with `--points` for one) |
 | only the pages | `--only plot`, or `heimdall plot CONFIG CFG` |
-| no pages after this run | `--no-plot`, or `[errand] plot = false` (a configuration's own `plot`); `plot = ["totality", …]` draws those sets only (03 §3.1) |
-| a run's pages as it ran, whatever the configs say now | `heimdall plot <P>/<run>/<NN_cfg>` (its record, §8.1) |
+| no pages after this job | `--no-plot`, or `[errand] plot = false` (a configuration's own `plot`); `plot = ["totality", …]` draws those sets only (03 §3.1) |
+| a Run's pages as it ran, whatever the configs say now | `heimdall plot <A>/<E>/<R>` (its record, §8.1) |
 | pages of chosen points, or N points a page | `--points 1,4,6,8`, `--set 'plot.sets=[[1,4],"all"]'`, `--set plot.split=8` (03 §3.1) |
-| how far each curve is from the data | `results/…/statistics/<set>/statistics.csv` (with each drawing, or `heimdall stats <P>/<name>/<cfg>` alone), `[stats]`, `legend_statistic`, a `statistic` figure (03 §3.2, §7.9) |
+| how far each curve is from the data | `results/…/statistics/<set>/statistics.csv` (with each drawing, or `heimdall stats <A>/<E>/<R>` alone), `[stats]`, `legend_statistic`, a `statistic` figure (03 §3.2, §7.9) |
 | only the post (or pre) tools | `--only post` / `--only pre` |
 | plain lines (logs, CI) | `--plain` (automatic when not a terminal) |
-| to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]`, `--pid N` (a `--journal` run's file: `heimdall watch --file …`); `d` or Ctrl-C detaches, `q` stops it |
-| to leave a run running | `d` at its terminal; or start it with `--detach` |
-| to stop a run from elsewhere | `heimdall stop [CONFIG [CFG]]`, `--pid N` (as Ctrl-C would) |
+| to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]`, `--pid N` (a `--journal` job's file: `heimdall watch --file …`); `d` or Ctrl-C detaches, `q` stops it |
+| to leave a job running | `d` at its terminal; or start it with `--detach` |
+| to stop a job from elsewhere | `heimdall stop [CONFIG [CFG]]`, `--pid N` (as Ctrl-C would) |
 | running jobs | `heimdall runs` |
-| recent runs, of any state | `heimdall runs --5`, `--10`, `--20`, `--50`, `--week` (7 days), or `--month` (28 days; latest at bottom) |
-| a name for a run's folder, to tell it from the others | `--tag nlo`, a configuration's `tag = "nlo"`, or later `heimdall tag <P>/<run>/<NN_cfg> nlo` (§8.1) |
+| recent jobs, of any state | `heimdall runs --5`, `--10`, `--20`, `--50`, `--week` (7 days), or `--month` (28 days; latest at bottom) |
+| a name for a Run, to tell it from the others | `--tag nlo`, a configuration's `tag = "nlo"`, or later `heimdall tag <A>/<E>/<R> nlo` (§8.1) |
 | a desktop notification at the end | `[errand] notify = "desktop"` |
 | a point faster | `shards = K` on the Rivet table (§7.1); more Pythia `threads` alone do not help |
 | many points faster | `parallelism = K` or `"auto"` (§7.2) |
@@ -920,11 +925,11 @@ itself. Threads are part of the identity: `--set cfgs.pdf.threads=8` makes every
 A changed configuration under a serial you set is refused rather than overwrite its points: bump
 the serial, or `--rerun` (04 §2).
 
-### 8.1 A run as it was: its record
+### 8.1 A Run as it was: its record
 
-Each configuration's folder keeps the config its points ran with: `records/<P>/<run>/<NN_cfg>/config/`
-holds the run TOML, the files it imports and the cards it read, as `configs/` held them, with
-`snapshot.toml` (which configuration, the `--set` overrides). Such a folder is a **record**, and a record
+Each Run keeps the errand file its points ran with: `records/<A>/<E>/<R>/config/`
+holds the errand file, the files it imports and the cards it read, as `configs/` held them, with
+`snapshot.toml` (which configuration, the `--set` overrides). A Run's `records/` folder is its **record**, and a record
 goes wherever a config does:
 
 ```bash
@@ -934,26 +939,26 @@ heimdall run Demo/jets/01_pdf        # what it misses, with the cards it ran wit
 ```
 
 - **Your configs may move on.** Comment out half the PDFs, edit a card, rebuild the stack: the record
-  still draws all its points. Every drawing reads the run's plot document, `results/<P>/<run>/<NN_cfg>/plot.toml`
+  still draws all its points. Every drawing reads the Run's plot document, `results/<A>/<E>/<R>/plot.toml`
   (03 §2.2), and plans no tool, so it needs no stack but Paint.
 - **Restyle it alone:** edit the document's `[plot]` and draw it again, or draw it with another file's
   `[plot]`: `heimdall plot Demo/jets/01_pdf --plot Demo/talk_pages` (a TOML holding `[plot]` only). The
-  run's own `[plot]` may live in such a file too, imported: `[file] import = [{ from = "talk_pages", only = ["plot"] }]`.
+  errand file's own `[plot]` may live in such a file too, imported: `[file] import = [{ from = "talk_pages", only = ["plot"] }]`.
 - **The live config draws what was recorded too:** `heimdall plot CONFIG CFG` draws that configuration's
-  newest folder from its document. A point that ran with other inputs than the config gives now is drawn
+  newest Run from its document. A point that ran with other inputs than the config gives now is drawn
   as recorded, and named (`--why` says what changed). When the config's `[plot]` differs from the
   document's, it says so: the document's is drawn until `--style-sync` takes the config's.
-- **A run of the same folder replaces its record**, points.json and snapshot both; it says when points
-  recorded there are not in the config now. A serial of its own keeps a run whole.
-- **A folder may have a tag**, a short name of yours (`nlo`, `run2.v1`): `heimdall run … --tag nlo` gives
-  it to each folder the run makes or resumes, a configuration's `tag` key is the default, and `heimdall tag
-  Demo/jets/01_pdf [NAME | --clear]` shows or changes it afterwards. The record holds it, `records/…/<cfg>/tag`,
-  and the plot document's `[source].tag` is written from it, so a copied `results/` keeps it; a run of the folder
+- **A job that runs the same Run again replaces its record**, points.json and snapshot both; it says when points
+  recorded there are not in the config now. A serial of its own keeps a Run whole.
+- **A Run may have a tag**, a short name of yours (`nlo`, `run2.v1`): `heimdall run … --tag nlo` gives
+  it to each Run the job makes or resumes, a configuration's `tag` key is the default, and `heimdall tag
+  Demo/jets/01_pdf [NAME | --clear]` shows or changes it afterwards. The record holds it, `records/…/<R>/tag`,
+  and the plot document's `[source].tag` is written from it, so a copied `results/` keeps it; a Run run again
   keeps the tag it has unless `--tag` gives another. `heimdall runs`, `heimdall status` and a report show it
-  beside the folder (`01 pdf [nlo]`). It is never part of a point's identity: tagging reruns nothing.
+  beside the Run (`01 pdf [nlo]`). It is never part of a point's identity: tagging reruns nothing.
 - **A record from before plot documents** gets one the first time it is drawn, from its snapshot;
   `heimdall migrate --plot-docs` writes every record's at once.
-- **A record from before snapshots** gets one with `heimdall migrate --snapshot <P>/<run>/<NN_cfg>`
+- **A record from before snapshots** gets one with `heimdall migrate --snapshot <A>/<E>/<R>`
   (default: the config its points.json names; `--from CONFIG`, `--set`): it says which recorded points
   have the same identity under it. Edit the snapshot until they all do (a value since left out), then
   `heimdall status` of the record says so.
@@ -962,13 +967,13 @@ heimdall run Demo/jets/01_pdf        # what it misses, with the cards it ran wit
 
 ## 9. When something fails
 
-The run goes on to the next point, and the point's block names the tool to blame. Then:
+The job goes on to the next point, and the point's block names the tool to blame. Then:
 
 1. Read `records/…/logs/<point>/<tool>.log` (and `<tool>.prepare.log`, `prelim.log`): the tool's digest,
    its first 100 lines, every line its rules matched with its number, and its last 200. Earlier attempts'
    are in `history/<n>/`, with the cards they ran. For a tool's whole output, run again with `--logs`
-   (`<tool>.full.log`). `heimdall log <P>/<run>/<NN_cfg>/<point>` prints the point's attempts and its
-   tools' digests (05 §1.5); `heimdall log <P>/<run>/<NN_cfg>` the run as it printed itself.
+   (`<tool>.full.log`). `heimdall log <A>/<E>/<R>/<point>` prints the point's attempts and its
+   tools' digests (05 §1.5); `heimdall log <A>/<E>/<R>` the Run as it printed itself.
 2. A product that failed its checks keeps its `.partial` name, and the point has no `.complete`, so
    it runs again next time.
 3. *"rivet analysed N events; the producer wrote M"*: the chain broke mid-stream. Look at the
@@ -978,14 +983,14 @@ The run goes on to the next point, and the point's block names the tool to blame
 5. Fix it, then `heimdall run … --points <that point>`. Complete points are skipped anyway.
 6. More to look at:
    - `--plan` shows the exact argv and cards;
-   - `--journal` writes the job's every event to `records/…/<cfg>/status.jsonl`;
+   - `--journal` writes the job's every event to `records/…/<R>/status.jsonl`;
    - `--keep work` keeps a finished point's whole working folder (its scratch files and shards), which
      otherwise goes when the point completes; a failed point's stays anyway;
    - `provenance.json` records every binary and card of a finished point.
 
 Ctrl-C stops the job cleanly: the running tools get SIGINT, then SIGTERM, then SIGKILL. The exit is
 6, and the same command resumes. A second Ctrl-C stops it hard (the tools are killed at once; the stop
-is still recorded), a third kills it outright. Closing the terminal stops the run as Ctrl-C does
+is still recorded), a third kills it outright. Closing the terminal stops the job as Ctrl-C does
 (unless it was started with `nohup`). `heimdall run` exits:
 - 0 when everything is done;
 - 1 when a point, a stage or a page failed;
@@ -1002,10 +1007,10 @@ Common refusals, and what they mean:
 | `the PDF set 'X' is not installed` | `lhapdf install X` (C10) |
 | `'…' is TLatex; labels are LaTeX` | write the LaTeX the hint gives, or `heimdall migrate` the file (§10) |
 | `[plot.overlay] is a figure now` | `[plot.figures.<name>] class = "overlay"`, or `heimdall migrate` |
-| `base config not found` | the card is not under `configs/<P>/` (write `./path` for elsewhere) |
+| `base config not found` | the card is not under `configs/<A>/` (write `./path` for elsewhere) |
 | `$HEIMDALL_APPS/App_Pythia.exe is not built` | `heimdall build --framework` |
 | `not inside a work dir` | `cd` into one, or `heimdall setup <dir>` (§1.2) |
-| `unknown section [schema]` | a v1 (hekit) run TOML: the schema is 04; `git show HEAD:<file>` has the current one |
+| `unknown section [schema]` | a v1 (hekit) errand file: the schema is 04; `git show HEAD:<file>` has the current one |
 | `'event_count' is the v2 form: this file is v3, where it is events` | a v2 name in a v3 file: write the v3 name, or `heimdall migrate --v3` (04 §17) |
 | `… made from other inputs; running would overwrite them` | your configuration changed under a serial you set: bump it, or `--rerun` (04 §2) |
 
@@ -1015,12 +1020,12 @@ Common refusals, and what they mean:
 
 ```bash
 heimdall check                                   # every config: loaded, validated, every point planned; runs nothing
-heimdall ls Demo                      # every config and its configurations (* = what heimdall run runs)
+heimdall ls Demo                                 # every config and its configurations (* = what heimdall run runs)
 heimdall explain plot.y_gutter                   # a key's type, default and meaning
-heimdall status Demo/jets              # each point: complete, stale, failed (and why), stopped or to run
+heimdall status Demo/jets                        # each point: complete, stale, failed (and why), stopped or to run
 heimdall status --stack                          # each package's version
-heimdall clean Demo/jets --dry-run     # what the runner made and no plan uses (records/…/logs/ and .cache/)
-heimdall migrate Demo/jets             # a diff of the file in today's forms; --apply writes it
+heimdall clean Demo/jets --dry-run               # what the runner made and no plan uses (records/…/logs/ and .cache/)
+heimdall migrate Demo/jets                       # a diff of the file in today's forms; --apply writes it
 heimdall reproduce records/…/<point>/provenance.json  # the point again, beside it, compared
 ```
 
@@ -1067,15 +1072,15 @@ installed: for notebooks and statistics tools.
 
 ---
 
-## 12. A new project
+## 12. A new assignment
 
-A new study that shares nothing with the others is a new work dir: `heimdall setup <dir> --project
-<Project> --git` (§1.2). A new project in a work dir:
+A new study that shares nothing with the others is a new work dir: `heimdall setup <dir> --assignment
+<A> --git` (§1.2). A new assignment in a work dir:
 
-1. `configs/<Project>/`: the native base card(s) and a run TOML with `[errand] assignment = "<Project>"`.
-2. `modules/<Project>/`: Rivet plugins in `Rivet/<name>.cc` (with `.info`, `.plot`, `.yoda`), and
+1. `configs/<A>/`: the native base card(s) and an errand file with `[errand] assignment = "<A>"`.
+2. `modules/<A>/`: Rivet plugins in `Rivet/<name>.cc` (with `.info`, `.plot`, `.yoda`), and
    programs as `<Name>.cc` with a `// requires:` line. Headers beside them are shared by both.
-3. `heimdall build`, then `heimdall check <Project>/<run>`, then `heimdall run <Project>/<run> --plan`.
-4. A quantity the vocabulary does not map gets a `to`. One your project uses everywhere can go in
-   `configs/<Project>/master.toml`, named by `[file] master = "master.toml"`.
-5. Tables several run TOMLs share can live in one file that each names in `[file] import` (04 §3).
+3. `heimdall build`, then `heimdall check <A>/<E>`, then `heimdall run <A>/<E> --plan`.
+4. A quantity the vocabulary does not map gets a `to`. One your assignment uses everywhere can go in
+   `configs/<A>/master.toml`, named by `[file] master = "master.toml"`.
+5. Tables several errand files share can live in one file that each names in `[file] import` (04 §3).

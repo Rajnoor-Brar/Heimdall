@@ -15,15 +15,15 @@ It lives in two kinds of place:
 - **Heimdall** (`$HEIMDALL`) is the framework and the machine's home at once: the recipes that build the
   software stack, the stack itself, the Python environment, the runner and its tool folders, and the
   compiled apps. One per machine (or per toolkit's isolated stack).
-- **Work dirs** hold your studies: run TOMLs and cards, your programs and Rivet plugins, data, and
-  what runs make. As many as you like, each its own git repository, independent of each other. `heimdall
+- **Work dirs** hold your studies: errand files and cards, your programs and Rivet plugins, data, and
+  what jobs make. As many as you like, each its own git repository, independent of each other. `heimdall
   setup <dir>` makes one; a `heimdall.toml` marks it, and the runner finds it from the working directory,
   as git finds a repository.
 
 Its whole shape is one sentence of the brief ([07 §1](07_Record.md#1-the-brief)): **tools are
 processes, chained by a TOML**.
 
-- A run TOML names a configuration, and what it varies expands into points.
+- An errand file names a configuration, and what it varies expands into points.
 - For each point the runner writes each tool's native card, connects the tools with agreed files and
   FIFOs, runs them in order, watches them, checks what they made, and records it.
 - After all the points it draws the pages.
@@ -60,7 +60,7 @@ heimdall run Demo/jets energy_pdf                      framework/bin/heimdall �
 ```
 
 **Every box is a process or a file.** No tool runs inside another, the runner links no physics
-library, and no tool reads the run TOML. The runner's whole job is to decide, write the files each
+library, and no tool reads the errand file. The runner's whole job is to decide, write the files each
 tool reads, start the processes in order, watch them, check what they made, and record what
 happened.
 
@@ -72,8 +72,11 @@ These words carry the design. The full glossary is [07 §10](07_Record.md#10-glo
 
 | Word | Means |
 |---|---|
-| **run** | one TOML under `configs/<Project>/` |
-| **configuration** | a named recipe inside a run (`[cfgs.<name>]`): what it varies and fixes, its chain, events, threads |
+| **assignment** | a folder of a work dir's `configs/`, `<A>`: errand files and cards, with its `modules/<A>/`, `results/<A>/`, `records/<A>/` |
+| **errand** | one TOML under `configs/<A>/`, its errand file `<E>.toml` (`[errand]`); its results are `results/<A>/<E>/` |
+| **configuration** | a named recipe inside an errand (`[cfgs.<name>]`): what it varies and fixes, its chain, events, threads |
+| **Run** | what one configuration made: its folder `results/<A>/<E>/<R>/` (`<R>` is `NN_<label>`), its record and cache; `<A>/<E>/<R>` is its address |
+| **job** | one `heimdall run`: it makes or resumes Runs, and `heimdall runs` lists it |
 | **quantity** | a named value that can be swept or held static (`[quantities.<q>]`) |
 | **point** | one combination of swept values: one chain of processes, one output directory |
 | **tool** | one process in the chain (`[tools.<tag>]`), of a kind a tool folder describes |
@@ -94,7 +97,7 @@ for is decoration.
 
 App_Pythia, Rivet, Herwig, Delphes and a module program are each a process of their own. They read
 files the runner wrote and write files the runner checks. No tool runs inside another, the runner
-links no physics library, and no tool reads the run TOML.
+links no physics library, and no tool reads the errand file.
 
 **Buys:**
 - a tool you trust works exactly as it does by hand, and its log is its own;
@@ -131,7 +134,7 @@ Each kind of knowledge has one home:
 - **a kind of tool:** its folder, `framework/tools/<tool>/`. That covers how to run it, write its card,
   read its progress, count its events and cache its slow step.
 - **how a quantity reaches a tool:** the master TOML.
-- **every key a run TOML may hold:** `framework/schema/run.toml`, with its type, default and
+- **every key an errand file may hold:** `framework/schema/run.toml`, with its type, default and
   meaning.
 - **the look of a page:** `base.toml`.
 
@@ -181,7 +184,7 @@ the last one stopped.
 
 A point's identity hashes everything that decides its result, and its seeds derive from the
 generator's part of it. So:
-- the same point gets the same events in every run;
+- the same point gets the same events in every job;
 - two points never share events;
 - the thread count changes the partition, not the statistics.
 
@@ -220,7 +223,7 @@ The surface stays small:
 - one `heimdall` command with a few subcommands ([05 §1](05_Commands_and_Tools.md#1-commands)), plus
   `heimdall build` and `make`; `heimdall cluster` runs the same `heimdall run` as Slurm jobs;
 - one marker file, `heimdall.toml`, between a work dir and the framework;
-- seven sections in a run TOML;
+- seven sections in an errand file;
 - a few C++ headers;
 - one flat runner package.
 
@@ -250,13 +253,13 @@ Anything a user does not ask for is not there (v1 had 19 commands).
 |---|---|
 | **v0** | a hand-built `utils/` (10,404 lines of C++) and four unversioned scripts around Pythia → FIFO → `rivet` |
 | **v1** (`rework/v1-final`) | a Python orchestrator (`hekit`, 17k lines, 19 commands) over one in-process C++ event loop (`hep-run`, 6.8k lines, 11 namespaces), CMake, and 33k lines of tests. It worked and was measured and well evidenced, but its pipeline was *derived* (stage chains from roles, phases inferred, a nine-way quantity dispatch), and it had two ways of doing most things |
-| **v2** (2026-09-26/27) | the user's own design (the brief): tools as processes, one run TOML, conventions for where things live. v1's code was deleted and its knowledge kept. It was built in five phases, each gated by numbers (07 §8) |
-| **after** | the user's additions (V23–V51): a pre stage, the sweep in one file, the mkhtml look and the style in TOML, shards, combine, sweeps of runs, seeds by choice, other generators, integrated programs |
+| **v2** (2026-09-26/27) | the user's own design (the brief): tools as processes, one errand file, conventions for where things live. v1's code was deleted and its knowledge kept. It was built in five phases, each gated by numbers (07 §8) |
+| **after** | the user's additions (V23–V51): a pre stage, the sweep in one file, the mkhtml look and the style in TOML, shards, combine, sweeps of configurations, seeds by choice, other generators, integrated programs |
 | **audit 1** (V52–V79) | the schema, frozen test fixtures, the tool folders as data, labels in LaTeX, the event stream and `heimdall watch`, the mpl backend, `heimdall check`, `migrate` and `reproduce` |
 | **figures** (V80–V89) | `[plot.figures]`: seven ways to build a page and three things to draw |
 | **audit 2** (V90–) | this manual, rebuilt on generated reference tables |
 | **decks** (V102–V104) | `heimdall deck`: talks and reports from drawn pages |
-| **reports** | `heimdall report`, in place of the decks: a quick A4 report of runs' pages and numbers, what their tools were given, and what it draws for itself |
+| **reports** | `heimdall report`, in place of the decks: a quick A4 report of Runs' pages and numbers, what their tools were given, and what it draws for itself |
 | **Heimdall** (V105–V113) | the framework split from High-Energy (`split/base`) into its own repository, which is also the machine's home: the stack's recipes and toolkits, `heimdall setup` for work dirs, two roots, provenance across both repositories |
 
 The decisions and what each gave up are in [07 §2](07_Record.md#2-decisions).

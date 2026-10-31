@@ -104,12 +104,12 @@ V3_DOCS = {
     ("errand", "events"): "every configuration's event count, unless it gives its own",
     ("errand", "chain"): "every configuration's tools, unless it gives its own (04 §5.3)",
     ("errand", "vary"): "04 §5.1; `[]` is one point",
-    ("errand", "serial"): "the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never "
+    ("errand", "serial"): "the prefix `NN_` of each Run's folder, `<E>/NN_<folder>`: **location, never "
                        "identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a "
                        "new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it "
                        "made (`--rerun` overwrites)",
     ("cfgs", "serial"): "this configuration's `NN_`, over `[errand]`'s; left out in both, the runner numbers it (04 §2)",
-    ("cfgs", "folder"): "the configuration's folder, after the serial: `NN_<folder>`; empty means the table key",
+    ("cfgs", "folder"): "the Run's folder name, after the serial: `NN_<folder>`; empty means the table key",
     ("cfgs", "events"): "required here if `[errand]` has none. A list is one configuration per count, "
                         "`<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6)",
     ("cfgs", "chain"): "04 §5.3; `[errand]`'s when left out",
@@ -118,7 +118,7 @@ V3_DOCS = {
                        "`fixed` (04 §7)",
     ("tools", "uses"): "the tool folder, when it is not the table's name: a second table of one tool, "
                        "`[tools.<name>] uses = \"<folder>\"` (05 §3; `heimdall tools` lists the folders)",
-    ("tools", "card"): "native base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+    ("tools", "card"): "native base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
     ("tools", "input"): "what it reads: a producer's table name (`input = \"pythia\"`: what that tool writes), "
                         "another tool's output by name, a pre product, (post) a product of every point, or a path. "
                         "The first input is `{input}`",
@@ -135,12 +135,12 @@ V3_DOCS = {
                                "excluded point. Refused: a place outside the points, or none left (V42)",
     ("tools", "shards"): "K > 1: K processes of this tool, each on a share of the events, merged into its `output` "
                          "by the folder's merge tool (V31; rivet, 05 §5.1). The chain is unchanged.",
-    ("file", "import"): "run TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this "
-                        "project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from "
+    ("file", "import"): "errand files this one starts from, in order, named as `heimdall run` names a config: `name` is this "
+                        "assignment's (`configs/<A>/name.toml`), `<A>/<E>` another assignment's, `./…` from "
                         "the work dir; `.toml` optional. **This file wins** (V56): a quantity or configuration of the "
                         "file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[errand]`'s own "
                         "keys merge key by key, tables recursively. Imports nest (V94), depth-first; a circle is "
-                        "refused. Another project's file keeps its bare paths its own project's. The file that "
+                        "refused. Another assignment's file keeps its bare paths its own assignment's. The file that "
                         "imports sets its own `[errand].name` and `assignment` (V100). An entry may be `{ from = "
                         "\"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those tables or dotted "
                         "keys, each of which the file must have (V95)",
@@ -150,7 +150,7 @@ V3_DOCS = {
                       "list stays a list; inside a longer string a var must be a scalar (`\"rivet:{var:ana}\"`). An "
                       "unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's "
                       "value; its own `[file.vars]` come with whatever is taken of it (V101), under this file's. "
-                      "`--set file.vars.<name>=…` changes one for a run",
+                      "`--set file.vars.<name>=…` changes one for a job",
 }
 
 

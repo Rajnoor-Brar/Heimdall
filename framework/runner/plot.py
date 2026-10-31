@@ -238,7 +238,7 @@ def merge_style(*layers: dict) -> dict:
 
 
 def style_file(value: str, assignment: str = "", where: str = "") -> dict:
-    """A style layer from a file: [plot].root_style (configs/<Project>/…), or `heimdall plot --style`."""
+    """A style layer from a file: [plot].root_style (configs/<A>/…), or `heimdall plot --style`."""
     path = resolve(value, "root_style", assignment=assignment, where=where) if assignment else Path(value).resolve()
     if path.suffix != ".toml":
         path = path.with_name(path.name + ".toml")
@@ -317,13 +317,13 @@ def _sha(path: Path) -> str:
     return sha256_file(path)
 
 
-#: Where a drawing's failures are logged (V204): records/<run>/logs/plot/, set by draw() and measure() for the
+#: Where a drawing's failures are logged (V204): records/<A>/<E>/<R>/logs/plot/, set by draw() and measure() for the
 #: drawing under way (a ContextVar: a pipelined sweep's runs draw on threads of their own).
 _LOGS: contextvars.ContextVar = contextvars.ContextVar("plot_logs", default=None)
 
 
 def logs_of(plans) -> Path | None:
-    """A drawing's log folder: its configuration's records/<run>/logs/plot/ (None without one)."""
+    """A drawing's log folder: its configuration's records/<A>/<E>/<R>/logs/plot/ (None without one)."""
     first = next(iter(plans or []), None)
     folders = getattr(first, "folders", None)
     return folders.logs / "plot" if folders is not None else None
@@ -545,7 +545,7 @@ def pages(errand, configuration, plans, notes: list | None = None, documents: st
     check_figures(errand, configuration)
     declared = figures(errand)
     here = complete[0].folders
-    out_dir = here.pages                                          # .cache/<P>/plots/<run>: documents, working files (V164)
+    out_dir = here.pages                                          # .cache/<A>/plots/<E>/<R>: documents, working files (V164)
     page_groups, curve_groups = axes_of(configuration)
     sources = point_yodas(errand, complete)
     root = merge(sources, out_dir / f"{configuration.label}.root", out_dir / "merged.sha256",
@@ -627,7 +627,7 @@ def compare_pages(errand, figure: Figure, sets: list[tuple]) -> list[Page]:
     """A compare figure's pages (V83): its objects' pages, one per page cell of the configurations, whose
     curves are every configuration's points (or combined groups), labelled by the configuration first.
     `sets`: (configuration, its complete plans) in the figure's order. Into
-    records/<P>/<run>/compare/<name>/ and results/<P>/<run>/compare/<name>/<backend>/."""
+    records/<A>/<E>/compare/<name>/ and results/<A>/<E>/compare/<name>/<backend>/."""
     members, yodas = [], {}
     for number, (c, plans) in enumerate(sets):
         label = figure.labels[number] if figure.labels else c.configuration.label if c.own \
@@ -1196,11 +1196,11 @@ def check_figures(errand, configuration) -> None:
 @dataclass(frozen=True)
 class Compared:
     """One configuration of a compare figure: `ref` as the figure names it ("cfg", or
-    "<Project>/<config>:<cfg>" in another run TOML, V88), its run and its configuration."""
+    "<A>/<E>:<cfg>" in another errand file, V88), its run and its configuration."""
     ref: str
     errand: object
     configuration: object
-    record: bool = False     # "<P>/<run>/<NN_cfg>": a record, drawn as it recorded its points (V158)
+    record: bool = False     # "<A>/<E>/<R>": a record, drawn as it recorded its points (V158)
     members: list | None = None   # a plot document's (V165): the other document's members ([] when it has none yet)
 
     @property
@@ -1233,7 +1233,7 @@ def compared(errand, figure: Figure) -> list[Compared]:
                 raise HeimdallError(f"a compare figure names '{ref}': {error.message}", where=at, hint=error.hint) from None
             if found is None:
                 raise HeimdallError(f"a compare figure names '{ref}', which is no record", where=at,
-                               hint="a record is <P>/<run>/<NN_cfg>, a folder of records/ with a snapshot")
+                               hint="a record is <A>/<E>/<R>, a folder of records/ with a snapshot")
             snap = read_snapshot(found)
             with configs_at(found / "config"):                             # V179: read for its configuration
                 owner = load(snap["config"], sets=list(snap.get("sets", [])), configuration=snap["configuration"])
@@ -1253,7 +1253,7 @@ def compared(errand, figure: Figure) -> list[Compared]:
         out.append(Compared(ref, owner, owner.configurations[key]))
     if not any(c.own for c in out):
         raise HeimdallError("a compare figure names a configuration of its own file too", where=at,
-                       hint="its pages are drawn by that configuration's plot stage, into this run's compare/")
+                       hint="its pages are drawn by that configuration's plot stage, into this errand's compare/")
     shapes = {c.ref: axes_of(c.configuration) for c in out}
     first = out[0]
     for c in out[1:]:
@@ -1267,7 +1267,7 @@ def compared(errand, figure: Figure) -> list[Compared]:
                 mine, theirs = errand.quantities[name], c.errand.quantities[name]
                 if [tag_of(mine, i) for i in range(len(mine.values))] != [tag_of(theirs, i) for i in range(len(theirs.values))]:
                     raise HeimdallError(f"'{c.ref}' has other values of {name}, a page axis, than this file", where=at,
-                                   hint="its pages pair with this run's by the page axes' tags")
+                                   hint="its pages pair with this file's by the page axes' tags")
     if figure.labels and len(figure.labels) != len(out):
         raise HeimdallError(f"a compare figure's labels give one label per configuration ({len(out)})", where=f"{figure.where}.labels")
     return out
@@ -1275,7 +1275,7 @@ def compared(errand, figure: Figure) -> list[Compared]:
 
 def _compared_documents(errand, figure: Figure, at: str) -> list[Compared]:
     """A compare figure drawn from a plot document (V165): this document's configuration, and each other one's
-    latest plot document (run.sibling: a configuration of the same run TOML, a record, "<config>:<cfg>"); one
+    latest plot document (run.sibling: a configuration of the same errand file, a record, "<config>:<cfg>"); one
     with no document yet has no members (the figure waits). The found ones' axes must match, as compared's."""
     keys = list(figure.configurations)
     if len(keys) < 2:
@@ -1309,7 +1309,7 @@ def _shape(shape) -> str:
 
 
 def check_texts(errand, plans) -> None:
-    """V66 at plan time: every placeholder the run TOML's texts cite ([plot] and its children, the
+    """V66 at plan time: every placeholder the errand file's texts cite ([plot] and its children, the
     quantities' labels) is one the points have, so a typo costs no point run. Whether a page text has one
     value on its page is known only with the pages, at the plot stage."""
     if not errand.plot:
@@ -1556,7 +1556,7 @@ def draw(errand, configuration, plans, say, others=None, stats=True) -> int:
     """The plot stage: Paint on every page, then any other backend on the same pages. Returns the
     number of pages that failed, summed over the backends. Then each compare figure that names this
     configuration (V83), once all of its configurations have complete points: `others(key)` gives
-    another configuration's plans. A failed program's output is logged in records/<run>/logs/plot/ (V204)."""
+    another configuration's plans. A failed program's output is logged in records/<A>/<E>/<R>/logs/plot/ (V204)."""
     token = _LOGS.set(logs_of(plans))
     try:
         return _draw_stage(errand, configuration, plans, say, others, stats)
@@ -1645,7 +1645,7 @@ def _plan_outputs(errand, configuration, complete: list) -> list[str]:
         lines.append(f"statistics: each set's {where}/<set>/ (statistics.csv, bars/, summary){how}")
     across = settings.get("across")
     if across:
-        lines.append(f"across: {len(across)} set(s) of the runs together ({', '.join(across)}): heimdall plot … --across")
+        lines.append(f"across: {len(across)} set(s) of the Runs together ({', '.join(across)}): heimdall plot … --across")
     return lines
 
 
@@ -1942,7 +1942,7 @@ def _draw(errand, paint: Path, todo: list[Page], title: str, say, table: bool = 
     return failed
 
 
-# ── heimdall plot FILE…: pages from any YODA or ROOT files, no run TOML ────────────────────────────
+# ── heimdall plot FILE…: pages from any YODA or ROOT files, no errand file ────────────────────────────
 
 def _is_plot_file(path: str) -> bool:
     return path.endswith((".yoda", ".yoda.gz", ".root"))

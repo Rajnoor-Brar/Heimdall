@@ -1,6 +1,6 @@
 # framework/schema/report.toml — a report's recipe (I-108, V207, V209, V211): [report] and its [[report.section]]s, in a
-# recipe of its own (configs/<P>/<name>.toml, [report] alone), in a run TOML (what its folders' reports show), and
-# in the report.toml a run writes beside each folder's plot.toml.
+# recipe of its own (configs/<A>/<E>.toml, [report] alone), in an errand file (what its Runs' reports show), and
+# in the report.toml a job writes beside each Run's plot.toml.
 #
 # Every key's type, default and meaning, written once: runner/schema.py checks a recipe against it (its tables
 # "report" and "section"), and `make docs` writes the tables into docs/04_Config_Reference.md.
@@ -22,11 +22,11 @@ doc  = "a line under the title: the date, who it is for"
 [report.from]
 type  = "list"
 items = "str"
-doc   = "its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them"
+doc   = "its sources: result folders holding a plot.toml, as <A>/<E>/<R>, <A>/<E> (each of its Runs, then its own when drawn), a path, or a glob; the command line's replace them"
 
 [report.output]
 type = "str"
-doc  = "where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<P>/<run>/<cfg>/, reports/<P>/<run>/, …); -o replaces it. Not in a run TOML"
+doc  = "where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<A>/<E>/<R>/, reports/<A>/<E>/, …); -o replaces it. Not in an errand file"
 
 [report.template]
 type = "str"
@@ -131,7 +131,7 @@ doc  = "a grid's columns (default: 2 on an A4 page, 3 for a side-by-side grid of
 type    = "str"
 choices = ["events", "folder"]
 default = "folder"
-doc     = "a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its run, where two sources would share one); events, the events its points ran with (10M)"
+doc     = "a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its errand, where two sources would share one); events, the events its points ran with (10M)"
 
 [section.optional]
 type    = "bool"
@@ -141,7 +141,7 @@ doc     = "a source that neither has the section's set drawn (or measured) nor c
 [section.compare]
 type  = "list"
 items = "str"
-doc   = "compare figures' names (03 §7.5): their pages, from each source's run's compare/<name>/"
+doc   = "compare figures' names (03 §7.5): their pages, from each source's errand's compare/<name>/"
 
 [section.stats]
 type  = "list"

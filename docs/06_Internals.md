@@ -54,14 +54,14 @@ A **work dir** holds a study. `heimdall setup <dir>` makes it from `framework/te
 |---|---|---|
 | `heimdall.toml` | the marker: `[work] name`, `[framework] expects` (the Heimdall revision it was made by), `[cluster]` (this work dir's Slurm defaults, 04 §16) and `[run] keep` (what its runs keep, §14); any other key is refused | yes |
 | `Makefile` | one line: `include $(HEIMDALL)/framework/work.mk` | yes |
-| `configs/<Project>/` | run TOMLs and native base cards; optionally a project `master.toml` and style files | yes |
-| `modules/<Project>/` | programs (`<Name>.cc`), shared headers, Rivet plugins (`Rivet/<x>.{cc,info,plot,yoda}` or `Rivet_<x>.cc`); `_`-prefixed folders are parked | yes |
+| `configs/<A>/` | errand files and native base cards; optionally an assignment `master.toml` and style files | yes |
+| `modules/<A>/` | programs (`<Name>.cc`), shared headers, Rivet plugins (`Rivet/<x>.{cc,info,plot,yoda}` or `Rivet_<x>.cc`); `_`-prefixed folders are parked | yes |
 | `datasets/` | your own reference data: small files tracked; large ones in `datasets.toml` (url, sha256), fetched by `heimdall setup` and kept out by `datasets/.gitignore` | yes |
-| `build/` | its compiled things: `<Project>/`, `Rivet/`, `deps/`, `flags.mk` | no |
+| `build/` | its compiled things: `<A>/`, `Rivet/`, `deps/`, `flags.mk` | no |
 | `records/` | what a run needs while it runs or is launched, and what traces it back, a folder per configuration (§14): `points/` (provenance, identities, completion), `logs/` (each point's working folder: its cards and configs, each tool's digest, `history/` of earlier attempts; FIFOs and scratch files while it runs), `config/` (the run's snapshot), `points.json`, `tag` (the folder's tag, V223), cluster submissions | no |
 | `.cache/` | what is rebuilt on demand: prepare caches, the drawing's page documents and working files (`plots/`), what a report draws for itself (`reports/`), converted reference data; with `keep cache`, card checks | no |
 | `results/` | what matters once a run is done: products, pages by set (`plots/<set>/`), their numbers (`statistics/<set>/`) | no |
-| `reports/<P>/<run>/<cfg>/` | reports as `heimdall report` builds them, where `results/` has their sources (a run's in `reports/<P>/<run>/`): `figures/`, `stats/`, `report.tex`, `report.pdf`, `index.html` | no |
+| `reports/<A>/<E>/<R>/` | reports as `heimdall report` builds them, where `results/` has their sources (a run's in `reports/<A>/<E>/`): `figures/`, `stats/`, `report.tex`, `report.pdf`, `index.html` | no |
 
 **The roots** (`runner/paths.py`):
 - `heimdall_root()` is where the code is (`framework/runner/paths.py`, two levels up). A `$HEIMDALL` that names
@@ -92,7 +92,7 @@ Heimdall ($HEIMDALL)
 │   ├── tools/<tool>/         one folder per standard tool: tool.toml (+ quantities.toml, render.py, filters.toml)
 │   ├── tools/yoda/, mpl/     the plot backends besides Paint: backend.py
 │   ├── tools/figures/        the figures' plugins: derive.py (YODA's Python), layout.py (pdflatex, pdftoppm)
-│   ├── schema/               run.toml (every key a run TOML may hold, V55, V90), report.toml (V207),
+│   ├── schema/               run.toml (every key an errand file may hold, V55, V90), report.toml (V207),
 │   │                         quantities.toml (the vocabulary: what each quantity name means), latex.toml
 │   ├── templates/work/       what `heimdall setup` lays down
 │   ├── rules.mk, work.mk     the build's shared rules; a work dir's build (§15)
@@ -107,8 +107,8 @@ Heimdall ($HEIMDALL)
 
 a work dir
 ├── heimdall.toml, Makefile        the marker; include $(HEIMDALL)/framework/work.mk
-├── configs/<Project>/        run TOMLs and native base cards (the physics)
-├── modules/<Project>/        your C++: programs (<Name>.cc) and Rivet plugins (Rivet/<x>.cc, Rivet_<x>.cc)
+├── configs/<A>/        errand files and native base cards (the physics)
+├── modules/<A>/        your C++: programs (<Name>.cc) and Rivet plugins (Rivet/<x>.cc, Rivet_<x>.cc)
 └── build/ records/ .cache/ results/   compiled modules; records and working files; caches; products
 ```
 
@@ -126,10 +126,10 @@ layering was not had nine cycles.)
 |---|---|---|
 | 0 | `errors.py` | `HeimdallError(message, where, hint)`, `did_you_mean` |
 | 0 | `paths.py` | the two roots: Heimdall (`heimdall_root`, where the code is) and the work dir (`work_root`: `$HEIMDALL_WORK` or the walk up to a `heimdall.toml`), `heimdall.toml` read (`work_meta`); the `configs/`, `records/`, `logs/`, `.cache/`, `results/` and `reports/` roots; the loaded stack's apps (`apps_dir`); `{heimdall}` and `{work}`; the path rules (04 §2); the retired `HEKIT_*` |
-| 0 | `schema.py` | the run TOML's schema, `framework/schema/run.toml`: every key's type, choices, bounds, default, inheritance, doc and notes; checking a table against it; the editor schema (V55, V90); a report's recipe, `report.toml` (V207) |
+| 0 | `schema.py` | the errand file's schema, `framework/schema/run.toml`: every key's type, choices, bounds, default, inheritance, doc and notes; checking a table against it; the editor schema (V55, V90); a report's recipe, `report.toml` (V207) |
 | 0 | `hepfiles.py` | reading YODA text (1D and 2D objects, `/RAW` twins, counters; `.gz` too) and Rivet's data directories, once (V60) |
 | 0 | `plugins.py` | loading a folder's Python by path, once: `render.py`, `backend.py`, `provider.py`, the figures' plugins (V61) |
-| 0 | `v3.py` | the run TOML's third form read as the second's: `[file]`, `[cfgs.<name>]`, tools typed by their table's name, quantities as points rows (`fixed`, `to`, compound `fields`, beams `a`/`b`), `events` lists; marks for what the parser infers (FIFOs, files, producers; audit 3, phase 6) |
+| 0 | `v3.py` | the errand file's third form read as the second's: `[file]`, `[cfgs.<name>]`, tools typed by their table's name, quantities as points rows (`fixed`, `to`, compound `fields`, beams `a`/`b`), `events` lists; marks for what the parser infers (FIFOs, files, producers; audit 3, phase 6) |
 | 0 | `viewer.py` | the viewer: a page of blocks of labelled panels, sizes and columns, ← → (V104), with a front block (a report's sources, V208) and blocks of text (`body`: a report's tools' configurations, V210) |
 | 0 | `image.py` | Apptainer images: the system's runtime (`apptainer`, else `singularity`), an image by name in the machine root's `images/` or by path, `heimdall image build` (heimdall.def filled, a clean copy of the checkout, `--fakeroot`) and the listing, the image a point runs in for provenance (V150) |
 | 0 | `shellrc.py` | the block Heimdall keeps in ~/.bashrc and ~/.zshrc: `gjallarhorn [title]` and `bifrost`, between marker lines; written, replaced, removed, the rest of the file kept (standard library only: `build_stack.py` loads it by path; V143) |
@@ -147,14 +147,14 @@ layering was not had nine cycles.)
 | 3 | `results.py` | a run's results from Python, read from `points.json` (V77) |
 | 4 | `watch.py` | the reducer of events (`State`), the live and plain views, `heimdall watch` |
 | 4 | `plot.py` | the plot stage: figures, the merged sweep, page configs, the style layers, Paint and the other backends; `heimdall overlay` on files |
-| 4 | `plotdoc.py` | a run's plot document, `results/<run>/plot.toml` (V165): written by the run (what it knows rewritten, the user's `[plot]` and `[stats]` kept), read by every drawing as a `Doc`, a `DocConfiguration` and members; the runs of a run TOML together (`load_across`, V169): their members with `@run`, `@events`, `@configuration` and, when one is tagged, `@tag`, a point two runs of one tag have the later's, `[from]` checked as the schema's `across_from` and its `ignore`d quantities out of every choice and of that key (V224), `[from]` written from `[plot.across_from]` (`from_of`) |
+| 4 | `plotdoc.py` | a run's plot document, `results/<A>/<E>/<R>/plot.toml` (V165): written by the run (what it knows rewritten, the user's `[plot]` and `[stats]` kept), read by every drawing as a `Doc`, a `DocConfiguration` and members; the runs of an errand file together (`load_across`, V169): their members with `@run`, `@events`, `@configuration` and, when one is tagged, `@tag`, a point two runs of one tag have the later's, `[from]` checked as the schema's `across_from` and its `ignore`d quantities out of every choice and of that key (V224), `[from]` written from `[plot.across_from]` (`from_of`) |
 | 4 | `statstable.py` | the statistics table (V160, V206): a page's numbers as rows, a set's `statistics.csv` written and read back (`read`), its bar graphs and summary (`write_set`, through `figures/bars.py`) |
 | 4 | `post.py` | the pre, combined and post stages |
-| 4 | `report.py` | `heimdall report` (I-108, V207): sources (result folders holding a `plot.toml`, by address, run, path or glob) and their facts, a recipe (`[report]`, `schema/report.toml`: a file of its own, a run TOML's, a folder's `report.toml`, which `write_recipe` writes beside `plot.toml`, V209) or the default one, resolved into a plan of sections, built where `results/` has its sources (`_out`), what each tool was given read from the records (`configured`: a card's baseline and what varied, `split`, `key_value`, V210), grids of figures and statistics parts; `--list`, `--init`; the build (V208): figures copied, statistics and bar tables typeset from `statistics.csv` (`chosen`; `figures/typeset.py`, the model's LaTeX renderer, into a `Typeset`, V216), each figure's curves' bins beside it (`_figure_data`, its page document's YODAs), What was run first and How the numbers are made after it (V218: `resolve` orders the tools sections first, `Plan.context`; `_method` from the parts' notes, `bars.DEFINITIONS` and `FORMULAS`, `typeset.definition`), `report.tex` (its look, V215: `PREAMBLE`'s macros filled in from `Look`, a set's `SetHead`, grids a row of `figures/layout.py` pictures at a time, cards highlighted by `highlight`), `report.pdf`, `index.html` (`viewer`), each made again only when what it was made from changed (`.stamps.json`); drawn for itself (V211): what a source has not drawn or measured, and a section's `plot` keys (`looked`), as `Drawing`s that `_draw_for` makes with `plot.draw` and `plot.measure` from the source's document loaded into the report's cache (`plotdoc.load(…, folders=)`, stamped `drawn.key`), the waiting sections resolved again after (`_settle`) |
+| 4 | `report.py` | `heimdall report` (I-108, V207): sources (result folders holding a `plot.toml`, by address, run, path or glob) and their facts, a recipe (`[report]`, `schema/report.toml`: a file of its own, an errand file's, a folder's `report.toml`, which `write_recipe` writes beside `plot.toml`, V209) or the default one, resolved into a plan of sections, built where `results/` has its sources (`_out`), what each tool was given read from the records (`configured`: a card's baseline and what varied, `split`, `key_value`, V210), grids of figures and statistics parts; `--list`, `--init`; the build (V208): figures copied, statistics and bar tables typeset from `statistics.csv` (`chosen`; `figures/typeset.py`, the model's LaTeX renderer, into a `Typeset`, V216), each figure's curves' bins beside it (`_figure_data`, its page document's YODAs), What was run first and How the numbers are made after it (V218: `resolve` orders the tools sections first, `Plan.context`; `_method` from the parts' notes, `bars.DEFINITIONS` and `FORMULAS`, `typeset.definition`), `report.tex` (its look, V215: `PREAMBLE`'s macros filled in from `Look`, a set's `SetHead`, grids a row of `figures/layout.py` pictures at a time, cards highlighted by `highlight`), `report.pdf`, `index.html` (`viewer`), each made again only when what it was made from changed (`.stamps.json`); drawn for itself (V211): what a source has not drawn or measured, and a section's `plot` keys (`looked`), as `Drawing`s that `_draw_for` makes with `plot.draw` and `plot.measure` from the source's document loaded into the report's cache (`plotdoc.load(…, folders=)`, stamped `drawn.key`), the waiting sections resolved again after (`_settle`) |
 | 4 | `cluster.py` | `heimdall cluster`: [cluster] in its layers, the Slurm scripts (a pre job, a points array, a finish job, each an ordinary `heimdall run --stages …`), `sbatch` and the dependencies, `jobs.toml`, `--status` from `sacct` and `squeue`, `--cancel` (V114) |
 | 5 | `cli.py` | `argparse`: `run`, `plot`, `overlay`, `watch`, `check`, …; the order of events |
 | 5 | `house.py` | `ls`, `explain`, `status`, `clean` (V74) |
-| 5 | `migrate.py` | `heimdall migrate`: run TOMLs and cards rewritten in today's forms (V79) |
+| 5 | `migrate.py` | `heimdall migrate`: errand files and cards rewritten in today's forms (V79) |
 | 5 | `docs.py` | `make docs`: the manual's generated blocks (keys, style, commands) from the schema, base.toml and the CLI (V91) |
 | 5 | `doctor.py` | `heimdall doctor`: every installed package's checks (its recipe's `[[verify]]`, through `recipes/verify.py`), the scan for libraries that no longer resolve, Heimdall's own rows; `--record`, `--matrix` (V119) |
 | 5 | `bifrost.py` | `bifrost` (also `heimdall bifrost`): the environment's packages, conda-forge's (`base_packages`) and PyPI's (`base_pypi`; the venv's `python_packages` on `base = "system"`), recorded in machine.toml with its comments kept, then the base made again; the state; `--shell` (shellrc.py) (V144) |
@@ -209,7 +209,7 @@ what their `// requires:` line names.
 | `State`, `PlainView`, `LiveView` | `watch` | the reducer of events, and the views that render it |
 | `ToolResult`, `PointResult`, `Stopper`, `Budget` | `execute` | exits, causes and messages; the stop flag; the cores runs share (V75) |
 | `Figure` | `plot` | one `[plot.figures.<key>]`: `kind` (its class), `type`, `name`, `objects`, `labels`, `table` (the page keys it sets), and each class's own: `over`, `configurations`, `op`, `x`, `y`, `table_pages`, `columns` |
-| `Compared` | `plot` | one configuration of a compare figure: `ref` (`"cfg"` or `"<Project>/<config>:<cfg>"`), its `errand` and `configuration` (V83, V88) |
+| `Compared` | `plot` | one configuration of a compare figure: `ref` (`"cfg"` or `"<A>/<E>:<cfg>"`), its `errand` and `configuration` (V83, V88) |
 | `Page` | `plot` | one page: its name, config path, output, cell, object, document, sources, variants, data, overrides, ranges, merged style, `overlay`, `bands`; its `set`, `rel` (its name in the set), `root` (its set's folder, `<root>/<backend>/<rel>`) and `numbers` (its set's statistics folder) (V164) |
 | `Doc`, `DocConfiguration` | `plotdoc` | a run and its configuration as a drawing reads them from `plot.toml`: `path`, `assignment`, `name` (the errand's, as an `Errand` names it), `plot`, `stats`, `quantities`, `source`; `key`, `label`, `sweeps`, `plot_points`, `combine`, `static` (V165) |
 
@@ -239,7 +239,7 @@ and what it reads and writes**, which its tool folder declares.
 
 **Planning** (`cli.build_plans`, returned as one `cli.Planned`) writes nothing:
 
-1. **Load** (`config.load`): the run TOML and its `[config].import`s, `--set` applied to the raw table, then
+1. **Load** (`config.load`): the errand file and its `[config].import`s, `--set` applied to the raw table, then
    the file checked (C1–C5, C12, C14): every section, key and type against the schema, the figure
    rules, the sweeps, `plot_points` and tool lists. `threads = 0` becomes a number.
 2. **Expand** (`sweep.points`): the grid of the axes, names from the tags, unique names (C11); then
@@ -326,7 +326,7 @@ written, its working folder stays whole, and the run goes on to the next point.
 **On a cluster** (`heimdall cluster`, `cluster.py`, V114): no executor of its own. A job is `heimdall run
 --stages …` on a node; `cli.run_one` turns `--only` and `--stages` into one set of stages. The
 submission plans every point first, as `--plan` does, so a bad card is refused before any job is
-submitted; a job checks its own cards again, unless the submission kept `cache` (`.cache/<P>/checks/`). Processes on one tree never rename each other's temporary files:
+submitted; a job checks its own cards again, unless the submission kept `cache` (`.cache/<A>/checks/`). Processes on one tree never rename each other's temporary files:
 `record.write_atomic` and the card-check cache name theirs by process.
 
 **Combine** (`post.plan_combined`, V35) plans one stage for each group of points that differ only in
@@ -374,7 +374,7 @@ previous tool" is meant.
 | FIFO (`[prelim] fifo`) | the runner, fresh per attempt; removed when the point ends | the point's output dir | a writer and **one** reader **in the same group** |
 | file (`[prelim] files`) | the runner (empty), then its writer; kept | the point's output dir | a writer and readers **in later groups** |
 | product (any other `output_file`) | its tool, as `*.partial.*`, renamed after the checks | the point's results dir | readers in later groups; the plot stage; post tools |
-| pre product | a pre tool | `…/<cfg>/pre/` | every point |
+| pre product | a pre tool | `…/<R>/pre/` | every point |
 | every point's product | the points | their results dirs | a post tool (`input` naming the product) |
 
 **The rules** (C6), checked at plan time:
@@ -519,7 +519,7 @@ or the event count. Examples are Sherpa's and Whizard's integrations, `Herwig re
 process directory.
 
 - **Where it runs:** before the point's groups, as its own supervised step (with at least an hour
-  before it counts as stalled), in a cache entry `.cache/<P>/<tool>/<key>/`.
+  before it counts as stalled), in a cache entry `.cache/<A>/<tool>/<key>/`.
 - **The key:** the tool, its binary's sha256, the base cards' sha256 and the card lines, without the
   lines the folder says to ignore (the event count, the seed). With `key = "base"`, it is the base
   cards alone (MadGraph builds from the proc card only). So every point, replica, rerun and event
@@ -591,9 +591,9 @@ process directory.
     watcher 10,000 events behind is cut off: once what it was queued is sent, it gets a `dropped`
     event and the end of its stream, never a hang. A name taken by another PID namespace's process
     of the same pid (two containers on one network) gets a suffix, `heimdall-watch-<pid>-<n>` (V181).
-  - **the journal** `records/…/<cfg>/status.jsonl`, only with `--journal`: appended run after run
+  - **the journal** `records/…/<R>/status.jsonl`, only with `--journal`: appended run after run
     (V202), for `heimdall watch --file` and replay.
-  - **the run log** `records/…/<cfg>/run.jsonl` (`events.RunLog`, V202), always, appended run after
+  - **the run log** `records/…/<R>/run.jsonl` (`events.RunLog`, V202), always, appended run after
     run: every event of the run but a tool's latest line (`line`), and a tool's `progress` at most once
     a minute (`RunLog.PROGRESS`). A write that fails is passed over. `heimdall log RECORD` prints it
     through the plain view; `watch.follow_file` takes it as it takes a journal, starting at the last
@@ -744,7 +744,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `heimdallkit.Exit` in Python:
   step's as `<tag>:prepare`), the message, and per tool its exit, seconds, cause, stall (its phase, last
   line, seconds silent and since when), warnings, errors, what it reported, and a prepare cache entry it
   hit. A record without the file (one older than V200) has no cause to give.
-- **`records/…/<cfg>/points.json`**: every point's values (tag, label, value), page, products,
+- **`records/…/<R>/points.json`**: every point's values (tag, label, value), page, products,
   directories, identity, seed, whether it is complete, and its `state` (complete, stale, running,
   failed, stopped, incomplete, to run) with a failed or stopped one's `cause` (V200). Its `constants`
   (V200) are what every point shares: events, threads, parallelism, the seed rule, the chain and the
@@ -753,7 +753,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `heimdallkit.Exit` in Python:
   and image, and the points by state; the `run started` event carries them too. Post tools, the plot
   stage and `runner.results` read it, so none of them has to know the layout. It is also stored inside
   the merged sweep file.
-- **`records/…/<cfg>/tag`** (V223): the folder's tag, one line, the source of truth (`record.run_tag`,
+- **`records/…/<R>/tag`** (V223): the folder's tag, one line, the source of truth (`record.run_tag`,
   `record.write_run_tag`); no file, no tag. `cli.run_one` writes it before the run starts (`cli.give_tag`: `--tag`,
   else the tag the file holds, else the configuration's `tag` key, `cli.run_tag`), `heimdall tag` rewrites or
   removes it (`house.tag_lines`), and the plot document's `[source].tag` is written from it each time the
@@ -785,7 +785,7 @@ from those rows (a Scatter2D per page, `derive.scatter`, converted for Paint, `x
 
 **A record** (`record.record_of`) is a configuration's folder of `records/` with a snapshot
 (`record.write_snapshot`, written with points.json when points run): the files the run read from its
-configs (`record.snapshot_files`: the run TOML, `run.imported`, its report templates (`run.templates`, V209), the base cards its points read, its
+configs (`record.snapshot_files`: the errand file, `run.imported`, its report templates (`run.templates`, V209), the base cards its points read, its
 tools' filters, the root style, the master) as `configs/` holds them, and `snapshot.toml`. `cli.opened`
 turns a record into a config for `run`, `plot` and `status`: `$HEIMDALL_CONFIGS` at its `config/`, its
 configuration and `--set`s. An identity writes a path under a configs root other than the work dir's
@@ -807,16 +807,16 @@ they ran with; provenance keeps the real paths.
    - **scan** (`_scanned`, `derive.scan_value`): per value of the other curve axes, a Scatter2D, a
      point per value of `x`, in `plots/scan/<name>/`;
    - **compare** (`compare_pages`): every compared configuration's members, renamed `<ref>_<point>`,
-     their choice gaining a `@configuration` curve axis. Another run TOML's members carry their own
+     their choice gaining a `@configuration` curve axis. Another errand file's members carry their own
      run in `context["run"]`, so their labels and looks are their own.
 
    Each set is stamped by the sha256 of its inputs, and the figure's spec where it matters, so a
    rerun rebuilds nothing unchanged.
 3. **The sweep in one file** (`merge`): every member's YODA merged by `App_yd2rt --merge` into one
    ROOT file, with a directory per member, raw entries and `points.json`. The configuration's file
-   is `.cache/<P>/plots/<name>/<cfg>/<cfg>.root`; a figure with members of its own has its own file. The
+   is `.cache/<A>/plots/<E>/<R>/<cfg>.root`; a figure with members of its own has its own file. The
    file is rebuilt only when a member's YODA changed (its stamp beside it). Reference data are converted
-   once into `.cache/<P>/datasets/`.
+   once into `.cache/<A>/datasets/`.
 4. **Page documents** (`_pages`):
    - **Objects:** the objects of the members' YODAs (`hepfiles.objects`, `objects_2d`: not `/RAW`,
      `/TMP`, the counters or weight variations). They are keyed by the option-free path, so a swept
@@ -833,7 +833,7 @@ they ran with; provenance keeps the real paths.
      curve's own).
    - **Its curves:** each with its label and look, and with a band folded by `_banded`.
    - **Written:** the style layers' changes and the mapped data. Each document goes to
-     `.cache/<P>/plots/<name>/<cfg>/<set>/[<cell>/][<folder>/]<object>.toml` (labels through `for_root`: LaTeX → TLatex)
+     `.cache/<A>/plots/<E>/<R>/<set>/[<cell>/][<folder>/]<object>.toml` (labels through `for_root`: LaTeX → TLatex)
      and is kept in memory as a `Page`.
 5. **Draw** (`_draw`):
    - **Paint:** one `Paint.exe` per `PAINT_BATCH` (200) pages, each page's outcome a JSON line;
@@ -871,17 +871,17 @@ plan time (`check_style`). Keys a backend cannot honour are errors, never silent
 **In the work dir, a folder per configuration in `records/` and in `results/` (V157), by lifecycle
 within it (U21).** `records/` is for what a run needs while it runs or is launched, and for tracing it back:
 error-tracing, backtracking, debugging, never what matters after it is done (V164). `results/` is what
-matters after. `.cache/` is what is rebuilt on demand. So: what a run recorded in `records/<run>/points/`,
-its working files in `records/<run>/logs/`, the run TOML and cards it ran with in `records/<run>/config/`;
-products in `results/<run>/points/`, pages in `results/<run>/plots/<set>/`, their numbers in
-`results/<run>/statistics/<set>/`; the drawing's page documents and working files in
-`.cache/<P>/plots/<name>/<cfg>/`, other rebuildable caches in `.cache/`, compiled modules in `build/`. A run writes nothing else, and nothing in Heimdall;
+matters after. `.cache/` is what is rebuilt on demand. So: what a run recorded in `records/<A>/<E>/<R>/points/`,
+its working files in `records/<A>/<E>/<R>/logs/`, the errand file and cards it ran with in `records/<A>/<E>/<R>/config/`;
+products in `results/<A>/<E>/<R>/points/`, pages in `results/<A>/<E>/<R>/plots/<set>/`, their numbers in
+`results/<A>/<E>/<R>/statistics/<set>/`; the drawing's page documents and working files in
+`.cache/<A>/plots/<E>/<R>/`, other rebuildable caches in `.cache/`, compiled modules in `build/`. A run writes nothing else, and nothing in Heimdall;
 `heimdall report` writes only into its report's folder under `reports/` (or `-o`'s, never under `results/`) and
-what it draws for itself into `.cache/<P>/reports/`. Heimdall's own builds go to the
+what it draws for itself into `.cache/<A>/reports/`. Heimdall's own builds go to the
 machine root (§1): `apps/`, `forge/`. `tools.RunFolders` names them all; nothing else spells them.
 
 ```
-records/<P>/<run>/<cfg>/
+records/<A>/<E>/<R>/
   points.json   run.jsonl (the run's own log, every run's, V202)   [status.jsonl: keep journal]
   tag           the folder's tag, one line (V223): only when it has one
   points/<point>/       provenance.json  identity.json  .complete  attempts.jsonl   (kept; clean --records only)
@@ -893,23 +893,23 @@ records/<P>/<run>/<cfg>/
   logs/plot/            the plot stage's failures (V204): <set>.root.log (Paint), convert-<point>.log, merge-<cfg>.log
   config/       the run's snapshot (V158)
   cluster/<stamp>/                    heimdall cluster's submissions: *.sbatch, points.txt, jobs.toml, logs/
-.cache/<P>/plots/<run>/<cfg>/         the drawing's (V164): <cfg>.root (the sweep in one file) and merged.sha256,
+.cache/<A>/plots/<E>/<R>/             the drawing's (V164): <cfg>.root (the sweep in one file) and merged.sha256,
                                       <set>/[<cell>/]<object>.toml (page documents) with .ranges.json, .stats.json,
                                       yoda/ (mkhtml's), derived/<point>.yoda, merged/<figure>/, scan/<figure>/,
                                       statistic/<figure>/
-.cache/<P>/plots/<run>/compare/<figure>/   a compare figure's page documents and its sweep
-.cache/<P>/<tool>/<key>/              prepare caches
-.cache/<P>/datasets/  [.cache/<P>/checks/]   reference data converted for Paint; keep cache: card checks
-.cache/<P>/reproduce/<identity>/      heimdall reproduce's run, beside the original
-.cache/<P>/reports/<run>/<cfg>/.drawn/<source>[-<keys>]/   what a report draws for itself (V211), its place under
-                                      reports/ without <P>: results/ (its pages and numbers), records/logs/plot/,
+.cache/<A>/plots/<E>/compare/<figure>/   a compare figure's page documents and its sweep
+.cache/<A>/<tool>/<key>/              prepare caches
+.cache/<A>/datasets/  [.cache/<A>/checks/]   reference data converted for Paint; keep cache: card checks
+.cache/<A>/reproduce/<identity>/      heimdall reproduce's run, beside the original
+.cache/<A>/reports/<E>/<R>/.drawn/<source>[-<keys>]/   what a report draws for itself (V211), its place under
+                                      reports/ without <A>: results/ (its pages and numbers), records/logs/plot/,
                                       work/ (page documents, the sweep), drawn.key
 .cache/overlay/<key>/                 heimdall overlay's page configs
 $HEIMDALL_MACHINE/forge/scratch/           everything tests write: work/ (the fixture's copy), records/, cache/, results/, reports/, runs/, pytest/
 
-results/<P>/<run>/<cfg>/
+results/<A>/<E>/<R>/
   plot.toml                           its plot document (V165), what every drawing of it reads
-  report.toml                         its report's recipe (V209), written again with plot.toml: heimdall report <P>/<run>/<cfg>
+  report.toml                         its report's recipe (V209), written again with plot.toml: heimdall report <A>/<E>/<R>
   points/<point>/                     the products only
   points/<combined group>/            a combined group's merged products
   pre/, post/                         the stages' products (later stages name them, so they are not in points/)
@@ -919,10 +919,10 @@ results/<P>/<run>/<cfg>/
   plots/<set>/<backend>/sheets/<figure>.{pdf,png}   sheets
   statistics/<set>/statistics.csv     its pages' numbers;  bars/<cell>/<object>.<fmt>; summary.pdf, summary/summary_<NN>.png: rankings and tables, A4 (figures/paper.py); summary.html (figures/webpage.py);
                                       figures/<backend>/<cell>/<figure>/<object>: statistic figures
-results/<P>/<run>/compare/<figure>/<backend>/  a compare figure's pages;  …/statistics/: its numbers
+results/<A>/<E>/compare/<figure>/<backend>/  a compare figure's pages;  …/statistics/: its numbers
 
-reports/<P>/<run>/<cfg>/              a report (heimdall report, V207–V211), where results/ has its sources: a run's
-                                      reports/<P>/<run>/, several runs' where they meet; -o or [report].output elsewhere
+reports/<A>/<E>/<R>/              a report (heimdall report, V207–V211), where results/ has its sources: a run's
+                                      reports/<A>/<E>/, several runs' where they meet; -o or [report].output elsewhere
   figures/<NN>_<section>/<MMM>_<source>_<page>.{pdf,png,csv}   every page it shows, copied as drawn or drawn for it (a PNG rendered
                                       when none), its curves' bins from their YODAs (V216)
   stats/<NN>_<section>/<MM>_<source>__<set>.{csv,html}   the numbers of statistics typeset in report.tex (figures/typeset.py, V216)
@@ -944,7 +944,7 @@ deleting `logs/<point>/` reruns nothing but loses them (V201). `[run] log` (`pat
 dir's over the machine's over `LOG_DEFAULTS`) sets the digest's head and tail, the history's `digests` and
 `full`, and a detached worker's `worker_every`. Without `cache`, card checks are still run once per distinct card in a process.
 
-`<run>` and `<cfg>` are `NN_<name>` when they have a serial. `<point>` is the swept tags joined by
+`<E>` and `<R>` are `NN_<name>` when they have a serial. `<point>` is the swept tags joined by
 `_`, or `point`. `datasets/` (your reference data) is not in git; Rivet's own are `rivet:<Analysis>`.
 
 ---
@@ -970,8 +970,8 @@ The target is written the way the source is, and the output lands where the conv
 | Heimdall's `src/App_<X>.cc` | `src/App_<X>.exe` | `$HEIMDALL_APPS/App_<X>.exe` | `-I $HEIMDALL/src` |
 | Heimdall's `src/Apps/<X>/main.cc` | `src/Apps/<X>.exe` | `$HEIMDALL_APPS/<X>.exe` | `-I $HEIMDALL/src -I src/Apps/<X>/` |
 | Heimdall's `tests/cxx/<X>.cc` | `tests/cxx/<X>.exe` | `forge/tests/<X>.exe` | `-I $HEIMDALL/src` |
-| a work dir's `modules/<P>/<X>.cc` | `modules/<P>/<X>.exe` | `build/<P>/<X>.exe` | `-I $HEIMDALL/src -I modules/<P>` |
-| a work dir's `modules/<P>/Rivet/<x>.cc`, `modules/<P>/Rivet_<x>.cc` | `….so`, or `rivet_<x>` | `build/Rivet/Rivet_<x>.so` + `<x>.info`, `.plot`, `.yoda` | `rivet-build … -I $HEIMDALL/src -I modules/<P>` |
+| a work dir's `modules/<A>/<X>.cc` | `modules/<A>/<X>.exe` | `build/<A>/<X>.exe` | `-I $HEIMDALL/src -I modules/<A>` |
+| a work dir's `modules/<A>/Rivet/<x>.cc`, `modules/<A>/Rivet_<x>.cc` | `….so`, or `rivet_<x>` | `build/Rivet/Rivet_<x>.so` + `<x>.info`, `.plot`, `.yoda` | `rivet-build … -I $HEIMDALL/src -I modules/<A>` |
 | any other `<dir>/<X>.cc`, named | `<dir>/<X>.exe` or `.so` | `build/<dir>/<X>.exe` or `build/<dir>/lib<X>.so` (Heimdall's: `forge/make/<dir>/…`) | `-I $HEIMDALL/src` |
 
 - **Aliases:** the typed target is a phony alias of the real file, so make's up-to-date check works
@@ -986,8 +986,8 @@ The target is written the way the source is, and the output lands where the conv
   - a plugin's `.info`, `.plot` and `.yoda` copies are real targets: editing one re-copies it
     (00/B44);
   - a `.info` saying `Requires: ONNX` adds the ONNX flags (00/B37, L20).
-- **`make all`** builds, in a work dir, every non-parked `modules/<P>/*.cc` program and
-  `modules/<P>/Rivet/` plugin (a subfolder of a project holds headers); in Heimdall, every app, and
+- **`make all`** builds, in a work dir, every non-parked `modules/<A>/*.cc` program and
+  `modules/<A>/Rivet/` plugin (a subfolder of an assignment holds headers); in Heimdall, every app, and
   `$HEIMDALL_APPS/Herwig/HerwigDefaults.rpo` (`Herwig init --repo=…`, when Herwig is on `PATH`; a
   failure warns and leaves no file, L15).
 - **Other targets:** `configure`, `list` (everything `all` builds), `clean`; Heimdall's also `tests`
@@ -1142,7 +1142,7 @@ Every section and key is checked when the folders load: an unknown one is an err
 
 Every tool with a card has `card` and `card_parts` in the context file; one with a config file has
 `config` (04 §9.4). Outside a section, a `tool.toml` may say `extends = "<tool>"` (§16), and `[tool]
-formerly = […]` lists a folder's old names, which a run TOML is told about and `heimdall migrate` rewrites.
+formerly = […]` lists a folder's old names, which an errand file is told about and `heimdall migrate` rewrites.
 
 ### 16.2 `render.py`
 
@@ -1390,8 +1390,8 @@ folder: the machine root's `apps/` or `stacks/<toolkit>/apps/`), with the page's
 
 ## 21. `Module.hh`
 
-A module is a plain program in `modules/<P>/<Name>.cc` with its own `main()`, built to
-`build/<P>/<Name>.exe`. `#include "Module.hh"` adds `hepmc3 toml` to its libraries; add `root` for
+A module is a plain program in `modules/<A>/<Name>.cc` with its own `main()`, built to
+`build/<A>/<Name>.exe`. `#include "Module.hh"` adds `hepmc3 toml` to its libraries; add `root` for
 `RootOut` (with ROOT ready-made in the base, it is added already).
 
 ```cpp
@@ -1588,7 +1588,7 @@ last line is shown, under the tool's row, while a tool has no count.
 ## 24. Writing C++
 
 - **A few headers only.** A helper a second program needs goes into Heimdall's `src/` as one more header;
-  until then it lives in `modules/<P>/`. The headers today:
+  until then it lives in `modules/<A>/`. The headers today:
   - `Status.hh`, `Kit.hh` and `Module.hh`;
   - `PythiaRun.hh`, App_Pythia's and the integrated programs'.
 
@@ -1625,7 +1625,7 @@ their own.
 | `tests/runner/` | the runner, fast:<br>• the two roots, `heimdall.toml` and the placeholders (`test_paths.py`)<br>• `heimdall setup` and `heimdall where` (`test_setup.py`)<br>• provenance across both repositories (`test_provenance.py`)<br>• the stack's recipes and toolkits (`test_stack_build.py`)<br>• one bad config per rule (`test_config.py`)<br>• plans and connections (`test_plan.py`)<br>• paths, sweeps and the point-count gate (`test_sweeps.py`)<br>• the import ranks (`test_imports.py`)<br>• status (`test_status.py`)<br>• plot checks, figures and the style layers (`test_plot.py`)<br>• each tool folder's cards (`test_module.py`, `test_generators.py`, `test_process_generators.py`)<br>• seeds (`test_seeds.py`)<br>• shards, `combine`, `parallelism` and `sweep_runs` (`test_shards.py`, `test_combine.py`, `test_parallel.py`, `test_run_sweep.py`)<br>• layers and `include` (`test_layers.py`)<br>• `--why` and `heimdall check` (`test_why.py`)<br>• housekeeping and `heimdall migrate` (`test_house.py`, `test_migrate.py`)<br>• the path rules (`test_paths.py`)<br>• `heimdallkit` and the stack (`test_heimdallkit.py`, `test_stack.py`)<br>• the manual (`test_docs.py`) |
 | `tests/integration/` | real processes: App_Pythia, App_yd2rt, Paint, the plot stage and every figure class (`test_plot_stage.py`), `heimdall overlay` (`test_heimdall_plot.py`), post and pre (`test_post.py`), failure injection (`test_failures.py`), a run with the machine root read-only (`test_read_only_root.py`); `@pytest.mark.slow` for the physics gates (`test_gates_*.py`, `test_*_p4.py`) |
 | `tests/cxx/` | `Status.hh`, `Kit.hh` and the module kit |
-| `tests/fixtures/work/` | the tests' work dir, frozen (V52, V112): `heimdall.toml`, `Makefile`, `configs/` (the run TOMLs and cards the tests load by name: `Demo/jets`, …), `modules/` (Lambda, InprocJets, the photo_eic, DecayRiv and particle_spectra plugins), `datasets/jets_data.yoda`. Change a file only with the test that needs it |
+| `tests/fixtures/work/` | the tests' work dir, frozen (V52, V112): `heimdall.toml`, `Makefile`, `configs/` (the errand files and cards the tests load by name: `Demo/jets`, …), `modules/` (Lambda, InprocJets, the photo_eic, DecayRiv and particle_spectra plugins), `datasets/jets_data.yoda`. Change a file only with the test that needs it |
 | `tests/support.py`, `tests/runner/helpers.py` | the shared helpers: `support.heimdall` / `heimdall_ok` run `heimdall` in the scratch work with outputs under a scratch folder, `support.apps()` is Heimdall's apps, `support.WORK` and `BUILD` the scratch work; `helpers.raw`, `parse`, `plan`, `plans_of`, `plans` build and plan configs |
 | `tests/reference/` | **data only**: `legacy_run/` (the legacy Pythia → FIFO → `rivet` pipeline's cards, frozen base card and YODAs, at one thread, seed 12345, and `plugin/`, the photo_eic sources they were made with) and `point_counts.toml` (the legacy point and page counts). **Never regenerate them.** |
 
@@ -1656,7 +1656,7 @@ their own.
 
 **The manual is tested.** `tests/runner/test_docs.py` checks that:
 - every relative link in `docs/` resolves, anchors included;
-- every TOML block parses, and every complete run TOML example loads through the runner's own
+- every TOML block parses, and every complete errand file example loads through the runner's own
   parser (one that imports, through its imports: the fixtures');
 - every key the schema accepts, every `base.toml` key and every tool folder's option appears in the
   reference, and every tool folder has its section in 05;
@@ -1696,7 +1696,7 @@ Change a key, and the test says which page to update.
   - standard library in the runner (V1);
   - plugins import only `PLUGINS_MAY_IMPORT`.
 - **Names**:
-  - projects are PascalCase (`Demo`);
+  - assignments are PascalCase (`Demo`);
   - configs, quantities and tool tags are lowercase (`jets.toml`, `pt0ref`, `pythia`);
   - tags are short and filename-safe (`27x920`, `MSTW08lo`);
   - a Rivet analysis's file, class and `.info` name are one string (`photo_eic`).

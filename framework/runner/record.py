@@ -19,7 +19,7 @@ docs/06_Internals.md §8 and §12.
     seed its provenance.json records.
 * A point is complete when records/…/<point>/.complete holds its identity. It is written last,
   after the count checks, so a half-written point is never skipped.
-* A configuration folder may have a tag (V223), records/<run>/tag: a name for people, never in an identity.
+* A configuration folder may have a tag (V223), records/<A>/<E>/<R>/tag: a name for people, never in an identity.
 * Each attempt at a point ends with a line in its records' attempts.jsonl (V200): when, with what identity
   and cards, its verdict and cause, and each tool's exit, stall, warnings, errors and what it reported. A
   record without the file (it ran before V200) has no cause to give.
@@ -235,8 +235,8 @@ def _recorded_seed(plan: PointPlan) -> int:
 
 
 def record_dir(plan: PointPlan) -> Path:
-    """A point's or stage's records, records/<run>/points/<name>/ (V157): apart from its working folder
-    (records/<run>/logs/<name>/), so deleting logs or .cache/ reruns nothing (U21)."""
+    """A point's or stage's records, records/<A>/<E>/<R>/points/<name>/ (V157): apart from its working folder
+    (records/<A>/<E>/<R>/logs/<name>/), so deleting logs or .cache/ reruns nothing (U21)."""
     return plan.folders.points / plan.point.name
 
 
@@ -625,12 +625,12 @@ def constants_lines(data: dict) -> list[str]:
 
 # ── a run's snapshot (V158) ─────────────────────────────────────────────────────────────────────
 
-#: A record's snapshot: records/<run>/config/<project>/… (its files, as configs/ holds them) and this file.
+#: A record's snapshot: records/<A>/<E>/<R>/config/<A>/… (its files, as configs/ holds them) and this file.
 SNAPSHOT = "snapshot.toml"
 
 
 def snapshot_files(errand, plans: list) -> list[Path]:
-    """The files a run read from its configs: its run TOML, every file it imports, its [report]'s templates, the
+    """The files a run read from its configs: its errand file, every file it imports, its [report]'s templates, the
     base cards and configs its points read, its tools' own filters, its [plot].root_style file and its master."""
     from .paths import resolve
     wanted = [Path(errand.path), *map(Path, errand.imported), *map(Path, getattr(errand, "templates", []))]   # V209: its reports' too
@@ -647,7 +647,7 @@ def snapshot_files(errand, plans: list) -> list[Path]:
 
 
 def config_name(errand) -> str:
-    """How `heimdall run` names a run's config: <P>/<name>, its path under configs/ without .toml."""
+    """How `heimdall run` names a run's config: <A>/<E>, its path under configs/ without .toml."""
     from .paths import configs_root
     path = Path(errand.path).resolve()
     try:
@@ -657,8 +657,8 @@ def config_name(errand) -> str:
 
 
 def write_snapshot(errand, configuration, plans: list) -> Path | None:
-    """records/<run>/config/ (V158): the files the run read from its configs, as configs/ holds them (a run TOML
-    given by path goes in as <project>/<its name>), and snapshot.toml: the config's name, the configuration,
+    """records/<A>/<E>/<R>/config/ (V158): the files the run read from its configs, as configs/ holds them (an errand file
+    given by path goes in as <A>/<its name>), and snapshot.toml: the config's name, the configuration,
     the --set overrides, each file's sha256, the files read from elsewhere (./… and absolute: datasets,
     modules, tool folders, read live), Heimdall's revision and when. Written whole, then put in place; a run
     of its own snapshot writes nothing (it is what it ran with). Returns the folder, or None."""
@@ -676,7 +676,7 @@ def write_snapshot(errand, configuration, plans: list) -> Path | None:
     shutil.rmtree(staging, ignore_errors=True)
     for path in snapshot_files(errand, plans):
         if path == Path(errand.path).resolve() and not path.is_relative_to(root):
-            rel = Path(f"{name}.toml")                         # a run TOML given by path: under its project
+            rel = Path(f"{name}.toml")                         # an errand file given by path: under its assignment
         elif path.is_relative_to(root):
             rel = path.relative_to(root)
         else:
@@ -691,7 +691,7 @@ def write_snapshot(errand, configuration, plans: list) -> Path | None:
             "files": files, **({"live": {"files": live}} if live else {})}
     staging.mkdir(parents=True, exist_ok=True)
     (staging / SNAPSHOT).write_text("# A run's snapshot (V158): the config it ran with. heimdall plot|run|status "
-                                    "<P>/<run>/<NN_cfg> read it; edit it to restyle that run alone.\n"
+                                    "<A>/<E>/<R> read it; edit it to restyle that run alone.\n"
                                     + tomli_w.dumps(meta), encoding="utf-8")
     if target.exists():
         shutil.rmtree(target)
@@ -699,7 +699,7 @@ def write_snapshot(errand, configuration, plans: list) -> Path | None:
     return target
 
 
-#: A configuration folder's tag (V223): records/<run>/tag, one line, the source of truth; its plot document's
+#: A configuration folder's tag (V223): records/<A>/<E>/<R>/tag, one line, the source of truth; its plot document's
 #: [source].tag is written from it. No file, no tag.
 TAG_FILE = "tag"
 
@@ -725,7 +725,7 @@ def write_run_tag(record: Path, tag: str | None, cleared: bool = False) -> None:
 
 
 def record_of(name: str, need_snapshot: bool = True) -> Path | None:
-    """The record a command's config argument names (V158): `<P>/<run>/<NN_cfg>` (three parts, where a config
+    """The record a command's config argument names (V158): `<A>/<E>/<R>` (three parts, where a config
     has two), or a path to such a folder of records/ or results/ (or into it); None when it names a config.
     A record without a snapshot (it ran before V158) is refused, with the way to give it one."""
     from .paths import records_root, results_root
@@ -747,7 +747,7 @@ def record_of(name: str, need_snapshot: bool = True) -> Path | None:
         return None
     if need_snapshot and not (candidate / "config" / SNAPSHOT).is_file():
         rel = candidate.relative_to(records_root())
-        raise HeimdallError(f"the record {rel} has no snapshot: it ran before runs kept the config they ran with",
+        raise HeimdallError(f"the record {rel} has no snapshot: it ran before Runs kept the errand file they ran with",
                        where=str(candidate / "config"),
                        hint=f"heimdall migrate --snapshot {rel} copies a config into it (default: the one it names) and "
                             "says which of its points that config gives the same identity")

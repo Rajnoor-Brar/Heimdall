@@ -53,7 +53,7 @@ OLD_NAMES = ("HEP", "HEP_MACHINE", "HEP_INSTALL", "HEP_BASE", "HEP_STACK", "HEP_
 RETIRED = {"HEKIT_ROOT": "HEIMDALL", "HEKIT_CONFIGS": "HEIMDALL_CONFIGS", "HEKIT_OUTPUT": "HEIMDALL_RECORDS",
            "HEKIT_RESULTS": "HEIMDALL_RESULTS", "HEKIT_REPORTS": "HEIMDALL_REPORTS",
            "HEP_OUTPUT": "HEIMDALL_RECORDS and HEIMDALL_CACHE: output/ is split by lifecycle",
-           "HEP_LOGS": "HEIMDALL_RECORDS: a point's logs live in records/<run>/logs/",
+           "HEP_LOGS": "HEIMDALL_RECORDS: a point's logs live in records/<A>/<E>/<R>/logs/",
            **{old: "HEIMDALL" + old[3:] for old in OLD_NAMES}}
 
 
@@ -85,7 +85,7 @@ def heimdall_root() -> Path:
 
 
 #: heimdall.toml's tables and keys (docs/framework/01_Target.md §4.2): any other is refused. [cluster] is the
-#: machine's defaults for heimdall cluster (V114): its keys are the run TOML's, checked by cluster.py.
+#: machine's defaults for heimdall cluster (V114): its keys are the errand file's, checked by cluster.py.
 WORK_KEYS = {"work": ("name",), "framework": ("expects",), "run": ("keep", "log")}
 #: What a point's logs keep (V201), `[run] log` in heimdall.toml or machine.toml (the work dir's over the machine's):
 #: a digest's first and last lines, the earlier attempts kept with their digests and cards and with their whole
@@ -93,7 +93,7 @@ WORK_KEYS = {"work": ("name",), "framework": ("expects",), "run": ("keep", "log"
 LOG_DEFAULTS = {"head": 100, "tail": 200, "digests": 9, "full": 3, "worker_every": 600}
 #: What a run keeps beyond records/ and results/ (V149); by default nothing more than a finished point's cards
 #: and configs, each tool's digest (V201), and the prepare caches.
-KEEP_WORDS = {"logs": "every tool's whole output (records/<run>/logs/<point>/<tag>.full.log; its digest, <tag>.log, always)",
+KEEP_WORDS = {"logs": "every tool's whole output (records/<A>/<E>/<R>/logs/<point>/<tag>.full.log; its digest, <tag>.log, always)",
               "journal": "every status event (status.jsonl, for heimdall watch --file)",
               "work": "a finished point's whole working folder (scratch files, shards, what its tools left)",
               "cache": "card checks, converted reference data, the plot stage's working files and skip markers"}
@@ -285,7 +285,7 @@ def dataset_listed(path: Path) -> bool:
 
 
 def configs_root() -> Path:
-    """Where run TOMLs and their cards are: $HEIMDALL_CONFIGS or <work>/configs (a record's snapshot, V158)."""
+    """Where errand files and their cards are: $HEIMDALL_CONFIGS or <work>/configs (a record's snapshot, V158)."""
     return _rooted(CONFIGS_VAR, "configs")
 
 
@@ -543,7 +543,7 @@ def config_file(name: str) -> Path:
     if path.suffix != ".toml" and not path.exists():
         path = path.with_name(path.name + ".toml")
     if not path.is_file():
-        raise HeimdallError(f"no run config '{name}'", where=str(path),
-                       hint="configs are looked up under configs/<Project>/<name>.toml; "
+        raise HeimdallError(f"no errand file '{name}'", where=str(path),
+                       hint="configs are looked up under configs/<A>/<E>.toml; "
                             "start the name with ./ to give a path from the work dir")
     return path

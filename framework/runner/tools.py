@@ -307,7 +307,7 @@ def _lookup(name: str, context: dict, where: str):
         return table[arg]
     if name == "repo":                                               # High-Energy's, retired (framework/01 §5.3)
         raise HeimdallError("{repo} is retired: {work} for your files, {heimdall} for Heimdall's", where=where,
-                       hint="heimdall migrate rewrites it in a run TOML")
+                       hint="heimdall migrate rewrites it in an errand file")
     raise HeimdallError(f"unknown placeholder {{{name}}}", where=where,
                    hint=did_you_mean(name, [k for k in context if not k.endswith(":")]))
 
@@ -385,7 +385,7 @@ def merge_files(sources: list[Path], target: Path) -> Path:
 
 def executable_of(tool, folder: Folder, assignment: str) -> Path:
     """A folder's executable (`{heimdall}`/`{work}` expanded, else PATH), or a custom table's (04 §2): bare →
-    build/<project>/<name>, which must exist; `path:<command>` → that command on PATH, asked for by
+    build/<A>/<E>, which must exist; `path:<command>` → that command on PATH, asked for by
     name. A bare name never falls back to PATH (V54): a missing build would run a system binary."""
     if tool.executable:
         where = f"[tools.{tool.tag}].executable"
@@ -602,13 +602,13 @@ class PointPlan:
 
 @dataclass(frozen=True)
 class RunFolders:
-    """A configuration's folders (06 §1, V157, V164), `<run>` = <P>/<name>/<NN_label>: records/<run>/, what a run
-    needs while it runs or is launched and what traces it back; results/<run>/, everything that matters once it
-    is done; .cache/<P>/plots/<name>/<NN_label>/, the drawing's working files, rebuilt on demand."""
+    """A Run's folders, <A>/<E>/<R> (06 §1, V157, V164): records/<A>/<E>/<R>/, what a job
+    needs while it runs or is launched and what traces it back; results/<A>/<E>/<R>/, everything that matters once it
+    is done; .cache/<A>/plots/<E>/<R>/, the drawing's working files, rebuilt on demand."""
     assignment: str
-    record: Path                       # records/<run>
-    results: Path                      # results/<run>
-    cache: Path                        # .cache/<P>/plots/<name>/<NN_label>
+    record: Path                       # records/<A>/<E>/<R>
+    results: Path                      # results/<A>/<E>/<R>
+    cache: Path                        # .cache/<A>/plots/<E>/<R>
 
     @property
     def points(self) -> Path:          # each point's and stage's provenance, identity.json and .complete: kept
@@ -625,7 +625,7 @@ class RunFolders:
         return self.cache
 
     @property
-    def config(self) -> Path:          # the run's snapshot: its run TOML, imports and cards (V158)
+    def config(self) -> Path:          # the run's snapshot: its errand file, imports and cards (V158)
         return self.record / "config"
 
     @property
@@ -653,7 +653,7 @@ class RunFolders:
         return self.results / "statistics"
 
     def compare(self, name: str) -> tuple[Path, Path]:
-        """A compare figure's page documents and pages: beside the configurations, in <P>/<name>/compare/ (its
+        """A compare figure's page documents and pages: beside the configurations, in <A>/<E>/compare/ (its
         documents in .cache/)."""
         return self.cache.parent / "compare" / name, self.results.parent / "compare" / name
 
@@ -663,14 +663,14 @@ def location(serial: int | None, name: str) -> str:
 
 
 def run_dir(errand, configuration) -> Path:
-    """<project>/<name>/<NN_><label> (V45, V46): `name` is [errand]'s, or the configuration's own; the
+    """<A>/<E>/<NN_><label> (V45, V46): `name` is [errand]'s, or the configuration's own; the
     configuration's folder is its `label` (its table key when empty or unset), after one serial, the
     configuration's if it has one, else [errand]'s."""
     return Path(errand.assignment) / (configuration.run_folder or errand.name) / location(configuration.serial, configuration.label)
 
 
 def serials_taken(errand, configuration) -> set[int]:
-    """The numbers of a configuration's folders on disk, <project>/<name>/NN_<label>, in records/ and
+    """The numbers of a configuration's folders on disk, <A>/<E>/NN_<label>, in records/ and
     results/: where a v3 configuration without a serial may already have run (03 §6)."""
     parent = Path(errand.assignment) / (configuration.run_folder or errand.name)
     numbered = re.compile(r"(\d{2,})_" + re.escape(configuration.label))
@@ -688,8 +688,8 @@ def run_folders(errand, configuration) -> RunFolders:
 
 
 def point_dirs(errand, configuration, point) -> tuple[Path, Path]:
-    """A point's working folder, records/<run>/logs/<name>, and its products' folder: results/<run>/points/<name>
-    for a point or a combined group, results/<run>/<pre|post> for a stage (index ≤ 0), whose products a later
+    """A point's working folder, records/<A>/<E>/<R>/logs/<name>, and its products' folder: results/<A>/<E>/<R>/points/<name>
+    for a point or a combined group, results/<A>/<E>/<R>/<pre|post> for a stage (index ≤ 0), whose products a later
     stage names, so they stay where they were (V157)."""
     here = run_folders(errand, configuration)
     results = here.results if point.index <= 0 else here.products
@@ -970,7 +970,7 @@ def plan_point(errand, configuration, point, master: dict, *, post: dict | None 
         step = Step(tag=tag, tool=tool, folder=folder, group=group_of.get(tag, -1),
                     exe=executable_of(tool, folder, errand.assignment))
         step.status = tool.status or folder.get("tool", "status", "none")
-        if tool.filters:                                    # your rules, configs/<P>/… (V61)
+        if tool.filters:                                    # your rules, configs/<A>/… (V61)
             rules = resolve(tool.filters, "filters", assignment=errand.assignment, where=f"{where}.filters")
             step.filters = tomllib.loads(rules.read_text(encoding="utf-8")).get("rule", [])
             step.status = "filters"
@@ -1281,7 +1281,7 @@ def beam_order(plan: PointPlan, errand, folder: Folder) -> tuple[int, int] | Non
 
 
 def _prepare_key(plan: PointPlan, step: Step, errand) -> None:
-    """[prepare]: a cache entry per card, .cache/<P>/<tool>/<key>/. The key is the card before
+    """[prepare]: a cache entry per card, .cache/<A>/<tool>/<key>/. The key is the card before
     seeds, the base cards and the binary, without the lines setting `ignore` keys (the event count,
     say), so every point, replica and rerun with the same physics shares one integration."""
     spec = step.folder.spec.get("prepare")
@@ -1464,7 +1464,7 @@ def _outputs_argument(step: Step, deal: dict[str, str]) -> str:
         if set(str(interface.path)) & {",", "+"}:
             raise HeimdallError(f"an output path of [tools.{step.tag}] contains ',' or '+', which separate its outputs",
                            where=str(interface.path),
-                           hint="rename what puts it there: the run's name or serial, a configuration, a quantity tag, "
+                           hint="rename what puts it there: the errand's name or serial, a configuration, a quantity tag, "
                                 "or $HEIMDALL_RECORDS")
         group = deal.get(interface.name)
         if group is not None and group in at:
@@ -1664,7 +1664,7 @@ def check_cards(plan: PointPlan) -> None:
     """[checks] card (V59): the tool reads each card it is given and says which lines it rejects (Pythia:
     {apps}/App_PythiaCheck.exe), so a key it does not know or a value of the wrong kind is refused before
     anything runs, with no list of keys of ours. The card checked is the base cards' settings and the
-    point card before seeds; the answer is kept by its text for the process, and in .cache/<P>/checks/ when the
+    point card before seeds; the answer is kept by its text for the process, and in .cache/<A>/checks/ when the
     run keeps `cache` (a file there is read either way)."""
     for step in plan.rendered.values():
         command = step.folder.get("checks", "card")

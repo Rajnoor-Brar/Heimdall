@@ -186,9 +186,9 @@ heimdall() {
             command heimdall "$@" ;;
     esac
 }
-# heimdall cd PROJECT [configs|modules|results|records|logs] — cd into a project folder of the current work dir.
+# heimdall cd ASSIGNMENT [configs|modules|results|records|logs] — cd into an assignment's folder of the current work dir.
 heimdall_cd() {
-    [ -n "${1-}" ] || { echo "usage: heimdall cd PROJECT [configs|modules|results|records|logs]" >&2; return 2; }
+    [ -n "${1-}" ] || { echo "usage: heimdall cd ASSIGNMENT [configs|modules|results|records|logs]" >&2; return 2; }
     local work
     work=$(command heimdall where --work) || return 2
     cd "$work/${2:-configs}/$1"
@@ -205,7 +205,7 @@ heimdall run | plot | watch | build | stack | …   every command (heimdall help
 In this shell:
   heimdall refresh           reload the environment from scratch, the same stack (also heimdall_refresh)
   heimdall quit              leave it: paths, the base (or venv) and machine.sh's lines as before (also quit)
-  heimdall cd PROJECT [DIR]  cd to <work dir>/DIR/PROJECT (DIR: configs|modules|results|records|logs; also heimdall_cd)
+  heimdall cd A [DIR]        cd to <work dir>/DIR/A, an assignment's (DIR: configs|modules|results|records|logs; also heimdall_cd)
   heimdall_status            the loaded stack: each package, its release and state (heimdall stack status)
   heimdall_stash             cd to the machine root's downloads
   heimdall_forge             cd to the loaded stack's builds in progress

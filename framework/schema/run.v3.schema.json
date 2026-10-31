@@ -1,17 +1,17 @@
 {
  "$schema": "http://json-schema.org/draft-07/schema#",
- "title": "heimdall run TOML, the third form (generated from framework/schema/run.toml)",
+ "title": "heimdall errand file, the third form (generated from framework/schema/run.toml)",
  "type": "object",
  "properties": {
   "file": {
    "type": "object",
    "properties": {
     "master": {
-     "description": "a project master overlaid on the tool folders' quantities.toml (configs/<Project>/…)\n\noverlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an entry for a (tool, quantity) pair replaces the framework's. The file must exist.",
+     "description": "a assignment master overlaid on the tool folders' quantities.toml (configs/<A>/…)\n\noverlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an entry for a (tool, quantity) pair replaces the framework's. The file must exist.",
      "type": "string"
     },
     "import": {
-     "description": "run TOMLs whose tables this one starts from, in order; this file wins (V56, V93, V94)\n\nrun TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and `[errand]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own imports come first, depth-first; a circle is refused. Another project's file keeps its bare paths (cards, filters, styles, executables) its own project's, so its tools plan as they do in it. The file that imports sets its own `[errand].name` and `assignment`; no folder of its configurations may be an imported run's (V100). An entry may be `{ from = \"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where each quantity, tool and configuration came from.",
+     "description": "errand files whose tables this one starts from, in order; this file wins (V56, V93, V94)\n\nerrand files this one starts from, in order, named as `heimdall run` names a config: `name` is this assignment's (`configs/<A>/name.toml`), `<A>/<E>` another assignment's, `./…` from the work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and `[errand]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own imports come first, depth-first; a circle is refused. Another assignment's file keeps its bare paths (cards, filters, styles, executables) its own assignment's, so its tools plan as they do in it. The file that imports sets its own `[errand].name` and `assignment`; no folder of its configurations may be an imported errand's (V100). An entry may be `{ from = \"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those sections or dotted keys of that file, each of which it must have (V95). `--show-config` says where each quantity, tool and configuration came from.",
      "type": [
       "string",
       "array"
@@ -31,11 +31,11 @@
      }
     },
     "vars": {
-     "description": "names said once and cited anywhere in the file as {var:name} (V96)\n\n`name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result (V96). A string that is exactly one var takes its value as it is: `event_count = \"{var:events}\"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`\"rivet:{var:ana}\"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value, so a shared file can be written with parameters; its own `[config.vars]` come with whatever is taken of it (`only` included, V101), under this file's. Imports are read before vars, so an import's name cannot cite one; `--set config.vars.<name>=…` changes one for a run.",
+     "description": "names said once and cited anywhere in the file as {var:name} (V96)\n\n`name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result (V96). A string that is exactly one var takes its value as it is: `event_count = \"{var:events}\"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`\"rivet:{var:ana}\"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value, so a shared file can be written with parameters; its own `[config.vars]` come with whatever is taken of it (`only` included, V101), under this file's. Imports are read before vars, so an import's name cannot cite one; `--set config.vars.<name>=…` changes one for a job.",
      "type": "object"
     },
     "meta": {
-     "description": "about the file, for people; versions: the stack it was run with, warned about, never enforced (V97)\n\ndescriptive: it never changes a run (V97). Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = \"8.317\", rivet = \"4.1.3\" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `heimdall check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come.",
+     "description": "about the file, for people; versions: the stack it was run with, warned about, never enforced (V97)\n\ndescriptive: it never changes a point (V97). Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = \"8.317\", rivet = \"4.1.3\" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the job's start and in `heimdall check`, which still passes: the job goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come.",
      "type": "object"
     },
     "schema": {
@@ -49,7 +49,7 @@
    "type": "object",
    "properties": {
     "name": {
-     "description": "the run's folder: <project>/<name>/\n\nthe run's directory name",
+     "description": "the errand's name, <E>: its folder <A>/<E>/\n\nthe errand's folder name, `<E>` in `results/<A>/<E>/` (its Runs below it)",
      "type": "string"
     },
     "assignment": {
@@ -61,7 +61,7 @@
      "type": "string"
     },
     "serial": {
-     "description": "the NN_ before each configuration's folder\n\nthe prefix `NN_` of each configuration's folder, `<name>/NN_<label>`: **location, never identity** (V12). A configuration's `serial` overrides it (V45). Changing it starts a fresh location.",
+     "description": "the NN_ before each Run's folder name\n\nthe prefix `NN_` of each Run's folder, `<E>/NN_<label>`: **location, never identity** (V12). A configuration's `serial` overrides it (V45). Changing it starts a fresh location.",
      "type": "integer"
     },
     "events": {
@@ -91,7 +91,7 @@
      "default": 1
     },
     "plot": {
-     "description": "after the points: draw the run's pages (true: every set), none (false: its plot.toml is still written), or these sets (V167)\n\nthe plot follow-up (V167): `true` draws every set of the run's plot document (its `totality` and the `[plot].sets`), `false` none (the document is written all the same, for `heimdall plot` later), a list draws those sets (`[\"totality\", \"pdf_by_generator\"]`) and is the document's `[plot].draw`. A configuration may set its own; `heimdall run … --no-plot` turns it off for one run",
+     "description": "after the points: draw the Run's pages (true: every set), none (false: its plot.toml is still written), or these sets (V167)\n\nthe plot follow-up (V167): `true` draws every set of the Run's plot document (its `totality` and the `[plot].sets`), `false` none (the document is written all the same, for `heimdall plot` later), a list draws those sets (`[\"totality\", \"pdf_by_generator\"]`) and is the document's `[plot].draw`. A configuration may set its own; `heimdall run … --no-plot` turns it off for one job",
      "type": [
       "boolean",
       "array"
@@ -102,7 +102,7 @@
      "default": true
     },
     "stats": {
-     "description": "after the pages: their statistics (true: every set drawn), none (false), or these sets'; with plot = false, measured alone (V168)\n\nthe statistics follow-up (V168): `true` measures the sets the run draws (or, with `plot = false`, every set, undrawn), `false` none, a list those sets (the document's `[stats].sets`). A configuration may set its own; `heimdall run … --no-stats` turns it off for one run",
+     "description": "after the pages: their statistics (true: every set drawn), none (false), or these sets'; with plot = false, measured alone (V168)\n\nthe statistics follow-up (V168): `true` measures the sets the Run draws (or, with `plot = false`, every set, undrawn), `false` none, a list those sets (the document's `[stats].sets`). A configuration may set its own; `heimdall run … --no-stats` turns it off for one job",
      "type": [
       "boolean",
       "array"
@@ -113,11 +113,11 @@
      "default": true
     },
     "description": {
-     "description": "what the run is for",
+     "description": "what the errand is for",
      "type": "string"
     },
     "tag": {
-     "description": "the tag each configuration's folder is given when it runs, unless it has one (a letter or digit, then letters, digits, . _ + -; at most 40)\n\ndefault for configurations: a short name kept with the configuration's folder (its record's `tag` file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` gives one for a run; a folder that has a tag keeps it (`heimdall tag` changes it); `\"\"` is none",
+     "description": "the tag each Run is given when it runs, unless it has one (a letter or digit, then letters, digits, . _ + -; at most 40)\n\ndefault for configurations: a short name kept with the Run (its record's `tag` file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` gives one for a job; a Run that has a tag keeps it (`heimdall tag` changes it); `\"\"` is none",
      "type": "string"
     },
     "sweep_runs": {
@@ -132,7 +132,7 @@
      "default": false
     },
     "notify": {
-     "description": "\"desktop\": a notify-send when heimdall run ends, with its verdict (V76)\n\n`\"desktop\"` (V76): a desktop notification (`notify-send`) when `heimdall run` ends, with its verdict; never fails a run",
+     "description": "\"desktop\": a notify-send when heimdall run ends, with its verdict (V76)\n\n`\"desktop\"` (V76): a desktop notification (`notify-send`) when `heimdall run` ends, with its verdict; never fails a job",
      "type": "string",
      "enum": [
       "none",
@@ -201,7 +201,7 @@
       "type": "string"
      },
      "serial": {
-      "description": "this configuration's NN_ (else [errand]'s)\n\noverrides `[errand].serial` for this configuration: its points go to `<P>/<run name>/NN_<label>/` (V45)",
+      "description": "this configuration's NN_ (else [errand]'s)\n\noverrides `[errand].serial` for this configuration: its points go to `<A>/<E>/NN_<label>/` (V45)",
       "anyOf": [
        {
         "type": "integer"
@@ -212,15 +212,15 @@
       ]
      },
      "name": {
-      "description": "this configuration's run folder (else [errand].name)\n\nthe run folder above this configuration's: `<P>/<name>/NN_<label>/` (V46)",
+      "description": "this configuration's errand folder, <E> (else [errand].name)\n\nthe errand folder above this configuration's Run: `<A>/<E>/NN_<label>/` (V46)",
       "type": "string"
      },
      "folder": {
-      "description": "this configuration's folder: NN_<label> (else its table key)\n\nthe configuration's folder, after the serial: `NN_<label>`; empty means the table key (V45)",
+      "description": "this configuration's Run: NN_<label> (else its table key)\n\nthe Run's folder name, after the serial: `NN_<label>`; empty means the table key (V45)",
       "type": "string"
      },
      "title": {
-      "description": "the run NN - <title> - header of a sweep\n\nthe header line of the run under `[errand].sweep_runs`: `run 02 - <title> -` (04 §4.1)",
+      "description": "the run NN - <title> - header of a sweep\n\nthe header line of the Run under `[errand].sweep_runs`: `run 02 - <title> -` (04 §4.1)",
       "type": "string"
      },
      "description": {
@@ -228,7 +228,7 @@
       "type": "string"
      },
      "tag": {
-      "description": "this configuration's folder's tag when a run gives none and it has none (else [errand]'s); \"\": none\n\nthe tag a run gives this configuration's folder (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `\"\"` gives none over `[errand]`'s. Never part of a point's identity",
+      "description": "this configuration's Run's tag when a job gives none and it has none (else [errand]'s); \"\": none\n\nthe tag a job gives this configuration's Run (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the Run already has one: a Run keeps its tag when it is run again, and `heimdall tag <A>/<E>/<R>` shows or changes it. `\"\"` gives none over `[errand]`'s. Never part of a point's identity",
       "type": "string"
      },
      "events": {
@@ -252,7 +252,7 @@
       ]
      },
      "parallelism": {
-      "description": "points run at once (else [errand]'s); \"auto\": cores ÷ a point's cores (V75)\n\npoints at once (`\"auto\"`: cores ÷ a point's cores, V75); `--plan` and the run's title say about how many cores that is, and warn past the machine's",
+      "description": "points run at once (else [errand]'s); \"auto\": cores ÷ a point's cores (V75)\n\npoints at once (`\"auto\"`: cores ÷ a point's cores, V75); `--plan` and the job's title say about how many cores that is, and warn past the machine's",
       "anyOf": [
        {
         "type": [
@@ -353,7 +353,7 @@
       "type": "object"
      },
      "cluster": {
-      "description": "this configuration's [cluster] keys, over the run's (heimdall cluster, V114)\n\nmerged over the run TOML's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys (04 §16)",
+      "description": "this configuration's [cluster] keys, over the errand file's (heimdall cluster, V114)\n\nmerged over the errand file's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys (04 §16)",
       "type": "object"
      },
      "seed": {
@@ -378,7 +378,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -418,11 +418,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -478,7 +478,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -518,11 +518,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -578,7 +578,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -618,11 +618,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -678,7 +678,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -718,11 +718,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -778,7 +778,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -818,11 +818,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -882,7 +882,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -922,11 +922,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -982,7 +982,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -1022,11 +1022,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -1082,7 +1082,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -1122,11 +1122,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -1182,7 +1182,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -1222,11 +1222,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -1290,7 +1290,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -1330,11 +1330,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -1390,7 +1390,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -1430,11 +1430,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -1490,7 +1490,7 @@
        "type": "string"
       },
       "card": {
-       "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+       "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
        "type": [
         "string",
         "array"
@@ -1530,11 +1530,11 @@
        ]
       },
       "filters": {
-       "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+       "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
        "type": "string"
       },
       "executable": {
-       "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+       "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
        "type": "string"
       },
       "arguments": {
@@ -1595,7 +1595,7 @@
       "type": "string"
      },
      "card": {
-      "description": "base card(s), configs/<Project>/…\n\nnative base card(s), read in order (root `configs/<project>/`). Tools with a card only.",
+      "description": "base card(s), configs/<A>/…\n\nnative base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
       "type": [
        "string",
        "array"
@@ -1635,11 +1635,11 @@
       ]
      },
      "filters": {
-      "description": "a filters.toml of your own (configs/<Project>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<P>/`; implies `status = \"filters\"` (V61)",
+      "description": "a filters.toml of your own (configs/<A>/…), in place of its folder's\n\nyour own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` (V61)",
       "type": "string"
      },
      "executable": {
-      "description": "custom/module: build/<project>/<name>, or path:<command>\n\nexec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH`",
+      "description": "custom/module: build/<A>/<E>, or path:<command>\n\nexec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH`",
       "type": "string"
      },
      "arguments": {
@@ -2064,18 +2064,18 @@
      }
     },
     "looks": {
-     "description": "each value's look on every page, by quantity and tag: [plot.looks.pdf] NNPDF23lo = \"#0067A5\" (or { colour, line, width }) (V171)\n\n[plot.looks.<quantity>] (V171): a value's look on every page and in every run, by its tag: a colour (`\"#rrggbb\"`, a ROOT name or number) or `{ colour, line, width }`. A tag a run does not have is unused, so a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's styled values, over it; a set's automatic look leaves an axis with looks alone",
+     "description": "each value's look on every page, by quantity and tag: [plot.looks.pdf] NNPDF23lo = \"#0067A5\" (or { colour, line, width }) (V171)\n\n[plot.looks.<quantity>] (V171): a value's look on every page and in every Run, by its tag: a colour (`\"#rrggbb\"`, a ROOT name or number) or `{ colour, line, width }`. A tag a Run does not have is unused, so a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's styled values, over it; a set's automatic look leaves an axis with looks alone",
      "type": "object"
     },
     "across": {
-     "description": "the run TOML's sets across its runs, [plot.across.<set>]: drawn at results/<P>/<name>/, by @run, @events, @configuration, @tag and the quantities (V169)\n\nsets of the runs of this run TOML together (V169), as `[plot.sets.<name>]` are of one run's points, with more axes: `@events` (each run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, when a run is tagged, `@tag` (each run's tag; an untagged run's labelled `untagged`). `@events` and `@tag` each page a set that does not name it. Kept in `results/<P>/<name>/plot.toml`, drawn by `heimdall plot <P>/<name> --across` into `results/<P>/<name>/plots/<set>/` and `statistics/<set>/`; which runs, and how, is `[plot.across_from]`",
+     "description": "the errand's sets across its Runs, [plot.across.<set>]: drawn at results/<A>/<E>/, by @run, @events, @configuration, @tag and the quantities (V169)\n\nsets of the Runs of this errand together (V169), as `[plot.sets.<name>]` are of one Run's points, with more axes: `@events` (each Run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, when a Run is tagged, `@tag` (each Run's tag; an untagged Run's labelled `untagged`). `@events` and `@tag` each page a set that does not name it. Kept in `results/<A>/<E>/plot.toml`, drawn by `heimdall plot <A>/<E> --across` into `results/<A>/<E>/plots/<set>/` and `statistics/<set>/`; which Runs, and how, is `[plot.across_from]`",
      "type": "object"
     },
     "across_from": {
      "type": "object",
      "properties": {
       "runs": {
-       "description": "the runs drawn together: globs of their folders (04_*, 0[5-7]_*)\n\nthe runs drawn together, by globs of their folders beside the document (`[\"04_*\", \"0[5-7]_*\"]`); every run by default",
+       "description": "the Runs drawn together: globs of their folders (04_*, 0[5-7]_*)\n\nthe Runs drawn together, by globs of their folders beside the document (`[\"04_*\", \"0[5-7]_*\"]`); every Run by default",
        "type": "array",
        "items": {
         "type": "string"
@@ -2085,7 +2085,7 @@
        ]
       },
       "prefer": {
-       "description": "a point two runs of one tag have: drawn from the later (last) or from both (all)\n\na point two runs have (every quantity's tag, the event count and the run's tag the same, the ignored quantities aside): `\"last\"` draws it from the later run that completed it, and says so; `\"all\"` keeps both. Runs of different tags never stand for each other",
+       "description": "a point two Runs of one tag have: drawn from the later (last) or from both (all)\n\na point two Runs have (every quantity's tag, the event count and the Run's tag the same, the ignored quantities aside): `\"last\"` draws it from the later Run that completed it, and says so; `\"all\"` keeps both. Runs of different tags never stand for each other",
        "type": "string",
        "enum": [
         "last",
@@ -2094,7 +2094,7 @@
        "default": "last"
       },
       "ignore": {
-       "description": "quantities (or \"@events\") that are no axis across the runs: one value within each run (V224)\n\nquantities of the runs (or `\"@events\"`) that are no axis across them: an ignored quantity never pages a set or tells its curves apart, and never keeps two runs' points apart (with `prefer = \"last\"` the later stands for both, unless their tags differ). It must hold one value within each run, else the drawing is refused, naming the run and its values; its value stays each point's, so a page text that cites it (`{q:generator}`) shows it when the page's curves share it. A name no run has is refused",
+       "description": "quantities (or \"@events\") that are no axis across the Runs: one value within each Run (V224)\n\nquantities of the Runs (or `\"@events\"`) that are no axis across them: an ignored quantity never pages a set or tells its curves apart, and never keeps two Runs' points apart (with `prefer = \"last\"` the later stands for both, unless their tags differ). It must hold one value within each Run, else the drawing is refused, naming the Run and its values; its value stays each point's, so a page text that cites it (`{q:generator}`) shows it when the page's curves share it. A name no Run has is refused",
        "type": "array",
        "items": {
         "type": "string"
@@ -2102,10 +2102,10 @@
       }
      },
      "additionalProperties": false,
-     "description": "which runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe runs together's `[from]`: written into `results/<P>/<name>/plot.toml` over its defaults (every run, `prefer = \"last\"`) when a run writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"
+     "description": "which Runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe Runs together's `[from]`: written into `results/<A>/<E>/plot.toml` over its defaults (every Run, `prefer = \"last\"`) when a job writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"
     },
     "draw": {
-     "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[errand].plot`'s list here. A name no set has is refused",
+     "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a job writes `[errand].plot`'s list here. A name no set has is refused",
      "type": "array",
      "items": {
       "type": "string"
@@ -2145,7 +2145,7 @@
      "default": "none"
     },
     "root_style": {
-     "description": "a style file over base.toml (configs/<Project>/…)\n\na style file over base.toml (04 §12). Refused by the yoda backend alone.",
+     "description": "a style file over base.toml (configs/<A>/…)\n\na style file over base.toml (04 §12). Refused by the yoda backend alone.",
      "anyOf": [
       {
        "type": "string"
@@ -2594,7 +2594,7 @@
         ]
        },
        "class": {
-        "description": "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid)\n\nhow the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `.cache/…/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = \"ratio\"`, `\"difference\"` or `\"sum\"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`.cache/…/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = \"Scatter2D\"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet",
+        "description": "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid)\n\nhow the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `.cache/…/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<E>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = \"ratio\"`, `\"difference\"` or `\"sum\"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`.cache/…/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = \"Scatter2D\"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet",
         "type": "string",
         "enum": [
          "defined",
@@ -2686,7 +2686,7 @@
         }
        },
        "configurations": {
-        "description": "a compare figure's configurations (default: the sweep_runs ones), each a curve per point (V83)\n\na compare figure's, two or more, in curve order; one at least of this file. `\"<Project>/<config>:<cfg>\"` (V88) names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `heimdall plot`",
+        "description": "a compare figure's configurations (default: the sweep_runs ones), each a curve per point (V83)\n\na compare figure's, two or more, in curve order; one at least of this file. `\"<A>/<E>:<cfg>\"` (V88) names a configuration of another errand file: its points (as its last job left them) are curves beside this file's, labelled `<its errand> <its label>` by default and by its own quantities; its page axes must have this file's tags. The pages are this errand's (`<E>/compare/<name>/`), drawn by this errand's plot stage or `heimdall plot`",
         "type": "array",
         "items": {
          "type": "string"
@@ -2804,14 +2804,14 @@
      "type": "string"
     },
     "from": {
-     "description": "its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them",
+     "description": "its sources: result folders holding a plot.toml, as <A>/<E>/<R>, <A>/<E> (each of its Runs, then its own when drawn), a path, or a glob; the command line's replace them",
      "type": "array",
      "items": {
       "type": "string"
      }
     },
     "output": {
-     "description": "where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<P>/<run>/<cfg>/, reports/<P>/<run>/, …); -o replaces it. Not in a run TOML",
+     "description": "where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<A>/<E>/<R>/, reports/<A>/<E>/, …); -o replaces it. Not in an errand file",
      "type": "string"
     },
     "template": {
@@ -2888,7 +2888,7 @@
         "minimum": 1
        },
        "label": {
-        "description": "a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its run, where two sources would share one); events, the events its points ran with (10M)",
+        "description": "a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its errand, where two sources would share one); events, the events its points ran with (10M)",
         "type": "string",
         "enum": [
          "events",
@@ -2902,7 +2902,7 @@
         "default": false
        },
        "compare": {
-        "description": "compare figures' names (03 §7.5): their pages, from each source's run's compare/<name>/",
+        "description": "compare figures' names (03 §7.5): their pages, from each source's errand's compare/<name>/",
         "type": "array",
         "items": {
          "type": "string"
@@ -3243,18 +3243,18 @@
           }
          },
          "looks": {
-          "description": "each value's look on every page, by quantity and tag: [plot.looks.pdf] NNPDF23lo = \"#0067A5\" (or { colour, line, width }) (V171)\n\n[plot.looks.<quantity>] (V171): a value's look on every page and in every run, by its tag: a colour (`\"#rrggbb\"`, a ROOT name or number) or `{ colour, line, width }`. A tag a run does not have is unused, so a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's styled values, over it; a set's automatic look leaves an axis with looks alone",
+          "description": "each value's look on every page, by quantity and tag: [plot.looks.pdf] NNPDF23lo = \"#0067A5\" (or { colour, line, width }) (V171)\n\n[plot.looks.<quantity>] (V171): a value's look on every page and in every Run, by its tag: a colour (`\"#rrggbb\"`, a ROOT name or number) or `{ colour, line, width }`. A tag a Run does not have is unused, so a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's styled values, over it; a set's automatic look leaves an axis with looks alone",
           "type": "object"
          },
          "across": {
-          "description": "the run TOML's sets across its runs, [plot.across.<set>]: drawn at results/<P>/<name>/, by @run, @events, @configuration, @tag and the quantities (V169)\n\nsets of the runs of this run TOML together (V169), as `[plot.sets.<name>]` are of one run's points, with more axes: `@events` (each run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, when a run is tagged, `@tag` (each run's tag; an untagged run's labelled `untagged`). `@events` and `@tag` each page a set that does not name it. Kept in `results/<P>/<name>/plot.toml`, drawn by `heimdall plot <P>/<name> --across` into `results/<P>/<name>/plots/<set>/` and `statistics/<set>/`; which runs, and how, is `[plot.across_from]`",
+          "description": "the errand's sets across its Runs, [plot.across.<set>]: drawn at results/<A>/<E>/, by @run, @events, @configuration, @tag and the quantities (V169)\n\nsets of the Runs of this errand together (V169), as `[plot.sets.<name>]` are of one Run's points, with more axes: `@events` (each Run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, when a Run is tagged, `@tag` (each Run's tag; an untagged Run's labelled `untagged`). `@events` and `@tag` each page a set that does not name it. Kept in `results/<A>/<E>/plot.toml`, drawn by `heimdall plot <A>/<E> --across` into `results/<A>/<E>/plots/<set>/` and `statistics/<set>/`; which Runs, and how, is `[plot.across_from]`",
           "type": "object"
          },
          "across_from": {
           "type": "object",
           "properties": {
            "runs": {
-            "description": "the runs drawn together: globs of their folders (04_*, 0[5-7]_*)\n\nthe runs drawn together, by globs of their folders beside the document (`[\"04_*\", \"0[5-7]_*\"]`); every run by default",
+            "description": "the Runs drawn together: globs of their folders (04_*, 0[5-7]_*)\n\nthe Runs drawn together, by globs of their folders beside the document (`[\"04_*\", \"0[5-7]_*\"]`); every Run by default",
             "type": "array",
             "items": {
              "type": "string"
@@ -3264,7 +3264,7 @@
             ]
            },
            "prefer": {
-            "description": "a point two runs of one tag have: drawn from the later (last) or from both (all)\n\na point two runs have (every quantity's tag, the event count and the run's tag the same, the ignored quantities aside): `\"last\"` draws it from the later run that completed it, and says so; `\"all\"` keeps both. Runs of different tags never stand for each other",
+            "description": "a point two Runs of one tag have: drawn from the later (last) or from both (all)\n\na point two Runs have (every quantity's tag, the event count and the Run's tag the same, the ignored quantities aside): `\"last\"` draws it from the later Run that completed it, and says so; `\"all\"` keeps both. Runs of different tags never stand for each other",
             "type": "string",
             "enum": [
              "last",
@@ -3273,7 +3273,7 @@
             "default": "last"
            },
            "ignore": {
-            "description": "quantities (or \"@events\") that are no axis across the runs: one value within each run (V224)\n\nquantities of the runs (or `\"@events\"`) that are no axis across them: an ignored quantity never pages a set or tells its curves apart, and never keeps two runs' points apart (with `prefer = \"last\"` the later stands for both, unless their tags differ). It must hold one value within each run, else the drawing is refused, naming the run and its values; its value stays each point's, so a page text that cites it (`{q:generator}`) shows it when the page's curves share it. A name no run has is refused",
+            "description": "quantities (or \"@events\") that are no axis across the Runs: one value within each Run (V224)\n\nquantities of the Runs (or `\"@events\"`) that are no axis across them: an ignored quantity never pages a set or tells its curves apart, and never keeps two Runs' points apart (with `prefer = \"last\"` the later stands for both, unless their tags differ). It must hold one value within each Run, else the drawing is refused, naming the Run and its values; its value stays each point's, so a page text that cites it (`{q:generator}`) shows it when the page's curves share it. A name no Run has is refused",
             "type": "array",
             "items": {
              "type": "string"
@@ -3281,10 +3281,10 @@
            }
           },
           "additionalProperties": false,
-          "description": "which runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe runs together's `[from]`: written into `results/<P>/<name>/plot.toml` over its defaults (every run, `prefer = \"last\"`) when a run writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"
+          "description": "which Runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe Runs together's `[from]`: written into `results/<A>/<E>/plot.toml` over its defaults (every Run, `prefer = \"last\"`) when a job writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"
          },
          "draw": {
-          "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[errand].plot`'s list here. A name no set has is refused",
+          "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a job writes `[errand].plot`'s list here. A name no set has is refused",
           "type": "array",
           "items": {
            "type": "string"
@@ -3324,7 +3324,7 @@
           "default": "none"
          },
          "root_style": {
-          "description": "a style file over base.toml (configs/<Project>/…)\n\na style file over base.toml (04 §12). Refused by the yoda backend alone.",
+          "description": "a style file over base.toml (configs/<A>/…)\n\na style file over base.toml (04 §12). Refused by the yoda backend alone.",
           "anyOf": [
            {
             "type": "string"
@@ -3773,7 +3773,7 @@
              ]
             },
             "class": {
-             "description": "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid)\n\nhow the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `.cache/…/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = \"ratio\"`, `\"difference\"` or `\"sum\"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`.cache/…/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = \"Scatter2D\"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet",
+             "description": "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid)\n\nhow the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged` (V82): the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `.cache/…/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet` (V89): drawn pages laid out in a grid (`pages`, `columns`; below). `compare` (V83): the objects' pages across configurations, `<E>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived` (V84): a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = \"ratio\"`, `\"difference\"` or `\"sum\"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `\"projection-x\"`/`\"projection-y\"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`.cache/…/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`\"r15\"`). `scan` (V85): one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = \"Scatter2D\"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet",
              "type": "string",
              "enum": [
               "defined",
@@ -3865,7 +3865,7 @@
              }
             },
             "configurations": {
-             "description": "a compare figure's configurations (default: the sweep_runs ones), each a curve per point (V83)\n\na compare figure's, two or more, in curve order; one at least of this file. `\"<Project>/<config>:<cfg>\"` (V88) names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `heimdall plot`",
+             "description": "a compare figure's configurations (default: the sweep_runs ones), each a curve per point (V83)\n\na compare figure's, two or more, in curve order; one at least of this file. `\"<A>/<E>:<cfg>\"` (V88) names a configuration of another errand file: its points (as its last job left them) are curves beside this file's, labelled `<its errand> <its label>` by default and by its own quantities; its page axes must have this file's tags. The pages are this errand's (`<E>/compare/<name>/`), drawn by this errand's plot stage or `heimdall plot`",
              "type": "array",
              "items": {
               "type": "string"

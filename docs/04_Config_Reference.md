@@ -1,6 +1,6 @@
 # 04 — Configuration reference
 
-Every key a run TOML accepts: its type, default and meaning, and what is checked. **The key tables
+Every key an errand file accepts: its type, default and meaning, and what is checked. **The key tables
 are generated** from `framework/schema/run.toml` and `src/Apps/Paint/base.toml` (`make docs`).
 `heimdall explain KEY` and the editor schemas read the same source, so the tables cannot drift from the
 code. The prose around them says what a table cannot.
@@ -8,7 +8,7 @@ code. The prose around them says what a table cannot.
 - **Plots and figures:** [03](03_Plots.md).
 - **Each standard tool's own keys:** [05](05_Commands_and_Tools.md).
 
-**The form.** This page writes the run TOML's third form (v3, audit 3 phase 6), which says each fact
+**The form.** This page writes the errand file's third form (v3, audit 3 phase 6), which says each fact
 once. The second form (v2) is still read, for one release, and is the same run: the same points,
 folders and identities. §17 maps its names, and `heimdall migrate --v3` rewrites a v2 file.
 
@@ -69,9 +69,9 @@ vary = ["pdf"]                           # one point per PDF
 
 | File | Holds | Written by |
 |---|---|---|
-| native base cards: `configs/<P>/*.cmnd`, `.in`, `.yaml`, `.sin`, `.mg5`, `.tcl` | the physics | you; never modified by the runner |
-| the run TOML: `configs/<P>/<run>.toml` | configurations, quantities, tools, wiring, plots | you |
-| `framework/schema/quantities.toml` (what each quantity name means) and each tool folder's `quantities.toml` (how that tool consumes it), optionally overlaid by a project's master | how each standard tool consumes named quantities (§3) | the framework; a project may add to it |
+| native base cards: `configs/<A>/*.cmnd`, `.in`, `.yaml`, `.sin`, `.mg5`, `.tcl` | the physics | you; never modified by the runner |
+| the errand file: `configs/<A>/<E>.toml` | configurations, quantities, tools, wiring, plots | you |
+| `framework/schema/quantities.toml` (what each quantity name means) and each tool folder's `quantities.toml` (how that tool consumes it), optionally overlaid by a assignment's master | how each standard tool consumes named quantities (§3) | the framework; an assignment may add to it |
 | `src/Apps/Paint/base.toml`, optionally a style file | the look of the pages (§12) | the framework; you, to change every page |
 
 **Physics stays in the native card.** A quantity renders an *override* into a point card. The base
@@ -89,7 +89,7 @@ base.toml  <  machine style.toml  <  work dir style.toml  <  [plot].root_style f
 [plot]  <  [plot.figures.<figure>]
 ```
 
-A run TOML has exactly these top-level tables, and any other is an error (C1): `[file]`, `[errand]`,
+An errand file has exactly these top-level tables, and any other is an error (C1): `[file]`, `[errand]`,
 `[cfgs]`, `[tools]`, `[quantities]`, `[plot]`, `[cluster]`.
 
 **`"default"` means "the layer below's value"**, as if the key were left out (03 §6): in a
@@ -119,13 +119,13 @@ up from the working directory (or `$HEIMDALL_WORK`), never the working directory
 | Key | Root of a bare name | Example |
 |---|---|---|
 | `heimdall run <config>`, `heimdall plot <config>` | `configs/`, `.toml` optional | `Demo/jets` → `configs/Demo/jets.toml` |
-| `[file].master`, `[file].import` | `configs/<project>/` | `master.toml` |
-| `[tools.*].card` | `configs/<project>/` | `ep.cmnd` |
-| `[tools.*].executable` | `build/<project>/`, which must exist; `path:<command>` asks for a command on `PATH` by name | `Decay.exe` → `build/Decay/Decay.exe`; `path:python3` |
-| `[tools.*].filters` | `configs/<project>/` | `fit_filters.toml` |
+| `[file].master`, `[file].import` | `configs/<A>/` | `master.toml` |
+| `[tools.*].card` | `configs/<A>/` | `ep.cmnd` |
+| `[tools.*].executable` | `build/<A>/`, which must exist; `path:<command>` asks for a command on `PATH` by name | `Decay.exe` → `build/Decay/Decay.exe`; `path:python3` |
+| `[tools.*].filters` | `configs/<A>/` | `fit_filters.toml` |
 | `[tools.*].input` | a tool table's name (what it writes), another tool's `output` by name, a pre product; otherwise a path under the point's output directory | `"pythia"`, `events.hepmc` |
 | `[tools.*].output` | a FIFO or a scratch file (§6) → the point's output directory; **anything else → the point's results directory** (a product) | `jets.yoda` → `results/…/points/<point>/jets.yoda` |
-| `[plot].root_style` | `configs/<project>/`, `.toml` optional | `talk` → `configs/<P>/talk.toml` |
+| `[plot].root_style` | `configs/<A>/`, `.toml` optional | `talk` → `configs/<A>/talk.toml` |
 | `[plot.data].file` | `datasets/`, or `rivet:<Analysis>` for Rivet's own reference data | `rivet:ZEUS_2012_I1116258` |
 
 **The one judgement:** what a tool writes is a product, in `results/`, unless it is technical: a
@@ -136,23 +136,23 @@ configuration is a product: leave `keep` out.
 **Where a point lives** (by lifecycle):
 
 ```
-results/<P>/<run>/<cfg>/points/<point>/   the products: yours
-records/<P>/<run>/<cfg>/points/<point>/   provenance.json  identity.json  .complete: what the run recorded, kept
-records/<P>/<run>/<cfg>/logs/<point>/     cards/  config/  [<tag>.log]  .lock (scratch files while it runs): safe to delete
+results/<A>/<E>/<R>/points/<point>/   the products: yours
+records/<A>/<E>/<R>/points/<point>/   provenance.json  identity.json  .complete: what the run recorded, kept
+records/<A>/<E>/<R>/logs/<point>/     cards/  config/  [<tag>.log]  .lock (scratch files while it runs): safe to delete
 ```
 
-Beside them, `results/<P>/<run>/<cfg>/` holds what matters once a run is done: `plots/<set>/` (the pages) and
-`statistics/<set>/` (their numbers). `records/<P>/<run>/<cfg>/` holds what a run needs while it runs or is
-launched, and what traces it back: the run's snapshot (`config/`: the run TOML and cards it ran with, which
-`heimdall plot <P>/<run>/<cfg>` draws from) and `points.json`. `.cache/<P>/` holds what is rebuilt on demand:
-prepare caches, the drawing's page documents and working files (`.cache/<P>/plots/<run>/<cfg>/`), converted
+Beside them, `results/<A>/<E>/<R>/` holds what matters once a run is done: `plots/<set>/` (the pages) and
+`statistics/<set>/` (their numbers). `records/<A>/<E>/<R>/` holds what a run needs while it runs or is
+launched, and what traces it back: the run's snapshot (`config/`: the errand file and cards it ran with, which
+`heimdall plot <A>/<E>/<R>` draws from) and `points.json`. `.cache/<A>/` holds what is rebuilt on demand:
+prepare caches, the drawing's page documents and working files (`.cache/<A>/plots/<E>/<R>/`), converted
 data, and card checks when a run keeps `cache`. What a run keeps beyond
 records and results is little unless asked (§14). Deleting a configuration's `logs/` or `.cache/` reruns
 nothing; deleting its `points/` makes every point "to run" again. A point another session is running is
 skipped, naming who runs it, unless `--wait`.
 
-- `<run>` is `[errand].name`, or the configuration's own `name`.
-- `<cfg>` is `NN_<folder>`. `<folder>` is the configuration's `folder`, or its table key when that is
+- `<E>` is `[errand].name`, or the configuration's own `name`.
+- `<R>` is `NN_<folder>`. `<folder>` is the configuration's `folder`, or its table key when that is
   empty or unset.
 - `<point>` is the varied quantities' tags joined by `_`, in `vary` order, or `point` when nothing
   is varied. Two points with the same name are an error (C11).
@@ -175,22 +175,22 @@ a configuration the runner numbers takes every `NN_<folder>` of its folder name.
 
 ## 3. `[file]`
 
-How the file is read: what it imports, a project master, its vars and its meta.
+How the file is read: what it imports, an assignment master, its vars and its meta.
 
 ```toml
 [file]
-import = ["common.toml"]         # optional: run TOMLs whose tables this one starts from; this file wins
-master = "master.toml"           # optional: configs/<project>/master.toml overlays the tool folders' mappings
+import = ["common.toml"]         # optional: errand files whose tables this one starts from; this file wins
+master = "master.toml"           # optional: configs/<A>/master.toml overlays the tool folders' mappings
 ```
 
 <!-- generated: keys3 file -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `master` | a string |  | overlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an entry for a (tool, quantity) pair replaces the framework's. The file must exist. |
-| `import` | a string or a list (a string or a table each) |  | run TOMLs this one starts from, in order, named as `heimdall run` names a config: `name` is this project's (`configs/<project>/name.toml`), `<Project>/<name>` another project's, `./…` from the work dir; `.toml` optional. **This file wins**: a quantity or configuration of the file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[errand]`'s own keys merge key by key, tables recursively. Imports nest, depth-first; a circle is refused. Another project's file keeps its bare paths its own project's. The file that imports sets its own `[errand].name` and `assignment`. An entry may be `{ from = "<config>", only = ["quantities", "cfgs.default", …] }`: only those tables or dotted keys, each of which the file must have |
+| `import` | a string or a list (a string or a table each) |  | errand files this one starts from, in order, named as `heimdall run` names a config: `name` is this assignment's (`configs/<A>/name.toml`), `<A>/<E>` another assignment's, `./…` from the work dir; `.toml` optional. **This file wins**: a quantity or configuration of the file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[errand]`'s own keys merge key by key, tables recursively. Imports nest, depth-first; a circle is refused. Another assignment's file keeps its bare paths its own assignment's. The file that imports sets its own `[errand].name` and `assignment`. An entry may be `{ from = "<config>", only = ["quantities", "cfgs.default", …] }`: only those tables or dotted keys, each of which the file must have |
 | `drop` | a list (a string each) |  | dotted keys (`cfgs.default4`, `plot.figures.statistics`, `quantities.radius`, `tools.jets`) taken out of what the imports brought in, before this file's own tables are laid over them. Each must name something an import gave, so a misspelt drop is refused rather than keeping what it meant to remove; a file that imports nothing has nothing to drop. |
-| `vars` | a table |  | `name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result. A string that is exactly one var takes its value as it is: `events = "{var:events}"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`"rivet:{var:ana}"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value; its own `[file.vars]` come with whatever is taken of it, under this file's. `--set file.vars.<name>=…` changes one for a run |
-| `meta` | a table |  | descriptive: it never changes a run. Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the run's start and in `heimdall check`, which still passes: the run goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
+| `vars` | a table |  | `name = value`, cited in any string of the file as `{var:name}` and replaced when the file is read, after its imports and `--set`, so an identity sees only the result. A string that is exactly one var takes its value as it is: `events = "{var:events}"` is an integer, and a list stays a list; inside a longer string a var must be a scalar (`"rivet:{var:ana}"`). An unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's value; its own `[file.vars]` come with whatever is taken of it, under this file's. `--set file.vars.<name>=…` changes one for a job |
+| `meta` | a table |  | descriptive: it never changes a point. Any key is free text for people (`author`, `references`, …) except `versions = { pythia8 = "8.317", rivet = "4.1.3" }`: the packages of `env/stack.toml` the file was run with, each version a string. A version the stack does not have (`6.5` matches 6.5.6) is a **warning** in `--plan`, at the job's start and in `heimdall check`, which still passes: the job goes ahead, at your own risk. A package stack.toml does not name is refused, since its warning could never come. |
 | `schema` | an integer |  | `3`, or `2` to keep a v2 file v2 for one release; a file with `[file]` is v3 without it |
 <!-- /generated -->
 
@@ -238,11 +238,11 @@ them:
 - `"default"` in this file keeps the imported value.
 
 Its rules:
-- **Names:** an import is named as `heimdall run` names a config: `validation_common` is this project's,
-  `Demo/validation` another project's, and `./…` is from the work dir.
+- **Names:** an import is named as `heimdall run` names a config: `validation_common` is this assignment's,
+  `Demo/validation` another assignment's, and `./…` is from the work dir.
 - **Nesting:** an imported file is read the same way first, so its own imports come before it,
   depth-first. A circle is refused, naming it.
-- **Another project's file:** its bare paths stay its own project's (the keys the schema marks
+- **Another assignment's file:** its bare paths stay its own assignment's (the keys the schema marks
   `path`: `card`, `filters`, `executable`, `root_style`, `master`). They are made absolute when it
   is read, so its tools find their cards and plan to the same identities as in their own file.
 - **Location:** the file that imports sets its own `[errand].name` and `assignment`; location is never
@@ -284,7 +284,7 @@ file.vars.events=50000`), so a point's identity is that of the same file written
 file's `{var:…}` takes this file's value: a shared file can be written with parameters. An imported
 file's own `[file.vars]` come with whatever is taken of it, `only` included, below this
 file's, so the tables it gives always find the vars they cite. An unknown name is refused with the
-nearest. `{var:…}` is the run TOML's own; the page texts' placeholders (`{cell}`, `{q:…}`, `{opt:…}`,
+nearest. `{var:…}` is the errand file's own; the page texts' placeholders (`{cell}`, `{q:…}`, `{opt:…}`,
 §10) are filled later, per page.
 
 **`meta`**. About the file, for people; it never changes a run:
@@ -307,7 +307,7 @@ tool:
   string or a set number;
 - its **unit**.
 
-A run TOML's quantity of that name is checked against the shape when the file is read (`value =
+An errand file's quantity of that name is checked against the shape when the file is read (`value =
 [275, 18]` in a row). A name the vocabulary does not have is the user's own, and reaches a tool
 through its `to` (§8.1), unless a tool folder declares it: an entry of a folder's `quantities.toml`
 for a new name, with a `shape` (and `unit`, `doc`), adds that word to the vocabulary (a study's own
@@ -319,7 +319,7 @@ each tool maps it. A folder cannot redefine Heimdall's words.
 **Each tool folder** says how that tool consumes the vocabulary, in
 `<tool>/quantities.toml` (Heimdall's `framework/tools/`, then the machine root's and the work dir's
 `tools/`, each over the folder it extends: [06 §16](06_Internals.md#16-the-tool-folder-contract)); a
-project master overlays those mappings in the same form:
+assignment master overlays those mappings in the same form:
 
 ```toml
 [quantities.pythia.compatible_quantities]           # [quantities.<tool>.compatible_quantities]
@@ -390,19 +390,19 @@ description = "Inclusive jets in ep collisions"
 <!-- generated: keys3 errand -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `name` | a string | **required** | the run's directory name |
+| `name` | a string | **required** | the errand's folder name, `<E>` in `results/<A>/<E>/` (its Runs below it) |
 | `assignment` | a string | **required** | the subfolder of `configs/`, `modules/`, `records/`, `results/`; must equal the folder the file is in, when it is under `configs/` |
 | `run` | a string |  | the configuration `heimdall run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may be left out |
-| `serial` | an integer |  | the prefix `NN_` of each configuration's folder, `<name>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[errand]`. |
+| `serial` | an integer |  | the prefix `NN_` of each Run's folder, `<E>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[errand]`. |
 | `events` | an integer, ≥ 1 |  | every configuration's event count, unless it gives its own A configuration inherits it from `[errand]`. |
 | `threads` | an integer, ≥ 0 | `1` | default for configurations. `0` means every core, **resolved to a number at plan time** A configuration inherits it from `[errand]`. |
 | `parallelism` | an integer or a string: `"auto"`, ≥ 1 | `1` | default for configurations: how many points run at once; `"auto"`: as many as the cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never part of an identity or a seed, so changing it reruns nothing A configuration inherits it from `[errand]`. |
-| `plot` | true or false or a list (a string each) | `true` | the plot follow-up: `true` draws every set of the run's plot document (its `totality` and the `[plot].sets`), `false` none (the document is written all the same, for `heimdall plot` later), a list draws those sets (`["totality", "pdf_by_generator"]`) and is the document's `[plot].draw`. A configuration may set its own; `heimdall run … --no-plot` turns it off for one run A configuration inherits it from `[errand]`. |
-| `stats` | true or false or a list (a string each) | `true` | the statistics follow-up: `true` measures the sets the run draws (or, with `plot = false`, every set, undrawn), `false` none, a list those sets (the document's `[stats].sets`). A configuration may set its own; `heimdall run … --no-stats` turns it off for one run A configuration inherits it from `[errand]`. |
-| `description` | a string |  | what the run is for |
-| `tag` | a string |  | default for configurations: a short name kept with the configuration's folder (its record's `tag` file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` gives one for a run; a folder that has a tag keeps it (`heimdall tag` changes it); `""` is none A configuration inherits it from `[errand]`. |
+| `plot` | true or false or a list (a string each) | `true` | the plot follow-up: `true` draws every set of the Run's plot document (its `totality` and the `[plot].sets`), `false` none (the document is written all the same, for `heimdall plot` later), a list draws those sets (`["totality", "pdf_by_generator"]`) and is the document's `[plot].draw`. A configuration may set its own; `heimdall run … --no-plot` turns it off for one job A configuration inherits it from `[errand]`. |
+| `stats` | true or false or a list (a string each) | `true` | the statistics follow-up: `true` measures the sets the Run draws (or, with `plot = false`, every set, undrawn), `false` none, a list those sets (the document's `[stats].sets`). A configuration may set its own; `heimdall run … --no-stats` turns it off for one job A configuration inherits it from `[errand]`. |
+| `description` | a string |  | what the errand is for |
+| `tag` | a string |  | default for configurations: a short name kept with the Run (its record's `tag` file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` gives one for a job; a Run that has a tag keeps it (`heimdall tag` changes it); `""` is none A configuration inherits it from `[errand]`. |
 | `sweep_runs` | true or false or a list (a string each) | `false` | `true`: `heimdall run <config>` runs every configuration, one after another, in the order of the file; `["a", "b"]`: these, in this order (04 §4.1) |
-| `notify` | a string: `"none"`, `"desktop"` | `"none"` | `"desktop"`: a desktop notification (`notify-send`) when `heimdall run` ends, with its verdict; never fails a run |
+| `notify` | a string: `"none"`, `"desktop"` | `"none"` | `"desktop"`: a desktop notification (`notify-send`) when `heimdall run` ends, with its verdict; never fails a job |
 | `chain` | a list |  | every configuration's tools, unless it gives its own (04 §5.3) A configuration inherits it from `[errand]`. |
 | `vary` | a list |  | 04 §5.1; `[]` is one point A configuration inherits it from `[errand]`. |
 | `plot_points` | a list (a string each) |  | 04 §5.2 A configuration inherits it from `[errand]`. |
@@ -426,7 +426,7 @@ With `sweep_runs = true`, `heimdall run <config>` runs every configuration, in t
 With a list, `sweep_runs = ["pdf", "energies"]`, it runs those, in the list's order. A name
 that is not a configuration, or one named twice, is refused.
 
-Each one is **a run of its own**: exactly what `heimdall run <config> <cfg>` does, with its own title,
+Each one is **a run of its own**: exactly what `heimdall run <A>/<E> <cfg>` does, with its own title,
 blocks, verdict, journal, `points.json` and plots, in its own folder. Each starts after one header
 line of its `title`:
 
@@ -450,7 +450,7 @@ jets · 01  ·  pdf
 - **A failed run lets the next start.** Ctrl-C stops the running runs (exit 6) and **starts no
   more**.
 - **The exit code** is 6 if a run was stopped, else 1 if any failed, else 0.
-- **Running one:** `heimdall run <config> <cfg>` runs just that one, whether or not the sweep lists it.
+- **Running one:** `heimdall run <A>/<E> <cfg>` runs just that one, whether or not the sweep lists it.
 - **Options:**
   - `--plan` prints every run's plan under its header;
   - `--rerun`, `--set` and `--only plot` apply to each;
@@ -532,14 +532,14 @@ Its `vars` merge through `extends`; its `data` is the nearest one. `[errand]` ta
 |---|---|---|---|
 | `extends` | a string |  | another configuration this one starts from (chains are followed; a circle is refused) |
 | `serial` | an integer, or `"default"` |  | this configuration's `NN_`, over `[errand]`'s; left out in both, the runner numbers it (04 §2) |
-| `name` | a string |  | the run folder above this configuration's: `<P>/<name>/NN_<label>/` |
-| `folder` | a string |  | the configuration's folder, after the serial: `NN_<folder>`; empty means the table key |
-| `title` | a string |  | the header line of the run under `[errand].sweep_runs`: `run 02 - <title> -` (04 §4.1) |
+| `name` | a string |  | the errand folder above this configuration's Run: `<A>/<E>/NN_<label>/` |
+| `folder` | a string |  | the Run's folder name, after the serial: `NN_<folder>`; empty means the table key |
+| `title` | a string |  | the header line of the Run under `[errand].sweep_runs`: `run 02 - <title> -` (04 §4.1) |
 | `description` | a string |  | what the configuration is for |
-| `tag` | a string |  | the tag a run gives this configuration's folder (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `""` gives none over `[errand]`'s. Never part of a point's identity |
+| `tag` | a string |  | the tag a job gives this configuration's Run (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the Run already has one: a Run keeps its tag when it is run again, and `heimdall tag <A>/<E>/<R>` shows or changes it. `""` gives none over `[errand]`'s. Never part of a point's identity |
 | `events` | an integer, ≥ 1, or `"default"` |  | required here if `[errand]` has none. A list is one configuration per count, `<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6) |
 | `threads` | an integer, ≥ 0, or `"default"` |  | `0` = every core |
-| `parallelism` | an integer or a string: `"auto"`, ≥ 1, or `"default"` |  | points at once (`"auto"`: cores ÷ a point's cores); `--plan` and the run's title say about how many cores that is, and warn past the machine's |
+| `parallelism` | an integer or a string: `"auto"`, ≥ 1, or `"default"` |  | points at once (`"auto"`: cores ÷ a point's cores); `--plan` and the job's title say about how many cores that is, and warn past the machine's |
 | `plot` | true or false or a list (a string each), or `"default"` |  | the plot follow-up for this configuration: `true`, `false`, or the sets it draws, so that sets defined once for the file are each drawn by the configurations they fit |
 | `stats` | true or false or a list (a string each), or `"default"` |  | as [errand].stats, for this configuration: true, false, or the sets it measures |
 | `vary` | a list |  | 04 §5.1; `[]` is one point |
@@ -552,7 +552,7 @@ Its `vars` merge through `extends`; its `data` is the nearest one. `[errand]` ta
 | `fixed` | a table |  | `{ quantity = "tag" }`: this configuration's fixed points, over each quantity's own `fixed` (04 §7) |
 | `vars` | a table |  | merged over `[file.vars]` for this configuration alone, before any `{var:…}` is replaced: a configuration may run other cards (`pythia_card = "../zeus/dis.cmnd"`), another analysis, another output, in the same file as the others. Only the configuration run, planned or drawn reads them |
 | `data` | a table |  | replaces `[plot.data]` (04 §11.1) for this configuration: its pages' data, its plot document's, its statistics' reference, when it runs another analysis than the file's others |
-| `cluster` | a table |  | merged over the run TOML's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys (04 §16) |
+| `cluster` | a table |  | merged over the errand file's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys (04 §16) |
 | `seed` | a string or an integer | `"identity"` | `"identity"`: from the generator's identity; `"random"`: drawn when the point runs; an integer: exactly that seed for every point (a replica, `to = { "pythia/seed" = true }`, gives a point its own: 04 §8.2; 06 §8) |
 <!-- /generated -->
 
@@ -628,8 +628,8 @@ The same form as `chain`, run **once**:
 
 | | When | Where | Inputs | Identity |
 |---|---|---|---|---|
-| `pre` | before the first point; a failure stops the run | `…/<cfg>/pre/` | `{points}` (the manifest) | its own; **part of every point's**, so a changed pre stage reruns the points |
-| `post` | after the points, **only when every point is complete** | `…/<cfg>/post/` | an `input` naming a product of the points reads that product **of every point** (`{inputs}`, `{named_inputs}`); `{points}` | its own plus every point's: it reruns when any point changes |
+| `pre` | before the first point; a failure stops the run | `…/<R>/pre/` | `{points}` (the manifest) | its own; **part of every point's**, so a changed pre stage reruns the points |
+| `post` | after the points, **only when every point is complete** | `…/<R>/post/` | an `input` naming a product of the points reads that product **of every point** (`{inputs}`, `{named_inputs}`); `{points}` | its own plus every point's: it reruns when any point changes |
 
 - **What they take:** neither takes quantities, FIFOs or scratch files.
 - **Names:** a point may not be named `pre` or `post`.
@@ -657,7 +657,7 @@ points = [{ tag = "s1", value = 1 }, { tag = "s2", value = 2 }, { tag = "s3", va
 | | |
 |---|---|
 | The groups | points with the same values of every other varied quantity; named by those values' tags (`MSTW08lo`), or `combined` when every varied quantity is combined |
-| The merge | a stage per group, after its points: the `merge` tool (`rivet-merge -e`, [05 §7](05_Commands_and_Tools.md#7-merge--rivet-merge-in-post)) of the points' YODA product into `results/…/<cfg>/<group>/<product>`, beside the points' folders; skipped when complete, rerun when any of its points changes; `--plan` lists them |
+| The merge | a stage per group, after its points: the `merge` tool (`rivet-merge -e`, [05 §7](05_Commands_and_Tools.md#7-merge--rivet-merge-in-post)) of the points' YODA product into `results/…/<R>/<group>/<product>`, beside the points' folders; skipped when complete, rerun when any of its points changes; `--plan` lists them |
 | The pages | drawn from the groups, not the points: the combined quantities are neither pages nor curves |
 | Rules (C14) | each name is varied here as an axis of its own (not inside an entangled group), and is not in `plot_points` |
 
@@ -780,7 +780,7 @@ points = [{ tag = "R04", value = 0.4 }, { tag = "R07", value = 0.7 }, { tag = "R
   shape;
 - `tag` names the point's folder: keep it short and unique;
 - `label` is legend text, in **LaTeX** (`$e^-$`, `$\sqrt{s}$`), the one label language of every text
-  a run TOML gives a page. Math goes in `$…$`; the rest is text, where a bare `_` or `^` is the
+  an errand file gives a page. Math goes in `$…$`; the rest is text, where a bare `_` or `^` is the
   character (`"PDF4LHC21_40"`). A label in ROOT's TLatex (`#sqrt{s}`, `p_{T}` with no `$`) is
   refused, with its LaTeX as the hint. `\_`, `\^` and `\#` also give the character; in TOML write
   them in single quotes, `'PDF4LHC21\_40'`, since in `"…"` a backslash starts a TOML escape. Left
@@ -941,14 +941,14 @@ output   = "jets_hard.yoda"
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `uses` | a string |  | the tool folder, when it is not the table's name: a second table of one tool, `[tools.<name>] uses = "<folder>"` (05 §3; `heimdall tools` lists the folders) |
-| `card` | a string or a list |  | native base card(s), read in order (root `configs/<project>/`). Tools with a card only. |
+| `card` | a string or a list |  | native base card(s), read in order (root `configs/<A>/`). Tools with a card only. |
 | `input` | a string or a list |  | what it reads: a producer's table name (`input = "pythia"`: what that tool writes), another tool's output by name, a pre product, (post) a product of every point, or a path. The first input is `{input}` |
 | `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in the point's working folder (04 §6). An array is fan-out; one writer per output (C6) |
 | `timeout` | a number, ≥ 0 |  | the tool fails when it runs longer |
 | `stall_after` | a number, ≥ 0 |  | the tool fails when silent this long: no log line, status message or heartbeat (a prepare step waits at least 3600) |
 | `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEIMDALL_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
-| `filters` | a string |  | your own rules in place of the folder's, root `configs/<P>/`; implies `status = "filters"` |
-| `executable` | a string |  | exec and module: bare → `build/<project>/<name>` (must be built); `path:<command>` → `PATH` |
+| `filters` | a string |  | your own rules in place of the folder's, root `configs/<A>/`; implies `status = "filters"` |
+| `executable` | a string |  | exec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH` |
 | `arguments` | a list |  | exec and module: argv after the config; placeholders (04 §10). Not paths: the tool runs in the point's folder, so a script of yours is `{work}/modules/…` |
 | `consumes` | a list (a string each) |  | exec and module: quantities written into the config |
 | `config` | a table |  | exec and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2) |
@@ -976,7 +976,7 @@ exec` copies the folder into the work dir's `tools/fit/`
 ```toml
 [tools.fit]
 uses        = "exec"
-executable  = "fit_peaks.py"                # build/<P>/fit_peaks.py (path:<command> for PATH; ./… from the work dir)
+executable  = "fit_peaks.py"                # build/<A>/fit_peaks.py (path:<command> for PATH; ./… from the work dir)
 arguments   = ["{in:lambda.yoda}", "{res}/fit.json"]
 input       = "lambda.yoda"
 output      = "fit.json"
@@ -1127,7 +1127,7 @@ The rules:
 it (`{repo}/build/App_*` → `{apps}/App_*`, `{repo}/utils/` → `{heimdall}/src/`, any other
 `{repo}` → `{work}`).
 
-**In the run TOML itself**, `{var:name}` is a `[file.vars]` value (§3), replaced when the file is
+**In the errand file itself**, `{var:name}` is a `[file.vars]` value (§3), replaced when the file is
 read, everywhere, before any of these.
 
 **In page texts**. These are the titles, `legend_header`, the axis labels, `[plot.data].legend`,
@@ -1146,7 +1146,7 @@ point's. A cited name the points don't have is refused at plan time, with the ne
 
 ## 11. `[plot]`
 
-The plot stage, and how to use it, is [03](03_Plots.md). A configuration whose run TOML has no
+The plot stage, and how to use it, is [03](03_Plots.md). A configuration whose errand file has no
 `[plot]` draws nothing.
 
 <!-- generated: keys plot -->
@@ -1171,10 +1171,10 @@ The plot stage, and how to use it, is [03](03_Plots.md). A configuration whose r
 | `min_entries` | an integer, ≥ 0, or `"default"` or `"native"` | `0` | blank a bin that fewer raw entries went into, in **any** curve (read from the `/RAW` twin; objects without one are not voided this way) |
 | `range_pad` | an integer, ≥ 0, or `"default"` or `"native"` | `0` | whole bins kept either side of the filled ones |
 | `sets` | a list or a table (an integer or a string or a list or a table each) |  | the pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`"sh3_NNPDF40*"`), a tag of a quantity's (`"py8"`: every point with it), `"quantity=tag"`, or `"all"`; a string entry names its folder (`"pdf=X"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = "<q>", line = "<q>" }`, or `"palette"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = "all" \| tag \| glob \| "!tag" \| number \| [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = "…", colour, line, width }`, or several values' in order, `{ tags = "all" \| […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only |
-| `looks` | a table |  | [plot.looks.<quantity>]: a value's look on every page and in every run, by its tag: a colour (`"#rrggbb"`, a ROOT name or number) or `{ colour, line, width }`. A tag a run does not have is unused, so a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's styled values, over it; a set's automatic look leaves an axis with looks alone |
-| `across` | a table |  | sets of the runs of this run TOML together, as `[plot.sets.<name>]` are of one run's points, with more axes: `@events` (each run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, when a run is tagged, `@tag` (each run's tag; an untagged run's labelled `untagged`). `@events` and `@tag` each page a set that does not name it. Kept in `results/<P>/<name>/plot.toml`, drawn by `heimdall plot <P>/<name> --across` into `results/<P>/<name>/plots/<set>/` and `statistics/<set>/`; which runs, and how, is `[plot.across_from]` |
-| `across_from` | a table |  | the runs together's `[from]`: written into `results/<P>/<name>/plot.toml` over its defaults (every run, `prefer = "last"`) when a run writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4 |
-| `draw` | a list (a string each) |  | the names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a run writes `[errand].plot`'s list here. A name no set has is refused |
+| `looks` | a table |  | [plot.looks.<quantity>]: a value's look on every page and in every Run, by its tag: a colour (`"#rrggbb"`, a ROOT name or number) or `{ colour, line, width }`. A tag a Run does not have is unused, so a value commented out keeps its look. Over the quantity's own styles; a set's look, and a curves filter's styled values, over it; a set's automatic look leaves an axis with looks alone |
+| `across` | a table |  | sets of the Runs of this errand together, as `[plot.sets.<name>]` are of one Run's points, with more axes: `@events` (each Run's event count, tags like `10M`), `@run` (its folder), `@configuration` and, when a Run is tagged, `@tag` (each Run's tag; an untagged Run's labelled `untagged`). `@events` and `@tag` each page a set that does not name it. Kept in `results/<A>/<E>/plot.toml`, drawn by `heimdall plot <A>/<E> --across` into `results/<A>/<E>/plots/<set>/` and `statistics/<set>/`; which Runs, and how, is `[plot.across_from]` |
+| `across_from` | a table |  | the Runs together's `[from]`: written into `results/<A>/<E>/plot.toml` over its defaults (every Run, `prefer = "last"`) when a job writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4 |
+| `draw` | a list (a string each) |  | the names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a job writes `[errand].plot`'s list here. A name no set has is refused |
 | `split` | an integer, ≥ 1 |  | at most this many points on a page: each cell (a `plot_points` cell, or a set) cut into pages in point order, `<cell>-<k>` (`part<k>` with no cell): 24 points, `split = 3`, 8 pages. A curve is labelled by the quantities that differ on its page |
 | `statistics` | true or false, or `"default"` | `true` | each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ \|y − y_ref\|·Δx), `rel_abs_area` (abs_area / ref_area), `area_ratio` (cmp_area / ref_area: MC over data), `ratio_mean` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `ratio_dev` (its area about one over the width compared, Σ \|y/y_ref − 1\|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table |
 | `legend_statistic` | a string: `"none"`, `"area"`, `"abs_area"`, `"rel_abs_area"`, `"area_ratio"`, `"ratio_mean"`, `"ratio_dev"`, `"chi2"`, `"chi2_ndf"` | `"none"` | one of the statistics (see `statistics`) after each curve's legend entry: `chi2_ndf` → `(χ²/ndf 1.31)`; the reference's own entry gets none |
@@ -1232,7 +1232,7 @@ A figure is a recipe for pages; its classes, each with an example, are
 <!-- generated: keys figure -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"`, `"statistic"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged`: the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `.cache/…/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet`: drawn pages laid out in a grid (`pages`, `columns`; below). `compare`: the objects' pages across configurations, `<run>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived`: a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`.cache/…/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan`: one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
+| `class` | a string: `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"`, `"statistic"` | `"defined"` | how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged`: the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `.cache/…/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet`: drawn pages laid out in a grid (`pages`, `columns`; below). `compare`: the objects' pages across configurations, `<E>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived`: a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`.cache/…/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan`: one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet |
 | `type` | a string: `"Hist1D"`, `"Scatter2D"`, `"HeatMap"` |  | what is drawn: `Hist1D`, steps per curve; `Scatter2D`, a marker per bin at its centre with its y error, in the curve's colour (`data.marker`, `data.marker_size` of the style), as Paint draws data; the legend shows the marker. The page TOML says `markers = true`; mkhtml and mpl draw the curves as they draw points (`ConnectBins=0`, with their x bars). `HeatMap`: a 2D object (a YODA `Histo2D` or `Estimate2D`), the default for one: a page per point of the cell, `<cell>/<object>/<point>`, coloured by value with its scale on the right (labels from the `.plot`, `ZLabel` and `LogZ` too; no ratio, data or voiding). Paint draws heat maps; mkhtml and mpl draw the 1D pages only, and the plot stage says so. A 1D object cannot be a HeatMap, a 2D object neither a Hist1D nor a Scatter2D, nor in an overlay |
 | `name` | a string |  | an overlay's page file stem, a merged figure's folder. A defined figure takes none: its pages are the objects' own |
 | `objects` | a list (a string each) |  | matched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob matching no object of the points is an error, at the plot stage |
@@ -1244,7 +1244,7 @@ A figure is a recipe for pages; its classes, each with an example, are
 | `pages` | a list (a string each) |  | a sheet's: the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match (by their names in each set), in the globs' order, tiled `columns` wide into `plots/<set>/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet |
 | `columns` | an integer, ≥ 1 |  | a sheet's: the drawn pages whose names (`18x275/d02-x01-y01`, `*/eta_algorithms`) the globs match (by their names in each set), in the globs' order, tiled `columns` wide into `plots/<set>/<backend>/sheets/<name>.pdf` and `.png`, each pad the page as it was drawn alone (pdflatex places the PDFs as vectors, a PNG where a page has no PDF; the `.png` is that PDF rendered by pdftoppm). For Paint's and mpl's pages. A sheet takes no page keys (its pages' figures set those); a glob naming no page fails the sheet |
 | `over` | a list (a string each) |  | a merged figure's: curve axes of the configuration (swept, not `plot_points`, not combined), checked at plan time; it may not also `band` them |
-| `configurations` | a list (a string each) |  | a compare figure's, two or more, in curve order; one at least of this file. `"<Project>/<config>:<cfg>"` names a configuration of another run TOML: its points (as its last run left them) are curves beside this run's, labelled `<its run> <its label>` by default and by its own quantities; its page axes must have this run's tags. The pages are this run's (`<run>/compare/<name>/`), drawn by this run's plot stage or `heimdall plot` |
+| `configurations` | a list (a string each) |  | a compare figure's, two or more, in curve order; one at least of this file. `"<A>/<E>:<cfg>"` names a configuration of another errand file: its points (as its last job left them) are curves beside this file's, labelled `<its errand> <its label>` by default and by its own quantities; its page axes must have this file's tags. The pages are this errand's (`<E>/compare/<name>/`), drawn by this errand's plot stage or `heimdall plot` |
 | `labels` | a list (a string each) |  | an overlay's: one legend label per object; a compare figure's: one per configuration (default: each configuration's `label`) |
 | `x_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
 | `y_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
@@ -1292,14 +1292,14 @@ own. Kept in the run's plot document with `[plot]`.
 ### 11.4 `[plot.across_from]`
 
 Which runs the sets across them (`[plot.across.<set>]`, [03 §3.3](03_Plots.md#33-the-runs-together-plotacross))
-take, and how: written as the `[from]` of `results/<P>/<name>/plot.toml`.
+take, and how: written as the `[from]` of `results/<A>/<E>/plot.toml`.
 
 <!-- generated: keys across_from -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `runs` | a list (a string each) | `["*"]` | the runs drawn together, by globs of their folders beside the document (`["04_*", "0[5-7]_*"]`); every run by default |
-| `prefer` | a string: `"last"`, `"all"` | `"last"` | a point two runs have (every quantity's tag, the event count and the run's tag the same, the ignored quantities aside): `"last"` draws it from the later run that completed it, and says so; `"all"` keeps both. Runs of different tags never stand for each other |
-| `ignore` | a list (a string each) |  | quantities of the runs (or `"@events"`) that are no axis across them: an ignored quantity never pages a set or tells its curves apart, and never keeps two runs' points apart (with `prefer = "last"` the later stands for both, unless their tags differ). It must hold one value within each run, else the drawing is refused, naming the run and its values; its value stays each point's, so a page text that cites it (`{q:generator}`) shows it when the page's curves share it. A name no run has is refused |
+| `runs` | a list (a string each) | `["*"]` | the Runs drawn together, by globs of their folders beside the document (`["04_*", "0[5-7]_*"]`); every Run by default |
+| `prefer` | a string: `"last"`, `"all"` | `"last"` | a point two Runs have (every quantity's tag, the event count and the Run's tag the same, the ignored quantities aside): `"last"` draws it from the later Run that completed it, and says so; `"all"` keeps both. Runs of different tags never stand for each other |
+| `ignore` | a list (a string each) |  | quantities of the Runs (or `"@events"`) that are no axis across them: an ignored quantity never pages a set or tells its curves apart, and never keeps two Runs' points apart (with `prefer = "last"` the later stands for both, unless their tags differ). It must hold one value within each Run, else the drawing is refused, naming the Run and its values; its value stays each point's, so a page text that cites it (`{q:generator}`) shows it when the page's curves share it. A name no Run has is refused |
 <!-- /generated -->
 
 ## 12. The style
@@ -1309,7 +1309,7 @@ default (rivet-mkhtml's look); edit it to change every page. Over it, key by key
 
 1. the machine root's `style.toml`: every work dir's on this machine;
 2. the work dir's `style.toml`: its studies' house style;
-3. `[plot].root_style`: a style file (a bare name under `configs/<project>/`, `.toml` optional);
+3. `[plot].root_style`: a style file (a bare name under `configs/<A>/`, `.toml` optional);
    `heimdall overlay FILE… --style FILE` for files;
 4. `[plot.style]`;
 5. a figure's `style` (`[plot.figures.<figure>]`), for its pages.
@@ -1438,13 +1438,13 @@ logs written there and `.lock`; scratch files, shards and what its tools left go
 | `.complete` | the point's identity, written **last**; its absence means the point is not done |
 | `.lock` (in its working folder) | held while a session runs the point: `{host, pid, since}`, free when that process ends |
 
-**Per configuration**, in `records/…/<cfg>/`:
+**Per configuration**, in `records/…/<R>/`:
 
 | File | Holds |
 |---|---|
 | `points.json` | `run`, `project`, `configuration`, `config_file`, `plot_points`, and per point: `name`, `index`, `values` (tag, label, value, swept), `page`, `products` (name → path), `results`, `output`, `identity`, `seed`, `complete`. Every point, even under `--points` |
 | `status.jsonl` | only with `--journal`: the run's events as `{"v", "point", "tool", "t", "k", …}`: every status message, plus the runner's own `run` (started, finished with a `verdict`), `point` (started, done / failed / stopped with `cause` and `msg`) and `exit` (`code`, `seconds`) records |
-| `config/` | the run's snapshot: the run TOML and the files it imports, under `<project>/`, the base cards they name, and `snapshot.toml` |
+| `config/` | the run's snapshot: the errand file and the files it imports, under `<A>/`, the base cards they name, and `snapshot.toml` |
 | `cluster/<stamp>/` | `heimdall cluster`'s submissions: the scripts, `points.txt`, `jobs.toml`, the jobs' logs |
 
 **Beside products:**
@@ -1454,14 +1454,14 @@ logs written there and `.lock`; scratch files, shards and what its tools left go
   with its product when it is renamed.
 
 **Caches:**
-- **prepare caches:** `.cache/<P>/<tool>/<key>/`, with a `.prepared` stamp once the step succeeded
+- **prepare caches:** `.cache/<A>/<tool>/<key>/`, with a `.prepared` stamp once the step succeeded
   and left its marker;
-- **the drawing's:** `.cache/<P>/plots/<run>/<cfg>/`: each page's document (`<set>/[<cell>/][<figure>/]<object>.toml`,
+- **the drawing's:** `.cache/<A>/plots/<E>/<R>/`: each page's document (`<set>/[<cell>/][<figure>/]<object>.toml`,
   as Paint reads it, with its `.ranges.json` and `.stats.json`), the merged sweep (`<cfg>.root` and the stamp of
   what it was built from, `merged.sha256`), the figures' own YODAs (`derived/`, `merged/<figure>/`,
   `scan/<figure>/`, `statistic/<figure>/`) and mkhtml's files. Rebuilt when missing, reused when unchanged;
-- **card checks:** `.cache/<P>/checks/`, with `keep cache` (otherwise each process checks a card once);
-- **reference data converted for Paint:** `.cache/<P>/datasets/<name>.root`.
+- **card checks:** `.cache/<A>/checks/`, with `keep cache` (otherwise each process checks a card once);
+- **reference data converted for Paint:** `.cache/<A>/datasets/<name>.root`.
 
 **What a run keeps** beyond these, by `keep` word: `logs` (every tool's whole output), `journal`
 (`status.jsonl`), `work` (a finished point's whole working folder), `cache` (card checks). They come from `heimdall run --keep WORD,…` (`--logs` and `--journal`
@@ -1488,27 +1488,27 @@ Where everything goes, as a tree, is [06 §14](06_Internals.md#14-where-files-go
 A report's recipe is a `[report]` table and its `[[report.section]]`s; `framework/schema/report.toml` holds
 every key, as below. One table, in three places:
 
-- **A recipe of its own:** `configs/<P>/<name>.toml` holding `[report]` and nothing else (no `[errand]`).
-  `heimdall report <P>/<name>.toml <source>…` builds it over those sources, or over its own `from`
+- **A recipe of its own:** `configs/<A>/<E>.toml` holding `[report]` and nothing else (no `[errand]`).
+  `heimdall report <A>/<E>.toml <source>…` builds it over those sources, or over its own `from`
   (05 §1.8).
-- **A run TOML's `[report]`:** what its folders' reports show. It takes neither `from` nor `output`: each
+- **An errand file's `[report]`:** what its folders' reports show. It takes neither `from` nor `output`: each
   folder is its report's source and is built where `results/` has it. Its **`template`** names a recipe, as
-  `[config].import` names a file (`weekly`: this project's `configs/<P>/weekly.toml`; `eic/weekly`: another
-  project's; `./…`: the work dir's; `.toml` optional). The run TOML's keys replace the template's and its
+  `[config].import` names a file (`weekly`: this assignment's `configs/<A>/weekly.toml`; `eic/weekly`: another
+  assignment's; `./…`: the work dir's; `.toml` optional). The errand file's keys replace the template's and its
   sections come after the template's; a template may name its own, and a circle is refused. A template's
   `from` and `output` are its own, not the run's. Imports merge `[report]` as any table, and `heimdall check`
   checks it, with its template, when the file is read.
 - **A folder's `report.toml`:** the run writes it beside each `plot.toml`
-  (`results/<P>/<run>/<cfg>/report.toml`), every time it writes that, `--no-plot` too: its config's
+  (`results/<A>/<E>/<R>/report.toml`), every time it writes that, `--no-plot` too: its config's
   `[report]` with its template laid under it, or, with no sections, the default report written out. It is
   rewritten from the config each time, never merged with edits; to change it, change the config or its
-  template, or copy it into `configs/` as a recipe of your own. `heimdall report <P>/<run>/<cfg>` builds it.
+  template, or copy it into `configs/` as a recipe of your own. `heimdall report <A>/<E>/<R>` builds it.
 
 **The default report**, for a folder without a `report.toml` and for several sources at once, is a Standings
 section (the statistics' headline: the top five and each statistic's ranking) on the first set measured, then
 the pages of every set in the sources' `[plot].draw` (every set of `[plot].sets` when it names none), a grid
 per page cell, then a Tools section of `[report].tools` (03 §11.2). Each of its sections is `optional`, so a set
-drawn nowhere is left out, and `--list` says so. A recipe with no sections (a run TOML's `[report]` with only a
+drawn nowhere is left out, and `--list` says so. A recipe with no sections (an errand file's `[report]` with only a
 title, say) has the default's.
 
 ```toml
@@ -1535,7 +1535,7 @@ layout = "sources"                        # a grid per page, a panel per source
 ```
 
 ```toml
-# configs/eic/zeus.toml, a run TOML: its folders' reports are the template's, then its own sections
+# configs/eic/zeus.toml, an errand file: its folders' reports are the template's, then its own sections
 [report]
 template = "weekly"
 
@@ -1551,8 +1551,8 @@ pages = ["d0[3-4]-*"]
 |---|---|---|---|
 | `title` | a string |  | the report's title, on its front page (default: its one source's address, else what its sources' addresses share). `{assignment}`, `{errand}`, `{configuration}` and `{title}` (a configuration's title, else its name) in the title or subtitle are filled in from its sources' plot documents (several values joined by commas), so one template titles each folder's report. |
 | `subtitle` | a string |  | a line under the title: the date, who it is for |
-| `from` | a list (a string each) |  | its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them |
-| `output` | a string |  | where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<P>/<run>/<cfg>/, reports/<P>/<run>/, …); -o replaces it. Not in a run TOML |
+| `from` | a list (a string each) |  | its sources: result folders holding a plot.toml, as <A>/<E>/<R>, <A>/<E> (each of its Runs, then its own when drawn), a path, or a glob; the command line's replace them |
+| `output` | a string |  | where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<A>/<E>/<R>/, reports/<A>/<E>/, …); -o replaces it. Not in an errand file |
 | `template` | a string |  | a recipe laid under this table, named as [config].import names a file (weekly, eic/weekly, ./…; .toml optional): its keys under these, its sections first |
 | `section` | a list (a table each) |  | its sections, [[report.section]] each, in order: each shows one of pages, compare, stats, bars, files or tools |
 | `tools` | a list (a string each) |  | the tools whose configurations the default sections show, last, in a Tools section: tags ([tools.<tag>]) or globs; default: every tool given a card or options; [] none |
@@ -1579,9 +1579,9 @@ pages = ["d0[3-4]-*"]
 | `backend` | a string or a list (a string each): `"root"`, `"mpl"`, `"yoda"` |  | whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl, yoda) |
 | `layout` | a string: `"pages"`, `"sources"` | `"pages"` | pages: each source's pages in turn, a grid per page cell; sources: side by side, a grid per page, a panel per source |
 | `columns` | an integer, ≥ 1 |  | a grid's columns (default: 2 on an A4 page, 3 for a side-by-side grid of three or more) |
-| `label` | a string: `"events"`, `"folder"` | `"folder"` | a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its run, where two sources would share one); events, the events its points ran with (10M) |
+| `label` | a string: `"events"`, `"folder"` | `"folder"` | a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its errand, where two sources would share one); events, the events its points ran with (10M) |
 | `optional` | true or false | `false` | a source that neither has the section's set drawn (or measured) nor can draw it for the report (no such set, no complete point in it) is passed over, and the section left out when none has it; false: refused, naming the sets it has |
-| `compare` | a list (a string each) |  | compare figures' names (03 §7.5): their pages, from each source's run's compare/<name>/ |
+| `compare` | a list (a string each) |  | compare figures' names (03 §7.5): their pages, from each source's errand's compare/<name>/ |
 | `stats` | a list (a string each) |  | the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts |
 | `bars` | a list (a string each) |  | globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv (else from the numbers measured for it) |
 | `files` | a list (a string each) |  | your own PDF or PNG files, globs relative to the recipe's folder (`extras/*.png`) |
@@ -1590,16 +1590,16 @@ pages = ["d0[3-4]-*"]
 | `plot` | a table |  | a pages, stats or bars section's: [plot] keys over each source's own (its sets and figures added, its style laid over), its pages and numbers then drawn for the report into its cache (03 §11.3), never into results/ |
 <!-- /generated -->
 
-- **A source** is a result folder holding a `plot.toml`: `<P>/<run>/<cfg>`, `<P>/<run>` (each of its
+- **A source** is a result folder holding a `plot.toml`: `<A>/<E>/<R>`, `<A>/<E>` (each of its
   configurations, then the run's own folder when it is drawn), a path, or a glob of them under `results/`.
-  Sources of several runs and projects mix freely.
+  Sources of several runs and assignments mix freely.
 - **What is not on disk is refused,** naming the command that makes it: `heimdall plot <source> --sets
   <set>` for pages, `heimdall stats <source> --sets <set>` for numbers; an `optional` section passes such a
   source over instead.
 - **Where it is built:** `reports/` mirrors `results/` (03 §11.1): a folder's report in
-  `reports/<P>/<run>/<cfg>/`, a run's in `reports/<P>/<run>/`, several runs' where their addresses meet.
-  `output` or `-o` says otherwise; sources of two projects, or outside `results/`, need one of them.
-- `heimdall report <P>/<name>.toml --init <source>` writes a starter recipe once, listing the source's sets,
+  `reports/<A>/<E>/<R>/`, a run's in `reports/<A>/<E>/`, several runs' where their addresses meet.
+  `output` or `-o` says otherwise; sources of two assignments, or outside `results/`, need one of them.
+- `heimdall report <A>/<E>.toml --init <source>` writes a starter recipe once, listing the source's sets,
   cells and pages; `heimdall check` checks every recipe, and `heimdall ls` lists them under "reports".
 
 ---
@@ -1611,7 +1611,7 @@ Slurm jobs with these options. They come in layers, lowest first:
 1. the machine root's `machine.toml` `[cluster]`: the machine's, for every work dir on it (account,
    partition, setup lines);
 2. the work dir's `heimdall.toml` `[cluster]`: this work dir's;
-3. the run TOML's `[cluster]`, into which an import's merges key by key, as `[plot]`;
+3. the errand file's `[cluster]`, into which an import's merges key by key, as `[plot]`;
 4. a configuration's `cluster` table, `[cfgs.<name>.cluster]`;
 5. `--set cluster.<key>=…`, for one submission.
 

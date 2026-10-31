@@ -1,18 +1,18 @@
-"""A run's plot document (V165): results/<P>/<name>/<cfg>/plot.toml, what every drawing reads (rank 4).
+"""A run's plot document (V165): results/<A>/<E>/<R>/plot.toml, what every drawing reads (rank 4).
 
 docs/03_Plots.md §2.2. It holds two kinds of table:
 
 * **what the run knows**, rewritten by every run of that folder: [source] (the config, the configuration, the
   folder, its tag from its record, Heimdall's revision, when), [axes] (the sweep's axes, plot_points, combine, the fixed values),
-  [quantities.<q>] (its points, in its order, as a run TOML's: points = [{ tag, value, label, style }], V172)
+  [quantities.<q>] (its points, in its order, as an errand file's: points = [{ tag, value, label, style }], V172)
   and [members.<point>] (each point
   or combined group the pages draw: its value indices, its YODA under the folder, the identity it ran with,
   whether it was complete, the texts its tools give);
-* **what the user chooses**, [plot] and [stats]: written once, from the run TOML's (resolved: its imports,
+* **what the user chooses**, [plot] and [stats]: written once, from the errand file's (resolved: its imports,
   --set, root_style laid into [plot.style], the data file's path made absolute), and then kept. It changes
   only by `heimdall plot … --style-sync` or by hand; a run that finds the config's otherwise says so.
 
-So a drawing needs this file and the folder's points/ alone: no run TOML, snapshot, tool folder or stack.
+So a drawing needs this file and the folder's points/ alone: no errand file, snapshot, tool folder or stack.
 `load` gives what plot.py reads of a run, a configuration and its members (Doc, DocConfiguration,
 plot.Member), so the page code is the same for a drawing from a document as it was from a plan.
 """
@@ -41,7 +41,7 @@ KNOWN = ("source", "axes", "quantities", "members")
 CHOSEN = ("plot", "stats")
 HEADER = ("# A run's plot document (V165): what every drawing of this folder reads. [source], [axes], [quantities] and\n"
           "# [members] are the run's, rewritten by every run of the folder; [plot] and [stats] are yours: edit them to\n"
-          "# restyle this run alone, or take the config's with heimdall plot <P>/<name>/<cfg> --style-sync <config>.\n\n")
+          "# restyle this run alone, or take the config's with heimdall plot <A>/<E>/<R> --style-sync <config>.\n\n")
 
 
 @dataclass
@@ -79,8 +79,8 @@ class Doc:
 
     def sibling(self, ref: str):
         """Another configuration's plot document, for a compare figure (V165): (Doc, DocConfiguration, members),
-        or None when it has none yet. `ref` is a configuration of the same run TOML (its newest folder beside
-        this one), a record (<P>/<name>/<cfg>), or "<config>:<cfg>" (that config's configuration, its newest)."""
+        or None when it has none yet. `ref` is a configuration of the same errand file (its newest folder beside
+        this one), a record (<A>/<E>/<R>), or "<config>:<cfg>" (that config's configuration, its newest)."""
         if ":" not in ref and ref.count("/") == 2:
             target = results_root() / ref / FILE
         elif ":" in ref:
@@ -135,7 +135,7 @@ def _sweeps(configuration) -> list:
 
 
 #: The tables of a document that get a header of their own (V173): everything below one of these is written
-#: inline under it, as a run TOML is written by hand ("*": any key). The document's order: members last.
+#: inline under it, as an errand file is written by hand ("*": any key). The document's order: members last.
 HEADERS = (("source",), ("axes",), ("quantities", "*"), ("plot",), ("plot", "data"), ("plot", "data", "map"),
            ("plot", "style"), ("plot", "sets", "*"), ("plot", "across", "*"), ("plot", "figures", "*"),
            ("plot", "looks", "*"), ("stats",), ("from",), ("members", "*"))
@@ -209,7 +209,7 @@ def dumps(data: dict) -> str:
 
 
 def _rows(values: list, tags: list, labels: list, styles: list) -> list[dict]:
-    """A quantity's points as a run TOML writes them (V172): { tag, value, label }, and style where it has one."""
+    """A quantity's points as an errand file writes them (V172): { tag, value, label }, and style where it has one."""
     return [{"tag": str(tag), "value": value, "label": label, **({"style": dict(style)} if style else {})}
             for tag, value, label, style in zip(tags, values, labels, styles or [{}] * len(values))]
 
@@ -389,10 +389,10 @@ def _config_name(path: str) -> str:
 
 
 def chosen_of(errand, configuration, members: list, picks=None) -> tuple[dict, dict]:
-    """The run TOML's [plot] and [stats] as a document keeps them: root_style laid into [plot.style], the data
+    """The errand file's [plot] and [stats] as a document keeps them: root_style laid into [plot.style], the data
     file's path absolute (Rivet's own data named as it is); its sets named (V167), the totality set first
     (sweep.totality, from these members and `configuration`'s axes: the run's own, unless the config defines
-    one), and [run].plot's and [run].stats' lists (of `picks`, the config's configuration; else
+    one), and [errand].plot's and [errand].stats' lists (of `picks`, the config's configuration; else
     `configuration`) as `draw` and `[stats].sets`."""
     picks = picks if picks is not None else configuration
     from .sweep import TOTALITY, named_sets, totality
@@ -447,7 +447,7 @@ def known(errand, configuration, members: list) -> dict:
 
 
 def write(errand, configuration, members: list) -> tuple[Path | None, list[str]]:
-    """results/<run>/plot.toml (V165) for these members (the points, or the combined groups): what the run knows
+    """results/<A>/<E>/<R>/plot.toml (V165) for these members (the points, or the combined groups): what the run knows
     rewritten, what the user chose kept (written from the config the first time). Returns the file and what to
     say: the config's [plot] differing from the document's kept one."""
     if not members:
@@ -517,7 +517,7 @@ def write_tag(target: Path, tag: str | None) -> None:
 
 def _folders(results: Path, assignment: str) -> RunFolders:
     """A document's folders: records/ and .cache/ where its folder of results/ says; a folder copied elsewhere
-    has its working files in .cache/<P>/plots/elsewhere/<its path's hash>/."""
+    has its working files in .cache/<A>/plots/elsewhere/<its path's hash>/."""
     results = results.resolve()
     root = results_root().resolve()
     if results.is_relative_to(root) and len(results.relative_to(root).parts) == 3:
@@ -550,7 +550,7 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
                        hint="a run writes it; heimdall migrate --plot-docs writes one for a run made before") from None
     except tomllib.TOMLDecodeError as error:
         raise HeimdallError(f"the plot document cannot be read: {error}", where=str(path)) from None
-    if "members" not in data and "from" in data:             # the runs of a run TOML together (V169)
+    if "members" not in data and "from" in data:             # the runs of an errand file together (V169)
         return load_across(path, data, folders)
     missing = [t for t in ("source", "axes", "members") if t not in data]
     if missing:
@@ -585,7 +585,7 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
 
 
 def find(name: str) -> Path | None:
-    """The plot document a command's argument names: a record (<P>/<name>/<cfg>), a path into records/ or
+    """The plot document a command's argument names: a record (<A>/<E>/<R>), a path into records/ or
     results/ (or into a folder of results/), or any folder holding a plot.toml. None when it names none."""
     path = Path(name).expanduser()
     if path.is_dir() and (path / FILE).is_file():
@@ -603,19 +603,19 @@ def find(name: str) -> Path | None:
     return doc if doc.is_file() else None
 
 
-# ── the runs of a run TOML together (V169): results/<P>/<name>/plot.toml ─────────────────────────────────
+# ── the runs of an errand file together (V169): results/<A>/<E>/plot.toml ─────────────────────────────────
 
-#: A run TOML's sets across its runs, [plot.across.<set>] (V169); the attributes each member carries (@tag only
+#: An errand file's sets across its runs, [plot.across.<set>] (V169); the attributes each member carries (@tag only
 #: when a run is tagged, V224).
 ACROSS = "across"
 ATTRIBUTES = ("@run", "@events", "@configuration", "@tag")
-#: [plot.across_from] (V224): the run TOML's [from], its keys the schema's table of that name.
+#: [plot.across_from] (V224): the errand file's [from], its keys the schema's table of that name.
 FROM = "across_from"
 #: [from]'s keys when the config gives none (V169).
 FROM_DEFAULT = {"runs": ["*"], "prefer": "last"}
 #: An untagged run's @tag among tagged ones: its label (its value is "").
 UNTAGGED = "untagged"
-ACROSS_HEADER = ("# The runs of a run TOML together (V169): their members, drawn into this folder's plots/<set>/ and\n"
+ACROSS_HEADER = ("# The runs of an errand file together (V169): their members, drawn into this folder's plots/<set>/ and\n"
                  "# statistics/<set>/. [from] says which runs (globs of their folders) and which point a duplicate is;\n"
                  "# [plot] and [stats] are yours (from the config's [plot] and its [plot.across] sets, by a run or --style-sync).\n\n")
 
@@ -634,7 +634,7 @@ def count_tag(events: int) -> str:
 
 
 def across_chosen(errand) -> tuple[dict, dict]:
-    """The Name level's [plot] and [stats], from a run TOML: its [plot] (resolved as a run's) with its
+    """The Name level's [plot] and [stats], from an errand file: its [plot] (resolved as a run's) with its
     [plot.across] sets as the sets, and its [stats]."""
     from .sweep import named_sets
     plot = {k: v for k, v in (errand.plot or {}).items()}
@@ -655,7 +655,7 @@ def across_chosen(errand) -> tuple[dict, dict]:
 
 
 def from_of(errand) -> dict:
-    """The Name level's [from] as a run TOML gives it (V224): [plot.across_from] over the defaults (every run, the
+    """The Name level's [from] as an errand file gives it (V224): [plot.across_from] over the defaults (every run, the
     later of two the same point)."""
     return {**FROM_DEFAULT, **dict((errand.plot or {}).get(FROM) or {})}
 
@@ -670,7 +670,7 @@ def from_in(target: Path) -> dict:
 
 
 def write_across(errand) -> tuple[Path | None, bool]:
-    """results/<P>/<name>/plot.toml for a run TOML with [plot.across] sets: written when there is none (what the
+    """results/<A>/<E>/plot.toml for an errand file with [plot.across] sets: written when there is none (what the
     user chooses is theirs after: --style-sync rewrites it). Returns it and whether it was written now."""
     if not (errand.plot or {}).get(ACROSS):
         return None, False
@@ -691,7 +691,7 @@ def write_across(errand) -> tuple[Path | None, bool]:
 
 def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple[Doc, DocConfiguration, list[Member]]:
     """The Name level (V169): every run's plot document beside it ([from].runs, globs of their folders), their
-    members together, each named <run>__<point>, its quantities' indices by tag across the runs, with the
+    members together, each named <R>__<point>, its quantities' indices by tag across the runs, with the
     attributes @run (its folder), @events (its event count, a tag like 10M), @configuration and, when a run is
     tagged, @tag (its [source].tag; "" for an untagged one, labelled untagged; V224); @events and @tag count as
     axes (pages and labels may follow them), the others are named to be used. A point two runs of one tag have
@@ -708,7 +708,7 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
     folder = path.parent
     runs = [d for d in sorted(folder.iterdir()) if d.is_dir() and (d / FILE).is_file() and any(fnmatch.fnmatchcase(d.name, g) for g in globs)]
     if not runs:
-        raise HeimdallError(f"no run beside {path} has a plot document", where=f"{path}: [from].runs",
+        raise HeimdallError(f"no Run beside {path} has a plot document", where=f"{path}: [from].runs",
                        hint="heimdall migrate --plot-docs writes them; runs = [\"04_*\", …] names them")
     loaded = [(d.name, *load(d / FILE)) for d in runs]
     usual = {}                                               # a run's event count: what its members ran with
@@ -726,7 +726,7 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
     for name in ignored:                                     # V224: a quantity of the runs, or @events
         if name != "@events" and name not in tags:
             allowed = [*tags, "@events"]
-            raise HeimdallError(f"[from].ignore names '{name}', which is no quantity of the runs", where=f"{path}: [from].ignore",
+            raise HeimdallError(f"[from].ignore names '{name}', which is no quantity of the Runs", where=f"{path}: [from].ignore",
                            hint=did_you_mean(name, allowed) or f"it takes: {', '.join(allowed)}")
     counts = sorted({n for run_name, doc, _, own in loaded for n in
                      [_member_events(doc, m) or usual[run_name] for m in own] if n})
@@ -796,10 +796,10 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
             members.append(member)
         for q, found in held.items():
             if len(found) > 1:
-                raise HeimdallError(f"[from].ignore names {q}, which takes {len(found)} values in the run {run_name}: "
+                raise HeimdallError(f"[from].ignore names {q}, which takes {len(found)} values in the Run {run_name}: "
                                f"{', '.join(found)}", where=f"{path}: [from].ignore",
-                               hint=f"an ignored quantity holds one value in each run: draw {q} as an axis (leave it out "
-                                    "of ignore), or leave the run out (runs = [\"<its folder's glob>\", …])")
+                               hint=f"an ignored quantity holds one value in each Run: draw {q} as an axis (leave it out "
+                                    "of ignore), or leave the Run out (runs = [\"<its folder's glob>\", …])")
         if ignored:
             kept[run_name] = {q: found[0] for q, found in held.items() if found}
     configuration = DocConfiguration(ACROSS, errand, [[q] for q in swept], [], [], {}, None, f"{errand}: its runs together")

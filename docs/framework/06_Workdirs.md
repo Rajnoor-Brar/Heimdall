@@ -31,7 +31,7 @@ High-Energy was left alone (D31) until the user asked for its conversion into a 
 
 1. **Make it:**
    ```bash
-   heimdall setup ~/Github/Top-Quark --project Starter --git
+   heimdall setup ~/Github/Top-Quark --assignment Starter --git
    ```
    This writes 01 §4.1's files and folders, `configs/Starter/starter.{toml,cmnd}` and
    `modules/Starter/`, and makes one commit.
@@ -80,7 +80,7 @@ High-Energy was left alone (D31) until the user asked for its conversion into a 
 
 1. **Make a throwaway work dir, outside every other:**
    ```bash
-   T=$HEIMDALL/.setup/verify/P3/second && heimdall setup $T --project Second
+   T=$HEIMDALL/.setup/verify/P3/second && heimdall setup $T --assignment Second
    ```
 2. **Run its starter:** `touch $HEIMDALL/.setup/verify/P3/stamp2 && cd $T && heimdall run Second/second --plain`.
 
@@ -106,7 +106,7 @@ is deleted only on the user's word.
 **Done 2026-10-22** (the user: "cleanup High-Energy and migrate it to Heimdall"; High-Energy `b637599`,
 Heimdall `db96104`, was `2186975`). What differed from the steps below:
 - **PhotoProduction left too:** it was the work dir Brookhaven's since `ea43a70`, and newer there.
-  High-Energy keeps Comparison and Lambda, in the run TOML's v3 form (`heimdall migrate --v3`).
+  High-Energy keeps Comparison and Lambda, in the errand file's v3 form (`heimdall migrate --v3`).
 - **`aux/` went to Heimdall** as `editor/` (the VS Code tooling serves every work dir).
 - **No `work` branch and no push** (the user's choice): one local commit on `rework`, over `chkpnt`.
 - **The framework paths left by `git rm`** of the move map's "fw" prefixes (`utils/ tests/ bots/
@@ -152,7 +152,7 @@ files (shown first), and the push of `work`.
    - `heimdall migrate` (C65): `{repo}` → `{work}` (and `{apps}/…`, `{heimdall}/src/…`);
    - the Python module that put `utils/` on `sys.path` for heimdallkit: `sys.path.insert(0,
      os.environ["HEIMDALL"] + "/framework")`, as the fixture's `delphes_jets.py` has it (C66);
-   - `Inproc/Analysis.hh:68` and the two in-process run TOMLs name `recipes/patches/…` (C67);
+   - `Inproc/Analysis.hh:68` and the two in-process errand files name `recipes/patches/…` (C67);
    - the comments of C77 name `src/…`, `framework/heimdallkit.py` and `recipes/patches/`.
 
    On a yes: `heimdall migrate --apply` and the edits.
@@ -170,6 +170,6 @@ files (shown first), and the push of `work`.
 | R1 | `heimdall where --work` | `<home>/Github/High-Energy` |
 | R2 | `git ls-files \| wc -l` | the map's "work" count plus the files `--adopt` added and were committed |
 | R3 | `ls -d utils tests bots docs/stack docs/framework 2>/dev/null \| wc -l` | `0` |
-| R4 | `ls build/*/*.exe build/Rivet/*.so \| wc -l` | `5` at `split/base`: every module program and Rivet plugin of the user's projects |
+| R4 | `ls build/*/*.exe build/Rivet/*.so \| wc -l` | `5` at `split/base`: every module program and Rivet plugin of the user's assignments |
 | R5 | `heimdall check; echo "exit $?"` | `exit 0` |
 | R6 | `git status --porcelain \| wc -l` | `0` |

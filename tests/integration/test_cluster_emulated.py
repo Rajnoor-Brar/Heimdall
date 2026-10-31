@@ -44,7 +44,7 @@ def test_a_point_run_as_a_job_equals_the_same_point_run_here(scratch):
     stubs.mkdir()
     (stubs / "sbatch").write_text(SBATCH, encoding="utf-8")
     (stubs / "sbatch").chmod(0o755)
-    made = subprocess.run([str(HEIMDALL), "setup", str(work), "--project", "Starter"], capture_output=True, text=True, encoding="utf-8")
+    made = subprocess.run([str(HEIMDALL), "setup", str(work), "--assignment", "Starter"], capture_output=True, text=True, encoding="utf-8")
     assert made.returncode == 0, made.stderr
     with (work / "configs" / "Starter" / "starter.toml").open("a", encoding="utf-8") as toml:
         toml.write('\n[cluster]\ntime = "00:20:00"\n')

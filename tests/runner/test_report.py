@@ -1,5 +1,5 @@
 """runner/report.py (I-108 P2, P4–P6; V207, V209–V211): a report's sources and recipe resolved into sections of
-figures and statistics, the default recipe, both layouts, the ways in (a folder's report.toml, a recipe, a run TOML's
+figures and statistics, the default recipe, both layouts, the ways in (a folder's report.toml, a recipe, an errand file's
 [report] and its template), where each is built, what it draws for itself (resolved here, drawn by the build:
 tests/integration/test_report_draw.py), --list and --init. Every tree is tmp_path's: HEIMDALL_RESULTS, HEIMDALL_RECORDS,
 HEIMDALL_CONFIGS and HEIMDALL_REPORTS."""
@@ -300,7 +300,7 @@ def test_reports_are_built_where_results_has_their_sources_unless_told(trees):
     folder(trees / "results", "01_pdf", "pdf", 1_000_000, errand="other")
     assert report.planned("P/validation/01_pdf", ["P/other/01_pdf"]).out == reports / "P"          # two runs': P's
     folder(trees / "results", "01_pdf", "pdf", 1_000_000, assignment="Q")
-    with pytest.raises(HeimdallError, match=r"several projects \(P, Q\)") as error:
+    with pytest.raises(HeimdallError, match=r"several assignments \(P, Q\)") as error:
         report.planned("P/validation/01_pdf", ["Q/validation/01_pdf"])
     assert "-o DIR" in str(error.value.hint)
     elsewhere = trees / "elsewhere"
@@ -374,7 +374,7 @@ def test_a_run_tomls_report_lays_its_own_over_its_template(study):
 
 
 @pytest.mark.parametrize("table, message", [
-    ('[report]\nfrom = ["P/validation/01_pdf"]\n', "a run TOML's \\[report\\] takes no from"),
+    ('[report]\nfrom = ["P/validation/01_pdf"]\n', "an errand file's \\[report\\] takes no from"),
     ('[report]\noutput = "x"\n', "takes no output"),
     ('[report]\ntemplate = "nowhere"\n', "no report template 'nowhere'"),
     ('[report]\ntemplate = "study"\n', "a report's template is a recipe"),
@@ -424,7 +424,7 @@ def test_list_writes_nothing_and_init_writes_a_recipe_once(trees, capsys):
     assert cli.cmd_report(made) == 0 and (trees / "configs" / "P" / "weekly.toml").is_file()
     with pytest.raises(HeimdallError, match="there already"):
         cli.cmd_report(made)
-    with pytest.raises(HeimdallError, match="name it, <P>/<name>.toml"):
+    with pytest.raises(HeimdallError, match="name it, <A>/<E>.toml"):
         cli.cmd_report(argparse.Namespace(names=["P/weekly"], list=False, init="P/validation/01_pdf", output=None))
     plan = report.planned("P/weekly.toml", [])
     assert [s.title for s in plan.sections] == ["Standings", "totality"] and plan.sources[0].address == "P/validation/01_pdf"

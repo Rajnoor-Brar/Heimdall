@@ -79,7 +79,8 @@ at each commit. The runs-together, report and tag code of I-108–I-113 is renam
 | E0 this plan, the inventory | — | | written |
 | E1 the dialect: `[errand]`, `[errand].assignment`, dotted names, the schema, v3, the walkers, `[run]` refused; the migration (`heimdall migrate --names`: configs, snapshots, provenance, documents), the fixture's configs and the starter by it; docs 00–06's examples | V225 | 8293eeb | done |
 | E2 plot documents: `[source].assignment`, `[source].errand`, read and written; a report title's `{assignment}`, `{errand}`; the old ones refused | V226 | 9e9658f | done |
-| E3 the code identifiers (D2): `Errand`, `.assignment` (Errand, Doc, RunFolders, Source), `errand` for every local, parameter and attribute holding one, `assignment` for an assignment's name, by scope; `Doc.name` kept | V227 | | done |
+| E3 the code identifiers (D2): `Errand`, `.assignment` (Errand, Doc, RunFolders, Source), `errand` for every local, parameter and attribute holding one, `assignment` for an assignment's name, by scope; `Doc.name` kept | V227 | 32eee41 | done |
+| E4 the words: docs 00–06, README, docs/framework/, help, messages, hints, schema notes, the template, tool folders' docs; `--project` → `--assignment` (the old flag refused, naming it), `heimdall cd ASSIGNMENT`, the template's `{{A}}`/`{{a}}` | V228 | (this commit) | done |
 
 ## 6. Log
 
@@ -110,3 +111,10 @@ at each commit. The runs-together, report and tag code of I-108–I-113 is renam
   `--project`, `ls [project]` and `setup.setup(project=)` (the flag's name), prose and messages ("run TOML",
   `<P>/<run>`); a record's `points.json`/`provenance.json` keys `run`, `project` (data, not code). The fixture was
   already rewritten in E1. Fast suite: the one known failure; slow: the five known. Next: E4 (V228).
+- 2026-11-01: E4 built (V228), by a workflow agent stopped by a usage limit partway and finished by hand: the
+  vocabulary in docs 00–06, docs/README.md, docs/framework/, CLI help, messages and hints, schema notes, the work dir
+  template (README, CLAUDE.md, heimdall.toml, the starter), tool folders' docs; `heimdall setup --assignment A`
+  (`--project` refused with the new form), `heimdall cd ASSIGNMENT`, the template's `{{A}}`, `{{a}}`; the last
+  `<run>/<cfg>` placeholders `<E>/<R>`. Kept: the migration's own rules and refusals, `points.json`'s and
+  `provenance.json`'s `run`/`project` keys (data), heimdall.toml's `[run]` (the command's settings), D3's names.
+  **Pause** (the plan's): before E5 (D3, the user's yes) and E6 (the work dirs, when no job is live).

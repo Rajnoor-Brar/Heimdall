@@ -2,9 +2,9 @@
 
 docs/framework/01_Target.md §4–§5 (D3, D14). What a work dir gets is framework/templates/work/: a
 new file there is a template edit, never a code change. In the template, `{{name}}`, `{{revision}}`,
-`{{date}}`, `{{P}}` and `{{p}}` are filled in; nothing else is touched (JSON keeps its braces).
+`{{date}}`, `{{A}}` and `{{a}}` are filled in; nothing else is touched (JSON keeps its braces).
 
-    heimdall setup <dir> [--project P] [--git[=new]] [--adopt] [--name N]
+    heimdall setup <dir> [--assignment A] [--git[=new]] [--adopt] [--name N]
     heimdall setup <dir> --refresh [--yes]
     heimdall where [--heimdall | --work]
 
@@ -46,8 +46,8 @@ GUIDE = "HEIMDALL.md"
 #: The marked block of ignores heimdall setup keeps in a .gitignore that is not the template's.
 BLOCK, BLOCK_END = "# Heimdall (heimdall setup): what the runner and the build make", "# /Heimdall"
 MANIFEST = "datasets.toml"
-#: `heimdall setup --example <name>` (U63): a working project of the tests' own work dir, which the suite
-#: keeps running, copied into the user's: name → (its project, what it says to run first).
+#: `heimdall setup --example <name>` (U63): a working assignment of the tests' own work dir, which the suite
+#: keeps running, copied into the user's: name → (its assignment, what it says to run first).
 EXAMPLES = {"jets": ("Demo", "Demo/jets single")}
 EXAMPLE_WORK = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "work"
 #: The key folders every work dir has (framework/01 §4.1).
@@ -161,7 +161,7 @@ def _guide(values: dict[str, str], readme: bool, claude: bool) -> str:
     return "\n".join(p.rstrip() + "\n" for p in parts)
 
 
-def setup(target: Path, *, project: str | None = None, git: bool = False, adopt: bool = False,
+def setup(target: Path, *, assignment: str | None = None, git: bool = False, adopt: bool = False,
           name: str | None = None, out=print, example: str | None = None) -> list[str]:
     """Lay the template down in `target`; never overwrite. Returns what was added (paths relative to it)."""
     target = target.expanduser().resolve()
@@ -172,10 +172,10 @@ def setup(target: Path, *, project: str | None = None, git: bool = False, adopt:
                        hint="give an empty or new folder (a fresh git repository is one), or --adopt to make a work dir of this one")
     if not TEMPLATE.is_dir():
         raise HeimdallError(f"no work-dir template at {TEMPLATE}")
-    if project is not None and (not project or "/" in project or project.startswith(("_", "."))):
-        raise HeimdallError(f"'{project}' is not a project name", hint="a folder name: letters, digits, - and _")
+    if assignment is not None and (not assignment or "/" in assignment or assignment.startswith(("_", "."))):
+        raise HeimdallError(f"'{assignment}' is not an assignment name", hint="a folder name: letters, digits, - and _")
     values = {"name": name or target.name, "revision": revision(), "date": datetime.date.today().isoformat(),
-              "P": project or "", "p": (project or "").lower()}
+              "A": assignment or "", "a": (assignment or "").lower()}
     making = not is_work(target)                                    # not completing a work dir: making one
     target.mkdir(parents=True, exist_ok=True)
     added: list[str] = []
@@ -216,14 +216,14 @@ def setup(target: Path, *, project: str | None = None, git: bool = False, adopt:
         (target / GUIDE).write_text(_guide(values, "README.md" in theirs, "CLAUDE.md" in theirs), encoding="utf-8")
         added.append(GUIDE)
         out(f"added {GUIDE}")
-    if project:
-        p = values["p"]
-        put(TEMPLATE / STARTER / "run.toml", Path("configs") / project / f"{p}.toml")
-        put(TEMPLATE / STARTER / "run.cmnd", Path("configs") / project / f"{p}.cmnd")
-        if not (target / "modules" / project).is_dir():
-            (target / "modules" / project).mkdir(parents=True)
-            added.append(f"modules/{project}/")
-            out(f"added modules/{project}/")
+    if assignment:
+        a = values["a"]
+        put(TEMPLATE / STARTER / "run.toml", Path("configs") / assignment / f"{a}.toml")
+        put(TEMPLATE / STARTER / "run.cmnd", Path("configs") / assignment / f"{a}.cmnd")
+        if not (target / "modules" / assignment).is_dir():
+            (target / "modules" / assignment).mkdir(parents=True)
+            added.append(f"modules/{assignment}/")
+            out(f"added modules/{assignment}/")
     for name in fetch_datasets(target, out):
         if name not in changed:
             changed.append(name)
@@ -250,13 +250,13 @@ def _recognise(target: Path, out=print) -> None:
 
 
 def _example(target: Path, name: str, out=print) -> list[str]:
-    """The example's project: its configs/, modules/ and the datasets they read, never over a file."""
+    """The example's assignment: its configs/, modules/ and the datasets they read, never over a file."""
     if name not in EXAMPLES:
         from .errors import did_you_mean
         raise HeimdallError(f"no example '{name}'", hint=did_you_mean(name, EXAMPLES) or f"examples: {', '.join(EXAMPLES)}")
-    project = EXAMPLES[name][0]
+    assignment = EXAMPLES[name][0]
     added = []
-    sources = [EXAMPLE_WORK / "configs" / project, EXAMPLE_WORK / "modules" / project, EXAMPLE_WORK / "datasets"]
+    sources = [EXAMPLE_WORK / "configs" / assignment, EXAMPLE_WORK / "modules" / assignment, EXAMPLE_WORK / "datasets"]
     for root in sources:
         for src in sorted(p for p in root.rglob("*") if p.is_file() and "__pycache__" not in p.parts):
             rel = src.relative_to(EXAMPLE_WORK)
@@ -266,7 +266,7 @@ def _example(target: Path, name: str, out=print) -> list[str]:
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
             added.append(str(rel))
-    out(f"added the example '{name}': configs/{project}/, modules/{project}/, datasets/ ({len(added)} files)")
+    out(f"added the example '{name}': configs/{assignment}/, modules/{assignment}/, datasets/ ({len(added)} files)")
     return added
 
 
@@ -297,7 +297,7 @@ def _commit(target: Path, files: list[str], values: dict[str, str], new: bool = 
                        hint="set git's user.name and user.email, then commit the added files yourself")
 
 
-def next_steps(target: Path, added: list[str], project: str | None, git, example: str | None = None) -> list[str]:
+def next_steps(target: Path, added: list[str], assignment: str | None, git, example: str | None = None) -> list[str]:
     """What to type next (5.3, 7.2): the commands that take the new work dir to a first page (an
     example's) or a first plan, and git's when --git was not given in a repository."""
     here = os.path.relpath(target, Path.cwd())
@@ -306,11 +306,11 @@ def next_steps(target: Path, added: list[str], project: str | None, git, example
         first = EXAMPLES[example][1]
         lines += ["  heimdall build                      # its module programs and Rivet plugins",
                   f"  heimdall check {first.split()[0]}", f"  heimdall run {first}         # then open results/…/plots/root/index.html"]
-    elif project:
-        name = f"{project}/{project.lower()}"
+    elif assignment:
+        name = f"{assignment}/{assignment.lower()}"
         lines += [f"  heimdall check {name}", f"  heimdall run {name} --plan"]
     else:
-        lines += ["  heimdall setup . --project <Project>     # a starter run TOML and card"]
+        lines += ["  heimdall setup . --assignment <A>     # a starter errand file and card"]
     files = [a for a in added if not a.endswith("/")]
     if not git and toplevel(target) is not None and files:
         lines += [f"  git add -- {' '.join(files[:6])}{' …' if len(files) > 6 else ''}",
@@ -382,7 +382,7 @@ def refresh(target: Path, *, yes: bool = False, out=print, ask=None) -> int:
     if not is_work(target):
         raise HeimdallError(f"{target} is not a work dir", hint="heimdall setup <dir> makes one")
     meta = work_meta(target)
-    values = {"name": meta["name"], "revision": revision(), "date": datetime.date.today().isoformat(), "P": "", "p": ""}
+    values = {"name": meta["name"], "revision": revision(), "date": datetime.date.today().isoformat(), "A": "", "a": ""}
     changes: dict[Path, str] = {}
     for src in sorted(TEMPLATE.rglob("*")):
         rel = src.relative_to(TEMPLATE)

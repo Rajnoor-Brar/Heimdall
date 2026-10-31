@@ -28,8 +28,8 @@ def test_ls_lists_every_configuration_and_marks_what_runs():
     assert "Demo/jets   run jets" in lines
     assert any(line.startswith("  * pdf ") for line in lines)                 # [errand].configuration
     assert any(line.startswith("    single ") for line in lines)
-    with pytest.raises(HeimdallError, match="no run TOML"):
-        house.ls("NoSuchProject")
+    with pytest.raises(HeimdallError, match="no errand file"):
+        house.ls("NoSuchAssignment")
 
 
 @pytest.mark.parametrize("key, shown", [

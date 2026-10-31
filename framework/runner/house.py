@@ -33,7 +33,7 @@ TABLES = {"errand": "errand", "config": "config", "prelim": "prelim", "plot": "p
 
 def importers() -> dict[str, list[str]]:
     """Every config another one imports ([config] or [file] import), with the configs that import it:
-    <Project>/<name> → [<Project>/<name>, …]."""
+    <A>/<E> → [<A>/<E>, …]."""
     root = configs_root()
     out: dict[str, list[str]] = {}
     for path in sorted(root.glob("*/*.toml")):
@@ -69,7 +69,7 @@ def unused_tools(errand) -> list[str]:
 
 
 def config_names(assignment: str | None = None) -> list[str]:
-    """Every configs/<Project>/<name>.toml that has an [errand], as <Project>/<name>; one with [run] too (the names
+    """Every configs/<A>/<E>.toml that has an [errand], as <A>/<E>; one with [run] too (the names
     before I-112), so that reading it says what rewrites it."""
     root = configs_root()
     names = []
@@ -88,7 +88,7 @@ def ls(assignment: str | None = None) -> list[str]:
     """Each config, then each configuration: its title and description, and whether a sweep runs it."""
     names = config_names(assignment)
     if not names:
-        raise HeimdallError(f"no run TOML under {configs_root() / (assignment or '')}", hint="a config has an [errand] table")
+        raise HeimdallError(f"no errand file under {configs_root() / (assignment or '')}", hint="a config has an [errand] table")
     lines = []
     for name in names:
         try:
@@ -121,7 +121,7 @@ def module_settings(key: str) -> list[str]:
         work = find_work()
         found = sorted((work / "build").rglob(f"{exe.name}")) if work is not None else []
         if not found:
-            raise HeimdallError(f"no program {exe.name} built in this work dir", hint="heimdall build makes it (build/<project>/)")
+            raise HeimdallError(f"no program {exe.name} built in this work dir", hint="heimdall build makes it (build/<A>/)")
         exe = found[0]
     try:
         done = subprocess.run([str(exe), "--describe"], capture_output=True, text=True, encoding="utf-8", timeout=60)
@@ -189,7 +189,7 @@ TABLE_TEXT = {
     "tool": "[tools.<tag>]: a tool table; its folder's own keys are `heimdall tools <folder>`",
     "plot": "[plot]: the pages", "figure": "[plot.figures.<f>]: one figure's pages", "data": "[plot.data]: reference data",
     "across_from": "[plot.across_from]: the runs drawn together and how (the drawing's [from])",
-    "cluster": "[cluster]: heimdall cluster's Slurm keys (machine.toml, heimdall.toml, the run TOML, a configuration)",
+    "cluster": "[cluster]: heimdall cluster's Slurm keys (machine.toml, heimdall.toml, the errand file, a configuration)",
     "prelim": "[prelim] (v2 only; v3 infers it): FIFOs, files and commands of each point",
 }
 
@@ -224,8 +224,8 @@ def _special(key: str) -> list[str] | None:
         word = word.removeprefix("report.")
     if word in ("report", "section", "report.section", "report.toml"):
         tables = ("section",) if word.endswith("section") else schema.REPORT_TABLES
-        return ["a report's recipe: [report] and its [[report.section]]s, in configs/<P>/<name>.toml ([report] alone), "
-                "a run TOML or a folder's report.toml (04 §15)",
+        return ["a report's recipe: [report] and its [[report.section]]s, in configs/<A>/<E>.toml ([report] alone), "
+                "an errand file or a folder's report.toml (04 §15)",
                 *(f"  {('report.' if t == 'section' else '') + t + '.' + k:30} {e.get('doc', '')}"
                   for t in tables for k, e in schema.keys(t).items())]
     if word.split(".")[0] in schema.REPORT_TABLES and word.count(".") == 1:
@@ -383,7 +383,7 @@ def _ago(seconds: float) -> str:
 
 
 def _config_name(config: str, work: str | None) -> str:
-    """A config as `heimdall run` names it: <P>/<name> under its work dir's configs/, else its path."""
+    """A config as `heimdall run` names it: <A>/<E> under its work dir's configs/, else its path."""
     path = Path(config or "")
     for root in ([Path(work) / "configs"] if work else []):
         try:
@@ -487,7 +487,7 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
 
 
 def log_target(target: str) -> tuple[Path, str | None, str | None]:
-    """`heimdall log`'s argument (V202): a record, `<P>/<run>/<NN_cfg>`, then a point and a tool, as names
+    """`heimdall log`'s argument (V202): a record, `<A>/<E>/<R>`, then a point and a tool, as names
     (`Demo/jets/01_pdf/MSTW08lo/pythia`) or as a path under records/ or results/ (a point's logs/<point>/<tag>.log
     too). (the record's folder, the point or None, the tool or None)."""
     path = Path(target).expanduser()
@@ -501,7 +501,7 @@ def log_target(target: str) -> tuple[Path, str | None, str | None]:
     if parts is None:
         parts = [part for part in target.split("/") if part]
     if len(parts) < 3:
-        raise HeimdallError(f"'{target}' names no record", hint="a record is <P>/<run>/<NN_cfg> (heimdall runs names them), then "
+        raise HeimdallError(f"'{target}' names no record", hint="a record is <A>/<E>/<R> (heimdall runs names them), then "
                        "a point and a tool: heimdall log Demo/jets/01_pdf/MSTW08lo/pythia")
     record = records_root() / Path(*parts[:3])
     if not record.is_dir():
@@ -515,7 +515,7 @@ def log_target(target: str) -> tuple[Path, str | None, str | None]:
 
 def tag_lines(record: Path, name: str | None = None, clear: bool = False) -> list[str]:
     """`heimdall tag RECORD [NAME] [--clear]` (V223): the folder's tag, or it set to `name` or removed, in its record
-    (records/<run>/tag, the source of truth) and, when the folder has one, its plot document's [source].tag."""
+    (records/<A>/<E>/<R>/tag, the source of truth) and, when the folder has one, its plot document's [source].tag."""
     from .config import check_tag
     from .plotdoc import path_of, write_tag
     rel = record.relative_to(records_root())
@@ -653,10 +653,10 @@ KEEP_NAMES = {"plots", "pre", "post", "cluster", "compare", "plot"}
 
 def clean_targets(planned: list, everything: bool, records: bool = False) -> tuple[list[Path], list[Path]]:
     """What `heimdall clean` removes, and the results it only lists, by lifecycle (U21, V157): within each
-    planned configuration's records/<run>/logs/ (ephemeral), the working folders no plan has, and `.partial`
-    leftovers there and in results/<run>/. With `everything` (no config named: every config was planned):
-    also the logs/ of a project's configuration folders no configuration has, and the prepare caches of
-    .cache/ (derived) no plan references. A point's records (records/<run>/points/) only with `records`:
+    planned configuration's records/<A>/<E>/<R>/logs/ (ephemeral), the working folders no plan has, and `.partial`
+    leftovers there and in results/<A>/<E>/<R>/. With `everything` (no config named: every config was planned):
+    also the logs/ of an assignment's configuration folders no configuration has, and the prepare caches of
+    .cache/ (derived) no plan references. A point's records (records/<A>/<E>/<R>/points/) only with `records`:
     those no plan has (never a configuration's cluster/ submissions). results/ is never removed, only
     listed."""
     remove: list[Path] = []

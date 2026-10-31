@@ -1,23 +1,23 @@
-# {{p}}.toml — the starter: Pythia's dijets through Rivet's MC_JETS, for two proton PDFs.
+# {{a}}.toml — the starter: Pythia's dijets through Rivet's MC_JETS, for two proton PDFs.
 #
-#   heimdall check {{P}}/{{p}}             is it valid? (plans every configuration, runs nothing)
-#   heimdall run {{P}}/{{p}} --plan        what would run, and where it would go
-#   heimdall run {{P}}/{{p}}               two points of 500 events, and a page per histogram
+#   heimdall check {{A}}/{{a}}             is it valid? (plans every configuration, runs nothing)
+#   heimdall run {{A}}/{{a}} --plan        what would run, and where it would go
+#   heimdall run {{A}}/{{a}}               two points of 500 events, and a page per histogram
 #
 # Pythia writes events and Rivet reads them in the same group (a FIFO, inferred), writing jets.yoda;
-# yd2rt converts that to ROOT. Physics lives in the card ({{p}}.cmnd); this file says what varies and
-# what runs. The run TOML's keys: docs/04_Config_Reference.md, or `heimdall explain <key>`.
+# yd2rt converts that to ROOT. Physics lives in the card ({{a}}.cmnd); this file says what varies and
+# what runs. The errand file's keys: docs/04_Config_Reference.md, or `heimdall explain <key>`.
 
 [errand]
-assignment = "{{P}}"
-name       = "{{p}}"
+assignment = "{{A}}"
+name       = "{{a}}"
 run        = "pdf"                     # the configuration `heimdall run` picks
 events     = 500
 threads    = 2
 chain      = [["pythia", "rivet"], "yd2rt"]
 
 [tools.pythia]                         # the table's name is the tool
-card   = "{{p}}.cmnd"
+card   = "{{a}}.cmnd"
 output = "events.hepmc"
 
 [tools.rivet]

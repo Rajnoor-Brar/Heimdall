@@ -56,7 +56,7 @@ def test_heimdall_deck_stops_naming_heimdall_report():
     """V212: deck is retired, as V74 retired heimdall plot FILE: whatever it is given, it names the report."""
     with pytest.raises(HeimdallError, match="heimdall deck is now heimdall report") as error:
         cli.cmd_deck(cli.parse(["deck", "talk", "--dry-run"]))
-    assert "heimdall report <P>/<run>/<cfg>" in str(error.value.hint)
+    assert "heimdall report <A>/<E>/<R>" in str(error.value.hint)
 
 
 def test_plain_and_dry_run_anywhere():

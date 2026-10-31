@@ -195,3 +195,67 @@ def test_plot_across_from_is_checked_and_written_into_from(scratch):
     assert cli.style_sync_across(args) == 0
     text = target.read_text(encoding="utf-8")
     assert tomllib.loads(text)["from"] == {"runs": ["*"], "prefer": "all"} and text.startswith(plotdoc.ACROSS_HEADER)
+
+
+def test_a_run_tagged_untagged_and_an_untagged_run_are_told_apart(scratch):
+    """An untagged run among tagged ones is "untagged"; a run really tagged so keeps its name, and the blank one's
+    name and label are both "untagged_", so their curves never share a label."""
+    where = folder_of("blank")
+    a_run(where, "01_one", tag="untagged")
+    a_run(where, "02_one")
+    doc, _, _ = together(where)
+    assert doc.quantities["@tag"].tags == ["untagged", "untagged_"]
+    assert doc.quantities["@tag"].labels == ["untagged", "untagged_"]
+
+
+def test_the_records_tag_is_the_truth_across_runs(scratch):
+    """A tag given since the run's plot stage last wrote its document (heimdall run --tag with no plot stage) is
+    drawn: the record's, when the record is there; else the document's [source].tag."""
+    from runner import record
+    from runner.paths import records_root
+    where = folder_of("stale")
+    a_run(where, "01_one", tag="old")
+    a_run(where, "02_one", tag="lo")
+    doc, _, _ = together(where)
+    assert doc.quantities["@tag"].tags == ["old", "lo"]
+    kept = records_root() / "Demo" / "stale" / "01_one"
+    shutil.rmtree(kept.parent, ignore_errors=True)
+    kept.mkdir(parents=True)
+    record.write_run_tag(kept, "new")
+    doc, _, _ = together(where)
+    assert doc.quantities["@tag"].tags == ["new", "lo"]
+    shutil.rmtree(kept.parent)
+
+
+def test_a_sync_mends_a_from_in_error(scratch):
+    """--style-sync reads the document as it is, so a [from] that no longer loads is replaced, not in its way."""
+    import tomllib
+    where = folder_of("t")
+    a_run(where, "01_one", tag="lo")
+    across = {"by_tag": {"curves": {"@tag": "all"}}}
+    target, _ = plotdoc.write_across(parse(raw(plot={"across": across}), scratch))
+    text = target.read_text(encoding="utf-8").replace('prefer = "last"', 'prefer = "first"')
+    target.write_text(text, encoding="utf-8")
+    with pytest.raises(HeimdallError, match="prefer"):
+        plotdoc.load(target)
+    config = scratch / "mended.toml"
+    config.write_text(tomli_w.dumps(raw(run__cfgs__one__sweeps=["pdf"], plot={"across": across, "across_from": {"prefer": "all"}})),
+                      encoding="utf-8")
+    args = argparse.Namespace(style_sync=str(config), set=[], plan=False, replot=False)
+    assert cli.style_sync_across(args) == 0
+    assert tomllib.loads(target.read_text(encoding="utf-8"))["from"]["prefer"] == "all"
+    plotdoc.load(target)
+
+
+def test_a_report_says_each_runs_ignored_value(scratch):
+    """A set's sub-header names what [from].ignore left out, each run's one value: the label, then its runs."""
+    from runner import report
+    where = folder_of("ignored")
+    a_run(where, "01_one", tag="py", generator=[0], swept=True)
+    a_run(where, "02_one", tag="py2", generator=[0], swept=True)
+    a_run(where, "03_one", tag="hw", generator=[1], swept=True)
+    doc, _, members = together(where, ignore=["generator"])
+    assert doc.source["ignored"] == {"01_one": {"generator": "py8"}, "02_one": {"generator": "py8"},
+                                     "03_one": {"generator": "hw7"}}
+    head = report.set_head(report.Source("Demo/ignored", where, doc, members), "totality")
+    assert ("Ignored", ["generator: Pythia 8 (01_one, 02_one) · Herwig 7 (03_one)"]) in head.facts

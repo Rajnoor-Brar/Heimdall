@@ -521,7 +521,7 @@ def tag_lines(record: Path, name: str | None = None, clear: bool = False) -> lis
         return [f"{rel}: {had}" if had else f"{rel} has no tag"]
     if name is not None:
         check_tag(name, "heimdall tag NAME")
-    write_run_tag(record, name)
+    write_run_tag(record, name, cleared=clear)
     document = path_of(results_root() / rel)
     if document.is_file():
         write_tag(document, name)

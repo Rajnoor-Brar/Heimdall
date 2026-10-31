@@ -716,7 +716,8 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                      [_member_events(doc, m) or usual[run_name] for m in own] if n})
     configurations = list(dict.fromkeys(conf.key for _, _, conf, _ in loaded))
     labels = {conf.key: conf.label for _, _, conf, _ in loaded}
-    run_tags = {run_name: str(doc.source.get("tag") or "") for run_name, doc, _, _ in loaded}
+    records = records_root() / folder.relative_to(results_root()) if folder.is_relative_to(results_root()) else None
+    run_tags = {run_name: _tag_of(doc, records / run_name if records else None) for run_name, doc, _, _ in loaded}
     tagged = list(dict.fromkeys(run_tags.values())) if any(run_tags.values()) else []
     quantities = {name: Quantity(name, [v for _, _, v, _ in have], tags=[t for t, *_ in have], labels=[l for _, l, _, _ in have],
                                  styles=[s for *_, s in have] if any(s for *_, s in have) else [])
@@ -731,13 +732,14 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
         while blank in tagged:                               # a run tagged "untagged" keeps its name
             blank += "_"
         quantities["@tag"] = Quantity("@tag", tagged, tags=[t or blank for t in tagged],
-                                      labels=[t or UNTAGGED for t in tagged])
+                                      labels=[t or blank for t in tagged])
     project = source.get("project") or loaded[0][1].project
     name = source.get("run") or loaded[0][1].name
     rel = folder.relative_to(results_root()) if folder.is_relative_to(results_root()) else Path(project) / name
     folders = into or RunFolders(project, records_root() / rel, folder,
                                  cache_root() / project / "plots" / Path(*rel.parts[1:]) / "_across")
     members, seen, shadowed = [], {}, {}
+    kept: dict[str, dict[str, str]] = {}                     # each run's ignored quantities' one value
     swept: list[str] = []
     for number, (run_name, doc, conf, own) in enumerate(loaded):
         index = {q: {(qq.tags[i] if qq.tags else str(qq.values[i])): i for i in range(len(qq.values))}
@@ -782,10 +784,23 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                                f"{', '.join(found)}", where=f"{path}: [from].ignore",
                                hint=f"an ignored quantity holds one value in each run: draw {q} as an axis (leave it out "
                                     "of ignore), or leave the run out (runs = [\"<its folder's glob>\", …])")
+        if ignored:
+            kept[run_name] = {q: found[0] for q, found in held.items() if found}
     configuration = DocConfiguration(ACROSS, name, [[q] for q in swept], [], [], {}, None, f"{name}: its runs together")
     doc = Doc(path, project, name, dict(data.get("plot", {})), dict(data.get("stats", {})), quantities, configuration,
-              {**source, "shadowed": shadowed})
+              {**source, "shadowed": shadowed, **({"ignored": kept} if kept else {})})
     return doc, configuration, members
+
+
+def _tag_of(doc: Doc, record: Path | None) -> str:
+    """A run's tag across runs: its record's, the truth, when the record is there (a tag given since its plot
+    stage last wrote the document); else its document's [source].tag (a copied results/); checked either way."""
+    from .config import check_tag
+    from .record import run_tag
+    if record is not None and record.is_dir() and (kept := run_tag(record)) is not None:
+        return kept
+    tag = doc.source.get("tag")
+    return check_tag(str(tag), f"{doc.path}: [source].tag") if tag else ""
 
 
 def _member_events(doc: Doc, member: Member) -> int:

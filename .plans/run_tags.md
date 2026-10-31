@@ -1,4 +1,4 @@
-# A Run's tag, and axes ignored across Runs (I-113)
+# A Run's tag, and axes ignored across Runs (I-113, done)
 
 Asked by the user on 2026-10-31: "Have each Run have a tag, which is used to distinguish points when plot —across.
 As well as ability to ignore variant of certain axes across runs in —across". The names here are I-112's: an
@@ -51,7 +51,7 @@ changes (I-114, V219–V222), before I-112 renames everything (its sweep then re
 |---|---|---|---|
 | T0 this plan, I-113 | — | | written |
 | T1–T2 `--tag`, the `tag` key, the record and `[source].tag`, `heimdall tag`, runs, status, a report's sources | V223 | 4962bca | done |
-| T3–T4 `@tag` across, the tag in the shadowing key, `[from].ignore`, `[plot.across_from]`; 03 §3.3, 04 §11.4 | V224 | (this commit) | done |
+| T3–T4 `@tag` across, the tag in the shadowing key, `[from].ignore`, `[plot.across_from]`; 03 §3.3, 04 §11.4 | V224 | aa9b655 | done |
 
 ## 5. Log
 
@@ -64,3 +64,4 @@ changes (I-114, V219–V222), before I-112 renames everything (its sweep then re
   and the key, kept in the values; one value a run, else refused); `[from]` checked as the schema's `across_from`;
   `[plot.across_from]` written into `[from]` by a run and by `--style-sync` (with no table a sync keeps `[from]`).
   Untagged drawings byte for byte as before.
+- 2026-10-31, after T3–T4: a read-only review's nine findings fixed by hand (V224's last sentences): the tag rule's leading character and the check on read, a lasting --clear, the record's tag the truth across runs, the blank tag's label, --style-sync mending a bad [from], heimdall tag on a path into the folder, the ignored quantities in a set's sub-header, the v3 layer in --plan, --tag declared no preference. Fast suite 1202 passed (the old stack-build test the one failure). I-113 done.

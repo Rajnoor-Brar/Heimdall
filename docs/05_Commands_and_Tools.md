@@ -42,7 +42,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--points SEL` | run a subset: tags, indices or quantity=tag |
 | `--detach` | start the run in the background and return: heimdall watch follows it, heimdall stop stops it (on a terminal, a run started without it leaves on d too) |
 | `--set KEY=VALUE` | override one value for this invocation (repeatable), in the file's own names: run.events=100 (v3), run.event_count=100 (v2) |
-| `--tag NAME` | tag each configuration folder this run makes or resumes (over the one it has and its configuration's tag): letters, digits, . _ + -, at most 40 |
+| `--tag NAME` | tag each configuration folder this run makes or resumes (over the one it has and its configuration's tag): a letter or digit, then letters, digits, . _ + -, at most 40 |
 | `--rerun` | ignore skip-unchanged; under a serial the file sets, overwrite points made from other inputs |
 | `--only pre\|post\|plot` | rerun only the pre tools, the post tools or the plots |
 | `--no-plot` | draw nothing after the points (its plot.toml is written all the same), whatever [run].plot says |
@@ -191,7 +191,7 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | Argument | Meaning |
 |---|---|
 | `RECORD` | a configuration's folder, <P>/<run>/<NN_cfg>, or a path under records/ or results/ |
-| `[NAME]` | the tag to give it (letters, digits, . _ + -, at most 40) |
+| `[NAME]` | the tag to give it (a letter or digit, then letters, digits, . _ + -, at most 40) |
 | `--clear` | remove its tag |
 
 **`heimdall log`**: a record's own account, a point's attempts and logs, or a tool's log
@@ -353,7 +353,7 @@ the others.
   `run.cfgs.pdf.threads`, `static.energies`).
 - **`--rerun`** runs complete points (and the stages) again.
 - **`--tag NAME`** tags every configuration folder the command runs (`02_generator_pdf [nlo]`): a short
-  name (letters, digits, `.`, `_`, `+`, `-`; at most 40) that `heimdall runs`, `heimdall status`, the run's
+  name (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40) that `heimdall runs`, `heimdall status`, the run's
   title and a report show beside the folder. Without it, a folder keeps the tag it has, else takes its
   configuration's `tag` key (04 §5); an untagged run writes none. The folder keeps it in its record,
   `records/…/<cfg>/tag`, and its plot document's `[source].tag` is written from that. A tag is never part
@@ -464,7 +464,7 @@ covers every C-rule, path, consumer, connection and card, with nothing run or wr
 prints one line per config, and the error of each that fails. It exits 0, or 2 when any failed: for
 a pre-commit hook, or before a long sweep.
 
-### 1.5 `heimdall watch`, `heimdall runs`, `heimdall stop`, `heimdall log`
+### 1.5 `heimdall watch`, `heimdall runs`, `heimdall stop`, `heimdall log`, `heimdall tag`
 
 `heimdall watch` follows a running job from another terminal, through the watch socket its `heimdall
 run` serves while it lives.
@@ -543,7 +543,8 @@ while it runs, as `running (unrecorded)`. The registry is `<machine root>/runs/`
 **`heimdall tag RECORD [NAME] [--clear]`** shows a configuration folder's tag (`RECORD` is
 `<P>/<run>/<NN_cfg>`, as `heimdall log` takes it, or a path under `records/` or `results/`), gives it `NAME`,
 or with `--clear` removes it. Each change is written into its record and, when the folder has one, into its
-plot document's `[source].tag`; a later run of the folder keeps it unless `--tag` gives another.
+plot document's `[source].tag`; a later run of the folder keeps it unless `--tag` gives another. A tag
+removed stays removed: the configuration's `tag` key gives a folder its tag only when it has never had one.
 
 **`heimdall log RECORD[/POINT[/TAG]] [--full] [--attempt N]`** reads what a record of this work dir kept:
 - **A record** (`<P>/<run>/<NN_cfg>`, as `heimdall runs` and `heimdall status` name it): its `run.jsonl`,

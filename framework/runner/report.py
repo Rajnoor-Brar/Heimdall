@@ -840,7 +840,26 @@ def set_head(source: Source, set_: str, look: dict | None = None) -> SetHead:
             fixed.append(f"{name}: {label_of(quantity, index)}")
     if fixed:
         facts.append(("Fixed", [" · ".join(fixed)]))
+    if ignored := _ignored(doc):
+        facts.append(("Ignored", ignored))
     return SetHead(set_, source.address, facts)
+
+
+def _ignored(doc) -> list[str]:
+    """The quantities a runs-together document ignores across its runs (V224, `[from].ignore`), each run's one value:
+    `generator: Pythia 8.318 (01_pdf, 02_pdf) · Sherpa 3.0.5 (03_pdf)`."""
+    by_run = (doc.source or {}).get("ignored") or {}
+    lines = []
+    for name in dict.fromkeys(q for held in by_run.values() for q in held):
+        quantity, runs_of = doc.quantities.get(name), {}
+        for run_name, held in by_run.items():
+            if name in held:
+                runs_of.setdefault(held[name], []).append(run_name)
+        def shown(tag: str) -> str:
+            index = quantity.tags.index(tag) if quantity is not None and tag in (quantity.tags or []) else None
+            return label_of(quantity, index) if index is not None else tag
+        lines.append(f"{name}: " + " · ".join(f"{shown(tag)} ({', '.join(names)})" for tag, names in runs_of.items()))
+    return lines
 
 
 def cell_label(doc, cell: str) -> str:

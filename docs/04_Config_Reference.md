@@ -533,7 +533,7 @@ Its `vars` merge through `extends`; its `data` is the nearest one. `[run]` takes
 | `folder` | a string |  | the configuration's folder, after the serial: `NN_<folder>`; empty means the table key |
 | `title` | a string |  | the header line of the run under `[run].sweep_runs`: `run 02 - <title> -` (04 §4.1) |
 | `description` | a string |  | what the configuration is for |
-| `tag` | a string |  | the tag a run gives this configuration's folder (letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `""` gives none over `[run]`'s. Never part of a point's identity |
+| `tag` | a string |  | the tag a run gives this configuration's folder (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the folder already has one: a folder keeps its tag when it is run again, and `heimdall tag <P>/<name>/<NN_label>` shows or changes it. `""` gives none over `[run]`'s. Never part of a point's identity |
 | `events` | an integer, ≥ 1, or `"default"` |  | required here if `[run]` has none. A list is one configuration per count, `<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6) |
 | `threads` | an integer, ≥ 0, or `"default"` |  | `0` = every core |
 | `parallelism` | an integer or a string: `"auto"`, ≥ 1, or `"default"` |  | points at once (`"auto"`: cores ÷ a point's cores); `--plan` and the run's title say about how many cores that is, and warn past the machine's |

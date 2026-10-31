@@ -139,9 +139,36 @@ def test_heimdall_tag_shows_sets_and_clears(configs, capsys):
     assert document.startswith("# A run's plot document")                 # rewritten whole, its header kept
     assert cli.main(["tag", "Demo/shown/one", "--clear"]) == 0
     assert capsys.readouterr().out == "Demo/shown/one: its tag v2 removed\n"
-    assert kept("shown") == (None, None)
+    assert kept("shown") == ("", None)                                    # cleared: kept as none
     assert run(path) == 0
-    assert kept("shown") == (None, None)                                  # nothing gives it one again
+    assert kept("shown") == ("", None)                                    # nothing gives it one again
+
+
+def test_a_cleared_tag_is_not_given_again_by_the_key(configs, capsys):
+    """--clear lasts: the configuration's `tag` key gives a folder its tag once, never after heimdall tag took it;
+    --tag gives one again. A path into the folder (its plot.toml) names the folder."""
+    path = study(configs, "keyed", run__cfgs__one__tag="lo")
+    assert run(path, "--rerun") == 0
+    assert kept("keyed") == ("lo", "lo")
+    assert cli.main(["tag", str(results_root() / "Demo/keyed/one/plot.toml"), "--clear"]) == 0
+    assert run(path) == 0
+    assert kept("keyed") == ("", None)
+    assert run(path, "--tag", "nlo") == 0
+    assert kept("keyed") == ("nlo", "nlo")
+
+
+def test_a_tag_naming_no_folder_is_refused_written_or_read(configs):
+    """A tag names folders (a page cell of @tag): never . or .., nor a leading dot; one edited into the record by
+    hand is refused when read, naming the file."""
+    for bad in (".", "..", ".hidden"):
+        with pytest.raises(HeimdallError, match="is not a tag"):
+            config.check_tag(bad)
+    path = study(configs, "edited")
+    assert run(path, "--rerun") == 0
+    (records_root() / "Demo/edited/one" / record.TAG_FILE).write_text("..\n", encoding="utf-8")
+    with pytest.raises(HeimdallError, match="is not a tag") as refused:
+        record.run_tag(records_root() / "Demo/edited/one")
+    assert str(record.TAG_FILE) in str(refused.value.where)
 
 
 def test_heimdall_tag_refuses(configs, capsys):

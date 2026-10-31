@@ -25,14 +25,15 @@ from .sweep import Listed, check_curve_style, set_entries
 SEED_TYPES = tuple(schema.keys("run")["seed_type"]["choices"])
 DEFAULT = schema.DEFAULT
 #: A run's tag (V223): a short name that tells its configuration folder apart, never part of an identity.
-TAG = re.compile(r"[A-Za-z0-9._+-]{1,40}")
+TAG = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,39}")              # it names folders: never . or ..
 
 
 def check_tag(tag, where: str | None = None) -> str:
-    """A tag as given (`--tag`, a configuration's `tag`, `heimdall tag`): letters, digits, `.`, `_`, `+` and `-`,
-    1 to 40 of them; anything else refused, naming the rule."""
+    """A tag as given (`--tag`, a configuration's `tag`, `heimdall tag`) or read back: a letter or digit, then
+    letters, digits, `.`, `_`, `+` and `-`, 40 at most; anything else refused, naming the rule."""
     if not isinstance(tag, str) or not TAG.fullmatch(tag):
-        raise HeimdallError(f"the tag {tag!r} is not a tag: letters, digits, '.', '_', '+' and '-', at most 40",
+        raise HeimdallError(f"the tag {tag!r} is not a tag: a letter or digit, then letters, digits, '.', '_', '+' "
+                            "and '-', at most 40",
                             where=where, hint="e.g. nlo, run2.v1, pdf+scale")
     return tag
 

@@ -705,18 +705,21 @@ TAG_FILE = "tag"
 
 
 def run_tag(record: Path) -> str | None:
-    """The tag of the configuration folder whose record is `record`, or None."""
+    """The tag of the configuration folder whose record is `record`: None when it has never had one, "" when
+    `heimdall tag --clear` took it (an empty file, so its configuration's `tag` key does not give it again)."""
+    from .config import check_tag
     try:
         line = (record / TAG_FILE).read_text(encoding="utf-8").strip()
     except OSError:
         return None
-    return line.splitlines()[0].strip() if line else None
+    return check_tag(line.splitlines()[0].strip(), str(record / TAG_FILE)) if line else ""
 
 
-def write_run_tag(record: Path, tag: str | None) -> None:
-    """A folder's tag written into its record (None: removed). The plot document is the caller's."""
-    if tag:
-        write_atomic(record / TAG_FILE, tag + "\n")
+def write_run_tag(record: Path, tag: str | None, cleared: bool = False) -> None:
+    """A folder's tag written into its record (None: removed; `cleared`: kept as none, an empty file). The plot
+    document is the caller's."""
+    if tag or cleared:
+        write_atomic(record / TAG_FILE, f"{tag}\n" if tag else "")
     else:
         (record / TAG_FILE).unlink(missing_ok=True)
 

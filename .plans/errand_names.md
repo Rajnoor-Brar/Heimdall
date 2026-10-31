@@ -1,0 +1,81 @@
+# `<Assignment>/<Errand>/<Run>`: the result levels' names (I-112)
+
+Asked by the user on 2026-10-31: "Make sure this terminology convention is followed for names :
+<Assignment>/<Errand>/<Run>". Answered the same day (four questions, each the recommended option): everything,
+migrated; the run TOML becomes an errand file with an `[errand]` table; a Run's tag (I-113, built first); an
+ignored axis is no axis across Runs (I-113). This file holds the inventory (§1), the vocabulary (§2), what is
+decided beyond the answers (§3), the phases (§4) and the execution map (§5).
+
+## 1. Inventory (branch `context` at I-113, `git grep -c`)
+
+| Kind | Sites (runner · tools/plot · schema · docs 00–06 · tests · template) |
+|---|---|
+| `[run]` tables and `run.<key>` (the TOML table, `--set run.x=`, attribute access on a RunConfig) | 262 · 0 · 44 · 114 · 358 · 4 |
+| `project` (the word, as `<P>` and as a variable/attribute) | 183 · 3 · 14 · 57 · 122 · 1 |
+| `RunConfig` (the class) | 9 · 0 · 0 · 3 · 3 · 0 |
+| "run TOML", "run config" | 86 · 0 · 12 · 99 · 26 · 6 |
+| `<P>/<run>` and `<P>/<name>` addresses | 71 · 0 · 9 · 78 · 6 · 3 |
+| `heimdall runs`, the registry (`runs/`, `HEIMDALL_RUNS`, `runs_root`) | 37 · 0 · 1 · 27 · 32 · 0 |
+| "a run" / "the run" in prose (an invocation, mostly) | 236 · 23 · 49 · 245 · 86 · 7 |
+
+**Outside Heimdall** (written only by `heimdall migrate --names`, in E6): Brookhaven's and High-Energy's
+`configs/**/*.toml` (`[run]`, `[run.cfgs.*]`, dotted `run.` imports, `--set` lines in scripts and notes), their
+`results/**/plot.toml` (`[source].project`, `[source].run`), `records/**/config/` (the snapshot each record keeps,
+read by `heimdall log`, `plot` and `status` from a record), their CLAUDE.md and notes; the machine root's
+`runs/` (the registry; live while a job runs).
+
+## 2. The vocabulary
+
+| Level | Today | Now |
+|---|---|---|
+| `configs/<A>/`, `results/<A>/` | a project, `<P>` | an **Assignment**, `<A>` |
+| `configs/<A>/<E>.toml` and `results/<A>/<E>/` | a run TOML, `[run]`, its name | an **Errand**: an errand file, `[errand]`, `[errand].name`; `<E>` |
+| `results/<A>/<E>/<NN_cfg>/` (with its record and cache) | a configuration folder, "a run" | a **Run**, `<R>` |
+| one `[errand.cfgs.<cfg>]` | a configuration | a configuration (unchanged: the recipe a Run executes) |
+| one invocation of `heimdall run` | a run, a job | a **job** (decided, §3) |
+
+The address of a Run is `<A>/<E>/<R>` everywhere a command takes or prints one.
+
+## 3. Decided (beyond the user's answers; bold, and said here so they can be undone)
+
+- **D1 Keys.** `[run]` → `[errand]`, `[run.cfgs.<cfg>]` → `[errand.cfgs.<cfg>]` (v3's top-level `[cfgs.<cfg>]`
+  unchanged), `[run].project` → `[errand].assignment`; every other `[run]` key keeps its name under `[errand]`
+  (`sweep_runs` included: it does make a Run of each configuration). Dotted names follow: `--set errand.threads=8`,
+  `import` keys `errand.cfgs.x`, `heimdall explain errand.<key>`. A plot document's `[source].project` →
+  `[source].assignment`, `[source].run` → `[source].errand`. A clean break, as I-109: the old forms are refused
+  with the one command that rewrites them (`heimdall migrate --names`).
+- **D2 Code.** `RunConfig` → `Errand`, its `project` → `assignment`, `name` stays (the errand's name); a variable
+  holding one is `errand`; `Doc.project`/`Doc.name` → `assignment`/`errand`; `RunFolders` keeps its name (it is
+  a Run's folders) with `project` → `assignment`; `paths`' helpers taking `(project, name)` take
+  `(assignment, errand)`. The verb `heimdall run`, `run_one`, `cmd_run` stay (they run Runs).
+- **D3 Jobs.** An invocation of `heimdall run` is a job, the word `heimdall stop` and `heimdall runs`' help
+  already use: `heimdall runs` → `heimdall jobs` (`heimdall runs` stops, naming it, as V74 did for `plot FILE`);
+  the registry `$HEIMDALL_MACHINE/runs/` → `jobs/`, `HEIMDALL_RUNS` → `HEIMDALL_JOBS`, `runs.py` → `jobs.py`.
+  The registry moves only when no job is live (`heimdall migrate --names` refuses otherwise, naming them).
+- **D4 Kept as they are:** `--across` ("an Errand's Runs together"), `[from].runs` and `@run` (globs and names of
+  Run folders), `run.jsonl` (a Run's own log), `sweep_runs`, `heimdall run`, a record (`records/<A>/<E>/<R>/`).
+  History (07's rows, done plans, `docs/audit_*`) is never rewritten.
+- **D5 Old records** keep working: `heimdall migrate --names` rewrites each record's `config/` snapshot and each
+  plot document's `[source]`; no point identity moves (a snapshot is not hashed; the cards are unchanged).
+
+## 4. Phases
+
+| Phase | What | V-row | Then |
+|---|---|---|---|
+| E1 | the dialect: `[errand]`, `[errand].assignment`, dotted names, the schema and its docs (04 regenerated), v3, imports, `--set`, `explain`; `[run]` refused with the hint | V225 | straight on |
+| E2 | plot documents and records: `[source].assignment`/`errand`, read and written; old ones refused with the hint | V226 | straight on |
+| E3 | code identifiers (D2), mechanical, ranks unchanged; the fixtures' configs rewritten by the migration (E5's code) with their tests | V227 | straight on |
+| E4 | jobs (D3): `heimdall jobs`, `jobs.py`, `HEIMDALL_JOBS`, the registry's folder | V228 | straight on |
+| E5 | `heimdall migrate --names` (configs, snapshots, documents, the registry); docs 00–06, help and messages swept to the vocabulary; the fast and slow suites | V229 | **pause**: before any work dir is touched |
+| E6 | Brookhaven and High-Energy migrated (`--apply`), left uncommitted for the user; the machine's registry moved; main fast-forwarded | — | only when no job is live |
+
+Each phase: built, its tests run light, committed by named paths with its V-row; this file's map and log written
+at each commit. The runs-together, report and tag code of I-108–I-113 is renamed with the rest.
+
+## 5. Execution map
+
+| Phase | V-row | Commit | State |
+|---|---|---|---|
+| E0 this plan, the inventory | — | | written |
+
+## 6. Log

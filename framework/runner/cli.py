@@ -64,7 +64,7 @@ def parser() -> argparse.ArgumentParser:
                           "run.events=100 (v3), run.event_count=100 (v2)")
     run.add_argument("--tag", metavar="NAME",
                      help="tag each configuration folder this run makes or resumes (over the one it has and its "
-                          "configuration's tag): letters, digits, . _ + -, at most 40")
+                          "configuration's tag): a letter or digit, then letters, digits, . _ + -, at most 40")
     run.add_argument("--rerun", action="store_true", help="ignore skip-unchanged; under a serial the file sets, "
                                                           "overwrite points made from other inputs")
     run.add_argument("--only", choices=["pre", "post", "plot"], help="rerun only the pre tools, the post tools or the plots")
@@ -223,7 +223,7 @@ def parser() -> argparse.ArgumentParser:
 
     tagged = commands.add_parser("tag", help="a configuration folder's tag: show it, set it, or --clear it")
     tagged.add_argument("target", metavar="RECORD", help="a configuration's folder, <P>/<run>/<NN_cfg>, or a path under records/ or results/")
-    tagged.add_argument("name", nargs="?", metavar="NAME", help="the tag to give it (letters, digits, . _ + -, at most 40)")
+    tagged.add_argument("name", nargs="?", metavar="NAME", help="the tag to give it (a letter or digit, then letters, digits, . _ + -, at most 40)")
     tagged.add_argument("--clear", action="store_true", help="remove its tag")
 
     logged = commands.add_parser("log", help="a record's own account, a point's attempts and logs, or a tool's log")
@@ -711,10 +711,11 @@ def run_tag(args, run, configuration) -> tuple[str | None, str]:
     keeps what heimdall tag gave it), else its configuration's `tag` key; (None, "") for none."""
     if getattr(args, "tag", None):
         return args.tag, "--tag"
-    if kept := record.run_tag(tools.run_folders(run, configuration).record):
-        return kept, "its folder's"
+    if (kept := record.run_tag(tools.run_folders(run, configuration).record)) is not None:
+        return kept or None, "its folder's"                    # "": cleared by heimdall tag, the key no more
     if configuration.tag:
-        return configuration.tag, configuration.origins.get("tag", "the configuration")
+        origin = configuration.origins.get("tag", "the configuration")
+        return configuration.tag, (origin.replace(f"[run.{configmod.CFGS}.", "[cfgs.") if run.form == 3 else origin)
     return None, ""
 
 
@@ -722,9 +723,11 @@ def give_tag(args, run, configuration) -> str | None:
     """The run's tag written into its folder's record (records/<run>/tag), the plot document's [source].tag
     being written from it; nothing for an untagged run."""
     tag, _ = run_tag(args, run, configuration)
-    folder = tools.run_folders(run, configuration).record
-    if tag and tag != record.run_tag(folder):
-        record.write_run_tag(folder, tag)
+    folders = tools.run_folders(run, configuration)
+    if tag and tag != record.run_tag(folders.record):
+        record.write_run_tag(folders.record, tag)
+        if (document := plotdoc.path_of(folders.results)).is_file():
+            plotdoc.write_tag(document, tag)                   # drawn across before its plot stage: the new tag
     return tag
 
 
@@ -1553,8 +1556,11 @@ def style_sync_across(args) -> int:
         return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
     new_plot, new_stats = plotdoc.across_chosen(run)
     wanted = plotdoc.from_of(run) if (run.plot or {}).get(plotdoc.FROM) is not None else None
-    doc = plotdoc.load(target)[0]
-    changed = [f"[plot].{k}" for k in sorted(k for k in {*doc.plot, *new_plot} if doc.plot.get(k) != new_plot.get(k))]
+    try:                                                    # read as it is: a [from] in error is what a sync mends
+        had = dict(tomllib.loads(target.read_text(encoding="utf-8")).get("plot", {}))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise HeimdallError(f"the plot document cannot be read: {error}", where=str(target)) from None
+    changed = [f"[plot].{k}" for k in sorted(k for k in {*had, *new_plot} if had.get(k) != new_plot.get(k))]
     if wanted is not None and wanted != plotdoc.from_in(target):
         changed.insert(0, "[from]")
     print(f"{'would sync' if args.plan else 'synced '} {target}: " + (", ".join(changed) or "the same"))
@@ -1709,7 +1715,10 @@ def cmd_log(args) -> int:
 def cmd_tag(args) -> int:
     """`heimdall tag RECORD [NAME] [--clear]` (V223): a configuration folder's tag shown, set or removed, in its
     record (the source of truth) and its plot document's [source].tag."""
-    folder, point, _ = house.log_target(args.target)
+    target, path = args.target, Path(args.target).expanduser().resolve()
+    if path.is_relative_to(results_root()) and len(rel := path.relative_to(results_root()).parts) > 3:
+        target = str(results_root().joinpath(*rel[:3]))       # into the folder (its plot.toml, plots/): the folder
+    folder, point, _ = house.log_target(target)
     if point is not None:
         raise HeimdallError(f"'{args.target}' names a point: a tag is a configuration folder's",
                             hint=f"heimdall tag {folder.relative_to(records_root())} [NAME]")
@@ -2238,6 +2247,7 @@ NOT_PREFERENCES = {
     **dict.fromkeys(("points", "page_points", "draw_sets", "stages", "only"),
                     ("a selection: a part of the run, chosen when it is run",
                      "type it on the command line; a run's sets are [run] plot = [...] or a configuration's plot")),
+    "tag": ("the study's own setting", "a configuration's tag key, or [run] tag = \"...\""),
     "no_plot": ("the study's own setting", "[run] plot = false"),
     "no_stats": ("the study's own setting", "[run] stats = false"),
 }

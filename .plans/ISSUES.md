@@ -156,7 +156,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-105 | Smaller leftovers | P3 | idea |
 | I-111 | A report's context first: what was run, how the numbers are made | P2 | in progress (asked 2026-10-27) |
 | I-112 | Names: <Assignment>/<Errand>/<Run>, everything migrated | P1 | open (asked 2026-10-31) |
-| I-113 | A Run's tag; axes ignored across Runs | P1 | open (asked 2026-10-31) |
 
 ---
 
@@ -378,12 +377,7 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   (2026-10-31): everything, migrated: a project is an Assignment, a run TOML an errand file (`[errand]`, its
   configurations `[errand.cfgs.<cfg>]`; `heimdall run` stays the verb), a numbered configuration folder a Run;
   docs, help, messages, keys and code identifiers; `heimdall migrate --names` rewrites Brookhaven and High-Energy as
-  I-109 did. Built after I-113 and I-114. The plan is to be written in `.plans/` from an inventory.
-
-### I-113 A Run's tag; axes ignored across Runs
-**P1 · feature · open (asked 2026-10-31)**
-- `--tag`, a configuration's `tag`, `heimdall tag`; `@tag` across Runs; `[from].ignore`. The plan:
-  [run_tags.md](run_tags.md).
+  I-109 did. Built after I-113 and I-114. The plan: [errand_names.md](errand_names.md).
 
 ## M6 — The package restructure
 

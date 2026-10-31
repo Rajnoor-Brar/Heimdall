@@ -80,7 +80,7 @@ at each commit. The runs-together, report and tag code of I-108–I-113 is renam
 | E1 the dialect: `[errand]`, `[errand].assignment`, dotted names, the schema, v3, the walkers, `[run]` refused; the migration (`heimdall migrate --names`: configs, snapshots, provenance, documents), the fixture's configs and the starter by it; docs 00–06's examples | V225 | 8293eeb | done |
 | E2 plot documents: `[source].assignment`, `[source].errand`, read and written; a report title's `{assignment}`, `{errand}`; the old ones refused | V226 | 9e9658f | done |
 | E3 the code identifiers (D2): `Errand`, `.assignment` (Errand, Doc, RunFolders, Source), `errand` for every local, parameter and attribute holding one, `assignment` for an assignment's name, by scope; `Doc.name` kept | V227 | 32eee41 | done |
-| E4 the words: docs 00–06, README, docs/framework/, help, messages, hints, schema notes, the template, tool folders' docs; `--project` → `--assignment` (the old flag refused, naming it), `heimdall cd ASSIGNMENT`, the template's `{{A}}`/`{{a}}` | V228 | (this commit) | done |
+| E4 the words: docs 00–06, README, docs/framework/, help, messages, hints, schema notes, the template, tool folders' docs; `--project` → `--assignment` (the old flag refused, naming it), `heimdall cd ASSIGNMENT`, the template's `{{A}}`/`{{a}}` | V228 | ccd1fdf | done |
 
 ## 6. Log
 

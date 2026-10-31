@@ -1549,7 +1549,7 @@ pages = ["d0[3-4]-*"]
 <!-- generated: keys report -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `title` | a string |  | the report's title, on its front page (default: its one source's address, else what its sources' addresses share). `{project}`, `{run}`, `{configuration}` and `{title}` (a configuration's title, else its name) in the title or subtitle are filled in from its sources' plot documents (several values joined by commas), so one template titles each folder's report. |
+| `title` | a string |  | the report's title, on its front page (default: its one source's address, else what its sources' addresses share). `{assignment}`, `{errand}`, `{configuration}` and `{title}` (a configuration's title, else its name) in the title or subtitle are filled in from its sources' plot documents (several values joined by commas), so one template titles each folder's report. |
 | `subtitle` | a string |  | a line under the title: the date, who it is for |
 | `from` | a list (a string each) |  | its sources: result folders holding a plot.toml, as <P>/<run>/<cfg>, <P>/<run> (each of its configurations, then its own when drawn), a path, or a glob; the command line's replace them |
 | `output` | a string |  | where it is built: a folder under reports/ (eic/weekly), or a path (./…, /…); default: where results/ has its sources (reports/<P>/<run>/<cfg>/, reports/<P>/<run>/, …); -o replaces it. Not in a run TOML |

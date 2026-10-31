@@ -54,7 +54,7 @@ BACKENDS = ("root", "mpl", "yoda")
 #: The default report's headline: the top five and each statistic's ranking (the area has none).
 HEADLINE = ["top5", *(f"{key}:ranking" for key in STATISTICS if key != "area")]
 #: What a title or subtitle may name, filled in from its sources' plot documents.
-PLACEHOLDERS = ("project", "run", "configuration", "title")
+PLACEHOLDERS = ("assignment", "errand", "configuration", "title")
 #: Panels on an A4 page of a grid, for the listing's page count (the build lays them out).
 PER_PAGE = 6
 GLOB = re.compile(r"[*?\[]")
@@ -285,7 +285,7 @@ def load_recipe(path: Path) -> dict:
 
 
 def filled(text: str, facts: list[dict]) -> str:
-    """A title with {project}, {run}, {configuration} and {title} filled in from its sources' [source] tables
+    """A title with {assignment}, {errand}, {configuration} and {title} filled in from its sources' [source] tables
     (several values joined by commas; a title: the configuration's, else its name)."""
     for word in PLACEHOLDERS:
         mark = "{" + word + "}"

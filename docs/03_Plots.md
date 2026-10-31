@@ -126,7 +126,10 @@ run TOML, snapshot, tool folder or stack beyond Paint. A run writes it before it
 be copied anywhere and drawn there (`heimdall plot <folder>`). It holds two kinds of table:
 
 - **What the run knows**, rewritten by every run of the folder:
-  - `[source]`: the config, the configuration, the folder, its tag (when it has one: from its record, 05 §1.1), Heimdall's revision, when;
+  - `[source]`: the config, the configuration, its `errand` and `assignment` (the errand file's name and its
+    folder of `configs/`), the folder, its tag (when it has one: from its record, 05 §1.1), Heimdall's revision,
+    when. A document that names them `run` and `project` (written before) is refused; `heimdall migrate --names`
+    rewrites it (05 §1.6);
   - `[axes]`: the sweep's axes, `plot_points`, `combine` and the fixed values;
   - `[quantities.<q>]`: its points in its order, as a run TOML writes them, `points = [{ tag, value, label }]`
     (with `style` on a point that has one);
@@ -1103,7 +1106,7 @@ layout = "sources"
   passed over, and the section left out when none has it.
 - **`plot = { … }`:** `[plot]` keys over each source's own, for a `pages`, `stats` or `bars` section: its pages
   and numbers are then drawn for the report (§11.3).
-- **`{project}`, `{run}`, `{configuration}`, `{title}`** in a title or subtitle are filled in from the sources.
+- **`{assignment}`, `{errand}`, `{configuration}`, `{title}`** in a title or subtitle are filled in from the sources.
 
 The sources on the command line replace `[report].from`, so one recipe serves many runs; a section's own
 `from` stays. **What is refused:** a set a source has neither drawn nor can draw (naming the sets it has), a

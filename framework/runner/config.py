@@ -1405,6 +1405,10 @@ PARTS = ("ranking", "crossed", "table")
 NOT_IN_A_RUN = ("from", "output")
 
 
+#: A report title's placeholders before I-112's names → today's ([source]'s keys).
+OLD_PLACEHOLDERS = {"project": "assignment", "run": "errand"}
+
+
 def check_report(table, where: str, run_toml: bool = False) -> None:
     """[report], a report's recipe (I-108, V209): every key against schema/report.toml, each [[report.section]]
     titled and showing one item, its stats keys known and its plot keys checked as [plot]'s. A run TOML's
@@ -1414,6 +1418,10 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
     schema.check(table, "report", where)
     if "accent" in table and not re.fullmatch(r"#[0-9A-Fa-f]{6}", table["accent"]):
         raise HeimdallError(f"accent is a colour as #rrggbb, not {table['accent']!r}", where=f"{where}.accent", hint='accent = "#2a78d6"')
+    for key in ("title", "subtitle"):                                   # I-112's names
+        for old, new in OLD_PLACEHOLDERS.items():
+            if isinstance(table.get(key), str) and "{" + old + "}" in table[key]:
+                raise HeimdallError(f"{{{old}}} is now {{{new}}} (I-112's names)", where=f"{where}.{key}", hint=v3.NAMES_HINT)
     for key, most in (("size", 12), ("columns", 4)):
         if key in table and table[key] > most:
             raise HeimdallError(f"{key} is at most {most}, not {table[key]}", where=f"{where}.{key}")

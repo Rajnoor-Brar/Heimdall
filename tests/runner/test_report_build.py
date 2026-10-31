@@ -21,8 +21,8 @@ pytestmark = pytest.mark.skipif(not TOOLS, reason="pdflatex and poppler make and
 DOCUMENT = """[source]
 config = "P/study"
 configuration = "{label}"
-run = "validation"
-project = "P"
+errand = "validation"
+assignment = "P"
 heimdall = "0123456789abcdef"
 written = "2026-10-26T10:00:00+00:00"
 

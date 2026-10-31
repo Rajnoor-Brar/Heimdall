@@ -77,7 +77,8 @@ at each commit. The runs-together, report and tag code of I-108–I-113 is renam
 | Phase | V-row | Commit | State |
 |---|---|---|---|
 | E0 this plan, the inventory | — | | written |
-| E1 the dialect: `[errand]`, `[errand].assignment`, dotted names, the schema, v3, the walkers, `[run]` refused; the migration (`heimdall migrate --names`: configs, snapshots, provenance, documents), the fixture's configs and the starter by it; docs 00–06's examples | V225 | | done |
+| E1 the dialect: `[errand]`, `[errand].assignment`, dotted names, the schema, v3, the walkers, `[run]` refused; the migration (`heimdall migrate --names`: configs, snapshots, provenance, documents), the fixture's configs and the starter by it; docs 00–06's examples | V225 | 8293eeb | done |
+| E2 plot documents: `[source].assignment`, `[source].errand`, read and written; a report title's `{assignment}`, `{errand}`; the old ones refused | V226 | | done |
 
 ## 6. Log
 
@@ -92,3 +93,8 @@ at each commit. The runs-together, report and tag code of I-108–I-113 is renam
   machine.toml's `[run] keep`/`log` kept (the command's settings, not the errand file); `tests/reference/v2_configs/`
   read through `errand_text` by the tests that compare against it. Fast suite: the one known failure; slow: the
   five known. Next: E2 (V226).
+- 2026-11-01: E2 built (V226): `[source]` names `errand` and `assignment`, written by every writer of a document and
+  read by both loaders; an old document refused with the hint (`plotdoc.refuse_old_source`), its keys renamed by
+  the migration's `source_text`. A report title's `{project}`/`{run}` are `{assignment}`/`{errand}` (they are filled
+  from `[source]`), the old ones refused by `config.check_report`. `Doc.project`/`Doc.name` and `RunConfig.project`
+  keep their names for E3. Fast suite: the one known failure. Next: E3 (V227), the code identifiers (D2).

@@ -39,8 +39,8 @@ def a_run(where, folder: str, *, tag: str | None = None, generator: list[int] = 
             choice = {"pdf": p, **({"generator": g} if swept else {})}
             members[name] = {"index": len(members) + 1, "identity": f"{folder}-{name}", "complete": True, "events": events,
                              "yoda": f"points/{name}/out.yoda", "choice": choice, "values": {"generator": g, "pdf": p}}
-    document = {"source": {"config": "Demo/t", "configuration": configuration, "label": folder, "run": where.name,
-                           "project": "Demo", "folder": f"Demo/{where.name}/{folder}", **({"tag": tag} if tag else {})},
+    document = {"source": {"config": "Demo/t", "configuration": configuration, "label": folder, "errand": where.name,
+                           "assignment": "Demo", "folder": f"Demo/{where.name}/{folder}", **({"tag": tag} if tag else {})},
                 "axes": {"vary": [["generator"], ["pdf"]] if swept else [["pdf"]], "plot_points": [], "combine": [],
                          "fixed": {} if swept else {"generator": f"#{generator[0] + 1}"}},
                 "quantities": {"generator": {"points": GENERATOR}, "pdf": {"points": PDF}}, "members": members}
@@ -50,7 +50,7 @@ def a_run(where, folder: str, *, tag: str | None = None, generator: list[int] = 
 
 def together(where, **wanted):
     """<where>/plot.toml, the runs together, its [from] `wanted` (none: as a run writes it), loaded."""
-    document = {"source": {"config": "Demo/t", "run": where.name, "project": "Demo", "level": "name"},
+    document = {"source": {"config": "Demo/t", "errand": where.name, "assignment": "Demo", "level": "name"},
                 "from": {"runs": ["*"], "prefer": "last", **wanted}, "plot": {}}
     (where / plotdoc.FILE).write_text(plotdoc.ACROSS_HEADER + plotdoc.dumps(document), encoding="utf-8")
     return plotdoc.load(where / plotdoc.FILE)

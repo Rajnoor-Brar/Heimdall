@@ -11,7 +11,7 @@ type = "str"
 doc  = "the report's title, on its front page (default: its one source's address, else what its sources' addresses share)"
 notes = """\
   the report's title, on its front page (default: its one source's address, else what its sources' addresses \
-  share). `{project}`, `{run}`, `{configuration}` and `{title}` (a configuration's title, else its name) in the title or \
+  share). `{assignment}`, `{errand}`, `{configuration}` and `{title}` (a configuration's title, else its name) in the title or \
   subtitle are filled in from its sources' plot documents (several values joined by commas), so one template \
   titles each folder's report."""
 

@@ -22,8 +22,8 @@ config = "P/study"
 configuration = "{label}"
 label = "{label}"
 title = "{label}"
-run = "validation"
-project = "P"
+errand = "validation"
+assignment = "P"
 folder = "P/validation/{folder}"
 serial = 1
 heimdall = "0123456789abcdef"
@@ -313,9 +313,28 @@ def test_reports_are_built_where_results_has_their_sources_unless_told(trees):
         report.planned(str(lifted), [])
 
 
+def test_a_document_or_title_in_the_names_before_i112_is_refused(trees):
+    """I-112: a plot document's [source].project and .run, and a title's {project} and {run}, are refused, each
+    naming heimdall migrate --names."""
+    from runner import plotdoc
+    document = trees / "results" / "P" / "validation" / "01_pdf" / "plot.toml"
+    text = document.read_text(encoding="utf-8")
+    assert 'errand = "validation"' in text and plotdoc.load(document)[0].name == "validation"
+    for old in ('run = "validation"\nassignment = "P"', 'errand = "validation"\nproject = "P"'):
+        document.write_text(text.replace('errand = "validation"\nassignment = "P"', old), encoding="utf-8")
+        with pytest.raises(HeimdallError, match=r"\[source\]\.(run|project) is now \[source\]\.(errand|assignment)") as caught:
+            plotdoc.load(document)
+        assert caught.value.hint == "heimdall migrate --names rewrites it"
+    document.write_text(text, encoding="utf-8")
+    recipe(trees, "old", '[report]\ntitle = "{project}: {run}"\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\n')
+    with pytest.raises(HeimdallError, match=r"\{project\} is now \{assignment\}") as caught:
+        report.planned("P/old.toml", ["P/validation/01_pdf"])
+    assert "migrate --names" in caught.value.hint
+
+
 def test_a_folder_reads_its_own_report_toml(trees):
     where = trees / "results" / "P" / "validation" / "01_pdf"
-    (where / report.RECIPE).write_text('[report]\ntitle = "{run}: {title}"\n\n[[report.section]]\ntitle = "Spectra"\n'
+    (where / report.RECIPE).write_text('[report]\ntitle = "{errand}: {title}"\n\n[[report.section]]\ntitle = "Spectra"\n'
                                        'pages = ["d01-*"]\n', encoding="utf-8")
     plan = report.planned("P/validation/01_pdf", [])
     assert [s.title for s in plan.sections] == ["Spectra"] and plan.recipe == where / report.RECIPE
@@ -338,7 +357,7 @@ def study(trees):
                                       'output = "Demo/weekly"\n\n[[report.section]]\ntitle = "Standings"\nstats = ["top5"]\n',
                                       encoding="utf-8")
     text = (demo / "validation.toml").read_text(encoding="utf-8")
-    (demo / "study.toml").write_text(text + '\n[report]\ntemplate = "weekly"\ntitle = "{project} · {configuration}"\n\n'
+    (demo / "study.toml").write_text(text + '\n[report]\ntemplate = "weekly"\ntitle = "{assignment} · {configuration}"\n\n'
                                      '[[report.section]]\ntitle = "Mine"\npages = ["d01-*"]\n', encoding="utf-8")
     return demo
 
@@ -510,8 +529,8 @@ def test_the_default_report_begins_with_its_tools_and_tools_chooses_them(trees):
 GENERATORS = """[source]
 config = "P/study"
 configuration = "generator_pdf"
-run = "zeus"
-project = "P"
+errand = "zeus"
+assignment = "P"
 folder = "P/zeus/01_generator_pdf"
 
 [axes]

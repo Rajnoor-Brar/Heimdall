@@ -33,6 +33,7 @@ from .paths import cache_root, records_root, results_root
 from .plot import DEFAULT, Member, data_source, style_file, yoda_of
 from .sweep import Listed, Point
 from .tools import RunFolders
+from .v3 import NAMES_HINT
 
 FILE = "plot.toml"
 #: The tables a run rewrites, and those it writes once and keeps (the user's).
@@ -106,6 +107,19 @@ class Doc:
 
 def path_of(results: Path) -> Path:
     return results / FILE
+
+
+#: [source]'s keys before I-112's names → today's.
+OLD_SOURCE = {"project": "assignment", "run": "errand"}
+
+
+def refuse_old_source(source: dict, path: Path) -> None:
+    """A document written before I-112's names ([source].project, [source].run): refused, with the command that
+    rewrites it."""
+    for old, new in OLD_SOURCE.items():
+        if old in source:
+            raise HeimdallError(f"[source].{old} is now [source].{new} (I-112's names)", where=f"{path}: [source].{old}",
+                                hint=NAMES_HINT)
 
 
 # ── writing ─────────────────────────────────────────────────────────────────────────────────────
@@ -351,7 +365,7 @@ def from_manifest(record: Path, run, configuration) -> Path:
     made = {"source": {"config": data.get("config", "") or _config_name(data.get("config_file", "")),
                        "configuration": data.get("configuration", configuration.key),
                        "label": head[1] if len(head) == 2 and head[0].isdigit() else record.name, "title": "",
-                       "run": data.get("run", run.name), "project": data.get("project", run.project), "folder": str(rel),
+                       "errand": data.get("run", run.name), "assignment": data.get("project", run.project), "folder": str(rel),
                        **({"serial": int(head[0])} if head[0].isdigit() else {}),
                        **({"tag": tag} if (tag := run_tag(record)) else {}), "from": "points.json",
                        "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
@@ -418,7 +432,7 @@ def known(run, configuration, members: list) -> dict:
         "source": {"config": config_name(run) if hasattr(run, "imported") else run.source.get("config", ""),
                    "configuration": configuration.key, "label": configuration.label,
                    "title": getattr(configuration, "title", "") or "",
-                   "run": run.name, "project": run.project,
+                   "errand": run.name, "assignment": run.project,
                    "folder": str(results.relative_to(results_root())) if results and results.is_relative_to(results_root()) else "",
                    **({"serial": configuration.serial} if configuration.serial is not None else {}),
                    **({"tag": tag} if tag else {}),
@@ -543,12 +557,13 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
         raise HeimdallError(f"the plot document has no [{missing[0]}]", where=str(path),
                        hint="a run writes it whole; heimdall migrate --plot-docs writes it again")
     source, axes = data["source"], data["axes"]
+    refuse_old_source(source, path)
     quantities = {name: _quantity_of(name, table) for name, table in data.get("quantities", {}).items()}
     configuration = DocConfiguration(source.get("configuration", ""), source.get("label", source.get("configuration", "")),
                                      _sweeps_of(axes.get("vary", [])), list(axes.get("plot_points", [])),
                                      list(axes.get("combine", [])), dict(axes.get("fixed", {})), source.get("serial"),
                                      source.get("title", ""))
-    doc = Doc(path, source.get("project", ""), source.get("run", ""), dict(data.get("plot", {})), dict(data.get("stats", {})),
+    doc = Doc(path, source.get("assignment", ""), source.get("errand", ""), dict(data.get("plot", {})), dict(data.get("stats", {})),
               quantities, configuration, dict(source))
     own = _folders(path.parent, doc.project)
     members = []
@@ -664,7 +679,7 @@ def write_across(run) -> tuple[Path | None, bool]:
         return target, False
     from .record import config_name
     plot, stats = across_chosen(run)
-    made = {"source": {"config": config_name(run), "run": run.name, "project": run.project, "level": "name",
+    made = {"source": {"config": config_name(run), "errand": run.name, "assignment": run.project, "level": "name",
                        "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
             "from": from_of(run), "plot": plot}
     if stats:
@@ -686,6 +701,7 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
     import fnmatch
     from dataclasses import replace
     source, wanted = dict(data.get("source", {})), dict(data.get("from", {}))
+    refuse_old_source(source, path)
     schema.check(wanted, FROM, f"{path}: [from]")             # as [plot.across_from] is (V224)
     globs, prefer = list(wanted.get("runs", FROM_DEFAULT["runs"])), wanted.get("prefer", FROM_DEFAULT["prefer"])
     ignored = list(dict.fromkeys(wanted.get("ignore", [])))
@@ -733,8 +749,8 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
             blank += "_"
         quantities["@tag"] = Quantity("@tag", tagged, tags=[t or blank for t in tagged],
                                       labels=[t or blank for t in tagged])
-    project = source.get("project") or loaded[0][1].project
-    name = source.get("run") or loaded[0][1].name
+    project = source.get("assignment") or loaded[0][1].project
+    name = source.get("errand") or loaded[0][1].name
     rel = folder.relative_to(results_root()) if folder.is_relative_to(results_root()) else Path(project) / name
     folders = into or RunFolders(project, records_root() / rel, folder,
                                  cache_root() / project / "plots" / Path(*rel.parts[1:]) / "_across")

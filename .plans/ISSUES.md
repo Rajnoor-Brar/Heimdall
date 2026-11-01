@@ -73,7 +73,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | --- | --- | --- | --- |
 | **M0** | **Task L's follow-ups** | | |
 | I-07 | Task L: the checks by hand | P1 | open (needs you) |
-| I-09 | The plot stage fails for `combine` and for listed points (`KeyError`) | P0 | open |
 | **M1** | **The safety net** | | |
 | I-10 | A shadow machine root for the tests | P1 | open |
 | I-11 | An identity golden file | P1 | held (a new frozen file) |
@@ -154,7 +153,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-103 | Physics set-ups to settle | P3 | decision |
 | I-104 | A tool's private dependencies (BeAGLE) | P3 | idea (set aside) |
 | I-105 | Smaller leftovers | P3 | idea |
-| I-111 | A report's context first: what was run, how the numbers are made | P2 | in progress (asked 2026-10-27) |
 
 ---
 
@@ -167,19 +165,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   - `heimdall runs`, then `heimdall watch` (`q`), then `heimdall runs` again for the verdict;
   - the same from an ssh session.
 - The worker's log path and the docs of where a detached worker still ends are done (V191).
-
-### I-09 The plot stage fails for `combine` and for listed points (`KeyError`)
-**P0 · bug · open (found by the slow suite, 2026-10-25)**
-- **Problem:** two slow tests fail in the plot stage after every point ran:
-  - `test_gates_combine.py::test_each_pdf_is_its_seeds_merged_and_drawn_as_one_curve` (`KeyError: 'pdf'`);
-  - `test_listed_points.py::test_listed_points_run_and_draw_a_page_per_pdf` (`KeyError: 'pt0ref'`).
-- **Where:** `plot.check_figures` → `sweep.points(run, configuration)` → `sweep.kept`, `run.quantities[name]`.
-  The `run` there is the plot document (`plotdoc.load`), whose quantities lack the configuration's swept one.
-- **Since:** already failing at `fde73d0` (was `4477c17`; V163–V171, plot documents), and at Phase 1's base `5c271a0` (was `29b27ae`); not
-  caused by Phase 1. A configuration with `combine` or listed points draws nothing.
-- **Done when:** both tests pass, and a drawing of such a configuration from its record works.
-- `--plan`'s page count (V195) meets the same `KeyError` on listed points (`eic/baseline`'s
-  `generator_polarisation`) and falls back to `plot_points`' count.
 
 ## M1 — The safety net
 
@@ -364,11 +349,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 **P3 · idea (audit 2 H15)**
 - Heat maps are Paint's only (no mpl). A scan's x must be numeric (no PDF-set scans). A sheet has no
   shared y title or legend.
-
-### I-111 A report's context first: what was run, how the numbers are made
-**P2 · feature · in progress (asked 2026-10-27)**
-- The tools' configuration and a paragraph per statistic (its formula, its meaning) before the results; the
-  statistics parts without the repeated definitions. The plan: [report_context.md](report_context.md).
 
 ### I-50 `runner/` as subpackages by layer
 **P2 · refactor · decision (D8)**

@@ -155,7 +155,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-104 | A tool's private dependencies (BeAGLE) | P3 | idea (set aside) |
 | I-105 | Smaller leftovers | P3 | idea |
 | I-111 | A report's context first: what was run, how the numbers are made | P2 | in progress (asked 2026-10-27) |
-| I-112 | Names: <Assignment>/<Errand>/<Run>, everything migrated | P1 | open (asked 2026-10-31) |
 
 ---
 
@@ -370,16 +369,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 **P2 · feature · in progress (asked 2026-10-27)**
 - The tools' configuration and a paragraph per statistic (its formula, its meaning) before the results; the
   statistics parts without the repeated definitions. The plan: [report_context.md](report_context.md).
-
-### I-112 Names: `<Assignment>/<Errand>/<Run>`
-**P1 · refactor · open (asked 2026-10-31)**
-- The user: "Make sure this terminology convention is followed for names : <Assignment>/<Errand>/<Run>". Decided
-  (2026-10-31): everything, migrated: a project is an Assignment, a run TOML an errand file (`[errand]`, its
-  configurations `[errand.cfgs.<cfg>]`; `heimdall run` stays the verb), a numbered configuration folder a Run;
-  docs, help, messages, keys and code identifiers; `heimdall migrate --names` rewrites Brookhaven and High-Energy as
-  I-109 did. Built after I-113 and I-114. The plan: [errand_names.md](errand_names.md).
-
-## M6 — The package restructure
 
 ### I-50 `runner/` as subpackages by layer
 **P2 · refactor · decision (D8)**

@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 import support
+from support import beside
 
 from support import apps, heimdall
 
@@ -28,7 +29,7 @@ pytestmark = [pytest.mark.slow,
 
 def write_config(where: Path, *, events: int, extra_base: str = "") -> str:
     base = '"ep.cmnd"' if not extra_base else f'["ep.cmnd", "{extra_base}"]'
-    (where / "f.toml").write_text(f"""
+    (beside(where) / "f.toml").write_text(f"""
 [errand]
 name = "fail"
 assignment = "Demo"

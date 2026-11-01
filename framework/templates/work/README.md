@@ -19,7 +19,7 @@ elsewhere: `heimdall where` says which one this shell uses. Its manual is `$HEIM
 ```bash
 heimdall ls                          # every config and its configurations
 heimdall build                       # compile modules/
-heimdall run <A>/<E>      # plan and run (add --plan to look first)
+heimdall run <A>/<E>                 # plan and run (add --plan to look first)
 ```
 
 Git keeps no empty folders: after a fresh clone, `heimdall setup .` makes the missing ones again, and

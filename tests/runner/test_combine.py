@@ -10,7 +10,7 @@ import pytest
 from runner import config, post, quantities, record, sweep, tools
 from runner.errors import HeimdallError
 
-from helpers import raw
+from helpers import parse, raw
 
 REPLICA = {"target": "pythia/seed", "values": [1, 2, 3], "tags": ["s1", "s2", "s3"]}
 
@@ -21,7 +21,7 @@ def seeded(**changes):
 
 
 def build(data, scratch):
-    errand = config.parse(data, scratch / "t.toml")
+    errand = parse(data, scratch)
     conf = errand.configuration(None)
     master = quantities.load_master(errand.assignment, errand.master_toml)
     plans = []

@@ -37,7 +37,7 @@ order = ["config", "errand", "prelim", "static", "tools", "quantities", "plot", 
 [config.master]
 path = "master"
 type = "str"
-doc  = "a assignment master overlaid on the tool folders' quantities.toml (configs/<A>/…)"
+doc  = "an assignment master overlaid on the tool folders' quantities.toml (beside this file)"
 notes = """\
   overlays the tool folders' mappings key by key (`[quantities.<tool>.compatible_quantities]`): an \
   entry for a (tool, quantity) pair replaces the framework's. The file must exist."""
@@ -47,8 +47,8 @@ type  = "str|list"
 items = "str|table"
 doc   = "errand files whose tables this one starts from, in order; this file wins (V56, V93, V94)"
 notes = """\
-  errand files this one starts from, in order, named as `heimdall run` names a config: `name` is this \
-  assignment's (`configs/<A>/name.toml`), `<A>/<E>` another assignment's, `./…` from the \
+  errand files this one starts from, in order, named as `heimdall run` names a config: `name` is a file \
+  beside this one (`name.toml`), `<A>/<E>` another assignment's, `./…` from the \
   work dir; `.toml` optional. **This file wins** (V56): a quantity, tool table or \
   configuration of the file replaces the imported one whole; `[plot]`, `[static]`, `[prelim]` and \
   `[errand]`'s own keys merge key by key, tables recursively. Imports nest (V94): an imported file's own \
@@ -554,9 +554,9 @@ notes = """\
 [tool.baseconfig]
 path = "baseconfig"
 type = "str|list"
-doc  = "base card(s), configs/<A>/…"
+doc  = "base card(s), beside the file naming them"
 notes = """\
-  native base card(s), read in order (root `configs/<A>/`). Tools with a card only."""
+  native base card(s), read in order (a bare name beside the file naming it). Tools with a card only."""
 
 [tool.input]
 type = "str|list"
@@ -597,9 +597,9 @@ notes = """\
 [tool.filters]
 path = "filters"
 type = "str"
-doc  = "a filters.toml of your own (configs/<A>/…), in place of its folder's"
+doc  = "a filters.toml of your own (beside the file naming it), in place of its folder's"
 notes = """\
-  your own rules in place of the folder's, root `configs/<A>/`; implies `status = \"filters\"` \
+  your own rules in place of the folder's, a bare name beside the file naming it; implies `status = \"filters\"` \
   (V61)"""
 
 [tool.executable]
@@ -953,7 +953,7 @@ notes = """\
 path = "root_style"
 type       = "str"
 default_ok = true
-doc        = "a style file over base.toml (configs/<A>/…)"
+doc        = "a style file over base.toml (beside the errand file)"
 notes = """\
   a style file over base.toml (04 §12). Refused by the yoda backend alone."""
 

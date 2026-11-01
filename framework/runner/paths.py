@@ -499,6 +499,10 @@ def unportable(text: str) -> str:
 #: Keys whose root is the point's own directory: resolve() is always given it (`root=`).
 POINT_KEYS = ("prelim", "input", "output")
 
+#: Keys whose bare names are beside the file that names them (the errand file, an imported file): resolve() is
+#: given that file's folder (`folder=`); without one, configs/<A>/ as ROOTS says.
+BESIDE = ("master", "import", "baseconfig", "filters", "root_style")
+
 #: The convention root of each path-taking key, as a function of the assignment (04 §2).
 ROOTS = {
     "config":     lambda assignment: configs_root(),
@@ -512,12 +516,13 @@ ROOTS = {
 }
 
 
-def resolve(value: str, key: str, *, assignment: str = "", root: Path | None = None,
+def resolve(value: str, key: str, *, assignment: str = "", root: Path | None = None, folder: Path | None = None,
             where: str | None = None) -> Path:
     """The path a config value names, under the rules above.
 
     `root` overrides the convention root (the runner passes a point's directory for `[prelim]`
-    names and outputs); otherwise `key` picks it from ROOTS.
+    names and outputs); `folder`, the folder of the file naming it, is the root of a BESIDE key's bare
+    name; otherwise `key` picks it from ROOTS.
     """
     if not isinstance(value, str) or not value:
         raise HeimdallError(f"expected a path, got {value!r}", where=where)
@@ -533,7 +538,7 @@ def resolve(value: str, key: str, *, assignment: str = "", root: Path | None = N
             raise HeimdallError(f"'{key}' paths are under a point's directory, which was not given", where=where)
         if key not in ROOTS:
             raise HeimdallError(f"no convention root for key '{key}'", where=where)
-        root = ROOTS[key](assignment)
+        root = Path(folder) if folder is not None and key in BESIDE else ROOTS[key](assignment)
     return root / value
 
 

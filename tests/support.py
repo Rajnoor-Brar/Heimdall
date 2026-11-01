@@ -16,6 +16,17 @@ WORK = Path(os.environ.get("HEIMDALL_FORGE") or Path(os.environ.get("HEIMDALL_MA
 BUILD = WORK / "build"
 
 
+def beside(folder: Path) -> Path:
+    """The fixture's cards (configs/Demo/'s files that are no TOML) copied into `folder`, so an errand file written
+    there finds them (a bare name is beside the file naming it)."""
+    import shutil
+    from runner.paths import configs_root
+    for card in (configs_root() / "Demo").iterdir():
+        if card.is_file() and card.suffix != ".toml" and not (folder / card.name).exists():
+            shutil.copy(card, folder / card.name)
+    return folder
+
+
 def apps() -> Path:
     """Heimdall's compiled apps, for the loaded stack (`heimdall build --framework`)."""
     from runner.paths import apps_dir

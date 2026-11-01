@@ -376,7 +376,7 @@ class Planned:
 def build_plans(args, key: str | None) -> Planned:
     errand, configuration = configmod.for_configuration(configmod.load(args.config, sets=args.set), key)   # V179
     plot.validate(errand)                    # before anything is planned (V54): a [plot] typo costs no planning
-    master = load_master(errand.assignment, errand.master_toml)
+    master = load_master(errand.assignment, errand.master_toml, errand.folder)
     points = sweep.points(errand, configuration)
     chosen = {p.index for p in sweep.select_points(errand, configuration, points, args.points)}
     if configuration.serial_auto:
@@ -1661,7 +1661,7 @@ def _has_configurations(name: str) -> bool:
         data = tomllib.loads(configmod.config_file(name).read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError, HeimdallError):
         return True
-    return bool(data.get("cfgs") or data.get("errand", {}).get("cfgs"))
+    return bool(data.get("cfgs") or (data.get("errand") or data.get("run") or {}).get("cfgs"))   # an old file: its refusal said
 
 
 def cmd_runs(args) -> int:

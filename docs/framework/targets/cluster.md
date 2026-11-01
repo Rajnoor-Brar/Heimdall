@@ -38,7 +38,7 @@ P0 S1 records `apptainer` in `[machine]`. With it, propose A at P0's end.
   of points and a finish job, each an ordinary `heimdall run --stages …`. The machine's account,
   partition and `module load` lines go in the machine root's `machine.toml` `[cluster]` (or a work
   dir's `heimdall.toml`); `time` (required),
-  `memory` and `max_running` in the run TOML's. Way A: `[cluster] image = "<name>"` (and `setup =
+  `memory` and `max_running` in the errand file's. Way A: `[cluster] image = "<name>"` (and `setup =
   ["module load apptainer"]`) runs every job in the image, the work dir bound at its own path.
 - **Another batch system** (HTCondor, PBS): not yet. Submit a job script that runs `heimdall run` inside
   one allocation, and size `threads` and `parallelism` to it (`--set errand.threads=$SLURM_CPUS_PER_TASK`).

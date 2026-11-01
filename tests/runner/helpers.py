@@ -35,8 +35,14 @@ def raw(**changes) -> dict:
     return data
 
 
+from support import beside  # noqa: E402,F401  (the fixture's cards beside an errand file)
+
+
 def parse(data: dict, scratch: Path) -> config.Errand:
-    return config.parse(data, scratch / "t.toml")
+    """`data` as the errand file configs/Demo/t.toml of the scratch work dir, beside the fixture's cards (a bare
+    name is beside the file naming it); nothing is written."""
+    from runner.paths import configs_root
+    return config.parse(data, configs_root() / "Demo" / "t.toml")
 
 
 def plan(data: dict, scratch: Path, configuration: str | None = None, point: int = 0):

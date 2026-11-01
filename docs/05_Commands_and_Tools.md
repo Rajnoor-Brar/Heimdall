@@ -876,7 +876,7 @@ Paint (`src/Apps/Paint/`) is driven by the plot stage, and is never named in `to
 
 ```toml
 [tools.pythia]
-card   = "ep.cmnd"              # configs/<A>/ep.cmnd
+card   = "ep.cmnd"              # ep.cmnd beside this file
 output = "events.hepmc"         # a FIFO, a file or a product, by its reader (04 §6); an array fans out
 ```
 

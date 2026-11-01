@@ -48,10 +48,9 @@ The address of a Run is `<A>/<E>/<R>` everywhere a command takes or prints one.
   holding one is `errand`; `Doc.project`/`Doc.name` → `assignment`/`errand`; `RunFolders` keeps its name (it is
   a Run's folders) with `project` → `assignment`; `paths`' helpers taking `(project, name)` take
   `(assignment, errand)`. The verb `heimdall run`, `run_one`, `cmd_run` stay (they run Runs).
-- **D3 Jobs** (proposed; built only when the user says so, E5). An invocation of `heimdall run` is a job, the word `heimdall stop` and `heimdall runs`' help
-  already use: `heimdall runs` → `heimdall jobs` (`heimdall runs` stops, naming it, as V74 did for `plot FILE`);
-  the registry `$HEIMDALL_MACHINE/runs/` → `jobs/`, `HEIMDALL_RUNS` → `HEIMDALL_JOBS`, `runs.py` → `jobs.py`.
-  The registry moves only when no job is live (`heimdall migrate --names` refuses otherwise, naming them).
+- **D3 Dropped** (the user, 2026-11-01: "Let heimdall run and runs be, since they executes/list runs of an errand"):
+  `heimdall run` executes an errand's Runs and `heimdall runs` lists them; the registry, `runs.py` and
+  `HEIMDALL_RUNS` keep their names. An invocation is still called a job where prose needs the word.
 - **D4 Kept as they are:** `--across` ("an Errand's Runs together"), `[from].runs` and `@run` (globs and names of
   Run folders), `run.jsonl` (a Run's own log), `sweep_runs`, `heimdall run`, a record (`records/<A>/<E>/<R>/`).
   History (07's rows, done plans, `docs/audit_*`) is never rewritten.
@@ -66,8 +65,8 @@ The address of a Run is `<A>/<E>/<R>` everywhere a command takes or prints one.
 | E2 | plot documents and records: `[source].assignment`/`errand`, read and written; old ones refused with the hint | V226 | straight on |
 | E3 | code identifiers (D2), mechanical, ranks unchanged; the fixtures' configs rewritten (E4's migration, written first) with their tests | V227 | straight on |
 | E4 | `heimdall migrate --names` (configs, snapshots, documents); docs 00–06, help and messages swept to the vocabulary; the fast and slow suites | V228 | **pause**: before any work dir is touched, and for D3 (it renames a command the user uses daily) |
-| E5 | jobs (D3), when the user says so: `heimdall jobs`, `jobs.py`, `HEIMDALL_JOBS`, the registry's folder | V229 | straight on |
-| E6 | Brookhaven and High-Energy migrated (`--apply`), left uncommitted for the user; the machine's registry moved (D3); main fast-forwarded | — | only when no job is live |
+| E5 | dropped (D3) | — | — |
+| E6 | Brookhaven and High-Energy migrated (`--apply`), left uncommitted for the user; main fast-forwarded | — | only when no job is live |
 
 Each phase: built, its tests run light, committed by named paths with its V-row; this file's map and log written
 at each commit. The runs-together, report and tag code of I-108–I-113 is renamed with the rest.
@@ -118,3 +117,7 @@ at each commit. The runs-together, report and tag code of I-108–I-113 is renam
   `<run>/<cfg>` placeholders `<E>/<R>`. Kept: the migration's own rules and refusals, `points.json`'s and
   `provenance.json`'s `run`/`project` keys (data), heimdall.toml's `[run]` (the command's settings), D3's names.
   **Pause** (the plan's): before E5 (D3, the user's yes) and E6 (the work dirs, when no job is live).
+- 2026-11-01: D3 dropped by the user (`heimdall run`/`runs` stay: they execute and list an errand's Runs); E5 with it.
+- 2026-11-01: the read-only review of E1–E4: the four phases right, Brookhaven's configs, snapshots and documents
+  rewritten right in memory; nine edge-case defects of the migration fixed (V229, with the user's "bare names
+  beside the file" change). E6 waits for the last Brookhaven job (pid 308787, 55/56, the user: let it finish).

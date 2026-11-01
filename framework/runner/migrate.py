@@ -1016,7 +1016,7 @@ def plan(names: list[str], v3: bool = False) -> dict[Path, tuple[str, str]]:
             folder = tools.folders().get(tool.tool)
             for base in tool.baseconfig if folder is not None else ():
                 try:
-                    path = resolve(base, "baseconfig", assignment=errand.assignment, where=f"[tools.{tool.tag}].baseconfig")
+                    path = resolve(base, "baseconfig", assignment=errand.assignment, folder=errand.folder, where=f"[tools.{tool.tag}].baseconfig")
                 except HeimdallError:
                     continue
                 if path.is_file():
@@ -1135,12 +1135,19 @@ _OLD_TABLE = re.compile(r"\[run(?=[.\]])")
 _KEY_PAD = re.compile(r"^(\s*)([A-Za-z_]+)(\s*)(=.*)$", re.S)
 #: Dotted names on command lines and in prose, any file: `--set run.x=`, `heimdall explain run.x`.
 SET_RULES = [(re.compile(a), b) for a, b in (
+    (r"""(--set(?:=|\s+)["']?)run\.project\b""", r"\1errand.assignment"),
+    (r"""(\bexplain\s+["']?)run\.project\b""", r"\1errand.assignment"),
     (r"""(--set(?:=|\s+)["']?)run\.""", r"\1errand."),
     (r"""(\bexplain\s+["']?)run\.""", r"\1errand."),
     (r"""(\bexplain\s+["']?)\[run\]""", r"\1[errand]"),
 )]
 #: A dotted name in an import's `only` or `drop`: `"run.cfgs.x"` → `"errand.cfgs.x"`, `"run"` → `"errand"`.
 _DOTTED_NAME = re.compile(r"""(["'])run(?=[."'])""")
+_DOTTED_PROJECT = re.compile(r"""(["'])errand\.project(?=["'])""")
+#: A root key `run.x = …` however spelt (`run . x`, `"run".x`, `run."pt-50".x`): (indent, the rest from its dot).
+_ROOT_RUN = re.compile(r"""^(\s*)(?:run|"run"|'run')\s*(\..*=.*)$""")
+#: `config.import = …` (`only`, `drop`; `file.` in a v3 file) at the root: (indent, its key and `=`, the key, the value).
+_ROOT_LIST = re.compile(r"^(\s*)((?:config|file)\.(only|drop|import)\s*=\s*)(.*)$")
 #: A report title's placeholders ([source]'s keys).
 PLACEHOLDER_RULES = ((re.compile(r"\{project\}"), "{assignment}"), (re.compile(r"\{run\}"), "{errand}"))
 
@@ -1160,22 +1167,33 @@ def _renamed_key(line: str, new: str) -> str:
     return f"{match[1]}{new}{' ' * max(1, pad) if match[3] else ''}{match[4]}"
 
 
-def _no_strings(text: str) -> str:
-    return re.sub(r'"[^"]*"|\'[^\']*\'', "", text)
-
-
-def _depth(text: str) -> int:
-    """How many brackets a line leaves open (its strings and comment aside)."""
-    bare = _no_strings(text).split("#", 1)[0]
-    return bare.count("[") - bare.count("]")
+def _comment_of(line: str) -> tuple[str, str]:
+    """A TOML line as its code and its comment (from an unquoted `#`; the whole line when it is one)."""
+    quote, i = "", 0
+    while i < len(line):
+        c = line[i]
+        if quote:
+            if c == "\\" and quote == '"':
+                i += 2
+                continue
+            if c == quote:
+                quote = ""
+        elif c in "\"'":
+            quote = c
+        elif c == "#":
+            return line[:i], line[i:]
+        i += 1
+    return line, ""
 
 
 def _only_names(text: str, key: str) -> str:
     """Dotted names in today's: a drop's or only's whole value; an import's only its `only = [ … ]` (its `from` is
     a file's name, left as it is)."""
+    def renamed(names: str) -> str:
+        return _DOTTED_PROJECT.sub(r"\1errand.assignment", _DOTTED_NAME.sub(r"\1errand", names))
     if key != "import":
-        return _DOTTED_NAME.sub(r"\1errand", text)
-    return re.sub(r"(\bonly\s*=\s*\[)([^\]]*)", lambda m: m[1] + _DOTTED_NAME.sub(r"\1errand", m[2]), text)
+        return renamed(text)
+    return re.sub(r"(\bonly\s*=\s*\[)([^\]]*)", lambda m: m[1] + renamed(m[2]), text)
 
 
 def errand_text(text: str) -> str:
@@ -1186,6 +1204,7 @@ def errand_text(text: str) -> str:
     out: list[str] = []
     table = ""
     depth, listing, multi = 0, "", None    # a value spread over lines: the brackets it leaves open, its key; a """ string
+    inside_only = False
     for line in text.splitlines(keepends=True):
         bare = line.rstrip("\n")
         end = line[len(bare):]
@@ -1195,7 +1214,13 @@ def errand_text(text: str) -> str:
         if multi:
             multi = None if line.count(multi) % 2 else multi
         elif depth > 0:
-            line = _only_names(line, listing) if listing else line
+            if listing == "import" and inside_only:                       # an only = [ … ] over lines
+                line = _only_names(line, "only")
+            elif listing:
+                line = _only_names(line, listing)
+            if listing == "import":
+                opened = re.search(r"\bonly\s*=\s*\[[^\]]*$", line.split("#", 1)[0])
+                inside_only = bool(opened) or (inside_only and "]" not in line.split("#", 1)[0])
             depth = max(0, depth + _depth(line))
             listing = listing if depth else ""
         elif comment:
@@ -1203,8 +1228,11 @@ def errand_text(text: str) -> str:
         elif _TABLE.match(line):
             line = _header(line)
             table = _TABLE.match(line)[1].strip()
-        elif (dotted := _DOTTED.match(line)) and table == "" and dotted[2] == "run":      # run.x = … at the root
-            rest = dotted[3]
+        elif table == "" and (dotted := _ROOT_LIST.match(line)):                        # config.import = … at the root
+            line, value, listing = dotted[1] + dotted[2] + _only_names(dotted[4], dotted[3]), dotted[4], dotted[3]
+            inside_only = bool(re.search(r"\bonly\s*=\s*\[[^\]]*$", dotted[4].split("#", 1)[0]))
+        elif table == "" and (dotted := _ROOT_RUN.match(line)):                         # run.x = … at the root
+            rest = dotted[2]
             rest = ".assignment" + rest[len(".project"):] if re.match(r"\.project\s*=", rest) else rest
             line, value = f"{dotted[1]}errand{rest}", rest.split("=", 1)[1]
         elif (key := _KEY.match(line)):
@@ -1217,6 +1245,10 @@ def errand_text(text: str) -> str:
             elif table in ("config", "file") and name in ("only", "drop", "import"):
                 line = key[1] + key[2] + key[3] + _only_names(value, name)
                 listing = name
+                inside_only = name == "import" and bool(re.search(r"\bonly\s*=\s*\[[^\]]*$", value.split("#", 1)[0]))
+            elif table in ("config.import", "file.import") and name == "only":             # [[config.import]] only = …
+                line = key[1] + key[2] + key[3] + _only_names(value, name)
+                listing = name
             elif table.startswith("report") and name in ("title", "subtitle"):
                 for pattern, repl in PLACEHOLDER_RULES:
                     line = pattern.sub(repl, line)
@@ -1224,10 +1256,14 @@ def errand_text(text: str) -> str:
             multi = next((q for q in ('"""', "'''") if value.count(q) % 2), None)
             depth = 0 if multi else max(0, _depth(value))
             listing = listing if depth else ""
-        line = _OLD_TABLE.sub("[errand", line).replace("[errand].project", "[errand].assignment")
-        line = re.sub(r"\b([Aa]) (`?)\[errand", r"\1n \2[errand", line) if comment else line    # a comment's "a [errand]"
-        for pattern, repl in SET_RULES:
-            line = pattern.sub(repl, line)
+        code, note = _comment_of(line)          # the prose rules touch a comment only, never a value (it may be hashed)
+        if note:
+            had = note
+            note = _OLD_TABLE.sub("[errand", note).replace("[errand].project", "[errand].assignment")
+            note = re.sub(r"\b([Aa]) (`?)\[errand", r"\1n \2[errand", note) if note != had else note   # "a [run]" → "an [errand]"
+            for pattern, repl in SET_RULES:
+                note = pattern.sub(repl, note)
+            line = code + note
         if out and re.search(r"--set\s*$", out[-1]):         # `--set` at a comment's line end, its key on the next
             line = re.sub(r"^(\s*#\s*[`'\"]?)run\.", r"\1errand.", line)
         out.append(line + end)
@@ -1268,7 +1304,10 @@ def snapshot_text(text: str, digests: dict[str, str]) -> str:
 
 def _set_name(item: str) -> str:
     """One --set override in I-112's names: run.x=… → errand.x=…"""
-    return "errand." + item[len("run."):] if isinstance(item, str) and item.startswith("run.") else item
+    if not isinstance(item, str) or not item.startswith("run."):
+        return item
+    rest = item[len("run."):]
+    return "errand.assignment" + rest[len("project"):] if re.match(r"project\s*=", rest) else "errand." + rest
 
 
 def provenance_text(text: str) -> str:
@@ -1314,6 +1353,8 @@ def errand_changes(work: Path, changes: dict[Path, tuple[str, str]] | None = Non
     for path in _sources(work):
         if path.is_relative_to(work / "modules"):          # a module's source is its programs' identity: left
             continue
+        if path.is_relative_to(work / "configs") and path.suffix not in (".toml", ".md", ".sh", ".txt"):
+            continue                                       # a base card: its bytes are its points' identity
         put(path, errand_text if path.suffix == ".toml" and path.is_relative_to(work / "configs") else lines_of)
     records = work / "records"
     for snapshot in sorted(records.glob("*/*/*/config/snapshot.toml")) if records.is_dir() else ():

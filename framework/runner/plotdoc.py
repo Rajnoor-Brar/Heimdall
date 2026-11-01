@@ -406,7 +406,7 @@ def chosen_of(errand, configuration, members: list, picks=None) -> tuple[dict, d
     named = plot.pop("root_style", DEFAULT)
     if named not in (DEFAULT, None, schema.NATIVE):
         from .plot import merge_style
-        plot["style"] = merge_style(style_file(named, errand.assignment, f"{errand.path}: [plot].root_style"), plot.get("style", {}))
+        plot["style"] = merge_style(style_file(named, errand.assignment, f"{errand.path}: [plot].root_style", errand.folder), plot.get("style", {}))
     data = plot.get("data")
     if isinstance(data, dict) and isinstance(data.get("file"), str) and not data["file"].startswith("rivet:"):
         plot["data"] = {**data, "file": str(data_source(data["file"], errand))}
@@ -641,7 +641,7 @@ def across_chosen(errand) -> tuple[dict, dict]:
     named = plot.pop("root_style", DEFAULT)
     if named not in (DEFAULT, None, schema.NATIVE):
         from .plot import merge_style
-        plot["style"] = merge_style(style_file(named, errand.assignment, f"{errand.path}: [plot].root_style"), plot.get("style", {}))
+        plot["style"] = merge_style(style_file(named, errand.assignment, f"{errand.path}: [plot].root_style", errand.folder), plot.get("style", {}))
     data = plot.get("data")
     if isinstance(data, dict) and isinstance(data.get("file"), str) and not data["file"].startswith("rivet:"):
         plot["data"] = {**data, "file": str(data_source(data["file"], errand))}

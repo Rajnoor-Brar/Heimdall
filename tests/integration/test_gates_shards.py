@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from support import beside
 
 from support import heimdall_ok
 yoda = pytest.importorskip("yoda")
@@ -60,7 +61,7 @@ def heimdall_run(scratch: Path, *args: str) -> str:
 
 
 def test_a_sharded_point_equals_the_same_point_unsharded(scratch):
-    config = scratch / "shards.toml"
+    config = beside(scratch) / "shards.toml"
     config.write_text(RUN, encoding="utf-8")
     heimdall_run(scratch, str(config), "one")
     heimdall_run(scratch, str(config), "four", "--keep", "work")                 # its shards are read (V149)

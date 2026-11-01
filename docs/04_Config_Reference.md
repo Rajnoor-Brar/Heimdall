@@ -119,14 +119,19 @@ up from the working directory (or `$HEIMDALL_WORK`), never the working directory
 | Key | Root of a bare name | Example |
 |---|---|---|
 | `heimdall run <config>`, `heimdall plot <config>` | `configs/`, `.toml` optional | `Demo/jets` → `configs/Demo/jets.toml` |
-| `[file].master`, `[file].import` | `configs/<A>/` | `master.toml` |
-| `[tools.*].card` | `configs/<A>/` | `ep.cmnd` |
+| `[file].master`, `[file].import` | the folder of the file naming it (an import's `<A>/<E>`: `configs/`) | `master.toml` |
+| `[tools.*].card` | the folder of the file naming it | `ep.cmnd` |
 | `[tools.*].executable` | `build/<A>/`, which must exist; `path:<command>` asks for a command on `PATH` by name | `Decay.exe` → `build/Decay/Decay.exe`; `path:python3` |
-| `[tools.*].filters` | `configs/<A>/` | `fit_filters.toml` |
+| `[tools.*].filters` | the folder of the file naming it | `fit_filters.toml` |
 | `[tools.*].input` | a tool table's name (what it writes), another tool's `output` by name, a pre product; otherwise a path under the point's output directory | `"pythia"`, `events.hepmc` |
 | `[tools.*].output` | a FIFO or a scratch file (§6) → the point's output directory; **anything else → the point's results directory** (a product) | `jets.yoda` → `results/…/points/<point>/jets.yoda` |
-| `[plot].root_style` | `configs/<A>/`, `.toml` optional | `talk` → `configs/<A>/talk.toml` |
+| `[plot].root_style` | the folder of the file naming it, `.toml` optional | `talk` → `talk.toml` beside it |
 | `[plot.data].file` | `datasets/`, or `rivet:<Analysis>` for Rivet's own reference data | `rivet:ZEUS_2012_I1116258` |
+
+A bare name of a card, an import, a master, a filters file or a style is **beside the file that names it**:
+the errand file's folder, or an imported file's own (so `configs/<A>/sub/x.toml` finds `card = "ep.cmnd"` in
+`configs/<A>/sub/`, and an imported file of another folder keeps its own cards). A record's snapshot keeps the
+files as they lay, so a run from the record finds them the same.
 
 **The one judgement:** what a tool writes is a product, in `results/`, unless it is technical: a
 FIFO (its reader is in the producer's group) or a scratch file (its producer says `keep = false`),
@@ -180,7 +185,7 @@ How the file is read: what it imports, an assignment master, its vars and its me
 ```toml
 [file]
 import = ["common.toml"]         # optional: errand files whose tables this one starts from; this file wins
-master = "master.toml"           # optional: configs/<A>/master.toml overlays the tool folders' mappings
+master = "master.toml"           # optional: master.toml beside this file overlays the tool folders' mappings
 ```
 
 <!-- generated: keys3 file -->
@@ -238,7 +243,7 @@ them:
 - `"default"` in this file keeps the imported value.
 
 Its rules:
-- **Names:** an import is named as `heimdall run` names a config: `validation_common` is this assignment's,
+- **Names:** an import is named as `heimdall run` names a config: `validation_common` is the file beside this one,
   `Demo/validation` another assignment's, and `./…` is from the work dir.
 - **Nesting:** an imported file is read the same way first, so its own imports come before it,
   depth-first. A circle is refused, naming it.
@@ -947,7 +952,7 @@ output   = "jets_hard.yoda"
 | `timeout` | a number, ≥ 0 |  | the tool fails when it runs longer |
 | `stall_after` | a number, ≥ 0 |  | the tool fails when silent this long: no log line, status message or heartbeat (a prepare step waits at least 3600) |
 | `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEIMDALL_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
-| `filters` | a string |  | your own rules in place of the folder's, root `configs/<A>/`; implies `status = "filters"` |
+| `filters` | a string |  | your own rules in place of the folder's, a bare name beside the file naming it; implies `status = "filters"` |
 | `executable` | a string |  | exec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH` |
 | `arguments` | a list |  | exec and module: argv after the config; placeholders (04 §10). Not paths: the tool runs in the point's folder, so a script of yours is `{work}/modules/…` |
 | `consumes` | a list (a string each) |  | exec and module: quantities written into the config |
@@ -1309,7 +1314,7 @@ default (rivet-mkhtml's look); edit it to change every page. Over it, key by key
 
 1. the machine root's `style.toml`: every work dir's on this machine;
 2. the work dir's `style.toml`: its studies' house style;
-3. `[plot].root_style`: a style file (a bare name under `configs/<A>/`, `.toml` optional);
+3. `[plot].root_style`: a style file (a bare name beside the errand file, `.toml` optional);
    `heimdall overlay FILE… --style FILE` for files;
 4. `[plot.style]`;
 5. a figure's `style` (`[plot.figures.<figure>]`), for its pages.
@@ -1493,7 +1498,7 @@ every key, as below. One table, in three places:
   (05 §1.8).
 - **An errand file's `[report]`:** what its folders' reports show. It takes neither `from` nor `output`: each
   folder is its report's source and is built where `results/` has it. Its **`template`** names a recipe, as
-  `[config].import` names a file (`weekly`: this assignment's `configs/<A>/weekly.toml`; `eic/weekly`: another
+  `[config].import` names a file (`weekly`: `weekly.toml` beside the errand file; `eic/weekly`: another
   assignment's; `./…`: the work dir's; `.toml` optional). The errand file's keys replace the template's and its
   sections come after the template's; a template may name its own, and a circle is refused. A template's
   `from` and `output` are its own, not the run's. Imports merge `[report]` as any table, and `heimdall check`

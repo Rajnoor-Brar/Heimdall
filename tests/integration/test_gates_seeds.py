@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 import support
+from support import beside
 
 from support import heimdall
 yoda = pytest.importorskip("yoda")
@@ -51,7 +52,7 @@ def run(config: Path, where: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def config(scratch: Path, seed_type: str) -> Path:
-    path = scratch / f"{seed_type}.toml"
+    path = beside(scratch) / f"{seed_type}.toml"
     path.write_text(PHYSICS.format(seed_type=seed_type), encoding="utf-8")
     return path
 

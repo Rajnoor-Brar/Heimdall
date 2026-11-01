@@ -341,3 +341,34 @@ def test_the_plain_migration_reads_the_names_before_i112_first():
     new = migrate.defaults_text(migrate.cfgs_text(migrate.errand_text(old)))
     assert new == '[errand]\nname = "x"\nassignment = "P"\nthreads = 8\n\n[errand.cfgs.a]\ntools = ["t"]\n'
     assert migrate.errand_text(new) == new
+
+
+@pytest.mark.parametrize(("old", "new"), [
+    ('x_label = "\\"a[\\" b"\n[run]\nproject = "P"\n', 'x_label = "\\"a[\\" b"\n[errand]\nassignment = "P"\n'),
+    ('run.cfgs."pt-50".threads = 4\n"run".events = 3\n', 'errand.cfgs."pt-50".threads = 4\nerrand.events = 3\n'),
+    ('[[config.import]]\nfrom = "c"\nonly = ["run.cfgs.a", "run.project"]\n',
+     '[[config.import]]\nfrom = "c"\nonly = ["errand.cfgs.a", "errand.assignment"]\n'),
+    ('[config]\nimport = [\n  { from = "c", only = [\n    "run.cfgs.a" ] },\n]\n',
+     '[config]\nimport = [\n  { from = "c", only = [\n    "errand.cfgs.a" ] },\n]\n'),
+    ('config.import = [\n  { from = "c", only = [\n    "run.cfgs.a" ] },\n]\n',
+     'config.import = [\n  { from = "c", only = [\n    "errand.cfgs.a" ] },\n]\n'),
+    ('[tools.x]\narguments = "--set run.x=1 [run]"  # --set run.project=Q, [run].project\n',
+     '[tools.x]\narguments = "--set run.x=1 [run]"  # --set errand.assignment=Q, [errand].assignment\n'),
+    ('# a [errand] table\n# a [run] table\n', '# a [errand] table\n# an [errand] table\n'),
+])
+def test_the_errand_names_reach_every_spelling_and_no_value(old, new):
+    """I-112's review: an escaped quote before [run], quoted and spaced dotted keys, [[config.import]]'s only and an
+    only over lines, run.project → errand.assignment everywhere; a string value (a tool's arguments, hashed) is left
+    as it is, only its comment rewritten; and a second pass changes nothing."""
+    assert migrate.errand_text(old) == new and migrate.errand_text(new) == new
+    assert migrate._set_name("run.project=Q") == "errand.assignment=Q" and migrate._set_name("run.threads=4") == "errand.threads=4"
+
+
+def test_the_names_leave_a_base_card_alone(scratch, monkeypatch):
+    """A base card's bytes are its points' identity: a comment in it naming --set run.x is not rewritten."""
+    work = scratch / "w"
+    (work / "configs" / "P").mkdir(parents=True)
+    (work / "heimdall.toml").write_text('[work]\nname = "w"\n', encoding="utf-8")
+    card = work / "configs" / "P" / "ep.cmnd"
+    card.write_text("! run with --set run.events=10\nMain:numberOfEvents = 10\n", encoding="utf-8")
+    assert card not in migrate.errand_changes(work)

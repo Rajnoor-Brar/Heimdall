@@ -8,9 +8,9 @@
 #   make clean                  empty build/
 #
 # Conventions (§5.1):
-#   modules/<P>/<X>.cc          → build/<P>/<X>.exe  (-I modules/<P>)
-#   modules/<P>/Rivet/<x>.cc    → build/Rivet/Rivet_<x>.so, with <x>.info/.plot/.yoda copied beside it
-#   modules/<P>/Rivet_<x>.cc    → the same
+#   modules/<A>/<X>.cc          → build/<A>/<X>.exe  (-I modules/<A>)
+#   modules/<A>/Rivet/<x>.cc    → build/Rivet/Rivet_<x>.so, with <x>.info/.plot/.yoda copied beside it
+#   modules/<A>/Rivet_<x>.cc    → the same
 #   <dir>/<X>.cc                → build/<dir>/<X>.exe or build/<dir>/lib<X>.so, only when named
 # A path with a component starting with `_` is parked: never built by `make all`. Heimdall's
 # headers (Module.hh, Kit.hh, Status.hh, …) are on the include path: -I $(HEIMDALL)/src.

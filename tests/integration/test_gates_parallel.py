@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 import pytest
+from support import beside
 
 from support import heimdall
 yoda = pytest.importorskip("yoda")
@@ -69,7 +70,7 @@ def checker(scratch: Path, sweep: str, extra: str = "") -> Path:
     script = scratch / "check.py"
     script.write_text(CHECK, encoding="utf-8")
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
-    config = scratch / "check.toml"
+    config = beside(scratch) / "check.toml"
     config.write_text(f"""\
 [errand]
 name          = "chk"
@@ -95,7 +96,7 @@ tags   = ["a", "b", "c", "d"]
 
 
 def test_four_at_once_give_every_point_its_one_at_a_time_result(scratch):
-    config = scratch / "par.toml"
+    config = beside(scratch) / "par.toml"
     config.write_text(PHYSICS, encoding="utf-8")
     one = run(config, scratch / "one")
     four = run(config, scratch / "four", "--set", "errand.parallelism=4")

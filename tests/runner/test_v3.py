@@ -101,8 +101,14 @@ vary = ["pdf"]
 
 
 def written(scratch: Path, text: str, name: str = "run.toml") -> str:
+    """The errand file in scratch, with the fixture's cards beside it (a bare name is beside the file naming it)."""
+    import shutil
+    from runner.paths import configs_root
     path = scratch / name
     path.write_text(text, encoding="utf-8")
+    for card in (configs_root() / "Demo").iterdir():
+        if card.suffix != ".toml" and card.is_file() and not (scratch / card.name).exists():
+            shutil.copy(card, scratch / card.name)
     return str(path)
 
 

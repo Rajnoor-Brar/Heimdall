@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from runner import config, plot, tools, v3
+from runner.paths import configs_root
 
 REPO = Path(__file__).resolve().parents[2]
 DOCS = REPO / "docs"
@@ -76,6 +77,16 @@ def test_every_relative_link_resolves(page):
             assert anchor in {slug(h) for h in headings(path)}, f"{page.name}: #{anchor} is not a heading of {path.name}"
 
 
+def loaded(block: str, path) -> None:
+    """A manual's errand file, read as `heimdall run` reads it from `path` (the scratch work dir's configs/Demo/,
+    beside the fixture's files it imports and the cards it names), then removed."""
+    path.write_text(block, encoding="utf-8")
+    try:
+        config.load(str(path))
+    finally:
+        path.unlink()
+
+
 @pytest.mark.parametrize("page", PAGES, ids=lambda p: p.name)
 def test_every_toml_block_parses_and_complete_runs_load(page, scratch):
     for block in blocks(page, "toml"):
@@ -83,15 +94,11 @@ def test_every_toml_block_parses_and_complete_runs_load(page, scratch):
         errand = data.get("errand", {})
         complete = {"name", "assignment", "configuration"} <= set(errand) and isinstance(errand.get(errand["configuration"]), dict)
         if complete and data.get("config", {}).get("import"):   # V94: read through its imports (the fixtures')
-            path = scratch / "example.toml"
-            path.write_text(block, encoding="utf-8")
-            config.load(str(path))
+            loaded(block, configs_root() / "Demo" / "_example.toml")   # beside them: a bare import is beside its file
         elif complete:                                   # a whole run TOML, not a fragment of one
             config.parse(data, scratch / "example.toml")   # C1–C5 on the example itself
         elif v3.is_v3(data) and {"name", "assignment"} <= set(errand) and data.get("cfgs"):
-            path = scratch / "example.toml"              # a whole v3 file, its imports the fixture's: read as `heimdall run` reads it (U50)
-            path.write_text(block, encoding="utf-8")
-            config.load(str(path))
+            loaded(block, configs_root() / "Demo" / "_example.toml")   # a whole v3 file, its imports the fixture's (U50)
 
 
 def test_every_key_the_loader_accepts_is_documented():

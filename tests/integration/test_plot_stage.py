@@ -21,7 +21,7 @@ from support import BUILD, apps  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "tests" / "runner"))
-from helpers import parse, raw  # noqa: E402
+from helpers import beside, parse, raw  # noqa: E402
 LEGACY = REPO / "tests" / "reference" / "legacy_run"
 BUILT = all((apps() / name).exists() for name in ("Paint.exe", "App_yd2rt.exe"))
 
@@ -328,7 +328,7 @@ def test_a_compare_figure_reaches_another_run_toml(stage, scratch):
     other = raw(errand__name="plotstage_other", errand__cfgs__one__sweeps=["lepton", "pdf"], errand__cfgs__one__plot_points=["lepton"],
                 quantities__lepton={"key": {"pythia": "Beams:idB"}, "values": [11, -11], "tags": ["em", "ep"]},
                 quantities__pdf__labels=["MSTW", "NNPDF"])
-    path = scratch / "other.toml"
+    path = beside(scratch) / "other.toml"
     path.write_text(tomli_w.dumps(other), encoding="utf-8")
     theirs = config.load(str(path))
     their_plans = completed(theirs, theirs.configuration(None))

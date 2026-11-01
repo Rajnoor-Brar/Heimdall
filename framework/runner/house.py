@@ -201,7 +201,7 @@ def _special(key: str) -> list[str] | None:
     word = key.strip("[]")
     if word.split(".")[0].split("]")[0] == "run":                         # I-112's names
         raise HeimdallError(f"[run] is now [errand] (I-112's names): {key}",
-                       hint="heimdall explain errand" + word.removeprefix("run").replace("]", ""))
+                       hint="heimdall explain errand" + word.removeprefix("run").replace("]", "").replace(".project", ".assignment"))
     table = TABLES.get(word, {"file": "config", "cfgs": "configuration"}.get(word))
     if table and "." not in word:
         entries = schema.keys(table)

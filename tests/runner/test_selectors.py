@@ -10,7 +10,13 @@ import pytest
 from runner import config, quantities, sweep, tools
 from runner.errors import HeimdallError
 
-from helpers import parse, raw
+from helpers import beside, parse, raw
+
+
+@pytest.fixture(autouse=True)
+def cards(scratch):
+    """The errand files these tests write into scratch find the fixture's cards beside them."""
+    beside(scratch)
 
 OTHER = {"tool": "exec", "executable": "/bin/true", "output_file": "events.hepmc"}     # a generator that reads no pdf
 

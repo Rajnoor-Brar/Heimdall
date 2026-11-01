@@ -637,12 +637,12 @@ def snapshot_files(errand, plans: list) -> list[Path]:
     wanted += [base for plan in plans for step in plan.rendered.values() for base in step.card_base]
     for tool in errand.tools.values():
         if tool.filters:
-            wanted.append(resolve(tool.filters, "filters", assignment=errand.assignment))
+            wanted.append(resolve(tool.filters, "filters", assignment=errand.assignment, folder=errand.folder))
     style = (errand.plot or {}).get("root_style")
     if isinstance(style, str) and style not in ("default", "native"):
-        wanted.append(resolve(style if style.endswith(".toml") else f"{style}.toml", "root_style", assignment=errand.assignment))
+        wanted.append(resolve(style if style.endswith(".toml") else f"{style}.toml", "root_style", assignment=errand.assignment, folder=errand.folder))
     if errand.master_toml:
-        wanted.append(resolve(errand.master_toml, "master", assignment=errand.assignment))
+        wanted.append(resolve(errand.master_toml, "master", assignment=errand.assignment, folder=errand.folder))
     return list(dict.fromkeys(p.resolve() for p in wanted if p.is_file()))
 
 
@@ -658,7 +658,7 @@ def config_name(errand) -> str:
 
 def write_snapshot(errand, configuration, plans: list) -> Path | None:
     """records/<A>/<E>/<R>/config/ (V158): the files the run read from its configs, as configs/ holds them (an errand file
-    given by path goes in as <A>/<its name>), and snapshot.toml: the config's name, the configuration,
+    given by path goes in as <A>/<its name>, the files beside it beside it), and snapshot.toml: the config's name, the configuration,
     the --set overrides, each file's sha256, the files read from elsewhere (./… and absolute: datasets,
     modules, tool folders, read live), Heimdall's revision and when. Written whole, then put in place; a run
     of its own snapshot writes nothing (it is what it ran with). Returns the folder, or None."""
@@ -674,11 +674,12 @@ def write_snapshot(errand, configuration, plans: list) -> Path | None:
     live: list[str] = []
     staging = target.with_name(f"{target.name}.{os.getpid()}.tmp")
     shutil.rmtree(staging, ignore_errors=True)
+    own = Path(errand.path).resolve().parent
     for path in snapshot_files(errand, plans):
-        if path == Path(errand.path).resolve() and not path.is_relative_to(root):
-            rel = Path(f"{name}.toml")                         # an errand file given by path: under its assignment
-        elif path.is_relative_to(root):
+        if path.is_relative_to(root):
             rel = path.relative_to(root)
+        elif path.is_relative_to(own):                         # an errand file given by path, and what is beside it
+            rel = Path(name).parent / path.relative_to(own)    # (its cards, its imports): under its assignment, as there
         else:
             live.append(portable(path))
             continue

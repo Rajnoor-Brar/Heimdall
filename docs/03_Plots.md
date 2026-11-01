@@ -193,7 +193,7 @@ void_empty  = true                # blank bins empty in every curve
 min_entries = 10                  # blank bins fewer raw entries went into, in any curve
 normalise   = "area"              # every curve, and the data, to unit area: compare shapes
 title       = "{cell}"            # placeholders cite the points (04 §10)
-root_style  = "talk"              # configs/<A>/talk.toml, over the base style
+root_style  = "talk"              # talk.toml beside the errand file, over the base style
 ```
 
 **Placeholders.** Every page text may cite the points it is drawn from:
@@ -629,7 +629,7 @@ Edit base.toml to change every page. Over it, key by key:
 
 1. the machine root's `style.toml` (`~/Himinbjorg/style.toml`): every study's on this machine;
 2. the work dir's `style.toml`: its studies';
-3. `[plot].root_style`: a style file of the errand's, under `configs/<A>/`;
+3. `[plot].root_style`: a style file of the errand's, beside its errand file;
 4. `[plot.style]`, inline;
 5. a figure's `style`, for its pages.
 

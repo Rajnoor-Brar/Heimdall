@@ -287,7 +287,7 @@ ratio   = true
   varies or fixes.
 - **Connections follow from the chain**: `input` names what a tool reads, by its producer. A reader
   in the producer's group reads a FIFO; a later group reads a file, a product in `results/` (04 §6).
-- **Paths**: a bare name goes under its key's convention root (`card` under `configs/<A>/`), `./x`
+- **Paths**: a bare name goes under its key's convention root (`card`, an import, a master: beside the file naming it), `./x`
   is from the work dir, and `/x` is absolute (04 §2).
 - **Folders**: a configuration's results go to its Run, `results/Demo/mini/01_pdf/`. The runner numbers the
   folder, and a changed configuration gets a new number rather than overwriting; `serial = 3` makes
@@ -1007,7 +1007,7 @@ Common refusals, and what they mean:
 | `the PDF set 'X' is not installed` | `lhapdf install X` (C10) |
 | `'…' is TLatex; labels are LaTeX` | write the LaTeX the hint gives, or `heimdall migrate` the file (§10) |
 | `[plot.overlay] is a figure now` | `[plot.figures.<name>] class = "overlay"`, or `heimdall migrate` |
-| `base config not found` | the card is not under `configs/<A>/` (write `./path` for elsewhere) |
+| `base config not found` | the card is not beside the errand file naming it (write `./path` for elsewhere) |
 | `$HEIMDALL_APPS/App_Pythia.exe is not built` | `heimdall build --framework` |
 | `not inside a work dir` | `cd` into one, or `heimdall setup <dir>` (§1.2) |
 | `unknown section [schema]` | a v1 (hekit) errand file: the schema is 04; `git show HEAD:<file>` has the current one |

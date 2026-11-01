@@ -237,9 +237,11 @@ def merge_style(*layers: dict) -> dict:
     return out
 
 
-def style_file(value: str, assignment: str = "", where: str = "") -> dict:
-    """A style layer from a file: [plot].root_style (configs/<A>/…), or `heimdall plot --style`."""
-    path = resolve(value, "root_style", assignment=assignment, where=where) if assignment else Path(value).resolve()
+def style_file(value: str, assignment: str = "", where: str = "", folder: Path | None = None) -> dict:
+    """A style layer from a file: [plot].root_style (beside the errand file, `folder`; configs/<A>/… without one),
+    or `heimdall plot --style`."""
+    path = (resolve(value, "root_style", assignment=assignment, folder=folder, where=where) if assignment or folder
+            else Path(value).resolve())
     if path.suffix != ".toml":
         path = path.with_name(path.name + ".toml")
     try:
@@ -274,7 +276,7 @@ def errand_style(errand) -> dict:
     settings = errand.plot
     where = f"{errand.path}: [plot]"
     named = settings.get("root_style", DEFAULT)
-    layer = style_file(named, errand.assignment, f"{where}.root_style") if named != DEFAULT else {}
+    layer = style_file(named, errand.assignment, f"{where}.root_style", getattr(errand, "folder", None)) if named != DEFAULT else {}
     check_style(settings.get("style", {}), f"{where}.style")
     return merge_style(house_style(), layer, settings.get("style", {}))
 

@@ -157,6 +157,33 @@ def test_a_snapshot_holds_every_file_the_run_imports(scratch, monkeypatch):
         paths.reset()
 
 
+
+def test_an_errand_file_given_by_path_takes_what_is_beside_it(scratch, monkeypatch):
+    """An errand file outside configs/ (./elsewhere/run.toml) goes into its snapshot under its assignment, and the
+    files beside it it read (its import) beside it, so a run from the record finds them where it did."""
+    work = scratch / "w"
+    elsewhere = work / "elsewhere"
+    elsewhere.mkdir(parents=True)
+    (work / "configs").mkdir()
+    (work / "heimdall.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")
+    for var, value in (("HEIMDALL_WORK", work), ("HEIMDALL_RECORDS", work / "records"), ("HEIMDALL_CACHE", work / "cache"),
+                       ("HEIMDALL_RESULTS", work / "results")):
+        monkeypatch.setenv(var, str(value))
+    monkeypatch.delenv("HEIMDALL_CONFIGS", raising=False)
+    paths.reset()
+    try:
+        (elsewhere / "common.toml").write_text('[file]\nschema = 3\n\n[quantities.q]\npoints = [{ tag = "a", value = 1 }]\n\n'
+                                               '[tools.x]\nuses = "exec"\nexecutable = "path:true"\nconsumes = ["q"]\n',
+                                               encoding="utf-8")
+        (elsewhere / "run.toml").write_text('[file]\nschema = 3\nimport = ["common"]\n\n[errand]\nname = "r"\nassignment = "P"\n'
+                                            'run = "c"\nevents = 1\nchain = ["x"]\n\n[cfgs.c]\nvary = ["q"]\n', encoding="utf-8")
+        p = planned(str(elsewhere / "run.toml"), "c")
+        folder = record.write_snapshot(p.errand, p.configuration, p.every)
+        assert sorted(str(f.relative_to(folder)) for f in folder.rglob("*.toml")) == \
+            ["P/common.toml", "P/run.toml", "snapshot.toml"]
+    finally:
+        paths.reset()
+
 def test_heimdall_plot_takes_a_record_or_a_config_to_its_document(trees, capsys, monkeypatch):
     """V165: a record without a plot document gets one, from its snapshot, the first time it is drawn; then the
     record, and its config, name that document."""

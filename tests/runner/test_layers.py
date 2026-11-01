@@ -180,6 +180,40 @@ def test_another_projects_file_brings_its_cards_and_plans_the_same(scratch, monk
     assert mine[1] == theirs[1]
 
 
+
+def test_bare_names_are_beside_the_file_naming_them(scratch, monkeypatch):
+    """A card, an import or a master named bare is beside the file that names it, not rederived from <A>: an
+    errand file in configs/Demo/sub/ finds its card and its import there, and an imported file of another
+    folder keeps its own cards; the points plan as the fixture's do, so no identity moves."""
+    import shutil
+    from runner import quantities, record, sweep, tools
+    from runner.paths import configs_root
+    fixtures = configs_root()
+    root = scratch / "configs"
+    sub = root / "Demo" / "sub"
+    sub.mkdir(parents=True)
+    shutil.copy(fixtures / "Demo" / "ep.cmnd", sub / "ep.cmnd")
+    monkeypatch.setenv("HEIMDALL_CONFIGS", str(root))
+    (sub / "common.toml").write_text(tomli_w.dumps({"plot": {"y_gutter": 1.5}}), encoding="utf-8")
+    (sub / "mine.toml").write_text(tomli_w.dumps(used(raw(errand__name="mine", errand__assignment="Demo",
+                                                          config={"import": "common"}))), encoding="utf-8")
+    errand = config.load("Demo/sub/mine")
+    assert errand.folder == sub and errand.plot["y_gutter"] == 1.5
+    from runner.paths import resolve
+    assert resolve(errand.tools["pythia"].baseconfig[0], "baseconfig", assignment="Demo", folder=errand.folder) == sub / "ep.cmnd"
+    (root / "Demo" / "top.toml").write_text(tomli_w.dumps(
+        {"config": {"import": "Demo/sub/mine"}, "errand": {"name": "top", "assignment": "Demo"}}), encoding="utf-8")
+    top = config.load("Demo/top")
+    assert top.tools["pythia"].baseconfig == [str(sub / "ep.cmnd")]          # the imported file's own card
+
+    def identity(errand):
+        conf = errand.configuration(None)
+        return record.identity(tools.plan_point(errand, conf, sweep.points(errand, conf)[0],
+                                                quantities.load_master(errand.assignment, errand.master_toml, errand.folder)))
+    monkeypatch.setenv("HEIMDALL_CONFIGS", str(fixtures))
+    fixture = config.load(str(sub / "mine.toml"))
+    assert identity(errand) == identity(top) == identity(fixture)
+
 def _other(scratch) -> Path:
     """A run with two configurations, a figure and an extra quantity, to import parts of."""
     data = raw(errand__name="other", errand__cfgs__two={"tools": [["pythia", "rivet"]], "event_count": 99},

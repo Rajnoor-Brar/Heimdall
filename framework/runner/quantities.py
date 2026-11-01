@@ -135,13 +135,14 @@ def _master_of() -> dict:
     return master
 
 
-def load_master(assignment: str, master_toml: str | None) -> dict:
+def load_master(assignment: str, master_toml: str | None, folder: Path | None = None) -> dict:
     """The tool folders' mappings (framework/tools/<tool>/quantities.toml), overlaid key by key by the assignment's
-    master if [config].master names one ([quantities.<tool>.compatible_quantities], as before)."""
+    master if [config].master names one ([quantities.<tool>.compatible_quantities], as before), a bare name beside
+    the errand file (`folder`)."""
     master = copy.deepcopy(_folders_master())
     read = _read
     if master_toml:
-        overlay_path = resolve(master_toml, "master", assignment=assignment, where="[config].master")
+        overlay_path = resolve(master_toml, "master", assignment=assignment, folder=folder, where="[config].master")
         if not overlay_path.exists():
             raise HeimdallError("the assignment's master TOML does not exist", where=str(overlay_path))
         overlay = read(overlay_path)

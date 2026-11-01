@@ -140,6 +140,12 @@ class Errand:
     report: dict = field(default_factory=dict)          # V209: [report], its template laid under it (a report's recipe)
     templates: list = field(default_factory=list)       # V209: the report templates it read (a record's snapshot copies them)
 
+    @property
+    def folder(self) -> Path:
+        """Its file's folder: where the bare names it gives (cards, filters, imports, its master, a root_style)
+        are."""
+        return Path(self.path).parent
+
     def configuration(self, name: str | None) -> Configuration:
         wanted = name or self.default_configuration
         if wanted in self.families:
@@ -554,19 +560,19 @@ def _over(base: dict, over: dict) -> dict:
     return out
 
 
-def _import_path(name, assignment: str, where: str) -> Path:
-    """An import, named as `heimdall run` names a config (V94): `name` is this assignment's file
-    (configs/<A>/), `<A>/<E>` another assignment's, `./…` from the repository root, `/…`
+def _import_path(name, assignment: str, where: str, folder: Path | None = None) -> Path:
+    """An import, named as `heimdall run` names a config (V94): `name` a file beside the one importing it (in
+    `folder`; configs/<A>/ without one), `<A>/<E>` another assignment's, `./…` from the repository root, `/…`
     absolute; `.toml` optional."""
     if not isinstance(name, str) or not name:
         raise HeimdallError(f"an import names a file, got {name!r}", where=where)
     plain = "/" in name and not name.startswith(("./", "/"))
-    source = resolve(name, "config" if plain else "import", assignment=assignment, where=where)
+    source = resolve(name, "config" if plain else "import", assignment=assignment, folder=folder, where=where)
     if source.suffix != ".toml" and not source.exists():
         source = source.with_name(source.name + ".toml")
     if not source.is_file():
         raise HeimdallError(f"no file '{name}' to import", where=where,
-                       hint="a bare name is this assignment's (configs/<A>/); <A>/<E> another's; ./… the repository's")
+                       hint="a bare name is beside the file naming it; <A>/<E> another assignment's; ./… the repository's")
     return source
 
 
@@ -640,9 +646,9 @@ def _assignment_of(path: Path, raw: dict, fallback: str) -> str:
     return parts[0] if len(parts) > 1 else raw.get("errand", {}).get("assignment") or fallback
 
 
-def _rebased(raw: dict, assignment: str) -> dict:
-    """A file of another assignment, its bare path keys made absolute against its own assignment (V94), so its
-    tools find their cards wherever it is imported. The keys are those the schema marks `path`; a value
+def _rebased(raw: dict, assignment: str, folder: Path) -> dict:
+    """An imported file of another folder, its bare path keys made absolute against its own folder (cards,
+    filters, its master: beside it) and assignment (V94), so its tools find their cards wherever it is imported. The keys are those the schema marks `path`; a value
     that is ./…, /… or path:<command> is left as it is. Paths are resolved alike either way, so no
     identity moves."""
     def fixed(value, root: str):
@@ -650,7 +656,7 @@ def _rebased(raw: dict, assignment: str) -> dict:
             return [fixed(v, root) for v in value]
         if not isinstance(value, str) or not value or value.startswith(("./", "/", "path:")) or value == DEFAULT:
             return value
-        return str(resolve(value, root, assignment=assignment))
+        return str(resolve(value, root, assignment=assignment, folder=folder))
 
     def marked(table: str) -> dict[str, str]:
         return {k: e["path"] for k, e in schema.spec().get(table, {}).items() if "path" in e}
@@ -683,7 +689,7 @@ def _imports(raw: dict, path: Path, assignment: str, chain: tuple[Path, ...]) ->
     for entry in names:
         name, only = _entry(entry, where)
         only = None if only is None else [named(k) for k in only]
-        source = _import_path(name, assignment, where)
+        source = _import_path(name, assignment, where, path.parent)
         if source.resolve() in chain:
             circle = " → ".join(p.name for p in (*chain, source.resolve()))
             raise HeimdallError(f"imports go round in a circle: {circle}", where=where)
@@ -698,8 +704,8 @@ def _imports(raw: dict, path: Path, assignment: str, chain: tuple[Path, ...]) ->
             part = _only(part, only, source, where)
             if given:
                 part = {**part, "config": {**part.get("config", {}), "vars": given}}
-        if theirs != assignment:
-            part = _rebased(part, theirs)
+        if theirs != assignment or source.resolve().parent != path.resolve().parent:
+            part = _rebased(part, theirs, source.parent)
         if "name" in part.get("errand", {}):
             located.append((part["errand"].get("assignment", theirs), part["errand"]["name"], source))
         located += deeper
@@ -752,7 +758,7 @@ def _imported_files(raw: dict, path: Path, assignment: str, chain: tuple[Path, .
     chain = chain or (path.resolve(),)
     for entry in _as_list(raw.get("config", {}).get("import")):
         name, _ = _entry(entry, f"{path}: [config].import")
-        source = _import_path(name, assignment, f"{path}: [config].import")
+        source = _import_path(name, assignment, f"{path}: [config].import", path.parent)
         if source.resolve() in chain or source.resolve() in out:
             continue
         out.append(source.resolve())
@@ -1456,7 +1462,7 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
 
 def report_of(table: dict, path: Path, assignment: str, where: str, chain: tuple[Path, ...] = ()) -> tuple[dict, list[Path]]:
     """[report] with its template laid under it (V209): `template` names a recipe as [config].import names a file
-    (a bare name this assignment's, <A>/<E> another's, ./… the work dir's; .toml optional), whose keys this
+    (a bare name beside the file naming it, <A>/<E> another assignment's, ./… the work dir's; .toml optional), whose keys this
     table's replace and whose sections come first; a template naming its own is followed, a circle refused.
     The table (without template), and the templates read."""
     named = table.get("template")
@@ -1464,10 +1470,10 @@ def report_of(table: dict, path: Path, assignment: str, where: str, chain: tuple
         return dict(table), []
     at = f"{where}.template"
     try:
-        source = _import_path(named, assignment, at)
+        source = _import_path(named, assignment, at, path.parent)
     except HeimdallError:
         raise HeimdallError(f"no report template '{named}'", where=at,
-                       hint="a bare name is this assignment's (configs/<A>/); <A>/<E> another's; ./… the work dir's") from None
+                       hint="a bare name is beside the file naming it; <A>/<E> another assignment's; ./… the work dir's") from None
     chain = chain or (path.resolve(),)
     if source.resolve() in chain:
         raise HeimdallError("report templates go round in a circle: " + " → ".join(p.name for p in (*chain, source.resolve())), where=at)

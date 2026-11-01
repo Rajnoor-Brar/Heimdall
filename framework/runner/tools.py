@@ -6,7 +6,7 @@ about a tool comes from its folder: the nearest <name>/ on the search path (a wo
 root's tools/, Heimdall's framework/tools/; paths.tool_chains), laid over the one it extends. This module
 never names one.
 
-`plan_point` turns (run, configuration, point) into groups of Steps: argv, environment, files to
+`plan_point` turns (errand, configuration, point) into groups of Steps: argv, environment, files to
 write, inputs and outputs, and what to check afterwards. Nothing is spawned or written here; that is
 `execute`. Seeds are added last (`finalise`), because they derive from the identity of everything
 else (06 §8).
@@ -814,7 +814,7 @@ def _shard(errand, configuration, groups_tags: list[list[str]], out: Path):
 
     Seeds follow the generator's cards, not its argv, so a sharded point has the same events as the
     same point unsharded, and its merged product is the same up to rounding.
-    Returns (run, configuration, groups, deal, shard products), rewritten for this point only."""
+    Returns (errand, configuration, groups, deal, shard products), rewritten for this point only."""
     sharded = [tag for group in groups_tags for tag in group if errand.tools[tag].shards > 1]
     if not sharded:
         return errand, configuration, groups_tags, {}, set()
@@ -971,7 +971,7 @@ def plan_point(errand, configuration, point, master: dict, *, post: dict | None 
                     exe=executable_of(tool, folder, errand.assignment))
         step.status = tool.status or folder.get("tool", "status", "none")
         if tool.filters:                                    # your rules, configs/<A>/… (V61)
-            rules = resolve(tool.filters, "filters", assignment=errand.assignment, where=f"{where}.filters")
+            rules = resolve(tool.filters, "filters", assignment=errand.assignment, folder=errand.folder, where=f"{where}.filters")
             step.filters = tomllib.loads(rules.read_text(encoding="utf-8")).get("rule", [])
             step.status = "filters"
         else:                                               # a folder's rules read its output whatever its status (V203)
@@ -1191,7 +1191,7 @@ def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
     if style in ("append", "render"):
         ext = folder.get("card", "ext", "txt")
         comment = folder.get("card", "comment", "#")
-        step.card_base = [resolve(b, "baseconfig", assignment=errand.assignment, where=f"[tools.{step.tag}].baseconfig")
+        step.card_base = [resolve(b, "baseconfig", assignment=errand.assignment, folder=errand.folder, where=f"[tools.{step.tag}].baseconfig")
                           for b in tool.baseconfig]
         for base in step.card_base:
             if not base.is_file():
@@ -1324,7 +1324,7 @@ def _base_values(tool, errand, folder: Folder) -> dict[str, str]:
     comment = folder.get("card", "comment", "#")
     values: dict[str, str] = {}
     for base in tool.baseconfig:
-        path = resolve(base, "baseconfig", assignment=errand.assignment, where=f"[tools.{tool.tag}].baseconfig")
+        path = resolve(base, "baseconfig", assignment=errand.assignment, folder=errand.folder, where=f"[tools.{tool.tag}].baseconfig")
         if not path.is_file():
             continue
         for raw in path.read_text(encoding="utf-8").splitlines():

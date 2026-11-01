@@ -156,7 +156,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
 | I-105 | Smaller leftovers | P3 | idea |
 | I-111 | A report's context first: what was run, how the numbers are made | P2 | in progress (asked 2026-10-27) |
 | I-112 | Names: <Assignment>/<Errand>/<Run>, everything migrated | P1 | open (asked 2026-10-31) |
-| I-115 | Pausing a run; live runs by index | P1 | in progress (asked 2026-11-01) |
 
 ---
 
@@ -379,12 +378,6 @@ Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never make
   configurations `[errand.cfgs.<cfg>]`; `heimdall run` stays the verb), a numbered configuration folder a Run;
   docs, help, messages, keys and code identifiers; `heimdall migrate --names` rewrites Brookhaven and High-Energy as
   I-109 did. Built after I-113 and I-114. The plan: [errand_names.md](errand_names.md).
-
-### I-115 Pausing a run; live runs by index
-**P1 · feature · in progress (asked 2026-11-01)**
-- The user: "Make it so that pressing "p" lets pausing the run", a second `p` a force pause; `heimdall runs` lists
-  running and paused runs as live, indexed; `heimdall watch -i N`, `heimdall runs --resume N`. Built on I-112. The
-  plan: [run_pause.md](run_pause.md).
 
 ## M6 — The package restructure
 

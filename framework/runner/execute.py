@@ -60,7 +60,7 @@ from . import hepfiles
 from .errors import HeimdallError
 from .paths import keeping, log_settings, placeholders, portable
 from .record import (LOCK_FILE, PointLock, append_attempt, attempts, card_hashes, complete_marker, held_by, holder,
-                     is_complete, now, provenance, provenance_file, write_atomic, write_identity)
+                     is_complete, now, stale, provenance, provenance_file, write_atomic, write_identity)
 from .status import Reader, ToolState, clean_text, digest
 from .tools import CONTEXT_FILE, PointPlan, Step, expand
 
@@ -165,7 +165,7 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
     bus = _bus(bus)
     todo = []
     for plan in plans:
-        if not rerun and is_complete(plan):
+        if not stale(plan, rerun):
             bus.emit(plan.point.name, "", {"k": "point", "state": "skipped", "index": plan.point.index,
                                            **({"stage": plan.point.stage} if plan.point.stage else {})})
         else:

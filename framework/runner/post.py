@@ -55,7 +55,7 @@ def _run_stage(stage: tools.PointPlan, waits_on: list, errand, configuration, *,
     if incomplete:
         say(missing.format(count=len(incomplete), names=", ".join(incomplete[:4]) + (", …" if len(incomplete) > 4 else "")))
         return None
-    if not rerun and record.is_complete(stage):
+    if not record.stale(stage, rerun):
         if bus is not None:
             bus.emit(stage.point.name, "", {"k": "point", "state": "skipped", "index": stage.point.index,
                                             **({"stage": stage.point.stage} if stage.point.stage else {})})

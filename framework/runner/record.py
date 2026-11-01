@@ -342,6 +342,19 @@ def is_complete(plan: PointPlan) -> bool:
     return marker.is_file() and marker.read_text(encoding="utf-8").strip() == plan.identity
 
 
+def stale(plan: PointPlan, rerun) -> bool:
+    """Whether a point or stage is to run: not complete; or `rerun` True (--rerun); or `rerun` a time (a resumed
+    --rerun job, I-115: `--rerun-since`), complete before it, so what the paused job ran itself is not run again."""
+    if rerun is True or not is_complete(plan):
+        return True
+    if isinstance(rerun, float):
+        try:
+            return complete_marker(plan).stat().st_mtime < rerun
+        except OSError:
+            return True
+    return False
+
+
 def recorded_identity(plan: PointPlan) -> str | None:
     """The identity a stage last completed with; None when it never did (or a run of it is under way)."""
     marker = complete_marker(plan)

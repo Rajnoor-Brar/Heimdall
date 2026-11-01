@@ -24,6 +24,7 @@ import json
 import os
 import re
 import secrets
+import signal
 import socket
 import subprocess
 import sys
@@ -47,6 +48,9 @@ ID = re.compile(r"\d{8}-\d{6}-[A-Za-z0-9_-]+-[0-9a-f]{4}")
 #: The id a detached run takes when it is given one (I-115): `heimdall runs --resume` names its new run so, and the
 #: paused entry points at it (`resumed_by`).
 ID_VAR = "HEIMDALL_RUN_ID"
+#: The paused entry a resumed job resumes (I-115): marked `resumed_by` before it starts, and cleared again by its
+#: worker when the job never runs (a config error: exit 2), so the pause stays live.
+RESUMES_VAR = "HEIMDALL_RESUMES"
 
 
 def folder() -> Path:
@@ -281,17 +285,22 @@ def paused(data: dict) -> bool:
 
 def again(data: dict) -> list[str]:
     """A paused run's own command again, detached (I-115): its argv as typed, without a worker's `--worker <id>` and
-    a `--detach`, then `--detach`. [] when the entry holds no `heimdall run` command."""
+    a `--detach`, then `--detach`; a `--rerun` becomes `--rerun-since <its start>`, so the points the paused job
+    completed are not run again (one already resumed keeps its first start). [] when the entry holds no `heimdall
+    run` command."""
     argv = [str(arg) for arg in data.get("argv") or []]
     if argv[:1] != ["run"]:
         return []
     out, skip = [], False
+    since = any(arg == "--rerun-since" or arg.startswith("--rerun-since=") for arg in argv)
     for arg in argv:
         if skip:
             skip = False
         elif arg == "--worker":
             skip = True
-        elif not arg.startswith("--worker=") and arg != "--detach":
+        elif arg == "--rerun" and not since and data.get("started"):
+            out += ["--rerun-since", repr(float(data["started"]))]
+        elif not arg.startswith("--worker=") and arg != "--detach" and not (arg == "--rerun" and since):
             out.append(arg)
     return [*out, "--detach"]
 
@@ -310,7 +319,13 @@ def spawn(argv: list[str], run_id: str, log: Path) -> subprocess.Popen:
     with open(log, "ab") as out:
         return subprocess.Popen([sys.executable, "-X", "utf8", "-u", str(entry), *argv, "--worker", run_id],
                                 start_new_session=True, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT,
-                                close_fds=True)
+                                close_fds=True, preexec_fn=_pause_ignored)
+
+
+def _pause_ignored() -> None:
+    """In a worker before it runs (I-115): SIGUSR1 (a `p`) ignored until its own handler is in (cli.catch_pause),
+    never its default death; an ignored signal stays ignored across exec, a handled one does not reach its tools."""
+    signal.signal(signal.SIGUSR1, signal.SIG_IGN)
 
 
 def cluster_job() -> bool:

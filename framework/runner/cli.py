@@ -67,6 +67,8 @@ def parser() -> argparse.ArgumentParser:
                           "configuration's tag): a letter or digit, then letters, digits, . _ + -, at most 40")
     run.add_argument("--rerun", action="store_true", help="ignore skip-unchanged; under a serial the file sets, "
                                                           "overwrite points made from other inputs")
+    run.add_argument("--rerun-since", type=float, metavar="TIME", dest="rerun_since",
+                     help=argparse.SUPPRESS)     # a resumed --rerun job (I-115): what completed before TIME runs again
     run.add_argument("--only", choices=["pre", "post", "plot"], help="rerun only the pre tools, the post tools or the plots")
     run.add_argument("--no-plot", action="store_true", dest="no_plot",
                      help="draw nothing after the points (its plot.toml is written all the same), whatever [errand].plot says")
@@ -390,7 +392,8 @@ def build_plans(args, key: str | None) -> Planned:
     else:
         pre_plan, plans = _planned_points(errand, configuration, master, points)
     again = getattr(args, "rerun", False) and getattr(args, "only", None) is None   # the points run anew
-    record.assign_seeds(plans, frozenset(p.point.name for p in plans if again and p.point.index in chosen))
+    record.assign_seeds(plans, frozenset(p.point.name for p in plans if again and p.point.index in chosen
+                                         and record.stale(p, args.rerun)))
     for plan in plans:
         tools.finalise(plan, plan.seed)
         tools.check_cards(plan)                  # the tools read their cards (V59), cached by text
@@ -766,6 +769,18 @@ def cmd_run(args) -> int:
     start; a stop or a pause starts no more. On a terminal, and with --detach, the run is a worker of its own, which
     this process follows (or leaves) (V183)."""
     worker = getattr(args, "worker", None)
+    if getattr(args, "rerun_since", None):                  # a resumed --rerun job (I-115): its points since kept
+        args.rerun = args.rerun_since
+    resumes = os.environ.pop(runs.RESUMES_VAR, "") if worker else ""
+    try:
+        return _cmd_run(args, worker)
+    except HeimdallError:                    # it never ran: the pause it resumed stays live (I-115)
+        if resumes:
+            runs.update(resumes, resumed_by=None, resumed=None)
+        raise
+
+
+def _cmd_run(args, worker) -> int:
     stopper = execute.Stopper()
     if worker:
         _worker_signals()
@@ -1132,8 +1147,8 @@ def _pipelined(args, errand, keys: list[str], stopper: execute.Stopper, bus: Bus
         shown.end()
     if errors:
         raise errors[0]
-    if stopper.requested or 6 in codes.values():      # a pause: its run's own 6, as in a sequential sweep
-        return 6
+    if stopper.requested or 6 in codes.values() or (stopper.halted and len(codes) < len(keys)):
+        return 6                             # a pause: its run's own 6, or runs not begun, as in a sequential sweep
     return 1 if any(codes.values()) else 0
 
 
@@ -1263,6 +1278,12 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                        hint="run --stages pre first (heimdall cluster's pre job does), or leave --stages out")
     refuse_overwrites(planned, args, stages)
     if stopper.halted:                       # Ctrl-C or a pause while this run was being planned
+        said = f"{title_line + ': ' if title_line else ''}{'paused' if stopper.paused else 'stopped'} before it began: " \
+            "nothing run"
+        if shown is None:                    # its own view is not up yet: said here, and to a watcher
+            print(said)
+        if bus is not None:
+            bus.say(said)
         return 6
     tag = give_tag(args, errand, configuration)
 
@@ -1334,7 +1355,10 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             if not post.run_pre(pre_plan, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                                 rerun=args.rerun or again == "pre"):
                 verdict = "pre failed: no point ran"
-                return 6 if stopper.requested else 1
+                if stopper.requested:
+                    halted("pre")
+                    return 6
+                return 1
             if stages == {"pre"}:
                 verdict = "pre done"
                 return 0
@@ -1358,7 +1382,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                 return 6
             bad = post.run_combined(combined, every, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                                     rerun=args.rerun, say=bus.say)
-            if stopper.requested:
+            if stopper.halted:               # a pause cuts combine short too: it stays to run
+                halted("combine")
                 return 6
             if bad:
                 failed += bad
@@ -1368,6 +1393,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         if "post" in stages and not post.run(post_plan, every, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                                              rerun=args.rerun or again == "post", say=bus.say):
             if stopper.requested:
+                halted("post")
                 return 6
             failed += 1
             verdict = ", ".join(v for v in (verdict, "post failed") if v)
@@ -1810,14 +1836,18 @@ def resume_run(index: int) -> int:
     if paths.HEIMDALL_VAR in env:                            # the checkout it ran with, not this shell's
         env[paths.HEIMDALL_VAR] = str(checkout)
     print(f"resuming [{index}] {entry['id']}: heimdall {' '.join(command)}\n  in {work}, by {program}")
-    if "--rerun" in command:
-        print("  note: its --rerun runs again the points it had done too", file=sys.stderr)
+    if "--rerun-since" in command:
+        print("  note: its --rerun runs again what was complete before it began, not what it completed itself",
+              file=sys.stderr)
+    env[runs.RESUMES_VAR] = entry["id"]      # its worker clears resumed_by again if it never runs (exit 2)
+    runs.update(entry["id"], resumed_by=new, resumed=round(time.time(), 3))
     code = runs.relaunch([str(program), *command], work, env).returncode
     if code:
+        runs.update(entry["id"], resumed_by=None, resumed=None)
         print(f"not resumed: its command exited {code}; [{index}] stays paused", file=sys.stderr)
         return code
-    runs.update(entry["id"], resumed_by=new, resumed=round(time.time(), 3))
-    print(f"[{index}] {entry['id']} resumed as {new}")
+    print(f"[{index}] {entry['id']} resumed as {new}: heimdall runs says whether it runs (a config error leaves it "
+          "paused)")
     return 0
 
 
@@ -2414,6 +2444,7 @@ NOT_PREFERENCES = {
     "tag": ("the study's own setting", "a configuration's tag key, or [errand] tag = \"...\""),
     "no_plot": ("the study's own setting", "[errand] plot = false"),
     "no_stats": ("the study's own setting", "[errand] stats = false"),
+    "rerun_since": ("heimdall runs --resume's own", "heimdall runs --resume N gives it"),
 }
 
 

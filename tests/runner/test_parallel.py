@@ -56,7 +56,7 @@ def test_the_scheduler_keeps_k_points_running_in_order(monkeypatch):
         return PointResult(plan.point.name != "p4", cause="" if plan.point.name != "p4" else "x")
 
     monkeypatch.setattr(execute, "run_point", run_point)
-    monkeypatch.setattr(execute, "is_complete", lambda plan: plan.point.name == "p2")
+    monkeypatch.setattr(execute, "stale", lambda plan, rerun: plan.point.name != "p2")
     done, failed, stopped = execute.run_points(fake_plans(8), None, SimpleNamespace(parallelism=3),
                                                stopper=Stopper(), rerun=False)
     assert (done, failed, stopped) == (6, 1, False)                  # p2 was complete, p4 failed
@@ -74,7 +74,7 @@ def test_a_stop_starts_nothing_more(monkeypatch):
         return PointResult(False, stopped=True)
 
     monkeypatch.setattr(execute, "run_point", run_point)
-    monkeypatch.setattr(execute, "is_complete", lambda plan: False)
+    monkeypatch.setattr(execute, "stale", lambda plan, rerun: True)
     done, failed, stopped = execute.run_points(fake_plans(6), None, SimpleNamespace(parallelism=2),
                                                stopper=stopper, rerun=False)
     assert stopped and (done, failed) == (0, 0)
@@ -175,7 +175,7 @@ def test_a_pipelined_run_says_when_every_point_has_started(monkeypatch):
         return PointResult(True)
 
     monkeypatch.setattr(execute, "run_point", run_point)
-    monkeypatch.setattr(execute, "is_complete", lambda plan: False)
+    monkeypatch.setattr(execute, "stale", lambda plan, rerun: True)
     monkeypatch.setattr(execute, "cores", lambda plan: 2)
     budget = execute.Budget(4)
     done, failed, stopped = execute.run_points(fake_plans(3), None, SimpleNamespace(parallelism=3), stopper=Stopper(),

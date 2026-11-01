@@ -197,3 +197,29 @@ def test_a_detached_run_takes_the_id_it_is_given(monkeypatch, capsys):
             runs.begin(given, {})
         assert cli.main(["run", "Demo/jets", "single", "--detach"]) == 0     # the worker ended before its run began
         assert (spawned[-1][0] == given) is taken and spawned[-1][1] is None
+
+
+def test_again_keeps_what_a_paused_rerun_completed():
+    """The review's 3: a resumed --rerun job reruns what was complete before the paused job began, not what it did."""
+    assert runs.again({"argv": ["run", "P/b", "--rerun"], "started": 1700000000.5}) == \
+        ["run", "P/b", "--rerun-since", "1700000000.5", "--detach"]
+    assert runs.again({"argv": ["run", "P/b", "--rerun-since", "1600000000.0", "--rerun"], "started": 1700000000.5}) == \
+        ["run", "P/b", "--rerun-since", "1600000000.0", "--detach"]
+
+
+def test_a_resume_that_never_runs_leaves_its_pause_live(capsys, mixed, monkeypatch, scratch):
+    """The review's 2: the resumed job's worker fails while it plans (exit 2): it clears `resumed_by`, so the pause
+    stays live and can be resumed again."""
+    runs.update(mixed["pause"], work=str(scratch), checkout=str(paths.heimdall_root()))
+
+    def relaunch(command: list[str], cwd: str, env: dict) -> subprocess.CompletedProcess:
+        assert runs.entry(mixed["pause"])["resumed_by"] == env[runs.ID_VAR]       # marked before it starts
+        monkeypatch.setenv(runs.RESUMES_VAR, env[runs.RESUMES_VAR])
+        assert cli.main(["run", str(scratch / "no-such.toml"), "--worker", env[runs.ID_VAR]]) == 2
+        assert runs.RESUMES_VAR not in os.environ
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(runs, "relaunch", relaunch)
+    assert cli.main(["runs", "--resume", "2"]) == 0
+    assert runs.paused(runs.entry(mixed["pause"]))
+    assert mixed["pause"] in "".join(heads(cli_out(capsys)))

@@ -203,3 +203,87 @@ def test_a_paused_sweep_begins_no_more_configurations(errand, stages, verdict):
     (entry,) = runs.entries()
     assert runs.state(entry) == "paused" and list(entry["verdicts"]) == ["c"] and entry["verdicts"]["c"] == verdict
     assert len(entry["records"]) == 1
+
+
+@pytest.mark.parametrize("sweep", [False, True])
+def test_a_pause_while_it_plans_runs_nothing_and_is_paused(errand, monkeypatch, capsys, sweep):
+    """The review's 1 and 6: a pause that comes while the job plans begins nothing, says so, and exits 6 recorded
+    paused, a pipelined sweep's too (it began no run)."""
+    path, marks = errand
+    if sweep:
+        text = path.read_text(encoding="utf-8").replace('configuration = "c"\n', 'configuration = "c"\nsweep_runs    = ["c", "e"]\n')
+        path.write_text(text + '\n[errand.cfgs.e]\nsweeps = ["q"]\ntools  = ["x"]\n', encoding="utf-8")
+    planned = cli.build_plans
+
+    def build_plans(args, key):
+        out = planned(args, key)
+        os.kill(os.getpid(), signal.SIGUSR1)
+        time.sleep(0.05)
+        return out
+
+    monkeypatch.setattr(cli, "build_plans", build_plans)
+    assert run(path) == 6
+    assert started(marks) == []
+    (entry,) = runs.entries()
+    assert runs.state(entry) == "paused"
+    if not sweep:
+        assert "paused before it began: nothing run" in capsys.readouterr().out
+
+
+POST = """#!/bin/sh
+touch "{marks}/post"
+i=0
+while [ $i -lt 400 ]; do sleep 0.05; i=$((i+1)); done
+"""
+
+
+def test_a_force_pause_in_post_says_what_it_left(errand, capsys):
+    """The review's 4: a force pause while the post tools run is a pause whose verdict names post as not run."""
+    path, marks = errand
+    script = marks.parent / "post.sh"
+    script.write_text(POST.format(marks=marks), encoding="utf-8")
+    script.chmod(0o755)
+    text = path.read_text(encoding="utf-8").replace('tools  = ["x"]\n', 'tools  = ["x"]\npost   = ["y"]\n', 1)
+    path.write_text(text + f'\n[tools.y]\ntool       = "exec"\nexecutable = "{script}"\n', encoding="utf-8")
+    (marks / "go").touch()
+
+    def act():
+        until = time.monotonic() + 30
+        while not (marks / "post").exists() and time.monotonic() < until:
+            time.sleep(0.05)
+        time.sleep(0.2)
+        for _ in range(2):
+            os.kill(os.getpid(), signal.SIGUSR1)
+            time.sleep(0.3)
+    helper = threading.Thread(target=act, daemon=True)
+    helper.start()
+    begun = time.monotonic()
+    assert run(path) == 6
+    assert time.monotonic() - begun < 15
+    helper.join(5)
+    (entry,) = runs.entries()
+    assert runs.state(entry) == "paused"
+    assert entry["verdicts"][""].startswith("paused: 4 done") and entry["verdicts"][""].endswith("not run: post, plot")
+
+
+def test_rerun_since_runs_again_only_what_completed_before(errand):
+    """The review's 3: `--rerun-since T` (a resumed --rerun job) runs again the points complete before T and skips
+    those completed since."""
+    path, marks = errand
+    (marks / "go").touch()
+    before = time.time() - 1
+    assert run(path) == 0
+    for name in started(marks):
+        (marks / f"started.{name}").unlink()
+    assert cli.main(["run", str(path), "--plain", "--rerun-since", repr(before)]) == 0
+    assert started(marks) == []
+    assert cli.main(["run", str(path), "--plain", "--rerun-since", repr(time.time() + 1)]) == 0
+    assert started(marks) == ["a", "b", "c", "d"]
+
+
+def test_a_worker_ignores_a_pause_before_its_handler_is_in(scratch):
+    """The review's 5: a `p` before the worker installs its handler is not SIGUSR1's default death."""
+    import subprocess
+    done = subprocess.run(["sh", "-c", "kill -USR1 $$; echo alive"], preexec_fn=runs._pause_ignored,
+                          capture_output=True, text=True, encoding="utf-8")
+    assert done.returncode == 0 and done.stdout.strip() == "alive"

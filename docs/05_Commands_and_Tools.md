@@ -568,8 +568,10 @@ ran with, in its work dir. It continues from its records: its complete points ar
 run, then its later stages. It prints the new job's id, pid, log, and the watch and stop commands; the
 paused entry is marked resumed (with the new id) and leaves the live list, and the new job takes its
 place there. A running job is refused, and so is a pause whose checkout or work dir is gone (the
-command to run by hand is named). If the command fails to start (a config error, exit 2), the job
-stays paused. A command given `--rerun` reruns its done points too, and says so. **`heimdall runs
+command to run by hand is named). If the command fails to start or its job fails while it plans (a
+config error, exit 2), the job stays paused, to be resumed again. A command given `--rerun` reruns what
+was complete before the paused job began, not the points that job completed itself (`--rerun-since`,
+the time it began), and says so. **`heimdall runs
 --forget N`** drops the paused job `[N]` from the live list: its entry is kept, and `--week` still lists
 it.
 

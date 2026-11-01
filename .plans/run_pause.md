@@ -63,3 +63,20 @@ watch -i <index>, heimdall runs --resume <index of paused run>". Built on branch
 
 - 2026-11-01 R1 (V230): SIGUSR1 `catch_pause`, `Stopper.pausing`/`paused`/`halted`, the dispatcher, sweeps and stages halt on it, verdict `paused: …`, `runs.finish(state="paused")`; `p` in `heimdall watch` and the run's own view (`pause_key`). Beyond the plan: `q` after a force pause does not kill the runner; `p` after a stop sends nothing; the lock wait and combine's groups halt too. Tests: test_pause.py (new), test_detach.py. Docs left to R2 (P6).
 - 2026-11-01 R2 (V231): `house.live_entries` (running + paused, by start, a resumed run in its pause's place), `runs` lists it under `live` with `[N]`; `watch -i N`; `runs --resume N` (`runs.again`, `runs.relaunch`, the new id through `$HEIMDALL_RUN_ID`, `resumed_by`); `--forget N`; docs 00, 02, 05, 06. Beyond the plan: `$HEIMDALL_WORK`/`$HEIMDALL` set for the resumed command; `runs.state` says `paused, resumed`/`paused, forgotten`; a `--rerun` in the command is kept and said. Tests: test_live.py (new), test_runs.py.
+
+## 6. Pending: the read-only review's defects (2026-11-01, not yet fixed)
+
+1. `cli._pipelined` (~1135): a pause before the first run of a pipelined sweep begins exits 0, recorded "done".
+   Return 6 when `stopper.pausing and len(codes) < len(keys)` too.
+2. `cli.resume_run` (~1817): a resumed run failing while planning (in the worker) still marks the pause
+   `resumed_by`, so it leaves the live list; 05 says it stays paused. Keep a pause live while its `resumed_by`
+   entry is missing or ended with code 2 (or write `resumed_by` at the new run's first "run started").
+3. `runs.again` (~282): a resumed `--rerun` run reruns every point. Rerun only points whose complete marker is
+   older than the paused entry's start, or refuse with the command to run by hand.
+4. `cli.run_one` (~1337, 1361, 1370): a force pause during pre, combine or post returns 6 without `halted()`: the
+   verdict says the points' tally (or "pre failed"). Call `halted("pre"|"combine"|"post")` first.
+5. `cli.background`'s `on_key` (~906): a `p` before the worker installs its handler kills it (SIGUSR1's default).
+   Send it only once the stream is connected, or start the worker with SIGUSR1 ignored until `catch_pause`.
+6. `cli.run_one` (~1265): a pause during planning says nothing: emit "run finished" with "paused before it began".
+7. `post.run_combined` (~170): a soft pause in combine leaves "not run:" without combine: report it cut short.
+8. ISSUES: I-115 to be deleted once these are fixed (its history V230, V231).

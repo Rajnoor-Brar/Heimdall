@@ -421,7 +421,8 @@ def known(errand, configuration, members: list) -> dict:
     """The tables a run rewrites: [source], [axes], [quantities], [members]."""
     from .quantities import static_values
     from .record import config_name, run_tag
-    names = {q for m in members for q in m.values}
+    names = {q for m in members for q in (*m.values, *m.point.choice)}      # a combined group's: its choice alone
+    names |= {q for e in configuration.sweeps for q in ([e] if isinstance(e, str) else e)}   # every axis, combined too
     static = static_values(errand, configuration) if hasattr(configuration, "tools") else {}
     from .paths import heimdall_root
     from .record import git_state

@@ -474,9 +474,9 @@ def _look_shape(look, where: str):
 
 def values_of(member) -> dict:
     """quantity → value index of a member: a plan's or a recorded member's values (swept and fixed), or a
-    sweep Point's choice."""
-    values = getattr(member, "values", None)
-    return values if isinstance(values, dict) else getattr(member, "point", member).choice
+    sweep Point's choice; over its point's choice, which a combined group's values alone leave out."""
+    values, choice = getattr(member, "values", None), getattr(member, "point", member).choice
+    return {**choice, **values} if isinstance(values, dict) else choice
 
 
 def resolve(errand, name: str, what, where: str) -> list[int]:
@@ -568,9 +568,12 @@ def set_cells(errand, members: list, spec: SetSpec, palette=(), *, values=values
         ordered = []
         for flt, looks_of in zip(curves, styled):
             mine = [m for m in picked if m not in ordered and matches(m, flt)]
-            mine.sort(key=lambda m: tuple(flt[q].index(values(m)[q]) for q in flt))      # stable: point order next
+            def rank(m, flt=flt) -> tuple:           # a point a listed row leaves without q: after q's values
+                got = values(m)
+                return tuple(flt[q].index(got[q]) if got.get(q) in flt[q] else len(flt[q]) for q in flt)
+            mine.sort(key=rank)                       # stable: point order next
             for m in mine:
-                style = {k: v for q in flt for k, v in looks_of[q].get(values(m)[q], {}).items()}
+                style = {k: v for q in flt for k, v in looks_of[q].get(values(m).get(q), {}).items()}
                 if style:
                     own[getattr(m, "point", m).name] = style
             ordered += mine

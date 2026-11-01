@@ -57,7 +57,7 @@ watch -i <index>, heimdall runs --resume <index of paused run>". Built on branch
 |---|---|---|---|
 | R0 this plan, I-115 | — | | written |
 | R1 P1–P2: `p`, SIGUSR1, the stopper, the dispatcher, the verdict, the entry | V230 | 9c0c62c | done |
-| R2 P3–P6: live runs indexed, `watch -i`, `runs --resume`, `--forget`; docs, tests | V231 | | done |
+| R2 P3–P6: live runs indexed, `watch -i`, `runs --resume`, `--forget`; docs, tests | V231 | 27609df | done |
 
 ## 5. Log
 

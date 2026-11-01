@@ -371,7 +371,7 @@ class PointLock:
 
     def acquire(self, wait: bool = False, stopper=None) -> bool:
         """True once this process holds it. Without `wait`, False at once when another does; with it,
-        polled until free (a stop request ends the wait with False)."""
+        polled until free (a stop or a pause, the stopper halted, ends the wait with False)."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
         while True:
@@ -379,7 +379,7 @@ class PointLock:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except BlockingIOError:
-                if not wait or (stopper is not None and stopper.requested):
+                if not wait or (stopper is not None and stopper.halted):
                     os.close(fd)
                     return False
                 time.sleep(1.0)

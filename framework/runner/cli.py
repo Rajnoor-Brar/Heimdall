@@ -5,8 +5,8 @@ docs/05_Commands_and_Tools.md §1. `heimdall build` is handled by the shell disp
 (framework/bin/heimdall), which runs make.
 
 Exit codes: 0 every point done (or skipped), 1 a point failed, 2 a config error before anything ran,
-6 stopped by the user. Under [errand].sweep_runs (V38), several runs one after another: 6 if one was
-stopped, else 1 if any failed (or could not be planned at its turn), else 0.
+6 stopped or paused by the user. Under [errand].sweep_runs (V38), several runs one after another: 6 if one was
+stopped or paused, else 1 if any failed (or could not be planned at its turn), else 0.
 """
 
 from __future__ import annotations
@@ -630,17 +630,19 @@ def catch_signals(stopper: execute.Stopper) -> dict:
     """Ctrl-C (SIGINT), SIGTERM and SIGHUP ask the run to stop (V181): the first cleanly (each point ends, its
     partial outputs kept, a rerun resumes); the second hard (the tools killed at once, the stop still
     recorded); the third is the default behaviour, at once. SIGHUP, the terminal gone, also points the
-    output at /dev/null; a SIGHUP ignored when the run began (nohup) stays ignored. Returns the handlers
-    it replaced."""
+    output at /dev/null; a SIGHUP ignored when the run began (nohup) stays ignored. After a pause (I-115) the
+    first is a stop, as ever, recorded so: after a force pause (already hard) it does not kill the run, the next
+    does. Returns the handlers it replaced."""
     def on_signal(signum, frame):
         if signum == signal.SIGHUP:
             _quiet()
-        if stopper.hard:
+        if stopper.hard and not stopper.paused:
             signal.signal(signum, signal.SIG_DFL)
             os.kill(os.getpid(), signum)
             return
         stopper.hard = stopper.requested
         stopper.requested = True
+        stopper.paused = False
 
     previous = {}
     for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
@@ -648,6 +650,22 @@ def catch_signals(stopper: execute.Stopper) -> dict:
             continue
         previous[signum] = signal.signal(signum, on_signal)
     return previous
+
+
+def catch_pause(stopper: execute.Stopper):
+    """SIGUSR1, a `p` in a watch or in the run's own view (I-115): the first a pause (`pausing`: no point, stage
+    or run is begun any more, the running points run to their end, then the run quits without its later stages,
+    exit 6, recorded paused); the second a force pause (`requested` and `hard`, as a hard stop: the running
+    points' tools killed at once, recorded stopped, their partial outputs kept; the run still paused). A stop
+    stays a stop. Returns the handler it replaced."""
+    def on_pause(signum, frame):
+        if stopper.requested and not stopper.paused:
+            return
+        if stopper.pausing:
+            stopper.requested = stopper.hard = True
+        stopper.pausing = stopper.paused = True
+
+    return signal.signal(signal.SIGUSR1, on_pause)
 
 
 def _quiet() -> None:
@@ -739,11 +757,13 @@ def cmd_run(args) -> int:
     another (V38). Each is exactly `heimdall run CONFIG <cfg>`, after a `run NN - <title> -` line. All are
     planned before the first starts, so a config error anywhere exits 2 with nothing run; one is
     planned again at its turn only if the TOML was edited meanwhile, so edits still count. A failed run leaves the next to
-    start; a stop starts no more. On a terminal, and with --detach, the run is a worker of its own, which this
-    process follows (or leaves) (V183)."""
+    start; a stop or a pause starts no more. On a terminal, and with --detach, the run is a worker of its own, which
+    this process follows (or leaves) (V183)."""
     worker = getattr(args, "worker", None)
+    stopper = execute.Stopper()
     if worker:
         _worker_signals()
+        catch_pause(stopper)                # a p while the worker plans: a pause, never SIGUSR1's default death
     _ask_keep(args)
     if getattr(args, "tag", None) is not None:              # refused here, before a worker is started
         configmod.check_tag(args.tag, "--tag")
@@ -765,10 +785,10 @@ def cmd_run(args) -> int:
         for line in show_config(errand, keys):
             print(line)
         return 0
-    stopper = execute.Stopper()
     if getattr(args, "why", False) or args.plan or stages_of(args) == {"plot"}:
         bus, recorder = None, None           # nothing runs: nothing to watch
     else:                                    # one stream for the whole process, served while it lives (V72)
+        catch_pause(stopper)
         bus = Bus()
         worker = getattr(args, "worker", None)
         opened = runs.log_of(worker) if worker else None    # the log its parent opened, wherever it is
@@ -799,7 +819,7 @@ def cmd_run(args) -> int:
                 bus.say(error.render())
             raise
         except KeyboardInterrupt:
-            code = 6
+            code, stopper.paused = 6, False
             raise
         except Exception as error:           # the runner itself failed: said, and recorded
             crashed = f"the runner failed: {type(error).__name__}: {error}"
@@ -809,10 +829,11 @@ def cmd_run(args) -> int:
         return code
     finally:
         if bus is not None:
-            runs.finish(entry, code, crashed, records=recorder.records, verdicts=recorder.verdicts,  # before the
-                        counts=recorder.counts(), **recorder.close())
+            paused = code == 6 and stopper.paused and crashed is None                               # I-115
+            runs.finish(entry, code, crashed, state="paused" if paused else None, records=recorder.records,
+                        verdicts=recorder.verdicts, counts=recorder.counts(), **recorder.close())    # before the
             hub.close()                                                                              # stream ends
-            notify(errand, code)
+            notify(errand, code, paused)
 
 
 def live(args, stdin=None, stdout=None, environ=None) -> bool:
@@ -845,7 +866,8 @@ def _worker_signals() -> None:
 def background(args, errand, keys: list[str], *, attach: bool) -> int:
     """The run as a worker of its own (V183): this command again with --worker <id>, in a session of its own,
     its output in the registry's <id>.log. `attach`: followed here as heimdall watch does (`d` leaves it
-    running; Ctrl-C stops it, once cleanly, twice hard); else (--detach) left once its run has started."""
+    running; `p` pauses it, twice discards its running points; Ctrl-C stops it, once cleanly, twice hard); else
+    (--detach) left once its run has started."""
     from .watch import follow, socket_of, started, tail
     run_id = runs.new_id()
     log = runs.log_file(run_id)
@@ -870,10 +892,18 @@ def background(args, errand, keys: list[str], *, attach: bool) -> int:
         print(f"running in the background: {what} (pid {proc.pid}, {run_id})")
         left()
         return 0
-    asked = []
+    asked, pausing = [], []
+    rest = "d: leave it running · Ctrl-C: stop it"
 
     def on_key(key: str, shown) -> str | None:
-        return "detached" if key in ("d", "D") else None
+        if key in "dD":
+            return "detached"
+        if key in "pP":
+            if asked:
+                shown.say("already stopping: a stop is not made a pause")
+            else:
+                pause_key(proc.pid, shown, pausing, rest)
+        return None
 
     def on_interrupt(shown) -> None:
         asked.append(True)
@@ -885,7 +915,7 @@ def background(args, errand, keys: list[str], *, attach: bool) -> int:
     from .watch import Keys
     with Keys(sys.stdin) as keys_in:
         outcome = follow(socket_of(proc.pid), plain=args.plain, keys=keys_in.fd, on_key=on_key, on_interrupt=on_interrupt,
-                         proc=proc, hint="d: leave it running · Ctrl-C: stop it")
+                         proc=proc, hint="d: leave it running · p: pause it · Ctrl-C: stop it")
     if outcome == "detached":
         left()
         return 0
@@ -896,6 +926,24 @@ def background(args, errand, keys: list[str], *, attach: bool) -> int:
     if outcome == "gone":
         print("\n".join(tail(log)), file=sys.stderr)
     return ended()
+
+
+def pause_key(pid: int, shown, pausing: list, rest: str) -> None:
+    """`p` in a watch or in the run's own view (I-115): the run's process sent SIGUSR1. The first press a pause
+    (its running points end first, none more is started), the second a force pause (they are stopped at once);
+    a third sends nothing. Each says what it did, then the keys left (`rest`)."""
+    if len(pausing) >= 2:
+        shown.say("already pausing: its running points are being stopped")
+        return
+    running = len(shown.state.running())
+    pausing.append(True)
+    os.kill(pid, signal.SIGUSR1)
+    if len(pausing) == 1:
+        shown.keys(f"pausing: {running} running point{'' if running == 1 else 's'} end first, no more start; "
+                   f"p again discards them · {rest}")
+    else:
+        shown.keys(f"pausing now: the running points are discarded (stopped, partial outputs kept; a rerun runs them "
+                   f"again) · {rest}")
 
 
 def cmd_stop(args) -> int:
@@ -942,12 +990,12 @@ def cmd_stop(args) -> int:
     return 0
 
 
-def notify(errand, code: int) -> bool:
+def notify(errand, code: int, paused: bool = False) -> bool:
     """[errand] notify = "desktop" (V76): a notify-send when the command ends, for runs of hours. Never
     fails the run: no notify-send, or no desktop, and it says nothing."""
     if errand.raw.get("errand", {}).get("notify", "none") != "desktop" or not shutil.which("notify-send"):
         return False
-    verdict = {0: "done", 1: "a point failed", 2: "a config error", 6: "stopped"}.get(code, f"exit {code}")
+    verdict = "paused" if paused else {0: "done", 1: "a point failed", 2: "a config error", 6: "stopped"}.get(code, f"exit {code}")
     try:
         subprocess.Popen(["notify-send", "--app-name=heimdall", f"heimdall run {errand.name}", f"{errand.path.name}: {verdict}"],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
@@ -990,7 +1038,7 @@ def _runs(args, errand, keys: list[str], stopper: execute.Stopper, bus, recorder
         return _pipelined(args, errand, keys, stopper, bus, ahead, stamp)
     failed = False
     for number, key in enumerate(keys, 1):
-        if stopper.requested:
+        if stopper.halted:                   # a stop or a pause: no more runs begun
             return 6
         following = next((journal_path(errand, errand.configurations[k]) for k in keys[number:] if k not in skipped), None) \
             if paths.keeping("journal") else None
@@ -1024,7 +1072,7 @@ def _pipelined(args, errand, keys: list[str], stopper: execute.Stopper, bus: Bus
     started all its points, and its points take the free cores of a budget the runs share (never more
     than the largest run alone would use), so a run's last points and the next run's first overlap. Each
     run's own order (pre, points, combined, post, plots) is kept. One view for the sweep; each run's
-    events carry its key. A stop starts no more runs; a failed run leaves the next to start."""
+    events carry its key. A stop or a pause starts no more runs; a failed run leaves the next to start."""
     each = {key: max((execute.cores(p) for p in ahead[key].plans), default=1) for key in keys}
     budget = execute.Budget(max(os.cpu_count() or 1,
                                 *(max(1, ahead[key].configuration.parallelism) * each[key] for key in keys)))
@@ -1037,9 +1085,9 @@ def _pipelined(args, errand, keys: list[str], stopper: execute.Stopper, bus: Bus
     gate: threading.Event | None = None
     try:
         for number, key in enumerate(keys, 1):
-            while gate is not None and not gate.wait(0.25) and not stopper.requested:
+            while gate is not None and not gate.wait(0.25) and not stopper.halted:
                 pass
-            if stopper.requested:
+            if stopper.halted:
                 break
             following = next((journal_path(errand, errand.configurations[k]) for k in keys[number:]), None) \
                 if paths.keeping("journal") else None
@@ -1076,7 +1124,7 @@ def _pipelined(args, errand, keys: list[str], stopper: execute.Stopper, bus: Bus
         shown.end()
     if errors:
         raise errors[0]
-    if stopper.requested or 6 in codes.values():
+    if stopper.requested or 6 in codes.values():      # a pause: its run's own 6, as in a sequential sweep
         return 6
     return 1 if any(codes.values()) else 0
 
@@ -1206,7 +1254,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         raise HeimdallError(f"configuration '{configuration.key}': the pre stage is not complete, and the points need it",
                        hint="run --stages pre first (heimdall cluster's pre job does), or leave --stages out")
     refuse_overwrites(planned, args, stages)
-    if stopper.requested:                    # Ctrl-C while this run was being planned
+    if stopper.halted:                       # Ctrl-C or a pause while this run was being planned
         return 6
     tag = give_tag(args, errand, configuration)
 
@@ -1253,8 +1301,26 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             bus.say(f"   note: {len(dropped)} point(s) recorded in {tools.run_dir(errand, configuration)} are not in the config now "
                     f"({', '.join(dropped[:4])}{', …' if len(dropped) > 4 else ''}): its snapshot and points.json describe "
                     "the config as it is; give the configuration a serial of its own to keep a run whole")
-    failed = done = 0
+    failed = done = lost = 0                 # lost: the points failed (`failed` counts the later stages' too)
     verdict = "stopped"
+
+    def halted(stage: str) -> bool:
+        """Whether a stop or a pause ends the run before `stage`; a pause's verdict says what it leaves (I-115):
+        "paused: 12 done, 2 discarded, 42 left; not run: combine, post, plot"."""
+        nonlocal verdict
+        if not stopper.halted:
+            return False
+        if stopper.paused:
+            discarded = tally.stopped(getattr(bus, "run", "") or "")
+            left = max(0, sum(not record.is_complete(p) for p in plans) - lost - discarded)
+            later = [s for s in STAGES[STAGES.index(stage):] if s in stages
+                     and (s != "combine" or combined) and (s != "post" or post_plan is not None)]
+            verdict = "paused: " + ", ".join([f"{done} done", *([f"{lost} failed"] if lost else []),
+                                              *([f"{discarded} discarded"] if discarded else []), f"{left} left"]) \
+                + (f"; not run: {', '.join(later)}" if later else "")
+            bus.say(verdict)                 # the view and run.jsonl (heimdall log) say it
+        return True
+
     try:
         if "pre" in stages:
             if not post.run_pre(pre_plan, errand, configuration, bus=bus, stopper=stopper, logs=logs,
@@ -1265,17 +1331,23 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                 verdict = "pre done"
                 return 0
         if "points" in stages:
+            if halted("points"):
+                return 6
             done, failed, stopped = execute.run_points(plans, errand, configuration, bus=bus, stopper=stopper,
                                                        rerun=args.rerun, logs=logs, budget=budget,
                                                        started_all=gate.set if gate is not None else None,
                                                        wait_held=getattr(args, "wait", False))
+            lost = failed
             if stopped:
+                halted("combine")
                 return 6
         warned = tally.warned(getattr(bus, "run", "") or "")
         verdict = (f"{done} done{f' ({warned} with warnings)' if warned else ''}, {failed} failed, "
                    f"{len(plans) - done - failed} skipped") if "points" in stages else ""
         manifest()                           # post tools read it: it must say which points are complete
         if combined and "combine" in stages:
+            if halted("combine"):
+                return 6
             bad = post.run_combined(combined, every, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                                     rerun=args.rerun, say=bus.say)
             if stopper.requested:
@@ -1283,6 +1355,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             if bad:
                 failed += bad
                 verdict = f"{verdict}, {bad} combined group(s) failed"
+        if "post" in stages and post_plan is not None and halted("post"):
+            return 6
         if "post" in stages and not post.run(post_plan, every, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                                              rerun=args.rerun or again == "post", say=bus.say):
             if stopper.requested:
@@ -1291,6 +1365,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             verdict = ", ".join(v for v in (verdict, "post failed") if v)
         elif post_plan is not None and again == "post":
             verdict = "post done"
+        if "plot" in stages and halted("plot"):
+            return 6
         if "plot" in stages:
             drawing = not (getattr(args, "no_plot", False) or configuration.draw is False)     # V167, V168: the gates
             measuring = False if getattr(args, "no_stats", False) else configuration.measure
@@ -1307,7 +1383,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         if failures := tally.failures(getattr(bus, "run", "") or ""):          # V200: which failed, and why
             bus.say("failed:\n" + "\n".join(failures))
     finally:
-        onward = {"next": str(following)} if following and not stopper.requested else {}
+        onward = {"next": str(following)} if following and not stopper.halted else {}
         bus.emit("", "", {"k": "run", "state": "finished", "verdict": verdict, **onward})
         if own_view:
             bus.unsubscribe(shown)
@@ -1746,16 +1822,23 @@ def cmd_watch(args) -> int:
         return follow_events(connect(where), plain=args.plain)
     from .events import namespace, open_stream
     from .watch import Keys, follow
-    hint = "d or Ctrl-C: detach · q: stop the run"
-    stopping = []
+    hint = "d or Ctrl-C: detach · p: pause the run · q: stop the run"
+    stopping, pausing = [], []
 
-    def on_key(key: str, shown) -> str | None:              # d leaves; q stops the run, once (V183)
+    def on_key(key: str, shown) -> str | None:              # d leaves; q stops the run, once (V183); p pauses it
         if key in "dD":
             return "detached"
-        if key not in "qQ":
+        if key not in "qQpP":
             return None
+        pause = key in "pP"
         if hello.get("pidns") and namespace("pid") and hello["pidns"] != namespace("pid"):
-            shown.say("not stopped: its process is another PID namespace's; stop it from where it runs")
+            shown.say(f"not {'paused' if pause else 'stopped'}: its process is another PID namespace's; "
+                      f"{'pause' if pause else 'stop'} it from where it runs")
+        elif pause:                                         # I-115: once a pause, twice a force pause
+            if stopping:
+                shown.say("already stopping: a stop is not made a pause")
+            else:
+                pause_key(hello["pid"], shown, pausing, "q: stop the run · d or Ctrl-C: detach")
         elif stopping:                                      # a second q is no hard stop: that is asked for by name
             shown.say(f"already stopping; heimdall stop --pid {hello['pid']} asks again: a hard stop, its tools killed at once")
         else:

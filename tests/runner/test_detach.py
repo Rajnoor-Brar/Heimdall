@@ -74,21 +74,24 @@ from runner import house, runs, watch
 from runner.errors import HeimdallError
 
 FRAMEWORK = Path(__file__).resolve().parents[2] / "framework"
-#: A worker of the real type: a process with a real Hub, which ends its run on SIGINT (exit 6), as a run does.
+#: A worker of the real type: a process with a real Hub, which ends its run on SIGINT (exit 6), as a run does, and
+#: on a second SIGUSR1 (a force pause, I-115); one point runs.
 FAKE = r"""
 import os, signal, sys, time
 sys.path.insert(0, sys.argv[1])
 from runner.events import Hub
 hub = Hub({"config": sys.argv[2], "configurations": ["one"], "id": None, "work": sys.argv[3]})
-asked = []
+asked, paused = [], []
 signal.signal(signal.SIGINT, lambda s, f: asked.append(s))
+signal.signal(signal.SIGUSR1, lambda s, f: paused.append(s))
 stamp = lambda **e: {"v": 1, "point": "", "tool": "", "t": time.time(), **e}
 hub.event(stamp(k="run", state="started", points=1, title="fake run"))
+hub.event(stamp(k="point", point="p1", state="started", index=1))
 print("ready", flush=True)
 until = time.monotonic() + 60
-while not asked and time.monotonic() < until:
+while not asked and len(paused) < 2 and time.monotonic() < until:
     time.sleep(0.05)
-hub.event(stamp(k="run", state="finished", verdict="stopped"))
+hub.event(stamp(k="run", state="finished", verdict="paused" if paused and not asked else "stopped"))
 hub.close()
 sys.exit(6)
 """
@@ -230,6 +233,19 @@ def keys(monkeypatch):
 
 
 @pytest.fixture
+def pauses(monkeypatch):
+    """The SIGUSR1s this process sends (to the fake run), each still sent."""
+    sent, real = [], os.kill
+
+    def kill(pid, signum):
+        if signum == signal.SIGUSR1:
+            sent.append(pid)
+        real(pid, signum)
+    monkeypatch.setattr(os, "kill", kill)
+    return sent
+
+
+@pytest.fixture
 def interrupts(monkeypatch):
     """The SIGINTs this process sends (to the fake run), each still sent."""
     sent, real = [], os.kill
@@ -295,6 +311,57 @@ def test_watch_q_refuses_to_signal_another_pid_namespace(fake, keys, interrupts,
     os.write(keys, b"qd")
     assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None and interrupts == []
     assert "not stopped: its process is another PID namespace's" in capsys.readouterr().out
+
+
+def test_watch_p_pauses_and_a_second_p_discards(fake, keys, pauses, interrupts, capsys):
+    """I-115 P1: in `heimdall watch`, p sends the run SIGUSR1, a pause, and says how many points end first (those its
+    view has seen start: a key in the pipe may come before them); a second p sends it again, a force pause, and says
+    the running points are discarded; neither is a stop."""
+    import re
+    proc = fake()
+    os.write(keys, b"pd")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None
+    out = capsys.readouterr().out
+    assert "p: pause the run" in out
+    assert re.search(r"pausing: [01] running points? end first, no more start; p again discards them", out)
+    assert pauses == [proc.pid] and interrupts == []
+    time.sleep(0.5)                          # the first SIGUSR1 handled: two pending at once are one
+    os.write(keys, b"pp")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.wait(10) == 6
+    assert "pausing now: the running points are discarded" in capsys.readouterr().out
+    assert pauses == [proc.pid] * 3 and interrupts == []
+
+
+def test_watch_p_after_q_and_in_another_pid_namespace_sends_nothing(fake, keys, pauses, interrupts, monkeypatch, capsys):
+    from runner import events
+    proc, namespace = fake(), events.namespace
+    monkeypatch.setattr(events, "namespace", lambda kind: "pid:[another]")
+    os.write(keys, b"pd")
+    assert cli.main(["watch", "--pid", str(proc.pid), "--plain"]) == 0 and proc.poll() is None and pauses == []
+    assert "not paused: its process is another PID namespace's" in capsys.readouterr().out
+    monkeypatch.setattr(events, "namespace", namespace)
+    stopping = fake()
+    hold = []
+    monkeypatch.setattr(os, "kill", lambda pid, signum: hold.append(signum))      # the q's SIGINT held back
+    os.write(keys, b"qpd")
+    assert cli.main(["watch", "--pid", str(stopping.pid), "--plain"]) == 0
+    assert hold == [signal.SIGINT] and "already stopping: a stop is not made a pause" in capsys.readouterr().out
+
+
+def test_the_runs_own_view_takes_p_too(fake, keys, pauses, interrupts, monkeypatch, capsys):
+    """I-115 P1: the run's own terminal view (its worker followed) pauses on p, and its hint names it."""
+    proc = fake()
+    monkeypatch.setattr(runs, "spawn", lambda argv, run_id, log: proc)
+    args, errand = SimpleNamespace(argv=["run", "x"], plain=True), SimpleNamespace(name="a")
+    os.write(keys, b"pd")
+    assert cli.background(args, errand, ["one"], attach=True) == 0 and proc.poll() is None
+    out = capsys.readouterr().out
+    assert "p: pause it" in out and "running point" in out and "p again discards them" in out and "left running" in out
+    assert pauses == [proc.pid] and interrupts == []
+    time.sleep(0.5)                          # the first SIGUSR1 handled: two pending at once are one
+    os.write(keys, b"pp")
+    assert cli.background(args, errand, ["one"], attach=True) == 6
+    assert pauses == [proc.pid] * 3
 
 
 def test_keys_set_cbreak_and_put_the_terminal_back():

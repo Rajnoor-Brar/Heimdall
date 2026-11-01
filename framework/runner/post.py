@@ -164,9 +164,11 @@ def plan_combined(errand, configuration, master: dict, plans: list) -> list[tool
 
 def run_combined(groups: list, every: list, errand, configuration, *, bus=None, stopper, logs: bool = False, rerun: bool,
                  say) -> int:
-    """Each group once its own points are complete; the number that failed."""
+    """Each group once its own points are complete; the number that failed. A pause begins no more of them."""
     failed = 0
     for group in groups:
+        if stopper.pausing:
+            break
         members = [p for p in every if p.identity in set(group.upstream)]
         result = _run_stage(group, members, errand, configuration, bus=bus, stopper=stopper, logs=logs,
                             rerun=rerun, say=say, missing=f"combine: {group.point.name} not merged, {{count}} of its points incomplete")

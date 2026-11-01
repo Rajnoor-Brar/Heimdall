@@ -40,7 +40,7 @@ VERSION = 1
 KEEP_DAYS = 30
 #: A Heimdall cluster job's environment (V184): its submission is recorded, not each job.
 CLUSTER_VAR = "HEIMDALL_CLUSTER_JOB"
-#: What a run's exit code says, in a listing and in an entry.
+#: What a run's exit code says, in a listing and in an entry; a pause (I-115) also exits 6, its entry's state "paused".
 VERDICTS = {0: "done", 1: "failed", 2: "not run", 6: "stopped"}
 #: An entry's id, as new_id makes it: <YYYYmmdd-HHMMSS>-<host>-<4 hex>. Nothing else is read as one.
 ID = re.compile(r"\d{8}-\d{6}-[A-Za-z0-9_-]+-[0-9a-f]{4}")
@@ -164,10 +164,11 @@ def update(run_id: str | None, **fields) -> bool:
     return _write(folder() / f"{run_id}.json", {**got, **fields})
 
 
-def finish(run_id: str | None, code: int, verdict: str | None = None, **fields) -> bool:
-    """A run ended: its exit code and verdict, when."""
-    return update(run_id, code=code, verdict=verdict or VERDICTS.get(code, f"exit {code}"),
-                  finished=round(time.time(), 3), **fields)
+def finish(run_id: str | None, code: int, verdict: str | None = None, state: str | None = None, **fields) -> bool:
+    """A run ended: its exit code and verdict, when; `state` what it ended as when its code does not say it (a pause,
+    "paused", I-115: exit 6 as a stop), its verdict too unless one is given."""
+    return update(run_id, code=code, verdict=verdict or state or VERDICTS.get(code, f"exit {code}"),
+                  finished=round(time.time(), 3), **({"state": state} if state else {}), **fields)
 
 
 def _own(paths, mine: bool):
@@ -251,12 +252,13 @@ def alive(data: dict) -> bool | None:
 
 
 def state(data: dict, live: dict | None = None) -> str:
-    """What an entry says now: its verdict when it ended; running; "lost" (its process is gone, it never said
-    how it ended); or why this process cannot tell. `live`: pid → greeting of the sockets this process sees."""
+    """What an entry says now: when it ended, its state ("paused") or else its verdict; running; "lost" (its process
+    is gone, it never said how it ended); or why this process cannot tell. `live`: pid → greeting of the sockets
+    this process sees."""
     if data.get("kind") == "cluster":
         return data.get("verdict") or "submitted"
     if data.get("finished") is not None:
-        return f"{data.get('verdict') or VERDICTS.get(data.get('code'), 'ended')}"
+        return f"{data.get('state') or data.get('verdict') or VERDICTS.get(data.get('code'), 'ended')}"
     running = alive(data)
     if running is False:
         return "lost"
@@ -448,6 +450,10 @@ class Tally:
 
     def warned(self, key: str = "") -> int:
         return len(self._run(key)["warned"])
+
+    def stopped(self, key: str = "") -> int:
+        """The points stopped (a force pause's discarded ones, I-115)."""
+        return self._run(key)["stopped"]
 
     def failures(self, key: str = "") -> list[str]:
         """The failed points, a line each: its name, the tool blamed, the message's first line."""

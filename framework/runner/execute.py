@@ -70,12 +70,22 @@ POLL = 0.2
 
 
 class Stopper:
-    """Set by the CLI's signal handler; the supervisor turns it into the stop ladder. `hard` (a second
-    Ctrl-C, V181): the tools are killed at once, not after the ladder's graces; the stop is still recorded."""
+    """Set by the CLI's signal handlers; the supervisor turns it into the stop ladder. `hard` (a second
+    Ctrl-C, V181): the tools are killed at once, not after the ladder's graces; the stop is still recorded.
+    `pausing` (a `p`, SIGUSR1, I-115): no point, stage or run is begun any more, the running points run to their
+    end; a second `p` is a force pause, `requested` and `hard` as a hard stop. `paused`: the run ends as a pause
+    (a stop after it, a `q`, clears it)."""
 
     def __init__(self):
         self.requested = False
         self.hard = False
+        self.pausing = False
+        self.paused = False
+
+    @property
+    def halted(self) -> bool:
+        """Nothing more is begun: a stop or a pause."""
+        return self.requested or self.pausing
 
 
 @dataclass
@@ -146,9 +156,10 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
                rerun: bool, logs: bool = False, budget: Budget | None = None,
                started_all=None, wait_held: bool = False) -> tuple[int, int, bool]:
     """Every point not already complete, `configuration.parallelism` at a time, in order: (done,
-    failed, stopped). A stop (Ctrl-C) starts nothing more and stops the running points through
-    their groups' stop ladder. An error of the runner itself is raised once the running points
-    have ended. In a pipelined sweep (V75) a point also waits for its cores in the shared `budget`, and
+    failed, halted). A stop (Ctrl-C) starts nothing more and stops the running points through
+    their groups' stop ladder; a pause (I-115) starts nothing more and lets them end, and the run then ends
+    halted however many were left (its later stages wait for the rerun). An error of the runner itself is
+    raised once the running points have ended. In a pipelined sweep (V75) a point also waits for its cores in the shared `budget`, and
     `started_all()` is called once every point has started (the next run may then start). A point another
     session runs is skipped, or with `wait_held` waited for (U66)."""
     bus = _bus(bus)
@@ -172,6 +183,9 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
     at_once = max(1, configuration.parallelism)
     if at_once == 1 and budget is None:
         for i, plan in enumerate(todo):
+            if stopper.halted:
+                all_started()
+                return done, failed, True
             if i == len(todo) - 1:
                 all_started()
             result = run_point(plan, errand, configuration, bus=bus, stopper=stopper, logs=logs, wait=wait_held)
@@ -180,13 +194,13 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
             failed += not result.ok and not result.held
             done += result.ok
         all_started()
-        return done, failed, False
+        return done, failed, stopper.pausing
     error: BaseException | None = None
     held: dict = {}                                   # a running point's future → the cores it took
     with ThreadPoolExecutor(max_workers=at_once, thread_name_prefix="heimdall-point") as pool:
         running: set = set()
         while todo or running:
-            while todo and len(running) < at_once and not stopper.requested and error is None:
+            while todo and len(running) < at_once and not stopper.halted and error is None:
                 plan = todo[0]
                 need = cores(plan) if budget is not None else 0
                 if budget is not None and not budget.take(need):
@@ -198,7 +212,7 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
             if not todo:
                 all_started()
             if not running:
-                if todo and not stopper.requested and error is None:
+                if todo and not stopper.halted and error is None:
                     time.sleep(POLL)                  # waiting for the budget
                     continue
                 break
@@ -217,7 +231,7 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
     all_started()
     if error is not None:
         raise error
-    return done, failed, stopped or stopper.requested
+    return done, failed, stopped or stopper.halted
 
 
 def cores(plan: PointPlan) -> int:
@@ -677,8 +691,8 @@ def run_point(plan: PointPlan, errand, configuration, *, bus=None, stopper: Stop
     lock = PointLock(plan)
     stage = {"stage": plan.point.stage} if plan.point.stage else {}
     if not lock.acquire(wait=wait, stopper=stopper):
-        if stopper.requested:
-            return PointResult(False, stopped=True)
+        if stopper.halted:
+            return PointResult(False, stopped=stopper.requested, held=not stopper.requested)
         who = holder(plan)
         message = f"running in another session ({held_by(who)}): skipped" if who else "running in another session: skipped"
         bus.emit(plan.point.name, "", {"k": "point", "state": "skipped", "index": plan.point.index, "msg": message, **stage})

@@ -56,5 +56,8 @@ watch -i <index>, heimdall runs --resume <index of paused run>". Built on branch
 | Phase | V-row | Commit | State |
 |---|---|---|---|
 | R0 this plan, I-115 | — | | written |
+| R1 P1–P2: `p`, SIGUSR1, the stopper, the dispatcher, the verdict, the entry | V230 | COMMIT | done |
 
 ## 5. Log
+
+- 2026-11-01 R1 (V230): SIGUSR1 `catch_pause`, `Stopper.pausing`/`paused`/`halted`, the dispatcher, sweeps and stages halt on it, verdict `paused: …`, `runs.finish(state="paused")`; `p` in `heimdall watch` and the run's own view (`pause_key`). Beyond the plan: `q` after a force pause does not kill the runner; `p` after a stop sends nothing; the lock wait and combine's groups halt too. Tests: test_pause.py (new), test_detach.py. Docs left to R2 (P6).

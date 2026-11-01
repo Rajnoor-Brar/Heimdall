@@ -56,7 +56,7 @@ watch -i <index>, heimdall runs --resume <index of paused run>". Built on branch
 | Phase | V-row | Commit | State |
 |---|---|---|---|
 | R0 this plan, I-115 | — | | written |
-| R1 P1–P2: `p`, SIGUSR1, the stopper, the dispatcher, the verdict, the entry | V230 | COMMIT | done |
+| R1 P1–P2: `p`, SIGUSR1, the stopper, the dispatcher, the verdict, the entry | V230 | 9c0c62c | done |
 
 ## 5. Log
 

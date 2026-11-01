@@ -149,6 +149,62 @@ namespace Paint {
         return g;
     }
 
+    // What of each point, bar or box reaches into the current pad's frame though its centre is outside it (V233):
+    // ROOT leaves such an element out whole, where the frame should only cut it, so this draws it, cut at the
+    // frame's edges (its centre moved just inside). The axis ranges only show: the numbers, the ratios and the
+    // statistics are the curve's own, and each pad cuts its own (the ratio pad its range, the main pad its).
+    // `boxes`: a band's boxes, cut on both axes; else points: no marker, only the part of a bar that is inside
+    // (the vertical bar when x is inside, the horizontal when y is). Nothing on a log axis at or below 0.
+    inline void reaching(const TGraphAsymmErrors& g, Keep& keep, bool boxes, const char* option) {
+        if (!gPad) return;
+        const bool logx = gPad->GetLogx(), logy = gPad->GetLogy();
+        struct Edge { double lo, hi; };
+        auto edge = [](double a, double b, bool log) {                       // the frame, nudged inside
+            const double in = 1e-6 * (b - a);
+            return log ? Edge{std::pow(10.0, a + in), std::pow(10.0, b - in)} : Edge{a + in, b - in};
+        };
+        const Edge ex = edge(gPad->GetUxmin(), gPad->GetUxmax(), logx), ey = edge(gPad->GetUymin(), gPad->GetUymax(), logy);
+        auto* out = keep.hold(new TGraphAsymmErrors());
+        int n = 0;
+        for (int i = 0; i < g.GetN(); ++i) {
+            const double x = g.GetX()[i], y = g.GetY()[i];
+            if ((logx && x <= 0) || (logy && y <= 0)) continue;
+            const bool xIn = x >= ex.lo && x <= ex.hi, yIn = y >= ey.lo && y <= ey.hi;
+            if (xIn && yIn) continue;                                        // ROOT draws it
+            const double x0 = x - g.GetErrorXlow(i), x1 = x + g.GetErrorXhigh(i);
+            const double y0 = y - g.GetErrorYlow(i), y1 = y + g.GetErrorYhigh(i);
+            if (x1 < ex.lo || x0 > ex.hi || y1 < ey.lo || y0 > ey.hi) continue;   // wholly outside
+            const double cx = std::clamp(x, ex.lo, ex.hi), cy = std::clamp(y, ey.lo, ey.hi);
+            const double l = cx - std::max(x0, ex.lo), r = std::min(x1, ex.hi) - cx;
+            const double d = cy - std::max(y0, ey.lo), u = std::min(y1, ey.hi) - cy;
+            if (boxes) {
+                if (l + r <= 0 || d + u <= 0) continue;
+                out->SetPoint(n, cx, cy), out->SetPointError(n++, l, r, d, u);
+            } else if (xIn && d + u > 0) {                                   // its vertical bar, cut
+                out->SetPoint(n, cx, cy), out->SetPointError(n++, 0.0, 0.0, d, u);
+            } else if (yIn && l + r > 0) {                                   // its horizontal bar, cut
+                out->SetPoint(n, cx, cy), out->SetPointError(n++, l, r, 0.0, 0.0);
+            }
+        }
+        if (!n) return;
+        out->SetLineColor(g.GetLineColor()), out->SetLineWidth(g.GetLineWidth()), out->SetLineStyle(g.GetLineStyle());
+        out->SetFillColor(g.GetFillColor()), out->SetFillStyle(g.GetFillStyle());
+        out->SetMarkerSize(0);
+        out->Draw(option);
+    }
+
+    // A histogram's error band (E2) as boxes, for `reaching`.
+    inline TGraphAsymmErrors* boxesOf(const TH1D& h, Keep& keep) {
+        auto* g = keep.hold(new TGraphAsymmErrors());
+        int n = 0;
+        for (int b = 1; b <= h.GetNbinsX(); ++b) {
+            const double x = h.GetBinCenter(b), w = 0.5 * h.GetBinWidth(b), e = h.GetBinError(b);
+            g->SetPoint(n, x, h.GetBinContent(b)), g->SetPointError(n++, w, w, e, e);
+        }
+        g->SetFillColor(h.GetFillColor()), g->SetFillStyle(h.GetFillStyle()), g->SetLineWidth(0);
+        return g;
+    }
+
     // ── the look: src/Apps/Paint/base.toml (rivet-mkhtml's), as merged for the page ─────────
     //
     // Sizes in the style are points of the page (size, in inches); here they become pixels at the
@@ -221,12 +277,14 @@ namespace Paint {
             }
             g->SetFillColorAlpha(colourIndex, 0.3), g->SetLineWidth(0), g->SetMarkerSize(0);
             if (n) g->Draw("2");
+            reaching(*g, keep, true, "2");
         }
         if (markers) {
             auto* g = points(s, keep, false);
             g->SetLineColor(colourIndex), g->SetLineWidth(pen.width);
             g->SetMarkerStyle(look.s.marker), g->SetMarkerColor(colourIndex), g->SetMarkerSize(look.marker());
             g->Draw(look.s.errors == "none" ? "P" : "PZ");
+            if (look.s.errors != "none") reaching(*g, keep, false, "PZ");
             return;
         }
         for (TH1D* h : segments(s, keep, id)) {
@@ -236,12 +294,14 @@ namespace Paint {
                 auto* band = static_cast<TH1D*>(keep.hold(h->Clone()));
                 band->SetFillColorAlpha(colourIndex, 0.25), band->SetLineWidth(0), band->SetMarkerSize(0);
                 band->Draw("E2 SAME");
+                reaching(*boxesOf(*band, keep), keep, true, "2");
             }
         }
         if (look.s.errors != "bars" || band) return;   // a band curve shows its envelope, not its own errors
         auto* bars = points(s, keep, false);
         bars->SetLineColor(colourIndex), bars->SetLineWidth(pen.width), bars->SetMarkerSize(0);
         bars->Draw("PZ");
+        reaching(*bars, keep, false, "PZ");
     }
 
     inline void dataPoints(const Series& s, const Look& look, Keep& keep, const Series* per = nullptr) {
@@ -250,6 +310,7 @@ namespace Paint {
         g->SetLineColor(c), g->SetLineWidth(look.width);
         g->SetMarkerStyle(look.s.marker), g->SetMarkerColor(c), g->SetMarkerSize(look.marker());
         g->Draw("PZ");
+        reaching(*g, keep, false, "PZ");
     }
 
     // ── overflow marks: a curve past an explicit y_range endpoint ─────────────────────────────

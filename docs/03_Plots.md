@@ -215,8 +215,13 @@ file wrote that as `"default"` in `[plot]` itself; `heimdall migrate --v3` rewri
 the MC bins → normalise → auto-range over curves and data → gutters → `x_range` → y-range over the
 visible x span → `y_range` → draw. Each range is `[minimum, maximum]`, and each end is resolved on its
 own: `"default"` at one end is the layer below's end, so a figure's `["default", 10]` keeps `[plot]`'s
-minimum, and in `[plot]` it is the end the steps before calculate. The ranges only show: the
-statistics (§3.2) are taken over the range before them. A range that leaves no increasing span, or
+minimum, and in `[plot]` it is the end the steps before calculate. The ranges only show, and only cut
+what is drawn: the statistics (§3.2) are taken over the range before them, and the ratios from the
+curves' own values. Each pad cuts its own drawing at its frame: an MC bin at 1200 under `y_range = [0,
+1000]` with data at 900 runs off the top of the main pad, while its ratio, 1.33, is drawn in the ratio
+pad when that pad's range holds it. A point, error bar or band whose centre is past an end is drawn
+where it reaches into the frame, cut at the edge (a data point at 1100 ± 300 shows its bar from 800 up),
+with no marker. A range that leaves no increasing span, or
 an explicit minimum ≤ 0 on a log axis, fails that page (exit 1); an axis without an explicit end is
 never refused for its calculated range, so an empty log-y page still draws.
 

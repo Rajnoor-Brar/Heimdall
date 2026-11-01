@@ -354,6 +354,53 @@ def test_with_a_joined_ratio_pad_the_lower_marks_are_inside_the_frame(v1, gap, i
     assert not marks_at(lines, bottom + GAP if inside else bottom - GAP)
 
 
+def vertical_lines(svg: Path) -> list[tuple[str, float, float, float]]:
+    """A page's one-segment vertical lines in a width of 4 (curves, bars): (colour, x, y, length), from the top down."""
+    out = []
+    for node in ET.parse(svg).getroot().iter():
+        found = re.fullmatch(r"M([-+\d.eE]+),([-+\d.eE]+)v\s*([-+\d.eE]+)", node.get("d", "")) if node.tag.endswith("path") else None
+        if found and node.get("stroke-width") == "4":
+            x, y, length = map(float, found.groups())
+            out.append((node.get("stroke"), x, min(y, y + length), abs(length)))
+    return out
+
+
+def test_a_range_cuts_what_it_shows_never_what_reaches_into_it(scratch):
+    """The ranges only show, and cut at the frame (the user, 2026-11-01): data at 900 and 1100 ± 300, MC at 1200 ±
+    400, y 0–1000. The data bar and the MC bar whose centres are past 1000 are drawn from 800 to the frame's top
+    (ROOT alone leaves them out); the ratio pad draws 1200/900 = 1.33 within its own range, whatever the main pad
+    cuts."""
+    mc = v1_curve(scratch, "mc", [1200.0, 500.0, 300.0], edges=(0.0, 1.0, 2.0, 3.0), errors=[400.0, 20.0, 20.0])
+    data = v1_curve(scratch, "data", [900.0, 1100.0, 300.0], edges=(0.0, 1.0, 2.0, 3.0), errors=[50.0, 300.0, 20.0])
+    document = {"page": {"name": "cut", "output": str(scratch / "cut"), "y_range": [0, 1000], "ratio": True,
+                         "formats": ["svg"]},
+                "curve": [{"file": str(mc), "object": "photo_eic/d01-x01-y01", "label": "MC"}],
+                "data": {"file": str(data), "object": "photo_eic/d01-x01-y01", "label": "data"}}
+    config = scratch / "cut.toml"
+    config.write_text(tomli_w.dumps(document), encoding="utf-8")
+    done = paint(config, "--ranges")
+    assert done.returncode == 0, done.stderr
+    frames, _ = svg_lines(scratch / "cut.svg")
+    (top, bottom), (ratio_top, ratio_bottom) = frames
+    unit = (bottom - top) / 1000
+    lines = vertical_lines(scratch / "cut.svg")
+    root = ET.parse(scratch / "cut.svg").getroot()
+    left, width = next((float(n.get("x")), float(n.get("width"))) for n in root.iter() if n.tag.endswith("rect")
+                       and n.get("stroke") == "black")
+    centre = [left + width * (i + 0.5) / 3 for i in range(3)]
+
+    def cut_at(colour, x):
+        return [(y, length) for c, at, y, length in lines if c == colour and at == pytest.approx(x, abs=0.05)
+                and y == pytest.approx(top, abs=0.05)]
+    assert cut_at("black", centre[1]) == [(pytest.approx(top, abs=0.05), pytest.approx(200 * unit, abs=0.05))]
+    assert cut_at(A, centre[0]) == [(pytest.approx(top, abs=0.05), pytest.approx(200 * unit, abs=0.05))]
+    ranges = json.loads(Path(f"{config}.ranges.json").read_text(encoding="utf-8"))
+    assert ranges["y"] == [0, 1000] and ranges["largest"] == 1200          # the numbers are the curve's own
+    ratio_bars = [(y, length) for c, at, y, length in lines if c == A and at == pytest.approx(centre[0], abs=0.05)
+                  and y > ratio_top - 0.05]
+    assert ratio_bars and all(y + length <= ratio_bottom + 0.05 for y, length in ratio_bars)   # 1.33 ± 0.44, inside
+
+
 def heat_map(where: Path, name: str, **keys) -> Path:
     yoda = pytest.importorskip("yoda")
     h = yoda.Histo2D(4, 0, 4, 3, 0, 3, "/photo_eic/d90-x01-y01")
@@ -404,13 +451,14 @@ def test_exit_codes(inputs):
 
 # ── v1's transform vectors (tests/python/plot/test_plot_pipeline.py at rework/v1-final) ────────
 
-def v1_curve(where: Path, name: str, values, *, edges=(0.0, 1.0, 2.0, 3.0, 4.0), entries=None) -> Path:
-    """A Rivet-shaped histogram, and its /RAW twin when `entries` is given, converted to ROOT."""
+def v1_curve(where: Path, name: str, values, *, edges=(0.0, 1.0, 2.0, 3.0, 4.0), entries=None, errors=None) -> Path:
+    """A Rivet-shaped histogram, and its /RAW twin when `entries` is given, converted to ROOT; its errors √value,
+    or `errors`."""
     yoda = pytest.importorskip("yoda")
     estimate = yoda.BinnedEstimate1D(list(edges), "/photo_eic/d01-x01-y01")
     for index, value in enumerate(values, start=1):
         estimate.bin(index).setVal(value)
-        estimate.bin(index).setErr(math.sqrt(abs(value)) if value else 0.0)
+        estimate.bin(index).setErr(errors[index - 1] if errors else math.sqrt(abs(value)) if value else 0.0)
     objects = [estimate]
     if entries is not None:
         raw = yoda.Histo1D(list(edges), "/RAW/photo_eic/d01-x01-y01")

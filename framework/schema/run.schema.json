@@ -801,7 +801,7 @@
      "maxItems": 2
     },
     "y_range": {
-     "description": "the y axis limits\n\nthe y axis limits, `[minimum, maximum]`, each end as in `x_range`. A numeric end holds when a curve passes it: Paint and mpl clip the curve at the frame and mark each bin past it with a thin line in the curve's colour, 2 px outside the frame (inside where a joined ratio pad leaves no room); curves past it in one bin share its width. The data are never marked, nor a value <= 0 on a log axis",
+     "description": "the y axis limits\n\nthe y axis limits, `[minimum, maximum]`, each end as in `x_range`. It only cuts what is drawn: the statistics and the ratios are the curves' own values, and the ratio pad cuts at its own range. A numeric end holds when a curve passes it: Paint and mpl clip the curve, and a point's bar or a band reaching in, at the frame, and mark each bin past it with a thin line in the curve's colour, 2 px outside the frame (inside where a joined ratio pad leaves no room); curves past it in one bin share its width. The data are never marked, nor a value <= 0 on a log axis",
      "type": "array",
      "items": {
       "anyOf": [
@@ -1226,7 +1226,7 @@
         ]
        },
        "y_range": {
-        "description": "as [plot].y_range, for these pages\n\nthe y axis limits, `[minimum, maximum]`, each end as in `x_range`. A numeric end holds when a curve passes it: Paint and mpl clip the curve at the frame and mark each bin past it with a thin line in the curve's colour, 2 px outside the frame (inside where a joined ratio pad leaves no room); curves past it in one bin share its width. The data are never marked, nor a value <= 0 on a log axis",
+        "description": "as [plot].y_range, for these pages\n\nthe y axis limits, `[minimum, maximum]`, each end as in `x_range`. It only cuts what is drawn: the statistics and the ratios are the curves' own values, and the ratio pad cuts at its own range. A numeric end holds when a curve passes it: Paint and mpl clip the curve, and a point's bar or a band reaching in, at the frame, and mark each bin past it with a thin line in the curve's colour, 2 px outside the frame (inside where a joined ratio pad leaves no room); curves past it in one bin share its width. The data are never marked, nor a value <= 0 on a log axis",
         "anyOf": [
          {
           "type": "array",
@@ -1980,7 +1980,7 @@
           "maxItems": 2
          },
          "y_range": {
-          "description": "the y axis limits\n\nthe y axis limits, `[minimum, maximum]`, each end as in `x_range`. A numeric end holds when a curve passes it: Paint and mpl clip the curve at the frame and mark each bin past it with a thin line in the curve's colour, 2 px outside the frame (inside where a joined ratio pad leaves no room); curves past it in one bin share its width. The data are never marked, nor a value <= 0 on a log axis",
+          "description": "the y axis limits\n\nthe y axis limits, `[minimum, maximum]`, each end as in `x_range`. It only cuts what is drawn: the statistics and the ratios are the curves' own values, and the ratio pad cuts at its own range. A numeric end holds when a curve passes it: Paint and mpl clip the curve, and a point's bar or a band reaching in, at the frame, and mark each bin past it with a thin line in the curve's colour, 2 px outside the frame (inside where a joined ratio pad leaves no room); curves past it in one bin share its width. The data are never marked, nor a value <= 0 on a log axis",
           "type": "array",
           "items": {
            "anyOf": [
@@ -2405,7 +2405,7 @@
              ]
             },
             "y_range": {
-             "description": "as [plot].y_range, for these pages\n\nthe y axis limits, `[minimum, maximum]`, each end as in `x_range`. A numeric end holds when a curve passes it: Paint and mpl clip the curve at the frame and mark each bin past it with a thin line in the curve's colour, 2 px outside the frame (inside where a joined ratio pad leaves no room); curves past it in one bin share its width. The data are never marked, nor a value <= 0 on a log axis",
+             "description": "as [plot].y_range, for these pages\n\nthe y axis limits, `[minimum, maximum]`, each end as in `x_range`. It only cuts what is drawn: the statistics and the ratios are the curves' own values, and the ratio pad cuts at its own range. A numeric end holds when a curve passes it: Paint and mpl clip the curve, and a point's bar or a band reaching in, at the frame, and mark each bin past it with a thin line in the curve's colour, 2 px outside the frame (inside where a joined ratio pad leaves no room); curves past it in one bin share its width. The data are never marked, nor a value <= 0 on a log axis",
              "anyOf": [
               {
                "type": "array",

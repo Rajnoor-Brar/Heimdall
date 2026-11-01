@@ -174,8 +174,9 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--plain` | plain lines instead of the live view |
 | `--file EVENTS.JSONL` | follow a Run's run.jsonl, or a --journal job's status.jsonl, instead |
 | `--pid N` | the job of this process (heimdall runs lists them) |
+| `-i, --index N` | the live job [N] of heimdall runs (not a paused one) |
 
-**`heimdall runs`**: running jobs; with --5, --10, --20 or --50 the latest jobs, with --week or --month jobs of the last 7 or 28 days
+**`heimdall runs`**: live jobs (running and paused), each with its index [N]; with --5, --10, --20 or --50 the latest jobs, with --week or --month jobs of the last 7 or 28 days
 
 | Argument | Meaning |
 |---|---|
@@ -185,6 +186,8 @@ Every subcommand and its arguments (options and positionals may come in any orde
 | `--50` | show the latest 50 jobs, including ended ones |
 | `--week` | show all jobs from the last 7 days |
 | `--month` | show all jobs from the last 28 days |
+| `--resume N` | resume the paused job [N]: its own command again, detached, in its work dir and checkout (its complete points skipped) |
+| `--forget N` | drop the paused job [N] from the live list (its entry is kept) |
 
 **`heimdall tag`**: a Run's tag: show it, set it, or --clear it
 
@@ -382,9 +385,9 @@ the others.
 | 0 | everything done or skipped |
 | 1 | a point, a stage or a page failed |
 | 2 | a config error, before anything ran |
-| 6 | stopped by the user (Ctrl-C, SIGTERM or a closed terminal: SIGINT, then SIGTERM, then SIGKILL to the running tools; a second is a hard stop, the tools killed at once; a third kills the process) |
+| 6 | stopped by the user (Ctrl-C, SIGTERM or a closed terminal: SIGINT, then SIGTERM, then SIGKILL to the running tools; a second is a hard stop, the tools killed at once; a third kills the process), or paused (`p`, SIGUSR1: §1.5) |
 
-Under `[errand].sweep_runs` (04 §4.1), the command exits 6 if a run was stopped, else 1 if any failed,
+Under `[errand].sweep_runs` (04 §4.1), the command exits 6 if a run was stopped or paused, else 1 if any failed,
 else 0. With `[errand] notify = "desktop"`, the end is also a desktop notification.
 
 ### 1.2 `heimdall plot` and `heimdall overlay`
@@ -479,16 +482,26 @@ run` serves while it lives.
 - **Only your own runs** can be watched: a run's socket refuses another user.
 - **`--pid N`** follows the run of that process (`heimdall runs` lists them). With no run to watch, it
   names the last one that ended and its log.
+- **`-i N`** follows the live job `[N]` of `heimdall runs`, the list made again as it is asked. A
+  paused one is refused, naming `heimdall runs --resume N`; an index with no job is refused, listing
+  the live ones. It takes no config, `--file` or `--pid` beside it.
 - **Keys**, on a terminal: `d` and Ctrl-C detach, leaving the run going; `q` asks the run to stop
   cleanly, as `heimdall stop [CONFIG [CFG]]` or `heimdall stop --pid N` would. A second `q` does
   nothing more: it names the hard stop, `heimdall stop --pid N` again (the tools are killed at once).
   That holds within one `heimdall watch`: a `q` after detaching and watching again is a second stop, the
-  hard one. Function and arrow keys are not read as letters.
+  hard one. `p` pauses the run: no point, stage or run of a sweep is begun any more, the points running
+  end as they would (done or failed), then the run ends without its later stages (combine, post, plot),
+  exit 6, recorded `paused`, its verdict saying what it leaves (`paused: 12 done, 2 discarded, 42 left;
+  not run: combine, post, plot`). A second `p` is a force pause: the running points are stopped at once,
+  as a hard stop stops them (their partial outputs kept, recorded stopped), and the run is still
+  paused. Each press says what it did. A `q` after a `p` is a stop; a `p` after a `q` sends nothing.
+  Function and arrow keys are not read as letters.
 
 **A run on a terminal** (`heimdall run`, with a terminal for input and output, in its foreground) runs as
 a worker process of its own, started in the background; the command shows it as `heimdall watch` does.
-`d` leaves it running and gives the prompt back, printing the commands that watch and stop it. Ctrl-C
-stops it: once cleanly, twice hard, a third time at once. Closing the terminal leaves it running. Its
+`d` leaves it running and gives the prompt back, printing the commands that watch and stop it. `p`
+pauses it, as in a watch (twice: a force pause). Ctrl-C stops it: once cleanly, twice hard, a third time
+at once. Closing the terminal leaves it running. Its
 exit code is the run's (0, 1, 2 or 6; a run killed by a signal N, 128 + N). A run that cannot be planned
 says why and exits 2 before anything runs. `--plain`, a run not on a terminal, `… &`, a Slurm job and
 `HEIMDALL_DETACH=never` keep the run in the command's own process, as before. A worker's output goes to
@@ -508,18 +521,28 @@ points end cleanly, partial outputs are kept, a rerun resumes. It waits until th
 neither a config nor a pid, it looks only at the jobs of the work dir it is in; several matching jobs
 are listed and none stopped. A cluster job is stopped with `heimdall cluster … --cancel`.
 
-**`heimdall runs [--5|--10|--20|--50|--week|--month]`** lists running jobs by default, across every
-work dir and Heimdall checkout. A count flag lists the latest N runs of any state; `--week` and
-`--month` list all runs of any state started in the last 7 or 28 days. These filters use the registry's
-last 30 days. Entries are ordered oldest to newest, so the latest is at the bottom, and separated by a
-blank line. Each is a block:
+**`heimdall runs [--5|--10|--20|--50|--week|--month]`** lists the live jobs by default, across every
+work dir and Heimdall checkout: those running and those paused, under the heading `live`, each with
+its index, `[1]`, `[2]`, … in the order they began. The indices are counted again each time the list
+is made (by `heimdall runs`, `heimdall watch -i` and `--resume` alike): a job that ends drops out and
+the later ones move up; a resumed job takes its pause's place. A count flag lists the latest N runs of
+any state; `--week` and `--month` list all runs of any state started in the last 7 or 28 days (these
+have no indices). These filters use the registry's last 30 days. Entries are ordered oldest to newest,
+so the latest is at the bottom, and separated by a blank line. Each is a block:
 
 ```
-  20261030-084424-pp-exphep-e17e  |   Brookhaven
+live
+  [1] 20261030-084424-pp-exphep-e17e  |   Brookhaven
       eic/zeus · 12 generator_pdf
       10-30 08:44 (1h 25m) · running  ·  3/7 ·  2
       pid 41872 : heimdall watch --pid 41872 · heimdall stop --pid 41872
       log /home/you/Himinbjorg/runs/20261030-084424-pp-exphep-e17e.log
+
+  [2] 20261030-101502-pp-exphep-3c0a  |   Brookhaven
+      eic/zeus · 13 generator_scale   12 done, 0 failed
+      10-30 10:15 (40m) · paused  ·  12/56
+      heimdall runs --resume 2 · heimdall runs --forget 2
+      log /home/you/Himinbjorg/runs/20261030-101502-pp-exphep-3c0a.log
 ```
 
 - **The id and the work dir** (its title, as `heimdall recognise` named it).
@@ -531,11 +554,24 @@ blank line. Each is a block:
   group. A running one adds how many points run now (`2`). The counts are written as the run goes, at
   most every 2 seconds, and last when it ends. `NULL` is a count the entry does not hold: an entry
   from before they were kept, or a cluster submission.
-- **The state:** `running`; how it ended (`done`, `failed`, `stopped`, `not run`); `lost`, its process
+- **The state:** `running`; how it ended (`done`, `failed`, `stopped`, `paused`, `not run`; a pause
+  since resumed or forgotten, `paused, resumed` or `paused, forgotten`); `lost`, its process
   gone without saying how it ended (killed, or the machine restarted); or where it cannot be told from
   here: `on <host>`, `in another PID namespace` (a container's), `running (not reachable from here)`.
   A cluster submission is `submitted`, `on Slurm`, `ended` or `cancelled`, with its jobs' `--status` command.
-- **A running one's pid**, to watch or stop it by; then its log, a detached run's.
+- **A running one's pid**, to watch or stop it by; a paused one's resume and forget commands; then its
+  log, a detached run's.
+
+**`heimdall runs --resume N`** resumes the paused job `[N]`: its own command again, as it was typed
+(with `--detach`, and without the worker's own arguments), started detached by the Heimdall checkout it
+ran with, in its work dir. It continues from its records: its complete points are skipped, the rest
+run, then its later stages. It prints the new job's id, pid, log, and the watch and stop commands; the
+paused entry is marked resumed (with the new id) and leaves the live list, and the new job takes its
+place there. A running job is refused, and so is a pause whose checkout or work dir is gone (the
+command to run by hand is named). If the command fails to start (a config error, exit 2), the job
+stays paused. A command given `--rerun` reruns its done points too, and says so. **`heimdall runs
+--forget N`** drops the paused job `[N]` from the live list: its entry is kept, and `--week` still lists
+it.
 
 A run from inside an Apptainer image is not recorded (its machine root is read-only) but is listed
 while it runs, as `running (unrecorded)`. The registry is `<machine root>/runs/`.

@@ -17,8 +17,9 @@ heimdall run Demo/jets pdf                 # run what is not complete, then draw
 heimdall run Demo/jets pdf --set errand.events=50000 --points 2   # one value changed, one point, for this job
 heimdall status Demo/jets                  # each point: complete, stale, running, incomplete, to run
 heimdall plot Demo/jets pdf                # redraw from what is on disk
-heimdall watch                             # follow a job from another terminal (d/Ctrl-C detach; q stops it)
-heimdall runs                              # active jobs on this machine (--5 shows recent ones)
+heimdall watch                             # follow a job from another terminal (d/Ctrl-C detach; p pauses it; q stops it)
+heimdall runs                              # live jobs on this machine, running and paused, as [1], [2], … (--5: recent ones)
+heimdall watch -i 2                        # follow the live job [2]; heimdall runs --resume 2 resumes it once paused
 heimdall stop --pid 12345                  # stop a job as Ctrl-C would (a job's own terminal: d leaves it running)
 heimdall explain errand.events             # any key, table, tool option or style key
 heimdall help run                          # any command

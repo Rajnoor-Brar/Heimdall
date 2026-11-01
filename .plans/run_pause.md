@@ -57,7 +57,9 @@ watch -i <index>, heimdall runs --resume <index of paused run>". Built on branch
 |---|---|---|---|
 | R0 this plan, I-115 | — | | written |
 | R1 P1–P2: `p`, SIGUSR1, the stopper, the dispatcher, the verdict, the entry | V230 | 9c0c62c | done |
+| R2 P3–P6: live runs indexed, `watch -i`, `runs --resume`, `--forget`; docs, tests | V231 | | done |
 
 ## 5. Log
 
 - 2026-11-01 R1 (V230): SIGUSR1 `catch_pause`, `Stopper.pausing`/`paused`/`halted`, the dispatcher, sweeps and stages halt on it, verdict `paused: …`, `runs.finish(state="paused")`; `p` in `heimdall watch` and the run's own view (`pause_key`). Beyond the plan: `q` after a force pause does not kill the runner; `p` after a stop sends nothing; the lock wait and combine's groups halt too. Tests: test_pause.py (new), test_detach.py. Docs left to R2 (P6).
+- 2026-11-01 R2 (V231): `house.live_entries` (running + paused, by start, a resumed run in its pause's place), `runs` lists it under `live` with `[N]`; `watch -i N`; `runs --resume N` (`runs.again`, `runs.relaunch`, the new id through `$HEIMDALL_RUN_ID`, `resumed_by`); `--forget N`; docs 00, 02, 05, 06. Beyond the plan: `$HEIMDALL_WORK`/`$HEIMDALL` set for the resumed command; `runs.state` says `paused, resumed`/`paused, forgotten`; a `--rerun` in the command is kept and said. Tests: test_live.py (new), test_runs.py.

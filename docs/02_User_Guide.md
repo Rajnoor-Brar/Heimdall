@@ -208,8 +208,13 @@ heimdall plot Demo/jets energy_pdf      # redraw its pages from what is on disk
 
 **A job on a terminal runs in the background, shown here.** Press `d` and the prompt comes back while
 the job goes on; closing the terminal leaves it running too. `heimdall watch` shows it again (from
-another terminal, or an ssh session), `heimdall stop` stops it, `heimdall runs` lists active jobs. Ctrl-C
-stops it as before. `heimdall run … --detach` starts one without showing it. A job with `--plain`, or
+another terminal, or an ssh session), `heimdall stop` stops it, `heimdall runs` lists the live jobs. Ctrl-C
+stops it as before. Press `p` (here or in a watch) to pause it: no more points start, the running ones
+finish, then the job ends paused, before its combine, post and plot stages; a second `p` discards the
+running points instead of waiting for them. `heimdall runs` lists live jobs, running and paused, as `[1]`,
+`[2]`, … in the order they began: `heimdall watch -i 2` follows the second, `heimdall runs --resume 2`
+starts a paused one again (detached, where it ran: its complete points are skipped), and `heimdall runs
+--forget 2` drops a pause you will not resume. `heimdall run … --detach` starts one without showing it. A job with `--plain`, or
 not on a terminal, runs in the shell's own process, as in a script or a cluster job.
 
 A detached job still ends when what holds its session ends:
@@ -909,10 +914,11 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 | how far each curve is from the data | `results/…/statistics/<set>/statistics.csv` (with each drawing, or `heimdall stats <A>/<E>/<R>` alone), `[stats]`, `legend_statistic`, a `statistic` figure (03 §3.2, §7.9) |
 | only the post (or pre) tools | `--only post` / `--only pre` |
 | plain lines (logs, CI) | `--plain` (automatic when not a terminal) |
-| to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]`, `--pid N` (a `--journal` job's file: `heimdall watch --file …`); `d` or Ctrl-C detaches, `q` stops it |
+| to follow a job elsewhere | `heimdall watch [CONFIG [CFG]]`, `--pid N`, `-i N` (the live job `[N]`; a `--journal` job's file: `heimdall watch --file …`); `d` or Ctrl-C detaches, `p` pauses it, `q` stops it |
+| to pause a job, and go on later | `p` at its terminal or in a watch (twice: its running points discarded); later `heimdall runs --resume N` |
 | to leave a job running | `d` at its terminal; or start it with `--detach` |
 | to stop a job from elsewhere | `heimdall stop [CONFIG [CFG]]`, `--pid N` (as Ctrl-C would) |
-| running jobs | `heimdall runs` |
+| live jobs (running and paused), by index | `heimdall runs`; `--forget N` drops a pause from the list |
 | recent jobs, of any state | `heimdall runs --5`, `--10`, `--20`, `--50`, `--week` (7 days), or `--month` (28 days; latest at bottom) |
 | a name for a Run, to tell it from the others | `--tag nlo`, a configuration's `tag = "nlo"`, or later `heimdall tag <A>/<E>/<R> nlo` (§8.1) |
 | a desktop notification at the end | `[errand] notify = "desktop"` |
@@ -991,7 +997,8 @@ The job goes on to the next point, and the point's block names the tool to blame
 Ctrl-C stops the job cleanly: the running tools get SIGINT, then SIGTERM, then SIGKILL. The exit is
 6, and the same command resumes. A second Ctrl-C stops it hard (the tools are killed at once; the stop
 is still recorded), a third kills it outright. Closing the terminal stops the job as Ctrl-C does
-(unless it was started with `nohup`). `heimdall run` exits:
+(unless it was started with `nohup`). A pause (`p`) ends it the same way, exit 6, after the points
+already running have finished; the job is recorded paused. `heimdall run` exits:
 - 0 when everything is done;
 - 1 when a point, a stage or a page failed;
 - 2 for a config error (nothing ran).

@@ -296,7 +296,7 @@ def test_a_submission_is_one_registry_entry_and_its_jobs_none(work):
                for s in ("points.sbatch", "finish.sbatch"))
     work.stub("squeue", "101_3|RUNNING|1:02|node12\n")
     listed = work.heimdall("runs")
-    assert listed.stdout.startswith("running") and "on Slurm" in listed.stdout and "heimdall cluster" in listed.stdout
+    assert listed.stdout.startswith("live") and "on Slurm" in listed.stdout and "heimdall cluster" in listed.stdout
 
 
 @pytest.mark.parametrize("given,expected", [("102_3", ("102", [3])), ("102_[3-5,7%2]", ("102", [3, 4, 5, 7])),

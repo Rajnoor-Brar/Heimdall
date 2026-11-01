@@ -141,7 +141,7 @@ def test_the_recorder_keeps_the_record_folders_and_verdicts():
     assert recorder.records == ["/r/01_a"] and recorder.verdicts == {"a": "done"}
 
 
-def test_heimdall_runs_defaults_to_running_only_and_separates_entries(capsys, monkeypatch):
+def test_heimdall_runs_defaults_to_live_only_and_separates_entries(capsys, monkeypatch):
     """An unrecorded live socket (a run from inside an image) is shown, but completed entries are not."""
     done = runs.new_id(time.time() - 3600)
     runs.begin(done, {"config": "/w/configs/P/a.toml", "configurations": ["one"], "work": "/w", "log": "/l/x.log"})
@@ -154,7 +154,7 @@ def test_heimdall_runs_defaults_to_running_only_and_separates_entries(capsys, mo
     finally:
         hub.close()
     out = capsys.readouterr().out.splitlines()
-    assert out[0] == "running" and out[2].endswith("P/b · two")                 # no serial known: no NN
+    assert out[0] == "live" and out[1].startswith("  [1] (pid ") and out[2].endswith("P/b · two")   # no serial: no NN
     assert "running (unrecorded)" in out[3]
     assert f"heimdall watch --pid {os.getpid()}" in out[4]
     assert done not in "\n".join(out) and "P/a · one" not in "\n".join(out)
@@ -207,7 +207,7 @@ def test_heimdall_runs_uses_title_and_configuration_serial_columns():
         "log": "/runs/20261030-084424-pp-exphep-e17e.log",
     }
     lines = house.runs_listing([entry], [], {"/w": "Brookhaven"}, now=entry["started"] + 5101)
-    assert lines[1] == f"  {entry['id']:28s}  |   Brookhaven"
+    assert lines[1] == f"  [1] {entry['id']:28s}  |   Brookhaven"
     assert lines[2] == "      eic/zeus · 12 generator_pdf"
     assert lines[3] == (f"      {time.strftime('%m-%d %H:%M', time.localtime(entry['started']))} "
                         "(1h 25m) · running  ·  3/7 ·  2")

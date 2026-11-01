@@ -35,7 +35,7 @@ built and installed, outside git. A **work dir** holds a study.
 | `stacks/<toolkit>/` | an isolated toolkit's own `stack/`, `base/` (or `venv/`), `forge/`, `apps/` and `gjallarhorn.sh` (another C++ standard) |
 | `machine.toml`, `machine.sh` | this machine's settings; its extra lines for `gjallarhorn.sh` (`setup_extra`), written by the build |
 | `workdirs.toml` | the work dirs this machine knows, by title (`heimdall recognise`, `heimdall setup`; `gjallarhorn <title>` goes to one) |
-| `runs/` | the run registry (`$HEIMDALL_RUNS`, V182): `<id>.json` a run or cluster submission (who, where, when, its configurations' serials and tags, its points' progress, its exit code and verdict, its record folders), `<id>.log` a detached run's output; `heimdall runs` lists them, 30 days kept. Nothing is written in a read-only root |
+| `runs/` | the run registry (`$HEIMDALL_RUNS`, V182): `<id>.json` a run or cluster submission (who, where, when, its configurations' serials and tags, its points' progress, its exit code and verdict, its record folders; a pause's `state`, `resumed_by` and `forgotten`, I-115), `<id>.log` a detached run's output; `heimdall runs` lists them, 30 days kept. Nothing is written in a read-only root |
 | `recipes.toml` | this machine's own recipes, laid right after `recipes/toolkits/standard.toml` (from `recipes/recipes.template.toml`, written by the first build) |
 | `toolkits/` | this machine's own toolkits, beside `recipes/toolkits/` |
 | `tools/` | tool folders every work dir on this machine sees, between a work dir's `tools/` and Heimdall's (§16) |
@@ -207,7 +207,7 @@ what their `// requires:` line names.
 | `ToolState`, `Reader` | `status` | what the views show per tool; one process's status and output pipes, on a thread (V72) |
 | `Bus`, `RunBus`, `Hub`, `Journal`, `RunLog` | `events` | the event stream; a run's view of it under a sweep of runs; the watch socket; `status.jsonl` with `--journal` (V72, V75); `run.jsonl`, always (V202) |
 | `State`, `PlainView`, `LiveView` | `watch` | the reducer of events, and the views that render it |
-| `ToolResult`, `PointResult`, `Stopper`, `Budget` | `execute` | exits, causes and messages; the stop flag; the cores runs share (V75) |
+| `ToolResult`, `PointResult`, `Stopper`, `Budget` | `execute` | exits, causes and messages; the stop and pause flags (`requested`, `hard`, `pausing`, `paused`; `halted`: either, V230); the cores runs share (V75) |
 | `Figure` | `plot` | one `[plot.figures.<key>]`: `kind` (its class), `type`, `name`, `objects`, `labels`, `table` (the page keys it sets), and each class's own: `over`, `configurations`, `op`, `x`, `y`, `table_pages`, `columns` |
 | `Compared` | `plot` | one configuration of a compare figure: `ref` (`"cfg"` or `"<A>/<E>:<cfg>"`), its `errand` and `configuration` (V83, V88) |
 | `Page` | `plot` | one page: its name, config path, output, cell, object, document, sources, variants, data, overrides, ranges, merged style, `overlay`, `bands`; its `set`, `rel` (its name in the set), `root` (its set's folder, `<root>/<backend>/<rel>`) and `numbers` (its set's statistics folder) (V164) |
@@ -301,7 +301,7 @@ written, its working folder stays whole, and the run goes on to the next point.
 - The points not yet complete run `parallelism` at a time, each through `run_point` on a worker
   thread, with `view.for_point(plan)` as its sink.
 - The main thread waits in half-second steps so that Ctrl-C gets in, and starts nothing more once it
-  is set.
+  is set, or once a pause is (`Stopper.halted`, V230).
 - `"auto"` (V75, `execute.auto_parallelism`) is `os.cpu_count() //` the costliest point's cores, set
   after planning; `execute.cores(plan)` is `--plan`'s estimate.
 - Shared across points:
@@ -613,10 +613,25 @@ process directory.
     `active_parallel_points` and `configuration_serials` (a v3 configuration's, from its record
     folder's number), and `configuration_tags` when a run gave a folder a tag (V223: from `run started`'s
     `tag`). An entry without them (older, or a cluster submission's) lists `NULL`.
-  - **an entry's state** (`runs.state`, `runs.alive`): its verdict once finished; `lost` when its
-    process is gone without a verdict: no such pid, the pid another process's (another start time, or
-    another user's: `kill(pid, 0)`'s `PermissionError` is checked against the start time too), or
-    another boot; `on <host>` or `in another PID namespace` when this process cannot tell.
+  - **an entry's state** (`runs.state`, `runs.alive`): once finished, its `state` (`paused`, V230) or
+    else its verdict, and `, resumed` or `, forgotten` after a pause's `resumed_by` or `forgotten`; `lost`
+    when its process is gone without a verdict: no such pid, the pid another process's (another start
+    time, or another user's: `kill(pid, 0)`'s `PermissionError` is checked against the start time too),
+    or another boot; `on <host>` or `in another PID namespace` when this process cannot tell. An entry
+    without the newer fields (an older runner's) reads as before.
+  - **the live list** (`house.live_entries`, V231): the jobs still going (running, where this process
+    cannot tell, a submission on Slurm; a live socket with no entry) and the pauses neither resumed nor
+    forgotten (`runs.paused`), ordered by when they began, a run that resumed a pause by its
+    `resumed_by` chain's first start. `heimdall runs` numbers it `[1]`, `[2]`, …; `heimdall watch -i N`
+    and `heimdall runs --resume N`/`--forget N` take the Nth of the same list, made again at each
+    command (`cli.live_at`). `--resume` (`cli.resume_run`) runs `runs.again` (the entry's `argv`
+    without `--worker <id>` and `--detach`, then `--detach`) by the entry's `checkout`'s
+    `framework/bin/heimdall`, from its `work` with `$HEIMDALL_WORK` (and `$HEIMDALL`, when set) naming
+    them, through `runs.relaunch`, waited for: the `--detach` parent returns once its run has started.
+    The new run's id is chosen first and handed over as `$HEIMDALL_RUN_ID` (`runs.ID_VAR`), which
+    `cli.background` takes for its worker when it is free and keeps from the worker's environment;
+    then the paused entry gets `resumed_by` (and `resumed`, when). `--forget` writes `forgotten`;
+    nothing is deleted.
 - **A live run is a worker and a client** (V183). On a terminal (`cli.live`: a terminal in and out,
   its foreground, not `--plain`, not a Slurm job, `HEIMDALL_DETACH` not `never`), `heimdall run` starts the
   command again as typed with `--worker <id>` (`runs.spawn`: this checkout's `bin/run`, this Python,
@@ -624,13 +639,15 @@ process directory.
   it as `heimdall watch` does (`watch.follow` over `socket_of(pid)`, retried while the worker starts).
   The worker has no terminal: only signals sent to it reach it. Keys (`watch.Keys`: cbreak, ICANON and
   ECHO off, ISIG kept, put back on leaving, at exit, on SIGTERM and Ctrl-Z): `d` leaves the run
-  running; each Ctrl-C (a SIGINT to the client) is sent on to the worker, so the ladder of §11 is the
+  running; `p` sends the worker SIGUSR1, a pause (`cli.pause_key`; twice a force pause, a third
+  nothing); each Ctrl-C (a SIGINT to the client) is sent on to the worker, so the ladder of §11 is the
   worker's own. After its stream ends, the client takes the worker's exit code; a worker killed by a
   signal (128 + N) has its entry finished by the client. `--detach` waits for `run started` (or the
   worker's end, then prints its log's tail). A client killed by SIGKILL leaves the terminal unechoed:
   `reset` mends it. In `heimdall watch`, `d` or Ctrl-C leaves; `q` sends SIGINT to the run, once (a
-  second `q` sends nothing and names `heimdall stop --pid N`, whose second SIGINT is the hard stop),
-  refused for another PID namespace's pid (a container's, which could name another process here).
+  second `q` sends nothing and names `heimdall stop --pid N`, whose second SIGINT is the hard stop);
+  `p` sends SIGUSR1 as in the run's own view (none after a `q`); both refused for another PID
+  namespace's pid (a container's, which could name another process here).
   `heimdall stop` does the same from the command line, then waits until the pid has ended (a zombie
   counts as ended). `watch.follow` drops an escape sequence whole (`_escape`: CSI, SS3, Alt and a key;
   a lone ESC alone), so a function or arrow key is no letter.
@@ -693,6 +710,16 @@ place (while it plans), Ctrl-C ends the command with exit 6, no traceback. **SIG
 closed) stops the run as SIGTERM does, and what it still prints goes to /dev/null; a run started with
 SIGHUP ignored (`nohup`) keeps ignoring it (V181).
 
+**SIGUSR1** (`p`, V230; `cli.catch_pause`, in place before anything runs) is a **pause**:
+`Stopper.pausing` and `paused`. Nothing more is begun (`Stopper.halted`, read where `requested` is
+read for dispatch: `run_points`' dispatcher, a point lock's wait, combine's groups, `run_one` before
+each stage, both sweeps), the running points end as they would, and the run quits with exit 6 before
+its later stages, its verdict `paused: N done, … left; not run: …`, its entry `state = "paused"`. **A
+second** is a force pause: `requested` and `hard` too, so the running points are stopped as by a hard
+stop (recorded stopped, partial outputs kept), the run still paused. A SIGINT after a pause is a stop,
+recorded so (`paused` cleared); after a force pause (already hard) it does not kill the process, the
+next does. After a stop, SIGUSR1 does nothing.
+
 **Exit codes of our apps** (App_Pythia, App_yd2rt, Paint, module programs, `heimdallkit` tools). They are
 one table, `Kit::Exit` in `src/Kit.hh` (V73), and `heimdallkit.Exit` in Python:
 
@@ -715,7 +742,7 @@ one table, `Kit::Exit` in `src/Kit.hh` (V73), and `heimdallkit.Exit` in Python:
 | 0 | every point done or skipped |
 | 1 | a point, a stage or a page failed |
 | 2 | a config error before anything ran |
-| 6 | stopped by the user |
+| 6 | stopped or paused by the user |
 
 `heimdall check` exits 2 when any config is not well.
 

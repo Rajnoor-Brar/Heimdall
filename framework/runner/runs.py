@@ -44,6 +44,9 @@ CLUSTER_VAR = "HEIMDALL_CLUSTER_JOB"
 VERDICTS = {0: "done", 1: "failed", 2: "not run", 6: "stopped"}
 #: An entry's id, as new_id makes it: <YYYYmmdd-HHMMSS>-<host>-<4 hex>. Nothing else is read as one.
 ID = re.compile(r"\d{8}-\d{6}-[A-Za-z0-9_-]+-[0-9a-f]{4}")
+#: The id a detached run takes when it is given one (I-115): `heimdall runs --resume` names its new run so, and the
+#: paused entry points at it (`resumed_by`).
+ID_VAR = "HEIMDALL_RUN_ID"
 
 
 def folder() -> Path:
@@ -252,13 +255,14 @@ def alive(data: dict) -> bool | None:
 
 
 def state(data: dict, live: dict | None = None) -> str:
-    """What an entry says now: when it ended, its state ("paused") or else its verdict; running; "lost" (its process
-    is gone, it never said how it ended); or why this process cannot tell. `live`: pid → greeting of the sockets
-    this process sees."""
+    """What an entry says now: when it ended, its state ("paused") or else its verdict, and whether a pause was resumed
+    or forgotten since (I-115); running; "lost" (its process is gone, it never said how it ended); or why this process
+    cannot tell. `live`: pid → greeting of the sockets this process sees."""
     if data.get("kind") == "cluster":
         return data.get("verdict") or "submitted"
     if data.get("finished") is not None:
-        return f"{data.get('state') or data.get('verdict') or VERDICTS.get(data.get('code'), 'ended')}"
+        ended = f"{data.get('state') or data.get('verdict') or VERDICTS.get(data.get('code'), 'ended')}"
+        return f"{ended}, resumed" if data.get("resumed_by") else f"{ended}, forgotten" if data.get("forgotten") else ended
     running = alive(data)
     if running is False:
         return "lost"
@@ -267,6 +271,35 @@ def state(data: dict, live: dict | None = None) -> str:
     if live is not None and data.get("pid") not in live and data.get("netns") != _namespace("net"):
         return "running (not reachable from here)"
     return "running"
+
+
+def paused(data: dict) -> bool:
+    """Whether an entry is a pause still live (I-115): a run that ended paused, neither resumed nor forgotten since."""
+    return data.get("kind", "run") == "run" and data.get("finished") is not None and data.get("state") == "paused" \
+        and not data.get("resumed_by") and not data.get("forgotten")
+
+
+def again(data: dict) -> list[str]:
+    """A paused run's own command again, detached (I-115): its argv as typed, without a worker's `--worker <id>` and
+    a `--detach`, then `--detach`. [] when the entry holds no `heimdall run` command."""
+    argv = [str(arg) for arg in data.get("argv") or []]
+    if argv[:1] != ["run"]:
+        return []
+    out, skip = [], False
+    for arg in argv:
+        if skip:
+            skip = False
+        elif arg == "--worker":
+            skip = True
+        elif not arg.startswith("--worker=") and arg != "--detach":
+            out.append(arg)
+    return [*out, "--detach"]
+
+
+def relaunch(command: list[str], cwd: str, env: dict) -> subprocess.CompletedProcess:
+    """A paused run's command started again (I-115), from `cwd` with `env`, and waited for: as `--detach`, it returns
+    once its run has started, saying so on this process's output."""
+    return subprocess.run(command, cwd=cwd, env=env, stdin=subprocess.DEVNULL, check=False)
 
 
 def spawn(argv: list[str], run_id: str, log: Path) -> subprocess.Popen:

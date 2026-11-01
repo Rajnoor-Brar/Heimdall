@@ -393,52 +393,88 @@ def _config_name(config: str, work: str | None) -> str:
     return str(path)
 
 
-def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str],
-                 now: float | None = None, limit: int | None = None, days: int | None = None) -> list[str]:
-    """`heimdall runs` (V182): what runs now by default (recorded, and live sockets with no entry: unrecorded, as
-    from inside an image); `limit`, the latest N of any state; `days`, all begun within that age. Oldest first,
-    a block each: id and work dir (its title); the config and its configurations (`NN key` when the serial is
-    known), its points' counts once it ended; when, for how long, its state, and its progress, configuration
-    points ended of those planned (NULL: not recorded, as by an older entry or a cluster submission), and while
-    it runs those running; its pid's watch and stop commands, or a cluster submission's; its log."""
-    now = time.time() if now is None else now
-    by_pid = {hello.get("pid"): hello for _, hello in live}
+def _states(entries: list[dict], by_pid: dict) -> list[tuple[dict, str]]:
+    """Each entry with what it says now (runs.state); a cluster submission's from one squeue for them all (V184)."""
     states = [(e, runs.state(e, by_pid)) for e in entries]
     submitted = [e for e, s in states if e.get("kind") == "cluster" and s == "submitted"]
-    if submitted and shutil.which("squeue"):                     # one squeue for every submission (V184)
+    if submitted and shutil.which("squeue"):
         from .cluster import active
         queued = {line.split("|")[0].split("_")[0] for line in active([str(j) for e in submitted for j in e.get("jobs", [])])}
         states = [(e, ("on Slurm" if {str(j) for j in e.get("jobs", [])} & queued else "ended") if e in submitted else s)
                   for e, s in states]
-    running = [(e, s) for e, s in states if s.startswith("running") or s.startswith("on ") or s == "in another PID namespace"
-               or (e.get("kind") == "cluster" and s in ("submitted", "on Slurm"))]
-    recorded = {e.get("pid") for e, s in running if e.get("host") == runs.host()}
-    unrecorded = [hello for pid, hello in by_pid.items() if pid not in recorded]
+    return states
+
+
+def _going(e: dict, state: str) -> bool:
+    """Whether an entry's job still goes: running, or where this process cannot tell; a submission on Slurm."""
+    return state.startswith("running") or state.startswith("on ") or state == "in another PID namespace" \
+        or (e.get("kind") == "cluster" and state in ("submitted", "on Slurm"))
+
+
+def _unrecorded(states: list[tuple[dict, str]], by_pid: dict) -> list[tuple[dict, str]]:
+    """The live sockets with no entry of a going job (a run from inside an image), as entries."""
+    recorded = {e.get("pid") for e, s in states if _going(e, s) and e.get("host") == runs.host()}
+    return [({"id": f"(pid {hello.get('pid')})", **hello, "configurations": hello.get("configurations")},
+             "running (unrecorded)") for pid, hello in by_pid.items() if pid not in recorded]
+
+
+def live_entries(entries: list[dict], live: list[tuple[str, dict]]) -> list[tuple[dict, str]]:
+    """The live runs (I-115), (entry, state), as `heimdall runs` numbers them, `heimdall watch -i` and `heimdall runs
+    --resume`/`--forget` take them: the going jobs (recorded, and live sockets with no entry) and the paused runs
+    neither resumed nor forgotten (runs.paused), in the order they began; a run that resumed a pause in that pause's
+    place (its `resumed_by` chain's first start). [N] is the Nth, recomputed each time: a run that ends drops out."""
+    by_pid = {hello.get("pid"): hello for _, hello in live}
+    states = _states(entries, by_pid)
+    resumed = {e["resumed_by"]: e for e in entries if e.get("resumed_by")}
+
+    def began(e: dict, seen: frozenset = frozenset()) -> float:
+        before = resumed.get(e.get("id"))
+        if before is not None and before.get("id") not in seen:
+            return began(before, seen | {e.get("id")})
+        return e.get("started") or 0
+
+    chosen = [(e, s) for e, s in states if _going(e, s) or runs.paused(e)] + _unrecorded(states, by_pid)
+    return sorted(chosen, key=lambda item: (began(item[0]), item[0].get("started") or 0, item[0].get("id", "")))
+
+
+def live_line(index: int, e: dict, state: str) -> str:
+    """One live run in a line, for a refusal that lists them: `[2] <id>  <A>/<E> · <configurations> · paused`."""
+    cfgs = ", ".join(e.get("configurations") or ([e["configuration"]] if e.get("configuration") else []))
+    return f"[{index}] {e.get('id', '?')}  {_config_name(e.get('config', ''), e.get('work'))} · {cfgs} · {state}"
+
+
+def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str],
+                 now: float | None = None, limit: int | None = None, days: int | None = None) -> list[str]:
+    """`heimdall runs` (V182): the live runs by default (I-115: running, recorded or a live socket with no entry,
+    unrecorded, as from inside an image; and paused), each with its index [N] (live_entries); `limit`, the latest N
+    of any state; `days`, all begun within that age. Oldest first, a block each: id and work dir (its title); the
+    config and its configurations (`NN key` when the serial is known), its points' counts once it ended; when, for
+    how long, its state, and its progress, configuration points ended of those planned (NULL: not recorded, as by
+    an older entry or a cluster submission), and while it runs those running; its pid's watch and stop commands, a
+    pause's resume and forget commands, or a cluster submission's; its log."""
+    now = time.time() if now is None else now
+    by_pid = {hello.get("pid"): hello for _, hello in live}
     if limit is None and days is None:
-        selected = [(e, s) for e, s in running]
-        selected += [({"id": f"(pid {hello.get('pid')})", **hello,
-                       "configurations": hello.get("configurations")}, "running (unrecorded)") for hello in unrecorded]
-        heading = "running"
-    elif limit is not None:
-        selected = list(states)
-        selected += [({"id": f"(pid {hello.get('pid')})", **hello,
-                       "configurations": hello.get("configurations")}, "running (unrecorded)") for hello in unrecorded]
-        selected.sort(key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")), reverse=True)
-        selected = selected[:limit]
-        heading = f"latest {limit} runs"
+        selected = live_entries(entries, live)
+        heading = "live"
     else:
-        cutoff = now - (days or 0) * 86400
-        selected = [(e, s) for e, s in states if cutoff <= (e.get("started") or 0) <= now]
-        selected += [({"id": f"(pid {hello.get('pid')})", **hello,
-                       "configurations": hello.get("configurations")}, "running (unrecorded)") for hello in unrecorded
-                     if cutoff <= (hello.get("started") or 0) <= now]
-        heading = f"runs from the last {days} days"
-    selected.sort(key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")))
+        states = _states(entries, by_pid)
+        unrecorded = _unrecorded(states, by_pid)
+        if limit is not None:
+            selected = sorted(states + unrecorded, key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")),
+                              reverse=True)[:limit]
+            heading = f"latest {limit} runs"
+        else:
+            cutoff = now - (days or 0) * 86400
+            selected = [(e, s) for e, s in states + unrecorded if cutoff <= (e.get("started") or 0) <= now]
+            heading = f"runs from the last {days} days"
+        selected.sort(key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")))
+    indexed = heading == "live"
 
     def where(work: str | None) -> str:
         return titles.get(work or "", "") or (Path(work).name if work else "")
 
-    def row(e: dict, state: str) -> list[str]:
+    def row(e: dict, state: str, index: int) -> list[str]:
         started = e.get("started") or 0
         span = _ago((e.get("finished") or now) - started)
         when = time.strftime("%m-%d %H:%M", time.localtime(started))
@@ -448,7 +484,7 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         configurations = ", ".join((f"{serials[key]:02d} {key}" if isinstance(serials.get(key), int) else key)
                                    + (f" [{tags[key]}]" if tags.get(key) else "")
                                    for key in cfgs.split(", ") if key)          # NN only when it is known
-        head = f"  {e.get('id', '?'):28s}  |   {where(e.get('work'))}"
+        head = f"  {f'[{index}] ' if indexed else ''}{e.get('id', '?'):28s}  |   {where(e.get('work'))}"
         completed = e.get("points_completed")
         total = e.get("points_total")
         progress = f"{completed if completed is not None else 'NULL'}/{total if total is not None else 'NULL'}"
@@ -468,6 +504,8 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
                         f"{e.get('configuration', '')} --status")
         elif state.startswith("running"):
             tail.append(f"      pid {e.get('pid')} : heimdall watch --pid {e.get('pid')} · heimdall stop --pid {e.get('pid')}")
+        elif indexed and runs.paused(e):                                # I-115
+            tail.append(f"      heimdall runs --resume {index} · heimdall runs --forget {index}")
         if e.get("log"):
             tail.append(f"      log {e['log']}")
         return [head.rstrip(), config_line.rstrip(), detail.rstrip(), *tail]
@@ -476,13 +514,13 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         if limit is None:
             if days is not None:
                 return [f"no runs in the last {days} days on this machine ({runs.folder()})"]
-            return [f"no running runs on this machine ({runs.folder()})"]
+            return [f"no live runs on this machine: none running, none paused ({runs.folder()})"]
         return [f"no runs on this machine in the last {runs.KEEP_DAYS} days ({runs.folder()})"]
     lines = [heading]
     for i, (entry, state) in enumerate(selected):
         if i:
             lines.append("")
-        lines += row(entry, state)
+        lines += row(entry, state, i + 1)
     return lines
 
 

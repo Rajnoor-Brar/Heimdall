@@ -210,10 +210,11 @@ def parser() -> argparse.ArgumentParser:
     watch.add_argument("--file", metavar="EVENTS.JSONL",
                        help="follow a Run's run.jsonl, or a --journal job's status.jsonl, instead")
     watch.add_argument("--pid", type=int, metavar="N", help="the job of this process (heimdall runs lists them)")
+    watch.add_argument("-i", "--index", type=int, metavar="N", help="the live job [N] of heimdall runs (not a paused one)")
 
     listed = commands.add_parser("runs", allow_abbrev=False,       # --1 is no --10
-                                 help="running jobs; with --5, --10, --20 or --50 the latest jobs, with --week or --month "
-                                      "jobs of the last 7 or 28 days")
+                                 help="live jobs (running and paused), each with its index [N]; with --5, --10, --20 or --50 "
+                                      "the latest jobs, with --week or --month jobs of the last 7 or 28 days")
     run_limits = listed.add_mutually_exclusive_group()
     for limit in (5, 10, 20, 50):
         run_limits.add_argument(f"--{limit}", dest="limit", action="store_const", const=limit,
@@ -222,6 +223,11 @@ def parser() -> argparse.ArgumentParser:
                             help="show all jobs from the last 7 days")
     run_limits.add_argument("--month", dest="days", action="store_const", const=28,
                             help="show all jobs from the last 28 days")
+    run_limits.add_argument("--resume", type=int, metavar="N",
+                            help="resume the paused job [N]: its own command again, detached, in its work dir and "
+                                 "checkout (its complete points skipped)")
+    run_limits.add_argument("--forget", type=int, metavar="N",
+                            help="drop the paused job [N] from the live list (its entry is kept)")
 
     tagged = commands.add_parser("tag", help="a Run's tag: show it, set it, or --clear it")
     tagged.add_argument("target", metavar="RECORD", help="a Run, <A>/<E>/<R>, or a path under records/ or results/")
@@ -867,9 +873,11 @@ def background(args, errand, keys: list[str], *, attach: bool) -> int:
     """The run as a worker of its own (V183): this command again with --worker <id>, in a session of its own,
     its output in the registry's <id>.log. `attach`: followed here as heimdall watch does (`d` leaves it
     running; `p` pauses it, twice discards its running points; Ctrl-C stops it, once cleanly, twice hard); else
-    (--detach) left once its run has started."""
+    (--detach) left once its run has started. Its id is $HEIMDALL_RUN_ID when that is a free one (`heimdall runs
+    --resume` gives it, I-115), taken out of the environment its worker inherits."""
     from .watch import follow, socket_of, started, tail
-    run_id = runs.new_id()
+    given = os.environ.pop(runs.ID_VAR, "")                 # heimdall runs --resume's new run (I-115)
+    run_id = given if runs.ID.fullmatch(given) and runs.entry(given) is None else runs.new_id()
     log = runs.log_file(run_id)
     proc = runs.spawn(getattr(args, "argv", []), run_id, log)
     what = f"{errand.name} · {', '.join(keys)}"
@@ -1741,7 +1749,18 @@ def _has_configurations(name: str) -> bool:
 
 
 def cmd_runs(args) -> int:
-    """`heimdall runs [--5|--10|--20|--50|--week|--month]`: active jobs or recent runs."""
+    """`heimdall runs [--5|--10|--20|--50|--week|--month]`: the live jobs (running and paused, indexed, I-115) or
+    recent runs; `--resume N`, `--forget N`: the paused job [N]."""
+    if getattr(args, "resume", None) is not None:
+        return resume_run(args.resume)
+    if getattr(args, "forget", None) is not None:
+        entry, state = live_at(args.forget)
+        if not runs.paused(entry):
+            raise HeimdallError(f"[{args.forget}] is {state}, not paused: only a paused job is forgotten",
+                                hint="heimdall runs lists the live ones")
+        runs.update(entry["id"], forgotten=round(time.time(), 3))
+        print(f"forgotten: [{args.forget}] {entry['id']} (its entry kept: heimdall runs --week lists it)")
+        return 0
     from . import workdirs
     try:
         titles = {entry["path"]: title for title, entry in workdirs.load().items()}
@@ -1749,6 +1768,56 @@ def cmd_runs(args) -> int:
         titles = {}
     for line in house.runs_listing(runs.entries(), house.live_runs(), titles, limit=args.limit, days=args.days):
         print(line)
+    return 0
+
+
+def live_at(index: int) -> tuple[dict, str]:
+    """The live job [index] of `heimdall runs` (house.live_entries: the same list, made again now), or refused,
+    naming the live ones."""
+    listed = house.live_entries(runs.entries(), house.live_runs())
+    if not 1 <= index <= len(listed):
+        there = "; ".join(house.live_line(n, e, s) for n, (e, s) in enumerate(listed, 1))
+        raise HeimdallError(f"no live job [{index}]: " + (f"there are {len(listed)}" if listed else "none is live"),
+                            hint=f"the live ones: {there}" if listed else "heimdall runs --5 lists the latest, of any state")
+    return listed[index - 1]
+
+
+def resume_run(index: int) -> int:
+    """`heimdall runs --resume N` (I-115): the paused job [N]'s own command again (runs.again: its argv without
+    --worker, detached), by its checkout's bin/heimdall, from its work dir ($HEIMDALL_WORK and $HEIMDALL said so),
+    so it continues from its records, its complete points skipped. Its new run's id is chosen here
+    ($HEIMDALL_RUN_ID) and the paused entry points at it (`resumed_by`), leaving the live list."""
+    entry, state = live_at(index)
+    if not runs.paused(entry):
+        raise HeimdallError(f"[{index}] is {state}, not paused: only a paused job is resumed",
+                            hint=f"heimdall watch -i {index} follows it" if state.startswith("running") else
+                            "heimdall runs lists the live ones")
+    command = runs.again(entry)
+    checkout = Path(entry.get("checkout") or "")
+    program = checkout / "framework" / "bin" / "heimdall"
+    work = entry.get("work") or ""
+    if not command:
+        raise HeimdallError(f"[{index}] {entry['id']} holds no heimdall run command to run again",
+                            hint="run it again by hand; heimdall runs --forget drops it from the list")
+    if not entry.get("checkout") or not program.is_file():
+        raise HeimdallError(f"[{index}] {entry['id']}'s Heimdall is not there: {program}",
+                            hint=f"run it again by hand: heimdall {' '.join(command)}")
+    if not work or not Path(work).is_dir():
+        raise HeimdallError(f"[{index}] {entry['id']}'s work dir is not there" + (f": {work}" if work else ""),
+                            hint=f"run it again by hand from its work dir: heimdall {' '.join(command)}")
+    new = runs.new_id()
+    env = {**os.environ, runs.ID_VAR: new, paths.WORK_VAR: work}
+    if paths.HEIMDALL_VAR in env:                            # the checkout it ran with, not this shell's
+        env[paths.HEIMDALL_VAR] = str(checkout)
+    print(f"resuming [{index}] {entry['id']}: heimdall {' '.join(command)}\n  in {work}, by {program}")
+    if "--rerun" in command:
+        print("  note: its --rerun runs again the points it had done too", file=sys.stderr)
+    code = runs.relaunch([str(program), *command], work, env).returncode
+    if code:
+        print(f"not resumed: its command exited {code}; [{index}] stays paused", file=sys.stderr)
+        return code
+    runs.update(entry["id"], resumed_by=new, resumed=round(time.time(), 3))
+    print(f"[{index}] {entry['id']} resumed as {new}")
     return 0
 
 
@@ -1799,7 +1868,22 @@ def cmd_tag(args) -> int:
 
 def cmd_watch(args) -> int:
     """Follow a job from another terminal (V72): a running `heimdall run`'s watch socket (the latest one, or
-    the one running CONFIG [CONFIGURATION]), or with --file a --journal run's status.jsonl."""
+    the one running CONFIG [CONFIGURATION]), or with --file a --journal run's status.jsonl; `-i N` the live run [N]
+    of `heimdall runs` (I-115), refused for a paused one."""
+    if getattr(args, "index", None) is not None:
+        if args.file or args.config or args.pid is not None:
+            raise HeimdallError("-i names the job itself: no config, --file or --pid with it",
+                                hint=f"heimdall watch -i {args.index}")
+        entry, state = live_at(args.index)
+        if runs.paused(entry):
+            raise HeimdallError(f"[{args.index}] is paused: heimdall runs --resume {args.index}",
+                                hint="a paused job has nothing to watch until it is resumed")
+        if entry.get("kind") == "cluster":
+            raise HeimdallError(f"[{args.index}] is a cluster submission: its jobs are on Slurm's nodes",
+                                hint="heimdall runs names its heimdall cluster … --status")
+        if not state.startswith("running"):
+            raise HeimdallError(f"[{args.index}] {entry.get('id')} is {state}: it cannot be watched from here")
+        args.pid = entry.get("pid")
     if args.file:
         path = Path(args.file)
         if not path.exists():
@@ -2322,8 +2406,8 @@ PREFERENCES = ("rerun", "wait", "detach", "plain", "journal", "logs", "replot", 
 NOT_PREFERENCES = {
     **dict.fromkeys(("plan", "why", "show_config", "dry_run", "status", "cancel", "style_sync", "across", "stack",
                      "no_wait"), ("a mode: what this one command does", "type it on the command line")),
-    **dict.fromkeys(("card", "pid", "file", "plot_file"), ("a target: what this one command acts on",
-                                                            "type it on the command line")),
+    **dict.fromkeys(("card", "pid", "file", "plot_file", "index", "resume", "forget"),
+                    ("a target: what this one command acts on", "type it on the command line")),
     **dict.fromkeys(("points", "page_points", "draw_sets", "stages", "only"),
                     ("a selection: a part of the run, chosen when it is run",
                      "type it on the command line; a run's sets are [errand] plot = [...] or a configuration's plot")),

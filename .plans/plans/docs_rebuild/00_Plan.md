@@ -233,5 +233,7 @@ pages cite no record ids; AGENTS.md carries no repo paths; live docs' `affects` 
 | 1 Pilot | done, see `P1_Pilot.md`; accepted with changes |
 | 2 Reference | done: every setting on a page and answered by `explain` (a test asks each) |
 | 3 Design, internals | done: 24 pages, 226 notes. L rows for tools land in phase 4a; three forward links fail until then |
-| 4a Driver | in progress |
-| 4b–7 | not started |
+| 4 Driver, mechanic | done |
+| 5 Context | done; cold test passed first try, its gaps fixed |
+| 6 `.plans/` | done; every issue re-verified |
+| 7 Contract | done; ⏸ awaiting cold test 2 and the developer's read |

@@ -1,7 +1,6 @@
 # Docs rebuild: one knowledge base, five doors
 
-Status: design, decisions taken 2026-11-02. On approval this file moves to `.plans/docs_rebuild/00_Plan.md` (plan mode only allows
-writing here; the repo's rule is `.plans/`).
+Status: approved 2026-11-02. Phase 1's pilot done; paused for the developer's review.
 
 ## Context
 
@@ -229,4 +228,7 @@ pages cite no record ids; AGENTS.md carries no repo paths; live docs' `affects` 
 
 | Phase | Status |
 |---|---|
-| Design | in review |
+| Design | approved 2026-11-02 |
+| 0 Salvage map | done, dd61d9e; `check_salvage.py` passes |
+| 1 Pilot | done, see `P1_Pilot.md`; ⏸ awaiting the developer's read |
+| 2–7 | not started |

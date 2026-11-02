@@ -103,7 +103,7 @@ doc   = "globs of page names in each source's plots/<set>/<backend>/ (`d01-x01-y
 [section.set]
 type    = "str"
 default = "totality"
-doc     = "the set whose pages or numbers it takes: each source's plots/<set>/ and statistics/<set>/, else drawn for the report (03 §11.3)"
+doc     = "the set whose pages or numbers it takes: each source's plots/<set>/ and statistics/<set>/, else drawn for the report"
 
 [section.cells]
 type  = "list"
@@ -141,7 +141,7 @@ doc     = "a source that neither has the section's set drawn (or measured) nor c
 [section.compare]
 type  = "list"
 items = "str"
-doc   = "compare figures' names (03 §7.5): their pages, from each source's errand's compare/<name>/"
+doc   = "compare figures' names: their pages, from each source's errand's compare/<name>/"
 
 [section.stats]
 type  = "list"
@@ -170,4 +170,4 @@ doc   = "a tools section's: globs of varied lines' keys (else of the lines) to l
 
 [section.plot]
 type = "table"
-doc  = "a pages, stats or bars section's: [plot] keys over each source's own (its sets and figures added, its style laid over), its pages and numbers then drawn for the report into its cache (03 §11.3), never into results/"
+doc  = "a pages, stats or bars section's: [plot] keys over each source's own (its sets and figures added, its style laid over), its pages and numbers then drawn for the report into its cache, never into results/"

@@ -398,7 +398,7 @@ description = "Inclusive jets in ep collisions"
 | `name` | a string | **required** | the errand's folder name, `<E>` in `results/<A>/<E>/` (its Runs below it) |
 | `assignment` | a string | **required** | the subfolder of `configs/`, `modules/`, `records/`, `results/`; must equal the folder the file is in, when it is under `configs/` |
 | `run` | a string |  | the configuration `heimdall run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may be left out |
-| `serial` | an integer |  | the prefix `NN_` of each Run's folder, `<E>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[errand]`. |
+| `serial` | an integer |  | the prefix `NN_` of each Run's folder, `<E>/NN_<folder>`: **location, never identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a new one. Set, a changed configuration is refused there rather than overwrite what it made (`--rerun` overwrites) A configuration inherits it from `[errand]`. |
 | `events` | an integer, ≥ 1 |  | every configuration's event count, unless it gives its own A configuration inherits it from `[errand]`. |
 | `threads` | an integer, ≥ 0 | `1` | default for configurations. `0` means every core, **resolved to a number at plan time** A configuration inherits it from `[errand]`. |
 | `parallelism` | an integer or a string: `"auto"`, ≥ 1 | `1` | default for configurations: how many points run at once; `"auto"`: as many as the cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never part of an identity or a seed, so changing it reruns nothing A configuration inherits it from `[errand]`. |
@@ -406,16 +406,16 @@ description = "Inclusive jets in ep collisions"
 | `stats` | true or false or a list (a string each) | `true` | the statistics follow-up: `true` measures the sets the Run draws (or, with `plot = false`, every set, undrawn), `false` none, a list those sets (the document's `[stats].sets`). A configuration may set its own; `heimdall run … --no-stats` turns it off for one job A configuration inherits it from `[errand]`. |
 | `description` | a string |  | what the errand is for |
 | `tag` | a string |  | default for configurations: a short name kept with the Run (its record's `tag` file and its plot document's `[source].tag`), which `heimdall runs`, `heimdall status` and a report show beside it. Never part of a point's identity: tagging reruns nothing. `heimdall run … --tag NAME` gives one for a job; a Run that has a tag keeps it (`heimdall tag` changes it); `""` is none A configuration inherits it from `[errand]`. |
-| `sweep_runs` | true or false or a list (a string each) | `false` | `true`: `heimdall run <config>` runs every configuration, one after another, in the order of the file; `["a", "b"]`: these, in this order (04 §4.1) |
+| `sweep_runs` | true or false or a list (a string each) | `false` | `true`: `heimdall run <config>` runs every configuration, one after another, in the order of the file; `["a", "b"]`: these, in this order |
 | `notify` | a string: `"none"`, `"desktop"` | `"none"` | `"desktop"`: a desktop notification (`notify-send`) when `heimdall run` ends, with its verdict; never fails a job |
-| `chain` | a list |  | every configuration's tools, unless it gives its own (04 §5.3) A configuration inherits it from `[errand]`. |
-| `vary` | a list |  | 04 §5.1; `[]` is one point A configuration inherits it from `[errand]`. |
-| `plot_points` | a list (a string each) |  | 04 §5.2 A configuration inherits it from `[errand]`. |
-| `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) A configuration inherits it from `[errand]`. |
-| `pre` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[errand]`. |
-| `post` | a list |  | the form of `tools` (04 §5.4) A configuration inherits it from `[errand]`. |
-| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4) A configuration inherits it from `[errand]`. |
-| `seed` | a string or an integer | `"identity"` | `"identity"`: from the generator's identity; `"random"`: drawn when the point runs; an integer: exactly that seed for every point (a replica, `to = { "pythia/seed" = true }`, gives a point its own: 04 §8.2; 06 §8) |
+| `chain` | a list |  | every configuration's tools, unless it gives its own A configuration inherits it from `[errand]`. |
+| `vary` | a list |  | A string is an independent axis, and the points are the grid of the axes. An array is an entangled group: its quantities move together, value i with value i, so they need equal point counts. `{ points = [...] }` lists combinations by hand, one row a point. The order decides point names and running order. `[]` is one point A configuration inherits it from `[errand]`. |
+| `plot_points` | a list (a string each) |  | the swept quantities whose values make the pages: each combination is a cell, with a page per object, and the other swept quantities become its curves. Left out, every point is on one page. `[plot].sets` chooses cells by hand instead A configuration inherits it from `[errand]`. |
+| `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve A configuration inherits it from `[errand]`. |
+| `pre` | a list |  | the form of `tools` A configuration inherits it from `[errand]`. |
+| `post` | a list |  | the form of `tools` A configuration inherits it from `[errand]`. |
+| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` A configuration inherits it from `[errand]`. |
+| `seed` | a string or an integer | `"identity"` | `"identity"`: from the generator's identity; `"random"`: drawn when the point runs; an integer: exactly that seed for every point (a replica, `to = { "pythia/seed" = true }`, gives a point its own) |
 | `commands` | a list |  | argv arrays run in each point's output folder before its tools, in order; output to the point's `prelim.log`; a nonzero exit fails the point. Placeholders: `{work}`, `{heimdall}`, `{out}`, `{res}`, `{file:<name>}` |
 <!-- /generated -->
 
@@ -536,29 +536,29 @@ Its `vars` merge through `extends`; its `data` is the nearest one. `[errand]` ta
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `extends` | a string |  | another configuration this one starts from (chains are followed; a circle is refused) |
-| `serial` | an integer, or `"default"` |  | this configuration's `NN_`, over `[errand]`'s; left out in both, the runner numbers it (04 §2) |
+| `serial` | an integer, or `"default"` |  | this configuration's `NN_`, over `[errand]`'s; left out in both, the runner numbers it |
 | `name` | a string |  | the errand folder above this configuration's Run: `<A>/<E>/NN_<label>/` |
 | `folder` | a string |  | the Run's folder name, after the serial: `NN_<folder>`; empty means the table key |
-| `title` | a string |  | the header line of the Run under `[errand].sweep_runs`: `run 02 - <title> -` (04 §4.1) |
+| `title` | a string |  | the header line of the Run under `[errand].sweep_runs`: `run 02 - <title> -` |
 | `description` | a string |  | what the configuration is for |
 | `tag` | a string |  | the tag a job gives this configuration's Run (a letter or digit, then letters, digits, `.`, `_`, `+`, `-`; at most 40), unless `--tag` gives another or the Run already has one: a Run keeps its tag when it is run again, and `heimdall tag <A>/<E>/<R>` shows or changes it. `""` gives none over `[errand]`'s. Never part of a point's identity |
-| `events` | an integer, ≥ 1, or `"default"` |  | required here if `[errand]` has none. A list is one configuration per count, `<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6) |
+| `events` | an integer, ≥ 1, or `"default"` |  | required here if `[errand]` has none. A list is one configuration per count, `<name>_<count>` (`pdf_10k`), run in turn as `<name>` |
 | `threads` | an integer, ≥ 0, or `"default"` |  | `0` = every core |
 | `parallelism` | an integer or a string: `"auto"`, ≥ 1, or `"default"` |  | points at once (`"auto"`: cores ÷ a point's cores); `--plan` and the job's title say about how many cores that is, and warn past the machine's |
 | `plot` | true or false or a list (a string each), or `"default"` |  | the plot follow-up for this configuration: `true`, `false`, or the sets it draws, so that sets defined once for the file are each drawn by the configurations they fit |
 | `stats` | true or false or a list (a string each), or `"default"` |  | as [errand].stats, for this configuration: true, false, or the sets it measures |
-| `vary` | a list |  | 04 §5.1; `[]` is one point |
-| `plot_points` | a list (a string each) |  | 04 §5.2 |
-| `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve (04 §5.5) |
-| `chain` | a list |  | 04 §5.3; `[errand]`'s when left out |
-| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` (04 §9.4) |
-| `pre` | a list |  | the form of `tools` (04 §5.4) |
-| `post` | a list |  | the form of `tools` (04 §5.4) |
-| `fixed` | a table |  | `{ quantity = "tag" }`: this configuration's fixed points, over each quantity's own `fixed` (04 §7) |
+| `vary` | a list |  | A string is an independent axis, and the points are the grid of the axes. An array is an entangled group: its quantities move together, value i with value i, so they need equal point counts. `{ points = [...] }` lists combinations by hand, one row a point. The order decides point names and running order. `[]` is one point |
+| `plot_points` | a list (a string each) |  | the swept quantities whose values make the pages: each combination is a cell, with a page per object, and the other swept quantities become its curves. Left out, every point is on one page. `[plot].sets` chooses cells by hand instead |
+| `combine` | a list (a string each) |  | swept quantities whose points are merged into one curve |
+| `chain` | a list |  | Each entry is a tool table's name, or an array of names that run together as one group (one level only). Groups run in order: one starts when the previous succeeded and its products passed their checks. What a tool writes for a reader in its own group is a FIFO; for a later group, a file. `"@<quantity>"` is replaced, per point, by that quantity's value: a tool table's name or a piece of chain. `[errand]`'s when left out |
+| `generate_cards` | a list (a string each) |  | tool tables (tags) whose cards and configs are made for the point although they do not run in it, for a program that runs them itself (an integrated program: Pythia and Rivet inside it); and `"<tag>:<product>"` for a product made on demand (Herwig's `run`, Sherpa's `results`, MadGraph's `process`). The chain's tools are always in the context file, which every tool finds through `HEIMDALL_CONTEXT` |
+| `pre` | a list |  | the form of `tools` |
+| `post` | a list |  | the form of `tools` |
+| `fixed` | a table |  | `{ quantity = "tag" }`: this configuration's fixed points, over each quantity's own `fixed` |
 | `vars` | a table |  | merged over `[file.vars]` for this configuration alone, before any `{var:…}` is replaced: a configuration may run other cards (`pythia_card = "../zeus/dis.cmnd"`), another analysis, another output, in the same file as the others. Only the configuration run, planned or drawn reads them |
-| `data` | a table |  | replaces `[plot.data]` (04 §11.1) for this configuration: its pages' data, its plot document's, its statistics' reference, when it runs another analysis than the file's others |
-| `cluster` | a table |  | merged over the errand file's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys (04 §16) |
-| `seed` | a string or an integer | `"identity"` | `"identity"`: from the generator's identity; `"random"`: drawn when the point runs; an integer: exactly that seed for every point (a replica, `to = { "pythia/seed" = true }`, gives a point its own: 04 §8.2; 06 §8) |
+| `data` | a table |  | replaces `[plot.data]` for this configuration: its pages' data, its plot document's, its statistics' reference, when it runs another analysis than the file's others |
+| `cluster` | a table |  | merged over the errand file's `[cluster]`, key by key, for this configuration's jobs (a longer `time` for its many events, say); the same keys |
+| `seed` | a string or an integer | `"identity"` | `"identity"`: from the generator's identity; `"random"`: drawn when the point runs; an integer: exactly that seed for every point (a replica, `to = { "pythia/seed" = true }`, gives a point its own) |
 <!-- /generated -->
 
 ### 5.1 `vary`
@@ -771,13 +771,13 @@ points = [{ tag = "R04", value = 0.4 }, { tag = "R07", value = 0.7 }, { tag = "R
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `shape` | a string or a list |  | the values' shape, in the vocabulary's grammar: `"pdg"`, `"float\|int"`, `["float", "float"]`; checked when the TOML is read. For a quantity of your own (one the vocabulary, `framework/schema/quantities.toml`, does not name); a vocabulary quantity has its own shape |
-| `to` | a string or a table |  | where the value goes: `{ pythia = "PDF:pSet" }` a native key per tool table or tool; `{ "rivet/photo_eic" = "R" }` an analysis option; `{ "pythia/seed" = true }` a replica. An entry with a `/` or `true` makes the entries the only consumers (04 §8.1) |
+| `to` | a string or a table |  | where the value goes: `{ pythia = "PDF:pSet" }` a native key per tool table or tool; `{ "rivet/photo_eic" = "R" }` an analysis option; `{ "pythia/seed" = true }` a replica. An entry with a `/` or `true` makes the entries the only consumers |
 | `format` | a string |  | a Python format for the value: `"{}*GeV"` |
 | `description` | a string |  | what the quantity is |
 | `exclude` | a list |  | points a vary leaves out, by their **1-based** place (as `fixed = "#2"` and `--points 2` count): `exclude = [2]` varies the others. The remaining points keep their names and identities and are numbered 1… over what is varied. In an entangled group, a point any member excludes leaves the group. `fixed` may still pick an excluded point. Refused: a place outside the points, or none left |
 | `points` | a list |  | the points, one row each: `{ tag, value, label, style }`; `value` is required, `tag` names the point's folder |
-| `fixed` | a string or an integer or a number |  | the point a configuration that does not vary the quantity takes: a tag, a value or `"#N"` (04 §7) |
-| `fields` | a table |  | a compound quantity: `{ <field> = <its binding> }`, each field a quantity of its own, its rows' values set together (04 §8.4) |
+| `fixed` | a string or an integer or a number |  | the point a configuration that does not vary the quantity takes: a tag, a value or `"#N"` |
+| `fields` | a table |  | a compound quantity: `{ <field> = <its binding> }`, each field a quantity of its own, its rows' values set together |
 <!-- /generated -->
 
 **A row** is `{ tag, value, label, style }`:
@@ -945,23 +945,23 @@ output   = "jets_hard.yoda"
 <!-- generated: keys3 tools -->
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `uses` | a string |  | the tool folder, when it is not the table's name: a second table of one tool, `[tools.<name>] uses = "<folder>"` (05 §3; `heimdall tools` lists the folders) |
+| `uses` | a string |  | the tool folder, when it is not the table's name: a second table of one tool, `[tools.<name>] uses = "<folder>"` (`heimdall tools` lists the folders) |
 | `card` | a string or a list |  | native base card(s), read in order (root `configs/<A>/`). Tools with a card only. |
 | `input` | a string or a list |  | what it reads: a producer's table name (`input = "pythia"`: what that tool writes), another tool's output by name, a pre product, (post) a product of every point, or a path. The first input is `{input}` |
-| `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in the point's working folder (04 §6). An array is fan-out; one writer per output (C6) |
+| `output` | a string or a list |  | what it writes. Read in its own group, a FIFO; in a later group, a file: a product in `results/`, or with `keep = false` a scratch file in the point's working folder. An array is fan-out; one writer per output (C6) |
 | `timeout` | a number, ≥ 0 |  | the tool fails when it runs longer |
 | `stall_after` | a number, ≥ 0 |  | the tool fails when silent this long: no log line, status message or heartbeat (a prepare step waits at least 3600) |
 | `status` | a string: `"standard"`, `"filters"`, `"none"` |  | `"standard"` (`$HEIMDALL_STATUS_FD`), `"filters"` (the folder's `filters.toml`), `"none"` |
 | `filters` | a string |  | your own rules in place of the folder's, a bare name beside the file naming it; implies `status = "filters"` |
 | `executable` | a string |  | exec and module: bare → `build/<A>/<E>` (must be built); `path:<command>` → `PATH` |
-| `arguments` | a list |  | exec and module: argv after the config; placeholders (04 §10). Not paths: the tool runs in the point's folder, so a script of yours is `{work}/modules/…` |
+| `arguments` | a list |  | exec and module: argv after the config; placeholders. Not paths: the tool runs in the point's folder, so a script of yours is `{work}/modules/…` |
 | `consumes` | a list (a string each) |  | exec and module: quantities written into the config |
-| `config` | a table |  | exec and module: `[tools.<tag>.config]`, extracted to a file (04 §9.2) |
+| `config` | a table |  | exec and module: `[tools.<tag>.config]`, extracted to a file |
 | `streamable` | true or false |  | may it read a FIFO? |
 | `consumes_events` | true or false |  | is its event count checked against the producer's sidecar? |
 | `settings` | a table |  | native card settings as written, `"HeavyIon:mode" = 1`, with no base card needed: over the base card, refused when a quantity sets the same key (one source per key, C8); a tool with no card refuses them |
 | `cores` | an integer, ≥ 1 |  | how many cores it keeps busy, for `--plan`'s note and the crowded warning; an integrated program is estimated as the generator's threads and one more |
-| `shards` | an integer, ≥ 1 | `1` | K > 1: K processes of this tool, each on a share of the events, merged into its `output` by the folder's merge tool (rivet, 05 §5.1). The chain is unchanged. |
+| `shards` | an integer, ≥ 1 | `1` | K > 1: K processes of this tool, each on a share of the events, merged into its `output` by the folder's merge tool (rivet). The chain is unchanged. |
 | `keep` | true or false | `true` | `false`: what it writes for a later group is a scratch file of the point (`records/…/logs/<point>/`), not a product (`results/`) |
 <!-- /generated -->
 
@@ -1183,8 +1183,8 @@ The plot stage, and how to use it, is [03](03_Plots.md). A configuration whose e
 | `split` | an integer, ≥ 1 |  | at most this many points on a page: each cell (a `plot_points` cell, or a set) cut into pages in point order, `<cell>-<k>` (`part<k>` with no cell): 24 points, `split = 3`, 8 pages. A curve is labelled by the quantities that differ on its page |
 | `statistics` | true or false, or `"default"` | `true` | each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ \|y − y_ref\|·Δx), `rel_abs_area` (abs_area / ref_area), `area_ratio` (cmp_area / ref_area: MC over data), `ratio_mean` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `ratio_dev` (its area about one over the width compared, Σ \|y/y_ref − 1\|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table |
 | `legend_statistic` | a string: `"none"`, `"area"`, `"abs_area"`, `"rel_abs_area"`, `"area_ratio"`, `"ratio_mean"`, `"ratio_dev"`, `"chi2"`, `"chi2_ndf"` | `"none"` | one of the statistics (see `statistics`) after each curve's legend entry: `chi2_ndf` → `(χ²/ndf 1.31)`; the reference's own entry gets none |
-| `root_style` | a string, or `"default"` |  | a style file over base.toml (04 §12). Refused by the yoda backend alone. |
-| `title` | a string, or `"default"` or `"native"` |  | the main title, centred above the frame. Every page; a figure (04 §11.2) overrides it for its own |
+| `root_style` | a string, or `"default"` |  | a style file over base.toml. Refused by the yoda backend alone. |
+| `title` | a string, or `"default"` or `"native"` |  | the main title, centred above the frame. Every page; a figure overrides it for its own |
 | `title_left` | a string, or `"default"` or `"native"` |  | small text just above the frame's top-left and top-right corners, inherited the same way |
 | `title_right` | a string, or `"default"` or `"native"` |  | small text just above the frame's top-left and top-right corners, inherited the same way |
 | `legend_header` | a string, or `"default"` or `"native"` |  | the legend's first line, inherited the same way. Children inherit every key their parent has and a key means the same at both levels |
@@ -1253,7 +1253,7 @@ A figure is a recipe for pages; its classes, each with an example, are
 | `labels` | a list (a string each) |  | an overlay's: one legend label per object; a compare figure's: one per configuration (default: each configuration's `label`) |
 | `x_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
 | `y_label` | a string, or `"default"` |  | the axis titles (LaTeX) |
-| `style` | a table |  | a style layer for these pages (04 §12) |
+| `style` | a table |  | a style layer for these pages |
 | *every page key of `[plot]`* | as there | `[plot]`'s | `band`, `ratio`, `y_gutter`, `x_gutter`, `x_range`, `y_range`, `logy`, `logx`, `logz`, `auto_range`, `normalise`, `void_empty`, `use_data`, `min_entries`, `range_pad`, `sets`, `split`, `legend_statistic`, `title`, `title_left`, `title_right`, `legend_header`: the figure's value, for its pages only |
 <!-- /generated -->
 
@@ -1579,20 +1579,20 @@ pages = ["d0[3-4]-*"]
 | `note` | a string |  | a line of text under the title |
 | `from` | a list (a string each) |  | this section's own sources (as [report].from), kept when the command line names others |
 | `pages` | a list (a string each) |  | globs of page names in each source's plots/<set>/<backend>/ (`d01-x01-y01`, `18x275/d0*`, `*`): a grid of them per page cell, or per page with layout = "sources" |
-| `set` | a string | `"totality"` | the set whose pages or numbers it takes: each source's plots/<set>/ and statistics/<set>/, else drawn for the report (03 §11.3) |
+| `set` | a string | `"totality"` | the set whose pages or numbers it takes: each source's plots/<set>/ and statistics/<set>/, else drawn for the report |
 | `cells` | a list (a string each) |  | globs of page cells (the folders in a set: `18x275`), to take only those; default: every one |
 | `backend` | a string or a list (a string each): `"root"`, `"mpl"`, `"yoda"` |  | whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl, yoda) |
 | `layout` | a string: `"pages"`, `"sources"` | `"pages"` | pages: each source's pages in turn, a grid per page cell; sources: side by side, a grid per page, a panel per source |
 | `columns` | an integer, ≥ 1 |  | a grid's columns (default: 2 on an A4 page, 3 for a side-by-side grid of three or more) |
 | `label` | a string: `"events"`, `"folder"` | `"folder"` | a side-by-side panel's label: folder, its source's folder name without the serial (with it, then with its errand, where two sources would share one); events, the events its points ran with (10M) |
 | `optional` | true or false | `false` | a source that neither has the section's set drawn (or measured) nor can draw it for the report (no such set, no complete point in it) is passed over, and the section left out when none has it; false: refused, naming the sets it has |
-| `compare` | a list (a string each) |  | compare figures' names (03 §7.5): their pages, from each source's errand's compare/<name>/ |
+| `compare` | a list (a string each) |  | compare figures' names: their pages, from each source's errand's compare/<name>/ |
 | `stats` | a list (a string each) |  | the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts |
 | `bars` | a list (a string each) |  | globs of page names: each page's bar graph of its curves' numbers, drawn for the report from statistics.csv (else from the numbers measured for it) |
 | `files` | a list (a string each) |  | your own PDF or PNG files, globs relative to the recipe's folder (`extras/*.png`) |
 | `tools` | a list (a string each) |  | tool tags ([tools.<tag>]) or globs, "*" every tool given a card or options: what each was given, read from each source's records, over its complete points: the card's lines every point had (its baseline), then each point's other lines (a table when they are key = value or key: value lines), and its other options |
 | `hide` | a list (a string each) |  | a tools section's: globs of varied lines' keys (else of the lines) to leave out ("Random:seed", "RANDOM_SEED") |
-| `plot` | a table |  | a pages, stats or bars section's: [plot] keys over each source's own (its sets and figures added, its style laid over), its pages and numbers then drawn for the report into its cache (03 §11.3), never into results/ |
+| `plot` | a table |  | a pages, stats or bars section's: [plot] keys over each source's own (its sets and figures added, its style laid over), its pages and numbers then drawn for the report into its cache, never into results/ |
 <!-- /generated -->
 
 - **A source** is a result folder holding a `plot.toml`: `<A>/<E>/<R>`, `<A>/<E>` (each of its

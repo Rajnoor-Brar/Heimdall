@@ -37,7 +37,7 @@ def test_ls_lists_every_configuration_and_marks_what_runs():
     ("quantities.pdf.styles", "(a table each)"), ("errand.cfgs.one.event_count", "[configuration].event_count"),
     ("event_count", "[errand].event_count"), ("tools.rivet.shards", "min      1"),
     ("plot.band", "(<q> envelope)"),                                          # V90: a key's notes
-    ("errand.events", "v2's [errand].event_count"), ("tools.pythia.card", "card (v3"), ("cfgs", "[cfgs.<name>]"),
+    ("errand.events", "events per point"), ("tools.pythia.card", "type "), ("cfgs", "[cfgs.<name>]"),
     ("tools.rivet.analyses", "kind     list, required"), ("style.page.dpi", "default  300"),
     ("machine.toml", "[cluster]"), ("report", "report.section.pages"), ("static", "fixed")])  # U47: every table and name
 def test_explain_reads_the_schema(key, shown):
@@ -46,7 +46,7 @@ def test_explain_reads_the_schema(key, shown):
 
 def test_explain_takes_errand_and_refuses_run():
     """I-112: `heimdall explain errand.events`; `run.events` and `[run]` say what they are now."""
-    assert any("event_count" in line for line in house.explain("errand.events"))
+    assert any("events per point" in line for line in house.explain("errand.events"))
     for key, hint in (("run.threads", "heimdall explain errand.threads"), ("[run]", "heimdall explain errand")):
         with pytest.raises(HeimdallError, match=r"\[run\] is now \[errand\]") as caught:
             house.explain(key)

@@ -1,7 +1,6 @@
 ---
 id: decisions-identity
 summary: why identity, seeds and skipping work as they do
-for: dev agent
 ---
 
 # Decisions: identity and seeds

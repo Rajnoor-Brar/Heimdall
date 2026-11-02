@@ -1,7 +1,6 @@
 ---
 id: code
 summary: how code here is written; rules that hold across modules and are not visible from one file
-for: dev agent
 ---
 
 # Code

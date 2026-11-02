@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import argparse
 import re
+import tomllib
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import cli, knowledge, schema
@@ -67,107 +69,10 @@ def keys(table: str) -> str:
     return "\n".join(rows)
 
 
-_SEED = {"type": "str|int", "default": "identity",
-         "doc": '`"identity"`: from the generator\'s identity; `"random"`: drawn when the point runs; an integer: '
-                'exactly that seed for every point (a replica, `to = { "pythia/seed" = true }`, gives a point its '
-                'own: 04 §8.2; 06 §8)'}
-#: v3's tables (03 §6; runner/v3.py) as the reference shows them: the v2 table each is read as, its keys
-#: renamed (v2 → v3), the rows v3 has of its own, and v2's keys v3 does not have. A renamed key keeps its
-#: v2 entry (type, default) under its v3 name, with v3's words where v2's would mislead (V3_DOCS).
-V3_TABLES = {
-    "file": ("config", {}, {"schema": {"type": "int", "doc": "`3`, or `2` to keep a v2 file v2 for one release; "
-                                                              "a file with `[file]` is v3 without it"}}, ()),
-    "errand": ("errand", {"configuration": "run", "event_count": "events", "tools": "chain", "sweeps": "vary"},
-            {"seed": _SEED, "commands": {"type": "list", "doc": "argv arrays run in each point's output folder before "
-                                         "its tools, in order; output to the point's `prelim.log`; a nonzero exit fails the "
-                                         "point. Placeholders: `{work}`, `{heimdall}`, `{out}`, `{res}`, `{file:<name>}`"}},
-            ("seed_type", "manual_seed", "cfgs")),
-    "cfgs": ("configuration", {"label": "folder", "event_count": "events", "tools": "chain", "sweeps": "vary",
-                               "static": "fixed"}, {"seed": _SEED}, ("seed_type", "manual_seed", "prelim")),
-    "tools": ("tool", {"tool": "uses", "baseconfig": "card", "output_file": "output"},
-              {"keep": {"type": "bool", "default": True, "doc": "`false`: what it writes for a later group is a scratch "
-                                                              "file of the point (`records/…/logs/<point>/`), not a product (`results/`)"}},
-              ()),
-    "quantities": ("quantity", {"key": "to"},
-                   {"points": {"type": "list", "doc": "the points, one row each: `{ tag, value, label, style }`; "
-                                                      "`value` is required, `tag` names the point's folder"},
-                    "fixed": {"type": "str|int|float", "doc": "the point a configuration that does not vary the "
-                                                             "quantity takes: a tag, a value or `\"#N\"` (04 §7)"},
-                    "fields": {"type": "table", "doc": "a compound quantity: `{ <field> = <its binding> }`, each "
-                                                       "field a quantity of its own, its rows' values set together "
-                                                       "(04 §8.4)"}},
-                   ("values", "tags", "labels", "styles", "target")),
-}
-V3_DOCS = {
-    ("errand", "run"): "the configuration `heimdall run <file>` runs, a `[cfgs.<name>]` (C2). Under `sweep_runs` it may "
-                    "be left out",
-    ("errand", "events"): "every configuration's event count, unless it gives its own",
-    ("errand", "chain"): "every configuration's tools, unless it gives its own (04 §5.3)",
-    ("errand", "vary"): "04 §5.1; `[]` is one point",
-    ("errand", "serial"): "the prefix `NN_` of each Run's folder, `<E>/NN_<folder>`: **location, never "
-                       "identity**. Left out, the runner numbers it: the newest folder made from these inputs, else a "
-                       "new one (04 §2). Set, a changed configuration is refused there rather than overwrite what it "
-                       "made (`--rerun` overwrites)",
-    ("cfgs", "serial"): "this configuration's `NN_`, over `[errand]`'s; left out in both, the runner numbers it (04 §2)",
-    ("cfgs", "folder"): "the Run's folder name, after the serial: `NN_<folder>`; empty means the table key",
-    ("cfgs", "events"): "required here if `[errand]` has none. A list is one configuration per count, "
-                        "`<name>_<count>` (`pdf_10k`), run in turn as `<name>` (04 §5.6)",
-    ("cfgs", "chain"): "04 §5.3; `[errand]`'s when left out",
-    ("cfgs", "vary"): "04 §5.1; `[]` is one point",
-    ("cfgs", "fixed"): "`{ quantity = \"tag\" }`: this configuration's fixed points, over each quantity's own "
-                       "`fixed` (04 §7)",
-    ("tools", "uses"): "the tool folder, when it is not the table's name: a second table of one tool, "
-                       "`[tools.<name>] uses = \"<folder>\"` (05 §3; `heimdall tools` lists the folders)",
-    ("tools", "card"): "native base card(s), read in order (root `configs/<A>/`). Tools with a card only.",
-    ("tools", "input"): "what it reads: a producer's table name (`input = \"pythia\"`: what that tool writes), "
-                        "another tool's output by name, a pre product, (post) a product of every point, or a path. "
-                        "The first input is `{input}`",
-    ("tools", "output"): "what it writes. Read in its own group, a FIFO; in a later group, a file: a product in "
-                         "`results/`, or with `keep = false` a scratch file in the point's working folder (04 §6). An array is "
-                         "fan-out (V16); one writer per output (C6)",
-    ("quantities", "to"): "where the value goes: `{ pythia = \"PDF:pSet\" }` a native key per tool table or tool; "
-                          "`{ \"rivet/photo_eic\" = \"R\" }` an analysis option; `{ \"pythia/seed\" = true }` a replica. "
-                          "An entry with a `/` or `true` makes the entries the only consumers (04 §8.1)",
-    ("quantities", "exclude"): "points a vary leaves out, by their **1-based** place (as `fixed = \"#2\"` and "
-                               "`--points 2` count): `exclude = [2]` varies the others. The remaining points keep "
-                               "their names and identities and are numbered 1… over what is varied. In an entangled "
-                               "group, a point any member excludes leaves the group. `fixed` may still pick an "
-                               "excluded point. Refused: a place outside the points, or none left (V42)",
-    ("tools", "shards"): "K > 1: K processes of this tool, each on a share of the events, merged into its `output` "
-                         "by the folder's merge tool (V31; rivet, 05 §5.1). The chain is unchanged.",
-    ("file", "import"): "errand files this one starts from, in order, named as `heimdall run` names a config: `name` is this "
-                        "assignment's (`configs/<A>/name.toml`), `<A>/<E>` another assignment's, `./…` from "
-                        "the work dir; `.toml` optional. **This file wins** (V56): a quantity or configuration of the "
-                        "file replaces the imported one whole; a tool table, `[plot]`, `[cluster]` and `[errand]`'s own "
-                        "keys merge key by key, tables recursively. Imports nest (V94), depth-first; a circle is "
-                        "refused. Another assignment's file keeps its bare paths its own assignment's. The file that "
-                        "imports sets its own `[errand].name` and `assignment` (V100). An entry may be `{ from = "
-                        "\"<config>\", only = [\"quantities\", \"cfgs.default\", …] }`: only those tables or dotted "
-                        "keys, each of which the file must have (V95)",
-    ("file", "vars"): "`name = value`, cited in any string of the file as `{var:name}` and replaced when the file is "
-                      "read, after its imports and `--set`, so an identity sees only the result (V96). A string that "
-                      "is exactly one var takes its value as it is: `events = \"{var:events}\"` is an integer, and a "
-                      "list stays a list; inside a longer string a var must be a scalar (`\"rivet:{var:ana}\"`). An "
-                      "unknown name is refused with the nearest. An imported file's `{var:…}` takes this file's "
-                      "value; its own `[file.vars]` come with whatever is taken of it (V101), under this file's. "
-                      "`--set file.vars.<name>=…` changes one for a job",
-}
-
-
 def keys3(table: str) -> str:
-    """A v3 table as the reference's table, from the v2 schema table it is read as (V3_TABLES)."""
-    base, renamed, own, gone = V3_TABLES[table]
+    """A v3 table as the old reference's table (schema.v3_entries)."""
     rows = ["| Key | Type | Default | Meaning |", "|---|---|---|---|"]
-    entries: dict[str, dict] = {}
-    for name, entry in schema.keys(base).items():
-        if name in gone:
-            continue
-        new = renamed.get(name, name)
-        entries[new] = {**entry, "required": entry.get("required") and new not in ("chain", "uses")}
-        if (table, new) in V3_DOCS:
-            entries[new] = {k: v for k, v in entries[new].items() if k != "notes"} | {"doc": V3_DOCS[table, new]}
-    entries |= own
-    for name, entry in entries.items():
+    for name, entry in schema.v3_entries(table).items():
         default = "**required**" if entry.get("required") else f"`{_value(entry['default'])}`" if "default" in entry else ""
         meaning = entry.get("notes") or entry.get("doc", "")
         if entry.get("inherit") and table == "errand":
@@ -245,7 +150,7 @@ def _render(what: str) -> str:
     kind, _, arg = what.strip().partition(" ")
     if kind == "keys" and arg in schema.TABLES + schema.REPORT_TABLES:
         return keys(arg)
-    if kind == "keys3" and arg in V3_TABLES:
+    if kind == "keys3" and arg in schema.v3_tables():
         return keys3(arg)
     if kind == "style" and not arg:
         return style()
@@ -256,56 +161,207 @@ def _render(what: str) -> str:
 
 # ── Whole generated pages (doc:docs-system) ───────────────────────────────────────────────────────
 
-def _accepts(entry: dict) -> str:
-    parts = [f"`{_value(c)}`" for c in entry.get("choices", [])]
+@dataclass
+class Section:
+    """A heading of a settings page: its keys one level down, then its sections, nested as the file's tables nest."""
+    title: str
+    text: str = ""
+    keys: list[tuple[str, str]] = field(default_factory=list)      # (name, what follows its heading)
+    subs: list[Section] = field(default_factory=list)
+
+
+def _facts(kind: str, default: str, accepts: str) -> str:
+    return f"| Type | Default | Acceptable |\n|---|---|---|\n| {_cell(kind)} | {_cell(default)} | {_cell(accepts) or '—'} |"
+
+
+def key_block(entry: dict) -> str:
+    """A key of the schema: its facts as a table, its special keywords as a list, then what it does."""
+    default = "**required**" if entry.get("required") else f"`{_value(entry['default'])}`" if "default" in entry else "—"
+    accepts = ", ".join(f"`{_value(c)}`" for c in entry.get("choices", []))
     if "min" in entry:
-        parts.append(f"at least {entry['min']}")
-    if entry.get("default_ok"):
-        parts.append('`"default"` (the layer below\'s value)')
-    if entry.get("native_ok"):
-        parts.append('`"native"` (the drawing tool\'s own)')
-    return " · ".join(parts)
-
-
-def key_block(name: str, entry: dict) -> str:
-    """One key as the reference shows it: found by its heading, its values at a glance, then what it does."""
-    facts = [f"**Type** {knowledge.kind_of(entry)}"]
-    if entry.get("required"):
-        facts.append("**required**")
-    elif "default" in entry:
-        facts.append(f"**Default** `{_value(entry['default'])}`")
-    if accepts := _accepts(entry):
-        facts.append(f"**Accepts** {accepts}")
+        accepts += (", " if accepts else "") + f"at least {entry['min']}"
+    parts = [_facts(knowledge.kind_of(entry), default, accepts)]
+    if words := knowledge.keywords_of(entry):
+        parts.append("\n".join(f"- `{word}`: {means}" for word, means in words))
+    prose = knowledge.sentence(knowledge.plain(entry.get("notes") or entry.get("doc", "")))
     if entry.get("page"):
-        facts.append("a figure may override it")
-    return f"### `{name}`\n\n{' · '.join(facts)}\n\n{knowledge.plain(entry.get('notes') or entry.get('doc', ''))}\n"
+        prose += " A figure may override it."
+    if entry.get("inherit"):
+        prose += " A configuration inherits it from `[errand]`."
+    parts.append(prose.strip())
+    return "\n\n".join(p for p in parts if p)
 
 
-#: A settings page: its id, title, summary, and the schema tables it shows as (heading, table).
+def _table(title: str, entries: dict[str, dict], text: str = "", subs: list[Section] | None = None) -> Section:
+    return Section(title, text, [(k, key_block(e)) for k, e in entries.items()], subs or [])
+
+
+def _literal_block(default: str, comment: str) -> str:
+    """A key known by its value and its comment (base.toml, settings.toml). A comment opening `a | b | c` names its values."""
+    accepts, prose = "", knowledge.plain(comment)
+    if found := re.match(r"([\w.+-]+(?: \| [\w.+-]+)+)\s*(.*)", prose, re.S):
+        accepts, prose = ", ".join(f"`{w}`" for w in found.group(1).split(" | ")), found.group(2)
+    shown = f"`{default}`" if len(default) <= 60 else f"{len(tomllib.loads(f'v = {default}')['v'])} entries, in the file"
+    return f"{_facts(knowledge.literal_kind(default), shown, accepts)}\n\n{knowledge.sentence(prose)}".rstrip()
+
+
+def _nested(entries: list[tuple[str, str, str]], top: str = "") -> list[Section]:
+    """Dotted keys as sections: `page.margins.left` is `left` under `margins` under `page`."""
+    root = Section("")
+    for dotted, default, comment in entries:
+        path = dotted.split(".")
+        here = root
+        for part in path[:-1]:
+            here = next((s for s in here.subs if s.title == f"`{part}`"), None) or _added(here, f"`{part}`")
+        here.keys.append((path[-1], _literal_block(default, comment)))
+    return ([Section(top, keys=root.keys)] if root.keys else []) + root.subs
+
+
+def _added(parent: Section, title: str) -> Section:
+    parent.subs.append(Section(title))
+    return parent.subs[-1]
+
+
+def _tool_options() -> list[Section]:
+    out = []
+    for path in sorted((heimdall_root() / "framework" / "tools").glob("*/tool.toml")):
+        options = tomllib.loads(path.read_text(encoding="utf-8")).get("options", {})
+        if options:
+            out.append(Section(f"`{path.parent.name}`", keys=[(k, _facts(
+                {"list": "list", "table": "table", "str": "string", "int": "integer", "float": "number", "bool": "true or false",
+                 "flag": "flag"}.get(o.get("kind"), "any"),
+                "**required**" if o.get("required") else f"`{_value(o['default'])}`" if "default" in o else "—", "") +
+                f"\n\n{knowledge.sentence(knowledge.plain(o.get('doc', '')))}") for k, o in options.items()]))
+    return out
+
+
+#: A settings page: its id, summary, readers' note, and its sections from the code.
 SETTINGS = {
-    "plot": ("settings-plot", "`[plot]` settings", "every key of [plot], [plot.figures.*], [plot.data], [plot.across_from], [stats]: "
-             "type, default, accepted values, effect",
-             [("[plot]: every page", "plot"), ("[plot.figures.<name>]: a figure", "figure"), ("[plot.data]: reference data", "data"),
-              ("[plot.across_from]: runs together", "across_from"), ("[stats]: heimdall stats", "stats")]),
+    "errand": ("settings-errand", "every key of an errand file's [file], [errand], [cfgs.*] and [quantities.*]: type, default, values, effect",
+               "Plot, tool and cluster keys have their own pages.",
+               lambda: [_table(f"`{title}`", schema.v3_entries(t)) for title, t in
+                        (("[file]", "file"), ("[errand]", "errand"), ("[cfgs.<name>]", "cfgs"), ("[quantities.<q>]", "quantities"))]),
+    "tools": ("settings-tools", "every key of a [tools.<name>] table, and each standard tool's own options",
+              "A tool's own settings beyond these go in its card; `heimdall tools <folder>` shows a folder.",
+              lambda: [_table("`[tools.<name>]`", schema.v3_entries("tools"), subs=[Section("Each tool's own options", subs=_tool_options())])]),
+    "plot": ("settings-plot", "every key of [plot], its figures, data and runs together, and [stats]: type, default, values, effect",
+             "The style's keys have their own page.",
+             lambda: [_table("`[plot]`", schema.keys("plot"), subs=[
+                 _table("`[plot.figures.<name>]`", schema.spec().get("figure", {})),
+                 _table("`[plot.data]`", schema.keys("data")),
+                 _table("`[plot.across_from]`", schema.keys("across_from"))]),
+                 _table("`[stats]`", schema.keys("stats"))]),
+    "style": ("settings-style", "every style key a page may set in [plot.style] or a style file, nested as the file nests them",
+              "From `src/Apps/Paint/base.toml`, which every page starts from. A layer names only what it changes.",
+              lambda: _nested(schema.style_entries())),
+    "report": ("settings-report", "every key of a report's recipe: [report] and [[report.section]]",
+               "", lambda: [_table("`[report]`", schema.keys("report"), subs=[_table("`[[report.section]]`", schema.keys("section"))])]),
+    "cluster": ("settings-cluster", "every key of [cluster], for running a job on Slurm",
+                "", lambda: [_table("`[cluster]`", schema.keys("cluster"))]),
+    "stack": ("settings-stack", "every setting of the stack's build: what is built, with what, how many cores, nested as the file nests them",
+              "From `recipes/settings.toml`. Set one on the command line (`cores=8`), in a `--config` file, or in the machine root's `machine.toml`.",
+              lambda: _nested(schema.stack_entries(), "`[settings]`")),
 }
+#: Where each settings page's facts live, for the drift report.
+SOURCES = {"errand": "framework/schema/run.toml, framework/schema/v3.toml", "tools": "framework/schema/v3.toml, framework/tools",
+           "plot": "framework/schema/run.toml", "style": "src/Apps/Paint/base.toml", "report": "framework/schema/report.toml",
+           "cluster": "framework/schema/run.toml", "stack": "recipes/settings.toml"}
+
+
+def _slug(title: str) -> str:
+    return re.sub(r"[^\w\- ]", "", title.lower()).strip().replace(" ", "-")
+
+
+def _anchors(sections: list[Section]) -> dict[int, str]:
+    """GitHub's anchor of each heading, in reading order: a repeated one gets -1, -2 …"""
+    seen: dict[str, int] = {}
+    out: dict[int, str] = {}
+
+    def give(title: str, key: int) -> None:
+        slug = _slug(title)
+        out[key] = f"{slug}-{seen[slug]}" if seen.get(slug) else slug
+        seen[slug] = seen.get(slug, 0) + 1
+
+    def walk(section: Section) -> None:
+        give(section.title, id(section))
+        for pair in section.keys:
+            give(pair[0], id(pair))
+        for sub in section.subs:
+            walk(sub)
+
+    for section in sections:
+        walk(section)
+    return out
+
+
+def _render_section(section: Section, level: int, anchors: dict[int, str]) -> list[str]:
+    out = [f"{'#' * level} {section.title}", ""]
+    if section.text:
+        out += [section.text, ""]
+    if len(section.keys) > 1:
+        out += [" · ".join(f"[`{name}`](#{anchors[id(pair)]})" for pair in section.keys for name in [pair[0]]), ""]
+    for pair in section.keys:
+        out += [f"{'#' * (level + 1)} `{pair[0]}`", "", pair[1], ""]
+    for sub in section.subs:
+        out += _render_section(sub, level + 1, anchors)
+    return out
+
+
+def _head(ident: str, summary: str, code: str) -> list[str]:
+    return ["---", f"id: {ident}", f"summary: {summary}", f"code: {code}", "generated: true", "---", ""]
 
 
 def settings_page(name: str) -> str:
-    ident, title, summary, tables = SETTINGS[name]
-    out = ["---", f"id: {ident}", f"summary: {summary}", "for: driver client dev agent",
-           "code: framework/schema/run.toml", "generated: true", "---", "",
-           f"# {title}", "", "Generated from `framework/schema/`; change it there. `heimdall explain <key>` says the same.", ""]
-    for heading, table in tables:
-        keys = schema.keys(table)
-        out += [f"## {heading}", "", " · ".join(f"[`{k}`](#{k})" for k in keys), ""]
-        out += [key_block(k, e) for k, e in keys.items()]
-    return "\n".join(out)
+    ident, summary, note, build = SETTINGS[name]
+    sections = build()
+    anchors = _anchors(sections)
+    out = _head(ident, summary, SOURCES[name])
+    out += [f"Generated from the code; change it there. `heimdall explain <key>` says the same.{' ' + note if note else ''}", ""]
+    for section in sections:
+        out += _render_section(section, 1, anchors)
+    return "\n".join(out).rstrip() + "\n"
+
+
+def commands_page() -> str:
+    top = cli.parser()
+    sub = next(a for a in top._actions if isinstance(a, argparse._SubParsersAction))
+    helps = {a.dest: a.help for a in sub._choices_actions}
+    out = _head("commands", "every heimdall command and its arguments", "framework/runner/cli.py")
+    out += ["# Commands", "", "Generated from the CLI's help; change it there.", ""]
+    for name, parser in sub.choices.items():
+        out += [f"## `heimdall {name}`", "", knowledge.plain(helps.get(name) or ""), ""]
+        rows = [f"| `{_cell(_option(a))}` | {_cell(knowledge.plain(a.help or ''))} |" for a in parser._actions
+                if not isinstance(a, argparse._HelpAction) and a.help != argparse.SUPPRESS]
+        if rows:
+            out += ["| Argument | Meaning |", "|---|---|", *rows, ""]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def keys_page() -> str:
+    """One line a key, for grep: where it lives, its type and default."""
+    out = _head("keys", "every setting in one line each, for grep: key, type, default", "framework/schema, src/Apps/Paint/base.toml, recipes/settings.toml")
+    out += ["# Every key", "", "`key | type | default`. Generated. What each does: `heimdall explain <key>`, or its settings page.", "", "```"]
+    for prefix, entries in knowledge.key_lines():
+        out += [f"{prefix}.{name} | {kind} | {default}" if prefix else f"{name} | {kind} | {default}" for name, kind, default in entries]
+    return "\n".join([*out, "```"]) + "\n"
+
+
+def legacy_page() -> str:
+    """The second form's names, from v3.toml."""
+    out = _head("legacy", "the errand file's older (v2) names and today's", "framework/schema/v3.toml")
+    out += ["# v2 names", "", "`heimdall migrate --v3` rewrites a v2 file. Generated from `framework/schema/v3.toml`.", "",
+            "| Table | v2 | Today |", "|---|---|---|"]
+    for table, data in schema.spec("v3").items():
+        title = f"`[{data['reads']}]` → `[{table}]`"
+        out += [f"| {title} | `{old}` | `{new}` |" for old, new in data["renamed"].items()]
+        out += [f"| {title} | `{old}` | gone |" for old in data["gone"]]
+    return "\n".join(out) + "\n"
 
 
 def generated() -> dict[str, str]:
     """Whole pages under docs/, by path. The map comes last: it lists what the others are on disk."""
     out = {f"reference/settings/{name}.md": settings_page(name) for name in SETTINGS}
-    return out
+    return out | {"reference/commands.md": commands_page(), "reference/keys.md": keys_page(), "reference/legacy.md": legacy_page()}
 
 
 def write_generated() -> list[str]:

@@ -1,7 +1,6 @@
 ---
 id: plots
 summary: how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets
-for: driver client dev agent
 code: framework/runner/plot.py, framework/runner/plotdoc.py
 ---
 

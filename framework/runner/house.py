@@ -10,13 +10,14 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import re
 import textwrap
 import time
 import tomllib
 from pathlib import Path
 
 from . import config as configmod
-from . import schema, tools
+from . import knowledge, schema, tools
 from .errors import HeimdallError, did_you_mean
 from . import runs
 from .events import greeting, hubs
@@ -199,12 +200,27 @@ def _special(key: str) -> list[str] | None:
     style key, a report's recipe, machine.toml, [static]."""
     from . import tools as toolsmod
     word = key.strip("[]")
+    if word == "stack" or word.startswith("stack."):                     # recipes/settings.toml
+        stack = {k: (v, c) for k, v, c in schema.stack_entries()}
+        name = word.removeprefix("stack").lstrip(".")
+        if name in stack:
+            return _stack_lines(name, stack[name])
+        return ["the stack's build settings (recipes/settings.toml; heimdall stack build key=value, or machine.toml's [settings])",
+                *(f"  {k:24} {knowledge.plain(c)[:90]}" for k, (_, c) in stack.items() if k.startswith(name)),
+                "  (heimdall explain stack.<key> for one in full)"]
+    if word == "style" or (word.startswith("style.") and not any(d == word[6:] for d, _, _ in schema.style_entries())):
+        at = word.removeprefix("style").lstrip(".")
+        rows = [(d, c) for d, _, c in schema.style_entries() if d.startswith(at)]
+        if rows:
+            return [f"style{'.' + at if at else ''}: a page's style (src/Apps/Paint/base.toml), set in [plot.style], a figure's style or a style file",
+                    *(f"  {d:30} {knowledge.plain(c)[:80]}" for d, c in rows), "  (heimdall explain style.<key> for one in full)"]
     if word.split(".")[0].split("]")[0] == "run":                         # I-112's names
         raise HeimdallError(f"[run] is now [errand] (I-112's names): {key}",
                        hint="heimdall explain errand" + word.removeprefix("run").replace("]", "").replace(".project", ".assignment"))
     table = TABLES.get(word, {"file": "config", "cfgs": "configuration"}.get(word))
     if table and "." not in word:
-        entries = schema.keys(table)
+        v3 = {"file": "file", "cfgs": "cfgs", "errand": "errand", "tools": "tools", "quantities": "quantities"}.get(word)
+        entries = schema.v3_entries(v3) if v3 else schema.keys(table)
         return [TABLE_TEXT.get(table, f"[{table}]"), *(f"  {k:16} {e.get('doc', '')}" for k, e in entries.items()),
                 "  (heimdall explain <table>.<key> for one in full)"]
     last = word.rsplit(".", 1)[-1]                                       # events, errand.events, tools.<tag>.card
@@ -212,32 +228,31 @@ def _special(key: str) -> list[str] | None:
         word = last
         table, old, note = V3_NAMES[word]
         entry = schema.keys(table).get(old, {})
-        return [f"{word} (v3; v2's {'[' + table + '].' + old})", *([f"  {note}"] if note else []),
-                *([f"  {entry['doc']}"] if entry.get("doc") else [])]
+        return [word, *(_entry_lines(entry) if entry else []), *([f"  {note}"] if note else [])]
     if word in ("static",):
         return ["[static] (v2; v3: each quantity's fixed): quantity = tag, the point of a quantity no configuration varies"]
     if word in ("machine.toml", "machine"):
         return ["machine.toml (the machine root's; recipes/machine.template.toml): this machine's layer",
-                "  [settings] [env] [packages.<name>]  the stack's build: over the recipes and toolkits (recipes/README.md §1)",
-                "  [cluster]                            heimdall cluster's defaults for every work dir here (04 §16)"]
+                "  [settings] [env] [packages.<name>]  the stack's build: over the recipes and toolkits",
+                "  [cluster]                            heimdall cluster's defaults for every work dir here"]
     if word.startswith("report.section."):                  # V209: [[report.section]]'s keys are the schema's section
         word = word.removeprefix("report.")
     if word in ("report", "section", "report.section", "report.toml"):
         tables = ("section",) if word.endswith("section") else schema.REPORT_TABLES
         return ["a report's recipe: [report] and its [[report.section]]s, in configs/<A>/<E>.toml ([report] alone), "
-                "an errand file or a folder's report.toml (04 §15)",
+                "an errand file or a folder's report.toml",
                 *(f"  {('report.' if t == 'section' else '') + t + '.' + k:30} {e.get('doc', '')}"
                   for t in tables for k, e in schema.keys(t).items())]
     if word.split(".")[0] in schema.REPORT_TABLES and word.count(".") == 1:
         table, key = word.split(".")
         entry = schema.keys(table).get(key)
         if entry is not None:
-            return [f"{word} (a report's recipe, 04 §15)", f"  type     {entry.get('type', '')}",
+            return [f"{word} (a report's recipe)", f"  type     {entry.get('type', '')}",
                     *([f"  default  {entry['default']}"] if "default" in entry else []), f"  {entry.get('doc', '')}"]
     style = word.removeprefix("style.")
     for dotted, default, comment in schema.style_entries():
         if dotted == style:
-            return [f"style {dotted} (src/Apps/Paint/base.toml; a style layer's key, 04 §12)",
+            return [f"style {dotted} (src/Apps/Paint/base.toml; a style layer's key)",
                     f"  default  {default}", *([f"  {comment}"] if comment else [])]
     parts = word.split(".")
     if parts[0] == "tools":
@@ -252,12 +267,68 @@ def _special(key: str) -> list[str] | None:
     return None
 
 
+def _other_table(parts: list[str]) -> tuple[str, dict] | None:
+    """A key the schema holds under another name, or in a table of another: v3's tables, a figure's, a report's section."""
+    last, entries = parts[-1], None
+    if parts[:2] == ["errand", "cfgs"]:
+        entries = schema.v3_entries("cfgs")
+    elif parts[0] == "config":
+        entries = schema.v3_entries("file")
+    elif parts[0] in schema.v3_tables():
+        entries = schema.v3_entries(parts[0])
+    elif parts[:2] == ["plot", "figures"]:
+        entries = schema.spec().get("figure", {})
+    elif parts[:2] == ["report", "section"]:
+        entries = schema.keys("section")
+    elif parts[:1] == ["stats"]:
+        entries = schema.keys("stats")
+    return (f"{'.'.join(parts)}", entries[last]) if entries and last in entries else None
+
+
+def _stack_lines(name: str, value_comment: tuple[str, str]) -> list[str]:
+    value, comment = value_comment
+    return [f"stack.{name} (recipes/settings.toml; heimdall stack build {name}=…, or machine.toml's [settings])",
+            f"  default  {value}", *([f"  {knowledge.plain(comment)}"] if comment else [])]
+
+
+def _entry_lines(entry: dict) -> list[str]:
+    """A key's facts, for a name the schema holds under another: its type, default and meaning."""
+    return [f"  type     {knowledge.kind_of(entry)}", *([f"  default  {entry['default']!r}"] if "default" in entry else []),
+            *([f"  {knowledge.plain(entry['doc'])}"] if entry.get("doc") else [])]
+
+
+def _key_lines(title: str, entry: dict) -> list[str]:
+    """A key in full: its type, default, values and meaning."""
+    lines = [title]
+    lines.append(f"  type     {schema.type_name(entry['type'])}" +
+                 (f" ({schema.type_name(entry['items'])} each)" if entry.get("items") else ""))
+    if "choices" in entry:
+        lines.append("  choices  " + ", ".join(c if isinstance(c, str) else str(c).lower() for c in entry["choices"]))
+    if "min" in entry:
+        lines.append(f"  min      {entry['min']}")
+    if "default" in entry:
+        lines.append(f"  default  {entry['default']!r}")
+    if entry.get("required"):
+        lines.append("  required")
+    if entry.get("inherit"):
+        lines.append("  a configuration inherits it from [errand]")
+    if entry.get("default_ok"):
+        lines.append(f'  "default": {knowledge.KEYWORDS["default_ok"][1]}')
+    if entry.get("native_ok"):
+        lines.append(f'  "native": {knowledge.KEYWORDS["native_ok"][1]}')
+    if entry.get("doc"):
+        lines.append(f"  {entry['doc']}")
+    if entry.get("notes"):
+        lines += [""] + [f"  {line}" for line in textwrap.wrap(entry["notes"], 96)]
+    return lines
+
+
 def explain(key: str) -> list[str]:
     """A key's type, default, choices, bounds, inheritance and doc, from framework/schema/run.toml.
     `plot.y_gutter`, `[plot].y_gutter`, `errand.event_count`, `quantities.<q>.styles`, `tools.<tag>.shards`,
     `plot.figures.<figure>.logy`, `errand.cfgs.<cfg>.threads` (a configuration's, V98); a bare key is looked
     up in every table."""
-    if ".exe" in key:                                                   # a module program's own settings
+    if re.search(r"\.exe\b", key):                                      # a module program's own settings
         return module_settings(key)
     special = _special(key)
     if special is not None:
@@ -285,34 +356,19 @@ def explain(key: str) -> list[str]:
             found.append((table, name))
     else:
         found = [(table, parts[-1]) for table in schema.spec() if table != "sections" and parts[-1] in schema.keys(table)]
+    if not found and (other := _other_table(parts)) is not None:
+        return _key_lines(*other)
+    if not found and len(parts) == 1 and any(k == parts[0] for k, _, _ in schema.stack_entries()):
+        return _stack_lines(parts[0], next((v, c) for k, v, c in schema.stack_entries() if k == parts[0]))
     if not found:
         every = sorted({k for t in schema.spec() if t != "sections" for k in schema.keys(t)})
         raise HeimdallError(f"no key '{key}' in the schema", hint=did_you_mean(parts[-1], every) or
                        "keys are written as plot.y_gutter, errand.events, cfgs.<name>.threads, quantities.<q>.points")
     lines = []
+    if len(parts) == 1 and parts[0] in (stack := {k: (v, c) for k, v, c in schema.stack_entries()}):   # a stack setting too
+        lines += [*_stack_lines(parts[0], stack[parts[0]]), ""]
     for table, name in found:
-        entry = schema.keys(table)[name]
-        lines.append(f"[{table}].{name}")
-        lines.append(f"  type     {schema.type_name(entry['type'])}" +
-                     (f" ({schema.type_name(entry['items'])} each)" if entry.get("items") else ""))
-        if "choices" in entry:
-            lines.append("  choices  " + ", ".join(c if isinstance(c, str) else str(c).lower() for c in entry["choices"]))
-        if "min" in entry:
-            lines.append(f"  min      {entry['min']}")
-        if "default" in entry:
-            lines.append(f"  default  {entry['default']!r}")
-        if entry.get("required"):
-            lines.append("  required")
-        if entry.get("inherit"):
-            lines.append("  a configuration inherits it from [errand]")
-        if entry.get("default_ok"):
-            lines.append('  "default": the layer below\'s value, as if left out (v2\'s [plot] itself: the drawing tool\'s own)')
-        if entry.get("native_ok"):
-            lines.append('  "native": what the drawing tool does by itself, at any level')
-        if entry.get("doc"):
-            lines.append(f"  {entry['doc']}")
-        if entry.get("notes"):
-            lines += [""] + [f"  {line}" for line in textwrap.wrap(entry["notes"], 96)]
+        lines += _key_lines(f"[{table}].{name}", schema.keys(table)[name])
     return lines + ([""] + vocab if vocab else [])
 
 

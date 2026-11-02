@@ -27,6 +27,7 @@ summary small { color:var(--soft); font-weight:400; margin-left:6px; }
 .key h3 { margin:0 0 2px; font:600 14px ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; }
 .facts { color:var(--soft); font-size:13px; overflow-wrap:anywhere; }
 .facts b { color:var(--ink); font-weight:600; }
+.kw { margin:4px 0 0; padding-left:18px; font-size:13px; }
 .meaning { margin:6px 0 0; overflow-wrap:anywhere; }
 .short { max-height:7.5em; overflow:hidden; position:relative; }
 .more { border:0; background:none; color:var(--accent); font:inherit; font-size:13px; padding:2px 0; cursor:pointer; }
@@ -92,8 +93,9 @@ function settingsView(term) {
       if (k.default !== "") facts.push(k.default === "required" ? "<b>required</b>" : `<b>Default</b> <code>${esc(k.default)}</code>`);
       if (k.accepts.length) facts.push(`<b>Accepts</b> ${k.accepts.map(a => `<code>${esc(a)}</code>`).join(" ")}`);
       if (k.min !== null) facts.push(`<b>At least</b> ${esc(k.min)}`);
+      const kw = k.keywords.length ? `<ul class="kw">${k.keywords.map(([w, m]) => `<li><code>${esc(w)}</code>: ${esc(m)}</li>`).join("")}</ul>` : "";
       const long = k.meaning.length > 420;
-      html += `<div class="key"><h3>${mark(esc(k.key), term)}</h3><div class="facts">${facts.join(" · ")}</div>
+      html += `<div class="key"><h3>${mark(esc(k.key), term)}</h3><div class="facts">${facts.join(" · ")}</div>${kw}
         <div class="meaning ${long ? "short" : ""}">${inline(k.meaning, term)}</div>${long ? '<button class="more">Show all</button>' : ""}</div>`;
     }
     html += "</details>";

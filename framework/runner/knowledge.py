@@ -17,6 +17,17 @@ from . import schema
 from .paths import forge_dir, heimdall_root
 
 READERS = ("driver", "mechanic", "dev", "client", "agent")
+#: Who a page is for follows from where it is, longest prefix first: a page needs no field saying so.
+READERS_OF = (("reference/settings/stack", ("mechanic", "dev", "agent")),
+              ("reference", ("driver", "client", "dev", "agent")),
+              ("stable/start", ("driver", "client", "dev", "agent")),
+              ("stable/guide", ("driver", "client", "dev", "agent")),
+              ("stable/tools", ("driver", "client", "dev", "agent")),
+              ("stable/setup", ("mechanic", "dev", "agent")),
+              ("", ("dev", "agent")))
+#: What a key's special keywords mean, wherever one is accepted.
+KEYWORDS = {"default_ok": ('"default"', "the layer below's value, as if left out"),
+            "native_ok": ('"native"', "what the drawing tool does by itself, at any level")}
 PAGE_CAP = 12_000                                   # bytes of an authored page
 ROW_CAP = 300                                       # characters of a decision note
 ORDER = ("rules", "reference", "stable/start", "stable/guide", "stable/tools", "stable/setup",
@@ -33,6 +44,10 @@ class Page:
     @property
     def id(self) -> str:
         return self.meta["id"]
+
+    @property
+    def readers(self) -> tuple[str, ...]:
+        return next(who for prefix, who in READERS_OF if self.rel.startswith(prefix))
 
     def listed(self, key: str) -> list[str]:
         return [v for v in re.split(r"[,\s]+", self.meta.get(key, "")) if v]
@@ -103,6 +118,19 @@ def kind_of(entry: dict) -> str:
     return " or ".join(one(k) for k in entry["type"].split("|"))
 
 
+def sentence(text: str) -> str:
+    """A schema's note as a sentence: capitalised, closed. A note opening with a code span stays as it is."""
+    text = text.strip()
+    if not text:
+        return text
+    text = text[0].upper() + text[1:]
+    return text if text[-1] in ".:!?`)" else text + "."
+
+
+def keywords_of(entry: dict) -> list[tuple[str, str]]:
+    return [KEYWORDS[flag] for flag in KEYWORDS if entry.get(flag)]
+
+
 # ── The map ───────────────────────────────────────────────────────────────────────────────────────
 
 def overlays(found: list[Page]) -> dict[str, list[str]]:
@@ -120,7 +148,7 @@ def map_text(found: list[Page] | None = None) -> str:
     found = pages() if found is None else found
     over = overlays(found)
     lines = ["# Map", "",
-             "Generated: `heimdall make --framework docs`. One line a page: what it holds, who it is for, its size.",
+             "Generated: `heimdall make --framework docs`. One line a page: what it holds, its size.",
              "`⟵ live:` a live doc changes that page, and wins until crystallised (see `work`).", ""]
     folder = None
     for page in found:
@@ -130,7 +158,7 @@ def map_text(found: list[Page] | None = None) -> str:
             folder = here
         size = f"{len(page.path.read_bytes()) / 1000:.0f} KB"
         live = f" ⟵ live: {', '.join(over[page.id])}" if page.id in over else ""
-        lines.append(f"- [{page.id}]({page.rel}): {page.meta.get('summary', '')} ({' '.join(page.listed('for'))}; {size}){live}")
+        lines.append(f"- [{page.id}]({page.rel}): {page.meta.get('summary', '')} ({size}){live}")
     return "\n".join(lines) + "\n"
 
 
@@ -161,21 +189,55 @@ def drift(found: list[Page] | None = None) -> list[tuple[str, list[str]]]:
 
 # ── The site ──────────────────────────────────────────────────────────────────────────────────────
 
-def settings() -> list[dict]:
-    """Every setting a reader may look up: the schema's tables and the style's keys, as the site shows them."""
+def _tables() -> list[tuple[str, dict[str, dict]]]:
+    """Every table of keys, by the name a reader writes it."""
+    v3 = [(f"[{title}]", schema.v3_entries(t)) for title, t in
+          (("file", "file"), ("errand", "errand"), ("cfgs.<name>", "cfgs"), ("quantities.<q>", "quantities"), ("tools.<name>", "tools"))]
+    return v3 + [("[plot]", schema.keys("plot")), ("[plot.figures.<name>]", schema.spec().get("figure", {})),
+                 ("[plot.data]", schema.keys("data")), ("[plot.across_from]", schema.keys("across_from")), ("[stats]", schema.keys("stats")),
+                 ("[report]", schema.keys("report")), ("[[report.section]]", schema.keys("section")), ("[cluster]", schema.keys("cluster"))]
+
+
+def _folders() -> list[tuple[str, dict]]:
     out = []
-    for table in schema.TABLES:
-        rows = []
-        for name, entry in schema.keys(table).items():
-            rows.append({"key": name, "type": kind_of(entry),
-                         "default": "required" if entry.get("required") else
-                                    (schema.toml_value(entry["default"]) if "default" in entry else ""),
-                         "accepts": [schema.toml_value(c) for c in entry.get("choices", [])],
-                         "min": entry.get("min"),
-                         "meaning": plain(entry.get("notes") or entry.get("doc", ""))})
-        out.append({"table": table, "keys": rows})
-    out.append({"table": "style", "keys": [{"key": k, "type": "", "default": v, "accepts": [], "min": None, "meaning": plain(c)}
-                                           for k, v, c in schema.style_entries()]})
+    for path in sorted((heimdall_root() / "framework" / "tools").glob("*/tool.toml")):
+        if options := tomllib.loads(path.read_text(encoding="utf-8")).get("options", {}):
+            out.append((path.parent.name, options))
+    return out
+
+
+def literal_kind(default: str) -> str:
+    value = tomllib.loads(f"v = {default}")["v"]
+    return {bool: "true or false", int: "integer", float: "number", str: "string", list: "list", dict: "table"}[type(value)]
+
+
+def settings() -> list[dict]:
+    """Every setting a reader may look up, as the site shows it."""
+    out = []
+    for title, entries in _tables():
+        out.append({"table": title, "keys": [
+            {"key": name, "type": kind_of(entry),
+             "default": "required" if entry.get("required") else (schema.toml_value(entry["default"]) if "default" in entry else ""),
+             "accepts": [schema.toml_value(c) for c in entry.get("choices", [])], "min": entry.get("min"),
+             "keywords": keywords_of(entry), "meaning": sentence(plain(entry.get("notes") or entry.get("doc", "")))}
+            for name, entry in entries.items()]})
+    for name, options in _folders():
+        out.append({"table": f"[tools.{name}]: its own options", "keys": [
+            {"key": k, "type": o.get("kind", "any"), "default": "required" if o.get("required") else schema.toml_value(o["default"]) if "default" in o else "",
+             "accepts": [], "min": None, "keywords": [], "meaning": plain(o.get("doc", ""))} for k, o in options.items()]})
+    for title, entries in (("style", schema.style_entries()), ("stack", schema.stack_entries())):
+        out.append({"table": title, "keys": [
+            {"key": k, "type": literal_kind(v), "default": v if len(v) <= 60 else "(a long list)", "accepts": [], "min": None,
+             "keywords": [], "meaning": plain(c)} for k, v, c in entries]})
+    return out
+
+
+def key_lines() -> list[tuple[str, list[tuple[str, str, str]]]]:
+    """Every key as (prefix, [(name, type, default)]), for the one-line index."""
+    out = []
+    for row in settings():
+        prefix = row["table"].strip("[]").split("]:")[0]
+        out.append((prefix, [(k["key"], k["type"], k["default"] or "-") for k in row["keys"]]))
     return out
 
 
@@ -205,7 +267,7 @@ def site_html(found: list[Page] | None = None) -> str:
     found = pages() if found is None else found
     over = overlays(found)
     data = {"settings": settings(), "graph": graph(found), "readers": READERS,
-            "pages": [{"id": p.id, "rel": p.rel, "summary": p.meta.get("summary", ""), "for": p.listed("for"),
+            "pages": [{"id": p.id, "rel": p.rel, "summary": p.meta.get("summary", ""), "for": p.readers,
                        "live": over.get(p.id, []), "body": p.body} for p in found]}
     blob = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     template = (Path(__file__).parent / "knowledge_site.html").read_text(encoding="utf-8")

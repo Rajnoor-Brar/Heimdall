@@ -1,7 +1,6 @@
 ---
 id: work
 summary: where work in progress lives; the live-doc format; the crystallise protocol
-for: dev agent
 ---
 
 # Work
@@ -24,7 +23,6 @@ Only what is open. Finished work leaves: its decisions and live doc stay in `doc
 ---
 id: live-<slug>
 summary: one line
-for: dev agent
 affects: identity, plots
 issue: I-123
 ---

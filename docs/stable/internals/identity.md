@@ -1,7 +1,6 @@
 ---
 id: identity
 summary: what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it
-for: dev agent
 code: framework/runner/record.py, framework/runner/tools.py, framework/tools/pythia/tool.toml
 ---
 

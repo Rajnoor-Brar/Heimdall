@@ -1,6 +1,6 @@
 # Docs rebuild: one knowledge base, five doors
 
-Status: approved 2026-11-02. Phase 1's pilot done; paused for the developer's review.
+Status: approved 2026-11-02. Pilot accepted with changes (no `for:`; readers follow from the folder; keys nest by heading, each a Type/Default/Acceptable table, keywords a list, then prose).
 
 ## Context
 
@@ -230,5 +230,6 @@ pages cite no record ids; AGENTS.md carries no repo paths; live docs' `affects` 
 |---|---|
 | Design | approved 2026-11-02 |
 | 0 Salvage map | done, dd61d9e; `check_salvage.py` passes |
-| 1 Pilot | done, see `P1_Pilot.md`; ⏸ awaiting the developer's read |
-| 2–7 | not started |
+| 1 Pilot | done, see `P1_Pilot.md`; accepted with changes |
+| 2 Reference | done: every setting on a page and answered by `explain` (a test asks each) |
+| 3–7 | not started |

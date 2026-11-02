@@ -1,7 +1,6 @@
 ---
 id: invariants
 summary: what must never happen in this repo and on this machine, and why; read before acting
-for: dev agent
 ---
 
 # Invariants

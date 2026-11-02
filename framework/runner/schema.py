@@ -362,6 +362,61 @@ def toml_value(value) -> str:
     return str(value)
 
 
+def v3_entries(table: str) -> dict[str, dict]:
+    """A v3 table's keys as the reference shows them (v3.toml): the v2 table it is read as, its keys renamed, the keys
+    it has of its own, without v2's keys it does not have. A renamed key keeps its type and default, under v3's words."""
+    v3 = spec("v3")[table]
+    out: dict[str, dict] = {}
+    for name, entry in keys(v3["reads"]).items():
+        if name in v3["gone"]:
+            continue
+        new = v3["renamed"].get(name, name)
+        out[new] = {**entry, "required": entry.get("required") and new not in ("chain", "uses")}
+        if new in v3["words"]:
+            out[new] = {k: v for k, v in out[new].items() if k != "notes"} | {"doc": v3["words"][new]}
+    return out | v3["own"]
+
+
+def v3_tables() -> tuple[str, ...]:
+    return tuple(spec("v3"))
+
+
+def stack_entries() -> list[tuple[str, str, str]]:
+    """recipes/settings.toml's keys in file order: (dotted key, default as written, comment): the comment beside a key,
+    with what continues it, else the comment block just above it."""
+    text = (heimdall_root() / "recipes" / "settings.toml").read_text(encoding="utf-8")
+    values = tomllib.loads(text)
+    out, table, above, column = [], "", [], None
+    depth = 0
+    for line in text.splitlines():
+        if depth:                                                    # inside a multi-line list
+            depth += line.count("[") - line.count("]")
+            continue
+        if (head := re.match(r"\[([\w.]+)\]", line)):
+            table, above, column = head.group(1), [], None
+            continue
+        if (key := re.match(r"(\w+)\s*=", line)):
+            found = re.search(r"\s#\s?(.*)$", line)
+            value = line[key.end():].split(" #")[0]
+            depth = value.count("[") - value.count("]")
+            name = f"{table}.{key.group(1)}" if table else key.group(1)
+            data = values
+            for part in name.split("."):
+                data = data[part]
+            out.append([name, toml_value(data), found.group(1).strip() if found else " ".join(above)])
+            column, above = (found.start() + 1 if found else None), []
+            continue
+        if line.strip().startswith("#"):
+            if column is not None and out and line.index("#") == column:
+                out[-1][2] += " " + line.strip()[1:].strip()
+            else:
+                column = None
+                above.append(line.strip()[1:].strip())
+        else:
+            above, column = [], None
+    return [tuple(e) for e in out]
+
+
 def style_entries() -> list[tuple[str, str, str]]:
     """base.toml's keys in file order: (dotted key, default as written, comment). A comment-only line
     under a key, indented to its comment, continues that key's comment; a key without one has its

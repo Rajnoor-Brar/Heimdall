@@ -1,7 +1,6 @@
 ---
 id: writing
 summary: how a page is written, where a fact belongs, how anything cites anything
-for: dev agent
 ---
 
 # Writing
@@ -28,13 +27,12 @@ for: dev agent
 ---
 id: identity
 summary: one line, enough to decide whether to open the page
-for: dev agent
 code: framework/runner/record.py, framework/runner/tools.py
 ---
 ```
 
 - `id` is unique and outlives moves: code cites `doc:identity`, never a path and section.
-- `for` names its readers: `driver` (uses Heimdall on a project), `mechanic` (sets it up), `dev`, `client` (an AI in a work dir), `agent` (an AI developing Heimdall).
+- **A page's folder says who it is for.** `guide/`, `tools/`, `start/` and `reference/`: the driver (uses Heimdall on a project) and client AI (an AI in a work dir). `setup/`: the mechanic (sets Heimdall up). Everything else: dev and agent (an AI developing Heimdall). Every reader may read anything.
 - `code` names the files the page describes; `heimdall docs --drift` watches them, and a test checks they exist.
 - One subject a page, at most 12 KB. A page that outgrows that is two subjects.
 - Open with what the reader gets, not with history. Say what holds, not how it came to.
@@ -47,7 +45,7 @@ A bullet of at most 300 characters: the id in bold, what was decided, `Gave up:`
 
 - Plain words, short sentences, the exact name of the thing in a code span.
 - Dense, not terse: drop filler, keep the reasoning a reader needs.
-- `for: driver` and `for: mechanic` pages carry no record ids and no dates.
+- `guide/`, `tools/`, `start/`, `setup/` and `reference/` carry no record ids and no dates.
 - A diagram or table when it says it better than prose, and not otherwise.
 
 ## Citing

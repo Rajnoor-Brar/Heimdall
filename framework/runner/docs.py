@@ -22,7 +22,7 @@ import argparse
 import re
 from pathlib import Path
 
-from . import cli, schema
+from . import cli, knowledge, schema
 from .paths import heimdall_root
 
 BLOCK = re.compile(r"(<!-- generated: ([^>]+?) -->\n)(.*?)(<!-- /generated -->)", re.S)
@@ -254,6 +254,76 @@ def _render(what: str) -> str:
     raise ValueError(f"no generated block '{what}': keys <{'|'.join(schema.TABLES + schema.REPORT_TABLES)}>, style or commands")
 
 
+# ── Whole generated pages (doc:docs-system) ───────────────────────────────────────────────────────
+
+def _accepts(entry: dict) -> str:
+    parts = [f"`{_value(c)}`" for c in entry.get("choices", [])]
+    if "min" in entry:
+        parts.append(f"at least {entry['min']}")
+    if entry.get("default_ok"):
+        parts.append('`"default"` (the layer below\'s value)')
+    if entry.get("native_ok"):
+        parts.append('`"native"` (the drawing tool\'s own)')
+    return " · ".join(parts)
+
+
+def key_block(name: str, entry: dict) -> str:
+    """One key as the reference shows it: found by its heading, its values at a glance, then what it does."""
+    facts = [f"**Type** {knowledge.kind_of(entry)}"]
+    if entry.get("required"):
+        facts.append("**required**")
+    elif "default" in entry:
+        facts.append(f"**Default** `{_value(entry['default'])}`")
+    if accepts := _accepts(entry):
+        facts.append(f"**Accepts** {accepts}")
+    if entry.get("page"):
+        facts.append("a figure may override it")
+    return f"### `{name}`\n\n{' · '.join(facts)}\n\n{knowledge.plain(entry.get('notes') or entry.get('doc', ''))}\n"
+
+
+#: A settings page: its id, title, summary, and the schema tables it shows as (heading, table).
+SETTINGS = {
+    "plot": ("settings-plot", "`[plot]` settings", "every key of [plot], [plot.figures.*], [plot.data], [plot.across_from], [stats]: "
+             "type, default, accepted values, effect",
+             [("[plot]: every page", "plot"), ("[plot.figures.<name>]: a figure", "figure"), ("[plot.data]: reference data", "data"),
+              ("[plot.across_from]: runs together", "across_from"), ("[stats]: heimdall stats", "stats")]),
+}
+
+
+def settings_page(name: str) -> str:
+    ident, title, summary, tables = SETTINGS[name]
+    out = ["---", f"id: {ident}", f"summary: {summary}", "for: driver client dev agent",
+           "code: framework/schema/run.toml", "generated: true", "---", "",
+           f"# {title}", "", "Generated from `framework/schema/`; change it there. `heimdall explain <key>` says the same.", ""]
+    for heading, table in tables:
+        keys = schema.keys(table)
+        out += [f"## {heading}", "", " · ".join(f"[`{k}`](#{k})" for k in keys), ""]
+        out += [key_block(k, e) for k, e in keys.items()]
+    return "\n".join(out)
+
+
+def generated() -> dict[str, str]:
+    """Whole pages under docs/, by path. The map comes last: it lists what the others are on disk."""
+    out = {f"reference/settings/{name}.md": settings_page(name) for name in SETTINGS}
+    return out
+
+
+def write_generated() -> list[str]:
+    root, written = knowledge.docs_root(), []
+    for rel, text in generated().items():
+        path = root / rel
+        if not path.is_file() or path.read_text(encoding="utf-8") != text:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            written.append(rel)
+    path = root / "MAP.md"
+    text = knowledge.map_text()
+    if not path.is_file() or path.read_text(encoding="utf-8") != text:
+        path.write_text(text, encoding="utf-8")
+        written.append("MAP.md")
+    return written
+
+
 def updated(text: str) -> str:
     return BLOCK.sub(lambda m: f"{m.group(1)}{render(m.group(2))}\n{m.group(4)}", text)
 
@@ -265,8 +335,12 @@ def pages() -> list[Path]:
 
 def stale() -> list[str]:
     """The pages whose generated blocks differ from what the code says now."""
+    root = knowledge.docs_root()
+    whole = {**generated(), "MAP.md": knowledge.map_text()}
     return [str(p.relative_to(heimdall_root())) for p in pages()
-            if BLOCK.search(text := p.read_text(encoding="utf-8")) and updated(text) != text]
+            if BLOCK.search(text := p.read_text(encoding="utf-8")) and updated(text) != text] + \
+           [f"docs/{rel}" for rel, text in whole.items()
+            if not (root / rel).is_file() or (root / rel).read_text(encoding="utf-8") != text]
 
 
 if __name__ == "__main__":                                  # make docs
@@ -275,3 +349,5 @@ if __name__ == "__main__":                                  # make docs
         if BLOCK.search(text) and (new := updated(text)) != text:
             page.write_text(new, encoding="utf-8")
             print(page.relative_to(heimdall_root()))
+    for rel in write_generated():
+        print(f"docs/{rel}")

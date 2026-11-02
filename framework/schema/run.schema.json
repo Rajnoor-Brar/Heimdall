@@ -1003,7 +1003,7 @@
       }
      },
      "additionalProperties": false,
-     "description": "which Runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe Runs together's `[from]`: written into `results/<A>/<E>/plot.toml` over its defaults (every Run, `prefer = \"last\"`) when a job writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"
+     "description": "which Runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe Runs together's `[from]`: written into `results/<A>/<E>/plot.toml` over its defaults (every Run, `prefer = \"last\"`) when a job writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are `[plot.across_from]`'s"
     },
     "draw": {
      "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a job writes `[errand].plot`'s list here. A name no set has is refused",
@@ -1134,7 +1134,7 @@
      "additionalProperties": false
     },
     "style": {
-     "description": "the style over base.toml\n\n04 §12",
+     "description": "the style over base.toml\n\nstyle keys for these pages, over `base.toml` and any style file: `heimdall explain style`",
      "type": "object"
     },
     "figures": {
@@ -2182,7 +2182,7 @@
            }
           },
           "additionalProperties": false,
-          "description": "which Runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe Runs together's `[from]`: written into `results/<A>/<E>/plot.toml` over its defaults (every Run, `prefer = \"last\"`) when a job writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"
+          "description": "which Runs the sets across them take and how (runs, prefer, ignore): the drawing's [from] (V224)\n\nthe Runs together's `[from]`: written into `results/<A>/<E>/plot.toml` over its defaults (every Run, `prefer = \"last\"`) when a job writes that document, and by `heimdall plot … --across --style-sync`; without this table a sync leaves the document's `[from]` as it is. Its keys are `[plot.across_from]`'s"
          },
          "draw": {
           "description": "the sets a drawing draws (default: every one): their names, totality included (V167)\n\nthe names of the sets `heimdall plot` draws when it is given none (`--sets`), every set by default; a job writes `[errand].plot`'s list here. A name no set has is refused",
@@ -2313,7 +2313,7 @@
           "additionalProperties": false
          },
          "style": {
-          "description": "the style over base.toml\n\n04 §12",
+          "description": "the style over base.toml\n\nstyle keys for these pages, over `base.toml` and any style file: `heimdall explain style`",
           "type": "object"
          },
          "figures": {

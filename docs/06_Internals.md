@@ -140,6 +140,7 @@ layering was not had nine cycles.)
 | 1 | `events.py` | the event stream (V72): the bus, the watch socket (`Hub`), the `--journal` file, the run's own log (`RunLog`, V202) |
 | 1 | `workdirs.py` | the work dirs this machine knows, by title: `<machine root>/workdirs.toml` (`$HEIMDALL_WORKDIRS`); recording, the scan below a folder, a title's path, forgetting (`heimdall recognise`, `gjallarhorn <title>`, V143) |
 | 1 | `runs.py` | the run registry, `<machine root>/runs/` (`$HEIMDALL_RUNS`): an entry per run and cluster submission, written whole by one writer; a process's who and where (pid, its start time, namespaces, boot); its state (running, ended, lost, or not knowable from here); the `Recorder`'s progress, at most every 2 s; 30 days kept; a read-only root records nothing (V182) |
+| 1 | `knowledge.py` | the docs as data: pages and frontmatter, the map, the drift report, the site |
 | 2 | `tools.py` | the tool folders; per point: interfaces, connections (C6), cards, configs, the context file, prepare keys, argv; seeds last; the combine command (`combiner`, `merge_files`) |
 | 3 | `execute.py` | `[prelim]`, prepare steps, groups as supervised process groups, the count checks, settling products |
 | 3 | `status.py` | the status and output pipes, read on a thread per tool; the filter rules; each tool's digest (V201) |

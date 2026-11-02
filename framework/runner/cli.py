@@ -156,6 +156,11 @@ def parser() -> argparse.ArgumentParser:
     explain = commands.add_parser("explain", help="a key of an errand file: its type, default and meaning (the schema's)")
     explain.add_argument("key", help="e.g. plot.y_gutter, errand.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses")
 
+    documents = commands.add_parser("docs", help="the docs as one searchable page: settings, pages by reader, their graph")
+    documents.add_argument("--drift", action="store_true", help="instead: pages whose code changed since the docs were last "
+                                                                "crystallised, with no live doc naming them")
+    documents.add_argument("--no-open", action="store_true", help="build it and print where, without opening a browser")
+
     state = commands.add_parser("status", help="each configuration's points: complete, stale, running, failed or stopped "
                                                 "(when, and why), incomplete or to run; its events, seeds and tools")
     state.add_argument("config", nargs="?", help="one config, or a record <A>/<E>/<R> (default: every config)")
@@ -2665,6 +2670,24 @@ def cmd_build(args) -> int:
     os.execvp("make", make + ["-j", str(args.jobs or os.cpu_count() or 1), *(["-n"] if args.dry_run else []), *goals])
 
 
+def cmd_docs(args) -> int:
+    """`heimdall docs`: one self-contained page in the forge (nothing built in Heimdall); `--drift`: what may have gone stale."""
+    from . import knowledge
+    if args.drift:
+        found = knowledge.drift()
+        for page, files in found:
+            print(f"{page}: {', '.join(files)}")
+        if not found:
+            print(f"no page's code changed since {knowledge.crystal_commit()[:10]} without a live doc")
+        return 0
+    target = knowledge.build_site()
+    print(target)
+    if not args.no_open:
+        import webbrowser
+        webbrowser.open(target.as_uri())
+    return 0
+
+
 def cmd_make(args) -> int:
     """`heimdall make [--framework] <path>/<X>.exe | <path>/<x>.so`: one source, through make."""
     from .paths import heimdall_root, work_root
@@ -2829,6 +2852,8 @@ def main(argv: list[str]) -> int:
             for line in house.explain(args.key):
                 print(line)
             return 0
+        if args.command == "docs":
+            return cmd_docs(args)
         if args.command == "status":
             return cmd_status(args)
         if args.command == "clean":

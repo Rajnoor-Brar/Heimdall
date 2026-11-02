@@ -115,6 +115,13 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `key` | e.g. plot.y_gutter, errand.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses |
 
+**`heimdall docs`**: the docs as one searchable page: settings, pages by reader, their graph
+
+| Argument | Meaning |
+|---|---|
+| `--drift` | instead: pages whose code changed since the docs were last crystallised, with no live doc naming them |
+| `--no-open` | build it and print where, without opening a browser |
+
 **`heimdall status`**: each configuration's points: complete, stale, running, failed or stopped (when, and why), incomplete or to run; its events, seeds and tools
 
 | Argument | Meaning |

@@ -907,7 +907,7 @@ doc  = "which Runs the sets across them take and how (runs, prefer, ignore): the
 notes = """\
   the Runs together's `[from]`: written into `results/<A>/<E>/plot.toml` over its defaults (every Run, \
   `prefer = \"last\"`) when a job writes that document, and by `heimdall plot … --across --style-sync`; \
-  without this table a sync leaves the document's `[from]` as it is. Its keys are 04 §11.4"""
+  without this table a sync leaves the document's `[from]` as it is. Its keys are `[plot.across_from]`'s"""
 
 [plot.draw]
 type  = "list"
@@ -997,13 +997,13 @@ notes = """\
 type = "table"
 doc  = "reference data: file, legend, map"
 notes = """\
-  04 §11.1"""
+  reference data and which object each maps to: `[plot.data]`'s keys"""
 
 [plot.style]
 type = "table"
 doc  = "the style over base.toml"
 notes = """\
-  04 §12"""
+  style keys for these pages, over `base.toml` and any style file: `heimdall explain style`"""
 
 [plot.figures]
 type = "table"

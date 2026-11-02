@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heimdall docs</title>
+<style>
+:root { --bg:#fbfaf7; --panel:#fff; --ink:#1f2328; --soft:#646c75; --line:#e2dfd8; --accent:#2f5d8a; --hit:#fbe9a9; --code:#f1efe9;
+        --driver:#2f5d8a; --mechanic:#9a5b13; --dev:#4d7a3a; --client:#7a4a93; --agent:#a33c4d; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#17191c; --panel:#1f2226; --ink:#e7e5e0; --soft:#9aa1a9; --line:#33373c; --accent:#7fb0dd; --hit:#5b4c14; --code:#2a2d32;
+          --driver:#7fb0dd; --mechanic:#d9a05b; --dev:#94c47e; --client:#c198d6; --agent:#e08a98; }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+header { position:sticky; top:0; z-index:2; background:var(--bg); border-bottom:1px solid var(--line); padding:12px 16px;
+         display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+h1 { font-size:16px; margin:0; font-weight:650; }
+nav button { border:0; background:none; color:var(--soft); font:inherit; padding:4px 10px; border-radius:6px; cursor:pointer; }
+nav button.on { background:var(--code); color:var(--ink); font-weight:600; }
+input[type=search] { flex:1 1 220px; min-width:0; font:inherit; color:inherit; padding:6px 10px; border:1px solid var(--line); border-radius:6px; background:var(--panel); }
+main { max-width:980px; margin:0 auto; padding:16px; }
+details { background:var(--panel); border:1px solid var(--line); border-radius:8px; margin:0 0 8px; }
+summary { padding:9px 12px; cursor:pointer; font-weight:600; }
+summary small { color:var(--soft); font-weight:400; margin-left:6px; }
+.key { border-top:1px solid var(--line); padding:10px 12px; }
+.key h3 { margin:0 0 2px; font:600 14px ui-monospace,SFMono-Regular,Menlo,monospace; overflow-wrap:anywhere; }
+.facts { color:var(--soft); font-size:13px; overflow-wrap:anywhere; }
+.facts b { color:var(--ink); font-weight:600; }
+.meaning { margin:6px 0 0; overflow-wrap:anywhere; }
+.short { max-height:7.5em; overflow:hidden; position:relative; }
+.more { border:0; background:none; color:var(--accent); font:inherit; font-size:13px; padding:2px 0; cursor:pointer; }
+code { font:13px ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--code); padding:0 3px; border-radius:3px; }
+mark { background:var(--hit); color:inherit; }
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; }
+.chip { border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:999px; padding:2px 11px; font:inherit; font-size:13px; cursor:pointer; }
+.chip.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+.page { border-top:1px solid var(--line); padding:9px 12px; }
+.page a { color:var(--accent); font-weight:600; text-decoration:none; }
+.page a:hover { text-decoration:underline; }
+.page p { margin:2px 0 0; color:var(--soft); font-size:14px; }
+.tag { font-size:11px; margin-left:6px; font-weight:600; }
+.tag.driver { color:var(--driver); } .tag.mechanic { color:var(--mechanic); } .tag.dev { color:var(--dev); }
+.tag.client { color:var(--client); } .tag.agent { color:var(--agent); }
+.live { color:var(--mechanic); font-size:13px; }
+#graph { width:100%; height:64vh; min-height:360px; background:var(--panel); border:1px solid var(--line); border-radius:8px; display:block; touch-action:none; }
+#graph line { stroke:var(--line); }
+#graph text { fill:var(--ink); font-size:11px; pointer-events:none; }
+#graph .dim { opacity:.15; }
+#graph circle { cursor:pointer; stroke:var(--panel); stroke-width:1.5; }
+.tools { display:flex; flex-wrap:wrap; gap:14px; margin:0 0 10px; color:var(--soft); font-size:13px; align-items:center; }
+#info { min-height:1.6em; margin-top:8px; font-size:14px; overflow-wrap:anywhere; }
+article { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:6px 20px 14px; overflow-wrap:anywhere; }
+article h1 { font-size:22px; margin:14px 0 8px; } article h2 { font-size:17px; margin:22px 0 6px; } article h3 { font-size:15px; margin:16px 0 4px; }
+article a { color:var(--accent); } pre { background:var(--code); padding:10px 12px; border-radius:6px; overflow-x:auto; } pre code { background:none; padding:0; }
+.scroll { overflow-x:auto; } table { border-collapse:collapse; font-size:14px; margin:8px 0; } th,td { border:1px solid var(--line); padding:4px 8px; text-align:left; vertical-align:top; } th { background:var(--code); }
+.crumb { color:var(--soft); font-size:13px; margin:2px 0 10px; overflow-wrap:anywhere; }
+.none { color:var(--soft); padding:24px 0; text-align:center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Heimdall docs</h1>
+  <nav aria-label="Views">
+    <button data-view="settings" class="on">Settings</button><button data-view="pages">Pages</button><button data-view="graph">Graph</button>
+  </nav>
+  <input id="q" type="search" placeholder="Search settings and pages" aria-label="Search">
+</header>
+<main id="main"></main>
+<script>
+const DATA = /*DATA*/null;
+const main = document.getElementById("main"), q = document.getElementById("q");
+let view = "settings", reader = null, decisions = false;
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function mark(s, term) {
+  if (!term) return s;
+  const re = new RegExp("(" + term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")(?![^<]*>)", "gi");
+  return s.replace(re, "<mark>$1</mark>");
+}
+const inline = (s, term) => mark(esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>"), term);
+
+function settingsView(term) {
+  let html = "", total = 0;
+  for (const t of DATA.settings) {
+    const hits = t.keys.filter(k => !term || (t.table + " " + k.key + " " + k.meaning + " " + k.accepts.join(" ")).toLowerCase().includes(term));
+    if (!hits.length) continue;
+    total += hits.length;
+    html += `<details ${term ? "open" : ""}><summary>${esc(t.table)}<small>${hits.length} key${hits.length > 1 ? "s" : ""}</small></summary>`;
+    for (const k of hits) {
+      const facts = [];
+      if (k.type) facts.push(`<b>Type</b> ${esc(k.type)}`);
+      if (k.default !== "") facts.push(k.default === "required" ? "<b>required</b>" : `<b>Default</b> <code>${esc(k.default)}</code>`);
+      if (k.accepts.length) facts.push(`<b>Accepts</b> ${k.accepts.map(a => `<code>${esc(a)}</code>`).join(" ")}`);
+      if (k.min !== null) facts.push(`<b>At least</b> ${esc(k.min)}`);
+      const long = k.meaning.length > 420;
+      html += `<div class="key"><h3>${mark(esc(k.key), term)}</h3><div class="facts">${facts.join(" · ")}</div>
+        <div class="meaning ${long ? "short" : ""}">${inline(k.meaning, term)}</div>${long ? '<button class="more">Show all</button>' : ""}</div>`;
+    }
+    html += "</details>";
+  }
+  main.innerHTML = html || `<p class="none">No setting matches.</p>`;
+  main.querySelectorAll(".more").forEach(b => b.onclick = () => { b.previousElementSibling.classList.remove("short"); b.remove(); });
+}
+
+function inlineMd(s, from) {
+  let out = esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  return out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (all, text, url) => {
+    if (url.startsWith("#")) return `<a href="${url}">${text}</a>`;
+    const parts = (from.split("/").slice(0, -1).join("/") + "/" + url.split("#")[0]).split("/"), path = [];
+    for (const p of parts) { if (p === "..") path.pop(); else if (p && p !== ".") path.push(p); }
+    const rel = path.join("/");
+    return DATA.pages.some(p => p.rel === rel) ? `<a href="#" data-open="${esc(rel)}">${text}</a>` : text;
+  });
+}
+function renderMd(body, from) {
+  const lines = body.split("\n"); let html = "", i = 0;
+  const slug = s => s.toLowerCase().replace(/[`*]/g, "").replace(/[^\w\- ]/g, "").trim().replace(/ /g, "-");
+  while (i < lines.length) {
+    const l = lines[i];
+    if (l.startsWith("```")) { let code = ""; i++; while (i < lines.length && !lines[i].startsWith("```")) code += lines[i++] + "\n"; i++; html += `<pre><code>${esc(code)}</code></pre>`; continue; }
+    const h = l.match(/^(#{1,4}) (.*)/);
+    if (h) { html += `<h${h[1].length} id="${slug(h[2])}">${inlineMd(h[2], from)}</h${h[1].length}>`; i++; continue; }
+    if (l.startsWith("|") && (lines[i + 1] || "").match(/^\|[-| :]+\|$/)) {
+      const cells = r => r.replace(/^\||\|$/g, "").split(/(?<!\\)\|/).map(c => inlineMd(c.trim().replace(/\\\|/g, "|"), from));
+      html += `<div class="scroll"><table><thead><tr>${cells(l).map(c => `<th>${c}</th>`).join("")}</tr></thead><tbody>`; i += 2;
+      while (i < lines.length && lines[i].startsWith("|")) html += `<tr>${cells(lines[i++]).map(c => `<td>${c}</td>`).join("")}</tr>`;
+      html += "</tbody></table></div>"; continue;
+    }
+    const li = l.match(/^(\s*)([-*]|\d+\.) (.*)/);
+    if (li) {
+      const tag = /\d/.test(li[2]) ? "ol" : "ul"; html += `<${tag}>`;
+      while (i < lines.length && lines[i].match(/^\s*([-*]|\d+\.) /)) html += `<li>${inlineMd(lines[i++].replace(/^\s*([-*]|\d+\.) /, ""), from)}</li>`;
+      html += `</${tag}>`; continue;
+    }
+    if (!l.trim()) { i++; continue; }
+    let para = l; i++;
+    while (i < lines.length && lines[i].trim() && !lines[i].match(/^(#{1,4} |```|\||\s*[-*] |\d+\. )/)) para += " " + lines[i++];
+    html += `<p>${inlineMd(para, from)}</p>`;
+  }
+  return html;
+}
+function openPage(rel) {
+  const p = DATA.pages.find(x => x.rel === rel); if (!p) return;
+  view = "read"; document.querySelectorAll("nav button").forEach(x => x.classList.remove("on"));
+  main.innerHTML = `<button class="more back">← All pages</button><div class="crumb">docs/${esc(p.rel)}${p.live.length ? ` · changed by live: ${p.live.map(esc).join(", ")}` : ""}</div><article>${renderMd(p.body, p.rel)}</article>`;
+  main.querySelector(".back").onclick = () => { view = "pages"; document.querySelector('[data-view="pages"]').classList.add("on"); render(); };
+  bindOpen(); window.scrollTo(0, 0);
+}
+function bindOpen() { main.querySelectorAll("[data-open]").forEach(a => a.onclick = e => { e.preventDefault(); openPage(a.dataset.open); }); }
+
+function pagesView(term) {
+  const chips = DATA.readers.map(r => `<button class="chip ${reader === r ? "on" : ""}" data-reader="${r}">${r}</button>`).join("");
+  const hits = DATA.pages.filter(p => (!reader || p.for.includes(reader)) && (!term || (p.id + " " + p.summary + " " + p.rel).toLowerCase().includes(term)));
+  const groups = new Map();
+  for (const p of hits) { const g = p.rel.split("/").slice(0, -1).join("/"); (groups.get(g) || groups.set(g, []).get(g)).push(p); }
+  let html = `<div class="chips">${chips}</div>`;
+  for (const [g, list] of groups) {
+    html += `<details open><summary>${esc(g)}<small>${list.length}</small></summary>`;
+    for (const p of list) {
+      html += `<div class="page"><a href="#" data-open="${esc(p.rel)}">${mark(esc(p.id), term)}</a>${p.for.map(r => `<span class="tag ${r}">${r}</span>`).join("")}
+        <p>${inline(p.summary, term)}</p>${p.live.length ? `<div class="live">changed by live: ${p.live.map(esc).join(", ")}</div>` : ""}</div>`;
+    }
+    html += "</details>";
+  }
+  main.innerHTML = hits.length ? html : `<div class="chips">${chips}</div><p class="none">No page matches.</p>`;
+  bindOpen();
+  main.querySelectorAll("[data-reader]").forEach(b => b.onclick = () => { reader = reader === b.dataset.reader ? null : b.dataset.reader; render(); });
+}
+
+function graphView(term) {
+  main.innerHTML = `<div class="tools"><label><input type="checkbox" id="dec" ${decisions ? "checked" : ""}> Show decisions</label>
+    <span>Drag a node. Click one to see what it touches.</span></div><svg id="graph" role="img" aria-label="Graph of pages, code and decisions"></svg><div id="info"></div>`;
+  document.getElementById("dec").onchange = e => { decisions = e.target.checked; render(); };
+  const svg = document.getElementById("graph"), W = svg.clientWidth, H = svg.clientHeight;
+  const kept = DATA.graph.nodes.filter(n => decisions || n.kind !== "decision");
+  const nodes = kept.map((n, i) => ({...n, x: W/2 + 160*Math.cos(i*2.4)*(.3+i/kept.length), y: H/2 + 120*Math.sin(i*2.4)*(.3+i/kept.length), vx: 0, vy: 0}));
+  const at = new Map(nodes.map(n => [n.id, n]));
+  const links = DATA.graph.edges.map(([a, b]) => [at.get(a), at.get(b)]).filter(([a, b]) => a && b);
+  const colour = n => n.kind === "code" ? "var(--soft)" : n.kind === "decision" ? "var(--agent)" : "var(--accent)";
+  const NS = "http://www.w3.org/2000/svg", el = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const lines = links.map(() => svg.appendChild(el("line", {})));
+  const dots = nodes.map(n => { const c = el("circle", {r: n.kind === "page" ? 7 : 4.5, fill: colour(n)}); if (term && (n.id + n.summary).toLowerCase().includes(term)) c.setAttribute("r", 11); return svg.appendChild(c); });
+  const labels = nodes.map(n => { const t = el("text", {dx: 10, dy: 4}); t.textContent = n.kind === "code" ? n.id.split("/").pop() : n.id; return svg.appendChild(t); });
+  let drag = null, heat = 1;
+  function tick() {
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j]; let dx = a.x - b.x, dy = a.y - b.y, d2 = dx*dx + dy*dy + .01;
+      const f = 1400 / d2; a.vx += dx*f/Math.sqrt(d2); a.vy += dy*f/Math.sqrt(d2); b.vx -= dx*f/Math.sqrt(d2); b.vy -= dy*f/Math.sqrt(d2);
+    }
+    for (const [a, b] of links) { const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1, f = (d - 70) * .02; a.vx += dx/d*f; a.vy += dy/d*f; b.vx -= dx/d*f; b.vy -= dy/d*f; }
+    for (const n of nodes) {
+      n.vx += (W/2 - n.x) * .004; n.vy += (H/2 - n.y) * .006;
+      if (n !== drag) { n.x += n.vx * heat; n.y += n.vy * heat; }
+      n.vx *= .82; n.vy *= .82;
+      n.x = Math.max(14, Math.min(W - 90, n.x)); n.y = Math.max(14, Math.min(H - 14, n.y));
+    }
+    links.forEach(([a, b], i) => { for (const [k, v] of [["x1", a.x], ["y1", a.y], ["x2", b.x], ["y2", b.y]]) lines[i].setAttribute(k, v); });
+    nodes.forEach((n, i) => { dots[i].setAttribute("cx", n.x); dots[i].setAttribute("cy", n.y); labels[i].setAttribute("x", n.x); labels[i].setAttribute("y", n.y); });
+    heat = Math.max(heat * .992, drag ? .6 : 0);
+    if (heat > .02 && view === "graph" && document.body.contains(svg)) requestAnimationFrame(tick);
+  }
+  function focus(n) {
+    const near = new Set([n.id]); links.forEach(([a, b]) => { if (a === n) near.add(b.id); if (b === n) near.add(a.id); });
+    nodes.forEach((m, i) => { dots[i].classList.toggle("dim", !near.has(m.id)); labels[i].classList.toggle("dim", !near.has(m.id)); });
+    links.forEach(([a, b], i) => lines[i].classList.toggle("dim", a !== n && b !== n));
+    const link = n.rel && n.kind === "page" ? ` <a href="#" data-open="${esc(n.rel)}">open</a>` : "";
+    document.getElementById("info").innerHTML = `<b>${esc(n.id)}</b>${link} ${inline(n.summary || (n.kind === "decision" ? "in " + n.rel : ""), "")}`;
+    bindOpen();
+  }
+  const point = e => { const r = svg.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  dots.forEach((d, i) => d.addEventListener("pointerdown", e => { drag = nodes[i]; focus(nodes[i]); if (heat <= .02) { heat = .6; requestAnimationFrame(tick); } else heat = Math.max(heat, .6); d.setPointerCapture(e.pointerId); }));
+  svg.addEventListener("pointermove", e => { if (drag) [drag.x, drag.y] = point(e); });
+  svg.addEventListener("pointerup", () => drag = null);
+  tick();
+}
+
+function render() {
+  const term = q.value.trim().toLowerCase();
+  if (view === "read") { view = "pages"; document.querySelector('[data-view="pages"]').classList.add("on"); }
+  ({settings: settingsView, pages: pagesView, graph: graphView})[view](term);
+}
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  view = b.dataset.view; document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b)); render();
+});
+q.oninput = render;
+render();
+</script>
+</body>
+</html>

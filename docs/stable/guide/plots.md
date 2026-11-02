@@ -31,11 +31,31 @@ style.ratio.range = [0.8, 1.1]        # any [plot] page key or style key, for th
 
 ## Cells and sets
 
-A **cell** is a group of points that share a page. `plot_points` on a configuration names the swept quantities that page: each combination of their values is a cell, and the other swept quantities become curves on it. A **set** (`[plot].sets`) chooses cells and curves by hand instead. With no sets there is one, `totality`, made of the `plot_points` cells.
+A **cell** is a group of points that share a page. `plot_points` on a configuration names the swept quantities that page: each combination of their values is a cell, and the other swept quantities become curves on it. A **set** chooses cells and curves by hand instead: [plots-sets](plots-sets.md). Every Run's document holds a set named `totality`, every point.
 
 Each cell draws one page per object. A curve is a complete point, or a combined group. A point whose YODA holds several variants of an object (a swept analysis option) gives one curve per variant.
 
 Weight variations (`/x[…]`), `/RAW`, `/TMP` and the run counters never get pages.
+
+## In practice
+
+```toml
+[plot]
+formats     = ["pdf", "png"]
+objects     = ["/photo_eic/d0*"]  # which objects get their own pages
+ratio       = true
+y_gutter    = 0.5                 # the y axis reaches 1.5 × the largest value; "native": ROOT decides
+x_range     = ["default", 100]    # keep the calculated minimum; cap the maximum
+auto_range  = true                # trim x to the filled bins …
+range_pad   = 1                   # … keeping one bin either side
+void_empty  = true                # blank bins empty in every curve
+min_entries = 10                  # blank bins fewer raw entries went into, in any curve
+normalise   = "area"              # every curve, and the data, to unit area: compare shapes
+title       = "{cell}"            # placeholders cite the points
+root_style  = "talk"              # talk.toml beside the errand file, over the base style
+```
+
+**The order on a page:** void across the page → align the data to the MC bins → normalise → auto-range → gutters → `x_range` → y-range over the visible x span → `y_range` → draw. Each range end is resolved on its own: a figure's `["default", 10]` keeps `[plot]`'s minimum. Ranges only show and only cut what is drawn: statistics are taken over the range before them, and ratios from the curves' own values. Each pad cuts at its own frame, so an MC bin off the top of the main pad may still show in the ratio pad. A range leaving no increasing span, or an explicit minimum ≤ 0 on a log axis, fails that page (exit 1); a calculated range is never refused, so an empty log-y page still draws.
 
 ## What happens
 
@@ -54,6 +74,27 @@ Weight variations (`/x[…]`), `/RAW`, `/TMP` and the run counters never get pag
 
 Drawing a set replaces its own `plots/<set>/` and `statistics/<set>/`; other sets' stay as they were.
 
+## The plot document
+
+Every drawing reads `results/<A>/<E>/<R>/plot.toml` and the folder's `points/`, with no errand file, tool folder or stack beyond Paint. So the folder can be copied anywhere and drawn there. It holds what the Run knows (`[source]`, `[axes]`, `[quantities.<q>]`, `[members.<point>]`), rewritten each run, and what you choose (`[plot]`, `[stats]`), written once from the errand file and then kept. **Edit it to restyle that Run alone.**
+
+| `heimdall plot …` | Draws |
+|---|---|
+| `<A>/<E>/<R>`, or a path into its folder | that Run's document, as it is |
+| a folder holding a `plot.toml` | that document |
+| `CONFIG [CFG]` | each configuration's latest Run, from its document; a differing `[plot]` in the config is said |
+
+To take the config's `[plot]` into Runs:
+
+```bash
+heimdall plot eic/zeus/04_generator_pdf --style-sync eic/zeus --plan   # what would change
+heimdall plot eic/zeus --style-sync eic/zeus --replot                  # every Run of it, then drawn
+```
+
+What the Run knows is never touched. A Run whose points the config's `[plot]` cannot page is left, and said.
+
 ## Labels
 
 Titles and axis labels come from the analysis's Rivet `.plot` file, under a figure's own (`x_label`, `y_label`). They are LaTeX: Paint draws them through TLatex with math letters set italic. YODA's macros (`\GeV`, `\pT`) work in every backend, and `\newline` or `\\` breaks a line. The ratio pad reads `MC/Data` with data, and `Ratio` without.
+
+More: [plots-sets](plots-sets.md), [plots-figures](plots-figures.md), [plots-data](plots-data.md), [plots-curves](plots-curves.md), [plots-style](plots-style.md), [plots-statistics](plots-statistics.md), [plots-across](plots-across.md), [overlay](overlay.md), [reports](reports.md).

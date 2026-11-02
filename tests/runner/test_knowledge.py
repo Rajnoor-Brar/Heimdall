@@ -63,6 +63,7 @@ def test_a_decision_note_is_short(page):
 @pytest.mark.parametrize("page", [p for p in PAGES if {"driver", "mechanic"} & set(p.readers)], ids=lambda p: p.rel)
 def test_a_human_users_page_cites_no_record(page):
     bare = re.sub(r"`[^`\n]*`", "", re.sub(r"^```.*?^```", "", page.body, flags=re.M | re.S))
+    bare = re.sub(r"^- \*\*L\d+\*\*.*$", "", bare, flags=re.M)      # a tool's own knowledge notes: what code cites
     assert not re.search(r"\b(?:[VLFU]\d{1,3}[a-z]?|I-\d{2,3}|00/B\d+)\b", bare), page.rel
     assert not re.search(r"\b0[0-7] §\d", bare), page.rel
 

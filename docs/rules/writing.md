@@ -45,7 +45,7 @@ A bullet of at most 300 characters: the id in bold, what was decided, `Gave up:`
 
 - Plain words, short sentences, the exact name of the thing in a code span.
 - Dense, not terse: drop filler, keep the reasoning a reader needs.
-- `guide/`, `tools/`, `start/`, `setup/` and `reference/` carry no record ids and no dates.
+- `guide/`, `tools/`, `start/`, `setup/` and `reference/` carry no record ids and no dates. A tool page's own knowledge notes (`- **L12** …`) are the exception: their ids are what code cites.
 - A diagram or table when it says it better than prose, and not otherwise.
 
 ## Citing

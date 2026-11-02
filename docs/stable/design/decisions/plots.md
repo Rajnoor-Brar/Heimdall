@@ -1,0 +1,71 @@
+---
+id: decisions-plots
+summary: why plots and figures work as they do: backends, labels, sets, plot documents, statistics
+---
+
+# Decisions: plots
+
+The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
+
+- **V10** YODA plotting was `rivet-mkhtml`. Superseded for new pages by V71; the backend is deprecated (V220).
+- **V11** Labels were TLatex. Superseded by V65.
+- **V25** The sweep in one file: every point's YODA merged, rebuilt only when one changes.
+- **V27** Paint looks like rivet-mkhtml by default, and its style is TOML.
+- **V28** `backend = "both"`: one run draws both backends from the same page configs.
+- **V29** Gutters: `y_gutter = g` puts the top of the y axis at (1 + g) × the largest drawn value.
+- **V37** `"default"` for every drawing option. Its meaning in a child was replaced by V55.
+- **V41** Labels followed TLatex's rules in both backends. Superseded in part by V65.
+- **V44** `use_data = false` turns data off while `[plot.data]` stays in the file.
+- **V47** `.plot` titles with line breaks and YODA's macros, in every backend.
+- **V48** The yoda backend's ratio window is Paint's.
+- **V49** `legend.position = "best"`: Paint counts drawn points under the legend at each corner.
+- **V50** The yoda legend title follows `text.header`.
+- **V51** Titles, the legend header and overlays; a figure's value over `[plot]`'s.
+- **V64** Paint draws many pages in one process, starting ROOT once per batch.
+- **V65** One label language: every text a page carries is LaTeX, converted for Paint.
+- **V66** A page text may cite the points: `{cell}`, `{q:<quantity>}`, a tool's texts.
+- **V68** `normalise = "area"`: every curve and the data to unit area, after the void.
+- **V69** Bands: `band` folds curve axes into an envelope.
+- **V70** Paint's pages get an index: a section per cell.
+- **V71** The mpl backend draws mkhtml's pages in-process, from mkhtml's own library.
+- **V80** Figures: one table family, `class` and `type`, every page option overridable.
+- **V81** `[plot.overlay]` and `[plot.object]` are refused, with the figure to write.
+- **V82** A merged figure: pages whose curves are points merged over `over`.
+- **V83** A compare figure: the objects' pages across configurations.
+- **V84** A derived figure: a new object per point.
+- **V85** A scan figure: one number per point against a swept quantity.
+- **V86** `type = "Scatter2D"` draws markers.
+- **V87** Heat maps: a 2D object, one page per point.
+- **V88** Compare across errand files.
+- **V89** Sheets: drawn pages tiled in a grid.
+- **V102** One layout for sheets and reports: one PDF drawn by pdflatex.
+- **V104** A deck built from blocks. Retired by V212; the layout code stays.
+- **V159** `sets` and `split`: pages of chosen points.
+- **V160** Page statistics: Paint computes them on what it draws.
+- **V162** `statistics.csv` as bar graphs.
+- **V163** Sets of page axes and curve groups.
+- **V164** Plots and statistics by set; what each tree is for.
+- **V165** A run's plot document: every drawing reads it and records only.
+- **V166** `--style-sync`: the live config's `[plot]` into a run, explicitly.
+- **V167** The `totality` set; named sets, picked; plotting gated in `[errand]`.
+- **V168** Statistics as a command of their own, linked to each drawing.
+- **V169** The Runs of an errand together: `[plot.across]`.
+- **V170** `--plan` says every output; one writer for a page's document.
+- **V171** `[plot.looks]`: a value's look by tag.
+- **V172** A plot document's quantities are points, as an errand file's.
+- **V173** A plot document is written as an errand file is written by hand.
+- **V174** The summary is a document: a ranking and a table per statistic.
+- **V175** The area ratio, the ratio's mean and its area about one.
+- **V176** The standings: what is best on the most pages.
+- **V177** Head to head: a win rate that counts every place, since V176's points depended on a page's curve count.
+- **V178** A set with no pages: a page per object, every curve the set chooses on it.
+- **V185** A legend outside the frame; a gap above the ratio pad.
+- **V196** Statistics on A4: summary pages had been sized to content, up to 37.5 in wide.
+- **V197** The summary reorganised: the top five, rows under their cells, notes once up front.
+- **V198** Page cells against curves, per scored statistic.
+- **V199** `summary.html`: the same document as one page.
+- **V205** A bar far beyond the rest is cut; no value off its panel.
+- **V219** `x_range`, `y_range`: each end a number or `"default"`.
+- **V220** Overflow marks past an explicit `y_range`; the yoda backend labelled deprecated.
+- **V224** Runs together by tag; quantities ignored across them.
+- **V233** A range only cuts what is drawn.

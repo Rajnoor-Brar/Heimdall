@@ -232,4 +232,6 @@ pages cite no record ids; AGENTS.md carries no repo paths; live docs' `affects` 
 | 0 Salvage map | done, dd61d9e; `check_salvage.py` passes |
 | 1 Pilot | done, see `P1_Pilot.md`; accepted with changes |
 | 2 Reference | done: every setting on a page and answered by `explain` (a test asks each) |
-| 3–7 | not started |
+| 3 Design, internals | done: 24 pages, 226 notes. L rows for tools land in phase 4a; three forward links fail until then |
+| 4a Driver | in progress |
+| 4b–7 | not started |

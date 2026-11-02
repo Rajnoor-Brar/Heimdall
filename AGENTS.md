@@ -1,6 +1,6 @@
 # How to work here
 
-Read docs/rules/ first, then docs/MAP.md, then only the pages your task needs. Do not read whole trees.
+Read docs/rules/invariants.md first. Read docs/rules/code.md before writing code, docs/rules/writing.md before writing docs, docs/rules/work.md before planning or recording work. Find a page by searching docs/MAP.md for your subject, then read only that page. Do not read whole trees, or the whole map.
 
 ## Truth
 

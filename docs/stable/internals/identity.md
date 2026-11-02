@@ -8,7 +8,7 @@ code: framework/runner/record.py, framework/runner/tools.py, framework/tools/pyt
 
 ## Identity
 
-A point's identity is a sha256 over what decides its result (`record.identity_parts`):
+A point's identity is a sha256 (`record.identity`) over what decides its result (`record.identity_parts`):
 
 | Part | Holds |
 |---|---|
@@ -54,6 +54,6 @@ With manual seeds, two points of one generator set-up whose blocks overlap witho
 
 ## Changing this code
 
-Anything in a point's identity reruns the points it touches, which costs generations: say so in the commit. Changing the seed basis moves every point's seeds.
+Anything in a point's identity reruns the points it touches, which costs generations: ask first ([invariants](../../rules/invariants.md)), and say so in the commit. Changing the seed basis moves every point's seeds.
 
 Why: [decisions](../design/decisions/identity.md).

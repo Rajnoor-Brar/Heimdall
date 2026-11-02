@@ -71,7 +71,7 @@ article a { color:var(--accent); } pre { background:var(--code); padding:10px 12
 <script>
 const DATA = /*DATA*/null;
 const main = document.getElementById("main"), q = document.getElementById("q");
-let view = "settings", reader = null, decisions = false;
+let view = "settings", reader = null, decisions = false, code = false;
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 function mark(s, term) {
   if (!term) return s;
@@ -170,11 +170,12 @@ function pagesView(term) {
 }
 
 function graphView(term) {
-  main.innerHTML = `<div class="tools"><label><input type="checkbox" id="dec" ${decisions ? "checked" : ""}> Show decisions</label>
+  main.innerHTML = `<div class="tools"><label><input type="checkbox" id="cod" ${code ? "checked" : ""}> Show code</label><label><input type="checkbox" id="dec" ${decisions ? "checked" : ""}> Show decisions</label>
     <span>Drag a node. Click one to see what it touches.</span></div><svg id="graph" role="img" aria-label="Graph of pages, code and decisions"></svg><div id="info"></div>`;
   document.getElementById("dec").onchange = e => { decisions = e.target.checked; render(); };
+  document.getElementById("cod").onchange = e => { code = e.target.checked; render(); };
   const svg = document.getElementById("graph"), W = svg.clientWidth, H = svg.clientHeight;
-  const kept = DATA.graph.nodes.filter(n => decisions || n.kind !== "decision");
+  const kept = DATA.graph.nodes.filter(n => (decisions || n.kind !== "decision") && (code || n.kind !== "code"));
   const nodes = kept.map((n, i) => ({...n, x: W/2 + 160*Math.cos(i*2.4)*(.3+i/kept.length), y: H/2 + 120*Math.sin(i*2.4)*(.3+i/kept.length), vx: 0, vy: 0}));
   const at = new Map(nodes.map(n => [n.id, n]));
   const links = DATA.graph.edges.map(([a, b]) => [at.get(a), at.get(b)]).filter(([a, b]) => a && b);

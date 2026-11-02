@@ -6,7 +6,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 ## rules
 
 - [code](rules/code.md): how code here is written; rules that hold across modules and are not visible from one file (2 KB)
-- [invariants](rules/invariants.md): what must never happen in this repo and on this machine, and why; read before acting (2 KB)
+- [invariants](rules/invariants.md): what must never happen in this repo and on this machine, and why; read before acting (3 KB)
 - [work](rules/work.md): where work in progress lives; the live-doc format; the crystallise protocol (2 KB)
 - [writing](rules/writing.md): how a page is written, where a fact belongs, how anything cites anything (3 KB)
 

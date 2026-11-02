@@ -236,4 +236,4 @@ pages cite no record ids; AGENTS.md carries no repo paths; live docs' `affects` 
 | 4 Driver, mechanic | done |
 | 5 Context | done; cold test passed first try, its gaps fixed |
 | 6 `.plans/` | done; every issue re-verified |
-| 7 Contract | done; ⏸ awaiting cold test 2 and the developer's read |
+| 7 Contract | done; cold test 2 found the answers but read 8 files against a target of 3, so AGENTS.md now says to read invariants and search the map. Not re-run. ⏸ awaiting the developer's read; delete this folder on acceptance |

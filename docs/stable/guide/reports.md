@@ -9,12 +9,12 @@ code: framework/runner/report.py, framework/schema/report.toml, framework/plot/f
 A **report** is a quick, informal account of Runs' pages and numbers, the kind you send a colleague after a job: one A4 PDF, a page to browse, and every figure in its own folder. It is made only when you ask. Every key: [report settings](../../reference/settings/report.md).
 
 ```bash
-heimdall report eic/zeus_validation/02_generator_pdf          # its report.toml: what its config asks for
-heimdall report eic/zeus_validation                           # the default report of the errand's Runs
-heimdall report eic/weekly.toml                               # a recipe of its own, over its from
-heimdall report eic/weekly.toml 'eic/zeus_validation/0[2-4]_*' # the recipe over other sources
-heimdall report eic/zeus_validation/02_generator_pdf --list   # what it would hold; nothing written
-heimdall report eic/weekly.toml --init eic/zeus_validation/02_generator_pdf   # write that recipe, once
+heimdall report Demo/validation/02_pdf          # its report.toml: what its config asks for
+heimdall report Demo/validation                           # the default report of the errand's Runs
+heimdall report Demo/weekly.toml                               # a recipe of its own, over its from
+heimdall report Demo/weekly.toml 'Demo/validation/0[2-4]_*' # the recipe over other sources
+heimdall report Demo/validation/02_pdf --list   # what it would hold; nothing written
+heimdall report Demo/weekly.toml --init Demo/validation/02_pdf   # write that recipe, once
 ```
 
 A recipe is always named with its `.toml`; anything else is a source.
@@ -39,11 +39,11 @@ A rebuild makes only what changed, and removes what no section shows any more. U
 ## A recipe
 
 ```toml
-# configs/eic/weekly.toml
+# configs/Demo/weekly.toml
 [report]
 title    = "ZEUS photoproduction: {configuration}"
 subtitle = "for the group, 30 Oct 2026"
-from     = ["eic/zeus_validation/02_generator_pdf"]
+from     = ["Demo/validation/02_pdf"]
 
 [[report.section]]
 title = "Standings"
@@ -55,7 +55,7 @@ pages = ["d01-*", "d02-*"]
 
 [[report.section]]
 title  = "Run by run"
-from   = ["eic/zeus_validation/0[2-4]_generator_pdf"]
+from   = ["Demo/validation/0[2-4]_pdf"]
 pages  = ["d01-x01-y01"]
 layout = "sources"
 ```

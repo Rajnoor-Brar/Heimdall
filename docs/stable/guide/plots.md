@@ -87,8 +87,8 @@ Every drawing reads `results/<A>/<E>/<R>/plot.toml` and the folder's `points/`, 
 To take the config's `[plot]` into Runs:
 
 ```bash
-heimdall plot eic/zeus/04_generator_pdf --style-sync eic/zeus --plan   # what would change
-heimdall plot eic/zeus --style-sync eic/zeus --replot                  # every Run of it, then drawn
+heimdall plot Demo/validation/04_pdf --style-sync Demo/validation --plan   # what would change
+heimdall plot Demo/validation --style-sync Demo/validation --replot                  # every Run of it, then drawn
 ```
 
 What the Run knows is never touched. A Run whose points the config's `[plot]` cannot page is left, and said.

@@ -73,6 +73,20 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [tools-whizard](stable/tools/whizard.md): the whizard tool: SINDARIN point cards, beams by name, what the plan owns, its limits (1 KB)
 - [tools-yd2rt](stable/tools/yd2rt.md): the yd2rt tool and App_yd2rt: YODA to ROOT, merging a sweep into one file (1 KB)
 
+## stable/setup
+
+- [base](stable/setup/base.md): the conda base: what it holds, what stays the OS's, updating it, and base=system (2 KB)
+- [build-fixes-generators](stable/setup/build-fixes-generators.md): why the generator recipes are written as they are: each problem a build hit and what is done about it (5 KB)
+- [build-fixes](stable/setup/build-fixes.md): why the core recipes are written as they are: each problem a build hit and what is done about it (5 KB)
+- [cluster](stable/setup/cluster.md): Heimdall on a cluster without sudo: an image or a user-space build, filesystems, what has been proven (2 KB)
+- [environment](stable/setup/environment.md): gjallarhorn, the shell's environment, heimdall build, bifrost, recognised work dirs, every environment variable (4 KB)
+- [fresh-machine](stable/setup/fresh-machine.md): from a clone to a working Heimdall on a new machine: what you need, the build, a first work dir, the checks (2 KB)
+- [images](stable/setup/images.md): Heimdall and a machine root as one Apptainer image: building, using, what it can and cannot do (2 KB)
+- [platforms](stable/setup/platforms.md): what differs on Ubuntu and on macOS; what is proven and what is not (2 KB)
+- [stack](stable/setup/stack.md): how build_stack.py builds the stack: settings and their layers, cores, resuming, downloads, adding a package, what each package is (6 KB)
+- [toolkits](stable/setup/toolkits.md): which set of packages to build: every toolkit, writing your own, isolated stacks, ready-made from conda-forge (4 KB)
+- [verify](stable/setup/verify.md): how to check a new or changed machine: doctor, the support matrix, the tests, and comparing physics against a kept point (2 KB)
+
 ## stable/internals
 
 - [build](stable/internals/build.md): make, heimdall build, the rules, // requires:, the flag cache, and what rebuilds what (4 KB)

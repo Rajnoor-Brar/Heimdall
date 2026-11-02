@@ -1,4 +1,4 @@
-"""Sweeps, pages, the P2 checks, seeds and the point-count gate (docs/07_Record.md §8)."""
+"""Sweeps, pages, the P2 checks, seeds and the point-count gate (the decision notes)."""
 
 from __future__ import annotations
 

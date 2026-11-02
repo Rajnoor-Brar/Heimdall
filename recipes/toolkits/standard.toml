@@ -1,5 +1,5 @@
 # recipes/toolkits/standard.toml — every recipe of the stack, in build order: where each package's source
-# is and how it is built (README.md §3 says why each flag is there). A toolkit (README.md §6) borrows
+# is and how it is built (doc:build-fixes says why each flag is there). A toolkit (doc:toolkits) borrows
 # from here by its [standard] table; this file is itself a toolkit, @standard, which builds the core.
 #
 # A toolkit file (this one, the others in this folder, your own in the machine root's toolkits/):
@@ -150,7 +150,7 @@ url     = "https://root.cern/download/root_v{release}.source.tar.gz"
 sha256  = "44ada253b1935d34b6801222232d50731fe7c5e3cbcfab47734c85031cfbe4d3"
 kind    = "cmake"
 conda   = ["root", "root_base * cxx{cxx_std}*"]       # conda-forge builds it for C++20 and 23 only:
-conda_std = [20, 23]                                   # ready-made, the stack follows it (README.md §3)
+conda_std = [20, 23]                                   # ready-made, the stack follows it (doc:build-fixes)
 group   = "core"
 needs   = ["python"]
 cores   = "{root_cores}"
@@ -190,7 +190,7 @@ conda   = "yoda"
 group   = "core"
 needs   = ["python"]
 # HDF5 support (.yoda.h5) only with the stack's HDF5: never one the system happens to have (the Mac's
-# Homebrew HDF5 broke the link, docs/audit_3/01_Process.md §5). The later --enable-h5 wins.
+# Homebrew HDF5 broke the link). The later --enable-h5 wins.
 args     = ["--disable-h5"]
 optional = { hdf5 = ["--enable-h5", "--with-hdf5={dir_hdf5}/bin/plain-h5cc", "--enable-h5-rpath"] }
 
@@ -442,9 +442,9 @@ args = [
 
 # ── Packages a toolkit names (no group): only by name, or through a toolkit (the other files here) ──────
 # status = "new": the recipe follows the project's own build instructions, but no build has proven it
-# here yet. build_stack.py says so, and a failure is a gate (docs/framework/02_Agents.md §6). Releases
+# here yet. build_stack.py says so, and a failure is a gate (doc:fresh-machine). Releases
 # were checked against the projects' pages on 2026-10-10. kind = "external": never built here; `how`
-# says where it comes from. Why each is in, and what was left out, is README.md §6.
+# says where it comes from. Why each is in, and what was left out, is doc:toolkits.
 
 [packages.photospp]
 release = "3.64"                                      # HepMC3 support since 3.64 (EvtGen's minimum)
@@ -613,7 +613,7 @@ probe   = "{inst}/fluka"
 how     = "FLUKA from https://fluka.cern after registering and accepting its licence (it cannot be fetched for you); install it into {inst}/fluka by its manual, with the system's gfortran"
 
 # ── C++20 packages: for isolated toolkits only (@key4hep-src, @gpu-sim): they need cxx_std = 20, so
-# they never share an install with the C++17 stack (README.md §6). Releases checked 2026-10-10.
+# they never share an install with the C++17 stack (doc:toolkits). Releases checked 2026-10-10.
 
 [packages.podio]
 release = "01-07"                                     # the EDM toolkit EDM4hep is generated with

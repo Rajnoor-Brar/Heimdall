@@ -1,7 +1,7 @@
 # recipes/platforms/mac/mac.toml — what build_stack.py does differently on macOS (Apple's libc++).
 # A platform's fixes: build_stack.py lays it on macOS by itself, under every toolkit (--platform mac shows
 # it anywhere, for a dry run), then this folder's file for the base: system.toml (Homebrew, a venv) or
-# conda.toml (the conda base, docs/conda/). The recipes are recipes/toolkits/standard.toml's; this changes
+# conda.toml (the conda base, doc:base). The recipes are recipes/toolkits/standard.toml's; this changes
 # them as a toolkit would: a list appends to the recipe's (so root's extra comes after its args), a table
 # merges.
 
@@ -31,7 +31,7 @@ extra = ["-DCMAKE_INSTALL_NAME_DIR={install}/lib"]
 [packages.onnxruntime]                     # the macOS release: onnxruntime-osx-arm64 / -x86_64
 url = "https://github.com/microsoft/onnxruntime/releases/download/v{release}/onnxruntime-osx-{machine}-{release}.tgz"
 
-# ── ThePEG and Herwig on Apple clang and libc++ (the first Mac build, 2026-10-12; docs/audit_3/01_Process.md D)
+# ── ThePEG and Herwig on Apple clang and libc++ (the first Mac build, 2026-10-12)
 # ThePEG 2.3.0 and Herwig 7.3.0, proven on macOS 27 (arm64), AppleClang 21, Homebrew GCC 16:
 #   _LIBCPP_ENABLE_CXX17_REMOVED_*  libc++ drops C++17's removals (std::mem_fun …), which they use;
 #                                   libstdc++ keeps them, so Linux needs none

@@ -181,7 +181,7 @@ def test_exports_become_generate_cards_and_custom_becomes_exec():
 
 
 def test_a_work_dir_from_before_the_rename_takes_heimdalls_names(scratch, monkeypatch, capsys):
-    """I-109, V213: `heimdall migrate --names`: hep.toml → heimdall.toml, and the old names in the work dir's own
+    """V213: `heimdall migrate --names`: hep.toml → heimdall.toml, and the old names in the work dir's own
     files (configs, cards, modules, Makefile, editor settings); what runs made is left alone; a dry run writes
     nothing."""
     work = scratch / "old"
@@ -273,7 +273,7 @@ vary = []
 
 
 def test_a_work_dir_in_the_names_before_i112_takes_errand_and_assignment(scratch, monkeypatch, capsys):
-    """I-112: `heimdall migrate --names` rewrites [run] → [errand] and [run].project → [errand].assignment in the
+    """`heimdall migrate --names` rewrites [run] → [errand] and [run].project → [errand].assignment in the
     work dir's configs (headers, commented ones, keys, an import's only and drop, a title's placeholders, --set in
     a comment), in its scripts (--set run.x), in each record's snapshot (its files, their digests, its --set
     overrides) and each point's provenance (its overrides), and [source]'s project and run in its plot documents;
@@ -357,7 +357,7 @@ def test_the_plain_migration_reads_the_names_before_i112_first():
     ('# a [errand] table\n# a [run] table\n', '# a [errand] table\n# an [errand] table\n'),
 ])
 def test_the_errand_names_reach_every_spelling_and_no_value(old, new):
-    """I-112's review: an escaped quote before [run], quoted and spaced dotted keys, [[config.import]]'s only and an
+    """an escaped quote before [run], quoted and spaced dotted keys, [[config.import]]'s only and an
     only over lines, run.project → errand.assignment everywhere; a string value (a tool's arguments, hashed) is left
     as it is, only its comment rewritten; and a second pass changes nothing."""
     assert migrate.errand_text(old) == new and migrate.errand_text(new) == new

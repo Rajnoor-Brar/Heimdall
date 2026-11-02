@@ -1,4 +1,4 @@
-# recipes/platforms/mac/conda.toml — macOS with base = "conda" (the default; docs/conda/): no Homebrew, the
+# recipes/platforms/mac/conda.toml — macOS with base = "conda" (the default; doc:base): no Homebrew, the
 # base's clang, GSL and GNU tools. Laid after mac.toml (build_stack.py, by itself). Not yet proven by a
 # build on a Mac: the Xcode command-line tools' SDK is still needed (xcode-select --install).
 

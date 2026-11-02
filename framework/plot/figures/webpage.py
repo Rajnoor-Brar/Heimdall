@@ -1,4 +1,4 @@
-"""framework/plot/figures/webpage.py — paper.py's document as one self-contained HTML page (V199, I-107):
+"""framework/plot/figures/webpage.py — paper.py's document as one self-contained HTML page (V199):
 statistics/<set>/summary.html beside summary.pdf.
 
 The same facts, contents, sections, tables, rankings and notes, without pages: a table is whole, however wide, and

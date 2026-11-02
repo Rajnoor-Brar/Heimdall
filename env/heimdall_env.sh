@@ -1,9 +1,9 @@
 #!/bin/bash
-# env/heimdall_env.sh — Heimdall's shell environment (docs/framework/01_Target.md §5.8; docs/06_Internals.md §1).
+# env/heimdall_env.sh — Heimdall's shell environment (doc:layout; doc:layout).
 #
 # Sourced by Heimdall's gjallarhorn.sh (the shell function `gjallarhorn`), which sets HEIMDALL (Heimdall's folder), HEIMDALL_MACHINE (the
 # machine root, ~/Himinbjorg) and the loaded stack's HEIMDALL_INSTALL, HEIMDALL_VENV, HEIMDALL_APPS and HEIMDALL_FORGE, and
-# HEIMDALL_BASE when the stack is built on a conda base (docs/conda/). It activates the base (its
+# HEIMDALL_BASE when the stack is built on a conda base (doc:base). It activates the base (its
 # base/activate.sh) or the venv, puts the stack and framework/bin (the `heimdall` command) on PATH, sources the
 # machine root's machine.sh, and defines the shell helpers below. The base's lib/ never joins
 # LD_LIBRARY_PATH: what was built on it finds it by rpath, and the OS's own programs keep the OS's libraries.
@@ -26,7 +26,7 @@ if [ -n "${HEKIT_ROOT-}" ]; then                 # High-Energy's name for the ch
     unset HEKIT_ROOT
 fi
 unset HEP_SETUP                                   # retired: heimdall refresh reloads $HEIMDALL/gjallarhorn.sh with $HEIMDALL_STACK
-# Heimdall's names before they moved (I-109): a shell loaded with them is left with today's alone
+# Heimdall's names before they moved: a shell loaded with them is left with today's alone
 unset HEP HEP_MACHINE HEP_INSTALL HEP_BASE HEP_STACK HEP_STACK_REQUEST HEP_VENV HEP_APPS HEP_FORGE HEP_WORK HEP_CONFIGS \
       HEP_RESULTS HEP_RECORDS HEP_CACHE HEP_REPORTS HEP_RUNS HEP_WORKDIRS HEP_ENV_LOADED HEP_CONTEXT HEP_STATUS_FD \
       HEP_MAKELIBS_JOBS HEP_DETACH HEP_CLUSTER_JOB HEP_BUILD_SH HEP_PLAIN

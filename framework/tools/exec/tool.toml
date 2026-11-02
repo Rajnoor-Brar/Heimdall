@@ -1,4 +1,4 @@
-# framework/tools/exec/tool.toml — any executable (docs/05_Commands_and_Tools.md §9). Its table gives
+# framework/tools/exec/tool.toml — any executable (doc:tools-exec). Its table gives
 # executable and arguments; its [tools.<tag>.config] and consumed quantities are written to
 # config/<tag>.toml and passed as the first argument. Like every tool it finds the point's context file
 # (every tool's card and config) through $HEIMDALL_CONTEXT, or {context} in its arguments.
@@ -8,7 +8,7 @@ config_file     = true             # its table's config and consumed quantities,
 category = "custom"
 status   = "none"
 template = true                     # heimdall tools new <name> --from exec copies it: a tool of your own
-formerly = ["custom"]               # its name before (audit 3, phase 4.2): heimdall migrate rewrites tool = "custom"
+formerly = ["custom"]               # its name before: heimdall migrate rewrites tool = "custom"
 
 [card]
 style = "none"

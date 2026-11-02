@@ -412,7 +412,7 @@ def test_both_backends_draw_both_trees(stage):
 
 def test_a_swept_analysis_option_is_a_curve_not_a_page(scratch):
     """Each point's YODA holds its own variant (/photo_eic:R=0.4/…): one page per object, one curve
-    per point, each read from its own path (found by the Lambda masswindow run, P4 S1)."""
+    per point, each read from its own path (found by the Lambda masswindow run)."""
     data = raw(errand__name="plotvariants", errand__cfgs__one__sweeps=["radius"],
                quantities__radius={"target": "rivet/photo_eic", "key": "R", "values": [0.4, 0.7], "tags": ["r04", "r07"]},
                plot={"formats": ["png"], "min_entries": 10})

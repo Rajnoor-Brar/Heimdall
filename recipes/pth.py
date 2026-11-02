@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """recipes/pth.py HEIMDALL — the venv's heimdall.pth, so `import heimdallkit` and `from runner import results` work
-in any Python of the venv (docs/framework/01_Target.md §5.5). build_stack.py's [python] step runs it."""
+in any Python of the venv (doc:layout). build_stack.py's [python] step runs it."""
 
 import site
 import sys

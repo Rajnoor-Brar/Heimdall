@@ -1,18 +1,18 @@
 """Where things are, and how a name in a config becomes a path (rank 0).
 
-docs/04_Config_Reference.md §2; docs/framework/01_Target.md §5.2–5.3. Three roots:
+doc:paths; doc:layout Three roots:
 
 * **Heimdall** (`heimdall_root()`): the framework, as git has it. Always the one this code runs from; a
   `$HEIMDALL` that names another is refused.
 * **the machine root** (`machine_root()`, `$HEIMDALL_MACHINE`, by default ~/Himinbjorg): what this machine
-  built — the stack, the venv, Heimdall's compiled apps, downloads and builds (docs/audit_3/02 §3).
+  built — the stack, the venv, Heimdall's compiled apps, downloads and builds.
 * **the work dir** (`work_root()`): configs, modules, datasets and what runs make. `$HEIMDALL_WORK`, or the
   first folder up from the working directory whose `heimdall.toml` has a `[work]` table (as git finds its
   repository). Markers under Heimdall's `tests/` are skipped: the tests' fixture is found only
   through `$HEIMDALL_WORK`.
 
 Every key that takes a path has exactly one convention root: there is no search path and no
-fallback, because a lookup that tries several places is how v1's 00/B18 happened.
+fallback, because a lookup that tries several places is how one of v1's bugs happened.
 
     bare `name`     → the convention root of the key + name
     `./sub/name`    → the work dir + sub/name (not the working directory: V13)
@@ -45,7 +45,7 @@ CONFIGS_VAR = "HEIMDALL_CONFIGS"
 REPORTS_VAR = "HEIMDALL_REPORTS"
 
 #: High-Energy's variables (K15): a shell that still sets one is refused, with its replacement named.
-#: Heimdall's environment before its names moved (I-109, V213): each is HEIMDALL_<X> now.
+#: Heimdall's environment before its names moved (V213): each is HEIMDALL_<X> now.
 OLD_NAMES = ("HEP", "HEP_MACHINE", "HEP_INSTALL", "HEP_BASE", "HEP_STACK", "HEP_STACK_REQUEST", "HEP_VENV", "HEP_APPS",
              "HEP_FORGE", "HEP_WORK", "HEP_CONFIGS", "HEP_RESULTS", "HEP_RECORDS", "HEP_CACHE", "HEP_REPORTS", "HEP_RUNS",
              "HEP_WORKDIRS", "HEP_ENV_LOADED", "HEP_CONTEXT", "HEP_STATUS_FD", "HEP_MAKELIBS_JOBS", "HEP_DETACH",
@@ -84,7 +84,7 @@ def heimdall_root() -> Path:
     return root
 
 
-#: heimdall.toml's tables and keys (docs/framework/01_Target.md §4.2): any other is refused. [cluster] is the
+#: heimdall.toml's tables and keys (doc:layout): any other is refused. [cluster] is the
 #: machine's defaults for heimdall cluster (V114): its keys are the errand file's, checked by cluster.py.
 WORK_KEYS = {"work": ("name",), "framework": ("expects",), "run": ("keep", "log")}
 #: What a point's logs keep (V201), `[run] log` in heimdall.toml or machine.toml (the work dir's over the machine's):
@@ -254,7 +254,7 @@ def results_root() -> Path:
 
 def records_root() -> Path:
     """What runs recorded, a folder per configuration (V157, tools.RunFolders): its points' provenance,
-    identity and .complete (`points/`, precious: U21), their working folders (`logs/`: cards, configs,
+    identity and .complete (`points/`, precious), their working folders (`logs/`: cards, configs,
     logs, FIFOs, scratch files; safe to delete), the page documents (`plots/`), the run's snapshot
     (`config/`), points.json and cluster submissions. $HEIMDALL_RECORDS (tests set it) or <work>/records;
     `heimdall clean` takes only logs and leftovers unless told --records."""
@@ -273,7 +273,7 @@ def reports_root() -> Path:
 
 
 def dataset_listed(path: Path) -> bool:
-    """Whether the work dir's datasets.toml lists this file of datasets/ (U23: heimdall setup fetches it)."""
+    """Whether the work dir's datasets.toml lists this file of datasets/ (heimdall setup fetches it)."""
     import tomllib
     work = find_work()
     manifest = work / "datasets.toml" if work is not None else None
@@ -342,7 +342,7 @@ def machine_settings() -> dict:
 
 def stack_dir() -> Path:
     """The loaded stack's base: the machine root, or its stacks/<toolkit>/ for an isolated toolkit's
-    (gjallarhorn.sh sets $HEIMDALL_STACK; recipes/README.md §6). Its compiled apps and builds go with it: they
+    (gjallarhorn.sh sets $HEIMDALL_STACK; doc:stack). Its compiled apps and builds go with it: they
     are linked against that stack."""
     name = os.environ.get(STACK_VAR)
     return machine_root() / "stacks" / name if name else machine_root()
@@ -359,7 +359,7 @@ def forge_dir() -> Path:
 
 
 def tool_roots() -> list[tuple[str, Path]]:
-    """Where tool folders are, nearest first (docs/audit_3/04_Extending.md §2): the work dir's tools/
+    """Where tool folders are, nearest first: the work dir's tools/
     ("work"), the machine root's tools/ ("machine"), Heimdall's framework/tools/ ("shipped")."""
     out = []
     work = find_work()
@@ -413,7 +413,7 @@ def _tool_chains(roots: tuple[tuple[str, str], ...]) -> dict[str, list[tuple[str
 
 
 def placeholders() -> dict[str, str]:
-    """{heimdall}, {apps} and {work} (docs/framework/01_Target.md §5.3); {work} only inside a work dir."""
+    """{heimdall}, {apps} and {work} (doc:layout); {work} only inside a work dir."""
     out = {"heimdall": str(heimdall_root()), "apps": str(apps_dir())}
     work = find_work()
     if work is not None:
@@ -503,7 +503,7 @@ POINT_KEYS = ("prelim", "input", "output")
 #: given that file's folder (`folder=`); without one, configs/<A>/ as ROOTS says.
 BESIDE = ("master", "import", "baseconfig", "filters", "root_style")
 
-#: The convention root of each path-taking key, as a function of the assignment (04 §2).
+#: The convention root of each path-taking key, as a function of the assignment (doc:paths).
 ROOTS = {
     "config":     lambda assignment: configs_root(),
     "master":     lambda assignment: configs_root() / assignment,

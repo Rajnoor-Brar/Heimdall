@@ -876,7 +876,7 @@
      "default": true
     },
     "normalise": {
-     "description": "\"area\": every curve and the data scaled to unit area over the bins drawn\n\n`\"area\"`: every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure (04 §11.2) may set it for its own",
+     "description": "\"area\": every curve and the data scaled to unit area over the bins drawn\n\n`\"area\"`: every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure may set it for its own",
      "anyOf": [
       {
        "type": [
@@ -1307,7 +1307,7 @@
         ]
        },
        "normalise": {
-        "description": "as [plot].normalise, for these pages\n\n`\"area\"`: every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure (04 §11.2) may set it for its own",
+        "description": "as [plot].normalise, for these pages\n\n`\"area\"`: every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure may set it for its own",
         "anyOf": [
          {
           "type": [
@@ -2055,7 +2055,7 @@
           "default": true
          },
          "normalise": {
-          "description": "\"area\": every curve and the data scaled to unit area over the bins drawn\n\n`\"area\"`: every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure (04 §11.2) may set it for its own",
+          "description": "\"area\": every curve and the data scaled to unit area over the bins drawn\n\n`\"area\"`: every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure may set it for its own",
           "anyOf": [
            {
             "type": [
@@ -2486,7 +2486,7 @@
              ]
             },
             "normalise": {
-             "description": "as [plot].normalise, for these pages\n\n`\"area\"`: every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure (04 §11.2) may set it for its own",
+             "description": "as [plot].normalise, for these pages\n\n`\"area\"`: every curve, and the data, scaled to unit area, Σ value × bin width over the bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure may set it for its own",
              "anyOf": [
               {
                "type": [

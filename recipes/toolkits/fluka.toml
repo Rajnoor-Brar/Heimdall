@@ -1,4 +1,4 @@
-# recipes/toolkits/fluka.toml — @fluka (README.md §6)
+# recipes/toolkits/fluka.toml — @fluka (doc:toolkits)
 
 description = "FLUKA (CERN): external, behind its licence and registration"
 

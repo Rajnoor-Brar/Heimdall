@@ -1,4 +1,4 @@
-"""`bifrost`: the environment's packages, and the shell's way in (rank 5; docs/05_Commands_and_Tools.md §2, V144).
+"""`bifrost`: the environment's packages, and the shell's way in (rank 5; doc:environment, V144).
 
     bifrost                         the state: the base, the packages you added, the shell's block
     bifrost <pkg>…                  conda-forge packages into the base ("gsl=2.8", "gsl 2.8.*")

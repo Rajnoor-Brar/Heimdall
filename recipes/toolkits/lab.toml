@@ -1,4 +1,4 @@
-# recipes/toolkits/lab.toml — @lab (README.md §6)
+# recipes/toolkits/lab.toml — @lab (doc:toolkits)
 
 description = "the lab PC's stack: the core, the extra generators, Delphes, HDF5, ONNX Runtime, Geant4"
 

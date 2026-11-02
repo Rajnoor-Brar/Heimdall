@@ -1,4 +1,4 @@
-"""runner/report.py's build (I-108 P3, V208): figures/ copied as drawn, stats/ drawn from statistics.csv, report.tex
+"""runner/report.py's build (V208): figures/ copied as drawn, stats/ drawn from statistics.csv, report.tex
 naming only its own folder's files, report.pdf on A4, index.html; a rebuild makes nothing again. Pages are PDFs
 (and PNGs) made by PIL in a tmp_path results tree, with a statistics.csv beside them."""
 
@@ -170,7 +170,7 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     _, said = built("P/numbers.toml", [])
     out = trees / "reports" / "P" / "validation" / "01_pdf"                     # where results/ has its source
     source = trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv"
-    standings = out / "stats" / "01_Standings"                                   # typeset (I-110 R5); its numbers beside it
+    standings = out / "stats" / "01_Standings"                                   # typeset; its numbers beside it
     assert sorted(p.name for p in standings.iterdir()) == ["01_01_pdf__totality.csv", "01_01_pdf__totality.html"]
     assert (standings / "01_01_pdf__totality.csv").read_bytes() == source.read_bytes()
     assert not list(out.rglob("stats/**/*.pdf")) and not list(out.rglob("stats/**/*.png"))
@@ -183,7 +183,7 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     rows = list(csv.DictReader(open(bars / "001_18x275_d01-x01-y01.csv", encoding="utf-8")))
     assert [r["curve"] for r in rows] == ["PDF A", "PDF B"] and rows[0]["chi2_ndf"] == "1.1"     # as the source wrote it
     assert "18x275, d01-x01-y01" in tex and "against ZEUS" in tex
-    # How the numbers are made (I-111): before the results, a paragraph a statistic shown (the bar tables show all six),
+    # How the numbers are made: before the results, a paragraph a statistic shown (the bar tables show all six),
     # its formula in display; the parts keep only the notes on reading their own items
     body = tex.split(r"\begin{document}")[1]
     assert body.index(r"\section*{How the numbers are made}") < body.index(r"\section{Standings}")
@@ -289,7 +289,7 @@ def test_a_tools_section_holds_its_cards_and_tables_and_compiles(trees, tmp_path
 
 
 def test_a_recipes_look_is_its_preamble_and_a_set_has_its_sub_header(trees):
-    """I-110 R2, R3: [report]'s look keys in report.tex's preamble (the fonts, the body's size, the accent, a grid's
+    """[report]'s look keys in report.tex's preamble (the fonts, the body's size, the accent, a grid's
     columns, no contents); a set's sub-header over its first grid, each grid captioned by its cell, a row a picture."""
     recipe(trees, "look", '[report]\nfrom = ["P/validation/01_pdf"]\nfont = "serif"\nsize = 10.5\naccent = "#d62728"\n'
                           'columns = 3\ncontents = false\n\n[[report.section]]\ntitle = "Spectra"\npages = ["*"]\n')
@@ -318,7 +318,7 @@ END YODA_SCATTER2D_V2
 
 
 def test_a_figure_has_its_curves_bins_beside_it(trees):
-    """I-110 R6: a figure whose page document is at hand has a CSV beside it, each curve's bins as its point's YODA
+    """a figure whose page document is at hand has a CSV beside it, each curve's bins as its point's YODA
     holds them; made again only when the page document or a YODA changed."""
     pytest.importorskip("yoda")
     where = trees / "results" / "P" / "validation" / "01_pdf"

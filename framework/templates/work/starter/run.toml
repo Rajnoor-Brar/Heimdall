@@ -6,7 +6,7 @@
 #
 # Pythia writes events and Rivet reads them in the same group (a FIFO, inferred), writing jets.yoda;
 # yd2rt converts that to ROOT. Physics lives in the card ({{a}}.cmnd); this file says what varies and
-# what runs. The errand file's keys: docs/04_Config_Reference.md, or `heimdall explain <key>`.
+# what runs. Any key: `heimdall explain <key>`.
 
 [errand]
 assignment = "{{A}}"

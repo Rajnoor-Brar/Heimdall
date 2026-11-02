@@ -1,4 +1,4 @@
-"""Detachable runs (task L): the Ctrl-C ladder and SIGHUP (V181); the worker, --detach, stop and the watch keys
+"""Detachable runs: the Ctrl-C ladder and SIGHUP (V181); the worker, --detach, stop and the watch keys
 (V183) are added as they are built."""
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ from runner.errors import HeimdallError
 
 FRAMEWORK = Path(__file__).resolve().parents[2] / "framework"
 #: A worker of the real type: a process with a real Hub, which ends its run on SIGINT (exit 6), as a run does, and
-#: on a second SIGUSR1 (a force pause, I-115); one point runs.
+#: on a second SIGUSR1 (a force pause); one point runs.
 FAKE = r"""
 import os, signal, sys, time
 sys.path.insert(0, sys.argv[1])
@@ -165,7 +165,7 @@ def test_detach_refuses_what_runs_nothing(capsys):
 def test_the_worker_flag_is_hidden():
     from runner import docs
     assert "--worker" not in cli.parser()._subparsers._group_actions[0].choices["run"].format_help()
-    assert "--worker" not in docs.commands() and "==SUPPRESS==" not in docs.commands()
+    assert "--worker" not in docs.commands_page() and "==SUPPRESS==" not in docs.commands_page()
 
 
 def test_stop_finds_one_of_your_runs_and_waits_for_it(fake, capsys):
@@ -314,7 +314,7 @@ def test_watch_q_refuses_to_signal_another_pid_namespace(fake, keys, interrupts,
 
 
 def test_watch_p_pauses_and_a_second_p_discards(fake, keys, pauses, interrupts, capsys):
-    """I-115 P1: in `heimdall watch`, p sends the run SIGUSR1, a pause, and says how many points end first (those its
+    """in `heimdall watch`, p sends the run SIGUSR1, a pause, and says how many points end first (those its
     view has seen start: a key in the pipe may come before them); a second p sends it again, a force pause, and says
     the running points are discarded; neither is a stop."""
     import re
@@ -349,7 +349,7 @@ def test_watch_p_after_q_and_in_another_pid_namespace_sends_nothing(fake, keys, 
 
 
 def test_the_runs_own_view_takes_p_too(fake, keys, pauses, interrupts, monkeypatch, capsys):
-    """I-115 P1: the run's own terminal view (its worker followed) pauses on p, and its hint names it."""
+    """the run's own terminal view (its worker followed) pauses on p, and its hint names it."""
     proc = fake()
     monkeypatch.setattr(runs, "spawn", lambda argv, run_id, log: proc)
     args, errand = SimpleNamespace(argv=["run", "x"], plain=True), SimpleNamespace(name="a")

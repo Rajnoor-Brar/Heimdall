@@ -1,6 +1,6 @@
 # recipes/platforms/container/Dockerfile — Heimdall and its stack in one image (Ubuntu 24.04, as the lab PC).
 # This is the CI workflow's (.github/workflows/stack.yml). A machine's own image is Apptainer's: heimdall.def,
-# made by `heimdall image build` (docs/framework/targets/container.md).
+# made by `heimdall image build` (doc:images).
 #
 # From the Heimdall folder (the context; Dockerfile.dockerignore keeps its ignored trees out):
 #   docker build -f recipes/platforms/container/Dockerfile -t heimdall .
@@ -12,8 +12,8 @@
 # The build takes hours (ROOT alone is 1–2 h) and ~25 GB of disk while it runs; give Docker 3 GB of
 # memory per ROOT core (root_cores). The machine root is /opt/himinbjorg (HEIMDALL_MACHINE); its forge/
 # (downloads, sources, builds, pixi and its package cache) is removed in the same layer, so the image
-# keeps the installs only (docs/framework/targets/container.md). The stack is built on a conda base
-# (docs/conda/): apt gives only the Python that runs the builder, the certificates it downloads with,
+# keeps the installs only (doc:images). The stack is built on a conda base
+# (doc:base): apt gives only the Python that runs the builder, the certificates it downloads with,
 # and bzip2 and xz for its archive checks (tar -t).
 # --build-arg PACKAGES=@core-conda: the core ready-made from conda-forge, in minutes.
 

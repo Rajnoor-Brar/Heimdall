@@ -1,4 +1,4 @@
-"""A configuration folder's tag (I-113 T1–T2, V223): where it comes from (`--tag` over the one its record has over
+"""A configuration folder's tag (V223): where it comes from (`--tag` over the one its record has over
 its configuration's `tag` key), where it is kept (records/<run>/tag, the truth, and its plot document's
 [source].tag), `heimdall tag` showing, setting and clearing it, the refusals, and what shows it (`heimdall runs`,
 `heimdall status`). A tag is never part of a point's identity."""

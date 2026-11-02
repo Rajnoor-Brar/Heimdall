@@ -1,7 +1,7 @@
 """Tool folders, point cards, argv, and the connection rules (rank 2).
 
-docs/06_Internals.md §16 (the tool-folder contract), docs/06_Internals.md §6 (connections) and
-docs/04_Config_Reference.md §9 (tool tables, custom tools, standard configurations). Everything the runner knows
+doc:tool-contract (the tool-folder contract), doc:connections (connections) and
+doc:programs (tool tables, custom tools, standard configurations). Everything the runner knows
 about a tool comes from its folder: the nearest <name>/ on the search path (a work dir's tools/, the machine
 root's tools/, Heimdall's framework/tools/; paths.tool_chains), laid over the one it extends. This module
 never names one.
@@ -9,7 +9,7 @@ never names one.
 `plan_point` turns (errand, configuration, point) into groups of Steps: argv, environment, files to
 write, inputs and outputs, and what to check afterwards. Nothing is spawned or written here; that is
 `execute`. Seeds are added last (`finalise`), because they derive from the identity of everything
-else (06 §8).
+else (doc:identity).
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ FOLDER_SECTIONS = {
     "command": {"argv", "env", "cwd", "display"},
     "options": None,                                      # free: the schema of tool-specific keys
     "outputs": {"products", "event_count", "sidecar", "written", "deal", "combines"},
-    "context": {"values", "products"},                    # what the point's context file gives of it (04 §9.4)
+    "context": {"values", "products"},                    # what the point's context file gives of it (doc:connections)
     "identity": {"files", "version"},
     "prepare": {"argv", "marker", "ignore", "key"},
     "checks": {"info_dirs", "info_dirs_command", "files", "card", "filled"},
@@ -59,7 +59,7 @@ FOLDER_SECTIONS = {
 CARD_STYLES = ("append", "none", "render")
 #: The retired export keys (`pythia_cmnd = true`): the context file and generate_cards replace them.
 EXPORT = re.compile(r"^(?P<tool>[a-z0-9]+)_(?P<export>[a-z0-9_]+)$")
-#: The point's context file (04 §9.4): every tool's card and config, for any program of the point.
+#: The point's context file (doc:connections): every tool's card and config, for any program of the point.
 CONTEXT_FILE = "context.toml"
 #: Seeds a folder accepts unless its [card] seed_range says otherwise (V54): Pythia's, 1 … 9·10⁸, which
 #: every seed was drawn from before, so an existing point keeps its seeds.
@@ -89,7 +89,7 @@ class Folder:
 
     @property
     def plugin(self):
-        """<tool>/render.py, for `[card] style = "render"` (06 §16): the nearest folder's, or the extended one's."""
+        """<tool>/render.py, for `[card] style = "render"` (doc:tool-contract): the nearest folder's, or the extended one's."""
         path = self.find("render.py")
         if path is None:
             raise HeimdallError(f'{self.name} has [card] style = "render" but no render.py', where=str(self.dir))
@@ -238,12 +238,12 @@ def new_folder(name: str, source: str, packages: list[str] | None = None, runs: 
     target.mkdir(parents=True)
     if origin.get("tool", "template"):                              # [tool] template = true: copied whole
         body = (f"# tools/{name}/tool.toml — a tool of this work dir, made from Heimdall's {source} folder (heimdall tools new).\n"
-                f"# Tables use it as tool = \"{name}\"; give it [options], a [card], a [context] … (docs/06_Internals.md §16).\n\n"
+                f"# Tables use it as tool = \"{name}\"; give it [options], a [card], a [context] … (doc:tool-contract).\n\n"
                 + "\n".join(line for line in text.splitlines() if not line.startswith(f"# framework/tools/{source}/"))
                 + "\n")
     else:
         body = (f"# tools/{name}/tool.toml — this work dir's {source}, laid over Heimdall's (heimdall tools new): the keys here\n"
-                f"# win, the rest is {source}'s (docs/06_Internals.md §16). Its tool.toml, for reference:\n#\n"
+                f"# win, the rest is {source}'s (doc:tool-contract). Its tool.toml, for reference:\n#\n"
                 + "".join(f"#   {line}\n" if line else "#\n" for line in text.splitlines())
                 + f"\nextends = \"{source}\"\n")
     filled = ([f"executable = {json.dumps(runs)}"] if runs else []) + \
@@ -305,7 +305,7 @@ def _lookup(name: str, context: dict, where: str):
     table = context.get(f"{head}:")
     if isinstance(table, dict) and arg in table:
         return table[arg]
-    if name == "repo":                                               # High-Energy's, retired (framework/01 §5.3)
+    if name == "repo":                                               # High-Energy's, retired (doc:layout)
         raise HeimdallError("{repo} is retired: {work} for your files, {heimdall} for Heimdall's", where=where,
                        hint="heimdall migrate rewrites it in an errand file")
     raise HeimdallError(f"unknown placeholder {{{name}}}", where=where,
@@ -384,7 +384,7 @@ def merge_files(sources: list[Path], target: Path) -> Path:
 
 
 def executable_of(tool, folder: Folder, assignment: str) -> Path:
-    """A folder's executable (`{heimdall}`/`{work}` expanded, else PATH), or a custom table's (04 §2): bare →
+    """A folder's executable (`{heimdall}`/`{work}` expanded, else PATH), or a custom table's (doc:paths): bare →
     build/<A>/<E>, which must exist; `path:<command>` → that command on PATH, asked for by
     name. A bare name never falls back to PATH (V54): a missing build would run a system binary."""
     if tool.executable:
@@ -419,7 +419,7 @@ def executable_of(tool, folder: Folder, assignment: str) -> Path:
     return Path(found)
 
 
-# ── the packages a tool folder runs ([tool] packages; task D) ────────────────────────────────────
+# ── the packages a tool folder runs ([tool] packages) ────────────────────────────────────
 
 @functools.lru_cache(maxsize=1)
 def _installed():
@@ -588,7 +588,7 @@ class PointPlan:
     events: int = 0
     writes: dict[Path, str] = field(default_factory=dict)
     context: dict[str, Any] = field(default_factory=dict)   # post: {points}, the manifest
-    context_tools: dict[str, dict] = field(default_factory=dict)   # the context file's [tools.<tag>] (04 §9.4)
+    context_tools: dict[str, dict] = field(default_factory=dict)   # the context file's [tools.<tag>] (doc:connections)
     products: list[str] = field(default_factory=list)       # generate_cards' "<tag>:<product>": in the identity
     upstream: list[str] = field(default_factory=list)       # post: the identities of the points
     deal: dict[str, str] = field(default_factory=dict)      # a dealt interface → its deal group (V31)
@@ -602,7 +602,7 @@ class PointPlan:
 
 @dataclass(frozen=True)
 class RunFolders:
-    """A Run's folders, <A>/<E>/<R> (06 §1, V157, V164): records/<A>/<E>/<R>/, what a job
+    """A Run's folders, <A>/<E>/<R> (doc:layout, V157, V164): records/<A>/<E>/<R>/, what a job
     needs while it runs or is launched and what traces it back; results/<A>/<E>/<R>/, everything that matters once it
     is done; .cache/<A>/plots/<E>/<R>/, the drawing's working files, rebuilt on demand."""
     assignment: str
@@ -671,7 +671,7 @@ def run_dir(errand, configuration) -> Path:
 
 def serials_taken(errand, configuration) -> set[int]:
     """The numbers of a configuration's folders on disk, <A>/<E>/NN_<label>, in records/ and
-    results/: where a v3 configuration without a serial may already have run (03 §6)."""
+    results/: where a v3 configuration without a serial may already have run (doc:errand-file)."""
     parent = Path(errand.assignment) / (configuration.run_folder or errand.name)
     numbered = re.compile(r"(\d{2,})_" + re.escape(configuration.label))
     found = set()
@@ -720,7 +720,7 @@ def _check_options(tool, folder: Folder, where: str) -> None:
 
 
 def _generated(errand, configuration, chain: list[str]) -> tuple[list[str], dict[str, list[str]]]:
-    """generate_cards (04 §9.4): the tool tables beyond the chain whose cards and configs the context file
+    """generate_cards (doc:connections): the tool tables beyond the chain whose cards and configs the context file
     gets, and the products asked for ("herwig:run"), each one its folder's [context.products]."""
     tags, products = [], {}
     for entry in configuration.generate_cards:
@@ -741,7 +741,7 @@ def _generated(errand, configuration, chain: list[str]) -> tuple[list[str], dict
 
 
 def _context_tables(plan: PointPlan, products: dict[str, list[str]]) -> dict[str, dict]:
-    """The context file's [tools.<tag>] tables (04 §9.4): every rendered tool's card (its parts too), its
+    """The context file's [tools.<tag>] tables (doc:connections): every rendered tool's card (its parts too), its
     folder's [context] values, and the products asked for (which then are prepared). Configs are added
     when the argv are made."""
     tables: dict[str, dict] = {}
@@ -773,7 +773,7 @@ def context_text(plan: PointPlan) -> str:
     """The context file: written when the point starts, kept with its record when it ends (V187; a report's tools'
     pages read it, V210)."""
     return (f"# {CONTEXT_FILE} — point {plan.point.name}: every tool's card and config, for any program of it\n"
-            "# (HEIMDALL_CONTEXT; docs/04_Config_Reference.md §9.4). Written when the point starts, kept with its record.\n\n"
+            "# (HEIMDALL_CONTEXT; docs/stable/internals/connections.md). Written when the point starts, kept with its record.\n\n"
             + tomli_w.dumps({"tools": plan.context_tools}))
 
 
@@ -909,7 +909,7 @@ def plan_point(errand, configuration, point, master: dict, *, post: dict | None 
     for tag in chain:                                  # every table names a standard tool (or refuses)
         folder_of(errand.tools[tag])
 
-    # generate_cards: tables configured but not run, whose cards the context file gives (04 §9.4)
+    # generate_cards: tables configured but not run, whose cards the context file gives (doc:connections)
     generated, products = _generated(errand, configuration, chain)
     rendered_tags = chain + generated
 
@@ -1048,7 +1048,7 @@ def _outputs(plan: PointPlan, step: Step, errand) -> None:
                            where=f"[tools.{step.tag}].output_file", hint="every output has exactly one writer (see C6)")
         if name in plan.interfaces:
             interface = plan.interfaces[name]
-        else:                                          # not an agreed interface: a product (04 §2)
+        else:                                          # not an agreed interface: a product (doc:paths)
             final = resolve(name, "output", root=plan.res, where=f"[tools.{step.tag}].output_file")
             interface = Interface(name, final, "product")
             plan.interfaces[name] = interface
@@ -1072,7 +1072,7 @@ def _inputs(plan: PointPlan, step: Step, errand) -> None:
 
 
 def _check_connections(plan: PointPlan, errand) -> None:
-    """C6 (06 §6): FIFOs inside one group, one reader each, never into a non-streamable tool; files
+    """C6 (doc:connections): FIFOs inside one group, one reader each, never into a non-streamable tool; files
     between groups; every input made by someone earlier or already on disk."""
     for interface in plan.interfaces.values():
         where = f"[prelim] / [tools.*]: '{interface.name}'"
@@ -1085,18 +1085,18 @@ def _check_connections(plan: PointPlan, errand) -> None:
                                hint="name it in a tool's output (v2: output_file); a FIFO nobody writes blocks its reader for ever")
             if len(readers) != 1:
                 raise HeimdallError(f"FIFO '{interface.name}' has {len(readers)} readers; a FIFO has exactly one",
-                               where=where, hint="fan out with a list output on the producer, one FIFO per reader (see V16)")
+                               where=where, hint="fan out with a list output on the producer, one FIFO per reader")
             reader = readers[0]
             if reader.group != interface.group:
                 raise HeimdallError(f"FIFO '{interface.name}' connects {interface.producer} and {reader.tag} across groups",
                                where=where, hint=f"put them in one group, [\"{interface.producer}\", \"{reader.tag}\"], "
                                                   "or make it a file (v2: a [prelim] file): a later reader leaves the writer "
-                                                  "blocked (see L8)")
+                                                  "blocked")
             streamable = reader.tool.streamable if reader.tool.streamable is not None else reader.folder.get("tool", "streamable", False)
             if not streamable:
                 raise HeimdallError(f"'{reader.tag}' cannot read a FIFO", where=where,
                                hint="its tool folder says streamable = false, as Delphes skips a zero-length input: "
-                                    "put it in a later group, so it reads a file; v2: a [prelim] file there (see L11)")
+                                    "put it in a later group, so it reads a file; v2: a [prelim] file there")
         else:
             for reader in readers:
                 if interface.producer:
@@ -1360,7 +1360,7 @@ def _info_dirs(folder: Folder) -> list[Path]:
 
 def _config(plan: PointPlan, step: Step, errand) -> None:
     """A folder with [tool] config_file (exec, module): its table's config and the consumed values, as
-    config/<tag>.toml (its first argument, and in the context file), for every rendered tool (04 §9.2)."""
+    config/<tag>.toml (its first argument, and in the context file), for every rendered tool (doc:programs)."""
     tool, folder = step.tool, step.folder
     if not folder.get("tool", "config_file"):
         return
@@ -1403,7 +1403,7 @@ def _argv(plan: PointPlan, step: Step, errand) -> None:
         "q:": {name: str(errand.quantities[name].values[i]) for name, i in plan.values.items()},
         "cards": [str(p) for p in step.card_base] + ([str(step.card_point)] if step.card_point else []),
         "card": str(step.card_combined or ""),
-        "context": str(plan.out / CONTEXT_FILE),             # the context file (04 §9.4); also $HEIMDALL_CONTEXT
+        "context": str(plan.out / CONTEXT_FILE),             # the context file (doc:connections); also $HEIMDALL_CONTEXT
         "context:": {f"{tag}.{key}": value for tag, table in plan.context_tools.items() for key, value in table.items()},
         **step.placeholders,
         **plan.context,
@@ -1599,7 +1599,7 @@ def clean_base(base: Path, folder: Folder) -> list[str]:
 
 
 def card_view(plan: PointPlan, tag: str) -> list[str]:
-    """`heimdall run --plan --card <tag>` (audit 3, 04 §4): the tool's card for this point as the tool reads it,
+    """`heimdall run --plan --card <tag>` (doc:errand-file): the tool's card for this point as the tool reads it,
     each line with where its value comes from: a base card's line (and whether the point card sets it
     again), a setting, a quantity, the vocabulary, a built-in, or the runner (seeds, the footer)."""
     if tag not in plan.rendered:

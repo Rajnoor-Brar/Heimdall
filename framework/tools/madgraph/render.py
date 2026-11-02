@@ -1,4 +1,4 @@
-"""framework/tools/madgraph/render.py — MadGraph's launch script and proc card (docs/06_Internals.md §16, L14).
+"""framework/tools/madgraph/render.py — MadGraph's launch script and proc card (doc:tool-contract, L14).
 
 MadGraph hands over a matrix element, as an LHE file, and a `pythia` tool showers it. Two cards:
 
@@ -10,7 +10,7 @@ MadGraph hands over a matrix element, as an LHE file, and a `pythia` tool shower
   beams as lpp and their energies.
 
 Both begin with `set automatic_html_opening False`: MadGraph opens a browser from a batch run
-otherwise (v1's 00/B39).
+otherwise .
 """
 
 from __future__ import annotations

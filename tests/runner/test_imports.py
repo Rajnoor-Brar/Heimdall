@@ -1,4 +1,4 @@
-"""The runner's import rank (docs/06_Internals.md §2), enforced.
+"""The runner's import rank (doc:runner), enforced.
 
 A module may import only from its own rank or a lower one, and the import graph has no cycles.
 A module missing from RANKS fails, so a new module has to be given its place. Tool plugins
@@ -103,7 +103,7 @@ CONTRACT_WORDS = {"merge", ".merge", "exec "}   # exec: also the shell's (a clus
 
 
 def test_the_core_names_no_tool():
-    """BOT.md, V60: everything the runner knows about a tool is in its folder. No core module names a
+    """V60: everything the runner knows about a tool is in its folder. No core module names a
     tool folder, or a provider, in a string (a dict key, a comparison, an argv): the rule is a gate."""
     names = {p.parent.name for p in ENV.glob("*/tool.toml")} | {p.parent.name for p in ENV.glob("*/provider.py")}
     found = []

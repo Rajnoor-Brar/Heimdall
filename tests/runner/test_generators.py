@@ -1,6 +1,6 @@
 """P4 S2's tool folders at plan time: Delphes, Sherpa and Herwig (no generator runs here).
 
-render.py is tested with the runner's own Override (L26: a look-alike fake hid F1 in v1).
+render.py is tested with the runner's own Override (L26: a look-alike fake hid a TypeError in v1).
 """
 
 from __future__ import annotations

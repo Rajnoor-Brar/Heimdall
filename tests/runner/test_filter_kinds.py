@@ -1,4 +1,4 @@
-"""New kinds in filters.toml (V203, I-106 step L5): `reason` (quoted by a failure), `fact` (kept with the attempt),
+"""New kinds in filters.toml (V203): `reason` (quoted by a failure), `fact` (kept with the attempt),
 `stat` (a counts table) and `integration` (a prepare step's σ ± err and phase); a folder's rules whatever its
 status; Sherpa's and Pythia's rules on real transcripts; [diagnose], a failed tool asked again."""
 

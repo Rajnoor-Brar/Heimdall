@@ -1,4 +1,4 @@
-"""A study's own layers over Heimdall's (docs/audit_3/06_Plan.md, phase 4.3): the machine's and the work
+"""A study's own layers over Heimdall's: the machine's and the work
 dir's style.toml under a run's style; a vocabulary name declared by a tool folder; the work dir's
 latex.toml; the plot code in framework/plot/."""
 
@@ -82,7 +82,7 @@ def test_the_plot_code_is_in_framework_plot():
 
 
 def test_a_declared_quantity_reaches_its_tool_in_a_run(roots):
-    """04 §6's row: [quantities.window] binds to the folder that declared it, with no key or target."""
+    """doc:chains's row: [quantities.window] binds to the folder that declared it, with no key or target."""
     import os
     import subprocess
     from support import HEIMDALL

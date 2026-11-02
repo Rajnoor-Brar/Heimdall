@@ -1,4 +1,4 @@
-"""The two roots and path resolution (docs/framework/01_Target.md §5.2–5.3; docs/04_Config_Reference.md §2)."""
+"""The two roots and path resolution (doc:layout; doc:paths)."""
 
 from __future__ import annotations
 

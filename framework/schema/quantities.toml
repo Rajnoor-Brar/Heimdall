@@ -2,7 +2,7 @@
 #
 # A quantity named here ([quantities.<name>] in an errand file) has this meaning wherever it goes, and its
 # values are checked against the shape when the errand file is read. How each tool consumes it is the
-# tool's own: framework/tools/<tool>/quantities.toml (docs/04_Config_Reference.md §3). A quantity not named
+# tool's own: framework/tools/<tool>/quantities.toml (doc:errand-file). A quantity not named
 # here is the user's own, reaching a tool through its `key` or `target`.
 #
 #   shape    "float" | "int" | "pdg" (a PDG id) | "str" | "bool", several joined by "|", or a list of

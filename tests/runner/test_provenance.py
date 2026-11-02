@@ -1,4 +1,4 @@
-"""Provenance across two repos (docs/framework/01_Target.md §5.6): a point records Heimdall's git state
+"""Provenance across two repos (doc:layout): a point records Heimdall's git state
 and its work dir's, which `heimdall reproduce` compares with today's."""
 
 from __future__ import annotations

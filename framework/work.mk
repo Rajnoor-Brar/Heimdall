@@ -1,4 +1,4 @@
-# framework/work.mk — a work dir's build (docs/06_Internals.md §15). The work dir's Makefile includes
+# framework/work.mk — a work dir's build (doc:build). The work dir's Makefile includes
 # it (`include $(HEIMDALL)/framework/work.mk`, from framework/templates/work/); `heimdall build` is `make all`
 # there. The rules it shares with Heimdall's Makefile are framework/rules.mk.
 #
@@ -7,7 +7,7 @@
 #   make <path>/<x>.so          a Rivet plugin (…/Rivet/<x>.so, …/Rivet_<x>.so) or a shared library
 #   make clean                  empty build/
 #
-# Conventions (§5.1):
+# Conventions:
 #   modules/<A>/<X>.cc          → build/<A>/<X>.exe  (-I modules/<A>)
 #   modules/<A>/Rivet/<x>.cc    → build/Rivet/Rivet_<x>.so, with <x>.info/.plot/.yoda copied beside it
 #   modules/<A>/Rivet_<x>.cc    → the same

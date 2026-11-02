@@ -1,5 +1,5 @@
 #pragma once
-// src/Module.hh — the module kit (docs/06_Internals.md §21).
+// src/Module.hh — the module kit (doc:cxx-kits).
 //
 // A module is a plain program. This header removes the boilerplate and nothing else:
 //
@@ -11,7 +11,7 @@
 //     an unknown one is refused before the first event, with the nearest name (a misspelt setting
 //     would otherwise run with its default);
 //   * the point's context file ($HEIMDALL_CONTEXT, or --context): every tool's card and config, by tag or
-//     by tool, through tool("rivet") and card("pythia") (docs/04_Config_Reference.md §9.4);
+//     by tool, through tool("rivet") and card("pythia") (doc:connections);
 //   * --input: HepMC3 from a file or a FIFO, plain, gz or zst (HepMC3::deduce_reader); none for an
 //     integrated program that makes its own events;
 //   * --output: written as given (the runner passes the .partial name and renames it after its
@@ -24,7 +24,7 @@
 // once, after the loop. RootOut::scale refuses a second call. A histogram drawn beside Rivet's is
 // a density: scale with "width" as well (L21).
 //
-// Exit codes (06 §11): src/Kit.hh's one table (V73): 0 ok, 1 config, 2 usage, 3 init, 4 input,
+// Exit codes (doc:failures): src/Kit.hh's one table (V73): 0 ok, 1 config, 2 usage, 3 init, 4 input,
 // 5 output, 6 stopped, 70 internal. A module runs single-threaded.
 
 #include "Status.hh"
@@ -260,7 +260,7 @@ namespace Module {
             return setting<std::string>(key, fallback, doc);
         }
 
-        // ── the point's context file ($HEIMDALL_CONTEXT; docs/04_Config_Reference.md §9.4) ──────────
+        // ── the point's context file ($HEIMDALL_CONTEXT; doc:connections) ──────────
         // A tool of the point, by its table's tag, else the one table of that tool: its card, card_parts
         // and config, and what its folder gives (Rivet's analyses and plugin_path; a product asked for
         // in generate_cards, "herwig:run" → run). A tool outside the chain is there when generate_cards

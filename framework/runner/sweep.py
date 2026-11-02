@@ -1,6 +1,6 @@
 """Points and pages from `sweeps` and `plot_points` (rank 1).
 
-docs/04_Config_Reference.md §5.1–5.2. A string entry of `sweeps` is an independent axis; a list
+doc:sweeps–5.2. A string entry of `sweeps` is an independent axis; a list
 entry is an entangled group that moves together (value i with value i); a `Listed` entry is listed
 combinations of quantities, a row each, a row setting some of them (V154). The points are the grid of
 the axes, in `sweeps` order. Pages are the grid of the `plot_points` axes, and every other swept
@@ -102,7 +102,7 @@ def kept(errand, group: list[str]) -> list[int]:
     return indices
 
 
-#: Names a point may not have: what lives beside the points in a configuration's folder (U30).
+#: Names a point may not have: what lives beside the points in a configuration's folder.
 RESERVED = ("plots", "pre", "post", "cluster")
 
 

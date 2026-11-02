@@ -1,5 +1,5 @@
-"""A work dir's sources and its git repository (audit 3, phase 5.2 and 5.3): datasets.toml (U23), `heimdall setup
---refresh` (U28), and a work dir made in a git repository (U67)."""
+"""A work dir's sources and its git repository (phase 5.2 and 5.3): datasets.toml, `heimdall setup
+--refresh`, and a work dir made in a git repository."""
 
 from __future__ import annotations
 
@@ -144,7 +144,7 @@ def test_refresh_brings_the_framework_files_up_to_date_and_leaves_the_users(scra
 
 
 def test_an_example_is_a_working_project(scratch, quiet):
-    """7.2 (U63): `heimdall setup --example jets` copies the guide's Demo project into the reader's work dir,
+    """7.2: `heimdall setup --example jets` copies the guide's Demo project into the reader's work dir,
     and the next commands take it to a page."""
     target = scratch / "study"
     added = setup.setup(target, example="jets", out=quiet[0])

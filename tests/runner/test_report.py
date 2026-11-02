@@ -1,4 +1,4 @@
-"""runner/report.py (I-108 P2, P4–P6; V207, V209–V211): a report's sources and recipe resolved into sections of
+"""runner/report.py (P4–P6; V207, V209–V211): a report's sources and recipe resolved into sections of
 figures and statistics, the default recipe, both layouts, the ways in (a folder's report.toml, a recipe, an errand file's
 [report] and its template), where each is built, what it draws for itself (resolved here, drawn by the build:
 tests/integration/test_report_draw.py), --list and --init. Every tree is tmp_path's: HEIMDALL_RESULTS, HEIMDALL_RECORDS,
@@ -314,7 +314,7 @@ def test_reports_are_built_where_results_has_their_sources_unless_told(trees):
 
 
 def test_a_document_or_title_in_the_names_before_i112_is_refused(trees):
-    """I-112: a plot document's [source].project and .run, and a title's {project} and {run}, are refused, each
+    """a plot document's [source].project and .run, and a title's {project} and {run}, are refused, each
     naming heimdall migrate --names."""
     from runner import plotdoc
     document = trees / "results" / "P" / "validation" / "01_pdf" / "plot.toml"
@@ -578,7 +578,7 @@ events = 1000
 
 
 def test_a_sets_sub_header_names_its_axes_and_what_is_fixed_and_a_cell_its_labels(trees):
-    """I-110 R3: a set's pages and curves along its axes, as their labels, and the quantities held fixed; a page cell
+    """a set's pages and curves along its axes, as their labels, and the quantities held fixed; a page cell
     read as its tags' labels, the longest tag first."""
     where = trees / "results" / "P" / "zeus" / "01_generator_pdf"
     where.mkdir(parents=True)
@@ -605,7 +605,7 @@ def test_a_sets_sub_header_names_its_axes_and_what_is_fixed_and_a_cell_its_label
 
 
 def test_a_recipes_look_is_kept_and_checked(trees):
-    """I-110 R2: [report]'s look keys on the plan; a bad one refused."""
+    """[report]'s look keys on the plan; a bad one refused."""
     assert report.planned("P/validation/01_pdf", []).look == report.Look()
     recipe(trees, "look", '[report]\nfont = "serif"\nsize = 10.5\naccent = "#d62728"\ncolumns = 3\ncontents = false\n')
     assert report.planned("P/look.toml", ["P/validation/01_pdf"]).look == report.Look("serif", 10.5, "#d62728", False, 3)
@@ -617,7 +617,7 @@ def test_a_recipes_look_is_kept_and_checked(trees):
 
 
 def test_a_cards_lines_are_highlighted():
-    """I-110 R4: keys, = and :, numbers, words and comments marked for Verbatim's commandchars; \\, { and } escaped."""
+    """keys, = and :, numbers, words and comments marked for Verbatim's commandchars; \\, { and } escaped."""
     assert report.highlight("Beams:eCM = 318. ! the energy") == r"\hdK{Beams:eCM} \hdP{=} \hdN{318.} {\hdC ! the energy}"
     assert report.highlight("HadronLevel:all = off") == r"\hdK{HadronLevel:all} \hdP{=} \hdB{off}"
     assert report.highlight("    Order: {QCD: 2}") == r"    \hdK{Order}\hdP{:} \hdLB{}QCD: 2\hdRB{}"
@@ -628,7 +628,7 @@ def test_a_cards_lines_are_highlighted():
 
 
 def test_typeset_takes_any_colour_and_keeps_a_short_table_whole():
-    """I-110 R5: a cell's ink or fill as Matplotlib names it ("white"); a table of a few rows asks for room for all of
+    """a cell's ink or fill as Matplotlib names it ("white"); a table of a few rows asks for room for all of
     them on its page, a long one for its head and a few rows."""
     typeset, paper = report._typeset(), report.statstable.bars().paper
     assert [typeset._hex(c) for c in ("white", "#2a78d6", (1.0, 0.5, 0.0))] == ["FFFFFF", "2A78D6", "FF8000"]
@@ -646,7 +646,7 @@ def test_index_titles_show_labels_as_text():
 
 
 def test_what_was_run_comes_first_and_how_the_numbers_are_made_after_it(trees):
-    """I-111: a recipe's tools sections first, in its order, then How the numbers are made, then its results in its
+    """a recipe's tools sections first, in its order, then How the numbers are made, then its results in its
     order; context = "last" puts them after; method = false leaves the method out."""
     recorded(trees)
     body = ('\n[[report.section]]\ntitle = "Spectra"\npages = ["d01-*"]\n\n[[report.section]]\ntitle = "Numbers"\n'

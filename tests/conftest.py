@@ -1,4 +1,4 @@
-"""Test setup shared by every suite (docs/framework/01_Target.md §5.7).
+"""Test setup shared by every suite (doc:layout).
 
 * The runner package is importable as `runner` (framework/ on sys.path), and tests/ is on sys.path for
   `support` (the shared helpers).
@@ -57,7 +57,7 @@ _sync(FIXTURE, WORK)
 os.environ["HEIMDALL"] = str(REPO)
 from runner.paths import RETIRED  # noqa: E402
 
-for name in ("HEIMDALL_CONFIGS", *RETIRED):                 # a shell's retired names, I-109's HEP_* too
+for name in ("HEIMDALL_CONFIGS", *RETIRED):                 # a shell's retired names, the old HEP_* too
     os.environ.pop(name, None)
 os.environ["HEIMDALL_WORK"] = str(WORK)
 os.environ["HEIMDALL_RESULTS"] = str(SCRATCH / "results")

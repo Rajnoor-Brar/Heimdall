@@ -1,4 +1,4 @@
-# recipes/base.toml — the base: what the stack is built with and runs on, from conda-forge (docs/conda/).
+# recipes/base.toml — the base: what the stack is built with and runs on, from conda-forge (doc:base).
 #
 # With base = "conda" (settings.toml; the default), build_stack.py makes <machine root>/base/ a pixi
 # workspace from this file before it builds anything: the compilers, the build tools, the libraries the
@@ -26,7 +26,7 @@ aarch64-apple-darwin       = "f4e32ea91970d4e11739488817979a5f2c6ebbb9cedb0d6dea
 channels = ["conda-forge"]
 
 # What the stack links, by what needs it: a change in what is installed of these (or of the compilers,
-# the C++ runtime, Python) marks every package built on them "changed" (docs/conda/02_Design.md §4).
+# the C++ runtime, Python) marks every package built on them "changed" (doc:base).
 [base.libraries]
 root      = ["libxml2", "libxml2-devel", "fftw", "libsqlite", "liblzma-devel", "lz4-c", "xxhash", "zstd", "zlib", "openssl",
              "libcurl", "libuuid", "krb5", "tbb-devel", "xorg-libx11", "xorg-libxpm", "xorg-libxft",
@@ -46,7 +46,7 @@ framework = ["tomlplusplus"]                 # Paint, App_Pythia, the module kit
 # What the build and Heimdall run, not link: a change rebuilds nothing.
 [base.tools]
 build = ["make", "cmake", "pkg-config", "autoconf", "automake", "libtool", "patch", "pip"]
-decks = ["pandoc", "poppler"]                # heimdall deck, sheets; TeX stays the OS's (docs/conda/01 §7)
+decks = ["pandoc", "poppler"]                # heimdall deck, sheets; TeX stays the OS's (doc:base)
 whizard = ["ocaml >=4.08"]                   # O'Mega's compiler. ">=4.08", Whizard's floor: a lock keeps an old
                                              # OCaml that "*" allows (4.06.1, chosen beside ocaml-findlib, whose
                                              # builds hold OCaml at 4.14 with GCC 13-14 only; Whizard does not use

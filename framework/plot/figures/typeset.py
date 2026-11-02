@@ -1,4 +1,4 @@
-"""framework/plot/figures/typeset.py — paper.py's document typeset in LaTeX (I-110): a report's statistics as its own
+"""framework/plot/figures/typeset.py — paper.py's document typeset in LaTeX: a report's statistics as its own
 text, not pictures of other pages.
 
 The third renderer of the model (beside paper.figure, Matplotlib's A4 pages, and webpage.render, one HTML page):
@@ -14,7 +14,7 @@ the same facts, items and notes, set in the report's fonts and colours (the macr
   summing row after a rule.
 * A **ranking** is a table of bars drawn with rules: from 0, or both ways from its base (a ratio's 1), as far as
   paper.reach; a bar beyond is cut, its value marked, its colour paper.colour_of's (V205).
-* **`definition(name, formula, text, tex)`, `paragraph(text, tex)`** (I-111): a report's How the numbers are made, a
+* **`definition(name, formula, text, tex)`, `paragraph(text, tex)`**: a report's How the numbers are made, a
   statistic's name, its formula as display math (LaTeX, as given), and what it sums over and means; prose, with the
   notes' plain-text symbols (y_ref, Δx, log10 x) set as math.
 * **`bars(rows, title, subtitle, panels, scale, tex, width)`**: a page's statistics as a table, a row a curve, a

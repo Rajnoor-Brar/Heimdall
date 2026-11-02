@@ -1,4 +1,4 @@
-"""runner/statstable.py (I-108 P1, V206): the statistics table out of plot.py. A page's numbers as rows, a set's
+"""runner/statstable.py (V206): the statistics table out of plot.py. A page's numbers as rows, a set's
 statistics.csv written and read back as the same rows, and its bar graphs and summary written."""
 
 from __future__ import annotations

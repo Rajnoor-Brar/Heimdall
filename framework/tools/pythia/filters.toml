@@ -1,5 +1,4 @@
-# framework/tools/pythia/filters.toml — what App_Pythia prints besides its status protocol (V203; docs/06_Internals.md
-# §23). Read whatever the folder's status is. A rule never fails a run; the first that matches a line wins.
+# framework/tools/pythia/filters.toml — what App_Pythia prints besides its status protocol (V203; doc:events). Read whatever the folder's status is. A rule never fails a run; the first that matches a line wins.
 
 # PYTHIA Error and Warning Messages Statistics, at the end: a counts table, kept with the attempt, not said.
 #   " | 237176   Error in SimpleSpaceShower::pT2nearThreshold: stuck in loop      |"

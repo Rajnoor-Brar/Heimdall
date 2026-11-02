@@ -10,11 +10,11 @@
 #   bash recipes/platforms/mac/build.sh base=system           # the old way: Homebrew's packages and a venv
 #   BREW_BUNDLE=0 bash recipes/platforms/mac/build.sh base=system   # … without `brew bundle` (it is installed)
 #
-# The conda base (the default; docs/conda/): macOS's own Python is too old to run build_stack.py (it
+# The conda base (the default; doc:base): macOS's own Python is too old to run build_stack.py (it
 # reads TOML), so this fetches pixi first (recipes/base.toml: its release and sha256) and runs
 # build_stack.py with a Python pixi provides; build_stack.py then makes the base with the same pixi.
 # Not yet proven by a build on a Mac. base=system: Homebrew's packages (Brewfile) and Python, as before.
-# Rerunning resumes: finished packages are stamped and skipped (recipes/README.md).
+# Rerunning resumes: finished packages are stamped and skipped (doc:stack).
 
 set -euo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

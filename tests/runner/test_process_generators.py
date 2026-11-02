@@ -49,7 +49,7 @@ def test_madgraph_launch_script_and_proc_card():
     plugin = tools.folders()["madgraph"].plugin
     launch = plugin.card([PROC], [Override("beams", [2212, 11], "q"), Override("ebeam1", 275, "q"),
                                   Override("nevents", 1000, "built-in")], render_context("madgraph", tag="madgraph")).splitlines()
-    assert launch[:2] == ["set automatic_html_opening False", "launch {prepared}/process -n r{seed}"]   # 00/B39
+    assert launch[:2] == ["set automatic_html_opening False", "launch {prepared}/process -n r{seed}"]
     assert {"set lpp1 1", "set lpp2 0", "set ebeam1 275", "set nevents 1000", "set iseed {seed}"} <= set(launch)
     proc = plugin.prepare_card(launch, [PROC], {"prepared": "/cache/k"}).splitlines()
     assert proc[0] == "set automatic_html_opening False" and proc[-1] == "output /cache/k/process -f"

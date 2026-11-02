@@ -1,6 +1,6 @@
-# env/stack.toml — the software stack, in one place (audit 1 B7, V78).
+# env/stack.toml — the software stack, in one place (V78).
 #
-# Each entry is one library or program of the stack (Heimdall's stack/, docs/06_Internals.md §15.3):
+# Each entry is one library or program of the stack (Heimdall's stack/, doc:build):
 #   flags    the command that prints its compile and link flags: flags.mk's FLAGS_<name>, which a
 #            source asks for by `// requires: <name>` (env/flags.sh reads this file)
 #   dir      a library with no *-config: its install directory (shell text, expanded) …

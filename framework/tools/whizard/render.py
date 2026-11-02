@@ -1,4 +1,4 @@
-"""framework/tools/whizard/render.py — Whizard's SINDARIN point card (docs/06_Internals.md §16, L13).
+"""framework/tools/whizard/render.py — Whizard's SINDARIN point card (doc:tool-contract, L13).
 
 SINDARIN is a script: an assignment takes effect when it runs, and the base card's `integrate` and
 `simulate` read what is set at that moment. So the point card comes FIRST and includes the base
@@ -62,7 +62,7 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
     if owned:
         raise HeimdallError(f"the base card sets {', '.join(owned)}, which the plan owns",
                        where=f"[tools.{context.get('tag')}].baseconfig",
-                       hint="SINDARIN runs the base after the point card, so it would replace the plan's value (see L13)")
+                       hint="SINDARIN runs the base after the point card, so it would replace the plan's value")
     lines = ["# SINDARIN runs in order: the plan's settings first, the base card (included last) after."]
     structure = STRUCTURE.search(base)
     for key, value, origin in overrides:               # the runner's Override (L26)

@@ -1,4 +1,4 @@
-"""The errand file's third form (docs/audit_3/03_Configuration.md §6), read as the second's (rank 0).
+"""The errand file's third form, read as the second's (rank 0).
 
 A v3 file is translated, table by table, into the v2 tables the loader has always read, so a study in
 either form is one Errand: the same points, folders and identities. What v3 writes once and v2 wrote
@@ -54,12 +54,12 @@ NAMES_HINT = "heimdall migrate --names rewrites it"
 
 
 def refuse_old_names(raw: dict, where: str) -> None:
-    """A file in the names before I-112 ([run], [errand].project): refused, with the command that rewrites it."""
+    """A file in the names before Assignment/Errand ([run], [errand].project): refused, with the command that rewrites it."""
     if "run" in raw:
-        raise HeimdallError("[run] is now [errand] (I-112's names)", where=f"{where}: [run]", hint=NAMES_HINT)
+        raise HeimdallError("[run] is now [errand]", where=f"{where}: [run]", hint=NAMES_HINT)
     errand = raw.get("errand")
     if isinstance(errand, dict) and "project" in errand:
-        raise HeimdallError("[errand].project is now [errand].assignment (I-112's names)", where=f"{where}: [errand].project",
+        raise HeimdallError("[errand].project is now [errand].assignment", where=f"{where}: [errand].project",
                             hint=NAMES_HINT)
 
 

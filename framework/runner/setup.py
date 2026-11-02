@@ -1,6 +1,6 @@
 """`heimdall setup` and `heimdall where`: make a work dir, and say which Heimdall and work dir a shell sees (rank 5).
 
-docs/framework/01_Target.md §4–§5 (D3, D14). What a work dir gets is framework/templates/work/: a
+doc:layout. What a work dir gets is framework/templates/work/: a
 new file there is a template edit, never a code change. In the template, `{{name}}`, `{{revision}}`,
 `{{date}}`, `{{A}}` and `{{a}}` are filled in; nothing else is touched (JSON keeps its braces).
 
@@ -8,12 +8,12 @@ new file there is a template edit, never a code change. In the template, `{{name
     heimdall setup <dir> --refresh [--yes]
     heimdall where [--heimdall | --work]
 
-A work dir may be made in a git repository (U67): a fresh one (only .git/ and a hosting site's
+A work dir may be made in a git repository: a fresh one (only .git/ and a hosting site's
 README, LICENSE, .gitignore) needs no --adopt; its own README.md and CLAUDE.md are kept, Heimdall's
 guide going beside them as HEIMDALL.md, and its .gitignore gains a marked block of the template's
 lines. `--git` commits the added files only, in the repository the folder is in (a nested one only
 with --git=new). `datasets.toml` lists the large reference files, fetched here with their sha256
-checked (U23); `--refresh` brings the framework's own files up to today's template (U28).
+checked; `--refresh` brings the framework's own files up to today's template.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from .paths import MARKER_FILE, STACK_VAR, find_work, heimdall_root, is_work, ma
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "work"
 STARTER = "starter"
 #: A fresh repository's own entries (git init, or a hosting site's new repo): a folder holding only
-#: these (and LICENSE*) is empty enough to become a work dir without --adopt (U67).
+#: these (and LICENSE*) is empty enough to become a work dir without --adopt.
 FRESH = (".git", "README.md", "README", "COPYING", ".gitignore", ".gitattributes", ".github")
 #: The guide's names: a repository's own are kept, and Heimdall's goes in GUIDE beside them.
 GUIDES = ("README.md", "CLAUDE.md")
@@ -46,11 +46,11 @@ GUIDE = "HEIMDALL.md"
 #: The marked block of ignores heimdall setup keeps in a .gitignore that is not the template's.
 BLOCK, BLOCK_END = "# Heimdall (heimdall setup): what the runner and the build make", "# /Heimdall"
 MANIFEST = "datasets.toml"
-#: `heimdall setup --example <name>` (U63): a working assignment of the tests' own work dir, which the suite
+#: `heimdall setup --example <name>`: a working assignment of the tests' own work dir, which the suite
 #: keeps running, copied into the user's: name → (its assignment, what it says to run first).
 EXAMPLES = {"jets": ("Demo", "Demo/jets single")}
 EXAMPLE_WORK = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "work"
-#: The key folders every work dir has (framework/01 §4.1).
+#: The key folders every work dir has (doc:layout).
 FOLDERS = ("configs", "modules", "datasets", "results", "records", "reports", "build")
 
 
@@ -95,7 +95,7 @@ def _blocked(path: Path, wanted: list[str]) -> list[str]:
 
 
 def _kept(path: Path) -> list[str]:
-    """The `!` lines of a file's marked block: what heimdall setup un-ignored there (U67)."""
+    """The `!` lines of a file's marked block: what heimdall setup un-ignored there."""
     lines = path.read_text(encoding="utf-8").splitlines() if path.is_file() else []
     if BLOCK not in lines:
         return []
@@ -271,7 +271,7 @@ def _example(target: Path, name: str, out=print) -> list[str]:
 
 
 def _commit(target: Path, files: list[str], values: dict[str, str], new: bool = False, out=print) -> None:
-    """`--git` (U67): the files heimdall setup added or merged, committed alone (`git commit -- <paths>`: what
+    """`--git`: the files heimdall setup added or merged, committed alone (`git commit -- <paths>`: what
     the user had staged stays staged), in the repository the folder is in; `git init` first when it is
     in none. Inside a larger repository, a repository of its own only with --git=new."""
     def run(*args) -> subprocess.CompletedProcess:
@@ -327,7 +327,7 @@ def _sha256(path: Path) -> str:
 
 
 def fetch_datasets(target: Path, out=print) -> list[str]:
-    """datasets.toml (U23): `[files."<name>"] url = …, sha256 = …`, each fetched into datasets/<name>
+    """datasets.toml: `[files."<name>"] url = …, sha256 = …`, each fetched into datasets/<name>
     when it is not there, its sha256 checked, and kept out of git by datasets/.gitignore's marked block
     (small files are tracked as they are). Returns the files heimdall setup changed (the .gitignore)."""
     manifest = target / MANIFEST
@@ -369,12 +369,12 @@ def fetch_datasets(target: Path, out=print) -> list[str]:
     return ["datasets/.gitignore"] if _blocked(ignore, [f"/{n}" for n in names]) else []
 
 
-#: The framework's own files of a work dir, which --refresh brings up to today's template (U28).
+#: The framework's own files of a work dir, which --refresh brings up to today's template.
 REFRESHED = ("Makefile", "README.md", "CLAUDE.md", GUIDE)
 
 
 def refresh(target: Path, *, yes: bool = False, out=print, ask=None) -> int:
-    """`heimdall setup <dir> --refresh` (U28): each framework-written file (the Makefile, .vscode/, Heimdall's
+    """`heimdall setup <dir> --refresh`: each framework-written file (the Makefile, .vscode/, Heimdall's
     README.md and CLAUDE.md or HEIMDALL.md) that differs from today's template, as a diff, then written
     (asked on a terminal unless --yes); the .gitignore's marked block brought up to date. The user's
     files are never touched: a README or CLAUDE.md that is not Heimdall's stays. Returns how many changed."""
@@ -429,7 +429,7 @@ def refresh(target: Path, *, yes: bool = False, out=print, ask=None) -> int:
 
 
 def expects_warning(work: Path) -> str:
-    """A warning when the work dir was made by a Heimdall this one does not contain (framework/01 §4.2), or "".
+    """A warning when the work dir was made by a Heimdall this one does not contain (doc:layout), or "".
 
     Warned about, never enforced, as [config.meta] is (V97); no revision, or no git, is no warning."""
     expects = work_meta(work)["expects"]
@@ -448,7 +448,7 @@ def expects_warning(work: Path) -> str:
 
 
 def _pth_problem(heimdall: Path) -> str:
-    """What is wrong with the venv's heimdall.pth (framework/01 §5.5), or ""."""
+    """What is wrong with the venv's heimdall.pth (doc:layout), or ""."""
     for folder in site.getsitepackages():
         pth = Path(folder, "heimdall.pth")
         if pth.is_file():

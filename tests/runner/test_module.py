@@ -1,4 +1,4 @@
-"""Module programs in the chain (P4 S1): the module folder's argv, the producer's sidecar only for a
+"""Module programs in the chain: the module folder's argv, the producer's sidecar only for a
 file chain, the count check through the kit's report, and seeds that follow the generator."""
 
 from __future__ import annotations

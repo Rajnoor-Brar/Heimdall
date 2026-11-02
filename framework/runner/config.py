@@ -1,6 +1,6 @@
 """The errand file: load it, check it strictly, and hand back a typed model (rank 1).
 
-docs/04_Config_Reference.md. The checks here are the ones that need only the file (rules C1, C2,
+doc:errand-file. The checks here are the ones that need only the file (rules C1, C2,
 C3, C5 and the shape of every key). The ones that need the tool folders, the master TOML or the
 point are in `quantities`, `tools` and `execute`.
 
@@ -21,7 +21,7 @@ from .paths import config_file, configs_root, heimdall_root, resolve
 from .quantities import check_shapes, select
 from .sweep import Listed, check_curve_style, set_entries
 
-#: How a point's seeds are chosen (V39, 06 §8); the schema's [errand.seed_type].choices.
+#: How a point's seeds are chosen (V39, doc:identity); the schema's [errand.seed_type].choices.
 SEED_TYPES = tuple(schema.keys("errand")["seed_type"]["choices"])
 DEFAULT = schema.DEFAULT
 #: A run's tag (V223): a short name that tells its configuration folder apart, never part of an identity.
@@ -103,7 +103,7 @@ class Configuration:
     manual_seed: int | None = None                      # seed_type = "manual": every point's seed
     origins: dict = field(default_factory=dict)         # key → where its value came from (--show-config, V56)
     cluster: dict = field(default_factory=dict)         # [cluster], this configuration's over the run's (V114); never in an identity
-    serial_auto: bool = False                           # v3 without a serial: the runner numbers its folder (03 §6)
+    serial_auto: bool = False                           # v3 without a serial: the runner numbers its folder (doc:errand-file)
     draw: object = True                                 # [errand].plot (V167): true, false, or the sets the run draws
     measure: object = True                              # [errand].stats (V168): true, false, or the sets it measures
     serial_note: str = ""                               # why the runner chose the number it did (--plan)
@@ -221,7 +221,7 @@ def _deep(base: dict, over: dict) -> dict:
 
 
 def _generate_cards(entries, where: str, tools: dict) -> list[str]:
-    """generate_cards: tool tables (and "<tag>:<product>") the context file gets beyond the chain (04 §9.4);
+    """generate_cards: tool tables (and "<tag>:<product>") the context file gets beyond the chain (doc:connections);
     whether a product exists is the tool folder's, checked when the point is planned."""
     if not isinstance(entries, list) or not all(isinstance(e, str) for e in entries):
         raise HeimdallError("generate_cards is a list of tool tables: [\"pythia\", \"rivet\", \"herwig:run\"]", where=where)
@@ -252,7 +252,7 @@ def _inferred(groups: list[list[str]], tools: dict, keep: dict, base: dict, quan
             if same and later:
                 raise HeimdallError(f"'{name}' is read in {tag}'s group ({', '.join(same)}) and after it ({', '.join(later)}): "
                                "a FIFO has one reader", where=f"[tools.{tag}].output",
-                               hint="write two outputs, one for each: fan-out (see V16)")
+                               hint="write two outputs, one for each: fan-out")
             if same and name not in fifo:
                 fifo.append(name)
             elif later and keep.get(tag) is False and name not in files:
@@ -285,7 +285,7 @@ def _as_list(value) -> list:
 
 
 def _groups(entries: list, where: str, tools: dict) -> list[list[str]]:
-    """`tools = [A, [B, C], D]` → [[A], [B, C], [D]] (04 §5.4, C5)."""
+    """`tools = [A, [B, C], D]` → [[A], [B, C], [D]] (doc:sweeps, C5)."""
     groups = []
     for entry in entries:
         members = entry if isinstance(entry, list) else [entry]
@@ -481,8 +481,8 @@ def apply_sets(raw: dict, sets: list[str]) -> None:
         if not sep or not key:
             raise HeimdallError(f"--set expects KEY=VALUE, got '{item}'")
         parts = key.strip().split(".")
-        if parts[0] == "run":                                       # I-112's names
-            raise HeimdallError(f"--set {key.strip()}: [run] is now [errand] (I-112's names)",
+        if parts[0] == "run":                                       # the old names
+            raise HeimdallError(f"--set {key.strip()}: [run] is now [errand]",
                            hint=f"--set {'.'.join(['errand', *parts[1:]])}={value.strip()}")
         table = raw
         for part in parts[:-1]:
@@ -501,7 +501,7 @@ def _read(path: Path) -> dict:
 
 def _form(raw: dict, path: Path) -> dict:
     """A v3 file as v2's tables; a v2 file as it is ([file] schema = 2 says so: its other keys are [config]'s).
-    A file in the names before I-112 ([run]) is refused, with the command that rewrites it."""
+    A file in the names before Assignment/Errand ([run]) is refused, with the command that rewrites it."""
     v3.refuse_old_names(raw, str(path))
     if v3.is_v3(raw):
         return v3.translate(raw, str(path))
@@ -532,7 +532,7 @@ ENTRIES = ("quantities", "tools")
 
 def _over(base: dict, over: dict) -> dict:
     """`over`'s tables laid over `base`'s (V56): whole entries for quantities and tools, but a v3 file's
-    merge key by key (03 §6: a tool's one key changed, a quantity's fixed given); [errand]'s keys one by one;
+    merge key by key (doc:errand-file: a tool's one key changed, a quantity's fixed given); [errand]'s keys one by one;
     tables deep. The v3 mark is the file's
     own (the last one laid: the file being run)."""
     out = {k: v for k, v in base.items() if k != v3.MARK}
@@ -579,8 +579,8 @@ def _import_path(name, assignment: str, where: str, folder: Path | None = None) 
 def _parts(dotted, where: str) -> list[str]:
     if not isinstance(dotted, str) or not dotted or any(not p for p in dotted.split(".")):
         raise HeimdallError(f"expected a dotted key (quantities.pdf, cfgs.default, plot.figures.eta), got {dotted!r}", where=where)
-    if dotted.split(".")[0] == "run":                                       # I-112's names
-        raise HeimdallError(f"'{dotted}': [run] is now [errand] (I-112's names)", where=where, hint=v3.NAMES_HINT)
+    if dotted.split(".")[0] == "run":                                       # the old names
+        raise HeimdallError(f"'{dotted}': [run] is now [errand]", where=where, hint=v3.NAMES_HINT)
     return dotted.split(".")
 
 
@@ -695,7 +695,7 @@ def _imports(raw: dict, path: Path, assignment: str, chain: tuple[Path, ...]) ->
             raise HeimdallError(f"imports go round in a circle: {circle}", where=where)
         part = _read(source)
         if "master" in part:
-            raise HeimdallError("[master] is [config] now: master_toml is master, include is import (see V93)",
+            raise HeimdallError("[master] is [config] now: master_toml is master, include is import",
                            where=f"{source}: [master]", hint="heimdall migrate rewrites it")
         theirs = _assignment_of(source, part, assignment)
         part, inner, deeper = _imports(part, source, theirs, (*chain, source.resolve()))
@@ -796,7 +796,7 @@ def _clash(one: str, other: str) -> bool:
 
 def _own_folders(errand) -> None:
     """A configuration the runner numbers has its folder to itself: another of this file with its label
-    would share the numbers. A run with compare figures keeps the folder `compare` for them (U30)."""
+    would share the numbers. A run with compare figures keeps the folder `compare` for them."""
     figures = (errand.plot or {}).get("figures") or {}
     if any(isinstance(f, dict) and f.get("class") == "compare" for f in figures.values()):
         for key, c in errand.configurations.items():
@@ -1003,7 +1003,7 @@ def plot_of(name: str) -> dict:
 
 def _check_used(errand: Errand) -> None:
     """A quantity of this file's own (not an import's) that no configuration varies, fixes or chooses a tool
-    by would change nothing: refused, with the fix (U36)."""
+    by would change nothing: refused, with the fix."""
     used: set[str] = set()
     for configuration in errand.configurations.values():
         used |= {n for entry in configuration.sweeps for n in (entry if isinstance(entry, list) else [entry])}
@@ -1053,9 +1053,9 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
     raw, form, keep, silent, families = _marks(raw)
     sections = schema.sections()
     if "master" in raw:                                    # break and migrate (V93)
-        raise HeimdallError("[master] is [config] now: master_toml is master, include is import (see V93)", where=f"{where}: [master]",
+        raise HeimdallError("[master] is [config] now: master_toml is master, include is import", where=f"{where}: [master]",
                        hint="heimdall migrate rewrites it")
-    v3.refuse_old_names(raw, where)                        # I-112's names
+    v3.refuse_old_names(raw, where)                        # the old names
     for key in raw:
         if key not in sections:
             raise HeimdallError(f"unknown section [{key}]", where=where,
@@ -1071,7 +1071,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
     if isinstance(errand.get(DEFAULTS), dict):                      # V99: [errand] gives what it gave
         if strict:
             raise HeimdallError(f"[errand.{DEFAULTS}] is [errand] now: its keys go in [errand] itself, which every configuration "
-                           "starts from (see V99)", where=f"{where}: [errand.{DEFAULTS}]", hint="heimdall migrate moves them")
+                           "starts from", where=f"{where}: [errand.{DEFAULTS}]", hint="heimdall migrate moves them")
         errand = {**{k: v for k, v in errand.items() if k != DEFAULTS}, **errand[DEFAULTS]}   # it was above [errand]
         raw = {**raw, "errand": errand}
     old = [k for k, v in errand.items() if isinstance(v, dict) and k != CFGS and k not in schema.keys("errand")]
@@ -1218,7 +1218,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
         for name in plot_points:
             if name not in swept:
                 raise HeimdallError(f"plot_points names '{name}', which is not swept here", where=f"{at}.plot_points",
-                               hint="pages are cells of the grid of swept quantities (04 §5.2)")
+                               hint="pages are cells of the grid of swept quantities (docs/stable/guide/sweeps.md)")
             for entry in (e for e in sweeps if isinstance(e, Listed) and name in e):     # V154
                 if missing := [n for n, row in enumerate(entry.rows, start=1) if name not in row]:
                     raise HeimdallError(f"plot_points names '{name}', which listed point {missing[0]} leaves out",
@@ -1229,7 +1229,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
             if name not in axes:
                 raise HeimdallError(f"combine names '{name}', which is not swept here as an axis of its own",
                                where=f"{at}.combine",
-                               hint="the points that differ only in a combined quantity are merged into one (04 §5.5)")
+                               hint="the points that differ only in a combined quantity are merged into one (docs/stable/guide/scale.md)")
             if name in plot_points:
                 raise HeimdallError(f"'{name}' is both combined and a page axis (plot_points)", where=f"{at}.combine",
                                hint="a combined quantity's points become one curve: it cannot also make pages")
@@ -1359,7 +1359,7 @@ def figure_tables(plot: dict) -> dict[str, tuple[dict, str]]:
     return {key: (table, f"[plot.figures.{key}]") for key, table in plot.get("figures", {}).items()}
 
 
-#: The keys a [cluster.pre] or [cluster.finish] table may set: a job's resources (04 §16).
+#: The keys a [cluster.pre] or [cluster.finish] table may set: a job's resources (doc:scale).
 CLUSTER_JOB_KEYS = ("time", "partition", "account", "qos", "constraint", "gres", "memory", "cpus", "sbatch")
 
 
@@ -1399,7 +1399,7 @@ def check_stats(stats: dict, where: str) -> None:
         _filter_shape(stats["reference"], f"{where}.reference")
 
 
-# ── a report's recipe ([report], I-108) ─────────────────────────────────────────────────────────
+# ── a report's recipe ([report]) ─────────────────────────────────────────────────────────
 
 #: What a report's section shows: exactly one of these (framework/schema/report.toml).
 REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files", "tools")
@@ -1411,12 +1411,12 @@ PARTS = ("ranking", "crossed", "table")
 NOT_IN_A_RUN = ("from", "output")
 
 
-#: A report title's placeholders before I-112's names → today's ([source]'s keys).
+#: A report title's placeholders before the Assignment/Errand names → today's ([source]'s keys).
 OLD_PLACEHOLDERS = {"project": "assignment", "run": "errand"}
 
 
 def check_report(table, where: str, run_toml: bool = False) -> None:
-    """[report], a report's recipe (I-108, V209): every key against schema/report.toml, each [[report.section]]
+    """[report], a report's recipe (V209): every key against schema/report.toml, each [[report.section]]
     titled and showing one item, its stats keys known and its plot keys checked as [plot]'s. An errand file's
     names neither from nor output: each of its folders is its report's source, and is built where it is."""
     if not isinstance(table, dict):
@@ -1424,10 +1424,10 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
     schema.check(table, "report", where)
     if "accent" in table and not re.fullmatch(r"#[0-9A-Fa-f]{6}", table["accent"]):
         raise HeimdallError(f"accent is a colour as #rrggbb, not {table['accent']!r}", where=f"{where}.accent", hint='accent = "#2a78d6"')
-    for key in ("title", "subtitle"):                                   # I-112's names
+    for key in ("title", "subtitle"):                                   # the old names
         for old, new in OLD_PLACEHOLDERS.items():
             if isinstance(table.get(key), str) and "{" + old + "}" in table[key]:
-                raise HeimdallError(f"{{{old}}} is now {{{new}}} (I-112's names)", where=f"{where}.{key}", hint=v3.NAMES_HINT)
+                raise HeimdallError(f"{{{old}}} is now {{{new}}}", where=f"{where}.{key}", hint=v3.NAMES_HINT)
     for key, most in (("size", 12), ("columns", 4)):
         if key in table and table[key] > most:
             raise HeimdallError(f"{key} is at most {most}, not {table[key]}", where=f"{where}.{key}")

@@ -1,4 +1,4 @@
-"""`heimdall doctor`: what this machine's stack and Heimdall can do, checked (docs/audit_3/06_Plan.md, phase 2).
+"""`heimdall doctor`: what this machine's stack and Heimdall can do, checked.
 
 The packages' checks are their recipes' (`[[packages.<name>.verify]]` in recipes/toolkits/, run by
 recipes/verify.py through recipes/build_stack.py), with a scan of every program and library for
@@ -159,7 +159,7 @@ def record(rows: list[tuple[str, str, str, str]]) -> Path:
     """This machine's row of the support matrix: when, what, and what did not pass."""
     revision = first_line(["git", "-C", str(heimdall_root()), "rev-parse", "--short", "HEAD"])
     versions = {package: note for package, check, result, note in rows if check == "version" and result == "ok"}
-    lines = [f"# {support_file().name} — `heimdall doctor --record` on this machine; the support matrix's row (recipes/README.md)",
+    lines = [f"# {support_file().name} — `heimdall doctor --record` on this machine; the support matrix's row (doc:stack)",
              f'date     = "{datetime.date.today().isoformat()}"',
              f'platform = "{next((n for p, c, r, n in rows if c == "os"), "")}"',
              f'heimdall = "{revision}"',

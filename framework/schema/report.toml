@@ -1,9 +1,9 @@
-# framework/schema/report.toml — a report's recipe (I-108, V207, V209, V211): [report] and its [[report.section]]s, in a
+# framework/schema/report.toml — a report's recipe (V207, V209, V211): [report] and its [[report.section]]s, in a
 # recipe of its own (configs/<A>/<E>.toml, [report] alone), in an errand file (what its Runs' reports show), and
 # in the report.toml a job writes beside each Run's plot.toml.
 #
 # Every key's type, default and meaning, written once: runner/schema.py checks a recipe against it (its tables
-# "report" and "section"), and `make docs` writes the tables into docs/04_Config_Reference.md.
+# "report" and "section"), and `make docs` writes the tables into doc:errand-file.
 # Entries as in run.toml: type, items, choices, min, default, required, doc, notes.
 
 [report.title]

@@ -1,5 +1,5 @@
 # framework/rules.mk — what Heimdall's Makefile and a work dir's (framework/work.mk) share
-# (docs/06_Internals.md §15): the flags cache, linking by `// requires:`, and the rule templates.
+# (doc:build): the flags cache, linking by `// requires:`, and the rule templates.
 #
 # The includer sets, before including this file:
 #   MK          where flags.mk, flags.log and deps/ go
@@ -8,10 +8,10 @@
 #   out_of      a source's output       alias_of   its short target     incs_of   its own -I flags
 #   goal_src    the source of a goal named on the command line (<path>/<X>.exe, <path>/<x>.so)
 #
-# Linking (§5.2): a source names its libraries in a `// requires: pythia8 hepmc3 …` line near the
+# Linking: a source names its libraries in a `// requires: pythia8 hepmc3 …` line near the
 # top (`none` for none; `pkg:<name>` for any library pkg-config knows; a trailing `(…)` is a note). Without the line it gets every library that
 # was found. Including "Module.hh" adds hepmc3 and toml (and root, when ROOT is ready-made in the base).
-# Flags come from $(MK)/flags.mk (§5.3).
+# Flags come from $(MK)/flags.mk.
 
 ifndef HEIMDALL
   $(error HEIMDALL is not set: load Heimdall's environment first (source <Heimdall>/gjallarhorn.sh))
@@ -29,7 +29,7 @@ CXX_STD  := $(or $(shell cat $(HEIMDALL_INSTALL)/.stamps/cxx_std 2>/dev/null),17
 # -pthread: the conda base's glibc (2.28) keeps threads in libpthread, which nothing else links (App_Pythia's
 # std::thread: "undefined reference to pthread_join", 2026-10-15); harmless where glibc has them in libc.
 BASE      = -std=c++$(CXX_STD) $(CXXFLAGS) -pthread -I $(HEIMDALL)/src $(ON_BASE)
-# A stack built on a conda base (docs/conda/): CXX is its compiler (base/activate.sh), and what is built
+# A stack built on a conda base (doc:base): CXX is its compiler (base/activate.sh), and what is built
 # here finds the base's libraries (its libstdc++ first) by rpath, never through LD_LIBRARY_PATH. ($(comma):
 # a bare comma would end $(if)'s argument.)
 comma    := ,
@@ -102,7 +102,7 @@ $(call lib_of,$(1)): $(1) $(FLAGS_MK)
 $(basename $(1)).so: $(call lib_of,$(1))
 endef
 
-# A Rivet plugin, and its .info/.plot/.yoda as real targets so an edit re-copies them (00/B44).
+# A Rivet plugin, and its .info/.plot/.yoda as real targets so an edit re-copies them.
 # rivet-build gets the shared-header paths (L20) and, when the .info says `Requires: ONNX`, ONNX. It runs a
 # make of its own, so its line starts with `+`: that make shares our -j job slots. `sed -i.tmp` and
 # the rm, not `sed -i`: BSD sed (macOS) takes no bare -i.

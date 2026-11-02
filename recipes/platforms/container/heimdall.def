@@ -1,6 +1,6 @@
 # recipes/platforms/container/heimdall.def — an Apptainer (or SingularityCE) image of Heimdall and a machine root
 # built inside it: /opt/heimdall and /opt/himinbjorg, read-only. No Docker: Apptainer pulls the stock Ubuntu.
-# `heimdall image build` fills the {{ … }} below and runs the build (docs/05_Commands_and_Tools.md §2):
+# `heimdall image build` fills the {{ … }} below and runs the build (doc:environment):
 #   heimdall image build packages=@core-conda       # → <machine root>/images/core-conda.sif
 # By hand (Apptainer 1.2+, which fills them from --build-arg; every one is needed), from a clean copy of Heimdall:
 #   apptainer build --fakeroot --build-arg HEIMDALL=/tmp/heimdall --build-arg PACKAGES=@primary --build-arg CORES=0 \

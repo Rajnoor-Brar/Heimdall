@@ -1,4 +1,4 @@
-# framework/tools/pythia/tool.toml — the standard Pythia tool: App_Pythia.exe in the machine root's apps/ ({apps}) (docs/05_Commands_and_Tools.md §16).
+# framework/tools/pythia/tool.toml — the standard Pythia tool: App_Pythia.exe in the machine root's apps/ ({apps}) (doc:tools-pythia).
 [tool]
 category        = "event-generator"
 executable      = "{apps}/App_Pythia.exe"
@@ -22,7 +22,7 @@ repeatable = ["onIfAny", "onIfAll", "onIfMatch", "offIfAny", "offIfAll", "offIfM
 owned      = ["Main:numberOfEvents", "Parallelism:numThreads", "Random:setSeed", "Random:seed",
               "Parallelism:seeds", "Beams:LHEF"]
 bools   = ["on", "off"]
-# Seeds from the point's identity (06 §8). Random:seed is always written, so a serial Pythia in an
+# Seeds from the point's identity (doc:identity). Random:seed is always written, so a serial Pythia in an
 # integrated program is seeded too; PythiaParallel reads Parallelism:seeds (L4).
 seed          = ["Random:setSeed = on", "Random:seed = {seed}"]
 seed_parallel = ["Parallelism:seeds = {{{seeds}}}"]

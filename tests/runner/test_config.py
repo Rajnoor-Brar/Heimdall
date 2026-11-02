@@ -1,4 +1,4 @@
-"""The run TOML's own checks (docs/04_Config_Reference.md §13): one bad file per rule, each with where and hint."""
+"""The run TOML's own checks (doc:validation): one bad file per rule, each with where and hint."""
 
 from __future__ import annotations
 
@@ -28,12 +28,12 @@ def test_c1_an_unknown_key_suggests_the_right_one(scratch):
 
 
 def test_the_names_before_i112_are_refused_with_what_rewrites_them(scratch):
-    """I-112: [run] is [errand], [run].project its assignment; the old forms (a table, a key, --set run.x, an import's
+    """[run] is [errand], [run].project its assignment; the old forms (a table, a key, --set run.x, an import's
     only = ["run.…"]) are refused, each naming `heimdall migrate --names`."""
     from runner import config
     old = raw()
     old["run"] = {**old.pop("errand"), "project": "Demo"}
-    error = fails(old, scratch, r"\[run\] is now \[errand\] \(I-112's names\)")
+    error = fails(old, scratch, r"\[run\] is now \[errand\]")
     assert error.hint == "heimdall migrate --names rewrites it" and error.where.endswith("[run]")
     error = fails(raw(errand__project="Demo"), scratch, r"\[errand\]\.project is now \[errand\]\.assignment")
     assert "heimdall migrate --names" in error.hint

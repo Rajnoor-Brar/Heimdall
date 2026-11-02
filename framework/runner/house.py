@@ -1,6 +1,6 @@
 """Housekeeping: `heimdall ls`, `heimdall explain`, `heimdall status`, `heimdall clean` (rank 5, V74).
 
-docs/05_Commands_and_Tools.md §1, audit 1 F5. Nothing here runs a tool; `clean` is the only command
+doc:everyday. Nothing here runs a tool; `clean` is the only command
 that deletes, and only what the runner made and no plan uses (it never deletes from results/ but a
 product's `.partial` leftover, and it refuses while a job is running).
 """
@@ -71,7 +71,7 @@ def unused_tools(errand) -> list[str]:
 
 def config_names(assignment: str | None = None) -> list[str]:
     """Every configs/<A>/<E>.toml that has an [errand], as <A>/<E>; one with [run] too (the names
-    before I-112), so that reading it says what rewrites it."""
+    before the Assignment/Errand names), so that reading it says what rewrites it."""
     root = configs_root()
     names = []
     for path in sorted(root.glob(f"{assignment or '*'}/*.toml")):
@@ -214,8 +214,8 @@ def _special(key: str) -> list[str] | None:
         if rows:
             return [f"style{'.' + at if at else ''}: a page's style (src/Apps/Paint/base.toml), set in [plot.style], a figure's style or a style file",
                     *(f"  {d:30} {knowledge.plain(c)[:80]}" for d, c in rows), "  (heimdall explain style.<key> for one in full)"]
-    if word.split(".")[0].split("]")[0] == "run":                         # I-112's names
-        raise HeimdallError(f"[run] is now [errand] (I-112's names): {key}",
+    if word.split(".")[0].split("]")[0] == "run":                         # the old names
+        raise HeimdallError(f"[run] is now [errand]: {key}",
                        hint="heimdall explain errand" + word.removeprefix("run").replace("]", "").replace(".project", ".assignment"))
     table = TABLES.get(word, {"file": "config", "cfgs": "configuration"}.get(word))
     if table and "." not in word:
@@ -475,7 +475,7 @@ def _unrecorded(states: list[tuple[dict, str]], by_pid: dict) -> list[tuple[dict
 
 
 def live_entries(entries: list[dict], live: list[tuple[str, dict]]) -> list[tuple[dict, str]]:
-    """The live runs (I-115), (entry, state), as `heimdall runs` numbers them, `heimdall watch -i` and `heimdall runs
+    """The live runs, (entry, state), as `heimdall runs` numbers them, `heimdall watch -i` and `heimdall runs
     --resume`/`--forget` take them: the going jobs (recorded, and live sockets with no entry) and the paused runs
     neither resumed nor forgotten (runs.paused), in the order they began; a run that resumed a pause in that pause's
     place (its `resumed_by` chain's first start). [N] is the Nth, recomputed each time: a run that ends drops out."""
@@ -501,7 +501,7 @@ def live_line(index: int, e: dict, state: str) -> str:
 
 def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str],
                  now: float | None = None, limit: int | None = None, days: int | None = None) -> list[str]:
-    """`heimdall runs` (V182): the live runs by default (I-115: running, recorded or a live socket with no entry,
+    """`heimdall runs` (V182): the live runs by default (running, recorded or a live socket with no entry,
     unrecorded, as from inside an image; and paused), each with its index [N] (live_entries); `limit`, the latest N
     of any state; `days`, all begun within that age. Oldest first, a block each: id and work dir (its title); the
     config and its configurations (`NN key` when the serial is known), its points' counts once it ended; when, for
@@ -560,7 +560,7 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
                         f"{e.get('configuration', '')} --status")
         elif state.startswith("running"):
             tail.append(f"      pid {e.get('pid')} : heimdall watch --pid {e.get('pid')} · heimdall stop --pid {e.get('pid')}")
-        elif indexed and runs.paused(e):                                # I-115
+        elif indexed and runs.paused(e):
             tail.append(f"      heimdall runs --resume {index} · heimdall runs --forget {index}")
         if e.get("log"):
             tail.append(f"      log {e['log']}")
@@ -677,7 +677,7 @@ def point_log(record: Path, point: str, tag: str | None = None, full: bool = Fal
 
 def point_state(plan) -> str:
     """complete; stale (complete for an earlier identity: a changed setup reruns it); running (a
-    session holds its lock, U66); failed or stopped (its last attempt's verdict, V200); incomplete (begun,
+    session holds its lock); failed or stopped (its last attempt's verdict, V200); incomplete (begun,
     not done, with no attempt recorded: before V200); to run (never begun, or its logs are gone). From its
     records and its lock: deleting logs/ or .cache/ changes no state but incomplete's (record.state_of)."""
     return state_of(plan)[0]
@@ -740,13 +740,13 @@ def _stage_dirs(planned) -> tuple[set[Path], set[Path]]:
     return outs, ress
 
 
-#: Folders of a configuration's that are no point's: the stages, the pages, the submissions (U30), the plot stage's
+#: Folders of a configuration's that are no point's: the stages, the pages, the submissions, the plot stage's
 #: failures (logs/plot/, V204).
 KEEP_NAMES = {"plots", "pre", "post", "cluster", "compare", "plot"}
 
 
 def clean_targets(planned: list, everything: bool, records: bool = False) -> tuple[list[Path], list[Path]]:
-    """What `heimdall clean` removes, and the results it only lists, by lifecycle (U21, V157): within each
+    """What `heimdall clean` removes, and the results it only lists, by lifecycle (V157): within each
     planned configuration's records/<A>/<E>/<R>/logs/ (ephemeral), the working folders no plan has, and `.partial`
     leftovers there and in results/<A>/<E>/<R>/. With `everything` (no config named: every config was planned):
     also the logs/ of an assignment's configuration folders no configuration has, and the prepare caches of

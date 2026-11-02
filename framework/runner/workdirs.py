@@ -1,4 +1,4 @@
-"""The work dirs this machine knows: <machine root>/workdirs.toml (rank 1; docs/05_Commands_and_Tools.md §2).
+"""The work dirs this machine knows: <machine root>/workdirs.toml (rank 1; doc:environment).
 
 `heimdall recognise` records a work dir there under a title, its heimdall.toml's [work] name (else its folder's
 name), and `gjallarhorn <title>` goes to it. `heimdall setup` records the work dir it makes. One table per title:

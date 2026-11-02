@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# framework/bin/heimdall — the `heimdall` command (docs/05_Commands_and_Tools.md §1): every command is the runner's
+# framework/bin/heimdall — the `heimdall` command (doc:everyday): every command is the runner's
 # (framework/bin/run, framework/runner/cli.py); `heimdall help` lists them, `heimdall help <command>` says one.
 #
 # The machine's Python (the loaded one, else the base's, else the venv's), by path: `heimdall` works without the

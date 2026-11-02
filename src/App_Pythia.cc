@@ -1,4 +1,4 @@
-// src/App_Pythia.cc — the standard Pythia tool (docs/05_Commands_and_Tools.md §16).
+// src/App_Pythia.cc — the standard Pythia tool (doc:tools-pythia).
 // requires: pythia8 hepmc3 zstd zlib
 //
 //     App_Pythia.exe [--threads N] [--events N] [--seeds S1,S2,…] [--sidecar FILE]
@@ -12,7 +12,7 @@
 // needs to check it got everything: requested, attempted, accepted and written counts, the count
 // per output, and the combined cross-section.
 //
-// What it must get right, each learned by v1 (ledger, docs/07_Record.md §3):
+// What it must get right, each learned by v1 (ledger):
 //   L1  PythiaParallel exposes σ per instance and no error for the run. The combination is the
 //       ΣW-weighted mean, with errors in quadrature.
 //   L2  A CLI Rivet normalises to the σ in the LAST event it reads, and the converter stamps each

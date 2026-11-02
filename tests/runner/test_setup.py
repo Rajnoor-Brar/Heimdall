@@ -1,4 +1,4 @@
-"""`heimdall setup` and `heimdall where` (docs/framework/01_Target.md §4–§5): a work dir from the template, never
+"""`heimdall setup` and `heimdall where` (doc:layout): a work dir from the template, never
 overwriting; which Heimdall and work dir a shell sees; the [framework] expects warning."""
 
 from __future__ import annotations
@@ -59,13 +59,13 @@ def test_an_assignment_gets_the_starter(scratch, quiet):
     target = scratch / "w"
     setup.setup(target, assignment="Jets", name="My study", out=quiet[0])
     toml = (target / "configs" / "Jets" / "jets.toml").read_text(encoding="utf-8")
-    assert 'assignment = "Jets"' in toml and 'card   = "jets.cmnd"' in toml          # the v3 starter (03 §6)
+    assert 'assignment = "Jets"' in toml and 'card   = "jets.cmnd"' in toml          # the v3 starter (doc:errand-file)
     assert (target / "configs" / "Jets" / "jets.cmnd").is_file() and (target / "modules" / "Jets").is_dir()
     assert paths.work_meta(target)["name"] == "My study"
 
 
 def test_project_is_refused_naming_assignment(scratch, capsys):
-    """I-112: `--project` was the flag's name; it is refused with the line that works, and nothing is made."""
+    """`--project` was the flag's name; it is refused with the line that works, and nothing is made."""
     from runner import cli
     assert cli.main(["setup", str(scratch / "w"), "--project", "Jets"]) == 2
     err = capsys.readouterr().err
@@ -103,7 +103,7 @@ def test_a_folder_with_files_is_adopted_only_when_asked(scratch, quiet):
     assert "--adopt" in caught.value.hint
     setup.setup(target, adopt=True, out=out)
     ignore = (target / ".gitignore").read_text(encoding="utf-8")
-    assert ignore.startswith("build/\n") and setup.BLOCK in ignore             # kept, and what it lacks added (U67)
+    assert ignore.startswith("build/\n") and setup.BLOCK in ignore             # kept, and what it lacks added
     assert any(line.startswith("merged .gitignore: records/ .cache/ results/") for line in lines)
 
 
@@ -210,7 +210,7 @@ def test_the_shell_verbs_without_the_shell_function_say_to_source_setup(verb):
     assert "gjallarhorn.sh's shell function" in out.stderr and f"source {REPO}/gjallarhorn.sh" in out.stderr
 
 
-# ── the shell (docs/audit_3/06_Plan.md, phase 3.3) ──────────────────────────────────────────────
+# ── the shell ──────────────────────────────────────────────
 
 NEEDS_VENV = pytest.mark.skipif(not Path(os.environ.get("HEIMDALL_VENV", "/nowhere"), "bin", "activate").exists(),
                                 reason="no venv in the machine root: build the stack")
@@ -319,7 +319,7 @@ def a_base_machine(root: Path) -> Path:
 
 @NEEDS_VENV
 def test_a_conda_base_is_loaded_kept_off_ld_library_path_and_quit_takes_it_out(scratch):
-    """docs/conda/02 §5: gjallarhorn.sh sources base/activate.sh (the compilers, not their flags), the base is
+    """doc:base: gjallarhorn.sh sources base/activate.sh (the compilers, not their flags), the base is
     the Python environment, its lib/ never joins LD_LIBRARY_PATH, and quit leaves the shell as it was."""
     root = a_base_machine(scratch / "machine")
     env = root / "base" / ".pixi" / "envs" / "default"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""env/stack.py — env/stack.toml read (audit 1 B7, V78).
+"""env/stack.py — env/stack.toml read (V78).
 
     stack.py --bash      the probes for env/flags.sh: TOOLS=(…), STACK=<sha>, probe/dir_lib lines
     stack.py --versions  each entry's version, as `heimdall status --stack` prints it

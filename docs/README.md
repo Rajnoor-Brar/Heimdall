@@ -1,67 +1,25 @@
-# The manual
+# Heimdall's docs
 
-Heimdall, a framework for Monte Carlo studies in high-energy physics: **tools are processes, chained
-by a TOML**. An errand file under a work dir's `configs/<A>/` names a configuration; its sweeps
-expand into points; for each point the runner writes every tool's native card, connects the tools
-through agreed files and FIFOs, runs them in order, watches them, checks what they made, and records
-it; after all points it draws the pages with ROOT (Paint) or rivet-mkhtml.
+| You want to | Start at |
+|---|---|
+| **use** Heimdall on a project | [the model](stable/start/model.md), [a first run](stable/start/first-run.md), [every day](stable/start/everyday.md), then [`guide/`](stable/guide/errand-file.md) |
+| **find a setting**: its effect and accepted values | `heimdall explain <key>`, `heimdall docs`, or [`reference/settings/`](reference/settings/plot.md) |
+| **set up** a machine, the stack, a toolkit | [a fresh machine](stable/setup/fresh-machine.md), [the stack](stable/setup/stack.md), [toolkits](stable/setup/toolkits.md) |
+| **develop** Heimdall | [layout](stable/internals/layout.md), [the runner](stable/internals/runner.md), [`internals/`](stable/internals/run-flow.md), [why: decisions](stable/design/principles.md) |
+| **work as an AI in a work dir** | `heimdall context` |
+| **work as an AI on Heimdall** | [AGENTS.md](../AGENTS.md), [rules](rules/invariants.md), then [MAP.md](MAP.md) |
 
-Three places: **Heimdall** (`$HEIMDALL`: the framework), the **machine root** (`~/Himinbjorg`: the stack it runs
-on, its compiled apps) and your **work dirs**, as many as you like (`configs/`, `modules/`, `datasets/`, and what runs make:
-`records/` for what runs recorded and their working folders, `.cache/` for what can go, `results/` for products, `build/` for your compiled modules).
+`heimdall docs` opens all of this as one searchable page: settings, pages by reader, and a graph of pages, code and decisions.
 
-```bash
-gjallarhorn                                            # the environment (or: source ~/Github/Heimdall/gjallarhorn.sh)
-heimdall setup ~/Github/My-Study --assignment Jets --git  # a work dir, with a starter errand file (--example jets: the demo)
-gjallarhorn My-Study && heimdall build                 # there, from anywhere (heimdall recognise); its modules (none yet)
-heimdall run Jets/jets --dry-run                       # look
-heimdall run Jets/jets                                 # run: 2 points, a page per histogram
-```
+## How the docs work
 
-## Contents
-
-| | For | |
+| Folder | Holds | Changes |
 |---|---|---|
-| [00_Quick.md](00_Quick.md) | everyone | **one page**: the everyday commands, a whole errand file and what to write for the common needs, where things go |
-| [01_Overview.md](01_Overview.md) | everyone | what it is, the model in one picture, the vocabulary (object, figure, page …), the principles and what each buys, what is refused, where it came from |
-| [02_User_Guide.md](02_User_Guide.md) | users | set up (Heimdall and work dirs), a first run, the anatomy of an errand file, **the pipelines** as recipes (sweeps, generators and chains, your own programs, scale and seeds), reruns, failures, housekeeping, results from Python, a new assignment |
-| [03_Plots.md](03_Plots.md) | users | the plot stage, `[plot]` in practice, data and ratios, curves and bands, the style, **the seven figure classes** with examples, Hist1D/Scatter2D/HeatMap, the backends, `heimdall overlay`, **reports** (`heimdall report`) |
-| [04_Config_Reference.md](04_Config_Reference.md) | users | **every accepted key**, as tables generated from the schema; paths, precedence and `"default"`; quantities and consumers; placeholders; the style keys; the validation rules C1–C14; the files the runner writes; a report's recipe |
-| [05_Commands_and_Tools.md](05_Commands_and_Tools.md) | users, developers | **every command** (generated from the CLI) and what it does; the build and the environment; every standard tool; App_Pythia, App_yd2rt and Paint's command line |
-| [06_Internals.md](06_Internals.md) | developers | Heimdall's and a work dir's layout, components and ranks, the data model, a run in code, connections, identity and seeds, caches, events, failures, the plot stage inside, where files go; the build, the tool-folder contract, adding a tool, backend or figure class, Paint inside, the C++ kits and protocols, tests, conventions |
-| [07_Record.md](07_Record.md) | everyone | the brief, the decisions (V), the knowledge ledger (L), findings (F), v1's findings and decisions, risks, what has been verified, the budget, the glossary |
+| `rules/` | what binds: invariants, how to write, how work and live docs go | on the developer's word |
+| `reference/`, `client/`, `MAP.md` | generated from the code | never by hand: `heimdall make --framework docs` |
+| `stable/` | crystallised knowledge, by subject | only when crystallising |
+| `live/` | what changed since the last crystallise; it wins over `stable/` | as work lands |
 
-**Reading paths.** To start: 00. To use it: 02 and 03, then 04 and 05 as references. To understand it: 01, 06.
-To extend it: 06, then 05. The code cites these pages by section (`04 §9.4`) and the record by id
-(`L18`, `V22`, `C7`, `00/B5`). The key, style and command tables are generated: `make docs` (V91).
-The manual was rebuilt at V90–V92 (audit 2) and re-rooted for Heimdall at V105–V113.
+On a conflict: code, then generated, then live, then stable, then plans. One fact has one owner, and `tests/runner/test_docs.py` holds what it can. Rules: [writing](rules/writing.md), [work](rules/work.md).
 
-Heimdall was seeded from High-Energy at `split/base` (5e0a913): the history before that, and the
-record's older citations (`git show 47f06b8:docs/…`, `git show rework/v1-final:docs/…`, `git log
---all -- docs/rework_v2`), are High-Energy's, read there. Ideas found in those documents, not yet
-built, are issues labelled `idea` in [.plans/ISSUES.md](../.plans/ISSUES.md).
-
-Building the software stack itself (LHAPDF … ROOT … Rivet, Pythia8, Herwig, Sherpa, Geant4) from source,
-whole or as a toolkit (`@primary`, `@bsm-recast`, an isolated C++20 stack, your own), ready-made from
-conda-forge (`@core-conda`, `bifrost -c`), on a machine or in an Apptainer image (`heimdall image build`):
-[recipes/](../recipes/README.md). Setting Heimdall up on a fresh machine, step by step for
-an agent: [framework/](framework/README.md).
-
-Decks (`heimdall deck`, talks and shareable reports from drawn pages) were planned and built as
-[reporter/](reporter/00_Plan.md) (V102–V104), kept as history: `heimdall report` replaced them (V206–V212,
-[.plans/report/](../.plans/report/00_Plan.md)).
-
-What is open is the ghosts-and-gaps audit [audit_4/](audit_4/README.md) (G1–G23, 2026-10-15: what is
-carried unused, half-built, retired but lingering, or of unclear use), which carries the health check
-[audit_2/01_Health.md](audit_2/01_Health.md)'s open findings (H1–H16). The
-user-experience audit [audit_3/](audit_3/README.md) (U1–U66, 2026-10-12: the process, the layout,
-the errand file, extending, the CLI) was remediated in seven phases, V116–V136. The finished audit 1
-(V52–V89) and the manual's rebuild plan (V90–V92) are in High-Energy's git: `git show 3a5ec16:docs/audit_1/README.md`,
-`git show 3a5ec16:docs/audit_2/02_Manual.md`.
-
-The conda base, [conda/](conda/README.md) (V140, V141): the default for a new machine root, a conda-forge
-base managed by pixi. Compilers, system libraries and Python come from one locked list instead of apt or
-Homebrew; the HEP tools are built from source in it, or taken ready-made by an `@…-conda` toolkit.
-
-`tests/runner/test_docs.py` holds this manual to the code: its links resolve, its TOML parses, its
-complete examples load, its generated blocks are current, and every key the runner accepts is documented.
+The old manual is at git tag `docs/pre-rebuild`. Pending work: [.plans/ISSUES.md](../.plans/ISSUES.md).

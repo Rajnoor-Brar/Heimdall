@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """recipes/madanalysis5.py MA5 RELEASE CORES [key=value …] — MadAnalysis 5 made ready where it is unpacked,
-as MadGraph's `install MadAnalysis5` makes its own copy (README.md §3). build_stack.py's madanalysis5 step
+as MadGraph's `install MadAnalysis5` makes its own copy (doc:build-fixes). build_stack.py's madanalysis5 step
 runs it with the venv's Python; standard library only, then MadAnalysis 5's own code.
 
 - version.txt, which MadAnalysis 5's interpreter reads to start (MadGraph starts it so) and its GitHub

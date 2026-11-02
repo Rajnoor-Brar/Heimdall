@@ -1,6 +1,6 @@
 """The plot stage: one page per `plot_points` cell and object, drawn by Paint (rank 4).
 
-docs/04_Config_Reference.md §11, docs/05_Commands_and_Tools.md §18. After the points, from the complete ones:
+doc:plots, doc:paint. After the points, from the complete ones:
 
 * the objects are the 1D objects of the points' YODA product (not /RAW, /TMP or the run counters),
   narrowed by [plot].objects globs;
@@ -173,7 +173,7 @@ def validate(errand) -> None:
     data = settings.get("data", {})
     if data and not data.get("map"):
         raise HeimdallError("[plot.data] names a file but no map", where=f"{where}.data",
-                       hint='reference data are matched only through an explicit map, "d01-x01-y01" = "/REF/…/d01-x01-y01" (see L18)')
+                       hint='reference data are matched only through an explicit map, "d01-x01-y01" = "/REF/…/d01-x01-y01"')
     if data and "file" not in data:
         raise HeimdallError("[plot.data] has a map but no file", where=f"{where}.data")
 
@@ -256,7 +256,7 @@ def style_file(value: str, assignment: str = "", where: str = "", folder: Path |
 
 def house_style() -> dict:
     """The style's layers over base.toml that are not a run's: the machine root's style.toml (every work
-    dir's on this machine), then the work dir's style.toml (its studies'), each checked (audit 3, 4.3)."""
+    dir's on this machine), then the work dir's style.toml (its studies'), each checked."""
     from .paths import find_work, machine_root
     layers = []
     for path in (machine_root() / "style.toml", *([find_work() / "style.toml"] if find_work() else [])):
@@ -1409,7 +1409,7 @@ def chosen(name: str, ours, native, tables: tuple):
     """V55: the most specific table that sets a value wins. "default" keeps it as it is: in a child
     (an object's or an overlay's table) it is the parent's value, as if the key were absent; in the
     last table (the top level) of a v2 file it is `native`, set nothing: what the drawing tool does by
-    itself (a v3 file drops it: there, "default" is only the layer below). "native" (03 §6) is `native`
+    itself (a v3 file drops it: there, "default" is only the layer below). "native" (doc:errand-file) is `native`
     at any level. Nothing set anywhere is `ours`, the runner's default (the schema's)."""
     for table in tables:
         if name in table and table[name] != DEFAULT:

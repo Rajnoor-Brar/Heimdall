@@ -141,7 +141,7 @@ def _cell(label: str, path: Path, where: Path) -> str:
 
 def page(target: Path, title: str, blocks: list[Shown], front: str = "") -> Path:
     """`target`: the viewer of these blocks, its paths relative to it. `front`: HTML above the first block, as
-    given (a report's sources, I-108 P3)."""
+    given (a report's sources)."""
     where = target.parent
     nav = "\n      ".join(f'<a href="#{html.escape(b.name, quote=True)}">{html.escape(b.title)}</a>' for b in blocks)
     sections = []

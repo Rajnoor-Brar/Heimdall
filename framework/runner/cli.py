@@ -1,7 +1,7 @@
 """`heimdall run`, `heimdall plot`, `heimdall overlay`, `heimdall watch`, `heimdall check` and the housekeeping commands (`ls`,
 `explain`, `status`, `clean`: house.py) (rank 5): argument parsing and the order of events.
 
-docs/05_Commands_and_Tools.md §1. `heimdall build` is handled by the shell dispatcher
+doc:everyday. `heimdall build` is handled by the shell dispatcher
 (framework/bin/heimdall), which runs make.
 
 Exit codes: 0 every point done (or skipped), 1 a point failed, 2 a config error before anything ran,
@@ -68,7 +68,7 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--rerun", action="store_true", help="ignore skip-unchanged; under a serial the file sets, "
                                                           "overwrite points made from other inputs")
     run.add_argument("--rerun-since", type=float, metavar="TIME", dest="rerun_since",
-                     help=argparse.SUPPRESS)     # a resumed --rerun job (I-115): what completed before TIME runs again
+                     help=argparse.SUPPRESS)     # a resumed --rerun job: what completed before TIME runs again
     run.add_argument("--only", choices=["pre", "post", "plot"], help="rerun only the pre tools, the post tools or the plots")
     run.add_argument("--no-plot", action="store_true", dest="no_plot",
                      help="draw nothing after the points (its plot.toml is written all the same), whatever [errand].plot says")
@@ -106,7 +106,7 @@ def parser() -> argparse.ArgumentParser:
                            "<A>/<E>: each of its Runs), what each Run knows left as it is; nothing is drawn unless --replot")
     draw.add_argument("--replot", action="store_true", help="with --style-sync: then draw what was synced")
     draw.add_argument("--across", action="store_true",
-                      help="the Runs of this errand together, results/<A>/<E>/plot.toml: its [plot.across] sets (V169)")
+                      help="the Runs of this errand together, results/<A>/<E>/plot.toml: its [plot.across] sets")
     draw.add_argument("--keep", action="append", default=[], metavar="WHAT",
                       help="cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway")
     draw.add_argument("configuration", nargs="?", help="overrides [errand].configuration; under sweep_runs, only it")
@@ -172,7 +172,7 @@ def parser() -> argparse.ArgumentParser:
 
     move = commands.add_parser("migrate", help="rewrite errand files and their cards in today's forms (a diff, or --apply)")
     move.add_argument("configs", nargs="*", metavar="CONFIG", help="configs to migrate (default: every config)")
-    move.add_argument("--v3", action="store_true", help="into the errand file's third form (03 §6, runner/v3.py)")
+    move.add_argument("--v3", action="store_true", help="into the errand file's third form (docs/stable/guide/errand-file.md, runner/v3.py)")
     move.add_argument("--layout", action="store_true",
                       help="move the work dir's older layouts into today's: logs/ into records/<A>/<E>/<R>/logs/, points into "
                            "points/ (and output/ first, if any); no configs are read")
@@ -273,7 +273,7 @@ def parser() -> argparse.ArgumentParser:
     make = commands.add_parser("setup", help="make a work dir: the key folders, heimdall.toml and the template's files (never overwrites)")
     make.add_argument("dir", help="the work dir's folder: new, empty, or a work dir to complete")
     make.add_argument("--assignment", metavar="A", help="also configs/<A>/ with a starter errand file and card, and modules/<A>/")
-    make.add_argument("--project", dest="old_project", metavar="P", help=argparse.SUPPRESS)    # I-112: --assignment, said
+    make.add_argument("--project", dest="old_project", metavar="P", help=argparse.SUPPRESS)    # --assignment, said
     make.add_argument("--git", nargs="?", const="yes", choices=["yes", "new"],
                       help="commit what was added (only that), in the git repository the folder is in, or a new one "
                            "when it is in none; --git=new: a repository of its own even inside another")
@@ -425,7 +425,7 @@ def _planned_points(errand, configuration, master, points):
 
 
 def _numbered(errand, configuration, master, points):
-    """A v3 configuration without a serial (03 §6): the runner numbers its folder. The newest folder its
+    """A v3 configuration without a serial (doc:errand-file): the runner numbers its folder. The newest folder its
     points completed in as it stands now (an older one, when a change was undone); else the newest, when
     nothing in it was made from other inputs (a run under way, or one never begun); else a new number,
     so that a change never overwrites what was made."""
@@ -453,7 +453,7 @@ def _numbered(errand, configuration, master, points):
 
 def overwrites(planned: Planned, stages=None) -> list:
     """What running would replace that was made from other inputs, under a serial the file sets (v3,
-    03 §6): the pre stage and the chosen points, as the stages run them."""
+    doc:errand-file): the pre stage and the chosen points, as the stages run them."""
     if planned.errand.form != 3 or planned.configuration.serial_auto:
         return []
     stages = STAGES if stages is None else stages
@@ -646,7 +646,7 @@ def catch_signals(stopper: execute.Stopper) -> dict:
     """Ctrl-C (SIGINT), SIGTERM and SIGHUP ask the run to stop (V181): the first cleanly (each point ends, its
     partial outputs kept, a rerun resumes); the second hard (the tools killed at once, the stop still
     recorded); the third is the default behaviour, at once. SIGHUP, the terminal gone, also points the
-    output at /dev/null; a SIGHUP ignored when the run began (nohup) stays ignored. After a pause (I-115) the
+    output at /dev/null; a SIGHUP ignored when the run began (nohup) stays ignored. After a pause the
     first is a stop, as ever, recorded so: after a force pause (already hard) it does not kill the run, the next
     does. Returns the handlers it replaced."""
     def on_signal(signum, frame):
@@ -669,7 +669,7 @@ def catch_signals(stopper: execute.Stopper) -> dict:
 
 
 def catch_pause(stopper: execute.Stopper):
-    """SIGUSR1, a `p` in a watch or in the run's own view (I-115): the first a pause (`pausing`: no point, stage
+    """SIGUSR1, a `p` in a watch or in the run's own view: the first a pause (`pausing`: no point, stage
     or run is begun any more, the running points run to their end, then the run quits without its later stages,
     exit 6, recorded paused); the second a force pause (`requested` and `hard`, as a hard stop: the running
     points' tools killed at once, recorded stopped, their partial outputs kept; the run still paused). A stop
@@ -776,12 +776,12 @@ def cmd_run(args) -> int:
     start; a stop or a pause starts no more. On a terminal, and with --detach, the run is a worker of its own, which
     this process follows (or leaves) (V183)."""
     worker = getattr(args, "worker", None)
-    if getattr(args, "rerun_since", None):                  # a resumed --rerun job (I-115): its points since kept
+    if getattr(args, "rerun_since", None):                  # a resumed --rerun job: its points since kept
         args.rerun = args.rerun_since
     resumes = os.environ.pop(runs.RESUMES_VAR, "") if worker else ""
     try:
         return _cmd_run(args, worker)
-    except HeimdallError:                    # it never ran: the pause it resumed stays live (I-115)
+    except HeimdallError:                    # it never ran: the pause it resumed stays live
         if resumes:
             runs.update(resumes, resumed_by=None, resumed=None)
         raise
@@ -857,7 +857,7 @@ def _cmd_run(args, worker) -> int:
         return code
     finally:
         if bus is not None:
-            paused = code == 6 and stopper.paused and crashed is None                               # I-115
+            paused = code == 6 and stopper.paused and crashed is None
             runs.finish(entry, code, crashed, state="paused" if paused else None, records=recorder.records,
                         verdicts=recorder.verdicts, counts=recorder.counts(), **recorder.close())    # before the
             hub.close()                                                                              # stream ends
@@ -896,9 +896,9 @@ def background(args, errand, keys: list[str], *, attach: bool) -> int:
     its output in the registry's <id>.log. `attach`: followed here as heimdall watch does (`d` leaves it
     running; `p` pauses it, twice discards its running points; Ctrl-C stops it, once cleanly, twice hard); else
     (--detach) left once its run has started. Its id is $HEIMDALL_RUN_ID when that is a free one (`heimdall runs
-    --resume` gives it, I-115), taken out of the environment its worker inherits."""
+    --resume` gives it), taken out of the environment its worker inherits."""
     from .watch import follow, socket_of, started, tail
-    given = os.environ.pop(runs.ID_VAR, "")                 # heimdall runs --resume's new run (I-115)
+    given = os.environ.pop(runs.ID_VAR, "")                 # heimdall runs --resume's new run
     run_id = given if runs.ID.fullmatch(given) and runs.entry(given) is None else runs.new_id()
     log = runs.log_file(run_id)
     proc = runs.spawn(getattr(args, "argv", []), run_id, log)
@@ -959,7 +959,7 @@ def background(args, errand, keys: list[str], *, attach: bool) -> int:
 
 
 def pause_key(pid: int, shown, pausing: list, rest: str) -> None:
-    """`p` in a watch or in the run's own view (I-115): the run's process sent SIGUSR1. The first press a pause
+    """`p` in a watch or in the run's own view: the run's process sent SIGUSR1. The first press a pause
     (its running points end first, none more is started), the second a force pause (they are stopped at once);
     a third sends nothing. Each says what it did, then the keys left (`rest`)."""
     if len(pausing) >= 2:
@@ -1341,7 +1341,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     verdict = "stopped"
 
     def halted(stage: str) -> bool:
-        """Whether a stop or a pause ends the run before `stage`; a pause's verdict says what it leaves (I-115):
+        """Whether a stop or a pause ends the run before `stage`; a pause's verdict says what it leaves:
         "paused: 12 done, 2 discarded, 42 left; not run: combine, post, plot"."""
         nonlocal verdict
         if not stopper.halted:
@@ -1487,11 +1487,11 @@ def cmd_deck(args) -> int:
     """`heimdall deck …`, retired (V212, as V74 retired `heimdall plot FILE`): it stops, naming heimdall report."""
     raise HeimdallError("heimdall deck is now heimdall report: an A4 report of runs' pages and numbers, its figures and "
                    "LaTeX in its folder to lift into a talk",
-                   hint="heimdall report <A>/<E>/<R> (docs/03_Plots.md §11); a deck's decks/<deck>/ is yours, left as it is")
+                   hint="heimdall report <A>/<E>/<R> (docs/stable/guide/reports.md); a deck's decks/<deck>/ is yours, left as it is")
 
 
 def cmd_report(args) -> int:
-    """`heimdall report [RECIPE.toml] [SOURCE…]` (I-108, V207, V209): a recipe and its sources, or sources alone (one
+    """`heimdall report [RECIPE.toml] [SOURCE…]` (V207, V209): a recipe and its sources, or sources alone (one
     folder's report.toml, else the default), resolved into sections of figures and statistics and built where
     results/ has them; --list says them, --init writes a recipe once."""
     from . import report as reportmod
@@ -1656,7 +1656,7 @@ def across_of(args) -> Path:
     target, written = plotdoc.write_across(errand)
     if target is None:
         raise HeimdallError(f"{errand.path} has no [plot.across] sets: nothing to draw its Runs together",
-                       hint="[plot.across.<set>] pages = { … }, curves = { \"@events\" = \"all\", … }: 03 §3.3")
+                       hint="[plot.across.<set>] pages = { … }, curves = { \"@events\" = \"all\", … }: docs/stable/guide/plots-across.md")
     if written:
         print(f"plot: wrote {target}, from {args.config}'s [plot.across]")
     return target
@@ -1671,7 +1671,7 @@ def style_sync_across(args) -> int:
     target = plotdoc.across_path(errand.assignment, errand.name)
     if not target.is_file():                                # none yet: written, as a run writes it
         if plotdoc.write_across(errand)[0] is None:
-            raise HeimdallError(f"{errand.path} has no [plot.across] sets", hint="[plot.across.<set>]: 03 §3.3")
+            raise HeimdallError(f"{errand.path} has no [plot.across] sets", hint="[plot.across.<set>]: docs/stable/guide/plots-across.md")
         print(f"plot: wrote {target}")
         return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
     new_plot, new_stats = plotdoc.across_chosen(errand)
@@ -1782,7 +1782,7 @@ def _has_configurations(name: str) -> bool:
 
 
 def cmd_runs(args) -> int:
-    """`heimdall runs [--5|--10|--20|--50|--week|--month]`: the live jobs (running and paused, indexed, I-115) or
+    """`heimdall runs [--5|--10|--20|--50|--week|--month]`: the live jobs (running and paused, indexed) or
     recent runs; `--resume N`, `--forget N`: the paused job [N]."""
     if getattr(args, "resume", None) is not None:
         return resume_run(args.resume)
@@ -1816,7 +1816,7 @@ def live_at(index: int) -> tuple[dict, str]:
 
 
 def resume_run(index: int) -> int:
-    """`heimdall runs --resume N` (I-115): the paused job [N]'s own command again (runs.again: its argv without
+    """`heimdall runs --resume N`: the paused job [N]'s own command again (runs.again: its argv without
     --worker, detached), by its checkout's bin/heimdall, from its work dir ($HEIMDALL_WORK and $HEIMDALL said so),
     so it continues from its records, its complete points skipped. Its new run's id is chosen here
     ($HEIMDALL_RUN_ID) and the paused entry points at it (`resumed_by`), leaving the live list."""
@@ -1906,7 +1906,7 @@ def cmd_tag(args) -> int:
 def cmd_watch(args) -> int:
     """Follow a job from another terminal (V72): a running `heimdall run`'s watch socket (the latest one, or
     the one running CONFIG [CONFIGURATION]), or with --file a --journal run's status.jsonl; `-i N` the live run [N]
-    of `heimdall runs` (I-115), refused for a paused one."""
+    of `heimdall runs`, refused for a paused one."""
     if getattr(args, "index", None) is not None:
         if args.file or args.config or args.pid is not None:
             raise HeimdallError("-i names the job itself: no config, --file or --pid with it",
@@ -1955,7 +1955,7 @@ def cmd_watch(args) -> int:
         if hello.get("pidns") and namespace("pid") and hello["pidns"] != namespace("pid"):
             shown.say(f"not {'paused' if pause else 'stopped'}: its process is another PID namespace's; "
                       f"{'pause' if pause else 'stop'} it from where it runs")
-        elif pause:                                         # I-115: once a pause, twice a force pause
+        elif pause:                                         # once a pause, twice a force pause
             if stopping:
                 shown.say("already stopping: a stop is not made a pause")
             else:
@@ -2037,7 +2037,7 @@ def cmd_clean(args) -> int:
         return 0
     from .paths import records_root
     gone = [t for t in targets if t.is_relative_to(records_root()) and "points" in t.relative_to(records_root()).parts[3:4]]
-    if gone:                                  # records are precious: always asked for, by name (U21)
+    if gone:                                  # records are precious: always asked for, by name
         if not sys.stdin.isatty():
             raise HeimdallError(f"{len(gone)} record folders to remove: not deleted", hint="run it on a terminal, which asks")
         if input(f"remove {len(gone)} record folders (their points' provenance and completion)? type 'records': ").strip() != "records":
@@ -2084,9 +2084,9 @@ def cmd_migrate(args) -> int:
 
 
 def migrate_names(args) -> int:
-    """`heimdall migrate --names [--apply]` (I-109, V213; I-112): a work dir from before the renames, here or above:
+    """`heimdall migrate --names [--apply]` (V213): a work dir from before the renames, here or above:
     its marker hep.toml → heimdall.toml, and Heimdall's old names in its own files rewritten (migrate.names_changes:
-    `{hep}`, `HEP_*`, `$HEP`, `hepkit`, Whizard's `# hep:`, the editor's themes); then I-112's (migrate.errand_changes:
+    `{hep}`, `HEP_*`, `$HEP`, `hepkit`, Whizard's `# hep:`, the editor's themes); then the Errand names' (migrate.errand_changes:
     [run] → [errand] and [run].project → [errand].assignment in its configs and its records' snapshots, [source]'s
     project and run → assignment and errand in its plot documents, `--set run.…` → `--set errand.…`). A dry run
     prints each diff; --apply writes them. `heimdall setup . --refresh` then brings the framework's own files to
@@ -2277,7 +2277,7 @@ def migrate_layout(args) -> int:
     if not first and not then and not last:
         print("nothing to move: the layout is today's")
         return 0
-    for title, moves in (("output/ (5.1)", first), ("logs/ and points/ (V157)", then), ("plots/ by set (V164)", last)):
+    for title, moves in (("output/ (5.1)", first), ("logs/ and points/", then), ("plots/ by set", last)):
         counts: dict[str, int] = {}
         for source, target in moves:
             kind = f"{source.relative_to(work).parts[0]}/ → {target.relative_to(work).parts[0]}/"
@@ -2304,7 +2304,7 @@ def migrate_layout(args) -> int:
 
 
 def cmd_reproduce(args) -> int:
-    """`heimdall reproduce records/…/<point>/provenance.json` (V77, F10): the point again, exactly as it ran,
+    """`heimdall reproduce records/…/<point>/provenance.json` (V77): the point again, exactly as it ran,
     into .cache/<A>/reproduce/<identity>/ (its own records/ and results/), never over the original; then
     each product compared with the original's. The setup must still be the one that ran (the identity
     the provenance records), else it says what changed (--why) and stops, unless --anyway. A random
@@ -2407,7 +2407,7 @@ def _described(top: argparse.ArgumentParser) -> argparse._SubParsersAction:
 def parse(argv: list[str]) -> argparse.Namespace:
     """The command line, with options and positionals in any order (`heimdall run jets --plain pdf`, V54):
     argparse's intermixed parsing does not take subcommands, so the subcommand's own parser reads the rest.
-    `--plain` may come anywhere, for any command; an unknown command gets the nearest (U59)."""
+    `--plain` may come anywhere, for any command; an unknown command gets the nearest."""
     top = parser()
     commands = _described(top)
     typed = list(argv)                                             # as typed: a worker's own (V181)
@@ -2655,7 +2655,7 @@ def cmd_recognise(args) -> int:
 
 
 def cmd_build(args) -> int:
-    """`heimdall build` (U61): make, in the work dir (or, --framework, Heimdall): the module programs and
+    """`heimdall build`: make, in the work dir (or, --framework, Heimdall): the module programs and
     Rivet plugins, or Heimdall's apps and (--tests) its C++ tests."""
     from .paths import heimdall_root, work_root
     if args.tests and not args.framework:
@@ -2697,7 +2697,7 @@ def cmd_make(args) -> int:
     framework = "--framework" in rest
     rest = [a for a in rest if a != "--framework"]
     if not rest or rest[0] in ("-h", "--help"):
-        print("usage: heimdall make [--framework] <path>/<X>.exe | <path>/<x>.so   (docs/06_Internals.md §15)")
+        print("usage: heimdall make [--framework] <path>/<X>.exe | <path>/<x>.so   (docs/stable/internals/build.md)")
         return 0
     os.execvp("make", ["make", "-C", str(heimdall_root() if framework else work_root()), "--no-print-directory", *rest])
 
@@ -2716,7 +2716,7 @@ def _system_python() -> str:
 
 
 def cmd_stack(args) -> int:
-    """`heimdall stack build|list|status|doctor` (U60): the stack's builder (recipes/build_stack.py; on macOS
+    """`heimdall stack build|list|status|doctor`: the stack's builder (recipes/build_stack.py; on macOS
     recipes/platforms/mac/build.sh), and the stack's status and checks, under one noun."""
     import platform
     from .paths import heimdall_root
@@ -2768,16 +2768,16 @@ def main(argv: list[str]) -> int:
             print(f"note: {old} is a work dir from before Heimdall's names moved (its marker is hep.toml): "
                   "`heimdall migrate --names --apply` renames it and the old names in its files", file=sys.stderr)
         if args.command != "setup" and (work := find_work()) is not None:
-            if warning := setupmod.expects_warning(work):          # once per command (framework/01 §4.2)
+            if warning := setupmod.expects_warning(work):          # once per command (doc:layout)
                 print(warning, file=sys.stderr)
             if (work / "output").is_dir() and not getattr(args, "layout", False):   # made before 5.1's split
                 print("note: this work dir has output/ from before records/ and .cache/: its points rerun "
                       "until `heimdall migrate --layout --apply` moves it", file=sys.stderr)
             elif (work / "logs").is_dir() and any((work / "logs").iterdir()) and not getattr(args, "layout", False):
-                print("note: this work dir has logs/ from before records/<A>/<E>/<R>/logs/ and points/ (V157): its points "
+                print("note: this work dir has logs/ from before records/<A>/<E>/<R>/logs/ and points/: its points "
                       "rerun and its pages miss them until `heimdall migrate --layout --apply` moves them", file=sys.stderr)
             elif not getattr(args, "layout", False) and old_plots(work):
-                print("note: this work dir has pages in results/…/plots/<backend>/ from before plots/<set>/ (V164): "
+                print("note: this work dir has pages in results/…/plots/<backend>/ from before plots/<set>/: "
                       "`heimdall migrate --layout --apply` moves them, and the numbers into statistics/<set>/", file=sys.stderr)
         if args.command == "setup":
             if args.refresh:
@@ -2785,7 +2785,7 @@ def main(argv: list[str]) -> int:
                 setupmod.refresh(Path(args.dir), yes=args.yes, ask=ask)
                 return 0
             if args.old_project is not None:
-                raise HeimdallError("--project is now --assignment (I-112's names)",
+                raise HeimdallError("--project is now --assignment",
                                hint=f"heimdall setup {args.dir} --assignment {args.old_project}")
             added = setupmod.setup(Path(args.dir), assignment=args.assignment, git=args.git, adopt=args.adopt, name=args.name,
                                    example=args.example)

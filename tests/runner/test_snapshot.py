@@ -302,7 +302,7 @@ def test_a_documents_quantities_are_points_and_an_older_one_is_upgraded(trees, c
 
 
 def test_a_document_loaded_into_other_folders_reads_its_own_and_draws_there(trees, capsys, monkeypatch):
-    """I-108 P1: plotdoc.load(path, folders) gives members that draw into those folders, each still with its YODA
+    """plotdoc.load(path, folders) gives members that draw into those folders, each still with its YODA
     and its completeness from the document's own (the report draws a source's pages without writing to it)."""
     from runner import plotdoc
     from runner.tools import RunFolders

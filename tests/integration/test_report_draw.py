@@ -1,4 +1,4 @@
-"""heimdall report draws for itself (I-108 P6, V211): what a run's folder has not drawn or measured, what it drew as
+"""heimdall report draws for itself (V211): what a run's folder has not drawn or measured, what it drew as
 PNG alone, a section's plot keys and a set of a section's own, drawn by plot.draw and plot.measure from the folder's
 plot document into the report's cache; the folder's results/ and records/ byte for byte as they were.
 

@@ -1,4 +1,4 @@
-# recipes/toolkits/data.toml — @data (README.md §6)
+# recipes/toolkits/data.toml — @data (doc:toolkits)
 
 description = "data formats and publishing: HDF5 with HighFive (and h5py), the HEPData clients"
 

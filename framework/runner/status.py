@@ -1,6 +1,6 @@
 """Status from running tools: the standard protocol and the stdout filter rules (rank 3).
 
-docs/06_Internals.md §22 and docs/06_Internals.md §10.
+doc:cxx-kits and doc:events.
 
 * A tool with status = "standard" writes JSON lines to $HEIMDALL_STATUS_FD (src/Status.hh); a tool's
   output, its control sequences out, is matched against its filters.toml rules (progress, xsec, phase,

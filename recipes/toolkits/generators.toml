@@ -1,4 +1,4 @@
-# recipes/toolkits/generators.toml — @generators (README.md §6)
+# recipes/toolkits/generators.toml — @generators (doc:toolkits)
 
 description = "event generators side by side: Pythia 8, Herwig 7, Sherpa, Whizard, MadGraph5_aMC@NLO"
 

@@ -1,4 +1,4 @@
-"""framework/plot/figures/paper.py — tables and bar rankings on A4 pages (V196, I-107), drawn by matplotlib (Agg).
+"""framework/plot/figures/paper.py — tables and bar rankings on A4 pages (V196), drawn by matplotlib (Agg).
 
 * The model, pure data (bars.py builds it; this module knows no statistic): a `Document(heading, sections,
   notes, facts)`, each `Section(key, title, items)` a flow of items, each a `Table(key, title, headers, rows,
@@ -674,7 +674,7 @@ DRAW = {Table: _table, Ranking: _ranking, Text: _text}
 
 
 def write(document: Document, target: Path, formats: list[str], title: str, plt) -> list[Path]:
-    """The document's pages (I-108 P1, the loop the summary had): `target`.pdf holds them all (its metadata's Title
+    """The document's pages (the loop the summary had): `target`.pdf holds them all (its metadata's Title
     `title`), and a PNG or SVG is a file a page in the folder `target`, <target name>_<NN>.<fmt>, in the PDF's
     order; each page drawn, written and closed before the next. The files written, the PDF first."""
     from matplotlib.backends.backend_pdf import PdfPages

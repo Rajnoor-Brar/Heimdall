@@ -1,4 +1,4 @@
-# recipes/toolkits/cms.toml — @cms (README.md §6)
+# recipes/toolkits/cms.toml — @cms (doc:toolkits)
 
 description = "CMSSW from CVMFS, in an el9 container: external"
 

@@ -2,13 +2,13 @@
 has its own, framework/schema/report.toml (tables "report" and "section", V207), which an errand file's [report] is too
 (V209).
 
-docs/04_Config_Reference.md. Every key's type, allowed values, smallest value, default, inheritance and
+doc:errand-file. Every key's type, allowed values, smallest value, default, inheritance and
 whether it takes "default" is written once, in run.toml (V55); config.py and plot.py check their tables
 here, and the editor schema (`make schema`) and the reference's key lists come from the same file.
 
 "default" means "keep it as it is": the layer below's value, as if the key were absent. Only a key whose
 entry says `default_ok` takes it. In a v2 file, [plot]'s own "default" sets nothing, and the drawing tool
-decides; v3 gives that its own word, "native" (03 §6: "default" has one meaning), which a page key
+decides; v3 gives that its own word, "native" (doc:errand-file: "default" has one meaning), which a page key
 (`native_ok`: marked `page` and `default_ok`) takes at any level.
 """
 
@@ -189,7 +189,7 @@ def check_value(key: str, value, entry: dict, where: str) -> None:
         raise HeimdallError(f"'{key}' must be at least {entry['min']}", where=where, hint=f"got {value!r}")
 
 
-# ── the editor schema (F6) ───────────────────────────────────────────────────────────────────
+# ── the editor schema ───────────────────────────────────────────────────────────────────
 
 def _json_type(kinds: str) -> list[str]:
     return [{"int": "integer", "float": "number", "str": "string", "bool": "boolean", "list": "array",
@@ -298,7 +298,7 @@ def _renamed(table: str, names: dict[str, str], drop=(), extra: dict | None = No
 
 
 def json_schema_v3() -> dict:
-    """run.v3.schema.json: the errand file's third form for an editor (03 §6, runner/v3.py)."""
+    """run.v3.schema.json: the errand file's third form for an editor (doc:errand-file, runner/v3.py)."""
     seed = {"description": "\"identity\", \"random\" or an integer: the points' seeds", "type": ["string", "integer"]}
     events = {"description": "events per point; a configuration's may be a list: one configuration per count",
               "type": ["integer", "number", "array"]}

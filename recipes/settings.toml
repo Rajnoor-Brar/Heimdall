@@ -3,7 +3,7 @@
 # Change one with key=value on the command line (`cores=8`, `packages="rivet pythia8"`), or with
 # --config FILE: a TOML file holding any of these keys, and [package] tables that change or add
 # the recipes (recipes/toolkits/standard.toml). The command line wins over the file. The platform's fixes,
-# the toolkits, and the machine root's machine.toml are layers between (recipes/README.md §1).
+# the toolkits, and the machine root's machine.toml are layers between (doc:stack).
 
 machine     = ""           # the machine root: "": $HEIMDALL_MACHINE, else ~/Himinbjorg (forge/ base/ stack/ apps/ machine.sh)
 base        = "conda"      # what the stack is built with: "conda", a conda-forge base made by pixi (recipes/base.toml:

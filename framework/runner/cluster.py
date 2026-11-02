@@ -1,6 +1,6 @@
 """`heimdall cluster`: a run as Slurm jobs (rank 4, V114).
 
-docs/04_Config_Reference.md §16, docs/02_User_Guide.md §7.5. A job is an ordinary `heimdall run`, so each one
+doc:scale, doc:scale. A job is an ordinary `heimdall run`, so each one
 does exactly what the same command does when typed:
 
     pre job        heimdall run C cfg --stages pre                       when there are pre tools to run
@@ -105,7 +105,7 @@ def directives(keys: dict, *, name: str, log: Path, cpus: int, array: str = "") 
 
 def loader() -> Path:
     """The gjallarhorn.sh a job sources: Heimdall's, or the loaded isolated stack's, in the machine root's
-    stacks/ (recipes/README.md §6)."""
+    stacks/ (doc:stack)."""
     stack = os.environ.get(STACK_VAR)
     return machine_root() / "stacks" / stack / "gjallarhorn.sh" if stack else heimdall_root() / "gjallarhorn.sh"
 

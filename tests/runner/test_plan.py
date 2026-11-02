@@ -1,5 +1,5 @@
 """Planning one point: cards, argv, the connection rules (C6), consumers (C7/C8) and the
-the context file (04 §9.4) that replaced standard-configuration exports (V21, C13)."""
+the context file (doc:connections) that replaced standard-configuration exports (V21, C13)."""
 
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ def test_c6_a_fifo_into_a_non_streamable_tool_is_refused(scratch):
 def test_c6_a_fifo_across_groups_is_refused(scratch):
     with pytest.raises(HeimdallError, match="across groups") as caught:
         plan(raw(errand__cfgs__one__tools=["pythia", "rivet"]), scratch)
-    assert "L8" in caught.value.hint
+    assert "blocked" in caught.value.hint
 
 
 def test_c6_a_fifo_has_one_reader(scratch):
@@ -80,7 +80,7 @@ def test_c6_a_fifo_has_one_reader(scratch):
                tools__second={**CUSTOM, "input": "events.hepmc"})
     with pytest.raises(HeimdallError, match="2 readers") as caught:
         plan(data, scratch)
-    assert "V16" in caught.value.hint
+    assert "fan out" in caught.value.hint
 
 
 def test_c6_a_fifo_needs_a_writer(scratch):
@@ -126,7 +126,7 @@ def context_of(p) -> dict:
 
 
 def test_the_context_file_gives_every_tool_its_card_and_config(scratch):
-    """04 §9.4: one file per point, the chain's tools in it; reached by $HEIMDALL_CONTEXT or {context}."""
+    """doc:connections: one file per point, the chain's tools in it; reached by $HEIMDALL_CONTEXT or {context}."""
     data = raw(errand__cfgs__one__tools=[["pythia", "rivet"], "probe"],
                tools__probe={**CUSTOM, "config": {"model": "gauss"}, "arguments": ["{context}", "{context:pythia.card}"]})
     _, _, p = plan(data, scratch)

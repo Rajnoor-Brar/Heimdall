@@ -1,4 +1,4 @@
-"""framework/tools/pythia/diagnose.py — Pythia's [diagnose] (tool.toml; docs/06_Internals.md §23, V203).
+"""framework/tools/pythia/diagnose.py — Pythia's [diagnose] (tool.toml; doc:events, V203).
 
 App_Pythia's arguments, run after its init failed: its cards are read, in order, into one plain Pythia (App_Pythia's
 PythiaParallel keeps its instances' messages to itself) and initialised, so Pythia's own reason is printed ("PYTHIA

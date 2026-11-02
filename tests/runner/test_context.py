@@ -1,4 +1,4 @@
-"""The point's context file (docs/audit_3/06_Plan.md, phase 4.2; 04 §9.4): every tool's card and config,
+"""The point's context file (doc:connections): every tool's card and config,
 written when the point starts, at $HEIMDALL_CONTEXT for every tool, kept with its record (V187); generate_cards for
 tools not in the chain; `heimdall tools new`."""
 

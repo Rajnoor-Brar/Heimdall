@@ -1,6 +1,6 @@
 """What the user sees while points run (rank 4).
 
-docs/06_Internals.md §10, V72. A view hears the run's events (events.py) and nothing else: one
+doc:events, V72. A view hears the run's events (events.py) and nothing else: one
 reducer, `State`, turns them into points and their tools, and the views render it, the same whether the
 events come from the run in this process, from its watch socket (`heimdall watch`), or from a --journal file.
 

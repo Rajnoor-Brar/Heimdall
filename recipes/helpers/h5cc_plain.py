@@ -3,7 +3,7 @@
 -show and -showconfig in the classic one-line form autotools packages parse (YODA's m4/ax_lib_hdf5.m4).
 
 HDF5 2.x is built with CMake only, and its h5cc's answers broke YODA's link line (the Mac's build,
-docs/audit_3/01_Process.md §5 and §8). The plain wrapper names the same install, nothing else. Its name ends in
+The plain wrapper names the same install, nothing else. Its name ends in
 h5cc: ax_lib_hdf5.m4 reads the HDF5 type from the wrapper's name ("*h5cc" serial, "*h5pcc" parallel)."""
 
 import sys

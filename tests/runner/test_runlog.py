@@ -1,4 +1,4 @@
-"""A run's own account (V202, I-106 step L4): records/…/run.jsonl, always written and appended (every event but a
+"""A run's own account (V202): records/…/run.jsonl, always written and appended (every event but a
 tool's latest line, its progress once a minute); `heimdall log` printing a record, a point and a tool; `heimdall
 watch --file` from an appended file's last run; the worker's pace; the registry's counts."""
 

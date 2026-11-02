@@ -1,6 +1,6 @@
 """A run's plot document (V165): results/<A>/<E>/<R>/plot.toml, what every drawing reads (rank 4).
 
-docs/03_Plots.md §2.2. It holds two kinds of table:
+doc:plots. It holds two kinds of table:
 
 * **what the run knows**, rewritten by every run of that folder: [source] (the config, the configuration, the
   folder, its tag from its record, Heimdall's revision, when), [axes] (the sweep's axes, plot_points, combine, the fixed values),
@@ -39,7 +39,7 @@ FILE = "plot.toml"
 #: The tables a run rewrites, and those it writes once and keeps (the user's).
 KNOWN = ("source", "axes", "quantities", "members")
 CHOSEN = ("plot", "stats")
-HEADER = ("# A run's plot document (V165): what every drawing of this folder reads. [source], [axes], [quantities] and\n"
+HEADER = ("# A run's plot document: what every drawing of this folder reads. [source], [axes], [quantities] and\n"
           "# [members] are the run's, rewritten by every run of the folder; [plot] and [stats] are yours: edit them to\n"
           "# restyle this run alone, or take the config's with heimdall plot <A>/<E>/<R> --style-sync <config>.\n\n")
 
@@ -109,16 +109,16 @@ def path_of(results: Path) -> Path:
     return results / FILE
 
 
-#: [source]'s keys before I-112's names → today's.
+#: [source]'s keys before the Assignment/Errand names → today's.
 OLD_SOURCE = {"project": "assignment", "run": "errand"}
 
 
 def refuse_old_source(source: dict, path: Path) -> None:
-    """A document written before I-112's names ([source].project, [source].run): refused, with the command that
+    """A document written before the Assignment/Errand names ([source].project, [source].run): refused, with the command that
     rewrites it."""
     for old, new in OLD_SOURCE.items():
         if old in source:
-            raise HeimdallError(f"[source].{old} is now [source].{new} (I-112's names)", where=f"{path}: [source].{old}",
+            raise HeimdallError(f"[source].{old} is now [source].{new}", where=f"{path}: [source].{old}",
                                 hint=NAMES_HINT)
 
 
@@ -541,7 +541,7 @@ def _sweeps_of(entries: list) -> list:
 def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfiguration, list[Member]]:
     """A plot document: the run, configuration and members a drawing reads. A member is complete when its
     record's .complete holds the identity the document names (records/ there), else as the document says.
-    `folders` (I-108 P1): draw into these instead (pages, numbers, working files, logs); each member's YODA and
+    `folders`: draw into these instead (pages, numbers, working files, logs); each member's YODA and
     completeness are still read from the document's own, which nothing writes then."""
     import tomllib
     try:
@@ -616,7 +616,7 @@ FROM = "across_from"
 FROM_DEFAULT = {"runs": ["*"], "prefer": "last"}
 #: An untagged run's @tag among tagged ones: its label (its value is "").
 UNTAGGED = "untagged"
-ACROSS_HEADER = ("# The runs of an errand file together (V169): their members, drawn into this folder's plots/<set>/ and\n"
+ACROSS_HEADER = ("# The runs of an errand file together: their members, drawn into this folder's plots/<set>/ and\n"
                  "# statistics/<set>/. [from] says which runs (globs of their folders) and which point a duplicate is;\n"
                  "# [plot] and [stats] are yours (from the config's [plot] and its [plot.across] sets, by a run or --style-sync).\n\n")
 

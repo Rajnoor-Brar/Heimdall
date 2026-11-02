@@ -1,6 +1,6 @@
 """`heimdall migrate [CONFIG…] [--apply]` (rank 5, V79): errand files and their cards in today's forms.
 
-audit 1's final phase, "break and migrate": what the runner now refuses, rewritten in what it takes.
+"break and migrate": what the runner now refuses, rewritten in what it takes.
 A dry run (the default) prints a diff per file; `--apply` writes them. Only these, by line, so comments
 and layout stay:
 
@@ -20,20 +20,20 @@ and layout stay:
   headers in comments (a configuration commented out stays one to uncomment).
 * (V99) `[run.defaults]` → its keys moved into `[run]`, at the end of its keys; one [run] sets too is
   [run.defaults]'s value (it was the nearer layer). Its comments go with it.
-* (Heimdall, docs/framework/01_Target.md §5.3) `{repo}` → `{work}`, or `{heimdall}` for what moved into
+* (Heimdall, doc:layout) `{repo}` → `{work}`, or `{heimdall}` for what moved into
   Heimdall: `{repo}/build/App_*`, `Paint.exe` and `Herwig/` → `{apps}/…`, `{repo}/utils/` → `{heimdall}/src/`.
   On the text, anywhere in the file (a comment's example too).
-* (audit 3, phase 3.1) `{heimdall}/framework/Apps/` → `{apps}/`: the compiled apps are in the machine root.
-* (audit 3, phase 4.2) `tool = "custom"` → `tool = "exec"`; the export keys of an exec or module table
+* `{heimdall}/framework/Apps/` → `{apps}/`: the compiled apps are in the machine root.
+* `tool = "custom"` → `tool = "exec"`; the export keys of an exec or module table
   (`pythia_cmnd = true`, `herwig_run = true`) → `generate_cards` (the context file gives every tool's card
   and config), in each configuration whose chain runs that table, or in [run] when every one does;
   `{std:<key>}` → `{context:<tag>.<card or product>}`.
 
-* (I-112) `[run]` → `[errand]`, `[run].project` → `[errand].assignment` (`errand_text`), first: the functions
+* `[run]` → `[errand]`, `[run].project` → `[errand].assignment` (`errand_text`), first: the functions
   above read today's names (`[errand.<cfg>]`, `[errand.defaults]`).
 
-`heimdall migrate --names [--apply]` (I-109, V213) is a work dir's own: Heimdall's old names in its files
-(`names_changes`), its marker `hep.toml` → `heimdall.toml` first; then I-112's (`errand_changes`): its configs, its
+`heimdall migrate --names [--apply]` (V213) is a work dir's own: Heimdall's old names in its files
+(`names_changes`), its marker `hep.toml` → `heimdall.toml` first; then the Errand names' (`errand_changes`): its configs, its
 records' snapshots and provenance, its plot documents' [source].
 """
 
@@ -122,7 +122,7 @@ def defaults_text(text: str) -> str:
     return "".join(rest[:run + 1] + body + block + (tail or ["\n"]) + rest[after:])
 
 
-#: High-Energy's single root, split (framework/01 §5.3): the first prefix that matches wins.
+#: High-Energy's single root, split (doc:layout): the first prefix that matches wins.
 PLACEHOLDERS = (("{repo}/build/App_", "{apps}/App_"),
                 ("{repo}/build/Paint.exe", "{apps}/Paint.exe"),
                 ("{repo}/build/Herwig/", "{apps}/Herwig/"),
@@ -341,7 +341,7 @@ CARD_EXPORTS = {"card", "cmnd", "in", "yaml", "proc", "tcl", "sin"}
 
 def formerly_text(text: str) -> str:
     """A tool folder's old name as its name: tool = "<old>" → tool = "<name>", for every folder whose
-    [tool] formerly lists it (custom → exec, audit 3, phase 4.2)."""
+    [tool] formerly lists it (custom → exec)."""
     for name, folder in tools.folders().items():
         for old in folder.get("tool", "formerly", []):
             text = re.sub(rf'^(\s*tool\s*=\s*)"{re.escape(old)}"', lambda m: f'{m[1]}"{name}"', text, flags=re.M)
@@ -361,7 +361,7 @@ def _block_end(lines: list[str], header: int) -> int:
 
 
 def exports_text(text: str, imported: dict | None = None) -> str:
-    """An exec or module table's export keys (`pythia_cmnd = true`, C13) as generate_cards (audit 3,
+    """An exec or module table's export keys (`pythia_cmnd = true`, C13) as generate_cards (
     phase 4.2): the table each one named, as "<tag>:<product>" when its folder makes it on demand, in
     every configuration whose chain runs the asking table (in [errand] when every configuration does), and
     `{std:<key>}` as `{context:<tag>.<card or product>}`. By line; the rest of the file is kept. `imported`
@@ -440,7 +440,7 @@ def exports_text(text: str, imported: dict | None = None) -> str:
     return text
 
 
-# ── v3 (audit 3, phase 6.3; runner/v3.py) ──────────────────────────────────────────────────────
+# ── v3 (runner/v3.py) ──────────────────────────────────────────────────────
 
 RUN_V3 = {"configuration": "run", "event_count": "events", "tools": "chain", "sweeps": "vary"}
 CFG_V3 = {**RUN_V3, "label": "folder", "static": "fixed"}
@@ -598,7 +598,7 @@ def _commented_cfgs(text: str) -> str:
 
 
 def v3_text(text: str) -> str:
-    """A v2 errand file in v3's form (03 §6), by table, comments kept: [config] → [file], [errand.cfgs.<name>] →
+    """A v2 errand file in v3's form (doc:errand-file), by table, comments kept: [config] → [file], [errand.cfgs.<name>] →
     [cfgs.<name>], keys renamed, tools typed by their table's name, [prelim] inferred (keep = false on a
     scratch file's producer; its commands to [errand]), [static] into each quantity's fixed, quantities as
     rows. A v3 file is left as it is."""
@@ -744,7 +744,7 @@ def v3_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", _commented_cfgs(text))
 
 
-#: What a point's or a configuration's folder of output/ recorded: it goes to records/ (U21).
+#: What a point's or a configuration's folder of output/ recorded: it goes to records/.
 RECORDED = ("provenance.json", "identity.json", ".complete", "points.json")
 
 
@@ -1039,9 +1039,9 @@ def apply(changes: dict[Path, tuple[str, str]]) -> None:
         path.write_text(new, encoding="utf-8")
 
 
-# ── I-109: a work dir's uses of Heimdall's old names ─────────────────────────────────────────────
+# ── a work dir's uses of Heimdall's old names ─────────────────────────────────────────────
 
-#: A work dir's marker before I-109.
+#: A work dir's marker before the heimdall names.
 OLD_MARKER = "hep.toml"
 #: The names that moved (hep → heimdall), as a work dir's files use them: its configs' placeholders and comments,
 #: its modules' imports and environment, its Makefile, its editor settings, Whizard's directive.
@@ -1075,7 +1075,7 @@ SOURCE_LIMIT = 2_000_000
 
 
 def old_marker(start: Path | None = None) -> Path | None:
-    """The folder holding a pre-I-109 marker (hep.toml with a [work] table), here or above; None."""
+    """The folder holding a marker from before the heimdall names (hep.toml with a [work] table), here or above; None."""
     here = (start or Path.cwd()).resolve()
     for folder in (here, *here.parents):
         marker = folder / OLD_MARKER
@@ -1125,7 +1125,7 @@ def names_changes(work: Path) -> dict[Path, tuple[str, str]]:
 
 
 
-# ── I-112: the result levels' names, <Assignment>/<Errand>/<Run> ────────────────────────────────
+# ── the result levels' names, <Assignment>/<Errand>/<Run> ────────────────────────────────
 
 #: A table header, or one commented out: `[run]`, `[run.cfgs.pdf]`, `# [[run.x]]` (the `run` at group 3).
 _OLD_HEADER = re.compile(r"^(\s*(?:#+\s*)?)(\[\[?\s*)run(\s*[.\]])")
@@ -1197,7 +1197,7 @@ def _only_names(text: str, key: str) -> str:
 
 
 def errand_text(text: str) -> str:
-    """A config's text in I-112's names (by line, so comments and layout stay): `[run]` → `[errand]` and every
+    """A config's text in today's names (by line, so comments and layout stay): `[run]` → `[errand]` and every
     `[run.…]` → `[errand.…]` (its headers, commented ones too, and where a comment names them), `[run].project` →
     `[errand].assignment` (its key, the `=` column kept), dotted names (a root's `run.x = …`, an import's `only`
     and `drop`, `--set run.x=`, `heimdall explain run.x`), a report title's `{project}` and `{run}`. Idempotent."""
@@ -1271,7 +1271,7 @@ def errand_text(text: str) -> str:
 
 
 def source_text(text: str) -> str:
-    """A plot document's text in I-112's names: [source].project → assignment, [source].run → errand. Idempotent."""
+    """A plot document's text in today's names: [source].project → assignment, [source].run → errand. Idempotent."""
     out, table = [], ""
     for line in text.splitlines(keepends=True):
         header = _TABLE.match(line)
@@ -1283,13 +1283,13 @@ def source_text(text: str) -> str:
     return "".join(out)
 
 
-#: [source]'s keys before I-112 (plotdoc.OLD_SOURCE, a higher rank's) → today's.
+#: [source]'s keys before the Assignment/Errand names (plotdoc.OLD_SOURCE, a higher rank's) → today's.
 OLD_SOURCE_KEYS = {"project": "assignment", "run": "errand"}
 
 
 def snapshot_text(text: str, digests: dict[str, str]) -> str:
     """A record's snapshot.toml after its files were rewritten: each file's sha256 (`digests`: its path → the new
-    one) and its --set overrides in I-112's names; its comment kept."""
+    one) and its --set overrides in today's names; its comment kept."""
     data = tomllib.loads(text)
     snap, files = data.get("snapshot", {}), data.get("files", {})
     sets = [_set_name(s) for s in snap.get("sets", [])]
@@ -1303,7 +1303,7 @@ def snapshot_text(text: str, digests: dict[str, str]) -> str:
 
 
 def _set_name(item: str) -> str:
-    """One --set override in I-112's names: run.x=… → errand.x=…"""
+    """One --set override in today's names: run.x=… → errand.x=…"""
     if not isinstance(item, str) or not item.startswith("run."):
         return item
     rest = item[len("run."):]
@@ -1311,7 +1311,7 @@ def _set_name(item: str) -> str:
 
 
 def provenance_text(text: str) -> str:
-    """A point's provenance.json with its --set overrides (`sets`, what reproduces it) in I-112's names, its layout
+    """A point's provenance.json with its --set overrides (`sets`, what reproduces it) in today's names, its layout
     kept: each old override's JSON string replaced in place."""
     try:
         sets = json.loads(text).get("sets", [])
@@ -1325,7 +1325,7 @@ def provenance_text(text: str) -> str:
 
 
 def errand_changes(work: Path, changes: dict[Path, tuple[str, str]] | None = None) -> dict[Path, tuple[str, str]]:
-    """Each of a work dir's files I-112's names change: its configs (configs/**/*.toml, errand_text), its records'
+    """Each of a work dir's files the Assignment/Errand names change: its configs (configs/**/*.toml, errand_text), its records'
     snapshots (records/**/config/: the configs, snapshot.toml's digests and --set overrides) and points' provenance
     (its --set overrides), its plot documents (results/**/plot.toml, source_text) and folders' report.toml (their
     title's placeholders); --set and explain lines in its own sources (_sources; never modules/, whose source is

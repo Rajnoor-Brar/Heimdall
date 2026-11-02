@@ -1,4 +1,4 @@
-"""`heimdall doctor` and recipes/verify.py (docs/audit_3/06_Plan.md, phase 2.1): a package's checks from its
+"""`heimdall doctor` and recipes/verify.py: a package's checks from its
 recipe, the scan for libraries that no longer resolve, the report and the support matrix."""
 
 from __future__ import annotations

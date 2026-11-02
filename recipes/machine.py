@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """recipes/machine.py — the machine root: what this machine built, apart from Heimdall's checkout
-(docs/audit_3/02_Organisation.md §3). Standard library only: it runs before any environment exists.
+. Standard library only: it runs before any environment exists.
 
     python3 recipes/machine.py where              # the machine root and its folders
     python3 recipes/machine.py adopt [--dry-run]  # a checkout that still holds its stack: moved under the root

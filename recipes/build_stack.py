@@ -34,10 +34,10 @@ extends; the machine root's machine.toml; --config files; the command line. Each
 [env] and [packages.<name>] change what is below: a list appends unless the table says
 replace = ["key"], a table merges, anything else replaces.
 Where things go: the machine root ($HEIMDALL_MACHINE, or the `machine` setting; ~/Himinbjorg by default),
-apart from Heimdall's checkout (docs/audit_3/02_Organisation.md §3): downloads in forge/downloads/,
+apart from Heimdall's checkout: downloads in forge/downloads/,
 unpacked sources in forge/src/, build trees in forge/build/, logs in forge/logs/, installs in stack/,
 this machine's shell lines in machine.sh.
-The base (base = "conda", the default; docs/conda/): before any build, pixi (fetched into forge/pixi/)
+The base (base = "conda", the default; doc:base): before any build, pixi (fetched into forge/pixi/)
 makes base/ a conda-forge environment from recipes/base.toml: the compilers, the build tools, the
 libraries the stack links, Python and its packages. The stack is built inside it, from source, into
 stack/; a recipe taken ready-made (from = "conda-forge") is installed into the base instead. gjallarhorn.sh
@@ -104,11 +104,11 @@ BASE_CMAKE = ["-DCMAKE_IGNORE_PREFIX_PATH=/usr;/usr/local",
 #: A recipe in no group joins a build only by name.
 GROUPS = {"core": ("core",), "extra": ("extra",), "all": ("core", "extra")}
 #: The toolkits: standard.toml (every recipe; @standard) and one file per toolkit, Heimdall's here and
-#: a machine's own in <machine root>/toolkits/, which come first (README.md §6).
+#: a machine's own in <machine root>/toolkits/, which come first (doc:toolkits).
 SHIPPED = HERE / "toolkits"
 STANDARD = SHIPPED / "standard.toml"
 KIT_FIELDS = {"description", "note", "extends", "isolated", "standard", "settings", "env", "packages"}
-#: The base (base = "conda"): its packages, pixi, and the layer its builds get (docs/conda/02_Design.md).
+#: The base (base = "conda"): its packages, pixi, and the layer its builds get (doc:base).
 BASE_FILE = HERE / "base.toml"
 BASES = ("conda", "system")
 #: Where a recipe comes from: built here, or ready-made from conda-forge into the base.
@@ -146,7 +146,7 @@ COLOUR = sys.stderr.isatty() and not os.environ.get("NO_COLOR")
 
 
 def die(message: str, hint: str = "") -> NoReturn:
-    """An error in heimdall's format (U62): `heimdall: what`, then `  hint:  what to do`."""
+    """An error in heimdall's format: `heimdall: what`, then `  hint:  what to do`."""
     text = f"heimdall: {message}" + (f"\n  hint:  {hint}" if hint else "")
     sys.exit(f"\033[31m{text}\033[0m" if COLOUR else text)
 
@@ -241,7 +241,7 @@ def settable(settings: dict, *also: str) -> set[str]:
     return {key for key in settings if not key.startswith("_") and key not in ("machine", "env", *also)}
 
 
-# ── toolkits (recipes/toolkits/, README.md §6) ──────────────────────────────────────────────────
+# ── toolkits (recipes/toolkits/, doc:toolkits) ──────────────────────────────────────────────────
 
 def kit_files(root: Path) -> dict[str, list[Path]]:
     """Each toolkit's files by name, nearest first: the machine root's toolkits/, then Heimdall's."""
@@ -547,7 +547,7 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
         if p.get("from") == "conda-forge" and settings["base"] != "conda":
             die(f"{name} is taken from conda-forge, which needs base = \"conda\" (not {settings['base']!r})")
         # conda-forge builds some packages for given C++ standards only (ROOT: 20 or 23). Taken ready-made, such
-        # a package sets the stack's standard, so what is built here against it matches (README.md §3); its
+        # a package sets the stack's standard, so what is built here against it matches (doc:build-fixes); its
         # `conda` pins that build ({cxx_std}). A standard set by a layer and not among them is refused.
         if p.get("from") == "conda-forge" and p.get("conda_std") and settings["cxx_std"] not in p["conda_std"]:
             stds = " or ".join(f"C++{n}" for n in p["conda_std"])
@@ -654,7 +654,7 @@ def base_lists(c: dict, kind: str) -> list[str]:
 
 def base_hash(c: dict) -> str:
     """What a package built from source on the base depends on there: the installed versions of the base's
-    libraries, its compilers and C++ runtime, and Python (docs/conda/02_Design.md §4). A tool's change
+    libraries, its compilers and C++ runtime, and Python (doc:base). A tool's change
     (pandoc, cmake) changes nothing."""
     if not c["base"] or not c["conda_meta"]:                           # (c's base is the prefix: "" without one)
         return ""
@@ -1278,7 +1278,7 @@ def system(s: dict, c: dict, shell: Shell, extra: list[str] = ()) -> None:
         done.touch()
 
 
-# ── the base (base = "conda"; docs/conda/02_Design.md) ─────────────────────────────────────────
+# ── the base (base = "conda"; doc:base) ─────────────────────────────────────────
 
 def check_ready_made(order: list[str], packages: dict) -> None:
     """A package taken ready-made brings what it needs from conda-forge too: so what it needs must not be
@@ -1324,7 +1324,7 @@ def manifest_text(order: list[str], packages: dict, c: dict) -> str:
     channels = read(BASE_FILE)["base"]["channels"]
     lines = ["# base/pixi.toml: the machine root's base, written by recipes/build_stack.py from recipes/base.toml,",
              "# settings.toml's python_packages and base_packages, and the run's recipes. Change those, not this:",
-             "# the next build writes it again (docs/conda/02_Design.md).",
+             "# the next build writes it again (docs/stable/setup/base.md).",
              "[workspace]", 'name = "heimdall-base"',
              "channels = [" + ", ".join(json.dumps(ch) for ch in channels) + "]",
              f"platforms = [{json.dumps(c['conda_platform'])}]", "", "[dependencies]"]
@@ -1458,7 +1458,7 @@ def environment(s: dict, c: dict, packages: dict) -> tuple[dict[str, list[str]],
 
 
 #: The user's environment the build keeps: the rest (ROOTSYS, LD_LIBRARY_PATH, PYTHONPATH, another
-#: stack's paths, a venv or conda) never reaches a configure script (docs/audit_3/01_Process.md C).
+#: stack's paths, a venv or conda) never reaches a configure script.
 KEEP_ENV = ("HOME", "USER", "LOGNAME", "SHELL", "TERM", "TMPDIR", "LANG", "TZ", "DISPLAY", "SSH_AUTH_SOCK",
             "http_proxy", "https_proxy", "no_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
             "SSL_CERT_FILE", "SSL_CERT_DIR", "CURL_CA_BUNDLE", "REQUESTS_CA_BUNDLE",
@@ -1496,7 +1496,7 @@ def clean_environment(c: dict) -> tuple[dict[str, str], list[str]]:
 
 
 def preflight(s: dict, c: dict, order: list[str]) -> None:
-    """What will cause trouble, said before anything is downloaded (docs/audit_3/01_Process.md C, H)."""
+    """What will cause trouble, said before anything is downloaded."""
     if MAC and not os.environ.get("HEIMDALL_BUILD_SH"):
         die("on macOS, build through recipes/platforms/mac/build.sh (Homebrew's packages, GNU tools first): "
             f"bash recipes/platforms/mac/build.sh {' '.join(sys.argv[1:])}".rstrip())

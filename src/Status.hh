@@ -1,5 +1,5 @@
 #pragma once
-// src/Status.hh — the standard status protocol (docs/06_Internals.md §22).
+// src/Status.hh — the standard status protocol (doc:cxx-kits).
 //
 // A tool writes JSON lines to the file descriptor named in $HEIMDALL_STATUS_FD:
 //

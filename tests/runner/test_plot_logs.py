@@ -1,4 +1,4 @@
-"""The plot stage's failures logged (V204, I-106 step L6): a failed Paint batch's, converter's or merge's output,
+"""The plot stage's failures logged (V204): a failed Paint batch's, converter's or merge's output,
 cleaned and digested, in records/<run>/logs/plot/, the failure naming the file; nothing written when no drawing
 is under way (heimdall plot FILE). The programs are small shell scripts in Paint's and App_yd2rt's place."""
 

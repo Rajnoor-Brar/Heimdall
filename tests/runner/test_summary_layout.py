@@ -1,4 +1,4 @@
-"""Statistics on A4 (V196, V197, I-107): every summary page and page image is A4 portrait; a table wider than the
+"""Statistics on A4 (V196, V197): every summary page and page image is A4 portrait; a table wider than the
 page is cut into column blocks stacked on its page; a page holds whole rows, a band never last; small tables share
 a page within their section; the footer counts the pages; the facts, contents and notes come first, each page's
 footnote a line of note numbers. The worst case is shaped like a real one (76 points in 38 page cells, 12

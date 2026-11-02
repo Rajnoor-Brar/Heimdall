@@ -1,4 +1,4 @@
-"""What a point's attempts leave (V200, I-106 step L2): each attempt's line in attempts.jsonl with its verdict, cause
+"""What a point's attempts leave (V200): each attempt's line in attempts.jsonl with its verdict, cause
 and tools (exit, stall, warnings, errors, what they reported); `heimdall status` naming why a point failed; the
 run's constants and each point's state in points.json; a block's warnings; the verdict's counts and failures.
 The tools are small shell scripts in a fixture point's place, so nothing here needs the stack's generators."""

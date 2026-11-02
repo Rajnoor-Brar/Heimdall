@@ -1,4 +1,4 @@
-"""The tool search path (docs/audit_3/06_Plan.md, phase 4.1): a work dir's tools/, the machine root's tools/,
+"""The tool search path: a work dir's tools/, the machine root's tools/,
 Heimdall's framework/tools/, nearest first; `extends` lays a folder over another; `heimdall tools` says which."""
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""A module program's settings (docs/audit_3/06_Plan.md, phase 4.2; src/Module.hh): every key of its
+"""A module program's settings (src/Module.hh): every key of its
 config must be one it reads, refused before the first event with the nearest name; --describe lists
 them, and `heimdall explain <Name>.exe` shows them. On the scratch work's own Decay.exe."""
 

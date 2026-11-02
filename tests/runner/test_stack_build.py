@@ -153,7 +153,7 @@ def test_the_templates_examples_are_the_tables_the_build_reads(bs, tmp_path):
 
 def test_the_dry_run_is_a_bash_script_and_writes_nothing(bs, tmp_path, capsys):
     """The default: the conda base first (pixi fetched and checked, the manifest, `pixi install`, the
-    activation), then every build inside it (docs/conda/)."""
+    activation), then every build inside it (doc:base)."""
     prefix = tmp_path / "heimdall"
     bs.main(["--dry-run", f"machine={prefix}", "packages=all", "root_cores=2"])
     script = capsys.readouterr().out
@@ -237,12 +237,12 @@ def test_the_mac_on_the_conda_base_needs_no_homebrew(bs, tmp_path, monkeypatch, 
 
 def test_the_system_packages_carry_what_decks_need(bs, tmp_path):
     """The decks group, named for heimdall deck (retired, V212), kept as the base's is until it is next rebuilt
-    (I-62): poppler for a page's PNG (sheets, reports), TeX's recommended set, pandoc."""
+: poppler for a page's PNG (sheets, reports), TeX's recommended set, pandoc."""
     _, s, _ = bs.options([f"machine={tmp_path}"])
     assert {"pandoc", "poppler-utils", "texlive-latex-recommended"} <= set(s["apt_packages"])
 
 
-# ── toolkits (recipes/toolkits/, README.md §6) ─────────────────────────────────────────────────
+# ── toolkits (recipes/toolkits/, doc:toolkits) ─────────────────────────────────────────────────
 
 def test_every_toolkit_plans_and_names_only_packages(bs, tmp_path):
     _, _, packages = bs.options([f"machine={tmp_path}"])
@@ -438,7 +438,7 @@ def test_one_isolated_stack_per_run(bs, tmp_path):
         planned(bs, tmp_path, "_stack=sneaky")                       # the internal key is not a setting
 
 
-# ── downloads (phase 1.1 of docs/audit_3/06_Plan.md) ───────────────────────────────────────────
+# ── downloads ───────────────────────────────────────────
 
 def a_tarball() -> bytes:
     raw = io.BytesIO()
@@ -744,7 +744,7 @@ def test_rebuild_broken_takes_what_lost_a_library_and_what_needs_it(bs, tmp_path
     assert "# == root" in out.out and "# == delphes" in out.out and "# == rivet" not in out.out
 
 
-# ── the conda base (docs/conda/) ───────────────────────────────────────────────────────────────
+# ── the conda base (doc:base) ───────────────────────────────────────────────────────────────
 
 def a_base(c, **installed):
     """A base as pixi leaves it, for the tests: conda-meta/<name>-<version>-<build>.json for each."""
@@ -823,7 +823,7 @@ def test_a_ready_made_package_is_where_conda_forge_put_it(bs, tmp_path):
 
 
 def test_a_change_in_the_bases_libraries_marks_what_was_built_on_them(bs, tmp_path):
-    """A stamp holds the base's libraries (docs/conda/02 §4): gsl's build changing makes every package built
+    """A stamp holds the base's libraries (doc:base): gsl's build changing makes every package built
     here "changed"; pandoc's (a tool) changes nothing; the system base never had any."""
     _, s, packages = bs.options([f"machine={tmp_path}"])
     c = bs.context(s)

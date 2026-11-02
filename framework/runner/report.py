@@ -1,4 +1,4 @@
-"""`heimdall report` (I-108, .plans/report/): a quick, informal report of one or more runs' pages and numbers,
+"""`heimdall report`: a quick, informal report of one or more runs' pages and numbers,
 for colleagues or a supervisor, made only when asked (rank 4).
 
 * **Sources** are result folders holding a plot document (plot.toml): a configuration's, or a run's runs-together
@@ -272,12 +272,12 @@ def load_recipe(path: Path) -> dict:
     """A recipe's [report] table, checked, its template laid under it (V209): a recipe of its own ([report] alone,
     every key against report.toml), or an errand file's [report] as it is read (its from and output a recipe's)."""
     data = _read(path)
-    if "errand" in data or "run" in data:                     # [run]: the names before I-112, refused by load
+    if "errand" in data or "run" in data:                     # [run]: the names before Assignment/Errand, refused by load
         return dict(configmod.load(str(path)).report)
     if set(data) != {"report"}:
         others = sorted(set(data) - {"report"})
         raise HeimdallError(f"a recipe has [report] alone, not [{others[0]}]" if others else "a recipe has a [report] table",
-                       where=str(path), hint="[report] title = …, then [[report.section]] tables (04 §15)")
+                       where=str(path), hint="[report] title = …, then [[report.section]] tables (docs/stable/guide/reports.md)")
     configmod.check_report(data["report"], f"{path}: [report]")
     assignment = configmod._assignment_of(path, data, "")
     table, _ = configmod.report_of(data["report"], path, assignment, f"{path}: [report]")
@@ -313,7 +313,7 @@ def _sections(sets: list[str], measured: list[str], tools: list[str] | None) -> 
 
 
 def default_sections(plot: dict, stats: dict, tools: list[str] | None = None) -> list[dict]:
-    """The default report's sections for a plot document's [plot] and [stats] (A1, A8, I-111): what its tools were
+    """The default report's sections for a plot document's [plot] and [stats] (A1, A8): what its tools were
     given (`tools`: [report].tools; None every tool given a card or options, [] none), then Standings, the
     statistics' headline, on the first set it measures ([stats].sets, else the sets drawn), then the pages of each
     set it draws; every one optional, so a set drawn nowhere is left out."""
@@ -596,7 +596,7 @@ class Figure:
 
 @dataclass
 class SetHead:
-    """A set's sub-header (I-110 R3), once over a source's grids of it (once a set, side by side): what its pages
+    """A set's sub-header, once over a source's grids of it (once a set, side by side): what its pages
     and curves are along, and the quantities its configuration holds fixed, each as (what, its lines); the labels
     as the errand file wrote them (LaTeX, `$…$` math)."""
     set: str
@@ -648,7 +648,7 @@ class Section:
 
     @property
     def context(self) -> bool:
-        """Whether it says what was run (a tools section), which a report shows before its results (I-111)."""
+        """Whether it says what was run (a tools section), which a report shows before its results."""
         return "tools" in self.spec
 
     def waiting(self) -> bool:
@@ -717,7 +717,7 @@ def looked(plot: dict, look: dict) -> dict:
 
 @dataclass(frozen=True)
 class Look:
-    """A report's look (I-110 R2), from [report]'s look keys: the body's font and size, the accent (section
+    """A report's look, from [report]'s look keys: the body's font and size, the accent (section
     numbers, kickers, ranking bars, code keys), whether the front page holds the contents, a grid's columns."""
     font: str = "sans"           # "sans": TeX Gyre Heros throughout; "serif": TeX Gyre Termes for the body
     size: float = 9.5            # the body's pt (its line 1.42 times it)
@@ -744,7 +744,7 @@ class Plan:
     left: list[str] = field(default_factory=list)      # optional sections no source has, and why
     drawings: list[Drawing] = field(default_factory=list)
     look: Look = field(default_factory=Look)
-    method: bool = True          # How the numbers are made, when it shows statistics (I-111)
+    method: bool = True          # How the numbers are made, when it shows statistics
     context: str = "first"       # where what was run and how the numbers are made go: before the results, or "last"
 
     def shows_numbers(self) -> bool:
@@ -804,7 +804,7 @@ def _values_of(doc, name: str, value) -> str:
 
 
 def set_head(source: Source, set_: str, look: dict | None = None) -> SetHead:
-    """A source's set as its sub-header says it (I-110 R3): its table in the plot document ([plot].sets, a
+    """A source's set as its sub-header says it: its table in the plot document ([plot].sets, a
     section's plot keys over them; the totality's own when it names none): Pages (its page axes and their values,
     as labels; none: a page per object), Curves (a line a curves filter), Objects, and Fixed (each quantity the
     configuration does not vary, its value's label)."""
@@ -1006,7 +1006,7 @@ def _compare_section(section: dict, found: list[Source], where: str) -> list[Gri
                     break
             else:
                 raise HeimdallError(f"compare: no page of {name} drawn in {_address(errand)}/compare/", where=f"{where}.compare",
-                               hint="a compare figure is drawn by its configurations' plot stage (03 §7.5)")
+                               hint="a compare figure is drawn by its configurations' plot stage (docs/stable/guide/plots-figures.md)")
     return grids
 
 
@@ -1119,7 +1119,7 @@ def resolve(recipe: dict, given: list[str], *, path: Path | None = None, command
     title = filled(recipe.get("title", ""), facts) or (used[0].address if len(used) == 1 else _common(used) or "report")
     context = recipe.get("context", "first")
     tools, results = [s for s in sections if s.context], [s for s in sections if not s.context]
-    sections = tools + results if context == "first" else results + tools          # what was run first (I-111)
+    sections = tools + results if context == "first" else results + tools          # what was run first
     return Plan(command or where, title, filled(recipe.get("subtitle", ""), facts), used, sections,
                 out or _out(recipe, used, where), path, left, drawings, look_of(recipe), recipe.get("method", True), context)
 
@@ -1207,11 +1207,11 @@ def listing(plan: Plan) -> list[str]:
 def starter(name: str, source: Source) -> str:
     """`--init`: the default report's sections as a recipe, each set's cells and pages listed, and the sets
     drawn that its document does not draw by default as sections commented out (V207)."""
-    lines = [f"# configs/{name}: a report, `heimdall report {name} <source>` (docs/03_Plots.md §11; its keys 04 §15).",
+    lines = [f"# configs/{name}: a report, `heimdall report {name} <source>` (doc:reports; its keys doc:reports).",
              "# The sources on the command line replace `from`; each [[report.section]] shows one of pages, compare,",
              "# stats, bars or files.", "", "[report]", f'title = "{source.doc.name} · {source.name}"',
              '# subtitle = "for the group, <date>"', f'from  = ["{source.address}"]',
-             "# its look, each key's default (04 §15):", '# font     = "sans"      # "serif": TeX Gyre Termes for the body',
+             "# its look, each key's default (docs/stable/guide/reports.md):", '# font     = "sans"      # "serif": TeX Gyre Termes for the body',
              "# size     = 9.5         # the body's pt, 8 to 12", '# accent   = "#2a78d6"   # section numbers, kickers, code\'s keys',
              "# columns  = 2           # a grid's, when its section names none", "# contents = true        # the contents on the front page",
              "# context  = \"first\"     # what was run and How the numbers are made: before the results, or \"last\"",
@@ -1255,7 +1255,7 @@ MATH = {**{c: f"\\{n}" for c, n in zip("αβγδεζηθικλμνξπρστυφ
         "∝": r"\propto", "∼": r"\sim", "↔": r"\leftrightarrow", "⇒": r"\Rightarrow", "ℓ": r"\ell", "ħ": r"\hbar",
         "⁺": "^{+}", "⁻": "^{-}", "⁰": "^{0}", "⁴": "^{4}", "⁵": "^{5}", "⁶": "^{6}", "⁷": "^{7}", "⁸": "^{8}",
         "⁹": "^{9}", "₀": "_{0}", "₁": "_{1}", "₂": "_{2}", "₃": "_{3}", "₄": "_{4}"}
-#: The page (I-110 R2), in bp: A4, 18 mm left and right, 22 mm top (the running header 8 mm over the body), 20 mm
+#: The page, in bp: A4, 18 mm left and right, 22 mm top (the running header 8 mm over the body), 20 mm
 #: bottom (the footer 11 mm under it). A grid is placed a row of panels at a time, each at most ROW_MOST high, so a
 #: page breaks between rows; GAP between panels, LABEL a panel's label over it.
 MM = 72 / 25.4
@@ -1425,7 +1425,7 @@ def _typeset():
 
 @dataclass
 class Typeset:
-    """Statistics typeset in the report (I-110 R5): a source's part of its summary, or its pages' bar tables, as
+    """Statistics typeset in the report: a source's part of its summary, or its pages' bar tables, as
     LaTeX in the report's own fonts (figures/typeset.py), the numbers they are made from beside them (R6)."""
     title: str                   # its block's title, its line in the contents
     tagline: str
@@ -1434,10 +1434,10 @@ class Typeset:
     page: Path | None = None     # the same document as one HTML page, for index.html
     toc: str = ""                # its line in the contents, when not its title
     notes: dict = field(default_factory=dict)    # the notes its items name, every one (key → text)
-    refer: bool = False          # its definitions are How the numbers are made's, not its own (I-111)
+    refer: bool = False          # its definitions are How the numbers are made's, not its own
 
 
-#: The notes How the numbers are made gives (I-111): each statistic's definition (stat-<key>), how a page is compared,
+#: The notes How the numbers are made gives: each statistic's definition (stat-<key>), how a page is compared,
 #: and how points are scored and play their matches; a statistics part then leaves them out.
 METHOD_NOTES = ("compared", "counted", "apart", "score", "h2h")
 METHOD_TITLE = "How the numbers are made"
@@ -1516,7 +1516,7 @@ def _bars(build: _Build, bars, item: Bars, folder: Path, number: int, method: bo
     return Typeset(title, f"{len(names)} page(s), a table each", lines, data, notes=notes, refer=method)
 
 
-#: A figure's data (I-110 R6): each curve's bins as the run made them (before the page's normalisation), and the
+#: A figure's data: each curve's bins as the run made them (before the page's normalisation), and the
 #: data's, read from the YODAs its page document names.
 FIGURE_COLUMNS = ("curve", "label", "xlow", "xhigh", "y", "err_down", "err_up")
 
@@ -1632,7 +1632,7 @@ def _configs(build: _Build, item: Given, folder: Path) -> Configs:
 def _place(build: _Build, plan: Plan, say) -> tuple[list[tuple[Section, list]], "Prose | None"]:
     """Every section's figures copied into figures/<NN>_<section>/, each with its data (a CSV, from its page
     document's YODAs), its statistics and bar tables typeset, their numbers into stats/<NN>_<section>/; each grid
-    and part as the report shows it; and How the numbers are made, for the statistics shown (I-111)."""
+    and part as the report shows it; and How the numbers are made, for the statistics shown."""
     bars = statstable.bars()
     method = plan.method and plan.shows_numbers()
     yodas = _Yodas()
@@ -1685,7 +1685,7 @@ def _place(build: _Build, plan: Plan, say) -> tuple[list[tuple[Section, list]], 
 
 @dataclass
 class Prose:
-    """How the numbers are made (I-111), as report.tex and index.html show it."""
+    """How the numbers are made, as report.tex and index.html show it."""
     lines: list[str]
     html: str
 
@@ -1750,7 +1750,7 @@ def _rows(placed: Placed) -> tuple[float, float, list[tuple[int, int]]]:
     return cw, ch, [(start, min(len(placed.files), start + columns)) for start in range(0, len(placed.files), columns)]
 
 
-#: report.tex's preamble (I-110 R2): its look, every size, colour and space set here once, as macros the body uses.
+#: report.tex's preamble: its look, every size, colour and space set here once, as macros the body uses.
 #: @…@ are the look's (Look): the fonts, the body's size and line, the accent, the title in the running header.
 PREAMBLE = r"""\documentclass[a4paper]{article}
 %% Made by heimdall report: every file it names is in this folder, so it compiles here as it is (pdflatex, twice).
@@ -1942,7 +1942,7 @@ def _literal(text: str) -> str:
     return _breakable(text.replace("$", "\0"))
 
 
-#: A card's line read for highlighting (I-110 R4): `key = value` (Pythia, a context's options) or `key: value`
+#: A card's line read for highlighting: `key = value` (Pythia, a context's options) or `key: value`
 #: (YAML, at any depth, a list's `- ` before it), Herwig's commands, a number, a word, a comment after the value.
 _KEYED = re.compile(r"(\s*(?:-\s+)?)([A-Za-z_][\w:.\-/\[\]]*)(\s*)(=|:(?=\s|$))(\s*)(.*)")
 _COMMAND = re.compile(r"(\s*)(set|insert|create|cd|read|saverun|newdef|erase|do|get|mkdir|library)(\s.*|$)")
@@ -1984,7 +1984,7 @@ def _word(text: str) -> str:
 
 
 def highlight(line: str) -> str:
-    """A card's line for Verbatim[commandchars=\\\\\\{\\}] (I-110 R4): its key bold in the accent, `=` or `:` muted,
+    """A card's line for Verbatim[commandchars=\\\\\\{\\}]: its key bold in the accent, `=` or `:` muted,
     a number or a word coloured, a comment muted italic; anything else as it is."""
     at = _comment_at(line)
     body, comment = (line[:at], line[at:]) if at >= 0 else (line, "")
@@ -2116,7 +2116,7 @@ def _method_at(plan: Plan, placed: list) -> int:
 def _tex(plan: Plan, placed: list[tuple[Section, list]], method: Prose | None, out: Path) -> str:
     """report.tex, with BUILT for when and by what it was made: its preamble (the look), its front page, then
     each section on a new page, its note, its grids a row of panels at a time, each file named relative to the
-    folder; How the numbers are made, unnumbered, after what was run (I-111)."""
+    folder; How the numbers are made, unnumbered, after what was run."""
     tex = _layout().tex
     lines = [r"\hypersetup{pdftitle={" + tex(plan.title) + "}}", r"\begin{document}", *_front(plan)]
     at = _method_at(plan, placed) if method else -1
@@ -2351,7 +2351,7 @@ def _pages_of(pdf: Path) -> int:
 
 
 def build(plan: Plan, say=print) -> list[Path]:
-    """The report, into plan.out (I-108 P3, P6): first what it draws for itself, into its cache (_draw_for); then
+    """The report, into plan.out (P6): first what it draws for itself, into its cache (_draw_for); then
     figures/ (each figure copied as drawn, its PNG beside it), stats/ (the chosen statistics and bar graphs, drawn
     from each source's statistics.csv, or the numbers measured for it), report.tex (A4, naming only files in the
     folder), report.pdf (pdflatex, twice: the contents) and index.html. Only what changed is copied or drawn again

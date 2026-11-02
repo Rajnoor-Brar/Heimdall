@@ -1,4 +1,4 @@
-# Makefile — Heimdall's own build: the framework's apps and the C++ tests (docs/06_Internals.md §15).
+# Makefile — Heimdall's own build: the framework's apps and the C++ tests (doc:build).
 # `heimdall build --framework` is `make all` here. A work dir's build is framework/work.mk; the rules
 # both share are framework/rules.mk.
 #
@@ -7,7 +7,7 @@
 #   make tests                  build the C++ tests       make test   build and run them, then pytest
 #   make clean                  remove the apps and the build's intermediates (never the stack's builds)
 #
-# Conventions (§5.1), into the loaded stack's part of the machine root (gjallarhorn.sh sets HEIMDALL_APPS and
+# Conventions, into the loaded stack's part of the machine root (gjallarhorn.sh sets HEIMDALL_APPS and
 # HEIMDALL_FORGE: ~/Himinbjorg/apps and ~/Himinbjorg/forge, or stacks/<toolkit>/… for an isolated toolkit's):
 #   src/App_<X>.cc              → $HEIMDALL_APPS/App_<X>.exe
 #   src/Apps/<X>/main.cc        → $HEIMDALL_APPS/<X>.exe           (the folder's other files are headers it includes)

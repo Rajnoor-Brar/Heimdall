@@ -1,6 +1,6 @@
-"""One command line (audit 3, phase 7.1): every command is the runner's (build, make, help, stack and the
+"""One command line: every command is the runner's (build, make, help, stack and the
 shell verbs too), described, with did-you-mean, `--dry-run` and `--set` where they belong, `--plain`
-anywhere, and record ids in messages only as "(see V93)" (U59–U62)."""
+anywhere, and record ids in messages only as "(see V93)" ."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def test_every_command_has_a_description_and_heimdall_help_shows_it(capsys):
 
 
 def test_build_parses_its_own_options():
-    """U61: argparse, not bash: -j wants a number; --tests is the framework's."""
+    """argparse, not bash: -j wants a number; --tests is the framework's."""
     done = run("build", "-j")
     assert done.returncode == 2 and "-j" in done.stderr and "expected one argument" in done.stderr
     with pytest.raises(HeimdallError, match=r"--tests builds Heimdall's C\+\+ tests"):
@@ -74,7 +74,7 @@ def test_check_plans_what_the_set_run_would(capsys):
 
 
 def test_record_ids_in_messages_follow_their_explanation():
-    """U62: an error is read without 07_Record.md; an id, when there is one, comes last as "(see V93)"."""
+    """an error is read without the decision notes; an id, when there is one, comes last as "(see V93)"."""
     roots = [REPO / "framework" / "runner", REPO / "framework" / "plot", REPO / "framework" / "tools"]
     bad = []
     for path in sorted(p for root in roots for p in root.rglob("*.py")):

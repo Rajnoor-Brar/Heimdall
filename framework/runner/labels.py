@@ -20,7 +20,7 @@ from .paths import heimdall_root
 
 def latex() -> dict:
     """framework/schema/latex.toml: the LaTeX → TLatex commands, YODA's macros, TLatex → mathtext (V61);
-    the work dir's latex.toml over it, table by table (its own macros and commands; audit 3, 4.3)."""
+    the work dir's latex.toml over it, table by table (its own macros and commands)."""
     from .paths import find_work
     work = find_work()
     own = work / "latex.toml" if work is not None else None

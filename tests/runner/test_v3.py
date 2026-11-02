@@ -1,4 +1,4 @@
-"""The run TOML's third form (docs/audit_3/06_Plan.md, phase 6; runner/v3.py): read as the second's, so a
+"""The run TOML's third form (runner/v3.py): read as the second's, so a
 study written either way is the same run, the same points and the same identities."""
 
 from __future__ import annotations
@@ -145,7 +145,7 @@ def test_interfaces_are_inferred_from_the_chain(scratch):
 
 
 def test_a_compound_quantity_sweeps_its_fields_together(scratch):
-    """03 §6 example 2: one row per point, a value per field; the points are named by its tags."""
+    """doc:errand-file example 2: one row per point, a value per field; the points are named by its tags."""
     text = V3.replace('[cfgs.pdf]\nvary = ["pdf"]', '''[cfgs.nuclei]
 vary = ["collision"]
 
@@ -215,7 +215,7 @@ def test_a_v2_file_stays_v2(scratch):
 
 
 def test_an_imported_tool_table_merges_key_by_key(scratch):
-    """03 §6: a v3 file changes one key of an imported tool, not the whole table (v2 replaced it)."""
+    """doc:errand-file: a v3 file changes one key of an imported tool, not the whole table (v2 replaced it)."""
     common = scratch / "common.toml"
     common.write_text(V3.replace('[cfgs.single]\ndescription = "One run at the fixed point"\n', "")
                       .replace('[cfgs.pdf]\nvary = ["pdf"]\n', ""), encoding="utf-8")
@@ -248,7 +248,7 @@ def _identities(errand) -> dict:
 
 def test_every_fixture_config_is_its_v2_text_in_v3():
     """06_Plan's phase-6 row: the fixture's configs were migrated by heimdall migrate --v3; their v2 texts
-    (tests/reference/v2_configs/, in the names before I-112: read through heimdall migrate --names' errand_text)
+    (tests/reference/v2_configs/, in the older names: read through heimdall migrate --names' errand_text)
     and they plan every point to the same name and identity, and the v2 text migrates to the file as it is."""
     from runner import house, migrate
     from support import REPO
@@ -275,7 +275,7 @@ def test_the_migration_says_each_fact_once(scratch):
     (('analyses = ["photo_eic"]', 'analyses = ["photo_eic"]\nvary = ["pdf"]'), "'vary' belongs in a configuration"),
 ])
 def test_a_key_in_the_wrong_table_names_its_table(scratch, change, message):
-    """03 §3, 06_Plan's row: `threads = 4` in a tool table says where threads goes."""
+    """doc:plots, 06_Plan's row: `threads = 4` in a tool table says where threads goes."""
     with pytest.raises(HeimdallError) as caught:
         plans_of(written(scratch, V3.replace(*change)), "pdf")
     assert caught.value.hint and __import__("re").search(message, caught.value.hint), caught.value.hint
@@ -289,7 +289,7 @@ def test_heimdall_check_names_tool_tables_nothing_uses(scratch):
 
 
 def test_the_editor_schemas_take_the_fixture_and_catch_a_typo():
-    """U49: run.schema.json (v2) and run.v3.schema.json take every fixture config; a shipped tool's table
+    """run.schema.json (v2) and run.v3.schema.json take every fixture config; a shipped tool's table
     is closed in v3, so a misspelt key is flagged in the editor."""
     jsonschema = pytest.importorskip("jsonschema")
     import json
@@ -300,7 +300,7 @@ def test_the_editor_schemas_take_the_fixture_and_catch_a_typo():
     for path in (REPO / "tests" / "fixtures" / "work" / "configs").rglob("*.toml"):
         assert not list(jsonschema.Draft7Validator(v3).iter_errors(tomllib.loads(path.read_text(encoding="utf-8")))), path.name
     from runner import migrate
-    for path in (REPO / "tests" / "reference" / "v2_configs").rglob("*.toml"):              # in I-112's names
+    for path in (REPO / "tests" / "reference" / "v2_configs").rglob("*.toml"):              # in today's names
         assert not list(jsonschema.Draft7Validator(v2).iter_errors(tomllib.loads(migrate.errand_text(path.read_text(encoding="utf-8"))))), path.name
     wrong = tomllib.loads(V3.replace('analyses = ["photo_eic"]', 'analysis = ["photo_eic"]'))
     assert any("analysis" in e.message for e in jsonschema.Draft7Validator(v3).iter_errors(wrong))
@@ -334,7 +334,7 @@ def _complete(planned) -> None:
 
 
 def test_the_runner_numbers_a_folder_without_a_serial(scratch, trees_of_its_own):
-    """03 §6: no serial, so the runner picks the number: the newest folder made from these inputs; a change
+    """doc:errand-file: no serial, so the runner picks the number: the newest folder made from these inputs; a change
     gets a new number and never overwrites; undoing the change finds its folder again."""
     path = written(scratch, V3.replace('name    = "pair"', 'name    = "numbered"'), "numbered.toml")
     first = _planned(path, "pdf")
@@ -351,7 +351,7 @@ def test_the_runner_numbers_a_folder_without_a_serial(scratch, trees_of_its_own)
 
 
 def test_a_set_serial_refuses_to_overwrite_other_inputs(scratch, trees_of_its_own, capsys):
-    """03 §6: a serial the file sets keeps its folder, and a changed configuration is refused there, with
+    """doc:errand-file: a serial the file sets keeps its folder, and a changed configuration is refused there, with
     the bump as the hint; --rerun says to overwrite. A v2 file runs as ever."""
     import argparse
     from runner import cli
@@ -383,7 +383,7 @@ def test_a_numbered_folder_is_one_configurations(scratch):
 
 
 def test_default_is_the_layer_below_and_native_the_tools_own(scratch):
-    """03 §6: in v3, [plot] y_gutter = "default" is as if absent (the schema's 0.5); "native" is the drawing
+    """doc:errand-file: in v3, [plot] y_gutter = "default" is as if absent (the schema's 0.5); "native" is the drawing
     tool's own, at any level: v2's [plot]-level "default", which the migration rewrites so."""
     from runner import migrate, plot
     assert "y_gutter" not in load(scratch, V3 + '\n[plot]\ny_gutter = "default"\n').plot

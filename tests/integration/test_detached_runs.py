@@ -100,7 +100,7 @@ def test_detach_returns_once_started_and_watch_follows_it_to_its_verdict(where):
     (entry,) = entries(scratch)
     assert entry["detached"] and Path(entry["log"]).is_file() and "finished" not in entry
     listed = heimdall(environment, "runs").stdout
-    assert listed.startswith("live\n  [1] ") and entry["id"] in listed     # I-115: the live runs, indexed
+    assert listed.startswith("live\n  [1] ") and entry["id"] in listed     # the live runs, indexed
     watched = heimdall(environment, "watch", "--pid", entry["pid"], "--plain", timeout=180)
     assert watched.returncode == 0 and "3 done, 1 failed" in watched.stdout, watched.stdout
     (entry,) = entries(scratch)

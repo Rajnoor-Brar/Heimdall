@@ -1,4 +1,4 @@
-"""The runs of a run TOML together (V169) with their tags and ignored quantities (I-113 T3–T4, V224): `@tag` an axis
+"""The runs of a run TOML together (V169) with their tags and ignored quantities (V224): `@tag` an axis
 when a run is tagged, the runs' tags in what makes two points the same, `[from].ignore` and its refusals, and
 `[plot.across_from]` written into the document's `[from]`. The runs' plot documents are written here by hand, as a
 run writes them (`plotdoc.dumps`), so nothing runs and no YODA is read."""

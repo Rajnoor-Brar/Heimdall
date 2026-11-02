@@ -1,4 +1,4 @@
-"""Apptainer images of Heimdall and a machine root (rank 0; docs/05_Commands_and_Tools.md §2, V150).
+"""Apptainer images of Heimdall and a machine root (rank 0; doc:environment, V150).
 
 The runtime is the system's: `apptainer`, else SingularityCE's `singularity` (setuid or user namespaces: an
 admin's, never the machine root's). An image holds /opt/heimdall (a clean copy of this checkout) and

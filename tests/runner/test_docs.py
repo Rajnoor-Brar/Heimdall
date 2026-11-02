@@ -1,235 +1,300 @@
-"""The manual, held to the code (docs/06_Internals.md §25).
-
-* every relative link in docs/ resolves, anchors included;
-* every TOML block parses, and every complete run TOML example loads through the runner's parser;
-* every key the runner accepts is in the reference: config.py's tables, [plot.data] and
-  figure keys, base.toml's style keys, and every tool folder's options;
-* every tool folder has its section in 05;
-* every section the code cites (`docs/04_Config_Reference.md §9.4`, `04 §9.4`) exists, and every id
-  it cites (V22, L18, C7, F10, R1, 00/B5) is in the record.
-"""
+"""The docs held to the code and to docs/rules/writing.md (doc:docs-system): frontmatter, owners, caps, links, examples,
+every setting and tool on its page, what is generated, and everything code cites."""
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from pathlib import Path
 
 import pytest
 
-from runner import config, plot, tools, v3
+from runner import RANKS, config, docs, house, knowledge, plot, schema, tools, v3
 from runner.paths import configs_root
 
 REPO = Path(__file__).resolve().parents[2]
-DOCS = REPO / "docs"
-PAGES = sorted(DOCS.glob("*.md"))
-NUMBERED = {p.name[:2]: p for p in PAGES if p.name[:2].isdigit()}
+PAGES = knowledge.pages()
+BY_ID = {p.id: p for p in PAGES}
+AUTHORED = [p for p in PAGES if p.meta.get("generated") != "true"]
+ROWS = re.compile(r"^- \*\*((?:V|L|F|R)\d+)\*\* (.*)$", re.M)
+FRONT_DOORS = [REPO / "AGENTS.md", REPO / "CLAUDE.md", REPO / "README.md", knowledge.docs_root() / "README.md",
+               REPO / ".plans" / "ISSUES.md", REPO / "recipes" / "README.md", REPO / "recipes" / "platforms" / "mac" / "README.md"]
 
 
 def text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def slug(heading: str) -> str:
-    """GitHub's anchor for a heading."""
-    out = heading.strip().lower()
-    out = re.sub(r"[^\w\- ]", "", out)
-    return out.replace(" ", "-")
-
-
-def headings(path: Path) -> list[str]:
-    return [m.group(1) for m in re.finditer(r"^#{1,6} (.+)$", text(path), re.M)]
-
-
-def sections(path: Path) -> set[str]:
-    """Section numbers of a page: `## 9. …` → 9, `### 9.4 …` → 9.4."""
-    return {m.group(1) for h in headings(path) if (m := re.match(r"(\d+(?:\.\d+)*)\.?\s", h))}
-
-
-def blocks(path: Path, lang: str) -> list[str]:
-    return re.findall(r"^```" + lang + r"\n(.*?)^```", text(path), re.S | re.M)
-
-
-def reference() -> str:
-    return text(NUMBERED["04"]) + text(NUMBERED["05"])
-
-
-def test_the_manual_is_a_quick_page_seven_pages_and_its_index():
-    assert sorted(NUMBERED) == ["00", "01", "02", "03", "04", "05", "06", "07"]
-    assert (DOCS / "README.md").exists()
-
-
 def prose(body: str) -> str:
-    """A page without its code: fenced blocks and inline spans hold examples, not links (`![](validation-d01)` in
-    a code span is an example, not an image)."""
+    """A page without its code: fenced blocks and inline spans hold examples, not links."""
     return re.sub(r"`[^`\n]*`", "", re.sub(r"^```.*?^```", "", body, flags=re.M | re.S))
 
 
-@pytest.mark.parametrize("page", PAGES + [REPO / "CLAUDE.md", REPO / "README.md"], ids=lambda p: p.name)
-def test_every_relative_link_resolves(page):
-    for target in re.findall(r"\]\(([^)\s]+)\)", prose(text(page))):
+def anchors(body: str) -> set[str]:
+    """GitHub's anchors of a page's headings: a repeated one gets -1, -2 …"""
+    seen: dict[str, int] = {}
+    out = set()
+    for title in re.findall(r"^#{1,6} (.+)$", re.sub(r"^```.*?^```", "", body, flags=re.M | re.S), re.M):
+        slug = docs._slug(title)
+        out.add(f"{slug}-{seen[slug]}" if seen.get(slug) else slug)
+        seen[slug] = seen.get(slug, 0) + 1
+    return out
+
+
+# ── pages ───────────────────────────────────────────────────────────────────────────────────────
+
+def test_the_pages_exist():
+    assert {"invariants", "writing", "work", "code", "model", "identity", "commands", "context"} <= set(BY_ID)
+
+
+def test_nothing_of_the_old_manual_is_left():
+    root = knowledge.docs_root()
+    assert not list(root.glob("0[0-7]_*.md")) and not (root / "audit_4").exists() and not (root / "framework").exists()
+    extra = [str(p.relative_to(root)) for p in root.rglob("*.md")
+             if str(p.relative_to(root)) not in ("README.md", "MAP.md", "live/README.md") and not knowledge.frontmatter(text(p))[0]]
+    assert not extra, f"pages without frontmatter: {extra}"
+
+
+@pytest.mark.parametrize("page", PAGES, ids=lambda p: p.rel)
+def test_frontmatter(page):
+    for key in ("id", "summary"):
+        assert page.meta.get(key), f"{page.rel}: no {key}"
+    assert "for" not in page.meta, f"{page.rel}: its folder says who it is for"
+    assert set(page.readers) <= set(knowledge.READERS), page.rel
+    assert len(page.meta["summary"]) <= 180, f"{page.rel}: a summary is one line"
+
+
+def test_ids_are_unique():
+    ids = [p.id for p in PAGES]
+    assert len(ids) == len(set(ids))
+
+
+@pytest.mark.parametrize("page", [p for p in PAGES if p.meta.get("code")], ids=lambda p: p.rel)
+def test_the_code_a_page_names_exists(page):
+    missing = [c for c in page.listed("code") if not (REPO / c).exists()]
+    assert not missing, f"{page.rel}: {missing}"
+
+
+@pytest.mark.parametrize("page", AUTHORED, ids=lambda p: p.rel)
+def test_a_page_keeps_to_its_cap(page):
+    assert len(page.path.read_bytes()) <= knowledge.PAGE_CAP, f"{page.rel} is more than one subject"
+
+
+@pytest.mark.parametrize("path", [p.path for p in PAGES] + FRONT_DOORS, ids=lambda p: str(p.relative_to(REPO)))
+def test_every_relative_link_resolves(path):
+    for target in re.findall(r"\]\(([^)\s]+)\)", prose(text(path))):
         if re.match(r"[a-z]+://", target) or target.startswith("mailto:"):
             continue
         name, _, anchor = target.partition("#")
-        path = (page.parent / name).resolve() if name else page
-        assert path.exists(), f"{page.name}: {target}"
-        if anchor and path.suffix == ".md":
-            assert anchor in {slug(h) for h in headings(path)}, f"{page.name}: #{anchor} is not a heading of {path.name}"
+        file = (path.parent / name).resolve() if name else path
+        assert file.exists(), f"{path.name}: {target}"
+        if anchor and file.suffix == ".md":
+            assert anchor in anchors(text(file)), f"{path.name}: #{anchor} is not a heading of {file.name}"
 
 
-def loaded(block: str, path) -> None:
-    """A manual's errand file, read as `heimdall run` reads it from `path` (the scratch work dir's configs/Demo/,
-    beside the fixture's files it imports and the cards it names), then removed."""
-    path.write_text(block, encoding="utf-8")
-    try:
-        config.load(str(path))
-    finally:
-        path.unlink()
+@pytest.mark.parametrize("page", [p for p in AUTHORED if "decisions/" in p.rel], ids=lambda p: p.rel)
+def test_a_decision_note_is_short(page):
+    rows = ROWS.findall(page.body)
+    assert rows, page.rel
+    long = [i for i, body in rows if len(body) > knowledge.ROW_CAP]
+    assert not long, f"{page.rel}: {long}"
 
 
-@pytest.mark.parametrize("page", PAGES, ids=lambda p: p.name)
-def test_every_toml_block_parses_and_complete_runs_load(page, scratch):
-    for block in blocks(page, "toml"):
-        data = tomllib.loads(block)                    # raises on a bad block
+@pytest.mark.parametrize("page", [p for p in PAGES if {"driver", "mechanic"} & set(p.readers)], ids=lambda p: p.rel)
+def test_a_human_users_page_cites_no_record(page):
+    bare = re.sub(r"^- \*\*L\d+\*\*.*$", "", prose(page.body), flags=re.M)      # a tool's own knowledge notes: what code cites
+    assert not re.search(r"\b(?:[VLFU]\d{1,3}[a-z]?|I-\d{2,3}|00/B\d+)\b", bare), page.rel
+    assert not re.search(r"\b0[0-7] §\d", bare), page.rel
+
+
+@pytest.mark.parametrize("page", AUTHORED, ids=lambda p: p.rel)
+def test_every_toml_block_parses_and_a_whole_errand_loads(page, scratch):
+    for block in re.findall(r"^```toml\n(.*?)^```", page.body, re.S | re.M):
+        data = tomllib.loads(block)
         errand = data.get("errand", {})
-        complete = {"name", "assignment", "configuration"} <= set(errand) and isinstance(errand.get(errand["configuration"]), dict)
-        if complete and data.get("config", {}).get("import"):   # V94: read through its imports (the fixtures')
-            loaded(block, configs_root() / "Demo" / "_example.toml")   # beside them: a bare import is beside its file
-        elif complete:                                   # a whole run TOML, not a fragment of one
-            config.parse(data, scratch / "example.toml")   # C1–C5 on the example itself
-        elif v3.is_v3(data) and {"name", "assignment"} <= set(errand) and data.get("cfgs"):
-            loaded(block, configs_root() / "Demo" / "_example.toml")   # a whole v3 file, its imports the fixture's (U50)
+        if v3.is_v3(data) and {"name", "assignment"} <= set(errand) and data.get("cfgs"):
+            path = configs_root() / "Demo" / "_example.toml"   # beside the fixture's files it imports and the cards it names
+            path.write_text(block, encoding="utf-8")
+            try:
+                config.load(str(path))
+            finally:
+                path.unlink()
 
 
-def test_every_key_the_loader_accepts_is_documented():
-    """Every key of the schema (framework/schema/run.toml, V55) is in the reference."""
-    from runner import schema
-    ref = reference()
-    missing = [f"[{table}] {key}" for table in schema.TABLES for key in schema.keys(table) if f"`{key}`" not in ref]
-    assert not missing, "not in 04/05: " + ", ".join(missing)
+def test_a_live_doc_affects_pages_that_exist():
+    for page in [p for p in PAGES if p.rel.startswith("live/")]:
+        assert page.listed("affects"), page.rel
+        assert set(page.listed("affects")) <= set(BY_ID), page.rel
+
+
+def test_the_rank_table_is_the_runners():
+    rows = {m: int(r) for r, m in re.findall(r"^\| (\d) \| `(\w+)\.py` \|", BY_ID["runner"].body, re.M)}
+    assert rows == RANKS
+
+
+def test_every_tool_folder_has_its_page():
+    missing = [name for name in tools.folders() if f"tools-{name}" not in BY_ID]
+    assert not missing, f"no page in stable/tools/: {missing}"
+
+
+# ── what is generated ───────────────────────────────────────────────────────────────────────────
+
+def test_the_generated_pages_are_current():
+    assert not docs.stale(), f"run `heimdall make --framework docs`: {docs.stale()}"
 
 
 def test_the_editor_schema_is_current():
-    """run.schema.json is generated from run.toml (`make schema`): it must say what run.toml says."""
-    import json
-    from runner import schema
-    written = json.loads(schema.path().with_name("run.schema.json").read_text(encoding="utf-8"))
+    written = json.loads(text(schema.path().with_name("run.schema.json")))
     assert written == json.loads(json.dumps(schema.json_schema())), "run `make schema`"
 
 
-def test_the_generated_sections_are_current():
-    """V91: a page's `<!-- generated: … -->` blocks are what runner/docs.py renders now (`make docs`)."""
-    from runner import docs
-    assert not docs.stale(), f"run `make docs`: {', '.join(docs.stale())}"
+def test_the_map_lists_every_page_and_its_overlay():
+    body = knowledge.map_text()
+    for page in PAGES:
+        assert f"[{page.id}]({page.rel})" in body
+    for target, live in knowledge.overlays(PAGES).items():
+        assert re.search(rf"\[{target}\].*⟵ live: .*{live[0]}", body), target
 
 
-def test_a_generated_block_is_rendered_from_the_code():
-    from runner import docs
-    page = "<!-- generated: keys errand -->\nold\n<!-- /generated -->\n"
-    assert "| `name` | a string | **required** |" in docs.updated(page)
-    assert "| `page.margins.left` | `0.16` | fractions of the page" in docs.style()
-    assert "| `--only pre\\|post\\|plot` |" in docs.commands()          # a table's pipes escaped
-    with pytest.raises(ValueError, match="no generated block"):
-        docs.render("keys nowhere")
+def test_every_setting_is_on_its_page():
+    """A key's heading, nested under its table: every schema key, style key, stack setting and tool option."""
+    every = "".join(docs.settings_page(name) for name in docs.SETTINGS)
+    for row in knowledge.settings():
+        for key in row["keys"]:
+            assert f"# `{key['key'].rsplit('.', 1)[-1]}`\n" in every, f"{row['table']}: {key['key']}"
+    assert plot.base_style(), "base.toml is read"
 
 
-def test_every_style_key_is_documented():
-    ref = text(NUMBERED["04"])
-
-    def dotted(table: dict, at: str = "") -> list[str]:
-        out = []
-        for key, value in table.items():
-            name = f"{at}.{key}" if at else key
-            out += dotted(value, name) if isinstance(value, dict) else [name]
-        return out
-
-    keys = dotted(plot.base_style())
-    missing = [k for k in keys if f"`{k}`" not in ref and f"`{k.rsplit('.', 1)[0]}.{k.rsplit('.', 1)[1]}`" not in ref
-               and not (k.startswith("page.margins.") and "`page.margins.left`" in ref)]
-    assert not missing, "base.toml keys not in 04 §12: " + ", ".join(missing)
+def test_a_key_is_a_table_its_keywords_a_list_then_its_prose():
+    block = docs.settings_page("plot").split("## `backend`\n", 1)[1].split("\n## ", 1)[0]
+    table, keywords, words = block.strip().split("\n\n", 2)
+    assert table.startswith("| Type | Default | Acceptable |") and '`"root"`' in table
+    assert keywords.startswith('- `"default"`:')
+    assert "Paint" in words
 
 
-def test_every_tool_folder_and_its_options_are_documented():
-    tools_page = text(NUMBERED["05"])
-    for name, folder in tools.folders().items():
-        assert re.search(rf"^## \d+\. `{name}`", tools_page, re.M), f"05 has no section for {name}"
-        for option in folder.spec.get("options", {}):
-            assert f"`{option}`" in tools_page, f"05 does not document {name}'s option {option}"
+def test_a_key_nests_under_its_table():
+    page = docs.settings_page("plot")
+    assert "\n# `[plot]`\n" in page and "\n## `[plot.figures.<name>]`\n" in page and "\n### `class`\n" in page
+    style = docs.settings_page("style")
+    assert "\n# `page`\n" in style and "\n## `margins`\n" in style and "\n### `left`\n" in style
+
+
+def test_keys_lists_every_setting_and_stack_entries_read_the_file():
+    body = docs.keys_page()
+    for needle in ("plot.y_gutter |", "errand.events |", "style.page.font |", "stack.cores |", "stack.env.CXXFLAGS |"):
+        assert needle in body, needle
+    stack = {k: c for k, _, c in schema.stack_entries()}
+    assert "UFO" in stack["ufo_models"], "the comment above a key is its comment"
+    assert "apt_packages" in stack and "libxml2-dev" not in stack
+
+
+def test_explain_answers_every_setting():
+    """What a reader who read a key off a settings page asks: each one answers."""
+    prefix = {"[file]": "file", "[errand]": "errand", "[cfgs.<name>]": "cfgs.x", "[quantities.<q>]": "quantities.x", "[tools.<name>]": "tools.x",
+              "[plot]": "plot", "[plot.figures.<name>]": "plot.figures.x", "[plot.data]": "plot.data", "[plot.across_from]": "plot.across_from",
+              "[stats]": "stats", "[report]": "report", "[[report.section]]": "report.section", "[cluster]": "cluster",
+              "style": "style", "stack": "stack"}
+    silent = []
+    for row in knowledge.settings():
+        at = prefix.get(row["table"]) or row["table"].split(":")[0].strip("[]").split(".")[-1]
+        for key in row["keys"]:
+            try:
+                assert house.explain(f"{at}.{key['key']}")
+            except Exception as error:
+                silent.append(f"{at}.{key['key']}: {str(error)[:60]}")
+    assert not silent, "explain has no answer:\n  " + "\n  ".join(silent)
+
+
+def test_context_is_within_its_budget_and_owns_nothing():
+    body = docs.context_page()
+    assert len(body.encode("utf-8")) <= knowledge.CONTEXT_CAP
+    assert "tools are processes, chained by a TOML" in BY_ID["model"].body and "tools are processes, chained by a TOML" in body
+    assert re.search(r"^```toml\n# configs/Demo/mini.toml", body, re.M), "the guide's whole errand file"
+
+
+def test_the_template_points_to_the_context():
+    assert "heimdall context" in text(REPO / "framework/templates/work/CLAUDE.md")
+
+
+def test_the_site_is_self_contained(scratch):
+    body = text(knowledge.build_site(scratch / "site" / "index.html"))
+    assert "/*DATA*/" not in body and "</script>" in body
+    assert not re.search(r"""(?:src|href)=["']https?://""", body), "the site loads nothing from outside"
+
+
+def test_drift_names_a_page_whose_code_changed(monkeypatch):
+    page = BY_ID["identity"]
+    monkeypatch.setattr(knowledge.subprocess, "run", lambda *a, **k: type("Done", (), {"stdout": "framework/runner/record.py\n"})())
+    assert ("identity", ["framework/runner/record.py"]) in knowledge.drift([page])
+    live = knowledge.Page(page.path, "live/x.md", {"id": "live-x", "affects": "identity"}, "")
+    assert not knowledge.drift([page, live]), "a live doc naming the page answers it"
+
+
+# ── the agents' instructions ────────────────────────────────────────────────────────────────────
+
+def test_agents_md_is_behaviour_only():
+    """No features, no state: it may name only docs/ and .plans/, and stays short, so it cannot go stale."""
+    body = text(REPO / "AGENTS.md")
+    assert len(body.encode("utf-8")) <= 4000
+    paths = re.findall(r"(?<![\w.])(?:[\w.-]+/)+[\w.-]*", body)
+    assert all(p.startswith(("docs/", ".plans/")) for p in paths), paths
+    assert not re.search(r"\b(?:Pythia|Rivet|Himinbjorg|gjallarhorn|heimdall [a-z]+|V\d+)\b", body)
+
+
+def test_claude_md_only_imports():
+    assert text(REPO / "CLAUDE.md").split() == ["@AGENTS.md", "@docs/rules/invariants.md"]
 
 
 # ── what the code cites ─────────────────────────────────────────────────────────────────────────
 
-CODE = [p for top in ("framework", "src", "tests") for p in (REPO / top).rglob("*")   # the fixture's modules are under tests/
-        if p.is_file() and p.suffix in (".py", ".hh", ".cc", ".toml", ".sh", ".in", ".cmnd", ".yaml", ".sin", ".mg5", ".mk")
-        and "reference/legacy_run" not in str(p) and "/_" not in str(p.relative_to(REPO))
-        and not {"Apps", "venv"} & set(p.relative_to(REPO).parts)]                         # (V52, V92)
-CODE += [REPO / "Makefile", REPO / "gjallarhorn.sh", REPO / "framework" / "bin" / "heimdall", REPO / "framework" / "bin" / "run",
-         *(p for p in (REPO / "env").glob("*") if p.is_file())]                    # the venv is in the machine root
+CODE = [p for top in ("framework", "src", "tests", "recipes", "env", ".github") for p in (REPO / top).rglob("*")
+        if p.is_file() and p.suffix in (".py", ".hh", ".cc", ".toml", ".sh", ".mk", ".yml", ".def", ".txt")
+        and "tests/reference" not in str(p) and "tests/fixtures" not in str(p) and p.name != "test_docs.py"]   # frozen, with I-91
+CODE += [REPO / "Makefile", REPO / "gjallarhorn.sh", REPO / "launch.sh", REPO / "framework" / "bin" / "heimdall", REPO / "framework" / "bin" / "run"]
 
 
 def code_text() -> list[tuple[Path, str]]:
     out = []
     for path in CODE:
         try:
-            out.append((path, path.read_text(encoding="utf-8")))
+            out.append((path, text(path)))
         except (UnicodeDecodeError, OSError):
             continue
     return out
 
 
-def test_every_cited_section_exists():
-    long = re.compile(r"docs/(0[1-7])_[A-Za-z_]+\.md(?: §([0-9]+(?:\.[0-9]+)?))?")
-    short = re.compile(r"(?<![\w/.§])(0[1-7]) §([0-9]+(?:\.[0-9]+)?)")
-    bad = []
-    for path, body in code_text():
-        for m in long.finditer(body):
-            page = NUMBERED.get(m.group(1))
-            if page is None or not m.group(0).startswith(f"docs/{page.name}"):
-                bad.append(f"{path.relative_to(REPO)}: {m.group(0)} (no such page)")
-            elif m.group(2) and m.group(2) not in sections(page):
-                bad.append(f"{path.relative_to(REPO)}: {m.group(0)}")
-        for m in short.finditer(body):
-            page = NUMBERED[m.group(1)]
-            if m.group(2) not in sections(page):
-                bad.append(f"{path.relative_to(REPO)}: {m.group(0)}")
-    assert not bad, "citations of sections that do not exist:\n  " + "\n  ".join(bad)
+def test_every_doc_the_code_cites_exists():
+    bad = [f"{path.relative_to(REPO)}: doc:{m}" for path, body in code_text() for m in re.findall(r"\bdoc:([a-z][\w-]*)", body)
+           if m not in BY_ID and m != "id"]
+    assert not bad, "\n  ".join(bad)
 
 
-def test_every_cited_id_is_in_the_record():
-    record = text(NUMBERED["07"]) + text(NUMBERED["04"])     # C1–C13 are the reference's table
-    known = set(re.findall(r"\*\*((?:V|L|F|R|C)\d+)\*\*", record)) | set(re.findall(r"\b(00/B\d+)\b", record))
-    known |= set(re.findall(r"\| (D\d+|D-Q\d+) \|", record))
-    cited = re.compile(r"(?<![\w/-])((?:V|L|F|R|C)\d{1,2}|00/B\d+|D\d{1,2})(?![\w.])")
+def test_no_code_cites_a_page_by_its_old_place():
+    old = re.compile(r"docs/(?:0\d_|audit_|conda/|framework/|reporter/|07_)|\.plans/|\b0[0-7] §\d|\bI-\d{2,3}\b|00/B\d+")
+    bad = [f"{path.relative_to(REPO)}: {old.search(body).group(0)}" for path, body in code_text() if old.search(body)]
+    assert not bad, "\n  ".join(bad)
+
+
+def test_every_page_path_a_string_names_exists():
+    bad = [f"{path.relative_to(REPO)}: {m}" for path, body in code_text()
+           for m in re.findall(r"docs/[\w/.-]+\.md", body) if not (REPO / m).exists()]
+    assert not bad, "\n  ".join(bad)
+
+
+def test_every_cited_note_exists():
+    """A label in code leads to its note: grep finds it in one hop."""
+    known = set()
+    for page in PAGES:
+        known |= set(re.findall(r"\*\*((?:V|L|F|R|C)\d+)\*\*", page.body))
+    cited = re.compile(r"(?<![\w/-])((?:V|L|C)\d{1,3})(?![\w.])")
     bad = []
     for path, body in code_text():
-        if path.suffix in (".cmnd", ".yaml", ".sin", ".mg5", ".in"):   # cards: physics text, not citations
+        if path.suffix not in (".py", ".hh", ".cc", ".sh", ".mk", ".toml", ".def"):
             continue
         for m in cited.finditer(body):
-            ident = m.group(1)
-            if ident in known:
-                continue
             line = body[body.rfind("\n", 0, m.start()) + 1: body.find("\n", m.end())]
-            if not re.search(r"(#|//|\"\"\"|'''|^\s*\S*\s*\"|hint|where)", line) and path.suffix != ".py":
-                continue
-            bad.append(f"{path.relative_to(REPO)}: {ident}: {line.strip()[:100]}")
-    assert not bad, "ids the record does not have:\n  " + "\n  ".join(bad)
-
-
-def test_the_rank_table_in_02_is_the_runners():
-    """06 §2.1's table of modules and ranks is runner/__init__.py's RANKS, row for row."""
-    from runner import RANKS
-    section = text(NUMBERED["06"]).split("### 2.1 The runner", 1)[1].split("\n### ", 1)[0]
-    rows = {m: int(r) for r, m in re.findall(r"^\| (\d) \| `(\w+)\.py` \|", section, re.M)}
-    assert rows == RANKS
-
-
-def test_the_user_pages_need_no_record_to_be_read():
-    """V138: 00 and 02–05 say what they mean without the record's ids (V…, L…, F…, U…, 00/B…), in
-    prose, code comments and the generated tables; C1–C14 are 04 §13's own. Code spans may show one."""
-    left = []
-    for name in ("00", "02", "03", "04", "05"):
-        for n, line in enumerate(text(NUMBERED[name]).splitlines(), 1):
-            if re.search(r"\b(?:[VLFU]\d{1,3}[a-z]?|00/B\d+)\b", re.sub(r"`[^`\n]*`", "", line)):
-                left.append(f"{NUMBERED[name].name}:{n}: {line[:100]}")
-    assert not left, "record ids in the user pages:\n  " + "\n  ".join(left)
-
+            if m.group(1) not in known and re.search(r"(#|//|\"\"\"|'''|^\s*\S*\s*\"|hint|where)", line):
+                bad.append(f"{path.relative_to(REPO)}: {m.group(1)}: {line.strip()[:90]}")
+    assert not bad, "notes that do not exist:\n  " + "\n  ".join(bad)

@@ -1,4 +1,4 @@
-"""Pausing a run (I-115, .plans/run_pause.md P1, P2): SIGUSR1 (`p` in a watch) dispatches no more points and lets the
+"""Pausing a run (P2): SIGUSR1 (`p` in a watch) dispatches no more points and lets the
 running ones end, then the run quits without its later stages, exit 6, its entry "paused"; a second is a force
 pause, the running points stopped as a hard stop stops them; a rerun resumes. Real runs of small shell-tool points
 (an exec tool that waits for a file), so nothing here needs the stack's generators."""

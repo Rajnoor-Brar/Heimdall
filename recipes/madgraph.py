@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """recipes/madgraph.py — MadGraph pointed at the stack, and its loop libraries built in its tree, as
-`install <tool>` at its prompt would (README.md §3). build_stack.py's madgraph and madanalysis5 steps run it;
+`install <tool>` at its prompt would (doc:build-fixes). build_stack.py's madgraph and madanalysis5 steps run it;
 standard library only.
 
   madgraph.py configure MG key=value …   set those options in MG/input/mg5_configuration.txt: an option's

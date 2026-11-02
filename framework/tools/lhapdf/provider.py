@@ -1,6 +1,6 @@
 """framework/tools/lhapdf/provider.py — LHAPDF as a provider: is a PDF set a tool is given installed (V60, C10).
 
-A provider is the first of the tool categories (01 §5): it gives other tools data. A tool folder's
+A provider is the first of the tool categories (doc:refused): it gives other tools data. A tool folder's
 quantity mapping names a check, `check = "lhapdf:<form>"` (framework/tools/<tool>/quantities.toml), and the
 runner calls `check(form, value, where)` at plan time, so a missing set is refused before anything runs. It
 returns the value as that tool writes it (None: as given), so one spelling of a set feeds every generator (V152):

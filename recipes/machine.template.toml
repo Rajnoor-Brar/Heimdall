@@ -7,9 +7,9 @@
 # shell lines, which gjallarhorn.sh sources). Several checkouts of Heimdall may share one root.
 #
 # Each table is a layer over the recipes, the platform's fixes and the toolkits asked for
-# (recipes/README.md §1): a list appends to the list below it unless the table names it in
+# (doc:stack): a list appends to the list below it unless the table names it in
 # replace = ["key"]; anything else replaces. --config files and the command line come after it.
-# This machine's own toolkits go in the machine root's toolkits/ (recipes/README.md §6).
+# This machine's own toolkits go in the machine root's toolkits/ (doc:stack).
 
 # [settings]                      # recipes/settings.toml's keys, this machine's values
 # cores       = 20

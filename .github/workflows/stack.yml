@@ -1,5 +1,5 @@
 # .github/workflows/stack.yml — the stack built in the container recipe on a clean Ubuntu, then
-# `heimdall doctor` and the fast tests in it: a second machine in the loop (docs/audit_3/06_Plan.md, 2.2).
+# `heimdall doctor` and the fast tests in it: a second machine in the loop.
 # It runs only when started by hand (Actions → stack → Run workflow): a core build takes hours.
 name: stack
 

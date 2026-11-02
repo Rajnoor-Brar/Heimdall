@@ -1,6 +1,6 @@
 """Running a point: [prelim], the tool groups, supervision, the checks (rank 3).
 
-docs/06_Internals.md §11. A FIFO chain fails in two ways a single process does not,
+doc:failures. A FIFO chain fails in two ways a single process does not,
 and both are handled here by construction:
 
 * **Deadlock at open (L8).** A FIFO blocks until both ends are open. If the writer dies before
@@ -72,7 +72,7 @@ POLL = 0.2
 class Stopper:
     """Set by the CLI's signal handlers; the supervisor turns it into the stop ladder. `hard` (a second
     Ctrl-C, V181): the tools are killed at once, not after the ladder's graces; the stop is still recorded.
-    `pausing` (a `p`, SIGUSR1, I-115): no point, stage or run is begun any more, the running points run to their
+    `pausing` (a `p`, SIGUSR1): no point, stage or run is begun any more, the running points run to their
     end; a second `p` is a force pause, `requested` and `hard` as a hard stop. `paused`: the run ends as a pause
     (a stop after it, a `q`, clears it)."""
 
@@ -114,7 +114,7 @@ class ToolResult:
 class PointResult:
     ok: bool
     stopped: bool = False
-    held: bool = False                   # another session runs it (U66): skipped, neither done nor failed
+    held: bool = False                   # another session runs it: skipped, neither done nor failed
     cause: str = ""                      # the tag to blame
     message: str = ""
     tools: dict[str, ToolResult] = field(default_factory=dict)
@@ -157,11 +157,11 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
                started_all=None, wait_held: bool = False) -> tuple[int, int, bool]:
     """Every point not already complete, `configuration.parallelism` at a time, in order: (done,
     failed, halted). A stop (Ctrl-C) starts nothing more and stops the running points through
-    their groups' stop ladder; a pause (I-115) starts nothing more and lets them end, and the run then ends
+    their groups' stop ladder; a pause starts nothing more and lets them end, and the run then ends
     halted however many were left (its later stages wait for the rerun). An error of the runner itself is
     raised once the running points have ended. In a pipelined sweep (V75) a point also waits for its cores in the shared `budget`, and
     `started_all()` is called once every point has started (the next run may then start). A point another
-    session runs is skipped, or with `wait_held` waited for (U66)."""
+    session runs is skipped, or with `wait_held` waited for."""
     bus = _bus(bus)
     todo = []
     for plan in plans:
@@ -480,7 +480,7 @@ def run_group(plan: PointPlan, group: list[Step], *, bus, stopper: Stopper,
         out_read, out_write = os.pipe()
         env = dict(os.environ)
         env.update(step.env)
-        env["HEIMDALL_CONTEXT"] = str(plan.out / CONTEXT_FILE)         # every tool's card and config (04 §9.4)
+        env["HEIMDALL_CONTEXT"] = str(plan.out / CONTEXT_FILE)         # every tool's card and config (doc:connections)
         env.pop("HEIMDALL_STATUS_FD", None)
         read_fd = write_fd = None
         if step.status == "standard":
@@ -684,7 +684,7 @@ def _describe(code: int) -> str:
 
 def run_point(plan: PointPlan, errand, configuration, *, bus=None, stopper: Stopper | None = None,
               logs: bool = False, wait: bool = False) -> PointResult:
-    """One point, under its lock (U66): a point another session runs is skipped, naming who runs it,
+    """One point, under its lock: a point another session runs is skipped, naming who runs it,
     or (`wait`) waited for, then skipped if that session completed it."""
     bus = _bus(bus)
     stopper = stopper or Stopper()
@@ -927,7 +927,7 @@ def _tidy(plan: PointPlan) -> None:
 
 
 def _cleanup(plan: PointPlan) -> None:
-    """FIFOs are removed when the point ends (04 §6); files are kept, the context file too (V187: every tool's
+    """FIFOs are removed when the point ends (doc:chains); files are kept, the context file too (V187: every tool's
     card and config, the point's record)."""
     for interface in plan.interfaces.values():
         if interface.kind == "fifo" and interface.path.exists() and stat.S_ISFIFO(interface.path.stat().st_mode):

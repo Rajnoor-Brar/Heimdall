@@ -57,7 +57,7 @@ The 11 fixture configs migrated once; a converter kept outside the package for a
 v3 is translated into v2 tables; the rename table is written many times; errors speak v2 to a v3 user. Fixtures to v3, the model in v3's names with `identity_parts` mapping to frozen keys, then delete `v3.py`, v2 branches, `run.schema.json`, the rename tables. **Done when:** gate I-11 is unchanged, and messages use the file's own names.
 
 ### I-91 `hep` and `setup.sh` in the frozen fixture · P3 · blocked on I-21
-**Done when:** the fixture's Makefile error, config comments and `modules/Decay/README.md` use today's names, changed with I-21's migration.
+**Done when:** the fixture's Makefile error, config comments, `modules/Decay/README.md` and its old doc cites (`docs/02_…`, `04 §9`) use today's names and `doc:` ids, changed with I-21's migration. `test_docs.py` exempts the fixture until then.
 
 ## Retirements
 

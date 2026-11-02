@@ -1,4 +1,4 @@
-# framework/tools/rivet/tool.toml — Rivet as a process, reading HepMC (docs/05_Commands_and_Tools.md §5).
+# framework/tools/rivet/tool.toml — Rivet as a process, reading HepMC (doc:tools-rivet).
 [tool]
 category        = "analysis-application"
 executable      = "rivet"
@@ -38,7 +38,7 @@ merge = "merge"
 [checks]
 # Every analysis must have a .info (an unknown name is refused before anything runs), and every
 # option given to it must be declared there: an undeclared option is silently ignored by Rivet and
-# gives identical curves (L19, v1's 00/B14). Our plugins are copied to build/Rivet; Rivet's own
+# gives identical curves (L19). Our plugins are copied to build/Rivet; Rivet's own
 # analyses are in its data directory.
 info_dirs         = ["{work}/build/Rivet"]
 info_dirs_command = ["rivet-config", "--datadir"]

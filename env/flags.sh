@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # env/flags.sh — probe each library's *-config once and write flags.mk
-# (docs/06_Internals.md §15.3).
+# (doc:build).
 #
 #   flags.sh [OUT]     probe and write OUT: forge/make/flags.mk (Heimdall's build, framework/rules.mk),
 #                      build/flags.mk (a work dir's; the default)
@@ -8,7 +8,7 @@
 #
 # framework/rules.mk compares FLAGS_KEY in the cache with `--key` on every invocation and rewrites the
 # cache only when they differ; a rewrite whose flags are unchanged keeps the cache's time (no rebuild). A cache keyed on less than everything it reads is a correctness bug
-# waiting for an unusual environment (ledger L22, v1's 00/B38), so the key holds the resolved path
+# waiting for an unusual environment (ledger L22), so the key holds the resolved path
 # of every tool probed, the directories the non-config libraries come from, pkg-config's search path,
 # and the stack file itself. What is probed is env/stack.toml's (V78): TOOLS, NAMES and probes() come from it.
 set -u
@@ -66,6 +66,6 @@ same() { sed '1,2d;/^FLAGS_KEY := /d' "$1"; }
 if [ -f "$OUT" ] && [ "$(same "$OUT")" = "$(same "$OUT.tmp")" ]; then touch -r "$OUT" "$OUT.tmp"; fi
 mv "$OUT.tmp" "$OUT"
 
-# One line per probe run, so "the second make probed nothing" is checkable (P0 S2, row 3).
+# One line per probe run, so "the second make probed nothing" is checkable (row 3).
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) probed: ${found[*]}" >> "$(dirname "$OUT")/flags.log"
 echo "flags: probed ${#found[@]} libraries → $OUT" >&2

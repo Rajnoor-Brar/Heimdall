@@ -1,4 +1,4 @@
-"""The statistics table (V160, V164; I-108 P1): a page's numbers as rows, a set's statistics.csv written and
+"""The statistics table (V160, V164): a page's numbers as rows, a set's statistics.csv written and
 read back, and its bar graphs and summary (rank 4).
 
 plot.py measures (Paint writes each page's <page>.toml.stats.json) and calls these; the report reads a source's

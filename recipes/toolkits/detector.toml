@@ -1,4 +1,4 @@
-# recipes/toolkits/detector.toml — @detector (README.md §6)
+# recipes/toolkits/detector.toml — @detector (doc:toolkits)
 
 description = "detector simulation and description: Geant4, DD4hep, GeoModel with ATLAS FullSimLight, Garfield++, Delphes"
 

@@ -1,6 +1,6 @@
-"""The work dir's lifecycle (audit 3, phase 5.1; V157): a point's records (records/<run>/points/) apart from its
-working folder (records/<run>/logs/) and .cache/ (U21), a point lock (U66), reserved names (U30), portable records
-(U29) and `heimdall migrate --layout`."""
+"""The work dir's lifecycle (V157): a point's records (records/<run>/points/) apart from its
+working folder (records/<run>/logs/) and .cache/, a point lock, reserved names, portable records
+ and `heimdall migrate --layout`."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ def finished(plan) -> None:
 
 
 def test_deleting_logs_and_cache_reruns_nothing(trees):
-    """U21, V157: what a run recorded is in records/<run>/points/, so records/<run>/logs/ and .cache/ may go."""
+    """V157: what a run recorded is in records/<run>/points/, so records/<run>/logs/ and .cache/ may go."""
     p = planned("Demo/jets", "pdf")
     for plan in p.every:
         finished(plan)
@@ -54,7 +54,7 @@ def test_deleting_logs_and_cache_reruns_nothing(trees):
 
 
 def test_a_point_another_session_runs_is_skipped_naming_it(trees):
-    """U66: the second session skips the point the first holds, saying who holds it; nothing is written."""
+    """the second session skips the point the first holds, saying who holds it; nothing is written."""
     p = planned("Demo/jets", "single")
     plan = p.every[0]
     lock = record.PointLock(plan)
@@ -95,7 +95,7 @@ def test_a_lock_dies_with_its_process(trees):
 
 
 def test_a_reserved_name_is_refused(scratch):
-    """U30: plots, pre, post and cluster live beside the points; compare beside a run's configurations."""
+    """plots, pre, post and cluster live beside the points; compare beside a run's configurations."""
     from runner import config, sweep
     text = ('[errand]\nname = "r"\nassignment = "Demo"\nconfiguration = "c"\nevent_count = 1\n\n'
             '[errand.cfgs.c]\nsweeps = ["q"]\ntools = ["x"]\n\n[tools.x]\ntool = "exec"\nexecutable = "path:true"\n'
@@ -113,7 +113,7 @@ def test_a_reserved_name_is_refused(scratch):
 
 
 def test_the_provenance_is_portable(trees):
-    """U29: paths in a record are written under their roots ({work}, {apps}), so a moved work dir or
+    """paths in a record are written under their roots ({work}, {apps}), so a moved work dir or
     machine root still reads; heimdall reproduce turns them back."""
     from runner.paths import unportable
     p = planned("Demo/jets", "single")

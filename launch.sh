@@ -63,7 +63,7 @@ if [ "$(uname -s)" = Darwin ]; then                           # macOS's own bash
         if ! command -v brew >/dev/null; then
             for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -x "$b" ] && eval "$("$b" shellenv)" && break; done
         fi
-        command -v brew >/dev/null || { echo "no bash 4 or newer: no base in $machine, and no Homebrew (recipes/platforms/mac/README.md)" >&2; exit 1; }
+        command -v brew >/dev/null || { echo "no bash 4 or newer: no base in $machine, and no Homebrew (doc:platforms)" >&2; exit 1; }
         eval "$(brew shellenv)"
         bash=$HOMEBREW_PREFIX/bin/bash
         [ -x "$bash" ] || { echo "no Homebrew bash: brew install bash" >&2; exit 1; }

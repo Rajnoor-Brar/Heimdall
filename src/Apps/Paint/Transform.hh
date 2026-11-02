@@ -8,7 +8,7 @@
 //   * align  — reference data is trimmed to its longest run of bins whose edges are all MC edges,
 //              or dropped (never rebinned past the end).
 //   * range  — x is clipped to the bins that carry content, in curves and data, widened by
-//              range_pad whole bins. Order: void, then align, then range (L18, v1 §5).
+//              range_pad whole bins. Order: void, then align, then range (L18).
 //   * gutter — y_gutter = g puts the top of the y axis at (1 + g) × the largest drawn value; x_gutter = g
 //              widens x by g of its span (0: no headroom, V55). "default" sets nothing: the range is ROOT's own choice.
 

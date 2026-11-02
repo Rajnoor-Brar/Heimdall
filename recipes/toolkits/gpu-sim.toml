@@ -1,4 +1,4 @@
-# recipes/toolkits/gpu-sim.toml — @gpu-sim (README.md §6)
+# recipes/toolkits/gpu-sim.toml — @gpu-sim (doc:toolkits)
 
 description = "Geant4 electromagnetic showers on the GPU: AdePT, on VecGeom, G4HepEm and Geant4, in a C++20 stack of their own"
 note        = "needs CUDA and an NVIDIA GPU (external: cuda); set cuda_arch for a machine without its GPU"

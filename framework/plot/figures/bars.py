@@ -7,7 +7,7 @@ per statistic (χ²/ndf, |Δ|/reference, area/reference, mean ratio, mean |ratio
 V175; TABLES), each point's mean over its pages as sorted bars, then a table, a row per point and a column per
 object; the area a table only (each object has its own units: no mean across them).
 
-The summary is a document (V196, I-107): `summary_model` builds it as paper.py's model, sections of tables and
+The summary is a document (V196): `summary_model` builds it as paper.py's model, sections of tables and
 rankings, and paper.py lays it out on A4 portrait pages. statistics/<set>/summary.pdf holds every page; a PNG or
 SVG is a file a page in statistics/<set>/summary/, numbered in the PDF's order (summary_01.png, …). Each page
 ends with its items' notes, each once: what its numbers are and how they are computed (NOTES). Matplotlib (the
@@ -40,7 +40,7 @@ PANELS = (("chi2_ndf", r"$\chi^{2}$/ndf"), ("rel_abs_area", r"$|\Delta|$ / refer
 COMPARED = ("Each page as drawn (after voiding, alignment and normalisation), over its x span (after auto-range and the gutters), against its "
             "reference: the page's data, else its first curve. Compared bins: the reference's bins that the curve "
             "covers exactly, its own bins summed onto them.")
-#: Each statistic's definition (I-111): its formula as the notes write it, then what it sums over and what it means.
+#: Each statistic's definition: its formula as the notes write it, then what it sums over and what it means.
 #: NOTES composes them; a report's "How the numbers are made" sets the formula as FORMULAS has it, the rest as prose.
 DEFINITIONS = {
     "chi2_ndf": ("χ²/ndf = Σ (y − y_ref)² / (σ² + σ_ref²)",

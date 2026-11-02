@@ -1,4 +1,4 @@
-"""A tool's digest and a point's history (V201, I-106 step L3): every tool's <tag>.log is its digest (its first and
+"""A tool's digest and a point's history (V201): every tool's <tag>.log is its digest (its first and
 last lines and every line its rules matched, numbered), --logs adds <tag>.full.log; a new attempt moves the last
 one's logs and cards into history/<n>/, the 9 newest keeping their digests and the 3 newest their whole logs; a
 prepare cache entry keeps the digest of the step that filled it, and an older stamp is still a hit."""

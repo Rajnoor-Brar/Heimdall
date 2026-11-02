@@ -26,7 +26,7 @@ def configurations(**tables) -> dict:
 
 def used(data: dict, *more: str) -> dict:
     """A file written from raw() whose pdf (and `more`) a configuration uses: a quantity nothing uses is
-    refused (U36)."""
+    refused."""
     data.setdefault("static", {}).setdefault("pdf", "MSTW08lo")
     for name in more:
         data["static"].setdefault(name, "#1")

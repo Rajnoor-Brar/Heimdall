@@ -1,4 +1,4 @@
-"""Live runs by index (I-115, .plans/run_pause.md P3–P5): `heimdall runs` lists the running and the paused runs, each
+"""Live runs by index: `heimdall runs` lists the running and the paused runs, each
 with an index [N] in the order they began (a resumed run in its pause's place); `heimdall watch -i N` follows the Nth,
 refused for a paused one; `heimdall runs --resume N` starts a paused run's own command again, detached, in its work
 dir, by its checkout's heimdall; `--forget N` drops a pause from the list. The registry is the tests' scratch one."""
@@ -38,7 +38,7 @@ def no_sockets(monkeypatch):
 
 @pytest.fixture
 def mixed(no_sockets):
-    """Running, paused, finished, forgotten and resumed entries, and one as a runner before I-115 wrote it."""
+    """Running, paused, finished, forgotten and resumed entries, and one as a runner before pausing wrote it."""
     t0 = time.time() - 3600
     ids = {"resumed": paused(t0 - 600, name="e"),
            "pause": paused(t0, name="b", argv=["run", "P/b", "c", "--worker", "x"]),

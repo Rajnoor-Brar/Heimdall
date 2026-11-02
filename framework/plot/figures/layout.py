@@ -1,5 +1,5 @@
 """framework/plot/figures/layout.py — figures laid out in a grid: a sheet's pages (V89), and the LaTeX a report's grids
-are placed with (`picture`, `tex`, `pdflatex`, I-108).
+are placed with (`picture`, `tex`, `pdflatex`).
 
 One PDF, drawn by pdflatex: each panel (a page's PDF, or a PNG) placed in its cell by graphicx, vector as
 it is, with an optional label above it and an optional title above the grid. The PNG is that PDF
@@ -82,10 +82,10 @@ def size_of(path: Path) -> tuple[float, float]:
 def picture(files: list[str], labels: list[str], box: tuple[float, float], columns: int, rows: int, cw: float,
             ch: float, label: float, title: str, title_h: float, gap: float, options: list[str] | None = None,
             style: str = "") -> list[str]:
-    """A grid as a LaTeX picture's lines (I-108 P1: sheets and the report's grids): each file (as the
+    """A grid as a LaTeX picture's lines (sheets and the report's grids): each file (as the
     source names it) in its cell, aspect kept and centred, its label above it, the title on top. Units bp.
-    `options`: each file's further \\includegraphics keys (`page=2`, I-108 P3); `style`: the labels' font, a
-    command of the document's (a report's \\hdPanel, I-110), else sans at a size from `label`."""
+    `options`: each file's further \\includegraphics keys (`page=2`); `style`: the labels' font, a
+    command of the document's (a report's \\hdPanel), else sans at a size from `label`."""
     width, height = box
     label_pt = min(12.0, 0.75 * label) if label else 0.0
     title_pt = min(18.0, 0.7 * title_h) if title_h else 0.0

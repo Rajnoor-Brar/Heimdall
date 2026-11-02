@@ -1,6 +1,6 @@
 """Identity, seeds, skip-unchanged and provenance (rank 3).
 
-docs/06_Internals.md §8 and §12.
+doc:identity, doc:provenance.
 
 * The identity of a point hashes everything that decides its result: each tool's binary, cards
   (before seeds), argv, extracted config, analyses and files, plus threads and events. It is
@@ -9,7 +9,7 @@ docs/06_Internals.md §8 and §12.
   - "identity" (the default): lo + int(basis[:12], 16) mod (hi − lo + 1 − threads), [lo, hi] the point's seed range (V54). The basis is the
     generator's own identity (the `produces_events` steps: their cards, binaries and replica
     values), so the same generator setup gives the same events in any configuration: the chain's
-    point and an integrated program's (P4 S1). Without a seeded step it is the point's identity.
+    point and an integrated program's. Without a seeded step it is the point's identity.
     Blocks are checked for overlap across the whole plan, and a clash moves up by `threads` (L4),
     so two points of one plan never share events (V9);
   - "manual": exactly the value of a quantity targeting <tool>/seed, else `manual_seed`. Points
@@ -67,7 +67,7 @@ def identity_parts(plan: PointPlan) -> dict:
     }
     if plan.upstream:                    # post: it changes when any point does
         parts["upstream"] = plan.upstream
-    if plan.products:                    # generate_cards' products: what the context file gives (04 §9.4)
+    if plan.products:                    # generate_cards' products: what the context file gives (doc:connections)
         parts["products"] = plan.products
     return parts
 
@@ -236,7 +236,7 @@ def _recorded_seed(plan: PointPlan) -> int:
 
 def record_dir(plan: PointPlan) -> Path:
     """A point's or stage's records, records/<A>/<E>/<R>/points/<name>/ (V157): apart from its working folder
-    (records/<A>/<E>/<R>/logs/<name>/), so deleting logs or .cache/ reruns nothing (U21)."""
+    (records/<A>/<E>/<R>/logs/<name>/), so deleting logs or .cache/ reruns nothing."""
     return plan.folders.points / plan.point.name
 
 
@@ -310,7 +310,7 @@ def cause_text(attempt: dict) -> str:
 
 
 def state_of(plan: PointPlan) -> tuple[str, dict | None]:
-    """A point's state and its last attempt (V200): running (a session holds its lock, U66); complete; stale
+    """A point's state and its last attempt (V200): running (a session holds its lock); complete; stale
     (complete for an earlier identity: a changed setup reruns it); failed or stopped (its last attempt's
     verdict); incomplete (begun, with no attempt recorded: before V200); to run (never begun, or its logs
     are gone)."""
@@ -344,7 +344,7 @@ def is_complete(plan: PointPlan) -> bool:
 
 def stale(plan: PointPlan, rerun) -> bool:
     """Whether a point or stage is to run: not complete; or `rerun` True (--rerun); or `rerun` a time (a resumed
-    --rerun job, I-115: `--rerun-since`), complete before it, so what the paused job ran itself is not run again."""
+    --rerun job: `--rerun-since`), complete before it, so what the paused job ran itself is not run again."""
     if rerun is True or not is_complete(plan):
         return True
     if isinstance(rerun, float):
@@ -366,7 +366,7 @@ def recorded_identity(plan: PointPlan) -> str | None:
 
 def overwritten(stages) -> list:
     """The stages that completed with other inputs than they are planned with now: running one replaces
-    what it made (v3's serials, 03 §6)."""
+    what it made (v3's serials, doc:errand-file)."""
     return [s for s in stages if (old := recorded_identity(s)) is not None and old != s.identity]
 
 
@@ -374,7 +374,7 @@ LOCK_FILE = ".lock"
 
 
 class PointLock:
-    """U66: one session runs a point at a time. An flock on the point's `.lock` (in its logs folder),
+    """one session runs a point at a time. An flock on the point's `.lock` (in its logs folder),
     which says who holds it ({host, pid, since}); the kernel lets it go when that process ends, however
     it ends, so a lock is never stale on this host."""
 
@@ -435,7 +435,7 @@ def held_by(who: dict) -> str:
 
 
 def git_state(root: Path) -> dict:
-    """The git state of the repository a folder is in (U67): its revision and whether the folder's
+    """The git state of the repository a folder is in: its revision and whether the folder's
     tracked files changed; `subfolder` when the folder is not the repository's top, `unborn` when the
     repository has no commit yet. {} when the folder is in no repository."""
     def git(*args) -> str:
@@ -506,7 +506,7 @@ def provenance(plan: PointPlan, errand, configuration, started: str, finished: s
         "identity": plan.identity, "seed": plan.seed, "threads": plan.threads, "events": plan.events,
         "tools": tools,
         "host": socket.gethostname(), "platform": platform.platform(), "user": os.environ.get("USER", ""),
-        "git": {"heimdall": git_state(heimdall_root()),                # two repos (framework/01 §5.6)
+        "git": {"heimdall": git_state(heimdall_root()),                # two repos (doc:layout)
                 "work": git_state(Path(work["root"])) if (work := work_record()) else {}},
         "heimdall": str(heimdall_root()), "work": work, "stack": os.environ.get("HEIMDALL_STACK", ""),
         **({"image": held} if (held := inside()) else {}),         # an Apptainer image's path and labels (V150)
@@ -533,7 +533,7 @@ def write_atomic(path: Path, text: str) -> None:
 
 
 def points_manifest(plans: list[PointPlan], errand, configuration, known: dict | None = None) -> dict:
-    """points.json (06 §7): every point's values, page, products and state, for plot and post tools, and the run's
+    """points.json (doc:run-flow): every point's values, page, products and state, for plot and post tools, and the run's
     constants (V200; `known`: as the run began, its points' counts made again)."""
     from .sweep import label_of, split_axes, tag_of
     page_names = [name for group in split_axes(configuration)[0] for name in group]    # a listed group's paged members (V154)
@@ -704,7 +704,7 @@ def write_snapshot(errand, configuration, plans: list) -> Path | None:
                          "heimdall": git_state(heimdall_root()).get("revision", ""), "written": now()},
             "files": files, **({"live": {"files": live}} if live else {})}
     staging.mkdir(parents=True, exist_ok=True)
-    (staging / SNAPSHOT).write_text("# A run's snapshot (V158): the config it ran with. heimdall plot|run|status "
+    (staging / SNAPSHOT).write_text("# A run's snapshot: the config it ran with. heimdall plot|run|status "
                                     "<A>/<E>/<R> read it; edit it to restyle that run alone.\n"
                                     + tomli_w.dumps(meta), encoding="utf-8")
     if target.exists():

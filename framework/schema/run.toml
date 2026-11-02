@@ -1,6 +1,6 @@
-# framework/schema/run.toml — every key an errand file may hold (docs/04_Config_Reference.md), in one place
+# framework/schema/run.toml — every key an errand file may hold (doc:errand-file), in one place
 # (V55). The runner validates against it (runner/schema.py), the editor schema is generated from it
-# (`make schema` → run.schema.json), and test_docs.py holds docs/04 to it.
+# (`make schema` → run.schema.json), and test_docs.py holds the reference to it.
 #
 # [<table>.<key>] fields:
 #   type     "int" | "float" | "str" | "bool" | "list" | "table", or several joined by "|"
@@ -19,7 +19,7 @@
 #   path     a path key: its convention root (paths.ROOTS); an imported file of another assignment has
 #            these made absolute against its own assignment (V94)
 #   doc      one line, for `heimdall explain` and the editor
-#   notes    what a line cannot say: the reference's text for the key (docs/04_Config_Reference.md is
+#   notes    what a line cannot say: the reference's text for the key (doc:errand-file is
 #            generated from doc and notes, `make docs`), shown by `heimdall explain` and the editor too
 #
 # Tables: config, errand, configuration ([errand.cfgs.<cfg>]), prelim, quantity ([quantities.<q>]), tool
@@ -30,7 +30,7 @@
 [sections]
 order = ["config", "errand", "prelim", "static", "tools", "quantities", "plot", "stats", "report", "cluster", "heimdall"]
 # [heimdall] (V188): the commands' own flags, by their option names; the CLI checks them against its parser.
-# [report] (V209): what its folders' reports show, a report's recipe (framework/schema/report.toml, 04 §15).
+# [report] (V209): what its folders' reports show, a report's recipe (framework/schema/report.toml, doc:reports).
 
 # ── [config]: how the file is read (V93) ──────────────────────────────────────────────────────────
 
@@ -817,8 +817,7 @@ notes = """\
   `\"area\"`: every curve, and the data, scaled to unit area, Σ value × bin width over the \
   bins drawn (after voiding and the data's alignment), so pages compare shapes. Both backends \
   scale the same way. The y label stays the `.plot`'s: set `y_label` (e.g. \
-  `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure (04 \
-  §11.2) may set it for its own"""
+  `\"$1/\\sigma\\,\\mathrm{d}\\sigma/\\mathrm{d}E_T$\"`) on the pages it applies to. A figure may set it for its own"""
 
 [plot.void_empty]
 page       = true
@@ -1009,8 +1008,7 @@ notes = """\
 type = "table"
 doc  = "[plot.figures.<figure>]: the figures, each a recipe for pages (08_Figures)"
 notes = """\
-  `[plot.figures.<figure>]`: a recipe for pages, with every page key of `[plot]` for its own (04 \
-  §11.2)"""
+  `[plot.figures.<figure>]`: a recipe for pages, with every page key of `[plot]` for its own"""
 
 # ── [stats]: what the statistics measure (V168) ──────────────────────────────────────────────
 # Unset, a key is the pages' own: the statistics are of the pages [plot] defines, as Paint reads them.
@@ -1295,7 +1293,7 @@ notes = """\
 # ── [cluster]: heimdall cluster, a configuration as Slurm jobs (V114) ───────────────────────────────────────────
 # Also the machine root's machine.toml [cluster] and a work dir's heimdall.toml [cluster] (the defaults, in
 # that order); the errand file's is over them, a configuration's ([errand.cfgs.<cfg>].cluster) over that,
-# --set cluster.<key>=… over all (04 §16).
+# --set cluster.<key>=… over all (doc:scale).
 
 [cluster.scheduler]
 type    = "str"

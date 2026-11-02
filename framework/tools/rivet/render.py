@@ -1,6 +1,6 @@
-"""framework/tools/rivet/render.py — Rivet's analyses and their options (docs/05_Commands_and_Tools.md §5, V60).
+"""framework/tools/rivet/render.py — Rivet's analyses and their options (doc:tools-rivet, V60).
 
-The runner core knows no tool (BOT.md); what is Rivet's lives here, as the folder's `options` hook:
+The runner core knows no tool; what is Rivet's lives here, as the folder's `options` hook:
 
 * each analysis rendered with its options, in increasing precedence (V54): the table's `options` (every
   analysis), the analysis's own inline `NAME:OPT=V`, then the quantities that target it;
@@ -93,5 +93,5 @@ def declared_options(rendered: list[str], dirs: list[Path], tag: str) -> dict[st
             if key not in declared:
                 raise HeimdallError(f"'{name}' does not declare the option {key}", where=f"[tools.{tag}]",
                                hint=(f"declared: {', '.join(sorted(declared)) or 'none'} (in {info}). Rivet ignores "
-                                     "an undeclared option silently, so the curves would be identical (see L19)"))
+                                     "an undeclared option silently, so the curves would be identical"))
     return defaults

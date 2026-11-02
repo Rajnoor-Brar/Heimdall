@@ -1,5 +1,5 @@
 """The plot stage's plan-time checks and translations (P3 S2 row 5, V11), and the style layers over
-src/Apps/Paint/base.toml (P5 S3)."""
+src/Apps/Paint/base.toml."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tools chosen by a quantity (V19) and compared in one configuration (task F): a varied value no tool of a
+"""Tools chosen by a quantity (V19) and compared in one configuration: a varied value no tool of a
 point reads (V151); one pdf for every generator (V152)."""
 
 from __future__ import annotations

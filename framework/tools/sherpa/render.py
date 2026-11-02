@@ -1,5 +1,5 @@
 """framework/tools/sherpa/render.py — Sherpa's point card: the base YAML deep-merged with the point's
-values, written whole (docs/06_Internals.md §16, L12).
+values, written whole (doc:tool-contract, L12).
 
 Sherpa's card is a tree, so "base plus overrides" is a merge, not v1's append-and-last-wins. A key
 names a path into it, `EPA:Q2Max`, and may index a list, `PDF_SET[0]` (Sherpa's lists are per
@@ -71,7 +71,7 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
         if owned:
             raise HeimdallError(f"the base card sets {', '.join(owned)}, which the plan owns",
                            where=f"[tools.{context.get('tag', 'sherpa')}].baseconfig",
-                           hint="beams, energies, seed, events and outputs come from quantities and the runner (see L12)")
+                           hint="beams, energies, seed, events and outputs come from quantities and the runner")
         document = merge(document, loaded)
     for key, value, origin in overrides:               # the runner's Override, unpacked (L26)
         if key == "sqrts":                               # symmetric beams: Sherpa wants each beam's energy

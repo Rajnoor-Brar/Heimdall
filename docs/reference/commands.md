@@ -142,7 +142,7 @@ rewrite errand files and their cards in today's forms (a diff, or --apply)
 | Argument | Meaning |
 |---|---|
 | `CONFIG…` | configs to migrate (default: every config) |
-| `--v3` | into the errand file's third form (runner/v3.py) |
+| `--v3` | into the errand file's third form (docs/stable/guide/errand-file.md, runner/v3.py) |
 | `--layout` | move the work dir's older layouts into today's: logs/ into records/<A>/<E>/<R>/logs/, points into points/ (and output/ first, if any); no configs are read |
 | `--list` | with --layout: every move, one a line |
 | `--names` | a work dir from before Heimdall's names moved: hep → heimdall (its marker hep.toml → heimdall.toml, the old names in its own files: configs, modules, Makefile, editor settings) and [run] → [errand], [run].project → [errand].assignment (its configs, its records' snapshots, its plot documents' [source]) |

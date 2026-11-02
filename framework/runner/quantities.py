@@ -1,6 +1,6 @@
 """Quantities: the master TOML, static values, and who consumes what (rank 1).
 
-docs/04_Config_Reference.md §3 and §8. A quantity renders nothing by itself. It reaches a tool
+doc:errand-file, doc:sweeps. A quantity renders nothing by itself. It reaches a tool
 through a mapping:
   * from the master TOML, by tool type: [quantities.<tool>.compatible_quantities].<q>;
   * or from the quantity's own `key` table ({<tag or tool> = key});
@@ -9,7 +9,7 @@ through a mapping:
 
 A quantity that is active (swept, or given a static value) and reaches no tool is an error (rule
 C7), because a value that changes a directory name and nothing else is the silent failure v1 kept
-finding (00/B14, 00/B40).
+finding.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ def shipped_vocabulary() -> dict:
         raise HeimdallError(f"cannot read the quantity vocabulary: {error}", where=str(path)) from None
 
 
-#: What a folder's quantities.toml entry may say to declare a name the vocabulary lacks (audit 3, 4.3).
+#: What a folder's quantities.toml entry may say to declare a name the vocabulary lacks.
 DECLARING = ("shape", "unit", "doc", "per_beam", "unnamed")
 _VOCABULARY: tuple[dict, dict] | None = None             # (the chains it was made from, the vocabulary)
 
@@ -73,7 +73,7 @@ def _declared(chains: dict) -> dict:
     return out
 
 
-#: The built-in quantities: the runner provides them, and they need no consumer (04 §8.3).
+#: The built-in quantities: the runner provides them, and they need no consumer (doc:sweeps).
 BUILTIN = tuple(name for name, entry in shipped_vocabulary().items() if entry.get("builtin"))
 
 
@@ -267,7 +267,7 @@ def consumer_table(errand, master: dict, active: list[str], tags: list[str],
                                f"({', '.join(tags)}): its points would differ only by their seeds",
                                where=f"{errand.path}: [quantities.{name}]",
                                hint=f"list the combinations, leaving {name} out of this point's row (vary = [{{ points = "
-                                    "[...] }], 04 §5.1), or vary it in a configuration of its own")
+                                    "[...] }], docs/stable/guide/sweeps.md), or vary it in a configuration of its own")
             table[name] = []
             continue
         if not found:
@@ -336,7 +336,7 @@ def check_shapes(quantity, where: str) -> None:
                            where=where, hint=entry.get("doc", ""))
 
 
-# ── providers: things a value needs installed (06 §4, category 1) ─────────────────────────────
+# ── providers: things a value needs installed (doc:tool-contract, category 1) ─────────────────────────────
 
 def _provider(name: str):
     """<name>/provider.py (V60): a provider's checks, loaded by name, from the nearest folder that has one."""

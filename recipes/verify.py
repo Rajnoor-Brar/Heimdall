@@ -1,5 +1,5 @@
 """recipes/verify.py — what a built package can do, checked: the `verify` entries of the recipes, and a
-scan of every program and library for libraries that no longer resolve (docs/audit_3/01_Process.md E, I).
+scan of every program and library for libraries that no longer resolve.
 
 build_stack.py runs a package's checks right after it installs it; `heimdall doctor` runs them all. Standard
 library only, like build_stack.py. Each check gives one row: (package, check, result, note), with result

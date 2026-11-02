@@ -1,0 +1,166 @@
+# Where each old document's knowledge goes. `to`: new page ids (docs/stable/<to>.md), or `reference:<name>`, `issues`,
+# `rules:<name>`, or "wipe" with a `why`. A numbered page's section is listed; everything else by its file.
+# Every destination is a rewrite verified against code: a mapping says where a claim may go, not that it is still true.
+# check_salvage.py holds this file to the tree at tag docs/pre-rebuild.
+
+# ── 00–07, section by section ─────────────────────────────────────────────────────────────────
+[sections."00"]
+"0" = ["start/everyday"]
+
+[sections."01"]
+"1" = ["start/model"]
+"2" = ["start/model"]
+"3" = ["start/model", "design/glossary"]
+"4" = ["design/principles"]
+"5" = ["design/refused"]
+"6" = ["design/history"]
+
+[sections."02"]
+"1"  = ["setup/fresh-machine", "start/first-run"]
+"2"  = ["start/first-run"]
+"3"  = ["guide/errand-file"]
+"4"  = ["guide/sweeps"]
+"5"  = ["guide/chains"]
+"6"  = ["guide/programs"]
+"7"  = ["guide/scale"]
+"8"  = ["guide/watching"]
+"9"  = ["guide/failures"]
+"10" = ["guide/housekeeping"]
+"11" = ["guide/results-python"]
+"12" = ["guide/errand-file"]
+
+[sections."03"]
+"1"  = ["guide/plots"]
+"2"  = ["guide/plots", "internals/plot-stage"]
+"3"  = ["guide/plots", "guide/plots-across"]
+"4"  = ["guide/plots-data"]
+"5"  = ["guide/plots-curves"]
+"6"  = ["guide/plots-style"]
+"7"  = ["guide/plots-figures"]
+"8"  = ["guide/plots-figures"]
+"9"  = ["internals/plot-backends"]
+"10" = ["guide/overlay"]
+"11" = ["guide/reports"]
+
+[sections."04"]
+"0"  = ["guide/errand-file"]
+"1"  = ["guide/errand-file"]
+"2"  = ["guide/paths"]
+"3"  = ["guide/errand-file", "reference:settings/errand"]
+"4"  = ["guide/errand-file", "reference:settings/errand"]
+"5"  = ["guide/sweeps", "guide/chains", "reference:settings/errand"]
+"6"  = ["guide/chains"]
+"7"  = ["guide/sweeps"]
+"8"  = ["guide/sweeps", "reference:settings/errand"]
+"9"  = ["guide/programs", "internals/tool-contract", "reference:settings/tools"]
+"10" = ["guide/paths"]
+"11" = ["guide/plots", "reference:settings/plot"]
+"12" = ["guide/plots-style", "reference:settings/style"]
+"13" = ["guide/validation"]
+"14" = ["guide/outputs"]
+"15" = ["guide/reports", "reference:settings/report"]
+"16" = ["guide/scale", "reference:settings/cluster"]
+"17" = ["reference:legacy"]
+
+[sections."05"]
+"1"  = ["reference:commands", "start/everyday"]
+"2"  = ["setup/environment", "internals/build"]
+"3"  = ["tools/overview"]
+"4"  = ["tools/pythia"]
+"5"  = ["tools/rivet"]
+"6"  = ["tools/yd2rt"]
+"7"  = ["tools/merge"]
+"8"  = ["tools/plotmerge"]
+"9"  = ["tools/exec"]
+"10" = ["tools/module"]
+"11" = ["tools/delphes"]
+"12" = ["tools/herwig"]
+"13" = ["tools/sherpa"]
+"14" = ["tools/whizard"]
+"15" = ["tools/madgraph"]
+"16" = ["tools/pythia"]
+"17" = ["tools/yd2rt"]
+"18" = ["internals/paint"]
+
+[sections."06"]
+"1"  = ["internals/layout"]
+"2"  = ["internals/runner"]
+"3"  = ["internals/data-model"]
+"4"  = ["internals/tool-contract"]
+"5"  = ["internals/run-flow"]
+"6"  = ["internals/connections"]
+"7"  = ["internals/run-flow"]
+"8"  = ["internals/identity"]
+"9"  = ["internals/caches"]
+"10" = ["internals/events"]
+"11" = ["internals/failures"]
+"12" = ["internals/provenance"]
+"13" = ["internals/plot-stage"]
+"14" = ["internals/layout"]
+"15" = ["internals/build"]
+"16" = ["internals/tool-contract"]
+"17" = ["internals/extending"]
+"18" = ["internals/extending", "internals/plot-backends"]
+"19" = ["internals/extending"]
+"20" = ["internals/paint"]
+"21" = ["internals/cxx-kits"]
+"22" = ["internals/cxx-kits", "internals/events"]
+"23" = ["internals/events"]
+"24" = ["internals/cxx-kits", "rules:writing"]
+"25" = ["internals/testing", "rules:invariants"]
+"26" = ["rules:writing"]
+"27" = ["rules:invariants"]
+
+[sections."07"]
+"1"  = ["wipe"]   # the brief: 2026-09's words, superseded; key answers survive as V rows
+"2"  = ["design/decisions"]
+"3"  = ["tools", "internals"]   # the ledger: each row into the tool or internals page it concerns
+"4"  = ["guide/validation"]
+"5"  = ["design/decisions"]     # only the rows code cites
+"6"  = ["design/decisions"]     # 00/B ids: only what code cites
+"7"  = ["design/decisions"]     # R rows code cites
+"8"  = ["wipe"]   # what was verified at a moment: a dated log, untrue by now; tests hold today's
+"9"  = ["wipe"]   # a budget from v1 planning, no use
+"10" = ["design/glossary"]
+
+# ── Whole files ───────────────────────────────────────────────────────────────────────────────
+[files]
+"docs/README.md" = { to = ["README"] }
+"docs/audit_2/01_Health.md" = { to = ["issues"], why = "open H findings, re-verified" }
+"docs/audit_4/01_Findings.md" = { to = ["issues"], why = "open G findings, re-verified" }
+"docs/audit_4/02_Plan.md" = { to = ["issues"], why = "its open remediation" }
+"docs/audit_4/README.md" = { to = ["wipe"], why = "an index of the two above; its sweep list goes in rules:work as how to audit" }
+"docs/audit_3/*" = { to = ["wipe"], why = "remediated, V116–V136; the V rows hold what stayed" }
+"docs/reporter/*" = { to = ["wipe"], why = "retired decks, replaced by heimdall report (V206–V212)" }
+"docs/conda/*" = { to = ["setup/base", "design/decisions"] }
+"docs/framework/README.md" = { to = ["setup/fresh-machine"] }
+"docs/framework/01_Target.md" = { to = ["setup/fresh-machine", "internals/layout", "design/decisions"], why = "D rows code cites go to decisions" }
+"docs/framework/02_Agents.md" = { to = ["wipe"], why = "instructions for one reinstall's agents; what generalises is in rules" }
+"docs/framework/03_Preflight.md" = { to = ["setup/fresh-machine"] }
+"docs/framework/04_Stack.md" = { to = ["setup/stack"] }
+"docs/framework/05_Framework.md" = { to = ["setup/fresh-machine"] }
+"docs/framework/06_Workdirs.md" = { to = ["setup/fresh-machine", "start/first-run"] }
+"docs/framework/07_Verify.md" = { to = ["setup/verify"] }
+"docs/framework/targets/ubuntu.md" = { to = ["setup/platforms"] }
+"docs/framework/targets/macos.md" = { to = ["setup/platforms"] }
+"docs/framework/targets/container.md" = { to = ["setup/images"] }
+"docs/framework/targets/cluster.md" = { to = ["setup/cluster"] }
+"recipes/README.md" = { to = ["setup/stack", "setup/toolkits", "setup/base"] }
+"recipes/platforms/mac/README.md" = { to = ["setup/platforms"] }
+".plans/ISSUES.md" = { to = ["issues"] }
+".plans/handoff.md" = { to = ["issues", "rules:invariants"], why = "the three next pieces become issues" }
+".plans/restructure_plan.md" = { to = ["issues"], why = "its open milestones" }
+".plans/commit_history.md" = { to = ["wipe"], why = "git has it" }
+".plans/Copilot_Changes.md" = { to = ["wipe"], why = "a past review; phase 6 confirms nothing open remains" }
+".plans/copilot_review.md" = { to = ["wipe"], why = "a past review; phase 6 confirms nothing open remains" }
+".plans/errand_names.md" = { to = ["wipe"], why = "done, V225–V229" }
+".plans/heimdall_names.md" = { to = ["wipe"], why = "done, V213" }
+".plans/report/*" = { to = ["wipe"], why = "done, V206–V212" }
+".plans/report_context.md" = { to = ["wipe"], why = "done" }
+".plans/report_look.md" = { to = ["wipe"], why = "done, V214–V217" }
+".plans/run_logging_audit.md" = { to = ["wipe"], why = "done, V200–V204" }
+".plans/run_logging_plan.md" = { to = ["wipe"], why = "done, V200–V204" }
+".plans/run_pause.md" = { to = ["wipe"], why = "done, V232" }
+".plans/run_tags.md" = { to = ["wipe"], why = "done; phase 6 confirms" }
+".plans/statistics_a4_plan.md" = { to = ["wipe"], why = "done, V196–V199" }
+".plans/docs_rebuild/*" = { to = ["wipe"], why = "this plan; deleted when done" }

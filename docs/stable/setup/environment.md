@@ -52,6 +52,7 @@ The base is activated first: its `bin/` on `PATH`, `CC`, `CXX`, `FC` set. Its `l
 | `HEIMDALL_CLUSTER_JOB` | job scripts | a cluster job's run records nothing, and stays in-process |
 | `HEIMDALL_RECORDS`, `_CACHE`, `_RESULTS`, `_REPORTS`, `_CONFIGS` | you, tests | replace the work dir's trees |
 | `HEIMDALL_STATUS_FD`, `HEIMDALL_CONTEXT` | the runner, per tool | the status pipe; the point's context file |
+| `HEIMDALL_PLAIN`, `NO_COLOR` | you | no live progress in the stack build; no colour in `doctor` and the build |
 | `RIVET_ANALYSIS_PATH` | the rivet and merge folders | `build/Rivet`; not set in the shell on purpose |
 | `LHAPDF_DATA_PATH`, `GEANT4_DATA_DIR`, `ONNXRUNTIME_DIR`, `DELPHES_DIR` | `heimdall_env.sh` | the toolchain's data |
 

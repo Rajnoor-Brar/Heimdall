@@ -1,658 +1,224 @@
 # Issues
 
-Heimdall's pending work, one issue each: what is open, why, the fix, and when it counts as done.
-Compiled on 2026-10-25 from `bots/current_plan.md`, `bots/intent.md`, `bots/archive.md`, `.plans/`
-(audit 5 and its plan), `docs/Notes.md`, `.setup/`'s notes and `editor/Report.md`, which it replaces.
-Each item was checked against the code and the machine root. What was already done was left out
-(for example the held C++ fixes K3–K10, built as V63; Sherpa's progress lines, BATCH_MODE 23; Whizard
-on OCaml 5; the Mac notes, now in `mac.toml`).
-
-**How to use it**
-- One issue per task. A plan being made is written into its issue as it grows. An idea is an issue
-  labelled `idea`.
-- **Status:** `open` · `decision` (waits for your choice) · `blocked` (waits for another issue) ·
-  `held` (ask before doing: identities, downloads, your files) · `in progress`.
-- **Priority:** P0 blocks a commit · P1 this cycle · P2 next · P3 when convenient.
-- A finished issue is **deleted** from this file. Its history is its V-row in `docs/07_Record.md` and
-  its commit.
-- Nothing is built without your order. `docs/` is left for the docs pass, and an issue that changes
-  what the manual says names the section it leaves stale.
-
-## Plan (approved 2026-10-25)
-
-The whole plan is [restructure_plan.md](restructure_plan.md); this section tracks it. Phase by phase,
-each built, committed with its V-rows and reported, then the next on your word. A phase deletes the
-issues it resolves. Gates:
-- **F:** the fast suite.
-- **S:** the slow suite, alone.
-- **I:** the identity golden file unchanged (from Phase 2 on).
-- **B:** Brookhaven's `heimdall status` unchanged (read-only).
-
-Work-dir edits (Brookhaven, High-Energy) are listed for you; Heimdall never makes them.
-
-| Phase | Issues |
-| --- | --- |
-| 1 Task L's follow-ups, quick fixes | **done** (V190–V194), but I-07's checks by hand |
-| 2 The safety net | I-10, I-11, I-12, I-13, I-76, I-77 (part) |
-| 3 One dialect | I-20, I-21, I-91 |
-| 4 Retirements, record formats | I-25, I-26, I-28, I-29, I-30, I-68, I-105 (drops) |
-| 5 Session layer, CLI | I-35, I-36, I-37, I-70, I-71, I-72, I-73, I-100, I-101 |
-| 6 Plot model | I-40 (closed: kept), I-41, I-42, I-43, I-44, I-45, I-46, I-47, I-48, I-97, I-99 |
-| 7 Package restructure | I-50, I-51, I-52 |
-| 8 The stack | I-55 … I-63, I-65, I-66, I-77 (rest), I-88 |
-| 9 Roots, cluster images | I-75, I-86 |
-| 10 Throughput, provenance | I-95, then I-96, I-98, I-67, I-102 |
-| 11 Physics set-ups | I-103 (ep Delphes card, Geant4 module), I-104 (BeAGLE) |
-| parked | I-80, I-82 (the Mac), I-83 (the reinstall), I-85 (image downloads), I-87 (a Slurm site; HTCondor and PBS with it), I-81's roadmap and Herwig photoproduction (ideas) |
-
-**Your decisions (2026-10-25):**
-- **D1:** drop v2; Brookhaven's `configs/legacy/` stays as history.
-- **D2:** `plot.toml` stays the source of a drawing (I-40 closed as kept).
-- **D3:** retire `plot_points`; old documents still draw.
-- **D4:** delete the yoda backend; mpl may drift from mkhtml.
-- **D5:** `[heimdall]` keeps preference switches only (`rerun`, `wait`, `detach`, `plain`, `journal`, `logs`,
-  `replot`, `keep`); modes, targets and selections are refused; `no-plot`/`no-stats` are `[run]`'s.
-- **D6:** after the Mac.
-- **D7:** `editor/` stays as it is.
-- **D8, D9:** built.
-- **D10:** the doctor row goes into Himinbjorg, published on purpose.
-- **D11:** downloads to `<root>/downloads/`.
-- **I-08:** cores adapt to the load (0 = the idle CPUs; ROOT compilers from available memory, about 1.3
-  GB each).
-- **I-11:** the golden file is approved.
-- **I-17:** approved. **I-90** went into I-109 (2026-10-27: the user chose to rebuild every reader of the renamed
-  tool variables, App_yd2rt too, so its binary no longer stays byte-identical).
-- **I-86:** plan inside the image.
-- **I-66:** Herwig for MadGraph, plus MG5aMC_PY8.
-- **I-70:** `--logs` and `--journal` stay, as shorthands.
-- **I-105:** F8 and the stamp are dropped (the deck `template` key went with deck, V212).
-
-## Index
-
-| # | Title | P | Status |
-| --- | --- | --- | --- |
-| **M0** | **Task L's follow-ups** | | |
-| I-07 | Task L: the checks by hand | P1 | open (needs you) |
-| **M1** | **The safety net** | | |
-| I-10 | A shadow machine root for the tests | P1 | open |
-| I-11 | An identity golden file | P1 | held (a new frozen file) |
-| I-12 | Baselines before the restructure | P1 | open |
-| I-13 | Static checks: ruff, mypy, `make check` | P2 | open |
-| **M2** | **One run-TOML dialect** | | |
-| I-20 | Drop v2 run TOMLs | P1 | decision (D1) |
-| I-21 | v3 as the form and the model | P1 | blocked on I-10, I-11, I-20 |
-| **M3** | **Retirements** | | |
-| I-25 | Retire the migrations and the guards for retired names | P1 | blocked on I-21 |
-| I-26 | One table of retired names | P2 | blocked on I-25 |
-| I-28 | Record files with a format version; `heimdall records upgrade` | P2 | open |
-| I-29 | Leftover names and stale hints | P3 | open |
-| I-30 | Mark unproven toolkits | P3 | open (decided) |
-| **M4** | **The session layer** | | |
-| I-35 | `RunRequest` and a session module | P1 | blocked on I-25 |
-| I-36 | `heimdall plan` | P2 | decision (D9) |
-| I-37 | `--json` output | P2 | blocked on I-35 |
-| **M5** | **The plot model** | | |
-| I-40 | `[plot]` lives in the config; the record keeps facts | P1 | decision (D2) |
-| I-41 | Sets as the one grouping; retire `plot_points` | P2 | decision (D3) |
-| I-42 | Figure classes as a table, one dispatcher | P2 | open |
-| I-43 | Delete the yoda (mkhtml) backend | P2 | decision (D4) |
-| I-44 | One HTML index writer | P3 | open |
-| I-45 | `heimdall stats` → `heimdall plot --stats-only` | P3 | decision (D9) |
-| I-46 | Compare figures: their own stage, drawn once | P2 | open |
-| I-47 | Paint's PDF line widths | P3 | open |
-| I-48 | Known plot limits | P3 | idea |
-| **M6** | **The package restructure** | | |
-| I-50 | `runner/` as subpackages by layer | P2 | decision (D8) |
-| I-51 | The plugin loader for tool folders only | P2 | blocked on I-50 |
-| I-52 | `env/` into `shell/` and `framework/make/` | P3 | blocked on I-50 |
-| **M7** | **The stack** | | |
-| I-55 | The stack builder as a library | P2 | open |
-| I-56 | One stack registry: the recipes | P2 | blocked on I-55 |
-| I-57 | Downloads out of `forge/` | P2 | decision (D11) |
-| I-58 | Which checkout built `apps/` | P2 | open |
-| I-59 | `stack doctor --record` writes into Himinbjorg | P3 | decision (D10) |
-| I-60 | Download progress | P3 | open |
-| I-61 | A recipe's helper scripts in its digest | P3 | open |
-| I-62 | A change of the base marks only what it touches | P3 | open |
-| I-63 | Geant4's data through the build's downloader | P3 | open |
-| I-65 | A test that CMake on the base ignores `/usr` | P3 | open |
-| I-66 | MadGraph: the MG5aMC_PY8 interface, Herwig's paths | P3 | open |
-| I-67 | Sherpa's integration over MPI | P3 | idea |
-| I-68 | Live-state files keep a reader for their old forms | P2 | open |
-| **M8** | **The CLI and its knobs** | | |
-| I-70 | One stage selector, one keep flag, one `--plain` | P2 | blocked on I-35 |
-| I-71 | Fewer commands for one job | P2 | open (G15 decided) |
-| I-72 | `heimdall show` | P3 | open |
-| I-73 | Shell completion | P3 | open |
-| **M9** | **Roots and tests** | | |
-| I-75 | A `WorkDir` value; no root variables, no `os.environ` mutation | P2 | blocked on I-10 |
-| I-76 | Tests independent of their order | P2 | open |
-| I-77 | Tests a conda-base root skips | P3 | open |
-| I-79 | The legacy gates differ by one digit on the conda base | P2 | decision |
-| **M10** | **The machine and the repository** | | |
-| I-80 | Retire `base = "system"` | P3 | blocked on I-82 (D6) |
-| I-81 | `editor/` to its own repository; its roadmap | P3 | decision (D7) |
-| I-82 | The Mac on the conda base | P2 | held (the Mac) |
-| I-83 | The lab PC's reinstall | P3 | decision |
-| **M11** | **Not yet proven** | | |
-| I-85 | A real Apptainer image | P2 | held (downloads) |
-| I-86 | `[cluster] image` plans outside the image | P2 | decision |
-| I-87 | `heimdall cluster` on a real Slurm | P3 | open |
-| I-88 | The conda base's phase 3 | P3 | open |
-| **M12** | **Held: ask first** | | |
-| I-91 | `hep` and `setup.sh` in the frozen fixture | P3 | blocked on I-21 |
-| **M13** | **Ideas** | | |
-| I-95 | Per-group identity and skip | P3 | idea |
-| I-96 | Shared generation for analysis-option sweeps | P3 | idea |
-| I-97 | Weight variations as a band | P3 | idea |
-| I-98 | Shards beyond Rivet; K from threads | P3 | idea |
-| I-99 | `heimdall plot --suggest-data-map` | P3 | idea |
-| I-100 | `heimdall run --check`: preflight without events | P3 | idea |
-| I-101 | Where a resolved value came from (`--explain KEY`) | P3 | idea |
-| I-102 | Products that identify themselves; an index of provenance | P3 | idea |
-| I-103 | Physics set-ups to settle | P3 | decision |
-| I-104 | A tool's private dependencies (BeAGLE) | P3 | idea (set aside) |
-| I-105 | Smaller leftovers | P3 | idea |
-
----
-
-## M0 — Task L's follow-ups
-
-### I-07 Task L: the checks by hand
-**P1 · verification · open**
-- **By hand, on the lab PC** (your 15 minutes):
-  - `heimdall run eic/zeus dis_generator_pdf --points 1`, press `d`, close the terminal;
-  - `heimdall runs`, then `heimdall watch` (`q`), then `heimdall runs` again for the verdict;
-  - the same from an ssh session.
-- The worker's log path and the docs of where a detached worker still ends are done (V191).
-
-## M1 — The safety net
-
-### I-10 A shadow machine root for the tests
-**P1 · test · open**
-- **Problem:** by default the suite runs with the real `HEIMDALL_MACHINE` (`conftest.py:31`). Your live
-  `machine.toml` decides what tests keep (`paths.keep`, `paths.py:144`) and their `[cluster]` defaults
-  (`cluster.py:77`). Your `recipes.toml` and `toolkits/` decide `package_states`. Only `HEIMDALL_RUNS` and
-  `HEIMDALL_WORKDIRS` keep tests off the registry and the work-dir map, and a test once matched a live run.
-- **Fix:**
-  - `conftest` builds `$HEIMDALL_FORGE/scratch/machine/`:
-    - the real `stack/`, `base/`, `apps/` and `forge/downloads/` linked in;
-    - the tests' own empty `machine.toml` and `recipes.toml`;
-    - an empty `runs/` and `workdirs.toml`.
-  - It sets `HEIMDALL_MACHINE` there.
-  - The session guard checks `stack/.stamps/` and `apps/` are unchanged at the end, as it does for the
-    fixtures.
-- **Done when:** the suites pass as before, and no test reads or writes `~/Himinbjorg`'s own files.
-
-### I-11 An identity golden file
-**P1 · test · held (a new frozen file needs your yes)**
-- **Fix:** `tests/golden/identity_parts.json`: every fixture point's `record.identity_parts`, with binaries'
-  sha256 masked. Written once, under I-10's shadow root, and compared by a test. Every refactor (I-21,
-  I-35, I-50, I-55) must leave it unchanged.
-
-### I-12 Baselines before the restructure
-**P1 · process · open**
-- The fast and slow suites' results; `heimdall status` of every Brookhaven config (read-only, as gate
-  B); a local tag `pre-restructure`.
-
-### I-13 Static checks: ruff, mypy, `make check`
-**P2 · tooling · open**
-- **Problem:** no `pyproject.toml`, ruff or mypy. A shadowed constant (I-15) and duplicated helpers go
-  unseen. CI is one manual, hours-long stack build (`.github/workflows/stack.yml`).
-- **Fix:** `pyproject.toml` (tool config only). ruff report-only first (F, B, redefinitions), then
-  enforcing. mypy on the new modules. `make check` = ruff + the import layers + the fast suite.
-
-## M2 — One run-TOML dialect
-
-### I-20 Drop v2 run TOMLs
-**P1 · design · decision (D1)**
-- **Recommended:** v3 only. The 11 fixture configs migrated once. For Brookhaven's `configs/legacy/`
-  (D1a), convert them if they are still run, else leave them unreadable as history. A v2→v3 converter
-  is kept outside the package for a while (D1b).
-
-### I-21 v3 as the form and the model
-**P1 · refactor · blocked on I-10, I-11, I-20**
-- **Problem:** v3 is translated into v2 tables (`v3.translate`), and the schema and the model use v2's
-  names. The rename table is written nine times: `v3.py:42-47`, `v3.py:376-378`, `schema.py:58-66`,
-  `schema.py:271/285`, `migrate.py:436-438`, `docs.py:80-87`, `cli.py:946`, `house.py:162-175`. There are two
-  JSON schemas, and messages are translated back (`cli.py:408`, `config.py:1243`). Every fixture is v2;
-  the real study writes v3.
-- **Fix:**
-  1. `heimdall migrate --v3` dry run over the fixtures and `configs/legacy/`; settle what cannot be
-     expressed.
-  2. Fixtures to v3, with gate I-11 unchanged.
-  3. The model in v3's names, with `identity_parts` mapping fields to the frozen JSON keys.
-  4. Delete `v3.py`, the v2 branches, `run.schema.json` (v2) and every rename table; the schema in v3's
-     names.
-- **Docs pass:** 04 entirely, 02's examples.
-
-## M3 — Retirements
-
-### I-25 Retire the migrations and the guards for retired names
-**P1 · cleanup · blocked on I-21 (decided by you 2026-10-15: audit 4's G13, G14, G15, G3, G5, G18, G16)**
-- **First:** `heimdall migrate --layout` dry runs over Brookhaven and High-Energy (expected: nothing
-  to move).
-- **Delete:**
-  - `migrate.py` (1,046 lines);
-  - `main()`'s legacy-layout probes and `check_retired()` (`cli.py:2256-2270`);
-  - `paths.RETIRED` and `HEKIT_*` (`paths.py:49-60`, `heimdall_env.sh:24-28`, `conftest.py:58`); `{repo}`
-    (`tools.py:307`); `[tool] formerly`; the export keys (`tools.EXPORT`);
-  - `[config].master` and its overlay; `framework/tools/plotmerge/`;
-  - `recipes/machine.py adopt`, its messages (`gjallarhorn.sh:30-32`, `launch.sh:48-50`) and its
-    `.gitignore` lines; `recipes/build_by_hand.txt`;
-  - the shell helpers `quit`, `heimdall_status`, `heimdall_stash`, `heimdall_forge` and `heimdall_stack`;
-  - the parser's lenient `strict=False` mode.
-
-### I-26 One table of retired names
-**P2 · design · blocked on I-25**
-- `retired.py`: `{old: (new, since)}`, which the schema check, the CLI and the shell's refusals read,
-  emptied on a schedule. It replaces ad-hoc refusals (39 "heimdall migrate" hints today). A v1
-  (hekit) file is refused by name here (intent CF1).
-
-### I-28 Record files with a format version; `heimdall records upgrade`
-**P2 · design · open**
-- **Problem:** `points.json`, `provenance.json`, `identity.json` and `plot.toml` carry no format version.
-  Layouts are recognised by heuristics (`plotdoc.needs_upgrade`, `migrate.layout_moves`, three probes on
-  every command).
-- **Fix:** `format = N` in each, a `FORMAT` file per record folder, and one `heimdall records upgrade`
-  (dry run first) that also does today's `migrate --snapshot` and `--plot-docs` jobs.
-
-### I-29 Leftover names and stale hints
-**P3 · cleanup · open (audit 4's G1, G9, G17)**
-- Dead names: `plot.BACKENDS` (`plot.py:48`), `layout.TILED`, `tools.ENV`
-  (`tools.py:40`), `paths.forge_dir` (tests only).
-- Hints that name `heimdall plot FILE` instead of `overlay`. The wrappers `plot.objects_of`, `raws_of`,
-  `_sha` and `base_of` inlined. `{repo}` → `{heimdall}` in the recipes.
-
-### I-30 Mark unproven toolkits
-**P3 · stack · open (decided: audit 4 G7)**
-- `proven = ["<date> <platform> <base>", …]` in a toolkit file, added after a recorded build;
-  `heimdall stack list --toolkits` shows "unproven" for the others. Add `@loops` once proven (V189).
-
-## M4 — The session layer
-
-### I-35 `RunRequest` and a session module
-**P1 · refactor · blocked on I-25**
-- **Problem:** `cli.py` (2,360 lines) holds the run orchestration: `build_plans`, `_numbered`,
-  `run_one`, two sweep executors (`_runs` and `_pipelined`, each with its own error handling), signals
-  and the worker. It reads arguments through 62 `getattr(args, …)` calls, and six call sites fabricate
-  an `argparse.Namespace` (`cli.py:422`, `1173`, `1465`, `1564`, `1774`, `1861`).
-- **Fix:** a `RunRequest` dataclass, and `session.plan(request)` and `session.run(planned)`, with **one**
-  sweep executor (sequential is the pipeline with a gate at each run's end). `cluster` and `check` take
-  a request. `cli` parses, dispatches and prints.
-
-### I-36 `heimdall plan`
-**P2 · CLI · decision (D9)**
-- `heimdall plan CONFIG [CFG] [--why | --config | --card TAG] [--points] [--json]`, replacing
-  `run --plan/--why/--show-config/--card`. `heimdall check` is `plan` of everything, quiet. The old
-  spellings are refused with the new ones for a release.
-
-### I-37 `--json` output
-**P2 · feature · blocked on I-35 (intent U6)**
-- On `plan`, `status`, `runs`, `tools` and `stack status`, from one renderer: for scripts and agents.
-
-## M5 — The plot model
-
-### I-40 `[plot]` lives in the config; the record keeps facts
-**P1 · design · decision (D2)**
-- **Problem:** a run copies `[plot]`/`[stats]` into `results/<run>/plot.toml`, and drawing reads that
-  copy, so an edit of the run TOML does not reach the pages. Hence `--style-sync`, `--replot`, `--across
-  --style-sync`, `migrate --plot-docs` and a "differs" note (`cli.py:1235-1440`).
-- **Recommended:** the run writes `results/<run>/members.toml` (facts: source, axes, members, versioned).
-  Drawing reads `[plot]`/`[stats]` from the config (the snapshot's, for a record); `--plot FILE`
-  overrides. An existing hand-edited `[plot]` is kept as `plot.local.toml`. `--style-sync` and its kin go.
-
-### I-41 Sets as the one grouping; retire `plot_points`
-**P2 · design · decision (D3)**
-- `plot_points`, sets (`pages`/`curves`), `totality` (which reads `plot_points`) and the figure classes
-  overlap (`sweep.py:328-364`, `config.py:1188-1205`). `[cfgs.x] plot = [...]` and `totality` carry what
-  `plot_points` said, and a file that has it is refused with the set that says the same.
-
-### I-42 Figure classes as a table, one dispatcher
-**P2 · refactor · open (audit 2 H5/H9; task K K3/K5)**
-- Nine classes are dispatched by their own `kind ==` loops (`plot.py:495`, `502`, `591`, `696`, `882`,
-  `1166`, `1554`, `1830`), and `config.check_plot` hand-codes their rules. Give them a
-  `[figure_class.<c>]` table (needs, forbids, objects) in the schema, and one dispatcher.
-- Also merge `_pages`' near-duplicate defined and overlay loops (audit 2 H6), and add one
-  `_cached(target, stamp, digest, make)` helper for the five stamp-and-rebuild sites (H7).
-
-### I-43 Delete the yoda (mkhtml) backend
-**P2 · cleanup · decision (D4)**
-- **Problem:** "frozen" (`framework/plot/yoda/backend.py:3`), yet the mpl backend loads it for its
-  transforms (`framework/plot/mpl/backend.py:46-52`, `:78`, `:122`). Nobody draws with it; Brookhaven
-  uses `["mpl", "root"]`.
-- **Fix:** move the transforms into the mpl backend, then delete the yoda backend, `backend.toml` and
-  `"both"`. Paint stays the page engine (ranges, voids, statistics); every backend draws from its JSON.
-- Also known: the mpl-vs-mkhtml pixel test fails alone too (ratio-pad antialiasing since the conda
-  base's matplotlib; task K's K4). It goes with the backend, or is relaxed.
-
-### I-44 One HTML index writer
-**P3 · cleanup · open**
-- `plot.write_index` (`:1484`), `plot.write_sets_index` (`:1724`) and `viewer.page` (a report's `index.html`
-  since the deck's retirement, V212; the best of them). Use the viewer for the plots too (the reporter plan's "later").
-
-### I-45 `heimdall stats` → `heimdall plot --stats-only`
-**P3 · CLI · decision (D9)**
-- One command for drawing from the record; `stats` refused with its new spelling for a release.
-
-### I-46 Compare figures: their own stage, drawn once
-**P2 · design · open (task K's K6; audit 2 H2)**
-- A compare figure is drawn as a side effect of each of its configurations' plot stages, waiting for
-  whoever finishes last, and up to N times under `sweep_runs`. It was not moved onto plot documents
-  (task K). Give it its own step, with the runs-together documents (`--across`).
-
-### I-47 Paint's PDF line widths
-**P3 · bug · open**
-- Paint's PDF line widths are about twice too thick (noted in task logs since audit 2; not measured since).
-
-### I-48 Known plot limits
-**P3 · idea (audit 2 H15)**
-- Heat maps are Paint's only (no mpl). A scan's x must be numeric (no PDF-set scans). A sheet has no
-  shared y title or legend.
-
-### I-50 `runner/` as subpackages by layer
-**P2 · refactor · decision (D8)**
-- **Problem:** the flat package's god modules: `cli.py` (2,360), `plot.py` (2,001), `tools.py` (1,724:
-  folders, placeholders, a subprocess merge, the stack's package states, run-folder layout, planning,
-  cards, a presentation helper), `config.py` (1,459). There are also misplaced pieces: the keep policy
-  and heimdall.toml's schema in `paths.py`, the plot vocabulary in `sweep.py`, `house.py` as a grab bag. The
-  draw ↔ statistics ↔ statistic-figure cycle blocked task K's split.
-- **Fix:** `core/`, `stack/`, `config/`, `plan/`, `run/`, `draw/`, `session/`, `machine/` and `cli/`, each a
-  layer, and `test_imports.py` by package. `runner.errors`, `runner.results` and `heimdallkit` keep their
-  import paths. Moved one module at a time, with the fast suite after each.
-
-### I-51 The plugin loader for tool folders only
-**P2 · refactor · blocked on I-50**
-- `bars.py`, `derive.py`, `layout.py`, the backends, `build_stack.py` and `env/stack.py` are loaded as
-  "plugins" (`plot.py:1744`, `report._layout`, `config.py:1289`, `tools.py:515`). The premise was "the
-  runner stays standard library", but `tomli_w` is imported in five modules already. Import them
-  normally, with matplotlib and YODA lazily, and pin the real dependency set in a test.
-
-### I-52 `env/` into `shell/` and `framework/make/`
-**P3 · layout · blocked on I-50**
-- `env/` mixes the bash environment, the flag probe, the stack registry and a generated list.
-  `heimdall_env.sh` goes to `shell/`; `rules.mk`, `work.mk` and `flags.sh` to `framework/make/`; the template's
-  `include` path follows. `recipes/pth.py` puts only `runner` and `heimdallkit` on the path, not
-  `framework/`'s generic names.
-
-## M7 — The stack
-
-### I-55 The stack builder as a library
-**P2 · refactor · open**
-- The runner loads `recipes/build_stack.py` (1,760 lines) as a plugin and catches its `SystemExit`
-  (`tools.py:423-433`, `doctor.py:30`, `bifrost.py:37`, `:210`). Make it a `stack` package with exceptions
-  (still standard library only, runnable before any environment), and keep `recipes/build_stack.py` as
-  a thin CLI.
-- **Gate:** `--dry-run` byte-identical for `@primary`, `@core-conda` and `packages=all`.
-
-### I-56 One stack registry: the recipes
-**P2 · refactor · blocked on I-55**
-- Four registries say what a package is: `standard.toml`, `env/stack.toml` with `stack.py`,
-  `env/packages.sh` and `stack/.stamps/folders`.
-- `.stamps/folders` already lists every installed folder: all 18 in `~/Himinbjorg` (since V123).
-- Recipes gain `flags` and `version`; `heimdall_env.sh` reads `.stamps/folders` alone (diff `PATH` and
-  `LD_LIBRARY_PATH`: the order becomes build order). `env/stack.toml`, `stack.py`, `packages.sh` and
-  `make registry` go.
-
-### I-57 Downloads out of `forge/`
-**P2 · machine root · decision (D11)**
-- CLAUDE.md says the machine root's `forge/` may be emptied by hand. That loses
-  `forge/downloads/` (3.3 GB), which rebuilds and I-14 need.
-- **Recommended:** `~/Himinbjorg/downloads/`, the build reading the old place for a release, and the move
-  a rename, done with your yes.
-
-### I-58 Which checkout built `apps/`
-**P2 · machine root · open**
-- Several checkouts may share a root, but `apps/` is built from one checkout's `src/` and nothing
-  records which. Another checkout's build replaces them, and every point that uses them reruns.
-- `heimdall build --framework` writes `apps/.source` (the checkout, its revision, a digest of `src/`);
-  `run` and `stack doctor` warn on a mismatch.
-
-### I-59 `stack doctor --record` writes into Himinbjorg
-**P3 · machine root · decision (D10)**
-- It writes this machine's row into the git checkout (`doctor.py:152-155`,
-  `recipes/support/linux-pp-exphep.toml`). Write `~/Himinbjorg/support.toml`, and `--publish` copies it
-  into `recipes/support/`.
-
-### I-60 Download progress
-**P3 · feature · open (stack-build note N1)**
-- `download` copies in 1 MB chunks with nothing shown (`build_stack.py:1089`). Show bytes so far of
-  `Content-Length`, the rate and an ETA on the live line; one line per file when plain; the same for
-  pixi's.
-
-### I-61 A recipe's helper scripts in its digest
-**P3 · stack · open (N6)**
-- A recipe's patch is hashed (`patch_sha256`, `build_stack.py:738`), but the helper scripts its
-  `pre`/`post` run (`recipes/helpers/h5cc_plain.py`) are not, so changing one rebuilds nothing.
-- Also: the yoda recipe should check `{dir_hdf5}/bin/plain-h5cc` exists first.
-
-### I-62 A change of the base marks only what it touches
-**P3 · stack · open (N13)**
-- `base_hash` covers every base library (`build_stack.py:621`), so OCaml's change marked ROOT and the
-  rest as changed. Instead, each package's digest takes the compilers and runtime, plus the base
-  libraries it builds against.
-
-### I-63 Geant4's data through the build's downloader
-**P3 · stack · open (N17)**
-- `geant4_data = ON` has CMake fetch about 2 GB during the build, all or nothing; a truncated transfer
-  recompiles Geant4 (about 20 min). Fetch the datasets with `build_stack`'s downloader (resumed,
-  checked, kept), and point CMake at them.
-
-### I-65 A test that CMake on the base ignores `/usr`
-**P3 · test · open (N4)**
-- The fix exists (`BASE_CMAKE`, empty build folders), but no test checks it.
-
-### I-66 MadGraph: the MG5aMC_PY8 interface, Herwig's paths
-**P3 · stack · open (N21)**
-- MadGraph 3.8's showers through `main164`, and Herwig's paths in MadGraph's options, are not done.
-
-### I-67 Sherpa's integration over MPI
-**P3 · idea · open**
-- Sherpa is built with MPI (OpenMPI 5.0.11, `@loops`). The prepare step (the integration,
-  `framework/tools/sherpa/prepare.py`) still runs one process. Running it as `mpirun -n N` (a `[tools.sherpa]`
-  option, never in the identity) would speed up the long integrations; event generation stays seed
-  replicas with `combine`.
-
-### I-68 Live-state files keep a reader for their old forms
-**P2 · machine root · open**
-- `runs/*.json`, `workdirs.toml` and `stack/.stamps/` are read by whichever checkout or worker runs
-  next. `runs.VERSION` exists; `workdirs.toml` and `.stamps/` carry none.
-- Give `workdirs.toml` a `format` key (comments kept). Every change keeps a reader for the old form, and
-  a live file is backed up beside itself before a rewrite.
-
-## M8 — The CLI and its knobs
-
-### I-70 One stage selector, one keep flag, one `--plain`
-**P2 · CLI · blocked on I-35**
-- **Stages:** `--only`, `--stages`, `--no-plot`, `--no-stats`, `[run].plot` and `[run].stats` interleave
-  (`cli.py:574-588`, `1035-1062`, `1139-1145`). Make `--stages` the selector, with `--no-plot` an alias.
-- **Keep:** `--keep`, `--logs` and `--journal` overlap, besides heimdall.toml's and machine.toml's
-  `[run] keep`. Make `--keep WORDS` the one flag.
-- **Plain:** `--plain` is both global and per command; make it global only.
-
-### I-71 Fewer commands for one job
-**P2 · CLI · open (audit 4 G15 decided)**
-- `heimdall doctor` and `status --stack` → `heimdall stack doctor` and `stack status` (decided).
-- `heimdall make` → `heimdall build TARGET`; `heimdall image` → `heimdall stack image`.
-- `main()` dispatches from a table, not an if-chain.
-
-### I-72 `heimdall show`
-**P3 · feature · open (intent U2)**
-- `heimdall show RECORD[/POINT]`: provenance, identity parts, products, σ, counts, and the logs' tail.
-  Today only `--why` reads the record.
-
-### I-73 Shell completion
-**P3 · feature · open (intent U5)**
-- `heimdall completion bash`: commands, configs, configurations and point tags.
-
-## M9 — Roots and tests
-
-### I-75 A `WorkDir` value; no root variables, no `os.environ` mutation
-**P2 · refactor · blocked on I-10**
-- Eight root variables, and a record's configs root passed by mutating `os.environ`
-  (`paths.configs_at`, `cli.opened`), plus a module-global keep set.
-- A `WorkDir` resolved once and passed down. `HEIMDALL_RESULTS`, `HEIMDALL_RECORDS`, `HEIMDALL_CACHE`, `HEIMDALL_REPORTS`
-  and `HEIMDALL_CONFIGS` go; `HEIMDALL_RUNS` and `HEIMDALL_WORKDIRS` go once I-10 is in.
-
-### I-76 Tests independent of their order
-**P2 · test · open**
-- Every test shares one scratch work dir whose records accumulate (`conftest.py:56-66`). Give a test
-  that writes its own copy (`build/` linked to the session's), so order stops mattering and
-  `pytest -n` becomes possible.
-
-### I-77 Tests a conda-base root skips
-**P3 · test · open (N3, N20)**
-- Seven shell tests (`test_setup.py`, `test_shellrc.py`) know only a venv, so on the conda base they
-  never run.
-- `test_v3`'s editor-schema test needs `jsonschema`, which the base lacks.
-- `test_the_old_way_is_apt_and_a_venv` fails on a conda root: it asserts "pixi" appears nowhere, and
-  the venv's path holds it. It goes with I-80, or asserts on the script's pixi commands.
-
-### I-79 The legacy gates differ by one digit on the conda base
-**P2 · verification · decision (first seen 2026-10-22)**
-- `test_gates_p1.py::test_the_legacy_reference_is_reproduced_byte_for_byte[MSTW|NNLO]` fail: one digit of the
-  YODA (byte 323) differs from `tests/reference/`. It fails before task H (`fb3eed8`, was `4bf2e06`) too, so it comes from the
-  rebuilt stack's Pythia, Rivet or LHAPDF, not the runner. The references are never regenerated.
-- **Yours to judge:** accept the stack's digit (the gate then compares with that one tolerance, written down),
-  or find which package moved it (a rebuild against the old release, with your yes).
-
-## M10 — The machine and the repository
-
-### I-80 Retire `base = "system"`
-**P3 · cleanup · blocked on I-82 (D6)**
-- The venv/apt/Homebrew path is carried beside the conda base:
-  - `gjallarhorn.sh:51-57` and `heimdall_env.sh`'s `deactivate` dance;
-  - `framework/bin/heimdall:13`, `launch.sh:59-71`, `cli._system_python`;
-  - `bifrost`'s pip branch, `build_stack.system()`, and `platforms/mac/{Brewfile,system.toml}`.
-- Delete it once the Mac is on the conda base.
-
-### I-81 `editor/` to its own repository; its roadmap
-**P3 · layout · decision (D7; it came in from High-Energy on 2026-10-22, V161)**
-- 8.9 MB of VS Code assets, including an icon bank of third-party Vecteezy SVGs. Check their licence
-  before any public repository.
-- **Recommended:** move it to its own repository, or keep it here and move the icon bank out.
-- **What is left of its roadmap** (from `editor/Report.md`, removed; already done: `.cmnd`'s value,
-  namespace and disabled-line scopes, the theme's dark sibling and its 16 ANSI colours, the `heimdall-icons`
-  theme):
-  - `cmnd-syntax`:
-    - a PDG-id subscope;
-    - an injection so `pythia.readString("…")` strings in C++ are highlighted;
-    - snippets for the ~30 common keys;
-    - version 0.1.0.
-  - `heimdall-contrast-theme`: ROOT/Cling tokens (`gROOT`, `gStyle`, `gPad`, `R__LOAD_LIBRARY`); the README's
-    palette table generated from the palette; the unused `fg4` slot and duplicated diff colours cut.
-  - New packages, ranked:
-    - `pythia-hover`: Pythia's settings from its manual XML, as hovers and completion in `.cmnd`;
-    - `hep-snippets`: Pythia, ROOT, Rivet and HepMC boilerplate;
-    - `hep-tasks`: VS Code tasks and launch configs over `heimdall build`/`run`;
-    - `hep-statusbar`: the open run TOML's events, energies and seed;
-    - `yoda-syntax`.
-
-### I-82 The Mac on the conda base
-**P2 · machine · held (the Mac)**
-- Tasks A–E (conda base, `heimdall`/`bifrost`/`recognise`, own recipes and switches, minimal run output,
-  images) are unproven on macOS.
-- The first Mac build's 18 notes (2026-10-12) are applied: `mac.toml`'s ThePEG/Herwig/Whizard fixes,
-  archive checks, the bash-only environment, the refusal of a direct `build_stack.py` run.
-- Rebuild there, then run the suites and record the support row (I-59).
-
-### I-83 The lab PC's reinstall
-**P3 · machine · decision**
-- It was postponed on 2026-10-15 (the USB would not boot: TPM/encryption), and the stack was rebuilt in
-  place on the conda base instead. Confirm whether a reinstall is still wanted. The runbook is
-  `docs/framework/` (P0–P4); the backups are on the Ventoy USB (`pre-wipe/`).
-
-## M11 — Not yet proven
-
-### I-85 A real Apptainer image
-**P2 · verification · held (downloads)**
-- `heimdall image build packages=@core-conda` has been tested with a fake runtime only. `apptainer` is
-  now on this machine (`/usr/bin/apptainer`). Name the downloads before building.
-
-### I-86 `[cluster] image` plans outside the image
-**P2 · design · decision (audit 4 G6)**
-- The jobs run in the image, but `heimdall cluster` plans on the login node, which then needs a stack,
-  and the image has no `sbatch`.
-- Either plan inside the image and write a `submit.sh` that the host runs (chained job ids), or bind the
-  site's Slurm client into the image.
-
-### I-87 `heimdall cluster` on a real Slurm
-**P3 · verification · open**
-- Only an emulated Slurm so far. Run `--dry-run` first on a real site. HTCondor and PBS are later.
-
-### I-88 The conda base's phase 3
-**P3 · verification · open (`docs/conda/03_Plan.md`)**
-- The physics against the old stack; a tracked multi-platform lock; a bootstrap for clusters with
-  Python < 3.11; ROOT's and Geant4's GL viewers opened once (`libglvnd` with the OS's driver).
-
-## M12 — Held: ask first
-
-### I-91 `hep` and `setup.sh` in the frozen fixture
-**P3 · rename · blocked on I-21**
-- The fixture's `Makefile` error names `setup.sh`; its configs' comments and
-  `modules/Decay/README.md` say `hep run`. `tests/reference/v2_configs/` mirrors the configs. Change them
-  with I-21's migration of the fixtures.
-
-## M13 — Ideas
-
-### I-95 Per-group identity and skip
-**P3 · idea (intent T1)**
-- A point reruns only the groups whose identity changed, when the earlier groups' products are
-  complete. Measured: changing yd2rt's `select` reran a 16.1 s point instead of 0.2 s.
-
-### I-96 Shared generation for analysis-option sweeps
-**P3 · idea (intent T2; needs I-95)**
-- Points with one generator identity share one generation, and Rivet runs every variant in one pass
-  (`-a photo_eic:R=0.4 -a photo_eic:R=0.7`).
-
-### I-97 Weight variations as a band
-**P3 · idea (intent T4)**
-- Rivet's `/x[MUR2_MUF2]` variations (Sherpa on the fly, Pythia's UncertaintyBands) drawn as an envelope
-  instead of dropped. Scale and PDF uncertainty without extra generations.
-
-### I-98 Shards beyond Rivet; K from threads
-**P3 · idea (intent T5)**
-- Shards on other folders (a module program with a merge tool), and K chosen from `threads`
-  automatically.
-- Also unmeasured: the parallel-points timing (V36).
-
-### I-99 `heimdall plot --suggest-data-map`
-**P3 · idea (intent U1)**
-- Print `[plot.data.map]` lines matched by name, for you to check and paste. The map stays explicit.
-
-### I-100 `heimdall run --check`: preflight without events
-**P3 · idea (intent U8)**
-- Each tool's cheap preflight: Pythia's `init()` on the point card, `rivet --list-analyses`, a card
-  parse. It must never open a FIFO.
-
-### I-101 Where a resolved value came from (`--explain KEY`)
-**P3 · idea (intent CF3)**
-- The layer that set a value: the file, an import, a configuration, `--set`; for a style key, base.toml,
-  the style files, `[plot.style]` or the figure.
-
-### I-102 Products that identify themselves; an index of provenance
-**P3 · idea (intent P1, P2)**
-- The point, its identity, the git revision and the config written into the YODA (annotations on
-  `/_EVTCOUNT`) and the ROOT file (a TNamed).
-- Later, a SQLite index over the provenance files ("every point with pdf = NNPDF23lo").
-
-### I-103 Physics set-ups to settle
-**P3 · decision (intent §5)**
-- An ep Delphes card: the ATLAS card reconstructs a jet in 0.9 % of events at these energies.
-- Herwig photoproduction: `dis_ep.herwig.in` is NC DIS, a chain check only.
-- A Geant4 simulation module: Geant4 builds, but no program is written.
-
-### I-104 A tool's private dependencies (BeAGLE)
-**P3 · idea (task G, set aside by you 2026-10-15)**
-- A recipe's `private = [...]`, each built into `stack/<dependent>/private/<name>/`, off the shell's
-  paths, rpath-linked, hashed into the dependent's digest. `scope = "private"` for a recipe built only
-  that way. A tool folder's `{package}` placeholder, and a prepend form of `[command] env`. For
-  BeAGLE: DPMJet 3 and Pythia (linked to LHAPDF, for EPS09), RAPGAP 3.302's static libraries,
-  `$BEAGLESYS`, FLUKA's `nuclear.bin` in the run folder, and its text output converted (eic-smear, or to
-  HepMC) for Rivet. Check BeAGLE's README before writing the recipe.
-
-### I-105 Smaller leftovers
-**P3 · idea**
-- `heimdall migrate --stamp`: the stack's versions into `[file.meta].versions`, if wanted.
-- HTCondor and PBS for `heimdall cluster`.
-- "F8 `--more`": named in older plans with no description anywhere. Confirm what it was, or drop it.
+Pending work, one issue a task: what, why, done when. Rules: [work](../docs/rules/work.md). Rebuilt 2026-11-02, each checked against the code.
+
+**Status:** `open` · `decision` (waits for the developer) · `blocked` · `held` (ask first) · `idea`. **Priority:** P1 this cycle · P2 next · P3 when convenient.
+
+**Order of phases:** 2 safety net (I-10, I-11, I-12, I-13, I-76, I-77) → 3 one dialect (I-20, I-21, I-91) → 4 retirements (I-25, I-26, I-28, I-29, I-30, I-68) → 5 session and CLI (I-35–37, I-70–73, I-100, I-101) → 6 plot model (I-41–48, I-97, I-99) → 7 packages (I-50–52) → 8 stack (I-55–66, I-88) → 9 roots, cluster images (I-75, I-86) → 10 throughput (I-95, I-96, I-98, I-67, I-102) → 11 physics (I-103, I-104). The safety net matters before any change to identity or records. Parked: I-80, I-82, I-83, I-85, I-87, I-81.
+
+**Decided (2026-10-25), standing:** drop v2 (a work dir's `configs/legacy/` stays as history) · `plot.toml` stays a drawing's source · retire `plot_points`, old documents still draw · delete the yoda backend, mpl may drift from mkhtml · `[heimdall]` keeps preference switches only · `editor/` stays · doctor's row goes to Himinbjorg, published on purpose · downloads to `<root>/downloads/` · identity golden file approved · `--logs` and `--journal` stay as shorthands · plan inside the image · Herwig for MadGraph, plus MG5aMC_PY8.
+
+## Next pieces
+
+### I-120 Rework the scoring · P1 · decision
+Scoring and drawing sit in one 875-line `figures/bars.py`; fixed points by place, five overlapping statistics summed, no score across Runs. Context: [notes](plans/scoring/notes.md). **Done when:** a plan is agreed, scoring is a module of its own (rows in, scores out), and the summary and reports use it.
+
+### I-121 A points library · P1 · decision
+A pooled collection of points per Assignment that any Errand and Run can use, rather than per-Run folders. Context: [notes](plans/points-library/notes.md). Needs I-10, I-11, I-28 first. **Done when:** a plan settles the key, layout, seeds, invalidation and migration, and two Errands share a point without rerunning it.
+
+### I-122 Commit the migrated work dirs · P2 · held
+The names' migration (`[errand]`, `heimdall.toml`) is applied uncommitted in two work dirs. They are the developer's. **Done when:** the developer has reviewed and committed them, or says otherwise.
+
+## Safety net
+
+### I-07 Task L's checks by hand · P1 · open
+By hand on the lab PC: a run, `d`, close the terminal; `heimdall runs`, `watch` (`q`), `runs` again; the same over ssh. **Done when:** the verdict shows in each.
+
+### I-10 A shadow machine root for the tests · P1 · open
+Tests run with the real `HEIMDALL_MACHINE`, so live `machine.toml` and `recipes.toml` decide what they keep and see. `conftest` builds `forge/scratch/machine/`: real `stack/`, `base/`, `apps/`, `forge/downloads/` linked, own empty `machine.toml`, `recipes.toml`, `runs/`, `workdirs.toml`. **Done when:** suites pass as before, and no test touches `~/Himinbjorg`'s own files; a guard checks stamps and apps unchanged.
+
+### I-11 An identity golden file · P1 · held
+`tests/golden/identity_parts.json`, every fixture point's parts, binaries' sha256 masked, written under I-10. **Done when:** a test compares it, and each refactor leaves it unchanged.
+
+### I-12 Baselines before the restructure · P1 · open
+**Done when:** fast and slow suite results, and `heimdall status` of a real study's configs (read-only), are recorded, and a local tag `pre-restructure` exists.
+
+### I-13 Static checks · P2 · open
+No `pyproject.toml`, ruff or mypy. **Done when:** ruff (report-only, then enforcing) and mypy on new modules, and `make check` = ruff + import layers + fast suite.
+
+### I-76 Tests independent of their order · P2 · open
+Every test shares one scratch work dir whose records accumulate. **Done when:** a writing test has its own copy, and `pytest -n` works.
+
+### I-77 Tests a conda-base root skips · P3 · open
+Seven shell tests know only a venv. `test_v3`'s schema test needs `jsonschema`. `test_the_old_way_is_apt_and_a_venv` fails on a conda root, as it asserts "pixi" appears nowhere and the path holds it. **Done when:** they run on the base, or go with I-80.
+
+### I-79 Legacy gates differ by one digit on the conda base · P2 · decision
+`test_gates_p1.py::test_the_legacy_reference_is_reproduced_byte_for_byte[MSTW|NNLO]`: byte 323 of the YODA. It comes from the rebuilt stack, not the runner; references are never regenerated. Yours: accept the digit with a written tolerance, or find which package moved it.
+
+### I-124 Figure paths no test covers · P3 · open
+`derive.scan_value`'s `integral`, `mean`, `entries`; `projection-y`; a sheet's error paths. **Done when:** each has a test.
+
+## One dialect
+
+### I-20 Drop v2 errand files · P1 · decided
+The 11 fixture configs migrated once; a converter kept outside the package for a while. **Done when:** a v2 file is refused with its way on.
+
+### I-21 v3 as the form and the model · P1 · blocked on I-10, I-11, I-20
+v3 is translated into v2 tables; the rename table is written many times; errors speak v2 to a v3 user. Fixtures to v3, the model in v3's names with `identity_parts` mapping to frozen keys, then delete `v3.py`, v2 branches, `run.schema.json`, the rename tables. **Done when:** gate I-11 is unchanged, and messages use the file's own names.
+
+### I-91 `hep` and `setup.sh` in the frozen fixture · P3 · blocked on I-21
+**Done when:** the fixture's Makefile error, config comments and `modules/Decay/README.md` use today's names, changed with I-21's migration.
+
+## Retirements
+
+### I-25 Retire migrations and guards for retired names · P1 · blocked on I-21
+First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py`; legacy probes and `check_retired()`; `paths.RETIRED`, `HEKIT_*`, `{repo}`, `[tool] formerly`, `tools.EXPORT`; `[file].master`; `framework/tools/plotmerge/`; `machine.py adopt`; `recipes/build_by_hand.txt` (drifted: 404s, no base); the shell's `quit`, `heimdall_status`, `heimdall_stash`, `heimdall_forge`, `heimdall_stack`; `strict=False`. **Done when:** gone, with refusals naming the new form.
+
+### I-26 One table of retired names · P2 · blocked on I-25
+`retired.py`: `{old: (new, since)}`, read by the schema check, CLI and shell. **Done when:** it replaces the ad-hoc refusals.
+
+### I-28 Record files with a format version · P2 · open
+`points.json`, `provenance.json`, `identity.json`, `plot.toml` carry none; layouts are recognised by heuristics. **Done when:** `format = N` in each, and one `heimdall records upgrade` (dry run first) does the migrate jobs.
+
+### I-29 Leftover names and stale hints · P3 · open
+`plot.BACKENDS`, `layout.TILED`, `tools.ENV`; hints naming `heimdall plot FILE` rather than `overlay`; wrappers `objects_of`, `raws_of`, `_sha`, `base_of`; `{repo}` in the recipes. **Done when:** gone.
+
+### I-30 Mark unproven toolkits · P3 · open
+`proven = [...]` in a toolkit file after a recorded build; `--toolkits` shows "unproven". **Done when:** listing says so.
+
+### I-68 Live-state files keep a reader for old forms · P2 · open
+`workdirs.toml`, `.stamps/` carry no version. **Done when:** a `format` key, a reader kept per change, and a backup beside itself before a rewrite.
+
+## Session and CLI
+
+### I-35 `RunRequest` and a session module · P1 · blocked on I-25
+`cli.py` (2,887 lines) holds orchestration, two sweep executors, 62 `getattr(args…)`. **Done when:** `session.plan`, `session.run` with one executor; `cli` parses, dispatches and prints.
+
+### I-36 `heimdall plan` · P2 · decided
+`plan CONFIG [CFG] [--why|--config|--card TAG] [--points] [--json]`, replacing `run --plan` and kin; old spellings refused for a release. **Done when:** so.
+
+### I-37 `--json` · P2 · blocked on I-35
+**Done when:** `plan`, `status`, `runs`, `tools`, `stack status` have it from one renderer.
+
+### I-70 One stage selector, one keep flag, one `--plain` · P2 · blocked on I-35
+**Done when:** `--stages` selects (`--no-plot` an alias), `--keep WORDS` is the flag (`--logs`, `--journal` shorthands), `--plain` global.
+
+### I-71 Fewer commands for one job · P2 · open
+**Done when:** `doctor` and `status --stack` → `stack doctor`, `stack status`; `make` → `build TARGET`; `image` → `stack image`; `main()` dispatches from a table.
+
+### I-72 `heimdall show` · P3 · open
+**Done when:** `show RECORD[/POINT]` prints provenance, identity parts, products, σ, counts, logs' tail.
+
+### I-73 Shell completion · P3 · open
+**Done when:** `heimdall completion bash` covers commands, configs, configurations, point tags.
+
+## Plot model
+
+### I-41 Sets as the one grouping; retire `plot_points` · P2 · decided
+`[cfgs.x] plot = [...]` and `totality` carry what it said; a file with it is refused with the set that says the same. **Done when:** so.
+
+### I-42 Figure classes as a table · P2 · open
+Classes are dispatched by `kind ==` loops, and `check_plot` hand-codes rules. Also `_pages`' near-duplicate loops, five stamp-and-rebuild sites, `figures(run)` parsed repeatedly. **Done when:** a `[figure_class.<c>]` schema table, one dispatcher, one `_cached` helper.
+
+### I-43 Delete the yoda backend · P2 · decided
+mpl loads it for transforms. Its pixel test already fails alone (ratio antialiasing). **Done when:** transforms move to mpl; `yoda/`, `"both"` and that test go.
+
+### I-44 One HTML index writer · P3 · open
+**Done when:** `write_index`, `write_sets_index` use `viewer.page`.
+
+### I-45 `heimdall stats` → `heimdall plot --stats-only` · P3 · decided
+**Done when:** so, `stats` refused for a release.
+
+### I-46 Compare figures: their own stage · P2 · open
+Drawn as a side effect of each configuration's stage, up to N times, not on plot documents. **Done when:** drawn once, in its own step.
+
+### I-47 Paint's PDF line widths · P3 · open
+About twice too thick; not measured lately. **Done when:** measured and fixed, or closed.
+
+### I-48 Known plot limits · P3 · idea
+Heat maps Paint-only; scan x must be numeric; sheets have no shared title or legend.
+
+## Packages
+
+### I-50 `runner/` as subpackages · P2 · decided
+God modules: `cli.py`, `plot.py`, `tools.py`, `config.py`. **Done when:** `core/`, `stack/`, `config/`, `plan/`, `run/`, `draw/`, `session/`, `machine/`, `cli/`, moved one at a time, `test_imports` by package.
+
+### I-51 The plugin loader for tool folders only · P2 · blocked on I-50
+`bars.py`, backends, `build_stack.py` load as plugins though `tomli_w` is imported anyway. **Done when:** imported normally, the dependency set pinned by a test.
+
+### I-52 `env/` into `shell/` and `framework/make/` · P3 · blocked on I-50
+**Done when:** moved; `pth.py` puts only `runner` and `heimdallkit` on the path.
+
+## Stack
+
+### I-55 The stack builder as a library · P2 · open
+**Done when:** a `stack` package with exceptions; `build_stack.py` a thin CLI; `--dry-run` byte-identical for `@primary`, `@core-conda`, `packages=all`.
+
+### I-56 One stack registry · P2 · blocked on I-55
+Four say what a package is. **Done when:** recipes gain `flags`, `version`; `heimdall_env.sh` reads `.stamps/folders`; `env/stack.toml`, `stack.py`, `packages.sh` go.
+
+### I-57 Downloads out of `forge/` · P2 · decided
+`forge/` may be emptied, losing 3.3 GB. **Done when:** `~/Himinbjorg/downloads/`, old place read for a release; the move done with the developer's yes.
+
+### I-58 Which checkout built `apps/` · P2 · open
+**Done when:** `apps/.source` records checkout, revision, `src/` digest; `run` and `doctor` warn on a mismatch.
+
+### I-59 `doctor --record` into Himinbjorg · P3 · decided
+It writes into the checkout, and `recipes/support/`'s one row is a removed system's. **Done when:** `~/Himinbjorg/support.toml`, `--publish` copies it, the old row dropped or dated.
+
+### I-60 Download progress · P3 · open
+**Done when:** bytes, rate and ETA live; a line per file when plain; pixi's too.
+
+### I-61 A recipe's helper scripts in its digest · P3 · open
+**Done when:** changing `recipes/helpers/*` rebuilds; yoda's recipe checks `plain-h5cc` first.
+
+### I-62 A base change marks only what it touches · P3 · open
+**Done when:** a digest takes compilers, runtime, and the base libraries a package builds against.
+
+### I-63 Geant4's data through the downloader · P3 · open
+**Done when:** resumed, checked, kept; CMake pointed at them.
+
+### I-65 A test that CMake on the base ignores `/usr` · P3 · open
+**Done when:** the test exists.
+
+### I-66 MadGraph: the MG5aMC_PY8 interface, Herwig's paths · P3 · open
+**Done when:** both work in a shower through `main164`.
+
+### I-67 Sherpa's integration over MPI · P3 · idea
+`mpirun -n N` in the prepare step, in no identity.
+
+### I-88 The conda base's phase 3 · P3 · open
+**Done when:** physics compared against the old stack; a tracked multi-platform lock; a bootstrap for Python < 3.11; ROOT's and Geant4's GL viewers opened once.
+
+### I-123 CI that has never run · P3 · decision
+`.github/workflows/stack.yml` and its Dockerfile have no run on record. **Done when:** run once, or retired.
+
+## Roots and machine
+
+### I-75 A `WorkDir` value · P2 · blocked on I-10
+Eight root variables, `os.environ` mutated for a record's configs. **Done when:** resolved once and passed down; the variables go.
+
+### I-80 Retire `base = "system"` · P3 · blocked on I-82
+**Done when:** the venv, apt and Homebrew paths are gone.
+
+### I-81 `editor/`'s roadmap · P3 · idea
+Stays here (decided); check the icon bank's Vecteezy licence before any public repository. Left: `.cmnd` PDG subscope, C++ string injection, snippets; theme's ROOT tokens; new packages `pythia-hover`, `hep-snippets`, `hep-tasks`, `hep-statusbar`, `yoda-syntax`.
+
+### I-82 The Mac on the conda base · P2 · held
+Unproven on macOS. **Done when:** rebuilt there, suites run, a support row recorded.
+
+### I-83 The lab PC's reinstall · P3 · decision
+Postponed 2026-10-15; the stack was rebuilt in place. Confirm if still wanted.
+
+### I-85 A real Apptainer image · P2 · held
+Fake runtime only; `apptainer` is now on this machine. Name downloads first. **Done when:** built and run.
+
+### I-86 `[cluster] image` plans inside · P2 · decided
+**Done when:** planning runs in the image and writes a `submit.sh` the host runs.
+
+### I-87 `heimdall cluster` on a real Slurm · P3 · open
+**Done when:** `--dry-run`, then a submission, on a real site.
+
+## Ideas
+
+- **I-95** Per-group identity and skip: changing yd2rt's `select` reran a 16.1 s point instead of 0.2 s.
+- **I-96** Shared generation for analysis-option sweeps; needs I-95.
+- **I-97** Weight variations as a band: scale and PDF uncertainty without extra generations.
+- **I-98** Shards beyond Rivet; K from threads. Parallel-points timing unmeasured.
+- **I-99** `heimdall plot --suggest-data-map`: lines matched by name, to check and paste.
+- **I-100** `heimdall run --check`: each tool's cheap preflight, never opening a FIFO.
+- **I-101** `--explain KEY`: the layer that set a value.
+- **I-102** Products that identify themselves; a SQLite index of provenance.
+- **I-103** Physics set-ups: an ep Delphes card (ATLAS's finds a jet in 0.9 % of events), Herwig photoproduction, a Geant4 module.
+- **I-104** A tool's private dependencies (BeAGLE): `private = [...]`, set aside 2026-10-15.
+- **I-105** Leftovers: `migrate --stamp`; HTCondor and PBS; "F8 `--more`", undescribed: confirm or drop; `--plan`'s "note: folder 01" wording is cryptic.

@@ -13,7 +13,7 @@ A table per concern: `[errand]` (the errand, and what every configuration starts
 [errand]
 name       = "mini"
 assignment = "Demo"
-run        = "pdf"                 # what `heimdall run Demo/mini` runs
+run        = "pdf"                 # the default configuration: what `heimdall run Demo/mini` runs
 events     = 100_000
 threads    = 8
 chain      = [["pythia", "rivet"], "yd2rt"]   # group 1 runs together, then group 2

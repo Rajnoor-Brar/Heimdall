@@ -178,3 +178,15 @@ def test_explain_answers_every_setting():
             except Exception as error:
                 silent.append(f"{ask}: {str(error)[:60]}")
     assert not silent, "explain has no answer:\n  " + "\n  ".join(silent)
+
+
+def test_context_is_within_its_budget_and_owns_nothing():
+    text = docs.context_page()
+    assert len(text.encode("utf-8")) <= knowledge.CONTEXT_CAP
+    primer = next(p for p in PAGES if p.id == "model").body
+    assert "tools are processes, chained by a TOML" in primer and "tools are processes, chained by a TOML" in text
+    assert re.search(r"^```toml\n# configs/Demo/mini.toml", text, re.M), "the guide's whole errand file"
+
+
+def test_the_template_points_to_the_context():
+    assert "heimdall context" in (REPO / "framework/templates/work/CLAUDE.md").read_text(encoding="utf-8")

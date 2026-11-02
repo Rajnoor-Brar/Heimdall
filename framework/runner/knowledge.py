@@ -19,6 +19,7 @@ from .paths import forge_dir, heimdall_root
 READERS = ("driver", "mechanic", "dev", "client", "agent")
 #: Who a page is for follows from where it is, longest prefix first: a page needs no field saying so.
 READERS_OF = (("reference/settings/stack", ("mechanic", "dev", "agent")),
+              ("client", ("client",)),
               ("reference", ("driver", "client", "dev", "agent")),
               ("stable/start", ("driver", "client", "dev", "agent")),
               ("stable/guide", ("driver", "client", "dev", "agent")),
@@ -30,7 +31,8 @@ KEYWORDS = {"default_ok": ('"default"', "the layer below's value, as if left out
             "native_ok": ('"native"', "what the drawing tool does by itself, at any level")}
 PAGE_CAP = 12_000                                   # bytes of an authored page
 ROW_CAP = 300                                       # characters of a decision note
-ORDER = ("rules", "reference", "stable/start", "stable/guide", "stable/tools", "stable/setup",
+CONTEXT_CAP = 16_000                                # bytes of docs/client/CONTEXT.md
+ORDER = ("rules", "client", "reference", "stable/start", "stable/guide", "stable/tools", "stable/setup",
          "stable/internals", "stable/design", "live")
 
 
@@ -272,6 +274,11 @@ def site_html(found: list[Page] | None = None) -> str:
     blob = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     template = (Path(__file__).parent / "knowledge_site.html").read_text(encoding="utf-8")
     return template.replace("/*DATA*/null", blob)
+
+
+def context_text() -> str:
+    """What `heimdall context` prints: the page, without its frontmatter."""
+    return frontmatter((docs_root() / "client" / "CONTEXT.md").read_text(encoding="utf-8"))[1].lstrip()
 
 
 def build_site(out: Path | None = None) -> Path:

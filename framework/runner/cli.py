@@ -156,6 +156,8 @@ def parser() -> argparse.ArgumentParser:
     explain = commands.add_parser("explain", help="a key of an errand file: its type, default and meaning (the schema's)")
     explain.add_argument("key", help="e.g. plot.y_gutter, errand.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses")
 
+    commands.add_parser("context", help="what an AI working in a work dir needs first: the model, a whole errand file, commands, where to read more")
+
     documents = commands.add_parser("docs", help="the docs as one searchable page: settings, pages by reader, their graph")
     documents.add_argument("--drift", action="store_true", help="instead: pages whose code changed since the docs were last "
                                                                 "crystallised, with no live doc naming them")
@@ -2854,6 +2856,10 @@ def main(argv: list[str]) -> int:
             return 0
         if args.command == "docs":
             return cmd_docs(args)
+        if args.command == "context":
+            from . import knowledge
+            print(knowledge.context_text(), end="")
+            return 0
         if args.command == "status":
             return cmd_status(args)
         if args.command == "clean":

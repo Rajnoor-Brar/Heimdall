@@ -115,6 +115,8 @@ Every subcommand and its arguments (options and positionals may come in any orde
 |---|---|
 | `key` | e.g. plot.y_gutter, errand.events, cfgs.pdf.threads, quantities.<q>.points, rivet.analyses |
 
+**`heimdall context`**: what an AI working in a work dir needs first: the model, a whole errand file, commands, where to read more
+
 **`heimdall docs`**: the docs as one searchable page: settings, pages by reader, their graph
 
 | Argument | Meaning |

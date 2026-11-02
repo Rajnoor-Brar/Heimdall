@@ -10,6 +10,10 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [work](rules/work.md): where work in progress lives; the live-doc format; the crystallise protocol (2 KB)
 - [writing](rules/writing.md): how a page is written, where a fact belongs, how anything cites anything (3 KB)
 
+## client
+
+- [context](client/CONTEXT.md): what an AI working in a work dir needs first; heimdall context prints it (12 KB)
+
 ## reference
 
 - [commands](reference/commands.md): every heimdall command and its arguments (18 KB)
@@ -79,7 +83,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [build-fixes-generators](stable/setup/build-fixes-generators.md): why the generator recipes are written as they are: each problem a build hit and what is done about it (5 KB)
 - [build-fixes](stable/setup/build-fixes.md): why the core recipes are written as they are: each problem a build hit and what is done about it (5 KB)
 - [cluster](stable/setup/cluster.md): Heimdall on a cluster without sudo: an image or a user-space build, filesystems, what has been proven (2 KB)
-- [environment](stable/setup/environment.md): gjallarhorn, the shell's environment, heimdall build, bifrost, recognised work dirs, every environment variable (4 KB)
+- [environment](stable/setup/environment.md): gjallarhorn, the shell's environment, heimdall build, bifrost, recognised work dirs, every environment variable (5 KB)
 - [fresh-machine](stable/setup/fresh-machine.md): from a clone to a working Heimdall on a new machine: what you need, the build, a first work dir, the checks (2 KB)
 - [images](stable/setup/images.md): Heimdall and a machine root as one Apptainer image: building, using, what it can and cannot do (2 KB)
 - [platforms](stable/setup/platforms.md): what differs on Ubuntu and on macOS; what is proven and what is not (2 KB)

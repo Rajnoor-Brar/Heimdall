@@ -358,10 +358,50 @@ def legacy_page() -> str:
     return "\n".join(out) + "\n"
 
 
+def context_page() -> str:
+    """docs/client/CONTEXT.md: what an AI in a work dir needs first. The model's page and the first errand file are the
+    guide's own, so this cannot contradict them; the rest is the CLI's words and where to look."""
+    pages = {p.id: p for p in knowledge.pages()}
+    model = re.sub(r"\]\([^)]*\)", "]", pages["model"].body).replace("More: [glossary].", "").replace("Details: [outputs].", "").strip()
+    errand = re.search(r"```toml\n.*?```", pages["errand-file"].body, re.S).group(0)
+    wanted = re.sub(r"\]\([^)]*\)", "]", pages["everyday"].body.split("## What to write", 1)[1].split("\n\nA whole file", 1)[0]).strip()
+    wanted = re.sub(r" \| \[[^\]]*\] \|$", " |", wanted.replace("| To | Write | See |", "| To | Write |").replace("|---|---|---|", "|---|---|"), flags=re.M)
+    top = cli.parser()
+    sub = next(a for a in top._actions if isinstance(a, argparse._SubParsersAction))
+    rows = [f"- `heimdall {a.dest}`: {_cell(knowledge.plain(a.help or ''))}" for a in sub._choices_actions if a.help != argparse.SUPPRESS]
+    out = _head("context", "what an AI working in a work dir needs first; heimdall context prints it", "framework/runner/docs.py")
+    out += ["# Heimdall, for an agent in a work dir", "",
+            "Generated: printed by `heimdall context`, and matching the Heimdall this shell uses.", "",
+            "## How to work here", "",
+            "- `configs/` and `modules/` are the user's: change them only when asked, and show the diff.",
+            "- `results/`, `records/`, `.cache/`, `build/` and `reports/` are made by runs. Never write into them by hand.",
+            "- Before running, `heimdall check <A>/<E>`, then `heimdall run <A>/<E> [cfg] --plan`. Say what a run will cost before starting a long one.",
+            "- Look a key up rather than guessing: `heimdall explain <key>` gives its type, default, accepted values and effect, for errand keys, `plot.*`, `style.*`, `stack.*` and tool options; `heimdall explain plot` lists a table.",
+            "- A rebuilt program or changed card reruns the points that used it, by design. A plot change reruns nothing.",
+            "- Commit by path, never `git commit -a`.", "",
+            model, "", "## A complete errand file", "", errand, "",
+            "A configuration with `plot_points = [\"energies\"]` gets a page per value of it, the other varied quantities being the curves. "
+            "Left out, every point is on one page.", "",
+            "## What to write", "", wanted, "",
+            "Refused at plan time, each with a hint: an unknown key; a quantity no tool consumes; a FIFO across groups or into Delphes; an undeclared Rivet option; an uninstalled PDF set; a label in TLatex rather than LaTeX.", "",
+            "## Commands", "", *rows, "",
+            "## Where to read more", "",
+            "`heimdall where --heimdall` is Heimdall's folder. Under it, `docs/MAP.md` lists every page in a line. For a work dir:", "",
+            "| To | Read |", "|---|---|",
+            "| vary things, target native keys | `docs/stable/guide/sweeps.md` |",
+            "| wire tools together, other generators | `docs/stable/guide/chains.md`, `docs/stable/tools/` |",
+            "| your own programs | `docs/stable/guide/programs.md` |",
+            "| pages, sets, figures, statistics | `docs/stable/guide/plots.md` and its neighbours |",
+            "| a failure | `docs/stable/guide/failures.md` |",
+            "| every key, in full | `docs/reference/settings/`, `docs/reference/keys.md` for grep |"]
+    return "\n".join(out).rstrip() + "\n"
+
+
 def generated() -> dict[str, str]:
     """Whole pages under docs/, by path. The map comes last: it lists what the others are on disk."""
     out = {f"reference/settings/{name}.md": settings_page(name) for name in SETTINGS}
-    return out | {"reference/commands.md": commands_page(), "reference/keys.md": keys_page(), "reference/legacy.md": legacy_page()}
+    return out | {"reference/commands.md": commands_page(), "reference/keys.md": keys_page(), "reference/legacy.md": legacy_page(),
+                  "client/CONTEXT.md": context_page()}
 
 
 def write_generated() -> list[str]:

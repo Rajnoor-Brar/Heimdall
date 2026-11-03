@@ -4,7 +4,7 @@ scoring 5 points for a 1st … 1 for a 5th, so that they say what is best on the
 means say what is best on average, and each pair of curves on a page plays a match a statistic (V177): the top
 five, scoreboards page by page and by page cell, each cell's head to head, a scoreboard a statistic. Then
 per statistic (χ²/ndf, |Δ|/reference, area/reference, mean ratio, mean |ratio − 1|,
-V175; TABLES), each point's mean over its pages as sorted bars, then a table, a row per point and a column per
+V175; TABLES), each point's root mean square over its pages as sorted bars, then a table, a row per point and a column per
 object; the area a table only (each object has its own units: no mean across them).
 
 The summary is a document (V196): `summary_model` builds it as paper.py's model, sections of tables and
@@ -84,12 +84,11 @@ FORMULAS = {
                  r"\frac{\sum_i |y_i / y_{\mathrm{ref},i} - 1|\,\Delta x_i}{\sum_i \Delta x_i}",
     "area": r"\mathrm{area} = \sum_i y_i\,\Delta x_i",
 }
-TABLE_NOTE = ("A row per point (its label, under its page cell's band), a column per object; mean: the {mean} mean of the "
+TABLE_NOTE = ("A row per point (its label, under its page cell's band), a column per object; rms: the root mean square of the "
               "row's numbers. ref: the page's reference curve itself (compared with nothing); –: no number (no bins "
               "compared, or not on that page).")
-RANKING_NOTE = ("Per point (its page cell · its label), the {mean} mean of its {name} over the pages where it was "
+RANKING_NOTE = ("Per point (its page cell · its label), the root mean square of its {name} over the pages where it was "
                 "compared (their number in brackets), {order}.")
-GEOMETRIC = "geometric"                                         # a ratio's mean: 2 and 0.5 average to 1
 PLAIN = {"chi2_ndf": "χ²/ndf", "rel_abs_area": "|Δ| / reference", "area_ratio": "area / reference",
          "ratio_mean": "mean ratio", "ratio_dev": "mean |ratio − 1|", "area": "area"}
 
@@ -301,12 +300,16 @@ def _scale(rule: str, found: list[float]):
     return fraction
 
 
+def _rms(values) -> float:
+    return math.sqrt(sum(v * v for v in values) / len(values))
+
+
 def _mean(values: list[float], rule: str) -> float | None:
-    """A row's or a point's mean: geometric for a ratio (its values above 0), else plain."""
+    """A row's or a point's number over pages: the root mean square of its values (a ratio's above 0), so a page far
+    off weighs more and no two pages cancel."""
     if rule == "ratio":
         values = [v for v in values if v > 0]
-        return 10 ** (sum(math.log10(v) for v in values) / len(values)) if values else None
-    return sum(values) / len(values) if values else None
+    return _rms(values) if values else None
 
 
 def _points(rows: list[dict]) -> dict[str, str]:
@@ -381,7 +384,7 @@ def _by_cell(order: list[str], parts: dict) -> list[str]:
 
 def _ranking(rows: list[dict], key: str, notes: dict):
     """A statistic's ranking (V174): each point's mean over the pages where it was compared, as sorted bars, lowest
-    first (a ratio: closest to 1 first, its geometric mean, bars from 1); None when no point has one."""
+    first (a ratio: closest to 1 first, bars from 1); None when no point has one."""
     title, rule = next((t, r) for k, t, r in TABLES if k == key)
     rows = _rows_of(rows)
     points, means = _points(rows), _means(rows, key)
@@ -390,21 +393,21 @@ def _ranking(rows: list[dict], key: str, notes: dict):
     ratio = rule == "ratio"
     ranked = sorted(means, key=lambda p: (_distance(key, means[p][0]), points[p]))
     order = "closest to 1 first, bars from 1: blue above, orange below" if ratio else "lowest first"
-    notes[f"ranking-{key}"] = RANKING_NOTE.format(mean=GEOMETRIC if ratio else "plain", name=PLAIN[key], order=order)
+    notes[f"ranking-{key}"] = RANKING_NOTE.format(name=PLAIN[key], order=order)
     notes[f"stat-{key}"], notes["compared"] = NOTES[key], COMPARED
     values = [means[p][0] for p in ranked]
     if paper.any_cut([v - 1.0 if ratio else max(v, 0.0) for v in values]):
         order += ". " + paper.CUT_KEY                                       # V205
     return paper.Ranking(f"{key}-ranking",
-                         f"{title}: each point's {'geometric ' if ratio else ''}mean over its pages (pages compared)",
+                         f"{title}: each point's root mean square over its pages (pages compared)",
                          [f"{points[p]}  ({means[p][1]})" for p in ranked], values,
                          subtitle=order, base=1.0 if ratio else 0.0,
                          colours=(DARK, WARM) if ratio else (SERIES, SERIES),
                          notes=(f"ranking-{key}", f"stat-{key}", "compared"))
 
 
-CROSSED_NOTE = ("Page cells against curves: each entry a point's {mean} mean over the pages where it was compared "
-                "(its ranking's number), its page cell one way and its curve the other; mean: the {mean} mean of the "
+CROSSED_NOTE = ("Page cells against curves: each entry a point's root mean square over the pages where it was compared "
+                "(its ranking's number), its page cell one way and its curve the other; rms: the root mean square of the "
                 "row's, the column's, or all the entries; bold: the best in its row, closest to agreement; –: no "
                 "such point, or no number.")
 
@@ -450,12 +453,11 @@ def _crossed(rows: list[dict], key: str, notes: dict):
         best = min(near) if near else None
         styled.append([cell(v, best is not None and _distance(key, v) == best) for v in values] + [cell(row_means[r])])
     styled.append([cell(column_means[c]) for c in across] + [cell(overall)])
-    mean = GEOMETRIC if rule == "ratio" else "plain"
-    notes[f"crossed-{mean}"] = CROSSED_NOTE.format(mean=mean)
+    notes["crossed"] = CROSSED_NOTE
     notes[f"stat-{key}"], notes["compared"] = NOTES[key], COMPARED
     way = "page cells against curves" if down is cells else "curves against page cells"
-    return _table(f"{key}-crossed", f"{title}: {way}\n{SHADING[rule]}; bold: the best in its row", list(down) + ["mean"],
-                  list(across) + ["mean"], styled, (f"crossed-{mean}", f"stat-{key}", "compared"), tail=1,
+    return _table(f"{key}-crossed", f"{title}: {way}\n{SHADING[rule]}; bold: the best in its row", list(down) + ["rms"],
+                  list(across) + ["rms"], styled, ("crossed", f"stat-{key}", "compared"), tail=1,
                   bold=frozenset({len(down)}), pinned=frozenset({len(down)}))
 
 
@@ -519,8 +521,7 @@ def _tables(rows: list[dict], notes: dict) -> dict:
         shading = SHADING[rule]
         against = "" if key == "area" else (f" against {', '.join(_label(r) for r in references)}"
                                             if len(references) <= 2 else " against each page's reference")
-        mean = GEOMETRIC if rule == "ratio" else "plain"
-        notes[f"stat-{key}"], notes[f"table-{mean}"] = NOTES[key], TABLE_NOTE.format(mean=mean)
+        notes[f"stat-{key}"], notes["table"] = NOTES[key], TABLE_NOTE
         if key != "area":
             notes["compared"] = COMPARED
         order = list(points)
@@ -531,8 +532,8 @@ def _tables(rows: list[dict], notes: dict) -> dict:
             styled = [styled[at[p]] for p in order]
         out[key] = _table(key, f"{title}{against}\n{shading}",
                           [parts[p][1] if grouped else points[p] for p in order],
-                          [short[o] for o in objects] + ["mean"], styled,
-                          (f"stat-{key}",) + (("compared",) if key != "area" else ()) + (f"table-{mean}",), tail=1,
+                          [short[o] for o in objects] + ["rms"], styled,
+                          (f"stat-{key}",) + (("compared",) if key != "area" else ()) + ("table",), tail=1,
                           groups=[parts[p][0] for p in order] if grouped else None)
     return out
 
@@ -547,8 +548,8 @@ SCORE_TEXT = ("Each page ranks its own curves in each of χ²/ndf, |Δ| / refere
               "ratio and mean |ratio − 1|, by the distance from agreement: the number itself, but the two ratios by "
               "|log10 r|, how far from 1 either way. 1st scores 5 points, 2nd 4, 3rd 3, 4th 2, 5th 1, the rest 0; "
               "equal numbers share the better place and its points (1, 1, 3, …). Points count how often a point is "
-              "near the top, page after page, not by how much (the ranking pages' means say how good on average). "
-              "Wins: its 1st places; mean rank: the mean of its places. Sorted by total, then wins, then mean rank; "
+              "near the top, page after page, not by how much (the ranking pages' root mean squares say how good overall). "
+              "Wins: its 1st places; rms rank: the root mean square of its places. Sorted by total, then wins, then rms rank; "
               "bold: the top three.")
 H2H_TEXT = ("On every page counted, in each statistic, each pair of its curves is a match: the "
             "one closer to agreement wins it, equal numbers draw (half each). Win rate: the share of its matches a "
@@ -620,13 +621,13 @@ def _won(won: float) -> str:
 
 
 def _standing(board: dict, ranks: dict, points: dict) -> tuple[list, dict, dict, dict, dict]:
-    """A board's order (by total, then wins, then mean rank, then name), each point's place by total and wins,
-    and its total, wins and mean rank."""
+    """A board's order (by total, then wins, then rms rank, then name), each point's place by total and wins,
+    and its total, wins and rms rank."""
     totals = {p: sum(s.values()) for p, s in board.items()}
     wins = {p: sum(1 for v in ranks.get(p, ()) if v == 1) for p in board}
-    mean_rank = {p: sum(v) / len(v) for p, v in ranks.items() if v and p in board}
-    order = sorted(board, key=lambda p: (-totals[p], -wins[p], mean_rank.get(p, math.inf), points[p]))
-    return order, _places({p: (-totals[p], -wins[p]) for p in board}), totals, wins, mean_rank
+    rms_rank = {p: _rms(v) for p, v in ranks.items() if v and p in board}
+    order = sorted(board, key=lambda p: (-totals[p], -wins[p], rms_rank.get(p, math.inf), points[p]))
+    return order, _places({p: (-totals[p], -wins[p]) for p in board}), totals, wins, rms_rank
 
 
 def _scoreboard(key: str, title: str, points: dict, board: dict, ranks: dict, rates: dict,
@@ -636,11 +637,11 @@ def _scoreboard(key: str, title: str, points: dict, board: dict, ranks: dict, ra
     head-to-head win rate (`rates`) and the mean of its places (`ranks`). Points darker as they score more."""
     groups = list(dict.fromkeys(cells_of[p] for p in board)) if cells_of else [None]
     banded = cells_of is not None and len(groups) > 1 and all(groups)
-    order, labels, bold, totals, wins, mean_rank = [], [], set(), {}, {}, {}
+    order, labels, bold, totals, wins, rms_rank = [], [], set(), {}, {}, {}
     for group in groups:
         members = {p: s for p, s in board.items() if cells_of is None or cells_of[p] == group}
         ordered, places, total, won, mean = _standing(members, ranks, points)
-        totals.update(total), wins.update(won), mean_rank.update(mean)
+        totals.update(total), wins.update(won), rms_rank.update(mean)
         for p in ordered:
             if places[p] <= 3:
                 bold.add(len(order))
@@ -659,9 +660,9 @@ def _scoreboard(key: str, title: str, points: dict, board: dict, ranks: dict, ra
         row = [shaded(board[p][k], top) if k in board[p] else ("–", SURFACE, MUTED) for k, _ in columns]
         row += [shaded(totals[p], best), (str(wins[p]), SURFACE, INK),
                 (f"{won / played:.0%}" if played else "–", SURFACE, INK),
-                (f"{mean_rank[p]:.2f}" if p in mean_rank else "–", SURFACE, INK)]
+                (f"{rms_rank[p]:.2f}" if p in rms_rank else "–", SURFACE, INK)]
         styled.append(row)
-    return _table(key, title, labels, [h for _, h in columns] + ["total", "wins", "win rate", "mean rank"], styled,
+    return _table(key, title, labels, [h for _, h in columns] + ["total", "wins", "win rate", "rms rank"], styled,
                   notes, tail=4, bold=frozenset(bold), groups=[cells_of[p] for p in order] if banded else None)
 
 

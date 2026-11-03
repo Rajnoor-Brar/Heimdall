@@ -52,7 +52,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [plots-sets](stable/guide/plots-sets.md): pages of chosen points: the totality set, named sets with page axes and curve groups, looks, short forms, split (5 KB)
 - [plots-statistics](stable/guide/plots-statistics.md): the numbers behind each page: statistics.csv's columns, [stats], bar graphs, the summary and how points are scored (4 KB)
 - [plots-style](stable/guide/plots-style.md): how a page's look is layered, a style file, legends outside the frame, and seeing the merged style (2 KB)
-- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB)
+- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-stats-rms
 - [programs](stable/guide/programs.md): your own programs in a chain: a module, an integrated program, an exec tool, a tool folder of your own (4 KB)
 - [reports](stable/guide/reports.md): heimdall report: an A4 report of Runs' pages and numbers; recipes, sections, what it draws for itself, where it is built (6 KB)
 - [results-python](stable/guide/results-python.md): reading a run's results from Python, for notebooks and statistics tools (1 KB)
@@ -132,3 +132,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [history](stable/design/history.md): where Heimdall came from, in a dozen lines (1 KB)
 - [principles](stable/design/principles.md): the principles behind Heimdall's shape, each with what it buys and what it costs (4 KB)
 - [refused](stable/design/refused.md): what Heimdall deliberately does not do, and why (1 KB)
+
+## live
+
+- [live-stats-rms](live/stats-rms.md): a statistic over pages is a root mean square, not a mean (1 KB)

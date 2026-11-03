@@ -928,8 +928,8 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     items = {item.key: item for s in document.sections for item in s.items}
     assert [i.key for i in sections["chi2_ndf"].items] == ["chi2_ndf-ranking", "chi2_ndf-crossed", "chi2_ndf"]
     crossed = items["chi2_ndf-crossed"]                                         # V198: page cells against curves
-    assert crossed.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "mean"] and [r.label for r in crossed.rows] == [
-        "em", "ep", "mean"]
+    assert crossed.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "rms"] and [r.label for r in crossed.rows] == [
+        "em", "ep", "rms"]
     assert [i.key for i in sections["area"].items] == ["area"]                  # each object its own units: no mean
 
     def notes(item):
@@ -940,7 +940,7 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     assert "Compared bins" in notes(items["chi2_ndf"]) and "Compared bins" not in notes(items["area"])
 
     table = items["chi2_ndf"]
-    assert table.headers[:3] == ["d01", "d02", "d03"] and table.headers[-1] == "mean" and len(table.headers) == 18
+    assert table.headers[:3] == ["d01", "d02", "d03"] and table.headers[-1] == "rms" and len(table.headers) == 18
     assert [r.label for r in table.rows] == ["em", "MSTW 2008 LO", "NNPDF 2.3 LO", "ep", "MSTW 2008 LO",
                                              "NNPDF 2.3 LO"]                    # V197: each cell's band, its curves
     assert [r.band for r in table.rows] == [True, False, False, True, False, False]
@@ -955,7 +955,7 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     def cells(item):
         return [[c.text for c in r.cells] for r in item.rows if not r.band]
     board = items["scoreboard"]                                                 # V176: each page's places scored
-    assert board.headers == ["d01", "total", "wins", "win rate", "mean rank"]  # data pages alone
+    assert board.headers == ["d01", "total", "wins", "win rate", "rms rank"]  # data pages alone
     totals = {r.label.split(". ", 1)[1]: int(r.cells[1].text) for r in board.rows}         # sorted: no bands
     assert totals["em · MSTW 2008 LO"] + totals["em · NNPDF 2.3 LO"] == 5 * (5 + 4)  # two curves: 5 and 4 a statistic
     assert totals["em · NNPDF 2.3 LO"] == totals["ep · NNPDF 2.3 LO"]          # the same numbers in either cell
@@ -970,7 +970,7 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     assert [r.label for r in by_cell.rows if r.band] == ["em", "ep"]
     assert sorted(r.label.split(".")[0] for r in by_cell.rows if not r.band) == ["1", "1", "2", "2"]   # in its cell
     assert all(" · " not in r.label for r in by_cell.rows)
-    assert by_cell.headers[-4:] == ["total", "wins", "win rate", "mean rank"]
+    assert by_cell.headers[-4:] == ["total", "wins", "win rate", "rms rank"]
     assert {int(row[5]) for row in cells(by_cell)} == set(totals.values())      # the same totals, by statistic
     chi2 = cells(items["scoreboard-chi2_ndf"])                                  # a statistic's own
     assert sorted(int(row[1]) for row in chi2) == [4, 4, 5, 5]
@@ -989,7 +989,7 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
         assert len(ranking.values) == 4                                         # MSTW's on d01 alone, NNPDF's on 17
         assert ranking.values == sorted(ranking.values, key=lambda m: abs(math.log10(m)) if ratio else m)
         assert sorted(n[-4:] for n in ranking.names) == [" (1)", " (1)", "(17)", "(17)"]
-        assert f"the {'geometric' if ratio else 'plain'} mean" in notes(ranking)
+        assert "the root mean square" in notes(ranking)
         assert ranking.base == (1.0 if ratio else 0.0)
 
 

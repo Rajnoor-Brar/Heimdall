@@ -100,7 +100,7 @@ def wide_table(rows: int = 30, bands: int = 0) -> object:
         out.append(paper.Row(f"{i + 1}. NNPDF40nnlo_hessian_pdfas_lpdfoff · lepton QED shower off",
                              [paper.Cell(f"{0.0001 * (i + 1) + 0.05:.4f}") for _ in range(16)]))
     return paper.Table("wide", "A wide table", [f"d{j:02d}" for j in range(1, 13)] + ["total", "wins", "win rate",
-                                                                                      "mean rank"], out, tail=4)
+                                                                                      "rms rank"], out, tail=4)
 
 
 def test_a_wide_table_is_cut_into_blocks_stacked_on_its_page():
@@ -249,17 +249,17 @@ def test_cells_against_curves_hold_each_points_mean_the_longer_list_down():
     assert keys == ["area_ratio-ranking", "area_ratio-crossed", "area_ratio"]
     assert "area-crossed" not in items                                         # each object its own units
     crossed = items["chi2_ndf-crossed"]
-    assert crossed.headers == ["lepton QED shower on", "lepton QED shower off", "mean"]   # 38 cells down, 2 across
+    assert crossed.headers == ["lepton QED shower on", "lepton QED shower off", "rms"]   # 38 cells down, 2 across
     assert [r.label for r in crossed.rows][:2] == ["NNPDF23lo_lpdfon", "NNPDF23lo_lpdfoff"]
-    assert crossed.rows[-1].label == "mean" and crossed.rows[-1].bold and len(crossed.rows) == 39
+    assert crossed.rows[-1].label == "rms" and crossed.rows[-1].bold and len(crossed.rows) == 39
     means = bars._means(rows, "chi2_ndf")
     first = crossed.rows[0]
     on, off = means["NNPDF23lo_lpdfon_on"][0], means["NNPDF23lo_lpdfon_off"][0]
-    assert [c.text for c in first.cells] == [bars._shown(on), bars._shown(off), bars._shown((on + off) / 2)]
+    assert [c.text for c in first.cells] == [bars._shown(on), bars._shown(off), bars._shown(math.sqrt((on * on + off * off) / 2))]
     assert [c.bold for c in first.cells[:2]] == [on <= off, off <= on]          # the best in its row
     ratio = items["area_ratio-crossed"].rows[0].cells
     a, b = (means_ := bars._means(rows, "area_ratio"))["NNPDF23lo_lpdfon_on"][0], means_["NNPDF23lo_lpdfon_off"][0]
-    assert ratio[2].text == bars._shown(math.sqrt(a * b))                      # a ratio's mean: geometric
+    assert ratio[2].text == bars._shown(math.sqrt((a * a + b * b) / 2))        # a ratio's too
 
 
 def test_cells_against_curves_turn_and_leave_gaps_and_are_left_out_when_nothing_crosses():
@@ -267,8 +267,8 @@ def test_cells_against_curves_turn_and_leave_gaps_and_are_left_out_when_nothing_
     many = [dict(r, curve=f"curve {k}", point=f"{r['cell']}_{k}") for r in rows for k in range(5)]
     many = [r for r in many if not (r["cell"] == "MSTW08lo_lpdfon" and r["curve"] == "curve 4")]
     crossed = next(i for s in bars.summary_model(many, "").sections for i in s.items if i.key == "chi2_ndf-crossed")
-    assert crossed.headers == ["NNPDF23lo_lpdfon", "MSTW08lo_lpdfon", "mean"]  # 5 curves down, 2 cells across
-    assert [r.label for r in crossed.rows] == [f"curve {k}" for k in range(5)] + ["mean"]
+    assert crossed.headers == ["NNPDF23lo_lpdfon", "MSTW08lo_lpdfon", "rms"]  # 5 curves down, 2 cells across
+    assert [r.label for r in crossed.rows] == [f"curve {k}" for k in range(5)] + ["rms"]
     assert crossed.rows[4].cells[1].text == "–" and crossed.rows[4].cells[0].text != "–"   # no such point
     one_cell = [r for r in worst_rows() if r["cell"] == "NNPDF23lo_lpdfon"]
     alone = [dict(r, curve=f"{r['cell']} {r['curve']}") for r in worst_rows()[:96]]     # no curve in two cells

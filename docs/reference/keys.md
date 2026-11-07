@@ -127,6 +127,7 @@ plot.figures.<name>.type | string | -
 plot.figures.<name>.name | string | -
 plot.figures.<name>.objects | list of strings | -
 plot.figures.<name>.statistic | string | -
+plot.figures.<name>.weight | number | -
 plot.figures.<name>.sort | true or false | false
 plot.figures.<name>.op | string | -
 plot.figures.<name>.x | string | -
@@ -153,6 +154,19 @@ stats.void_empty | true or false | -
 stats.min_entries | integer | -
 stats.auto_range | true or false | -
 stats.range_pad | integer | -
+stats.metrics | list of strings | -
+stats.centres | string | "mid"
+score.metrics | list of strings or table | -
+score.normalise | string | "thresholds"
+score.thresholds | table | -
+score.weights | table | -
+score.weights_by | string | "equal"
+score.mean | string | "rms"
+score.by | string or list of strings | -
+score.baseline | string or table | -
+score.veto | number | -
+score.aggregate | string | "rms"
+score.dominated | true or false | false
 report.title | string | -
 report.subtitle | string | -
 report.from | list of strings | -

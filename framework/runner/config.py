@@ -136,6 +136,7 @@ class Errand:
     families: dict = field(default_factory=dict)        # v3: a configuration with several event counts → its configurations
     form: int = 2                                       # the file's form: 2, or 3 (runner/v3.py)
     stats: dict = field(default_factory=dict)           # [stats] (V168): what the statistics measure, over the pages
+    score: dict = field(default_factory=dict)           # [score]: how the statistics become a score
     applied: dict = field(default_factory=dict)         # V179: the configuration's own vars and data it was read with
     report: dict = field(default_factory=dict)          # V209: [report], its template laid under it (a report's recipe)
     templates: list = field(default_factory=list)       # V209: the report templates it read (a record's snapshot copies them)
@@ -1298,6 +1299,8 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
     check_plot(plot, f"{where}: [plot]", strict=strict)
     stats = raw.get("stats", {})
     check_stats(stats, f"{where}: [stats]")
+    score = raw.get("score", {})
+    check_score(score, f"{where}: [score]")
     if "report" in raw:                                    # V209: what its folders' reports show
         check_report(raw["report"], f"{where}: [report]", run_toml=True)
 
@@ -1306,7 +1309,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
                   prelim=prelim, static=static, tools=tools, quantities=quantities, plot=plot,
                   master_toml=file_config.get("master"), meta=dict(file_config.get("meta", {})), raw=raw, sweep_runs=sweep_on,
                   sweep_list=list(errand["sweep_runs"]) if isinstance(errand.get("sweep_runs"), list) else [],
-                  families=families, form=form, stats=dict(stats))
+                  families=families, form=form, stats=dict(stats), score=dict(score))
 
 
 TEXT_KEYS = ("labels", "title", "title_left", "title_right", "legend_header", "x_label", "y_label", "legend")
@@ -1394,6 +1397,7 @@ def check_stats(stats: dict, where: str) -> None:
     if not isinstance(stats, dict):
         raise HeimdallError("[stats] is a table", where=where)
     schema.check(stats, "stats", where)
+    _check_stats_metrics(stats, where)
     if isinstance(stats.get("reference"), dict):
         from .sweep import _filter_shape
         _filter_shape(stats["reference"], f"{where}.reference")
@@ -1402,6 +1406,47 @@ def check_stats(stats: dict, where: str) -> None:
 # ── a report's recipe ([report]) ─────────────────────────────────────────────────────────
 
 #: What a report's section shows: exactly one of these (framework/schema/report.toml).
+def check_score(score: dict, where: str, *, whole: bool = True) -> None:
+    """[score] (or a set's `score`) against the schema; its metric, mean and threshold names against the registries."""
+    if not isinstance(score, dict):
+        raise HeimdallError("[score] is a table", where=where)
+    schema.check(score, "score", where)
+    from stats import means, metrics            # numpy loads here, only when a file has a [score]
+    known = list(metrics.REGISTRY)
+
+    def metric_name(name, at):
+        if name not in metrics.REGISTRY:
+            raise HeimdallError(f"no metric '{name}'", where=at, hint=did_you_mean(name, known) or "metrics: heimdall explain score")
+
+    given = score.get("metrics")
+    for name in (given if isinstance(given, list) else (given or {})):
+        metric_name(name, f"{where}.metrics")
+    if isinstance(given, dict):
+        for name, weight in given.items():
+            if isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight < 0:
+                raise HeimdallError(f"the weight of '{name}' is a number of zero or more", where=f"{where}.metrics.{name}", hint=f"got {weight!r}")
+    for name, pair in (score.get("thresholds") or {}).items():
+        metric_name(name, f"{where}.thresholds")
+        if (not isinstance(pair, list) or len(pair) != 2 or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in pair)
+                or pair[0] == pair[1]):
+            raise HeimdallError(f"thresholds of '{name}' are [good, bad], two different numbers", where=f"{where}.thresholds.{name}", hint=f"got {pair!r}")
+    for glob, weight in (score.get("weights") or {}).items():
+        if isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight < 0:
+            raise HeimdallError(f"the weight of '{glob}' is a number of zero or more", where=f"{where}.weights.{glob}", hint=f"got {weight!r}")
+    mean = score.get("mean")
+    if mean is not None and mean not in means.MEANS_BY_NAME:
+        raise HeimdallError(f"no mean '{mean}'", where=f"{where}.mean", hint=did_you_mean(mean, means.MEANS_BY_NAME) or "means: heimdall explain score")
+
+
+def _check_stats_metrics(stats: dict, where: str) -> None:
+    names = stats.get("metrics")
+    if names:
+        from stats import metrics
+        for name in names:
+            if name not in metrics.REGISTRY:
+                raise HeimdallError(f"no metric '{name}'", where=f"{where}.metrics", hint=did_you_mean(name, metrics.REGISTRY) or "metrics: heimdall explain score")
+
+
 REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files", "tools")
 #: The statistics summary's sections (bars.summary_model), and a statistic's parts by their item's key suffix.
 STATISTICS = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "area")

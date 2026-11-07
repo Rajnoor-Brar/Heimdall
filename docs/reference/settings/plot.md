@@ -1,6 +1,6 @@
 ---
 id: settings-plot
-summary: every key of [plot], its figures, data and runs together, and [stats]: type, default, values, effect
+summary: every key of [plot], its figures, data and runs together, and [stats] and [score]: type, default, values, effect
 code: framework/schema/run.toml
 generated: true
 ---
@@ -340,7 +340,7 @@ Style keys for these pages, over `base.toml` and any style file: `heimdall expla
 
 ## `[plot.figures.<name>]`
 
-[`class`](#class) · [`type`](#type) · [`name`](#name) · [`objects`](#objects-1) · [`statistic`](#statistic) · [`sort`](#sort) · [`op`](#op) · [`x`](#x) · [`y`](#y) · [`pages`](#pages) · [`columns`](#columns) · [`over`](#over) · [`configurations`](#configurations) · [`labels`](#labels) · [`x_label`](#x_label) · [`y_label`](#y_label) · [`style`](#style-1)
+[`class`](#class) · [`type`](#type) · [`name`](#name) · [`objects`](#objects-1) · [`statistic`](#statistic) · [`weight`](#weight) · [`sort`](#sort) · [`op`](#op) · [`x`](#x) · [`y`](#y) · [`pages`](#pages) · [`columns`](#columns) · [`over`](#over) · [`configurations`](#configurations) · [`labels`](#labels) · [`x_label`](#x_label) · [`y_label`](#y_label) · [`style`](#style-1)
 
 ### `class`
 
@@ -381,6 +381,14 @@ Matched against the short name (`d04-x01-y01`), the option-free path or a varian
 | string | — | `"area"`, `"abs_area"`, `"rel_abs_area"`, `"area_ratio"`, `"ratio_mean"`, `"ratio_dev"`, `"chi2"`, `"chi2_ndf"` |
 
 A statistic figure's number, as `statistics.csv` has it: per cell (or set) and object, a page whose x axis is the page's curves by their labels, a bin each, and y that number of each against the page's reference (its own reference curve left out), drawn as markers; `area` with its error. Its pages: `<cell>/<name>/<object>`
+
+### `weight`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| number | — | at least 0 |
+
+The weight of this figure's pages in a score (default: 1, or [score].weights')
 
 ### `sort`
 
@@ -540,7 +548,7 @@ Quantities of the Runs (or `"@events"`) that are no axis across them: an ignored
 
 # `[stats]`
 
-[`sets`](#sets-1) · [`objects`](#objects-2) · [`reference`](#reference) · [`normalise`](#normalise-1) · [`void_empty`](#void_empty-1) · [`min_entries`](#min_entries-1) · [`auto_range`](#auto_range-1) · [`range_pad`](#range_pad-1)
+[`sets`](#sets-1) · [`objects`](#objects-2) · [`reference`](#reference) · [`normalise`](#normalise-1) · [`void_empty`](#void_empty-1) · [`min_entries`](#min_entries-1) · [`auto_range`](#auto_range-1) · [`range_pad`](#range_pad-1) · [`metrics`](#metrics) · [`centres`](#centres)
 
 ## `sets`
 
@@ -605,3 +613,111 @@ As [plot].auto_range, for the numbers.
 | integer | — | at least 0 |
 
 As [plot].range_pad, for the numbers.
+
+## `metrics`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| list of strings | — | — |
+
+Names from `heimdall explain score`; each becomes a column of statistics.csv and is described in statistics.json. A metric not in the list is not computed; `[score].metrics` scores a metric that is.
+
+## `centres`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| string | `"mid"` | `"mid"`, `"barycentre"` |
+
+Where a bin sits in x for tilt and roughness: its middle, or the centre of gravity of the reference's local exponential.
+
+# `[score]`
+
+[`metrics`](#metrics-1) · [`normalise`](#normalise-2) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`mean`](#mean) · [`by`](#by) · [`baseline`](#baseline) · [`veto`](#veto) · [`aggregate`](#aggregate) · [`dominated`](#dominated)
+
+## `metrics`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| list of strings or table | — | — |
+
+A metric is scored through its purpose: a page's loss is the RMS over purposes of the (weighted) RMS of its metrics' normalised values, so four shape metrics weigh one purpose and not four.
+
+## `normalise`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| string | `"thresholds"` | `"thresholds"`, `"median"`, `"mad"`, `"minmax"`, `"surprisal"` |
+
+`thresholds`: 0 at or under `good`, 1 at `bad`, linear beyond; the same whatever else is in the pool, so scores compare across Runs. `median`, `mad`, `minmax`, `surprisal` divide by, or scale to, the pool of curves on the page: adding a curve changes the others' scores.
+
+## `thresholds`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| table | — | — |
+
+{ metric = [good, bad] }: thresholds over the registry's, in the metric's scored unit.
+
+## `weights`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| table | — | — |
+
+{ "d01-*" = 2 }: page weights by object glob (precedence: a figure's weight, a set's weights, these, 1)
+
+## `weights_by`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| string | `"equal"` | `"equal"`, `"critic"` |
+
+Equal metric weights, or CRITIC's (by contrast and independence; needs many curves)
+
+## `mean`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| string | `"rms"` | — |
+
+How pages become a point's score: a mean from `heimdall explain score` (default rms)
+
+## `by`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| string or list of strings | — | — |
+
+The point name fields a score is averaged over, as marginals (a quantity of the sweep, or generator, pdf, …)
+
+## `baseline`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| string or table | — | — |
+
+The point every score is also shown against: a point name, or a filter { pdf = "NNPDF23lo" }.
+
+## `veto`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| number | — | at least 0 |
+
+A point whose worst page loses more than this is vetoed (default: none)
+
+## `aggregate`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| string | `"rms"` | `"rms"`, `"fisher"`, `"topsis"`, `"promethee"` |
+
+How metrics and pages combine: RMS over purposes (default), or Fisher's combined probability, TOPSIS, PROMETHEE.
+
+## `dominated`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| true or false | `false` | — |
+
+Add a column marking a point that another beats on every purpose.

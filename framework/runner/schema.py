@@ -32,12 +32,12 @@ NAMES = {"int": "an integer", "float": "a number", "str": "a string", "bool": "t
          "table": "a table"}
 #: The tables of run.toml that describe keys (the rest, [sections], describe the file).
 TABLES = ("config", "errand", "configuration", "prelim", "quantity", "tool", "plot", "figure", "data", "across_from", "stats",
-          "cluster")
+          "score", "cluster")
 #: The tables of report.toml, a report's recipe (configs/<A>/<E>.toml with [report], V207).
 REPORT_TABLES = ("report", "section")
 #: A figure's own keys: the rest are what it sets for its pages.
 FIGURE_OWN = ("class", "type", "name", "objects", "labels", "over", "configurations", "op", "x", "y", "pages", "columns",
-              "statistic", "sort")
+              "statistic", "sort", "weight")
 
 
 def path(name: str = "run") -> Path:
@@ -279,6 +279,7 @@ def json_schema() -> dict:
             "quantities": {"type": "object", "additionalProperties": _object("quantity")},
             "plot": plot,
             "stats": _object("stats"),
+            "score": _object("score"),
             "report": report,
             "cluster": _object("cluster"),
         },
@@ -332,7 +333,7 @@ def json_schema_v3() -> dict:
             "errand": errand, "cfgs": {"type": "object", "additionalProperties": cfg},
             "tools": {"type": "object", "properties": by_name, "additionalProperties": tool},
             "quantities": {"type": "object", "additionalProperties": quantity},
-            "plot": v2["properties"]["plot"], "stats": v2["properties"]["stats"], "report": v2["properties"]["report"],
+            "plot": v2["properties"]["plot"], "stats": v2["properties"]["stats"], "score": v2["properties"]["score"], "report": v2["properties"]["report"],
             "cluster": v2["properties"]["cluster"],
         },
         "additionalProperties": False,

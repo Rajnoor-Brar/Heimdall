@@ -1541,6 +1541,11 @@
          "chi2_ndf"
         ]
        },
+       "weight": {
+        "description": "the weight of this figure's pages in a score (default: 1, or [score].weights')",
+        "type": "number",
+        "minimum": 0
+       },
        "sort": {
         "description": "a statistic figure's: its points best first (the smallest number), instead of in curve order",
         "type": "boolean",
@@ -1687,6 +1692,110 @@
      "description": "as [plot].range_pad, for the numbers",
      "type": "integer",
      "minimum": 0
+    },
+    "metrics": {
+     "description": "the metrics computed for the table, beside the old columns (default: chi2_ndf, norm, shape, tilt, worst)\n\nnames from `heimdall explain score`; each becomes a column of statistics.csv and is described in statistics.json. A metric not in the list is not computed; `[score].metrics` scores a metric that is",
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "centres": {
+     "description": "where a bin sits in x for tilt and roughness: its middle, or the centre of gravity of the reference's local exponential",
+     "type": "string",
+     "enum": [
+      "mid",
+      "barycentre"
+     ],
+     "default": "mid"
+    }
+   },
+   "additionalProperties": false
+  },
+  "score": {
+   "type": "object",
+   "properties": {
+    "metrics": {
+     "description": "the metrics scored: a list of names, or { name = weight } (default: the five default metrics, weight 1)\n\na metric is scored through its purpose: a page's loss is the RMS over purposes of the (weighted) RMS of its metrics' normalised values, so four shape metrics weigh one purpose and not four",
+     "type": [
+      "array",
+      "object"
+     ],
+     "items": {
+      "type": "string"
+     }
+    },
+    "normalise": {
+     "description": "how a metric becomes a cost: hinged between its good and bad thresholds (pool-independent), or against the pool\n\n`thresholds`: 0 at or under `good`, 1 at `bad`, linear beyond; the same whatever else is in the pool, so scores compare across Runs. `median`, `mad`, `minmax`, `surprisal` divide by, or scale to, the pool of curves on the page: adding a curve changes the others' scores",
+     "type": "string",
+     "enum": [
+      "thresholds",
+      "median",
+      "mad",
+      "minmax",
+      "surprisal"
+     ],
+     "default": "thresholds"
+    },
+    "thresholds": {
+     "description": "{ metric = [good, bad] }: thresholds over the registry's, in the metric's scored unit",
+     "type": "object"
+    },
+    "weights": {
+     "description": "{ \"d01-*\" = 2 }: page weights by object glob (precedence: a figure's weight, a set's weights, these, 1)",
+     "type": "object"
+    },
+    "weights_by": {
+     "description": "equal metric weights, or CRITIC's (by contrast and independence; needs many curves)",
+     "type": "string",
+     "enum": [
+      "equal",
+      "critic"
+     ],
+     "default": "equal"
+    },
+    "mean": {
+     "description": "how pages become a point's score: a mean from `heimdall explain score` (default rms)",
+     "type": "string",
+     "default": "rms"
+    },
+    "by": {
+     "description": "the point name fields a score is averaged over, as marginals (a quantity of the sweep, or generator, pdf, …)",
+     "type": [
+      "string",
+      "array"
+     ],
+     "items": {
+      "type": "string"
+     }
+    },
+    "baseline": {
+     "description": "the point every score is also shown against: a point name, or a filter { pdf = \"NNPDF23lo\" }",
+     "type": [
+      "string",
+      "object"
+     ]
+    },
+    "veto": {
+     "description": "a point whose worst page loses more than this is vetoed (default: none)",
+     "type": "number",
+     "minimum": 0
+    },
+    "aggregate": {
+     "description": "how metrics and pages combine: RMS over purposes (default), or Fisher's combined probability, TOPSIS, PROMETHEE",
+     "type": "string",
+     "enum": [
+      "rms",
+      "fisher",
+      "topsis",
+      "promethee"
+     ],
+     "default": "rms"
+    },
+    "dominated": {
+     "description": "add a column marking a point that another beats on every purpose",
+     "type": "boolean",
+     "default": false
     }
    },
    "additionalProperties": false
@@ -2716,6 +2825,11 @@
               "chi2",
               "chi2_ndf"
              ]
+            },
+            "weight": {
+             "description": "the weight of this figure's pages in a score (default: 1, or [score].weights')",
+             "type": "number",
+             "minimum": 0
             },
             "sort": {
              "description": "a statistic figure's: its points best first (the smallest number), instead of in curve order",

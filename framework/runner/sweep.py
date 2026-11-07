@@ -168,7 +168,7 @@ def select_points(errand, configuration, point_list: list[Point], selector: str 
 #: Names a set may not have (V164): its folder plots/<set>/ holds these, the backends' (and older layouts had them in plots/).
 RESERVED_SETS = ("root", "mpl", "yoda", "statistics")
 #: A set table's own keys (V163); the rest are [plot] page keys, for its pages.
-SET_KEYS = ("name", "points", "pages", "curves", "reference", "look")
+SET_KEYS = ("name", "points", "pages", "curves", "reference", "look", "score")
 #: The line styles a curve may take (Paint's, src/Apps/Paint/Page.hh), in the order a look's line axis takes them.
 CURVE_LINES = ("solid", "dashed", "dotted", "dashdot")
 
@@ -209,6 +209,7 @@ class SetSpec:
     curves: list = field(default_factory=list)  # filters
     reference: dict | None = None               # a filter: the curve moved first on each page
     look: object = None                         # {"colour": q, "line": q}, "palette", or None (automatic)
+    score: dict = field(default_factory=dict)   # [score] keys for this set's pages, over the errand's
     keys: dict = field(default_factory=dict)    # the [plot] page keys it sets for its pages
     where: str = ""
 
@@ -264,6 +265,8 @@ def set_entries(sets, where: str) -> list[SetSpec]:
             spec.curves = [_filter_shape(c, f"{at}.curves[{i}]", styled=True) for i, c in enumerate(curves, start=1)]
             spec.reference = _filter_shape(entry["reference"], f"{at}.reference") if "reference" in entry else None
             spec.look = _look_shape(entry["look"], f"{at}.look") if "look" in entry else None
+            spec.score = dict(entry.get("score") or {})
+            schema.check(spec.score, "score", f"{at}.score")
             spec.keys = {key: value for key, value in entry.items() if key not in SET_KEYS}
             schema.check(spec.keys, "figure", at, only=page_keys)
             if not selectors and not spec.axes:

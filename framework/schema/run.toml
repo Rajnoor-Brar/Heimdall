@@ -28,7 +28,7 @@
 # heimdall.toml [cluster], V114).
 
 [sections]
-order = ["config", "errand", "prelim", "static", "tools", "quantities", "plot", "stats", "report", "cluster", "heimdall"]
+order = ["config", "errand", "prelim", "static", "tools", "quantities", "plot", "stats", "score", "report", "cluster", "heimdall"]
 # [heimdall] (V188): the commands' own flags, by their option names; the CLI checks them against its parser.
 # [report] (V209): what its folders' reports show, a report's recipe (framework/schema/report.toml, doc:reports).
 
@@ -1055,6 +1055,85 @@ type = "int"
 min  = 0
 doc  = "as [plot].range_pad, for the numbers"
 
+[stats.metrics]
+type  = "list"
+items = "str"
+doc   = "the metrics computed for the table, beside the old columns (default: chi2_ndf, norm, shape, tilt, worst)"
+notes = """\
+  names from `heimdall explain score`; each becomes a column of statistics.csv and is described in \
+  statistics.json. A metric not in the list is not computed; `[score].metrics` scores a metric that is"""
+
+[stats.centres]
+type    = "str"
+choices = ["mid", "barycentre"]
+default = "mid"
+doc     = "where a bin sits in x for tilt and roughness: its middle, or the centre of gravity of the reference's local exponential"
+
+# ── [score]: how the statistics become a score (stats-backend) ───────────────────────────────────
+# Unset, a key is the default. A set's `score = { … }` lays over this table for its pages.
+
+[score.metrics]
+type  = "list|table"
+items = "str"
+doc   = "the metrics scored: a list of names, or { name = weight } (default: the five default metrics, weight 1)"
+notes = """\
+  a metric is scored through its purpose: a page's loss is the RMS over purposes of the (weighted) RMS \
+  of its metrics' normalised values, so four shape metrics weigh one purpose and not four"""
+
+[score.normalise]
+type    = "str"
+choices = ["thresholds", "median", "mad", "minmax", "surprisal"]
+default = "thresholds"
+doc     = "how a metric becomes a cost: hinged between its good and bad thresholds (pool-independent), or against the pool"
+notes = """\
+  `thresholds`: 0 at or under `good`, 1 at `bad`, linear beyond; the same whatever else is in the pool, so scores \
+  compare across Runs. `median`, `mad`, `minmax`, `surprisal` divide by, or scale to, the pool of curves on the \
+  page: adding a curve changes the others' scores"""
+
+[score.thresholds]
+type = "table"
+doc  = "{ metric = [good, bad] }: thresholds over the registry's, in the metric's scored unit"
+
+[score.weights]
+type = "table"
+doc  = "{ \"d01-*\" = 2 }: page weights by object glob (precedence: a figure's weight, a set's weights, these, 1)"
+
+[score.weights_by]
+type    = "str"
+choices = ["equal", "critic"]
+default = "equal"
+doc     = "equal metric weights, or CRITIC's (by contrast and independence; needs many curves)"
+
+[score.mean]
+type    = "str"
+default = "rms"
+doc     = "how pages become a point's score: a mean from `heimdall explain score` (default rms)"
+
+[score.by]
+type  = "str|list"
+items = "str"
+doc   = "the point name fields a score is averaged over, as marginals (a quantity of the sweep, or generator, pdf, …)"
+
+[score.baseline]
+type = "str|table"
+doc  = "the point every score is also shown against: a point name, or a filter { pdf = \"NNPDF23lo\" }"
+
+[score.veto]
+type = "float"
+min  = 0
+doc  = "a point whose worst page loses more than this is vetoed (default: none)"
+
+[score.aggregate]
+type    = "str"
+choices = ["rms", "fisher", "topsis", "promethee"]
+default = "rms"
+doc     = "how metrics and pages combine: RMS over purposes (default), or Fisher's combined probability, TOPSIS, PROMETHEE"
+
+[score.dominated]
+type    = "bool"
+default = false
+doc     = "add a column marking a point that another beats on every purpose"
+
 # ── [plot.figures.<figure>]: a recipe for pages ─────────────────────────────────────────────
 # A figure takes every [plot] key marked `page = true`, meaning the same for its pages ("default":
 # [plot]'s value), and these, which only a figure sets (schema.keys("figure") joins the two).
@@ -1136,6 +1215,11 @@ notes = """\
   whose x axis is the page's curves by their labels, a bin each, and y that number of each against the \
   page's reference (its own reference curve left out), drawn as markers; `area` with its error. Its \
   pages: `<cell>/<name>/<object>`"""
+
+[figure.weight]
+type = "float"
+min  = 0
+doc  = "the weight of this figure's pages in a score (default: 1, or [score].weights')"
 
 [figure.sort]
 type    = "bool"

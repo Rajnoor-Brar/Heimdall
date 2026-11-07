@@ -52,7 +52,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [plots-sets](stable/guide/plots-sets.md): pages of chosen points: the totality set, named sets with page axes and curve groups, looks, short forms, split (5 KB)
 - [plots-statistics](stable/guide/plots-statistics.md): the numbers behind each page: statistics.csv's columns, [stats], bar graphs, the summary and how points are scored (4 KB)
 - [plots-style](stable/guide/plots-style.md): how a page's look is layered, a style file, legends outside the frame, and seeing the merged style (2 KB)
-- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-no-yoda-backend, live-record-formats, live-score-engine, live-score-settings, live-scoring, live-set-merge, live-statistics-format, live-stats-catalogue, live-stats-core, live-stats-measured-bins, live-stats-rms
+- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-across-axes, live-no-yoda-backend, live-record-formats, live-score-engine, live-score-settings, live-scoring, live-set-merge, live-statistics-format, live-stats-catalogue, live-stats-core, live-stats-measured-bins, live-stats-rms
 - [programs](stable/guide/programs.md): your own programs in a chain: a module, an integrated program, an exec tool, a tool folder of your own (4 KB)
 - [reports](stable/guide/reports.md): heimdall report: an A4 report of Runs' pages and numbers; recipes, sections, what it draws for itself, where it is built (6 KB) ⟵ live: live-scoring
 - [results-python](stable/guide/results-python.md): reading a run's results from Python, for notebooks and statistics tools (1 KB)
@@ -135,6 +135,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## live
 
+- [live-across-axes](live/across-axes.md): Runs with different axes drawn together: every member has every quantity (a quantity a Run never names is unset there), Runs told apart by serial, heimdall diff, Run labels as axes (1 KB)
 - [live-identity-golden](live/identity-golden.md): every fixture point's identity parts are kept in a golden file, and a test compares them (2 KB)
 - [live-no-yoda-backend](live/no-yoda-backend.md): the yoda plot backend (rivet-mkhtml) is gone; mpl owns the transforms it borrowed (2 KB)
 - [live-record-formats](live/record-formats.md): record files carry a format version, and heimdall records upgrade brings old ones to it (2 KB)

@@ -628,6 +628,8 @@ FROM = "across_from"
 FROM_DEFAULT = {"runs": ["*"], "prefer": "last"}
 #: An untagged run's @tag among tagged ones: its label (its value is "").
 UNTAGGED = "untagged"
+UNSET = "unset"                    # a quantity a Run never names: its tag there, never guessed (across-axes)
+UNSET_LABEL = "not set"
 ACROSS_HEADER = ("# The runs of an errand file together: their members, drawn into this folder's plots/<set>/ and\n"
                  "# statistics/<set>/. [from] says which runs (globs of their folders) and which point a duplicate is;\n"
                  "# [plot] and [stats] are yours (from the config's [plot] and its [plot.across] sets, by a run or --style-sync).\n\n")
@@ -738,6 +740,14 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                 tag = q.tags[i] if q.tags else str(q.values[i])
                 if tag not in [t for t, *_ in have]:
                     have.append((tag, q.labels[i] if q.labels else tag, q.values[i], q.styles[i] if q.styles else {}))
+    lacking: dict[str, str] = {}                             # a quantity some Run never names: its tag there, "unset"
+    for name, have in tags.items():
+        if any(name not in m.values for _, _, _, own in loaded for m in own):
+            blank = UNSET
+            while blank in [t for t, *_ in have]:            # a value tagged "unset" keeps its name
+                blank += "_"
+            have.append((blank, UNSET_LABEL, blank, {}))
+            lacking[name] = blank
     for name in ignored:                                     # V224: a quantity of the runs, or @events
         if name != "@events" and name not in tags:
             allowed = [*tags, "@events"]
@@ -785,10 +795,11 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                     out[q] = index[q][tag]
                 return out
             events = _member_events(doc, m) or usual[run_name]
+            absent = {q: index[q][tag] for q, tag in lacking.items() if q not in m.values}      # never named in this Run
             attributes = {"@run": number, "@configuration": configurations.index(conf.key),
                           **({"@events": counts.index(events)} if events else {}),
                           **({"@tag": tagged.index(run_tags[run_name])} if tagged else {})}
-            values = {**moved(m.values), **attributes}
+            values = {**moved(m.values), **absent, **attributes}
             choice = {**{q: i for q, i in moved(m.point.choice).items() if q not in ignored},
                       **{q: attributes[q] for q in ("@events", "@tag") if q in attributes and q not in ignored}}
             for q in ignored:

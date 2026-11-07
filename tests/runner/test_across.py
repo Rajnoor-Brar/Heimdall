@@ -48,6 +48,23 @@ def a_run(where, folder: str, *, tag: str | None = None, generator: list[int] = 
     (where / folder / plotdoc.FILE).write_text(plotdoc.dumps(document), encoding="utf-8")
 
 
+def an_events_run(where, folder, counts: list[int], *, pdf: int = 1, tag: str | None = None, generator: int | None = 0) -> None:
+    """<where>/<folder>/plot.toml: a run that sweeps the event count alone: one member for each of `counts`, the generator and
+    the pdf (an index of PDF) fixed, nothing in any member's choice; `generator=None`: the Run never names it."""
+    members = {}
+    for count in counts:
+        name = f"n{count}"
+        members[name] = {"index": len(members) + 1, "identity": f"{folder}-{name}", "complete": True, "events": count,
+                         "yoda": f"points/{name}/out.yoda", "choice": {},
+                         "values": {**({"generator": generator} if generator is not None else {}), "pdf": pdf}}
+    document = {"source": {"config": "Demo/t", "configuration": "one", "label": folder, "errand": where.name,
+                           "assignment": "Demo", "folder": f"Demo/{where.name}/{folder}", **({"tag": tag} if tag else {})},
+                "axes": {"vary": [], "plot_points": [], "combine": [], "fixed": {**({"generator": f"#{generator + 1}"} if generator is not None else {}), "pdf": f"#{pdf + 1}"}},
+                "quantities": {"generator": {"points": GENERATOR}, "pdf": {"points": PDF}}, "members": members}
+    (where / folder).mkdir(parents=True, exist_ok=True)
+    (where / folder / plotdoc.FILE).write_text(plotdoc.dumps(document), encoding="utf-8")
+
+
 def together(where, **wanted):
     """<where>/plot.toml, the runs together, its [from] `wanted` (none: as a run writes it), loaded."""
     document = {"source": {"config": "Demo/t", "errand": where.name, "assignment": "Demo", "level": "name"},
@@ -259,3 +276,44 @@ def test_a_report_says_each_runs_ignored_value(scratch):
                                      "03_one": {"generator": "hw7"}}
     head = report.set_head(report.Source("Demo/ignored", where, doc, members), "totality")
     assert ("Ignored", ["generator: Pythia 8 (01_one, 02_one) · Herwig 7 (03_one)"]) in head.facts
+
+
+def test_a_pdf_sweep_and_an_events_sweep_meet_on_a_pdf_by_events_page(scratch):
+    """One Run sweeps the pdf at a fixed 10k events, another the event count at a fixed pdf (NNPDF23lo): across gives every
+    member every quantity, the fixed one as its value, so a set pages and curves by both; the point the Runs have twice
+    (NNPDF23lo at 10k) is the later Run's, both with prefer = "all"."""
+    where = folder_of("meet")
+    a_run(where, "01_pdfs", events=10000)
+    an_events_run(where, "02_events", [1000, 10000], pdf=1)
+    doc, _, members = together(where)
+    assert [m.point.name for m in members] == ["01_pdfs__MSTW08lo", "02_events__n1000", "02_events__n10000"]
+    assert doc.source["shadowed"] == {"01_pdfs__NNPDF23lo": "02_events__n10000"}
+    assert all(m.values["pdf"] in (0, 1) and "@events" in m.values for m in members)
+    assert cells(doc, members, {"pages": {"@events": "all"}, "curves": {"pdf": "all"}}) == {
+        "1k": ["02_events__n1000"], "10k": ["01_pdfs__MSTW08lo", "02_events__n10000"]}
+    both = together(where, prefer="all")
+    assert cells(both[0], both[2], {"pages": {"@events": "all"}, "curves": {"pdf": "all"}})["10k"] == [
+        "01_pdfs__MSTW08lo", "01_pdfs__NNPDF23lo", "02_events__n10000"]
+
+
+def test_a_quantity_a_run_never_names_is_unset_there_not_guessed(scratch):
+    """The second Run says nothing of the generator (not in its members' values): across gives its members the value
+    `unset` ("not set"), so they page apart from the Run that fixed it and are not taken for the same points."""
+    where = folder_of("unset")
+    a_run(where, "01_pdfs", events=10000)
+    an_events_run(where, "02_events", [10000], pdf=1, generator=None)
+    doc, _, members = together(where)
+    generator = doc.quantities["generator"]
+    assert generator.tags[-1] == "unset" and generator.labels[-1] == "not set"
+    by_name = {m.point.name: generator.tags[m.values["generator"]] for m in members}
+    assert by_name == {"01_pdfs__MSTW08lo": "py8", "01_pdfs__NNPDF23lo": "py8", "02_events__n10000": "unset"}
+    assert doc.source["shadowed"] == {}                                    # not the same point as the pdf Run's NNPDF23lo
+    assert cells(doc, members, {"pages": {"generator": "all"}, "curves": {"pdf": "all"}}) == {
+        "py8": ["01_pdfs__MSTW08lo", "01_pdfs__NNPDF23lo"], "unset": ["02_events__n10000"]}
+
+
+def test_a_quantity_every_run_names_has_no_unset_value(scratch):
+    where = folder_of("allnamed")
+    a_run(where, "01_pdfs", events=10000)
+    an_events_run(where, "02_events", [10000], pdf=1)
+    assert "unset" not in together(where)[0].quantities["generator"].tags

@@ -74,3 +74,26 @@ def test_python_sums_of_the_measured_bins_are_paints_totals(stage):
             checked += 1
             rows_seen += len(rows)
     assert checked >= 30 and rows_seen > 300                           # 2 cells × 17 pages, each with its curves
+
+
+@pytest.mark.slow
+def test_the_old_columns_from_the_bins_are_statstables_on_every_fixture_curve(stage):
+    """metrics.REGISTRY's rel_abs_area, area_ratio, ratio_mean, ratio_dev and chi2_ndf, from `measured`, equal
+    statstable.statistics_of (Paint's totals) to the totals' precision."""
+    from runner import statstable
+    from stats import bins, metrics
+    errand, configuration, plans = stage
+    said = []
+    assert plot.draw(errand, configuration, plans, said.append) == 0, said
+    compared = 0
+    for page in plot.pages(errand, configuration, plans):
+        rows = statstable.statistics_of(page)
+        if rows is None:
+            continue
+        made = json.loads(Path(f"{page.config}.stats.json").read_text(encoding="utf-8"))
+        for row, curve in zip(rows, bins.curves(made, bool(page.document["page"]["logx"]))):
+            for name in ("rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "chi2_ndf"):
+                mine, theirs = metrics.REGISTRY[name](curve), row[name]
+                assert (math.isnan(mine) and math.isnan(theirs)) or close(mine, theirs), (page.name, row["curve"], name, mine, theirs)
+                compared += 1
+    assert compared >= 150

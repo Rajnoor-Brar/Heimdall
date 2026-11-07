@@ -52,7 +52,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [plots-sets](stable/guide/plots-sets.md): pages of chosen points: the totality set, named sets with page axes and curve groups, looks, short forms, split (5 KB)
 - [plots-statistics](stable/guide/plots-statistics.md): the numbers behind each page: statistics.csv's columns, [stats], bar graphs, the summary and how points are scored (4 KB)
 - [plots-style](stable/guide/plots-style.md): how a page's look is layered, a style file, legends outside the frame, and seeing the merged style (2 KB)
-- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-no-yoda-backend, live-record-formats, live-stats-measured-bins, live-stats-rms
+- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-no-yoda-backend, live-record-formats, live-stats-core, live-stats-measured-bins, live-stats-rms
 - [programs](stable/guide/programs.md): your own programs in a chain: a module, an integrated program, an exec tool, a tool folder of your own (4 KB)
 - [reports](stable/guide/reports.md): heimdall report: an A4 report of Runs' pages and numbers; recipes, sections, what it draws for itself, where it is built (6 KB)
 - [results-python](stable/guide/results-python.md): reading a run's results from Python, for notebooks and statistics tools (1 KB)
@@ -140,5 +140,6 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-record-formats](live/record-formats.md): record files carry a format version, and heimdall records upgrade brings old ones to it (2 KB)
 - [live-resume-record-config](live/resume-record-config.md): a paused run resumes with the latest attempted Run's recorded config snapshot (2 KB)
 - [live-shadow-root](live/shadow-root.md): the tests run on a shadow machine root, and a guard watches the live one (1 KB)
+- [live-stats-core](live/stats-core.md): framework/stats computes metrics and means from Paint's measured bins (2 KB)
 - [live-stats-measured-bins](live/stats-measured-bins.md): Paint writes the bins it measured, in each curve's stats.json (1 KB)
 - [live-stats-rms](live/stats-rms.md): a statistic over pages is a root mean square, not a mean (1 KB)

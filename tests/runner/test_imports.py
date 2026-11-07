@@ -118,3 +118,39 @@ def test_the_core_names_no_tool():
                 if hit and node.value not in CONTRACT_WORDS and "\n" not in node.value:
                     found.append(f"{path.stem}:{node.lineno}: {node.value!r}")
     assert not found, "tool names in the core:\n  " + "\n  ".join(found)
+
+
+STATS = REPO / "framework" / "stats"
+
+
+def test_the_stats_package_imports_only_numpy_the_standard_library_and_runner_errors():
+    """framework/stats computes and never draws: no plotting library, no other runner module."""
+    allowed_runner = {"errors"}
+    violations = []
+    for path in sorted(STATS.glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names = []
+            if isinstance(node, ast.Import):
+                names = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                names = [node.module.split(".")[0]]
+                if names[0] == "runner":
+                    target = node.module.split(".")[1:2] or [a.name for a in node.names]
+                    if not set(target) <= allowed_runner:
+                        violations.append(f"{path.name} imports runner.{target}")
+            for name in names:
+                if name in ("matplotlib", "ROOT", "yoda", "rivet", "pandas", "scipy"):
+                    violations.append(f"{path.name} imports {name}")
+    assert not violations, "\n".join(violations)
+
+
+def test_runner_modules_import_stats_only_inside_functions():
+    violations = []
+    for path in sorted(RUNNER.glob("*.py")):
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:         # module level only
+            for sub in ast.walk(node) if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else ():
+                if isinstance(sub, ast.ImportFrom) and (sub.module or "").split(".")[0] == "stats" and sub.level == 0:
+                    violations.append(f"{path.name}:{sub.lineno}")
+                if isinstance(sub, ast.Import) and any(a.name.split(".")[0] == "stats" for a in sub.names):
+                    violations.append(f"{path.name}:{sub.lineno}")
+    assert not violations, "stats imported at module level in: " + ", ".join(violations)

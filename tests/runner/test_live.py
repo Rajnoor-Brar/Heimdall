@@ -395,6 +395,7 @@ def failed_run(mixed, scratch):
 
 
 def test_again_runs_a_failed_runs_command_from_its_snapshot_and_leaves_its_entry(capsys, failed_run, monkeypatch):
+    monkeypatch.delenv(runs.RESUMES_VAR, raising=False)         # what an earlier test's worker left in the process is no part of this
     launched = []
     monkeypatch.setattr(runs, "relaunch", lambda command, cwd, env: launched.append((command, cwd, env))
                         or subprocess.CompletedProcess(command, 0))

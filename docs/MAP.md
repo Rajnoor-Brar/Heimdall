@@ -16,7 +16,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## reference
 
-- [commands](reference/commands.md): every heimdall command and its arguments (20 KB)
+- [commands](reference/commands.md): every heimdall command and its arguments (21 KB)
 - [keys](reference/keys.md): every setting in one line each, for grep: key, type, default (10 KB)
 - [legacy](reference/legacy.md): the errand file's older (v2) names and today's (2 KB)
 
@@ -40,7 +40,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 - [chains](stable/guide/chains.md): chains of tools: file chains, other generators, comparing generators and setups, stages made once (5 KB)
 - [errand-file](stable/guide/errand-file.md): an errand file's anatomy, a complete example, which value wins, imports and starting a new assignment (6 KB)
-- [guide-failures](stable/guide/failures.md): what to do when a point fails, and what each common refusal means (3 KB)
+- [guide-failures](stable/guide/failures.md): what to do when a point fails, and what each common refusal means (3 KB) ⟵ live: live-show
 - [housekeeping](stable/guide/housekeeping.md): check, status, clean, migrate, reproduce, and pinning which stack a study was made with (1 KB)
 - [outputs](stable/guide/outputs.md): what a run writes and where: records, results, reports, cache; what is kept; what may be deleted (3 KB)
 - [overlay](stable/guide/overlay.md): heimdall overlay: any YODA or ROOT files on one page, with no errand file (1 KB)
@@ -149,6 +149,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-scoring](live/scoring.md): the statistics summary and the report's statistics by purpose: standings, a section a purpose, a metric's ranking and table, a head to head only when asked (5 KB)
 - [live-set-merge](live/set-merge.md): a set's merge: a quantity's values become one curve per combination of the other axes, by pooling statistics or a mean, with an optional band (4 KB)
 - [live-shadow-root](live/shadow-root.md): the tests run on a shadow Himinbjorg, and a guard watches the live one (1 KB)
+- [live-show](live/show.md): heimdall show prints what a Run, a point or a tool did, read from its record; heimdall log is show --log (2 KB)
 - [live-statistics-format](live/statistics-format.md): statistics.csv is format 2 with a statistics.json sidecar and the default metrics as columns (2 KB)
 - [live-stats-catalogue](live/stats-catalogue.md): the opt-in metrics and means of framework/stats, off until named (2 KB)
 - [live-stats-core](live/stats-core.md): framework/stats computes metrics and means from Paint's measured bins (2 KB)

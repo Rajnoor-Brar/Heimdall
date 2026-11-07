@@ -253,6 +253,19 @@ a record's own account, a point's attempts and logs, or a tool's log
 | `--full` | the whole logs (a job with --logs) instead of the digests |
 | `--attempt N` | an earlier attempt's logs, from the point's history/ |
 
+## `heimdall show`
+
+what a Run, a point or a tool did, read from its record: identity, seed, tools, cross section, products, attempts
+
+| Argument | Meaning |
+|---|---|
+| `RECORD[/POINT[/TAG]]` | a Run, <A>/<E>/<R>, then a point and a tool, or a path under records/ |
+| `--parts` | a point's identity parts too (what its identity hashes) |
+| `--json` | the view as JSON |
+| `--log` | the logs, as heimdall log prints them (--full and --attempt imply it) |
+| `--full` | the whole logs (a job with --logs) instead of the digests |
+| `--attempt N` | an earlier attempt's logs, from the point's history/ |
+
 ## `heimdall diff`
 
 what two Runs of one Errand did differently: the config each ran with, and each point's identity parts, tool by tool

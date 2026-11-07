@@ -22,7 +22,7 @@ from .errors import HeimdallError, did_you_mean
 from . import runs
 from .events import greeting, hubs
 from .paths import cache_root, configs_root, find_work, records_root, results_root
-from .record import (cause_text, constants, constants_lines, held_by, holder, provenance_file, record_dir,
+from .record import (cause_text, constants, constants_lines, held_by, holder, provenance_file, read_labels, record_dir,
                      run_tag, state_of, write_run_tag)
 
 TABLES = {"errand": "errand", "config": "config", "prelim": "prelim", "plot": "plot", "data": "data",
@@ -800,6 +800,169 @@ def point_log(record: Path, point: str, tag: str | None = None, full: bool = Fal
     if not said:
         out.append(f"no {'whole logs' if full else 'logs'} kept in {folder.relative_to(record)}"
                    + (" (--logs keeps them)" if full else ""))
+    return out
+
+
+def _json_of(path: Path) -> dict:
+    """A record's JSON file as a dict; {} when it is not there or not readable (a claim to check, never a failure)."""
+    try:
+        found = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return found if isinstance(found, dict) else {}
+
+
+def _attempt_rows(record: Path, point: str) -> list[dict]:
+    rows = []
+    try:
+        for line in (record / "points" / point / "attempts.jsonl").read_text(encoding="utf-8").splitlines():
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                continue
+    except OSError:
+        pass
+    return rows
+
+
+def _sigma(rows: list[dict]) -> tuple[list | None, str]:
+    """A point's cross section, [σ pb, its error], from what its latest attempt's tools reported (`reported.xsec_pb`, which a
+    generator's reader sets); else None and why: a σ read from the products needs a reader of that tool's file."""
+    if not rows:
+        return None, "no attempt recorded"
+    for tag, result in (rows[-1].get("tools") or {}).items():
+        found = (result.get("reported") or {}).get("xsec_pb")
+        if isinstance(found, list) and found:
+            return found, f"reported by {tag}"
+    return None, "no tool of the latest attempt reported a cross section"
+
+
+def show_data(record: Path, point: str | None = None, tag: str | None = None, parts: bool = False) -> dict:
+    """`heimdall show RECORD[/POINT[/TAG]]` (names P2): what a Run, a point or a tool did, read from the record alone
+    (points.json, the points' identity.json, provenance.json and attempts.jsonl, and their logs), nothing run or checked.
+    The Run's view lists its points; a point's has its identity, seed, tools, σ and products (`parts`: the identity's own
+    parts); a tool's is its provenance entry and the end of its log."""
+    rel = str(record.relative_to(records_root()))
+    table = _json_of(record / "points.json")
+    labels = read_labels(record) or {}
+    if point is None:
+        found = {}
+        for entry in table.get("points") or []:
+            rows = _attempt_rows(record, entry.get("name", ""))
+            found[entry["name"]] = {"state": entry.get("state", "?"), "attempts": len(rows),
+                                    "events": None, "seed": entry.get("seed")}
+        if not table:
+            for folder in sorted((record / "logs").iterdir()) if (record / "logs").is_dir() else []:
+                if folder.is_dir():
+                    rows = _attempt_rows(record, folder.name)
+                    found[folder.name] = {"state": rows[-1].get("verdict", "?") if rows else "?", "attempts": len(rows),
+                                          "events": None, "seed": None}
+        consts = table.get("constants") or {}
+        return {"view": "run", "record": rel, "tag": labels.get("tag") or "",
+                "labels": {k: v for k, v in labels.items() if k != "tag" and v},
+                "errand": table.get("run"), "configuration": table.get("configuration"), "config_file": table.get("config_file"),
+                "events": consts.get("events"), "threads": consts.get("threads"), "seeds": consts.get("seeds"),
+                "parallelism": consts.get("parallelism"), "points": found,
+                "results": str(results_root() / Path(rel)), "records": str(record)}
+    entry = next((e for e in table.get("points") or [] if e.get("name") == point), {})
+    rows = _attempt_rows(record, point)
+    if not entry and not rows and not (record / "points" / point).is_dir():
+        names = sorted(e["name"] for e in table.get("points") or [])
+        raise HeimdallError(f"no point {point} in {record.name}", hint=did_you_mean(point, names) or
+                       (f"its points: {', '.join(names[:8])}{' …' if len(names) > 8 else ''}" if names else "it has none"))
+    ident = _json_of(record / "points" / point / "identity.json")
+    prov = _json_of(record / "points" / point / "provenance.json")
+    if tag is not None:
+        mine = next((t for t in prov.get("tools") or [] if t.get("tag") == tag), None)
+        logfile = record / "logs" / point / f"{tag}.log"
+        if mine is None and not logfile.is_file():
+            there = [t.get("tag") for t in prov.get("tools") or []]
+            raise HeimdallError(f"no tool {tag} in {rel}/{point}", hint=did_you_mean(tag, there) or
+                           (f"its tools: {', '.join(there)}" if there else "it recorded no tools"))
+        tail = logfile.read_text(encoding="utf-8", errors="replace").splitlines()[-20:] if logfile.is_file() else []
+        return {"view": "tool", "record": rel, "point": point, "tag": tag, "provenance": mine, "log_tail": tail}
+    sigma, why = _sigma(rows)
+    last = rows[-1] if rows else {}
+    out = {"view": "point", "record": rel, "point": point, "state": entry.get("state") or last.get("verdict") or "?",
+           "identity": prov.get("identity") or entry.get("identity"), "seed": prov.get("seed", entry.get("seed")),
+           "events": prov.get("events"), "threads": prov.get("threads"),
+           "values": {k: v.get("tag") or v.get("value") for k, v in (prov.get("values") or {}).items()},
+           "attempts": [{"n": r.get("n"), "finished": r.get("finished", ""), "verdict": r.get("verdict"),
+                         "cause": cause_text(r)} for r in rows],
+           "tools": [{"tag": t.get("tag"), "tool": t.get("tool"), "version": t.get("version"),
+                      "exit": (t.get("result") or {}).get("exit"), "seconds": (t.get("result") or {}).get("seconds")}
+                     for t in prov.get("tools") or []],
+           "sigma_pb": sigma, "sigma_note": why,
+           "products": sorted(entry.get("products") or {}),
+           "provenance": {k: prov.get(k) for k in ("host", "user", "started", "finished", "git", "work") if k in prov},
+           "log_tail": []}
+    if parts:
+        out["parts"] = ident
+    logs = record / "logs" / point
+    for path in sorted(logs.glob("*.log")) if logs.is_dir() else []:
+        if not path.name.endswith(".full.log"):
+            out["log_tail"].append({"log": path.name, "lines": path.read_text(encoding="utf-8", errors="replace").splitlines()[-5:]})
+    return out
+
+
+def show_lines(data: dict) -> list[str]:
+    """show_data's view as the plain text `heimdall show` prints."""
+    rel = data["record"]
+    if data["view"] == "run":
+        head = f"{rel}" + (f"  [{data['tag']}]" if data["tag"] else "")
+        out = [head]
+        out += [f"  {k} = {v}" for k, v in data["labels"].items()]
+        out.append(f"  errand {data['errand'] or '–'} · configuration {data['configuration'] or '–'}"
+                   + (f" · {data['config_file']}" if data["config_file"] else ""))
+        out.append(f"  events {data['events'] if data['events'] is not None else '–'} · threads {data['threads'] if data['threads'] is not None else '–'}"
+                   f" · seeds {data['seeds'] or '–'} · parallelism {data['parallelism'] if data['parallelism'] is not None else '–'}")
+        counts = ", ".join(f"{n} {s}" for s in STATES if (n := sum(1 for p in data["points"].values() if p["state"] == s)))
+        out.append(f"  {len(data['points'])} point(s)" + (f": {counts}" if counts else ""))
+        width = max([8] + [len(n) for n in data["points"]])
+        for name, p in data["points"].items():
+            out.append(f"    {name:{width}s}  {p['state']:10s} {p['attempts']} attempt(s)")
+        out += [f"  records {data['records']}", f"  results {data['results']}"]
+        return out
+    if data["view"] == "tool":
+        mine = data["provenance"] or {}
+        out = [f"{rel}/{data['point']}/{data['tag']}"]
+        for key in ("tool", "version", "exe", "exe_sha256", "ran"):
+            if key in mine:
+                out.append(f"  {key} = {mine[key]}")
+        res = mine.get("result") or {}
+        if res:
+            out.append(f"  exit {res.get('exit')} in {res.get('seconds')} s" + (f" · {res['note']}" if res.get("note") else ""))
+        if mine.get("argv"):
+            out.append("  argv: " + " ".join(mine["argv"]))
+        if data["log_tail"]:
+            out += ["", f"── last {len(data['log_tail'])} line(s) of logs/{data['point']}/{data['tag']}.log", *data["log_tail"]]
+        else:
+            out.append("  no log kept")
+        return out
+    out = [f"{rel}/{data['point']}: {data['state']}"]
+    out.append(f"  identity {(data['identity'] or '–')[:12]} · seed {data['seed'] if data['seed'] is not None else '–'}"
+               f" · events {data['events'] if data['events'] is not None else '–'} · threads {data['threads'] if data['threads'] is not None else '–'}")
+    if data["values"]:
+        out.append("  " + " · ".join(f"{k} {v}" for k, v in data["values"].items()))
+    if data["sigma_pb"]:
+        sig = data["sigma_pb"]
+        out.append(f"  σ = {sig[0]:.6g}" + (f" ± {sig[1]:.3g}" if len(sig) > 1 else "") + f" pb ({data['sigma_note']})")
+    else:
+        out.append(f"  σ = – ({data['sigma_note']})")
+    for t in data["tools"]:
+        version = str(t.get("version") or "")
+        out.append(f"  tool {t['tag']}" + (f" ({version if version.startswith(t['tool']) else t['tool'] + ' ' + version})" if version else f" ({t['tool']})")
+                   + f": exit {t['exit']} in {t['seconds']} s")
+    out.append(f"  products: {', '.join(data['products'])}" if data["products"] else "  products: none recorded")
+    for a in data["attempts"]:
+        out.append(f"  attempt {a['n']:>3}  {_local(a['finished']):16s}  {a['verdict'] or '?':8s} {a['cause']}".rstrip())
+    prov = data["provenance"]
+    if prov:
+        out.append(f"  ran on {prov.get('host', '?')} as {prov.get('user', '?')}, {prov.get('started', '?')} → {prov.get('finished', '?')}")
+    if data.get("parts"):
+        out += ["", "── identity parts", *json.dumps(data["parts"], indent=1, sort_keys=True).splitlines()]
+    for log in data["log_tail"]:
+        out += ["", f"── {log['log']} (end)", *log["lines"]]
     return out
 
 

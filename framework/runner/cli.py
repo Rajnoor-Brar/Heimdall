@@ -275,6 +275,16 @@ def parser() -> argparse.ArgumentParser:
     logged.add_argument("--full", action="store_true", help="the whole logs (a job with --logs) instead of the digests")
     logged.add_argument("--attempt", type=int, metavar="N", help="an earlier attempt's logs, from the point's history/")
 
+    shown = commands.add_parser("show", help="what a Run, a point or a tool did, read from its record: identity, seed, tools, "
+                                              "cross section, products, attempts")
+    shown.add_argument("target", metavar="RECORD[/POINT[/TAG]]",
+                       help="a Run, <A>/<E>/<R>, then a point and a tool, or a path under records/")
+    shown.add_argument("--parts", action="store_true", help="a point's identity parts too (what its identity hashes)")
+    shown.add_argument("--json", action="store_true", help="the view as JSON")
+    shown.add_argument("--log", action="store_true", help="the logs, as heimdall log prints them (--full and --attempt imply it)")
+    shown.add_argument("--full", action="store_true", help="the whole logs (a job with --logs) instead of the digests")
+    shown.add_argument("--attempt", type=int, metavar="N", help="an earlier attempt's logs, from the point's history/")
+
     compared = commands.add_parser("diff", help="what two Runs of one Errand did differently: the config each ran with, and each "
                                                  "point's identity parts, tool by tool")
     compared.add_argument("first", metavar="RUN", help="a Run, <A>/<E>/<R1>")
@@ -2221,6 +2231,21 @@ def cmd_log(args) -> int:
     return 0
 
 
+def cmd_show(args) -> int:
+    """`heimdall show RECORD[/POINT[/TAG]]` (names P2): the views of house.show_data, read-only; `--log`, `--full` and
+    `--attempt` are `heimdall log`'s output."""
+    if args.log or args.full or args.attempt is not None:
+        return cmd_log(args)
+    record_dir, point, tag = house.log_target(args.target)
+    data = house.show_data(record_dir, point, tag, parts=args.parts)
+    if args.json:
+        print(json.dumps(data, indent=1, sort_keys=True))
+    else:
+        for line in house.show_lines(data):
+            print(line)
+    return 0
+
+
 def cmd_tag(args) -> int:
     """`heimdall tag RECORD [NAME] [--clear]` (V223): a configuration folder's tag shown, set or removed, in its
     record (the source of truth) and its plot document's [source].tag."""
@@ -3234,6 +3259,8 @@ def main(argv: list[str]) -> int:
             return cmd_stop(args)
         if args.command == "log":
             return cmd_log(args)
+        if args.command == "show":
+            return cmd_show(args)
         if args.command == "tag":
             return cmd_tag(args)
         return cmd_watch(args)

@@ -2503,7 +2503,7 @@ PREFERENCES = ("rerun", "wait", "detach", "plain", "journal", "logs", "replot", 
 #: selection one run's choice, and the study's own settings are [errand]'s keys.
 NOT_PREFERENCES = {
     **dict.fromkeys(("plan", "why", "show_config", "dry_run", "status", "cancel", "style_sync", "across", "stack",
-                     "no_wait"), ("a mode: what this one command does", "type it on the command line")),
+                     "no_wait", "stats_only"), ("a mode: what this one command does", "type it on the command line")),
     **dict.fromkeys(("card", "pid", "file", "plot_file", "index", "resume", "forget"),
                     ("a target: what this one command acts on", "type it on the command line")),
     **dict.fromkeys(("points", "page_points", "draw_sets", "stages", "only"),

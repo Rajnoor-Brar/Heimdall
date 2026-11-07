@@ -112,10 +112,12 @@ def test_a_reserved_name_is_refused(scratch):
         config.load(str(path))
 
 
-def test_the_provenance_is_portable(trees):
+def test_the_provenance_is_portable(trees, monkeypatch):
     """paths in a record are written under their roots ({work}, {apps}), so a moved work dir or
     machine root still reads; heimdall reproduce turns them back."""
+    from support import WORK
     from runner.paths import unportable
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(WORK / "records"))      # as a real run's: a root of its own, the work dir's
     p = planned("Demo/jets", "single")
     made = record.provenance(p.every[0], p.errand, p.configuration, "a", "b", {})
     assert made["config_file"].startswith("{work}/configs/Demo/")

@@ -45,7 +45,7 @@ from .record import check_format, manifest_file, recorded_identity
 from .status import clean_text, digest
 from .statstable import STATISTIC_COLUMNS, heading_of, statistics_of, write_statistics  # noqa: F401 (re-exported)
 from .tools import merge_files, run_folders, sha256_file
-from .sweep import (Listed, axes, check_set, chosen_points, group_key, group_labels, group_tag, label_of, set_cells,
+from .sweep import (Group, Listed, axes, check_set, chosen_points, group_key, group_labels, group_tag, label_of, set_cells,
                     set_entries, split_axes, tag_of)
 
 BACKENDS = tuple(schema.keys("plot")["backend"]["choices"])
@@ -1468,6 +1468,10 @@ def _curve_look(errand, plan, curve_groups, looks=None) -> dict:
 def _curve_label(errand, plan, curve_groups, fill=lambda text: text) -> str:
     """The curve axes' labels at its point, after its own (a compared configuration's, V83); the run's
     name when it has neither."""
+    if isinstance(plan, Group):                           # a merge's curve: the axes it keeps, then its own label
+        labels = [canonical(fill(label)) for g in curve_groups if g[0] in errand.quantities and g[0] in plan.values
+                  for label in group_labels(errand.quantities, g, plan.values)]
+        return ", ".join(labels + [canonical(fill(plan.label))])
     errand = _errand_of(errand, plan)
     own = [canonical(fill(plan.context["curve_label"]))] if plan.context.get("curve_label") else []
     known = {**(getattr(plan, "values", None) or {}), **plan.point.choice}   # a fixed quantity's value too
@@ -1692,7 +1696,9 @@ def plan_lines(errand, configuration, plans) -> list[str]:
             lines.append(f"set {spec.name} ({at}): {len(cells)} page cell(s), {sum(len(c.members) for c in cells)} "
                          f"curve(s){extra}" + (f"; {look}" if look else ""))
             for c in cells:
-                labels = [_curve_label(errand, m, c.labelled) for m in c.members]
+                labels = [_curve_label(errand, m, c.labelled)
+                          + (f" (merges {', '.join(leaf.point.name for leaf in m.leaves)}; {m.entry.how})" if isinstance(m, Group) else "")
+                          for m in c.members]
                 lines.append(f"  {spec.name}/{c.key}" if c.key else f"  {spec.name}")
                 lines[-1] += f": {len(c.members)} curve(s): {'; '.join(labels)}"
             lines += [f"  note: {note}" for note in notes]

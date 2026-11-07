@@ -12,7 +12,7 @@ from __future__ import annotations
 import fnmatch
 import itertools
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from . import schema
 from .errors import HeimdallError, did_you_mean
@@ -168,7 +168,7 @@ def select_points(errand, configuration, point_list: list[Point], selector: str 
 #: Names a set may not have (V164): its folder plots/<set>/ holds these, the backends' (and older layouts had them in plots/).
 RESERVED_SETS = ("root", "mpl", "yoda", "statistics")
 #: A set table's own keys (V163); the rest are [plot] page keys, for its pages.
-SET_KEYS = ("name", "points", "pages", "curves", "reference", "look", "score")
+SET_KEYS = ("name", "points", "pages", "curves", "merge", "reference", "look", "score")
 #: The line styles a curve may take (Paint's, src/Apps/Paint/Page.hh), in the order a look's line axis takes them.
 CURVE_LINES = ("solid", "dashed", "dotted", "dashdot")
 
@@ -196,6 +196,63 @@ def check_curve_style(look, where: str) -> None:
                                  "line": " | ".join(CURVE_LINES), "width": "a number of points > 0"}[key])
 
 
+#: What a merge entry may carry besides its quantity.
+MERGE_KEYS = ("how", "label", "tag", "band")
+MERGE_KEY = "merge"           # the set's key, a contract word
+
+#: How an entry's curves become one: `combine` pools the points' statistics (rivet-merge -e); any other is a mean of
+#: stats.means.REGISTRY, taken bin by bin; `linear` by default.
+MERGE_COMBINE = "combine"
+MERGE_BANDS = (False, "minmax", "std")
+
+
+@dataclass
+class MergeEntry:
+    """One entry of a set's `merge` (set-merge): a quantity's values (`what`, a filter's value) merged into one curve by
+    `how`, labelled `label`, named `tag`, with a `band` (False, "minmax" or "std")."""
+    quantity: str
+    what: object = "all"
+    how: str = "linear"
+    label: str = ""
+    tag: str = ""
+    band: object = False
+
+
+def _merge_shape(merge, where: str) -> list[MergeEntry]:
+    """A set's `merge` as written: a table or a list of tables, each one quantity's filter beside `how`, `label`, `tag` and
+    `band`. The shapes are checked here, the quantity and its values by check_set."""
+    from stats import means
+    entries = [merge] if isinstance(merge, dict) else merge
+    if not isinstance(entries, list) or not entries:
+        raise HeimdallError("a set's merge is an entry, { quantity = … }, or a list of them", where=where,
+                            hint='merge = [{ events = "all", how = "combine" }, { pdf = ["a", "b"], label = "Both" }]')
+    out = []
+    for k, entry in enumerate(entries, start=1):
+        at = f"{where}[{k}]"
+        if not isinstance(entry, dict):
+            raise HeimdallError("a merge entry is a table: { quantity = what, how = …, label = …, tag = …, band = … }", where=at)
+        named = [key for key in entry if key not in MERGE_KEYS]
+        if len(named) != 1:
+            raise HeimdallError("an entry of the set names one quantity" + (f", not {len(named)}" if named else ""), where=at,
+                                hint=f"{{ pdf = [\"a\", \"b\"], how = \"linear\" }}; its other keys: {', '.join(MERGE_KEYS)}")
+        how = entry.get("how", "linear")
+        known = [MERGE_COMBINE, *means.REGISTRY]
+        if how not in known:
+            raise HeimdallError(f"no way to join curves called '{how}'", where=f"{at}.how",
+                                hint=did_you_mean(str(how), known) or f"how: {', '.join(known)}")
+        for key in ("label", "tag"):
+            if key in entry and not (isinstance(entry[key], str) and entry[key]):
+                raise HeimdallError(f"an entry's {key} is a string", where=f"{at}.{key}")
+        if "tag" in entry and entry["tag"] != re.sub(r"[^A-Za-z0-9._+-]+", "-", entry["tag"]):
+            raise HeimdallError(f"a curve's tag is letters, digits and . _ + - ({entry['tag']!r})", where=f"{at}.tag")
+        band = entry.get("band", False)
+        if band not in MERGE_BANDS or band is True:
+            raise HeimdallError(f"a merge band is false, \"minmax\" or \"std\", not {band!r}", where=f"{at}.band")
+        what = _filter_shape({named[0]: entry[named[0]]}, at)[named[0]]
+        out.append(MergeEntry(named[0], what, how, entry.get("label", ""), entry.get("tag", ""), band))
+    return out
+
+
 @dataclass
 class SetSpec:
     """One entry of [plot].sets. V159's: a folder of the points its selectors name, in their order. V163's
@@ -207,6 +264,7 @@ class SetSpec:
     selectors: list = field(default_factory=list)   # V159's points
     pages: dict | None = None                   # quantity → its matcher (the raw value); {}: none; None: unset
     curves: list = field(default_factory=list)  # filters
+    merge: list = field(default_factory=list)   # MergeEntry: the quantities whose values become one curve
     reference: dict | None = None               # a filter: the curve moved first on each page
     look: object = None                         # {"colour": q, "line": q}, "palette", or None (automatic)
     score: dict = field(default_factory=dict)   # [score] keys for this set's pages, over the errand's
@@ -216,7 +274,7 @@ class SetSpec:
     @property
     def axes(self) -> bool:
         """It names its axes (V163): its pages are cells of them, an axis it does not name is paged."""
-        return self.pages is not None or bool(self.curves)
+        return self.pages is not None or bool(self.curves) or bool(self.merge)
 
 
 def set_page_keys() -> tuple[str, ...]:
@@ -263,6 +321,7 @@ def set_entries(sets, where: str) -> list[SetSpec]:
             if not isinstance(curves, list):
                 raise HeimdallError("a set's curves are a filter, { quantity = … }, or a list of them", where=f"{at}.curves")
             spec.curves = [_filter_shape(c, f"{at}.curves[{i}]", styled=True) for i, c in enumerate(curves, start=1)]
+            spec.merge = _merge_shape(entry["merge"], f"{at}.merge") if "merge" in entry else []
             spec.reference = _filter_shape(entry["reference"], f"{at}.reference") if "reference" in entry else None
             spec.look = _look_shape(entry["look"], f"{at}.look") if "look" in entry else None
             spec.score = dict(entry.get("score") or {})
@@ -279,6 +338,11 @@ def set_entries(sets, where: str) -> list[SetSpec]:
             if named:
                 raise HeimdallError(f"a set names {sorted(named)[0]} in both pages and curves", where=at,
                                hint="an axis makes pages or curves, not both")
+            roles = [*(spec.pages or {}), *(q for c in spec.curves for q in c)]
+            for q in dict.fromkeys(m.quantity for m in spec.merge):
+                if q in roles:
+                    raise HeimdallError(f"a set names {q} in merge and in {'pages' if q in (spec.pages or {}) else 'curves'}",
+                                        where=at, hint="an axis makes pages, curves or one merged curve: one role")
         elif isinstance(entry, list):
             name, selectors = f"set{k}", entry
             if not selectors:
@@ -531,6 +595,62 @@ class Cell:
     roles: dict = field(default_factory=dict)
 
 
+@dataclass
+class Group:
+    """The curve a set's `merge` entry makes of `members` (set-merge): points equal on every axis it does not merge. It
+    stands in a page cell where a point does (`point`, `values`), with the merged quantity left out of both; `members` are
+    the points (or the groups an earlier entry made) it is made of, `how` and `band` say how it is drawn."""
+    point: Point
+    values: dict
+    members: list
+    entry: MergeEntry
+    merged: dict = field(default_factory=dict)      # quantity → the tag its merge gave, this entry's and those before it
+
+    @property
+    def leaves(self) -> list:
+        """The points it is made of, however deep: in the order written."""
+        return [leaf for m in self.members for leaf in (m.leaves if isinstance(m, Group) else [m])]
+
+    @property
+    def label(self) -> str:
+        return self.entry.label or f"{self.entry.quantity}, merged"
+
+
+def merge_groups(errand, picked: list, spec: SetSpec, values=values_of) -> list:
+    """`picked` with each `merge` entry applied in the order written: the members whose value of its quantity the entry names
+    become one Group for each combination of the other axes, taking the place of the first of them; a combination with one
+    member stays that point, and a member the entry does not name or does not have the quantity stays as it is."""
+    items = list(picked)
+    quantities = errand.quantities
+    for entry in spec.merge:
+        wanted = set(resolve(errand, entry.quantity, entry.what, f"{spec.where}.merge"))
+        groups: dict[tuple, list] = {}
+        for m in items:
+            if values(m).get(entry.quantity) in wanted:
+                key = (tuple(sorted((q, i) for q, i in values(m).items() if q != entry.quantity)),
+                       tuple(sorted(getattr(m, "merged", {}).items())))        # what an earlier entry made of it counts
+                groups.setdefault(key, []).append(m)
+        out, made = [], set()
+        for m in items:
+            key = next((k for k, g in groups.items() if m in g), None)
+            if key is None or len(groups[key]) == 1:
+                out.append(m)
+            elif key not in made:
+                made.add(key)
+                first = groups[key][0]
+                point = getattr(first, "point", first)
+                rest = {q: i for q, i in values(first).items() if q != entry.quantity}
+                choice = {q: i for q, i in point.choice.items() if q != entry.quantity}
+                tag = entry.tag or f"{entry.quantity}_merged"
+                before = dict(getattr(first, "merged", {}))
+                parts = [tag_of(quantities[q], i) for q, i in choice.items()
+                         if q in quantities and not getattr(quantities[q], "silent", False)] + [*before.values(), tag]
+                out.append(Group(replace(point, name="_".join(parts), choice=choice, stage="merged"), rest, groups[key], entry,
+                                 {**before, entry.quantity: tag}))
+        items = out
+    return items
+
+
 def set_cells(errand, members: list, spec: SetSpec, palette=(), *, values=values_of, looked=()) -> tuple[list[Cell], list[str]]:
     """A V163 set's page cells from these members (in point order), and what the plot stage says of them.
     The members are those that match `points` (if any), `pages` and one of `curves` (none: every member);
@@ -581,11 +701,14 @@ def set_cells(errand, members: list, spec: SetSpec, palette=(), *, values=values
                     own[getattr(m, "point", m).name] = style
             ordered += mine
         picked = ordered
+    if spec.merge:
+        picked = merge_groups(errand, picked, spec, values)
     notes = []
     quantities = errand.quantities                    # a compound's later fields ride with its first (V186):
     swept = list(dict.fromkeys(q for m in picked for q in getattr(m, "point", m).choice    # never an axis of their own
                                if not getattr(quantities.get(q), "silent", False)))
-    named = set(pages_) | {q for flt in curves for q in flt}
+    merged = list(dict.fromkeys(e.quantity for e in spec.merge))
+    named = set(pages_) | {q for flt in curves for q in flt} | set(merged)
 
     def varies(q, among) -> bool:
         return len({values(m).get(q) for m in among}) > 1
@@ -598,8 +721,8 @@ def set_cells(errand, members: list, spec: SetSpec, palette=(), *, values=values
                      + " named by neither pages nor curves and take" + ("s" if len(extra) == 1 else "")
                      + " several values: a page each")
     page_axes = list(pages_) + extra
-    curve_axes = list(dict.fromkeys([q for flt in curves for q in flt] + ([] if paged else loose))) if curves else \
-        [q for q in swept if q not in page_axes]
+    curve_axes = list(dict.fromkeys([q for flt in curves for q in flt] + [q for q in merged if q in swept]
+                                    + ([] if paged else loose))) if curves else [q for q in swept if q not in page_axes]
 
     def order_of(q, index):
         return pages_[q].index(index) if q in pages_ else index
@@ -691,6 +814,25 @@ def check_set(errand, spec: SetSpec, points: list, combined=(), *, values=values
                     shown = [tag_of(quantity, i) for i in sorted(present[q])]
                     raise HeimdallError(f"a set names {q} = {one!r}, which no point of the configuration has",
                                    where=here, hint=f"its points have {q}: {', '.join(shown)}")
+    made: dict[tuple, int] = {}
+    for k, entry in enumerate(spec.merge, 1):
+        here = f"{spec.where}.{MERGE_KEY}[{k}].{entry.quantity}"
+        resolve(errand, entry.quantity, entry.what, here)
+        if entry.quantity in combined:
+            raise HeimdallError(f"a set merges {entry.quantity}, which the configuration combines away", where=here,
+                                hint="its points are merged over it already: name another axis")
+        if entry.quantity not in present:
+            raise HeimdallError(f"a set merges {entry.quantity}, which no point of the configuration sets", where=here,
+                                hint="vary it or fix it in the configuration, or leave it out of the set")
+        tag = entry.tag or f"{entry.quantity}_merged"
+        quantity = errand.quantities[entry.quantity]
+        if tag in [tag_of(quantity, i) for i in range(len(quantity.values))]:
+            raise HeimdallError(f"the tag '{tag}' of the joined curve is one of {entry.quantity}'s already", where=f"{here}.tag",
+                                hint="give the merged curve a tag of its own: tag = \"…\"")
+        if (entry.quantity, tag) in made:
+            raise HeimdallError(f"two entries of {entry.quantity} share the tag '{tag}'", where=f"{here}.tag",
+                                hint="a tag each: the curves are named by it")
+        made[(entry.quantity, tag)] = k
     if isinstance(spec.look, dict):
         cells, _ = set_cells(errand, points, spec, values=values)
         picked = [m for c in cells for m in c.members]

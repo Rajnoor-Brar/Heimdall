@@ -52,7 +52,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [plots-sets](stable/guide/plots-sets.md): pages of chosen points: the totality set, named sets with page axes and curve groups, looks, short forms, split (5 KB)
 - [plots-statistics](stable/guide/plots-statistics.md): the numbers behind each page: statistics.csv's columns, [stats], bar graphs, the summary and how points are scored (4 KB)
 - [plots-style](stable/guide/plots-style.md): how a page's look is layered, a style file, legends outside the frame, and seeing the merged style (2 KB)
-- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-no-yoda-backend, live-record-formats, live-score-engine, live-score-settings, live-scoring, live-statistics-format, live-stats-catalogue, live-stats-core, live-stats-measured-bins, live-stats-rms
+- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-no-yoda-backend, live-record-formats, live-score-engine, live-score-settings, live-scoring, live-set-merge, live-statistics-format, live-stats-catalogue, live-stats-core, live-stats-measured-bins, live-stats-rms
 - [programs](stable/guide/programs.md): your own programs in a chain: a module, an integrated program, an exec tool, a tool folder of your own (4 KB)
 - [reports](stable/guide/reports.md): heimdall report: an A4 report of Runs' pages and numbers; recipes, sections, what it draws for itself, where it is built (6 KB) ⟵ live: live-scoring
 - [results-python](stable/guide/results-python.md): reading a run's results from Python, for notebooks and statistics tools (1 KB)
@@ -142,6 +142,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-score-engine](live/score-engine.md): framework/stats/score.py: how a table's rows become a point's score, worst page, veto and per-purpose shares, and the other aggregators (4 KB)
 - [live-score-settings](live/score-settings.md): the [score] table, [stats].metrics and centres, a set's score, a figure's weight, and heimdall explain score (2 KB)
 - [live-scoring](live/scoring.md): the statistics summary and the report's statistics by purpose: standings, a section a purpose, a metric's ranking and table, a head to head only when asked (5 KB)
+- [live-set-merge](live/set-merge.md): a set's merge: a quantity's values become one curve per combination of the other axes, by pooling statistics or a mean, with an optional band (2 KB)
 - [live-shadow-root](live/shadow-root.md): the tests run on a shadow machine root, and a guard watches the live one (1 KB)
 - [live-statistics-format](live/statistics-format.md): statistics.csv is format 2 with a statistics.json sidecar and the default metrics as columns (2 KB)
 - [live-stats-catalogue](live/stats-catalogue.md): the opt-in metrics and means of framework/stats, off until named (2 KB)

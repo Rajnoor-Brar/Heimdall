@@ -6,6 +6,7 @@ two pages per object with two curves each. Reference data are mapped for d01 onl
 
 from __future__ import annotations
 
+import json
 import math
 import shutil
 import sys
@@ -602,7 +603,7 @@ def test_statistics_are_a_table_and_a_legend_may_show_them(stage):
     assert (bars / "bars" / "em" / "d01-x01-y01.png").is_file()
     assert not list(bars.glob("summary*.png"))                                   # the summary's PNGs: in summary/
     shown = sorted(p.name for p in (bars / "summary").iterdir())               # a page each, numbered in order (V196)
-    assert shown == [f"summary_{n:02d}.png" for n in range(1, len(shown) + 1)] and len(shown) >= 5 + 6   # a section a page at least
+    assert shown == [f"summary_{n:02d}.png" for n in range(1, len(shown) + 1)] and len(shown) >= 1 + 6   # a section a page at least: the front, the standings, five purposes
     assert any(", 1 set(s), 35 bar graph(s) → " in line for line in said)         # 34 pages, the summary
     page = tomllib.loads((plans[0].folders.pages / "totality" / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
     assert all("#chi^{2}/ndf " in c["label"] for c in page["curve"])
@@ -849,18 +850,20 @@ def test_plot_looks_give_a_value_its_look_by_tag(stage, scratch):
 
 
 
-def test_the_summary_pdf_holds_a_table_a_statistic(stage):
-    """V174, V196: statistics/<set>/summary.pdf, every page A4 portrait: the standings, then per statistic
-    (χ²/ndf, |Δ|/reference, area/reference, mean ratio and mean |ratio − 1| (V175), area) each point's mean as
-    sorted bars (not the area's), then its table: a row per point, a column per object in natural order, then the
-    mean; the reference "ref"; each item names its notes, what its numbers are. A table wider than the page is cut
-    into column blocks stacked on its page, the mean on the last. V197: the top five a table a scoreboard; a table
-    in curve order groups its rows under their cells' bands; the facts, contents and notes up front. V198: each
-    statistic's page cells against its curves. V199: summary.html beside it."""
+def test_the_summary_is_scored_by_purpose(stage):
+    """V174, V196: statistics/<set>/summary.pdf, every page A4 portrait: the standings (score, worst page, veto, a column a
+    purpose), then a section per purpose with a metric on: its ranking, then each metric's ranking, page cells against
+    curves and table (a row per point, a column per object in natural order, then the mean; the reference "ref"); each item
+    names its notes. A table wider than the page is cut into column blocks, the mean on the last. V197: a table in curve
+    order groups its rows under their cells' bands; the facts, contents and notes up front. V199: summary.html beside it.
+    A head to head only for the pages `[score].head_to_head` names."""
     import re
     from runner import plugins
+    from stats import metrics, score
     errand, configuration, plans = stage
-    shown = replace(errand, plot={**errand.plot, "formats": ["pdf", "png"]})
+    names = ["chi2_ndf", "norm", "shape", "tilt", "worst", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev"]
+    scored = {"metrics": names, "veto": 5.0, "head_to_head": "em/d01-x01-y01"}
+    shown = replace(errand, score=scored, plot={**errand.plot, "formats": ["pdf", "png"]})
     assert plot.draw(shown, configuration, plans, lambda line: None) == 0
     numbers = plans[0].folders.statistics / "totality"
     pdf = (numbers / "summary.pdf").read_bytes()
@@ -869,28 +872,31 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
     assert len(boxes) == count and {(float(w), float(h)) for w, h in boxes} == {(595.44, 841.68)}   # A4, every page
     assert len(list((numbers / "summary").glob("summary_*.png"))) == count
     assert "<h2>Head to head</h2>" in (numbers / "summary.html").read_text(encoding="utf-8")   # V199: the same, a page
+    side = json.loads((numbers / "statistics.json").read_text(encoding="utf-8"))
+    assert side["score"] == scored and set(names) <= set(side["columns"])        # the table says how it was scored
     bars = plugins.load(plot.heimdall_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
-    rows = [r for page in plot.pages(shown, configuration, plans) for r in (plot.statistics_of(page) or [])]
-    document = bars.summary_model(rows, plot.heading_of(numbers))
+    st = score.settings_of(scored)
+    rows = [r for page in plot.pages(shown, configuration, plans) for r in (plot.statistics_of(page, names) or [])]
+    assert any(math.isfinite(r["worst"]) for r in rows)                          # Paint measured the bins they come from
+    document = bars.summary_model(rows, plot.heading_of(numbers), st)
     assert len(bars.paper.pages(document)) == count
     assert document.heading.endswith(" · totality")
     assert document.facts[0].startswith("4 point(s) in 2 page cell(s), on 17 object(s)")       # V197: up front
-    keys = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "area")
     sections = {s.key: s for s in document.sections}
-    assert list(sections) == ["top5", "scoreboard", "scoreboard-cells", "head-to-head", "scoreboards", *keys]
+    assert list(sections) == ["standings", "purpose-compatibility", "purpose-normalisation", "purpose-shape",
+                              "purpose-trend", "purpose-defects", "head-to-head"]
     items = {item.key: item for s in document.sections for item in s.items}
-    assert [i.key for i in sections["chi2_ndf"].items] == ["chi2_ndf-ranking", "chi2_ndf-crossed", "chi2_ndf"]
+    assert [i.key for i in sections["purpose-compatibility"].items] == [
+        "purpose-compatibility-ranking", "chi2_ndf-ranking", "chi2_ndf-crossed", "chi2_ndf"]
     crossed = items["chi2_ndf-crossed"]                                         # V198: page cells against curves
     assert crossed.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "rms"] and [r.label for r in crossed.rows] == [
         "em", "ep", "rms"]
-    assert [i.key for i in sections["area"].items] == ["area"]                  # each object its own units: no mean
 
     def notes(item):
         return " ".join(document.notes[k] for k in item.notes)
-    for key in keys:
-        assert bars.NOTES[key].split(" = ")[0] in notes(items[key])
-    assert "Σ |y/y_ref − 1|·Δx / Σ Δx" in notes(items["ratio_dev"]) and "Σ (y/y_ref)·Δx / Σ Δx" in notes(items["ratio_mean"])
-    assert "Compared bins" in notes(items["chi2_ndf"]) and "Compared bins" not in notes(items["area"])
+    for key in names:
+        assert metrics.describe(key, st.thresholds.get(key)) in notes(items[key])
+    assert "Compared bins" in notes(items["chi2_ndf"])
 
     table = items["chi2_ndf"]
     assert table.headers[:3] == ["d01", "d02", "d03"] and table.headers[-1] == "rms" and len(table.headers) == 18
@@ -898,52 +904,34 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
                                              "NNPDF 2.3 LO"]                    # V197: each cell's band, its curves
     assert [r.band for r in table.rows] == [True, False, False, True, False, False]
     assert any(c.text == "ref" for r in table.rows for c in r.cells)
-    assert not any(c.text == "ref" for r in items["area"].rows for c in r.cells)    # a reference has its own area
-    for key in keys:                                    # every block fits the page; the mean on the last
+    for key in names:                                   # every block fits the page; the mean on the last
         shape = bars.paper._table_shape(items[key])
         assert [j for block in shape.blocks for j in block] == list(range(18)) and shape.blocks[-1][-1] == 17
         assert all(shape.label_width + sum(shape.widths[j] for j in block) <= bars.paper.WIDTH + 1e-9
                    for block in shape.blocks)
 
-    def cells(item):
-        return [[c.text for c in r.cells] for r in item.rows if not r.band]
-    board = items["scoreboard"]                                                 # V176: each page's places scored
-    assert board.headers == ["d01", "total", "wins", "win rate", "rms rank"]  # data pages alone
-    totals = {r.label.split(". ", 1)[1]: int(r.cells[1].text) for r in board.rows}         # sorted: no bands
-    assert totals["em · MSTW 2008 LO"] + totals["em · NNPDF 2.3 LO"] == 5 * (5 + 4)  # two curves: 5 and 4 a statistic
-    assert totals["em · NNPDF 2.3 LO"] == totals["ep · NNPDF 2.3 LO"]          # the same numbers in either cell
-    assert [i.key for i in sections["top5"].items] == ["top5-all"] + [f"top5-{k}" for k in keys[:-1]] + ["top5-h2h"]
-    top5 = items["top5-all"]                                                    # V197: a table a scoreboard
-    assert top5.headers == ["point", "points", "wins"]
-    leader = max(totals, key=totals.get)
-    assert cells(top5)[0][:2] == [leader, str(totals[leader])]
-    assert [r.label for r in top5.rows][:2] == ["=1st", "=1st"]                 # sharing the first place
-    assert len(top5.rows) == 4                                                  # four points scored
-    by_cell = items["scoreboard-cells"]
-    assert [r.label for r in by_cell.rows if r.band] == ["em", "ep"]
-    assert sorted(r.label.split(".")[0] for r in by_cell.rows if not r.band) == ["1", "1", "2", "2"]   # in its cell
-    assert all(" · " not in r.label for r in by_cell.rows)
-    assert by_cell.headers[-4:] == ["total", "wins", "win rate", "rms rank"]
-    assert {int(row[5]) for row in cells(by_cell)} == set(totals.values())      # the same totals, by statistic
-    chi2 = cells(items["scoreboard-chi2_ndf"])                                  # a statistic's own
-    assert sorted(int(row[1]) for row in chi2) == [4, 4, 5, 5]
-    assert sorted(row[3] for row in chi2) == ["0%", "0%", "100%", "100%"]       # one match, won or lost
-    matches = items["head-to-head-1"]                                           # V177: em's head to head
-    assert matches.headers == ["NNPDF 2.3 LO", "MSTW 2008 LO", "win rate", "matches"]
-    assert [r.label for r in matches.rows] == ["1. NNPDF 2.3 LO", "2. MSTW 2008 LO"] and matches.title.endswith(": em")
-    won = int(cells(matches)[0][1].split("/")[0])                               # the leader against the other
-    assert cells(matches)[0][1] == f"{won}/5" and cells(matches)[1][0] == f"{5 - won}/5" and won >= 3   # 5 statistics
-    assert cells(matches)[0][2:] == [f"{won / 5:.0%}", "5"] and cells(matches)[0][0] == "–"
-    assert cells(items["top5-h2h"])[0] == ["em · NNPDF 2.3 LO", f"{won / 5:.0%}", "5"]
-    assert cells(board)[0][3] == f"{won / 5:.0%}"
-    for key in keys[:-1]:
+    scores = score.score(rows, st)                                              # the standings are the engine's
+    assert [p.n_pages for p in scores.points] == [1, 1, 1, 1]                   # only d01 has data: one page each
+    standings = items["standings"]
+    assert [r.label for r in standings.rows if r.band] == ["em", "ep"] and standings.headers[:4] == [
+        "score", "worst page", "worst", "veto"]
+    for cell in ("em", "ep"):
+        mine = sorted((p for p in scores.points if p.cell == cell), key=lambda p: p.score)
+        first = next(r for r in standings.rows[standings.rows.index(next(r for r in standings.rows if r.band and r.label == cell)) + 1:]
+                     if not r.band)
+        assert first.cells[0].text == bars._shown(mine[0].score) and first.label.startswith("1. ")
+    for key in names:
         ranking = items[f"{key}-ranking"]
         ratio = key in ("area_ratio", "ratio_mean")
-        assert len(ranking.values) == 4                                         # MSTW's on d01 alone, NNPDF's on 17
+        have = {r["point"] for r in rows if not r["is_reference"] and math.isfinite(r[key])}
+        assert len(ranking.values) == len(have) >= 2                            # a point with no number is left out
         assert ranking.values == sorted(ranking.values, key=lambda m: abs(math.log10(m)) if ratio else m)
-        assert sorted(n[-4:] for n in ranking.names) == [" (1)", " (1)", "(17)", "(17)"]
+        assert all(re.search(r"  \(\d+\)$", n) for n in ranking.names)         # the pages it was compared on, in brackets
         assert "the root mean square" in notes(ranking)
         assert ranking.base == (1.0 if ratio else 0.0)
+    (match,) = sections["head-to-head"].items                                   # the one page asked: em's d01
+    assert match.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "loss"] and match.title.endswith("em/d01-x01-y01")
+    assert float(match.rows[0].cells[1].text) == pytest.approx(-float(match.rows[1].cells[0].text))
 
 
 @pytest.mark.parametrize("where", ["out-right", "out-left", "out-top", "out-bottom"])

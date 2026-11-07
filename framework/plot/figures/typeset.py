@@ -18,7 +18,7 @@ the same facts, items and notes, set in the report's fonts and colours (the macr
   statistic's name, its formula as display math (LaTeX, as given), and what it sums over and means; prose, with the
   notes' plain-text symbols (y_ref, Δx, log10 x) set as math.
 * **`bars(rows, title, subtitle, panels, scale, tex, width)`**: a page's statistics as a table, a row a curve, a
-  column a statistic (`panels`: bars.PANELS, (key, label) each), each a small bar and its value: what bars.page
+  column a statistic (`panels`: bars.panels(), (key, label) each), each a small bar and its value: what bars.page
   draws as an image.
 """
 
@@ -88,7 +88,7 @@ def _cell(cell, tex, ink: str, surface: str) -> str:
     if _hex(cell.ink) != _hex(ink) and text:
         text = f"\\textcolor[HTML]{{{_hex(cell.ink)}}}{{{text}}}"
     if getattr(cell, "align", "center") == "left":
-        text = "\\raggedright " + text
+        text = "\\raggedright\\arraybackslash " + text
     fill = "" if _hex(cell.fill) == _hex(surface) else f"\\cellcolor[HTML]{{{_hex(cell.fill)}}}"
     return fill + text
 

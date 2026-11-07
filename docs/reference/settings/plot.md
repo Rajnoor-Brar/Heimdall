@@ -632,7 +632,7 @@ Where a bin sits in x for tilt and roughness: its middle, or the centre of gravi
 
 # `[score]`
 
-[`metrics`](#metrics-1) · [`normalise`](#normalise-2) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`mean`](#mean) · [`by`](#by) · [`baseline`](#baseline) · [`veto`](#veto) · [`aggregate`](#aggregate) · [`dominated`](#dominated)
+[`metrics`](#metrics-1) · [`normalise`](#normalise-2) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`mean`](#mean) · [`by`](#by) · [`baseline`](#baseline) · [`veto`](#veto) · [`aggregate`](#aggregate) · [`dominated`](#dominated) · [`head_to_head`](#head_to_head)
 
 ## `metrics`
 
@@ -721,3 +721,11 @@ How metrics and pages combine: RMS over purposes (default), or Fisher's combined
 | true or false | `false` | — |
 
 Add a column marking a point that another beats on every purpose.
+
+## `head_to_head`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| string | — | — |
+
+The pages the summary plays as matches, each pair of curves: "<cell>/<object>" (a page cell's object, its short name), or "all" for every page; default: none.

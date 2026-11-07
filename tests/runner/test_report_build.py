@@ -162,8 +162,8 @@ def test_a_rebuild_makes_nothing_and_a_changed_page_is_copied_again(trees):
 def test_a_statistics_part_holds_the_sections_chosen(trees):
     bars = statstable.bars()
     rows = statstable.read(trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv")
-    document, missing = report.chosen(bars.summary_model(rows, "here"), ["top5", "chi2_ndf:ranking", "area:ranking"])
-    assert [s.key for s in document.sections] == ["top5", "chi2_ndf"] and missing == ["area:ranking"]
+    document, missing = report.chosen(bars.summary_model(rows, "here"), ["standings", "chi2_ndf:ranking", "area:ranking"])
+    assert [s.key for s in document.sections] == ["standings", "purpose-compatibility"] and missing == ["area:ranking"]
     assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking"]
     recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Standings"\n'
                              'stats = ["chi2_ndf:ranking"]\n\n[[report.section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
@@ -183,19 +183,21 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     rows = list(csv.DictReader(open(bars / "001_18x275_d01-x01-y01.csv", encoding="utf-8")))
     assert [r["curve"] for r in rows] == ["PDF A", "PDF B"] and rows[0]["chi2_ndf"] == "1.1"     # as the source wrote it
     assert "18x275, d01-x01-y01" in tex and "against ZEUS" in tex
-    # How the numbers are made: before the results, a paragraph a statistic shown (the bar tables show all six),
-    # its formula in display; the parts keep only the notes on reading their own items
+    # How the numbers are made: before the results, a paragraph a metric shown, its formula in display when it has one;
+    # the parts keep only the notes on reading their own items
     body = tex.split(r"\begin{document}")[1]
     assert body.index(r"\section*{How the numbers are made}") < body.index(r"\section{Standings}")
-    assert body.count(r"\hdDefinition{") == 6 and r"\hdDefinition{$\chi^{2}$/ndf}{\chi^2/\mathrm{ndf} = " in body
+    assert body.count(r"\hdDefinition{") == 1 and r"\hdDefinition{χ²/ndf}{\chi^2/\mathrm{ndf} = " in body
+    assert r"\hdStatSection{The metrics}" in body
+    assert r"What each purpose asks" not in body                                        # no purpose section is shown here
     assert r"\hdStatSection{How a page is compared}" in body and "How points are scored" not in body
-    assert r"where $y_{\mathrm{ref}}$ ≠ 0" in body                                     # the notes' symbols as math
+    assert "Scored from 1 (cost 0) to 3 (cost 1)" in body                              # a metric's thresholds, said
     notes = body[body.index(r"\begin{hdNotes}"):body.index(r"\end{hdNotes}")]
-    assert "Per point" in notes and "χ²/ndf = Σ" not in notes and "Each page as drawn" not in notes
+    assert "Per point" in notes and "reduced χ²" not in notes and "Each page as drawn" not in notes
     assert r"\hyperref[hd:method]{How the numbers are made, page~\pageref*{hd:method}}" in body
-    assert "Over the compared bins whose errors are not both zero" in text                 # in the PDF, as prose
+    assert "as Paint counts it" in " ".join(text.split())                                  # in the PDF, as prose
     html_part = (standings / "01_01_pdf__totality.html").read_text(encoding="utf-8")
-    assert "χ²/ndf = Σ" in html_part                                                       # its own page keeps them all
+    assert "reduced χ² as Paint counts it" in html_part                                    # its own page keeps them all
     page = (out / "index.html").read_text(encoding="utf-8")
     assert page.index('<section class="block" id="method"') < page.index('<section class="block" id="s01-001"')
 

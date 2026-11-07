@@ -1792,7 +1792,9 @@ def _tables(errand, groups: dict, outcomes: dict, say, who: str) -> int:
             continue
         _clear(numbers)
         read = [p for p in pages_ if outcomes[str(p.config)][0]]
-        count, drawn = statstable.write_set(read, numbers, formats_of(errand.plot), bars)
+        scored = statstable.score_of(errand, set_)
+        count, drawn = statstable.write_set(read, numbers, formats_of(errand.plot), bars,
+                                            statstable.metric_names(errand.stats, scored), scored)
         if count:
             counted += count
             tables.append(numbers)

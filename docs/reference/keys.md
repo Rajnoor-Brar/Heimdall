@@ -167,6 +167,7 @@ score.baseline | string or table | -
 score.veto | number | -
 score.aggregate | string | "rms"
 score.dominated | true or false | false
+score.head_to_head | string | -
 report.title | string | -
 report.subtitle | string | -
 report.from | list of strings | -

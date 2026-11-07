@@ -177,6 +177,11 @@ def test_the_default_report_is_the_headline_and_each_set_its_document_draws(tree
 
 
 
+def test_the_default_standings_name_every_purpose_in_order():
+    from stats import metrics
+    assert [k.partition(":")[2] for k in report.HEADLINE if k.startswith("purpose:")] == list(metrics.PURPOSES)
+
+
 def test_a_recipe_picks_pages_side_by_side_and_its_sources_can_be_replaced(trees):
     recipe(trees, "weekly", """[report]
 title = "Weekly"
@@ -210,12 +215,20 @@ def test_a_recipe_is_checked(trees):
     with pytest.raises(HeimdallError, match="pagez") as error:
         report.planned("P/typo.toml", ["P/validation/01_pdf"])
     assert "pages" in str(error.value.hint)
-    recipe(trees, "two", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nstats = ["top5"]\n')
+    recipe(trees, "two", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nstats = ["standings"]\n')
     with pytest.raises(HeimdallError, match="one of pages"):
         report.planned("P/two.toml", ["P/validation/01_pdf"])
     recipe(trees, "stat", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["chi2_ndf:rankin"]\n')
-    with pytest.raises(HeimdallError, match="no section 'chi2_ndf:rankin'"):
+    with pytest.raises(HeimdallError, match="no part 'rankin' of chi2_ndf"):
         report.planned("P/stat.toml", ["P/validation/01_pdf"])
+    for old, new in (("top5", "standings"), ("scoreboard-cells", "standings"), ("head-to-head-2", "head-to-head")):
+        recipe(trees, "old", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["%s"]\n' % old)
+        with pytest.raises(HeimdallError, match=f"'{old}' is now '{new}'"):
+            report.planned("P/old.toml", ["P/validation/01_pdf"])
+    recipe(trees, "purpose", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["purpose:shap"]\n')
+    with pytest.raises(HeimdallError, match="no purpose 'shap'") as error:
+        report.planned("P/purpose.toml", ["P/validation/01_pdf"])
+    assert "shape" in str(error.value.hint)
     recipe(trees, "look", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nplot = { normalize = "area" }\n')
     with pytest.raises(HeimdallError, match="normalize"):
         report.planned("P/look.toml", ["P/validation/01_pdf"])
@@ -233,11 +246,11 @@ def test_a_recipe_is_checked(trees):
 
 def test_what_no_document_can_draw_is_refused_naming_what_it_has(trees):
     recipe(trees, "few", '[report]\n\n[[report.section]]\ntitle = "a"\nset = "few"\npages = ["*"]\n\n'
-                         '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["top5"]\n')
+                         '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["standings"]\n')
     with pytest.raises(HeimdallError, match="has no set few drawn, and its plot document no set few to draw") as error:
         report.planned("P/few.toml", ["P/validation/01_pdf"])
     assert error.value.hint == "drawn there: totality; its sets: totality; optional = true passes it over"
-    recipe(trees, "numbers", '[report]\n\n[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["top5"]\n')
+    recipe(trees, "numbers", '[report]\n\n[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["standings"]\n')
     with pytest.raises(HeimdallError, match="has no set few measured, and its plot document no set few to draw"):
         report.planned("P/numbers.toml", ["P/validation/01_pdf"])
     recipe(trees, "events", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["d01-*"]\nlayout = "sources"\nlabel = "events"\n')
@@ -251,7 +264,7 @@ def test_what_a_source_has_not_drawn_is_drawn_for_the_report(trees):
     cache; --list says which and why. Until drawn, a grid waits (a figure with no file) and so do its numbers."""
     folder(trees / "results", "03_few", "few", 1_000_000, sets=("few",))
     recipe(trees, "drawn", '[report]\n\n[[report.section]]\ntitle = "a"\nset = "few"\npages = ["*"]\n\n'
-                           '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["top5"]\n\n'
+                           '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["standings"]\n\n'
                            '[[report.section]]\ntitle = "c"\npages = ["d01-*"]\nplot = { normalise = "area" }\n\n'
                            '[[report.section]]\ntitle = "d"\nbars = ["*"]\nplot = { normalise = "area" }\n\n'
                            '[[report.section]]\ntitle = "e"\npages = ["d01-*"]\n\n'
@@ -354,7 +367,7 @@ def study(trees):
     demo = trees / "configs" / "Demo"
     shutil.copytree(Path(os.environ["HEIMDALL_WORK"]) / "configs" / "Demo", demo)
     (demo / "weekly.toml").write_text('[report]\ntitle = "Weekly"\nsubtitle = "for the group"\nfrom = ["P/validation/01_pdf"]\n'
-                                      'output = "Demo/weekly"\n\n[[report.section]]\ntitle = "Standings"\nstats = ["top5"]\n',
+                                      'output = "Demo/weekly"\n\n[[report.section]]\ntitle = "Standings"\nstats = ["standings"]\n',
                                       encoding="utf-8")
     text = (demo / "validation.toml").read_text(encoding="utf-8")
     (demo / "study.toml").write_text(text + '\n[report]\ntemplate = "weekly"\ntitle = "{assignment} · {configuration}"\n\n'

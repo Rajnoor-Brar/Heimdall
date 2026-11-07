@@ -113,3 +113,27 @@ def test_a_csv_from_before_format_2_has_no_sidecar_and_reads_as_format_1(tmp_pat
     rows = statstable.read(old)
     assert list(rows[0]) == list(statstable.STATISTIC_COLUMNS) and rows[0]["chi2_ndf"] == 2.2 and rows[0]["ndf"] == 9
     assert statstable.columns_for(["norm", "chi2_ndf", "norm"]) == [*statstable.STATISTIC_COLUMNS, "norm"]
+
+
+def test_a_set_is_scored_with_the_errands_score_and_its_own_laid_over_it(tmp_path):
+    from types import SimpleNamespace
+    errand = SimpleNamespace(plot={"sets": {"mine": {"points": ["a=1"], "score": {"veto": 2.0}}, "other": {"points": ["a=2"]}}},
+                             score={"mean": "median", "veto": 9.0}, stats={"metrics": ["norm"]})
+    assert statstable.score_of(errand, "mine") == {"mean": "median", "veto": 2.0}
+    assert statstable.score_of(errand, "other") == {"mean": "median", "veto": 9.0}
+    assert statstable.score_of(errand, "totality") == {"mean": "median", "veto": 9.0}      # a set it does not name
+    assert statstable.score_of(SimpleNamespace(plot={}, score={}), "totality") == {}
+
+
+def test_the_columns_are_the_stats_metrics_and_every_metric_scored_and_the_table_keeps_how_it_was_scored(tmp_path):
+    assert statstable.metric_names(None, None) == list(statstable.default_metrics())
+    score = {"metrics": ["chi2_ndf", "rel_abs_area"], "veto": 3.0}
+    assert statstable.metric_names({"metrics": ["norm"]}, score) == ["norm", "chi2_ndf", "rel_abs_area"]
+    pages = [page_with_numbers(tmp_path / "pages", "d01-x01-y01", NUMBERS)]
+    numbers = tmp_path / "statistics" / "totality"
+    statstable.write_set(pages, numbers, ["png"], None, ["chi2_ndf", "rel_abs_area"], score)
+    side = statstable.sidecar(numbers / "statistics.csv")
+    assert side["score"] == score and "rel_abs_area" in side["metrics"]
+    plain = tmp_path / "plain"
+    statstable.write_set(pages, plain, ["png"])
+    assert "score" not in statstable.sidecar(plain / "statistics.csv")                  # no settings: the defaults, unsaid

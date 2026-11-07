@@ -41,7 +41,6 @@ from pathlib import Path
 from . import config as configmod
 from . import plot as plotting
 from . import plotdoc, plugins, record, statstable, viewer
-from .config import STATISTICS
 from .errors import HeimdallError, did_you_mean
 from .paths import apps_dir, cache_root, config_file, configs_root, heimdall_root, reports_root, results_root, work_root
 from .sweep import TOTALITY, label_of, named_sets, tag_of, totality
@@ -52,7 +51,10 @@ RECIPE = "report.toml"
 #: Whose drawn pages a section takes, in order of preference, when it names none.
 BACKENDS = ("root", "mpl")
 #: The default report's headline: the top five and each statistic's ranking (the area has none).
-HEADLINE = ["top5", *(f"{key}:ranking" for key in STATISTICS if key != "area")]
+#: The default Standings section: the standings, a section a purpose, then the head to head when `[score]` asks for it
+#: (what has nothing to show is left out without a word). A test holds the purposes to stats.metrics.PURPOSES.
+HEADLINE = ["standings", *(f"purpose:{p}" for p in ("compatibility", "normalisation", "shape", "similarity", "trend",
+                                                       "defects", "quality")), "head-to-head"]
 #: What a title or subtitle may name, filled in from its sources' plot documents.
 PLACEHOLDERS = ("assignment", "errand", "configuration", "title")
 #: Panels on an A4 page of a grid, for the listing's page count (the build lays them out).
@@ -621,6 +623,7 @@ class Part:
     keys: list[str]
     csv: Path | None             # None: to be measured for the report (P6)
     look: bool = False           # measured with its section's plot keys
+    optional: bool = False       # its section is optional: a purpose with no metric on, or no head to head asked, is not said
 
 
 @dataclass
@@ -1056,7 +1059,7 @@ def _section(spec: dict, found: list[Source], at: str, base: Path, drawings: lis
     elif "files" in spec:
         section.grids = _files_section(spec, base, at)
     elif "stats" in spec:
-        section.parts = [Part(s, set_, list(spec["stats"]), csv, look) for s, csv in _numbers(spec, found, set_, f"{at}.stats", drawings)]
+        section.parts = [Part(s, set_, list(spec["stats"]), csv, look, bool(spec.get("optional"))) for s, csv in _numbers(spec, found, set_, f"{at}.stats", drawings)]
     elif "tools" in spec:
         section.given = [g for s in found for g in configured(s, list(spec["tools"]), list(spec.get("hide", [])), at,
                                                              spec.get("optional", False))]
@@ -1224,7 +1227,7 @@ def starter(name: str, source: Source) -> str:
     for section in sections:
         if "stats" in section:
             lines += ["[[report.section]]", 'title = "Standings"', f'set   = "{section["set"]}"',
-                      "stats = [" + ", ".join(f'"{k}"' for k in HEADLINE) + "]", "optional = true", ""]
+                      "stats = [" + ", ".join(f'"{k}"' for k in section["stats"]) + "]", "optional = true", ""]
     for set_ in [*shown, *(s for s in source.sets() if s not in shown)]:
         pages = source.pages(set_, BACKENDS)
         cells = sorted({_cell(n) for n in pages}, key=natural)
@@ -1402,16 +1405,23 @@ def _figure(build: _Build, figure: Figure, folder: Path, stem: str) -> tuple[Pat
 
 
 def chosen(document, keys: list[str]):
-    """The summary's sections that `keys` name, in their order: a whole section, or one of a statistic's parts
-    (`chi2_ndf:ranking`, `:crossed`, `:table`). Its facts and notes stay (only the notes its items name are
-    numbered). (The document, the keys it has no part for.)"""
+    """The summary's sections that `keys` name, in their order: `standings`, `head-to-head`, `purpose:<name>` (a whole
+    purpose's section), or a metric (`chi2_ndf`: its ranking, page cells against curves and table; `:ranking`, `:crossed`,
+    `:table` for one). Its facts and notes stay (only the notes its items name are numbered). (The document, the keys it has
+    no part for.)"""
     by_key = {s.key: s for s in document.sections}
     kept, missing = [], []
     for key in keys:
         statistic, _, part = key.partition(":")
-        section = by_key.get(statistic)
-        want = statistic if part == "table" else f"{statistic}-{part}"
-        items = [] if section is None else [i for i in section.items if not part or i.key == want]
+        if statistic == "purpose":
+            section, wanted = by_key.get(f"purpose-{part}"), None
+        elif statistic in by_key:
+            section, wanted = by_key[statistic], None
+        else:
+            wanted = {statistic, f"{statistic}-ranking", f"{statistic}-crossed"} if not part else \
+                {statistic} if part == "table" else {f"{statistic}-{part}"}
+            section = next((s for s in document.sections if any(i.key in wanted for i in s.items)), None)
+        items = [] if section is None else [i for i in section.items if wanted is None or i.key in wanted]
         if items:
             kept.append(dataclasses.replace(section, items=items))
         else:
@@ -1444,13 +1454,20 @@ METHOD_TITLE = "How the numbers are made"
 
 
 def _method_note(key: str) -> bool:
-    return key.startswith("stat-") or key in METHOD_NOTES
+    return key.startswith(("stat-", "purpose-")) or key in METHOD_NOTES
 
 
 def _measuring():
     """Matplotlib, headless: paper.py measures text with it."""
     import matplotlib
     matplotlib.use("Agg")
+
+
+def _scored(csv_path: Path):
+    """The settings a statistics.csv was scored with: its statistics.json's `score`, the defaults for a csv without."""
+    from stats import score
+    side = statstable.sidecar(csv_path)
+    return score.settings_of((side or {}).get("score"))
 
 
 def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method: bool = False) -> Typeset | None:
@@ -1460,7 +1477,8 @@ def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method:
     heading = statstable.heading_of(part.csv.parent) if part.csv.is_relative_to(part.source.folder) else \
         f"{part.source.address} · {part.set}" + (" · as this report measures it" if part.look else "")
     _measuring()
-    document, gone = chosen(bars.summary_model(statstable.read(part.csv), heading), part.keys)
+    document, gone = chosen(bars.summary_model(statstable.read(part.csv), heading, _scored(part.csv)), part.keys)
+    gone = [k for k in gone if not (part.optional and (k.startswith("purpose:") or k == "head-to-head"))]
     if gone:
         say(f"report: {heading} has no {', '.join(gone)} (too few curves or page cells for them)")
     if not document.sections:
@@ -1499,20 +1517,22 @@ def _bars(build: _Build, bars, item: Bars, folder: Path, number: int, method: bo
                        hint=f"its pages: {', '.join(list(sorted(pages, key=natural))[:6])} …" if pages else None)
     _measuring()
     typeset, tex = _typeset(), _layout().tex
+    st = _scored(item.csv)
+    shown = bars.panels([n for n in bars._on(rows, st)] or None)
     where = folder / f"{number:02d}_{slug(item.source.folder.name)}"
     lines, data = [], []
     for k, name in enumerate(names, 1):
         mine = pages[name]
         title = ", ".join(part for part in (cell_label(item.source.doc, _cell(name)), name.rsplit("/", 1)[-1]) if part)
         against = next((r.get("reference", "") for r in mine if r.get("reference")), "")
-        lines += typeset.bars(mine, title, f"against {against}" if against else "", bars.PANELS, bars.paper, tex, TEXT_W)
+        lines += typeset.bars(mine, title, f"against {against}" if against else "", shown, bars.paper, tex, TEXT_W)
         buffer = io.StringIO()
         out = csv.DictWriter(buffer, fieldnames=list(mine[0]), lineterminator="\n")
         out.writeheader()
         out.writerows(mine)
         data.append(build.write(where / f"{k:03d}_{slug(name)}.csv", buffer.getvalue()))
     title = f"{item.source.address} · {item.set}" + (" · as this report measures it" if item.look else "")
-    notes = {"compared": bars.COMPARED, **{f"stat-{key}": bars.NOTES[key] for key, _ in bars.PANELS}}
+    notes = {"compared": bars.COMPARED, **{f"stat-{key}": bars.M.describe(key, st.thresholds.get(key)) for key, _ in shown}}
     return Typeset(title, f"{len(names)} page(s), a table each", lines, data, notes=notes, refer=method)
 
 
@@ -1703,8 +1723,10 @@ def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
     for item in shown:
         notes.update({k: v for k, v in item.notes.items() if k not in notes})
     counted = list(dict.fromkeys(item.notes["counted"] for item in shown if "counted" in item.notes))
-    labels = dict(bars.PANELS)
-    used = [key for key, _, _ in bars.TABLES if f"stat-{key}" in notes]
+    registry = bars.M.REGISTRY
+    used = sorted((k[5:] for k in notes if k.startswith("stat-") and k[5:] in registry),
+                  key=lambda n: (list(bars.M.PURPOSES).index(registry[n].purpose), list(registry).index(n)))
+    asked = [p for p in bars.M.PURPOSES if f"purpose-{p}" in notes]
     where = "below" if plan.context == "first" else "above"
     lines = [rf"\hdNote{{What each number in the statistics and bar tables {where} is: how a page is compared with its "
              r"reference, each statistic's formula and what it says, and how points are scored.}"]
@@ -1721,18 +1743,26 @@ def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
     if "compared" in notes:
         heading("How a page is compared")
         paragraphs([bars.COMPARED])
+    if asked:
+        heading("What each purpose asks")
+        paragraphs([notes[f"purpose-{p}"] for p in asked])
     if used:
-        heading("The statistics")
+        heading("The metrics")
         for key in used:
-            formula, rest = bars.DEFINITIONS[key]
-            lines.extend(typeset.definition(labels[key], bars.FORMULAS[key], _sentence(rest), tex))
-            page.append(f"<p><strong>{esc(bars.PLAIN[key])}</strong>: {esc(formula)}</p><p>{esc(_sentence(rest))}</p>")
+            title = bars.M.title_of(key)
+            rest = notes[f"stat-{key}"].removeprefix(f"{title}: ")
+            formula = bars.M.FORMULAS.get(key)
+            if formula:
+                lines.extend(typeset.definition(title, formula, _sentence(rest), tex))
+                page.append(f"<p><strong>{esc(title)}</strong>: {esc(_sentence(rest))}</p>")
+            else:
+                paragraphs([f"{title}: {rest}"])
     if "score" in notes:
         heading("How points are scored")
-        paragraphs([bars.SCORE_TEXT, bars.APART, *counted])
+        paragraphs([notes["score"], bars.APART, *counted])
     if "h2h" in notes:
         heading("Head to head")
-        paragraphs([bars.H2H_TEXT])
+        paragraphs([notes["h2h"]])
     return Prose(lines, "\n".join(page))
 
 

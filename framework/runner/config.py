@@ -1448,10 +1448,43 @@ def _check_stats_metrics(stats: dict, where: str) -> None:
 
 
 REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files", "tools")
-#: The statistics summary's sections (bars.summary_model), and a statistic's parts by their item's key suffix.
-STATISTICS = ("chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "area")
-SUMMARY = ("top5", "scoreboard", "scoreboard-cells", "head-to-head", "scoreboards", *STATISTICS)
+#: The statistics summary's sections (bars.summary_model): the standings, a purpose (`purpose:<name>`), a metric (`<metric>`, or
+#: `<metric>:<part>`) and the head to head. Names from before the scoring was rebuilt are refused with the name that replaced them.
+SUMMARY = ("standings", "head-to-head")
 PARTS = ("ranking", "crossed", "table")
+REPLACED = {"top5": "standings", "scoreboard": "standings", "scoreboard-cells": "standings", "scoreboards": "standings",
+            "head-to-head-": "head-to-head"}
+
+
+def check_stats_key(key: str, at: str) -> None:
+    """One entry of a section's `stats`: `standings`, `head-to-head`, `purpose:<name>`, or a metric with an optional part."""
+    from stats import metrics
+    statistic, _, part = key.partition(":")
+    for old, new in REPLACED.items():
+        if statistic == old or (old.endswith("-") and statistic.startswith(old)):
+            raise HeimdallError(f"stats: '{key}' is now '{new}'", where=f"{at}.stats",
+                                hint="the summary is scored by purpose now: standings, purpose:<name>, <metric>:ranking|table, head-to-head")
+    if statistic == "area":
+        raise HeimdallError("stats: 'area' is no longer a summary table", where=f"{at}.stats",
+                            hint="its numbers are the area column of statistics.csv")
+    if statistic == "purpose":
+        if part not in metrics.PURPOSES:
+            raise HeimdallError(f"stats: no purpose '{part}'", where=f"{at}.stats",
+                                hint=did_you_mean(part, metrics.PURPOSES) or f"the purposes: {', '.join(metrics.PURPOSES)}")
+        return
+    if statistic in SUMMARY:
+        if part:
+            raise HeimdallError(f"stats: '{statistic}' has no parts", where=f"{at}.stats")
+        return
+    if statistic in metrics.REGISTRY:
+        if part and part not in PARTS:
+            raise HeimdallError(f"stats: no part '{part}' of {statistic}", where=f"{at}.stats",
+                                hint=f"its parts: {', '.join(f'{statistic}:{p}' for p in PARTS)}")
+        return
+    raise HeimdallError(f"stats: no section {key!r}", where=f"{at}.stats",
+                        hint=did_you_mean(statistic, [*SUMMARY, *metrics.REGISTRY]) or f"the sections: {', '.join(SUMMARY)}, purpose:<name>, <metric>")
+
+
 #: An errand file's [report] says neither: each folder is its own report's source, built where results/ has it (V209).
 NOT_IN_A_RUN = ("from", "output")
 
@@ -1489,13 +1522,9 @@ def check_report(table, where: str, run_toml: bool = False) -> None:
         kinds = [k for k in REPORT_ITEMS if k in section]
         if len(kinds) != 1:
             raise HeimdallError(f"a section shows one of {', '.join(REPORT_ITEMS)}" + (f", not {' and '.join(kinds)}" if kinds else ""),
-                           where=at, hint='pages = ["d01-*"], or stats = ["top5"], …')
+                           where=at, hint='pages = ["d01-*"], or stats = ["standings"], …')
         for key in section.get("stats", []):
-            statistic, _, part = key.partition(":")
-            if statistic not in SUMMARY or (part and (part not in PARTS or statistic not in STATISTICS)):
-                hint = (f"a statistic's parts: {', '.join(f'{statistic}:{p}' for p in PARTS)}" if statistic in STATISTICS
-                        else did_you_mean(statistic, SUMMARY) or f"the sections: {', '.join(SUMMARY)}")
-                raise HeimdallError(f"stats: no section {key!r}", where=f"{at}.stats", hint=hint)
+            check_stats_key(key, at)
         if "plot" in section:
             if kinds[0] not in ("pages", "stats", "bars"):
                 raise HeimdallError(f"plot is a pages, stats or bars section's: the [plot] keys its pages or numbers are drawn with, "

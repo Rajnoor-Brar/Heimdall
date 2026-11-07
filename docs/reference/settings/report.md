@@ -229,7 +229,7 @@ Compare figures' names: their pages, from each source's errand's compare/<name>/
 |---|---|---|
 | list of strings | — | — |
 
-The statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): top5, scoreboard, scoreboard-cells, head-to-head, scoreboards, chi2_ndf, rel_abs_area, area_ratio, ratio_mean, ratio_dev, area; `<statistic>:ranking`, `:crossed` or `:table` for one of a statistic's parts.
+The statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): standings (each point's score, worst page, veto and purposes), `purpose:<name>` (a purpose's section: what it asks and its metrics), head-to-head (the pages `[score].head_to_head` names), or a metric's name (`chi2_ndf`) for its section, `<metric>:ranking`, `:crossed` or `:table` for one of its parts.
 
 ### `bars`
 

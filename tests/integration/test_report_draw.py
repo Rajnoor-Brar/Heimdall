@@ -119,7 +119,7 @@ plot = { normalise = "area" }
 
 [[report.section]]
 title = "Shape numbers"
-stats = ["area:table"]
+stats = ["chi2_ndf:table"]
 plot = { normalise = "area" }
 
 [[report.section]]

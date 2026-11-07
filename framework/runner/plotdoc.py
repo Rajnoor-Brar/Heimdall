@@ -289,6 +289,8 @@ def _member(plan) -> dict:
     else:
         made = recorded_identity(plan)
         identity, complete = made or plan.identity or "", made is not None
+        if made is not None and made == plan.identity and getattr(plan, "library", ""):
+            identity = plan.library          # a library point's .complete holds its key, which a reader compares with this
         planned = plan.identity if made is not None and made != plan.identity else None
         texts = {k: v for step in plan.rendered.values() for k, v in step.texts.items()}
     point = plan.point

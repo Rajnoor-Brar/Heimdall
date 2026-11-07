@@ -109,6 +109,107 @@ def library_key(plan: PointPlan) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+# ── the points library (points-library) ─────────────────────────────────────────────────────────────
+
+LIBRARY = "library"
+LIBRARY_INDEX = "points.jsonl"
+
+
+def library_entry(plan: PointPlan) -> Path:
+    """A library point's records, records/<A>/library/<key16>/: .complete (holding the key), identity.json, provenance.json,
+    attempts.jsonl and the lock. A Run's points/<name> links here."""
+    return plan.folders.library_records / plan.library[:16]
+
+
+def library_products(plan: PointPlan) -> Path:
+    """A library point's products, results/<A>/library/<key16>/."""
+    return plan.folders.library_results / plan.library[:16]
+
+
+def link_library(plan: PointPlan) -> bool:
+    """A library point in its Run: records/<A>/<E>/<R>/points/<name> and results/<A>/<E>/<R>/points/<name> become relative
+    links (`../../../library/<key16>`, within the Assignment) to the entry's folders, made if need be. So the paths every
+    reader uses are the same, and what a run writes there goes into the entry. True when a link was made or changed.
+    A link to another entry (the name now means other physics) is replaced; a folder of the Run's own is refused when it
+    holds anything (heimdall library adopt moves such a point in), and an empty one is replaced."""
+    if not plan.library:
+        raise ValueError("link_library: the plan is not a library point")
+    changed = False
+    for link, entry in ((record_dir(plan), library_entry(plan)), (plan.res, library_products(plan))):
+        entry.mkdir(parents=True, exist_ok=True)
+        link.parent.mkdir(parents=True, exist_ok=True)
+        target = os.path.relpath(entry, link.parent)
+        if link.is_symlink():
+            if os.readlink(link) == target:
+                continue
+            link.unlink()
+        elif link.exists():
+            if link.is_dir() and not any(link.iterdir()):
+                link.rmdir()
+            else:
+                raise HeimdallError(f"{link} is a folder of this Run's own, and the point is to be pooled",
+                                    hint="heimdall library adopt moves a Run's complete points into the library")
+        link.symlink_to(target)
+        changed = True
+    return changed
+
+
+def library_index_file(assignment: str) -> Path:
+    from .paths import records_root
+    return records_root() / assignment / LIBRARY / LIBRARY_INDEX
+
+
+def index_note(plan: PointPlan, errand, kind: str) -> None:
+    """One line appended to the Assignment's library index, under an flock: `created` (key, every quantity's tag at the point,
+    events, threads, seed, the Run that made it), `used` (a Run that links it) or `rerun` (an entry made again). A reader
+    folds the lines (`library_entries`)."""
+    from .paths import records_root
+    from .sweep import tag_of
+    path = library_index_file(plan.folders.assignment)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = {"v": 1, "kind": kind, "key": plan.library, "at": now(),
+            "run": str(plan.folders.record.relative_to(records_root()))}
+    if kind in ("created", "rerun"):
+        line.update({"coordinates": {n: tag_of(errand.quantities[n], i) for n, i in plan.values.items() if n in errand.quantities},
+                     "events": plan.events, "threads": plan.threads, "seed": plan.seed})
+    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        os.write(fd, (json.dumps(line, sort_keys=True) + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)                                   # the lock goes with the descriptor
+
+
+def library_entries(assignment: str) -> dict[str, dict]:
+    """The library's index folded: key → {key, coordinates, events, threads, seed, created, first_run, runs (in the order
+    they came), reruns}. A line that is not JSON (a write cut short) is passed over."""
+    try:
+        text = library_index_file(assignment).read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    out: dict[str, dict] = {}
+    for raw in text.splitlines():
+        try:
+            line = json.loads(raw)
+        except ValueError:
+            continue
+        key = line.get("key") if isinstance(line, dict) else None
+        if not key:
+            continue
+        entry = out.setdefault(key, {"key": key, "runs": [], "reruns": 0})
+        if line.get("kind") in ("created", "rerun"):
+            for field in ("coordinates", "events", "threads", "seed"):
+                if field in line:
+                    entry[field] = line[field]
+        if line.get("kind") == "created":
+            entry["created"], entry["first_run"] = line.get("at"), line.get("run")
+        if line.get("kind") == "rerun":
+            entry["reruns"] += 1
+        if line.get("run") and line["run"] not in entry["runs"]:
+            entry["runs"].append(line["run"])
+    return out
+
+
 def identity_record(plan: PointPlan) -> Path:
     return record_dir(plan) / "identity.json"
 
@@ -123,6 +224,9 @@ def why(plan: PointPlan, limit: int = 24) -> list[str]:
     """`--why` (V57): what differs between the identity a point last completed with and this plan's."""
     if is_complete(plan):
         return []
+    if plan.library:
+        return [f"it is not in the library yet (key {plan.library[:16]})" if not complete_marker(plan).exists()
+                else f"its library entry {plan.library[:16]} completed for another key"]
     record = identity_record(plan)
     if not record.is_file():
         return ["it has not completed with a recorded identity (never run, or before V57)"
@@ -376,9 +480,14 @@ def complete_marker(plan: PointPlan) -> Path:
     return record_dir(plan) / ".complete"     # recorded: beside the provenance, never with the logs
 
 
+def marker_text(plan: PointPlan) -> str:
+    """What a point's .complete holds: its identity, or for a library point (`plan.library`) the library key, since the
+    entry is shared by Runs whose identities differ in the point's name."""
+    return plan.library or plan.identity
+
+
 def is_complete(plan: PointPlan) -> bool:
-    marker = complete_marker(plan)
-    return marker.is_file() and marker.read_text(encoding="utf-8").strip() == plan.identity
+    return recorded_identity(plan) == plan.identity
 
 
 def stale(plan: PointPlan, rerun) -> bool:
@@ -395,12 +504,14 @@ def stale(plan: PointPlan, rerun) -> bool:
 
 
 def recorded_identity(plan: PointPlan) -> str | None:
-    """The identity a stage last completed with; None when it never did (or a run of it is under way)."""
+    """The identity a stage last completed with; None when it never did (or a run of it is under way). A library point's
+    marker holds the library key: when it is the plan's, the plan's own identity is what it completed with."""
     marker = complete_marker(plan)
     try:
-        return marker.read_text(encoding="utf-8").strip() if marker.is_file() else None
+        text = marker.read_text(encoding="utf-8").strip() if marker.is_file() else None
     except OSError:
         return None
+    return plan.identity if text is not None and plan.library and text == plan.library else text
 
 
 def overwritten(stages) -> list:
@@ -412,13 +523,19 @@ def overwritten(stages) -> list:
 LOCK_FILE = ".lock"
 
 
+def lock_file(plan: PointPlan) -> Path:
+    """Where a point's lock is: its working folder's `.lock`, or for a library point its library entry's, so one session runs
+    the entry whichever Run asks."""
+    return library_entry(plan) / LOCK_FILE if plan.library else plan.out / LOCK_FILE
+
+
 class PointLock:
     """one session runs a point at a time. An flock on the point's `.lock` (in its logs folder),
     which says who holds it ({host, pid, since}); the kernel lets it go when that process ends, however
     it ends, so a lock is never stale on this host."""
 
     def __init__(self, plan: PointPlan):
-        self.path = plan.out / LOCK_FILE
+        self.path = lock_file(plan)
         self.fd: int | None = None
 
     def acquire(self, wait: bool = False, stopper=None) -> bool:
@@ -450,7 +567,7 @@ class PointLock:
 
 def holder(plan: PointPlan) -> dict | None:
     """Who runs this point now, from its lock ({host, pid, since}); None when no process does."""
-    path = plan.out / LOCK_FILE
+    path = lock_file(plan)
     try:
         fd = os.open(path, os.O_RDONLY)
     except OSError:
@@ -588,7 +705,8 @@ def points_manifest(plans: list[PointPlan], errand, configuration, known: dict |
             "page": [tag_of(quantity[name], plan.point.choice[name]) for name in page_names],
             "products": {i.name: str(i.path) for i in plan.interfaces.values() if i.kind == "product" and not i.shard},
             "results": str(plan.res), "output": str(plan.out),
-            "identity": plan.identity, "seed": plan.seed, "complete": is_complete(plan),
+            "identity": marker_text(plan), "seed": plan.seed, "complete": is_complete(plan),     # a library point's: its key
+            **({"library": plan.library[:16]} if plan.library else {}),
             "texts": {k: v for step in plan.rendered.values() for k, v in step.texts.items()},   # {opt:…} (V158)
             **_last(plan),                                                                     # V200
         })

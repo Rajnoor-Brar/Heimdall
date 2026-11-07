@@ -60,7 +60,7 @@ from . import hepfiles
 from .errors import HeimdallError
 from .paths import keeping, log_settings, placeholders, portable
 from .record import (LOCK_FILE, PointLock, append_attempt, attempts, card_hashes, complete_marker, held_by, holder,
-                     is_complete, now, stale, provenance, provenance_file, write_atomic, write_identity)
+                     is_complete, marker_text, now, stale, provenance, provenance_file, write_atomic, write_identity)
 from .status import Reader, ToolState, clean_text, digest
 from .tools import CONTEXT_FILE, PointPlan, Step, expand
 
@@ -763,7 +763,7 @@ def _run_point(plan: PointPlan, errand, configuration, *, bus, stopper: Stopper,
                          for tag, r in results.items()})
     write_atomic(provenance_file(plan), json.dumps(record, indent=1, default=str) + "\n")
     write_identity(plan)                          # what it ran with, for --why (V57)
-    write_atomic(complete_marker(plan), plan.identity + "\n")
+    write_atomic(complete_marker(plan), marker_text(plan) + "\n")
     _tidy(plan)
     result = PointResult(True, tools=results)
     _finished(plan, result, bus, started)

@@ -593,6 +593,7 @@ class PointPlan:
     upstream: list[str] = field(default_factory=list)       # post: the identities of the points
     deal: dict[str, str] = field(default_factory=dict)      # a dealt interface → its deal group (V31)
     folders: RunFolders | None = None                       # its configuration's records/ and results/ (V157)
+    library: str = ""                                       # the points library's key when the point is pooled (record.library_key)
     seed_type: str = "identity"                             # a point's seed rule (V39); stages keep identity
     manual_seed: int | None = None
     seed_kept: bool = False                                 # random: a complete point's seed, from its provenance
@@ -609,6 +610,14 @@ class RunFolders:
     record: Path                       # records/<A>/<E>/<R>
     results: Path                      # results/<A>/<E>/<R>
     cache: Path                        # .cache/<A>/plots/<E>/<R>
+
+    @property
+    def library_records(self) -> Path:     # the Assignment's points library: records/<A>/library/<key16>/ (points-library)
+        return records_root() / self.assignment / "library"
+
+    @property
+    def library_results(self) -> Path:     # … and its products, results/<A>/library/<key16>/
+        return results_root() / self.assignment / "library"
 
     @property
     def points(self) -> Path:          # each point's and stage's provenance, identity.json and .complete: kept

@@ -1,0 +1,18 @@
+---
+id: live-score-engine
+summary: framework/stats/score.py: how a table's rows become a point's score, worst page, veto and per-purpose shares, and the other aggregators
+affects: plots
+issue: I-120
+---
+
+**Now holds:** `stats.score.score(rows, settings)` takes a statistics table's rows and returns a `Scores` of one `PointScore` per (cell, point): `score`, `worst_page` and `worst_loss`, `veto`, `purposes` (the RMS over pages of each purpose's value), `shares` (each purpose's share of the squared loss, summing to 1), `pages` (the page losses) and, with `dominated`, a Pareto flag. `settings_of(score_table, set_score)` builds the `Settings` from a `[score]` table with a set's `score` over it and checks every name again. `head_to_head(rows, page)` gives the curves of one page pairwise: for each pair the loss difference and each metric's cost difference, negative where the first is better; it counts no wins. The engine reads rows and writes nothing.
+
+The loss is built in three steps. Each metric becomes a cost (`normalise`): by default the hinged `thresholds`, 0 at or inside `good`, 1 at `bad`, linear beyond, which depends on the metric alone, so a point's score is the same whatever else is in the pool. A purpose's value is the weighted RMS of its metrics' costs; a page's loss is the RMS over the purposes that have a metric, so four shape metrics weigh one purpose, not four. A point's score is the `mean` (RMS by default) of its page losses, a page weighted by the figure's `weight`, else the first `[score].weights` glob that matches the object's short name, path or page, else 1. A metric that is missing (NaN) is skipped; a point with nothing to score has a NaN score and ranks last. A page's reference curve is not scored, and when some pages are measured against data and others against a curve, only the data pages count.
+
+The choices that cost something, each named in its note: `median`, `mad` and `minmax` normalise against the curves on the page, so adding a curve moves everyone's score (`minmax` compresses the rest when one curve is wild); they refuse a metric where higher is better. `surprisal` is −ln p and needs a null distribution: `chi2_ndf` (with the row's `ndf`), `chi2_z`, `tail`; any other metric is refused by name. `weights_by = "critic"` multiplies each metric weight by its decorrelation weight (Σ over the other metrics of 1 − |Spearman ρ|, mean 1) and refuses fewer than 15 curves with every metric, where the correlations are noise. `aggregate = "fisher"` is Σ −2 ln p over each page's `chi2_ndf` and `tail`, pool independent, a p under 1e-300 capped; `topsis` is 1 − closeness to the best and worst page loss in the cell, and `promethee` the net outranking flow (indifference 0.1, preference 1.0 of the cost), both pool dependent and both said so in `Scores.notes`.
+
+**No longer holds:** the scoring having no code behind it.
+
+**Decisions:** rows in, scores out: the engine imports numpy and the stats modules and nothing of the runner but its errors, so the summary, the report and the CLI present what it returns. The chi-square survival function is the incomplete gamma, coded here, to keep scipy out.
+
+**Stable pages need:** `guide/plots-statistics.md` once the summary and the CLI use it (phases 6 and 8).

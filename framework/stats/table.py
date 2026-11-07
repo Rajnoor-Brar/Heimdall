@@ -87,7 +87,7 @@ def _add_metrics(rows: list[dict], made: dict, page, names: list[str]) -> None:
             row[name] = metrics.evaluate(name, curves[i], pool=curves) if curves and i < len(curves) else float("nan")
 
 
-def sidecar_of(names, score: dict | None = None, axes: dict | None = None) -> dict:
+def sidecar_of(names, score: dict | None = None, axes: dict | None = None, merged: dict | None = None) -> dict:
     """What statistics.json holds for a table with the metrics `names`, scored as `score` (the merged [score] table, a plain
     dict) says: the summary and the report score the rows the way the table was written."""
     from . import metrics
@@ -100,10 +100,13 @@ def sidecar_of(names, score: dict | None = None, axes: dict | None = None) -> di
         out["score"] = score
     if axes:
         out["axes"] = axes                                  # {point: {axis: tag}}: what each point's sweep chose
+    if merged:
+        out["merged"] = merged                              # {curve: [its points]}: a set's merge, a curve of its own
     return out
 
 
-def write_statistics(todo: list, target: Path, names=None, score: dict | None = None, axes: dict | None = None) -> int:
+def write_statistics(todo: list, target: Path, names=None, score: dict | None = None, axes: dict | None = None,
+                     merged: dict | None = None) -> int:
     """results/…/statistics.csv (V160) and its statistics.json: every drawn page's curves; the number of rows."""
     names = list(default_metrics() if names is None else names)
     rows = [row for page in todo for row in (statistics_of(page, names) or [])]
@@ -116,7 +119,7 @@ def write_statistics(todo: list, target: Path, names=None, score: dict | None = 
         out.writeheader()
         for row in rows:
             out.writerow({k: ("" if isinstance(v, float) and v != v else v) for k, v in row.items()})
-    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names, score, axes), indent=2) + "\n", encoding="utf-8")
+    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names, score, axes, merged), indent=2) + "\n", encoding="utf-8")
     return len(rows)
 
 

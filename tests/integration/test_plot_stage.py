@@ -999,3 +999,17 @@ def test_how_combine_pools_the_members_statistics_as_the_merged_figure_does(stag
     pages = [p for p in plot.pages(errand, configuration, plans) if p.set == "both"]
     assert len(pages) == 2 * 17
     assert (plans[0].folders.pages / "sets" / "em_pooled.yoda").is_file()
+
+
+def test_a_merged_curve_is_a_row_of_its_own_and_its_points_are_in_the_sidecar(stage):
+    import json as _json
+    from runner import statstable
+    errand, configuration, plans = stage
+    errand.plot = {**errand.plot, "sets": {"both": {"pages": {"lepton": "all"}, "merge": {"pdf": "all", "tag": "pdfs"}}}, "draw": ["both"]}
+    said: list[str] = []
+    assert plot.draw(errand, configuration, plans, said.append) == 0, said
+    table = plans[0].folders.statistics / "both" / "statistics.csv"
+    rows = [r for r in statstable.read(table) if not r["is_reference"]]
+    assert {r["point"] for r in rows} == {"em_pdfs", "ep_pdfs"}
+    side = _json.loads(table.with_name("statistics.json").read_text(encoding="utf-8"))
+    assert side["merged"] == {"em_pdfs": ["em_MSTW08lo", "em_NNPDF23lo"], "ep_pdfs": ["ep_MSTW08lo", "ep_NNPDF23lo"]}

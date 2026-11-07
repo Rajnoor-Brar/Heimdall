@@ -94,6 +94,7 @@ class Page:
     rel: str = ""                                    # its name within its set: "<cell>/<object>"
     root: Path | None = None                         # its set's folder: <root>/<backend>/<rel> (plots/<set>, compare/<name>)
     numbers: Path | None = None                      # its set's statistics folder (statistics/<set>)
+    merged: dict = field(default_factory=dict)       # a set's merged curves on it: {curve name: the points it is made of}
 
 
 @dataclass(frozen=True)
@@ -716,7 +717,8 @@ def merged_curves(errand, complete: list, sources: dict, where: Path) -> dict:
                 merging.band_yoda(files, where / f"{name}__lo.yoda", where / f"{name}__hi.yoda", entry.band)
             stamp.write_text(digest, encoding="utf-8")
         first = group.leaves[0]
-        made = replace(first, point=group.point, values=group.values, context={**first.context, "curve_label": group.label},
+        made = replace(first, point=group.point, values=group.values,
+                       context={**first.context, "curve_label": group.label, "members": [leaf.point.name for leaf in group.leaves]},
                        **({"yoda": target, "identity": digest, "recorded": digest} if isinstance(first, Member) else {}))
         seen[name] = identity
         sources[name] = target
@@ -964,7 +966,8 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
                     bands=[[(yodas[m.point.name], f) for m, f in ms] for _, _, ms in folded], data=data_of,
                     overrides={k for k, v in {**keys, **override}.items() if v != DEFAULT},
                     style=merge_style(base, layer), statistic=_statistic_of(override, here), overlay=overlay,
-                    set=set_, rel=rel, root=root, numbers=numbers)
+                    set=set_, rel=rel, root=root, numbers=numbers,
+                    merged={plan.point.name: plan.context["members"] for plan, _, _ in folded if "members" in plan.context})
 
     for figure in declared:                                # what a figure draws is what its objects are
         mine = [o for o in objects if claimed.get(o) is figure] if figure.kind == "defined" else []

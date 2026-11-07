@@ -154,3 +154,9 @@ def test_a_points_axes_are_read_from_the_run_s_plot_document_and_kept_in_the_sid
     pages = [page_with_numbers(tmp_path / "pages", "d01-x01-y01", NUMBERS)]
     statstable.write_set(pages, numbers, ["png"])
     assert statstable.sidecar(numbers / "statistics.csv")["axes"] == axes
+
+
+def test_the_sidecar_names_the_points_a_merged_curve_is_made_of_only_when_there_are_any():
+    from stats import table
+    assert "merged" not in table.sidecar_of(["chi2_ndf"])
+    assert table.sidecar_of(["chi2_ndf"], merged={"em_pdfs": ["em_a", "em_b"]})["merged"] == {"em_pdfs": ["em_a", "em_b"]}

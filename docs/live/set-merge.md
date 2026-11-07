@@ -15,3 +15,5 @@ Plan-time refusals (`sweep._merge_shape`, `sweep.check_set`): not one quantity i
 
 `band = "minmax"` draws the members' lowest and highest value in each bin; `"std"` the mean ±1 sample standard deviation (3 members at least, refused below). Both are written as two more files (`<name>__lo`, `<name>__hi`) whose objects are the curve's band members for Paint. A page that normalises (`[plot].normalise = "area"`) renormalises the merged curve as it does any; a cross-section page never does.
 
+**Statistics.** A merged curve is a curve of its own: its row in `statistics.csv` has `point = <name>` (as the group is named), and `statistics.json` gets `merged`, `{name: [the points it is made of]}`. It has no axes, so a marginal never takes it and a baseline lists it as not a point of the sweep. It is scored as any curve: a mean curve can beat every member.
+

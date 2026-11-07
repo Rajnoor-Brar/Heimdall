@@ -79,7 +79,8 @@ def write_set(pages: list, numbers: Path, formats: list[str], module=None, names
     from stats import score as scoring
     names = list(names) if names is not None else metric_names(None, score)
     axes = point_axes(numbers)
-    count = write_statistics(pages, numbers / "statistics.csv", names, score, axes)
+    merged = {name: members for page in pages for name, members in getattr(page, "merged", {}).items()}
+    count = write_statistics(pages, numbers / "statistics.csv", names, score, axes, merged)
     if not count:
         return 0, 0
     module = module or bars()

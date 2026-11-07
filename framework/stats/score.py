@@ -547,7 +547,7 @@ def baseline(scores: Scores, axes: dict, given=None) -> Baseline:
     out = Baseline(wanted)
     for ps in scores.points:
         if ps.point not in axes:
-            out.unmatched.append((ps.cell, ps.point, "its axis values are not known"))
+            out.unmatched.append((ps.cell, ps.point, "not a point of the sweep (a merged curve), or its axes were not recorded"))
             continue
         mine = {k: str(v) for k, v in axes[ps.point].items()}
         partners = by_axes.get(frozenset({**mine, **wanted}.items()), [])

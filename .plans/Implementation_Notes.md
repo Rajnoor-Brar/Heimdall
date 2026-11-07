@@ -90,3 +90,45 @@ Every off-plan decision and change made while implementing the plans in `.plans/
 - **2026-11-08, points-library phase 5: `adopt` and `prune` are a dry run unless `--yes`** (the plan: `adopt [--dry-run]`, and `prune` with `--yes`). A reorganisation of a work dir's records should not be one flag away; `--dry-run` is accepted and is the default. They wait while a job of the work dir goes (only with `--yes`).
 - **2026-11-08, points-library phase 5: `adopt` judges completeness by the recorded parts, not by a plan.** A point is adopted when its `.complete` is the sha256 of its `identity.json` (what a plan hashed when it ran), so no config is loaded; "recorded identity = planned identity" would also leave out every point whose config changed since, whose physics the key still describes. The plot document of an adopted Run is not rewritten (it names the old identities and draws "as recorded"): to be taken up if wanted.
 - **2026-11-08, points-library phase 5: `record.library_key_of_recorded` is the one rule for the key of recorded parts**, tested equal to `library_key(plan)` (the adopted keys are those a library plan of the same point has, and it reads complete). `library_parts` and it share `_without_comments`.
+
+## Checklist of what `.plans/plans/` asked for (2026-11-08, end of the implementation session)
+
+`[x]` is done and checked by the step's named test; `[ ]` waits, for the reason after it. Everything is committed locally, nothing pushed. Off-plan decisions for a step are in the entries above (search the step or the phase). Open findings and the known failing tests are in `Implementation_Issues.md`.
+
+**safety-net**
+- [x] 1.1 shadow Himinbjorg in `forge/scratch/machine/` · [x] 1.2 the guard (tests leave fixtures, reference and the live Himinbjorg alone)
+- [x] 2.1 the identity golden file written and compared (approved by the developer; never regenerated)
+- [x] 3.1 baselines: suite counts in `P3_baselines.md` (2288 passed, 10 skipped, 6 failed, all known), a real study's status and score kept outside the repo, local tag `pre-restructure` (not pushed)
+- [x] 4.1 `format = 1` in points.json, provenance.json, identity.json, plot.toml · [x] 4.2 `heimdall records upgrade`
+
+**retire-yoda-backend**
+- [x] 1.1 mpl's borrowed transforms moved into `framework/plot/mpl/transforms.py` · [x] 2.1 the yoda backend deleted · [x] 3.1 old configs refused with a hint and migrated
+
+**stats-backend**
+- [x] 1.1 `measured` written per curve · [x] 1.2 Python sums equal Paint's totals
+- [x] 2.1 package, registries, import rule · [x] 2.2 today's statistics in Python · [x] 2.3 the five defaults · [x] 2.4 `linear` and `rms` means
+- [x] 3a 22 opt-in metrics · [x] 3b means · [x] 3c fairness methods (with 5.2) · [x] 3d the registry test
+- [x] 4.1 the table moved and extended · [x] 5.1 schema · [x] 5.2 the engine
+- [x] 6a summary · [x] 6b report · [ ] the developer's read of one summary (the plan's milestone: nobody has read one yet)
+- [x] 7.1 `[score].by` · [x] 7.2 `[score].baseline` · [x] 8.1 the command (`heimdall score`)
+
+**set-merge**
+- [x] 1.1 `merge` in `SetSpec` · [x] 1.2 groups in `set_cells` · [x] 2.1 `stats/merge.py` · [x] 2.2 drawing and bands · [x] 3.1 statistics rows of merged curves
+
+**across-axes**
+- [x] 1.1 fixed values and `–` · [x] 2.1 labels, rows, reports (serials) · [x] 3.1 `heimdall diff` · [x] 4.1 the tag file as labels · [x] 4.2 `@<key>` in across
+
+**live-runs-ui**
+- [x] 1.1 the block and the states · [x] 1.2 colour and `--state` · [x] 2.1 OSC 8 log links
+- [x] 3.1 `stop -i N`, `--again` · [x] 3.2 the action prompt · [x] 4.1 a cap read per dispatch · [x] 4.2 SIGUSR2 and the control file
+
+**names**
+- [x] 1.1 `paths.himinbjorg()` · [x] 1.2 the prose (invariants.md edited by the plan's approval) · [x] 2.1 `heimdall show` Run, point, tool · [x] 2.2 `log` as `show --log`, output unchanged
+
+**points-library**
+- [x] 1.1 the probe (only the card header names the point; the developer chose to strip all card comments)
+- [x] 2.1 `record.library_key` (golden identities unchanged) · [x] 3.1 library folders and the index · [x] 3.2 links and the lock
+- [x] 4.1 `library = true` and `--rerun` (a slow test: two Errands share a point, the second runs nothing) · [x] 4.2 `library = "only"` (looser than the plan's "no Run folder": see its note)
+- [x] 5.1 `heimdall library list | verify | prune` · [x] 5.2 `adopt`, tested on the scratch work dir only · [ ] `adopt` on a real work dir (the plan's ⏸: the developer decides whether and where, dry run first)
+
+**Not in a plan file, but asked for in this session:** [x] the Implementation_Notes of every off-plan decision · [x] Implementation_Issues of open findings (F-6 stable rank table lacks `scorecmd`, `diffcmd`; F-7 `plot-backends.md`; F-12 a work dir's `zeus.toml` fails `check`) · [ ] stable pages edited and crystallised (never without the developer's order).

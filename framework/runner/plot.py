@@ -41,7 +41,7 @@ from . import hepfiles, plugins, schema, statstable
 from .errors import HeimdallError, did_you_mean
 from .labels import canonical, labels_of, lines_of, macros, root_text, tlatex  # noqa: F401 (tlatex et al. re-exported)
 from .paths import apps_dir, cache_root, heimdall_root, log_settings, resolve, results_root
-from .record import manifest_file, recorded_identity
+from .record import check_format, manifest_file, recorded_identity
 from .status import clean_text, digest
 from .statstable import STATISTIC_COLUMNS, heading_of, statistics_of, write_statistics  # noqa: F401 (re-exported)
 from .tools import merge_files, run_folders, sha256_file
@@ -443,7 +443,9 @@ def recorded(errand, configuration) -> list[Member]:
     here = run_folders(errand, configuration)
     if not here.manifest.is_file():
         raise HeimdallError("this configuration has no record yet", where=str(here.manifest), hint="heimdall run it first")
-    entries = json.loads(here.manifest.read_text(encoding="utf-8")).get("points", [])
+    manifest = json.loads(here.manifest.read_text(encoding="utf-8"))
+    check_format(manifest, here.manifest)
+    entries = manifest.get("points", [])
     made = {p.name: p for p in sweep_points(errand, configuration)}
     static = qmod.static_values(errand, configuration)
 

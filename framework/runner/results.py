@@ -20,6 +20,7 @@ from pathlib import Path
 from . import config as configmod
 from .errors import HeimdallError
 from .paths import records_root
+from .record import check_format
 from .tools import run_dir
 
 
@@ -64,6 +65,7 @@ def load(config: str, configuration: str | None = None) -> list[Point]:
     if not path.is_file():
         raise HeimdallError("this configuration has no results yet", where=str(path), hint="heimdall run it first")
     data = json.loads(path.read_text(encoding="utf-8"))
+    check_format(data, path)
     out = []
     for entry in data.get("points", []):
         out.append(Point(

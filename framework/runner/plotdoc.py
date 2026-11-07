@@ -32,6 +32,7 @@ from .errors import HeimdallError, did_you_mean
 from .paths import cache_root, records_root, results_root
 from .plot import DEFAULT, Member, data_source, style_file, yoda_of
 from .sweep import Listed, Point
+from .record import FORMAT, check_format
 from .tools import RunFolders
 from .v3 import NAMES_HINT
 
@@ -311,9 +312,11 @@ def _provenance_events(folders, name: str) -> int:
     import json
     path = folders.points / name / "provenance.json"
     try:
-        value = json.loads(path.read_text(encoding="utf-8")).get("events") if path.is_file() else 0
+        data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
     except (OSError, ValueError):
         return 0
+    check_format(data, path)
+    value = data.get("events", 0)
     return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
 
 
@@ -325,6 +328,7 @@ def from_manifest(record: Path, errand, configuration) -> Path:
     import json
     from .record import run_tag
     data = json.loads((record / "points.json").read_text(encoding="utf-8"))
+    check_format(data, record / "points.json")
     rel = record.relative_to(records_root())
     folders = _folders(results_root() / rel, errand.assignment)
     names: dict[str, dict] = {}                                  # quantity → tag → (label, value)
@@ -362,7 +366,7 @@ def from_manifest(record: Path, errand, configuration) -> Path:
     head = record.name.split("_", 1)
     fixed = {q: f"#{order[q].index(str(v.get('tag'))) + 1}" for q, v in data["points"][0]["values"].items() if q not in swept} \
         if data.get("points") else {}
-    made = {"source": {"config": data.get("config", "") or _config_name(data.get("config_file", "")),
+    made = {"source": {"format": FORMAT, "config": data.get("config", "") or _config_name(data.get("config_file", "")),
                        "configuration": data.get("configuration", configuration.key),
                        "label": head[1] if len(head) == 2 and head[0].isdigit() else record.name, "title": "",
                        "errand": data.get("run", errand.name), "assignment": data.get("project", errand.assignment), "folder": str(rel),
@@ -430,7 +434,7 @@ def known(errand, configuration, members: list) -> dict:
     results = members[0].folders.results if members else None
     tag = run_tag(members[0].folders.record) if members else None             # V223: the record's, the truth
     return {
-        "source": {"config": config_name(errand) if hasattr(errand, "imported") else errand.source.get("config", ""),
+        "source": {"format": FORMAT, "config": config_name(errand) if hasattr(errand, "imported") else errand.source.get("config", ""),
                    "configuration": configuration.key, "label": configuration.label,
                    "title": getattr(configuration, "title", "") or "",
                    "errand": errand.name, "assignment": errand.assignment,
@@ -558,6 +562,7 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
         raise HeimdallError(f"the plot document has no [{missing[0]}]", where=str(path),
                        hint="a run writes it whole; heimdall migrate --plot-docs writes it again")
     source, axes = data["source"], data["axes"]
+    check_format(source, path)
     refuse_old_source(source, path)
     quantities = {name: _quantity_of(name, table) for name, table in data.get("quantities", {}).items()}
     configuration = DocConfiguration(source.get("configuration", ""), source.get("label", source.get("configuration", "")),
@@ -680,7 +685,7 @@ def write_across(errand) -> tuple[Path | None, bool]:
         return target, False
     from .record import config_name
     plot, stats = across_chosen(errand)
-    made = {"source": {"config": config_name(errand), "errand": errand.name, "assignment": errand.assignment, "level": "name",
+    made = {"source": {"format": FORMAT, "config": config_name(errand), "errand": errand.name, "assignment": errand.assignment, "level": "name",
                        "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
             "from": from_of(errand), "plot": plot}
     if stats:

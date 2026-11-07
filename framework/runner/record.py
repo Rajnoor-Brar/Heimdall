@@ -49,6 +49,19 @@ from .tools import DEFAULT_SEED_RANGE, PointPlan, package_states, version_of
 
 
 
+#: The layout version of a record file: points.json, provenance.json and identity.json carry it as `format`, plot.toml
+#: in [source]. A file without it is format 0 (before the key), read as it always was; a newer one is refused.
+FORMAT = 1
+
+
+def check_format(data, where: str) -> None:
+    """Refuse a record file written by a newer Heimdall than this one reads (its `format` above FORMAT)."""
+    found = data.get("format", 0) if isinstance(data, dict) else 0
+    if isinstance(found, int) and not isinstance(found, bool) and found > FORMAT:
+        raise HeimdallError(f"this record is format {found}; this Heimdall reads up to {FORMAT}", where=str(where),
+                       hint="update Heimdall (git pull in its checkout) to read it")
+
+
 def identity(plan: PointPlan) -> str:
     text = json.dumps(identity_parts(plan), sort_keys=True, default=str)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -79,7 +92,7 @@ def identity_record(plan: PointPlan) -> Path:
 def write_identity(plan: PointPlan) -> None:
     """The parts of a completed point's identity (V57): a record, beside .complete."""
     normal = json.loads(json.dumps(identity_parts(plan), sort_keys=True, default=str))
-    write_atomic(identity_record(plan), json.dumps(normal, indent=1, sort_keys=True) + "\n")
+    write_atomic(identity_record(plan), json.dumps({"format": FORMAT, **normal}, indent=1, sort_keys=True) + "\n")   # outside the hashed parts
 
 
 def why(plan: PointPlan, limit: int = 24) -> list[str]:
@@ -94,6 +107,8 @@ def why(plan: PointPlan, limit: int = 24) -> list[str]:
         old = json.loads(record.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return ["its identity record is unreadable"]
+    check_format(old, record)
+    old.pop("format", None)                                  # the record's own version, not a part of the identity
     new = json.loads(json.dumps(identity_parts(plan), sort_keys=True, default=str))
     if old == new:
         return ["nothing changed since it last ran: it did not complete (failed or stopped)"]
@@ -498,6 +513,7 @@ def provenance(plan: PointPlan, errand, configuration, started: str, finished: s
             entry["config"] = portable(step.config_path)
         tools.append(entry)
     return {
+        "format": FORMAT,
         "point": plan.point.name,
         "run": errand.name, "project": errand.assignment, "configuration": configuration.key,
         "config_file": portable(errand.path), "sets": list(getattr(errand, "sets", [])),    # what reproduces it (V77)
@@ -552,7 +568,7 @@ def points_manifest(plans: list[PointPlan], errand, configuration, known: dict |
             "texts": {k: v for step in plan.rendered.values() for k, v in step.texts.items()},   # {opt:…} (V158)
             **_last(plan),                                                                     # V200
         })
-    return {"run": errand.name, "project": errand.assignment, "configuration": configuration.key,
+    return {"format": FORMAT, "run": errand.name, "project": errand.assignment, "configuration": configuration.key,
             "config_file": str(errand.path), "plot_points": configuration.plot_points,
             "constants": _counted(known, plans) if known else constants(plans, errand, configuration), "points": points}
 

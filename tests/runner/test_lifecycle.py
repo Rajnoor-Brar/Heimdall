@@ -126,6 +126,17 @@ def test_the_provenance_is_portable(trees, monkeypatch):
     assert pythia["card"].startswith("{") and not any(a.startswith(str(records_root())) for a in pythia["argv"])
 
 
+def test_provenance_and_the_manifest_carry_the_record_format(trees):
+    """points.json and provenance.json say `format` (identity.json and plot.toml's [source] do too); none is format 0."""
+    p = planned("Demo/jets", "single")
+    assert record.provenance(p.every[0], p.errand, p.configuration, "a", "b", {})["format"] == record.FORMAT
+    assert record.points_manifest(p.every, p.errand, p.configuration)["format"] == record.FORMAT
+    record.check_format({}, "x")
+    record.check_format({"format": record.FORMAT}, "x")
+    with pytest.raises(HeimdallError, match="reads up to"):
+        record.check_format({"format": record.FORMAT + 1}, "x")
+
+
 def test_migrate_layout_moves_output_by_lifecycle(scratch):
     """`heimdall migrate --layout`: records to records/, caches to .cache/<P>/, the rest to logs/."""
     work = scratch / "w"

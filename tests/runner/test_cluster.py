@@ -174,7 +174,7 @@ def test_the_machines_defaults_lie_under_the_work_dirs(inside):
     assert "machine.toml" in str(caught.value.where)
 
 
-def test_an_isolated_stacks_jobs_load_it_from_the_machine_root(inside, monkeypatch):
+def test_an_isolated_stacks_jobs_load_it_from_the_himinbjorg(inside, monkeypatch):
     monkeypatch.setenv("HEIMDALL_STACK", "kit")
     assert cluster.loader() == Path(os.environ["HEIMDALL_MACHINE"]) / "stacks" / "kit" / "gjallarhorn.sh"
     monkeypatch.delenv("HEIMDALL_STACK")
@@ -207,7 +207,7 @@ def test_a_dry_run_writes_the_scripts_and_submits_nothing(work):
     text = (folder / "points.sbatch").read_text(encoding="utf-8")
     for line in ("#SBATCH --array=1-3%2", "#SBATCH --cpus-per-task=3", "#SBATCH --time=00:10:00",
                  "#SBATCH --account=lab", "echo node", f"source {paths.heimdall_root() / 'gjallarhorn.sh'}",
-                 f"export HEIMDALL_MACHINE={paths.machine_root()}",
+                 f"export HEIMDALL_MACHINE={paths.himinbjorg()}",
                  f"export HEIMDALL_WORK={work.root}", '--points "$point" --stages points --plain'):
         assert line in text, line
     assert text.index("echo node") < text.index("source ")              # the setup lines first

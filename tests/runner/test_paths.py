@@ -45,11 +45,11 @@ def test_high_energys_variables_are_refused(monkeypatch, old, new):
         paths.check_retired()
 
 
-def test_apps_go_with_the_loaded_stack_in_the_machine_root(monkeypatch, tmp_path):
+def test_apps_go_with_the_loaded_stack_in_the_himinbjorg(monkeypatch, tmp_path):
     for var in ("HEIMDALL_STACK", "HEIMDALL_APPS", "HEIMDALL_FORGE"):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("HEIMDALL_MACHINE", str(tmp_path))
-    assert paths.machine_root() == tmp_path
+    assert paths.himinbjorg() == tmp_path
     assert paths.apps_dir() == tmp_path / "apps" and paths.forge_dir() == tmp_path / "forge"
     monkeypatch.setenv("HEIMDALL_STACK", "gpu-sim")
     assert paths.apps_dir() == tmp_path / "stacks" / "gpu-sim" / "apps"
@@ -58,7 +58,7 @@ def test_apps_go_with_the_loaded_stack_in_the_machine_root(monkeypatch, tmp_path
     assert paths.apps_dir() == Path("/elsewhere/apps")
     monkeypatch.delenv("HEIMDALL_MACHINE")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    assert paths.machine_root() == tmp_path / "home" / "Himinbjorg"     # the default
+    assert paths.himinbjorg() == tmp_path / "home" / "Himinbjorg"     # the default
 
 
 def test_an_identity_names_paths_by_their_root(monkeypatch, tmp_path):
@@ -196,7 +196,7 @@ def test_repo_is_retired_with_its_replacements_named():
         tools.expand("{repo}/modules/x.py", paths.placeholders(), "t")
 
 
-def test_machine_settings_are_read_from_the_machine_root(tmp_path, monkeypatch):
+def test_machine_settings_are_read_from_the_himinbjorg(tmp_path, monkeypatch):
     monkeypatch.setenv("HEIMDALL_MACHINE", str(tmp_path))
     assert paths.machine_file() == tmp_path / "machine.toml" and paths.machine_settings() == {}
     (tmp_path / "machine.toml").write_text('[cluster]\naccount = "lab"\n', encoding="utf-8")

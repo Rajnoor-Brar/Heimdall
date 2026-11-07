@@ -185,7 +185,7 @@ def test_master_becomes_config(scratch):
     assert migrate.config_text(new) == new
 
 
-def test_the_apps_become_the_machine_roots():
+def test_the_apps_become_the_himinbjorgs():
     """Audit 3, phase 3.1: the compiled apps left the checkout; High-Energy's {repo} paths go straight there."""
     text = ('exe = "{heimdall}/framework/Apps/App_Pythia.exe"\nrpo = "{repo}/build/Herwig/HerwigDefaults.rpo"\n'
             'kit = "{repo}/utils/Kit.hh"\ncard = "{repo}/configs/a.cmnd"\n')

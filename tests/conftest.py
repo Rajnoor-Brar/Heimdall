@@ -143,7 +143,7 @@ def _live_state() -> dict[str, str]:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def the_live_machine_root_is_left_alone():
+def the_live_himinbjorg_is_left_alone():
     live = _live_state()
     yield
     changed = _changed(live, _live_state())

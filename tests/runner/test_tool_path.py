@@ -84,7 +84,7 @@ def test_a_folder_without_extends_replaces_the_shipped_one(roots):
     assert tools.folders()["rivet"].spec == {"tool": {"category": "mine"}}
 
 
-def test_the_machine_roots_folders_sit_between(roots):
+def test_the_himinbjorgs_folders_sit_between(roots):
     work, machine = roots
     folder(machine, "fit", copy_of="exec")
     assert tools.folders()["fit"].origin == "machine"

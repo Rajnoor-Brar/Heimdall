@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 from .errors import HeimdallError, did_you_mean
-from .paths import heimdall_root, machine_root
+from .paths import heimdall_root, himinbjorg
 
 RUNTIMES = ("apptainer", "singularity")
 #: Where a running image says its labels (Apptainer and SingularityCE both).
@@ -40,7 +40,7 @@ def runtime() -> str:
 
 
 def images_dir() -> Path:
-    return machine_root() / "images"
+    return himinbjorg() / "images"
 
 
 def image_path(name: str) -> Path:

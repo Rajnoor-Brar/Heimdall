@@ -4,7 +4,7 @@ doc:paths; doc:layout Three roots:
 
 * **Heimdall** (`heimdall_root()`): the framework, as git has it. Always the one this code runs from; a
   `$HEIMDALL` that names another is refused.
-* **the machine root** (`machine_root()`, `$HEIMDALL_MACHINE`, by default ~/Himinbjorg): what this machine
+* **the machine root** (`himinbjorg()`, `$HEIMDALL_MACHINE`, by default ~/Himinbjorg): what this machine
   built — the stack, the venv, Heimdall's compiled apps, downloads and builds.
 * **the work dir** (`work_root()`): configs, modules, datasets and what runs make. `$HEIMDALL_WORK`, or the
   first folder up from the working directory whose `heimdall.toml` has a `[work]` table (as git finds its
@@ -318,14 +318,14 @@ MACHINE_VAR = "HEIMDALL_MACHINE"
 DEFAULT_MACHINE = "~/Himinbjorg"
 
 
-def machine_root() -> Path:
+def himinbjorg() -> Path:
     """What this machine built, apart from the checkout: $HEIMDALL_MACHINE, else ~/Himinbjorg."""
     return Path(os.environ.get(MACHINE_VAR) or DEFAULT_MACHINE).expanduser()
 
 
 def machine_file() -> Path:
     """This machine's settings: <machine root>/machine.toml (recipes/machine.template.toml says what)."""
-    return machine_root() / "machine.toml"
+    return himinbjorg() / "machine.toml"
 
 
 def machine_settings() -> dict:
@@ -345,7 +345,7 @@ def stack_dir() -> Path:
     (gjallarhorn.sh sets $HEIMDALL_STACK; doc:stack). Its compiled apps and builds go with it: they
     are linked against that stack."""
     name = os.environ.get(STACK_VAR)
-    return machine_root() / "stacks" / name if name else machine_root()
+    return himinbjorg() / "stacks" / name if name else himinbjorg()
 
 
 def apps_dir() -> Path:
@@ -365,7 +365,7 @@ def tool_roots() -> list[tuple[str, Path]]:
     work = find_work()
     if work is not None:
         out.append(("work", work / "tools"))
-    out.append(("machine", machine_root() / "tools"))
+    out.append(("machine", himinbjorg() / "tools"))
     out.append(("shipped", heimdall_root() / "framework" / "tools"))
     return out
 
@@ -435,7 +435,7 @@ def portable_texts():
     loaded conda base ($HEIMDALL_BASE), whose Python runs a script tool (it moves with its stack, not with
     the machine root's name)."""
     work = find_work()
-    return _portable_texts(str(apps_dir()), str(installs_dir()), str(machine_root()), str(heimdall_root()),
+    return _portable_texts(str(apps_dir()), str(installs_dir()), str(himinbjorg()), str(heimdall_root()),
                            str(work) if work is not None else "", str(base_dir() or ""))
 
 
@@ -447,7 +447,7 @@ def identity_texts():
     work = find_work()
     if work is None or configs_root().resolve() == (work / "configs").resolve():
         return portable_texts()
-    return _portable_texts(str(apps_dir()), str(installs_dir()), str(machine_root()), str(heimdall_root()),
+    return _portable_texts(str(apps_dir()), str(installs_dir()), str(himinbjorg()), str(heimdall_root()),
                            str(work), str(base_dir() or ""), str(configs_root()))
 
 
@@ -488,7 +488,7 @@ def _portable_texts(apps: str, installs: str, machine: str, heimdall: str, work:
 def unportable(text: str) -> str:
     """A path portable() wrote, under today's roots ({work}, {heimdall}, {apps}, {machine}); anything else as
     it is (a record written before, with absolute paths)."""
-    roots = {"{apps}": apps_dir, "{stack}": installs_dir, "{machine}": machine_root, "{heimdall}": heimdall_root, "{work}": work_root,
+    roots = {"{apps}": apps_dir, "{stack}": installs_dir, "{machine}": himinbjorg, "{heimdall}": heimdall_root, "{work}": work_root,
              "{base}": lambda: base_dir() or ""}
     for name, root in roots.items():
         if text == name or text.startswith(name + "/"):

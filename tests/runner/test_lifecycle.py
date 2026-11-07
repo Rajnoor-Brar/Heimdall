@@ -206,7 +206,7 @@ def test_migrate_layout_moves_logs_into_records_and_points_into_points(scratch):
     assert migrate.logs_moves(work) == []                                # today's layout: nothing to move
 
 
-def test_moving_the_machine_root_and_the_work_dir_changes_no_fingerprint(trees, monkeypatch):
+def test_moving_the_himinbjorg_and_the_work_dir_changes_no_fingerprint(trees, monkeypatch):
     """V137: a fingerprint names its programs and cards under {apps}, {work} and the other roots, so a
     work dir copied elsewhere, with its machine root (its apps) somewhere else too, plans to the same
     identity at every point of every configuration."""

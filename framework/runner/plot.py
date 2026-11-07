@@ -259,9 +259,9 @@ def style_file(value: str, assignment: str = "", where: str = "", folder: Path |
 def house_style() -> dict:
     """The style's layers over base.toml that are not a run's: the machine root's style.toml (every work
     dir's on this machine), then the work dir's style.toml (its studies'), each checked."""
-    from .paths import find_work, machine_root
+    from .paths import find_work, himinbjorg
     layers = []
-    for path in (machine_root() / "style.toml", *([find_work() / "style.toml"] if find_work() else [])):
+    for path in (himinbjorg() / "style.toml", *([find_work() / "style.toml"] if find_work() else [])):
         if path.is_file():
             try:
                 layer = tomllib.loads(path.read_text(encoding="utf-8"))

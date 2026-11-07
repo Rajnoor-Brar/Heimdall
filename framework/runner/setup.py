@@ -33,7 +33,7 @@ import urllib.request
 from pathlib import Path
 
 from .errors import HeimdallError
-from .paths import MARKER_FILE, STACK_VAR, find_work, heimdall_root, is_work, machine_root, stack_dir, work_meta
+from .paths import MARKER_FILE, STACK_VAR, find_work, heimdall_root, is_work, himinbjorg, stack_dir, work_meta
 
 TEMPLATE = Path(__file__).resolve().parents[1] / "templates" / "work"
 STARTER = "starter"
@@ -475,7 +475,7 @@ def where(which: str | None = None, out=print, err=None) -> int:
     stack = os.environ.get(STACK_VAR, "")
     out(f"heimdall={heimdall} {revision(heimdall)[:12] or '(uncommitted changes)'}" + (f" (stack: {stack})" if stack else ""))
     out(f"work={work if work else '-'}")
-    out(f"machine={machine_root()}" + (f" (stack: {stack_dir()})" if stack else ""))
+    out(f"machine={himinbjorg()}" + (f" (stack: {stack_dir()})" if stack else ""))
     if problem := _pth_problem(heimdall):
         err(f"warning: {problem}")
     return 0

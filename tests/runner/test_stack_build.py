@@ -186,7 +186,7 @@ def test_the_old_way_is_apt_and_a_venv(bs, tmp_path, capsys):
     assert "pixi" not in script and "-isystem" not in script and "--with-zlib" not in script
 
 
-def test_a_machine_root_made_before_the_base_stays_on_the_system(bs, tmp_path):
+def test_a_himinbjorg_made_before_the_base_stays_on_the_system(bs, tmp_path):
     """Nothing is converted (the user, 2026-10-14): a root with a venv/ and no base/ builds as it did,
     unless base= says otherwise; a new root gets the base."""
     (tmp_path / "old" / "venv").mkdir(parents=True)

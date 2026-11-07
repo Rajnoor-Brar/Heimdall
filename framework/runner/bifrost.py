@@ -40,7 +40,7 @@ def builder():
 def loaded():
     """build_stack.py, this machine's settings and recipes (what the base holds read as ready-made), its context."""
     bs = builder()
-    _, settings, packages = bs.options([f"machine={paths.machine_root()}"])
+    _, settings, packages = bs.options([f"machine={paths.himinbjorg()}"])
     return bs, settings, packages, bs.context(settings)
 
 
@@ -107,7 +107,7 @@ def set_key(text: str, table: str, key: str, value: str) -> str:
 
 
 def recorded(key: str, root: Path | None = None) -> list[str]:
-    file = (root or paths.machine_root()) / "machine.toml"
+    file = (root or paths.himinbjorg()) / "machine.toml"
     if not file.is_file():
         return []
     try:
@@ -118,7 +118,7 @@ def recorded(key: str, root: Path | None = None) -> list[str]:
 
 def record(key: str, values: list[str], root: Path | None = None) -> Path:
     """[settings] `key` = values in the machine root's machine.toml (made from the template when missing)."""
-    file = (root or paths.machine_root()) / "machine.toml"
+    file = (root or paths.himinbjorg()) / "machine.toml"
     text = file.read_text(encoding="utf-8") if file.is_file() else \
         (paths.heimdall_root() / "recipes" / "machine.template.toml").read_text(encoding="utf-8")
     new = set_list(text, key, values)
@@ -335,7 +335,7 @@ def tools(names: list[str], conda: bool, toolkit: str = "", yes: bool = False, o
             if ask("go ahead? [y/N] ").strip().lower() not in ("y", "yes"):
                 out("nothing changed")
                 return 1
-    file = paths.machine_root() / "machine.toml"
+    file = paths.himinbjorg() / "machine.toml"
     before = file.read_text(encoding="utf-8") if file.is_file() else None
     text = before if before is not None else \
         (paths.heimdall_root() / "recipes" / "machine.template.toml").read_text(encoding="utf-8")
@@ -419,7 +419,7 @@ def state() -> list[str]:
     rows = stack_rows()
     out.append(f"{'the tools:':17} " + (", ".join(f"{r['package']} {r['version']} ({r['how']})" for r in rows
                                                      if r["package"] != "python") or "none installed yet"))
-    want = {shell: shellrc.block(shell, paths.heimdall_root(), paths.machine_root()) for shell in ("bash", "zsh")}
+    want = {shell: shellrc.block(shell, paths.heimdall_root(), paths.himinbjorg()) for shell in ("bash", "zsh")}
     for shell, file in shellrc.rc_files(Path.home(), os.environ.get("SHELL", "")):
         status = shellrc.status(file, want[shell])
         out.append(f"{'the shell:':17} {file}: " + {"installed": "gjallarhorn and bifrost",
@@ -434,7 +434,7 @@ def shell(action: str, out=print) -> int:
     home = Path.home()
     for name, file in shellrc.rc_files(home, os.environ.get("SHELL", "")):
         if action == "install":
-            happened = shellrc.install(file, shellrc.block(name, paths.heimdall_root(), paths.machine_root()))
+            happened = shellrc.install(file, shellrc.block(name, paths.heimdall_root(), paths.himinbjorg()))
             out(f"{file}: {happened}" + (" (a new shell has gjallarhorn and bifrost)" if happened != "unchanged" else ""))
         elif shellrc.remove(file):
             out(f"{file}: removed")

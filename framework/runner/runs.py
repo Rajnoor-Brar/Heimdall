@@ -34,7 +34,7 @@ import time
 from pathlib import Path
 
 from .events import namespace as _namespace
-from .paths import machine_root
+from .paths import himinbjorg
 
 DIR_VAR = "HEIMDALL_RUNS"
 VERSION = 1
@@ -56,7 +56,7 @@ RESUMES_VAR = "HEIMDALL_RESUMES"
 def folder() -> Path:
     """Where the entries are: $HEIMDALL_RUNS, else <machine root>/runs."""
     given = os.environ.get(DIR_VAR)
-    return Path(given).expanduser() if given else machine_root() / "runs"
+    return Path(given).expanduser() if given else himinbjorg() / "runs"
 
 
 def host() -> str:

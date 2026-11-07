@@ -41,7 +41,7 @@ from .config import check_cluster
 from .errors import HeimdallError
 from .execute import cores
 from .image import image_path
-from .paths import (MACHINE_VAR, MARKER_FILE, STACK_VAR, heimdall_root, machine_file, machine_root, machine_settings,
+from .paths import (MACHINE_VAR, MARKER_FILE, STACK_VAR, heimdall_root, machine_file, himinbjorg, machine_settings,
                     records_root, work_meta, work_root)
 from . import runs
 from .record import git_state, is_complete, write_atomic
@@ -107,7 +107,7 @@ def loader() -> Path:
     """The gjallarhorn.sh a job sources: Heimdall's, or the loaded isolated stack's, in the machine root's
     stacks/ (doc:stack)."""
     stack = os.environ.get(STACK_VAR)
-    return machine_root() / "stacks" / stack / "gjallarhorn.sh" if stack else heimdall_root() / "gjallarhorn.sh"
+    return himinbjorg() / "stacks" / stack / "gjallarhorn.sh" if stack else heimdall_root() / "gjallarhorn.sh"
 
 
 def script(directive_list: list[str], keys: dict, command: list[str], *, title: str, points: Path | None = None) -> str:
@@ -129,7 +129,7 @@ def script(directive_list: list[str], keys: dict, command: list[str], *, title: 
                    f"--env {runs.CLUSTER_VAR}={q(title)}",                  # recorded by its submission (V184)
                    q(str(sif)), "/opt/heimdall/launch.sh", "heimdall", *command[1:]]
     else:
-        lines += [f"export {MACHINE_VAR}={q(str(machine_root()))}", f"source {q(str(loader()))}", "set -eo pipefail",
+        lines += [f"export {MACHINE_VAR}={q(str(himinbjorg()))}", f"source {q(str(loader()))}", "set -eo pipefail",
                   f"export HEIMDALL_WORK={q(str(work_root()))}",
                   *(f"export {var}={q(os.environ[var])}" for var in ROOTS if os.environ.get(var)),
                   f"export {runs.CLUSTER_VAR}={q(title)}",                  # recorded by its submission (V184)

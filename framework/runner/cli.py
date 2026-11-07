@@ -3056,8 +3056,8 @@ def cmd_make(args) -> int:
 
 def _system_python() -> str:
     """The first python3 on PATH that is not the machine's venv's or base's: the stack's builder makes them."""
-    from .paths import machine_root
-    venvs = {str((machine_root() / "venv" / "bin").resolve())}
+    from .paths import himinbjorg
+    venvs = {str((himinbjorg() / "venv" / "bin").resolve())}
     if os.environ.get("HEIMDALL_VENV"):
         venvs.add(str((Path(os.environ["HEIMDALL_VENV"]) / "bin").resolve()))
     for folder in os.environ.get("PATH", "").split(os.pathsep):

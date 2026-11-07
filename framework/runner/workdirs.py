@@ -32,7 +32,7 @@ DEPTH = 4
 def registry_file() -> Path:
     """$HEIMDALL_WORKDIRS, else the machine root's workdirs.toml."""
     given = os.environ.get(FILE_VAR)
-    return Path(given).expanduser() if given else paths.machine_root() / "workdirs.toml"
+    return Path(given).expanduser() if given else paths.himinbjorg() / "workdirs.toml"
 
 
 def load() -> dict[str, dict]:
@@ -107,7 +107,7 @@ def scan(start: Path, depth: int = DEPTH) -> list[Path]:
     """The work dirs at or below `start`, `depth` folders deep at most: not inside hidden folders, a work
     dir's results/, records/, logs/ or build/, Heimdall's checkout or the machine root."""
     start = start.expanduser().resolve()
-    avoid = {paths.heimdall_root().resolve(), paths.machine_root().expanduser().resolve()}
+    avoid = {paths.heimdall_root().resolve(), paths.himinbjorg().expanduser().resolve()}
     found: list[Path] = []
 
     def walk(folder: Path, left: int) -> None:

@@ -50,21 +50,27 @@ draw a configuration's pages from its complete points
 | `--style-sync CONFIG` | take this config's [plot] and [stats] into the plot documents named (<A>/<E>/<R>, or <A>/<E>: each of its Runs), what each Run knows left as it is; nothing is drawn unless --replot |
 | `--replot` | with --style-sync: then draw what was synced |
 | `--across` | the Runs of this errand together, results/<A>/<E>/plot.toml: its [plot.across] sets |
+| `--stats-only` | the statistics alone: the pages' numbers against the data, read by Paint into statistics/<set>/, no page drawn (--sets: these sets only; target also <A>/<E>, each of its Runs) |
 | `--keep WHAT` | cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway |
 | `[configuration]` | overrides [errand].configuration; under sweep_runs, only it |
 | `--set KEY=VALUE` | as for heimdall run |
 
 ## `heimdall stats`
 
-a Run's statistics alone: its pages' numbers against the data, drawing no page
+retired: heimdall plot RUN --stats-only measures a Run's statistics, heimdall score reads them
+
+## `heimdall score`
+
+a Run's standings, marginals and baseline from its statistics.csv, drawing nothing
 
 | Argument | Meaning |
 |---|---|
-| `config` | a Run <A>/<E>/<R>, a folder with a plot.toml, <A>/<E> (each of its Runs), or an errand file (its configurations' newest Runs) |
-| `[configuration]` | with an errand file: only this configuration |
-| `--sets NAMES` | measure these sets only (default: [stats].sets, else [plot].draw, else every set) |
-| `--set KEY=VALUE` | as for heimdall run |
-| `--across` | the Runs of this errand together (as heimdall plot --across) |
+| `target` | a Run <A>/<E>/<R>, or <A>/<E>: a row for each of its Runs (their score over the pages they share); with --across, the errand's own results folder |
+| `--set SET` | this set's statistics only (default: every set found) |
+| `--across` | the errand's own statistics (its Runs together, heimdall plot --across) |
+| `--by AXES` | marginals by these axes (comma-separated), over the table's own [score].by |
+| `--baseline FILTER` | deltas against a baseline: axis=tag[,axis=tag…], or a point's name, over the table's own |
+| `--json` | the same numbers as JSON |
 
 ## `heimdall overlay`
 

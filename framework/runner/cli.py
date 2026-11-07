@@ -107,19 +107,29 @@ def parser() -> argparse.ArgumentParser:
     draw.add_argument("--replot", action="store_true", help="with --style-sync: then draw what was synced")
     draw.add_argument("--across", action="store_true",
                       help="the Runs of this errand together, results/<A>/<E>/plot.toml: its [plot.across] sets")
+    draw.add_argument("--stats-only", action="store_true", dest="stats_only",
+                      help="the statistics alone: the pages' numbers against the data, read by Paint into statistics/<set>/, "
+                           "no page drawn (--sets: these sets only; target also <A>/<E>, each of its Runs)")
     draw.add_argument("--keep", action="append", default=[], metavar="WHAT",
                       help="cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway")
     draw.add_argument("configuration", nargs="?", help="overrides [errand].configuration; under sweep_runs, only it")
     draw.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as for heimdall run")
 
-    numbers = commands.add_parser("stats", help="a Run's statistics alone: its pages' numbers against the data, drawing no page")
-    numbers.add_argument("config", help="a Run <A>/<E>/<R>, a folder with a plot.toml, <A>/<E> (each of its Runs), "
-                                        "or an errand file (its configurations' newest Runs)")
-    numbers.add_argument("configuration", nargs="?", help="with an errand file: only this configuration")
-    numbers.add_argument("--sets", metavar="NAMES", dest="draw_sets",
-                         help="measure these sets only (default: [stats].sets, else [plot].draw, else every set)")
-    numbers.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as for heimdall run")
-    numbers.add_argument("--across", action="store_true", help="the Runs of this errand together (as heimdall plot --across)")
+    numbers = commands.add_parser("stats", help="retired: heimdall plot RUN --stats-only measures a Run's statistics, heimdall score reads them")
+    numbers.add_argument("rest", nargs="*", help=argparse.SUPPRESS)       # what it took, so any old line stops with the message
+    numbers.add_argument("--sets", dest="draw_sets", help=argparse.SUPPRESS)
+    numbers.add_argument("--set", action="append", default=[], help=argparse.SUPPRESS)
+    numbers.add_argument("--across", action="store_true", help=argparse.SUPPRESS)
+
+    scored = commands.add_parser("score", help="a Run's standings, marginals and baseline from its statistics.csv, drawing nothing")
+    scored.add_argument("target", help="a Run <A>/<E>/<R>, or <A>/<E>: a row for each of its Runs (their score over the pages "
+                                       "they share); with --across, the errand's own results folder")
+    scored.add_argument("--set", metavar="SET", dest="set_name", help="this set's statistics only (default: every set found)")
+    scored.add_argument("--across", action="store_true", help="the errand's own statistics (its Runs together, heimdall plot --across)")
+    scored.add_argument("--by", metavar="AXES", help="marginals by these axes (comma-separated), over the table's own [score].by")
+    scored.add_argument("--baseline", metavar="FILTER",
+                        help="deltas against a baseline: axis=tag[,axis=tag…], or a point's name, over the table's own")
+    scored.add_argument("--json", action="store_true", help="the same numbers as JSON")
 
     overlay = commands.add_parser("overlay", help="overlay any YODA/ROOT files through Paint, with no errand file")
     overlay.add_argument("files", nargs="+", metavar="FILE", help="YODA (.yoda, .yoda.gz) or ROOT files")
@@ -1534,6 +1544,11 @@ def cmd_plot(args) -> int:
         raise HeimdallError("heimdall plot draws a configuration's pages; files are overlaid by heimdall overlay",
                        hint=f"heimdall overlay {args.config} …")
     args.points = None
+    if getattr(args, "stats_only", False):
+        if getattr(args, "style_sync", None) or getattr(args, "plan", False):
+            raise HeimdallError("--stats-only measures; --plan and --style-sync draw nothing and measure nothing",
+                                hint="heimdall plot RUN --stats-only, or --plan / --style-sync alone")
+        return cmd_stats(args)
     if getattr(args, "across", False) and getattr(args, "style_sync", None):
         return style_sync_across(args)
     if getattr(args, "style_sync", None):
@@ -1624,7 +1639,7 @@ def style_sync(args) -> int:
 
 
 def cmd_stats(args) -> int:
-    """`heimdall stats RUN | <folder> | <A>/<E> | CONFIG [CFG]` (V168): each run's statistics alone, from its plot
+    """`heimdall plot RUN | <folder> | <A>/<E> | CONFIG [CFG] --stats-only` (V168): each run's statistics alone, from its plot
     document: the pages [plot] defines, as [stats] measures them, read by Paint (no image drawn), into
     statistics/<set>/. `--sets`: these sets only."""
     name = args.config.strip("/")
@@ -1648,6 +1663,20 @@ def cmd_stats(args) -> int:
         plot.check_figures(plot.measured(doc, picked), configuration)
         failed += plot.measure(doc, configuration, members, print, picked=picked)
     return 1 if failed else 0
+
+
+def cmd_stats_retired(args) -> int:
+    """`heimdall stats …`, retired for a release (the way `deck` was): it stops, naming its two successors."""
+    raise HeimdallError("heimdall stats is now heimdall plot RUN --stats-only: a Run's statistics measured, no page drawn; "
+                        "heimdall score RUN reads them",
+                        hint="heimdall plot <A>/<E>/<R> --stats-only [--sets NAMES]; heimdall score <A>/<E>/<R> [--by AXIS] [--baseline FILTER]")
+
+
+def cmd_score(args) -> int:
+    """`heimdall score TARGET [--set S] [--across] [--by AXES] [--baseline FILTER] [--json]`: standings, marginals and
+    baselines read from the statistics already measured; see scorecmd."""
+    from . import scorecmd
+    return scorecmd.run(args)
 
 
 def across_of(args) -> Path:
@@ -2465,7 +2494,7 @@ def parse(argv: list[str]) -> argparse.Namespace:
 
 
 #: The commands whose flags an errand file's [heimdall] gives (V188): those that read one config.
-FLAGGED = ("run", "plot", "stats", "cluster", "status", "watch", "stop")
+FLAGGED = ("run", "plot", "cluster", "status", "watch", "stop")
 #: Options a file never sets: what it would name of itself, or change of itself (its own text does that).
 UNFLAGGED = {"set", "worker", "help"}
 #: What [heimdall] may set (the user, 2026-10-25): switches that say how you like a command to run, and keep.
@@ -2858,8 +2887,8 @@ def main(argv: list[str]) -> int:
             for line in (toolsmod.folder_lines(args.what[0]) if args.what else toolsmod.folder_rows()):
                 print(line)
             return 0
-        if args.command in ("run", "plot", "status", "stats") and getattr(args, "config", None):
-            if not (args.command in ("plot", "stats") and (plotdoc.find(args.config) or getattr(args, "style_sync", None))):
+        if args.command in ("run", "plot", "status") and getattr(args, "config", None):
+            if not (args.command == "plot" and (plotdoc.find(args.config) or getattr(args, "style_sync", None))):
                 opened(args)                              # a record: its snapshot (V158)
         if (given := config_flags(args)):                 # V188: the file's own flags, where the command line has none
             print(f"heimdall: from [heimdall]: {' '.join(given)}", file=sys.stderr)
@@ -2869,7 +2898,9 @@ def main(argv: list[str]) -> int:
         if args.command == "plot":
             return cmd_plot(args)
         if args.command == "stats":
-            return cmd_stats(args)
+            return cmd_stats_retired(args)
+        if args.command == "score":
+            return cmd_score(args)
         if args.command == "check":
             return cmd_check(args)
         if args.command == "overlay":

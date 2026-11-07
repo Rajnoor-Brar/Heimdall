@@ -753,15 +753,15 @@ def test_a_stats_table_measures_otherwise_than_the_pages_draw(stage):
     assert len(list((plans[0].folders.plots / "totality" / "root").rglob("*.png"))) == 34
 
 
-def test_heimdall_stats_measures_a_runs_document(stage, capsys):
+def test_plot_stats_only_measures_a_runs_document(stage, capsys):
     import argparse
     from runner import cli
     errand, configuration, plans = stage
     cli.draw_run(errand, configuration, plans, lambda line: None, draw=False, stats=False)
     assert not plans[0].folders.statistics.exists()
-    args = argparse.Namespace(command="stats", config=str(plans[0].folders.results), configuration=None, set=[],
-                              draw_sets=None)
-    assert cli.cmd_stats(args) == 0
+    args = argparse.Namespace(command="plot", config=str(plans[0].folders.results), configuration=None, set=[],
+                              draw_sets=None, stats_only=True)
+    assert cli.cmd_plot(args) == 0
     assert "stats: statistics of 68 curve(s), 1 set(s)" in capsys.readouterr().out
     assert (plans[0].folders.statistics / "totality" / "statistics.csv").is_file() and not plans[0].folders.plots.exists()
 

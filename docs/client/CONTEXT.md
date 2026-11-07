@@ -151,7 +151,8 @@ Refused at plan time, each with a hint: an unknown key; a quantity no tool consu
 
 - `heimdall run`: plan and run a configuration
 - `heimdall plot`: draw a configuration's pages from its complete points
-- `heimdall stats`: a Run's statistics alone: its pages' numbers against the data, drawing no page
+- `heimdall stats`: retired: heimdall plot RUN --stats-only measures a Run's statistics, heimdall score reads them
+- `heimdall score`: a Run's standings, marginals and baseline from its statistics.csv, drawing nothing
 - `heimdall overlay`: overlay any YODA/ROOT files through Paint, with no errand file
 - `heimdall deck`: retired: heimdall report makes a report of Runs' pages and numbers
 - `heimdall report`: a quick report of Runs' pages and numbers, built only when asked into reports/, where results/ has its sources (a folder's: its report.toml)

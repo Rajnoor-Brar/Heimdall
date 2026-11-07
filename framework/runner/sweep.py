@@ -197,7 +197,7 @@ def check_curve_style(look, where: str) -> None:
 
 
 #: What a merge entry may carry besides its quantity.
-MERGE_KEYS = ("how", "label", "tag", "band")
+MERGE_KEYS = ("how", "label", "tag", "band", "settings")
 MERGE_KEY = "merge"           # the set's key, a contract word
 
 #: How an entry's curves become one: `combine` pools the points' statistics (rivet-merge -e); any other is a mean of
@@ -216,6 +216,7 @@ class MergeEntry:
     label: str = ""
     tag: str = ""
     band: object = False
+    settings: dict = field(default_factory=dict)        # the mean's own (`floor`, `alpha`, …), checked against it
 
 
 def _merge_shape(merge, where: str) -> list[MergeEntry]:
@@ -248,8 +249,16 @@ def _merge_shape(merge, where: str) -> list[MergeEntry]:
         band = entry.get("band", False)
         if band not in MERGE_BANDS or band is True:
             raise HeimdallError(f"a merge band is false, \"minmax\" or \"std\", not {band!r}", where=f"{at}.band")
+        given = entry.get("settings", {})
+        if not isinstance(given, dict):
+            raise HeimdallError("an entry's settings are a table: { floor = 1e-6 }", where=f"{at}.settings")
+        allowed = () if how == MERGE_COMBINE else means.REGISTRY[how].settings
+        if given and (how == MERGE_COMBINE or set(given) - set(allowed)):
+            bad = sorted(set(given) - set(allowed))[0]
+            raise HeimdallError(f"{how} takes no setting '{bad}'", where=f"{at}.settings",
+                                hint=("its settings: " + ", ".join(allowed)) if allowed else f"{how} has none")
         what = _filter_shape({named[0]: entry[named[0]]}, at)[named[0]]
-        out.append(MergeEntry(named[0], what, how, entry.get("label", ""), entry.get("tag", ""), band))
+        out.append(MergeEntry(named[0], what, how, entry.get("label", ""), entry.get("tag", ""), band, dict(given)))
     return out
 
 

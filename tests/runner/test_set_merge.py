@@ -156,3 +156,14 @@ def test_plan_lists_each_merged_curve_with_the_points_it_is_made_of(scratch):
     assert "set m ([plot]): 1 page cell(s), 6 curve(s)" in text
     assert "A and B (merges py_a, py_b; linear)" in text and "A and B (merges hw_a, hw_b; linear)" in text
     assert text.count("merges") == 2 and "py_c" not in text.split("merges")[0]
+
+
+def test_an_entrys_settings_are_the_means_own_and_refused_otherwise():
+    spec = spec_of({"merge": {"pdf": "all", "how": "geometric", "settings": {"floor": 1e-6}}})
+    assert spec.merge[0].settings == {"floor": 1e-6}
+    with pytest.raises(HeimdallError, match="linear takes no setting 'floor'"):
+        spec_of({"merge": {"pdf": "all", "settings": {"floor": 1e-6}}})
+    with pytest.raises(HeimdallError, match="combine takes no setting 'x'"):
+        spec_of({"merge": {"pdf": "all", "how": "combine", "settings": {"x": 1}}})
+    with pytest.raises(HeimdallError, match="settings are a table"):
+        spec_of({"merge": {"pdf": "all", "settings": 3}})

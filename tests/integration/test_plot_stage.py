@@ -950,3 +950,52 @@ def test_a_legend_outside_the_frame_and_a_gap_above_the_ratio(stage, where):    
         assert (pages / backend / "em" / "d01-x01-y01.png").is_file()
     with pytest.raises(HeimdallError, match="must be one of"):
         plot.check_style({"legend": {"position": "out-middle"}}, "[plot.style]")
+
+
+# ── set-merge: a set's `merge` draws a curve of its own ────────────────────────────────────────
+
+def test_a_merge_entry_draws_one_curve_from_the_pdfs_with_a_band(stage):
+    errand, configuration, plans = stage
+    errand.plot = {**errand.plot, "sets": {"both": {"pages": {"lepton": "all"}, "merge": {"pdf": "all", "label": "Both PDFs",
+                                                                                          "tag": "pdfs", "band": "minmax"}}}}
+    pages = [p for p in plot.pages(errand, configuration, plans) if p.set == "both"]
+    assert len(pages) == 2 * 17 and {p.cell for p in pages} == {"em", "ep"}
+    document = tomllib.loads(next(p for p in pages if p.rel == "em/d02-x01-y01").config.read_text(encoding="utf-8"))
+    (curve,) = document["curve"]
+    assert curve["label"] == "Both PDFs" and curve["object"].startswith("em_pdfs/")
+    assert [b["object"].split("/")[0] for b in curve["band"]] == ["em_pdfs__lo", "em_pdfs__hi"]
+    sets = plans[0].folders.pages / "sets"
+    assert (sets / "em_pdfs.yoda").is_file() and (sets / "em_pdfs__lo.yoda").is_file() and (sets / "em_pdfs.sha256").is_file()
+
+
+def test_a_merged_curve_is_the_linear_mean_of_its_members_and_rebuilt_only_when_they_change(stage):
+    errand, configuration, plans = stage
+    errand.plot = {**errand.plot, "sets": {"both": {"pages": {"lepton": "all"}, "merge": {"pdf": "all", "tag": "pdfs"}}}}
+    plot.pages(errand, configuration, plans)
+    target = plans[0].folders.pages / "sets" / "em_pdfs.yoda"
+    first = target.stat().st_mtime_ns
+    import yoda
+    merged = yoda.read(str(target))["/photo_eic/d02-x01-y01"].bins()[3].val()
+    mine = [yoda.read(str(plot.yoda_of(p)))["/photo_eic/d02-x01-y01"].bins()[3].val() for p in plans if p.point.name.startswith("em_")]
+    assert merged == pytest.approx(sum(mine) / len(mine))
+    plot.pages(errand, configuration, plans)
+    assert target.stat().st_mtime_ns == first
+
+
+def test_a_set_with_a_merged_curve_and_its_band_draws_through_paint(stage):
+    errand, configuration, plans = stage
+    errand.plot = {**errand.plot, "sets": {"both": {"pages": {"lepton": "all"}, "merge": {"pdf": "all", "label": "Both PDFs",
+                                                                                          "tag": "pdfs", "band": "minmax"}}}}
+    errand.plot["draw"] = ["both"]
+    said: list[str] = []
+    assert plot.draw(errand, configuration, plans, said.append, stats=False) == 0, said
+    drawn = sorted((plans[0].folders.plots / "both" / "root").rglob("*.png"))
+    assert len(drawn) == 2 * 17 and all(p.stat().st_size > 1000 for p in drawn)
+
+
+def test_how_combine_pools_the_members_statistics_as_the_merged_figure_does(stage):
+    errand, configuration, plans = stage
+    errand.plot = {**errand.plot, "sets": {"both": {"pages": {"lepton": "all"}, "merge": {"pdf": "all", "how": "combine", "tag": "pooled"}}}}
+    pages = [p for p in plot.pages(errand, configuration, plans) if p.set == "both"]
+    assert len(pages) == 2 * 17
+    assert (plans[0].folders.pages / "sets" / "em_pooled.yoda").is_file()

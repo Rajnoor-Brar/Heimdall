@@ -872,7 +872,7 @@ notes = """\
   `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of \
   their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: \
   the union, in order), `merge` (an entry or a list: `{ pdf = ["a", "b"], how = "linear", label = "…", tag = "…", \
-  band = false | "minmax" | "std" }`, a quantity whose values become one curve, by `how`: `combine` pools the \
+  band = false | "minmax" | "std", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the \
   points' statistics (rivet-merge), any mean of `heimdall explain score`'s catalogue merges bin by bin, `linear` the default; \
   a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \
   "<q>", line = "<q>" }`, or `"palette"`; with none, two varying curve axes: the one of at most 4 values \

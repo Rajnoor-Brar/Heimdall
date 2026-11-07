@@ -552,11 +552,13 @@ def pages(errand, configuration, plans, notes: list | None = None, documents: st
     out_dir = here.pages                                          # .cache/<A>/plots/<E>/<R>: documents, working files (V164)
     page_groups, curve_groups = axes_of(configuration)
     sources = point_yodas(errand, complete)
+    standins = merged_curves(errand, complete, sources, out_dir / "sets")       # set-merge: a `merge` entry's curves
     root = merge(sources, out_dir / f"{configuration.label}.root", out_dir / "merged.sha256",
                  manifest_file(complete))
     drawn = [f for f in declared if f.kind in ("defined", "overlay")] + derived_figures(declared)
     made = _pages(errand, complete, sources, root, drawn, page_groups, curve_groups, out_dir / documents if documents else out_dir,
-                  here.plots, here.statistics, implicit=True, labels_from=_labels_from(declared, sources), notes=notes)
+                  here.plots, here.statistics, implicit=True, labels_from=_labels_from(declared, sources), notes=notes,
+                  standins=standins)
     for figure in (f for f in declared if f.kind == "merged"):        # V82: points merged over an axis, for it alone
         members, yodas = _merged(errand, figure, complete, sources, page_groups + curve_groups, out_dir / "merged" / figure.name)
         kept = [g for g in curve_groups if not set(g) & set(figure.over)]
@@ -667,6 +669,81 @@ def _labels_from(declared: list, sources: dict) -> dict[str, str]:
     return out
 
 
+def _set_tables(errand) -> list[dict]:
+    """The tables whose `sets` are drawn: [plot]'s, then each defined or overlay figure's own."""
+    settings = errand.plot or {}
+    return [settings] + [f.table for f in figures(errand) if f.kind in ("defined", "overlay")]
+
+
+def merged_curves(errand, complete: list, sources: dict, where: Path) -> dict:
+    """set-merge: the curve each `merge` entry of a drawn set makes, written under `where` and added to `sources`
+    ({name: YODA}), with the stand-in member that draws it ({name: member}) and, for a band, the two stand-ins whose objects
+    are its edges (`<name>__lo`, `<name>__hi`). `combine` pools the members' statistics (the combine folder's command); any
+    other `how` is a mean taken bin by bin (stats/merge.py). Rebuilt only when a member, `how`, its settings or the band
+    changed (a stamp of their sha256). A name two sets give different curves is refused."""
+    merging = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "curves.py", "curves")
+    settings = errand.plot or {}
+    drawing = settings.get("draw")
+    stand: dict = {}
+    seen: dict[str, tuple] = {}
+
+    def file_of(item) -> Path:
+        if isinstance(item, Group):
+            return make(item)
+        return sources[item.point.name]
+
+    def make(group: Group) -> Path:
+        name = group.point.name
+        files = [file_of(m) for m in group.members]
+        entry = group.entry
+        identity = (tuple(leaf.point.name for leaf in group.leaves), entry.how, repr(sorted(entry.settings.items())), entry.band)
+        if name in seen:
+            if seen[name] != identity:
+                raise HeimdallError(f"two sets draw different curves as '{name}'", where=f"{errand.path}: [plot].sets",
+                                    hint="give each merge entry a tag of its own: tag = \"…\"")
+            return sources[name]
+        if name in sources:
+            raise HeimdallError(f"the merged curve '{name}' has the name of a point", hint="give the entry a tag of its own: tag = \"…\"")
+        target, stamp = where / f"{name}.yoda", where / f"{name}.sha256"
+        digest = "\n".join([*(f"{f.name} {_sha(f)}" for f in files), *map(str, identity)])
+        if not (target.exists() and stamp.exists() and stamp.read_text(encoding="utf-8") == digest):
+            where.mkdir(parents=True, exist_ok=True)
+            if entry.how == "combine":
+                merge_files(files, target)
+            else:
+                merging.merge_yoda(files, target, entry.how, entry.settings)
+            if entry.band:
+                merging.band_yoda(files, where / f"{name}__lo.yoda", where / f"{name}__hi.yoda", entry.band)
+            stamp.write_text(digest, encoding="utf-8")
+        first = group.leaves[0]
+        made = replace(first, point=group.point, values=group.values, context={**first.context, "curve_label": group.label},
+                       **({"yoda": target, "identity": digest, "recorded": digest} if isinstance(first, Member) else {}))
+        seen[name] = identity
+        sources[name] = target
+        stand[name] = made
+        if entry.band:
+            for side in ("lo", "hi"):
+                edge = f"{name}__{side}"
+                sources[edge] = where / f"{edge}.yoda"
+                stand[edge] = replace(made, point=replace(group.point, name=edge),
+                                      **({"yoda": sources[edge]} if isinstance(first, Member) else {}))
+        return target
+
+    for table in _set_tables(errand):
+        wanted = table.get("sets")
+        if not wanted or wanted == DEFAULT:
+            continue
+        for spec in set_entries(wanted, f"{errand.path}: [plot].sets"):
+            if not spec.merge or (table is settings and drawing not in (None, DEFAULT) and spec.name not in drawing):
+                continue
+            cells, _ = set_cells(errand, complete, spec)
+            for cell in cells:
+                for member in cell.members:
+                    if isinstance(member, Group):
+                        make(member)
+    return stand
+
+
 def point_yodas(errand, complete: list) -> dict[str, Path]:
     """Each complete point's YODA, as the pages read it: its product, or with a derived figure (V84) a
     copy with the derived objects after its own (records/…/plots/derived/<point>.yoda), made by
@@ -723,7 +800,7 @@ def _merged(errand, figure: Figure, complete: list, sources: dict, groups: list,
 def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, page_groups: list, curve_groups: list,
            out_dir: Path, plots_dir: Path, stats_dir: Path, *, implicit: bool, folder: str = "",
            labels_from: dict | None = None, grouped: bool = True, notes: list | None = None,
-           set_name: str = "totality") -> list[Page]:
+           set_name: str = "totality", standins: dict | None = None) -> list[Page]:
     """The pages of these figures from these members (a point, or a merged figure's stand-in: its name
     is its directory in `merged`, the ROOT file of their YODAs `yodas`). `implicit`: [plot].objects's
     pages too. `folder`: the figure's own, between the cell and the object. `grouped`: the members may be
@@ -733,15 +810,17 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
     compare figure's), its numbers into <stats_dir>/<set>/, its document into <out_dir>/<set>/."""
     settings = errand.plot
     variants: dict[str, dict[str, list[str]]] = {}      # member → base path → its full paths
-    raws = {plan.point.name: raws_of(yodas[plan.point.name]) for plan in complete}
+    standins = standins or {}                              # set-merge: the curves of `merge` entries, drawn by their sets
+    everyone = [*complete, *standins.values()]
+    raws = {plan.point.name: raws_of(yodas[plan.point.name]) for plan in everyone}
     two_d: set[str] = set()                                # V87: heat maps, a page per member
-    for plan in complete:
+    for plan in everyone:
         for full in objects_of(yodas[plan.point.name]):
             variants.setdefault(plan.point.name, {}).setdefault(base_of(full), []).append(full)
         for full in hepfiles.objects_2d(yodas[plan.point.name]):
             variants.setdefault(plan.point.name, {}).setdefault(base_of(full), []).append(full)
             two_d.add(base_of(full))
-    objects = list(dict.fromkeys(b for plan in complete for b in variants.get(plan.point.name, {})))
+    objects = list(dict.fromkeys(b for plan in complete for b in variants.get(plan.point.name, {})))     # the points' pages
     every = list(objects)                                  # a figure may name any object, drawn alone or not
 
     def fulls(o):
@@ -787,7 +866,7 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
     style, base = errand_style(errand), base_style()
     known = {plan.point.name: texts_of(_errand_of(errand, plan), plan, ", ".join(
                  label for g in page_groups for label in group_labels(_errand_of(errand, plan).quantities, g, plan.point.choice)))
-             for plan in complete}
+             for plan in everyone}
     where = f"{errand.path}: [plot]"
 
     def page_fill(plans, cell: str | None = None):
@@ -817,7 +896,8 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
                                             looked=set(settings.get("looks") or {}))
                     if notes is not None:
                         notes.extend(said)
-                    made += [(spec.name, c.key, c.members, c.text, c.labelled, spec.keys, c.looks) for c in found]
+                    made += [(spec.name, c.key, [standins[m.point.name] if isinstance(m, Group) else m for m in c.members],
+                              c.text, c.labelled, spec.keys, c.looks) for c in found]
                     continue
                 picked = []
                 for selector in spec.selectors:
@@ -926,6 +1006,9 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
         curves = [(plan, full) for plan in members for full in variants.get(plan.point.name, {}).get(path, [])]
         fill = page_fill([plan for plan, _ in curves] or members, cell_text)
         folded = _banded(curves, curve_groups, band, lambda p, f: variants[p.point.name][path].index(f))
+        folded = [(plan, full, members or ([(standins[f"{plan.point.name}__lo"], full), (standins[f"{plan.point.name}__hi"], full)]
+                                           if f"{plan.point.name}__lo" in standins else []))
+                  for plan, full, members in folded]                     # a merged curve's own band: its edges
         envelope = f" ({', '.join(band)} envelope)" if band else ""
         page, override = page_settings(here, (labels_from or {}).get(path, path), name, output,
                                        reference is not None, fill=fill, child=override)

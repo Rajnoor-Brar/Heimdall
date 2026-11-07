@@ -86,6 +86,29 @@ def identity_parts(plan: PointPlan) -> dict:
     return parts
 
 
+def library_parts(plan: PointPlan) -> dict:
+    """What the points library keys a point by (points-library P2): `identity_parts` without the card comments, which is
+    where the point's name is (the card's header, `point card for [tools.<tag>], point <name>`). The rule is `seed_basis`'s:
+    a card line that starts with the folder's `[card] comment` is dropped. The seed rule stays, so a manual seed is in the key
+    and an identity or random seed is not."""
+    parts = identity_parts(plan)
+    tools_ = []
+    for tag in sorted(plan.rendered):
+        step_parts = dict(plan.rendered[tag].identity_parts)
+        comment = plan.rendered[tag].folder.get("card", "comment", "")
+        if comment and "card" in step_parts:
+            step_parts["card"] = [line for line in step_parts["card"] if not line.startswith(comment)]
+        tools_.append(step_parts)
+    return {**parts, "tools": tools_}
+
+
+def library_key(plan: PointPlan) -> str:
+    """The points library's key for a point: the sha256 of `library_parts` (64 hex digits; an entry's folder is its first 16).
+    The same physics under two point names has one key; the identity is unchanged."""
+    text = json.dumps(library_parts(plan), sort_keys=True, default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def identity_record(plan: PointPlan) -> Path:
     return record_dir(plan) / "identity.json"
 

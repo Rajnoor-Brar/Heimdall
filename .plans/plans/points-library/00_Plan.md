@@ -82,5 +82,6 @@ Test command, stack loaded: `taskset -c 0-5 nice -n 10 python -m pytest -q <file
 | Phase | Status |
 |---|---|
 | Plan | approved 2026-11-07 |
-| 1 | done 2026-11-08, ⏸ the strip list waits for the developer |
-| 2–5 | not started |
+| 1 | done 2026-11-08; strip list agreed: all comment lines |
+| 2 | done 2026-11-08 |
+| 3–5 | not started |

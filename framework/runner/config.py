@@ -1450,7 +1450,7 @@ def _check_stats_metrics(stats: dict, where: str) -> None:
 REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files", "tools")
 #: The statistics summary's sections (bars.summary_model): the standings, a purpose (`purpose:<name>`), a metric (`<metric>`, or
 #: `<metric>:<part>`) and the head to head. Names from before the scoring was rebuilt are refused with the name that replaced them.
-SUMMARY = ("standings", "head-to-head")
+SUMMARY = ("standings", "marginals", "baseline", "head-to-head")
 PARTS = ("ranking", "crossed", "table")
 REPLACED = {"top5": "standings", "scoreboard": "standings", "scoreboard-cells": "standings", "scoreboards": "standings",
             "head-to-head-": "head-to-head"}

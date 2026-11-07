@@ -504,3 +504,38 @@ def test_a_curve_with_an_infinite_number_is_drawn_not_a_crash(scratch):
     assert match.rows[0].cells[1].text == "+∞" and match.rows[1].cells[0].text == "−∞"
     text, _ = page_of(document)
     assert "background:#nan" not in text.lower() and "nan," not in text.lower().replace("isnan", "")
+
+
+def worst_axes() -> dict:
+    return {f"{pdf}_{lepton}_{shower}": {"pdf": pdf, "lepton": lepton, "shower": shower}
+            for pdf in PDFS for lepton in ("lpdfon", "lpdfoff") for shower in ("on", "off")}
+
+
+def test_marginals_and_a_baseline_are_sections_when_the_points_axes_are_known():
+    rows, axes = worst_rows(), worst_axes()
+    st = score.settings_of({"baseline": {"shower": "on"}})
+    document = bars.summary_model(rows, "", st, axes)
+    keys = keys_of(document)
+    assert keys["marginals"] == ["marginal-pdf", "marginal-lepton", "marginal-shower"] and keys["baseline"] == ["baseline"]
+    assert list(keys)[-2:] == ["marginals", "baseline"]
+    pdf = next(i for s in document.sections for i in s.items if i.key == "marginal-pdf")
+    assert pdf.headers[:2] == ["score", "points"] and len([r for r in pdf.rows]) == len(PDFS)
+    assert {r.cells[1].text for r in pdf.rows} == {"4"}                          # lepton × shower: four points a PDF
+    base = next(i for s in document.sections for i in s.items if i.key == "baseline")
+    assert base.headers[:3] == ["score", "baseline", "Δscore"] and len(base.headers) == 3 + 12
+    assert sum(1 for r in base.rows if not r.band and r.label.endswith("(baseline)")) == 38     # the "on" points are their own
+    assert "marginals" in document.notes and "baseline" in document.notes
+    none = bars.summary_model(rows, "", st, {})
+    assert "marginals" not in keys_of(none) and "baseline" not in keys_of(none)          # no axes known: no sections
+
+
+def test_a_confounded_marginal_says_so_and_an_unmatched_point_is_listed():
+    rows, axes = worst_rows(), worst_axes()
+    rows = [r for r in rows if r["point"] != "NNPDF23lo_lpdfon_on"]
+    st = score.settings_of({"by": ["shower"], "baseline": {"shower": "on"}})
+    document = bars.summary_model(rows, "", st, axes)
+    assert keys_of(document)["marginals"] == ["marginal-shower"]
+    assert document.notes["confounded-shower"].startswith("Confounded: ")
+    assert "NNPDF23lo_lpdfon_off" in document.notes["unmatched"] and "no point equal to it" in document.notes["unmatched"]
+    with pytest.raises(Exception, match="not an axis"):
+        bars.summary_model(rows, "", score.settings_of({"by": "beams"}), axes)

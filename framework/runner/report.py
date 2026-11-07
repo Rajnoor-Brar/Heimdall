@@ -51,10 +51,10 @@ RECIPE = "report.toml"
 #: Whose drawn pages a section takes, in order of preference, when it names none.
 BACKENDS = ("root", "mpl")
 #: The default report's headline: the top five and each statistic's ranking (the area has none).
-#: The default Standings section: the standings, a section a purpose, then the head to head when `[score]` asks for it
+#: The default Standings section: the standings, a section a purpose, then the marginals, the baseline and the head to head when `[score]` has what they need
 #: (what has nothing to show is left out without a word). A test holds the purposes to stats.metrics.PURPOSES.
 HEADLINE = ["standings", *(f"purpose:{p}" for p in ("compatibility", "normalisation", "shape", "similarity", "trend",
-                                                       "defects", "quality")), "head-to-head"]
+                                                       "defects", "quality")), "marginals", "baseline", "head-to-head"]
 #: What a title or subtitle may name, filled in from its sources' plot documents.
 PLACEHOLDERS = ("assignment", "errand", "configuration", "title")
 #: Panels on an A4 page of a grid, for the listing's page count (the build lays them out).
@@ -1470,6 +1470,11 @@ def _scored(csv_path: Path):
     return score.settings_of((side or {}).get("score"))
 
 
+def _axes(csv_path: Path) -> dict:
+    """What each point's sweep chose, from its statistics.json: {point: {axis: tag}}, {} for a csv without."""
+    return dict((statstable.sidecar(csv_path) or {}).get("axes") or {})
+
+
 def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method: bool = False) -> Typeset | None:
     """A source's statistics, the sections chosen, typeset (its facts, its items, its notes numbered at its end;
     `method`: those How the numbers are made gives left out); beside it its numbers, stats/<section>/<stem>__<set>.csv
@@ -1477,8 +1482,8 @@ def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method:
     heading = statstable.heading_of(part.csv.parent) if part.csv.is_relative_to(part.source.folder) else \
         f"{part.source.address} · {part.set}" + (" · as this report measures it" if part.look else "")
     _measuring()
-    document, gone = chosen(bars.summary_model(statstable.read(part.csv), heading, _scored(part.csv)), part.keys)
-    gone = [k for k in gone if not (part.optional and (k.startswith("purpose:") or k == "head-to-head"))]
+    document, gone = chosen(bars.summary_model(statstable.read(part.csv), heading, _scored(part.csv), _axes(part.csv)), part.keys)
+    gone = [k for k in gone if not (part.optional and (k.startswith("purpose:") or k in ("marginals", "baseline", "head-to-head")))]
     if gone:
         say(f"report: {heading} has no {', '.join(gone)} (too few curves or page cells for them)")
     if not document.sections:

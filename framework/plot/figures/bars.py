@@ -682,6 +682,80 @@ def _matches(rows: list[dict], st, notes: dict) -> list:
     return [paper.Section("head-to-head", "Head to head", items)] if items else []
 
 
+def _shown_delta(v: float) -> str:
+    return "∞" if math.isinf(v) else f"{v:+.2f}"
+
+
+def _marginals(rows: list[dict], st, axes: dict, notes: dict, scores) -> list:
+    """The marginals section: for each axis (`[score].by`, else every varied axis) a table of its values, the mean score of the
+    points having each, their number and a column a purpose; a confounded axis says which values confound it."""
+    if not axes:
+        return []
+    found = S.marginals(scores, axes, st)
+    items = []
+    for marginal in found:
+        if len(marginal.rows) < 2:
+            continue
+        purposes = [p for p in M.PURPOSES if any(p in r[3] for r in marginal.rows)]
+        top = max([1.0] + [r[1] for r in marginal.rows if math.isfinite(r[1])])
+
+        def cost(v):
+            f = min(v / top, 1.0) if math.isfinite(v) else 1.0
+            return ("∞" if math.isinf(v) else _shown(v), _shade(f), "white" if f > 0.55 else INK)
+        styled = [[cost(score_), (str(n), SURFACE, INK)] + [cost(by[p]) if p in by else ("–", SURFACE, MUTED) for p in purposes]
+                  for _, score_, n, by in marginal.rows]
+        key = f"marginal-{marginal.axis}"
+        notes["marginals"] = ("A marginal: the mean of the scores of the points having each value of the axis (not the score of a "
+                              "mean curve), their number, and each purpose's value likewise; best first. Confounded: other axes' values "
+                              "that share this axis's values unevenly, so the difference between them is not this axis's alone.")
+        if marginal.confounded:
+            notes[f"confounded-{marginal.axis}"] = f"Confounded: {'; '.join(marginal.confounded)}."
+        items.append(_table(key, f"By {marginal.axis}\nthe mean score of the points having each value" + (
+            "; confounded" if marginal.confounded else ""), [r[0] for r in marginal.rows],
+            ["score", "points"] + [M.PURPOSES[p] for p in purposes], styled,
+            ("marginals",) + ((f"confounded-{marginal.axis}",) if marginal.confounded else ())))
+    return [paper.Section("marginals", "Marginals", items)] if items else []
+
+
+def _baseline(rows: list[dict], st, axes: dict, notes: dict, scores) -> list:
+    """The baseline section: each point's Δscore against its baseline partner and its Δloss on each object (negative, blue:
+    better than the baseline); the points with no partner listed."""
+    if not st.baseline or not axes:
+        return []
+    result = S.baseline(scores, axes)
+    if not result.rows and not result.unmatched:
+        return []
+    parts = _parts(_rows_of(rows))
+    objects = _natural({o for r in result.rows for o in r.objects})
+    shown = [r for r in result.rows if not r.is_baseline] or result.rows
+    biggest = max([abs(v) for r in shown for v in [r.delta, *r.objects.values()] if math.isfinite(v)] + [1e-12])
+
+    def delta(v):
+        if v is None or v != v:
+            return ("–", SURFACE, MUTED)
+        f = min(abs(v) / biggest, 1.0) if math.isfinite(v) else 1.0
+        return (_shown_delta(v), _shade(f, NEUTRAL, DARK if v < 0 else WARM), "white" if f > 0.55 else INK)
+    by_cell = list(dict.fromkeys(r.cell for r in result.rows))
+    banded = len(by_cell) > 1 and all(by_cell)
+    ordered = [r for c in by_cell for r in sorted((r for r in result.rows if r.cell == c), key=lambda r: r.delta)]
+    labels = [(f"{parts[r.point][1]}" if banded and r.point in parts else f"{r.cell} · {r.point}" if r.cell else r.point)
+              + (" (baseline)" if r.is_baseline else "") for r in ordered]
+    styled = [[(_shown(r.score), SURFACE, INK), (_shown(r.base), SURFACE, INK), delta(r.delta)] +
+              [delta(r.objects.get(o)) for o in objects] for r in ordered]
+    given = ", ".join(f"{k} = {v}" for k, v in result.filter.items())
+    notes["baseline"] = (f"Each point against the point equal to it on every axis but {', '.join(result.filter)}, which take the "
+                         f"values {given}: its score less the baseline's, and its page loss less the baseline's on each object. "
+                         "Negative (blue): better than the baseline.")
+    items = [_table("baseline", f"Baseline: {given}\nΔ against the baseline point; negative is better", labels,
+                    ["score", "baseline", "Δscore"] + [o.replace("-x01-y01", "") for o in objects],
+                    styled, ("baseline",), groups=[r.cell for r in ordered] if banded else None)]
+    if result.unmatched:
+        notes["unmatched"] = "Unmatched: points with no baseline partner, so no Δ: " + "; ".join(
+            f"{c + ' · ' if c else ''}{p} ({why})" for c, p, why in result.unmatched) + "."
+        items[0].notes = items[0].notes + ("unmatched",)
+    return [paper.Section("baseline", "Baseline", items)]
+
+
 def _facts(rows: list[dict]) -> list[str]:
     """What a summary holds (V197): its points, cells, objects and pages, and what they are compared against."""
     rows = _rows_of(rows)
@@ -701,7 +775,7 @@ def _facts(rows: list[dict]) -> list[str]:
             + ("; the others are compared against their first curve." if with_data < len(pages) else ".")]
 
 
-def summary_model(rows: list[dict], heading: str = "", st=None):
+def summary_model(rows: list[dict], heading: str = "", st=None, axes: dict | None = None):
     """The summary as a document (V196): its facts and notes up front (V197), the standings and the purposes' list, a
     section a purpose with a metric on (what it asks, a ranking, and each metric's ranking, page cells against curves and
     table), then the head to head for the pages `[score].head_to_head` names. `st`: stats.score.Settings (the defaults when
@@ -717,18 +791,20 @@ def summary_model(rows: list[dict], heading: str = "", st=None):
         if front:
             sections.append(paper.Section("standings", "Standings", front))
         sections += _purpose_sections(rows, names, st, notes, scores)
+        sections += _marginals(rows, st, axes or {}, notes, scores)
+        sections += _baseline(rows, st, axes or {}, notes, scores)
         sections += _matches(rows, st, notes)
     return paper.Document(heading, sections, notes, _facts(rows) if rows else [])
 
 
-def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str = "", st=None) -> list[Path]:
+def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str = "", st=None, axes: dict | None = None) -> list[Path]:
     """The summary (V174, V196): `target`.pdf holds every page, each A4 portrait; a PNG or SVG is a file a page in
     the folder `target`, <target name>_<NN>.<fmt> in the PDF's order; `target`.html the same document as one page
     (V199), whatever the formats."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    document = summary_model(rows, heading, st)
+    document = summary_model(rows, heading, st, axes)
     written = []
     if document.sections:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -739,7 +815,7 @@ def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str 
 
 
 def draw(pages: list[tuple[str, list[dict]]], folder: Path, formats: list[str], summary: Path | None = None,
-         heading: str = "", st=None) -> int:
+         heading: str = "", st=None, axes: dict | None = None) -> int:
     """Every page's image into `folder` (a panel a metric on), then the summary (`summary`, else folder/summary, under
     `heading`); the number of images."""
     st = st or S.settings_of()
@@ -750,5 +826,5 @@ def draw(pages: list[tuple[str, list[dict]]], folder: Path, formats: list[str], 
     for name, rows in pages:
         if rows:
             made += bool(page(rows, folder / name, formats, name, names))
-    made += bool(summary_of(every, summary or folder / "summary", formats, heading, st))
+    made += bool(summary_of(every, summary or folder / "summary", formats, heading, st, axes))
     return made

@@ -137,3 +137,20 @@ def test_the_columns_are_the_stats_metrics_and_every_metric_scored_and_the_table
     plain = tmp_path / "plain"
     statstable.write_set(pages, plain, ["png"])
     assert "score" not in statstable.sidecar(plain / "statistics.csv")                  # no settings: the defaults, unsaid
+
+
+def test_a_points_axes_are_read_from_the_run_s_plot_document_and_kept_in_the_sidecar(tmp_path):
+    run = tmp_path / "run"
+    (run / "statistics" / "totality").mkdir(parents=True)
+    (run / "plot.toml").write_text(
+        '[quantities.generator]\npoints = [{ tag = "py8", value = "pythia" }, { tag = "sh3", value = "sherpa" }]\n'
+        '[quantities.pdf]\npoints = [{ tag = "A", value = "a" }, { tag = "B", value = "b" }]\n'
+        '[members.py8_B]\nchoice = { generator = 0, pdf = 1 }\n[members.sh3_A]\nchoice = { generator = 1, pdf = 0 }\n'
+        '[members.odd]\nchoice = { pdf = 7 }\n', encoding="utf-8")
+    numbers = run / "statistics" / "totality"
+    axes = statstable.point_axes(numbers)
+    assert axes == {"py8_B": {"generator": "py8", "pdf": "B"}, "sh3_A": {"generator": "sh3", "pdf": "A"}}
+    assert statstable.point_axes(tmp_path / "nowhere" / "x") == {}
+    pages = [page_with_numbers(tmp_path / "pages", "d01-x01-y01", NUMBERS)]
+    statstable.write_set(pages, numbers, ["png"])
+    assert statstable.sidecar(numbers / "statistics.csv")["axes"] == axes

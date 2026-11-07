@@ -83,7 +83,10 @@ def settings_of(score: dict | None = None, over: dict | None = None) -> Settings
         if name not in metrics.REGISTRY:
             raise HeimdallError(f"no metric '{name}'", hint=did_you_mean(name, metrics.REGISTRY) or "heimdall explain score")
         thresholds[name] = (float(pair[0]), float(pair[1]))
-    by = merged.get("by", ())
+    base = merged.get("baseline")
+    if base is not None and not isinstance(base, (str, dict)):
+        raise HeimdallError("[score].baseline is a point's name or a filter { axis = \"value\" }", hint=f"got {base!r}")
+    by = merged.get("by") or ()
     return Settings(weights, merged.get("normalise", "thresholds"), thresholds, dict(merged.get("weights") or {}),
                     merged.get("weights_by", "equal"), mean, merged.get("veto"), merged.get("aggregate", "rms"),
                     bool(merged.get("dominated", False)), (by,) if isinstance(by, str) else tuple(by), merged.get("baseline"),
@@ -424,3 +427,143 @@ def head_to_head(rows: list[dict], page: str, st: Settings | None = None) -> dic
                           "metrics": {n: a.cost[n] - b.cost[n] for n in st.metrics}})
     return {"page": chosen[0]["page"], "points": [o.point for o in obs], "pairs": pairs,
             "losses": {o.point: o.loss for o in obs}}
+
+
+# ── marginals and baselines ───────────────────────────────────────────────────────────────────
+#
+# `axes` is {point: {axis: value}}: what each point's sweep chose (the plot document's members, kept in statistics.json). A
+# marginal is a mean of the points' scores, never the score of a mean curve: a curve merged from several points has no entry
+# in `axes`, so it never enters one.
+
+@dataclass
+class Marginal:
+    axis: str
+    rows: list = field(default_factory=list)        # (value, score, points, {purpose: value}), best score first
+    confounded: list = field(default_factory=list)  # sentences: which values of other axes share this axis's values unevenly
+
+
+def varied(axes: dict, scored: set | None = None) -> dict[str, list[str]]:
+    """The axes with at least two values among the points (those in `scored`, when given): {axis: its values, in the order met}."""
+    seen: dict[str, dict] = {}
+    for point, chosen in axes.items():
+        if scored is not None and point not in scored:
+            continue
+        for axis, value in chosen.items():
+            seen.setdefault(axis, {})[str(value)] = None
+    return {a: list(v) for a, v in seen.items() if len(v) >= 2}
+
+
+def _confounded(axis: str, every: dict[str, list[str]], axes: dict, points: set) -> list[str]:
+    """For `axis`, which values of the other varied axes are not spread evenly over its values: each point counts once."""
+    out = []
+    mine = every[axis]
+    for b, b_values in every.items():
+        if b == axis:
+            continue
+        for bv in b_values:
+            count = {a: sum(1 for p in points if axes[p].get(axis) == a and axes[p].get(b) == bv) for a in mine}
+            have = [a for a, n in count.items() if n]
+            if len(have) < len(mine):
+                out.append(f"{b} = {bv} only with {axis} = {', '.join(have)}" if have else f"{b} = {bv} has no point")
+            elif len(set(count.values())) > 1:
+                out.append(f"{b} = {bv} has unequal numbers of points over {axis}'s values")
+    return out
+
+
+def marginals(scores: Scores, axes: dict, st: Settings | None = None) -> list[Marginal]:
+    """For each axis in `st.by` (every varied axis when it names none), a table of value → the `mean` of the scores of the points
+    having it, the points' number and each purpose's value; and which other axes' values confound it (spread unevenly over this
+    axis's values, as pdf = X only with generator = Y). An axis named that is not varied is refused."""
+    st = st or scores.settings
+    scored = {p.point for p in scores.points if p.score == p.score and p.point in axes}
+    every = varied(axes, scored)
+    names = list(st.by) or list(every)
+    for axis in names:
+        if axis not in every:
+            raise HeimdallError(f"[score].by: '{axis}' is not an axis these points vary",
+                                hint=("axes varied: " + ", ".join(every)) if every else "no axis is varied among the scored points")
+    out = []
+    for axis in names:
+        marginal = Marginal(axis, confounded=_confounded(axis, every, axes, scored))
+        for value in every[axis]:
+            mine = [p for p in scores.points if p.point in scored and str(axes[p.point].get(axis)) == value and p.score == p.score]
+            if not mine:
+                continue
+            purposes = {}
+            for purpose in metrics.PURPOSES:
+                have = [p.purposes[purpose] for p in mine if purpose in p.purposes]
+                if have:
+                    purposes[purpose] = means.evaluate(st.mean, have)
+            marginal.rows.append((value, means.evaluate(st.mean, [p.score for p in mine]), len({p.point for p in mine}), purposes))
+        marginal.rows.sort(key=lambda r: r[1])
+        out.append(marginal)
+    return out
+
+
+@dataclass
+class BaselineRow:
+    cell: str
+    point: str
+    partner: str                                    # the baseline point it is taken against
+    score: float
+    base: float
+    delta: float                                    # score − base: negative is better
+    objects: dict = field(default_factory=dict)     # object → the page loss less the partner's
+    is_baseline: bool = False
+
+
+@dataclass
+class Baseline:
+    filter: dict
+    rows: list = field(default_factory=list)
+    unmatched: list = field(default_factory=list)   # (cell, point, why): never dropped quietly
+
+
+def baseline_filter(given, axes: dict) -> dict:
+    """`[score].baseline` as a filter {axis: value}: a table as it is, a point's name as that point's every axis."""
+    if isinstance(given, str):
+        if given not in axes:
+            raise HeimdallError(f"[score].baseline: no point '{given}'", hint="a point's name, or a filter { axis = \"value\" }")
+        return dict(axes[given])
+    return {str(k): str(v) for k, v in dict(given).items()}
+
+
+def baseline(scores: Scores, axes: dict, given=None) -> Baseline:
+    """Each point's Δ against the baseline point equal to it on every axis the filter leaves alone (the filter's values on the
+    others): its Δscore, and its Δloss on each object. A point with no partner, or none of whose axes are known, is listed as
+    unmatched with the reason."""
+    given = scores.settings.baseline if given is None else given
+    if not given:
+        raise HeimdallError("no baseline: [score].baseline is not set")
+    wanted = baseline_filter(given, axes)
+    known = set().union(*(set(a) for a in axes.values())) if axes else set()
+    for axis in wanted:
+        if axis not in known:
+            raise HeimdallError(f"[score].baseline: '{axis}' is not an axis of these points", hint="axes: " + ", ".join(sorted(known)))
+    by_axes: dict = {}
+    for ps in scores.points:
+        if ps.point in axes:
+            by_axes.setdefault(frozenset((k, str(v)) for k, v in axes[ps.point].items()), []).append(ps)
+    out = Baseline(wanted)
+    for ps in scores.points:
+        if ps.point not in axes:
+            out.unmatched.append((ps.cell, ps.point, "its axis values are not known"))
+            continue
+        mine = {k: str(v) for k, v in axes[ps.point].items()}
+        partners = by_axes.get(frozenset({**mine, **wanted}.items()), [])
+        partner = next((q for q in partners if q.cell == ps.cell), partners[0] if partners else None)
+        if partner is None:
+            out.unmatched.append((ps.cell, ps.point, "no point equal to it but for " + ", ".join(f"{k} = {v}" for k, v in wanted.items())))
+            continue
+        if ps.score != ps.score or partner.score != partner.score:
+            out.unmatched.append((ps.cell, ps.point, f"it or its baseline {partner.point} has no score"))
+            continue
+        objects = {}
+        for page, loss in ps.pages.items():
+            name = page.rsplit("/", 1)[-1]
+            other = next((v for k, v in partner.pages.items() if k.rsplit("/", 1)[-1] == name), None)
+            if other is not None:
+                objects[name] = loss - other
+        out.rows.append(BaselineRow(ps.cell, ps.point, partner.point, ps.score, partner.score, ps.score - partner.score, objects,
+                                    partner is ps or all(mine.get(k) == v for k, v in wanted.items())))
+    return out

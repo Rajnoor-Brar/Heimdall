@@ -300,3 +300,88 @@ def test_head_to_head_gives_the_pairwise_differences_and_counts_no_wins():
 def test_head_to_head_on_a_page_that_is_not_there_names_the_pages():
     with pytest.raises(HeimdallError, match="no page"):
         score.head_to_head([row("a")], "nope")
+
+
+# ── marginals and baselines ───────────────────────────────────────────────────────────────────
+
+def sweep_rows(losses: dict, drop=()):
+    """A point per (generator, pdf), its one page's χ²/ndf set so that its loss is losses[(g, p)] (χ²/ndf = 1 + 2·loss)."""
+    rows, axes = [], {}
+    for (g, p), loss in losses.items():
+        if (g, p) in drop:
+            continue
+        name = f"{g}_{p}"
+        rows.append(row(name, page="c/d01-x01-y01", cell="c", obj="run/pt/d01-x01-y01", chi2_ndf=1.0 + 2.0 * loss))
+        rows.append(row(name, page="c/d02-x01-y01", cell="c", obj="run/pt/d02-x01-y01", chi2_ndf=1.0 + 2.0 * loss * 2))
+        axes[name] = {"generator": g, "pdf": p}
+    return rows, axes
+
+
+BALANCED = {("py8", "A"): 0.5, ("py8", "B"): 1.0, ("sh3", "A"): 1.5, ("sh3", "B"): 2.0}
+ONE = score.settings_of({"metrics": ["chi2_ndf"]})
+
+
+def test_a_marginal_is_the_mean_score_over_the_points_having_each_value():
+    rows, axes = sweep_rows(BALANCED)
+    out = score.score(rows, ONE)
+    by = {m.axis: m for m in score.marginals(out, axes)}
+    assert set(by) == {"generator", "pdf"}
+    s = {p.point: p.score for p in out.points}
+    py8 = next(r for r in by["generator"].rows if r[0] == "py8")
+    assert py8[1] == pytest.approx(math.sqrt((s["py8_A"] ** 2 + s["py8_B"] ** 2) / 2)) and py8[2] == 2
+    assert [r[0] for r in by["generator"].rows] == ["py8", "sh3"]                 # best first
+    assert by["generator"].confounded == [] and by["pdf"].confounded == []
+    assert set(py8[3]) == {"compatibility"}
+
+
+def test_a_marginal_says_which_values_confound_it():
+    rows, axes = sweep_rows(BALANCED, drop=[("sh3", "B")])                       # B only with py8
+    by = {m.axis: m for m in score.marginals(score.score(rows, ONE), axes)}
+    assert by["generator"].confounded == ["pdf = B only with generator = py8"]
+    assert by["pdf"].confounded == ["generator = sh3 only with pdf = A"]
+
+
+def test_an_axis_that_is_not_varied_is_refused_and_by_chooses_the_axes():
+    rows, axes = sweep_rows(BALANCED)
+    out = score.score(rows, ONE)
+    only = score.settings_of({"metrics": ["chi2_ndf"], "by": "pdf"})
+    assert [m.axis for m in score.marginals(out, axes, only)] == ["pdf"]
+    with pytest.raises(HeimdallError, match="not an axis"):
+        score.marginals(out, axes, score.settings_of({"metrics": ["chi2_ndf"], "by": ["beams"]}))
+    fixed = {k: {**v, "generator": "py8"} for k, v in axes.items()}
+    assert [m.axis for m in score.marginals(out, fixed)] == ["pdf"]               # a fixed axis is not varied
+
+
+def test_a_point_with_no_axes_never_enters_a_marginal():
+    rows, axes = sweep_rows(BALANCED)
+    rows += [row("merged", page="c/d01-x01-y01", cell="c", obj="run/pt/d01-x01-y01", chi2_ndf=99.0)]
+    by = {m.axis: m for m in score.marginals(score.score(rows, ONE), axes)}
+    assert sum(r[2] for r in by["generator"].rows) == 4
+
+
+def test_a_baseline_is_taken_against_the_point_equal_on_every_other_axis():
+    rows, axes = sweep_rows(BALANCED)
+    out = score.score(rows, ONE)
+    result = score.baseline(out, axes, {"generator": "py8"})
+    s = {p.point: p.score for p in out.points}
+    by = {r.point: r for r in result.rows}
+    assert by["sh3_A"].partner == "py8_A" and by["sh3_A"].delta == pytest.approx(s["sh3_A"] - s["py8_A"])
+    assert by["sh3_B"].partner == "py8_B" and by["py8_B"].delta == 0 and by["py8_B"].is_baseline
+    assert by["sh3_A"].objects["d01-x01-y01"] == pytest.approx((1.5 - 0.5))      # the page loss less its partner's
+    assert by["sh3_A"].objects["d02-x01-y01"] == pytest.approx(2 * (1.5 - 0.5))
+    assert result.unmatched == []
+
+
+def test_a_baseline_by_point_name_and_a_point_without_a_partner_is_listed_not_dropped():
+    rows, axes = sweep_rows(BALANCED, drop=[("py8", "B")])
+    out = score.score(rows, ONE)
+    result = score.baseline(out, axes, {"generator": "py8"})
+    assert [(p, why.split(" but")[0]) for _, p, why in result.unmatched] == [("sh3_B", "no point equal to it")]
+    one = score.baseline(out, axes, "py8_A")                                      # a name: that point's every axis
+    assert {r.partner for r in one.rows} == {"py8_A"} and len(one.rows) == 3
+    with pytest.raises(HeimdallError, match="no point 'nope'"):
+        score.baseline(out, axes, "nope")
+    with pytest.raises(HeimdallError, match="not an axis"):
+        score.baseline(out, axes, {"beams": "ep"})
+    with pytest.raises(HeimdallError, match="no baseline"):
+        score.baseline(out, axes)

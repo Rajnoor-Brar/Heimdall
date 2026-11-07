@@ -50,16 +50,39 @@ def metric_names(errand_stats: dict | None, score_table: dict | None) -> list[st
     return names + [n for n in score.settings_of(score_table).metrics if n not in names]
 
 
+def point_axes(numbers: Path) -> dict:
+    """What each point's sweep chose, {point: {quantity: tag}}, from the run's plot document (statistics/<set> is beside it);
+    {} when it has none to read."""
+    import tomllib
+    path = numbers.parent.parent / "plot.toml"
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+    quantities = data.get("quantities", {})
+    out = {}
+    for name, member in (data.get("members") or {}).items():
+        chosen = {}
+        for quantity, index in (member.get("choice") or {}).items():
+            points = (quantities.get(quantity) or {}).get("points") or []
+            if isinstance(index, int) and 0 <= index < len(points) and "tag" in points[index]:
+                chosen[quantity] = str(points[index]["tag"])
+        if chosen:
+            out[name] = chosen
+    return out
+
+
 def write_set(pages: list, numbers: Path, formats: list[str], module=None, names=None, score: dict | None = None) -> tuple[int, int]:
     """A set's numbers, statistics/<set>/ (V160, V164): statistics.csv and statistics.json (the metrics `names`, scored as
     `score` says), then each page's bar graph and the summary (bars.draw), when any page has numbers. (rows written, images
     made). `module`: bars, loaded once by the caller."""
     from stats import score as scoring
     names = list(names) if names is not None else metric_names(None, score)
-    count = write_statistics(pages, numbers / "statistics.csv", names, score)
+    axes = point_axes(numbers)
+    count = write_statistics(pages, numbers / "statistics.csv", names, score, axes)
     if not count:
         return 0, 0
     module = module or bars()
     images = module.draw([(p.rel, statistics_of(p, names) or []) for p in pages], numbers / "bars", formats,
-                         summary=numbers / "summary", heading=heading_of(numbers), st=scoring.settings_of(score))
+                         summary=numbers / "summary", heading=heading_of(numbers), st=scoring.settings_of(score), axes=axes)
     return count, images

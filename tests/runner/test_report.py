@@ -180,6 +180,7 @@ def test_the_default_report_is_the_headline_and_each_set_its_document_draws(tree
 def test_the_default_standings_name_every_purpose_in_order():
     from stats import metrics
     assert [k.partition(":")[2] for k in report.HEADLINE if k.startswith("purpose:")] == list(metrics.PURPOSES)
+    assert report.HEADLINE[0] == "standings" and report.HEADLINE[-3:] == ["marginals", "baseline", "head-to-head"]
 
 
 def test_a_recipe_picks_pages_side_by_side_and_its_sources_can_be_replaced(trees):

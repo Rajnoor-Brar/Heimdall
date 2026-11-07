@@ -1,6 +1,6 @@
 """framework/plot/mpl/backend.py — `[plot] backend = "mpl"`: the pages drawn with matplotlib, in this process.
 
-doc:plots, doc:plot-backends (V71). The pages rivet-mkhtml draws, drawn without it (the yoda backend that
+doc:plots, doc:plot-backends (V71). The pages rivet-mkhtml draws, drawn without it (the retired yoda backend that
 handed them to mkhtml is retired). **Until the user has verified them, they are mkhtml's look**, so
 everything mkhtml decides comes from the library mkhtml runs on, called directly:
 

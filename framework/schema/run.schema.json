@@ -626,7 +626,7 @@
       ]
      },
      "styles": {
-      "description": "one per value: its curves' look, { colour, line, width }\n\none per value: its curves' look, `{ colour, line, width }`. `colour` is `\"#rrggbb\"`, a ROOT name (`\"kBlue+1\"`) or number (the yoda backend draws `#rrggbb` only); `line` is `solid`, `dashed`, `dotted` or `dashdot`; `width` is in points. A key left out, or `\"default\"`, is the style's; curves with no colour take the palette in turn, as mkhtml's take its cycle. A value keeps its look on every page, so a PDF is one colour throughout. With two curve axes, the later one's keys win",
+      "description": "one per value: its curves' look, { colour, line, width }\n\none per value: its curves' look, `{ colour, line, width }`. `colour` is `\"#rrggbb\"`, a ROOT name (`\"kBlue+1\"`) or number (the mpl backend draws `#rrggbb` only); `line` is `solid`, `dashed`, `dotted` or `dashdot`; `width` is in points. A key left out, or `\"default\"`, is the style's; curves with no colour take the palette in turn, as mkhtml's take its cycle. A value keeps its look on every page, so a PDF is one colour throughout. With two curve axes, the later one's keys win",
       "type": "array",
       "items": {
        "type": "object"
@@ -669,7 +669,7 @@
    "type": "object",
    "properties": {
     "backend": {
-     "description": "root (Paint), yoda (deprecated, rivet-mkhtml), mpl (matplotlib), a list of them, or both (root and yoda)\n\n`\"root\"` (Paint), `\"yoda\"` (deprecated, rivet-mkhtml; frozen), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process), `\"both\"` (root and yoda) or an array of them, from the same pages",
+     "description": "root (Paint), mpl (matplotlib), or a list of them\n\n`\"root\"` (Paint), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process) or an array of them, from the same pages. `\"yoda\"` (rivet-mkhtml) and `\"both\"` are retired: `\"mpl\"` draws the pages mkhtml did",
      "anyOf": [
       {
        "type": [
@@ -680,9 +680,7 @@
         "type": "string",
         "enum": [
          "root",
-         "yoda",
-         "mpl",
-         "both"
+         "mpl"
         ]
        }
       },
@@ -716,7 +714,7 @@
      ]
     },
     "band": {
-     "description": "curve-axis quantities drawn as one curve, their first value, with the min–max envelope of all their values\n\ncurve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band",
+     "description": "curve-axis quantities drawn as one curve, their first value, with the min–max envelope of all their values\n\ncurve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The mpl backend draws the same envelope as mkhtml's error band",
      "type": "array",
      "items": {
       "type": "string"
@@ -1046,7 +1044,7 @@
      "default": "none"
     },
     "root_style": {
-     "description": "a style file over base.toml (beside the errand file)\n\na style file over base.toml. Refused by the yoda backend alone.",
+     "description": "a style file over base.toml (beside the errand file)\n\na style file over base.toml. Refused by the mpl backend alone.",
      "anyOf": [
       {
        "type": "string"
@@ -1143,7 +1141,7 @@
       "type": "object",
       "properties": {
        "band": {
-        "description": "as [plot].band, for these pages\n\ncurve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band",
+        "description": "as [plot].band, for these pages\n\ncurve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The mpl backend draws the same envelope as mkhtml's error band",
         "anyOf": [
          {
           "type": "array",
@@ -1760,7 +1758,7 @@
         }
        },
        "backend": {
-        "description": "whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl, yoda)",
+        "description": "whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl)",
         "type": [
          "string",
          "array"
@@ -1769,8 +1767,7 @@
          "type": "string",
          "enum": [
           "root",
-          "mpl",
-          "yoda"
+          "mpl"
          ]
         }
        },
@@ -1848,7 +1845,7 @@
         "type": "object",
         "properties": {
          "backend": {
-          "description": "root (Paint), yoda (deprecated, rivet-mkhtml), mpl (matplotlib), a list of them, or both (root and yoda)\n\n`\"root\"` (Paint), `\"yoda\"` (deprecated, rivet-mkhtml; frozen), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process), `\"both\"` (root and yoda) or an array of them, from the same pages",
+          "description": "root (Paint), mpl (matplotlib), or a list of them\n\n`\"root\"` (Paint), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process) or an array of them, from the same pages. `\"yoda\"` (rivet-mkhtml) and `\"both\"` are retired: `\"mpl\"` draws the pages mkhtml did",
           "anyOf": [
            {
             "type": [
@@ -1859,9 +1856,7 @@
              "type": "string",
              "enum": [
               "root",
-              "yoda",
-              "mpl",
-              "both"
+              "mpl"
              ]
             }
            },
@@ -1895,7 +1890,7 @@
           ]
          },
          "band": {
-          "description": "curve-axis quantities drawn as one curve, their first value, with the min–max envelope of all their values\n\ncurve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band",
+          "description": "curve-axis quantities drawn as one curve, their first value, with the min–max envelope of all their values\n\ncurve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The mpl backend draws the same envelope as mkhtml's error band",
           "type": "array",
           "items": {
            "type": "string"
@@ -2225,7 +2220,7 @@
           "default": "none"
          },
          "root_style": {
-          "description": "a style file over base.toml (beside the errand file)\n\na style file over base.toml. Refused by the yoda backend alone.",
+          "description": "a style file over base.toml (beside the errand file)\n\na style file over base.toml. Refused by the mpl backend alone.",
           "anyOf": [
            {
             "type": "string"
@@ -2322,7 +2317,7 @@
            "type": "object",
            "properties": {
             "band": {
-             "description": "as [plot].band, for these pages\n\ncurve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band",
+             "description": "as [plot].band, for these pages\n\ncurve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The mpl backend draws the same envelope as mkhtml's error band",
              "anyOf": [
               {
                "type": "array",

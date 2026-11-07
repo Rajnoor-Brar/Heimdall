@@ -50,7 +50,7 @@ from .tools import RunFolders
 #: What a run writes beside each folder's plot.toml: its report's recipe (V209).
 RECIPE = "report.toml"
 #: Whose drawn pages a section takes, in order of preference, when it names none.
-BACKENDS = ("root", "mpl", "yoda")
+BACKENDS = ("root", "mpl")
 #: The default report's headline: the top five and each statistic's ranking (the area has none).
 HEADLINE = ["top5", *(f"{key}:ranking" for key in STATISTICS if key != "area")]
 #: What a title or subtitle may name, filled in from its sources' plot documents.

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import re
 import pytest
 
 from runner import config, quantities, sweep, tools
@@ -254,6 +255,7 @@ def test_every_fixture_config_is_its_v2_text_in_v3():
     from support import REPO
     for name in house.config_names():
         v2 = migrate.errand_text((REPO / "tests" / "reference" / "v2_configs" / f"{name}.toml").read_text(encoding="utf-8"))
+        v2 = re.sub(r'(backend\s*=\s*\["root", )"yoda"\]', r'\1"mpl"]', v2)    # the retired backend: the reference stays as it was written
         mine = _identities(config.load(name))
         theirs = _identities(config.load(name, text=v2))
         assert {k: [(n, i) for n, _, i in v] for k, v in mine.items()} == \

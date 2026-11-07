@@ -179,9 +179,9 @@ Globs of page cells (the folders in a set: `18x275`), to take only those; defaul
 
 | Type | Default | Acceptable |
 |---|---|---|
-| string or list of strings | — | `"root"`, `"mpl"`, `"yoda"` |
+| string or list of strings | — | `"root"`, `"mpl"` |
 
-Whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl, yoda)
+Whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl)
 
 ### `layout`
 

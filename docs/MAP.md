@@ -52,7 +52,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [plots-sets](stable/guide/plots-sets.md): pages of chosen points: the totality set, named sets with page axes and curve groups, looks, short forms, split (5 KB)
 - [plots-statistics](stable/guide/plots-statistics.md): the numbers behind each page: statistics.csv's columns, [stats], bar graphs, the summary and how points are scored (4 KB)
 - [plots-style](stable/guide/plots-style.md): how a page's look is layered, a style file, legends outside the frame, and seeing the merged style (2 KB)
-- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-stats-rms
+- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-no-yoda-backend, live-stats-rms
 - [programs](stable/guide/programs.md): your own programs in a chain: a module, an integrated program, an exec tool, a tool folder of your own (4 KB)
 - [reports](stable/guide/reports.md): heimdall report: an A4 report of Runs' pages and numbers; recipes, sections, what it draws for itself, where it is built (6 KB)
 - [results-python](stable/guide/results-python.md): reading a run's results from Python, for notebooks and statistics tools (1 KB)
@@ -104,14 +104,14 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [failures](stable/internals/failures.md): how a chain of processes fails and how each way is handled; attribution; exit codes (2 KB)
 - [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (4 KB)
 - [layout](stable/internals/layout.md): Heimdall's folders, the machine root's and a work dir's; what is in git; how the roots are found; where a run's files go (5 KB)
-- [live-runs](stable/internals/live-runs.md): a run as a worker and a client; the run registry; signals, pausing, resuming, heimdall watch and stop (4 KB)
+- [live-runs](stable/internals/live-runs.md): a run as a worker and a client; the run registry; signals, pausing, resuming, heimdall watch and stop (4 KB) ⟵ live: live-resume-record-config
 - [paint](stable/internals/paint.md): Paint inside: the order of a page's arithmetic, drawing, heat maps, dumps; what is load-bearing (4 KB)
 - [plot-backends](stable/internals/plot-backends.md): how the backends beside Paint draw the same pages, what they honour and refuse (2 KB)
 - [plot-stage](stable/internals/plot-stage.md): the plot stage inside: members and stand-in plans, the merged sweep, page documents, drawing, what a record gives a drawing (5 KB)
 - [provenance](stable/internals/provenance.md): what a run records and where: provenance.json, attempts.jsonl, points.json, tag, identity.json (2 KB)
 - [run-flow](stable/internals/run-flow.md): a run from command to pages: planning, one point, scopes, points at once, several runs, combine, and where each check lives (5 KB)
 - [runner](stable/internals/runner.md): the runner's modules and ranks, what each owns, what plugins may import; the C++ files and what each links (8 KB)
-- [testing](stable/internals/testing.md): the test suites, how they isolate themselves, the gates, and what holds the docs (3 KB)
+- [testing](stable/internals/testing.md): the test suites, how they isolate themselves, the gates, and what holds the docs (3 KB) ⟵ live: live-shadow-root
 - [tool-contract](stable/internals/tool-contract.md): what a tool folder holds, the search path, every tool.toml section and key, render.py, providers, and what the runner does per point (10 KB)
 
 ## stable/design/decisions
@@ -135,4 +135,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## live
 
+- [live-no-yoda-backend](live/no-yoda-backend.md): the yoda plot backend (rivet-mkhtml) is gone; mpl owns the transforms it borrowed (2 KB)
+- [live-resume-record-config](live/resume-record-config.md): a paused run resumes with the latest attempted Run's recorded config snapshot (2 KB)
+- [live-shadow-root](live/shadow-root.md): the tests run on a shadow machine root, and a guard watches the live one (1 KB)
 - [live-stats-rms](live/stats-rms.md): a statistic over pages is a root mean square, not a mean (1 KB)

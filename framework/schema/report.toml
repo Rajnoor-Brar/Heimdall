@@ -113,8 +113,8 @@ doc   = "globs of page cells (the folders in a set: `18x275`), to take only thos
 [section.backend]
 type    = "str|list"
 items   = "str"
-choices = ["root", "mpl", "yoda"]
-doc     = "whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl, yoda)"
+choices = ["root", "mpl"]
+doc     = "whose drawn pages it takes; a list in order of preference (per page, the first that drew it; default: root, mpl)"
 
 [section.layout]
 type    = "str"

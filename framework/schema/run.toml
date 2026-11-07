@@ -501,7 +501,7 @@ items = "table"
 doc   = "one per value: its curves' look, { colour, line, width }"
 notes = """\
   one per value: its curves' look, `{ colour, line, width }`. `colour` is `\"#rrggbb\"`, a \
-  ROOT name (`\"kBlue+1\"`) or number (the yoda backend draws `#rrggbb` only); `line` is `solid`, \
+  ROOT name (`\"kBlue+1\"`) or number (the mpl backend draws `#rrggbb` only); `line` is `solid`, \
   `dashed`, `dotted` or `dashdot`; `width` is in points. A key left out, or `\"default\"`, is the \
   style's; curves with no colour take the palette in turn, as mkhtml's take its cycle. A value \
   keeps its look on every page, so a PDF is one colour throughout. With two curve axes, the later \
@@ -671,14 +671,14 @@ notes = """\
 [plot.backend]
 type       = "str|list"
 items      = "str"
-choices    = ["root", "yoda", "mpl", "both"]
+choices    = ["root", "mpl"]
 default    = "root"
 default_ok = true
-doc        = "root (Paint), yoda (deprecated, rivet-mkhtml), mpl (matplotlib), a list of them, or both (root and yoda)"
+doc        = "root (Paint), mpl (matplotlib), or a list of them"
 notes = """\
-  `\"root\"` (Paint), `\"yoda\"` (deprecated, rivet-mkhtml; frozen), `\"mpl\"` (matplotlib, \
-  mkhtml's pages drawn in-process), `\"both\"` (root and yoda) or an array of them, from \
-  the same pages"""
+  `\"root\"` (Paint), `\"mpl\"` (matplotlib, mkhtml's pages drawn in-process) or an array of \
+  them, from the same pages. `\"yoda\"` (rivet-mkhtml) and `\"both\"` are retired: `\"mpl\"` \
+  draws the pages mkhtml did"""
 
 [plot.formats]
 type       = "list"
@@ -702,7 +702,7 @@ notes = """\
   quantity's first value, with the min–max of all its values shaded around it in the curve's \
   colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own \
   statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, \
-  not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same \
+  not `plot_points`, not combined) is refused at plan time. The mpl backend draws the same \
   envelope as mkhtml's error band"""
 
 [plot.objects]
@@ -956,7 +956,7 @@ type       = "str"
 default_ok = true
 doc        = "a style file over base.toml (beside the errand file)"
 notes = """\
-  a style file over base.toml. Refused by the yoda backend alone."""
+  a style file over base.toml. Refused by the mpl backend alone."""
 
 [plot.title]
 page       = true

@@ -15,11 +15,11 @@ Generated from the code; change it there. `heimdall explain <key>` says the same
 
 | Type | Default | Acceptable |
 |---|---|---|
-| string or list of strings | `"root"` | `"root"`, `"yoda"`, `"mpl"`, `"both"` |
+| string or list of strings | `"root"` | `"root"`, `"mpl"` |
 
 - `"default"`: the layer below's value, as if left out
 
-`"root"` (Paint), `"yoda"` (deprecated, rivet-mkhtml; frozen), `"mpl"` (matplotlib, mkhtml's pages drawn in-process), `"both"` (root and yoda) or an array of them, from the same pages.
+`"root"` (Paint), `"mpl"` (matplotlib, mkhtml's pages drawn in-process) or an array of them, from the same pages. `"yoda"` (rivet-mkhtml) and `"both"` are retired: `"mpl"` draws the pages mkhtml did.
 
 ## `formats`
 
@@ -37,7 +37,7 @@ Generated from the code; change it there. `heimdall explain <key>` says the same
 |---|---|---|
 | list of strings | — | — |
 
-Curve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The yoda backend draws the same envelope as mkhtml's error band. A figure may override it.
+Curve axes drawn as an envelope: per value of the other curve axes, one curve, the band quantity's first value, with the min–max of all its values shaded around it in the curve's colour (the usual PDF or scale band). Its legend entry ends `(<q> envelope)`; its own statistical errors are not drawn. A name that is not a curve axis of the configuration (swept, not `plot_points`, not combined) is refused at plan time. The mpl backend draws the same envelope as mkhtml's error band. A figure may override it.
 
 ## `objects`
 
@@ -268,7 +268,7 @@ One of the statistics (see `statistics`) after each curve's legend entry: `chi2_
 
 - `"default"`: the layer below's value, as if left out
 
-A style file over base.toml. Refused by the yoda backend alone.
+A style file over base.toml. Refused by the mpl backend alone.
 
 ## `title`
 

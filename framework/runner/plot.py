@@ -12,8 +12,8 @@ doc:plots, doc:paint. After the points, from the complete ones:
   {cell}, {q:<quantity>} (a value's label), and what the tools' folders give ({opt:ETMIN}: Rivet's);
 * reference data are drawn only through the explicit [plot.data].map (L18);
 * one Paint config per page, records/…/plots/[<page>/]<object>.toml, drawn to
-  results/…/plots/root/[<page>/]<object>.<fmt>; the yoda backend writes results/…/plots/yoda/, and
-  backend = ["root", "yoda"] (or "both") writes both from the same pages;
+  results/…/plots/root/[<page>/]<object>.<fmt>; the mpl backend writes results/…/plots/mpl/, and
+  backend = ["root", "mpl"] writes both from the same pages;
 * the style is src/Apps/Paint/base.toml, which Paint reads itself; a page's [style] holds only
   what is changed over it: the machine root's style.toml, the work dir's style.toml, the
   [plot].root_style file, then [plot.style], then its figure's style, each checked against base.toml's
@@ -48,7 +48,7 @@ from .tools import merge_files, run_folders, sha256_file
 from .sweep import (Listed, axes, check_set, chosen_points, group_key, group_labels, group_tag, label_of, set_cells,
                     set_entries, split_axes, tag_of)
 
-BACKENDS = tuple(b for b in schema.keys("plot")["backend"]["choices"] if b != "both")
+BACKENDS = tuple(schema.keys("plot")["backend"]["choices"])
 FORMATS = tuple(schema.keys("plot")["formats"]["choices"])
 LEGENDS = ("top-right", "top-left", "bottom-right", "bottom-left", "best", "out-right", "out-left", "out-top", "out-bottom")
 #: The legend's places outside the frame (V185), which Paint and mpl draw and mkhtml cannot.
@@ -148,10 +148,10 @@ def backend(name: str):
 
 
 def backends(settings: dict) -> list[str]:
-    """[plot].backend: a name, a list of names, or "both" (every backend). Paint's first when drawn."""
+    """[plot].backend: a name or a list of names. Paint's first when drawn."""
     value = settings.get("backend", "root")
     value = "root" if value == DEFAULT else value
-    names = ["root", "yoda"] if value == "both" else [value] if isinstance(value, str) else list(value)   # "both": V28's pair
+    names = [value] if isinstance(value, str) else list(value)
     return sorted(dict.fromkeys(names), key=lambda n: n != "root")
 
 
@@ -163,7 +163,7 @@ def validate(errand) -> None:
     where = f"{errand.path}: [plot]"
     names = backends(settings)
     if not names:
-        raise HeimdallError("[plot].backend names no backend", where=f"{where}.backend", hint='"root", "yoda" or "both"')
+        raise HeimdallError("[plot].backend names no backend", where=f"{where}.backend", hint='"root", "mpl" or both in a list')
     errand_style(errand)
     for figure in figures(errand):
         check_style(figure.table.get("style", {}), f"{figure.where}.style")
@@ -285,7 +285,7 @@ def errand_style(errand) -> dict:
 
 def for_root(document: dict) -> dict:
     """The page document Paint reads: every label through root_text (the in-memory document keeps the
-    labels as written, which the yoda backend converts its own way)."""
+    labels as written, which the mpl backend converts its own way)."""
     out = {**document, "page": {k: tlatex(v) if k in (*TITLE_KEYS, "x_label", "y_label") and isinstance(v, str) else v
                                 for k, v in document["page"].items()},
            "curve": [{**c, "label": tlatex(c["label"])} for c in document["curve"]]}
@@ -1512,7 +1512,7 @@ def _why(done: subprocess.CompletedProcess) -> str:
 
 
 def write_index(where: Path, title: str, pages: list[tuple[str, str, Path]]) -> Path:
-    """V70: <where>/index.html, the ROOT pages as mkhtml's index is the yoda backend's: a section per
+    """V70: <where>/index.html, the ROOT pages, as mpl's index is: a section per
     plot_points cell, each page shown by its PNG or SVG (an embedded PDF otherwise) and linked to every
     format drawn. `pages`: (cell, name, output without extension), in order."""
     def rel(path: Path) -> str:

@@ -177,7 +177,7 @@ def natural(text: str) -> str:
 
 
 def mathtext(text: str) -> str:
-    """A LaTeX label as matplotlib draws it (the yoda backend, V65): YODA's macros expanded, `<` and `>`
+    """A LaTeX label as matplotlib draws it (the mpl backend, V65): YODA's macros expanded, `<` and `>`
     of the text set as math (LaTeX's text font prints > as ¿), the escapes \\_ \\^ \\# of the text the
     characters, and ':' (which separates mkhtml's options) a space."""
     parts = macros(text).split("$")

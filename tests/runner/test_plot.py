@@ -103,12 +103,7 @@ def test_labels_come_from_the_rivet_plot_file_for_every_variant(work_built):
     assert plain["LogY"] == "1" and "E_T" in plain["XLabel"]
 
 
-# ── the yoda backend (framework/plot/yoda/backend.py) ──────────────────────────────────────────────
-
-@pytest.fixture(scope="module")
-def yoda_backend():
-    return plot.backend("yoda")
-
+# ── the mpl backend's transforms (framework/plot/mpl/transforms.py) ──────────────────────────────────────────────
 
 @pytest.fixture(scope="module")
 def mpl_transforms():
@@ -206,13 +201,13 @@ def test_explicit_ranges_are_handed_to_mkhtml_even_when_data_exceed_them(mpl_tra
 
 
 def test_both_backends_draw_the_same_pages_and_the_style_is_paints(scratch):
-    assert plot.backends({}) == ["root"] and plot.backends({"backend": "yoda"}) == ["yoda"]
-    assert plot.backends({"backend": "both"}) == plot.backends({"backend": ["yoda", "root", "yoda"]}) == ["root", "yoda"]
+    assert plot.backends({}) == ["root"] and plot.backends({"backend": "mpl"}) == ["mpl"]
+    assert plot.backends({"backend": ["mpl", "root", "mpl"]}) == ["root", "mpl"]
     (scratch / "talk.toml").write_text("[text]\ntitle = 12\n", encoding="utf-8")
-    validated(scratch, backend="both", root_style=str(scratch / "talk.toml"),       # Paint honours these
+    validated(scratch, backend=["root", "mpl"], root_style=str(scratch / "talk.toml"),       # Paint honours these
               style={"text": {"legend": 9}, "legend": {"position": "top-left"}})
     with pytest.raises(HeimdallError, match="legend.position"):                         # the pages would disagree
-        validated(scratch, backend=["root", "yoda"], style={"legend": {"position": [0.5, 0.9]}})
+        validated(scratch, backend=["root", "mpl"], style={"legend": {"position": [0.5, 0.9]}})
     for bad, message in (([], "names no backend"), (["root", "matplotlib"], "backend")):
         with pytest.raises(HeimdallError, match=message):
             validated(scratch, backend=bad)
@@ -253,23 +248,6 @@ def test_references_are_cut_to_the_aligned_run_and_renamed(mpl_transforms):
     assert sum(b.val() * (b.xMax() - b.xMin()) for b in area.bins()) == pytest.approx(1.0)
     assert [ref.bin(i).val() for i in range(1, 7)] == [whole.bin(i).val() for i in range(1, 7)]
     assert ref.bin(1).errDownUp("stat") == whole.bin(1).errDownUp("stat")
-
-
-def test_the_yoda_backend_gives_the_ratio_the_divisions_paint_has(scratch):
-    """mkhtml's ratio ticks are a fifth of the pad's range, and its script's set_yscale() resets any
-    locator set before it: ratio.divisions' locators go just before the figure is saved."""
-    yoda_backend = plot.backend("yoda")
-    script = scratch / "d02-x01-y01.py"
-    script.write_text("ratio0_ax.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.2))\n"
-                      "ratio0_ax.set_ylim(0.5, 1.4999)\nratio0_ax.set_yscale('linear')\n"
-                      "plt.savefig('x.pdf')\nplt.savefig('x.png')\n", encoding="utf-8")
-    assert yoda_backend.ratio_ticks(script, 512)
-    text = script.read_text(encoding="utf-8")
-    assert text.index("MultipleLocator(0.1)") > text.index("set_yscale") and text.index("MultipleLocator(0.1)") < text.index("plt.savefig")
-    assert "AutoMinorLocator(5)" in text
-    assert not yoda_backend.ratio_ticks(script, 512)                    # already so: no second run
-    assert yoda_backend.ratio_ticks(script, 508) and "MultipleLocator(0.2))\nratio0_ax.yaxis.set_minor" in script.read_text(encoding="utf-8")
-    assert script.read_text(encoding="utf-8").count(yoda_backend.MARK) == 1
 
 
 # ── "default": keep it as it is (V55): a child's is its parent's; [plot]'s sets nothing ──────────
@@ -476,13 +454,9 @@ def test_the_mpl_ratio_window_is_paint_s(mpl_transforms, curves, expected):
     assert window == pytest.approx(expected)
 
 
-def test_a_best_legend_lets_matplotlib_choose(yoda_backend, scratch):
-    """V49: mkhtml anchors the legend at a corner; "best" leaves the spot to matplotlib."""
-    script = scratch / "page.py"
-    script.write_text("ax.add_artist(ax.legend(legend_items,\n    loc='upper right',\n"
-                      "    bbox_to_anchor=(0.97, 0.97),markerfirst=False))\n", encoding="utf-8")
-    assert yoda_backend.best_legend(script) and "loc='best',markerfirst=False))" in script.read_text(encoding="utf-8")
-    assert not yoda_backend.best_legend(script)                          # once only
+def test_the_ratio_pad_ticks_step_by_roots_rule(mpl_transforms):
+    """ratio.divisions: the smallest 1, 2 or 5 × 10^k at least the width (ROOT's choice for n divisions)."""
+    assert [mpl_transforms._step(w) for w in (0.15, 0.2, 0.21, 0.5, 0.51, 1.0, 1.01)] == [0.2, 0.2, 0.5, 0.5, 1.0, 1.0, 2.0]
 
 
 def test_mpl_sizes_the_legend_title_by_text_header(mpl_transforms):
@@ -625,9 +599,8 @@ def test_the_root_pages_get_an_index(scratch):
     assert '<object data="cell_b/d01.pdf"' in text and "gone" not in text
 
 
-def test_mpl_is_a_backend_and_both_is_still_root_and_yoda(scratch):
-    """V71: "mpl" may be named; "both" keeps V28's meaning; mpl refuses what mkhtml cannot do, in its own name."""
-    assert plot.backends({"backend": "both"}) == ["root", "yoda"]
+def test_mpl_is_a_backend_and_refuses_what_mkhtml_cannot_do_in_its_own_name(scratch):
+    """V71: "mpl" may be named; mpl refuses what mkhtml cannot do, in its own name."""
     assert plot.backends({"backend": ["mpl", "root"]}) == ["root", "mpl"]
     with pytest.raises(HeimdallError, match='backend = "mpl"'):
         validated(scratch, backend="mpl", style={"page": {"dpi": 100}})

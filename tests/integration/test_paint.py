@@ -263,7 +263,7 @@ def test_the_ranges_only_show_the_statistics_are_the_pages(v1):
 
 
 def test_paints_ranges_are_what_mkhtml_is_handed(v1):
-    """The handoff: Paint's --ranges, with explicit ends, read back as the yoda backend's plot block."""
+    """The handoff: Paint's --ranges, with explicit ends, read back as the mpl backend's plot block."""
     from runner import plot
     where, curves = v1
     config = small_page(where, "handed", curves, auto_range=True, x_range=["default", 3.5], y_range=[0.5, "default"])
@@ -274,7 +274,7 @@ def test_paints_ranges_are_what_mkhtml_is_handed(v1):
     page = plot.Page("handed", config, where / "handed", object="/photo_eic/d01-x01-y01",
                      document={"page": {"logx": False, "logy": False, "ratio": False}}, style=plot.base_style(),
                      ranges=ranges)
-    block = plot.backend("yoda")._plot_block(page)
+    block = plot.backend("mpl")._transforms()._plot_block(page)
     assert "XMin=0\n" in block and "XMax=3.5\n" in block and "YMin=0.5\n" in block
     assert f"YMax={ranges['y'][1]:.10g}" in block
 

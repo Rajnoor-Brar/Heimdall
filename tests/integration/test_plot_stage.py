@@ -368,46 +368,27 @@ def test_a_merged_figure_merges_the_points_for_itself(stage):
     assert (plans[0].folders.plots / "totality" / "root" / "em" / "avg" / "d01-x01-y01.png").is_file()
 
 
-@pytest.mark.slow
-@pytest.mark.skipif(not shutil.which("rivet-mkhtml"), reason="gjallarhorn: rivet-mkhtml")
-@pytest.mark.parametrize("stage", ["yoda"], indirect=True)
-def test_the_yoda_backend_draws_the_same_pages(stage):
-    """S3 row 1 in miniature: the pages of the ROOT backend, drawn by rivet-mkhtml, one set per cell."""
-    errand, configuration, plans = stage
-    said = []
-    assert plot.draw(errand, configuration, plans, said.append) == 0, said
-    plots = plans[0].folders.plots / "totality" / "yoda"             # the yoda backend's own tree
-    for cell in ("em", "ep"):
-        assert len(list((plots / cell / "photo_eic").glob("*.pdf"))) == 17
-    work = plans[0].folders.pages / "totality" / "em" / "yoda"
-    blocks = (work / "pages.plot").read_text(encoding="utf-8")
-    assert blocks.count("# BEGIN PLOT") == 17 and "XMin=" in blocks and "LogY=1" in blocks
-    yoda = pytest.importorskip("yoda")
-    references = yoda.read(str(work / "reference.yoda"))
-    assert list(references) == ["/REF/photo_eic/d01-x01-y01"]                # only what the map names
-
-
 def test_pages_are_paints_and_another_backend_moves_only_the_output(stage):
     errand, configuration, plans = stage
     page = plot.pages(errand, configuration, plans)[0]
     plots = plans[0].folders.plots / "totality"                      # V164: a set's folder, a backend's in it
     assert page.output == plots / "root" / page.rel and page.name == f"totality/{page.rel}"
     assert tomllib.loads(page.config.read_text(encoding="utf-8"))["page"]["output"] == str(page.output)   # Paint's
-    assert plot.for_backend(page, "yoda").output == plots / "yoda" / page.rel
+    assert plot.for_backend(page, "mpl").output == plots / "mpl" / page.rel
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not shutil.which("rivet-mkhtml"), reason="gjallarhorn: rivet-mkhtml")
-@pytest.mark.parametrize("stage", ["both"], indirect=True)
+@pytest.mark.parametrize("stage", ["mpl"], indirect=True)
 def test_both_backends_draw_both_trees(stage):
     errand, configuration, plans = stage
+    errand.plot["backend"] = ["root", "mpl"]
     said = []
     assert plot.draw(errand, configuration, plans, said.append) == 0, said
     plots = plans[0].folders.plots / "totality"
     for cell in ("em", "ep"):
         assert len(list((plots / "root" / cell).glob("*.png"))) == 17
-        assert len(list((plots / "yoda" / cell / "photo_eic").glob("*.pdf"))) == 17
-    assert said[0].startswith("plot: 34 of 34") and said[-1].startswith("plot (yoda): 34 of 34")
+        assert len(list((plots / "mpl" / cell).glob("d*.png"))) == 17
+    assert said[0].startswith("plot: 34 of 34") and any(line.startswith("plot (mpl): 34 of 34") for line in said)
 
 
 def test_a_swept_analysis_option_is_a_curve_not_a_page(scratch):
@@ -465,7 +446,7 @@ def test_a_best_legend_is_drawn(stage):
     assert plot.draw(errand, configuration, plans, lambda line: None) == 0
 
 
-@pytest.mark.parametrize("stage", ["root", "yoda"], indirect=True)
+@pytest.mark.parametrize("stage", ["root", "mpl"], indirect=True)
 def test_titles_and_overlays(stage):
     """V51: [plot] titles for every page, a child's override; an overlay is several objects of each
     point on one page, labelled by the overlay (and the point, when a page has several)."""
@@ -483,37 +464,9 @@ def test_titles_and_overlays(stage):
     assert labels == ["E_{T} > 5, MSTW 2008 LO", "E_{T} > 10, MSTW 2008 LO", "E_{T} > 5, NNPDF 2.3 LO", "E_{T} > 10, NNPDF 2.3 LO"]
     assert plot.draw(errand, configuration, plans, lambda line: None) == 0
 
-    if errand.plot["backend"] == "yoda":
-        plots = plans[0].folders.plots / "totality" / "yoda"
-        assert (plots / "em" / "overlay" / "cuts.png").exists()
-        script = (plots / "em" / "photo_eic" / "d01-x01-y01.py").read_text(encoding="utf-8")
-        assert "'All pages'" in script and "'Pythia 8'" in script and "bbox_inches='tight'" in script
-
-
-@pytest.mark.slow
-@pytest.mark.skipif(not shutil.which("rivet-mkhtml"), reason="gjallarhorn: rivet-mkhtml")
-@pytest.mark.parametrize("stage", ["yoda"], indirect=True)
-def test_the_mpl_backend_draws_mkhtml_s_pages_pixel_for_pixel(stage):
-    """V71 (B4c, option B): until the user has verified it, mpl's pages are mkhtml's: every page and
-    overlay, with titles and a best legend, is the same PNG."""
-    from matplotlib import image
-    np = pytest.importorskip("numpy")
-    errand, configuration, plans = stage
-    errand.plot.update({"backend": ["yoda", "mpl"], "title": "All pages", "title_right": "Pythia 8",
-                        "figures": {**errand.plot["figures"], "cuts": {"class": "overlay", "objects": ["d02-x01-y01", "d03-x01-y01"],
-                                                                    "labels": ["$E_T > 5$", "$E_T > 10$"]}}})
-    errand.plot["figures"]["d05"] = {"objects": ["d05-*"], "style": {"legend": {"position": "best"}}}
-    said = []
-    assert plot.draw(errand, configuration, plans, said.append) == 0, said
-    plots = plans[0].folders.plots / "totality"
-    compared = 0
-    for mine in sorted((plots / "mpl").rglob("*.png")):
-        rel = mine.relative_to(plots / "mpl")
-        theirs = plots / "yoda" / rel.parent / ("overlay" if rel.stem == "cuts" else "photo_eic") / rel.name
-        a, b = image.imread(mine), image.imread(theirs)
-        assert a.shape == b.shape and not (np.abs(a[..., :3] - b[..., :3]) > 1e-3).any(), rel
-        compared += 1
-    assert compared == 36 and (plots / "mpl" / "index.html").is_file()            # 2 cells × (17 + 1)
+    if errand.plot["backend"] == "mpl":
+        plots = plans[0].folders.plots / "totality" / "mpl"
+        assert (plots / "em" / "cuts.png").exists() and (plots / "em" / "d01-x01-y01.png").exists()
 
 
 # ── V159: pages of chosen points ──────────────────────────────────────────────────────────────
@@ -997,8 +950,7 @@ def test_the_summary_pdf_holds_a_table_a_statistic(stage):
 @pytest.mark.filterwarnings("ignore:This process .* is multi-threaded:DeprecationWarning")   # an earlier test's fsspec
 def test_a_legend_outside_the_frame_and_a_gap_above_the_ratio(stage, where):                  # thread; mpl forks per page
     """V185: legend.position out-right, out-left, out-top, out-bottom, and ratio.gap (points between the frames):
-    Paint and mpl draw them (Paint's frame makes room, mpl's page grows); mkhtml cannot, and says so."""
-    from runner import plugins
+    Paint and mpl draw them (Paint's frame makes room, mpl's page grows)."""
     from runner.errors import HeimdallError
     errand, configuration, plans = stage
     styled = replace(errand, plot={**errand.plot, "backend": ["root", "mpl"],
@@ -1008,10 +960,5 @@ def test_a_legend_outside_the_frame_and_a_gap_above_the_ratio(stage, where):    
     pages = plans[0].folders.plots / "totality"
     for backend in ("root", "mpl"):
         assert (pages / backend / "em" / "d01-x01-y01.png").is_file()
-    yoda = plugins.load(plot.heimdall_root() / "framework" / "plot" / "yoda" / "backend.py", "yoda_backend")
-    with pytest.raises(HeimdallError, match="legend.position cannot be honoured"):
-        yoda.validate({"style": {"legend": {"position": where}}})
-    with pytest.raises(HeimdallError, match="ratio.gap cannot be honoured"):
-        yoda.validate({"style": {"ratio": {"gap": 6.0}}})
     with pytest.raises(HeimdallError, match="must be one of"):
         plot.check_style({"legend": {"position": "out-middle"}}, "[plot.style]")

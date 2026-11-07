@@ -117,7 +117,7 @@ points = [
 ]
 
 [plot]
-backend     = ["root", "yoda"]
+backend     = ["root", "mpl"]
 void_empty  = false
 min_entries = 0
 auto_range  = false

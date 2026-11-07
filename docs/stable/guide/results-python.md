@@ -13,4 +13,4 @@ for point in results.load("Demo/jets", "energy_pdf"):
     print(point.name, point.values["pdf"].label, point.complete, point.yoda())
 ```
 
-`results.load(CONFIG, CONFIGURATION)` reads `points.json` and returns its points. Each has `name`; `values` (quantity → `tag`, `label`, `value`, `swept`); `products` (name → path), `results`, `output`; `complete`, `identity`, `seed`; `yoda()` and `root()`. `results.runs(CONFIG)` gives every configuration that has run. It plans nothing, so it needs no tool installed.
+`results.load(CONFIG, CONFIGURATION)` reads `points.json` and returns its points. Each has `name`, `index`; `values` (quantity → `tag`, `label`, `value`, `swept`); `products` (name → path), `results`, `output`; `complete`, `identity`, `seed`; `page` (its `plot_points` values); `yoda()` and `root()`. `results.runs(CONFIG)` gives every configuration that has run. It plans nothing, so it needs no tool installed.

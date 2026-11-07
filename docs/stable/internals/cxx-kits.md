@@ -85,7 +85,7 @@ A tool with `status = "standard"` writes JSON lines to the fd in `$HEIMDALL_STAT
 | `summary` | tool-defined | the event stream only |
 | `heartbeat` | | keeps it from counting as stalled |
 
-**C++:** `#include "Status.hh"` before any X11 header, then `Status::Reporter status;`. `phase`, `progress` (at most every 0.25 s unless forced), `xsec`, `log`, `summary`, `dropped`. Writes are non-blocking and drop on a full pipe, so a slow reader never slows a generator. With the variable unset, plain stderr lines.
+**C++:** `#include "Status.hh"` before any X11 header, then `Status::Reporter status;`. `phase`, `progress` (at most every 0.25 s unless forced), `xsec`, `log`, `summary`; `dropped()` counts lines lost to a full pipe. A heartbeat thread sends `heartbeat` after half a second of nothing else. Writes are non-blocking and drop on a full pipe, so a slow reader never slows a generator. With the variable unset, plain stderr lines.
 
 **Python:** `framework/heimdallkit.py`: `Status()`, `report(output, **fields)`, `Exit`, `stopping()`, `usage()`. Any other language writes the same lines.
 

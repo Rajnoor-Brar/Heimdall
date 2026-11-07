@@ -21,7 +21,7 @@ A figure takes every page key of `[plot]`, each meaning what it means there; lef
 | `defined` | an analysis object | `<cell>/<object>` |
 | `overlay` | several objects of each point | `<cell>/<name>` |
 | `merged` | points merged over an axis, for this figure only | `<cell>/<name>/<object>` |
-| `compare` | the same objects across configurations | `<E>/compare/<name>/<cell>/<object>` |
+| `compare` | the same objects across configurations | `results/<A>/<E>/compare/<name>/<backend>/<cell>/<object>` |
 | `derived` | a new object per point | `<cell>/<name>` |
 | `scan` | one number per point against a swept quantity | `<cell>/<name>` |
 | `sheet` | drawn pages, tiled | `plots/<set>/<backend>/sheets/<name>` |

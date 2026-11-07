@@ -29,7 +29,7 @@ Run make with the environment loaded: without it, `rules.mk` stops, as `$HEIMDAL
 - Every output depends on `flags.mk`, so a re-probe rebuilds what linked the old one. A re-probe finding the same flags keeps the cache's time and rebuilds nothing.
 - A plugin's `.info`, `.plot` and `.yoda` copies are real targets. A `.info` saying `Requires: ONNX` adds ONNX's flags.
 - `make all` in a work dir builds every non-parked program and plugin (`_`-prefixed folders are parked; a subfolder of an assignment holds headers). In Heimdall: every app, and `$HEIMDALL_APPS/Herwig/HerwigDefaults.rpo` when Herwig is on `PATH`.
-- Other targets: `configure`, `list`, `clean`; Heimdall's also `tests`, `test`, `test-slow`, `schema`, `docs`. Do not use `test`: [invariants](../../rules/invariants.md).
+- Other targets: `configure`, `list`, `clean`; Heimdall's also `tests`, `test`, `test-slow`, `schema`, `docs`, `registry` (`env/packages.sh` from the recipes). Do not use `test`: [invariants](../../rules/invariants.md).
 - Compiler: `CXX` (`g++`), `CXXFLAGS` (`-O2`), and the stack's C++ standard (`stack/.stamps/cxx_std`; 17 when absent).
 
 ## `// requires:`

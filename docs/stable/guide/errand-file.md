@@ -6,7 +6,7 @@ code: framework/runner/config.py, framework/runner/v3.py, framework/schema/v3.to
 
 # The errand file
 
-A table per concern: `[errand]` (the errand, and what every configuration starts from), `[cfgs.<name>]`, `[tools.<name>]`, `[quantities.<name>]`, `[plot]`. Every key: [errand settings](../../reference/settings/errand.md), [tools](../../reference/settings/tools.md), [plot](../../reference/settings/plot.md).
+A table per concern: `[file]` (how the file is read: imports, vars), `[errand]` (the errand, and what every configuration starts from), `[cfgs.<name>]`, `[tools.<name>]`, `[quantities.<name>]`, `[plot]`, `[stats]`, `[report]`, `[cluster]`, and `[heimdall]` (the commands' own flags). Every key: [errand settings](../../reference/settings/errand.md), [tools](../../reference/settings/tools.md), [plot](../../reference/settings/plot.md).
 
 ```toml
 # configs/Demo/mini.toml

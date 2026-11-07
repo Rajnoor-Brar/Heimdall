@@ -19,7 +19,7 @@ heimdall run Demo/jets single --set errand.events=50000
 
 `--assignment A` instead of `--example` gives a starter of your own, and `--git` commits it. `heimdall recognise <dir>` records work dirs so `gjallarhorn <title>` finds them from anywhere.
 
-`single` is one point: App_Pythia generates 27.5 × 920 GeV e⁺p photoproduction into a FIFO, Rivet's `photo_eic` reads it, the YODA is converted to ROOT, and 17 pages are drawn against ZEUS data. The terminal shows the running tools, then one block:
+`single` is one point: App_Pythia generates 27.5 × 920 GeV e⁺p photoproduction into a FIFO, Rivet's `photo_eic` reads it, the YODA is converted to ROOT, and 17 pages are drawn, those ZEUS measured against its data. The terminal shows the running tools, then one block:
 
 ```
 ── point 1/1: point ── ok after 42.3s at Tue 21 Oct 14:03

@@ -68,7 +68,7 @@ list:
 	@printf '%s\n' $(ALL) $(TESTS)
 schema:                         # framework/schema/run.schema.json from run.toml (V55)
 	cd framework && python3 -m runner.schema
-docs:                           # the manual's generated blocks, from the schema, base.toml and the CLI (V91)
+docs:                           # the generated pages (docs/reference, CONTEXT.md, MAP.md), from the schema, base.toml, settings.toml and the CLI (V91)
 	cd framework && python3 -m runner.docs
 registry:                       # env/packages.sh, the shell's install folders, from the recipes (V123)
 	python3 recipes/build_stack.py --packages-sh > env/packages.sh

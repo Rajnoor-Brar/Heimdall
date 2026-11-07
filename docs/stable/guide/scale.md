@@ -67,7 +67,7 @@ The post stage runs only when every point is complete, and reruns when any chang
 
 ## Seeds
 
-By default a point's seeds follow its generator's identity, so one setup always gives the same events. A `Random:seed` in your card is ignored, as the runner writes its own after it. To choose:
+By default a point's seeds follow its generator's identity, so one setup always gives the same events. A `Random:seed` in your card is not used, as the runner sets it; the plan says so. To choose:
 
 ```toml
 [errand]
@@ -112,7 +112,7 @@ heimdall cluster Demo/jets energy_pdf --cancel    # scancel the latest submissio
 
 - A configuration's `cluster = { … }` is over the errand file's, and `--set cluster.time=…` over everything.
 - `cpus` defaults to what a point keeps busy. `parallelism` is not used: `max_running` is.
-- A second submission waits until the first's jobs have ended. Scripts and logs are in `records/<A>/<E>/<R>/cluster/<stamp>/`. `heimdall watch` cannot reach a node: the logs and `--status` stand in.
+- A second submission is refused while the first still has jobs pending or running (`--status`, or `--cancel`). Scripts and logs are in `records/<A>/<E>/<R>/cluster/<stamp>/`. `heimdall watch` cannot reach a node: the logs and `--status` stand in.
 - Each script's last line is the `heimdall run` it makes, which can be typed by hand.
 - FIFOs and prepare caches' locks are on the shared filesystem: NFSv4 and Lustre take both.
 - `[cluster] image = "<name>"` runs every job in an Apptainer image. `heimdall cluster` itself still plans on the login node, outside it. Setting a cluster up: [cluster](../setup/cluster.md).

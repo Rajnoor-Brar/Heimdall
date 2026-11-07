@@ -10,7 +10,7 @@ Each was hit on a real build, and the recipes do what the right column says. Bef
 
 | Package | Problem | What is done |
 |---|---|---|
-| all | ROOT, Rivet, Pythia8 and the module programs pass C++ types across libraries: mixed standards are ABI trouble | one standard for everything: `CXXFLAGS="-O2 -std=c++17"` for every build, and `CMAKE_CXX_STANDARD=17` |
+| all | ROOT, Rivet, Pythia8 and the module programs pass C++ types across libraries: mixed standards are ABI trouble | one standard for everything, `cxx_std` (17; 20 with a ready-made ROOT): `-std=c++{cxx_std}` in every build's `CXXFLAGS` (`{cxxflags}`), `CMAKE_CXX_STANDARD`, and `rules.mk`'s from `stack/.stamps/cxx_std` |
 | all | the build of one package needs the ones before it on its paths | the base's (or venv's) `bin/` first on `PATH`, and every install on `PATH`, `LD_LIBRARY_PATH` and `PYTHONPATH`, as `gjallarhorn.sh` gives them later (`settings.toml [env]` for the rest) |
 | all, on the base | conda's GCC searches its own sysroot, not `/usr`; a program built on the base needs the base's `libstdc++` at run time | every build inside the base's activation, `-isystem <base>/include` and `-Wl,-rpath,<base>/lib` (`{cflags}`, `{cxxflags}`, `{ldflags}`); `<base>/lib` never on `LD_LIBRARY_PATH` |
 | YODA, Rivet, ThePEG, Herwig | on the base, their configure looks for zlib in `/usr/local /usr` (adding `-I/usr/include`: the OS's glibc headers among the base's, "bits/timesize.h: No such file") and for GSL on "the system" | `--with-zlib=<base>`, `--with-gsl=<base>` (`base.toml`) |

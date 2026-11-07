@@ -33,7 +33,6 @@ One table, `Kit::Exit` in `src/Kit.hh`, and `heimdallkit.Exit`:
 | 4 | input |
 | 5 | output |
 | 6 | stopped, partials written |
-| 7 | stalled |
 | 70 | internal |
 
 ## Exit codes of `heimdall run`

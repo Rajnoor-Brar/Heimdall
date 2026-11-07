@@ -54,7 +54,7 @@ Made by `heimdall setup <dir>`. Its meaning for a user is in [outputs](../guide/
 
 | Path | In git |
 |---|---|
-| `heimdall.toml`: the marker. `[work] name`, `[framework] expects`, `[cluster]`, `[run] keep`; any other key is refused | yes |
+| `heimdall.toml`: the marker. `[work] name`, `[framework] expects`, `[cluster]`, `[run] keep` and `log`; any other key is refused | yes |
 | `Makefile`: one line, `include $(HEIMDALL)/framework/work.mk` | yes |
 | `configs/<A>/`, `modules/<A>/`, `datasets/` | yes |
 | `build/`, `records/`, `.cache/`, `results/`, `reports/` | no |

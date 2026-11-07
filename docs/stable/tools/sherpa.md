@@ -14,8 +14,8 @@ output = "events.hepmc"
 
 - **Card** (`render.py`): base YAMLs deep-merged in order, then each value assigned at its key path (`EPA:Q2Max`, `PDF_SET[0]`), written whole. `sqrts` becomes `BEAM_ENERGIES`. `MPI_PDF_SET` follows `PDF_SET`.
 - **The plan owns** `BEAMS`, `BEAM_ENERGIES`, `RANDOM_SEED`, `EVENTS`, `EVENT_OUTPUT`, `RESULT_DIRECTORY`: a base card setting one is refused.
-- **Prepare**, the integration, cached by the card without `EVENTS`: `Sherpa -f <card> -e 0 "RESULT_DIRECTORY: <cache>/Results" "EVENT_OUTPUT: None"`. Sherpa exits 0 even when it set up no process; the step then fails, quoting Sherpa's reason. σ ± err shows as it goes.
-- **Runs** `Sherpa -f <card> "RESULT_DIRECTORY: <cache>/Results"`.
+- **Prepare**, the integration, cached by the card without `EVENTS`: `prepare.py` runs `Sherpa -f <card> -e 0 "RESULT_DIRECTORY: <cache>/Results" "EVENT_OUTPUT: None" "SHERPA_CPP_PATH: <cache>"`; for an Amegic card it then compiles what Amegic wrote (`./makelibs`, `$HEIMDALL_MAKELIBS_JOBS` compilers at once, default 1) and runs Sherpa again. Sherpa exits 0 even when it set up no process; the step then fails, quoting Sherpa's reason. σ ± err shows as it goes.
+- **Runs** `Sherpa -f <card> "RESULT_DIRECTORY: <cache>/Results" "SHERPA_CPP_PATH: <cache>"`.
 - **Progress:** display arguments `BATCH_MODE: 23` and `EVENT_DISPLAY_INTERVAL` make it print a line per thousandth of the run. They are in no identity. A card's own `BATCH_MODE` is not used.
 - **Consumes** `energies`, `beams`, `sqrts`, `pdf` (checked), `events`.
 - **Context file:** `card`; the product `"sherpa:results"`, prepared on demand.

@@ -6,7 +6,7 @@ code: recipes/build_stack.py, recipes/settings.toml, recipes/toolkits/standard.t
 
 # Building the stack
 
-`build_stack.py` builds the software Heimdall runs on, into the machine root. The data says what is built; the engine knows five steps (fetch, unpack, configure or cmake, install, stamp) and four kinds of package. A version bump, flag or package is a TOML edit, never a code change. Every setting: [stack settings](../../reference/settings/stack.md).
+`build_stack.py` builds the software Heimdall runs on, into the machine root. The data says what is built; the engine knows five steps (fetch, unpack, configure or cmake, install, stamp) and five kinds of package: `autotools`, `cmake`, `unpack`, `none` and `external`. A version bump, flag or package is a TOML edit, never a code change. Every setting: [stack settings](../../reference/settings/stack.md).
 
 | File | Is |
 |---|---|
@@ -52,7 +52,7 @@ A finished package is stamped (`stack/.stamps/<name>-<release>`, holding its rec
 
 Every tarball is fetched first, four at a time, so a dead link stops the run in its first minute. A `url` may list mirrors; a download resumes and retries; a web page, cut-off file or wrong `sha256` is refused and named. `--check-urls` asks every URL first, `--sha256` prints checksums as recipe lines. A tarball already in `forge/downloads/<name>-<release>.<ext>` is used as it is, so a machine with no network can build from copied tarballs.
 
-`--dry-run` prints the whole build as a bash script. Each package logs to `forge/logs/<name>.log`; a failure stops at once, prints the last 30 lines and names the log.
+`--dry-run` prints the whole build as a bash script (`--resume`: only what the prefix lacks); `--platform mac --dry-run` another platform's. `--toolkits` lists the toolkits, `--base` makes the base only, `--update-base` brings its packages to their newest first. Each package logs to `forge/logs/<name>.log`; a failure stops at once, prints its first error lines with a line of context and the log's last 15, and names the log.
 
 ## A new package
 

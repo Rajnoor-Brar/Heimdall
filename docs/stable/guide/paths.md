@@ -54,6 +54,7 @@ Two configurations of a file may not write one folder. Deleting a configuration'
 | `{output}`, `{outputs}`, `{partial:output}`, `{output_name}` | the first output's final path; every output's; its partial name, renamed after the checks; its file name |
 | `{q:<quantity>}` | the point's value of an active quantity |
 | `{threads}`, `{events}`, `{seed}` | the configuration's; the point's seed, filled in last |
+| `{display_every}` | events between progress lines: a thousandth of the count, at least 100 |
 | `{cards}`, `{card}` | the base cards then the point card; the combined card |
 | `{analyses}` | rivet: `-a <analysis[:options]>` for each |
 | `{prepared}`, `{prepare_card}` | the prepare cache entry; the card its step reads |

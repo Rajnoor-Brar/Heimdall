@@ -35,6 +35,6 @@ gjallarhorn My-Study && heimdall build
 heimdall run Jets/jets --plan
 ```
 
-Then: [first-run](../start/first-run.md). In an existing repository, `heimdall setup` keeps its `README.md`, `CLAUDE.md` and `LICENSE` (Heimdall's guide goes in `HEIMDALL.md`), merges a marked block into `.gitignore`, and `--git` commits only what it added. It fetches what `datasets.toml` lists. `--refresh` shows and writes the framework's own files as today's template has them. A template edit changes what every new work dir gets.
+Then: [first-run](../start/first-run.md). A folder must be empty, a work dir to complete, or a fresh git repository (only `.git/` and a hosting site's README, LICENSE, `.gitignore`); any other needs `--adopt`. A repository's own `README.md` and `CLAUDE.md` are kept (Heimdall's guide goes in `HEIMDALL.md`), its `.gitignore` gains a marked block, and `--git` commits only what was added (`--git=new` in a nested repository). `--example jets` adds a working assignment to run first. It fetches what `datasets.toml` lists. `--refresh` shows, as a diff, each framework-written file (the Makefile, `.vscode/`, Heimdall's README.md and CLAUDE.md) that differs from today's template, and writes it (asked, unless `--yes`); the user's files are never touched. A template edit changes what every new work dir gets.
 
 Verify: [verify](verify.md).

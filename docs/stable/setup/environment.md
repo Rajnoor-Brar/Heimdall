@@ -6,7 +6,7 @@ code: gjallarhorn.sh, launch.sh, env/heimdall_env.sh, framework/runner/bifrost.p
 
 # The environment
 
-`source gjallarhorn.sh` in bash sets `HEIMDALL`, puts the stack and `heimdall` on `PATH`, activates the base and adds `machine.sh`'s lines. The build writes a block into `~/.bashrc` and `~/.zshrc` defining **`gjallarhorn [title]`** and `bifrost`; `gjallarhorn <title>` also goes to that work dir. In zsh it opens a bash, via `launch.sh`, which also runs one command: `launch.sh heimdall run …`. Another shell sourcing it is turned away. `heimdall where` says which Heimdall, stack and work dir a shell sees.
+`source gjallarhorn.sh` in bash sets `HEIMDALL`, puts the stack and `heimdall` on `PATH`, activates the base and adds `machine.sh`'s lines. The build writes a block into `~/.bashrc` and `~/.zshrc` defining **`gjallarhorn [title]`** and `bifrost`; `gjallarhorn <title>` also goes to that work dir. In zsh it opens a bash, via `launch.sh`, which also runs one command (`launch.sh heimdall run …`) or an image's environment (`gjallarhorn --image <name>`: [images](images.md)). Another shell sourcing it is turned away. `heimdall where` says which Heimdall, stack and work dir a shell sees.
 
 `heimdall cd ASSIGNMENT [configs|modules|results|records|logs]`, `heimdall quit` (takes out all it added) and `heimdall refresh` (`quit`, then the same stack again) change the shell, so they are the function's. Everything else works without the environment: `framework/bin/heimdall` runs the machine's Python by path, for cron, scripts and Slurm.
 
@@ -49,11 +49,14 @@ The base is activated first: its `bin/` on `PATH`, `CC`, `CXX`, `FC` set. Its `l
 | `HEIMDALL_WORK` | you, tests | the work dir, instead of the walk up |
 | `HEIMDALL_WORKDIRS`, `HEIMDALL_RUNS` | you, tests | replace `workdirs.toml`, `runs/` |
 | `HEIMDALL_DETACH` | you | `never`: a run on a terminal stays in the command's own process |
-| `HEIMDALL_CLUSTER_JOB` | job scripts | a cluster job's run records nothing, and stays in-process |
+| `HEIMDALL_CLUSTER_JOB` | job scripts | a cluster job: its run is recorded by its submission, not by itself, and stays in-process |
+| `HEIMDALL_RUN_ID`, `HEIMDALL_RESUMES` | `heimdall runs --resume` | the id a detached run takes; the paused entry it resumes |
+| `HEIMDALL_MAKELIBS_JOBS` | you | how many compilers Sherpa's `makelibs` runs at once (default 1) |
+| `HEIMDALL_BUILD_SH` | `platforms/mac/build.sh` | on macOS, the build came through the wrapper |
 | `HEIMDALL_RECORDS`, `_CACHE`, `_RESULTS`, `_REPORTS`, `_CONFIGS` | you, tests | replace the work dir's trees |
 | `HEIMDALL_STATUS_FD`, `HEIMDALL_CONTEXT` | the runner, per tool | the status pipe; the point's context file |
 | `HEIMDALL_PLAIN`, `NO_COLOR` | you | no live progress in the stack build; no colour in `doctor` and the build |
 | `RIVET_ANALYSIS_PATH` | the rivet and merge folders | `build/Rivet`; not set in the shell on purpose |
 | `LHAPDF_DATA_PATH`, `GEANT4_DATA_DIR`, `ONNXRUNTIME_DIR`, `DELPHES_DIR` | `heimdall_env.sh` | the toolchain's data |
 
-High-Energy's `HEKIT_*` are refused, naming the replacement.
+High-Energy's `HEKIT_*` and the old `HEP_*` names are refused, naming the replacement.

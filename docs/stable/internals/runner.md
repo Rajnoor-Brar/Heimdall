@@ -42,9 +42,9 @@ One flat package, `framework/runner/`, with a declared rank per module. A module
 | 5 | `cli.py` | `argparse`: `run`, `plot`, `overlay`, `watch`, `check`, …; the order of events |
 | 5 | `house.py` | `ls`, `explain`, `status`, `clean` |
 | 5 | `migrate.py` | `heimdall migrate`: errand files and cards rewritten in today's forms |
-| 5 | `docs.py` | `make docs`: the manual's generated blocks (keys, style, commands) from the schema, base.toml and the CLI |
+| 5 | `docs.py` | `heimdall make --framework docs`: the generated pages (`docs/reference/`, `docs/client/CONTEXT.md`, `docs/MAP.md`) from the schema, base.toml, settings.toml, the tool folders and the CLI |
 | 5 | `doctor.py` | `heimdall doctor`: every installed package's checks (its recipe's `[[verify]]`, through `recipes/verify.py`), the scan for libraries that no longer resolve, Heimdall's own rows |
-| 5 | `bifrost.py` | `bifrost` (also `heimdall bifrost`): the environment's packages, conda-forge's (`base_packages`) and PyPI's (`base_pypi` |
+| 5 | `bifrost.py` | `bifrost` (also `heimdall bifrost`): the environment's packages, conda-forge's (`base_packages`) and PyPI's (`base_pypi`) |
 | 5 | `setup.py` | `heimdall setup` (a work dir from `framework/templates/work/`, never overwriting) and `heimdall where`; the `[framework] expects` warning |
 
 ## Plugins and dependencies

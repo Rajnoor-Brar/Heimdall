@@ -43,9 +43,9 @@ A failure stops the point: products keep partial names, no `.complete`, the work
 
 ## Points at once
 
-`execute.run_points`: points not yet complete run `parallelism` at a time on worker threads, each with `view.for_point(plan)` as its sink. The main thread waits in half-second steps, so Ctrl-C gets in, and starts nothing more once a stop or pause is set (`Stopper.halted`). `"auto"` is `os.cpu_count() //` the costliest point's cores (`execute.auto_parallelism`).
+`execute.run_points`: points not yet complete run `parallelism` at a time on a thread pool (`heimdall-point` threads), each emitting to the run's event bus. The main thread waits in half-second steps, so Ctrl-C gets in, and starts nothing more once a stop or pause is set (`Stopper.halted`). `"auto"` is `os.cpu_count() //` the costliest point's cores (`execute.auto_parallelism`).
 
-Shared across points: the event bus, the views (a part per point, one lock), and prepare cache entries (a lock per entry, `flock` on `<entry>.lock`, the `.prepared` stamp rechecked inside).
+Shared across points: the event bus and the views it feeds, and prepare cache entries (a lock per entry, `flock` on `<entry>.lock`, the `.prepared` stamp rechecked inside).
 
 ## Several runs
 

@@ -8,7 +8,7 @@ code: framework/runner/tools.py, framework/runner/paths.py
 
 Each tree has one purpose. **`records/`** is what a run needs while it runs or is launched, and what traces it back. **`results/`** is what matters afterwards. **`.cache/`** is rebuilt on demand, and `rm -rf .cache` is always safe. A run writes nothing else, and nothing in Heimdall.
 
-`<E>` and `<R>` are `NN_<name>` when they have a serial. `<point>` is the swept tags joined by `_`, or `point`.
+`<E>` is the errand's name; `<R>` is `NN_<name>`, its serial and its configuration's folder ([paths](paths.md)). `<point>` is the swept tags joined by `_`, or `point`.
 
 ```
 records/<A>/<E>/<R>/

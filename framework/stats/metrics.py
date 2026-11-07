@@ -36,6 +36,48 @@ PURPOSES = {
     "quality": "Monte Carlo quality, without a reference",
 }
 
+#: What each purpose asks, as the summary says it: a sentence on the question, and what is not answered by it.
+ASKS = {
+    "compatibility": "Is the curve statistically compatible with the reference, bin errors counted? Near the good threshold: yes; "
+                     "past bad: no. It says nothing of where, and a curve with large errors is compatible with anything.",
+    "normalisation": "Does the curve hold the reference's yield? An overall factor, whatever the shape; blind to where the yield goes.",
+    "shape": "How far is the curve from the reference, bin by bin, once its normalisation is set aside? Counts the "
+             "whole axis, the tails as much as the peak.",
+    "similarity": "Are the two distributions alike as shapes: the share of yield per bin, normalisation removed.",
+    "trend": "Does the curve drift away from the reference across the axis (a slope or a curvature in the ratio)?",
+    "defects": "Is there a bin, or a few, badly off: a spike or a hole the averages hide?",
+    "quality": "Is the curve itself sound as a Monte Carlo histogram, with no reference: smooth, filled, enough events?",
+}
+
+#: Each metric's name where it is shown (a column, a panel, a section); the name itself where none is given.
+TITLES = {
+    "chi2_ndf": "χ²/ndf", "chi2_z": "χ² as Z", "poisson": "Poisson deviance", "tail": "tail Z", "norm": "norm |ln yield ratio|",
+    "area_ratio": "area / reference", "ratio_mean": "mean ratio", "wmape_yield": "yield-weighted error",
+    "shape": "shape |ln ratio|", "ratio_dev": "mean |ratio − 1|", "rel_abs_area": "|Δ| / reference", "wmape_axis": "axis-weighted error",
+    "L4": "L4 |ln ratio|", "consensus": "shape vs consensus", "js": "Jensen–Shannon", "ad": "Anderson–Darling", "tilt": "tilt",
+    "rho1": "lag-1 autocorrelation", "worst": "worst bins", "cvar": "worst deviances", "roughness": "roughness",
+    "n_eff": "effective events", "holes": "holes", "r_int": "ln roughness", "chi2_smooth": "smoothness χ²", "r2_ln": "tail 1 − R²",
+    "lambda": "tail decay rate",
+}
+
+
+def title_of(name: str) -> str:
+    return TITLES.get(name, name)
+
+
+#: The formulas of the columns Paint made first, as LaTeX (math mode), i running over the compared bins: a report's
+#: "How the numbers are made" sets them; a metric without one is described by its note.
+FORMULAS = {
+    "chi2_ndf": r"\chi^2/\mathrm{ndf} = \frac{1}{\mathrm{ndf}} \sum_i "
+                r"\frac{(y_i - y_{\mathrm{ref},i})^2}{\sigma_i^2 + \sigma_{\mathrm{ref},i}^2}",
+    "rel_abs_area": r"\frac{|\Delta|}{\mathrm{reference}} = "
+                    r"\frac{\sum_i |y_i - y_{\mathrm{ref},i}|\,\Delta x_i}{\sum_i y_{\mathrm{ref},i}\,\Delta x_i}",
+    "area_ratio": r"\frac{\mathrm{area}}{\mathrm{reference}} = \frac{\sum_i y_i\,\Delta x_i}{\sum_i y_{\mathrm{ref},i}\,\Delta x_i}",
+    "ratio_mean": r"\mathrm{mean\ ratio} = \frac{\sum_i (y_i / y_{\mathrm{ref},i})\,\Delta x_i}{\sum_i \Delta x_i}",
+    "ratio_dev": r"\mathrm{mean}\,|\mathrm{ratio} - 1| = "
+                 r"\frac{\sum_i |y_i / y_{\mathrm{ref},i} - 1|\,\Delta x_i}{\sum_i \Delta x_i}",
+}
+
 
 @dataclass(frozen=True)
 class Metric:
@@ -579,6 +621,20 @@ REGISTRY: dict[str, Metric] = {m.name: m for m in (
     Metric("lambda", tail_rate, "quality", better="none", needs_reference=False,
            note="the fitted decay rate of the last quarter of the curve; a descriptor, it has no better or worse (give thresholds to score it)"),
 )}
+
+
+def describe(name: str, thresholds: tuple[float, float] | None = None) -> str:
+    """A metric as a footnote says it: its title and note, then what its thresholds are (`thresholds`: the setting's, else the
+    registry's) and why."""
+    m = REGISTRY[name]
+    text = f"{title_of(name)}: {m.note}."
+    used = thresholds or m.thresholds
+    if used:
+        good, bad = used
+        text += f" Scored from {good:g} (cost 0) to {bad:g} (cost 1)" + (f": {m.why}." if m.why and not thresholds else ".")
+    else:
+        text += " A descriptor: it is not scored."
+    return text
 
 
 def evaluate(name: str, curve: Curve, **settings) -> float:

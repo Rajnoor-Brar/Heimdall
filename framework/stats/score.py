@@ -46,14 +46,20 @@ class Settings:
     dominated: bool = False
     by: tuple = ()
     baseline: object = None
+    head_to_head: str | None = None                    # "<cell>/<object>" or "all": the pages the summary plays as matches
 
     def thresholds_of(self, name: str):
         return self.thresholds.get(name) or metrics.REGISTRY[name].thresholds
 
 
+def overlaid(score: dict | None = None, over: dict | None = None) -> dict:
+    """A set's `score` laid over the errand's `[score]`, as a plain dict a statistics.json can hold."""
+    return {**(score or {}), **(over or {})}
+
+
 def settings_of(score: dict | None = None, over: dict | None = None) -> Settings:
     """Settings from a `[score]` table with a set's `score` over it; names are checked here too (a set's are not at parse)."""
-    merged = {**(score or {}), **(over or {})}
+    merged = overlaid(score, over)
     given = merged.get("metrics")
     if given is None:
         weights = {n: 1.0 for n, m in metrics.REGISTRY.items() if m.default}
@@ -80,7 +86,8 @@ def settings_of(score: dict | None = None, over: dict | None = None) -> Settings
     by = merged.get("by", ())
     return Settings(weights, merged.get("normalise", "thresholds"), thresholds, dict(merged.get("weights") or {}),
                     merged.get("weights_by", "equal"), mean, merged.get("veto"), merged.get("aggregate", "rms"),
-                    bool(merged.get("dominated", False)), (by,) if isinstance(by, str) else tuple(by), merged.get("baseline"))
+                    bool(merged.get("dominated", False)), (by,) if isinstance(by, str) else tuple(by), merged.get("baseline"),
+                    merged.get("head_to_head"))
 
 
 # ── the null distributions (for surprisal and Fisher) ─────────────────────────────────────────

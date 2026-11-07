@@ -63,3 +63,20 @@ def test_every_mean_has_a_guard_a_note_an_error_rule_and_a_test(name):
     m = means.REGISTRY[name]
     assert m.name == name and m.guard.strip() and m.note.strip() and callable(m.error)
     assert is_tested(name, "test_stats_means.py"), f"no test names {name}"
+
+
+def test_every_purpose_says_what_it_asks_and_every_metric_has_a_title():
+    assert set(metrics.ASKS) == set(metrics.PURPOSES)
+    assert all(text.strip().endswith((".", "?")) for text in metrics.ASKS.values())
+    assert set(metrics.TITLES) == set(metrics.REGISTRY)
+    assert set(metrics.FORMULAS) <= set(metrics.REGISTRY)
+
+
+@pytest.mark.parametrize("name", sorted(metrics.REGISTRY))
+def test_a_metric_describes_itself_with_its_thresholds_and_a_setting_overrides_them(name):
+    m = metrics.REGISTRY[name]
+    text = metrics.describe(name)
+    assert text.startswith(f"{metrics.title_of(name)}: {m.note}")
+    assert ("Scored from" in text) == (m.thresholds is not None)
+    if m.thresholds:
+        assert metrics.describe(name, (0.5, 2.0)).endswith("Scored from 0.5 (cost 0) to 2 (cost 1).")

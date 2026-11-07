@@ -87,17 +87,21 @@ def _add_metrics(rows: list[dict], made: dict, page, names: list[str]) -> None:
             row[name] = metrics.evaluate(name, curves[i], pool=curves) if curves and i < len(curves) else float("nan")
 
 
-def sidecar_of(names) -> dict:
-    """What statistics.json holds for a table with the metrics `names`."""
+def sidecar_of(names, score: dict | None = None) -> dict:
+    """What statistics.json holds for a table with the metrics `names`, scored as `score` (the merged [score] table, a plain
+    dict) says: the summary and the report score the rows the way the table was written."""
     from . import metrics
     columns = columns_for(names)
-    return {"format": FORMAT, "columns": columns,
-            "metrics": {n: {"purpose": m.purpose, "better": m.better, "thresholds": list(m.thresholds) if m.thresholds else None,
-                            "default": m.default, "note": m.note, "why": m.why}
-                        for n in columns if (m := metrics.REGISTRY.get(n))}}
+    out = {"format": FORMAT, "columns": columns,
+           "metrics": {n: {"purpose": m.purpose, "better": m.better, "thresholds": list(m.thresholds) if m.thresholds else None,
+                           "default": m.default, "note": m.note, "why": m.why}
+                       for n in columns if (m := metrics.REGISTRY.get(n))}}
+    if score:
+        out["score"] = score
+    return out
 
 
-def write_statistics(todo: list, target: Path, names=None) -> int:
+def write_statistics(todo: list, target: Path, names=None, score: dict | None = None) -> int:
     """results/…/statistics.csv (V160) and its statistics.json: every drawn page's curves; the number of rows."""
     names = list(default_metrics() if names is None else names)
     rows = [row for page in todo for row in (statistics_of(page, names) or [])]
@@ -110,7 +114,7 @@ def write_statistics(todo: list, target: Path, names=None) -> int:
         out.writeheader()
         for row in rows:
             out.writerow({k: ("" if isinstance(v, float) and v != v else v) for k, v in row.items()})
-    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names), indent=2) + "\n", encoding="utf-8")
+    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names, score), indent=2) + "\n", encoding="utf-8")
     return len(rows)
 
 

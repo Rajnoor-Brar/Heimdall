@@ -70,6 +70,7 @@ class Doc:
     configuration: DocConfiguration
     source: dict = field(default_factory=dict)
     sweep_runs: bool = False
+    score: dict = field(default_factory=dict)     # [score]: how its statistics are scored, copied from the config
 
     @property
     def configurations(self) -> dict:
@@ -139,8 +140,8 @@ def _sweeps(configuration) -> list:
 #: inline under it, as an errand file is written by hand ("*": any key). The document's order: members last.
 HEADERS = (("source",), ("axes",), ("quantities", "*"), ("plot",), ("plot", "data"), ("plot", "data", "map"),
            ("plot", "style"), ("plot", "sets", "*"), ("plot", "across", "*"), ("plot", "figures", "*"),
-           ("plot", "looks", "*"), ("stats",), ("from",), ("members", "*"))
-ORDER = ("source", "from", "axes", "quantities", "plot", "stats", "members")
+           ("plot", "looks", "*"), ("stats",), ("score",), ("from",), ("members", "*"))
+ORDER = ("source", "from", "axes", "quantities", "plot", "stats", "score", "members")
 #: A member's keys in the order a document writes them: what it is first, its value indices after.
 MEMBER_ORDER = ("index", "identity", "complete", "planned", "events", "stage", "yoda", "choice", "values", "texts")
 
@@ -462,6 +463,7 @@ def write(errand, configuration, members: list) -> tuple[Path | None, list[str]]
     made = known(errand, configuration, members)
     notes = []
     plot, stats = chosen_of(errand, configuration, members)
+    score = dict(getattr(errand, "score", None) or {})
     if target.is_file():
         import tomllib
         try:
@@ -475,9 +477,13 @@ def write(errand, configuration, members: list) -> tuple[Path | None, list[str]]
                 notes.append(f"the config's [plot] differs from {rel}/{FILE}'s, which is drawn: heimdall plot {rel} "
                              f"--style-sync {made['source']['config']} takes the config's")
             plot, stats = kept.get("plot", {}), kept.get("stats", {})
+        if "score" in kept:
+            score = kept["score"]                                               # the user's, as [plot] and [stats] are
     made["plot"] = plot
     if stats:
         made["stats"] = stats
+    if score:
+        made["score"] = score
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.name + ".partial")
     partial.write_text(HEADER + dumps(made), encoding="utf-8")
@@ -570,7 +576,8 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
                                      list(axes.get("combine", [])), dict(axes.get("fixed", {})), source.get("serial"),
                                      source.get("title", ""))
     doc = Doc(path, source.get("assignment", ""), source.get("errand", ""), dict(data.get("plot", {})), dict(data.get("stats", {})),
-              quantities, configuration, dict(source))
+              quantities, configuration, dict(source),
+              score=dict(data.get("score", {})))
     own = _folders(path.parent, doc.assignment)
     members = []
     for name, entry in data["members"].items():
@@ -690,6 +697,8 @@ def write_across(errand) -> tuple[Path | None, bool]:
             "from": from_of(errand), "plot": plot}
     if stats:
         made["stats"] = stats
+    if getattr(errand, "score", None):
+        made["score"] = dict(errand.score)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(ACROSS_HEADER + dumps(made), encoding="utf-8")
     return target, True
@@ -810,7 +819,7 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
             kept[run_name] = {q: found[0] for q, found in held.items() if found}
     configuration = DocConfiguration(ACROSS, errand, [[q] for q in swept], [], [], {}, None, f"{errand}: its runs together")
     doc = Doc(path, assignment, errand, dict(data.get("plot", {})), dict(data.get("stats", {})), quantities, configuration,
-              {**source, "shadowed": shadowed, **({"ignored": kept} if kept else {})})
+              {**source, "shadowed": shadowed, **({"ignored": kept} if kept else {})}, score=dict(data.get("score", {})))
     return doc, configuration, members
 
 

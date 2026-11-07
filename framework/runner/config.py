@@ -1492,6 +1492,10 @@ def report_of(table: dict, path: Path, assignment: str, where: str, chain: tuple
     return merged, [source.resolve(), *(p for p in read if p != source.resolve())]
 
 
+#: Plot backends that were, and what draws their pages now (as a backend value).
+RETIRED_BACKENDS = {"yoda": '"mpl"', "both": '["root", "mpl"]'}
+
+
 def check_plot(plot: dict, where: str, strict: bool = True) -> None:
     """[plot] and its figures against the schema, when the file is read (C11, V55): every key, type and
     bound of [plot], [plot.data], [plot.across_from] and [plot.figures.<figure>]. What needs the style (base.toml), the
@@ -1500,6 +1504,11 @@ def check_plot(plot: dict, where: str, strict: bool = True) -> None:
         if old in plot:
             raise HeimdallError(f"[plot.{old}] is a figure now: {new} (see V81)", where=f"{where}.{old}",
                            hint="heimdall migrate rewrites it")
+    chosen = plot.get("backend")
+    for name in [chosen] if isinstance(chosen, str) else chosen if isinstance(chosen, list) else ():
+        if name in RETIRED_BACKENDS:                       # rivet-mkhtml's pages are mpl's now
+            raise HeimdallError(f'backend = "{name}" is retired: mpl draws the pages rivet-mkhtml did', where=f"{where}.backend",
+                           hint=f'backend = {RETIRED_BACKENDS[name]}; heimdall migrate rewrites it')
     if strict:
         _plot_texts(plot, where)
     schema.check(plot, "plot", where)

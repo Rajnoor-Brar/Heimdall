@@ -156,6 +156,33 @@ def config_text(text: str) -> str:
     return "".join(out)
 
 
+def backend_text(text: str) -> str:
+    """The retired plot backends of `[plot] backend`, by line, comment and layout kept: "yoda" is "mpl" (which draws
+    the pages rivet-mkhtml did), "both" is ["root", "mpl"], and a list drops what it then names twice. Idempotent."""
+    out, plot = [], False
+    for line in text.splitlines(keepends=True):
+        header = _TABLE.match(line.rstrip("\n"))
+        if header:
+            plot = header.group(1).strip() == "plot"
+        key = _KEY.match(line.rstrip("\n")) if plot and not line.lstrip().startswith("#") else None
+        if key and key.group(2) == "backend":
+            rest = key.group(4)
+            body, comment = _split_comment(rest)
+            gap = rest[len(body):len(rest) - len(comment)] if comment else ""
+            try:
+                value = tomllib.loads(f"v = {body}")["v"]
+            except tomllib.TOMLDecodeError:
+                value = None
+            names = [value] if isinstance(value, str) else value
+            if isinstance(names, list) and any(n in ("yoda", "both") for n in names):
+                swap = [m for n in names for m in (("root", "mpl") if n == "both" else ("mpl",) if n == "yoda" else (n,))]
+                swap = list(dict.fromkeys(swap))
+                shown = _literal(swap[0]) if isinstance(value, str) and len(swap) == 1 else "[" + ", ".join(_literal(n) for n in swap) + "]"
+                line = f"{key.group(1)}{key.group(2)}{key.group(3)}{shown}{gap}{comment}" + ("\n" if line.endswith("\n") else "")
+        out.append(line)
+    return "".join(out)
+
+
 def figure_text(text: str) -> str:
     """The old figure tables of an errand file as [plot.figures] (V81), by line; see the module's doc."""
     taken = set(re.findall(r"^\s*\[\s*plot\.figures\.([A-Za-z0-9_\-]+)", text, re.M))
@@ -1002,7 +1029,7 @@ def plan(names: list[str], v3: bool = False) -> dict[Path, tuple[str, str]]:
     changes: dict[Path, tuple[str, str]] = {}
     for name in names:
         text = config_file(name).read_text(encoding="utf-8")
-        first = formerly_text(defaults_text(cfgs_text(config_text(figure_text(placeholder_text(errand_text(text)))))))
+        first = formerly_text(defaults_text(cfgs_text(config_text(figure_text(placeholder_text(backend_text(errand_text(text))))))))
         given = configmod.load(name, strict=False, text=first)          # the tables its imports give, too
         first = exports_text(first, {tag: tool.tool for tag, tool in given.tools.items()})
         errand = configmod.load(name, strict=False, text=first)

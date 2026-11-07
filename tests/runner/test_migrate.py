@@ -134,6 +134,39 @@ def test_the_old_figure_tables_become_figures(scratch, capsys):
     assert errand.plot["figures"]["d04"] == {"objects": ["d04-*"], "logy": True}
 
 
+@pytest.mark.parametrize(("old", "new"), [
+    ('backend = "yoda"', 'backend = "mpl"'),
+    ('backend     = ["root", "yoda"]   # both trees', 'backend     = ["root", "mpl"]   # both trees'),
+    ('backend = "both"', 'backend = ["root", "mpl"]'),
+    ('backend = ["yoda", "root", "mpl"]', 'backend = ["mpl", "root"]'),         # what it then names twice goes
+    ('backend = "mpl"', 'backend = "mpl"'),
+    ('backend = ["root", "mpl"]', 'backend = ["root", "mpl"]'),
+])
+def test_retired_plot_backends_become_mpl(old, new):
+    """The yoda backend is retired: "yoda" is "mpl", "both" is root and mpl; layout and comment stay, and only [plot]'s key."""
+    text = f'[errand]\nname = "x"\n\n[plot]\nformats = ["png"]\n{old}\n\n[tools.b]\nbackend = "yoda"\n'
+    made = migrate.backend_text(text)
+    assert made == text.replace(old, new, 1)                                # the other table's key is not [plot]'s
+    assert migrate.backend_text(made) == made                                   # idempotent
+
+
+def test_a_file_naming_the_yoda_backend_is_refused_with_its_way_on_and_migrated(scratch):
+    """The refusal names the form that replaces it and heimdall migrate; migrate --apply makes the file read."""
+    text = ('[errand]\nname = "r"\nassignment = "Demo"\nconfiguration = "c"\nevent_count = 1\n\n'
+            '[errand.cfgs.c]\nsweeps = ["q"]\ntools = ["x"]\n\n[tools.x]\ntool = "exec"\nexecutable = "path:true"\n'
+            'consumes = ["q"]\n\n[quantities.q]\nvalues = [1, 2]\ntags = ["a", "b"]\n\n[plot]\nbackend = ["root", "yoda"]\n')
+    path = scratch / "yoda.toml"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(HeimdallError, match='backend = "yoda" is retired') as caught:
+        config.load(str(path))
+    assert caught.value.where.endswith("[plot].backend") and 'backend = "mpl"' in caught.value.hint and "heimdall migrate" in caught.value.hint
+    with pytest.raises(HeimdallError, match='backend = "both" is retired') as caught:
+        config.load(str(path), text=text.replace('["root", "yoda"]', '"both"'))
+    assert '["root", "mpl"]' in caught.value.hint
+    assert cli.cmd_migrate(argparse.Namespace(configs=[str(path)], apply=True)) == 0
+    assert config.load(str(path)).plot["backend"] == ["root", "mpl"]
+
+
 def test_run_defaults_move_into_run():
     """V99: its keys after [errand]'s own, its value where both set one (it was the nearer layer)."""
     text = '[errand]\nname = "x"\nthreads = 4      # all\n\n[errand.defaults]\nthreads = 8\ntools = ["a"]   # every one\n\n[errand.cfgs.a]\nsweeps = []\n'

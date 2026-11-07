@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""recipes/machine.py — the machine root: what this machine built, apart from Heimdall's checkout
+"""recipes/machine.py — Himinbjorg: what this machine built, apart from Heimdall's checkout
 . Standard library only: it runs before any environment exists.
 
-    python3 recipes/machine.py where              # the machine root and its folders
+    python3 recipes/machine.py where              # Himinbjorg and its folders
     python3 recipes/machine.py adopt [--dry-run]  # a checkout that still holds its stack: moved under the root
 
-The machine root is $HEIMDALL_MACHINE, else ~/Himinbjorg. `adopt` makes it from a checkout of the old
+Himinbjorg is $HEIMDALL_MACHINE, else ~/Himinbjorg. `adopt` makes it from a checkout of the old
 layout (stack/, env/venv/, framework/Apps/, stash/, env/machine.sh inside Heimdall):
 * what can move does: Heimdall's compiled apps (their libraries are found by absolute paths, not by
   where they are), the downloads, this machine's shell lines;
@@ -54,7 +54,7 @@ def adopt(dry: bool) -> int:
         else:
             plan.append((how, old, new))
     if not plan:
-        print(f"nothing to adopt in {REPO}" + (f"; the machine root is {target}" if target.exists() else ""))
+        print(f"nothing to adopt in {REPO}" + (f"; Himinbjorg is {target}" if target.exists() else ""))
         return 0
     for how, old, new in plan:
         print(f"{how:6} {old}" + ("" if how == "unlink" else f" → {new}"))
@@ -82,7 +82,7 @@ def adopt(dry: bool) -> int:
 
 def where() -> int:
     r = root()
-    print(f"machine root  {r}{'' if r.exists() else '  (not made yet)'}")
+    print(f"Himinbjorg  {r}{'' if r.exists() else '  (not made yet)'}")
     for name in ("base", "stack", "venv", "apps", "forge", "stacks", "machine.toml", "machine.sh"):
         path = r / name
         state = ("→ " + str(path.resolve())) if path.is_symlink() else ("" if path.exists() else "(none)")

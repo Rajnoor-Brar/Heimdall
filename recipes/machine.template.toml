@@ -1,15 +1,15 @@
-# machine.toml — this machine's settings for Heimdall, in its machine root (~/Himinbjorg, or $HEIMDALL_MACHINE).
+# machine.toml — this machine's settings for Heimdall, in its Himinbjorg (~/Himinbjorg, or $HEIMDALL_MACHINE).
 # Written once from recipes/machine.template.toml (by build_stack.py or machine.py adopt); yours to edit;
 # never in git, so editing it leaves Heimdall's checkout clean.
 #
-# The machine root holds what this machine built: stack/ (installs), venv/, apps/ (Heimdall's compiled
+# Himinbjorg holds what this machine built: stack/ (installs), venv/, apps/ (Heimdall's compiled
 # apps), forge/ (downloads, sources, builds, logs), stacks/<toolkit>/, and machine.sh (this machine's
 # shell lines, which gjallarhorn.sh sources). Several checkouts of Heimdall may share one root.
 #
 # Each table is a layer over the recipes, the platform's fixes and the toolkits asked for
 # (doc:stack): a list appends to the list below it unless the table names it in
 # replace = ["key"]; anything else replaces. --config files and the command line come after it.
-# This machine's own toolkits go in the machine root's toolkits/ (doc:stack).
+# This machine's own toolkits go in Himinbjorg's toolkits/ (doc:stack).
 
 # [settings]                      # recipes/settings.toml's keys, this machine's values
 # cores       = 20

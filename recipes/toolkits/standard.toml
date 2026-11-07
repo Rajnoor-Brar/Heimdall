@@ -2,19 +2,19 @@
 # is and how it is built (doc:build-fixes says why each flag is there). A toolkit (doc:toolkits) borrows
 # from here by its [standard] table; this file is itself a toolkit, @standard, which builds the core.
 #
-# A toolkit file (this one, the others in this folder, your own in the machine root's toolkits/):
+# A toolkit file (this one, the others in this folder, your own in Himinbjorg's toolkits/):
 #   description, note   what it is for (--toolkits prints them)
 #   extends             another toolkit (or a list) whose set and changes it starts from
-#   isolated            true: a whole stack of its own in the machine root's stacks/<toolkit>/ (another
+#   isolated            true: a whole stack of its own in Himinbjorg's stacks/<toolkit>/ (another
 #                       C++ standard); a toolkit that changes cxx_std or opt_flags must be
 #   [standard]          which recipes it borrows: a group ("core", "extra", "all": both) or a package,
 #                       = true to take it, = false to leave it out of what `extends` brought
 #   [settings] [env]    settings.toml's keys, and the build's environment, for this toolkit's builds
 #   [packages.<name>]   a recipe's keys changed (a list appends, unless replace = ["key"] names it), or
 #                       a recipe of its own, which joins its set
-# What a package needs is added to any set. The layers, lowest first: this file, then the machine root's
+# What a package needs is added to any set. The layers, lowest first: this file, then Himinbjorg's
 # recipes.toml (the machine's own recipes, as this file's), and settings.toml; the platform's fixes (platforms/<platform>/<platform>.toml); the toolkits asked for, each after what
-# it extends; the machine root's machine.toml; --config files; the command line.
+# it extends; Himinbjorg's machine.toml; --config files; the command line.
 #
 # A recipe, [packages.<name>]:
 #   release   its version: the stamp's, {release} below, and {series} (it without its last ".x")
@@ -53,7 +53,7 @@
 #             instead (base = "conda" only; the @…-conda toolkits). What it needs must then be ready-made
 #             too, or there would be two of it: conda-forge's and the stack's.
 #
-# Placeholders: any setting ({cores}, {graphics}, …), and {prefix} (the machine root) {inst} {venv} {src} {build}
+# Placeholders: any setting ({cores}, {graphics}, …), and {prefix} (Himinbjorg) {inst} {venv} {src} {build}
 # {install} {release} {series} {py} {pyxy} {pyinc} {cxxflags} {cflags} {ldflags} {arch} {machine} {dylib}
 # {repo}; {base}, the base's prefix (base = "conda"; {venv} is the same there); {dir_<package>}, where a
 # package is installed: stack/<its install>, or the base when it is ready-made ({dir_lhapdf}); {bin_<package>},

@@ -347,7 +347,7 @@ def test_new_recipes_say_so_and_bring_their_system_packages(bs, tmp_path, capsys
     assert not [n for n in proven if packages[n].get("status")]          # the lab PC's recipes are proven
 
 
-# ── isolated toolkits, and a machine's own (<machine root>/toolkits/) ──────────────────────────
+# ── isolated toolkits, and a machine's own (<Himinbjorg>/toolkits/) ──────────────────────────
 
 def test_an_isolated_toolkit_builds_a_stack_of_its_own(bs, tmp_path, capsys):
     prefix = tmp_path / "heimdall"
@@ -925,7 +925,7 @@ def test_pypi_packages_are_pixi_s_pypi_dependencies(bs, tmp_path):
 
 
 def test_the_machine_s_recipes_are_as_standard_s(bs, tmp_path, capsys):
-    """<machine root>/recipes.toml: new recipes and changes to standard's, laid right after standard.toml."""
+    """<Himinbjorg>/recipes.toml: new recipes and changes to standard's, laid right after standard.toml."""
     (tmp_path / "recipes.toml").write_text(
         '[packages.mytool]\nrelease = "1.2"\nurl = "https://example.org/mytool-{release}.tar.gz"\nkind = "cmake"\n'
         'needs = ["hepmc3"]\nargs = ["-DHEPMC3={dir_hepmc3}", "-DTOOL={version_hepmc3}", "-DBIN={bin_hepmc3}"]\n'

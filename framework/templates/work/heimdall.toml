@@ -8,7 +8,7 @@ name = "{{name}}"
 expects = "{{revision}}"
 
 # On a Slurm cluster, this work dir's defaults for `heimdall cluster`, over
-# the machine root's machine.toml [cluster]; an errand file's [cluster] is over them. Uncomment what the
+# Himinbjorg's machine.toml [cluster]; an errand file's [cluster] is over them. Uncomment what the
 # site needs:
 # [cluster]
 # account   = "my-group"

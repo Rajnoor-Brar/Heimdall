@@ -1,4 +1,4 @@
-# framework/tools/pythia/tool.toml — the standard Pythia tool: App_Pythia.exe in the machine root's apps/ ({apps}) (doc:tools-pythia).
+# framework/tools/pythia/tool.toml — the standard Pythia tool: App_Pythia.exe in Himinbjorg's apps/ ({apps}) (doc:tools-pythia).
 [tool]
 category        = "event-generator"
 executable      = "{apps}/App_Pythia.exe"

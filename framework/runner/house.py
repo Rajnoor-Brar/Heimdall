@@ -262,7 +262,7 @@ def _special(key: str) -> list[str] | None:
     if word in ("static",):
         return ["[static] (v2; v3: each quantity's fixed): quantity = tag, the point of a quantity no configuration varies"]
     if word in ("machine.toml", "machine"):
-        return ["machine.toml (the machine root's; recipes/machine.template.toml): this machine's layer",
+        return ["machine.toml (Himinbjorg's; recipes/machine.template.toml): this machine's layer",
                 "  [settings] [env] [packages.<name>]  the stack's build: over the recipes and toolkits",
                 "  [cluster]                            heimdall cluster's defaults for every work dir here"]
     if word.startswith("report.section."):                  # V209: [[report.section]]'s keys are the schema's section

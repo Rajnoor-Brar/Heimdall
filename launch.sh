@@ -16,7 +16,7 @@ shell=0 image="" dev=0 title=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --gjallarhorn) shell=1; shift ;;
-        --image) [ $# -ge 2 ] || { echo "--image takes an image: a name of <machine root>/images, or a .sif" >&2; exit 2; }
+        --image) [ $# -ge 2 ] || { echo "--image takes an image: a name of <Himinbjorg>/images, or a .sif" >&2; exit 2; }
                  image=$2; shift 2 ;;
         --dev)   dev=1; shift ;;
         *)       break ;;

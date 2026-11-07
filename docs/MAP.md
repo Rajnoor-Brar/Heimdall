@@ -128,7 +128,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## stable/design
 
-- [glossary](stable/design/glossary.md): Heimdall's words beyond the model's core vocabulary; the core ones are in the model page (2 KB)
+- [glossary](stable/design/glossary.md): Heimdall's words beyond the model's core vocabulary; the core ones are in the model page (2 KB) ⟵ live: live-himinbjorg
 - [history](stable/design/history.md): where Heimdall came from, in a dozen lines (1 KB)
 - [principles](stable/design/principles.md): the principles behind Heimdall's shape, each with what it buys and what it costs (4 KB)
 - [refused](stable/design/refused.md): what Heimdall deliberately does not do, and why (1 KB)
@@ -136,6 +136,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 ## live
 
 - [live-across-axes](live/across-axes.md): Runs with different axes drawn together: every member has every quantity (a quantity a Run never names is unset there), Runs told apart by serial, heimdall diff, Run labels as axes (3 KB)
+- [live-himinbjorg](live/himinbjorg.md): Himinbjorg is the name of what was called the machine root; paths.himinbjorg() is its function (2 KB)
 - [live-identity-golden](live/identity-golden.md): every fixture point's identity parts are kept in a golden file, and a test compares them (2 KB)
 - [live-live-parallelism](live/live-parallelism.md): heimdall runs -i N --jobs M changes a running job's points at once while it runs: a request file and SIGUSR2; raising starts more, lowering stops none (2 KB)
 - [live-no-yoda-backend](live/no-yoda-backend.md): the yoda plot backend (rivet-mkhtml) is gone; mpl owns the transforms it borrowed (2 KB)
@@ -147,7 +148,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-score-settings](live/score-settings.md): the [score] table, [stats].metrics and centres, a set's score, a figure's weight, and heimdall explain score (2 KB)
 - [live-scoring](live/scoring.md): the statistics summary and the report's statistics by purpose: standings, a section a purpose, a metric's ranking and table, a head to head only when asked (5 KB)
 - [live-set-merge](live/set-merge.md): a set's merge: a quantity's values become one curve per combination of the other axes, by pooling statistics or a mean, with an optional band (4 KB)
-- [live-shadow-root](live/shadow-root.md): the tests run on a shadow machine root, and a guard watches the live one (1 KB)
+- [live-shadow-root](live/shadow-root.md): the tests run on a shadow Himinbjorg, and a guard watches the live one (1 KB)
 - [live-statistics-format](live/statistics-format.md): statistics.csv is format 2 with a statistics.json sidecar and the default metrics as columns (2 KB)
 - [live-stats-catalogue](live/stats-catalogue.md): the opt-in metrics and means of framework/stats, off until named (2 KB)
 - [live-stats-core](live/stats-core.md): framework/stats computes metrics and means from Paint's measured bins (2 KB)

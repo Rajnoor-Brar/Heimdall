@@ -26,7 +26,7 @@ static int failures = 0;
     } while (0)
 
 namespace fs = std::filesystem;
-// The machine root's scratch ($HEIMDALL_FORGE, gjallarhorn.sh's), wherever the test is started from; never the checkout.
+// Himinbjorg's scratch ($HEIMDALL_FORGE, gjallarhorn.sh's), wherever the test is started from; never the checkout.
 static const fs::path HERE = fs::path(std::getenv("HEIMDALL_FORGE") ? std::getenv("HEIMDALL_FORGE") : "/nowhere") / "scratch/cxx/module_kit";
 
 // Ten events: event i has weight 1 + i/10 and σ = 100 + i pb; a beam proton in, one pion of pT = i + 0.5 out.

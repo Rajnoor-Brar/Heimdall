@@ -2,7 +2,7 @@
 
 A framework for Monte Carlo studies in high-energy physics, and the home of the software stack it runs on. **Tools are processes, chained by a TOML:** Pythia, Herwig, Sherpa, Whizard and MadGraph, Rivet, Delphes, your own programs, and the pages drawn with ROOT.
 
-This folder is `$HEIMDALL`: what is authored. What it builds goes in the machine root, `~/Himinbjorg`. Your studies live in **work dirs**, as many as you like.
+This folder is `$HEIMDALL`: what is authored. What it builds goes in Himinbjorg, `~/Himinbjorg`. Your studies live in **work dirs**, as many as you like.
 
 ## From nothing to a drawn page
 

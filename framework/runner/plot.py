@@ -15,7 +15,7 @@ doc:plots, doc:paint. After the points, from the complete ones:
   results/…/plots/root/[<page>/]<object>.<fmt>; the mpl backend writes results/…/plots/mpl/, and
   backend = ["root", "mpl"] writes both from the same pages;
 * the style is src/Apps/Paint/base.toml, which Paint reads itself; a page's [style] holds only
-  what is changed over it: the machine root's style.toml, the work dir's style.toml, the
+  what is changed over it: Himinbjorg's style.toml, the work dir's style.toml, the
   [plot].root_style file, then [plot.style], then its figure's style, each checked against base.toml's
   keys and types.
 """
@@ -257,7 +257,7 @@ def style_file(value: str, assignment: str = "", where: str = "", folder: Path |
 
 
 def house_style() -> dict:
-    """The style's layers over base.toml that are not a run's: the machine root's style.toml (every work
+    """The style's layers over base.toml that are not a run's: Himinbjorg's style.toml (every work
     dir's on this machine), then the work dir's style.toml (its studies'), each checked."""
     from .paths import find_work, himinbjorg
     layers = []

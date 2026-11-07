@@ -175,7 +175,7 @@ Refused at plan time, each with a hint: an unknown key; a quantity no tool consu
 - `heimdall cluster`: run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job
 - `heimdall setup`: make a work dir: the key folders, heimdall.toml and the template's files (never overwrites)
 - `heimdall doctor`: what this machine's stack and Heimdall can do, checked
-- `heimdall tools`: every tool folder: the work dir's tools/, the machine root's, Heimdall's
+- `heimdall tools`: every tool folder: the work dir's tools/, Himinbjorg's, Heimdall's
 - `heimdall build`: compile the work dir's module programs and Rivet plugins (make all)
 - `heimdall make`: make one source of the work dir (or --framework, Heimdall's): <path>/<X>.exe, <path>/<x>.so
 - `heimdall stack`: this machine's stack: heimdall stack build\|list\|status\|doctor [options]
@@ -183,9 +183,9 @@ Refused at plan time, each with a hint: an unknown key; a quantity no tool consu
 - `heimdall refresh`: reload this shell's environment (gjallarhorn.sh's shell function)
 - `heimdall quit`: leave this shell's environment (gjallarhorn.sh's shell function)
 - `heimdall cd`: cd to a work dir's folder: heimdall cd ASSIGNMENT [configs\|modules\|results\|records\|logs] (gjallarhorn.sh's shell function)
-- `heimdall recognise`: record work dirs by title, in the machine root's workdirs.toml (gjallarhorn <title> goes to one)
+- `heimdall recognise`: record work dirs by title, in Himinbjorg's workdirs.toml (gjallarhorn <title> goes to one)
 - `heimdall bifrost`: the environment's packages (conda-forge; -python: PyPI), added, dropped or shown; --shell: gjallarhorn's block in ~/.bashrc and ~/.zshrc
-- `heimdall image`: Apptainer images of Heimdall and a machine root: list them, or build one
+- `heimdall image`: Apptainer images of Heimdall and a Himinbjorg: list them, or build one
 - `heimdall where`: which Heimdall and which work dir this shell sees
 
 ## Where to read more

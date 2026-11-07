@@ -10,7 +10,7 @@
 #   docker run --rm -it --user "$(id -u):$(id -g)" -v "$HOME/Github/Top-Quark:$HOME/Github/Top-Quark" -w "$HOME/Github/Top-Quark" heimdall
 #
 # The build takes hours (ROOT alone is 1–2 h) and ~25 GB of disk while it runs; give Docker 3 GB of
-# memory per ROOT core (root_cores). The machine root is /opt/himinbjorg (HEIMDALL_MACHINE); its forge/
+# memory per ROOT core (root_cores). Himinbjorg is /opt/himinbjorg (HEIMDALL_MACHINE); its forge/
 # (downloads, sources, builds, pixi and its package cache) is removed in the same layer, so the image
 # keeps the installs only (doc:images). The stack is built on a conda base
 # (doc:base): apt gives only the Python that runs the builder, the certificates it downloads with,

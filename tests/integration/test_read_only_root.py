@@ -1,8 +1,8 @@
-"""A run where the machine root is read-only, as it is inside an Apptainer image (V149, V150): it writes only the
-work dir's records/, results/ and the drawing's .cache/ (V164), nothing in the machine root or in Heimdall, and a
+"""A run where Himinbjorg is read-only, as it is inside an Apptainer image (V149, V150): it writes only the
+work dir's records/, results/ and the drawing's .cache/ (V164), nothing in Himinbjorg or in Heimdall, and a
 finished point keeps its cards and configs only.
 
-The machine root here is an empty folder of the test's own, made read-only, with the forge inside it (so it
+Himinbjorg here is an empty folder of the test's own, made read-only, with the forge inside it (so it
 cannot be made); the loaded stack (HEIMDALL_INSTALL, HEIMDALL_APPS, the base) is the real one's, read as an image's is.
 """
 

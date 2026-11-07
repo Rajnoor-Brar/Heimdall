@@ -2,7 +2,7 @@
 # gjallarhorn.sh — Heimdall's environment: source it once per session, in bash. Tracked; it finds its own
 # folder, so a clone anywhere works (doc:layout).
 #
-#   source gjallarhorn.sh               the default stack, in the machine root ($HEIMDALL_MACHINE, ~/Himinbjorg)
+#   source gjallarhorn.sh               the default stack, in Himinbjorg ($HEIMDALL_MACHINE, ~/Himinbjorg)
 #   source gjallarhorn.sh <title>       and then cd to the work dir recorded under that title (heimdall
 #                                       recognise); `gjallarhorn [title]`, the shell function Heimdall's
 #                                       build writes into ~/.bashrc and ~/.zshrc, is this (bifrost --shell)
@@ -12,7 +12,7 @@
 #   launch.sh                           the same from any shell (zsh included): a bash with this loaded
 #
 # The checkout ($HEIMDALL) holds what git has; everything this machine built (the base or the venv, the stack,
-# Heimdall's apps, downloads, builds) is in the machine root.
+# Heimdall's apps, downloads, builds) is in Himinbjorg.
 
 # bash only: any other shell is turned away here, before anything is changed
 if [ -z "${BASH_VERSION-}" ]; then
@@ -28,10 +28,10 @@ export HEIMDALL_STACK=${HEIMDALL_STACK_REQUEST-}
 unset HEIMDALL_STACK_REQUEST
 if [ ! -d "$HEIMDALL_MACHINE" ]; then
     if [ -e "$HEIMDALL/stack" ] || [ -e "$HEIMDALL/env/venv" ]; then        # a checkout that still holds its stack
-        echo "Heimdall's machine root is now $HEIMDALL_MACHINE: this machine's stack is still in $HEIMDALL." >&2
+        echo "Heimdall's Himinbjorg is now $HEIMDALL_MACHINE: this machine's stack is still in $HEIMDALL." >&2
         echo "Adopt it once (links and moves only, nothing rebuilt): python3 $HEIMDALL/recipes/machine.py adopt" >&2
     else
-        echo "no machine root at $HEIMDALL_MACHINE: build the stack first (python3 $HEIMDALL/recipes/build_stack.py)," >&2
+        echo "no Himinbjorg at $HEIMDALL_MACHINE: build the stack first (python3 $HEIMDALL/recipes/build_stack.py)," >&2
         echo "or set HEIMDALL_MACHINE to where it is" >&2
     fi
     return 1 2>/dev/null || exit 1

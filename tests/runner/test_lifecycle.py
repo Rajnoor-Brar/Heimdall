@@ -114,7 +114,7 @@ def test_a_reserved_name_is_refused(scratch):
 
 def test_the_provenance_is_portable(trees, monkeypatch):
     """paths in a record are written under their roots ({work}, {apps}), so a moved work dir or
-    machine root still reads; heimdall reproduce turns them back."""
+    Himinbjorg still reads; heimdall reproduce turns them back."""
     from support import WORK
     from runner.paths import unportable
     monkeypatch.setenv("HEIMDALL_RECORDS", str(WORK / "records"))      # as a real run's: a root of its own, the work dir's
@@ -208,7 +208,7 @@ def test_migrate_layout_moves_logs_into_records_and_points_into_points(scratch):
 
 def test_moving_the_himinbjorg_and_the_work_dir_changes_no_fingerprint(trees, monkeypatch):
     """V137: a fingerprint names its programs and cards under {apps}, {work} and the other roots, so a
-    work dir copied elsewhere, with its machine root (its apps) somewhere else too, plans to the same
+    work dir copied elsewhere, with its Himinbjorg (its apps) somewhere else too, plans to the same
     identity at every point of every configuration."""
     import os
     from support import WORK

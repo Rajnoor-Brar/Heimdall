@@ -5,7 +5,7 @@ code: recipes/settings.toml
 generated: true
 ---
 
-Generated from the code; change it there. `heimdall explain <key>` says the same. From `recipes/settings.toml`. Set one on the command line (`cores=8`), in a `--config` file, or in the machine root's `machine.toml`.
+Generated from the code; change it there. `heimdall explain <key>` says the same. From `recipes/settings.toml`. Set one on the command line (`cores=8`), in a `--config` file, or in Himinbjorg's `machine.toml`.
 
 # `[settings]`
 
@@ -17,7 +17,7 @@ Generated from the code; change it there. `heimdall explain <key>` says the same
 |---|---|---|
 | string | `""` | — |
 
-The machine root: "": $HEIMDALL_MACHINE, else ~/Himinbjorg (forge/ base/ stack/ apps/ machine.sh)
+Himinbjorg: "": $HEIMDALL_MACHINE, else ~/Himinbjorg (forge/ base/ stack/ apps/ machine.sh)
 
 ## `base`
 
@@ -143,7 +143,7 @@ CMAKE_CUDA_ARCHITECTURES for the GPU packages (@gpu-sim): "native", or e.g. "86;
 |---|---|---|
 | list | `[]` | — |
 
-This machine's lines, written to <machine root>/machine.sh, which gjallarhorn.sh sources.
+This machine's lines, written to <Himinbjorg>/machine.sh, which gjallarhorn.sh sources.
 
 ## `verify`
 
@@ -159,7 +159,7 @@ Run a package's checks ([[<pkg>.verify]]) right after it installs; a failed chec
 |---|---|---|
 | true or false | `true` | — |
 
-After a build: `gjallarhorn` and `bifrost` into ~/.bashrc and ~/.zshrc (a marked block; one for another checkout or machine root is left alone). false: never.
+After a build: `gjallarhorn` and `bifrost` into ~/.bashrc and ~/.zshrc (a marked block; one for another checkout or Himinbjorg is left alone). false: never.
 
 ## `python_packages`
 

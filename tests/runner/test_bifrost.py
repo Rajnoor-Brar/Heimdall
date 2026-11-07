@@ -1,4 +1,4 @@
-"""`bifrost`, the environment's packages (runner/bifrost.py, V144). The machine root is the test's own folder
+"""`bifrost`, the environment's packages (runner/bifrost.py, V144). Himinbjorg is the test's own folder
 ($HEIMDALL_MACHINE), the base update and pip are replaced: nothing is downloaded or installed here."""
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ TEMPLATE = (REPO / "recipes" / "machine.template.toml").read_text(encoding="utf-
 
 @pytest.fixture
 def root(tmp_path, monkeypatch):
-    """A machine root on a conda base (no venv/), with the template's machine.toml; the base's update counted."""
+    """A Himinbjorg on a conda base (no venv/), with the template's machine.toml; the base's update counted."""
     monkeypatch.setenv("HEIMDALL_MACHINE", str(tmp_path / "Himinbjorg"))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     (tmp_path / "home").mkdir()

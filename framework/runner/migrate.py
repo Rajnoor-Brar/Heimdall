@@ -23,7 +23,7 @@ and layout stay:
 * (Heimdall, doc:layout) `{repo}` → `{work}`, or `{heimdall}` for what moved into
   Heimdall: `{repo}/build/App_*`, `Paint.exe` and `Herwig/` → `{apps}/…`, `{repo}/utils/` → `{heimdall}/src/`.
   On the text, anywhere in the file (a comment's example too).
-* `{heimdall}/framework/Apps/` → `{apps}/`: the compiled apps are in the machine root.
+* `{heimdall}/framework/Apps/` → `{apps}/`: the compiled apps are in Himinbjorg.
 * `tool = "custom"` → `tool = "exec"`; the export keys of an exec or module table
   (`pythia_cmnd = true`, `herwig_run = true`) → `generate_cards` (the context file gives every tool's card
   and config), in each configuration whose chain runs that table, or in [run] when every one does;

@@ -1,6 +1,6 @@
 # recipes/base.toml — the base: what the stack is built with and runs on, from conda-forge (doc:base).
 #
-# With base = "conda" (settings.toml; the default), build_stack.py makes <machine root>/base/ a pixi
+# With base = "conda" (settings.toml; the default), build_stack.py makes <Himinbjorg>/base/ a pixi
 # workspace from this file before it builds anything: the compilers, the build tools, the libraries the
 # stack links, Python and its packages (settings.toml's python_packages), the utilities Heimdall runs.
 # The OS gives only glibc, the kernel, the drivers and TeX. The stack is still built from source, inside
@@ -12,7 +12,7 @@
 # own, `base = [...]` in its table. Each entry is a conda-forge name, optionally with a version spec
 # ("gsl 2.8.*"); {placeholders} are the settings'.
 
-# pixi, which makes the base: fetched into the machine root's forge/pixi/ (its archive in forge/downloads/)
+# pixi, which makes the base: fetched into Himinbjorg's forge/pixi/ (its archive in forge/downloads/)
 [pixi]
 release = "0.81.0"
 url     = "https://github.com/prefix-dev/pixi/releases/download/v{release}/pixi-{target}.tar.gz"

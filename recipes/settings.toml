@@ -3,9 +3,9 @@
 # Change one with key=value on the command line (`cores=8`, `packages="rivet pythia8"`), or with
 # --config FILE: a TOML file holding any of these keys, and [package] tables that change or add
 # the recipes (recipes/toolkits/standard.toml). The command line wins over the file. The platform's fixes,
-# the toolkits, and the machine root's machine.toml are layers between (doc:stack).
+# the toolkits, and Himinbjorg's machine.toml are layers between (doc:stack).
 
-machine     = ""           # the machine root: "": $HEIMDALL_MACHINE, else ~/Himinbjorg (forge/ base/ stack/ apps/ machine.sh)
+machine     = ""           # Himinbjorg: "": $HEIMDALL_MACHINE, else ~/Himinbjorg (forge/ base/ stack/ apps/ machine.sh)
 base        = "conda"      # what the stack is built with: "conda", a conda-forge base made by pixi (recipes/base.toml:
                            # compilers, libraries, Python; no root needed); "system", apt_packages (or Homebrew) and a venv
 base_python = "3.12"       # the base's Python, which the stack's bindings are built against
@@ -25,10 +25,10 @@ system      = true         # base = "system": apt-get install apt_packages first
 graphics    = "ON"         # ROOT's x11/opengl/webgui/asimage and Geant4's OpenGL; "OFF" when headless
 geant4_data = "ON"         # Geant4's datasets (~4 GB), downloaded during its build
 cuda_arch   = "native"     # CMAKE_CUDA_ARCHITECTURES for the GPU packages (@gpu-sim): "native", or e.g. "86;89"
-setup_extra = []           # this machine's lines, written to <machine root>/machine.sh, which gjallarhorn.sh sources
+setup_extra = []           # this machine's lines, written to <Himinbjorg>/machine.sh, which gjallarhorn.sh sources
 verify      = true         # run a package's checks ([[<pkg>.verify]]) right after it installs; a failed check fails it
 shell_rc    = true         # after a build: `gjallarhorn` and `bifrost` into ~/.bashrc and ~/.zshrc (a marked block;
-                           # one for another checkout or machine root is left alone). false: never
+                           # one for another checkout or Himinbjorg is left alone). false: never
 
 # The Python packages (in the base, from conda-forge; or in the venv, from pip): the framework's. Add the
 # analysis ones you want (scipy, pandas, pyhf, …).

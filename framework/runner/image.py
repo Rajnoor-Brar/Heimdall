@@ -1,9 +1,9 @@
-"""Apptainer images of Heimdall and a machine root (rank 0; doc:environment, V150).
+"""Apptainer images of Heimdall and a Himinbjorg (rank 0; doc:environment, V150).
 
 The runtime is the system's: `apptainer`, else SingularityCE's `singularity` (setuid or user namespaces: an
-admin's, never the machine root's). An image holds /opt/heimdall (a clean copy of this checkout) and
-/opt/himinbjorg (a machine root built inside it, by recipes/platforms/container/heimdall.def), and lives in
-the machine root's images/. Work dirs stay outside, bound at their own paths. `heimdall image build` makes one,
+admin's, never Himinbjorg's). An image holds /opt/heimdall (a clean copy of this checkout) and
+/opt/himinbjorg (a Himinbjorg built inside it, by recipes/platforms/container/heimdall.def), and lives in
+Himinbjorg's images/. Work dirs stay outside, bound at their own paths. `heimdall image build` makes one,
 `heimdall image` lists them; `gjallarhorn --image` (launch.sh) and `[cluster] image` run in one.
 """
 
@@ -44,7 +44,7 @@ def images_dir() -> Path:
 
 
 def image_path(name: str) -> Path:
-    """An image by name (a file of <machine root>/images/, without .sif) or by path."""
+    """An image by name (a file of <Himinbjorg>/images/, without .sif) or by path."""
     if "/" in name or name.endswith(".sif"):
         path = Path(name).expanduser()
     else:
@@ -92,7 +92,7 @@ def copy_checkout(target: Path) -> None:
 
 def build(packages: str = "@primary", cores: str = "0", root_cores: str = "0", name: str = "",
           allow_dirty: bool = False, out=print) -> int:
-    """`heimdall image build`: <machine root>/images/<name>.sif from heimdall.def, with --fakeroot. It downloads
+    """`heimdall image build`: <Himinbjorg>/images/<name>.sif from heimdall.def, with --fakeroot. It downloads
     Ubuntu and the stack and builds it (hours for a source-built set; minutes for an @…-conda one)."""
     command = runtime()
     if dirty() and not allow_dirty:
@@ -126,7 +126,7 @@ def labels(sif: Path) -> dict[str, str]:
 
 
 def listing() -> list[str]:
-    """`heimdall image`: the images of this machine root, with what they hold."""
+    """`heimdall image`: the images of this Himinbjorg, with what they hold."""
     found = sorted(images_dir().glob("*.sif"))
     if not found:
         return [f"no image in {images_dir()}: heimdall image build [packages=@kit] makes one"]

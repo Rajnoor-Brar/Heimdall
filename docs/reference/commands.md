@@ -320,7 +320,7 @@ what this machine's stack and Heimdall can do, checked
 
 ## `heimdall tools`
 
-every tool folder: the work dir's tools/, the machine root's, Heimdall's
+every tool folder: the work dir's tools/, Himinbjorg's, Heimdall's
 
 | Argument | Meaning |
 |---|---|
@@ -373,7 +373,7 @@ cd to a work dir's folder: heimdall cd ASSIGNMENT [configs|modules|results|recor
 
 ## `heimdall recognise`
 
-record work dirs by title, in the machine root's workdirs.toml (gjallarhorn <title> goes to one)
+record work dirs by title, in Himinbjorg's workdirs.toml (gjallarhorn <title> goes to one)
 
 | Argument | Meaning |
 |---|---|
@@ -399,7 +399,7 @@ the environment's packages (conda-forge; -python: PyPI), added, dropped or shown
 
 ## `heimdall image`
 
-Apptainer images of Heimdall and a machine root: list them, or build one
+Apptainer images of Heimdall and a Himinbjorg: list them, or build one
 
 | Argument | Meaning |
 |---|---|

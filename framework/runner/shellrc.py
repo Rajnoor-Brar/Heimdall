@@ -1,7 +1,7 @@
 """Heimdall in the user's shell: the block it keeps in ~/.bashrc and ~/.zshrc (rank 0).
 
 The block defines `gjallarhorn`, which loads Heimdall's environment (gjallarhorn.sh) and, given a title, goes
-to that work dir (`heimdall recognise` records them in <machine root>/workdirs.toml), and `bifrost`, the
+to that work dir (`heimdall recognise` records them in <Himinbjorg>/workdirs.toml), and `bifrost`, the
 environment's packages (framework/bin/bifrost), reachable before the environment is loaded. In bash,
 gjallarhorn sources gjallarhorn.sh into the shell itself; in zsh, which cannot hold the environment (it is
 bash), it opens launch.sh's bash. The block sits between two marker lines: written again in place, taken out
@@ -25,7 +25,7 @@ TITLES = r"""sed -n 's/^\["\(.*\)"\]$/\1/p'"""
 
 def block(shell: str, heimdall: Path, machine: Path) -> str:
     """The block for `shell` ("bash" or "zsh"): `gjallarhorn` and `bifrost` for the checkout `heimdall` and the
-    machine root `machine` (named in it only when it is not the default)."""
+    Himinbjorg `machine` (named in it only when it is not the default)."""
     machine = Path(machine).expanduser().resolve()
     own = machine != Path(DEFAULT_MACHINE).expanduser().resolve()
     registry = shlex.quote(str(machine / "workdirs.toml"))
@@ -85,7 +85,7 @@ def _write(rc: Path, text: str) -> None:
 
 
 def status(rc: Path, text: str) -> str:
-    """"installed" (this block), "another" (a block for another checkout or machine root) or "absent"."""
+    """"installed" (this block), "another" (a block for another checkout or Himinbjorg) or "absent"."""
     found = current(rc.read_text(encoding="utf-8")) if rc.is_file() else None
     return "absent" if found is None else "installed" if found == text else "another"
 

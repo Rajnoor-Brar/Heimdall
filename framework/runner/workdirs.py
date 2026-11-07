@@ -1,4 +1,4 @@
-"""The work dirs this machine knows: <machine root>/workdirs.toml (rank 1; doc:environment).
+"""The work dirs this machine knows: <Himinbjorg>/workdirs.toml (rank 1; doc:environment).
 
 `heimdall recognise` records a work dir there under a title, its heimdall.toml's [work] name (else its folder's
 name), and `gjallarhorn <title>` goes to it. `heimdall setup` records the work dir it makes. One table per title:
@@ -30,7 +30,7 @@ DEPTH = 4
 
 
 def registry_file() -> Path:
-    """$HEIMDALL_WORKDIRS, else the machine root's workdirs.toml."""
+    """$HEIMDALL_WORKDIRS, else Himinbjorg's workdirs.toml."""
     given = os.environ.get(FILE_VAR)
     return Path(given).expanduser() if given else paths.himinbjorg() / "workdirs.toml"
 
@@ -105,7 +105,7 @@ def record(root: Path, title: str | None = None) -> tuple[str, str]:
 
 def scan(start: Path, depth: int = DEPTH) -> list[Path]:
     """The work dirs at or below `start`, `depth` folders deep at most: not inside hidden folders, a work
-    dir's results/, records/, logs/ or build/, Heimdall's checkout or the machine root."""
+    dir's results/, records/, logs/ or build/, Heimdall's checkout or Himinbjorg."""
     start = start.expanduser().resolve()
     avoid = {paths.heimdall_root().resolve(), paths.himinbjorg().expanduser().resolve()}
     found: list[Path] = []

@@ -167,7 +167,7 @@ def test_config_lookup_makes_toml_optional():
 
 
 def test_tests_write_into_the_scratch():
-    scratch = WORK.parent                                             # the machine root's forge/scratch
+    scratch = WORK.parent                                             # Himinbjorg's forge/scratch
     assert paths.results_root() == scratch / "results"
     assert paths.records_root() == scratch / "records" and not hasattr(paths, "logs_root")   # logs: records/<run>/logs (V157)
     assert paths.cache_root() == scratch / "cache"

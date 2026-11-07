@@ -1,7 +1,7 @@
 """The run registry (rank 1, V182): what runs on this machine now, and what ran in the last 30 days.
 
 The user, 2026-10-23: "heimdall can keep track of runs and jobs being run in Himinbjorg". One small JSON file a
-run (and a cluster submission), `<machine root>/runs/<id>.json` ($HEIMDALL_RUNS), beside a detached worker's log
+run (and a cluster submission), `<Himinbjorg>/runs/<id>.json` ($HEIMDALL_RUNS), beside a detached worker's log
 `<id>.log`: who (host, pid, uid, user, its PID and network namespaces, the boot, the pid's start time), where
 (the work dir, the checkout, the config, its configurations, the command line), when (started, finished),
 how it ended (exit code, verdict) and the record folders it wrote. `heimdall runs` lists them; `heimdall
@@ -9,7 +9,7 @@ watch` and `heimdall stop` find a run's socket through them.
 
 The one exception to "runtime state stays off disk" (V72): the user's ask. Each entry has one writer at a
 time (the run's own process; its client only when the worker died by a signal), written whole through a
-temporary file of its own and a rename. A machine root that cannot be written (an Apptainer image's) records
+temporary file of its own and a rename. A Himinbjorg that cannot be written (an Apptainer image's) records
 nothing, silently: every write is a no-op. Finished entries leave after KEEP_DAYS, their logs with them.
 
 Own entries only (task L's decision): `entries` reads and `prune` removes this user's alone, so on a machine
@@ -54,7 +54,7 @@ RESUMES_VAR = "HEIMDALL_RESUMES"
 
 
 def folder() -> Path:
-    """Where the entries are: $HEIMDALL_RUNS, else <machine root>/runs."""
+    """Where the entries are: $HEIMDALL_RUNS, else <Himinbjorg>/runs."""
     given = os.environ.get(DIR_VAR)
     return Path(given).expanduser() if given else himinbjorg() / "runs"
 
@@ -64,7 +64,7 @@ def host() -> str:
 
 
 def new_id(now: float | None = None) -> str:
-    """<YYYYmmdd-HHMMSS>-<host>-<4 hex>: sorted by when, unique on a shared machine root."""
+    """<YYYYmmdd-HHMMSS>-<host>-<4 hex>: sorted by when, unique on a shared Himinbjorg."""
     return f"{time.strftime('%Y%m%d-%H%M%S', time.localtime(now))}-{host()}-{secrets.token_hex(2)}"
 
 
@@ -99,7 +99,7 @@ def here(pid: int | None = None) -> dict:
 
 def _write(path: Path, data: dict) -> bool:
     """One entry, whole: a temporary file of this process and thread, then a rename. False when it cannot be
-    written (a read-only machine root)."""
+    written (a read-only Himinbjorg)."""
     temporary = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -128,7 +128,7 @@ def _fallback() -> Path:
 
 
 def log_file(run_id: str) -> Path:
-    """A detached worker's log: in the registry, else (a read-only machine root) <tmp>/heimdall-runs-<uid>/."""
+    """A detached worker's log: in the registry, else (a read-only Himinbjorg) <tmp>/heimdall-runs-<uid>/."""
     reserved = reserve(run_id, ".log")
     if reserved is not None:
         return reserved

@@ -330,9 +330,9 @@ def parser() -> argparse.ArgumentParser:
                         help="write this machine's summary to recipes/support/<platform>-<host>.toml (the support matrix)")
     doctor.add_argument("--matrix", action="store_true", help="the support matrix: every machine's recorded summary")
 
-    folders_ = commands.add_parser("tools", help="every tool folder: the work dir's tools/, the machine root's, Heimdall's",
+    folders_ = commands.add_parser("tools", help="every tool folder: the work dir's tools/, Himinbjorg's, Heimdall's",
                                    description="Each tool folder by name, nearest first: a work dir's tools/<name>/, the "
-                                               "machine root's tools/<name>/, Heimdall's framework/tools/<name>/. A nearer "
+                                               "Himinbjorg's tools/<name>/, Heimdall's framework/tools/<name>/. A nearer "
                                                "folder replaces a farther one, or, with extends = \"<name>\" in its "
                                                "tool.toml, is laid over it. `heimdall tools <name>`: one folder in full; "
                                                "`heimdall tools new <name> --from <tool>`: a folder in this work dir's tools/.")
@@ -363,7 +363,7 @@ def parser() -> argparse.ArgumentParser:
                        ("cd", "cd to a work dir's folder: heimdall cd ASSIGNMENT [configs|modules|results|records|logs]")):
         commands.add_parser(verb, help=f"{what} (gjallarhorn.sh's shell function)", add_help=False)
 
-    known = commands.add_parser("recognise", help="record work dirs by title, in the machine root's workdirs.toml "
+    known = commands.add_parser("recognise", help="record work dirs by title, in Himinbjorg's workdirs.toml "
                                                   "(gjallarhorn <title> goes to one)",
                                 description="A work dir (or a folder inside one) is recorded under its title, its "
                                             "heimdall.toml's [work] name or else its folder's name; any other folder is "
@@ -377,7 +377,7 @@ def parser() -> argparse.ArgumentParser:
 
     bridge = commands.add_parser("bifrost", help="the environment's packages (conda-forge; -python: PyPI), added, "
                                                  "dropped or shown; --shell: gjallarhorn's block in ~/.bashrc and ~/.zshrc",
-                                 description="Added packages are recorded in the machine root's machine.toml "
+                                 description="Added packages are recorded in Himinbjorg's machine.toml "
                                              "([settings] base_packages, base_pypi) and the base is made again (pixi). "
                                              "Also the program `bifrost`.")
     bridge.add_argument("packages", nargs="*", metavar="PACKAGE",
@@ -393,9 +393,9 @@ def parser() -> argparse.ArgumentParser:
     bridge.add_argument("--toolkit", metavar="KIT", help=argparse.SUPPRESS)
     bridge.add_argument("--yes", action="store_true", help="switch without asking (it reruns points and rebuilds)")
 
-    images = commands.add_parser("image", help="Apptainer images of Heimdall and a machine root: list them, or build one",
-                                 description="An image holds a clean copy of this Heimdall and a machine root built "
-                                             "inside it; it lives in the machine root's images/. The runtime is the "
+    images = commands.add_parser("image", help="Apptainer images of Heimdall and a Himinbjorg: list them, or build one",
+                                 description="An image holds a clean copy of this Heimdall and a Himinbjorg built "
+                                             "inside it; it lives in Himinbjorg's images/. The runtime is the "
                                              "system's (apptainer, or singularity). gjallarhorn --image <name> [title] "
                                              "runs a shell in one; [cluster] image runs heimdall cluster's jobs in one.")
     images.add_argument("action", nargs="?", choices=("list", "build"), default="list")
@@ -2138,7 +2138,7 @@ def set_jobs(ref: str | int, count: int) -> int:
     if not entry.get("pid"):
         raise HeimdallError(f"{shown} records no pid to tell", hint="heimdall runs lists what runs")
     if not runs.write_control(entry["id"], count):
-        raise HeimdallError(f"the request could not be written to {runs.control_file(entry['id'])}", hint="is the machine root writable?")
+        raise HeimdallError(f"the request could not be written to {runs.control_file(entry['id'])}", hint="is Himinbjorg writable?")
     os.kill(int(entry["pid"]), signal.SIGUSR2)
     was = entry.get("parallelism")
     print(f"{shown} {entry['id']}: points at once " + (f"{was} → {count}" if was else f"→ {count}")

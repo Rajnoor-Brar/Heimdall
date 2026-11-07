@@ -7,7 +7,7 @@
 #   make tests                  build the C++ tests       make test   build and run them, then pytest
 #   make clean                  remove the apps and the build's intermediates (never the stack's builds)
 #
-# Conventions, into the loaded stack's part of the machine root (gjallarhorn.sh sets HEIMDALL_APPS and
+# Conventions, into the loaded stack's part of Himinbjorg (gjallarhorn.sh sets HEIMDALL_APPS and
 # HEIMDALL_FORGE: ~/Himinbjorg/apps and ~/Himinbjorg/forge, or stacks/<toolkit>/… for an isolated toolkit's):
 #   src/App_<X>.cc              → $HEIMDALL_APPS/App_<X>.exe
 #   src/Apps/<X>/main.cc        → $HEIMDALL_APPS/<X>.exe           (the folder's other files are headers it includes)

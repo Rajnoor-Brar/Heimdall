@@ -13,7 +13,7 @@ from runner import plugins, shellrc, workdirs
 
 REPO = Path(__file__).resolve().parents[2]
 NEEDS_VENV = pytest.mark.skipif(not Path(os.environ.get("HEIMDALL_VENV", "/nowhere"), "bin", "activate").exists(),
-                                reason="no venv in the machine root: build the stack")
+                                reason="no venv in Himinbjorg: build the stack")
 
 
 def test_the_block_goes_in_once_and_comes_out_leaving_the_rest(tmp_path):
@@ -80,7 +80,7 @@ def test_a_build_writes_the_block_once_and_leaves_another(tmp_path, monkeypatch,
     assert "gjallarhorn [title] and bifrost written in" in capsys.readouterr().err
     assert shellrc.status(home / ".bashrc", shellrc.block("bash", REPO, tmp_path / "Himinbjorg")) == "installed"
     bs.shell_block(tmp_path / "Scratch")                                      # a scratch root's build
-    assert "another checkout's or machine root's" in capsys.readouterr().err
+    assert "another checkout's or Himinbjorg's" in capsys.readouterr().err
     assert shellrc.status(home / ".bashrc", shellrc.block("bash", REPO, tmp_path / "Himinbjorg")) == "installed"
 
 

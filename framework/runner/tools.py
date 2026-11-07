@@ -219,7 +219,7 @@ def new_folder(name: str, source: str, packages: list[str] | None = None, runs: 
     unknown = [n for n, s in package_states(packages or []).items() if s == "unknown"]
     if unknown:
         raise HeimdallError(f"no recipe {', '.join(unknown)}", where="heimdall tools new --package",
-                       hint="python3 recipes/build_stack.py --list; your own go in the machine root's recipes.toml")
+                       hint="python3 recipes/build_stack.py --list; your own go in Himinbjorg's recipes.toml")
     from .paths import find_work
     work = find_work()
     if work is None:
@@ -423,7 +423,7 @@ def executable_of(tool, folder: Folder, assignment: str) -> Path:
 
 @functools.lru_cache(maxsize=1)
 def _installed():
-    """recipes/build_stack.py's view of the loaded stack (the machine root's, or an isolated toolkit's):
+    """recipes/build_stack.py's view of the loaded stack (Himinbjorg's, or an isolated toolkit's):
     (the module, its recipes, its placeholders); None when it cannot be read."""
     try:
         bs = plugins.load(heimdall_root() / "recipes" / "build_stack.py", "build_stack")
@@ -1011,7 +1011,7 @@ def plan_point(errand, configuration, point, master: dict, *, post: dict | None 
 
 def _portable_parts(value, plan: PointPlan, text):
     """A step's identity parts with the point's folders as {out} and {res}, and every other path under a
-    known root written with its placeholder: moving the machine root or a work dir changes no
+    known root written with its placeholder: moving Himinbjorg or a work dir changes no
     fingerprint and no seed."""
     if isinstance(value, str):
         return text(value.replace(str(plan.out), "{out}").replace(str(plan.res), "{res}"))

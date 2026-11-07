@@ -4,7 +4,7 @@ doc:paths; doc:layout Three roots:
 
 * **Heimdall** (`heimdall_root()`): the framework, as git has it. Always the one this code runs from; a
   `$HEIMDALL` that names another is refused.
-* **the machine root** (`himinbjorg()`, `$HEIMDALL_MACHINE`, by default ~/Himinbjorg): what this machine
+* **Himinbjorg** (`himinbjorg()`, `$HEIMDALL_MACHINE`, by default ~/Himinbjorg): what this machine
   built — the stack, the venv, Heimdall's compiled apps, downloads and builds.
 * **the work dir** (`work_root()`): configs, modules, datasets and what runs make. `$HEIMDALL_WORK`, or the
   first folder up from the working directory whose `heimdall.toml` has a `[work]` table (as git finds its
@@ -314,7 +314,7 @@ def datasets_root() -> Path:
 
 STACK_VAR = "HEIMDALL_STACK"
 MACHINE_VAR = "HEIMDALL_MACHINE"
-#: The machine root when $HEIMDALL_MACHINE is not set (the user's choice, 2026-10-12: Heimdall's hall).
+#: Himinbjorg when $HEIMDALL_MACHINE is not set (the user's choice, 2026-10-12: Heimdall's hall).
 DEFAULT_MACHINE = "~/Himinbjorg"
 
 
@@ -324,7 +324,7 @@ def himinbjorg() -> Path:
 
 
 def machine_file() -> Path:
-    """This machine's settings: <machine root>/machine.toml (recipes/machine.template.toml says what)."""
+    """This machine's settings: <Himinbjorg>/machine.toml (recipes/machine.template.toml says what)."""
     return himinbjorg() / "machine.toml"
 
 
@@ -341,7 +341,7 @@ def machine_settings() -> dict:
 
 
 def stack_dir() -> Path:
-    """The loaded stack's base: the machine root, or its stacks/<toolkit>/ for an isolated toolkit's
+    """The loaded stack's base: Himinbjorg, or its stacks/<toolkit>/ for an isolated toolkit's
     (gjallarhorn.sh sets $HEIMDALL_STACK; doc:stack). Its compiled apps and builds go with it: they
     are linked against that stack."""
     name = os.environ.get(STACK_VAR)
@@ -360,7 +360,7 @@ def forge_dir() -> Path:
 
 def tool_roots() -> list[tuple[str, Path]]:
     """Where tool folders are, nearest first: the work dir's tools/
-    ("work"), the machine root's tools/ ("machine"), Heimdall's framework/tools/ ("shipped")."""
+    ("work"), Himinbjorg's tools/ ("machine"), Heimdall's framework/tools/ ("shipped")."""
     out = []
     work = find_work()
     if work is not None:
@@ -423,7 +423,7 @@ def placeholders() -> dict[str, str]:
 
 def portable(path) -> str:
     """A path as an identity records it: under a known root, written with that root's placeholder, so
-    a point's identity does not change when Heimdall, the machine root, the stack or a work dir moves."""
+    a point's identity does not change when Heimdall, Himinbjorg, the stack or a work dir moves."""
     return portable_texts()(str(path))
 
 
@@ -433,7 +433,7 @@ def portable_texts():
     `--input=/…/x`, a card's path, paths joined with commas. What a fingerprint holds (V137). {stack}
     is the loaded stack's installs ($HEIMDALL_INSTALL), where a standard tool's program is found; {base} the
     loaded conda base ($HEIMDALL_BASE), whose Python runs a script tool (it moves with its stack, not with
-    the machine root's name)."""
+    Himinbjorg's name)."""
     work = find_work()
     return _portable_texts(str(apps_dir()), str(installs_dir()), str(himinbjorg()), str(heimdall_root()),
                            str(work) if work is not None else "", str(base_dir() or ""))

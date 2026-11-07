@@ -374,7 +374,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -474,7 +474,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -574,7 +574,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -674,7 +674,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -774,7 +774,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -878,7 +878,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -978,7 +978,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1078,7 +1078,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1178,7 +1178,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1286,7 +1286,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1386,7 +1386,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1486,7 +1486,7 @@
      "type": "object",
      "properties": {
       "uses": {
-       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+       "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
        "type": "string"
       },
       "card": {
@@ -1591,7 +1591,7 @@
     "type": "object",
     "properties": {
      "uses": {
-      "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, the machine root's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
+      "description": "a tool folder: shipped, the machine's or the work dir's (heimdall tools)\n\na tool folder's name: Heimdall's `framework/tools/`, Himinbjorg's or the work dir's `tools/` (`heimdall tools` lists them); `\"exec\"` runs any executable, `\"module\"` a `Module.hh` program",
       "type": "string"
      },
      "card": {
@@ -4151,7 +4151,7 @@
      "default": []
     },
     "image": {
-     "description": "run each job in this Apptainer image: a name of <machine root>/images, or a .sif's path\n\nthe image's own Heimdall and stack run the job (`apptainer exec --cleanenv`, or `singularity`), with the work dir bound at its own path; `setup` still runs first, on the node (`\"module load apptainer\"`). `heimdall image build` makes one",
+     "description": "run each job in this Apptainer image: a name of <Himinbjorg>/images, or a .sif's path\n\nthe image's own Heimdall and stack run the job (`apptainer exec --cleanenv`, or `singularity`), with the work dir bound at its own path; `setup` still runs first, on the node (`\"module load apptainer\"`). `heimdall image build` makes one",
      "type": "string"
     },
     "sbatch": {

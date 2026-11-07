@@ -34,7 +34,7 @@ def test_ids_are_unique_and_a_log_is_reserved_once():
 
 
 def test_a_read_only_registry_writes_nothing(tmp_path, monkeypatch):
-    """An Apptainer image's machine root: every write a no-op, and a worker's log in <tmp>/heimdall-runs-<uid>/."""
+    """An Apptainer image's Himinbjorg: every write a no-op, and a worker's log in <tmp>/heimdall-runs-<uid>/."""
     locked = tmp_path / "runs"
     locked.mkdir()
     locked.chmod(0o555)

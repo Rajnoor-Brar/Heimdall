@@ -8,9 +8,9 @@
     bifrost -b|-build <tool>…       a recipe built here; -b@<toolkit>: with that toolkit's changes
     bifrost --shell install|remove  gjallarhorn and bifrost in ~/.bashrc and ~/.zshrc (runner/shellrc.py)
 
-What is added is recorded in the machine root's machine.toml ([settings] base_packages, base_pypi; its
+What is added is recorded in Himinbjorg's machine.toml ([settings] base_packages, base_pypi; its
 comments kept), so a later build keeps it and another machine can be given the same; then the base is made
-again (recipes/build_stack.py --base: pixi). On a machine root made before the base (base = "system"),
+again (recipes/build_stack.py --base: pixi). On a Himinbjorg made before the base (base = "system"),
 -python packages go into the venv with pip, recorded in python_packages.
 """
 
@@ -117,7 +117,7 @@ def recorded(key: str, root: Path | None = None) -> list[str]:
 
 
 def record(key: str, values: list[str], root: Path | None = None) -> Path:
-    """[settings] `key` = values in the machine root's machine.toml (made from the template when missing)."""
+    """[settings] `key` = values in Himinbjorg's machine.toml (made from the template when missing)."""
     file = (root or paths.himinbjorg()) / "machine.toml"
     text = file.read_text(encoding="utf-8") if file.is_file() else \
         (paths.heimdall_root() / "recipes" / "machine.template.toml").read_text(encoding="utf-8")
@@ -174,7 +174,7 @@ def change(words: list[str], python: bool, drop: bool, out=print) -> int:
     specs = [spec_of(w) for w in words]
     system = settings["base"] != "conda"
     if system and not python:
-        raise HeimdallError("this machine root has no conda base (base = \"system\": apt or Homebrew, and a venv)",
+        raise HeimdallError("this Himinbjorg has no conda base (base = \"system\": apt or Homebrew, and a venv)",
                        hint="a system package with apt (or brew); a Python one: bifrost -python <pkg>")
     key = "python_packages" if system else KEYS[python]
     have = recorded(key)                     # machine.toml's own: its lists append to settings.toml's
@@ -291,9 +291,9 @@ def tools(names: list[str], conda: bool, toolkit: str = "", yes: bool = False, o
     unknown = [n for n in names if n not in packages]
     if unknown:
         raise HeimdallError(f"no recipe {', '.join(unknown)}", hint=did_you_mean(unknown[0], packages)
-                       or "python3 recipes/build_stack.py --list; your own go in the machine root's recipes.toml")
+                       or "python3 recipes/build_stack.py --list; your own go in Himinbjorg's recipes.toml")
     if conda and settings["base"] != "conda":
-        raise HeimdallError("this machine root has no conda base (base = \"system\"): nothing is taken ready-made",
+        raise HeimdallError("this Himinbjorg has no conda base (base = \"system\"): nothing is taken ready-made",
                        hint=f"bifrost -b {' '.join(names)}")
     choice: dict[str, str] = {}                                    # package → "conda-forge" | "source"
     if conda:
@@ -423,7 +423,7 @@ def state() -> list[str]:
     for shell, file in shellrc.rc_files(Path.home(), os.environ.get("SHELL", "")):
         status = shellrc.status(file, want[shell])
         out.append(f"{'the shell:':17} {file}: " + {"installed": "gjallarhorn and bifrost",
-                                                     "another": "another checkout's or machine root's block "
+                                                     "another": "another checkout's or Himinbjorg's block "
                                                                 "(bifrost --shell install points it here)",
                                                      "absent": "no gjallarhorn (bifrost --shell install)"}[status])
     return out

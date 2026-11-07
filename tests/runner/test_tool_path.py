@@ -1,4 +1,4 @@
-"""The tool search path: a work dir's tools/, the machine root's tools/,
+"""The tool search path: a work dir's tools/, Himinbjorg's tools/,
 Heimdall's framework/tools/, nearest first; `extends` lays a folder over another; `heimdall tools` says which."""
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ SCRIPT = ('#!/usr/bin/env python3\nimport sys\nargs = [a for a in sys.argv[1:] i
 
 @pytest.fixture
 def roots(scratch, monkeypatch):
-    """A work dir and a machine root of the test's own: their tools/ are searched before Heimdall's."""
+    """A work dir and a Himinbjorg of the test's own: their tools/ are searched before Heimdall's."""
     work, machine = scratch / "w", scratch / "m"
     (work / "configs" / "P").mkdir(parents=True)
     (work / "heimdall.toml").write_text('[work]\nname = "t"\n', encoding="utf-8")

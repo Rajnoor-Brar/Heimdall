@@ -31,7 +31,7 @@ def builder():
 
 
 def loaded(bs):
-    """The recipes, settings and placeholders of the stack this shell has loaded: the machine root's, or an
+    """The recipes, settings and placeholders of the stack this shell has loaded: Himinbjorg's, or an
     isolated toolkit's ($HEIMDALL_STACK), with that toolkit's changes."""
     stack = os.environ.get("HEIMDALL_STACK", "")
     _, settings, packages = bs.options([f"packages=@{stack}"] if stack else [])

@@ -2,10 +2,10 @@
 # env/heimdall_env.sh — Heimdall's shell environment (doc:layout; doc:layout).
 #
 # Sourced by Heimdall's gjallarhorn.sh (the shell function `gjallarhorn`), which sets HEIMDALL (Heimdall's folder), HEIMDALL_MACHINE (the
-# machine root, ~/Himinbjorg) and the loaded stack's HEIMDALL_INSTALL, HEIMDALL_VENV, HEIMDALL_APPS and HEIMDALL_FORGE, and
+# Himinbjorg, ~/Himinbjorg) and the loaded stack's HEIMDALL_INSTALL, HEIMDALL_VENV, HEIMDALL_APPS and HEIMDALL_FORGE, and
 # HEIMDALL_BASE when the stack is built on a conda base (doc:base). It activates the base (its
 # base/activate.sh) or the venv, puts the stack and framework/bin (the `heimdall` command) on PATH, sources the
-# machine root's machine.sh, and defines the shell helpers below. The base's lib/ never joins
+# Himinbjorg's machine.sh, and defines the shell helpers below. The base's lib/ never joins
 # LD_LIBRARY_PATH: what was built on it finds it by rpath, and the OS's own programs keep the OS's libraries.
 # Safe to source repeatedly: path variables are only ever prepended once, and never get empty elements
 # (an empty element means the CWD). `quit` removes exactly what was added here, machine.sh's lines too.
@@ -156,7 +156,7 @@ _heimdall_unload() {
 
 # --- routine commands ---
 # quit: leave the environment. Everything gjallarhorn.sh and machine.sh added goes; HEIMDALL and HEIMDALL_MACHINE stay
-# (where Heimdall and the machine root are, for `source $HEIMDALL/gjallarhorn.sh`). A no-op when not loaded.
+# (where Heimdall and Himinbjorg are, for `source $HEIMDALL/gjallarhorn.sh`). A no-op when not loaded.
 quit() {
     if [ -z "${HEIMDALL_ENV_LOADED-}" ]; then
         echo "Heimdall's environment is not loaded"
@@ -207,7 +207,7 @@ In this shell:
   heimdall quit              leave it: paths, the base (or venv) and machine.sh's lines as before (also quit)
   heimdall cd A [DIR]        cd to <work dir>/DIR/A, an assignment's (DIR: configs|modules|results|records|logs; also heimdall_cd)
   heimdall_status            the loaded stack: each package, its release and state (heimdall stack status)
-  heimdall_stash             cd to the machine root's downloads
+  heimdall_stash             cd to Himinbjorg's downloads
   heimdall_forge             cd to the loaded stack's builds in progress
   heimdall_stack             cd to the loaded stack (the installs)
   heimdall_help              this message

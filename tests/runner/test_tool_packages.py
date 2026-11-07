@@ -1,5 +1,5 @@
 """A tool folder names the packages it runs ([tool] packages, V146): `heimdall tools` says how each is installed,
-a missing program says how to get it, and a point's provenance records it. The machine roots here are the
+a missing program says how to get it, and a point's provenance records it. The Himinbjorgs here are the
 test's own folders."""
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 @pytest.fixture
 def machine(tmp_path, monkeypatch):
-    """An empty machine root on a conda base, the stack's view read afresh."""
+    """An empty Himinbjorg on a conda base, the stack's view read afresh."""
     monkeypatch.setenv("HEIMDALL_MACHINE", str(tmp_path / "Himinbjorg"))
     monkeypatch.delenv("HEIMDALL_STACK", raising=False)
     (tmp_path / "Himinbjorg").mkdir()

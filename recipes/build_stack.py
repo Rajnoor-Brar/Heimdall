@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""recipes/build_stack.py — build the HEP stack from source into the machine root, as recipes/toolkits/ and settings.toml say.
+"""recipes/build_stack.py — build the HEP stack from source into Himinbjorg, as recipes/toolkits/ and settings.toml say.
 
-    python3 recipes/build_stack.py                          # the core stack into the machine root (~/Himinbjorg)
+    python3 recipes/build_stack.py                          # the core stack into Himinbjorg (~/Himinbjorg)
     python3 recipes/build_stack.py packages=all cores=8     # everything, 8 compilers at once
     python3 recipes/build_stack.py packages="rivet pythia8" root.release=6.40.06
     python3 recipes/build_stack.py --config my.toml         # [settings], [env], [packages.<name>] from a file
@@ -30,10 +30,10 @@ with spaces: thepeg.extra+="'LDFLAGS=-L/x -lc++'"), or on commas when it has no 
 A setting is a key of settings.toml, given as key=value; a package's key as <package>.<key>=value.
 The layers, lowest first: recipes/toolkits/standard.toml (every recipe) and settings.toml; the
 platform's fixes (platforms/mac/mac.toml on macOS); the toolkits asked for, each after what it
-extends; the machine root's machine.toml; --config files; the command line. Each layer's [settings],
+extends; Himinbjorg's machine.toml; --config files; the command line. Each layer's [settings],
 [env] and [packages.<name>] change what is below: a list appends unless the table says
 replace = ["key"], a table merges, anything else replaces.
-Where things go: the machine root ($HEIMDALL_MACHINE, or the `machine` setting; ~/Himinbjorg by default),
+Where things go: Himinbjorg ($HEIMDALL_MACHINE, or the `machine` setting; ~/Himinbjorg by default),
 apart from Heimdall's checkout: downloads in forge/downloads/,
 unpacked sources in forge/src/, build trees in forge/build/, logs in forge/logs/, installs in stack/,
 this machine's shell lines in machine.sh.
@@ -43,9 +43,9 @@ libraries the stack links, Python and its packages. The stack is built inside it
 stack/; a recipe taken ready-made (from = "conda-forge") is installed into the base instead. gjallarhorn.sh
 loads the base through base/activate.sh. base = "system": apt_packages (sudo) or Homebrew, and a venv in
 venv/, as before.
-A toolkit is one file (recipes/toolkits/<name>.toml, and your own in <machine root>/toolkits/, which
+A toolkit is one file (recipes/toolkits/<name>.toml, and your own in <Himinbjorg>/toolkits/, which
 come first): which recipes it takes ([standard]), what it extends, what it changes. One that
-changes the C++ standard is isolated: it builds a whole stack of its own in the machine root's
+changes the C++ standard is isolated: it builds a whole stack of its own in Himinbjorg's
 stacks/<toolkit>/ (installs, build trees, venv, apps), loaded by its gjallarhorn.sh; downloads are shared.
 A finished package is stamped (stack/.stamps/<name>-<release>, holding a digest of the recipe it was
 built with) and skipped after, so a rerun resumes; --rebuild <package> builds it again, with what
@@ -104,7 +104,7 @@ BASE_CMAKE = ["-DCMAKE_IGNORE_PREFIX_PATH=/usr;/usr/local",
 #: A recipe in no group joins a build only by name.
 GROUPS = {"core": ("core",), "extra": ("extra",), "all": ("core", "extra")}
 #: The toolkits: standard.toml (every recipe; @standard) and one file per toolkit, Heimdall's here and
-#: a machine's own in <machine root>/toolkits/, which come first (doc:toolkits).
+#: a machine's own in <Himinbjorg>/toolkits/, which come first (doc:toolkits).
 SHIPPED = HERE / "toolkits"
 STANDARD = SHIPPED / "standard.toml"
 KIT_FIELDS = {"description", "note", "extends", "isolated", "standard", "settings", "env", "packages"}
@@ -191,7 +191,7 @@ KIT_CACHE: dict[Path, dict] = {}
 
 
 def root_of(machine: str) -> Path:
-    """The machine root: the `machine` setting, else $HEIMDALL_MACHINE, else ~/Himinbjorg."""
+    """Himinbjorg: the `machine` setting, else $HEIMDALL_MACHINE, else ~/Himinbjorg."""
     return Path(machine or os.environ.get("HEIMDALL_MACHINE") or "~/Himinbjorg").expanduser().resolve()
 
 
@@ -237,14 +237,14 @@ def layer(settings: dict, packages: dict, data: dict, where: str, label: str, kn
 
 
 def settable(settings: dict, *also: str) -> set[str]:
-    """The settings a layer may set: settings.toml's, but the machine root, the env table and `also`."""
+    """The settings a layer may set: settings.toml's, but Himinbjorg, the env table and `also`."""
     return {key for key in settings if not key.startswith("_") and key not in ("machine", "env", *also)}
 
 
 # ── toolkits (recipes/toolkits/, doc:toolkits) ──────────────────────────────────────────────────
 
 def kit_files(root: Path) -> dict[str, list[Path]]:
-    """Each toolkit's files by name, nearest first: the machine root's toolkits/, then Heimdall's."""
+    """Each toolkit's files by name, nearest first: Himinbjorg's toolkits/, then Heimdall's."""
     found: dict[str, list[Path]] = {}
     for folder in (root / "toolkits", SHIPPED):
         for file in sorted(folder.glob("*.toml")) if folder.is_dir() else []:
@@ -426,7 +426,7 @@ def options(argv: list[str]) -> tuple[str, dict, dict]:
                        machine.get("settings", {}).get("packages", settings["packages"])))
     settings["_want"] = wanted.split() if isinstance(wanted, str) else list(wanted)
     # The base, chosen as the set is: what the build is made with decides the layers under every toolkit.
-    # A machine root made before the base (a venv/, no base/) stays "system" unless told: nothing is
+    # A Himinbjorg made before the base (a venv/, no base/) stays "system" unless told: nothing is
     # converted (the user, 2026-10-14). A new one gets settings.toml's, "conda".
     older = (root / "venv").exists() and not (root / "base").exists()
     base = next((text for key, text, _ in reversed(given) if key == "base"),
@@ -840,14 +840,14 @@ def shellrc():
 
 def shell_block(prefix: Path) -> None:
     """Once a build has set the machine up: `gjallarhorn` and `bifrost` in ~/.bashrc (and ~/.zshrc), for this
-    checkout and machine root. A block another checkout's or root's is left, and said (V143)."""
+    checkout and Himinbjorg. A block another checkout's or root's is left, and said (V143)."""
     rc = shellrc()
     for shell, file in rc.rc_files(Path.home(), os.environ.get("SHELL", "")):
         happened = rc.install(file, rc.block(shell, REPO, prefix), replace=False)
         if happened == "written":
             say(f"{file}: gjallarhorn [title] and bifrost written in, for a new shell (bifrost --shell remove takes them out)")
         elif happened == "another":
-            say(f"{file}: its Heimdall block is another checkout's or machine root's; bifrost --shell install points it here")
+            say(f"{file}: its Heimdall block is another checkout's or Himinbjorg's; bifrost --shell install points it here")
 
 
 def checks(name: str, p: dict, c: dict, env: dict[str, str], quick: bool = False, slow_ok: bool = True) -> list:
@@ -1322,7 +1322,7 @@ def base_entries(order: list[str], packages: dict, c: dict) -> dict[str, str]:
 def manifest_text(order: list[str], packages: dict, c: dict) -> str:
     """base/pixi.toml: the base as a pixi workspace, for this machine's platform."""
     channels = read(BASE_FILE)["base"]["channels"]
-    lines = ["# base/pixi.toml: the machine root's base, written by recipes/build_stack.py from recipes/base.toml,",
+    lines = ["# base/pixi.toml: Himinbjorg's base, written by recipes/build_stack.py from recipes/base.toml,",
              "# settings.toml's python_packages and base_packages, and the run's recipes. Change those, not this:",
              "# the next build writes it again (docs/stable/setup/base.md).",
              "[workspace]", 'name = "heimdall-base"',
@@ -1386,7 +1386,7 @@ def activation(c: dict, env: dict[str, str]) -> dict[str, str]:
 
 
 def pixi_env(c: dict) -> dict[str, str]:
-    """pixi's own places, in the machine root's forge/: its settings and its package cache."""
+    """pixi's own places, in Himinbjorg's forge/: its settings and its package cache."""
     return {"PIXI_HOME": str(Path(c["pixi"]).parent.parent), "PIXI_CACHE_DIR": f"{c['stash']}/conda",
             "RATTLER_CACHE_DIR": f"{c['stash']}/conda"}
 
@@ -1607,7 +1607,7 @@ def packages_sh() -> str:
 
 
 def machine_text(c: dict) -> str:
-    """The machine root's machine.sh: settings.toml's setup_extra lines (macOS: DYLD_LIBRARY_PATH, the GNU tools)."""
+    """Himinbjorg's machine.sh: settings.toml's setup_extra lines (macOS: DYLD_LIBRARY_PATH, the GNU tools)."""
     return MACHINE + "".join(expand(line, c) + "\n" for line in c["setup_extra"])
 
 

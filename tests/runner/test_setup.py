@@ -185,7 +185,7 @@ def shell(script: str) -> subprocess.CompletedProcess:
 
 
 @pytest.mark.skipif(not Path(os.environ.get("HEIMDALL_VENV", "/nowhere"), "bin", "activate").exists(),
-                    reason="no venv in the machine root: build the stack")
+                    reason="no venv in Himinbjorg: build the stack")
 def test_heimdall_refresh_reloads_the_shell_in_place():
     out = shell(f"""set -e
         source {REPO}/gjallarhorn.sh >/dev/null
@@ -213,11 +213,11 @@ def test_the_shell_verbs_without_the_shell_function_say_to_source_setup(verb):
 # ── the shell ──────────────────────────────────────────────
 
 NEEDS_VENV = pytest.mark.skipif(not Path(os.environ.get("HEIMDALL_VENV", "/nowhere"), "bin", "activate").exists(),
-                                reason="no venv in the machine root: build the stack")
+                                reason="no venv in Himinbjorg: build the stack")
 
 
 def a_machine(root: Path, machine_sh: str = "") -> Path:
-    """A machine root of the test's: the real venv, linked; stack folders that are empty but there; an
+    """A Himinbjorg of the test's: the real venv, linked; stack folders that are empty but there; an
     isolated toolkit's stack, kit, with the gjallarhorn.sh the build writes."""
     for base in (root, root / "stacks" / "kit"):
         for sub in ("root/bin", "root/lib"):
@@ -296,7 +296,7 @@ def test_quit_undoes_machine_sh_and_refresh_never_piles_it_up(scratch):
 
 
 def a_base_machine(root: Path) -> Path:
-    """A machine root on a conda base, for the test: the real venv's Python dressed as the base's prefix
+    """A Himinbjorg on a conda base, for the test: the real venv's Python dressed as the base's prefix
     (its pyvenv.cfg copied, bin/python and lib/ linked), an activate.d script as a compiler's, and the
     activate.sh the build writes (recipes/build_stack.py)."""
     from runner import plugins

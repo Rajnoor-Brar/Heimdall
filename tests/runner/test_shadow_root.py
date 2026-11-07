@@ -1,4 +1,4 @@
-"""The tests' machine root is a shadow (conftest.py): the live machine.toml and recipes.toml decide nothing."""
+"""The tests' Himinbjorg is a shadow (conftest.py): the live machine.toml and recipes.toml decide nothing."""
 
 from __future__ import annotations
 

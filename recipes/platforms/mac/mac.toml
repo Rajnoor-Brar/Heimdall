@@ -8,7 +8,7 @@
 [settings]
 graphics = "OFF"                  # no X11 on macOS: Geant4 without its OpenGL/X11 viewer; ROOT: Cocoa below
 
-# The machine root's machine.sh, which gjallarhorn.sh sources after heimdall_env.sh: the libraries on
+# Himinbjorg's machine.sh, which gjallarhorn.sh sources after heimdall_env.sh: the libraries on
 # DYLD_LIBRARY_PATH too (heimdall_env.sh sets LD_LIBRARY_PATH, which macOS ignores).
 setup_extra = ["export DYLD_LIBRARY_PATH=$LD_LIBRARY_PATH"]
 

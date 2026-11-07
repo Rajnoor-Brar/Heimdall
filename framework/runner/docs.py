@@ -134,7 +134,7 @@ SETTINGS = {
     "cluster": ("settings-cluster", "every key of [cluster], for running a job on Slurm",
                 "", lambda: [_table("`[cluster]`", schema.keys("cluster"))]),
     "stack": ("settings-stack", "every setting of the stack's build: what is built, with what, how many cores, nested as the file nests them",
-              "From `recipes/settings.toml`. Set one on the command line (`cores=8`), in a `--config` file, or in the machine root's `machine.toml`.",
+              "From `recipes/settings.toml`. Set one on the command line (`cores=8`), in a `--config` file, or in Himinbjorg's `machine.toml`.",
               lambda: _nested(schema.stack_entries(), "`[settings]`")),
 }
 #: Where each settings page's facts live, for the drift report.

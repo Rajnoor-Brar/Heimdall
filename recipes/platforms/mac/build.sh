@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# recipes/platforms/mac/build.sh — build the HEP stack into the machine root on macOS. build_stack.py lays
+# recipes/platforms/mac/build.sh — build the HEP stack into Himinbjorg on macOS. build_stack.py lays
 # mac.toml (and this folder's file for the base) under every toolkit by itself. Run it after README.md's
 # manual steps (Xcode's command-line tools; Homebrew only for base=system).
 #
@@ -28,7 +28,7 @@ if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" = 1 ] && [ "$(uname -m)" != ar
     die "this shell runs under Rosetta (x86_64) on an Apple Silicon Mac: open a native terminal (README step 0)"
 fi
 
-# Which base: the command line's, else machine.toml's, else "system" for a machine root made before the
+# Which base: the command line's, else machine.toml's, else "system" for a Himinbjorg made before the
 # base (a venv/, no base/), else "conda": as build_stack.py decides it.
 machine=${HEIMDALL_MACHINE:-$HOME/Himinbjorg}
 dry=0 base=""

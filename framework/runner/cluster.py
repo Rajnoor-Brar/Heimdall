@@ -13,7 +13,7 @@ points after the pre job succeeded (afterok), the finish job after every point e
 point is skipped in its job when its identity is complete, as anywhere. Nothing here enters an
 identity or a seed, so a point run as a job equals the same point run by hand.
 
-[cluster] comes in layers, lowest first: the machine root's machine.toml (this machine's defaults for
+[cluster] comes in layers, lowest first: Himinbjorg's machine.toml (this machine's defaults for
 every work dir: account, partition, setup lines), the work dir's heimdall.toml, the errand file's (imports merge
 it key by key), the configuration's ([errand.cfgs.<cfg>].cluster), and --set cluster.<key>=…; `time`
 must be in one of them.
@@ -104,7 +104,7 @@ def directives(keys: dict, *, name: str, log: Path, cpus: int, array: str = "") 
 
 
 def loader() -> Path:
-    """The gjallarhorn.sh a job sources: Heimdall's, or the loaded isolated stack's, in the machine root's
+    """The gjallarhorn.sh a job sources: Heimdall's, or the loaded isolated stack's, in Himinbjorg's
     stacks/ (doc:stack)."""
     stack = os.environ.get(STACK_VAR)
     return himinbjorg() / "stacks" / stack / "gjallarhorn.sh" if stack else heimdall_root() / "gjallarhorn.sh"

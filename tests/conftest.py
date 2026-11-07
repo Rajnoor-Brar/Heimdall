@@ -8,7 +8,7 @@
   only when the code changed. $HEIMDALL is this Heimdall; a shell's retired HEKIT_* are dropped (the
   tests of their refusal set them).
 * The basetemp is forge/scratch/pytest, wherever pytest is started.
-* The machine root is a shadow, forge/scratch/machine/ ($HEIMDALL_MACHINE for the session): the real root's
+* Himinbjorg is a shadow, forge/scratch/machine/ ($HEIMDALL_MACHINE for the session): the real root's
   stack/, base/, apps/ and forge/downloads/ linked, its own empty machine.toml, recipes.toml, runs/ and
   workdirs.toml. So no live setting decides what a test keeps or sees. $HEIMDALL_APPS, _INSTALL and _FORGE
   are pinned to the real root's before the switch, so the stack, the apps and the identities are as they were.
@@ -33,7 +33,7 @@ REPO = Path(__file__).resolve().parents[1]                  # Heimdall
 sys.path.insert(0, str(REPO / "framework"))
 
 REAL_MACHINE = Path(os.environ.get("HEIMDALL_MACHINE") or "~/Himinbjorg").expanduser()   # live: read, never written
-SCRATCH = Path(os.environ.get("HEIMDALL_FORGE") or REAL_MACHINE / "forge") / "scratch"   # the machine root's, never the checkout
+SCRATCH = Path(os.environ.get("HEIMDALL_FORGE") or REAL_MACHINE / "forge") / "scratch"   # Himinbjorg's, never the checkout
 SHADOW = SCRATCH / "machine"
 FIXTURE = REPO / "tests" / "fixtures" / "work"
 WORK = SCRATCH / "work"
@@ -59,7 +59,7 @@ def _sync(src: Path, dst: Path) -> None:
 
 
 def _shadow_machine() -> None:
-    """Build SHADOW and make it the machine root: the built parts linked, the settings its own."""
+    """Build SHADOW and make it Himinbjorg: the built parts linked, the settings its own."""
     from runner import paths
     pinned = {"HEIMDALL_APPS": paths.apps_dir(), "HEIMDALL_INSTALL": paths.installs_dir(), "HEIMDALL_FORGE": paths.forge_dir()}
     SHADOW.mkdir(parents=True, exist_ok=True)
@@ -126,7 +126,7 @@ def the_fixtures_are_left_alone():
 
 
 def _live_state() -> dict[str, str]:
-    """What the real machine root holds that a test must not touch: its settings (hashed), its stamps and its
+    """What the real Himinbjorg holds that a test must not touch: its settings (hashed), its stamps and its
     apps (name, size and mtime; a rebuilt app changes its hash into every identity)."""
     seen = {}
     for name in ("machine.toml", "recipes.toml"):
@@ -147,7 +147,7 @@ def the_live_himinbjorg_is_left_alone():
     live = _live_state()
     yield
     changed = _changed(live, _live_state())
-    assert not changed, "tests changed the live machine root:\n  " + "\n  ".join(changed[:20])
+    assert not changed, "tests changed the live Himinbjorg:\n  " + "\n  ".join(changed[:20])
 
 
 def pytest_collection_modifyitems(items):

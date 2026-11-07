@@ -95,6 +95,7 @@ class Page:
     root: Path | None = None                         # its set's folder: <root>/<backend>/<rel> (plots/<set>, compare/<name>)
     numbers: Path | None = None                      # its set's statistics folder (statistics/<set>)
     merged: dict = field(default_factory=dict)       # a set's merged curves on it: {curve name: the points it is made of}
+    runs: dict = field(default_factory=dict)         # across: each curve's Run as it is named, {curve name: "03·nlo"}
 
 
 @dataclass(frozen=True)
@@ -967,7 +968,8 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
                     overrides={k for k, v in {**keys, **override}.items() if v != DEFAULT},
                     style=merge_style(base, layer), statistic=_statistic_of(override, here), overlay=overlay,
                     set=set_, rel=rel, root=root, numbers=numbers,
-                    merged={plan.point.name: plan.context["members"] for plan, _, _ in folded if "members" in plan.context})
+                    merged={plan.point.name: plan.context["members"] for plan, _, _ in folded if "members" in plan.context},
+                    runs={plan.point.name: plan.context["run"] for plan, _, _ in folded if plan.context.get("run")})
 
     for figure in declared:                                # what a figure draws is what its objects are
         mine = [o for o in objects if claimed.get(o) is figure] if figure.kind == "defined" else []
@@ -1561,7 +1563,9 @@ def _curve_label(errand, plan, curve_groups, fill=lambda text: text) -> str:
     errand = _errand_of(errand, plan)
     own = [canonical(fill(plan.context["curve_label"]))] if plan.context.get("curve_label") else []
     known = {**(getattr(plan, "values", None) or {}), **plan.point.choice}   # a fixed quantity's value too
-    labels = [canonical(fill(label)) for g in curve_groups if g[0] in errand.quantities and g[0] in known
+    serial = plan.context.get("run", "").partition("·")[0] if plan.context.get("run", "").count("·") else ""
+    labels = [canonical(fill(f"{serial}·{label}" if serial and g[0] == "@tag" else label))      # across: a Run is always named
+              for g in curve_groups if g[0] in errand.quantities and g[0] in known
               for label in group_labels(errand.quantities, g, known)]
     return ", ".join(own + labels) or errand.name
 

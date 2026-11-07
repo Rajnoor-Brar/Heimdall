@@ -21,7 +21,7 @@ STATISTIC_COLUMNS = ("page", "cell", "object", "curve", "point", "reference", "i
                      "ref_area", "cmp_area", "abs_area", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "chi2", "ndf",
                      "chi2_ndf")
 #: The columns that hold text, and the counts; every other one is a number ("" in the file: NaN).
-TEXT = ("page", "cell", "object", "curve", "point", "reference")
+TEXT = ("page", "cell", "object", "curve", "point", "run", "reference")
 COUNTS = ("bins", "ndf")
 SIDECAR = "statistics.json"
 
@@ -32,9 +32,12 @@ def default_metrics() -> tuple[str, ...]:
     return tuple(name for name, m in metrics.REGISTRY.items() if m.default)
 
 
-def columns_for(names) -> list[str]:
-    """STATISTIC_COLUMNS, then each named metric that is not already one of them, once, in the order given."""
+def columns_for(names, run: bool = False) -> list[str]:
+    """STATISTIC_COLUMNS, then each named metric that is not already one of them, once, in the order given; `run` (a table of
+    Runs together: across) puts a `run` column after `point`."""
     out = list(STATISTIC_COLUMNS)
+    if run:
+        out.insert(out.index("point") + 1, "run")
     for name in names:
         if name not in out:
             out.append(name)
@@ -68,6 +71,8 @@ def statistics_of(page, names=None) -> list[dict] | None:
                      "ratio_dev": ratio_area / ratio_width if ratio_width else float("nan"),
                      "ndf": numbers.get("ndf", 0),
                      "chi2_ndf": number["chi2"] / numbers["ndf"] if numbers.get("ndf") else float("nan")})
+        if run := getattr(page, "runs", {}).get(rows[-1]["point"]):          # a table of Runs together: whose each is
+            rows[-1]["run"] = run
     extra = [n for n in (default_metrics() if names is None else names) if n not in STATISTIC_COLUMNS]
     if extra and rows:
         _add_metrics(rows, made, page, extra)
@@ -87,11 +92,11 @@ def _add_metrics(rows: list[dict], made: dict, page, names: list[str]) -> None:
             row[name] = metrics.evaluate(name, curves[i], pool=curves) if curves and i < len(curves) else float("nan")
 
 
-def sidecar_of(names, score: dict | None = None, axes: dict | None = None, merged: dict | None = None) -> dict:
+def sidecar_of(names, score: dict | None = None, axes: dict | None = None, merged: dict | None = None, run: bool = False) -> dict:
     """What statistics.json holds for a table with the metrics `names`, scored as `score` (the merged [score] table, a plain
     dict) says: the summary and the report score the rows the way the table was written."""
     from . import metrics
-    columns = columns_for(names)
+    columns = columns_for(names, run)
     out = {"format": FORMAT, "columns": columns,
            "metrics": {n: {"purpose": m.purpose, "better": m.better, "thresholds": list(m.thresholds) if m.thresholds else None,
                            "default": m.default, "note": m.note, "why": m.why}
@@ -113,13 +118,14 @@ def write_statistics(todo: list, target: Path, names=None, score: dict | None = 
     if not rows:
         return 0
     target.parent.mkdir(parents=True, exist_ok=True)
-    columns = columns_for(names)
+    run = any(row.get("run") for row in rows)
+    columns = columns_for(names, run)
     with open(target, "w", encoding="utf-8", newline="") as handle:
         out = csv.DictWriter(handle, fieldnames=columns)
         out.writeheader()
         for row in rows:
             out.writerow({k: ("" if isinstance(v, float) and v != v else v) for k, v in row.items()})
-    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names, score, axes, merged), indent=2) + "\n", encoding="utf-8")
+    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names, score, axes, merged, run), indent=2) + "\n", encoding="utf-8")
     return len(rows)
 
 

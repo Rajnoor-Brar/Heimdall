@@ -317,3 +317,25 @@ def test_a_quantity_every_run_names_has_no_unset_value(scratch):
     a_run(where, "01_pdfs", events=10000)
     an_events_run(where, "02_events", [10000], pdf=1)
     assert "unset" not in together(where)[0].quantities["generator"].tags
+
+
+def test_a_run_is_named_by_its_serial_and_its_tag_or_its_folders_label():
+    assert plotdoc.run_label("03_pdfs") == "03·pdfs" and plotdoc.run_label("03_pdfs", "nlo") == "03·nlo"
+    assert plotdoc.run_label("12-new_run") == "12·new_run" and plotdoc.run_label("old") == "old"
+    assert plotdoc.run_label("old", "lo") == "lo" and plotdoc.run_label("7") == "7·7"
+
+
+def test_where_runs_meet_each_is_named_with_its_serial_and_two_of_one_tag_differ_by_it(scratch):
+    from runner import plot
+    where = folder_of("serials")
+    a_run(where, "01_one", tag="nlo")
+    a_run(where, "02_one", tag="nlo")
+    a_run(where, "03_two")
+    doc, _, members = together(where, prefer="all")
+    assert doc.quantities["@run"].labels == ["01·nlo", "02·nlo", "03·two"]
+    assert {m.context["run"] for m in members} == {"01·nlo", "02·nlo", "03·two"}
+    first = next(m for m in members if m.point.name == "01_one__MSTW08lo")
+    second = next(m for m in members if m.point.name == "02_one__MSTW08lo")
+    assert plot._curve_label(doc, first, [["@tag"]]) == "01·nlo" and plot._curve_label(doc, second, [["@tag"]]) == "02·nlo"
+    assert plot._curve_label(doc, second, [["@run"]]) == "02·nlo"
+    assert plot._curve_label(doc, second, [["pdf"]]) == "MSTW08lo"                         # a label that names no Run is as it was

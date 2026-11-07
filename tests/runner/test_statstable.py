@@ -160,3 +160,18 @@ def test_the_sidecar_names_the_points_a_merged_curve_is_made_of_only_when_there_
     from stats import table
     assert "merged" not in table.sidecar_of(["chi2_ndf"])
     assert table.sidecar_of(["chi2_ndf"], merged={"em_pdfs": ["em_a", "em_b"]})["merged"] == {"em_pdfs": ["em_a", "em_b"]}
+
+
+def test_a_table_of_runs_together_has_a_run_column_after_point_and_no_other_table_has(tmp_path):
+    from stats import table
+    page = page_with_numbers(tmp_path / "pages", "d01-x01-y01", NUMBERS)
+    plain = tmp_path / "plain.csv"
+    statstable.write_statistics([page], plain)
+    assert "run" not in statstable.read(plain)[0] and "run" not in table.sidecar(plain)["columns"]
+    page.runs = {"p1": "03·nlo", "p2": "04·pdfs"}
+    across = tmp_path / "across.csv"
+    assert statstable.write_statistics([page], across) == 2
+    rows = statstable.read(across)
+    assert [(r["point"], r["run"]) for r in rows] == [("p1", "03·nlo"), ("p2", "04·pdfs")]
+    columns = table.sidecar(across)["columns"]
+    assert columns[columns.index("point") + 1] == "run" and list(rows[0]) == columns[:len(rows[0])]

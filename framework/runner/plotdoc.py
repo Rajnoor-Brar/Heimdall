@@ -19,6 +19,7 @@ plot.Member), so the page code is the same for a drawing from a document as it w
 
 from __future__ import annotations
 
+import re
 import datetime
 import hashlib
 from dataclasses import dataclass, field
@@ -630,6 +631,14 @@ FROM_DEFAULT = {"runs": ["*"], "prefer": "last"}
 UNTAGGED = "untagged"
 UNSET = "unset"                    # a quantity a Run never names: its tag there, never guessed (across-axes)
 UNSET_LABEL = "not set"
+
+
+def run_label(folder: str, tag: str = "") -> str:
+    """How a Run is named where Runs meet: `NN·<its tag, else its folder's label>` (03·nlo, 04·pdfs), its serial the folder's
+    leading digits (one with none is named by its tag or folder alone). Always shown, so a Run added later changes no label."""
+    found = re.match(r"(\d+)[_.-]?(.*)$", folder)
+    serial, rest = (found.group(1), found.group(2)) if found else ("", folder)
+    return f"{serial}·{tag or rest or folder}" if serial else (tag or folder)
 ACROSS_HEADER = ("# The runs of an errand file together: their members, drawn into this folder's plots/<set>/ and\n"
                  "# statistics/<set>/. [from] says which runs (globs of their folders) and which point a duplicate is;\n"
                  "# [plot] and [stats] are yours (from the config's [plot] and its [plot.across] sets, by a run or --style-sync).\n\n")
@@ -763,7 +772,8 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
     quantities = {name: Quantity(name, [v for _, _, v, _ in have], tags=[t for t, *_ in have], labels=[l for _, l, _, _ in have],
                                  styles=[s for *_, s in have] if any(s for *_, s in have) else [])
                   for name, have in tags.items()}
-    quantities["@run"] = Quantity("@run", [r for r, *_ in loaded], tags=[r for r, *_ in loaded])
+    quantities["@run"] = Quantity("@run", [r for r, *_ in loaded], tags=[r for r, *_ in loaded],
+                                  labels=[run_label(r, run_tags[r]) for r, *_ in loaded])
     quantities["@events"] = Quantity("@events", counts, tags=[count_tag(n) for n in counts],
                                      labels=[f"{count_tag(n)} events" for n in counts])
     quantities["@configuration"] = Quantity("@configuration", configurations, tags=configurations,
@@ -807,7 +817,8 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
                     held[q].append(quantities[q].tags[values[q]])
             swept += [q for q in choice if q not in swept]
             point = replace(m.point, name=f"{run_name}__{m.point.name}", choice=choice)
-            member = replace(m, point=point, values=values, folders=folders)
+            member = replace(m, point=point, values=values, folders=folders,
+                             context={**m.context, "run": run_label(run_name, run_tags[run_name])})
             key = (tuple(sorted((q, quantities[q].tags[i]) for q, i in values.items() if not q.startswith("@") and q not in ignored)),
                    events if "@events" not in ignored else None, run_tags[run_name])
             complete = member.recorded is not None and member.recorded == member.identity

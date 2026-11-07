@@ -135,6 +135,16 @@ each configuration's points: complete, stale, running, failed or stopped (when, 
 | `--set KEY=VALUE` | as heimdall run's, for the view |
 | `--stack` | the loaded stack instead: each package installed, its release and state; the libraries' versions |
 
+## `heimdall records`
+
+the record files: `records upgrade` brings them to today's format (a backup of each beside it)
+
+| Argument | Meaning |
+|---|---|
+| `action` | upgrade: add `format` to points.json, provenance.json, identity.json and plot.toml that lack it |
+| `[A[/E[/R]]]` | only this Assignment, Errand or Run (default: every record) |
+| `--dry-run` | list what it would do, change nothing |
+
 ## `heimdall migrate`
 
 rewrite errand files and their cards in today's forms (a diff, or --apply)

@@ -1066,6 +1066,69 @@ def apply(changes: dict[Path, tuple[str, str]]) -> None:
         path.write_text(new, encoding="utf-8")
 
 
+# ── record files and their format ─────────────────────────────────────────────────────────────
+
+_RECORD_FILES = (("records", "points.json"), ("records", "provenance.json"), ("records", "identity.json"), ("results", "plot.toml"))
+
+
+def format_files(scope: str = "") -> list[tuple[Path, str]]:
+    """The record files below the current format, under records/ and results/ (all, or `<A>[/<E>[/<R>]]`): (file,
+    what upgrading does). A file of a newer format is not listed: a newer Heimdall wrote it."""
+    from .paths import records_root, results_root
+    from .record import FORMAT
+    roots = {"records": records_root(), "results": results_root()}
+    found: list[tuple[Path, str]] = []
+    for root, name in _RECORD_FILES:
+        base = roots[root] / scope if scope else roots[root]
+        for path in sorted(base.rglob(name)) if base.is_dir() else ():
+            try:
+                if name.endswith(".json"):
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                    have = data.get("format", 0) if isinstance(data, dict) else None
+                else:
+                    have = tomllib.loads(path.read_text(encoding="utf-8")).get("source", {}).get("format", 0)
+            except (OSError, ValueError):
+                found.append((path, "unreadable: left as it is"))
+                continue
+            if have is None:
+                found.append((path, "not a table: left as it is"))
+            elif isinstance(have, int) and have < FORMAT:
+                found.append((path, f"add format = {FORMAT}" + (f" (it is {have})" if have else "")))
+    return found
+
+
+def upgrade_file(path: Path) -> bool:
+    """One record file to the current format, a copy of it beside it first (`<name>.bak`, the first of
+    `.bak`, `.bak2`, …); False when it was left (unreadable, or no [source] to hold the key)."""
+    from .record import FORMAT, write_atomic
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".json":
+        data = json.loads(text)
+        data = {"format": FORMAT, **{k: v for k, v in data.items() if k != "format"}}
+        new = json.dumps(data, indent=1, sort_keys=path.name == "identity.json", default=str) + "\n"
+    else:
+        lines = text.splitlines(keepends=True)
+        at = next((i for i, line in enumerate(lines) if re.match(r"^\[source\]\s*(#.*)?$", line)), None)
+        if at is None:
+            return False
+        end = next((i for i in range(at + 1, len(lines)) if _TABLE.match(lines[i].rstrip("\n"))), len(lines))
+        own = next((i for i in range(at + 1, end) if re.match(r"^format\s*=", lines[i])), None)
+        if own is None:
+            lines.insert(at + 1, f"format = {FORMAT}\n")
+        else:
+            lines[own] = f"format = {FORMAT}\n"
+        new = "".join(lines)
+        tomllib.loads(new)
+    copy = path.with_name(path.name + ".bak")
+    n = 1
+    while copy.exists():
+        n += 1
+        copy = path.with_name(f"{path.name}.bak{n}")
+    shutil.copy2(path, copy)
+    write_atomic(path, new)
+    return True
+
+
 # ── a work dir's uses of Heimdall's old names ─────────────────────────────────────────────
 
 #: A work dir's marker before the heimdall names.

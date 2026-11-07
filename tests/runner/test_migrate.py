@@ -405,3 +405,47 @@ def test_the_names_leave_a_base_card_alone(scratch, monkeypatch):
     card = work / "configs" / "P" / "ep.cmnd"
     card.write_text("! run with --set run.events=10\nMain:numberOfEvents = 10\n", encoding="utf-8")
     assert card not in migrate.errand_changes(work)
+
+
+def test_records_upgrade_gives_the_old_files_a_format_and_a_copy(scratch, monkeypatch, capsys):
+    """`heimdall records upgrade`: the files below format 1 listed (dry run: nothing changes); then each gets
+    `format`, a copy beside it, comments kept in plot.toml; a second run finds nothing; a newer file is not touched."""
+    import json
+    records, results = scratch / "records", scratch / "results"
+    monkeypatch.setenv("HEIMDALL_RECORDS", str(records))
+    monkeypatch.setenv("HEIMDALL_RESULTS", str(results))
+    run = records / "Demo" / "e" / "01_r"
+    files = {run / "points.json": {"points": [], "run": "e"},
+             run / "points" / "a" / "provenance.json": {"point": "a", "seed": 3},
+             run / "points" / "a" / "identity.json": {"threads": 1, "events": 5},
+             records / "Demo" / "other" / "01_r" / "points.json": {"points": []},
+             run / "points" / "b" / "provenance.json": {"format": 99, "point": "b"}}
+    for path, data in files.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data), encoding="utf-8")
+    document = results / "Demo" / "e" / "01_r" / "plot.toml"
+    document.parent.mkdir(parents=True)
+    document.write_text("# a plot document\n[source]   # where from\nconfig = \"Demo/e\"\n\n[plot]\nratio = true\n", encoding="utf-8")
+    argv = lambda **kw: argparse.Namespace(action="upgrade", scope="Demo/e", dry_run=False, **kw)
+
+    assert cli.cmd_records(argparse.Namespace(action="upgrade", scope="Demo/e", dry_run=True)) == 0
+    said = capsys.readouterr().out
+    assert said.count("add format = 1") == 4 and "other" not in said and "(a dry run" in said
+    assert "format" not in json.loads((run / "points.json").read_text(encoding="utf-8"))
+    assert not list(scratch.rglob("*.bak"))
+
+    assert cli.cmd_records(argv()) == 0
+    assert "upgraded 4 of 4" in capsys.readouterr().out
+    for name in ("points.json", "points/a/provenance.json", "points/a/identity.json"):
+        assert json.loads((run / name).read_text(encoding="utf-8"))["format"] == 1
+        assert "format" not in json.loads((run / (name + ".bak")).read_text(encoding="utf-8"))   # the copy is as it was
+    assert list(json.loads((run / "points.json").read_text(encoding="utf-8")))[0] == "format"
+    text = document.read_text(encoding="utf-8")
+    assert text.startswith("# a plot document\n[source]   # where from\nformat = 1\nconfig =") and tomllib.loads(text)["source"]["format"] == 1
+    assert json.loads((run / "points" / "b" / "provenance.json").read_text(encoding="utf-8"))["format"] == 99    # newer: left
+    assert "format" not in json.loads((records / "Demo" / "other" / "01_r" / "points.json").read_text(encoding="utf-8"))   # out of scope
+
+    assert cli.cmd_records(argv()) == 0
+    assert "nothing to upgrade" in capsys.readouterr().out
+    assert cli.cmd_records(argparse.Namespace(action="upgrade", scope="", dry_run=True)) == 0     # the other record is still old
+    assert capsys.readouterr().out.count("add format = 1") == 1

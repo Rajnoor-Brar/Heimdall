@@ -170,6 +170,10 @@ def parser() -> argparse.ArgumentParser:
     state.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as heimdall run's, for the view")
     state.add_argument("--stack", action="store_true", help="the loaded stack instead: each package installed, its release and state; the libraries' versions")
 
+    recs = commands.add_parser("records", help="the record files: `records upgrade` brings them to today's format (a backup of each beside it)")
+    recs.add_argument("action", choices=["upgrade"], help="upgrade: add `format` to points.json, provenance.json, identity.json and plot.toml that lack it")
+    recs.add_argument("scope", nargs="?", default="", metavar="A[/E[/R]]", help="only this Assignment, Errand or Run (default: every record)")
+    recs.add_argument("--dry-run", action="store_true", help="list what it would do, change nothing")
     move = commands.add_parser("migrate", help="rewrite errand files and their cards in today's forms (a diff, or --apply)")
     move.add_argument("configs", nargs="*", metavar="CONFIG", help="configs to migrate (default: every config)")
     move.add_argument("--v3", action="store_true", help="into the errand file's third form (docs/stable/guide/errand-file.md, runner/v3.py)")
@@ -2054,6 +2058,34 @@ def cmd_clean(args) -> int:
     return 0
 
 
+def cmd_records(args) -> int:
+    """`heimdall records upgrade [--dry-run] [A[/E[/R]]]`: the record files below the current format listed, and (without
+    --dry-run) each given `format`, a copy of it beside it first (`<name>.bak`). The layout moves of `heimdall migrate
+    --layout` are counted and left to it: they are a work dir's, staged, and its own to apply."""
+    from . import migrate
+    from .paths import work_root
+    scope = args.scope.strip("/")
+    found = migrate.format_files(scope)
+    work = work_root()
+    pending = len(migrate.layout_moves(work)) + len(migrate.logs_moves(work)) + len(migrate.sets_moves(work)) if work else 0
+    for path, what in found:
+        print(f"{what:34s} {path}")
+    if pending:
+        print(f"layout: {pending} move(s) pending, which heimdall migrate --layout [--list] shows and --apply makes")
+    if not found:
+        print("nothing to upgrade: every record file is at the current format" + (f" under {scope}" if scope else ""))
+        return 0
+    if args.dry_run:
+        print(f"{len(found)} file(s) to upgrade (a dry run: leave out --dry-run to write them, each after a copy)")
+        return 0
+    if (going := house.runs_here(work_root())):
+        raise HeimdallError(f"a job of this work dir is going (pid {going[0].get('pid')})",
+                       hint="upgrade the records when it has ended (heimdall runs lists it)")
+    done = sum(migrate.upgrade_file(path) for path, what in found if what.startswith("add format"))
+    print(f"upgraded {done} of {len(found)} file(s); each has its copy beside it (<name>.bak)")
+    return 0
+
+
 def cmd_migrate(args) -> int:
     """`heimdall migrate [CONFIG…] [--apply]` (V79): the diff of each file today's forms change, or (--apply)
     the files rewritten. Configs are read as they are (the forms the runner now refuses included)."""
@@ -2868,6 +2900,8 @@ def main(argv: list[str]) -> int:
             return cmd_reproduce(args)
         if args.command == "migrate":
             return cmd_migrate(args)
+        if args.command == "records":
+            return cmd_records(args)
         if args.command == "cluster":
             return cmd_cluster(args)
         if args.command == "runs":

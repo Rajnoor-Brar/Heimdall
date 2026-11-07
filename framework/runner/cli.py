@@ -263,6 +263,14 @@ def parser() -> argparse.ArgumentParser:
     logged.add_argument("--full", action="store_true", help="the whole logs (a job with --logs) instead of the digests")
     logged.add_argument("--attempt", type=int, metavar="N", help="an earlier attempt's logs, from the point's history/")
 
+    compared = commands.add_parser("diff", help="what two Runs of one Errand did differently: the config each ran with, and each "
+                                                 "point's identity parts, tool by tool")
+    compared.add_argument("first", metavar="RUN", help="a Run, <A>/<E>/<R1>")
+    compared.add_argument("second", metavar="RUN", help="the other Run of it: <A>/<E>/<R2>, or its folder <R2> alone")
+    compared.add_argument("--points", metavar="SEL", help="these points only (names or globs, comma-separated)")
+    compared.add_argument("--full", action="store_true", help="every line of a file's or a point's difference")
+    compared.add_argument("--json", action="store_true", help="the same as JSON")
+
     stop = commands.add_parser("stop", help="stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes "
                                             "(a second stop kills its tools at once)")
     stop.add_argument("config", nargs="?", help="the errand file whose job to stop (default: your only running job)")

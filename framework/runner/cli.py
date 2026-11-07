@@ -1866,28 +1866,31 @@ def live_at(index: int) -> tuple[dict, str]:
 def resume_run(index: int) -> int:
     """`heimdall runs --resume N`: the paused job [N]'s own command again (runs.again: its argv without
     --worker, detached), by its checkout's bin/heimdall, from its work dir ($HEIMDALL_WORK and $HEIMDALL said so),
-    so it continues from its records, its complete points skipped. Its new run's id is chosen here
-    ($HEIMDALL_RUN_ID) and the paused entry points at it (`resumed_by`), leaving the live list."""
+    with the latest attempted Run's recorded config snapshot in place of live `configs/`, so it continues from
+    its records, its complete points skipped. Its new run's id is chosen here ($HEIMDALL_RUN_ID) and the paused
+    entry points at it (`resumed_by`), leaving the live list."""
     entry, state = live_at(index)
     if not runs.paused(entry):
         raise HeimdallError(f"[{index}] is {state}, not paused: only a paused job is resumed",
                             hint=f"heimdall watch -i {index} follows it" if state.startswith("running") else
                             "heimdall runs lists the live ones")
     command = runs.again(entry)
+    if not command or len(command) < 2:
+        raise HeimdallError(f"[{index}] {entry['id']} holds no heimdall run command to run again",
+                            hint="run it again by hand; heimdall runs --forget drops it from the list")
     checkout = Path(entry.get("checkout") or "")
     program = checkout / "framework" / "bin" / "heimdall"
     work = entry.get("work") or ""
-    if not command:
-        raise HeimdallError(f"[{index}] {entry['id']} holds no heimdall run command to run again",
-                            hint="run it again by hand; heimdall runs --forget drops it from the list")
     if not entry.get("checkout") or not program.is_file():
         raise HeimdallError(f"[{index}] {entry['id']}'s Heimdall is not there: {program}",
                             hint=f"run it again by hand: heimdall {' '.join(command)}")
     if not work or not Path(work).is_dir():
         raise HeimdallError(f"[{index}] {entry['id']}'s work dir is not there" + (f": {work}" if work else ""),
                             hint=f"run it again by hand from its work dir: heimdall {' '.join(command)}")
+    config_root, config_name = resume_snapshot(entry, index)
+    command[1] = config_name
     new = runs.new_id()
-    env = {**os.environ, runs.ID_VAR: new, paths.WORK_VAR: work}
+    env = {**os.environ, runs.ID_VAR: new, paths.WORK_VAR: work, paths.CONFIGS_VAR: str(config_root)}
     if paths.HEIMDALL_VAR in env:                            # the checkout it ran with, not this shell's
         env[paths.HEIMDALL_VAR] = str(checkout)
     print(f"resuming [{index}] {entry['id']}: heimdall {' '.join(command)}\n  in {work}, by {program}")
@@ -1904,6 +1907,36 @@ def resume_run(index: int) -> int:
     print(f"[{index}] {entry['id']} resumed as {new}: heimdall runs says whether it runs (a config error leaves it "
           "paused)")
     return 0
+
+
+def resume_snapshot(entry: dict, index: int) -> tuple[Path, str]:
+    """The latest attempted Run's config snapshot for `heimdall runs --resume`, never today's configs/."""
+    records = entry.get("records")
+    if not isinstance(records, list) or not records or not isinstance(records[-1], str):
+        raise HeimdallError(f"[{index}] {entry['id']} has no recorded config snapshot to resume",
+                            hint="the paused job's record must contain config/snapshot.toml; run it again by hand")
+    folder = Path(records[-1]).expanduser().resolve()
+    try:
+        snapshot = record.read_snapshot(folder)
+    except (OSError, ValueError, TypeError, AttributeError) as error:
+        raise HeimdallError(f"[{index}] {entry['id']}'s latest record has no readable config snapshot: {error}",
+                            where=str(folder / "config" / record.SNAPSHOT),
+                            hint="resume needs the config snapshot written by the paused Run") from None
+    snapshot_name = snapshot["config"]
+    if not isinstance(snapshot_name, str) or not snapshot_name:
+        raise HeimdallError(f"[{index}] {entry['id']}'s snapshot has no valid config name",
+                            where=str(folder / "config" / record.SNAPSHOT))
+    name = Path(snapshot_name)
+    if name.is_absolute() or ".." in name.parts:
+        raise HeimdallError(f"[{index}] {entry['id']}'s snapshot has an invalid config name: {snapshot_name!r}",
+                            where=str(folder / "config" / record.SNAPSHOT))
+    config_root = folder / "config"
+    filename = name if name.suffix == ".toml" else Path(f"{name}.toml")
+    config_file = (config_root / filename).resolve()
+    if not config_file.is_relative_to(config_root.resolve()) or not config_file.is_file():
+        raise HeimdallError(f"[{index}] {entry['id']}'s latest record has no errand file for {snapshot_name!r}",
+                            where=str(config_file), hint="resume needs the errand file in the record's config/ snapshot")
+    return config_root, str(config_file.relative_to(config_root.resolve()).with_suffix(""))
 
 
 def cmd_log(args) -> int:

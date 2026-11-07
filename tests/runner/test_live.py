@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from runner import cli, house, paths, runs
+from runner import cli, house, paths, record, runs
 
 
 def entry(started: float, **fields) -> str:
@@ -28,6 +28,16 @@ def paused(started: float, **fields) -> str:
     run_id = entry(started, **fields)
     runs.finish(run_id, 6, state="paused")
     return run_id
+
+
+def snapshot(run_id: str, attempt: str, config_name: str = "P/b") -> Path:
+    folder = paths.records_root() / "P" / run_id / attempt
+    config = folder / "config" / f"{config_name}.toml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("[errand]\n", encoding="utf-8")
+    (folder / "config" / record.SNAPSHOT).write_text(
+        f'[snapshot]\nconfig = "{config_name}"\nconfiguration = "c"\n', encoding="utf-8")
+    return folder
 
 
 @pytest.fixture
@@ -126,7 +136,16 @@ def test_watch_i_refuses_a_pause_and_an_index_out_of_range(capsys, mixed, argv, 
 def test_resume_starts_its_own_command_detached_in_its_work_dir(capsys, mixed, monkeypatch, scratch):
     work = scratch / "work"
     work.mkdir()
-    runs.update(mixed["pause"], work=str(work), checkout=str(paths.heimdall_root()))
+    (work / "heimdall.toml").write_text('[work]\nname = "resume-test"\n', encoding="utf-8")
+    first = snapshot(mixed["pause"], "01_first")
+    latest = snapshot(mixed["pause"], "02_latest", config_name="P/b.v2")
+    live = work / "configs" / "P" / "b.v2.toml"
+    live.parent.mkdir(parents=True)
+    live.write_text("[errand]\n", encoding="utf-8")
+    monkeypatch.setenv(paths.WORK_VAR, str(work))
+    runs.update(mixed["pause"], work=str(work), checkout=str(paths.heimdall_root()),
+                records=[str(first), str(latest)],
+                argv=["run", "/w/configs/P/live.toml", "c", "--worker", "x"])
     launched = []
 
     def relaunch(command: list[str], cwd: str, env: dict) -> subprocess.CompletedProcess:
@@ -136,12 +155,29 @@ def test_resume_starts_its_own_command_detached_in_its_work_dir(capsys, mixed, m
     monkeypatch.setattr(runs, "relaunch", relaunch)
     assert cli.main(["runs", "--resume", "2"]) == 0
     ((command, cwd, env),) = launched
-    assert command == [str(paths.heimdall_root() / "framework" / "bin" / "heimdall"), "run", "P/b", "c", "--detach"]
+    assert command == [str(paths.heimdall_root() / "framework" / "bin" / "heimdall"), "run", "P/b.v2", "c", "--detach"]
     assert cwd == str(work) and env["HEIMDALL_WORK"] == str(work) and runs.ID.fullmatch(env[runs.ID_VAR])
+    assert env[paths.CONFIGS_VAR] == str(latest / "config")
+    assert str(first) not in env[paths.CONFIGS_VAR]
+    assert paths.config_file(command[2]) == live
+    with paths.configs_at(Path(env[paths.CONFIGS_VAR])):
+        assert paths.config_file(command[2]) == latest / "config" / "P" / "b.v2.toml"
     after = runs.entry(mixed["pause"])
     assert after["resumed_by"] == env[runs.ID_VAR] and after["state"] == "paused"
     assert mixed["pause"] not in "".join(heads(cli_out(capsys)))      # it left the live list
     assert runs.ID_VAR not in os.environ
+
+
+def test_resume_refuses_a_pause_without_a_snapshot(capsys, mixed, monkeypatch, scratch):
+    work = scratch / "work"
+    work.mkdir()
+    runs.update(mixed["pause"], work=str(work), checkout=str(paths.heimdall_root()), records=[])
+    launched = []
+    monkeypatch.setattr(runs, "relaunch", lambda *args: launched.append(args))
+
+    assert cli.main(["runs", "--resume", "2"]) == 2
+    assert "has no recorded config snapshot" in capsys.readouterr().err
+    assert launched == [] and runs.paused(runs.entry(mixed["pause"]))
 
 
 def cli_out(capsys) -> str:
@@ -154,7 +190,8 @@ def test_resume_refuses_a_running_one_and_keeps_a_pause_whose_command_failed(cap
     monkeypatch.setattr(runs, "relaunch", lambda command, cwd, env: subprocess.CompletedProcess(command, 2))
     assert cli.main(["runs", "--resume", "3"]) == 2
     assert capsys.readouterr().err.startswith("heimdall: [3] is running, not paused: only a paused job is resumed")
-    runs.update(mixed["pause"], work=str(scratch), checkout=str(paths.heimdall_root()))
+    saved = snapshot(mixed["pause"], "01_saved")
+    runs.update(mixed["pause"], work=str(scratch), checkout=str(paths.heimdall_root()), records=[str(saved)])
     assert cli.main(["runs", "--resume", "2"]) == 2
     assert "[2] stays paused" in capsys.readouterr().err
     assert runs.paused(runs.entry(mixed["pause"]))
@@ -211,6 +248,8 @@ def test_a_resume_that_never_runs_leaves_its_pause_live(capsys, mixed, monkeypat
     """The review's 2: the resumed job's worker fails while it plans (exit 2): it clears `resumed_by`, so the pause
     stays live and can be resumed again."""
     runs.update(mixed["pause"], work=str(scratch), checkout=str(paths.heimdall_root()))
+    saved = snapshot(mixed["pause"], "01_saved")
+    runs.update(mixed["pause"], records=[str(saved)])
 
     def relaunch(command: list[str], cwd: str, env: dict) -> subprocess.CompletedProcess:
         assert runs.entry(mixed["pause"])["resumed_by"] == env[runs.ID_VAR]       # marked before it starts
@@ -223,3 +262,4 @@ def test_a_resume_that_never_runs_leaves_its_pause_live(capsys, mixed, monkeypat
     assert cli.main(["runs", "--resume", "2"]) == 0
     assert runs.paused(runs.entry(mixed["pause"]))
     assert mixed["pause"] in "".join(heads(cli_out(capsys)))
+

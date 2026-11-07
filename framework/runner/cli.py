@@ -1672,6 +1672,12 @@ def cmd_stats_retired(args) -> int:
                         hint="heimdall plot <A>/<E>/<R> --stats-only [--sets NAMES]; heimdall score <A>/<E>/<R> [--by AXIS] [--baseline FILTER]")
 
 
+def cmd_diff(args) -> int:
+    """`heimdall diff RUN RUN [--points SEL] [--full] [--json]`: see diffcmd."""
+    from . import diffcmd
+    return diffcmd.run(args)
+
+
 def cmd_score(args) -> int:
     """`heimdall score TARGET [--set S] [--across] [--by AXES] [--baseline FILTER] [--json]`: standings, marginals and
     baselines read from the statistics already measured; see scorecmd."""
@@ -2901,6 +2907,8 @@ def main(argv: list[str]) -> int:
             return cmd_stats_retired(args)
         if args.command == "score":
             return cmd_score(args)
+        if args.command == "diff":
+            return cmd_diff(args)
         if args.command == "check":
             return cmd_check(args)
         if args.command == "overlay":

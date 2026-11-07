@@ -170,6 +170,7 @@ Refused at plan time, each with a hint: an unknown key; a quantity no tool consu
 - `heimdall runs`: live jobs (running and paused), each with its index [N]; with --5, --10, --20 or --50 the latest jobs, with --week or --month jobs of the last 7 or 28 days
 - `heimdall tag`: a Run's tag: show it, set it, or --clear it
 - `heimdall log`: a record's own account, a point's attempts and logs, or a tool's log
+- `heimdall diff`: what two Runs of one Errand did differently: the config each ran with, and each point's identity parts, tool by tool
 - `heimdall stop`: stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes (a second stop kills its tools at once)
 - `heimdall cluster`: run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job
 - `heimdall setup`: make a work dir: the key folders, heimdall.toml and the template's files (never overwrites)

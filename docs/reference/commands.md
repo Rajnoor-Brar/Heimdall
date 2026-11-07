@@ -248,6 +248,18 @@ a record's own account, a point's attempts and logs, or a tool's log
 | `--full` | the whole logs (a job with --logs) instead of the digests |
 | `--attempt N` | an earlier attempt's logs, from the point's history/ |
 
+## `heimdall diff`
+
+what two Runs of one Errand did differently: the config each ran with, and each point's identity parts, tool by tool
+
+| Argument | Meaning |
+|---|---|
+| `RUN` | a Run, <A>/<E>/<R1> |
+| `RUN` | the other Run of it: <A>/<E>/<R2>, or its folder <R2> alone |
+| `--points SEL` | these points only (names or globs, comma-separated) |
+| `--full` | every line of a file's or a point's difference |
+| `--json` | the same as JSON |
+
 ## `heimdall stop`
 
 stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes (a second stop kills its tools at once)

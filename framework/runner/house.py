@@ -637,26 +637,51 @@ def log_target(target: str) -> tuple[Path, str | None, str | None]:
     return record, (rest[0] if rest else None), tag
 
 
-def tag_lines(record: Path, name: str | None = None, clear: bool = False) -> list[str]:
-    """`heimdall tag RECORD [NAME] [--clear]` (V223): the folder's tag, or it set to `name` or removed, in its record
-    (records/<A>/<E>/<R>/tag, the source of truth) and, when the folder has one, its plot document's [source].tag."""
+def tag_lines(record: Path, words: list[str] | None = None, clear: bool = False) -> list[str]:
+    """`heimdall tag RECORD [WORD …] [--clear]` (V223): the folder's tag and labels, or them set or removed, in its record
+    (records/<A>/<E>/<R>/tag, the source of truth) and, when the folder has one, its plot document's [source]. A word
+    `key=value` sets that label, `key=` removes it, and a bare word is the tag (`tag=<word>`); `--clear` removes all, and a
+    tag that stays cleared, so its configuration's `tag` key does not give it again."""
     from .config import check_tag
     from .plotdoc import path_of, write_tag
+    from .record import check_label_key, read_labels, write_labels
     rel = record.relative_to(records_root())
-    if clear and name is not None:
+    words = list(words or [])
+    if clear and words:
         raise HeimdallError("a tag to give and --clear: one or the other", hint=f"heimdall tag {rel} --clear")
-    had = run_tag(record)
-    if name is None and not clear:
-        return [f"{rel}: {had}" if had else f"{rel} has no tag"]
-    if name is not None:
-        check_tag(name, "heimdall tag NAME")
-    write_run_tag(record, name, cleared=clear)
+    had = read_labels(record)
+    shown = {k: v for k, v in (had or {}).items() if v}
+    if not words and not clear:
+        return [f"{rel}: " + ", ".join(f"{k}={v}" if k != "tag" else str(v) for k, v in shown.items()) if shown else f"{rel} has no tag"]
+    labels = dict(had or {})
+    said = []
+    for word in words:
+        key, equals, value = word.partition("=")
+        if not equals:                                       # a bare word: the tag
+            was = labels.get("tag")
+            labels["tag"] = check_tag(word, "heimdall tag WORD")
+            said.append(f"tagged {word}" + (f" (was {was})" if was and was != word else ""))
+            continue
+        if key != "tag":
+            check_label_key(key, f"heimdall tag {word}")
+        if value:
+            labels[key] = check_tag(value, f"heimdall tag {word}")
+            said.append(f"{key} = {value}")
+        else:
+            labels.pop(key, None)
+            said.append(f"{key} removed")
+        if key == "tag" and not value:
+            labels["tag"] = ""
+    if clear:
+        labels = {"tag": ""}
+    write_labels(record, labels)
     document = path_of(results_root() / rel)
     if document.is_file():
-        write_tag(document, name)
-    if name is None:
-        return [f"{rel}: its tag {had} removed" if had else f"{rel} has no tag"]
-    return [f"{rel}: tagged {name}" + (f" (was {had})" if had and had != name else "")]
+        write_tag(document, labels.get("tag"), {k: v for k, v in labels.items() if k != "tag"})
+    if clear:
+        gone = [f"its tag {shown['tag']}" if k == "tag" else f"{k}={v}" for k, v in shown.items()]
+        return [f"{rel}: " + ", ".join(gone) + " removed" if shown else f"{rel} has no tag"]
+    return [f"{rel}: " + ", ".join(said)]
 
 
 def point_log(record: Path, point: str, tag: str | None = None, full: bool = False,

@@ -168,7 +168,7 @@ Refused at plan time, each with a hint: an unknown key; a quantity no tool consu
 - `heimdall check`: check errand files: every configuration loaded, validated and planned
 - `heimdall watch`: attach the live view to a running job
 - `heimdall runs`: live jobs (running and paused), each with its index [N]; with --5, --10, --20 or --50 the latest jobs, with --week or --month jobs of the last 7 or 28 days
-- `heimdall tag`: a Run's tag: show it, set it, or --clear it
+- `heimdall tag`: a Run's tag and labels: show them, set them (word, or key=value; key= removes), or --clear them
 - `heimdall log`: a record's own account, a point's attempts and logs, or a tool's log
 - `heimdall diff`: what two Runs of one Errand did differently: the config each ran with, and each point's identity parts, tool by tool
 - `heimdall stop`: stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes (a second stop kills its tools at once)

@@ -16,7 +16,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## reference
 
-- [commands](reference/commands.md): every heimdall command and its arguments (19 KB)
+- [commands](reference/commands.md): every heimdall command and its arguments (20 KB)
 - [keys](reference/keys.md): every setting in one line each, for grep: key, type, default (10 KB)
 - [legacy](reference/legacy.md): the errand file's older (v2) names and today's (2 KB)
 
@@ -52,7 +52,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [plots-sets](stable/guide/plots-sets.md): pages of chosen points: the totality set, named sets with page axes and curve groups, looks, short forms, split (5 KB)
 - [plots-statistics](stable/guide/plots-statistics.md): the numbers behind each page: statistics.csv's columns, [stats], bar graphs, the summary and how points are scored (4 KB)
 - [plots-style](stable/guide/plots-style.md): how a page's look is layered, a style file, legends outside the frame, and seeing the merged style (2 KB)
-- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-across-axes, live-no-yoda-backend, live-record-formats, live-score-engine, live-score-settings, live-scoring, live-set-merge, live-statistics-format, live-stats-catalogue, live-stats-core, live-stats-measured-bins, live-stats-rms
+- [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (7 KB) ⟵ live: live-across-axes, live-no-yoda-backend, live-record-formats, live-run-labels, live-score-engine, live-score-settings, live-scoring, live-set-merge, live-statistics-format, live-stats-catalogue, live-stats-core, live-stats-measured-bins, live-stats-rms
 - [programs](stable/guide/programs.md): your own programs in a chain: a module, an integrated program, an exec tool, a tool folder of your own (4 KB)
 - [reports](stable/guide/reports.md): heimdall report: an A4 report of Runs' pages and numbers; recipes, sections, what it draws for itself, where it is built (6 KB) ⟵ live: live-scoring
 - [results-python](stable/guide/results-python.md): reading a run's results from Python, for notebooks and statistics tools (1 KB)
@@ -135,11 +135,12 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## live
 
-- [live-across-axes](live/across-axes.md): Runs with different axes drawn together: every member has every quantity (a quantity a Run never names is unset there), Runs told apart by serial, heimdall diff, Run labels as axes (2 KB)
+- [live-across-axes](live/across-axes.md): Runs with different axes drawn together: every member has every quantity (a quantity a Run never names is unset there), Runs told apart by serial, heimdall diff, Run labels as axes (3 KB)
 - [live-identity-golden](live/identity-golden.md): every fixture point's identity parts are kept in a golden file, and a test compares them (2 KB)
 - [live-no-yoda-backend](live/no-yoda-backend.md): the yoda plot backend (rivet-mkhtml) is gone; mpl owns the transforms it borrowed (2 KB)
 - [live-record-formats](live/record-formats.md): record files carry a format version, and heimdall records upgrade brings old ones to it (2 KB)
 - [live-resume-record-config](live/resume-record-config.md): a paused run resumes with the latest attempted Run's recorded config snapshot (2 KB)
+- [live-run-labels](live/run-labels.md): a Run's tag is one of its labels: key=value words from heimdall tag, in the tag file's TOML, each an across axis @key (2 KB)
 - [live-score-engine](live/score-engine.md): framework/stats/score.py: how a table's rows become a point's score, worst page, veto and per-purpose shares, and the other aggregators (4 KB)
 - [live-score-settings](live/score-settings.md): the [score] table, [stats].metrics and centres, a set's score, a figure's weight, and heimdall explain score (2 KB)
 - [live-scoring](live/scoring.md): the statistics summary and the report's statistics by purpose: standings, a section a purpose, a metric's ranking and table, a head to head only when asked (5 KB)

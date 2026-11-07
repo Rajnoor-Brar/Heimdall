@@ -230,13 +230,13 @@ live jobs (running and paused), each with its index [N]; with --5, --10, --20 or
 
 ## `heimdall tag`
 
-a Run's tag: show it, set it, or --clear it
+a Run's tag and labels: show them, set them (word, or key=value; key= removes), or --clear them
 
 | Argument | Meaning |
 |---|---|
 | `RECORD` | a Run, <A>/<E>/<R>, or a path under records/ or results/ |
-| `[NAME]` | the tag to give it (a letter or digit, then letters, digits, . _ + -, at most 40) |
-| `--clear` | remove its tag |
+| `WORD…` | a tag to give it (a letter or digit, then letters, digits, . _ + -, at most 40), or key=value: a label an across page can draw as @key (key= removes it) |
+| `--clear` | remove its tag and labels |
 
 ## `heimdall log`
 

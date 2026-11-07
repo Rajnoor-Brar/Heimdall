@@ -205,3 +205,68 @@ def test_runs_and_status_show_the_tag(configs, capsys):
     capsys.readouterr()
     assert cli.main(["status", str(path)]) == 0
     assert capsys.readouterr().out.splitlines()[0].startswith("status · one [lo] (Demo/status/one): 1 complete")
+
+
+def test_the_tag_file_is_toml_with_labels_and_an_old_one_line_file_still_reads(tmp_path):
+    folder = tmp_path / "r"
+    folder.mkdir()
+    (folder / record.TAG_FILE).write_text("nlo\n", encoding="utf-8")                  # before labels: the tag alone
+    assert record.read_labels(folder) == {"tag": "nlo"} and record.run_tag(folder) == "nlo" and record.run_labels(folder) == {}
+    (folder / record.TAG_FILE).write_text("", encoding="utf-8")                       # before labels: cleared
+    assert record.read_labels(folder) == {"tag": ""} and record.run_tag(folder) == ""
+    record.write_labels(folder, {"shower": "new", "tag": "nlo"})
+    assert (folder / record.TAG_FILE).read_text(encoding="utf-8") == 'format = 1\n\n[labels]\ntag = "nlo"\nshower = "new"\n'
+    assert record.run_tag(folder) == "nlo" and record.run_labels(folder) == {"shower": "new"}
+    record.write_run_tag(folder, "lo")                                               # the tag moves, the labels stay
+    assert record.read_labels(folder) == {"tag": "lo", "shower": "new"}
+    record.write_run_tag(folder, None)
+    assert record.read_labels(folder) == {"shower": "new"} and record.run_tag(folder) is None
+    record.write_labels(folder, None)
+    assert record.read_labels(folder) is None
+    (folder / record.TAG_FILE).write_text("format = 9\n[labels]\n", encoding="utf-8")
+    with pytest.raises(HeimdallError, match="format 9"):
+        record.read_labels(folder)
+
+
+def test_heimdall_tag_sets_labels_and_a_bare_word_is_the_tag(configs, capsys):
+    path = study(configs, "labels")
+    assert run(path, "--rerun") == 0
+    capsys.readouterr()
+    rel = "Demo/labels/one"
+    assert cli.main(["tag", rel, "shower=new", "nlo", "pdfset=v2"]) == 0
+    assert capsys.readouterr().out == f"{rel}: shower = new, tagged nlo, pdfset = v2\n"
+    assert record.read_labels(records_root() / rel) == {"tag": "nlo", "shower": "new", "pdfset": "v2"}
+    source = tomllib.loads((results_root() / rel / "plot.toml").read_text(encoding="utf-8"))["source"]
+    assert source["tag"] == "nlo" and source["labels"] == {"shower": "new", "pdfset": "v2"}       # mirrored
+    assert cli.main(["tag", rel]) == 0
+    assert capsys.readouterr().out == f"{rel}: nlo, pdfset=v2, shower=new\n"
+    assert cli.main(["tag", rel, "shower=", "pdfset=v3"]) == 0                                    # key= removes, the rest changes
+    assert capsys.readouterr().out == f"{rel}: shower removed, pdfset = v3\n"
+    assert record.read_labels(records_root() / rel) == {"tag": "nlo", "pdfset": "v3"}
+    assert cli.main(["tag", rel, "tag="]) == 0                                                    # tag= clears the tag alone
+    assert record.read_labels(records_root() / rel) == {"tag": "", "pdfset": "v3"}
+    assert cli.main(["tag", rel, "--clear"]) == 0
+    assert capsys.readouterr().out.splitlines()[-1] == f"{rel}: pdfset=v3 removed"
+    assert record.read_labels(records_root() / rel) == {"tag": ""}
+    source = tomllib.loads((results_root() / rel / "plot.toml").read_text(encoding="utf-8"))["source"]
+    assert "tag" not in source and "labels" not in source
+
+
+def test_a_tag_given_by_a_run_leaves_its_labels(configs):
+    path = study(configs, "keeps")
+    assert run(path, "--rerun") == 0
+    assert cli.main(["tag", "Demo/keeps/one", "shower=new"]) == 0
+    assert run(path, "--tag", "nlo") == 0
+    assert record.read_labels(records_root() / "Demo/keeps/one") == {"tag": "nlo", "shower": "new"}
+    assert tomllib.loads((results_root() / "Demo/keeps/one/plot.toml").read_text(encoding="utf-8"))["source"]["labels"] == {"shower": "new"}
+
+
+def test_a_label_is_a_lower_case_name_and_a_tag_like_value(configs, capsys):
+    path = study(configs, "badlabels")
+    assert run(path, "--rerun") == 0
+    for words, said in ((["Shower=new"], "is not one"), (["run=x"], "attribute of every across page"),
+                        (["events=5"], "attribute of every across page"), (["shower=a b"], "is not a tag"),
+                        (["shower=new", "--clear"], "one or the other")):
+        assert cli.main(["tag", "Demo/badlabels/one", *words]) == 2, words
+        assert said in capsys.readouterr().err, words
+    assert record.read_labels(records_root() / "Demo/badlabels/one") is None            # nothing written by the refused

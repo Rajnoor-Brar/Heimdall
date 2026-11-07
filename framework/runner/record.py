@@ -32,6 +32,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import secrets
 import shutil
 import socket
@@ -734,24 +735,87 @@ def write_snapshot(errand, configuration, plans: list) -> Path | None:
 TAG_FILE = "tag"
 
 
-def run_tag(record: Path) -> str | None:
-    """The tag of the configuration folder whose record is `record`: None when it has never had one, "" when
-    `heimdall tag --clear` took it (an empty file, so its configuration's `tag` key does not give it again)."""
+#: A label's key: what an across axis `@<key>` is called (lower case, so a quantity's name never collides by case alone).
+LABEL_KEY = re.compile(r"[a-z][a-z0-9_]{0,29}")
+#: Keys an across page already has as attributes of its own (`tag` is the Run's tag, a label like the rest).
+RESERVED_LABELS = ("run", "events", "configuration")
+
+
+def check_label_key(key, where: str | None = None) -> str:
+    if not isinstance(key, str) or not LABEL_KEY.fullmatch(key):
+        raise HeimdallError(f"the label name {key!r} is not one: a lower-case letter, then lower-case letters, digits and '_', at most 30",
+                            where=where, hint="e.g. shower=new, pdfset=v2")
+    if key in RESERVED_LABELS:
+        raise HeimdallError(f"'{key}' is an attribute of every across page already: it cannot be a label", where=where,
+                            hint="pick another name: " + f"{key}_ or a more particular one")
+    return key
+
+
+def read_labels(record: Path) -> dict[str, str] | None:
+    """A Run's labels, `tag` among them, from records/<A>/<E>/<R>/tag: None when the Run has never had any. The file is TOML
+    (`format = 1`, `[labels]`); an older one is one line, the tag (`tag = <line>`), and an empty one a tag `heimdall tag --clear`
+    took, which reads as `tag = ""` (so its configuration's `tag` key does not give it again)."""
     from .config import check_tag
+    where = str(record / TAG_FILE)
     try:
-        line = (record / TAG_FILE).read_text(encoding="utf-8").strip()
+        text = (record / TAG_FILE).read_text(encoding="utf-8")
     except OSError:
         return None
-    return check_tag(line.splitlines()[0].strip(), str(record / TAG_FILE)) if line else ""
+    if "=" not in text:                                       # a tag has no `=`: the one-line file of before
+        line = text.strip()
+        return {"tag": check_tag(line.splitlines()[0].strip(), where) if line else ""}
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as error:
+        raise HeimdallError(f"the tag file cannot be read: {error}", where=where,
+                            hint="heimdall tag RUN --clear writes it again") from None
+    check_format(data, where)
+    labels = data.get("labels", {})
+    if not isinstance(labels, dict):
+        raise HeimdallError("[labels] is not a table", where=where, hint="heimdall tag RUN --clear writes it again")
+    out = {}
+    for key, value in labels.items():
+        if key != "tag":
+            check_label_key(key, where)
+        out[key] = value if key == "tag" and value == "" else config_tag(value, where)
+    return out
+
+
+def config_tag(value, where: str) -> str:
+    from .config import check_tag
+    return check_tag(value, where)
+
+
+def run_tag(record: Path) -> str | None:
+    """The tag of the configuration folder whose record is `record`: None when it has never had one, "" when
+    `heimdall tag --clear` took it (so its configuration's `tag` key does not give it again)."""
+    labels = read_labels(record)
+    return None if labels is None else labels.get("tag")
+
+
+def run_labels(record: Path) -> dict[str, str]:
+    """A Run's labels other than its tag."""
+    return {k: v for k, v in (read_labels(record) or {}).items() if k != "tag"}
+
+
+def write_labels(record: Path, labels: dict[str, str] | None) -> None:
+    """A folder's labels written into its record (None: the file removed). A `tag` of "" is kept (cleared, as above); the
+    plot document is the caller's."""
+    if labels is None:
+        (record / TAG_FILE).unlink(missing_ok=True)
+        return
+    import tomli_w
+    ordered = {k: labels[k] for k in sorted(labels, key=lambda k: (k != "tag", k))}
+    write_atomic(record / TAG_FILE, tomli_w.dumps({"format": FORMAT, "labels": ordered}))
 
 
 def write_run_tag(record: Path, tag: str | None, cleared: bool = False) -> None:
-    """A folder's tag written into its record (None: removed; `cleared`: kept as none, an empty file). The plot
-    document is the caller's."""
+    """A folder's tag written into its record, its other labels kept (None: the tag removed; `cleared`: kept as none).
+    The plot document is the caller's."""
+    labels = {k: v for k, v in (read_labels(record) or {}).items() if k != "tag"}
     if tag or cleared:
-        write_atomic(record / TAG_FILE, f"{tag}\n" if tag else "")
-    else:
-        (record / TAG_FILE).unlink(missing_ok=True)
+        labels["tag"] = tag or ""
+    write_labels(record, labels or None)
 
 
 def record_of(name: str, need_snapshot: bool = True) -> Path | None:

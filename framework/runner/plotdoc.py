@@ -328,7 +328,7 @@ def from_manifest(record: Path, errand, configuration) -> Path:
     its events (provenance); its axes the quantities its points swept, its plot_points points.json's. Only
     [plot] and [stats] come from the config, `errand` (its configuration's)."""
     import json
-    from .record import run_tag
+    from .record import run_labels, run_tag
     data = json.loads((record / "points.json").read_text(encoding="utf-8"))
     check_format(data, record / "points.json")
     rel = record.relative_to(records_root())
@@ -373,7 +373,8 @@ def from_manifest(record: Path, errand, configuration) -> Path:
                        "label": head[1] if len(head) == 2 and head[0].isdigit() else record.name, "title": "",
                        "errand": data.get("run", errand.name), "assignment": data.get("project", errand.assignment), "folder": str(rel),
                        **({"serial": int(head[0])} if head[0].isdigit() else {}),
-                       **({"tag": tag} if (tag := run_tag(record)) else {}), "from": "points.json",
+                       **({"tag": tag} if (tag := run_tag(record)) else {}),
+                       **({"labels": labels} if (labels := run_labels(record)) else {}), "from": "points.json",
                        "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
             "axes": {"vary": swept, "plot_points": list(data.get("plot_points", [])), "combine": [], "fixed": fixed},
             "quantities": quantities, "members": members}
@@ -426,7 +427,7 @@ def chosen_of(errand, configuration, members: list, picks=None) -> tuple[dict, d
 def known(errand, configuration, members: list) -> dict:
     """The tables a run rewrites: [source], [axes], [quantities], [members]."""
     from .quantities import static_values
-    from .record import config_name, run_tag
+    from .record import config_name, run_labels, run_tag
     names = {q for m in members for q in (*m.values, *m.point.choice)}      # a combined group's: its choice alone
     names |= {q for e in configuration.sweeps for q in ([e] if isinstance(e, str) else e)}   # every axis, combined too
     static = static_values(errand, configuration) if hasattr(configuration, "tools") else {}
@@ -435,6 +436,7 @@ def known(errand, configuration, members: list) -> dict:
     revision = git_state(heimdall_root()).get("revision", "")
     results = members[0].folders.results if members else None
     tag = run_tag(members[0].folders.record) if members else None             # V223: the record's, the truth
+    labels = run_labels(members[0].folders.record) if members else {}
     return {
         "source": {"format": FORMAT, "config": config_name(errand) if hasattr(errand, "imported") else errand.source.get("config", ""),
                    "configuration": configuration.key, "label": configuration.label,
@@ -443,6 +445,7 @@ def known(errand, configuration, members: list) -> dict:
                    "folder": str(results.relative_to(results_root())) if results and results.is_relative_to(results_root()) else "",
                    **({"serial": configuration.serial} if configuration.serial is not None else {}),
                    **({"tag": tag} if tag else {}),
+                   **({"labels": labels} if labels else {}),
                    **({"heimdall": revision} if revision else {}),
                    "written": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")},
         "axes": {"vary": _sweeps(configuration), "plot_points": list(configuration.plot_points),
@@ -508,8 +511,9 @@ def write_chosen(target: Path, plot: dict, stats: dict, wanted: dict | None = No
     partial.replace(target)
 
 
-def write_tag(target: Path, tag: str | None) -> None:
-    """A document's [source].tag set from its record's (None: removed), the rest left as it is (`heimdall tag`)."""
+def write_tag(target: Path, tag: str | None, labels: dict | None = None) -> None:
+    """A document's [source].tag and [source].labels set from its record's (None, {}: removed), the rest left as it is
+    (`heimdall tag`)."""
     import tomllib
     try:
         data = tomllib.loads(target.read_text(encoding="utf-8"))
@@ -518,8 +522,11 @@ def write_tag(target: Path, tag: str | None) -> None:
                             hint="fix it, or remove it: the next run writes it again from the config") from None
     source = data.setdefault("source", {})
     source.pop("tag", None)
+    source.pop("labels", None)
     if tag:
         source["tag"] = tag
+    if labels:
+        source["labels"] = dict(labels)
     partial = target.with_name(target.name + ".partial")
     partial.write_text(HEADER + dumps(data), encoding="utf-8")
     partial.replace(target)
@@ -629,6 +636,7 @@ FROM = "across_from"
 FROM_DEFAULT = {"runs": ["*"], "prefer": "last"}
 #: An untagged run's @tag among tagged ones: its label (its value is "").
 UNTAGGED = "untagged"
+NO_LABEL = "unlabelled"            # a Run without a label among Runs with it: its tag there (its label "–")
 UNSET = "unset"                    # a quantity a Run never names: its tag there, never guessed (across-axes)
 UNSET_LABEL = "not set"
 
@@ -769,6 +777,13 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
     records = records_root() / folder.relative_to(results_root()) if folder.is_relative_to(results_root()) else None
     run_tags = {run_name: _tag_of(doc, records / run_name if records else None) for run_name, doc, _, _ in loaded}
     tagged = list(dict.fromkeys(run_tags.values())) if any(run_tags.values()) else []
+    run_labels_ = {run_name: _labels_of(doc, records / run_name if records else None) for run_name, doc, _, _ in loaded}
+    label_keys = sorted({k for found in run_labels_.values() for k in found})
+    for key in label_keys:                                   # `@shower` is an axis beside the quantities: not a quantity's name
+        if key in tags:
+            raise HeimdallError(f"a Run's label '{key}' is also a quantity of the Runs", where=str(path),
+                                hint=f"heimdall tag RUN {key}= removes the label, or give the label another name")
+    label_values = {k: list(dict.fromkeys(found.get(k, "") for found in run_labels_.values())) for k in label_keys}
     quantities = {name: Quantity(name, [v for _, _, v, _ in have], tags=[t for t, *_ in have], labels=[l for _, l, _, _ in have],
                                  styles=[s for *_, s in have] if any(s for *_, s in have) else [])
                   for name, have in tags.items()}
@@ -784,6 +799,11 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
             blank += "_"
         quantities["@tag"] = Quantity("@tag", tagged, tags=[t or blank for t in tagged],
                                       labels=[t or blank for t in tagged])
+    for key, found in label_values.items():                  # a Run without the label: "–"
+        blank = NO_LABEL
+        while blank in found:
+            blank += "_"
+        quantities[f"@{key}"] = Quantity(f"@{key}", found, tags=[v or blank for v in found], labels=[v or "–" for v in found])
     assignment = source.get("assignment") or loaded[0][1].assignment
     errand = source.get("errand") or loaded[0][1].name
     rel = folder.relative_to(results_root()) if folder.is_relative_to(results_root()) else Path(assignment) / errand
@@ -808,10 +828,11 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
             absent = {q: index[q][tag] for q, tag in lacking.items() if q not in m.values}      # never named in this Run
             attributes = {"@run": number, "@configuration": configurations.index(conf.key),
                           **({"@events": counts.index(events)} if events else {}),
-                          **({"@tag": tagged.index(run_tags[run_name])} if tagged else {})}
+                          **({"@tag": tagged.index(run_tags[run_name])} if tagged else {}),
+                          **{f"@{k}": label_values[k].index(run_labels_[run_name].get(k, "")) for k in label_keys}}
             values = {**moved(m.values), **absent, **attributes}
             choice = {**{q: i for q, i in moved(m.point.choice).items() if q not in ignored},
-                      **{q: attributes[q] for q in ("@events", "@tag") if q in attributes and q not in ignored}}
+                      **{q: attributes[q] for q in ("@events", "@tag", *(f"@{k}" for k in label_keys)) if q in attributes and q not in ignored}}
             for q in ignored:
                 if q in values and quantities[q].tags[values[q]] not in held[q]:
                     held[q].append(quantities[q].tags[values[q]])
@@ -820,7 +841,8 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
             member = replace(m, point=point, values=values, folders=folders,
                              context={**m.context, "run": run_label(run_name, run_tags[run_name])})
             key = (tuple(sorted((q, quantities[q].tags[i]) for q, i in values.items() if not q.startswith("@") and q not in ignored)),
-                   events if "@events" not in ignored else None, run_tags[run_name])
+                   events if "@events" not in ignored else None, run_tags[run_name],
+                   tuple(sorted(run_labels_[run_name].items())))
             complete = member.recorded is not None and member.recorded == member.identity
             if prefer == "last" and key in seen:
                 earlier, was_complete = seen[key]
@@ -854,6 +876,16 @@ def _tag_of(doc: Doc, record: Path | None) -> str:
         return kept
     tag = doc.source.get("tag")
     return check_tag(str(tag), f"{doc.path}: [source].tag") if tag else ""
+
+
+def _labels_of(doc: Doc, record: Path | None) -> dict[str, str]:
+    """A run's labels other than its tag, as `_tag_of` has its tag: its record's, else its document's [source].labels."""
+    from .record import TAG_FILE, check_label_key, config_tag, run_labels
+    if record is not None and (record / TAG_FILE).is_file():
+        return run_labels(record)
+    given = doc.source.get("labels") or {}
+    where = f"{doc.path}: [source].labels"
+    return {check_label_key(k, where): config_tag(str(v), where) for k, v in given.items()}
 
 
 def _member_events(doc: Doc, member: Member) -> int:

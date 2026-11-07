@@ -29,7 +29,7 @@ def folder_of(name: str):
 
 
 def a_run(where, folder: str, *, tag: str | None = None, generator: list[int] = (0,), swept: bool = False,
-          events: int = 1000, configuration: str = "one") -> None:
+          events: int = 1000, configuration: str = "one", labels: dict | None = None) -> None:
     """<where>/<folder>/plot.toml: a run's plot document, its points pdf × the generators given (indices of
     GENERATOR), every one complete; generator a swept axis when `swept`, else fixed (in its values alone)."""
     members = {}
@@ -40,7 +40,8 @@ def a_run(where, folder: str, *, tag: str | None = None, generator: list[int] = 
             members[name] = {"index": len(members) + 1, "identity": f"{folder}-{name}", "complete": True, "events": events,
                              "yoda": f"points/{name}/out.yoda", "choice": choice, "values": {"generator": g, "pdf": p}}
     document = {"source": {"config": "Demo/t", "configuration": configuration, "label": folder, "errand": where.name,
-                           "assignment": "Demo", "folder": f"Demo/{where.name}/{folder}", **({"tag": tag} if tag else {})},
+                           "assignment": "Demo", "folder": f"Demo/{where.name}/{folder}", **({"tag": tag} if tag else {}),
+                           **({"labels": labels} if labels else {})},
                 "axes": {"vary": [["generator"], ["pdf"]] if swept else [["pdf"]], "plot_points": [], "combine": [],
                          "fixed": {} if swept else {"generator": f"#{generator[0] + 1}"}},
                 "quantities": {"generator": {"points": GENERATOR}, "pdf": {"points": PDF}}, "members": members}
@@ -339,3 +340,48 @@ def test_where_runs_meet_each_is_named_with_its_serial_and_two_of_one_tag_differ
     assert plot._curve_label(doc, first, [["@tag"]]) == "01·nlo" and plot._curve_label(doc, second, [["@tag"]]) == "02·nlo"
     assert plot._curve_label(doc, second, [["@run"]]) == "02·nlo"
     assert plot._curve_label(doc, second, [["pdf"]]) == "MSTW08lo"                         # a label that names no Run is as it was
+
+
+def test_a_runs_label_is_an_axis_of_its_own_and_a_run_without_it_is_a_dash(scratch):
+    """`@shower` for every key some Run has as a label (here in the document's [source].labels, a copied results/): a
+    value a Run, the Run without it its own value, labelled "–"; it pages and keeps points of different labels apart."""
+    where = folder_of("labelled")
+    a_run(where, "01_one", tag="nlo", labels={"shower": "new"})
+    a_run(where, "02_one", tag="nlo", labels={"shower": "old"})
+    a_run(where, "03_one", tag="nlo")
+    doc, _, members = together(where)
+    shower = doc.quantities["@shower"]
+    assert (shower.values, shower.tags, shower.labels) == (["new", "old", ""], ["new", "old", "unlabelled"], ["new", "old", "–"])
+    assert members[0].values["@shower"] == 0 and members[4].values["@shower"] == 2 and members[0].point.choice["@shower"] == 0
+    assert doc.source["shadowed"] == {}                       # one tag, three labels: three Runs of their own
+    assert cells(doc, members, {"pages": {"@shower": "all"}, "curves": {"pdf": "all"}}) == {
+        "new": ["01_one__MSTW08lo", "01_one__NNPDF23lo"], "old": ["02_one__MSTW08lo", "02_one__NNPDF23lo"],
+        "unlabelled": ["03_one__MSTW08lo", "03_one__NNPDF23lo"]}
+
+
+def test_runs_with_no_label_have_no_label_axis_and_the_record_is_the_truth(scratch):
+    from runner import record
+    from runner.paths import records_root
+    where = folder_of("nolabels")
+    a_run(where, "01_one", tag="nlo")
+    a_run(where, "02_one", tag="nlo", labels={"shower": "old"})
+    kept = records_root() / "Demo" / "nolabels" / "01_one"
+    shutil.rmtree(kept.parent, ignore_errors=True)
+    kept.mkdir(parents=True)
+    assert "@shower" in together(where)[0].quantities                     # the document's, no record
+    record.write_labels(kept, {"tag": "nlo", "shower": "new"})            # a label given since: the record's
+    doc, _, _ = together(where)
+    assert doc.quantities["@shower"].tags == ["new", "old"]
+    record.write_labels(kept, {"tag": "nlo"})
+    (records_root() / "Demo" / "nolabels" / "02_one").mkdir()
+    record.write_labels(records_root() / "Demo" / "nolabels" / "02_one", {"tag": "nlo"})
+    assert "@shower" not in together(where)[0].quantities
+    shutil.rmtree(kept.parent)
+
+
+def test_a_label_named_like_a_quantity_is_refused(scratch):
+    where = folder_of("collides")
+    a_run(where, "01_one", labels={"pdf": "v2"})
+    a_run(where, "02_one")
+    with pytest.raises(HeimdallError, match="label 'pdf' is also a quantity"):
+        together(where)

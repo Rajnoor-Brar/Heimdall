@@ -252,10 +252,11 @@ def parser() -> argparse.ArgumentParser:
     run_limits.add_argument("--forget", type=int, metavar="N",
                             help="drop the paused job [N] from the live list (its entry is kept)")
 
-    tagged = commands.add_parser("tag", help="a Run's tag: show it, set it, or --clear it")
+    tagged = commands.add_parser("tag", help="a Run's tag and labels: show them, set them (word, or key=value; key= removes), or --clear them")
     tagged.add_argument("target", metavar="RECORD", help="a Run, <A>/<E>/<R>, or a path under records/ or results/")
-    tagged.add_argument("name", nargs="?", metavar="NAME", help="the tag to give it (a letter or digit, then letters, digits, . _ + -, at most 40)")
-    tagged.add_argument("--clear", action="store_true", help="remove its tag")
+    tagged.add_argument("words", nargs="*", metavar="WORD", help="a tag to give it (a letter or digit, then letters, digits, . _ + -, at most 40), "
+                                                                 "or key=value: a label an across page can draw as @key (key= removes it)")
+    tagged.add_argument("--clear", action="store_true", help="remove its tag and labels")
 
     logged = commands.add_parser("log", help="a record's own account, a point's attempts and logs, or a tool's log")
     logged.add_argument("target", metavar="RECORD[/POINT[/TAG]]",
@@ -786,7 +787,7 @@ def give_tag(args, errand, configuration) -> str | None:
     if tag and tag != record.run_tag(folders.record):
         record.write_run_tag(folders.record, tag)
         if (document := plotdoc.path_of(folders.results)).is_file():
-            plotdoc.write_tag(document, tag)                   # drawn across before its plot stage: the new tag
+            plotdoc.write_tag(document, tag, record.run_labels(folders.record))       # drawn across before its plot stage: the new tag
     return tag
 
 
@@ -1945,7 +1946,7 @@ def cmd_tag(args) -> int:
     if point is not None:
         raise HeimdallError(f"'{args.target}' names a point: a tag is a configuration folder's",
                             hint=f"heimdall tag {folder.relative_to(records_root())} [NAME]")
-    for line in house.tag_lines(folder, args.name, args.clear):
+    for line in house.tag_lines(folder, args.words, args.clear):
         print(line)
     return 0
 

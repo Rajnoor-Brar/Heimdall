@@ -102,7 +102,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [events](stable/internals/events.md): how a tool's status reaches the views: pipes, filter rules, digests, the event stream and its listeners, the views (6 KB)
 - [extending](stable/internals/extending.md): how to add a standard tool, a plot backend or a figure class, and what each must touch (3 KB)
 - [failures](stable/internals/failures.md): how a chain of processes fails and how each way is handled; attribution; exit codes (2 KB)
-- [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (4 KB)
+- [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (4 KB) ⟵ live: live-identity-golden
 - [layout](stable/internals/layout.md): Heimdall's folders, the machine root's and a work dir's; what is in git; how the roots are found; where a run's files go (5 KB)
 - [live-runs](stable/internals/live-runs.md): a run as a worker and a client; the run registry; signals, pausing, resuming, heimdall watch and stop (4 KB) ⟵ live: live-resume-record-config
 - [paint](stable/internals/paint.md): Paint inside: the order of a page's arithmetic, drawing, heat maps, dumps; what is load-bearing (4 KB)
@@ -111,7 +111,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [provenance](stable/internals/provenance.md): what a run records and where: provenance.json, attempts.jsonl, points.json, tag, identity.json (2 KB)
 - [run-flow](stable/internals/run-flow.md): a run from command to pages: planning, one point, scopes, points at once, several runs, combine, and where each check lives (5 KB)
 - [runner](stable/internals/runner.md): the runner's modules and ranks, what each owns, what plugins may import; the C++ files and what each links (8 KB)
-- [testing](stable/internals/testing.md): the test suites, how they isolate themselves, the gates, and what holds the docs (3 KB) ⟵ live: live-shadow-root
+- [testing](stable/internals/testing.md): the test suites, how they isolate themselves, the gates, and what holds the docs (3 KB) ⟵ live: live-identity-golden, live-shadow-root
 - [tool-contract](stable/internals/tool-contract.md): what a tool folder holds, the search path, every tool.toml section and key, render.py, providers, and what the runner does per point (10 KB)
 
 ## stable/design/decisions
@@ -135,6 +135,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## live
 
+- [live-identity-golden](live/identity-golden.md): every fixture point's identity parts are kept in a golden file, and a test compares them (2 KB)
 - [live-no-yoda-backend](live/no-yoda-backend.md): the yoda plot backend (rivet-mkhtml) is gone; mpl owns the transforms it borrowed (2 KB)
 - [live-resume-record-config](live/resume-record-config.md): a paused run resumes with the latest attempted Run's recorded config snapshot (2 KB)
 - [live-shadow-root](live/shadow-root.md): the tests run on a shadow machine root, and a guard watches the live one (1 KB)

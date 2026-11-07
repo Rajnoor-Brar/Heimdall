@@ -8,6 +8,7 @@ product's `.partial` leftover, and it refuses while a job is running).
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import re
@@ -1107,3 +1108,129 @@ def remove(paths: list[Path]) -> int:
         elif path.exists():
             path.unlink()
     return freed
+
+
+# ── heimdall library (points-library P5) ────────────────────────────────────────────────────────────
+
+def library_assignments(scope: str = "") -> list[str]:
+    """The Assignments that have a points library (records/<A>/library/), or `scope`'s alone."""
+    if scope:
+        return [scope] if (records_root() / scope / "library").is_dir() else []
+    return sorted(p.parent.name for p in records_root().glob("*/library") if p.is_dir()) if records_root().is_dir() else []
+
+
+def _entry_folders(assignment: str) -> list[Path]:
+    base = records_root() / assignment / "library"
+    return sorted(p for p in base.iterdir() if p.is_dir()) if base.is_dir() else []
+
+
+def _complete_key(entry: Path) -> str | None:
+    marker = entry / ".complete"
+    return marker.read_text(encoding="utf-8").strip() if marker.is_file() else None
+
+
+def library_list(scope: str = "") -> list[str]:
+    """`heimdall library list [A]`: each Assignment's entries, with the quantities' tags at the point, events and seed, whether
+    the entry is complete, the Run that first made it and the Runs that link it now."""
+    from .record import library_entries, library_links
+    out: list[str] = []
+    for assignment in library_assignments(scope):
+        folded, links = library_entries(assignment), library_links(assignment)
+        folders = _entry_folders(assignment)
+        out.append(f"{assignment}: {len(folders)} library point(s)")
+        for entry in folders:
+            key = _complete_key(entry)
+            info = next((v for k, v in folded.items() if k.startswith(entry.name)), {})
+            coords = " ".join(f"{k}={v}" for k, v in (info.get("coordinates") or {}).items())
+            runs = sorted({run for _, run in links.get(entry.name, [])})
+            out.append(f"  {entry.name}  {coords or '–'}  {info.get('events', '–')} events  seed {info.get('seed', '–')}  "
+                       f"{'complete' if key else 'incomplete'}")
+            out.append(f"      made by {info.get('first_run') or '–'}; linked by {len(runs)} Run(s)" + (f": {', '.join(runs[:6])}" + (" …" if len(runs) > 6 else "") if runs else ""))
+    return out or ["no points library" + (f" under {scope}" if scope else "")]
+
+
+def library_verify(scope: str = "") -> tuple[list[str], int]:
+    """`heimdall library verify [A]`: each entry complete for its key (its .complete begins with the folder's name and is the
+    key its identity.json gives), its products there, each link resolving, and the index and the folders agreeing. Reports
+    and fixes nothing. (the lines, the number of problems)"""
+    from .record import library_entries, library_key_of_recorded, library_links
+    problems: list[str] = []
+    checked = 0
+    for assignment in library_assignments(scope):
+        folded, links = library_entries(assignment), library_links(assignment)
+        names = set()
+        for entry in _entry_folders(assignment):
+            names.add(entry.name)
+            checked += 1
+            key = _complete_key(entry)
+            if key is None:
+                problems.append(f"{assignment}/library/{entry.name}: not complete (no .complete)")
+            elif not key.startswith(entry.name):
+                problems.append(f"{assignment}/library/{entry.name}: its .complete holds {key[:16]}, not this entry's key")
+            else:
+                try:
+                    parts = json.loads((entry / "identity.json").read_text(encoding="utf-8"))
+                    if library_key_of_recorded(parts) != key:
+                        problems.append(f"{assignment}/library/{entry.name}: its identity.json gives another key than its .complete")
+                except (OSError, ValueError):
+                    problems.append(f"{assignment}/library/{entry.name}: identity.json is missing or unreadable")
+                if not (results_root() / assignment / "library" / entry.name).is_dir():
+                    problems.append(f"{assignment}/library/{entry.name}: complete, but its products folder is missing")
+            if not any(k.startswith(entry.name) for k in folded):
+                problems.append(f"{assignment}/library/{entry.name}: not in the index")
+        for key in folded:
+            if key[:16] not in names:
+                problems.append(f"{assignment}/library/points.jsonl: names {key[:16]}, whose folder is gone")
+        for name, found in links.items():
+            for link, run in found:
+                if not link.exists():
+                    problems.append(f"{link}: dangles ({os.readlink(link)})")
+    if not library_assignments(scope):
+        return ["no points library" + (f" under {scope}" if scope else "")], 0
+    return problems + [f"{len(problems)} problem(s) in {checked} entr{'y' if checked == 1 else 'ies'}" if problems
+                       else f"{checked} entr{'y' if checked == 1 else 'ies'} checked: complete for their keys, every link resolves"], len(problems)
+
+
+def library_prune(scope: str = "", yes: bool = False, duplicates: bool = False) -> list[str]:
+    """`heimdall library prune [A] [--duplicates] [--yes]`: the entries no Run links (and not one a session holds), listed;
+    with `yes` removed, records and products, and the index told. `duplicates`: also the `<name>.adopted-duplicate` folders
+    `adopt` left. Without `yes` nothing is touched."""
+    import fcntl
+    from .record import LIBRARY, index_append, library_entries, library_links
+    out: list[str] = []
+    for assignment in library_assignments(scope):
+        links, folded = library_links(assignment), library_entries(assignment)
+        for entry in _entry_folders(assignment):
+            if links.get(entry.name):
+                continue
+            lock = entry / ".lock"
+            held = False
+            if lock.is_file():
+                fd = os.open(lock, os.O_RDONLY)
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    held = True
+                finally:
+                    os.close(fd)
+            if held:
+                out.append(f"{assignment}/library/{entry.name}: unlinked, but a session holds it: kept")
+                continue
+            size = _size(entry) + _size(results_root() / assignment / LIBRARY / entry.name)
+            out.append(f"{'removed' if yes else 'would remove'} {assignment}/library/{entry.name}  ({_human(size)}; no Run links it)")
+            if yes:
+                shutil.rmtree(entry)
+                shutil.rmtree(results_root() / assignment / LIBRARY / entry.name, ignore_errors=True)
+                full = next((k for k in folded if k.startswith(entry.name)), entry.name)
+                index_append(assignment, {"kind": "pruned", "key": full})
+        if duplicates:
+            for root in (records_root(), results_root()):
+                for folder in sorted((root / assignment).glob("*/*/points/*.adopted-duplicate")) if (root / assignment).is_dir() else ():
+                    out.append(f"{'removed' if yes else 'would remove'} {folder}  ({_human(_size(folder))}; a copy `adopt` kept)")
+                    if yes:
+                        shutil.rmtree(folder)
+    if not out:
+        out = ["nothing to prune: every library point is linked" + ("" if not duplicates else ", and no adopted duplicate is left")]
+    elif not yes:
+        out.append("a dry run: --yes removes them")
+    return out

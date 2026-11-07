@@ -285,6 +285,16 @@ def parser() -> argparse.ArgumentParser:
     shown.add_argument("--full", action="store_true", help="the whole logs (a job with --logs) instead of the digests")
     shown.add_argument("--attempt", type=int, metavar="N", help="an earlier attempt's logs, from the point's history/")
 
+    pool = commands.add_parser("library", help="the points library: list its points, verify them, prune the unlinked, adopt a Run's points")
+    pool.add_argument("action", choices=["list", "verify", "prune", "adopt"],
+                      help="list: its points and who links them; verify: complete for their keys, links resolve (reports only); "
+                           "prune: the unlinked points (a dry run unless --yes); adopt: a Run's complete points into it (a dry run unless --yes)")
+    pool.add_argument("scope", nargs="?", default="", metavar="A | A/E/R",
+                      help="an Assignment (list, verify, prune: default every one), or for adopt the Run <A>/<E>/<R>")
+    pool.add_argument("--yes", action="store_true", help="prune and adopt: do it (without it they only say what they would do)")
+    pool.add_argument("--dry-run", action="store_true", help="prune and adopt: say what they would do (the default)")
+    pool.add_argument("--duplicates", action="store_true", help="prune: also the <name>.adopted-duplicate folders adopt kept")
+
     compared = commands.add_parser("diff", help="what two Runs of one Errand did differently: the config each ran with, and each "
                                                  "point's identity parts, tool by tool")
     compared.add_argument("first", metavar="RUN", help="a Run, <A>/<E>/<R1>")
@@ -2482,6 +2492,40 @@ def cmd_records(args) -> int:
     return 0
 
 
+def cmd_library(args) -> int:
+    """`heimdall library list | verify | prune | adopt` (points-library P5): house.library_* and migrate.adopt_points. `prune`
+    and `adopt` change nothing without `--yes`; `verify` and `list` read only. `adopt` and a real prune wait while a job of
+    the work dir goes."""
+    from . import migrate
+    from .paths import work_root
+    if args.yes and args.dry_run:
+        raise HeimdallError("--yes and --dry-run: one or the other")
+    if args.action in ("list", "verify") and (args.yes or args.duplicates):
+        raise HeimdallError(f"--yes and --duplicates are prune's and adopt's, not {args.action}'s")
+    if args.action == "adopt":
+        if not args.scope:
+            raise HeimdallError("adopt names the Run: heimdall library adopt <A>/<E>/<R>", hint="heimdall runs lists them")
+        if args.duplicates:
+            raise HeimdallError("--duplicates is prune's")
+    if args.action in ("prune", "adopt") and args.yes and (going := house.runs_here(work_root())):
+        raise HeimdallError(f"a job of this work dir is going (pid {going[0].get('pid')})",
+                            hint="change the library when it has ended (heimdall runs lists it)")
+    if args.action == "list":
+        lines = house.library_list(args.scope)
+    elif args.action == "verify":
+        lines, problems = house.library_verify(args.scope)
+        for line in lines:
+            print(line)
+        return 1 if problems else 0
+    elif args.action == "prune":
+        lines = house.library_prune(args.scope, yes=args.yes, duplicates=args.duplicates)
+    else:
+        lines = migrate.adopt_points(args.scope, apply=args.yes)
+    for line in lines:
+        print(line)
+    return 0
+
+
 def cmd_migrate(args) -> int:
     """`heimdall migrate [CONFIG…] [--apply]` (V79): the diff of each file today's forms change, or (--apply)
     the files rewritten. Configs are read as they are (the forms the runner now refuses included)."""
@@ -3312,6 +3356,8 @@ def main(argv: list[str]) -> int:
             return cmd_log(args)
         if args.command == "show":
             return cmd_show(args)
+        if args.command == "library":
+            return cmd_library(args)
         if args.command == "tag":
             return cmd_tag(args)
         return cmd_watch(args)

@@ -171,6 +171,7 @@ Refused at plan time, each with a hint: an unknown key; a quantity no tool consu
 - `heimdall tag`: a Run's tag and labels: show them, set them (word, or key=value; key= removes), or --clear them
 - `heimdall log`: a record's own account, a point's attempts and logs, or a tool's log
 - `heimdall show`: what a Run, a point or a tool did, read from its record: identity, seed, tools, cross section, products, attempts
+- `heimdall library`: the points library: list its points, verify them, prune the unlinked, adopt a Run's points
 - `heimdall diff`: what two Runs of one Errand did differently: the config each ran with, and each point's identity parts, tool by tool
 - `heimdall stop`: stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes (a second stop kills its tools at once)
 - `heimdall cluster`: run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job

@@ -266,6 +266,18 @@ what a Run, a point or a tool did, read from its record: identity, seed, tools, 
 | `--full` | the whole logs (a job with --logs) instead of the digests |
 | `--attempt N` | an earlier attempt's logs, from the point's history/ |
 
+## `heimdall library`
+
+the points library: list its points, verify them, prune the unlinked, adopt a Run's points
+
+| Argument | Meaning |
+|---|---|
+| `action` | list: its points and who links them; verify: complete for their keys, links resolve (reports only); prune: the unlinked points (a dry run unless --yes); adopt: a Run's complete points into it (a dry run unless --yes) |
+| `[A \| A/E/R]` | an Assignment (list, verify, prune: default every one), or for adopt the Run <A>/<E>/<R> |
+| `--yes` | prune and adopt: do it (without it they only say what they would do) |
+| `--dry-run` | prune and adopt: say what they would do (the default) |
+| `--duplicates` | prune: also the <name>.adopted-duplicate folders adopt kept |
+
 ## `heimdall diff`
 
 what two Runs of one Errand did differently: the config each ran with, and each point's identity parts, tool by tool

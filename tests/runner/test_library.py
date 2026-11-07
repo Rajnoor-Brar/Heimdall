@@ -169,8 +169,10 @@ def lib_configs(trees):
         second = second.replace(f'tag = "{tag}"', f'tag = "x_{tag}"').replace(f'fixed  = "{tag}"', f'fixed  = "x_{tag}"')
     (configs / "lib_a.toml").write_text(first, encoding="utf-8")
     (configs / "lib_b.toml").write_text(second, encoding="utf-8")
+    (configs / "plain_a.toml").write_text(first.replace("name = \"lib_a\"\nlibrary = true", 'name = "plain_a"'), encoding="utf-8")
+    (configs / "plain_b.toml").write_text(second.replace("name = \"lib_b\"\nlibrary = true", 'name = "plain_b"'), encoding="utf-8")
     yield
-    for name in ("lib_a", "lib_b"):
+    for name in ("lib_a", "lib_b", "plain_a", "plain_b"):
         (configs / f"{name}.toml").unlink(missing_ok=True)
 
 
@@ -267,3 +269,108 @@ def test_clean_removes_a_runs_link_into_the_library_and_never_the_entry(lib_conf
     house.remove(outs)
     assert not link.exists() and not link.is_symlink()
     assert record.library_entry(gone).is_dir() and (record.library_entry(plan) / "provenance.json").is_file()
+
+
+# ── heimdall library (P5) ────────────────────────────────────────────────────────────────────────────
+
+import hashlib
+import shutil
+
+from runner import migrate
+
+
+def own_run(name: str):
+    """A Run of `name`'s pdf configuration as it leaves its own folders (no library): every point complete with its recorded
+    identity, products and a points.json."""
+    p = planned(name, "pdf")
+    for plan in p.every:
+        finished(plan)
+        record.write_identity(plan)
+        record.write_atomic(record.complete_marker(plan), plan.identity + "\n")
+        (plan.res / "jets.yoda").write_text("BEGIN YODA_HISTO1D_V2 /A\nEND YODA_HISTO1D_V2\n", encoding="utf-8")
+    record.write_atomic(p.every[0].folders.manifest, json.dumps(record.points_manifest(p.every, p.errand, p.configuration)))
+    return p, str(p.every[0].folders.record.relative_to(records_root()))
+
+
+def test_adopt_says_what_it_would_do_and_changes_nothing_without_yes(lib_configs, capsys):
+    p, run = own_run("Demo/plain_a")
+    assert cli.main(["library", "adopt", run]) == 0
+    out = capsys.readouterr().out
+    assert out.count("would move") == 4 and "a dry run: --yes makes these moves" in out
+    assert not (p.every[0].folders.points / p.every[0].point.name).is_symlink() and not (records_root() / "Demo" / "library").exists()
+
+
+def test_adopt_files_a_runs_complete_points_under_the_key_a_plan_gives_and_links_them_back(lib_configs, capsys):
+    p, run = own_run("Demo/plain_a")
+    assert cli.main(["library", "adopt", run, "--yes"]) == 0
+    assert capsys.readouterr().out.count("move ") == 4
+    for plan in p.every:
+        key = record.library_key(plan)                           # the key a library plan of it has
+        link = plan.folders.points / plan.point.name
+        assert link.is_symlink() and (records_root() / "Demo" / "library" / key[:16] / ".complete").read_text(encoding="utf-8").strip() == key
+        assert (plan.res / "jets.yoda").is_file() and (results_root() / "Demo" / "library" / key[:16] / "jets.yoda").is_file()
+    manifest = json.loads(p.every[0].folders.manifest.read_text(encoding="utf-8"))
+    assert [e["library"] for e in manifest["points"]] == [record.library_key(q)[:16] for q in p.every]
+    again = planned("Demo/lib_a", "pdf")                           # the same physics, planned as a library point now
+    assert all(record.is_complete(q) for q in again.every)
+    assert cli.main(["library", "adopt", run, "--yes"]) == 0
+    assert capsys.readouterr().out.count("already in the library") == 4
+    entries = record.library_entries("Demo")
+    assert len(entries) == 4 and all(e["first_run"] == run for e in entries.values())
+    assert {e["coordinates"]["pdf"] for e in entries.values()} == {q.point.name for q in p.every}
+
+
+def test_a_second_runs_same_physics_is_linked_and_its_own_folders_kept_until_prune_duplicates(lib_configs, capsys):
+    a, run_a = own_run("Demo/plain_a")
+    b, run_b = own_run("Demo/plain_b")
+    assert cli.main(["library", "adopt", run_a, "--yes"]) == 0
+    assert cli.main(["library", "adopt", run_b, "--yes"]) == 0
+    assert capsys.readouterr().out.count("its own folders kept as") == 4
+    first = b.every[0]
+    assert (first.folders.points / first.point.name).is_symlink()
+    assert (first.folders.points / f"{first.point.name}.adopted-duplicate" / "provenance.json").is_file()
+    assert (first.folders.results / "points" / f"{first.point.name}.adopted-duplicate" / "jets.yoda").is_file()
+    assert len(list((records_root() / "Demo" / "library").glob("*/"))) == 4
+    assert cli.main(["library", "list"]) == 0
+    out = capsys.readouterr().out
+    assert "Demo: 4 library point(s)" in out and f"linked by 2 Run(s): {run_a}, {run_b}" in out
+    assert cli.main(["library", "verify"]) == 0 and "4 entries checked" in capsys.readouterr().out
+    assert cli.main(["library", "prune"]) == 0 and "nothing to prune" in capsys.readouterr().out
+    assert cli.main(["library", "prune", "--duplicates"]) == 0
+    assert capsys.readouterr().out.count("would remove") == 8                                   # records and results, four each
+    assert cli.main(["library", "prune", "--duplicates", "--yes"]) == 0
+    assert not list((records_root() / "Demo").glob("*/*/points/*.adopted-duplicate"))
+
+
+def test_prune_removes_what_no_run_links_and_verify_reports_what_is_wrong(lib_configs, capsys):
+    p, run = own_run("Demo/plain_a")
+    assert cli.main(["library", "adopt", run, "--yes"]) == 0
+    capsys.readouterr()
+    entry = next(iter((records_root() / "Demo" / "library").glob("*/")))
+    (entry / ".complete").write_text("0" * 64 + "\n", encoding="utf-8")                          # broken
+    link = p.every[1].folders.points / p.every[1].point.name
+    shutil.rmtree(records_root() / "Demo" / "library" / os.readlink(link).split("/")[-1])                 # an entry gone
+    assert cli.main(["library", "verify"]) == 1
+    out = capsys.readouterr().out
+    assert "not this entry's key" in out and "dangles" in out and "problem(s) in" in out
+    for plan in p.every:                                           # the Run goes: its links, never the entries
+        for gone in (plan.folders.points / plan.point.name, plan.res):
+            gone.unlink()
+    assert cli.main(["library", "prune"]) == 0
+    out = capsys.readouterr().out
+    assert out.count("would remove") == 3 and "a dry run: --yes removes them" in out
+    assert len(list((records_root() / "Demo" / "library").glob("*/"))) == 3
+    assert cli.main(["library", "prune", "--yes"]) == 0
+    assert capsys.readouterr().out.count("removed Demo/library") == 3
+    assert [d for d in (records_root() / "Demo" / "library").iterdir() if d.is_dir()] == []
+    assert len(record.library_entries("Demo")) == 1                # the index forgets what prune removed; the one removed by hand stays
+
+
+def test_adopt_leaves_what_is_not_complete(lib_configs, capsys):
+    p, run = own_run("Demo/plain_a")
+    (p.every[0].folders.points / p.every[0].point.name / ".complete").write_text("stale\n", encoding="utf-8")
+    assert cli.main(["library", "adopt", run, "--yes"]) == 0
+    out = capsys.readouterr().out
+    assert f"{p.every[0].point.name}: left (its .complete is not the hash of its identity.json)" in out and out.count("move ") == 3
+    assert cli.main(["library", "adopt", "Demo/plain_a"]) == 2
+    assert "not a Run" in capsys.readouterr().err

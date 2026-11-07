@@ -16,7 +16,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## reference
 
-- [commands](reference/commands.md): every heimdall command and its arguments (21 KB)
+- [commands](reference/commands.md): every heimdall command and its arguments (22 KB)
 - [keys](reference/keys.md): every setting in one line each, for grep: key, type, default (10 KB)
 - [legacy](reference/legacy.md): the errand file's older (v2) names and today's (2 KB)
 
@@ -140,7 +140,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-identity-golden](live/identity-golden.md): every fixture point's identity parts are kept in a golden file, and a test compares them (2 KB)
 - [live-live-parallelism](live/live-parallelism.md): heimdall runs -i N --jobs M changes a running job's points at once while it runs: a request file and SIGUSR2; raising starts more, lowering stops none (2 KB)
 - [live-no-yoda-backend](live/no-yoda-backend.md): the yoda plot backend (rivet-mkhtml) is gone; mpl owns the transforms it borrowed (2 KB)
-- [live-points-library](live/points-library.md): a points library per Assignment pools generation points by a key that ignores the point's name; library = true | "only" (3 KB)
+- [live-points-library](live/points-library.md): a points library per Assignment pools generation points by a key that ignores the point's name; library = true | "only" (5 KB)
 - [live-record-formats](live/record-formats.md): record files carry a format version, and heimdall records upgrade brings old ones to it (2 KB)
 - [live-resume-record-config](live/resume-record-config.md): a paused run resumes with the latest attempted Run's recorded config snapshot (2 KB)
 - [live-run-labels](live/run-labels.md): a Run's tag is one of its labels: key=value words from heimdall tag, in the tag file's TOML, each an across axis @key (2 KB)

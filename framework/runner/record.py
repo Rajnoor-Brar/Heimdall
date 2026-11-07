@@ -86,27 +86,45 @@ def identity_parts(plan: PointPlan) -> dict:
     return parts
 
 
+def _without_comments(parts: dict, comment_of) -> dict:
+    """`parts` with each tool's card lines that start with its folder's `[card] comment` dropped (`comment_of(tool's parts)`)."""
+    out = []
+    for step in parts.get("tools", []):
+        step = dict(step)
+        comment = comment_of(step)
+        if comment and "card" in step:
+            step["card"] = [line for line in step["card"] if not line.startswith(comment)]
+        out.append(step)
+    return {**parts, "tools": out}
+
+
 def library_parts(plan: PointPlan) -> dict:
     """What the points library keys a point by (points-library P2): `identity_parts` without the card comments, which is
     where the point's name is (the card's header, `point card for [tools.<tag>], point <name>`). The rule is `seed_basis`'s:
     a card line that starts with the folder's `[card] comment` is dropped. The seed rule stays, so a manual seed is in the key
     and an identity or random seed is not."""
-    parts = identity_parts(plan)
-    tools_ = []
-    for tag in sorted(plan.rendered):
-        step_parts = dict(plan.rendered[tag].identity_parts)
-        comment = plan.rendered[tag].folder.get("card", "comment", "")
-        if comment and "card" in step_parts:
-            step_parts["card"] = [line for line in step_parts["card"] if not line.startswith(comment)]
-        tools_.append(step_parts)
-    return {**parts, "tools": tools_}
+    return _without_comments(identity_parts(plan), lambda step: plan.rendered[step["tag"]].folder.get("card", "comment", ""))
+
+
+def _key_of(parts: dict) -> str:
+    return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 
 
 def library_key(plan: PointPlan) -> str:
     """The points library's key for a point: the sha256 of `library_parts` (64 hex digits; an entry's folder is its first 16).
     The same physics under two point names has one key; the identity is unchanged."""
-    text = json.dumps(library_parts(plan), sort_keys=True, default=str)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return _key_of(library_parts(plan))
+
+
+def library_key_of_recorded(parts: dict) -> str:
+    """The library key of a point from its recorded `identity.json` (its parts, `format` aside): what `heimdall library adopt`
+    files a complete point under. Equal to `library_key(plan)` of the plan that made it; the comment of each tool is its
+    folder's, found by the tool's name."""
+    from . import tools as toolmod
+    known = toolmod.folders()
+    shown = {k: v for k, v in parts.items() if k != "format"}
+    return _key_of(_without_comments(json.loads(json.dumps(shown, default=str)),
+                                     lambda step: known[step["tool"]].get("card", "comment", "") if step.get("tool") in known else ""))
 
 
 # ── the points library (points-library) ─────────────────────────────────────────────────────────────
@@ -137,26 +155,32 @@ def link_library(plan: PointPlan) -> bool:
     changed = False
     for link, entry in ((plan.folders.points / plan.point.name, library_entry(plan)), (plan.res, library_products(plan))):
         entry.mkdir(parents=True, exist_ok=True)
-        link.parent.mkdir(parents=True, exist_ok=True)
-        target = os.path.relpath(entry, link.parent)
-        if link.is_symlink():
-            if os.readlink(link) == target:
-                continue
-            link.unlink()
-        elif link.exists():
-            if link.is_dir() and not any(link.iterdir()):
-                link.rmdir()
-            else:
-                raise HeimdallError(f"{link} is a folder of this Run's own, and the point is to be pooled",
-                                    hint="heimdall library adopt moves a Run's complete points into the library")
-        try:
-            link.symlink_to(target)
-        except FileExistsError:                    # another session of this Run linked it meanwhile
-            if os.readlink(link) != target:
-                raise
-            continue
-        changed = True
+        changed |= link_into(link, entry)
     return changed
+
+
+def link_into(link: Path, entry: Path) -> bool:
+    """`link` made a relative link to the folder `entry` (within the Assignment): True when made or changed. A link to another
+    folder is replaced, an empty folder of the Run's own is replaced, and one with anything in it is refused."""
+    link.parent.mkdir(parents=True, exist_ok=True)
+    target = os.path.relpath(entry, link.parent)
+    if link.is_symlink():
+        if os.readlink(link) == target:
+            return False
+        link.unlink()
+    elif link.exists():
+        if link.is_dir() and not any(link.iterdir()):
+            link.rmdir()
+        else:
+            raise HeimdallError(f"{link} is a folder of this Run's own, and the point is to be pooled",
+                                hint="heimdall library adopt moves a Run's complete points into the library")
+    try:
+        link.symlink_to(target)
+    except FileExistsError:                    # another session of this Run linked it meanwhile
+        if os.readlink(link) != target:
+            raise
+        return False
+    return True
 
 
 def unlink_run(plans: list[PointPlan]) -> None:
@@ -206,6 +230,36 @@ def index_note(plan: PointPlan, errand, kind: str) -> None:
         os.close(fd)                                   # the lock goes with the descriptor
 
 
+def index_append(assignment: str, line: dict) -> None:
+    """A line appended to an Assignment's library index as it is (`created` of an adopted point, `pruned`), under the flock."""
+    path = library_index_file(assignment)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        os.write(fd, (json.dumps({"v": 1, "at": now(), **line}, sort_keys=True) + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def library_links(assignment: str) -> dict[str, list[tuple[Path, str]]]:
+    """Every link into an Assignment's library, from its Runs' `points/` folders in records/ and results/: entry folder name
+    (key16) → [(the link, its Run <A>/<E>/<R>)]. A link that dangles is in it all the same (`verify` says so)."""
+    from .paths import records_root, results_root
+    found: dict[str, list[tuple[Path, str]]] = {}
+    for root in (records_root(), results_root()):
+        base = root / assignment
+        for errand in sorted(base.iterdir()) if base.is_dir() else ():
+            if errand.name == LIBRARY or not errand.is_dir():
+                continue
+            for run in sorted(errand.iterdir()):
+                folder = run / "points"
+                for link in sorted(folder.iterdir()) if folder.is_dir() else ():
+                    if link.is_symlink() and Path(os.readlink(link)).parent.name == LIBRARY:
+                        found.setdefault(Path(os.readlink(link)).name, []).append((link, f"{assignment}/{errand.name}/{run.name}"))
+    return found
+
+
 def library_entries(assignment: str) -> dict[str, dict]:
     """The library's index folded: key → {key, coordinates, events, threads, seed, created, first_run, runs (in the order
     they came), reruns}. A line that is not JSON (a write cut short) is passed over."""
@@ -221,6 +275,9 @@ def library_entries(assignment: str) -> dict[str, dict]:
             continue
         key = line.get("key") if isinstance(line, dict) else None
         if not key:
+            continue
+        if line.get("kind") == "pruned":
+            out.pop(key, None)
             continue
         entry = out.setdefault(key, {"key": key, "runs": [], "reruns": 0})
         if line.get("kind") in ("created", "rerun"):

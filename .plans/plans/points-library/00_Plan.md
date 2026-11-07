@@ -86,4 +86,4 @@ Test command, stack loaded: `taskset -c 0-5 nice -n 10 python -m pytest -q <file
 | 2 | done 2026-11-08 |
 | 3 | done 2026-11-08 |
 | 4 | done 2026-11-08 |
-| 5 | not started (⏸ at its end) |
+| 5 | done 2026-11-08, ⏸ `adopt` on a real work dir waits for the developer |

@@ -78,6 +78,25 @@ namespace {
         return buffer;
     }
 
+    // A number to the digit: the measured bins are the input of later statistics, so they are written whole
+    // (%.17g reads back as the same double); null for NaN and inf.
+    std::string exact(double v) {
+        if (!std::isfinite(v)) return "null";
+        char buffer[40];
+        std::snprintf(buffer, sizeof buffer, "%.17g", v);
+        return buffer;
+    }
+
+    std::string measuredJson(const Paint::Statistics& s) {
+        std::string out = "[";
+        for (size_t i = 0; i < s.measured.size(); ++i) {
+            out += std::string(i ? ", " : "") + "[";
+            for (size_t k = 0; k < 6; ++k) out += std::string(k ? ", " : "") + exact(s.measured[i][k]);
+            out += "]";
+        }
+        return out + "]";
+    }
+
     // V160: every curve's statistics against the page's reference (the data, else its first curve), as JSON.
     std::string statisticsJson(const Paint::Page& page, const std::vector<Paint::Series>& curves, bool haveData,
                                const Paint::Series& data, const Paint::Range& x) {
@@ -93,6 +112,7 @@ namespace {
                    + ", \"ratio_sum\": " + number(s.ratioSum) + ", \"ratio_width\": " + number(s.ratioWidth)
                    + ", \"abs_area\": " + number(s.absArea) + ", \"compared\": " + std::to_string(s.compared)
                    + ", \"chi2\": " + number(s.chi2) + ", \"ndf\": " + std::to_string(s.ndf)
+                   + ", \"measured\": " + measuredJson(s)
                    + ", \"reference\": " + (self ? "true" : "false") + "}";
         }
         return out + "]}";

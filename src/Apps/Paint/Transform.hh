@@ -13,6 +13,7 @@
 //              widens x by g of its span (0: no headroom, V55). "default" sets nothing: the range is ROOT's own choice.
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <optional>
@@ -235,12 +236,15 @@ namespace Paint {
     // (rebinned), the reference's area, the curve's area on those bins (V175), Σ |y − y_ref|·Δx, and
     // χ² = Σ (y − y_ref)² / (σ² + σ_ref²) over the bins with a nonzero error, ndf their number. V175: the ratio
     // pad's area about its line at one, Σ |y/y_ref − 1|·Δx over those bins with y_ref ≠ 0, the ratio's own
-    // Σ y/y_ref·Δx, and their width Σ Δx, Δx in log10 x on a log-x page (as the pad draws it).
+    // Σ y/y_ref·Δx, and their width Σ Δx, Δx in log10 x on a log-x page (as the pad draws it). `measured` is those
+    // compared bins themselves, in x order: (lo, hi, curve y, curve err, reference y, reference err), the curve
+    // rebinned onto the reference's edges, so a later statistic works on exactly what these sums did.
     struct Statistics {
         size_t bins = 0;
         double area = 0, areaErr = 0, refArea = 0, cmpArea = 0, absArea = 0, chi2 = 0;
         double ratioArea = 0, ratioSum = 0, ratioWidth = 0;
         size_t ndf = 0, compared = 0;
+        std::vector<std::array<double, 6>> measured;
     };
 
     inline bool inside(double lo, double hi, double from, double to) {
@@ -263,6 +267,7 @@ namespace Paint {
             if (!std::isfinite(value)) continue;
             const double w = ref.hi[j] - ref.lo[j], d = value - ref.y[j];
             out.refArea += ref.y[j] * w, out.cmpArea += value * w, out.absArea += std::fabs(d) * w, ++out.compared;
+            out.measured.push_back({ref.lo[j], ref.hi[j], value, error, ref.y[j], ref.err[j]});
             const double drawn = logx ? (ref.lo[j] > 0 ? std::log10(ref.hi[j] / ref.lo[j]) : 0.0) : w;
             if (ref.y[j] != 0 && drawn > 0) {
                 const double r = value / ref.y[j];

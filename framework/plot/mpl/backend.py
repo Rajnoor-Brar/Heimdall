@@ -1,28 +1,29 @@
 """framework/plot/mpl/backend.py — `[plot] backend = "mpl"`: the pages drawn with matplotlib, in this process.
 
-doc:plots, doc:plot-backends (V71). The same pages the yoda backend hands
-rivet-mkhtml, drawn without it. **Until the user has verified them, they must match mkhtml's pages**, so
+doc:plots, doc:plot-backends (V71). The pages rivet-mkhtml draws, drawn without it (the yoda backend that
+handed them to mkhtml is retired). **Until the user has verified them, they are mkhtml's look**, so
 everything mkhtml decides comes from the library mkhtml runs on, called directly:
 
-* the plot settings: rivet's `get_plot_configs` over the analyses' `.plot` files and the block the yoda
-  backend writes for the page (`_plot_block`: ranges, log axes, legend, overridden labels);
-* the curves: the points' objects with the page's voids, normalisation and band envelopes (the yoda
-  backend's own transforms, applied in memory), made scatters by `mkPlotFriendlyScatter`;
+* the plot settings: rivet's `get_plot_configs` over the analyses' `.plot` files and the block written for
+  the page (transforms.py `_plot_block`: ranges, log axes, legend, overridden labels);
+* the curves: the points' objects with the page's voids, normalisation and band envelopes (transforms.py,
+  applied in memory), made scatters by `mkPlotFriendlyScatter`;
 * the numbers: YODA's `reshape`, `rebinTo` and `safeDiv` (so the ratio is mkhtml's, rebinned onto the
   reference by inverse relative variance), its legend placement (`legendDefaults`), colour cycle
   (`LineProperties`) and text macros (`preprocess`), and YODA's `default.mplstyle`;
-* the drawing: the calls of mkhtml's generated script (YODA's `mkPlottingScript1D`), made here, then the
-  yoda backend's own fixes (ratio ticks, a "best" legend, the titles), so no script is written or rerun.
+* the drawing: the calls of mkhtml's generated script (YODA's `mkPlottingScript1D`), made here, then our
+  own fixes (ratio ticks, a "best" legend, the titles), so no script is written or rerun.
 * explicit numeric `y_range` ends: Paint's overflow marks, thin lines in a curve's colour 2 px beyond the
   frame (inside it where the ratio pad joins), split across a bin when several curves pass the same end.
 
 The values are rounded to the 7 digits mkhtml's data files hold. Pages go to results/…/plots/mpl/, laid
-out as Paint's, with an index.html (INDEX). Like the yoda backend, it honours only the style keys mkhtml
-can (until verified, it is mkhtml's look).
+out as Paint's, with an index.html (INDEX). It honours only the style keys mkhtml can (until verified, it
+is mkhtml's look).
 """
 
 from __future__ import annotations
 
+import functools
 import importlib.util
 import math
 import os
@@ -35,7 +36,7 @@ from runner.labels import mathtext
 from runner.paths import work_build
 
 INDEX = True                               # the core writes plots/mpl/index.html (V70's write_index)
-_YODA = Path(__file__).resolve().parents[1] / "yoda" / "backend.py"
+_TRANSFORMS = Path(__file__).with_name("transforms.py")
 _STYLES = ["-", "--", "-.", ":"]
 _BREAK = '"+"\\n"+r"'                    # YODA's preprocess writes \newline as code for the script's r"…" strings
 
@@ -45,9 +46,11 @@ def _raw(text: str) -> str:
     return text.replace(_BREAK, "\n")
 
 
-def _mkhtml_backend():
-    """The yoda backend's module: its transforms and fixes, which mkhtml's pages are made with."""
-    spec = importlib.util.spec_from_file_location("heimdall_yoda_backend", _YODA)
+@functools.cache
+def _transforms():
+    """transforms.py, loaded by path (a backend is a plugin, not a package): the voids, the normalisation, the
+    envelopes, the reference, the ratio window and the page's `.plot` block."""
+    spec = importlib.util.spec_from_file_location("heimdall_mpl_transforms", _TRANSFORMS)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -75,12 +78,8 @@ def _without_own(settings: dict) -> dict:
 
 
 def validate(settings: dict, beside_root: bool = False, curve_styles: list[dict] = ()) -> None:
-    """mkhtml's limits, as the yoda backend's (the pages are mkhtml's until verified), but for OWN's keys."""
-    try:
-        _mkhtml_backend().validate(_without_own(settings), beside_root=beside_root, curve_styles=curve_styles)
-    except HeimdallError as error:
-        raise HeimdallError(str(error.message).replace('backend = "yoda"', 'backend = "mpl"').replace("the yoda backend", "the mpl backend"),
-                       where=error.where, hint=error.hint) from None
+    """mkhtml's limits (the pages are mkhtml's look until verified), but for OWN's keys."""
+    _transforms().validate(_without_own(settings), beside_root=beside_root, curve_styles=curve_styles)
 
 
 def draw(cells: dict, settings: dict, say) -> int:
@@ -121,7 +120,7 @@ def _page(page, settings: dict) -> None:
     import matplotlib.pyplot as plt
     import yoda
 
-    yb = _mkhtml_backend()
+    yb = _transforms()
     os.environ["RIVET_ANALYSIS_PATH"] = str(work_build() / "Rivet")
     os.environ["RIVET_DATA_PATH"] = os.pathsep.join(filter(None, [str(work_build() / "Rivet"), os.environ.get("RIVET_DATA_PATH")]))
     hists, features, window = _inputs(yb, yoda, page)
@@ -173,7 +172,7 @@ def _inputs(yb, yoda, page):
                 yb._normalise(copy)
             curves.append((mathtext(curve["label"]), copy, {"ConnectBins": 0} if doc.get("markers") else {}))
     else:
-        order = list(dict.fromkeys(page.sources))   # one file per point, as the yoda backend's argv
+        order = list(dict.fromkeys(page.sources))   # one file per point, as mkhtml's argv
         for source in order:
             mine = [(v, b, c) for s, v, b, c in zip(page.sources, page.variants, bands, page.document["curve"]) if s == source]
             for variant, members, curve in sorted(mine, key=lambda m: m[0]):   # mkhtml sorts a file's variants
@@ -353,7 +352,7 @@ def _figure(plt, hists: dict, features: dict, page, yb, window):
         rax.yaxis.set_minor_locator(mpl.ticker.LogLocator(base=10.0, subs=np.arange(0.1, 1, 0.1), numticks=np.inf))
     if rax is not None:
         fig.align_ylabels((ax, rax))
-        # the yoda backend's fix: ratio.divisions, ROOT's rule (ratio_ticks)
+        # ratio.divisions, ROOT's rule (ratio_ticks)
         lo, hi = rax.get_ylim()
         divisions = int(page.style["ratio"]["divisions"])
         n1, n2 = max(divisions % 100, 1), (divisions // 100) % 100
@@ -586,7 +585,7 @@ def _overflow_marks(ax, curves: list[dict], y_range: list, rax=None) -> None:
 
 
 def _titles(ax, page) -> None:
-    """The yoda backend's titles(): title above the frame, title_left and title_right over its corners."""
+    """title above the frame, title_left and title_right over its corners."""
     settings, text = page.document["page"], page.style["text"]
     left, right, main = (mathtext(settings.get(k, "")) for k in ("title_left", "title_right", "title"))
     place = dict(xycoords="axes fraction", textcoords="offset points", va="bottom")

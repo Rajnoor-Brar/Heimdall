@@ -110,6 +110,12 @@ def yoda_backend():
     return plot.backend("yoda")
 
 
+@pytest.fixture(scope="module")
+def mpl_transforms():
+    """framework/plot/mpl/transforms.py: what mpl does to the objects and the settings before it draws."""
+    return plot.backend("mpl")._transforms()
+
+
 @pytest.mark.parametrize("root, latex", [
     ("MSTW 2008 LO", "MSTW 2008 LO"),
     ("5x41 GeV (#sqrt{s} = 28.6 GeV)", r"5x41 GeV $(\sqrt{\mathrm{s}}$ = 28.6 GeV)"),   # upright, as TLatex drew it
@@ -171,31 +177,31 @@ def test_a_backslash_in_a_double_quoted_label_says_how_to_write_it(scratch):
     assert "single quotes" in caught.value.hint
 
 
-def test_the_yoda_backend_refuses_what_mkhtml_cannot_do(scratch):
-    validated(scratch, backend="yoda", style={"legend": {"position": "top-left"}})
+def test_the_mpl_backend_refuses_what_mkhtml_cannot_do(scratch):
+    validated(scratch, backend="mpl", style={"legend": {"position": "top-left"}})
     for style, key in (({"text": {"title": 12}}, "text.title"), ({"curves": {"palette": ["kRed"]}}, "palette"),
                        ({"legend": {"position": [0.5, 0.5]}}, "legend.position")):
         with pytest.raises(HeimdallError, match=key):
-            validated(scratch, backend="yoda", style=style)
+            validated(scratch, backend="mpl", style=style)
     with pytest.raises(HeimdallError, match="root_style"):
-        validated(scratch, backend="yoda", root_style="/x.toml")
+        validated(scratch, backend="mpl", root_style="/x.toml")
 
 
-def test_no_gutter_leaves_mkhtml_its_own_range(yoda_backend, scratch):
+def test_no_gutter_leaves_mkhtml_its_own_range(mpl_transforms, scratch):
     validated(scratch, y_gutter="default", x_gutter=0, figures={"f": {"objects": ["d04*"], "y_gutter": "default"}})
     page = plot.Page("d01", scratch / "d01.toml", scratch / "d01", object="/A/d01",
                      document={"page": {"logx": False, "logy": False, "ratio": False}},
                      style=plot.base_style(), ranges={"x": [0, 1], "y": [0, 2], "x_tool": False, "y_tool": True})
-    block = yoda_backend._plot_block(page)
+    block = mpl_transforms._plot_block(page)
     assert "XMin=0" in block and "YMin" not in block and "YMax" not in block
 
 
-def test_explicit_ranges_are_handed_to_mkhtml_even_when_data_exceed_them(yoda_backend, scratch):
+def test_explicit_ranges_are_handed_to_mkhtml_even_when_data_exceed_them(mpl_transforms, scratch):
     page = plot.Page("d01", scratch / "d01.toml", scratch / "d01", object="/photo_eic/d01-x01-y01",
                      document={"page": {"logx": False, "logy": False, "ratio": False}},
                      style=plot.base_style(), ranges={"x": [0, 1], "y": [-2, 1], "largest": 100,
                                                      "x_tool": False, "y_tool": False})
-    block = yoda_backend._plot_block(page)
+    block = mpl_transforms._plot_block(page)
     assert "YMin=-2" in block and "YMax=1" in block
 
 
@@ -229,7 +235,7 @@ def test_a_style_file_is_checked_like_the_inline_style(scratch):
     assert "position" in error.value.hint                                  # the nearest spelling
 
 
-def test_references_are_cut_to_the_aligned_run_and_renamed(yoda_backend):
+def test_references_are_cut_to_the_aligned_run_and_renamed(mpl_transforms):
     yoda = pytest.importorskip("yoda")
     from types import SimpleNamespace
     try:
@@ -238,12 +244,12 @@ def test_references_are_cut_to_the_aligned_run_and_renamed(yoda_backend):
         pytest.skip("no Rivet reference data")
     page = SimpleNamespace(object="/photo_eic:R=0.7/d01-x01-y01", ranges={"data_x": [17, 47]},
                            data=(source, "/REF/ZEUS_2012_I1116258/d01-x01-y01"), document={"page": {}})
-    ref = yoda_backend._reference(yoda, page)
+    ref = mpl_transforms._reference(yoda, page)
     whole = yoda.read(str(page.data[0]))[page.data[1]]
     assert ref.path() == "/REF/photo_eic/d01-x01-y01"
     assert list(ref.xEdges()) == [17, 21, 25, 29, 35, 41, 47] and len(whole.xEdges()) > 7
     page.document["page"]["normalise"] = "area"                         # V68: the data as the curves
-    area = yoda_backend._reference(yoda, page)
+    area = mpl_transforms._reference(yoda, page)
     assert sum(b.val() * (b.xMax() - b.xMin()) for b in area.bins()) == pytest.approx(1.0)
     assert [ref.bin(i).val() for i in range(1, 7)] == [whole.bin(i).val() for i in range(1, 7)]
     assert ref.bin(1).errDownUp("stat") == whole.bin(1).errDownUp("stat")
@@ -449,8 +455,8 @@ def test_an_object_value_of_the_wrong_kind_is_refused(scratch):
     validated(scratch, figures={"f": {"objects": ["d01-*"], "logy": "default", "ratio": True}})
 
 
-def test_the_yoda_backend_has_nothing_to_honour_in_a_default(scratch):
-    validated(scratch, backend="yoda", style={"legend": {"position": "default"}, "page": {"dpi": "default"}})
+def test_the_mpl_backend_has_nothing_to_honour_in_a_default(scratch):
+    validated(scratch, backend="mpl", style={"legend": {"position": "default"}, "page": {"dpi": "default"}})
 
 
 def test_macros_are_expanded_by_us_in_and_out_of_math():
@@ -464,9 +470,9 @@ def test_macros_are_expanded_by_us_in_and_out_of_math():
     ([[(0, 1, 8.0, 0.0)]], (0.5, 3.0)),                                     # never past the limits
     ([[(5, 6, 9.0, 0.0)]], (0.5, 1.5)),                                     # a bin outside x is not looked at
 ])
-def test_the_yoda_ratio_window_is_paint_s(yoda_backend, curves, expected):
+def test_the_mpl_ratio_window_is_paint_s(mpl_transforms, curves, expected):
     reference = [(0, 1, 1.0, 0.0), (1, 2, 1.0, 0.0), (5, 6, 1.0, 0.0)]
-    window = yoda_backend.ratio_window(curves, reference, (0, 2), {"range": [0.5, 1.5], "limits": [0.0, 3.0]})
+    window = mpl_transforms.ratio_window(curves, reference, (0, 2), {"range": [0.5, 1.5], "limits": [0.0, 3.0]})
     assert window == pytest.approx(expected)
 
 
@@ -479,14 +485,14 @@ def test_a_best_legend_lets_matplotlib_choose(yoda_backend, scratch):
     assert not yoda_backend.best_legend(script)                          # once only
 
 
-def test_yoda_sizes_the_legend_title_by_text_header(yoda_backend):
+def test_mpl_sizes_the_legend_title_by_text_header(mpl_transforms):
     """V50: matplotlib sizes a legend title from legend.title_fontsize (else font.size), not from the
     entries; the backend sets both, from text.legend and text.header."""
     from types import SimpleNamespace
     page = SimpleNamespace(document={"page": {"logx": False, "logy": False, "ratio": False}}, overrides={},
                            ranges={"x": (0, 1), "y": (0, 1)}, object="/photo_eic/d01-x01-y01",
                            style={"legend": {"position": "top-right"}, "text": {"legend": 7.0, "header": 8.5}})
-    block = yoda_backend._plot_block(page)
+    block = mpl_transforms._plot_block(page)
     assert "LegendFontSize=7; plt.rcParams['legend.title_fontsize'] = 8.5" in block
 
 
@@ -526,11 +532,11 @@ def test_a_curve_look_is_checked(scratch, styles, message):
         parse(raw(quantities__pdf__styles=styles), scratch)
 
 
-def test_the_yoda_backend_draws_hex_colours_only(scratch):
-    errand = parse(raw(plot={"backend": "both"}, quantities__pdf__styles=[{"colour": "kRed"}, {}]), scratch)
+def test_the_mpl_backend_draws_hex_colours_only(scratch):
+    errand = parse(raw(plot={"backend": "mpl"}, quantities__pdf__styles=[{"colour": "kRed"}, {}]), scratch)
     with pytest.raises(HeimdallError, match="cannot draw the curve colour"):
         plot.validate(errand)
-    plot.validate(parse(raw(plot={"backend": "both"}, quantities__pdf__styles=[{"colour": "#EE3311"}, {}]), scratch))
+    plot.validate(parse(raw(plot={"backend": "mpl"}, quantities__pdf__styles=[{"colour": "#EE3311"}, {}]), scratch))
 
 
 def test_normalise_is_a_page_key_a_child_may_set(scratch):
@@ -542,11 +548,11 @@ def test_normalise_is_a_page_key_a_child_may_set(scratch):
         validated(scratch, normalise="peak")
 
 
-def test_the_yoda_backend_normalises_as_paint(yoda_backend):
+def test_mpl_normalises_as_paint(mpl_transforms):
     import yoda
     estimate = yoda.BinnedEstimate1D([0.0, 1.0, 3.0], "/x")
     estimate.bin(1).setVal(2.0), estimate.bin(1).setErr(0.5), estimate.bin(2).setVal(1.0)
-    assert yoda_backend._normalise(estimate)
+    assert mpl_transforms._normalise(estimate)
     assert [estimate.bin(i).val() for i in (1, 2)] == [0.5, 0.25] and estimate.bin(1).errDownUp("")[1] == 0.125
 
 
@@ -595,13 +601,13 @@ def test_a_band_must_be_a_curve_axis(scratch):
     plot.check_figures(errand, conf)
 
 
-def test_the_yoda_backend_draws_the_envelope_as_the_errors(yoda_backend):
+def test_mpl_draws_the_envelope_as_the_errors(mpl_transforms):
     import yoda
     central, low, high = (yoda.BinnedEstimate1D([0.0, 1.0, 2.0], "/x") for _ in range(3))
     for estimate, values in ((central, (2.0, 1.0)), (low, (1.5, float("nan"))), (high, (3.0, 1.0))):
         for i, v in enumerate(values, start=1):
             estimate.bin(i).setVal(v), estimate.bin(i).setErr(0.1)
-    assert yoda_backend._envelope(central, [low, high])
+    assert mpl_transforms._envelope(central, [low, high])
     assert central.bin(1).errDownUp("") == (-0.5, 1.0) and not central.bin(2).sources()   # a NaN member: no band
 
 

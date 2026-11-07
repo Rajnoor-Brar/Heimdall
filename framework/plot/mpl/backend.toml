@@ -1,0 +1,25 @@
+# framework/plot/mpl/backend.toml — the legend corners and the style keys the mpl backend honours (V61), read by transforms.py.
+
+# legend.position → the .plot keys that place mkhtml's legend ("best": then matplotlib's loc='best')
+[legend.top-right]
+LegendAlign = "r"
+
+[legend.top-left]
+LegendAlign = "l"
+LegendXPos  = "0.05"
+
+[legend.bottom-right]
+LegendAlign = "r"
+LegendYPos  = "0.4"
+
+[legend.bottom-left]
+LegendAlign = "l"
+LegendXPos  = "0.05"
+LegendYPos  = "0.4"
+
+[legend.best]
+LegendAlign = "r"
+
+# The style keys (src/Apps/Paint/base.toml) mkhtml can follow; any other is refused for backend = "mpl"
+[style]
+honoured = ["legend.position", "ratio.divisions", "ratio.range", "ratio.limits", "text.legend", "text.header"]

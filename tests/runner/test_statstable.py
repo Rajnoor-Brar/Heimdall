@@ -42,7 +42,9 @@ def test_a_statistics_csv_reads_back_as_the_rows_it_was_written_from(tmp_path):
     assert same(back, rows)
     assert back[0]["is_reference"] is True and back[1]["is_reference"] is False
     assert isinstance(back[1]["bins"], int) and isinstance(back[1]["ndf"], int) and math.isnan(back[0]["chi2"])
-    assert list(back[0]) == list(statstable.STATISTIC_COLUMNS)
+    assert list(back[0])[:len(statstable.STATISTIC_COLUMNS)] == list(statstable.STATISTIC_COLUMNS)    # the old columns first, in order
+    assert list(back[0])[len(statstable.STATISTIC_COLUMNS):] == ["norm", "shape", "tilt", "worst"]   # then the new defaults
+    assert all(math.isnan(r[k]) for r in back for k in ("norm", "shape", "tilt", "worst"))      # no measured bins in these numbers
 
 
 def test_plot_still_names_what_moved():
@@ -58,3 +60,56 @@ def test_a_sets_numbers_are_its_csv_bar_graphs_and_summary(tmp_path):
     assert (numbers / "statistics.csv").is_file() and (numbers / "summary.html").is_file()
     assert sorted(p.name for p in (numbers / "bars").iterdir()) == ["d01-x01-y01.png", "d02-x01-y01.png"]
     assert statstable.write_set([], tmp_path / "empty", ["png"]) == (0, 0) and not (tmp_path / "empty").exists()
+
+
+def measured_page(folder: Path, name: str, y_scale: float = 1.2) -> plot.Page:
+    """A page whose stats.json carries `measured` bins: 10 bins, a falling reference, the second curve y_scale times it."""
+    ref = [100.0 * math.exp(-0.3 * i) for i in range(10)]
+    row = lambda y, i: [float(i), float(i + 1), y, 0.02 * y, ref[i], 0.02 * ref[i]]
+    page = page_with_numbers(folder, name, NUMBERS)
+    path = page.config.with_name(page.config.name + ".stats.json")
+    made = json.loads(path.read_text(encoding="utf-8"))
+    made["curves"][0]["measured"] = [row(ref[i], i) for i in range(10)]
+    made["curves"][1]["measured"] = [row(y_scale * ref[i], i) for i in range(10)]
+    path.write_text(json.dumps(made), encoding="utf-8")
+    return page
+
+
+def test_the_default_metrics_are_columns_computed_from_the_measured_bins(tmp_path):
+    page = measured_page(tmp_path / "pages", "d01-x01-y01")
+    rows = statstable.statistics_of(page)
+    assert [r["norm"] for r in rows][0] == 0.0
+    assert rows[1]["norm"] == __import__("pytest").approx(math.log(1.2))
+    assert all(math.isfinite(r[k]) for r in rows for k in ("shape", "tilt", "worst"))
+    assert rows[1]["shape"] > rows[0]["shape"]
+
+
+def test_a_metric_named_beyond_the_defaults_is_a_column_too(tmp_path):
+    page = measured_page(tmp_path / "pages", "d01-x01-y01")
+    target = tmp_path / "statistics.csv"
+    assert statstable.write_statistics([page], target, ["chi2_ndf", "norm", "js", "consensus"]) == 2
+    back = statstable.read(target)
+    assert list(back[0])[-3:] == ["norm", "js", "consensus"]
+    assert math.isnan(back[1]["consensus"])                              # a pooled metric needs three curves; the page has two
+
+
+def test_the_sidecar_says_what_the_columns_are(tmp_path):
+    page = measured_page(tmp_path / "pages", "d01-x01-y01")
+    target = tmp_path / "statistics.csv"
+    statstable.write_statistics([page], target)
+    side = json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8"))
+    assert side["format"] == 2 == statstable.FORMAT and statstable.format_of(target) == 2
+    assert side["columns"] == list(statstable.read(target)[0])
+    assert set(side["metrics"]) == {"chi2_ndf", "norm", "shape", "tilt", "worst", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev"}   # the old columns that are metrics too
+    norm = side["metrics"]["norm"]
+    assert norm["purpose"] == "normalisation" and norm["thresholds"] == [0.02, 0.15] and norm["default"] and norm["note"]
+
+
+def test_a_csv_from_before_format_2_has_no_sidecar_and_reads_as_format_1(tmp_path):
+    old = tmp_path / "statistics.csv"
+    old.write_text(",".join(statstable.STATISTIC_COLUMNS) + "\n"
+                   + "d01,em,/A/d01,NNPDF,p1,Data,False,9,1.0,0.1,2.0,1.0,1.0,0.5,0.5,0.4,0.3,20.0,9,2.2\n", encoding="utf-8")
+    assert statstable.format_of(old) == 1 and statstable.sidecar(old) is None
+    rows = statstable.read(old)
+    assert list(rows[0]) == list(statstable.STATISTIC_COLUMNS) and rows[0]["chi2_ndf"] == 2.2 and rows[0]["ndf"] == 9
+    assert statstable.columns_for(["norm", "chi2_ndf", "norm"]) == [*statstable.STATISTIC_COLUMNS, "norm"]

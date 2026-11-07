@@ -1,0 +1,145 @@
+"""The statistics table: a page's numbers as rows, a set's statistics.csv and its statistics.json written and read back.
+
+Format 2. The columns of `STATISTIC_COLUMNS` come first, in their old order, from Paint's totals; the metrics asked for
+(by default the five of `metrics.REGISTRY` that are `default`) follow, those not already among the old columns, computed from
+the `measured` bins of the page's stats.json. `statistics.json` beside the csv holds `format = 2`, the columns, and for each
+metric on its purpose, direction, thresholds and note. A csv with no sidecar is format 1: the old columns, read as before.
+
+This module imports only the standard library at module level (the runner imports it); numpy is loaded when a metric is
+computed. A page is plot's `Page`, used by duck type: its config, document, plain labels, name, rel, cell and object.
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+import math
+from pathlib import Path
+
+FORMAT = 2
+STATISTIC_COLUMNS = ("page", "cell", "object", "curve", "point", "reference", "is_reference", "bins", "area", "area_err",
+                     "ref_area", "cmp_area", "abs_area", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "chi2", "ndf",
+                     "chi2_ndf")
+#: The columns that hold text, and the counts; every other one is a number ("" in the file: NaN).
+TEXT = ("page", "cell", "object", "curve", "point", "reference")
+COUNTS = ("bins", "ndf")
+SIDECAR = "statistics.json"
+
+
+def default_metrics() -> tuple[str, ...]:
+    """The metrics that are on unless a setting names others."""
+    from . import metrics
+    return tuple(name for name, m in metrics.REGISTRY.items() if m.default)
+
+
+def columns_for(names) -> list[str]:
+    """STATISTIC_COLUMNS, then each named metric that is not already one of them, once, in the order given."""
+    out = list(STATISTIC_COLUMNS)
+    for name in names:
+        if name not in out:
+            out.append(name)
+    return out
+
+
+def statistics_of(page, names=None) -> list[dict] | None:
+    """A page's statistics, one row per curve (STATISTIC_COLUMNS, then the extra metrics in `names`: the defaults when
+    None), from Paint's <page>.toml.stats.json; None when Paint wrote none (a heat map, a page it could not read). The
+    extra metrics are NaN where the page's stats.json has no `measured` bins (written before Paint measured them)."""
+    path = page.config.with_name(page.config.name + ".stats.json")
+    if not path.is_file():
+        return None
+    made = json.loads(path.read_text(encoding="utf-8"))
+    curves = page.document.get("curve", [])
+    data = page.document.get("data")
+    reference = data["label"] if data and made.get("reference") == "data" else curves[0]["label"] if curves else ""
+    rows = []
+    for curve, numbers in zip(curves, made.get("curves", [])):
+        number = {k: (float("nan") if numbers.get(k) is None else numbers[k])
+                  for k in ("area", "area_err", "ref_area", "cmp_area", "abs_area", "ratio_area", "ratio_sum", "ratio_width",
+                            "chi2")}
+        ratio_area, ratio_sum, ratio_width = (number.pop(k) for k in ("ratio_area", "ratio_sum", "ratio_width"))   # V175
+        label = page.plain[len(rows)] if len(page.plain) > len(rows) else curve["label"]
+        rows.append({"page": page.rel or page.name, "cell": page.cell, "object": page.object, "curve": label,
+                     "point": curve["object"].split("/", 1)[0], "reference": reference,
+                     "is_reference": bool(numbers.get("reference")), "bins": numbers.get("bins", 0), **number,
+                     "rel_abs_area": number["abs_area"] / number["ref_area"] if number["ref_area"] else float("nan"),
+                     "area_ratio": number["cmp_area"] / number["ref_area"] if number["ref_area"] else float("nan"),
+                     "ratio_mean": ratio_sum / ratio_width if ratio_width else float("nan"),
+                     "ratio_dev": ratio_area / ratio_width if ratio_width else float("nan"),
+                     "ndf": numbers.get("ndf", 0),
+                     "chi2_ndf": number["chi2"] / numbers["ndf"] if numbers.get("ndf") else float("nan")})
+    extra = [n for n in (default_metrics() if names is None else names) if n not in STATISTIC_COLUMNS]
+    if extra and rows:
+        _add_metrics(rows, made, page, extra)
+    return rows
+
+
+def _add_metrics(rows: list[dict], made: dict, page, names: list[str]) -> None:
+    """The extra metric columns of a page's rows, from its measured bins; NaN for a page without them."""
+    from runner.errors import HeimdallError
+    from . import bins, metrics
+    try:
+        curves = bins.curves(made, bool(page.document.get("page", {}).get("logx")))
+    except HeimdallError:
+        curves = None
+    for i, row in enumerate(rows):
+        for name in names:
+            row[name] = metrics.evaluate(name, curves[i], pool=curves) if curves and i < len(curves) else float("nan")
+
+
+def sidecar_of(names) -> dict:
+    """What statistics.json holds for a table with the metrics `names`."""
+    from . import metrics
+    columns = columns_for(names)
+    return {"format": FORMAT, "columns": columns,
+            "metrics": {n: {"purpose": m.purpose, "better": m.better, "thresholds": list(m.thresholds) if m.thresholds else None,
+                            "default": m.default, "note": m.note, "why": m.why}
+                        for n in columns if (m := metrics.REGISTRY.get(n))}}
+
+
+def write_statistics(todo: list, target: Path, names=None) -> int:
+    """results/…/statistics.csv (V160) and its statistics.json: every drawn page's curves; the number of rows."""
+    names = list(default_metrics() if names is None else names)
+    rows = [row for page in todo for row in (statistics_of(page, names) or [])]
+    if not rows:
+        return 0
+    target.parent.mkdir(parents=True, exist_ok=True)
+    columns = columns_for(names)
+    with open(target, "w", encoding="utf-8", newline="") as handle:
+        out = csv.DictWriter(handle, fieldnames=columns)
+        out.writeheader()
+        for row in rows:
+            out.writerow({k: ("" if isinstance(v, float) and v != v else v) for k, v in row.items()})
+    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names), indent=2) + "\n", encoding="utf-8")
+    return len(rows)
+
+
+def sidecar(path: Path) -> dict | None:
+    """The statistics.json beside a csv, or None (a csv from before format 2)."""
+    side = Path(path).with_name(SIDECAR)
+    return json.loads(side.read_text(encoding="utf-8")) if side.is_file() else None
+
+
+def format_of(path: Path) -> int:
+    """1 for a csv with no sidecar, else the sidecar's format."""
+    side = sidecar(path)
+    return int(side.get("format", 1)) if side else 1
+
+
+def read(path: Path) -> list[dict]:
+    """A statistics.csv's rows, typed as statistics_of gives them: text as str, is_reference a bool, bins and
+    ndf ints, every other number (the metrics too) a float ("" is NaN). A format 1 csv has only the old columns."""
+    def value(key: str, text: str):
+        if key in TEXT:
+            return text
+        if key == "is_reference":
+            return text == "True"
+        if key in COUNTS:
+            return int(float(text)) if text else 0
+        try:
+            return float(text) if text != "" else math.nan
+        except ValueError:
+            return math.nan
+
+    with open(path, encoding="utf-8", newline="") as handle:
+        return [{k: value(k, v) for k, v in row.items()} for row in csv.DictReader(handle)]

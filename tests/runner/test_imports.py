@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import re
+import sys
 from pathlib import Path
 
 from runner import PLUGINS_MAY_IMPORT as PLUGIN_MAY_IMPORT, RANKS
@@ -145,12 +146,26 @@ def test_the_stats_package_imports_only_numpy_the_standard_library_and_runner_er
 
 
 def test_runner_modules_import_stats_only_inside_functions():
+    """numpy stays out of the runner core: a runner module imports stats inside a function, except statstable, which re-exports
+    stats.table, a module that itself imports only the standard library at module level."""
     violations = []
     for path in sorted(RUNNER.glob("*.py")):
         for node in ast.parse(path.read_text(encoding="utf-8")).body:         # module level only
             for sub in ast.walk(node) if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) else ():
                 if isinstance(sub, ast.ImportFrom) and (sub.module or "").split(".")[0] == "stats" and sub.level == 0:
-                    violations.append(f"{path.name}:{sub.lineno}")
+                    if not (path.stem == "statstable" and sub.module == "stats.table"):
+                        violations.append(f"{path.name}:{sub.lineno}")
                 if isinstance(sub, ast.Import) and any(a.name.split(".")[0] == "stats" for a in sub.names):
                     violations.append(f"{path.name}:{sub.lineno}")
     assert not violations, "stats imported at module level in: " + ", ".join(violations)
+
+
+def test_the_stats_table_imports_only_the_standard_library_at_module_level():
+    stdlib = set(sys.stdlib_module_names) | {"__future__"}
+    found = []
+    for node in ast.parse((STATS / "table.py").read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Import):
+            found += [a.name.split(".")[0] for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            found.append((node.module or "").split(".")[0])
+    assert set(found) <= stdlib, sorted(set(found) - stdlib)

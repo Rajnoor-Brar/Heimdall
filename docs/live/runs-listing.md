@@ -1,0 +1,25 @@
+---
+id: live-runs-listing
+summary: heimdall runs lists a run as a six-line block, coloured on a terminal with a log link; --state filters; stop -i N
+affects: live-runs
+issue: I-127
+---
+
+**Now holds:** `house.runs_listing` writes a block a run:
+
+```
+[2] <host> | <work dir's title> | <A>/<E> [<configurations>]
+    MM-DD HH:MM · <span>
+    <A>/<E> · 03_nlo [nlo], …      (once it ended: X done (W with warnings), F failed, S stopped)
+    running · 2 of 4 at once · 12/40 (1 failed)
+    pid P : heimdall watch -i 2 · heimdall stop -i 2
+    log <path>
+```
+
+`[N]` is the run's place in the live list (oldest first, as `watch -i`, `stop -i` and `--resume`/`--forget` take it); a history list (`--5`…`--50`, `--week`, `--month`) names each run by its id first, with its `[N]` too when it is live. A configuration is `NN_<key>` when its serial is known, with its `[tag]`. The state line has the entry's state, the points at once, and the points ended of those planned (`NULL` where an entry did not record it); `2 of 4 at once` is those running now of the cap, `4 at once` the cap alone. A running run's failures so far are `(1 failed)`; an ended one's are in the counts. The line under a paused run is its `--resume N · --forget N`, under a failed, stopped or lost one `heimdall runs --again <id>`, under a cluster submission its `--status`. The first line is cut to the terminal's width with a `…`, never at its index.
+
+The entry records `parallelism` (the cap the run began with, `run started`'s `parallelism`) and `points_failed` as it goes.
+
+**Colour** only on a terminal, without `--plain` and without a non-empty `NO_COLOR` and with `TERM` not `dumb` (`house.wants_colour`), by plain SGR codes (`house.paint`): the index bold, the state green (running), yellow (paused), red (failed), magenta (stopped), dim (done), grey (lost), the commands cyan, the log dim. The log path is an OSC 8 link `file://<host><path>` (the entry's host, so a terminal over ssh opens no wrong file), its shown text unchanged (`house.link`). Without colour the words are the same and carry no escapes.
+
+`heimdall runs --state running,failed` keeps the runs in those states (`house.RUN_STATES`: running, paused, failed, stopped, done, lost, not run, submitted, on Slurm, ended, cancelled) in any list; an unknown one is refused with the list; a live run keeps its live `[N]`. `heimdall stop -i N` stops the running live run [N] as `stop --pid` does; a paused, cluster or ended one is refused, saying what to do (`running_at`, which `watch -i N` shares).

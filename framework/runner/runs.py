@@ -350,6 +350,7 @@ class Recorder:
         self.configuration_serials = dict(configuration_serials or {})
         self.configuration_labels = dict(configuration_labels or {})
         self.configuration_tags: dict[str, str] = {}         # a configuration → its folder's tag (V223)
+        self.parallelism: int | None = None                 # points at once, as the latest run began (not in an identity)
         self.records: list[str] = []
         self.verdicts: dict[str, str] = {}
         self.tally = Tally()
@@ -375,6 +376,8 @@ class Recorder:
         """The entry's progress fields: points ended, of the total (None until planned), and running now."""
         return {"points_completed": len(self.ended), "points_total": sum(self.totals.values()) if self.totals else None,
                 "active_parallel_points": len(self.active),
+                "points_failed": sum(len(r["failed"]) for r in self.tally.runs.values()),
+                **({"parallelism": self.parallelism} if self.parallelism is not None else {}),
                 "configuration_serials": self.configuration_serials,
                 **({"configuration_tags": self.configuration_tags} if self.configuration_tags else {})}
 
@@ -464,6 +467,8 @@ class Recorder:
                 if key not in self.planned or self.totals.get(key):     # planned again at its turn: its own count
                     self.totals[key] = int(event.get("points", 0))
                 self._record_serial(event)
+                if isinstance(event.get("parallelism"), int):
+                    self.parallelism = event["parallelism"]
             self._save(now=True)
         elif kind == "run" and state == "finished":
             self.verdicts[key] = event.get("verdict", "")

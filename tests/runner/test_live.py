@@ -73,19 +73,25 @@ def mixed(no_sockets):
 
 
 def heads(out: str) -> list[str]:
-    return [line for line in out.splitlines() if line.startswith("  [")]
+    """The first line of each block of the live list: `[N] host | title | P/<name> [c]`."""
+    return [line for line in out.splitlines() if line.startswith("[")]
+
+
+def names(out: str) -> list[str]:
+    """The configs' names of the blocks, in order, which tell the entries apart (their ids are not on a live block)."""
+    return [Path(line.split(" | ")[2].split()[0]).stem for line in heads(out)]
 
 
 def test_runs_lists_the_live_ones_indexed_in_the_order_they_began(capsys, mixed):
     assert cli.main(["runs"]) == 0
     out = capsys.readouterr().out
     assert out.splitlines()[0] == "live"
-    assert [line.split()[:2] for line in heads(out)] == [["[1]", mixed["again"]], ["[2]", mixed["pause"]],
-                                                         ["[3]", mixed["running"]], ["[4]", mixed["old"]]]
+    assert [line.split()[0] for line in heads(out)] == ["[1]", "[2]", "[3]", "[4]"]
+    assert names(out) == ["e", "b", "a", "old"]               # again, pause, running, old
     for gone in ("done", "forgotten", "resumed", "stopped"):
         assert mixed[gone] not in out
-    assert "· paused  ·" in out and "      heimdall runs --resume 2 · heimdall runs --forget 2" in out
-    assert out.count("· running  ·") == 3
+    assert "    paused · " in out and "    heimdall runs --resume 2 · heimdall runs --forget 2" in out
+    assert out.count("    running · ") == 3
     listed = [e["id"] for e, _ in house.live_entries(runs.entries(), [])]
     assert listed == [mixed["again"], mixed["pause"], mixed["running"], mixed["old"]]   # what -i and --resume take
 
@@ -93,8 +99,10 @@ def test_runs_lists_the_live_ones_indexed_in_the_order_they_began(capsys, mixed)
 def test_the_history_says_a_pause_was_resumed_or_forgotten(capsys, mixed):
     assert cli.main(["runs", "--10"]) == 0
     out = capsys.readouterr().out
-    assert "· paused, resumed  ·" in out and "· paused, forgotten  ·" in out and "· stopped  ·" in out
-    assert not heads(out)                                     # indices are the live list's alone
+    assert "    paused, resumed · " in out and "    paused, forgotten · " in out and "    stopped · " in out
+    first = lambda run_id: next(line for line in out.splitlines() if run_id in line.split(" | ")[0])      # noqa: E731
+    assert first(mixed["done"]).startswith(f"{mixed['done']} ")                  # each by its id; no index: not live
+    assert first(mixed["pause"]).startswith(f"[2] {mixed['pause']} ")             # a live one keeps its index
 
 
 def test_no_live_runs(capsys, no_sockets):
@@ -164,7 +172,7 @@ def test_resume_starts_its_own_command_detached_in_its_work_dir(capsys, mixed, m
         assert paths.config_file(command[2]) == latest / "config" / "P" / "b.v2.toml"
     after = runs.entry(mixed["pause"])
     assert after["resumed_by"] == env[runs.ID_VAR] and after["state"] == "paused"
-    assert mixed["pause"] not in "".join(heads(cli_out(capsys)))      # it left the live list
+    assert "b" not in names(cli_out(capsys))                         # it left the live list
     assert runs.ID_VAR not in os.environ
 
 
@@ -261,5 +269,114 @@ def test_a_resume_that_never_runs_leaves_its_pause_live(capsys, mixed, monkeypat
     monkeypatch.setattr(runs, "relaunch", relaunch)
     assert cli.main(["runs", "--resume", "2"]) == 0
     assert runs.paused(runs.entry(mixed["pause"]))
-    assert mixed["pause"] in "".join(heads(cli_out(capsys)))
+    assert "b" in names(cli_out(capsys))
 
+
+def test_a_listing_is_plain_without_a_terminal_or_with_plain_or_no_color(capsys, mixed, monkeypatch):
+    assert cli.main(["runs"]) == 0
+    assert "\x1b[" not in capsys.readouterr().out                 # not a terminal: plain
+    monkeypatch.setattr(house, "wants_colour", house.wants_colour)
+    class Tty:
+        isatty = staticmethod(lambda: True)
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm")
+    assert house.wants_colour(Tty())
+    assert not house.wants_colour(Tty(), plain=True)
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert not house.wants_colour(Tty())
+    monkeypatch.setenv("NO_COLOR", "")                             # set and empty: colour stays (no-color.org)
+    assert house.wants_colour(Tty())
+    monkeypatch.delenv("NO_COLOR")
+    monkeypatch.setenv("TERM", "dumb")
+    assert not house.wants_colour(Tty())
+
+
+def test_a_coloured_listing_carries_its_codes_and_says_the_same_words(mixed):
+    plain = house.runs_listing(runs.entries(), [], {}, now=time.time())
+    tinted = house.runs_listing(runs.entries(), [], {}, now=time.time(), color=True)
+    strip = lambda line: __import__("re").sub(r"\x1b\[[0-9;]*m", "", line)          # noqa: E731
+    assert [strip(line) for line in tinted] == plain
+    out = "\n".join(tinted)
+    assert "\x1b[1m[1]\x1b[0m" in out                              # the index, bold
+    assert "\x1b[32mrunning\x1b[0m" in out and "\x1b[33mpaused\x1b[0m" in out        # green, yellow
+    assert "\x1b[36mheimdall runs --resume 2 · heimdall runs --forget 2\x1b[0m" in out     # commands cyan
+    assert "\x1b[36mheimdall watch -i 3 · heimdall stop -i 3\x1b[0m" in out
+
+
+def test_each_state_has_its_colour_and_a_finished_one_its_again():
+    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "config": "/w/configs/P/a.toml",
+             "configurations": ["c"]}
+    for verdict, code in (("failed", "31"), ("stopped", "35"), ("done", "2")):
+        lines = house.runs_listing([{**entry, "verdict": verdict}], [], {}, now=20.0, limit=5, color=True)
+        assert f"\x1b[{code}m{verdict}\x1b[0m" in "\n".join(lines)
+        again = "heimdall runs --again 20261026-120000-pp-abcd"
+        assert (again in "\n".join(lines)) == (verdict != "done")
+    assert house.paint("x", "grey", True) == "\x1b[90mx\x1b[0m" and house.paint("x", "grey", False) == "x"
+
+
+def test_state_keeps_the_runs_in_those_states_and_an_unknown_one_is_refused(capsys, mixed):
+    assert cli.main(["runs", "--10", "--state", "paused,stopped"]) == 0
+    out = capsys.readouterr().out
+    states = [line.split()[0] for line in out.splitlines() if line.startswith("    ") and " · " in line and line[4].islower()
+              and line.split()[0].rstrip(",") in house.RUN_STATES]
+    assert states and set(s.rstrip(",") for s in states) <= {"paused", "stopped"}
+    assert "running" not in out and "    done" not in out
+    assert cli.main(["runs", "--state", "paused"]) == 0                       # the live list: [N] stays the live number
+    out = capsys.readouterr().out
+    assert [line.split()[0] for line in heads(out)] == ["[2]"] and names(out) == ["b"]
+    assert cli.main(["runs", "--state", "failed"]) == 0
+    assert capsys.readouterr().out == "no failed runs here\n"
+    assert cli.main(["runs", "--state", "sleeping"]) == 2
+    assert "the states: running, paused, failed" in capsys.readouterr().err
+
+
+def test_the_first_line_is_cut_to_the_width_and_never_loses_its_index():
+    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "config": "/w/configs/Demo/a_long_name.toml",
+             "configurations": ["one", "two", "three"], "work": "/w", "pid": os.getpid(), "pstart": runs.started_at(os.getpid()),
+             "host": runs.host()}
+    (head, *_), = [house.runs_listing([entry], [], {"/w": "A study with a title"}, now=5.0, width=30)[1:2]]
+    assert len(head) == 30 and head.startswith("[1] ") and head.endswith("…")
+    colored = house.runs_listing([entry], [], {}, now=5.0, width=30, color=True)[1]
+    assert colored.startswith("\x1b[1m[1]\x1b[0m ")
+
+
+def test_a_run_records_its_parallelism_and_its_failures_as_it_goes(monkeypatch):
+    monkeypatch.setattr(runs.Recorder, "EVERY", 0.0)
+    run_id = runs.new_id()
+    runs.begin(run_id, {})
+    recorder = runs.Recorder(run_id)
+    recorder.event({"k": "run", "state": "started", "points": 3, "parallelism": 4})
+    recorder.event({"k": "point", "point": "a", "state": "started", "index": 1})
+    recorder.event({"k": "point", "point": "a", "state": "failed", "cause": "x", "msg": "m"})
+    got = runs.entry(run_id)
+    assert (got["parallelism"], got["points_failed"], got["points_completed"]) == (4, 1, 1)
+    lines = house.runs_listing([{**got, "kind": "run", "started": 1.0, "config": "/w/configs/P/a.toml", "work": "/w",
+                                 "pid": os.getpid(), "pstart": runs.started_at(os.getpid()), "host": runs.host()}], [], {}, now=5.0)
+    assert lines[4] == "    running · 0 of 4 at once · 1/3 (1 failed)"
+
+
+def test_stop_i_stops_the_nth_live_run_and_refuses_a_pause(capsys, mixed, monkeypatch):
+    assert cli.main(["stop", "-i", "2"]) == 2                      # [2] is the pause
+    assert "[2] is paused: heimdall runs --resume 2" in capsys.readouterr().err
+    assert cli.main(["stop", "-i", "9"]) == 2
+    assert "no live job [9]" in capsys.readouterr().err
+    assert cli.main(["stop", "-i", "3", "--pid", "4"]) == 2
+    assert "-i names the job itself" in capsys.readouterr().err
+    hello = {"k": "hello", "pid": os.getpid(), "config": "/w/configs/P/a.toml", "configurations": ["c"], "id": mixed["running"]}
+    monkeypatch.setattr(house, "live_runs", lambda config=None, configuration=None, pid=None:
+                        [("heimdall-watch-x", hello)] if pid in (None, os.getpid()) else [])
+    signalled = []
+    real = os.kill
+    monkeypatch.setattr(os, "kill", lambda pid, sig: signalled.append((pid, sig)) if sig else real(pid, sig))
+    assert cli.main(["stop", "-i", "3", "--no-wait"]) == 0
+    assert signalled == [(os.getpid(), __import__("signal").SIGINT)] and "stopping pid" in capsys.readouterr().out
+
+
+def test_the_log_is_a_link_only_with_colour_and_its_text_is_the_same():
+    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "verdict": "done",
+             "config": "/w/configs/P/a.toml", "configurations": ["c"], "host": "lab", "log": "/runs/a b.log"}
+    plain = house.runs_listing([entry], [], {}, now=20.0, limit=5)
+    assert plain[-1] == "    log /runs/a b.log" and not any("\x1b" in line for line in plain)
+    tinted = house.runs_listing([entry], [], {}, now=20.0, limit=5, color=True)
+    assert tinted[-1] == "    log \x1b]8;;file://lab/runs/a%20b.log\x1b\\\x1b[2m/runs/a b.log\x1b[0m\x1b]8;;\x1b\\"
+    assert house.link("x", "h", "relative", True) == "x" and house.link("x", "h", "/p", False) == "x"

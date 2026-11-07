@@ -227,6 +227,8 @@ live jobs (running and paused), each with its index [N]; with --5, --10, --20 or
 | `--month` | show all jobs from the last 28 days |
 | `--resume N` | resume the paused job [N]: its own command again, detached, in its work dir and checkout (its complete points skipped) |
 | `--forget N` | drop the paused job [N] from the live list (its entry is kept) |
+| `--state S[,S]` | only the runs in these states: running, paused, failed, stopped, done, lost, not run, submitted, on Slurm, ended, cancelled |
+| `--plain` | no colour or links |
 
 ## `heimdall tag`
 
@@ -269,6 +271,7 @@ stop a running job as Ctrl-C would: its points end cleanly, a rerun resumes (a s
 | `[config]` | the errand file whose job to stop (default: your only running job) |
 | `[configuration]` | the configuration it runs |
 | `--pid N` | the job of this process (heimdall runs lists them) |
+| `-i, --index N` | the live job [N] of heimdall runs (a running one) |
 | `--no-wait` | ask it to stop and return, without waiting for it to end |
 
 ## `heimdall cluster`

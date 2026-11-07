@@ -73,7 +73,7 @@ def test_runs_lists_an_entrys_counts():
              "verdict": "failed", "config": "/w/configs/eic/zeus.toml", "configurations": ["generator_pdf"],
              "counts": {"done": 14, "failed": 2, "stopped": 0, "warned": 5}}
     lines = house.runs_listing([entry], [], {}, now=20.0, limit=5)
-    assert lines[2].endswith("14 done (5 with warnings), 2 failed")
+    assert lines[3].endswith("14 done (5 with warnings), 2 failed")
 
 
 def test_a_worker_logs_progress_every_ten_minutes_unless_told_otherwise():

@@ -529,74 +529,142 @@ def live_line(index: int, e: dict, state: str) -> str:
     return f"[{index}] {e.get('id', '?')}  {_config_name(e.get('config', ''), e.get('work'))} · {cfgs} · {state}"
 
 
+#: The states `heimdall runs --state` takes: what `runs.state` says first (a cluster submission's too).
+RUN_STATES = ("running", "paused", "failed", "stopped", "done", "lost", "not run", "submitted", "on Slurm", "ended", "cancelled")
+
+#: SGR codes of the listing's colour (never left to a library: `[N]` is no markup, and a test reads them).
+SGR = {"bold": "1", "dim": "2", "red": "31", "green": "32", "yellow": "33", "magenta": "35", "cyan": "36", "grey": "90"}
+STATE_STYLE = {"running": "green", "paused": "yellow", "failed": "red", "stopped": "magenta", "done": "dim", "lost": "grey"}
+
+
+def wants_colour(stream, plain: bool = False) -> bool:
+    """Colour for a listing: a terminal, not asked for plain, no NO_COLOR (set and not empty) and no dumb TERM."""
+    import os
+    return bool(getattr(stream, "isatty", lambda: False)()) and not plain and not os.environ.get("NO_COLOR") \
+        and os.environ.get("TERM") != "dumb"
+
+
+def paint(text: str, style: str, on: bool) -> str:
+    return f"\x1b[{SGR[style]}m{text}\x1b[0m" if on and text else text
+
+
+def link(shown: str, host: str, path: str, on: bool) -> str:
+    """`shown` an OSC 8 hyperlink to file://<host><path> (a terminal checks the host, so over ssh a click opens no wrong
+    file); `shown` alone when `on` is off, or the path is not absolute."""
+    if not on or not shown or not path.startswith("/"):
+        return shown
+    from urllib.parse import quote
+    return f"\x1b]8;;file://{host}{quote(path)}\x1b\\{shown}\x1b]8;;\x1b\\"
+
+
+def state_word(state: str) -> str:
+    """The first word of a state (`done, resumed` is done; `running (not reachable from here)` running)."""
+    return state.split(",")[0].split(" (")[0].strip()
+
+
+def check_states(text: str) -> set[str]:
+    """`--state running,failed`: the states named, or refused with the list."""
+    wanted = {part.strip() for part in text.split(",") if part.strip()}
+    for name in wanted:
+        if name not in RUN_STATES:
+            raise HeimdallError(f"no such state '{name}'", hint="the states: " + ", ".join(RUN_STATES))
+    return wanted
+
+
+def _cut(text: str, width: int | None) -> str:
+    """A line cut to `width` with a mark (its start, the index, is never cut): none when there is no width."""
+    return text if not width or len(text) <= width else text[:max(width - 1, 1)] + "…"
+
+
 def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str],
-                 now: float | None = None, limit: int | None = None, days: int | None = None) -> list[str]:
+                 now: float | None = None, limit: int | None = None, days: int | None = None,
+                 states: set[str] | None = None, color: bool = False, width: int | None = None) -> list[str]:
     """`heimdall runs` (V182): the live runs by default (running, recorded or a live socket with no entry,
     unrecorded, as from inside an image; and paused), each with its index [N] (live_entries); `limit`, the latest N
-    of any state; `days`, all begun within that age. Oldest first, a block each: id and work dir (its title); the
-    config and its configurations (`NN key` when the serial is known), its points' counts once it ended; when, for
-    how long, its state, and its progress, configuration points ended of those planned (NULL: not recorded, as by
-    an older entry or a cluster submission), and while it runs those running; its pid's watch and stop commands, a
-    pause's resume and forget commands, or a cluster submission's; its log."""
+    of any state; `days`, all begun within that age; `states` keeps those in these states (a live run keeps its [N]).
+    Oldest first, a block each (a history list's names the run's id first, a live one's its [N]):
+        [N] <host> | <work dir's title> | <config> [<configurations>]
+            MM-DD HH:MM · <span>
+            <A>/<E> · NN_cfg [tag], …   <points done, failed, stopped> (once it ended)
+            <state> · <P> at once · <done>/<total> (<F> failed)       (NULL: not recorded, as by an older entry)
+            pid P : heimdall watch -i N · heimdall stop -i N          (a pause's resume and forget, a failed or
+            log <path>                                                 stopped one's --again, a cluster submission's)
+    `color`: the state, the index, the commands and the log in colour (the caller says: wants_colour); `width`: the
+    first line cut to it."""
     now = time.time() if now is None else now
     by_pid = {hello.get("pid"): hello for _, hello in live}
+    live_numbers = {id(e): n for n, (e, _) in enumerate(live_entries(entries, live), 1)}
     if limit is None and days is None:
         selected = live_entries(entries, live)
         heading = "live"
     else:
-        states = _states(entries, by_pid)
-        unrecorded = _unrecorded(states, by_pid)
+        found = _states(entries, by_pid)
+        unrecorded = _unrecorded(found, by_pid)
         if limit is not None:
-            selected = sorted(states + unrecorded, key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")),
+            selected = sorted(found + unrecorded, key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")),
                               reverse=True)[:limit]
             heading = f"latest {limit} runs"
         else:
             cutoff = now - (days or 0) * 86400
-            selected = [(e, s) for e, s in states + unrecorded if cutoff <= (e.get("started") or 0) <= now]
+            selected = [(e, s) for e, s in found + unrecorded if cutoff <= (e.get("started") or 0) <= now]
             heading = f"runs from the last {days} days"
         selected.sort(key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")))
-    indexed = heading == "live"
+    live_list = heading == "live"
+    numbers = {id(e): n for n, (e, _) in enumerate(selected, 1)} if live_list else live_numbers
+    if states is not None:
+        selected = [(e, s) for e, s in selected if state_word(s) in states]
 
     def where(work: str | None) -> str:
         return titles.get(work or "", "") or (Path(work).name if work else "")
 
-    def row(e: dict, state: str, index: int) -> list[str]:
+    def row(e: dict, state: str, number: int | None) -> list[str]:
         started = e.get("started") or 0
         span = _ago((e.get("finished") or now) - started)
         when = time.strftime("%m-%d %H:%M", time.localtime(started))
         what = _config_name(e.get("config", ""), e.get("work"))
-        cfgs = ", ".join(e.get("configurations") or ([e["configuration"]] if e.get("configuration") else []))
+        keys = [k for k in (e.get("configurations") or ([e["configuration"]] if e.get("configuration") else [])) if k]
         serials, tags = e.get("configuration_serials", {}), e.get("configuration_tags", {})
-        configurations = ", ".join((f"{serials[key]:02d} {key}" if isinstance(serials.get(key), int) else key)
-                                   + (f" [{tags[key]}]" if tags.get(key) else "")
-                                   for key in cfgs.split(", ") if key)          # NN only when it is known
-        head = f"  {f'[{index}] ' if indexed else ''}{e.get('id', '?'):28s}  |   {where(e.get('work'))}"
-        completed = e.get("points_completed")
-        total = e.get("points_total")
-        progress = f"{completed if completed is not None else 'NULL'}/{total if total is not None else 'NULL'}"
-        detail = f"      {when} ({span}) · {state}  ·  {progress}"
-        if state.startswith("running"):
-            active = e.get("active_parallel_points")
-            detail += f" ·  {active if active is not None else 'NULL'}"
-        config_line = f"      {what} · {configurations}"
+        made = ", ".join((f"{serials[key]:02d}_{key}" if isinstance(serials.get(key), int) else key)
+                         + (f" [{tags[key]}]" if tags.get(key) else "") for key in keys)      # NN_ only when it is known
+        prefix = (f"[{number}] " if number else "") + ("" if live_list else f"{e.get('id', '?')} ")
+        head = _cut(f"{prefix}{e.get('host') or runs.host()} | {where(e.get('work'))} | {what}"
+                    + (f" [{', '.join(keys)}]" if keys else ""), width)
+        if number:
+            head = paint(f"[{number}]", "bold", color) + head[len(f"[{number}]"):]
+        config_line = f"    {what} · {made}" if made else f"    {what}"
         if counts := e.get("counts"):                                   # V202: its points
             config_line += (f"   {counts.get('done', 0)} done"
                             + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
                             + f", {counts.get('failed', 0)} failed"
                             + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
+        going, word = state.startswith("running"), state_word(state)
+        completed, total = e.get("points_completed"), e.get("points_total")
+        parts = [paint(state, STATE_STYLE.get(word, ""), color) if word in STATE_STYLE else state]
+        size, active = e.get("parallelism"), e.get("active_parallel_points")
+        if going and size is not None and active is not None:
+            parts.append(f"{active} of {size} at once")
+        elif size is not None:
+            parts.append(f"{size} at once")
+        parts.append(f"{completed if completed is not None else 'NULL'}/{total if total is not None else 'NULL'}"
+                     + (f" ({e['points_failed']} failed)" if not e.get("counts") and e.get("points_failed") else ""))
         tail = []
         if e.get("kind") == "cluster":
-            tail.append(f"      cluster jobs {', '.join(map(str, e.get('jobs', [])))}: heimdall cluster {what} "
-                        f"{e.get('configuration', '')} --status")
-        elif state.startswith("running"):
-            tail.append(f"      pid {e.get('pid')} : heimdall watch --pid {e.get('pid')} · heimdall stop --pid {e.get('pid')}")
-        elif indexed and runs.paused(e):
-            tail.append(f"      heimdall runs --resume {index} · heimdall runs --forget {index}")
+            tail.append(f"    cluster jobs {', '.join(map(str, e.get('jobs', [])))}: "
+                        + paint(f"heimdall cluster {what} {e.get('configuration', '')} --status", "cyan", color))
+        elif going:
+            watch = f"-i {number}" if number else f"--pid {e.get('pid')}"
+            tail.append(f"    pid {e.get('pid')} : " + paint(f"heimdall watch {watch} · heimdall stop {watch}", "cyan", color))
+        elif number and runs.paused(e):
+            tail.append("    " + paint(f"heimdall runs --resume {number} · heimdall runs --forget {number}", "cyan", color))
+        elif word in ("failed", "stopped", "lost") and e.get("id"):
+            tail.append("    " + paint(f"heimdall runs --again {e['id']}", "cyan", color))
         if e.get("log"):
-            tail.append(f"      log {e['log']}")
-        return [head.rstrip(), config_line.rstrip(), detail.rstrip(), *tail]
+            tail.append("    log " + link(paint(e["log"], "dim", color), e.get("host") or runs.host(), e["log"], color))
+        return [head.rstrip(), f"    {when} · {span}", config_line.rstrip(), "    " + " · ".join(parts), *tail]
 
     if not selected:
+        if states is not None and (limit is not None or days is not None or live_list):
+            return [f"no {'/'.join(sorted(states))} runs here" + ("" if limit is None and days is None else " in that list")]
         if limit is None:
             if days is not None:
                 return [f"no runs in the last {days} days on this machine ({runs.folder()})"]
@@ -606,7 +674,7 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
     for i, (entry, state) in enumerate(selected):
         if i:
             lines.append("")
-        lines += row(entry, state, i + 1)
+        lines += row(entry, state, numbers.get(id(entry)))
     return lines
 
 

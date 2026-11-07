@@ -251,6 +251,8 @@ def parser() -> argparse.ArgumentParser:
                                  "checkout (its complete points skipped)")
     run_limits.add_argument("--forget", type=int, metavar="N",
                             help="drop the paused job [N] from the live list (its entry is kept)")
+    listed.add_argument("--state", metavar="S[,S]", help="only the runs in these states: " + ", ".join(house.RUN_STATES))
+    listed.add_argument("--plain", action="store_true", help="no colour or links")
 
     tagged = commands.add_parser("tag", help="a Run's tag and labels: show them, set them (word, or key=value; key= removes), or --clear them")
     tagged.add_argument("target", metavar="RECORD", help="a Run, <A>/<E>/<R>, or a path under records/ or results/")
@@ -277,6 +279,7 @@ def parser() -> argparse.ArgumentParser:
     stop.add_argument("config", nargs="?", help="the errand file whose job to stop (default: your only running job)")
     stop.add_argument("configuration", nargs="?", help="the configuration it runs")
     stop.add_argument("--pid", type=int, metavar="N", help="the job of this process (heimdall runs lists them)")
+    stop.add_argument("-i", "--index", type=int, metavar="N", help="the live job [N] of heimdall runs (a running one)")
     stop.add_argument("--no-wait", action="store_true", help="ask it to stop and return, without waiting for it to end")
 
     batch = commands.add_parser("cluster", help="run a configuration as Slurm jobs (sbatch): a pre job, a point per array task, a finish job")
@@ -1003,6 +1006,10 @@ def cmd_stop(args) -> int:
     """`heimdall stop [CONFIG [CFG]] [--pid N]` (V183): a running job of yours asked to stop, as Ctrl-C does (its
     points end cleanly, partial outputs kept, a rerun resumes), then waited for (Ctrl-C leaves the waiting)."""
     from .events import namespace
+    if getattr(args, "index", None) is not None:
+        if args.config or args.pid is not None:
+            raise HeimdallError("-i names the job itself: no config or --pid with it", hint=f"heimdall stop -i {args.index}")
+        args.pid = running_at(args.index, "stopped")
     wanted = configmod.load(args.config) if args.config else None
     found = house.live_runs(str(wanted.path) if wanted else None, args.configuration, args.pid)
     if wanted is None and args.pid is None:                 # named by neither: this work dir's alone
@@ -1340,6 +1347,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     if number > 1:
         bus.say("")
     bus.emit("", "", {"k": "run", "state": "started", "points": len(plans), "title": title,
+                      "parallelism": configuration.parallelism,
                       "record": str(records_root() / tools.run_dir(errand, configuration)),    # the registry's (V182)
                       **({"tag": tag} if tag else {}),
                       **({"header": title_line} if title_line else {}), **({"constants": known} if known else {})})
@@ -1847,7 +1855,11 @@ def cmd_runs(args) -> int:
         titles = {entry["path"]: title for title, entry in workdirs.load().items()}
     except HeimdallError:
         titles = {}
-    for line in house.runs_listing(runs.entries(), house.live_runs(), titles, limit=args.limit, days=args.days):
+    states = house.check_states(args.state) if getattr(args, "state", None) else None
+    color = house.wants_colour(sys.stdout, getattr(args, "plain", False))
+    width = shutil.get_terminal_size((80, 24)).columns if sys.stdout.isatty() else None
+    for line in house.runs_listing(runs.entries(), house.live_runs(), titles, limit=args.limit, days=args.days,
+                                   states=states, color=color, width=width):
         print(line)
     return 0
 
@@ -1861,6 +1873,21 @@ def live_at(index: int) -> tuple[dict, str]:
         raise HeimdallError(f"no live job [{index}]: " + (f"there are {len(listed)}" if listed else "none is live"),
                             hint=f"the live ones: {there}" if listed else "heimdall runs --5 lists the latest, of any state")
     return listed[index - 1]
+
+
+def running_at(index: int, verb: str) -> int:
+    """The pid of the running job [index] of `heimdall runs`, for `watch -i` and `stop -i`: a paused job, a cluster
+    submission and one that is no longer running are refused, each saying what to do."""
+    entry, state = live_at(index)
+    if runs.paused(entry):
+        raise HeimdallError(f"[{index}] is paused: heimdall runs --resume {index}",
+                            hint=f"a paused job has nothing to be {verb} until it is resumed")
+    if entry.get("kind") == "cluster":
+        raise HeimdallError(f"[{index}] is a cluster submission: its jobs are on Slurm's nodes",
+                            hint="heimdall runs names its heimdall cluster … --status")
+    if not state.startswith("running"):
+        raise HeimdallError(f"[{index}] {entry.get('id')} is {state}: it cannot be {verb} from here")
+    return entry.get("pid")
 
 
 def resume_run(index: int) -> int:
@@ -1992,16 +2019,7 @@ def cmd_watch(args) -> int:
         if args.file or args.config or args.pid is not None:
             raise HeimdallError("-i names the job itself: no config, --file or --pid with it",
                                 hint=f"heimdall watch -i {args.index}")
-        entry, state = live_at(args.index)
-        if runs.paused(entry):
-            raise HeimdallError(f"[{args.index}] is paused: heimdall runs --resume {args.index}",
-                                hint="a paused job has nothing to watch until it is resumed")
-        if entry.get("kind") == "cluster":
-            raise HeimdallError(f"[{args.index}] is a cluster submission: its jobs are on Slurm's nodes",
-                                hint="heimdall runs names its heimdall cluster … --status")
-        if not state.startswith("running"):
-            raise HeimdallError(f"[{args.index}] {entry.get('id')} is {state}: it cannot be watched from here")
-        args.pid = entry.get("pid")
+        args.pid = running_at(args.index, "watched")
     if args.file:
         path = Path(args.file)
         if not path.exists():

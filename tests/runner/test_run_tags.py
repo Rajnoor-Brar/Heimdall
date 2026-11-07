@@ -199,7 +199,7 @@ def test_runs_and_status_show_the_tag(configs, capsys):
              "configuration_serials": {"one": 2}, "configuration_tags": {"one": "nlo"}, "started": 1.0, "finished": 2.0,
              "code": 0, "pid": 1, "host": runs.host()}
     lines = house.runs_listing([entry], [], {}, now=3.0, limit=5)
-    assert "      Demo/t · 02 one [nlo], two" in lines
+    assert "    Demo/t · 02_one [nlo], two" in lines
     path = study(configs, "status", errand__cfgs__one__tag="lo")
     assert run(path, "--rerun") == 0
     capsys.readouterr()

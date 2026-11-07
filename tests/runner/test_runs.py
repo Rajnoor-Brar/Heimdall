@@ -154,9 +154,10 @@ def test_heimdall_runs_defaults_to_live_only_and_separates_entries(capsys, monke
     finally:
         hub.close()
     out = capsys.readouterr().out.splitlines()
-    assert out[0] == "live" and out[1].startswith("  [1] (pid ") and out[2].endswith("P/b · two")   # no serial: no NN
-    assert "running (unrecorded)" in out[3]
-    assert f"heimdall watch --pid {os.getpid()}" in out[4]
+    assert out[0] == "live" and out[1].startswith("[1] ") and out[1].endswith("| P/b [two]")
+    assert out[3].endswith("P/b · two")                                        # no serial: no NN_
+    assert out[4].startswith("    running (unrecorded)")
+    assert f"heimdall watch -i 1 · heimdall stop -i 1" in out[5]
     assert done not in "\n".join(out) and "P/a · one" not in "\n".join(out)
 
 
@@ -179,12 +180,13 @@ def test_heimdall_runs_count_flags_show_latest_entries_oldest_first(capsys, monk
         out = capsys.readouterr().out.splitlines()
     finally:
         runs.finish(ids[-1], 0)
-    listed = [line.split()[0] for line in out if line.startswith("  ") and line.split()[0] in ids]
+    listed = [line.split()[1 if line.startswith("[") else 0] for line in out
+              if line and not line.startswith(" ") and line.split()[1 if line.startswith("[") else 0] in ids]
     expected_count = min(count, len(ids))
     assert out[0] == f"latest {count} runs"
     assert listed == ids[-expected_count:]
-    assert any("· running  ·" in line for line in out)
-    assert any("· done  ·" in line for line in out)
+    assert any(line.startswith("    running · ") for line in out)
+    assert any(line.startswith("    done · ") for line in out)
     assert out.count("") == expected_count - 1
 
 
@@ -204,15 +206,17 @@ def test_heimdall_runs_uses_title_and_configuration_serial_columns():
         "points_completed": 3,
         "points_total": 7,
         "active_parallel_points": 2,
+        "parallelism": 4,
         "log": "/runs/20261030-084424-pp-exphep-e17e.log",
     }
     lines = house.runs_listing([entry], [], {"/w": "Brookhaven"}, now=entry["started"] + 5101)
-    assert lines[1] == f"  [1] {entry['id']:28s}  |   Brookhaven"
-    assert lines[2] == "      eic/zeus · 12 generator_pdf"
-    assert lines[3] == (f"      {time.strftime('%m-%d %H:%M', time.localtime(entry['started']))} "
-                        "(1h 25m) · running  ·  3/7 ·  2")
-    assert lines[4] == f"      pid {pid} : heimdall watch --pid {pid} · heimdall stop --pid {pid}"
-    assert lines[5] == f"      log {entry['log']}"
+    entry_host = entry["host"]
+    assert lines[1:] == [f"[1] {entry_host} | Brookhaven | eic/zeus [generator_pdf]",
+                         f"    {time.strftime('%m-%d %H:%M', time.localtime(entry['started']))} · 1h 25m",
+                         "    eic/zeus · 12_generator_pdf",
+                         "    running · 2 of 4 at once · 3/7",
+                         f"    pid {pid} : heimdall watch -i 1 · heimdall stop -i 1",
+                         f"    log {entry['log']}"]
 
 
 def test_runs_recorder_persists_live_point_progress(monkeypatch):
@@ -299,7 +303,7 @@ def test_the_recorder_writes_at_most_every_few_seconds(monkeypatch):
     assert runs.entry(run_id)["points_completed"] == 1
     count = len(written)
     recorder.event({"k": "point", "point": "b", "state": "done"})
-    assert recorder.close() == {"points_completed": 2, "points_total": 3, "active_parallel_points": 1,
+    assert recorder.close() == {"points_completed": 2, "points_total": 3, "active_parallel_points": 1, "points_failed": 0,
                                 "configuration_serials": {}}
     time.sleep(2.0)
     assert len(written) == count and runs.entry(run_id)["points_completed"] == 1        # the timer was cancelled
@@ -360,7 +364,8 @@ def test_heimdall_runs_historical_entry_uses_null_counts_without_active_count():
              "verdict": "done", "config": "/w/configs/eic/zeus.toml", "configurations": ["generator_pdf"]}
     lines = house.runs_listing([entry], [], {}, now=20.0, limit=5)
     when = time.strftime("%m-%d %H:%M", time.localtime(0))
-    assert lines[3] == f"      {when} (0m) · done  ·  NULL/NULL"
+    assert lines[2] == f"    {when} · 0m"
+    assert lines[4] == "    done · NULL/NULL"                          # nothing recorded: no "at once"
     assert all("active_parallel_points" not in line for line in lines)
 
 
@@ -382,7 +387,7 @@ def test_heimdall_runs_period_flags_show_all_states_in_the_period(capsys, monkey
 
     assert cli.main(["runs", flag]) == 0
     out = capsys.readouterr().out.splitlines()
-    listed = [line.split()[0] for line in out if line.startswith("  ") and line.split()[0] in {e["id"] for e in entries}]
+    listed = [line.split()[0] for line in out if line and not line.startswith(" ") and line.split()[0] in {e["id"] for e in entries}]
     assert out[0] == f"runs from the last {days} days"
     assert set(listed) == expected
     assert listed == sorted(expected, key=lambda run_id: int(run_id.removeprefix("day")), reverse=True)

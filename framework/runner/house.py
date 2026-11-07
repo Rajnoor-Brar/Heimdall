@@ -578,7 +578,8 @@ def _cut(text: str, width: int | None) -> str:
 
 def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str],
                  now: float | None = None, limit: int | None = None, days: int | None = None,
-                 states: set[str] | None = None, color: bool = False, width: int | None = None) -> list[str]:
+                 states: set[str] | None = None, color: bool = False, width: int | None = None,
+                 only: dict | None = None) -> list[str]:
     """`heimdall runs` (V182): the live runs by default (running, recorded or a live socket with no entry,
     unrecorded, as from inside an image; and paused), each with its index [N] (live_entries); `limit`, the latest N
     of any state; `days`, all begun within that age; `states` keeps those in these states (a live run keeps its [N]).
@@ -590,11 +591,15 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
             pid P : heimdall watch -i N · heimdall stop -i N          (a pause's resume and forget, a failed or
             log <path>                                                 stopped one's --again, a cluster submission's)
     `color`: the state, the index, the commands and the log in colour (the caller says: wants_colour); `width`: the
-    first line cut to it."""
+    first line cut to it; `only`: this entry alone (of any list; a live one with its [N], its id first)."""
     now = time.time() if now is None else now
     by_pid = {hello.get("pid"): hello for _, hello in live}
     live_numbers = {id(e): n for n, (e, _) in enumerate(live_entries(entries, live), 1)}
-    if limit is None and days is None:
+    if only is not None:
+        found = _states(entries, by_pid)
+        selected = [(e, s) for e, s in found if e.get("id") == only.get("id")]
+        heading = "run"
+    elif limit is None and days is None:
         selected = live_entries(entries, live)
         heading = "live"
     else:

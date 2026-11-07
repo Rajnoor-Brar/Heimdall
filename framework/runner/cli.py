@@ -251,6 +251,15 @@ def parser() -> argparse.ArgumentParser:
                                  "checkout (its complete points skipped)")
     run_limits.add_argument("--forget", type=int, metavar="N",
                             help="drop the paused job [N] from the live list (its entry is kept)")
+    run_limits.add_argument("--again", metavar="ID|N",
+                            help="run a failed, stopped or lost run's own command again, detached, from its records' "
+                                 "config snapshot (its complete points skipped); not a running or paused one")
+    run_limits.add_argument("-i", "--index", metavar="N|ID",
+                            help="the run [N] of the live list (or an id): its block, and on a terminal a prompt of what "
+                                 "to do with it: watch, stop, resume, run again, forget (the word typed to confirm)")
+    listed.add_argument("--jobs", type=int, metavar="M",
+                        help="with -i N: change the running job's points at once to M, while it runs (never stops a running "
+                             "point; lowering waits for them to end)")
     listed.add_argument("--state", metavar="S[,S]", help="only the runs in these states: " + ", ".join(house.RUN_STATES))
     listed.add_argument("--plain", action="store_true", help="no colour or links")
 
@@ -710,6 +719,49 @@ def catch_pause(stopper: execute.Stopper):
     return signal.signal(signal.SIGUSR1, on_pause)
 
 
+def catch_control(stopper: execute.Stopper) -> None:
+    """SIGUSR2, a `heimdall runs -i N --jobs M`: the control file is to be read. The handler only says so
+    (`stopper.control`); `control_thread` does the rest, never inside a handler (the bus has locks)."""
+    signal.signal(signal.SIGUSR2, lambda signum, frame: stopper.control.set())
+
+
+def apply_control(stopper: execute.Stopper, run_id: str, bus, recorder) -> None:
+    """The request `runs/<id>.control.json` holds, applied: the cap changes (execute.Stopper.set_parallelism), the entry
+    says it, `run.jsonl` and the views hear a `parallelism` event. A missing or bad file is ignored with a note in the
+    log, and a cap above the ceiling is refused."""
+    try:
+        request = runs.read_control(run_id)
+    except ValueError as error:
+        bus.say(f"   note: a --jobs request was ignored: {error}")
+        return
+    count = request["parallelism"]
+    if count > execute.Stopper.CEILING:
+        bus.say(f"   note: a --jobs request was ignored: {count} is more than the {execute.Stopper.CEILING} at once it can take")
+        return
+    before = recorder.parallelism if recorder is not None else stopper.parallelism
+    stopper.set_parallelism(count)
+    if recorder is not None:
+        recorder.set_parallelism(count)
+    bus.emit("", "", {"k": "parallelism", "from": before, "to": count, **({"by": request["by"]} if request.get("by") else {})})
+
+
+def control_thread(stopper: execute.Stopper, run_id: str, bus, recorder) -> threading.Thread:
+    """A daemon thread that applies a control request each time SIGUSR2 sets `stopper.control` (one that came before it
+    started is waiting)."""
+    def loop() -> None:
+        while True:
+            stopper.control.wait()
+            stopper.control.clear()
+            try:
+                apply_control(stopper, run_id, bus, recorder)
+            except Exception as error:                      # never the run's end
+                bus.say(f"   note: a --jobs request failed: {error}")
+
+    thread = threading.Thread(target=loop, name="heimdall-control", daemon=True)
+    thread.start()
+    return thread
+
+
 def _quiet() -> None:
     """The terminal is gone (SIGHUP): what the run still prints goes nowhere, not to an error."""
     try:
@@ -818,6 +870,7 @@ def _cmd_run(args, worker) -> int:
     if worker:
         _worker_signals()
         catch_pause(stopper)                # a p while the worker plans: a pause, never SIGUSR1's default death
+        catch_control(stopper)              # a --jobs likewise: never SIGUSR2's
     _ask_keep(args)
     if getattr(args, "tag", None) is not None:              # refused here, before a worker is started
         configmod.check_tag(args.tag, "--tag")
@@ -843,6 +896,7 @@ def _cmd_run(args, worker) -> int:
         bus, recorder = None, None           # nothing runs: nothing to watch
     else:                                    # one stream for the whole process, served while it lives (V72)
         catch_pause(stopper)
+        catch_control(stopper)
         bus = Bus()
         worker = getattr(args, "worker", None)
         opened = runs.log_of(worker) if worker else None    # the log its parent opened, wherever it is
@@ -864,6 +918,8 @@ def _cmd_run(args, worker) -> int:
         )
         bus.subscribe(hub)
         bus.subscribe(recorder)
+        if entry:
+            control_thread(stopper, entry, bus, recorder)
     code, crashed = 2, None
     try:
         try:
@@ -1136,6 +1192,7 @@ def _pipelined(args, errand, keys: list[str], stopper: execute.Stopper, bus: Bus
     each = {key: max((execute.cores(p) for p in ahead[key].plans), default=1) for key in keys}
     budget = execute.Budget(max(os.cpu_count() or 1,
                                 *(max(1, ahead[key].configuration.parallelism) * each[key] for key in keys)))
+    stopper.on_parallelism.append(lambda count: budget.resize(max(os.cpu_count() or 1, count * max(each.values()))))   # a live --jobs
     shown = view(args.plain, every=paths.log_settings()["worker_every"] if getattr(args, "worker", None) else 5.0)
     bus.subscribe(shown)
     catch_signals(stopper)
@@ -1347,7 +1404,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     if number > 1:
         bus.say("")
     bus.emit("", "", {"k": "run", "state": "started", "points": len(plans), "title": title,
-                      "parallelism": configuration.parallelism,
+                      "parallelism": stopper.cap(configuration.parallelism),
+                      "cores": max((execute.cores(p) for p in plans), default=1),
                       "record": str(records_root() / tools.run_dir(errand, configuration)),    # the registry's (V182)
                       **({"tag": tag} if tag else {}),
                       **({"header": title_line} if title_line else {}), **({"constants": known} if known else {})})
@@ -1843,18 +1901,20 @@ def cmd_runs(args) -> int:
     if getattr(args, "resume", None) is not None:
         return resume_run(args.resume)
     if getattr(args, "forget", None) is not None:
-        entry, state = live_at(args.forget)
-        if not runs.paused(entry):
-            raise HeimdallError(f"[{args.forget}] is {state}, not paused: only a paused job is forgotten",
-                                hint="heimdall runs lists the live ones")
-        runs.update(entry["id"], forgotten=round(time.time(), 3))
-        print(f"forgotten: [{args.forget}] {entry['id']} (its entry kept: heimdall runs --week lists it)")
-        return 0
+        return forget_run(args.forget)
+    if getattr(args, "again", None) is not None:
+        return again_run(args.again)
     from . import workdirs
     try:
         titles = {entry["path"]: title for title, entry in workdirs.load().items()}
     except HeimdallError:
         titles = {}
+    if getattr(args, "jobs", None) is not None:
+        if getattr(args, "index", None) is None:
+            raise HeimdallError("--jobs changes one running job: name it", hint="heimdall runs -i N --jobs 4")
+        return set_jobs(args.index, args.jobs)
+    if getattr(args, "index", None) is not None:
+        return act_on(args.index, titles, plain=getattr(args, "plain", False))
     states = house.check_states(args.state) if getattr(args, "state", None) else None
     color = house.wants_colour(sys.stdout, getattr(args, "plain", False))
     width = shutil.get_terminal_size((80, 24)).columns if sys.stdout.isatty() else None
@@ -1890,78 +1950,243 @@ def running_at(index: int, verb: str) -> int:
     return entry.get("pid")
 
 
-def resume_run(index: int) -> int:
-    """`heimdall runs --resume N`: the paused job [N]'s own command again (runs.again: its argv without
-    --worker, detached), by its checkout's bin/heimdall, from its work dir ($HEIMDALL_WORK and $HEIMDALL said so),
-    with the latest attempted Run's recorded config snapshot in place of live `configs/`, so it continues from
-    its records, its complete points skipped. Its new run's id is chosen here ($HEIMDALL_RUN_ID) and the paused
-    entry points at it (`resumed_by`), leaving the live list."""
-    entry, state = live_at(index)
-    if not runs.paused(entry):
-        raise HeimdallError(f"[{index}] is {state}, not paused: only a paused job is resumed",
-                            hint=f"heimdall watch -i {index} follows it" if state.startswith("running") else
-                            "heimdall runs lists the live ones")
+def relaunch_entry(entry: dict, ref: int | str, resuming: bool) -> int:
+    """A run's own command again (runs.again: its argv without --worker, detached), by its checkout's bin/heimdall,
+    from its work dir ($HEIMDALL_WORK and $HEIMDALL said so), with the latest attempted Run's recorded config snapshot
+    in place of live `configs/`, so it continues from its records, its complete points skipped. Its new run's id is
+    chosen here ($HEIMDALL_RUN_ID). `resuming` (a pause, by its live [N]): the paused entry points at it
+    (`resumed_by`), leaving the live list; else (a finished run, by its id) the entry is left as it is."""
+    label = f"[{ref}]" if isinstance(ref, int) else ref
+    named = f"{label} {entry['id']}" if isinstance(ref, int) else entry["id"]
     command = runs.again(entry)
     if not command or len(command) < 2:
-        raise HeimdallError(f"[{index}] {entry['id']} holds no heimdall run command to run again",
-                            hint="run it again by hand; heimdall runs --forget drops it from the list")
+        raise HeimdallError(f"{named} holds no heimdall run command to run again",
+                            hint="run it again by hand; heimdall runs --forget drops it from the list" if resuming
+                            else "run it again by hand")
     checkout = Path(entry.get("checkout") or "")
     program = checkout / "framework" / "bin" / "heimdall"
     work = entry.get("work") or ""
     if not entry.get("checkout") or not program.is_file():
-        raise HeimdallError(f"[{index}] {entry['id']}'s Heimdall is not there: {program}",
+        raise HeimdallError(f"{named}'s Heimdall is not there: {program}",
                             hint=f"run it again by hand: heimdall {' '.join(command)}")
     if not work or not Path(work).is_dir():
-        raise HeimdallError(f"[{index}] {entry['id']}'s work dir is not there" + (f": {work}" if work else ""),
+        raise HeimdallError(f"{named}'s work dir is not there" + (f": {work}" if work else ""),
                             hint=f"run it again by hand from its work dir: heimdall {' '.join(command)}")
-    config_root, config_name = resume_snapshot(entry, index)
+    config_root, config_name = resume_snapshot(entry, ref)
     command[1] = config_name
     new = runs.new_id()
     env = {**os.environ, runs.ID_VAR: new, paths.WORK_VAR: work, paths.CONFIGS_VAR: str(config_root)}
     if paths.HEIMDALL_VAR in env:                            # the checkout it ran with, not this shell's
         env[paths.HEIMDALL_VAR] = str(checkout)
-    print(f"resuming [{index}] {entry['id']}: heimdall {' '.join(command)}\n  in {work}, by {program}")
+    print(f"{'resuming' if resuming else 'running again'} {named}: heimdall {' '.join(command)}\n  in {work}, by {program}")
     if "--rerun-since" in command:
         print("  note: its --rerun runs again what was complete before it began, not what it completed itself",
               file=sys.stderr)
-    env[runs.RESUMES_VAR] = entry["id"]      # its worker clears resumed_by again if it never runs (exit 2)
-    runs.update(entry["id"], resumed_by=new, resumed=round(time.time(), 3))
+    if resuming:
+        env[runs.RESUMES_VAR] = entry["id"]  # its worker clears resumed_by again if it never runs (exit 2)
+        runs.update(entry["id"], resumed_by=new, resumed=round(time.time(), 3))
     code = runs.relaunch([str(program), *command], work, env).returncode
     if code:
-        runs.update(entry["id"], resumed_by=None, resumed=None)
-        print(f"not resumed: its command exited {code}; [{index}] stays paused", file=sys.stderr)
+        if resuming:
+            runs.update(entry["id"], resumed_by=None, resumed=None)
+            print(f"not resumed: its command exited {code}; {label} stays paused", file=sys.stderr)
+        else:
+            print(f"not run again: its command exited {code}", file=sys.stderr)
         return code
-    print(f"[{index}] {entry['id']} resumed as {new}: heimdall runs says whether it runs (a config error leaves it "
-          "paused)")
+    print(f"{named} {'resumed' if resuming else 'run again'} as {new}: heimdall runs says whether it runs "
+          "(a config error " + ("leaves it paused)" if resuming else "ends it at once)"))
     return 0
 
 
-def resume_snapshot(entry: dict, index: int) -> tuple[Path, str]:
-    """The latest attempted Run's config snapshot for `heimdall runs --resume`, never today's configs/."""
+def resume_run(index: int) -> int:
+    """`heimdall runs --resume N`: the paused job [N] resumed (relaunch_entry)."""
+    entry, state = live_at(index)
+    if not runs.paused(entry):
+        raise HeimdallError(f"[{index}] is {state}, not paused: only a paused job is resumed",
+                            hint=f"heimdall watch -i {index} follows it" if state.startswith("running") else
+                            "heimdall runs lists the live ones")
+    return relaunch_entry(entry, index, True)
+
+
+def entry_of(ref: str | int) -> tuple[dict, str, int | None]:
+    """A run `heimdall runs` names: its live [N] (digits), or its id, whole or the tail of it (`…-e17e`) when one
+    entry has it. (entry, state, its live number or None)."""
+    text = str(ref).strip()
+    if text.isdigit():
+        entry, state = live_at(int(text))
+        return entry, state, int(text)
+    entries = runs.entries()
+    found = [e for e in entries if e.get("id") == text] or [e for e in entries if text and str(e.get("id", "")).endswith(text)] \
+        or [e for e in entries if text and text in str(e.get("id", ""))]
+    if len(found) != 1:
+        raise HeimdallError(f"no run '{text}'" if not found else f"{len(found)} runs match '{text}': "
+                            + ", ".join(e["id"] for e in found[:5]),
+                            hint="its id as heimdall runs --week shows it, or its live [N]")
+    by_pid = {hello.get("pid"): hello for _, hello in house.live_runs()}
+    entry = found[0]
+    numbers = {id(e): n for n, (e, _) in enumerate(house.live_entries(entries, house.live_runs()), 1)}
+    return entry, house._states([entry], by_pid)[0][1], numbers.get(id(entry))
+
+
+def again_run(ref: str | int) -> int:
+    """`heimdall runs --again ID|N`: a failed, stopped or lost run's own command again (relaunch_entry); refused, with
+    its state, for a run that goes or is paused (heimdall runs --resume), and a cluster submission's."""
+    entry, state, number = entry_of(ref)
+    shown = f"[{number}]" if number else entry["id"]
+    if entry.get("kind") == "cluster":
+        raise HeimdallError(f"{shown} is a cluster submission: heimdall cluster submits it again",
+                            hint="heimdall runs names its heimdall cluster … --status")
+    if runs.paused(entry):
+        raise HeimdallError(f"{shown} is paused, not finished: heimdall runs --resume {number or ''}".rstrip(),
+                            hint="a pause continues from its records; --again is for a run that ended")
+    if house._going(entry, state) or entry.get("finished") is None and state != "lost":
+        raise HeimdallError(f"{shown} is {state}, not finished: only a run that ended is run again",
+                            hint=f"heimdall watch -i {number} follows it" if number else "heimdall runs lists the live ones")
+    return relaunch_entry(entry, entry["id"] if not number else number, False)
+
+
+#: The keys of `heimdall runs -i`, and the word typed to confirm each that changes something.
+ACTIONS = {"w": ("watch", None), "s": ("stop", "stop"), "j": ("set jobs", None), "r": ("resume", "resume"),
+           "a": ("run again", "again"), "f": ("forget", "forget"), "q": ("leave", None)}
+
+
+def offered(entry: dict, state: str, number: int | None) -> list[str]:
+    """The keys that fit a run: a running live one is watched or stopped, a paused one resumed or forgotten, a failed,
+    stopped or lost one run again."""
+    if entry.get("kind") == "cluster":
+        return ["q"]
+    if number and state.startswith("running"):
+        return ["w", "s", "j", "q"]
+    if number and runs.paused(entry):
+        return ["r", "f", "q"]
+    if not house._going(entry, state) and (entry.get("finished") is not None or state == "lost"):
+        return ["a", "q"] if house.state_word(state) in ("failed", "stopped", "lost") else ["q"]
+    return ["q"]
+
+
+def read_key() -> str:
+    """One key from the terminal, unechoed (watch.Keys); "" for the end of input."""
+    from .watch import Keys
+    with Keys(sys.stdin):
+        return os.read(sys.stdin.fileno(), 1).decode("utf-8", "replace")
+
+
+def act_on(ref: str, titles: dict, plain: bool = False, key_reader=None, line_reader=None) -> int:
+    """`heimdall runs -i N|ID`: the run's block; on a terminal (or with readers given) the keys that fit it, one read; the
+    ones that change something ask for their word typed (`stop`, `resume`, `again`, `forget`) and anything else cancels."""
+    entry, state, number = entry_of(ref)
+    tty = sys.stdin.isatty() and sys.stdout.isatty()
+    color = house.wants_colour(sys.stdout, plain)
+    width = shutil.get_terminal_size((80, 24)).columns if sys.stdout.isatty() else None
+    for line in house.runs_listing(runs.entries(), house.live_runs(), titles, color=color, width=width, only=entry):
+        print(line)
+    keys = offered(entry, state, number)
+    if key_reader is None and not tty:
+        return 0
+    if keys == ["q"]:
+        print(f"nothing to do with a run that is {state}")
+        return 0
+    print("  " + " · ".join(f"{k} {ACTIONS[k][0]}" for k in keys))
+    key = (key_reader or read_key)().lower()
+    if key not in keys or key == "q":
+        print("left it" if key in ("q", "", "\x03", "\x1b", "\n") else f"'{key}' is not one of: {' '.join(keys)}")
+        return 0
+    verb, word = ACTIONS[key]
+    if word is not None:
+        typed = (line_reader or input)(f"type {word} to {verb} it (anything else cancels): ").strip()
+        if typed != word:
+            print(f"cancelled: {verb} not done")
+            return 0
+    if key == "j":
+        text = (line_reader or input)("points at once now: ").strip()
+        if not text.isdigit():
+            print(f"cancelled: '{text}' is no number of points")
+            return 0
+        return set_jobs(number, int(text))
+    if key == "w":
+        return cmd_watch(argparse.Namespace(index=number, file=None, config=None, configuration=None, plain=plain, pid=None))
+    if key == "s":
+        return cmd_stop(argparse.Namespace(index=number, config=None, configuration=None, pid=None, no_wait=False))
+    if key == "r":
+        return resume_run(number)
+    if key == "f":
+        return forget_run(number)
+    return again_run(entry["id"])
+
+
+def set_jobs(ref: str | int, count: int) -> int:
+    """`heimdall runs -i N --jobs M`: the running job's points at once changed while it runs (the request written to
+    `runs/<id>.control.json`, then SIGUSR2): raising starts more points, lowering starts none until fewer than M run and
+    stops none; the identity is untouched. Refused for a cluster submission, a run that is not running here (another PID namespace, a
+    pause, an ended run; the registry lists this user's runs alone, so another uid's is none) and a count below 1; a note when M of its costliest points want more cores than
+    the machine has."""
+    from .events import namespace
+    entry, state, number = entry_of(ref)
+    shown = f"[{number}]" if number else entry["id"]
+    if count < 1 or count > execute.Stopper.CEILING:
+        raise HeimdallError(f"--jobs {count}: points at once is a number from 1 to {execute.Stopper.CEILING}", hint="heimdall runs -i N --jobs 4")
+    if entry.get("kind") == "cluster":
+        raise HeimdallError(f"{shown} is a cluster submission: its jobs are on Slurm's nodes",
+                            hint="heimdall cluster submits it again with another cluster.parallelism")
+    if entry.get("pidns") and namespace("pid") and entry["pidns"] != namespace("pid"):
+        raise HeimdallError(f"{shown} (pid {entry.get('pid')}) is another PID namespace's (a container's): signalling it from here "
+                            "could reach another process", hint="change it from where it runs")
+    if not state.startswith("running"):
+        raise HeimdallError(f"{shown} is {state}, not running: there is nothing to change",
+                            hint=f"heimdall runs --resume {number} continues a pause" if number and runs.paused(entry) else
+                            "heimdall runs lists what runs")
+    if not entry.get("pid"):
+        raise HeimdallError(f"{shown} records no pid to tell", hint="heimdall runs lists what runs")
+    if not runs.write_control(entry["id"], count):
+        raise HeimdallError(f"the request could not be written to {runs.control_file(entry['id'])}", hint="is the machine root writable?")
+    os.kill(int(entry["pid"]), signal.SIGUSR2)
+    was = entry.get("parallelism")
+    print(f"{shown} {entry['id']}: points at once " + (f"{was} → {count}" if was else f"→ {count}")
+          + " (it reads the request now; heimdall runs -i shows it, and a watch says it when it does)")
+    each = entry.get("point_cores") or 1
+    if count * each > (os.cpu_count() or 1):
+        print(f"  note: {count} at once × ~{each} core(s) a point is more than the {os.cpu_count()} here: it will be oversubscribed",
+              file=sys.stderr)
+    return 0
+
+
+def forget_run(index: int) -> int:
+    entry, state = live_at(index)
+    if not runs.paused(entry):
+        raise HeimdallError(f"[{index}] is {state}, not paused: only a paused job is forgotten",
+                            hint="heimdall runs lists the live ones")
+    runs.update(entry["id"], forgotten=round(time.time(), 3))
+    print(f"forgotten: [{index}] {entry['id']} (its entry kept: heimdall runs --week lists it)")
+    return 0
+
+
+def resume_snapshot(entry: dict, index: int | str) -> tuple[Path, str]:
+    """The latest attempted Run's config snapshot for `heimdall runs --resume` and `--again`, never today's configs/."""
+    named = f"[{index}] {entry['id']}" if isinstance(index, int) else entry["id"]
     records = entry.get("records")
     if not isinstance(records, list) or not records or not isinstance(records[-1], str):
-        raise HeimdallError(f"[{index}] {entry['id']} has no recorded config snapshot to resume",
+        raise HeimdallError(f"{named} has no recorded config snapshot to resume",
                             hint="the paused job's record must contain config/snapshot.toml; run it again by hand")
     folder = Path(records[-1]).expanduser().resolve()
     try:
         snapshot = record.read_snapshot(folder)
     except (OSError, ValueError, TypeError, AttributeError) as error:
-        raise HeimdallError(f"[{index}] {entry['id']}'s latest record has no readable config snapshot: {error}",
+        raise HeimdallError(f"{named}'s latest record has no readable config snapshot: {error}",
                             where=str(folder / "config" / record.SNAPSHOT),
                             hint="resume needs the config snapshot written by the paused Run") from None
     snapshot_name = snapshot["config"]
     if not isinstance(snapshot_name, str) or not snapshot_name:
-        raise HeimdallError(f"[{index}] {entry['id']}'s snapshot has no valid config name",
+        raise HeimdallError(f"{named}'s snapshot has no valid config name",
                             where=str(folder / "config" / record.SNAPSHOT))
     name = Path(snapshot_name)
     if name.is_absolute() or ".." in name.parts:
-        raise HeimdallError(f"[{index}] {entry['id']}'s snapshot has an invalid config name: {snapshot_name!r}",
+        raise HeimdallError(f"{named}'s snapshot has an invalid config name: {snapshot_name!r}",
                             where=str(folder / "config" / record.SNAPSHOT))
     config_root = folder / "config"
     filename = name if name.suffix == ".toml" else Path(f"{name}.toml")
     config_file = (config_root / filename).resolve()
     if not config_file.is_relative_to(config_root.resolve()) or not config_file.is_file():
-        raise HeimdallError(f"[{index}] {entry['id']}'s latest record has no errand file for {snapshot_name!r}",
+        raise HeimdallError(f"{named}'s latest record has no errand file for {snapshot_name!r}",
                             where=str(config_file), hint="resume needs the errand file in the record's config/ snapshot")
     return config_root, str(config_file.relative_to(config_root.resolve()).with_suffix(""))
 

@@ -65,7 +65,7 @@ def where(scratch):
     environment = dict(env(scratch), HEIMDALL_RUNS=str(scratch / "runs"))
     yield scratch, environment
     for path in (scratch / "runs").glob("*.json"):
-        pid = json.loads(path.read_text(encoding="utf-8")).get("pid")
+        pid = json.loads(path.read_text(encoding="utf-8")).get("pid") if not path.name.endswith(".control.json") else None
         try:
             os.killpg(pid, signal.SIGKILL)
         except (ProcessLookupError, PermissionError, TypeError):
@@ -79,7 +79,8 @@ def heimdall(environment, *args, timeout=120):
 
 
 def entries(scratch: Path) -> list[dict]:
-    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted((scratch / "runs").glob("*.json"))]
+    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted((scratch / "runs").glob("*.json"))
+            if not p.name.endswith(".control.json")]                     # a --jobs request is no entry
 
 
 def wait_until(test, timeout=60.0):
@@ -100,7 +101,7 @@ def test_detach_returns_once_started_and_watch_follows_it_to_its_verdict(where):
     (entry,) = entries(scratch)
     assert entry["detached"] and Path(entry["log"]).is_file() and "finished" not in entry
     listed = heimdall(environment, "runs").stdout
-    assert listed.startswith("live\n  [1] ") and entry["id"] in listed     # the live runs, indexed
+    assert listed.startswith("live\n[1] ") and entry["log"] in listed          # the live runs, indexed
     watched = heimdall(environment, "watch", "--pid", entry["pid"], "--plain", timeout=180)
     assert watched.returncode == 0 and "3 done, 1 failed" in watched.stdout, watched.stdout
     (entry,) = entries(scratch)
@@ -118,6 +119,32 @@ def test_stop_ends_a_detached_run_as_ctrl_c_would(where):
     (entry,) = entries(scratch)
     assert entry["code"] == 6 and not list((scratch / "records").glob("Demo/det/*/points/*/.complete"))
     assert not subprocess.run(["pgrep", "-f", str(scratch / "sleepy.py")], capture_output=True).stdout
+
+
+def test_jobs_changes_a_detached_runs_points_at_once_while_it_runs(where):
+    """A run of six points at one at a time: `runs -i 1 --jobs 3` raises it; three run at once, its entry says 3."""
+    scratch, environment = where
+    config = config_of(scratch, 4, fails=(0,) * 6)
+    config.write_text(config.read_text(encoding="utf-8").replace("parallelism   = 2", "parallelism   = 1"), encoding="utf-8")
+    assert heimdall(environment, "run", config, "--detach").returncode == 0
+    (entry,) = entries(scratch)
+    wait_until(lambda: (entries(scratch)[0].get("active_parallel_points") or 0) == 1)
+    assert entries(scratch)[0]["parallelism"] == 1
+    listed = heimdall(environment, "runs", "--plain").stdout
+    assert "running · 1 of 1 at once" in listed
+    done = heimdall(environment, "runs", "-i", "1", "--jobs", "3")
+    assert done.returncode == 0 and "points at once 1 → 3" in done.stdout, done.stdout + done.stderr
+    wait_until(lambda: entries(scratch)[0].get("parallelism") == 3)
+    wait_until(lambda: (entries(scratch)[0].get("active_parallel_points") or 0) == 3, timeout=30)
+    log = Path(entries(scratch)[0]["log"]).read_text(encoding="utf-8")
+    assert "3 points at once now (was 1)" in log
+    watched = heimdall(environment, "watch", "--pid", entries(scratch)[0]["pid"], "--plain", timeout=180)
+    assert watched.returncode == 0, watched.stdout
+    (entry,) = entries(scratch)
+    assert entry["code"] == 0 and entry["parallelism"] == 3 and entry["counts"]["done"] == 6
+    events = [json.loads(line) for record in (scratch / "records").glob("Demo/det/*/run.jsonl")
+              for line in record.read_text(encoding="utf-8").splitlines()]
+    assert {"k": "parallelism", "from": 1, "to": 3} == {k: next(e for e in events if e.get("k") == "parallelism")[k] for k in ("k", "from", "to")}
 
 
 def test_a_detached_run_that_does_not_plan_says_why(where):

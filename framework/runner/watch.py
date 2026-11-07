@@ -161,6 +161,8 @@ class State:
             return []
         if kind == "say":
             return [("say", event.get("msg", ""))]
+        if kind == "parallelism":                        # a live `heimdall runs -i N --jobs M`
+            return [("say", f"   {event.get('to')} points at once now" + (f" (was {event['from']})" if event.get("from") else ""))]
         if kind == "point":
             state = event.get("state")
             if state == "started":

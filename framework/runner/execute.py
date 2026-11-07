@@ -76,11 +76,29 @@ class Stopper:
     end; a second `p` is a force pause, `requested` and `hard` as a hard stop. `paused`: the run ends as a pause
     (a stop after it, a `q`, clears it)."""
 
+    #: The most points at once a live `heimdall runs -i N --jobs M` may ask for (threads are made as points start).
+    CEILING = 256
+
     def __init__(self):
         self.requested = False
         self.hard = False
         self.pausing = False
         self.paused = False
+        self.parallelism: int | None = None         # a live `--jobs`: the points at once, over each configuration's own
+        self.control = threading.Event()            # SIGUSR2: the control file is to be read (never in the handler itself)
+        self.on_parallelism: list = []              # called with the new cap: a pipelined sweep's cores budget
+
+    def cap(self, configured: int) -> int:
+        """The points at once now: a live `--jobs` if one was given, else the configuration's."""
+        return max(1, self.parallelism or configured)
+
+    def set_parallelism(self, count: int) -> int | None:
+        """A live cap (read at every dispatch: raising starts more points, lowering starts none until fewer run, and no
+        running point is stopped); the one it replaces (None: the configuration's). `CEILING` at most."""
+        before, self.parallelism = self.parallelism, max(1, min(int(count), self.CEILING))
+        for hook in self.on_parallelism:
+            hook(self.parallelism)
+        return before
 
     @property
     def halted(self) -> bool:
@@ -151,6 +169,12 @@ class Budget:
         with self._lock:
             self.used = max(0, self.used - count)
 
+    def resize(self, total: int) -> None:
+        """The cores the runs share, changed while they run (a live `--jobs`): more lets points start, fewer starts none until
+        enough have ended; a running point keeps its cores."""
+        with self._lock:
+            self.total = max(1, total)
+
 
 def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopper: Stopper,
                rerun: bool, logs: bool = False, budget: Budget | None = None,
@@ -180,27 +204,13 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
 
     done = failed = 0
     stopped = False
-    at_once = max(1, configuration.parallelism)
-    if at_once == 1 and budget is None:
-        for i, plan in enumerate(todo):
-            if stopper.halted:
-                all_started()
-                return done, failed, True
-            if i == len(todo) - 1:
-                all_started()
-            result = run_point(plan, errand, configuration, bus=bus, stopper=stopper, logs=logs, wait=wait_held)
-            if result.stopped or stopper.requested:
-                return done, failed, True
-            failed += not result.ok and not result.held
-            done += result.ok
-        all_started()
-        return done, failed, stopper.pausing
     error: BaseException | None = None
     held: dict = {}                                   # a running point's future → the cores it took
-    with ThreadPoolExecutor(max_workers=at_once, thread_name_prefix="heimdall-point") as pool:
+    with ThreadPoolExecutor(max_workers=max(Stopper.CEILING, configuration.parallelism),
+                            thread_name_prefix="heimdall-point") as pool:
         running: set = set()
         while todo or running:
-            while todo and len(running) < at_once and not stopper.halted and error is None:
+            while todo and len(running) < stopper.cap(configuration.parallelism) and not stopper.halted and error is None:
                 plan = todo[0]
                 need = cores(plan) if budget is not None else 0
                 if budget is not None and not budget.take(need):

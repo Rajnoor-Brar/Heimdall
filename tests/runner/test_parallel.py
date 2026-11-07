@@ -199,3 +199,67 @@ def test_overlapping_runs_keep_their_points_apart():
     lines = out.getvalue().splitlines()
     assert lines[0].startswith("── point 1/2 (b): MSTW08lo ── ok") and lines[2] == "   done → results/b/MSTW08lo"
     assert lines[4].startswith("── point 1/2 (a): MSTW08lo ── ok") and lines[6] == "   done → results/a/MSTW08lo"
+
+
+def _watched_points(monkeypatch, seconds: float = 0.25):
+    """run_point faked: each point holds for `seconds`; `live`, `peak` and the order they began in are kept."""
+    state = {"live": 0, "peak": 0, "log": []}
+    lock = threading.Lock()
+
+    def run_point(plan, errand, configuration, *, bus, stopper, logs, wait=False):
+        with lock:
+            state["live"] += 1
+            state["peak"] = max(state["peak"], state["live"])
+            state["log"].append((plan.point.name, state["live"]))
+        time.sleep(seconds)
+        with lock:
+            state["live"] -= 1
+        return PointResult(True)
+
+    monkeypatch.setattr(execute, "run_point", run_point)
+    monkeypatch.setattr(execute, "stale", lambda plan, rerun: True)
+    return state
+
+
+def test_a_live_cap_raised_mid_run_starts_more_points_at_once(monkeypatch):
+    """Parallelism 1; after the first point starts the cap is raised to 3: three run at once, in order."""
+    state = _watched_points(monkeypatch)
+    stopper = Stopper()
+    threading.Timer(0.1, stopper.set_parallelism, args=(3,)).start()
+    done, failed, halted = execute.run_points(fake_plans(6), None, SimpleNamespace(parallelism=1), bus=Bus(), stopper=stopper, rerun=False)
+    assert (done, failed, halted) == (6, 0, False)
+    assert state["peak"] == 3 and [name for name, _ in state["log"]] == [f"p{i}" for i in range(1, 7)]
+    assert state["log"][0] == ("p1", 1)                      # it began alone
+
+
+def test_a_live_cap_lowered_starts_none_until_fewer_run_and_stops_no_running_point(monkeypatch):
+    state = _watched_points(monkeypatch)
+    stopper = Stopper()
+    threading.Timer(0.1, stopper.set_parallelism, args=(1,)).start()
+    done, failed, halted = execute.run_points(fake_plans(6), None, SimpleNamespace(parallelism=3), bus=Bus(), stopper=stopper, rerun=False)
+    assert (done, failed, halted) == (6, 0, False)           # the three running at the change ended: none stopped
+    assert [live for _, live in state["log"]] == [1, 2, 3, 1, 1, 1]       # a fourth began alone, after all three ended
+
+
+def test_the_live_cap_is_the_stoppers_over_every_configuration_and_ceilinged(monkeypatch):
+    stopper = Stopper()
+    assert stopper.cap(4) == 4 and stopper.cap(0) == 1
+    seen = []
+    stopper.on_parallelism.append(seen.append)
+    assert stopper.set_parallelism(2) is None and stopper.cap(4) == 2 and stopper.cap(1) == 2
+    assert stopper.set_parallelism(10 ** 6) == 2 and stopper.parallelism == Stopper.CEILING
+    assert seen == [2, Stopper.CEILING]
+    assert stopper.set_parallelism(0) == Stopper.CEILING and stopper.parallelism == 1
+
+
+def test_a_budget_resized_lets_points_start_or_holds_them_without_touching_running_ones():
+    budget = execute.Budget(4)
+    assert budget.take(2) and budget.take(2) and not budget.take(1)
+    budget.resize(6)
+    assert budget.take(2) and not budget.take(1)
+    budget.resize(2)                                          # lowered: what runs keeps its cores, nothing new starts
+    assert budget.used == 6 and not budget.take(1)
+    budget.give(6)
+    assert budget.take(2) and budget.total == 2
+    budget.resize(0)
+    assert budget.total == 1

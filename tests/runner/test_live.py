@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from runner import cli, house, paths, record, runs
+from runner import cli, execute, house, paths, record, runs
 
 
 def entry(started: float, **fields) -> str:
@@ -380,3 +380,219 @@ def test_the_log_is_a_link_only_with_colour_and_its_text_is_the_same():
     tinted = house.runs_listing([entry], [], {}, now=20.0, limit=5, color=True)
     assert tinted[-1] == "    log \x1b]8;;file://lab/runs/a%20b.log\x1b\\\x1b[2m/runs/a b.log\x1b[0m\x1b]8;;\x1b\\"
     assert house.link("x", "h", "relative", True) == "x" and house.link("x", "h", "/p", False) == "x"
+
+
+@pytest.fixture
+def failed_run(mixed, scratch):
+    """A finished, failed run with its record's config snapshot, its checkout and work dir there."""
+    work = scratch / "work"
+    work.mkdir(exist_ok=True)
+    run_id = entry(time.time() - 7200, name="z", argv=["run", "P/z", "c", "--worker", "x", "--rerun"])
+    saved = snapshot(run_id, "01_saved", config_name="P/z")
+    runs.update(run_id, work=str(work), checkout=str(paths.heimdall_root()), records=[str(saved)])
+    runs.finish(run_id, 1, verdict="failed")
+    return run_id
+
+
+def test_again_runs_a_failed_runs_command_from_its_snapshot_and_leaves_its_entry(capsys, failed_run, monkeypatch):
+    launched = []
+    monkeypatch.setattr(runs, "relaunch", lambda command, cwd, env: launched.append((command, cwd, env))
+                        or subprocess.CompletedProcess(command, 0))
+    assert cli.main(["runs", "--again", failed_run]) == 0
+    (command, cwd, env), = launched
+    assert command[0].endswith("framework/bin/heimdall") and command[1:3] == ["run", "P/z"] and command[-1] == "--detach"
+    assert "--worker" not in command and "--rerun-since" in command and "--rerun" not in command
+    assert cwd == runs.entry(failed_run)["work"] and env[paths.CONFIGS_VAR].endswith("01_saved/config")
+    assert env[runs.ID_VAR] != failed_run and runs.RESUMES_VAR not in env
+    assert "resumed_by" not in runs.entry(failed_run)                # a finished run's entry is left as it is
+    out = capsys.readouterr().out
+    assert f"running again {failed_run}" in out and "run again as" in out
+    assert cli.main(["runs", "--again", failed_run[-4:]]) == 0          # the tail of the id names it too
+    assert len(launched) == 2
+
+
+def test_again_refuses_a_run_that_goes_a_pause_and_what_is_not_there(capsys, mixed, failed_run, monkeypatch):
+    launched = []
+    monkeypatch.setattr(runs, "relaunch", lambda *args: launched.append(args))
+    assert cli.main(["runs", "--again", "3"]) == 2                                     # [3] runs
+    assert "[3] is running, not finished: only a run that ended is run again" in capsys.readouterr().err
+    assert cli.main(["runs", "--again", "2"]) == 2                                     # [2] is the pause
+    assert "[2] is paused, not finished: heimdall runs --resume 2" in capsys.readouterr().err
+    assert cli.main(["runs", "--again", mixed["running"]]) == 2
+    assert "[3] is running, not finished" in capsys.readouterr().err                       # by its id: the same run
+    assert cli.main(["runs", "--again", "no-such-run"]) == 2
+    assert "no run 'no-such-run'" in capsys.readouterr().err
+    runs.update(failed_run, records=[])
+    assert cli.main(["runs", "--again", failed_run]) == 2
+    assert "has no recorded config snapshot" in capsys.readouterr().err
+    assert launched == []
+
+
+def test_again_says_when_its_command_failed_and_marks_nothing(capsys, failed_run, monkeypatch):
+    monkeypatch.setattr(runs, "relaunch", lambda command, cwd, env: subprocess.CompletedProcess(command, 2))
+    assert cli.main(["runs", "--again", failed_run]) == 2
+    assert "not run again: its command exited 2" in capsys.readouterr().err
+
+
+def test_i_prints_the_block_off_a_terminal_and_names_the_keys_that_fit(capsys, mixed, failed_run):
+    assert cli.main(["runs", "-i", "2"]) == 0                       # not a terminal: the block alone
+    out = capsys.readouterr().out
+    assert out.startswith("run\n[2] ") and "paused" in out and "heimdall runs --resume 2" in out and "type " not in out
+    assert cli.act_on("3", {}, key_reader=lambda: "q") == 0
+    assert "w watch · s stop · j set jobs · q leave" in capsys.readouterr().out
+    assert cli.act_on("2", {}, key_reader=lambda: "q") == 0
+    assert "r resume · f forget · q leave" in capsys.readouterr().out
+    assert cli.act_on(failed_run, {}, key_reader=lambda: "q") == 0
+    assert "a run again · q leave" in capsys.readouterr().out
+    assert cli.act_on(mixed["done"], {}, key_reader=lambda: "q") == 0
+    assert "nothing to do with a run that is done" in capsys.readouterr().out
+
+
+def test_an_action_needs_its_word_typed_and_anything_else_cancels(capsys, mixed, failed_run, monkeypatch):
+    asked = []
+    assert cli.act_on("2", {}, key_reader=lambda: "f", line_reader=lambda text: asked.append(text) or "yes") == 0
+    assert asked == ["type forget to forget it (anything else cancels): "]
+    assert "cancelled: forget not done" in capsys.readouterr().out and runs.paused(runs.entry(mixed["pause"]))
+    assert cli.act_on("2", {}, key_reader=lambda: "f", line_reader=lambda text: "forget") == 0
+    assert "forgotten: [2]" in capsys.readouterr().out and not runs.paused(runs.entry(mixed["pause"]))
+    assert cli.act_on("2", {}, key_reader=lambda: "x") == 0                                 # a key that does not fit
+    assert "'x' is not one of: w s j q" in capsys.readouterr().out       # [2] is now the running one
+    launched = []
+    monkeypatch.setattr(runs, "relaunch", lambda command, cwd, env: launched.append(command) or subprocess.CompletedProcess(command, 0))
+    assert cli.act_on(failed_run, {}, key_reader=lambda: "a", line_reader=lambda text: "run again") == 0
+    assert launched == [] and "cancelled: run again not done" in capsys.readouterr().out
+    assert cli.act_on(failed_run, {}, key_reader=lambda: "a", line_reader=lambda text: "again") == 0
+    assert len(launched) == 1
+
+
+def test_the_stop_and_resume_keys_do_what_the_commands_do(capsys, mixed, monkeypatch):
+    stopped, resumed = [], []
+    monkeypatch.setattr(cli, "cmd_stop", lambda args: stopped.append((args.index, args.pid)) or 0)
+    monkeypatch.setattr(cli, "resume_run", lambda index: resumed.append(index) or 0)
+    assert cli.act_on("3", {}, key_reader=lambda: "s", line_reader=lambda text: "stop") == 0
+    assert cli.act_on("2", {}, key_reader=lambda: "r", line_reader=lambda text: "resume") == 0
+    assert (stopped, resumed) == ([(3, None)], [2])
+    watched = []
+    monkeypatch.setattr(cli, "cmd_watch", lambda args: watched.append(args.index) or 0)
+    assert cli.act_on("3", {}, key_reader=lambda: "w") == 0                                 # watching asks for no word
+    assert watched == [3]
+
+
+def test_a_control_request_is_read_whole_and_a_bad_one_says_what_is_wrong():
+    run_id = runs.new_id()
+    assert runs.write_control(run_id, 3, by=77)
+    got = runs.read_control(run_id)
+    assert (got["parallelism"], got["by"]) == (3, 77) and isinstance(got["at"], float)
+    assert not list(runs.folder().glob("*.tmp")) and runs.control_file(run_id).name == f"{run_id}.control.json"
+    assert run_id not in [e["id"] for e in runs.entries()]            # a control file is no entry
+    for text, said in (("", "is not JSON"), ("[1]", "no parallelism"), ('{"parallelism": 0}', "no parallelism of at least 1"),
+                       ('{"parallelism": "4"}', "no parallelism"), ('{"parallelism": true}', "no parallelism")):
+        runs.control_file(run_id).write_text(text, encoding="utf-8")
+        with pytest.raises(ValueError, match=said):
+            runs.read_control(run_id)
+    runs.control_file(run_id).unlink()
+    with pytest.raises(ValueError, match="there is no"):
+        runs.read_control(run_id)
+
+
+def test_a_request_applied_changes_the_cap_the_entry_and_tells_the_views(monkeypatch):
+    from runner.events import Bus
+    from runner.watch import State
+    monkeypatch.setattr(runs.Recorder, "EVERY", 0.0)
+    run_id = entry(time.time(), name="a")
+    bus, heard = Bus(), []
+    bus.subscribe(type("Listener", (), {"event": staticmethod(lambda event: heard.append(event))})())
+    stopper = execute.Stopper()
+    recorder = runs.Recorder(run_id)
+    recorder.event({"k": "run", "state": "started", "points": 4, "parallelism": 1, "cores": 2})
+    assert runs.entry(run_id)["parallelism"] == 1 and runs.entry(run_id)["point_cores"] == 2
+    cli.apply_control(stopper, run_id, bus, recorder)                 # nothing asked: a note, nothing changed
+    assert stopper.parallelism is None and "ignored: there is no" in heard[-1]["msg"]
+    runs.write_control(run_id, 3, by=42)
+    cli.apply_control(stopper, run_id, bus, recorder)
+    assert stopper.cap(1) == 3 and runs.entry(run_id)["parallelism"] == 3
+    assert heard[-1] == {"k": "parallelism", "from": 1, "to": 3, "by": 42, "point": "", "tool": ""} or \
+        {k: heard[-1][k] for k in ("k", "from", "to", "by")} == {"k": "parallelism", "from": 1, "to": 3, "by": 42}
+    assert State().apply(heard[-1]) == [("say", "   3 points at once now (was 1)")]
+    runs.write_control(run_id, 10 ** 6)
+    cli.apply_control(stopper, run_id, bus, recorder)
+    assert stopper.cap(1) == 3 and "more than the 256" in heard[-1]["msg"]       # refused: the cap stays
+
+
+def test_sigusr2_makes_a_worker_read_its_request_on_a_thread_of_its_own(monkeypatch):
+    import signal
+    from runner.events import Bus
+    run_id = entry(time.time(), name="a")
+    bus, heard = Bus(), []
+    bus.subscribe(type("Listener", (), {"event": staticmethod(lambda event: heard.append(event))})())
+    stopper = execute.Stopper()
+    previous = signal.getsignal(signal.SIGUSR2)
+    try:
+        cli.catch_control(stopper)
+        cli.control_thread(stopper, run_id, bus, None)
+        runs.write_control(run_id, 2)
+        os.kill(os.getpid(), signal.SIGUSR2)
+        deadline = time.time() + 5
+        while stopper.parallelism is None and time.time() < deadline:
+            time.sleep(0.02)
+    finally:
+        signal.signal(signal.SIGUSR2, previous)
+    assert stopper.parallelism == 2 and any(e.get("k") == "parallelism" and e["to"] == 2 for e in heard)
+
+
+@pytest.fixture
+def goes(mixed, monkeypatch):
+    """The running one [3] as this process (so it is alive), os.kill faked: what was signalled is in `sent`."""
+    sent = []
+    real = os.kill
+    monkeypatch.setattr(os, "kill", lambda pid, sig: sent.append((pid, sig)) if sig else real(pid, sig))
+    runs.update(mixed["running"], parallelism=1, point_cores=2)
+    return sent
+
+
+def test_jobs_writes_the_request_and_signals_the_worker(capsys, mixed, goes):
+    import signal
+    assert cli.main(["runs", "-i", "3", "--jobs", "4"]) == 0
+    assert goes == [(os.getpid(), signal.SIGUSR2)]
+    assert runs.read_control(mixed["running"])["parallelism"] == 4
+    out = capsys.readouterr()
+    assert "[3]" in out.out and "points at once 1 → 4" in out.out
+    assert "4 at once × ~2 core(s) a point is more than the" in out.err or (os.cpu_count() or 1) >= 8
+
+
+def test_jobs_is_refused_for_what_is_not_a_running_job_here(capsys, mixed, goes):
+    for argv, said in ((["runs", "--jobs", "4"], "--jobs changes one running job: name it"),
+                       (["runs", "-i", "3", "--jobs", "0"], "a number from 1 to 256"),
+                       (["runs", "-i", "3", "--jobs", "9999"], "a number from 1 to 256"),
+                       (["runs", "-i", "2", "--jobs", "2"], "is paused, not running"),
+                       (["runs", "-i", mixed["stopped"], "--jobs", "2"], "is stopped, not running")):
+        assert cli.main(argv) == 2, argv
+        assert said in capsys.readouterr().err, argv
+    runs.update(mixed["running"], kind="cluster")
+    assert cli.main(["runs", "-i", "3", "--jobs", "2"]) == 2
+    assert "cluster submission" in capsys.readouterr().err
+    runs.update(mixed["running"], kind="run", pidns="pid:[1]")
+    assert cli.main(["runs", "-i", "3", "--jobs", "2"]) == 2
+    assert "another PID namespace's" in capsys.readouterr().err
+    runs.update(mixed["running"], pidns=runs.here()["pidns"], uid=os.getuid() + 1)           # another user's: not in this user's list
+    assert cli.main(["runs", "-i", mixed["running"], "--jobs", "2"]) == 2
+    assert f"no run '{mixed['running']}'" in capsys.readouterr().err
+    assert goes == [] and not runs.control_file(mixed["running"]).exists()      # nothing was written or signalled
+
+
+def test_the_j_key_asks_for_a_number_and_does_what_jobs_does(capsys, mixed, goes):
+    assert cli.act_on("3", {}, key_reader=lambda: "j", line_reader=lambda text: "x") == 0
+    assert "cancelled: 'x' is no number" in capsys.readouterr().out and goes == []
+    assert cli.act_on("3", {}, key_reader=lambda: "j", line_reader=lambda text: "3") == 0
+    assert runs.read_control(mixed["running"])["parallelism"] == 3 and len(goes) == 1
+
+
+def test_a_spawned_worker_ignores_sigusr2_until_its_handler_is_in():
+    import signal
+    previous = signal.getsignal(signal.SIGUSR2)
+    try:
+        runs._pause_ignored()
+        assert signal.getsignal(signal.SIGUSR2) == signal.SIG_IGN and signal.getsignal(signal.SIGUSR1) == signal.SIG_IGN
+    finally:
+        signal.signal(signal.SIGUSR2, previous)
+        signal.signal(signal.SIGUSR1, signal.SIG_DFL)

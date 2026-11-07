@@ -227,6 +227,9 @@ live jobs (running and paused), each with its index [N]; with --5, --10, --20 or
 | `--month` | show all jobs from the last 28 days |
 | `--resume N` | resume the paused job [N]: its own command again, detached, in its work dir and checkout (its complete points skipped) |
 | `--forget N` | drop the paused job [N] from the live list (its entry is kept) |
+| `--again ID\|N` | run a failed, stopped or lost run's own command again, detached, from its records' config snapshot (its complete points skipped); not a running or paused one |
+| `-i, --index N\|ID` | the run [N] of the live list (or an id): its block, and on a terminal a prompt of what to do with it: watch, stop, resume, run again, forget (the word typed to confirm) |
+| `--jobs M` | with -i N: change the running job's points at once to M, while it runs (never stops a running point; lowering waits for them to end) |
 | `--state S[,S]` | only the runs in these states: running, paused, failed, stopped, done, lost, not run, submitted, on Slurm, ended, cancelled |
 | `--plain` | no colour or links |
 

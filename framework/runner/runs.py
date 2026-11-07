@@ -152,6 +152,32 @@ def entry(run_id: str) -> dict | None:
         return None
 
 
+def control_file(run_id: str) -> Path:
+    """`<id>.control.json` beside the entry: what `heimdall runs -i N --jobs M` asks a running worker (the entry keeps its
+    one writer, the run)."""
+    return folder() / f"{run_id}.control.json"
+
+
+def write_control(run_id: str, parallelism: int, by: int | None = None) -> bool:
+    """The request, whole and atomically: `{"parallelism": M, "by": pid, "at": time}`. False when it cannot be written."""
+    return _write(control_file(run_id), {"parallelism": parallelism, "by": by or os.getpid(), "at": round(time.time(), 3)})
+
+
+def read_control(run_id: str) -> dict:
+    """The request a worker was signalled for; ValueError (saying what is wrong) when it is missing, not JSON, or its
+    `parallelism` is no whole number of at least 1."""
+    try:
+        data = json.loads(control_file(run_id).read_text(encoding="utf-8"))
+    except OSError:
+        raise ValueError(f"there is no {control_file(run_id).name}") from None
+    except ValueError:
+        raise ValueError(f"{control_file(run_id).name} is not JSON") from None
+    count = data.get("parallelism") if isinstance(data, dict) else None
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+        raise ValueError(f"{control_file(run_id).name} has no parallelism of at least 1 (it has {count!r})")
+    return data
+
+
 def begin(run_id: str, fields: dict) -> str | None:
     """A run begins: its entry written (this process's who and where, `fields` over them), the old ones pruned.
     The id, or None when nothing could be written."""
@@ -216,6 +242,7 @@ def prune(now: float | None = None) -> None:
             if (data.get("finished") or data.get("started") or now) < edge:
                 path.unlink(missing_ok=True)
                 path.with_suffix(".log").unlink(missing_ok=True)
+                control_file(path.stem).unlink(missing_ok=True)
         for log in where.glob("*.log"):
             info = log.stat()
             if info.st_uid == os.getuid() and not log.with_suffix(".json").exists() and info.st_mtime < edge:
@@ -326,6 +353,7 @@ def _pause_ignored() -> None:
     """In a worker before it runs: SIGUSR1 (a `p`) ignored until its own handler is in (cli.catch_pause),
     never its default death; an ignored signal stays ignored across exec, a handled one does not reach its tools."""
     signal.signal(signal.SIGUSR1, signal.SIG_IGN)
+    signal.signal(signal.SIGUSR2, signal.SIG_IGN)               # a `--jobs` the same way (cli.catch_control)
 
 
 def cluster_job() -> bool:
@@ -351,6 +379,7 @@ class Recorder:
         self.configuration_labels = dict(configuration_labels or {})
         self.configuration_tags: dict[str, str] = {}         # a configuration → its folder's tag (V223)
         self.parallelism: int | None = None                 # points at once, as the latest run began (not in an identity)
+        self.point_cores = 0                                # the most cores a point of any run keeps busy
         self.records: list[str] = []
         self.verdicts: dict[str, str] = {}
         self.tally = Tally()
@@ -363,6 +392,12 @@ class Recorder:
         self._timer: threading.Timer | None = None
         self._closed = False
         self._lock = threading.Lock()
+
+    def set_parallelism(self, count: int) -> None:
+        """A live `--jobs`: the entry says it at once."""
+        with self._lock:
+            self.parallelism = count
+        self._save(now=True)
 
     def plan(self, totals: dict[str, int]) -> None:
         """Each run's points planned, before the first starts (a sweep's key, "" for one run): the total is the
@@ -378,6 +413,7 @@ class Recorder:
                 "active_parallel_points": len(self.active),
                 "points_failed": sum(len(r["failed"]) for r in self.tally.runs.values()),
                 **({"parallelism": self.parallelism} if self.parallelism is not None else {}),
+                **({"point_cores": self.point_cores} if self.point_cores else {}),
                 "configuration_serials": self.configuration_serials,
                 **({"configuration_tags": self.configuration_tags} if self.configuration_tags else {})}
 
@@ -469,6 +505,8 @@ class Recorder:
                 self._record_serial(event)
                 if isinstance(event.get("parallelism"), int):
                     self.parallelism = event["parallelism"]
+                if isinstance(event.get("cores"), int):
+                    self.point_cores = max(self.point_cores, event["cores"])
             self._save(now=True)
         elif kind == "run" and state == "finished":
             self.verdicts[key] = event.get("verdict", "")

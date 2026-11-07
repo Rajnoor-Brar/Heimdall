@@ -499,6 +499,9 @@ class Recorder:
         elif kind == "run" and state == "started":
             if event.get("record") and event["record"] not in self.records:
                 self.records.append(event["record"])
+            for path in event.get("library") or []:          # an `only` run's records are its library entries
+                if path not in self.records:
+                    self.records.append(path)
             with self._lock:
                 if key not in self.planned or self.totals.get(key):     # planned again at its turn: its own count
                     self.totals[key] = int(event.get("points", 0))

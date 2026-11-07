@@ -1048,6 +1048,7 @@ def clean_targets(planned: list, everything: bool, records: bool = False) -> tup
     kept: list[Path] = []
     outs, ress = _stage_dirs(planned)
     recs = {record_dir(s) for s in outs_stages(planned)}
+    recs |= {s.folders.points / s.point.name for s in outs_stages(planned) if s.library}      # a Run's link into the library
     for p in planned:
         run_folders = tools.run_folders(p.errand, p.configuration)
         base_out, base_res, base_rec = run_folders.logs, run_folders.products, run_folders.points
@@ -1097,6 +1098,9 @@ def remove(paths: list[Path]) -> int:
     """Deletes them (folders whole); returns the bytes freed."""
     freed = 0
     for path in paths:
+        if path.is_symlink():                  # a Run's link into the points library: the link goes, never the entry
+            path.unlink()
+            continue
         freed += _size(path)
         if path.is_dir():
             shutil.rmtree(path)

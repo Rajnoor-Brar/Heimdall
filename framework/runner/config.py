@@ -106,6 +106,7 @@ class Configuration:
     serial_auto: bool = False                           # v3 without a serial: the runner numbers its folder (doc:errand-file)
     draw: object = True                                 # [errand].plot (V167): true, false, or the sets the run draws
     measure: object = True                              # [errand].stats (V168): true, false, or the sets it measures
+    library: object = False                             # [errand].library: pool the generation points (false, true, "only")
     serial_note: str = ""                               # why the runner chose the number it did (--plan)
     inference: dict | None = None                       # v3: what infers a resolved chain's interfaces per point (V153)
     own: dict = field(default_factory=dict)             # V179: its own vars and data (OWN_TABLES), over the file's
@@ -1269,7 +1270,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
             prelim=(_inferred(groups, tools, keep, prelim, quantities) if form == 3     # v3: from the chain
                     else _own_prelim(chain, prelim, origins)),                 # replaced whole: its chain's interfaces
             origins=origins, cluster=merged("cluster", cluster), draw=inherited("plot", True),
-            measure=inherited("stats", True),
+            measure=inherited("stats", True), library=inherited("library", False),
             inference={"keep": keep, "base": prelim} if form == 3 else None, own=_own_of(raw, key), tag=tag)
         check_selectors(configurations[key], quantities, tools, f"{at}.tools")
 

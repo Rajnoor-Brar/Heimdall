@@ -465,6 +465,8 @@ def _planned_points(errand, configuration, master, points):
     for point in points:
         plan = tools.plan_point(errand, configuration, point, master, pre=pre_plan)
         plan.identity = record.identity(plan)
+        if configuration.library:                # the points library (points-library P4): the key it pools the point by
+            plan.library = record.library_key(plan)
         plans.append(plan)
     return pre_plan, plans
 
@@ -657,6 +659,8 @@ def print_plan(errand, configuration, plans, post_plan=None, pre_plan=None, comb
         _print_stage("pre (before every point)", pre_plan, errand)
     for plan in plans:
         state = "complete" if record.is_complete(plan) else "to run"
+        if plan.library:
+            state += f"; library {plan.library[:16]}" + (f", first by {first}" if (first := record.library_first(plan)) else "")
         for line in tools.describe(plan, errand):
             print(line)
         print(f"  output  {plan.out}\n  results {plan.res}   ({state})")
@@ -676,6 +680,9 @@ def print_why(errand, configuration, plans, post_plan=None, pre_plan=None, combi
     stages = [*([pre_plan] if pre_plan else []), *plans, *combined, *([post_plan] if post_plan else [])]
     todo = [p for p in stages if not record.is_complete(p)]
     print(f"run {errand.name} · configuration {configuration.key}: {len(todo)} of {len(stages)} to run")
+    for plan in stages:
+        if plan.library and record.is_complete(plan):
+            print(f"{plan.point.name}   from the library (first by {record.library_first(plan) or '?'})")
     for plan in todo:
         print(f"{plan.point.name}   identity {plan.identity[:12]}")
         for line in record.why(plan):
@@ -1331,6 +1338,37 @@ def not_run(path: Path | None, title: str, message: str, following: Path | None,
         journal.close()
 
 
+def pool_points(plans: list, errand, rerun, bus) -> None:
+    """The points library at a run's start (points-library P4): each pooled point of this run is linked into it
+    (`record.link_library`), a Run that links an entry the index does not yet name for it is noted (`used`), and what the
+    library gives and what `--rerun` replaces is said: the Runs a rerun entry serves are named."""
+    pooled = [p for p in plans if p.library]
+    if not pooled:
+        return
+    entries = record.library_entries(pooled[0].folders.assignment)
+    here = str(pooled[0].folders.record.relative_to(records_root()))
+    hits, replaced = [], {}
+    for plan in pooled:
+        record.link_library(plan)
+        known = entries.get(plan.library)
+        complete = record.is_complete(plan)
+        if known and here not in known["runs"] and (complete or rerun):
+            record.index_note(plan, errand, "used")
+        if complete and not rerun:
+            hits.append((plan, known))
+        elif rerun and known:
+            others = [r for r in known["runs"] if r != here]
+            if others:
+                replaced[plan.point.name] = others
+    if hits:
+        first = sorted({k["first_run"] for _, k in hits if k and k.get("first_run")})
+        bus.say(f"   note: {len(hits)} point(s) come from the library, not run again"
+                + (f" (first made by {', '.join(first[:3])}{', …' if len(first) > 3 else ''})" if first else ""))
+    for name, others in replaced.items():
+        bus.say(f"   note: --rerun replaces the library point {name} for every Run that links it: "
+                f"{', '.join(others[:4])}{', …' if len(others) > 4 else ''}")
+
+
 def dropped_points(every: list) -> list[str]:
     """The complete points a configuration's last points.json listed that its plan no longer has (V158)."""
     path = record.manifest_file(every)
@@ -1353,6 +1391,9 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     errand, configuration, every, plans = planned.errand, planned.configuration, planned.every, planned.plans
     post_plan, pre_plan, combined = planned.post, planned.pre, planned.combined
     stages, again = stages_of(args), getattr(args, "only", None)       # again: the stage --only reruns
+    only_library = configuration.library == "only"           # points into the library, and no Run kept
+    if only_library:
+        stages = stages & {"pre", "points"}
     title_line = header(number, configuration) if number else ""
     if getattr(args, "why", False):
         if title_line:
@@ -1417,6 +1458,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                       "parallelism": stopper.cap(configuration.parallelism),
                       "cores": max((execute.cores(p) for p in plans), default=1),
                       "record": str(records_root() / tools.run_dir(errand, configuration)),    # the registry's (V182)
+                      **({"library": [str(record.library_entry(p)) for p in plans if p.library]} if only_library else {}),
                       **({"tag": tag} if tag else {}),
                       **({"header": title_line} if title_line else {}), **({"constants": known} if known else {})})
     if crowded(configuration, plans):
@@ -1425,13 +1467,16 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         bus.say(f"   note: {note}")
     for warning in tools.meta_notes(errand):                    # V97
         bus.say(f"   warning: {warning}")
+    if "points" in stages:
+        pool_points(plans, errand, args.rerun is True and again is None, bus)
+
     def manifest() -> None:                  # a points-only run (a cluster job) leaves it to the finish job
-        if plans and stages != {"points"}:
+        if plans and stages != {"points"} and not only_library:
             record.write_atomic(record.manifest_file(every), json.dumps(
                 record.points_manifest(every, errand, configuration, known), indent=1, default=str) + "\n")
-    dropped = dropped_points(every) if every and stages != {"points"} else []     # read before it is rewritten
+    dropped = dropped_points(every) if every and stages != {"points"} and not only_library else []     # read before it is rewritten
     manifest()
-    if every and stages != {"points"}:              # V158: the config it ran with, beside points.json
+    if every and stages != {"points"} and not only_library:              # V158: the config it ran with, beside points.json
         if record.write_snapshot(errand, configuration, every) is not None and dropped:
             bus.say(f"   note: {len(dropped)} point(s) recorded in {tools.run_dir(errand, configuration)} are not in the config now "
                     f"({', '.join(dropped[:4])}{', …' if len(dropped) > 4 else ''}): its snapshot and points.json describe "
@@ -1529,6 +1574,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             bus.unsubscribe(shown)
             shown.end()
         manifest()
+        if only_library:                     # points into the library, no Run kept: its links go, the entries stay
+            record.unlink_run(plans)
         bus.unsubscribe(tally)
         bus.unsubscribe(run_log)
         run_log.close()
@@ -2022,10 +2069,14 @@ def entry_of(ref: str | int) -> tuple[dict, str, int | None]:
     """A run `heimdall runs` names: its live [N] (digits), or its id, whole or the tail of it (`…-e17e`) when one
     entry has it. (entry, state, its live number or None)."""
     text = str(ref).strip()
-    if text.isdigit():
-        entry, state = live_at(int(text))
-        return entry, state, int(text)
     entries = runs.entries()
+    if text.isdigit():
+        try:
+            entry, state = live_at(int(text))
+            return entry, state, int(text)
+        except HeimdallError:                    # past the live list: the tail of an id may be digits (…-5322)
+            if not any(str(e.get("id", "")).endswith(text) for e in entries):
+                raise
     found = [e for e in entries if e.get("id") == text] or [e for e in entries if text and str(e.get("id", "")).endswith(text)] \
         or [e for e in entries if text and text in str(e.get("id", ""))]
     if len(found) != 1:

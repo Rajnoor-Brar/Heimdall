@@ -61,7 +61,7 @@ Descriptive: it never changes a point. Any key is free text for people (`author`
 
 # `[errand]`
 
-[`name`](#name) · [`assignment`](#assignment) · [`run`](#run) · [`serial`](#serial) · [`events`](#events) · [`threads`](#threads) · [`parallelism`](#parallelism) · [`plot`](#plot) · [`stats`](#stats) · [`description`](#description) · [`tag`](#tag) · [`sweep_runs`](#sweep_runs) · [`notify`](#notify) · [`chain`](#chain) · [`vary`](#vary) · [`plot_points`](#plot_points) · [`combine`](#combine) · [`pre`](#pre) · [`post`](#post) · [`generate_cards`](#generate_cards) · [`seed`](#seed) · [`commands`](#commands)
+[`name`](#name) · [`assignment`](#assignment) · [`run`](#run) · [`serial`](#serial) · [`events`](#events) · [`threads`](#threads) · [`parallelism`](#parallelism) · [`library`](#library) · [`plot`](#plot) · [`stats`](#stats) · [`description`](#description) · [`tag`](#tag) · [`sweep_runs`](#sweep_runs) · [`notify`](#notify) · [`chain`](#chain) · [`vary`](#vary) · [`plot_points`](#plot_points) · [`combine`](#combine) · [`pre`](#pre) · [`post`](#post) · [`generate_cards`](#generate_cards) · [`seed`](#seed) · [`commands`](#commands)
 
 ## `name`
 
@@ -118,6 +118,14 @@ Default for configurations. `0` means every core, **resolved to a number at plan
 | integer or string | `1` | `"auto"`, at least 1 |
 
 Default for configurations: how many points run at once; `"auto"`: as many as the cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never part of an identity or a seed, so changing it reruns nothing. A configuration inherits it from `[errand]`.
+
+## `library`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| true or false or string | `false` | `true`, `false`, `"only"` |
+
+The points library (records/<A>/library/): `true`: a generation point whose key (its identity without the card comments, so the point's name does not count) is already complete there is linked into this Run and skipped, and a missing one runs into the library and is linked; `"only"`: the same, and the Run keeps no points folders, manifest or plot stage. `--rerun` reruns a library point in its entry, for every Run that links it. Never part of an identity or a seed. A configuration inherits it from `[errand]`.
 
 ## `plot`
 
@@ -241,7 +249,7 @@ Argv arrays run in each point's output folder before its tools, in order; output
 
 # `[cfgs.<name>]`
 
-[`extends`](#extends) · [`serial`](#serial-1) · [`name`](#name-1) · [`folder`](#folder) · [`title`](#title) · [`description`](#description-1) · [`tag`](#tag-1) · [`events`](#events-1) · [`threads`](#threads-1) · [`parallelism`](#parallelism-1) · [`plot`](#plot-1) · [`stats`](#stats-1) · [`vary`](#vary-1) · [`plot_points`](#plot_points-1) · [`combine`](#combine-1) · [`chain`](#chain-1) · [`generate_cards`](#generate_cards-1) · [`pre`](#pre-1) · [`post`](#post-1) · [`fixed`](#fixed) · [`vars`](#vars-1) · [`data`](#data) · [`cluster`](#cluster) · [`seed`](#seed-1)
+[`extends`](#extends) · [`serial`](#serial-1) · [`name`](#name-1) · [`folder`](#folder) · [`title`](#title) · [`description`](#description-1) · [`tag`](#tag-1) · [`events`](#events-1) · [`threads`](#threads-1) · [`parallelism`](#parallelism-1) · [`library`](#library-1) · [`plot`](#plot-1) · [`stats`](#stats-1) · [`vary`](#vary-1) · [`plot_points`](#plot_points-1) · [`combine`](#combine-1) · [`chain`](#chain-1) · [`generate_cards`](#generate_cards-1) · [`pre`](#pre-1) · [`post`](#post-1) · [`fixed`](#fixed) · [`vars`](#vars-1) · [`data`](#data) · [`cluster`](#cluster) · [`seed`](#seed-1)
 
 ## `extends`
 
@@ -330,6 +338,16 @@ Required here if `[errand]` has none. A list is one configuration per count, `<n
 - `"default"`: the layer below's value, as if left out
 
 Points at once (`"auto"`: cores ÷ a point's cores); `--plan` and the job's title say about how many cores that is, and warn past the machine's.
+
+## `library`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| true or false or string | — | `true`, `false`, `"only"` |
+
+- `"default"`: the layer below's value, as if left out
+
+As [errand].library, for this configuration: true, "only", false.
 
 ## `plot`
 

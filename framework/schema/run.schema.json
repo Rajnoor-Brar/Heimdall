@@ -134,6 +134,25 @@
          }
         ]
        },
+       "library": {
+        "description": "as [errand].library, for this configuration: true, \"only\", false",
+        "anyOf": [
+         {
+          "type": [
+           "boolean",
+           "string"
+          ],
+          "enum": [
+           true,
+           false,
+           "only"
+          ]
+         },
+         {
+          "const": "default"
+         }
+        ]
+       },
        "plot": {
         "description": "as [errand].plot, for this configuration: true, false, or the sets it draws\n\nthe plot follow-up for this configuration: `true`, `false`, or the sets it draws, so that sets defined once for the file are each drawn by the configurations they fit",
         "anyOf": [
@@ -287,6 +306,19 @@
       "auto"
      ],
      "default": 1
+    },
+    "library": {
+     "description": "pool the points in the Assignment's library: true (a point another Errand made is linked, not rerun), \"only\" (and leave no Run), false\n\nthe points library (records/<A>/library/): `true`: a generation point whose key (its identity without the card comments, so the point's name does not count) is already complete there is linked into this Run and skipped, and a missing one runs into the library and is linked; `\"only\"`: the same, and the Run keeps no points folders, manifest or plot stage. `--rerun` reruns a library point in its entry, for every Run that links it. Never part of an identity or a seed",
+     "type": [
+      "boolean",
+      "string"
+     ],
+     "enum": [
+      true,
+      false,
+      "only"
+     ],
+     "default": false
     },
     "plot": {
      "description": "after the points: draw the Run's pages (true: every set), none (false: its plot.toml is still written), or these sets\n\nthe plot follow-up: `true` draws every set of the Run's plot document (its `totality` and the `[plot].sets`), `false` none (the document is written all the same, for `heimdall plot` later), a list draws those sets (`[\"totality\", \"pdf_by_generator\"]`) and is the document's `[plot].draw`. A configuration may set its own; `heimdall run … --no-plot` turns it off for one job",

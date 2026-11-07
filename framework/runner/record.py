@@ -135,7 +135,7 @@ def link_library(plan: PointPlan) -> bool:
     if not plan.library:
         raise ValueError("link_library: the plan is not a library point")
     changed = False
-    for link, entry in ((record_dir(plan), library_entry(plan)), (plan.res, library_products(plan))):
+    for link, entry in ((plan.folders.points / plan.point.name, library_entry(plan)), (plan.res, library_products(plan))):
         entry.mkdir(parents=True, exist_ok=True)
         link.parent.mkdir(parents=True, exist_ok=True)
         target = os.path.relpath(entry, link.parent)
@@ -149,9 +149,35 @@ def link_library(plan: PointPlan) -> bool:
             else:
                 raise HeimdallError(f"{link} is a folder of this Run's own, and the point is to be pooled",
                                     hint="heimdall library adopt moves a Run's complete points into the library")
-        link.symlink_to(target)
+        try:
+            link.symlink_to(target)
+        except FileExistsError:                    # another session of this Run linked it meanwhile
+            if os.readlink(link) != target:
+                raise
+            continue
         changed = True
     return changed
+
+
+def unlink_run(plans: list[PointPlan]) -> None:
+    """A `library = "only"` run's end: its links into the library are removed, and the points/ folders of its records and
+    results with them once they are empty. The entries are never touched; the Run's logs and run.jsonl stay."""
+    for plan in plans:
+        if not plan.library:
+            continue
+        for link in (plan.folders.points / plan.point.name, plan.res):
+            if link.is_symlink():
+                link.unlink()
+    for folder in {plan.folders.points for plan in plans if plan.library} | {plan.res.parent for plan in plans if plan.library}:
+        try:
+            folder.rmdir()
+        except OSError:
+            pass
+
+
+def library_first(plan: PointPlan) -> str:
+    """The Run that first made a library point, <A>/<E>/<R>; "" when the index does not say."""
+    return (library_entries(plan.folders.assignment).get(plan.library) or {}).get("first_run") or ""
 
 
 def library_index_file(assignment: str) -> Path:
@@ -337,6 +363,8 @@ def assign_seeds(plans: list[PointPlan], rerun: frozenset[str] = frozenset()) ->
     def clear(base: int, threads: int) -> bool:
         return not any(base < end and start < base + threads for start, end in taken)
 
+    kept = {id(p) for p in plans if p.library and p.point.name not in rerun and _library_seed(p, taken)}
+    plans = [p for p in plans if id(p) not in kept]          # a library hit keeps the seed it was made with
     by_setup: dict[str, list[PointPlan]] = {}
     for plan in [p for p in plans if p.seed_type == "manual"]:
         plan.seed = manual_seed_of(plan)
@@ -367,6 +395,17 @@ def assign_seeds(plans: list[PointPlan], rerun: frozenset[str] = frozenset()) ->
         plan.seed = base
 
 
+def _library_seed(plan: PointPlan, taken: list) -> bool:
+    """A library point complete in its entry takes the seed it was made with (its provenance.json): the first Run's, whatever
+    this plan's seed rule would give. True when it did (the block is then taken)."""
+    seed = _recorded_seed(plan)
+    if not seed:
+        return False
+    plan.seed, plan.seed_kept = seed, True
+    taken.append((seed, seed + plan.threads))
+    return True
+
+
 def _recorded_seed(plan: PointPlan) -> int:
     """A complete point's seed, from its provenance.json (0 when it is not complete, or unreadable)."""
     if not is_complete(plan):
@@ -380,7 +419,7 @@ def _recorded_seed(plan: PointPlan) -> int:
 def record_dir(plan: PointPlan) -> Path:
     """A point's or stage's records, records/<A>/<E>/<R>/points/<name>/ (V157): apart from its working folder
     (records/<A>/<E>/<R>/logs/<name>/), so deleting logs or .cache/ reruns nothing."""
-    return plan.folders.points / plan.point.name
+    return library_entry(plan) if plan.library else plan.folders.points / plan.point.name
 
 
 def provenance_file(plan: PointPlan) -> Path:

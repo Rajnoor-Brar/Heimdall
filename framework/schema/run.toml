@@ -165,6 +165,19 @@ notes = """\
   cores hold, `os.cpu_count() // the costliest point's cores`. `threads` stays each point's; never \
   part of an identity or a seed, so changing it reruns nothing"""
 
+[errand.library]
+type    = "bool|str"
+choices = [true, false, "only"]
+default = false
+inherit = true
+doc     = "pool the points in the Assignment's library: true (a point another Errand made is linked, not rerun), \"only\" (and leave no Run), false"
+notes = """\
+  the points library (records/<A>/library/): `true`: a generation point whose key (its identity without the card \
+  comments, so the point's name does not count) is already complete there is linked into this Run and skipped, \
+  and a missing one runs into the library and is linked; `\"only\"`: the same, and the Run keeps no points \
+  folders, manifest or plot stage. `--rerun` reruns a library point in its entry, for every Run that links it. \
+  Never part of an identity or a seed"""
+
 [errand.plot]
 type    = "bool|list"
 items   = "str"
@@ -315,6 +328,12 @@ doc        = "points run at once (else [errand]'s); \"auto\": cores ÷ a point's
 notes = """\
   points at once (`\"auto\"`: cores ÷ a point's cores); `--plan` and the job's title say \
   about how many cores that is, and warn past the machine's"""
+
+[configuration.library]
+type       = "bool|str"
+choices    = [true, false, "only"]
+default_ok = true
+doc        = "as [errand].library, for this configuration: true, \"only\", false"
 
 [configuration.plot]
 type       = "bool|list"

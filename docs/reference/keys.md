@@ -23,6 +23,7 @@ errand.serial | integer | -
 errand.events | integer | -
 errand.threads | integer | 1
 errand.parallelism | integer or string | 1
+errand.library | true or false or string | false
 errand.plot | true or false or list of strings | true
 errand.stats | true or false or list of strings | true
 errand.description | string | -
@@ -48,6 +49,7 @@ cfgs.<name>.tag | string | -
 cfgs.<name>.events | integer | -
 cfgs.<name>.threads | integer | -
 cfgs.<name>.parallelism | integer or string | -
+cfgs.<name>.library | true or false or string | -
 cfgs.<name>.plot | true or false or list of strings | -
 cfgs.<name>.stats | true or false or list of strings | -
 cfgs.<name>.vary | list | -

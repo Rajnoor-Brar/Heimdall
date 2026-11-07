@@ -42,7 +42,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [errand-file](stable/guide/errand-file.md): an errand file's anatomy, a complete example, which value wins, imports and starting a new assignment (6 KB)
 - [guide-failures](stable/guide/failures.md): what to do when a point fails, and what each common refusal means (3 KB) ⟵ live: live-show
 - [housekeeping](stable/guide/housekeeping.md): check, status, clean, migrate, reproduce, and pinning which stack a study was made with (1 KB)
-- [outputs](stable/guide/outputs.md): what a run writes and where: records, results, reports, cache; what is kept; what may be deleted (3 KB)
+- [outputs](stable/guide/outputs.md): what a run writes and where: records, results, reports, cache; what is kept; what may be deleted (3 KB) ⟵ live: live-points-library
 - [overlay](stable/guide/overlay.md): heimdall overlay: any YODA or ROOT files on one page, with no errand file (1 KB)
 - [paths](stable/guide/paths.md): how a path in an errand file resolves, how a Run's folder is named, and every placeholder (5 KB)
 - [plots-across](stable/guide/plots-across.md): the Runs of an errand on one page: [plot.across], @events, @tag, [from], prefer and ignore (2 KB)
@@ -102,13 +102,13 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [events](stable/internals/events.md): how a tool's status reaches the views: pipes, filter rules, digests, the event stream and its listeners, the views (6 KB)
 - [extending](stable/internals/extending.md): how to add a standard tool, a plot backend or a figure class, and what each must touch (3 KB)
 - [failures](stable/internals/failures.md): how a chain of processes fails and how each way is handled; attribution; exit codes (2 KB)
-- [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (4 KB) ⟵ live: live-identity-golden
+- [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (4 KB) ⟵ live: live-identity-golden, live-points-library
 - [layout](stable/internals/layout.md): Heimdall's folders, the machine root's and a work dir's; what is in git; how the roots are found; where a run's files go (5 KB)
 - [live-runs](stable/internals/live-runs.md): a run as a worker and a client; the run registry; signals, pausing, resuming, heimdall watch and stop (4 KB) ⟵ live: live-live-parallelism, live-resume-record-config, live-runs-listing
 - [paint](stable/internals/paint.md): Paint inside: the order of a page's arithmetic, drawing, heat maps, dumps; what is load-bearing (4 KB)
 - [plot-backends](stable/internals/plot-backends.md): how the backends beside Paint draw the same pages, what they honour and refuse (2 KB)
 - [plot-stage](stable/internals/plot-stage.md): the plot stage inside: members and stand-in plans, the merged sweep, page documents, drawing, what a record gives a drawing (5 KB)
-- [provenance](stable/internals/provenance.md): what a run records and where: provenance.json, attempts.jsonl, points.json, tag, identity.json (2 KB) ⟵ live: live-record-formats
+- [provenance](stable/internals/provenance.md): what a run records and where: provenance.json, attempts.jsonl, points.json, tag, identity.json (2 KB) ⟵ live: live-points-library, live-record-formats
 - [run-flow](stable/internals/run-flow.md): a run from command to pages: planning, one point, scopes, points at once, several runs, combine, and where each check lives (5 KB)
 - [runner](stable/internals/runner.md): the runner's modules and ranks, what each owns, what plugins may import; the C++ files and what each links (8 KB)
 - [testing](stable/internals/testing.md): the test suites, how they isolate themselves, the gates, and what holds the docs (3 KB) ⟵ live: live-identity-golden, live-shadow-root
@@ -140,6 +140,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-identity-golden](live/identity-golden.md): every fixture point's identity parts are kept in a golden file, and a test compares them (2 KB)
 - [live-live-parallelism](live/live-parallelism.md): heimdall runs -i N --jobs M changes a running job's points at once while it runs: a request file and SIGUSR2; raising starts more, lowering stops none (2 KB)
 - [live-no-yoda-backend](live/no-yoda-backend.md): the yoda plot backend (rivet-mkhtml) is gone; mpl owns the transforms it borrowed (2 KB)
+- [live-points-library](live/points-library.md): a points library per Assignment pools generation points by a key that ignores the point's name; library = true | "only" (3 KB)
 - [live-record-formats](live/record-formats.md): record files carry a format version, and heimdall records upgrade brings old ones to it (2 KB)
 - [live-resume-record-config](live/resume-record-config.md): a paused run resumes with the latest attempted Run's recorded config snapshot (2 KB)
 - [live-run-labels](live/run-labels.md): a Run's tag is one of its labels: key=value words from heimdall tag, in the tag file's TOML, each an across axis @key (2 KB)

@@ -85,4 +85,5 @@ Test command, stack loaded: `taskset -c 0-5 nice -n 10 python -m pytest -q <file
 | 1 | done 2026-11-08; strip list agreed: all comment lines |
 | 2 | done 2026-11-08 |
 | 3 | done 2026-11-08 |
-| 4–5 | not started |
+| 4 | done 2026-11-08 |
+| 5 | not started (⏸ at its end) |

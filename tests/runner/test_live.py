@@ -300,7 +300,7 @@ def test_a_coloured_listing_carries_its_codes_and_says_the_same_words(mixed):
     assert "\x1b[1m[1]\x1b[0m" in out                              # the index, bold
     assert "\x1b[32mrunning\x1b[0m" in out and "\x1b[33mpaused\x1b[0m" in out        # green, yellow
     assert "\x1b[36mheimdall runs --resume 2 · heimdall runs --forget 2\x1b[0m" in out     # commands cyan
-    assert "\x1b[36mheimdall watch -i 3 · heimdall stop -i 3\x1b[0m" in out
+    assert __import__("re").search(r"\x1b\[36mheimdall watch --pid \d+ · heimdall stop --pid \d+\x1b\[0m", out)
 
 
 def test_each_state_has_its_colour_and_a_finished_one_its_again():
@@ -352,7 +352,7 @@ def test_a_run_records_its_parallelism_and_its_failures_as_it_goes(monkeypatch):
     assert (got["parallelism"], got["points_failed"], got["points_completed"]) == (4, 1, 1)
     lines = house.runs_listing([{**got, "kind": "run", "started": 1.0, "config": "/w/configs/P/a.toml", "work": "/w",
                                  "pid": os.getpid(), "pstart": runs.started_at(os.getpid()), "host": runs.host()}], [], {}, now=5.0)
-    assert lines[4] == "    running · 0 of 4 at once · 1/3 (1 failed)"
+    assert lines[4] == "    running · 0 ongoing · 1/3 (1 failed)"
 
 
 def test_stop_i_stops_the_nth_live_run_and_refuses_a_pause(capsys, mixed, monkeypatch):

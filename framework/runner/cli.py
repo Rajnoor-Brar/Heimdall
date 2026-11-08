@@ -967,8 +967,9 @@ def _cmd_run(args, worker) -> int:
     finally:
         if bus is not None:
             paused = code == 6 and stopper.paused and crashed is None
-            runs.finish(entry, code, crashed, state="paused" if paused else None, records=recorder.records,
-                        verdicts=recorder.verdicts, counts=recorder.counts(), **recorder.close())    # before the
+            runs.finish(entry, code, crashed, state="paused" if paused else None,
+                        **{**recorder.close(), "records": recorder.records, "verdicts": recorder.verdicts,
+                           "counts": recorder.counts()})                                     # before the
             hub.close()                                                                              # stream ends
             notify(errand, code, paused)
 

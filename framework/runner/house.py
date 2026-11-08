@@ -480,6 +480,51 @@ def _config_name(config: str, work: str | None) -> str:
     return str(path)
 
 
+CONFIG_WIDTH = 40                                       # a listed config's characters at most: its end kept
+
+
+def _shown_config(config: str, work: str | None) -> str:
+    """A run's config in its listing: as `heimdall run` names it (<A>/<E> under its work dir's configs/), else relative to
+    the current folder when under it, cut from its start to CONFIG_WIDTH."""
+    shown = _config_name(config, work)
+    if Path(shown).is_absolute():
+        try:
+            shown = str(Path(shown).relative_to(Path.cwd()))
+        except ValueError:
+            pass
+    return shown if len(shown) <= CONFIG_WIDTH else "…" + shown[-(CONFIG_WIDTH - 1):]
+
+
+def _records_line(records: list) -> str | None:
+    """`<A>/<E> · <R>, …` from a run's record folders (records/<A>/<E>/<R>), an Errand's Runs together; a library
+    entry (records/<A>/library/<key>) counted, not named. None when it has none."""
+    errands: dict[str, list[str]] = {}
+    pooled: dict[str, int] = {}
+    for folder in records if isinstance(records, list) else []:
+        parts = Path(str(folder)).parts
+        if len(parts) < 3:
+            continue
+        if parts[-2] == "library":
+            pooled[parts[-3]] = pooled.get(parts[-3], 0) + 1
+            continue
+        runs_of = errands.setdefault(f"{parts[-3]}/{parts[-2]}", [])
+        if parts[-1] not in runs_of:
+            runs_of.append(parts[-1])
+    said = [f"{errand} · {', '.join(names)}" for errand, names in errands.items()]
+    said += [f"{assignment}/library · {n} entr{'y' if n == 1 else 'ies'}" for assignment, n in pooled.items()]
+    return "; ".join(said) or None
+
+
+def _snapshot_record(config: str) -> list[str]:
+    """The record a config snapshot is in (records/<A>/<E>/<R>/config/…, as --resume and --again run), for an entry
+    that names no records (an older one, or one still planning)."""
+    parts = Path(config or "").parts
+    for i in range(len(parts) - 1, 3, -1):
+        if parts[i] == "config" and parts[i - 4] == "records":
+            return [str(Path(*parts[:i]))]
+    return []
+
+
 def _states(entries: list[dict], by_pid: dict) -> list[tuple[dict, str]]:
     """Each entry with what it says now (runs.state); a cluster submission's from one squeue for them all (V184)."""
     states = [(e, runs.state(e, by_pid)) for e in entries]
@@ -585,11 +630,11 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
     unrecorded, as from inside an image; and paused), each with its index [N] (live_entries); `limit`, the latest N
     of any state; `days`, all begun within that age; `states` keeps those in these states (a live run keeps its [N]).
     Oldest first, a block each (a history list's names the run's id first, a live one's its [N]):
-        [N] <host> | <work dir's title> | <config> [<configurations>]
+        [N] <host> | <work dir's title> | <config>                  (the config cut to CONFIG_WIDTH)
             MM-DD HH:MM · <span>
-            <A>/<E> · NN_cfg [tag], …   <points done, failed, stopped> (once it ended)
-            <state> · <P> at once · <done>/<total> (<F> failed)       (NULL: not recorded, as by an older entry)
-            pid P : heimdall watch -i N · heimdall stop -i N          (a pause's resume and forget, a failed or
+            <A>/<E> · <R>, …   <points done, failed, stopped> (once it ended)   (its record folders: records/<A>/<E>/<R>)
+            <state> · <P> ongoing · <done>/<total> (<F> failed)       (NULL: not recorded, as by an older entry)
+            pid P : heimdall watch --pid P · heimdall stop --pid P    (a pause's resume and forget, a failed or
             log <path>                                                 stopped one's --again, a cluster submission's)
     `color`: the state, the index, the commands and the log in colour (the caller says: wants_colour); `width`: the
     first line cut to it; `only`: this entry alone (of any list; a live one with its [N], its id first)."""
@@ -628,16 +673,17 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         span = _ago((e.get("finished") or now) - started)
         when = time.strftime("%m-%d %H:%M", time.localtime(started))
         what = _config_name(e.get("config", ""), e.get("work"))
+        shown = _shown_config(e.get("config", ""), e.get("work"))
         keys = [k for k in (e.get("configurations") or ([e["configuration"]] if e.get("configuration") else [])) if k]
         serials, tags = e.get("configuration_serials", {}), e.get("configuration_tags", {})
         made = ", ".join((f"{serials[key]:02d}_{key}" if isinstance(serials.get(key), int) else key)
                          + (f" [{tags[key]}]" if tags.get(key) else "") for key in keys)      # NN_ only when it is known
         prefix = (f"[{number}] " if number else "") + ("" if live_list else f"{e.get('id', '?')} ")
-        head = _cut(f"{prefix}{e.get('host') or runs.host()} | {where(e.get('work'))} | {what}"
-                    + (f" [{', '.join(keys)}]" if keys else ""), width)
+        head = _cut(f"{prefix}{e.get('host') or runs.host()} | {where(e.get('work'))} | {shown}", width)
         if number:
             head = paint(f"[{number}]", "bold", color) + head[len(f"[{number}]"):]
-        config_line = f"    {what} · {made}" if made else f"    {what}"
+        recorded = _records_line(e.get("records") or _snapshot_record(e.get("config", "")))
+        config_line = f"    {recorded}" if recorded else f"    {shown} · {made}" if made else f"    {shown}"
         if counts := e.get("counts"):                                   # V202: its points
             config_line += (f"   {counts.get('done', 0)} done"
                             + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
@@ -646,11 +692,9 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         going, word = state.startswith("running"), state_word(state)
         completed, total = e.get("points_completed"), e.get("points_total")
         parts = [paint(state, STATE_STYLE.get(word, ""), color) if word in STATE_STYLE else state]
-        size, active = e.get("parallelism"), e.get("active_parallel_points")
-        if going and size is not None and active is not None:
-            parts.append(f"{active} of {size} at once")
-        elif size is not None:
-            parts.append(f"{size} at once")
+        active = e.get("active_parallel_points")
+        if going and active is not None:
+            parts.append(f"{active} ongoing")
         parts.append(f"{completed if completed is not None else 'NULL'}/{total if total is not None else 'NULL'}"
                      + (f" ({e['points_failed']} failed)" if not e.get("counts") and e.get("points_failed") else ""))
         tail = []
@@ -658,7 +702,7 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
             tail.append(f"    cluster jobs {', '.join(map(str, e.get('jobs', [])))}: "
                         + paint(f"heimdall cluster {what} {e.get('configuration', '')} --status", "cyan", color))
         elif going:
-            watch = f"-i {number}" if number else f"--pid {e.get('pid')}"
+            watch = f"--pid {e.get('pid')}"
             tail.append(f"    pid {e.get('pid')} : " + paint(f"heimdall watch {watch} · heimdall stop {watch}", "cyan", color))
         elif number and runs.paused(e):
             tail.append("    " + paint(f"heimdall runs --resume {number} · heimdall runs --forget {number}", "cyan", color))

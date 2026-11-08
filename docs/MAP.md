@@ -144,7 +144,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-record-formats](live/record-formats.md): record files carry a format version, and heimdall records upgrade brings old ones to it (2 KB)
 - [live-resume-record-config](live/resume-record-config.md): a paused run resumes with the latest attempted Run's recorded config snapshot (2 KB)
 - [live-run-labels](live/run-labels.md): a Run's tag is one of its labels: key=value words from heimdall tag, in the tag file's TOML, each an across axis @key (3 KB)
-- [live-runs-listing](live/runs-listing.md): heimdall runs lists a run as a six-line block, coloured on a terminal with a log link; --state filters; stop -i N (5 KB)
+- [live-runs-listing](live/runs-listing.md): heimdall runs lists a run as a six-line block, coloured on a terminal with a log link; --state filters; stop -i N (6 KB)
 - [live-score-engine](live/score-engine.md): framework/stats/score.py: how a table's rows become a point's score, worst page, veto and per-purpose shares, and the other aggregators (4 KB)
 - [live-score-settings](live/score-settings.md): the [score] table, [stats].metrics and centres, a set's score, a figure's weight, and heimdall explain score (2 KB)
 - [live-scoring](live/scoring.md): the statistics summary and the report's statistics by purpose: standings, a section a purpose, a metric's ranking and table, a head to head only when asked (5 KB)

@@ -154,10 +154,10 @@ def test_heimdall_runs_defaults_to_live_only_and_separates_entries(capsys, monke
     finally:
         hub.close()
     out = capsys.readouterr().out.splitlines()
-    assert out[0] == "live" and out[1].startswith("[1] ") and out[1].endswith("| P/b [two]")
+    assert out[0] == "live" and out[1].startswith("[1] ") and out[1].endswith("| P/b")
     assert out[3].endswith("P/b · two")                                        # no serial: no NN_
     assert out[4].startswith("    running (unrecorded)")
-    assert f"heimdall watch -i 1 · heimdall stop -i 1" in out[5]
+    assert "heimdall watch --pid " in out[5] and " · heimdall stop --pid " in out[5]
     assert done not in "\n".join(out) and "P/a · one" not in "\n".join(out)
 
 
@@ -197,9 +197,10 @@ def test_heimdall_runs_uses_title_and_configuration_serial_columns():
         "id": "20261030-084424-pp-exphep-e17e",
         "kind": "run",
         "started": time.mktime((2026, 10, 30, 8, 44, 0, 0, 0, -1)),
-        "config": "/w/configs/eic/zeus.toml",
+        "config": "/w/configs/Demo/jets.toml",
         "configurations": ["generator_pdf"],
         "configuration_serials": {"generator_pdf": 12},
+        "records": ["/w/records/Demo/jets_more/12_generator_pdf"],
         "work": "/w",
         "pid": pid,
         "pstart": runs.started_at(pid),
@@ -209,13 +210,13 @@ def test_heimdall_runs_uses_title_and_configuration_serial_columns():
         "parallelism": 4,
         "log": "/runs/20261030-084424-pp-exphep-e17e.log",
     }
-    lines = house.runs_listing([entry], [], {"/w": "Brookhaven"}, now=entry["started"] + 5101)
+    lines = house.runs_listing([entry], [], {"/w": "A study"}, now=entry["started"] + 5101)
     entry_host = entry["host"]
-    assert lines[1:] == [f"[1] {entry_host} | Brookhaven | eic/zeus [generator_pdf]",
+    assert lines[1:] == [f"[1] {entry_host} | A study | Demo/jets",          # the config as run, no [configurations]
                          f"    {time.strftime('%m-%d %H:%M', time.localtime(entry['started']))} · 1h 25m",
-                         "    eic/zeus · 12_generator_pdf",
-                         "    running · 2 of 4 at once · 3/7",
-                         f"    pid {pid} : heimdall watch -i 1 · heimdall stop -i 1",
+                         "    Demo/jets_more · 12_generator_pdf",           # its records' <A>/<E>, not the config's name
+                         "    running · 2 ongoing · 3/7",
+                         f"    pid {pid} : heimdall watch --pid {pid} · heimdall stop --pid {pid}",
                          f"    log {entry['log']}"]
 
 
@@ -367,6 +368,24 @@ def test_heimdall_runs_historical_entry_uses_null_counts_without_active_count():
     assert lines[2] == f"    {when} · 0m"
     assert lines[4] == "    done · NULL/NULL"                          # nothing recorded: no "at once"
     assert all("active_parallel_points" not in line for line in lines)
+
+
+def test_a_listed_config_is_relative_to_here_and_cut_from_its_start(tmp_path, monkeypatch):
+    """A config outside the work dir's configs/ (a record's snapshot, as --again runs) is named relative to the current
+    folder, and a long one keeps its end; the record line holds each Errand's Runs, a library's entries counted."""
+    monkeypatch.chdir(tmp_path)
+    snapshot = tmp_path / "records" / "Demo" / "jets" / "01_a" / "config" / "Demo" / "jets.toml"
+    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "verdict": "done",
+             "config": str(snapshot), "work": "/elsewhere",
+             "records": [str(tmp_path / "records/Demo/jets/01_a"), str(tmp_path / "records/Demo/jets/02_b"),
+                         str(tmp_path / "records/Demo/library/0123456789abcdef")]}
+    lines = house.runs_listing([entry], [], {}, now=20.0, limit=5)
+    shown = lines[1].rsplit(" | ", 1)[1]
+    assert len(shown) == house.CONFIG_WIDTH and shown.startswith("…") and shown.endswith("config/Demo/jets.toml")
+    assert "records/Demo/jets/01_a/config/Demo/jets.toml".endswith(shown[1:])
+    assert lines[3] == "    Demo/jets · 01_a, 02_b; Demo/library · 1 entry"
+    del entry["records"]                                       # none recorded: the snapshot's record names it
+    assert house.runs_listing([entry], [], {}, now=20.0, limit=5)[3] == "    Demo/jets · 01_a"
 
 
 @pytest.mark.parametrize(("flag", "days", "expected"), [

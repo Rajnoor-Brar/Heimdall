@@ -415,7 +415,8 @@ class Recorder:
                 **({"parallelism": self.parallelism} if self.parallelism is not None else {}),
                 **({"point_cores": self.point_cores} if self.point_cores else {}),
                 "configuration_serials": self.configuration_serials,
-                **({"configuration_tags": self.configuration_tags} if self.configuration_tags else {})}
+                **({"configuration_tags": self.configuration_tags} if self.configuration_tags else {}),
+                **({"records": list(self.records)} if self.records else {})}
 
     def counts(self) -> dict:
         """Every run's points together: done, failed, stopped, and done with warnings."""

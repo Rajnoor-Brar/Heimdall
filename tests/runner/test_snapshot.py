@@ -284,9 +284,42 @@ def test_a_sync_keeps_a_runs_own_totality(trees, capsys):
     assert "title" not in doc.plot and doc.plot["sets"]["totality"] == sweep.totality(kept, members) == {"pages": {"pdf": "all"}}
 
 
-def test_a_point_taken_out_of_a_documents_quantities_is_refused_not_a_traceback(trees):
-    """A member names its value by its place in [quantities.<q>].points; with a point removed by hand the document is
-    refused, naming the member and the way to leave a value out of the drawing."""
+def test_a_documents_members_name_their_values_by_tag_so_its_points_may_move(trees):
+    """A member names each value by its tag, and [axes].fixed too: reordering [quantities.<q>].points leaves every
+    member's value as it was, and a point taken out leaves its members out of the drawing, said, the rest drawn."""
+    import tomllib
+    import tomli_w
+    from runner import plotdoc
+    from runner.sweep import label_of
+    p = recorded_run("Demo/jets", "pdf")
+    assert cli.migrate_plot_docs(argparse.Namespace(plot_docs=[], apply=True)) == 0
+    target = p.every[0].folders.results / plotdoc.FILE
+    data = tomllib.loads(target.read_text(encoding="utf-8"))
+    tags = [row["tag"] for row in data["quantities"]["pdf"]["points"]]
+    assert len(tags) > 1 and all(m["values"]["pdf"] in tags and m["choice"]["pdf"] in tags for m in data["members"].values())
+    assert all(isinstance(v, str) for v in data["axes"].get("fixed", {}).values())
+    doc, _, members = plotdoc.load(target)
+    before = {m.point.name: label_of(doc.quantities["pdf"], m.values["pdf"]) for m in members}
+    data["quantities"]["pdf"]["points"].reverse()
+    target.write_text(tomli_w.dumps(data), encoding="utf-8")
+    doc, _, members = plotdoc.load(target)
+    assert {m.point.name: label_of(doc.quantities["pdf"], m.values["pdf"]) for m in members} == before and not doc.left
+    gone = data["quantities"]["pdf"]["points"].pop(0)["tag"]
+    target.write_text(tomli_w.dumps(data), encoding="utf-8")
+    doc, _, members = plotdoc.load(target)
+    left = {n for n, m in data["members"].items() if m["values"]["pdf"] == gone}
+    assert left and set(doc.left) == left and f"its pdf {gone} is not in [quantities.pdf]" in doc.left[min(left)]
+    assert {m.point.name for m in members} == set(before) - left
+    assert {m.point.name: label_of(doc.quantities["pdf"], m.values["pdf"]) for m in members} == \
+        {n: l for n, l in before.items() if n not in left}
+    said = []
+    plot.say_left(doc, said.append)
+    assert said and f"{len(left)} member(s) left out" in said[0]
+
+
+def test_a_document_by_place_still_reads_is_refused_past_its_list_and_is_upgraded_to_tags(trees):
+    """A document written before tags (values as places) reads as before; a point taken out of its list is refused,
+    not a traceback; migrate --plot-docs --apply rewrites it by tag."""
     import tomllib
     import tomli_w
     from runner import plotdoc
@@ -294,11 +327,20 @@ def test_a_point_taken_out_of_a_documents_quantities_is_refused_not_a_traceback(
     assert cli.migrate_plot_docs(argparse.Namespace(plot_docs=[], apply=True)) == 0
     target = p.every[0].folders.results / plotdoc.FILE
     data = tomllib.loads(target.read_text(encoding="utf-8"))
+    tags = [row["tag"] for row in data["quantities"]["pdf"]["points"]]
+    for m in data["members"].values():
+        m["values"]["pdf"], m["choice"]["pdf"] = tags.index(m["values"]["pdf"]), tags.index(m["choice"]["pdf"])
+    target.write_text(tomli_w.dumps(data), encoding="utf-8")
+    assert plotdoc.needs_upgrade(target)
+    named = {m.point.name: m.values["pdf"] for m in plotdoc.load(target)[2]}
+    assert plotdoc.upgrade(target) and not plotdoc.needs_upgrade(target)
+    assert {n: m["values"]["pdf"] for n, m in tomllib.loads(target.read_text(encoding="utf-8"))["members"].items()} == \
+        {n: tags[i] for n, i in named.items()}
     data["quantities"]["pdf"]["points"].pop()
     target.write_text(tomli_w.dumps(data), encoding="utf-8")
     with pytest.raises(HeimdallError, match=r"has pdf #\d+, but \[quantities.pdf\] has") as caught:
         plotdoc.load(target)
-    assert "--points" in caught.value.hint
+    assert "migrate --plot-docs" in caught.value.hint
 
 
 def test_a_documents_quantities_are_points_and_an_older_one_is_upgraded(trees, capsys):

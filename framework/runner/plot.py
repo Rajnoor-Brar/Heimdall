@@ -482,6 +482,16 @@ def recorded(errand, configuration) -> list[Member]:
     return merged
 
 
+def say_left(errand, say) -> None:
+    """The members a plot document leaves out of the drawing (plotdoc.load: a value its [quantities] no longer lists)."""
+    left = getattr(errand, "left", None) or {}
+    if left:
+        names = sorted(left)
+        say(f"plot: {len(names)} member(s) left out, a value not in the document's [quantities]: "
+            + ", ".join(names[:6]) + (f", … ({len(names) - 6} more)" if len(names) > 6 else "")
+            + f" ({left[names[0]]})")
+
+
 def drawable(members: list) -> tuple[list, list]:
     """The members a page draws, and those of them that ran with other inputs than their plan has now (V158):
     a member is drawn when its record is complete (a .complete there) and its YODA is on disk, whatever the
@@ -1655,6 +1665,7 @@ def draw(errand, configuration, plans, say, others=None, stats=True) -> int:
     number of pages that failed, summed over the backends. Then each compare figure that names this
     configuration (V83), once all of its configurations have complete points: `others(key)` gives
     another configuration's plans. A failed program's output is logged in records/<A>/<E>/<R>/logs/plot/ (V204)."""
+    say_left(errand, say)
     token = _LOGS.set(logs_of(plans))
     try:
         return _draw_stage(errand, configuration, plans, say, others, stats)
@@ -1930,6 +1941,7 @@ def measured(errand, picked=None):
 
 def measure(errand, configuration, plans, say, picked=None) -> int:
     """`heimdall stats`'s pass (V168), its failures logged as a drawing's (V204): see _measure."""
+    say_left(errand, say)
     token = _LOGS.set(logs_of(plans) or _LOGS.get())
     try:
         return _measure(errand, configuration, plans, say, picked)

@@ -65,7 +65,9 @@ def point_axes(numbers: Path) -> dict:
         chosen = {}
         for quantity, index in (member.get("choice") or {}).items():
             points = (quantities.get(quantity) or {}).get("points") or []
-            if isinstance(index, int) and 0 <= index < len(points) and "tag" in points[index]:
+            if isinstance(index, str):                         # by tag (plotdoc.by_tag)
+                chosen[quantity] = index
+            elif isinstance(index, int) and 0 <= index < len(points) and "tag" in points[index]:
                 chosen[quantity] = str(points[index]["tag"])
         if chosen:
             out[name] = chosen

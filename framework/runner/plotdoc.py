@@ -54,7 +54,7 @@ class DocConfiguration:
     sweeps: list
     plot_points: list
     combine: list
-    static: dict                  # quantity → "#N" (sweep.select's), the fixed values
+    static: dict                  # quantity → "#N" (sweep.select's), the fixed values; the document writes the tag
     serial: int | None = None
     title: str = ""
 
@@ -72,6 +72,7 @@ class Doc:
     source: dict = field(default_factory=dict)
     sweep_runs: bool = False
     score: dict = field(default_factory=dict)     # [score]: how its statistics are scored, copied from the config
+    left: dict = field(default_factory=dict)      # member → why it is not drawn (a value its [quantities] no longer lists)
 
     @property
     def configurations(self) -> dict:
@@ -181,9 +182,40 @@ def _lines(key: str, value) -> list[str]:
     return [f"{_key(key)} = {_inline(value)}"]
 
 
+def _tags(table: dict) -> list[str]:
+    """A document quantity's tags, in its points' order."""
+    return [str(row.get("tag")) for row in table.get("points", [])] if "points" in table \
+        else [str(t) for t in table.get("tags", [])] or [str(v) for v in table.get("values", [])]
+
+
+def by_tag(data: dict) -> dict:
+    """A document whose members name their values by tag, and its fixed values too, not by their place in
+    [quantities.<q>].points: a point moved, added or taken out of the list leaves every other member's value as it
+    was. A value already a tag, or of a quantity the document does not list, stays as it is."""
+    tags = {q: _tags(t) for q, t in (data.get("quantities") or {}).items() if isinstance(t, dict)}
+
+    def named(values: dict) -> dict:
+        return {q: tags[q][i] if isinstance(i, int) and not isinstance(i, bool) and q in tags and 0 <= i < len(tags[q]) else i
+                for q, i in values.items()}
+
+    for entry in (data.get("members") or {}).values():
+        for key in ("choice", "values"):
+            if isinstance(entry.get(key), dict):
+                entry[key] = named(entry[key])
+    fixed = (data.get("axes") or {}).get("fixed")
+    if isinstance(fixed, dict):
+        for q, mark in list(fixed.items()):
+            if isinstance(mark, str) and mark[:1] == "#" and mark[1:].isdigit() and q in tags \
+                    and 0 <= int(mark[1:]) - 1 < len(tags[q]):
+                fixed[q] = tags[q][int(mark[1:]) - 1]
+    return data
+
+
 def dumps(data: dict) -> str:
     """A document as TOML (V172, V173): a header for each of HEADERS' tables, everything below it inline (a member's
-    choice and values, a set's pages and curves, a quantity's points a line each), the tables in ORDER (members last)."""
+    choice and values, a set's pages and curves, a quantity's points a line each), the tables in ORDER (members last);
+    its members' values and its fixed values by tag (by_tag), whichever writer made it."""
+    data = by_tag(data)
     out: list[list[str]] = []
 
     def walk(path: tuple, table: dict) -> None:
@@ -242,13 +274,17 @@ def _quantity_of(name: str, table: dict) -> Quantity:
 
 
 def needs_upgrade(path: Path) -> bool:
-    """A document whose quantities are parallel lists (V172), or that has a table deeper than HEADERS' own, a
-    member's choice or a set's pages under a header of its own, or [[…]] tables (V173)."""
+    """A document whose quantities are parallel lists (V172), whose members name values by their place, or that has
+    a table deeper than HEADERS' own, a member's choice or a set's pages under a header of its own, or [[…]] tables (V173)."""
     import re
     import tomllib
     text = path.read_text(encoding="utf-8")
-    if any("points" not in q for q in tomllib.loads(text).get("quantities", {}).values()):
+    data = tomllib.loads(text)
+    if any("points" not in q for q in data.get("quantities", {}).values()):
         return True
+    if any(isinstance(i, int) for m in (data.get("members") or {}).values() for key in ("choice", "values")
+           for i in (m.get(key) or {}).values()):
+        return True                                          # its members' values by place, not by tag
     for line in text.splitlines():
         found = re.fullmatch(r"\[\[?(.+?)\]\]?\s*", line)
         if found:
@@ -585,9 +621,12 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
     check_format(source, path)
     refuse_old_source(source, path)
     quantities = {name: _quantity_of(name, table) for name, table in data.get("quantities", {}).items()}
+    places = {name: {tag: i for i, tag in enumerate(_tags(table))} for name, table in data.get("quantities", {}).items()}
+    fixed = {q: f"#{places[q][mark] + 1}" if isinstance(mark, str) and q in places and mark in places[q] else mark
+             for q, mark in dict(axes.get("fixed", {})).items()}
     configuration = DocConfiguration(source.get("configuration", ""), source.get("label", source.get("configuration", "")),
                                      _sweeps_of(axes.get("vary", [])), list(axes.get("plot_points", [])),
-                                     list(axes.get("combine", [])), dict(axes.get("fixed", {})), source.get("serial"),
+                                     list(axes.get("combine", [])), fixed, source.get("serial"),
                                      source.get("title", ""))
     doc = Doc(path, source.get("assignment", ""), source.get("errand", ""), dict(data.get("plot", {})), dict(data.get("stats", {})),
               quantities, configuration, dict(source),
@@ -595,6 +634,14 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
     own = _folders(path.parent, doc.assignment)
     members = []
     for name, entry in data["members"].items():
+        values, choice, gone = _placed(entry.get("values", {}), places), _placed(entry.get("choice", {}), places), None
+        for q, i in {**values, **choice}.items():
+            if isinstance(i, str):
+                gone = f"its {q} {i} is not in [quantities.{q}]"
+                break
+        if gone:
+            doc.left[name] = gone
+            continue
         yoda = entry.get("yoda")
         yoda = (own.results / yoda if not Path(yoda).is_absolute() else Path(yoda)) if yoda else None
         marker = own.points / name / ".complete"
@@ -602,28 +649,33 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
             recorded = marker.read_text(encoding="utf-8").strip() if marker.is_file() else None
         else:                                                # copied away from its records: as it says
             recorded = entry.get("identity", "") if entry.get("complete") else None
-        point = Point(index=int(entry.get("index", 0)), name=name, choice=dict(entry.get("choice", {})),
-                      stage=entry.get("stage", ""))
+        point = Point(index=int(entry.get("index", 0)), name=name, choice=choice, stage=entry.get("stage", ""))
         context = {**({"planned": entry["planned"]} if entry.get("planned") else {}),
                    **({"events": int(entry["events"])} if entry.get("events") else {})}
-        members.append(Member(point, dict(entry.get("values", {})), folders or own, yoda, dict(entry.get("texts", {})), context,
+        members.append(Member(point, values, folders or own, yoda, dict(entry.get("texts", {})), context,
                               entry.get("identity", ""), recorded))
     check_indices(path, quantities, members)
     return doc, configuration, members
 
 
+def _placed(values: dict, places: dict) -> dict:
+    """A member's values as indices into its document's [quantities]: a tag by its place there now (a tag the list no
+    longer has stays a string, for load to leave the member out), an index (a document written before tags) as it is."""
+    return {q: places[q].get(i, i) if isinstance(i, str) and q in places else i for q, i in values.items()}
+
+
 def check_indices(path: Path, quantities: dict, members: list) -> None:
-    """Every member's value is one of its quantity's points: a member names a value by its place in
-    [quantities.<q>].points, so a point taken out of the list by hand would move every later one's label."""
+    """Every member's value is one of its quantity's points: a document written before tags names a value by its place
+    in [quantities.<q>].points, so a point taken out of its list would move every later one's label."""
     for member in members:
         for name, index in member.values.items():
             quantity = quantities.get(name)
             if quantity is not None and not (isinstance(index, int) and 0 <= index < len(quantity.values)):
                 raise HeimdallError(f"member {member.point.name} has {name} #{index + 1 if isinstance(index, int) else index}, "
                                     f"but [quantities.{name}] has {len(quantity.values)} point(s)", where=str(path),
-                                    hint="[quantities] and [members] are the run's: put the point back. To leave a value "
-                                         f"out of the drawing, a set's filter does it ({name} = [\"<tag>\", …] in its pages or "
-                                         "curves), or heimdall plot RUN --points SEL")
+                                    hint="this document names its members' values by place: put the point back, then "
+                                         "heimdall migrate --plot-docs --apply names them by tag, and a point taken out leaves "
+                                         "its members out of the drawing")
 
 
 def find(name: str) -> Path | None:
@@ -884,7 +936,8 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
             kept[run_name] = {q: found[0] for q, found in held.items() if found}
     configuration = DocConfiguration(ACROSS, errand, [[q] for q in swept], [], [], {}, None, f"{errand}: its runs together")
     doc = Doc(path, assignment, errand, dict(data.get("plot", {})), dict(data.get("stats", {})), quantities, configuration,
-              {**source, "shadowed": shadowed, **({"ignored": kept} if kept else {})}, score=dict(data.get("score", {})))
+              {**source, "shadowed": shadowed, **({"ignored": kept} if kept else {})}, score=dict(data.get("score", {})),
+              left={f"{run_name}__{name}": why for run_name, run_doc, _, _ in loaded for name, why in run_doc.left.items()})
     return doc, configuration, members
 
 

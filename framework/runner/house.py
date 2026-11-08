@@ -632,8 +632,9 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
     Oldest first, a block each (a history list's names the run's id first, a live one's its [N]):
         [N] <host> | <work dir's title> | <config>                  (the config cut to CONFIG_WIDTH)
             MM-DD HH:MM · <span>
-            <A>/<E> · <R>, …   <points done, failed, stopped> (once it ended)   (its record folders: records/<A>/<E>/<R>)
-            <state> · <P> ongoing · <done>/<total> (<F> failed)       (NULL: not recorded, as by an older entry)
+            <A>/<E> · <R>, …                                           (its record folders: records/<A>/<E>/<R>)
+            <state> · <P> ongoing · <ended>/<total> (<F> failed)      (NULL: not recorded, as by an older entry)
+                                                                      (once it ended: · X done (W with warnings), F failed)
             pid P : heimdall watch --pid P · heimdall stop --pid P    (a pause's resume and forget, a failed or
             log <path>                                                 stopped one's --again, a cluster submission's)
     `color`: the state, the index, the commands and the log in colour (the caller says: wants_colour); `width`: the
@@ -684,11 +685,12 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
             head = paint(f"[{number}]", "bold", color) + head[len(f"[{number}]"):]
         recorded = _records_line(e.get("records") or _snapshot_record(e.get("config", "")))
         config_line = f"    {recorded}" if recorded else f"    {shown} · {made}" if made else f"    {shown}"
-        if counts := e.get("counts"):                                   # V202: its points
-            config_line += (f"   {counts.get('done', 0)} done"
-                            + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
-                            + f", {counts.get('failed', 0)} failed"
-                            + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
+        counted = ""
+        if counts := e.get("counts"):                                   # V202: its points, on the state line
+            counted = (f"{counts.get('done', 0)} done"
+                       + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
+                       + f", {counts.get('failed', 0)} failed"
+                       + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
         going, word = state.startswith("running"), state_word(state)
         completed, total = e.get("points_completed"), e.get("points_total")
         parts = [paint(state, STATE_STYLE.get(word, ""), color) if word in STATE_STYLE else state]
@@ -697,6 +699,8 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
             parts.append(f"{active} ongoing")
         parts.append(f"{completed if completed is not None else 'NULL'}/{total if total is not None else 'NULL'}"
                      + (f" ({e['points_failed']} failed)" if not e.get("counts") and e.get("points_failed") else ""))
+        if counted:
+            parts.append(counted)
         tail = []
         if e.get("kind") == "cluster":
             tail.append(f"    cluster jobs {', '.join(map(str, e.get('jobs', [])))}: "

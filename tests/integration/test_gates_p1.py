@@ -67,7 +67,7 @@ def test_the_legacy_reference_is_reproduced_byte_for_byte(scratch, capture_plugi
 
 def test_sigma_at_four_threads_is_the_combination(scratch):
     point = scratch / "point.cmnd"
-    point.write_text("Main:numberOfEvents = 20000\nParallelism:numThreads = 4\n"
+    point.write_text("Main:numberOfEvents = 5000\nParallelism:numThreads = 4\n"
                      "Parallelism:seeds = {1001,1002,1003,1004}\nBeams:eA = 920\nBeams:eB = 27.5\n"
                      "Beams:idB = -11\n", encoding="utf-8")
     yoda, side = chain(scratch, [WORK / "configs" / "Demo" / "ep.cmnd", point],

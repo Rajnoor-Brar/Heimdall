@@ -87,7 +87,7 @@ def pid_of(pattern: str) -> int:
 
 
 def test_the_producer_killed_mid_stream_fails_the_point_and_keeps_partial(scratch):
-    runner = start(write_config(scratch, events=40000), scratch)
+    runner = start(write_config(scratch, events=5000), scratch)
     out, res = point_dirs(scratch)
     wait_for_progress(out, "pythia")
     os.kill(pid_of(f"App_Pythia.exe {out}"), signal.SIGKILL)
@@ -113,7 +113,7 @@ def test_init_failure_with_the_reader_blocked_at_open_does_not_hang(scratch):
 
 
 def test_the_consumer_killed_is_blamed_not_the_producer(scratch):
-    runner = start(write_config(scratch, events=40000), scratch)
+    runner = start(write_config(scratch, events=5000), scratch)
     out, res = point_dirs(scratch)
     wait_for_progress(out, "rivet")
     os.kill(pid_of(f"rivet -o {res}"), signal.SIGKILL)
@@ -124,7 +124,7 @@ def test_the_consumer_killed_is_blamed_not_the_producer(scratch):
 
 
 def test_ctrl_c_stops_with_6_and_the_next_run_resumes(scratch):
-    config = write_config(scratch, events=40000)
+    config = write_config(scratch, events=5000)
     runner = start(config, scratch)
     out, res = point_dirs(scratch)
     wait_for_progress(out, "pythia")

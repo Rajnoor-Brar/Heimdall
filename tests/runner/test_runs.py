@@ -58,14 +58,17 @@ def test_old_entries_and_their_logs_leave_after_thirty_days():
     for run_id in (old, unfinished, fresh):
         runs.begin(run_id, {})
         (runs.folder() / f"{run_id}.log").write_text("log\n", encoding="utf-8")
+        runs.ask_queue(run_id, "dispatch")                     # a dispatch or forget asked of it while it was queued
+        runs.control_file(run_id).write_text("{}", encoding="utf-8")
     runs.finish(old, 0)
     for run_id, fields in ((old, {"finished": now - 31 * 86400}), (unfinished, {"started": now - 31 * 86400})):
         runs.update(run_id, **fields)
-    orphan = runs.folder() / "lonely.log"
-    orphan.write_text("x\n", encoding="utf-8")
-    os.utime(orphan, (now - 40 * 86400,) * 2)
+    for orphan in ("lonely.log", "lonely.queue.json", "lonely.control.json"):    # no entry beside them
+        (runs.folder() / orphan).write_text("x\n", encoding="utf-8")
+        os.utime(runs.folder() / orphan, (now - 40 * 86400,) * 2)
     assert [e["id"] for e in runs.entries(now)] == [fresh]
-    assert sorted(p.name for p in runs.folder().iterdir()) == [f"{fresh}.json", f"{fresh}.log"]
+    assert sorted(p.name for p in runs.folder().iterdir()) == sorted(
+        [f"{fresh}.json", f"{fresh}.log", f"{fresh}.queue.json", f"{fresh}.control.json"])
 
 
 def test_an_entry_never_names_what_is_deleted():

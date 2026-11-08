@@ -196,18 +196,27 @@ def sweep_of(monkeypatch, keys: list[str]) -> None:
     monkeypatch.setattr(config.Errand, "runs", lambda self, name: list(keys))
 
 
-def chained_spawn(monkeypatch, *, held_at: int | None = None) -> list[tuple[list[str], str]]:
+def chained_spawn(monkeypatch, *, held_at: int | None = None, slow_at: int | None = None,
+                  slow: list | None = None) -> list[tuple[list[str], str]]:
     """runs.spawn faked: each worker's entry begins as its real one would (the head running, the rest queued to the one
-    named by --queued-to); `held_at`: that one (1-based) is held."""
+    named by --queued-to); `held_at`: that one (1-based) is held, its worker waiting on; `slow_at`: that one's worker
+    never begins. Those two sleep, their processes put in `slow`."""
     spawned: list[tuple[list[str], str]] = []
+    slow = [] if slow is None else slow
 
     def spawn(argv: list[str], run_id: str, log: Path) -> subprocess.Popen:
         spawned.append((argv, run_id))
+        if slow_at == len(spawned):
+            slow.append(subprocess.Popen(["sleep", "30"]))
+            return slow[-1]
         to = argv[argv.index("--queued-to") + 1] if "--queued-to" in argv else None
         fields = {"queue": (runs.entry(to) or {}).get("queue", to), "queued_to": to, "queued": True} if to else {}
         if held_at == len(spawned):
             fields["held"] = True
         runs.begin(run_id, fields)
+        if held_at == len(spawned):                                # a held waiter waits on, as a real one does
+            slow.append(subprocess.Popen(["sleep", "30"]))
+            return slow[-1]
         return subprocess.Popen(["sleep", "0.2"])
 
     monkeypatch.setattr(runs, "spawn", spawn)
@@ -264,6 +273,44 @@ def test_an_attached_sweep_follows_each_run_in_turn_and_stops_at_a_held_one(monk
     assert cli.main(["run", "Demo/jets"]) == 0
     assert [w.rsplit(" · ", 1)[1] for w in followed] == ["single", "pdf", "energies"]
     followed.clear()
-    chained_spawn(monkeypatch, held_at=2)
-    assert cli.main(["run", "Demo/jets"]) == 6
-    assert len(followed) == 1 and "queue held: pdf" in capsys.readouterr().out
+    slow: list[subprocess.Popen] = []
+    chained_spawn(monkeypatch, held_at=2, slow=slow)
+    try:
+        assert cli.main(["run", "Demo/jets"]) == 6
+        assert len(followed) == 1 and "queue held: pdf" in capsys.readouterr().out
+    finally:
+        for proc in slow:
+            proc.kill()
+
+
+def test_a_queued_run_starts_when_its_predecessor_is_lost(quick):
+    before, me = runs.new_id(), runs.new_id()
+    runs.begin(before, {"pid": 2 ** 22 + 7, "pstart": "1"})        # its process gone (killed), its entry never finished
+    thread, got = waiting(me, before)
+    settled(thread)
+    assert got["queued"] is False and got["queued_to"] == before and "began" in got
+
+
+def test_a_sweep_worker_that_never_begins_is_ended_and_the_queue_forgotten(monkeypatch, capsys, quick):
+    """Audit 2026-11-08 O-1: a worker slow to begin was left alive, to run later as a run no one asked for."""
+    monkeypatch.setattr(runs, "BEGIN_WAIT", 0.3)
+    sweep_of(monkeypatch, ["single", "pdf", "energies"])
+    slow: list[subprocess.Popen] = []
+    spawned = chained_spawn(monkeypatch, slow_at=3, slow=slow)
+    assert cli.main(["run", "Demo/jets", "--detach"]) == 1
+    assert slow[0].poll() is not None                                 # ended, not left to begin later
+    ids = [i for _, i in spawned]
+    assert runs.entry(ids[2]) is None and runs.queue_asked(ids[1]) == "forget"
+    err = capsys.readouterr().err
+    assert "had not begun after 0.3 s" in err and "heimdall stop --pid" in err and ids[0] in err
+
+
+def test_a_queued_worker_that_never_begins_is_ended(monkeypatch, capsys, quick):
+    monkeypatch.setattr(runs, "BEGIN_WAIT", 0.3)
+    before = runs.new_id()
+    runs.begin(before, {})
+    sweep_of(monkeypatch, ["single"])
+    slow: list[subprocess.Popen] = []
+    chained_spawn(monkeypatch, slow_at=1, slow=slow)
+    assert cli.main(["run", "Demo/jets", "single", "--queued-to", before]) == 1
+    assert slow[0].poll() is not None and "had not begun" in capsys.readouterr().err

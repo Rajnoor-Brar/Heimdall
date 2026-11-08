@@ -1062,16 +1062,43 @@ def queue_run(args, errand, keys: list[str], nothing_runs: bool) -> int:
     argv = _with_option(_with_option(list(getattr(args, "argv", [])), "--queued-to", target["id"]), "--detach", None)
     log = runs.log_file(run_id)
     proc = runs.spawn(argv, run_id, log)
-    until = time.monotonic() + 10
-    while time.monotonic() < until and proc.poll() is None and not (runs.entry(run_id) or {}).get("queued"):
-        time.sleep(0.1)
-    if not (runs.entry(run_id) or {}).get("queued"):
-        from .watch import tail
-        print("\n".join(tail(log)), file=sys.stderr)
-        return proc.wait() if proc.poll() is not None else 1
+    failed = _begun(proc, run_id, log, lambda e: e.get("queued"), queued=True)
+    if failed is not None:
+        return failed
     print(f"queued: {errand.name} · {', '.join(keys)} ({run_id}, pid {proc.pid}), after {shown}\n"
           f"  heimdall runs lists the queue · heimdall runs --dispatch {run_id} starts it now\n  log {log}")
     return 0
+
+
+def _begun(proc, run_id: str, log: Path, ready, *, queued: bool) -> int | None:
+    """None once a spawned worker's entry has begun (`ready(entry)`); else, once it has ended by itself or
+    runs.BEGIN_WAIT seconds have gone by, its log's tail said and an exit code. A worker still there is ended, never left
+    to begin later as a run no one waits for: a queued one asked to forget its run (it leaves unrun, its entry its own),
+    then stopped (SIGTERM) if it has not ended within two of its looks."""
+    until = time.monotonic() + runs.BEGIN_WAIT
+    while time.monotonic() < until and proc.poll() is None and not ready(runs.entry(run_id) or {}):
+        time.sleep(0.05)
+    if ready(runs.entry(run_id) or {}):
+        return None
+    code = proc.poll()
+    if code is None:
+        if queued:
+            runs.ask_queue(run_id, "forget")
+            try:
+                proc.wait(2 * runs.QUEUE_POLL + 1)
+            except subprocess.TimeoutExpired:
+                pass
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+        print(f"{run_id} had not begun after {runs.BEGIN_WAIT:g} s: it was ended", file=sys.stderr)
+    from .watch import tail
+    print("\n".join(tail(log)), file=sys.stderr)
+    return code if code else 1
 
 
 def queue_sweep(args, errand, keys: list[str], after: str | None, *, attach: bool) -> int:
@@ -1096,15 +1123,14 @@ def queue_sweep(args, errand, keys: list[str], after: str | None, *, attach: boo
         log = runs.log_file(run_id)
         argv = _with_option(base, "--sweep-member", key)
         proc = runs.spawn(_with_option(argv, "--queued-to", before) if before else argv, run_id, log)
-        until = time.monotonic() + 60
-        while time.monotonic() < until and proc.poll() is None and runs.entry(run_id) is None:
-            time.sleep(0.05)
-        if runs.entry(run_id) is None:                  # it never began: the ones queued so far are forgotten
-            from .watch import tail
-            print("\n".join(tail(log)), file=sys.stderr)
+        failed = _begun(proc, run_id, log, bool, queued=before is not None)
+        if failed is not None:                          # it never began: the ones queued so far are forgotten
             for queued, *_ in chain[1:] if after is None else chain:
                 runs.ask_queue(queued, "forget")
-            return proc.wait() if proc.poll() is not None else 1
+            if chain and after is None:
+                print(f"the sweep's first run, {chain[0][3]} ({chain[0][0]}, pid {chain[0][1].pid}), runs on: "
+                      f"heimdall stop --pid {chain[0][1].pid} stops it", file=sys.stderr)
+            return failed
         chain.append((run_id, proc, log, key))
         before = run_id
     head = chain[0][0]

@@ -231,7 +231,8 @@ def entries(now: float | None = None, mine: bool = True) -> list[dict]:
 
 def prune(now: float | None = None) -> None:
     """This user's entries finished KEEP_DAYS ago (or begun KEEP_DAYS ago and never finished: a process
-    killed), and their logs, `<id>.log` beside them; a log of this user's with no entry, by its age."""
+    killed), and what lies beside them (`<id>.log`, its control and queue asks); a log or an ask of this user's with
+    no entry, by its age."""
     now = time.time() if now is None else now
     edge = now - KEEP_DAYS * 86400
     where = folder()
@@ -243,10 +244,13 @@ def prune(now: float | None = None) -> None:
                 path.unlink(missing_ok=True)
                 path.with_suffix(".log").unlink(missing_ok=True)
                 control_file(path.stem).unlink(missing_ok=True)
-        for log in where.glob("*.log"):
-            info = log.stat()
-            if info.st_uid == os.getuid() and not log.with_suffix(".json").exists() and info.st_mtime < edge:
-                log.unlink(missing_ok=True)
+                queue_file(path.stem).unlink(missing_ok=True)
+        for suffix in (".log", ".control.json", ".queue.json"):
+            for left in where.glob(f"*{suffix}"):
+                info = left.stat()
+                entry_file = where / f"{left.name.removesuffix(suffix)}.json"
+                if info.st_uid == os.getuid() and not entry_file.exists() and info.st_mtime < edge:
+                    left.unlink(missing_ok=True)
     except OSError:
         pass
 
@@ -308,6 +312,8 @@ def state(data: dict, live: dict | None = None) -> str:
 
 #: A queued run's worker looks at its predecessor's entry this often, in seconds (cli.wait_turn).
 QUEUE_POLL = 5.0
+#: How long a run that spawns a worker (a queued run, each run of a sweep's queue) waits for its entry, in seconds.
+BEGIN_WAIT = 60.0
 
 
 def queue_file(run_id: str) -> Path:

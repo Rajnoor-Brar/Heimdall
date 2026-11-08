@@ -284,6 +284,23 @@ def test_a_sync_keeps_a_runs_own_totality(trees, capsys):
     assert "title" not in doc.plot and doc.plot["sets"]["totality"] == sweep.totality(kept, members) == {"pages": {"pdf": "all"}}
 
 
+def test_a_point_taken_out_of_a_documents_quantities_is_refused_not_a_traceback(trees):
+    """A member names its value by its place in [quantities.<q>].points; with a point removed by hand the document is
+    refused, naming the member and the way to leave a value out of the drawing."""
+    import tomllib
+    import tomli_w
+    from runner import plotdoc
+    p = recorded_run("Demo/jets", "pdf")
+    assert cli.migrate_plot_docs(argparse.Namespace(plot_docs=[], apply=True)) == 0
+    target = p.every[0].folders.results / plotdoc.FILE
+    data = tomllib.loads(target.read_text(encoding="utf-8"))
+    data["quantities"]["pdf"]["points"].pop()
+    target.write_text(tomli_w.dumps(data), encoding="utf-8")
+    with pytest.raises(HeimdallError, match=r"has pdf #\d+, but \[quantities.pdf\] has") as caught:
+        plotdoc.load(target)
+    assert "--points" in caught.value.hint
+
+
 def test_a_documents_quantities_are_points_and_an_older_one_is_upgraded(trees, capsys):
     """V172: [quantities.<q>] points = [{ tag, value, label }], as a run TOML's; a document with the parallel lists
     reads the same, and migrate --plot-docs --apply rewrites it as points, nothing else changed."""

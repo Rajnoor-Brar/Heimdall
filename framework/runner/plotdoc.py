@@ -608,7 +608,22 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
                    **({"events": int(entry["events"])} if entry.get("events") else {})}
         members.append(Member(point, dict(entry.get("values", {})), folders or own, yoda, dict(entry.get("texts", {})), context,
                               entry.get("identity", ""), recorded))
+    check_indices(path, quantities, members)
     return doc, configuration, members
+
+
+def check_indices(path: Path, quantities: dict, members: list) -> None:
+    """Every member's value is one of its quantity's points: a member names a value by its place in
+    [quantities.<q>].points, so a point taken out of the list by hand would move every later one's label."""
+    for member in members:
+        for name, index in member.values.items():
+            quantity = quantities.get(name)
+            if quantity is not None and not (isinstance(index, int) and 0 <= index < len(quantity.values)):
+                raise HeimdallError(f"member {member.point.name} has {name} #{index + 1 if isinstance(index, int) else index}, "
+                                    f"but [quantities.{name}] has {len(quantity.values)} point(s)", where=str(path),
+                                    hint="[quantities] and [members] are the run's: put the point back. To leave a value "
+                                         f"out of the drawing, a set's filter does it ({name} = [\"<tag>\", …] in its pages or "
+                                         "curves), or heimdall plot RUN --points SEL")
 
 
 def find(name: str) -> Path | None:

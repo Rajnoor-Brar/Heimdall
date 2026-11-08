@@ -4,17 +4,17 @@ Pending work, one issue a task: what, why, done when. Rules: [work](../docs/rule
 
 **Status:** `open` · `decision` (waits for the developer) · `blocked` · `held` (ask first) · `idea`. **Priority:** P1 this cycle · P2 next · P3 when convenient.
 
-**Order of phases:** 2 safety net (I-10, I-11, I-12, I-13, I-76, I-77) → 3 one dialect (I-20, I-21, I-91) → 4 retirements (I-25, I-26, I-28, I-29, I-30, I-68) → 5 session and CLI (I-35–37, I-70–73, I-100, I-101) → 6 plot model (I-41–48, I-97, I-99) → 7 packages (I-50–52) → 8 stack (I-55–66, I-88) → 9 roots, cluster images (I-75, I-86) → 10 throughput (I-95, I-96, I-98, I-67, I-102) → 11 physics (I-103, I-104). The safety net matters before any change to identity or records. Parked: I-80, I-82, I-83, I-85, I-87, I-81.
+**Order of phases:** 2 safety net (I-13, I-76, I-77) → 3 one dialect (I-20, I-21, I-91) → 4 retirements (I-25, I-26, I-28, I-29, I-30, I-68) → 5 session and CLI (I-35–37, I-70–73, I-100, I-101) → 6 plot model (I-41–48, I-97, I-99) → 7 packages (I-50–52) → 8 stack (I-55–66, I-88) → 9 roots, cluster images (I-75, I-86) → 10 throughput (I-95, I-96, I-98, I-67, I-102) → 11 physics (I-103, I-104). The safety net matters before any change to identity or records. **Plans of 2026-11-07** (from `prompt.md`): safety-net, retire-yoda-backend, set-merge, across-axes, live-runs-ui and names are done (their live docs hold what stays); [stats-backend](plans/stats-backend/00_Plan.md) and [points-library](plans/points-library/00_Plan.md) wait on the developer. Parked: I-80, I-82, I-83, I-85, I-87, I-81.
 
 **Decided (2026-10-25), standing:** drop v2 (a work dir's `configs/legacy/` stays as history) · `plot.toml` stays a drawing's source · retire `plot_points`, old documents still draw · delete the yoda backend, mpl may drift from mkhtml · `[heimdall]` keeps preference switches only · `editor/` stays · doctor's row goes to Himinbjorg, published on purpose · downloads to `<root>/downloads/` · identity golden file approved · `--logs` and `--journal` stay as shorthands · plan inside the image · Herwig for MadGraph, plus MG5aMC_PY8.
 
 ## Next pieces
 
-### I-120 Rework the scoring · P1 · decision
-Scoring and drawing sit in one 875-line `figures/bars.py`; fixed points by place, five overlapping statistics summed, no score across Runs. Context: [notes](plans/scoring/notes.md). **Done when:** a plan is agreed, scoring is a module of its own (rows in, scores out), and the summary and reports use it.
+### I-120 Rework the scoring · P1 · open
+Scoring and drawing sit in one 875-line `figures/bars.py`; fixed points by place, five overlapping statistics summed, no score across Runs. Plan: [stats-backend](plans/stats-backend/00_Plan.md) (approved 2026-11-07). **Done when:** a plan is agreed, scoring is a module of its own (rows in, scores out), and the summary and reports use it.
 
-### I-121 A points library · P1 · decision
-A pooled collection of points per Assignment that any Errand and Run can use, rather than per-Run folders. Context: [notes](plans/points-library/notes.md). Needs I-10, I-11, I-28 first. **Done when:** a plan settles the key, layout, seeds, invalidation and migration, and two Errands share a point without rerunning it.
+### I-121 A points library · P1 · open
+A pooled collection of points per Assignment that any Errand and Run can use, rather than per-Run folders. Plan: [points-library](plans/points-library/00_Plan.md) (approved 2026-11-07). Needs I-10, I-11, I-28 first. **Done when:** a plan settles the key, layout, seeds, invalidation and migration, and two Errands share a point without rerunning it.
 
 ### I-122 Commit the migrated work dirs · P2 · held
 The names' migration (`[errand]`, `heimdall.toml`) is applied uncommitted in two work dirs. They are the developer's. **Done when:** the developer has reviewed and committed them, or says otherwise.
@@ -23,15 +23,6 @@ The names' migration (`[errand]`, `heimdall.toml`) is applied uncommitted in two
 
 ### I-07 Task L's checks by hand · P1 · open
 By hand on the lab PC: a run, `d`, close the terminal; `heimdall runs`, `watch` (`q`), `runs` again; the same over ssh. **Done when:** the verdict shows in each.
-
-### I-10 A shadow machine root for the tests · P1 · open
-Tests run with the real `HEIMDALL_MACHINE`, so live `machine.toml` and `recipes.toml` decide what they keep and see. `conftest` builds `forge/scratch/machine/`: real `stack/`, `base/`, `apps/`, `forge/downloads/` linked, own empty `machine.toml`, `recipes.toml`, `runs/`, `workdirs.toml`. **Done when:** suites pass as before, and no test touches `~/Himinbjorg`'s own files; a guard checks stamps and apps unchanged.
-
-### I-11 An identity golden file · P1 · held
-`tests/golden/identity_parts.json`, every fixture point's parts, binaries' sha256 masked, written under I-10. **Done when:** a test compares it, and each refactor leaves it unchanged.
-
-### I-12 Baselines before the restructure · P1 · open
-**Done when:** fast and slow suite results, and `heimdall status` of a real study's configs (read-only), are recorded, and a local tag `pre-restructure` exists.
 
 ### I-13 Static checks · P2 · open
 No `pyproject.toml`, ruff or mypy. **Done when:** ruff (report-only, then enforcing) and mypy on new modules, and `make check` = ruff + import layers + fast suite.
@@ -67,8 +58,8 @@ First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py`;
 ### I-26 One table of retired names · P2 · blocked on I-25
 `retired.py`: `{old: (new, since)}`, read by the schema check, CLI and shell. **Done when:** it replaces the ad-hoc refusals.
 
-### I-28 Record files with a format version · P2 · open
-`points.json`, `provenance.json`, `identity.json`, `plot.toml` carry none; layouts are recognised by heuristics. **Done when:** `format = N` in each, and one `heimdall records upgrade` (dry run first) does the migrate jobs.
+### I-28 Record files with a format version · P2 · decision
+`format = 1` and `heimdall records upgrade` are done ([live-record-formats](../docs/live/record-formats.md)); `upgrade` stamps files and leaves layout moves to `migrate --layout`, short of this done-when. The developer accepts that (the issue leaves) or keeps it open. `points.json`, `provenance.json`, `identity.json`, `plot.toml` carry none; layouts are recognised by heuristics. **Done when:** `format = N` in each, and one `heimdall records upgrade` (dry run first) does the migrate jobs.
 
 ### I-29 Leftover names and stale hints · P3 · open
 `plot.BACKENDS`, `layout.TILED`, `tools.ENV`; hints naming `heimdall plot FILE` rather than `overlay`; wrappers `objects_of`, `raws_of`, `_sha`, `base_of`; `{repo}` in the recipes. **Done when:** gone.
@@ -96,9 +87,6 @@ First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py`;
 ### I-71 Fewer commands for one job · P2 · open
 **Done when:** `doctor` and `status --stack` → `stack doctor`, `stack status`; `make` → `build TARGET`; `image` → `stack image`; `main()` dispatches from a table.
 
-### I-72 `heimdall show` · P3 · open
-**Done when:** `show RECORD[/POINT]` prints provenance, identity parts, products, σ, counts, logs' tail.
-
 ### I-73 Shell completion · P3 · open
 **Done when:** `heimdall completion bash` covers commands, configs, configurations, point tags.
 
@@ -110,14 +98,8 @@ First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py`;
 ### I-42 Figure classes as a table · P2 · open
 Classes are dispatched by `kind ==` loops, and `check_plot` hand-codes rules. Also `_pages`' near-duplicate loops, five stamp-and-rebuild sites, `figures(run)` parsed repeatedly. **Done when:** a `[figure_class.<c>]` schema table, one dispatcher, one `_cached` helper.
 
-### I-43 Delete the yoda backend · P2 · decided
-mpl loads it for transforms. Its pixel test already fails alone (ratio antialiasing). **Done when:** transforms move to mpl; `yoda/`, `"both"` and that test go.
-
 ### I-44 One HTML index writer · P3 · open
 **Done when:** `write_index`, `write_sets_index` use `viewer.page`.
-
-### I-45 `heimdall stats` → `heimdall plot --stats-only` · P3 · decided
-**Done when:** so, `stats` refused for a release.
 
 ### I-46 Compare figures: their own stage · P2 · open
 Drawn as a side effect of each configuration's stage, up to N times, not on plot documents. **Done when:** drawn once, in its own step.
@@ -213,7 +195,7 @@ Fake runtime only; `apptainer` is now on this machine. Name downloads first. **D
 
 - **I-95** Per-group identity and skip: changing yd2rt's `select` reran a 16.1 s point instead of 0.2 s.
 - **I-96** Shared generation for analysis-option sweeps; needs I-95.
-- **I-97** Weight variations as a band: scale and PDF uncertainty without extra generations.
+- **I-97** Weight variations as a band: scale and PDF uncertainty without extra generations. Not set-merge's band (I-125), which is drawn from separate points: this one reads one point's weights.
 - **I-98** Shards beyond Rivet; K from threads. Parallel-points timing unmeasured.
 - **I-99** `heimdall plot --suggest-data-map`: lines matched by name, to check and paste.
 - **I-100** `heimdall run --check`: each tool's cheap preflight, never opening a FIFO.

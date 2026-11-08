@@ -1,17 +1,20 @@
 # A points library : pooled points per Assignment
 
-Notes for planning, from 2026-11-01. A claim, not a plan: re-verify against the code. Pages: `identity`, `provenance`. Issue: I-121.
+Notes for planning, from 2026-11-01; three claims corrected 2026-11-07 against `cd6ceac`. A claim, not a plan: re-verify against the code. Pages: `identity`, `provenance`. Issue: I-121.
 
 **What a point is today:**
 - **Planned** (`cli.build_plans` → `tools.PointPlan`): a configuration's sweep (`sweep.points`) gives `Point`s
   (index, name from the value tags, `choice`), each rendered into its tools' cards.
 - **Identity** (`record.identity`, `identity_parts`, record.py:52–72): sha256 over threads, events, each tool's
-  rendered identity parts (its cards, argv, binary hashes and versions), the groups, prelim, the **seed rule** (not
+  rendered identity parts (its cards, argv, binary hashes), the groups, prelim, the **seed rule** (not
   the seed), and for a post stage its `upstream` (every point's identity).
-  - **Not in it:** the Assignment, the Errand, the Run, the serial ("location, never identity", 04 §2), the point's name.
-  - So two Errands that render the same cards already make the same identity.
+  - **Not in it:** the Assignment, the Errand, the Run, the serial ("location, never identity", 04 §2).
+  - **Corrected 2026-11-07: the point's name *is* in it,** through the card header (`tools.py:1206`), which
+    `identity()` keeps and only `seed_basis` strips. So two Errands make the same identity only if the
+    point names and tool tags match too. Hence the library key of [00_Plan](00_Plan.md).
+  - Versions are **not** hashed (corrected), only binary hashes. A manual seed **is** hashed.
 - **Seeds** (`record.assign_seeds`, record.py:188):
-  - `identity`: from the generators' identity, `seed_basis`, so the same point gets the same seed anywhere;
+  - `identity`: from the generators' identity, `seed_basis`, so the same point gets the same seed anywhere, unless it clashes with another point in its plan and moves up by `threads` (corrected 2026-11-07);
   - `random`: drawn, then kept from the point's `provenance.json`;
   - `manual`: given.
   - Blocks are kept disjoint **within one plan only**. A pooled library meets two Runs whose random-seed points
@@ -57,6 +60,6 @@ Notes for planning, from 2026-11-01. A claim, not a plan: re-verify against the 
 - **Ownership and garbage:** a Run deleted while its points serve others; `heimdall` commands to list, verify and
   prune the pool. The pool spans Errands but stays within one Assignment (as asked).
 - **Concurrency:** two jobs wanting one pooled point (`PointLock` is per folder today).
-- **Migration** of existing Runs into the pool: Brookhaven's `eic/zeus` Runs share many points across serials and
+- **Migration** of existing Runs into the pool: a real study's Runs share many points across serials and
   event counts. Identity is untouched by the move, so it is a reorganisation, not a rerun.
 - **Records keep a format** (I-28) so the readers above can tell a pooled Run from today's.

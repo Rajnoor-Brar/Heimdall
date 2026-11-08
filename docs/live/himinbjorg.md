@@ -7,7 +7,11 @@ issue: I-128
 
 **Now holds:** what a machine built apart from the checkout (`$HEIMDALL_MACHINE`, by default `~/Himinbjorg`) is called **Himinbjorg**, in code (`paths.himinbjorg()`, which was `paths.machine_root()`; no alias), comments, messages and hints, the recipes, `gjallarhorn.sh`, `launch.sh`, the README, the Makefile and `docs/rules/`. `HEIMDALL_MACHINE`, its default path, `machine.toml` and `machine_file()`/`machine_settings()` keep their names.
 
-**For the crystallise:** the glossary line becomes `| **Himinbjorg** | what a machine built, \`$HEIMDALL_MACHINE\`, by default \`~/Himinbjorg\` (once: machine root) |`, and the stable pages that still say "machine root" (stable pages are not edited without an order) are:
+**No longer holds:** `paths.machine_root()`; "machine root" as the name in code, messages and `docs/rules/`.
+
+**Decisions:** `HEIMDALL_MACHINE` keeps its name, because every root variable is `HEIMDALL_*` and users' shells set it. `machine_root` has no alias.
+
+**Stable pages need:** the glossary line becomes `| **Himinbjorg** | what a machine built, \`$HEIMDALL_MACHINE\`, by default \`~/Himinbjorg\` (once: machine root) |`, and the stable pages that still say "machine root" (stable pages are not edited without an order) are:
 
 - docs/stable/design/decisions/architecture.md
 - docs/stable/design/decisions/chain.md

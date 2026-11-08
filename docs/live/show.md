@@ -16,4 +16,8 @@ issue: I-72
 
 `--log`, `--full` and `--attempt N` give exactly `heimdall log`'s output (the point's attempts and digests, a tool's log, a run's `run.jsonl`), and `heimdall log` stays as the shorthand, unchanged.
 
-**For the crystallise:** `docs/stable/guide/failures.md` names `heimdall log`; it may say `heimdall show` where it reads a point's state.
+**No longer holds:** `heimdall log` as the only inspector of a point (nothing printed its identity, σ and provenance together).
+
+**Decisions:** `show` reads the record alone and recomputes nothing, so a changed setup does not change what it prints. σ is what the tools reported, because no reader of a product file for σ exists. `heimdall log` stays as the shorthand (developer).
+
+**Stable pages need:** `docs/stable/guide/failures.md` names `heimdall log`; it may say `heimdall show` where it reads a point's state.

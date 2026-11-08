@@ -17,3 +17,8 @@ Plan-time refusals (`sweep._merge_shape`, `sweep.check_set`): not one quantity i
 
 **Statistics.** A merged curve is a curve of its own: its row in `statistics.csv` has `point = <name>` (as the group is named), and `statistics.json` gets `merged`, `{name: [the points it is made of]}`. It has no axes, so a marginal never takes it and a baseline lists it as not a point of the sweep. It is scored as any curve: a mean curve can beat every member.
 
+**No longer holds:** a set having only the roles `pages` and `curves`; a mean of curves existing nowhere (only `combine`, the `merged` figure and `band`'s envelope).
+
+**Decisions:** an entry has a `settings` table, because a mean of histograms with empty bins needs its `floor` and a mean's keys must not mix with the quantity's name. The merged file is not renormalised: `[plot].normalise` already does that at draw time. Errors are written symmetric, and only the 1D estimates every member has are merged. `band = "std"` needs 3 members. Band edges are two files, because Paint's band is an envelope of band members. A merge of merges weighs each inner curve equally. The YODA reading and writing is `plot/figures/curves.py`, not `stats/merge.py`, because the stats package may not import YODA. A merged curve's members are in `statistics.json` (`merged`), not a csv column, because a new column is a format change every reader meets.
+
+**Stable pages need:** `guide/plots-sets.md` (the merge role, `how`, `band`, `settings`), `guide/plots-statistics.md` (merged rows, `merged` in the sidecar).

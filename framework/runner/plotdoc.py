@@ -497,9 +497,9 @@ def write(errand, configuration, members: list) -> tuple[Path | None, list[str]]
     return target, notes
 
 
-def write_chosen(target: Path, plot: dict, stats: dict, wanted: dict | None = None) -> None:
-    """A document's [plot] and [stats] replaced (--style-sync), and a Name level's [from] when `wanted` (V224);
-    what the run knows left as it is."""
+def write_chosen(target: Path, plot: dict, stats: dict, wanted: dict | None = None, score: dict | None = None) -> None:
+    """A document's [plot] and [stats] replaced (--style-sync), its [score] when `score` is given, and a Name level's
+    [from] when `wanted` (V224); what the run knows left as it is."""
     import tomllib
     data = tomllib.loads(target.read_text(encoding="utf-8"))
     if wanted is not None:
@@ -508,6 +508,10 @@ def write_chosen(target: Path, plot: dict, stats: dict, wanted: dict | None = No
     data.pop("stats", None)
     if stats:
         data["stats"] = stats
+    if score is not None:
+        data.pop("score", None)
+        if score:
+            data["score"] = dict(score)
     partial = target.with_name(target.name + ".partial")
     partial.write_text((ACROSS_HEADER if "members" not in data and "from" in data else HEADER) + dumps(data), encoding="utf-8")
     partial.replace(target)

@@ -238,6 +238,25 @@ def test_style_sync_takes_the_configs_plot_into_the_documents(trees, capsys):
     assert f"same    {rel}" in capsys.readouterr().out
 
 
+def test_style_sync_takes_the_configs_score(trees, capsys):
+    """A document's [score] is the config's after --style-sync, as its [plot] and [stats] are, and --plan names it."""
+    from runner import plotdoc
+    p = recorded_run("Demo/jets", "pdf")
+    rel = str(p.every[0].folders.record.relative_to(paths.records_root()))
+    assert cli.migrate_plot_docs(argparse.Namespace(plot_docs=[], apply=True)) == 0
+    target = p.every[0].folders.results / plotdoc.FILE
+    doc = plotdoc.load(target)[0]
+    plotdoc.write_chosen(target, doc.plot, doc.stats, score={"mean": "linear"})
+    assert plotdoc.load(target)[0].score == {"mean": "linear"}
+    capsys.readouterr()
+    args = argparse.Namespace(command="plot", config=rel, configuration=None, set=[], style_sync="Demo/jets", plan=True,
+                              replot=False, plot_file=None, page_points=None)
+    assert cli.cmd_plot(args) == 0
+    assert f"would sync {rel}: [score]" in capsys.readouterr().out and plotdoc.load(target)[0].score == {"mean": "linear"}
+    args.plan = False
+    assert cli.cmd_plot(args) == 0 and plotdoc.load(target)[0].score == {}
+
+
 def test_an_event_count_is_a_tag():
     from runner.plotdoc import count_tag
     assert [count_tag(n) for n in (10_000_000, 100_000, 10_000, 1_500_000, 2_000_000_000, 500, 1234)] == \

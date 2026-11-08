@@ -2662,6 +2662,7 @@ def _record_config(folder: Path):
     names; its serial the folder's own."""
     snapshot = folder / "config" / record.SNAPSHOT
     data = json.loads((folder / "points.json").read_text(encoding="utf-8"))
+    record.check_format(data, folder / "points.json")
     if snapshot.is_file():
         snap = record.read_snapshot(folder)
         key = snap["configuration"]
@@ -2698,6 +2699,7 @@ def migrate_snapshot(args) -> int:
     if not manifest.is_file():
         raise HeimdallError("this record has no points.json", where=str(manifest))
     data = json.loads(manifest.read_text(encoding="utf-8"))
+    record.check_format(data, manifest)
     if (found / "config" / record.SNAPSHOT).is_file() and not args.apply:
         raise HeimdallError(f"{found / 'config'} is there already", hint="--apply replaces it")
     source = args.source or data.get("config_file", "")
@@ -2711,7 +2713,9 @@ def migrate_snapshot(args) -> int:
     for entry in entries:                                    # the overrides it ran with, from a point's provenance
         prov = found / "points" / entry.get("name", "") / "provenance.json"
         if not sets and prov.is_file():
-            sets = list(json.loads(prov.read_text(encoding="utf-8")).get("sets", []))
+            given = json.loads(prov.read_text(encoding="utf-8"))
+            record.check_format(given, prov)
+            sets = list(given.get("sets", []))
             break
     planned = build_plans(argparse.Namespace(config=source, set=sets, points=None, rerun=False, only=None),
                           data.get("configuration"))
@@ -2795,6 +2799,7 @@ def cmd_reproduce(args) -> int:
         record_ = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         raise HeimdallError(f"cannot read {path}: {error}", hint="give a finished point's provenance.json")
+    record.check_format(record_, path)
     from .paths import unportable
     config_file, key, name = unportable(record_["config_file"]), record_["configuration"], record_["point"]
     for line in record.revision_changes(record_.get("git", {})):    # the code may differ, though the setup does not

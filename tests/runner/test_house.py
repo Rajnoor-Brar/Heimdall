@@ -156,3 +156,16 @@ def test_reproduce_refuses_a_setup_that_changed(trees, capsys):
     with pytest.raises(HeimdallError, match="not reproduced"):
         cli.cmd_reproduce(argparse.Namespace(provenance=str(record.record_dir(point)), anyway=False, plain=True))
     assert "changed since it ran" in capsys.readouterr().out
+
+
+def test_reproduce_refuses_a_provenance_of_a_newer_format(trees):
+    """A provenance.json a newer Heimdall wrote is refused, naming its format, not read as if it were current."""
+    import json
+    p = planned("Demo/jets", "single")
+    point = p.every[0]
+    record.record_dir(point).mkdir(parents=True)
+    record.provenance_file(point).write_text(json.dumps({
+        "format": record.FORMAT + 1, "config_file": str(p.errand.path), "configuration": "single",
+        "point": point.point.name, "run": "jets", "project": "Demo", "identity": "0" * 64, "seed": 1, "sets": []}), encoding="utf-8")
+    with pytest.raises(HeimdallError, match="reads up to"):
+        cli.cmd_reproduce(argparse.Namespace(provenance=str(record.record_dir(point)), anyway=False, plain=True))

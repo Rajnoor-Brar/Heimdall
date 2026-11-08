@@ -9,6 +9,6 @@ issue: I-28
 
 **No longer holds:** `identity.json` being exactly the identity's parts; a reader that ignores which version wrote a record.
 
-**Decisions:** the version is one number for the record files together, not one each. `records upgrade` stamps files only: the layout moves are staged and a work dir's own, so `migrate --layout` stays their command. Not every reader checks the format yet: the checks are in `results.load`, `plot` (the manifest), `plotdoc.load`, `from_manifest`, the events read, and `record.why`; the readers in `cli.py` (`reproduce`, `migrate --plot-docs`, `--snapshot`) read the files as before.
+**Decisions:** the version is one number for the record files together, not one each. `records upgrade` stamps files only: the layout moves are staged and a work dir's own, so `migrate --layout` stays their command. Every reader that acts on a record checks its format: `results.load`, `plot` (the manifest), `plotdoc.load`, `from_manifest`, the events read, `record.why`, `diffcmd`, and in `cli.py` `reproduce`, `migrate --plot-docs` and `--snapshot` (`record.check_format`). `heimdall show` does not: it prints what a record claims, a newer one too.
 
 **Stable pages need:** `stable/internals/provenance.md` (the files, `format`, and identity.json's key), `stable/internals/layout.md` or the CLI guide (`records upgrade`).

@@ -59,6 +59,10 @@ def parser() -> argparse.ArgumentParser:
                      help="start the job in the background and return: heimdall watch follows it, heimdall stop stops it "
                           "(on a terminal, a job started without it leaves on d too)")
     run.add_argument("--worker", metavar="ID", help=argparse.SUPPRESS)       # a detached run's own process (V183)
+    run.add_argument("--queued-to", metavar="ID|N",
+                     help="queue the run after another (its id, or its [N] in heimdall runs): it starts, detached, when that "
+                          "one ends (done, failed or lost; one stopped holds it until heimdall runs --dispatch); queues chain")
+    run.add_argument("--sweep-member", metavar="KEY", help=argparse.SUPPRESS)  # one configuration of a sweep's chain
     run.add_argument("--set", metavar="KEY=VALUE", action="append", default=[],
                      help="override one value for this invocation (repeatable), in the file's own names: "
                           "errand.events=100 (v3), errand.event_count=100 (v2)")
@@ -249,8 +253,12 @@ def parser() -> argparse.ArgumentParser:
     run_limits.add_argument("--resume", type=int, metavar="N",
                             help="resume the paused job [N]: its own command again, detached, in its work dir and "
                                  "checkout (its complete points skipped)")
-    run_limits.add_argument("--forget", type=int, metavar="N",
-                            help="drop the paused job [N] from the live list (its entry is kept)")
+    run_limits.add_argument("--forget", metavar="N|ID",
+                            help="drop the paused job [N] from the live list (its entry is kept); a queued or held one leaves "
+                                 "its queue unrun, the run after it queued to the one before it")
+    run_limits.add_argument("--dispatch", metavar="ID|N",
+                            help="start a queued or held run now, before its turn: it heads a queue of its own, the runs "
+                                 "after it following it")
     run_limits.add_argument("--again", metavar="ID|N",
                             help="run a failed, stopped or lost run's own command again, detached, from its records' "
                                  "config snapshot (its complete points skipped); not a running or paused one")
@@ -903,8 +911,12 @@ def _cmd_run(args, worker) -> int:
         configmod.check_tag(args.tag, "--tag")
     errand = configmod.load(args.config, sets=args.set)
     keys = errand.runs(args.configuration)
+    if getattr(args, "sweep_member", None):                 # one configuration of a sweep's chain (queue_sweep)
+        keys = [args.sweep_member]
     nothing_runs = getattr(args, "why", False) or args.plan or stages_of(args) == {"plot"} \
         or getattr(args, "show_config", False)
+    if getattr(args, "queued_to", None) and not worker:
+        return queue_run(args, errand, keys, nothing_runs)
     if getattr(args, "detach", False) and not worker:
         if nothing_runs:
             raise HeimdallError("--detach starts a job in the background, and --plan, --why, --show-config and --only plot run "
@@ -912,9 +924,11 @@ def _cmd_run(args, worker) -> int:
         if os.environ.get("SLURM_JOB_ID") or runs.cluster_job():
             raise HeimdallError("--detach in a Slurm job: its processes end with the job's allocation",
                            hint="heimdall cluster submits it as Slurm jobs; or run it here without --detach")
-        return background(args, errand, keys, attach=False)
+        return queue_sweep(args, errand, keys, None, attach=False) if len(keys) > 1 \
+            else background(args, errand, keys, attach=False)
     if not worker and not nothing_runs and live(args):
-        return background(args, errand, keys, attach=True)
+        return queue_sweep(args, errand, keys, None, attach=True) if len(keys) > 1 \
+            else background(args, errand, keys, attach=True)
     if getattr(args, "show_config", False):
         for line in show_config(errand, keys):
             print(line)
@@ -930,11 +944,15 @@ def _cmd_run(args, worker) -> int:
         log = str(opened) if opened else None
         work = find_work()
         configuration_serials = {key: errand.configurations[key].serial for key in keys}
-        entry = runs.begin(worker or runs.new_id(), {       # the registry (V182): nothing on a read-only root
-            "config": str(errand.path), "run": errand.name, "configurations": keys, "argv": getattr(args, "argv", []),
-            "configuration_serials": configuration_serials,
-            "points_completed": 0, "points_total": None, "active_parallel_points": 0,
-            "work": str(work) if work else None, "checkout": str(paths.heimdall_root()), "detached": bool(worker), "log": log})
+        fields = {"config": str(errand.path), "run": errand.name, "configurations": keys, "argv": getattr(args, "argv", []),
+                  "configuration_serials": configuration_serials,
+                  "points_completed": 0, "points_total": None, "active_parallel_points": 0,
+                  "work": str(work) if work else None, "checkout": str(paths.heimdall_root()), "detached": bool(worker), "log": log}
+        if worker and getattr(args, "queued_to", None):     # its turn first: then the run, its entry the same
+            fields.update(wait_turn(worker, args.queued_to, fields))
+            if fields.get("verdict"):
+                return int(fields["code"])
+        entry = runs.begin(worker or runs.new_id(), fields)  # the registry (V182): nothing on a read-only root
         hub = Hub({"config": str(errand.path), "run": errand.name, "configurations": keys, "id": entry, "log": log,
                    "configuration_serials": configuration_serials,
                    "work": str(work) if work else None, "detached": bool(worker)})
@@ -972,6 +990,10 @@ def _cmd_run(args, worker) -> int:
                            "counts": recorder.counts()})                                     # before the
             hub.close()                                                                              # stream ends
             notify(errand, code, paused)
+            following = [e["id"] for e in runs.entries() if entry and e.get("queued_to") == entry and e.get("queued")]
+            if following:
+                print(f"queue: {', '.join(following)} " + ("held: this run was stopped" if code == 6 and not paused
+                      else "waits: this run is paused" if paused else "starts now"), flush=True)
 
 
 def live(args, stdin=None, stdout=None, environ=None) -> bool:
@@ -1001,37 +1023,223 @@ def _worker_signals() -> None:
     signal.signal(signal.SIGHUP, interrupt)
 
 
+def _with_option(argv: list[str], flag: str, value: str | None) -> list[str]:
+    """`argv` with `flag`'s value replaced by `value` (`--flag X` or `--flag=X`), or the flag removed when None, or
+    added when it is not there."""
+    out, skip, found = [], False, False
+    for arg in argv:
+        if skip:
+            skip = False
+            continue
+        if arg == flag or arg.startswith(flag + "="):
+            skip, found = arg == flag, True
+            if value is not None:
+                out += [flag, value]
+            continue
+        out.append(arg)
+    return out if found or value is None else [*out, flag, value]
+
+
+def queue_run(args, errand, keys: list[str], nothing_runs: bool) -> int:
+    """`heimdall run CONFIG [cfg] --queued-to ID|N`: the run checked now (a config error refuses it), then started
+    detached as a worker that waits for that run to end (wait_turn). Refused after a run that ended (it would start at
+    once: run it so) and after a cluster submission."""
+    if nothing_runs:
+        raise HeimdallError("--queued-to queues a run, and --plan, --why, --show-config and --only plot run nothing",
+                            hint="leave --queued-to out")
+    target, state, number = entry_of(args.queued_to)
+    shown = f"[{number}] {target['id']}" if number else target["id"]
+    if target.get("kind") == "cluster":
+        raise HeimdallError(f"{shown} is a cluster submission: a run here is not queued to Slurm's jobs")
+    if target.get("finished") is not None and not runs.paused(target) or state == "lost":
+        raise HeimdallError(f"{shown} has ended ({state}): a run queued to it would start at once",
+                            hint="run it now: leave --queued-to out")
+    if len(keys) > 1:                                       # a sweep: its chain, its head queued to that run
+        return queue_sweep(args, errand, keys, target["id"], attach=False)
+    for key in keys:                                        # a config error now, not at its turn
+        build_plans(args, key)
+    run_id = runs.new_id()
+    argv = _with_option(_with_option(list(getattr(args, "argv", [])), "--queued-to", target["id"]), "--detach", None)
+    log = runs.log_file(run_id)
+    proc = runs.spawn(argv, run_id, log)
+    until = time.monotonic() + 10
+    while time.monotonic() < until and proc.poll() is None and not (runs.entry(run_id) or {}).get("queued"):
+        time.sleep(0.1)
+    if not (runs.entry(run_id) or {}).get("queued"):
+        from .watch import tail
+        print("\n".join(tail(log)), file=sys.stderr)
+        return proc.wait() if proc.poll() is not None else 1
+    print(f"queued: {errand.name} · {', '.join(keys)} ({run_id}, pid {proc.pid}), after {shown}\n"
+          f"  heimdall runs lists the queue · heimdall runs --dispatch {run_id} starts it now\n  log {log}")
+    return 0
+
+
+def queue_sweep(args, errand, keys: list[str], after: str | None, *, attach: bool) -> int:
+    """A sweep of runs ([errand].sweep_runs) as a queue: every configuration checked first (a config error anywhere
+    refuses it, nothing started), then a worker for each (`--sweep-member KEY`), the first running (or queued `after` a
+    run), each next queued to the one before (wait_turn): its own run, entry, [N] and log. `attach`: this terminal
+    follows each in turn; `d` leaves them all going, and a run stopped holds the rest."""
+    if args.points:
+        raise HeimdallError("--points picks points of one configuration, and this sweep runs several",
+                            where=f"{errand.path}: [errand].sweep_runs", hint=f"name it: heimdall run {args.config} <configuration> --points …")
+    for key in keys:
+        try:
+            build_plans(args, key)
+        except HeimdallError as error:
+            error.message = f"configuration '{key}': {error.message}"
+            raise
+    base = _with_option(_with_option(list(getattr(args, "argv", [])), "--detach", None), "--queued-to", None)
+    chain: list[tuple[str, object, Path, str]] = []
+    before = after
+    for key in keys:
+        run_id = runs.new_id()
+        log = runs.log_file(run_id)
+        argv = _with_option(base, "--sweep-member", key)
+        proc = runs.spawn(_with_option(argv, "--queued-to", before) if before else argv, run_id, log)
+        until = time.monotonic() + 60
+        while time.monotonic() < until and proc.poll() is None and runs.entry(run_id) is None:
+            time.sleep(0.05)
+        if runs.entry(run_id) is None:                  # it never began: the ones queued so far are forgotten
+            from .watch import tail
+            print("\n".join(tail(log)), file=sys.stderr)
+            for queued, *_ in chain[1:] if after is None else chain:
+                runs.ask_queue(queued, "forget")
+            return proc.wait() if proc.poll() is not None else 1
+        chain.append((run_id, proc, log, key))
+        before = run_id
+    head = chain[0][0]
+    print(f"a sweep of {len(chain)} runs, queued one after another (queue {head if after is None else runs.entry(head).get('queue')}):")
+    for n, (run_id, proc, log, key) in enumerate(chain, 1):
+        print(f"  {n}. {key}: {run_id} (pid {proc.pid})" + ("" if n > 1 or after else " running") + f"   log {log}")
+    print("  heimdall runs lists them · heimdall runs --dispatch ID starts one before its turn")
+    if not attach:
+        return 0
+    code = 0
+    for run_id, proc, log, key in chain:
+        while proc.poll() is None and (runs.entry(run_id) or {}).get("queued"):
+            if (runs.entry(run_id) or {}).get("held"):
+                print(f"queue held: {key} ({run_id}) waits for a dispatch, the run before it stopped\n"
+                      f"  heimdall runs --dispatch {run_id} starts it · heimdall runs --forget {run_id} drops it")
+                return code or 6
+            time.sleep(0.5)
+        outcome, code = follow_worker(proc, run_id, log, f"{errand.name} · {key}", args.plain)
+        if outcome != "ended":
+            print("  the runs after it start in turn: heimdall runs lists them")
+            return 0
+    return code
+
+
+def _queue_say(text: str) -> None:
+    """A queued run's word on its wait, in its log (the worker's output) with the time."""
+    print(f"{time.strftime('%H:%M:%S')}  queue: {text}", flush=True)
+
+
+def wait_turn(run_id: str, queued_to: str, fields: dict) -> dict:
+    """A queued run's worker: its entry written as queued (`queue`, `queued_to`, `queued`), then its turn waited
+    for, its predecessor's entry read every runs.QUEUE_POLL seconds. Done, failed, not run or lost: its turn. Stopped:
+    held (`held`), until dispatched. Paused: it waits, and follows a resume to the run that resumed it. Forgotten in its
+    queue (`left_queue`): it is queued to that run's own predecessor. Its queue is its predecessor's, so a split goes down
+    the chain. `heimdall runs --dispatch` starts it now, heading a queue of its own; `--forget` ends it unrun; a stop
+    (SIGINT) ends it stopped, holding its followers. Returns the fields its run's entry keeps (or a verdict: it ends)."""
+    queued_at = round(time.time(), 3)
+    to = queued_to
+    before = runs.entry(to) or {}
+    queue = before.get("queue") or to
+    runs.begin(run_id, {**fields, "queue": queue, "queued_to": to, "queued": True})
+    ahead = runs.queue_of(runs.entries(), queue)
+    _queue_say(f"queued after {to} (queue {queue}, {len(ahead)} of {len(ahead)})")
+    held = False
+    try:
+        while True:
+            asked = runs.queue_asked(run_id)
+            if asked == "dispatch":
+                _queue_say(f"dispatched before its turn: it starts now, heading a queue of its own (was after {to})")
+                return {"queue": run_id, "queued_to": None, "dispatched_from": to, "queued": False, "held": False,
+                        "began": round(time.time(), 3), "started": queued_at}
+            if asked == "forget":
+                _queue_say(f"forgotten: it leaves the queue unrun; the run after it waits for {to} instead")
+                runs.finish(run_id, 2, "forgotten", left_queue=True, queued=False)
+                return {"verdict": "forgotten", "code": 2}
+            other = runs.entry(to)
+            if other is None:
+                _queue_say(f"{to}'s entry is gone: its turn")
+                break
+            if (other.get("queue") or to) != queue and other.get("queue"):
+                queue = other["queue"]
+                runs.update(run_id, queue=queue)
+                _queue_say(f"its queue is now {queue}")
+            if other.get("resumed_by"):
+                to = other["resumed_by"]
+                runs.update(run_id, queued_to=to)
+                _queue_say(f"its predecessor was resumed as {to}: it waits for that")
+                continue
+            if other.get("left_queue"):
+                if not other.get("queued_to"):
+                    _queue_say(f"{to} left the queue and was its head: its turn")
+                    break
+                to = other["queued_to"]
+                runs.update(run_id, queued_to=to)
+                _queue_say(f"its predecessor left the queue: it waits for {to}")
+                continue
+            word = house.state_word(runs.state(other))
+            if word in ("done", "failed", "not run", "lost", "forgotten") or word.startswith("exit") \
+                    or (other.get("finished") is not None and word not in ("stopped", "paused")):
+                _queue_say(f"{to} ended {word}: its turn")
+                break
+            if (word == "stopped" or word == "paused" and other.get("forgotten")) and not held:
+                held = True
+                runs.update(run_id, held=True)
+                _queue_say(f"{to} was {'stopped' if word == 'stopped' else 'paused and forgotten'}: held until "
+                           f"heimdall runs --dispatch {run_id}")
+            time.sleep(runs.QUEUE_POLL)
+    except KeyboardInterrupt:
+        _queue_say("stopped while queued: the runs after it are held")
+        runs.finish(run_id, 6, queued=False)
+        return {"verdict": "stopped", "code": 6}
+    return {"queue": queue, "queued_to": to, "queued": False, "held": False, "began": round(time.time(), 3),
+            "started": queued_at}
+
+
 def background(args, errand, keys: list[str], *, attach: bool) -> int:
     """The run as a worker of its own (V183): this command again with --worker <id>, in a session of its own,
     its output in the registry's <id>.log. `attach`: followed here as heimdall watch does (`d` leaves it
     running; `p` pauses it, twice discards its running points; Ctrl-C stops it, once cleanly, twice hard); else
     (--detach) left once its run has started. Its id is $HEIMDALL_RUN_ID when that is a free one (`heimdall runs
     --resume` gives it), taken out of the environment its worker inherits."""
-    from .watch import follow, socket_of, started, tail
+    from .watch import started, tail
     given = os.environ.pop(runs.ID_VAR, "")                 # heimdall runs --resume's new run
     run_id = given if runs.ID.fullmatch(given) and runs.entry(given) is None else runs.new_id()
     log = runs.log_file(run_id)
     proc = runs.spawn(getattr(args, "argv", []), run_id, log)
     what = f"{errand.name} · {', '.join(keys)}"
-
-    def left() -> None:
-        print(f"left running: {what} (pid {proc.pid})\n  heimdall watch --pid {proc.pid}   follow it again\n"
-              f"  heimdall stop --pid {proc.pid}    stop it\n  log {log}")
-
-    def ended() -> int:
-        code = proc.wait()
-        if code < 0:                                         # killed: the worker could not say so itself
-            runs.finish(run_id, 128 - code, f"killed by signal {-code}")
-            code = 128 - code
-        return code
-
     if not attach:
         if started(proc.pid, proc) is None:
             print("\n".join(tail(log)), file=sys.stderr)
-            return ended()
+            return _ended(proc, run_id)
         print(f"running in the background: {what} (pid {proc.pid}, {run_id})")
-        left()
+        _left(proc, log, what)
         return 0
+    return follow_worker(proc, run_id, log, what, args.plain)[1]
+
+
+def _left(proc, log: Path, what: str) -> None:
+    print(f"left running: {what} (pid {proc.pid})\n  heimdall watch --pid {proc.pid}   follow it again\n"
+          f"  heimdall stop --pid {proc.pid}    stop it\n  log {log}")
+
+
+def _ended(proc, run_id: str) -> int:
+    code = proc.wait()
+    if code < 0:                                         # killed: the worker could not say so itself
+        runs.finish(run_id, 128 - code, f"killed by signal {-code}")
+        code = 128 - code
+    return code
+
+
+def follow_worker(proc, run_id: str, log: Path, what: str, plain: bool) -> tuple[str, int]:
+    """A worker followed here as heimdall watch does (`d` leaves it running; `p` pauses it, twice discards its running
+    points; Ctrl-C stops it, once cleanly, twice hard): (how it was left: "detached", "dropped" or "ended", its code)."""
+    from .watch import follow, socket_of, tail
+
     asked, pausing = [], []
     rest = "d: leave it running · Ctrl-C: stop it"
 
@@ -1054,18 +1262,18 @@ def background(args, errand, keys: list[str], *, attach: bool) -> int:
 
     from .watch import Keys
     with Keys(sys.stdin) as keys_in:
-        outcome = follow(socket_of(proc.pid), plain=args.plain, keys=keys_in.fd, on_key=on_key, on_interrupt=on_interrupt,
+        outcome = follow(socket_of(proc.pid), plain=plain, keys=keys_in.fd, on_key=on_key, on_interrupt=on_interrupt,
                          proc=proc, hint="d: leave it running · p: pause it · Ctrl-C: stop it")
     if outcome == "detached":
-        left()
-        return 0
+        _left(proc, log, what)
+        return "detached", 0
     if outcome == "dropped":
         print(f"this terminal fell behind the run: heimdall watch --pid {proc.pid} follows it again", file=sys.stderr)
-        left()
-        return 0
+        _left(proc, log, what)
+        return "dropped", 0
     if outcome == "gone":
         print("\n".join(tail(log)), file=sys.stderr)
-    return ended()
+    return "ended", _ended(proc, run_id)
 
 
 def pause_key(pid: int, shown, pausing: list, rest: str) -> None:
@@ -1178,8 +1386,6 @@ def _runs(args, errand, keys: list[str], stopper: execute.Stopper, bus, recorder
         raise HeimdallError(f"no configuration of this sweep has {args.only} tools", where=f"{errand.path}: [errand].sweep_runs")
     if recorder is not None:
         recorder.plan({key: 0 if key in skipped else _points_planned(args, ahead[key]) for key in keys})
-    if bus is not None and args.only is None and getattr(args, "stages", None) is None:
-        return _pipelined(args, errand, keys, stopper, bus, ahead, stamp)
     failed = False
     for number, key in enumerate(keys, 1):
         if stopper.halted:                   # a stop or a pause: no more runs begun
@@ -1209,69 +1415,6 @@ def _runs(args, errand, keys: list[str], stopper: execute.Stopper, bus, recorder
             return 6
         failed = failed or code != 0
     return 1 if failed else 0
-
-
-def _pipelined(args, errand, keys: list[str], stopper: execute.Stopper, bus: Bus, ahead: dict, stamp: int) -> int:
-    """A sweep of runs, pipelined (V75, the user's B8 decision): each run starts once the one before has
-    started all its points, and its points take the free cores of a budget the runs share (never more
-    than the largest run alone would use), so a run's last points and the next run's first overlap. Each
-    run's own order (pre, points, combined, post, plots) is kept. One view for the sweep; each run's
-    events carry its key. A stop or a pause starts no more runs; a failed run leaves the next to start."""
-    each = {key: max((execute.cores(p) for p in ahead[key].plans), default=1) for key in keys}
-    budget = execute.Budget(max(os.cpu_count() or 1,
-                                *(max(1, ahead[key].configuration.parallelism) * each[key] for key in keys)))
-    stopper.on_parallelism.append(lambda count: budget.resize(max(os.cpu_count() or 1, count * max(each.values()))))   # a live --jobs
-    shown = view(args.plain, every=paths.log_settings()["worker_every"] if getattr(args, "worker", None) else 5.0)
-    bus.subscribe(shown)
-    catch_signals(stopper)
-    codes: dict[str, int] = {}
-    errors: list[BaseException] = []
-    threads: list[threading.Thread] = []
-    gate: threading.Event | None = None
-    try:
-        for number, key in enumerate(keys, 1):
-            while gate is not None and not gate.wait(0.25) and not stopper.halted:
-                pass
-            if stopper.halted:
-                break
-            following = next((journal_path(errand, errand.configurations[k]) for k in keys[number:]), None) \
-                if paths.keeping("journal") else None
-            gate = threading.Event()
-
-            def job(key=key, number=number, following=following, gate=gate) -> None:
-                voice = RunBus(bus, key)
-                try:                         # planned again only if the TOML was edited meanwhile (V38, V54)
-                    unchanged = errand.path.stat().st_mtime_ns == stamp
-                    codes[key] = run_one(args, key, stopper, number=number, following=following,
-                                         planned=ahead[key] if unchanged else None, bus=voice, shown=shown,
-                                         budget=budget, gate=gate)
-                except HeimdallError as error:    # the TOML was edited since the check: this run fails alone
-                    voice.say(header(number, errand.configurations[key]))
-                    voice.say(error.render())
-                    not_run(journal_path(errand, errand.configurations[key]) if paths.keeping("journal") else None,
-                            header(number, errand.configurations[key]), error.message, following, voice)
-                    codes[key] = 2
-                except BaseException as error:           # the runner's own error: raised once all have ended
-                    errors.append(error)
-                    codes[key] = 1
-                finally:
-                    gate.set()
-
-            thread = threading.Thread(target=job, name=f"heimdall-run-{key}")
-            thread.start()
-            threads.append(thread)
-        while any(t.is_alive() for t in threads):        # the main thread takes the signals
-            time.sleep(0.25)
-    finally:
-        for thread in threads:
-            thread.join()
-        bus.unsubscribe(shown)
-        shown.end()
-    if errors:
-        raise errors[0]
-    if stopper.requested or 6 in codes.values() or (stopper.halted and len(codes) < len(keys)):
-        return 6                             # a pause: its run's own 6, or runs not begun, as in a sequential sweep
-    return 1 if any(codes.values()) else 0
 
 
 def show_config(errand, keys: list[str]) -> list[str]:
@@ -1392,8 +1535,7 @@ def dropped_points(every: list) -> list[str]:
 
 
 def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, following: Path | None = None,
-            planned: Planned | None = None, bus: Bus | None = None, shown=None, budget=None,
-            gate: threading.Event | None = None) -> int:
+            planned: Planned | None = None, bus: Bus | None = None) -> int:
     """One run: the pre stage, every point not complete, the combined groups, the post stage and the
     plots, said on `bus` (V72). In a sweep of runs, `number` is its place (a `run NN - <title> -` line
     first), and `following` is the next run's journal (--journal), named in this one's `run finished`
@@ -1436,19 +1578,16 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     if stopper.halted:                       # Ctrl-C or a pause while this run was being planned
         said = f"{title_line + ': ' if title_line else ''}{'paused' if stopper.paused else 'stopped'} before it began: " \
             "nothing run"
-        if shown is None:                    # its own view is not up yet: said here, and to a watcher
-            print(said)
+        print(said)                          # its view is not up yet: said here, and to a watcher
         if bus is not None:
             bus.say(said)
         return 6
     tag = give_tag(args, errand, configuration)
 
     bus = bus if bus is not None else Bus()
-    own_view = shown is None                 # a pipelined sweep's runs share the sweep's view (V75)
-    if own_view:
-        shown = view(args.plain, every=paths.log_settings()["worker_every"] if getattr(args, "worker", None) else 5.0)
-        # a worker's log: a progress line each [run] log worker_every seconds (V202), 10 minutes by default
-        bus.subscribe(shown)
+    shown = view(args.plain, every=paths.log_settings()["worker_every"] if getattr(args, "worker", None) else 5.0)
+    # a worker's log: a progress line each [run] log worker_every seconds (V202), 10 minutes by default
+    bus.subscribe(shown)
     if threading.current_thread() is threading.main_thread():
         catch_signals(stopper)
     logs = paths.keeping("logs")
@@ -1528,8 +1667,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
             if halted("points"):
                 return 6
             done, failed, stopped = execute.run_points(plans, errand, configuration, bus=bus, stopper=stopper,
-                                                       rerun=args.rerun, logs=logs, budget=budget,
-                                                       started_all=gate.set if gate is not None else None,
+                                                       rerun=args.rerun, logs=logs,
                                                        wait_held=getattr(args, "wait", False))
             lost = failed
             if stopped:
@@ -1581,9 +1719,8 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
     finally:
         onward = {"next": str(following)} if following and not stopper.halted else {}
         bus.emit("", "", {"k": "run", "state": "finished", "verdict": verdict, **onward})
-        if own_view:
-            bus.unsubscribe(shown)
-            shown.end()
+        bus.unsubscribe(shown)
+        shown.end()
         manifest()
         if only_library:                     # points into the library, no Run kept: its links go, the entries stay
             record.unlink_run(plans)
@@ -1976,6 +2113,8 @@ def cmd_runs(args) -> int:
         return resume_run(args.resume)
     if getattr(args, "forget", None) is not None:
         return forget_run(args.forget)
+    if getattr(args, "dispatch", None) is not None:
+        return dispatch_run(args.dispatch)
     if getattr(args, "again", None) is not None:
         return again_run(args.again)
     from . import workdirs
@@ -2019,6 +2158,11 @@ def running_at(index: int, verb: str) -> int:
     if entry.get("kind") == "cluster":
         raise HeimdallError(f"[{index}] is a cluster submission: its jobs are on Slurm's nodes",
                             hint="heimdall runs names its heimdall cluster … --status")
+    if state in ("queued", "held"):
+        if verb == "stopped":                               # its waiting worker: stopped unrun, holding the runs after it
+            return entry.get("pid")
+        raise HeimdallError(f"[{index}] is {state}: nothing is {verb} until its turn",
+                            hint=f"its log: {entry.get('log') or runs.log_of(entry.get('id', ''))}; heimdall runs --dispatch {index} starts it now")
     if not state.startswith("running"):
         raise HeimdallError(f"[{index}] {entry.get('id')} is {state}: it cannot be {verb} from here")
     return entry.get("pid")
@@ -2125,7 +2269,7 @@ def again_run(ref: str | int) -> int:
 
 #: The keys of `heimdall runs -i`, and the word typed to confirm each that changes something.
 ACTIONS = {"w": ("watch", None), "s": ("stop", "stop"), "j": ("set jobs", None), "r": ("resume", "resume"),
-           "a": ("run again", "again"), "f": ("forget", "forget"), "q": ("leave", None)}
+           "a": ("run again", "again"), "f": ("forget", "forget"), "d": ("dispatch", "dispatch"), "q": ("leave", None)}
 
 
 def offered(entry: dict, state: str, number: int | None) -> list[str]:
@@ -2135,6 +2279,8 @@ def offered(entry: dict, state: str, number: int | None) -> list[str]:
         return ["q"]
     if number and state.startswith("running"):
         return ["w", "s", "j", "q"]
+    if state in ("queued", "held"):
+        return ["d", "s", "f", "q"]
     if number and runs.paused(entry):
         return ["r", "f", "q"]
     if not house._going(entry, state) and (entry.get("finished") is not None or state == "lost"):
@@ -2183,12 +2329,14 @@ def act_on(ref: str, titles: dict, plain: bool = False, key_reader=None, line_re
         return set_jobs(number, int(text))
     if key == "w":
         return cmd_watch(argparse.Namespace(index=number, file=None, config=None, configuration=None, plain=plain, pid=None))
+    if key == "d":
+        return dispatch_run(entry["id"])
     if key == "s":
         return cmd_stop(argparse.Namespace(index=number, config=None, configuration=None, pid=None, no_wait=False))
     if key == "r":
         return resume_run(number)
     if key == "f":
-        return forget_run(number)
+        return forget_run(number or entry["id"])
     return again_run(entry["id"])
 
 
@@ -2228,13 +2376,37 @@ def set_jobs(ref: str | int, count: int) -> int:
     return 0
 
 
-def forget_run(index: int) -> int:
-    entry, state = live_at(index)
+def forget_run(ref: str | int) -> int:
+    """`heimdall runs --forget N|ID`: a paused job out of the live list; a queued or held one out of its queue, unrun
+    (its waiting worker ends it: wait_turn), the run after it then waiting for the one before it."""
+    entry, state, number = entry_of(ref)
+    index = number or entry["id"]
+    if state in ("queued", "held"):
+        if not runs.ask_queue(entry["id"], "forget"):
+            raise HeimdallError(f"{runs.queue_file(entry['id'])} cannot be written")
+        print(f"forgetting: [{index}] {entry['id']} leaves its queue unrun"
+              + (f"; the run after it waits for {entry.get('queued_to')}" if entry.get("queued_to") else ""))
+        return 0
     if not runs.paused(entry):
         raise HeimdallError(f"[{index}] is {state}, not paused: only a paused job is forgotten",
                             hint="heimdall runs lists the live ones")
     runs.update(entry["id"], forgotten=round(time.time(), 3))
     print(f"forgotten: [{index}] {entry['id']} (its entry kept: heimdall runs --week lists it)")
+    return 0
+
+
+def dispatch_run(ref: str | int) -> int:
+    """`heimdall runs --dispatch ID|N`: a queued or held run started now (its waiting worker asked: wait_turn), heading
+    a queue of its own with the runs after it."""
+    entry, state, number = entry_of(ref)
+    shown = f"[{number}] {entry['id']}" if number else entry["id"]
+    if state not in ("queued", "held"):
+        raise HeimdallError(f"{shown} is {state}, not queued: only a queued or held run is dispatched",
+                            hint="heimdall runs lists the queues")
+    if not runs.ask_queue(entry["id"], "dispatch"):
+        raise HeimdallError(f"{runs.queue_file(entry['id'])} cannot be written")
+    print(f"dispatched: {shown} starts now (within {runs.QUEUE_POLL:g} s), heading a queue of its own; "
+          f"heimdall watch --pid {entry.get('pid')} follows it")
     return 0
 
 
@@ -2919,7 +3091,7 @@ def parse(argv: list[str]) -> argparse.Namespace:
 #: The commands whose flags an errand file's [heimdall] gives (V188): those that read one config.
 FLAGGED = ("run", "plot", "cluster", "status", "watch", "stop")
 #: Options a file never sets: what it would name of itself, or change of itself (its own text does that).
-UNFLAGGED = {"set", "worker", "help"}
+UNFLAGGED = {"set", "worker", "sweep_member", "help"}
 #: What [heimdall] may set (the user, 2026-10-25): switches that say how you like a command to run, and keep.
 PREFERENCES = ("rerun", "wait", "detach", "plain", "journal", "logs", "replot", "keep")
 #: Every other option, by its dest, and why a file never sets it: a mode or a target is one command's job, a
@@ -2927,7 +3099,7 @@ PREFERENCES = ("rerun", "wait", "detach", "plain", "journal", "logs", "replot", 
 NOT_PREFERENCES = {
     **dict.fromkeys(("plan", "why", "show_config", "dry_run", "status", "cancel", "style_sync", "across", "stack",
                      "no_wait", "stats_only"), ("a mode: what this one command does", "type it on the command line")),
-    **dict.fromkeys(("card", "pid", "file", "plot_file", "index", "resume", "forget"),
+    **dict.fromkeys(("card", "pid", "file", "plot_file", "index", "resume", "forget", "dispatch", "queued_to"),
                     ("a target: what this one command acts on", "type it on the command line")),
     **dict.fromkeys(("points", "page_points", "draw_sets", "stages", "only"),
                     ("a selection: a part of the run, chosen when it is run",

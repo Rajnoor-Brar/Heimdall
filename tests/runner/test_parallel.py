@@ -155,38 +155,8 @@ def test_auto_parallelism_is_the_cores_over_a_points_cores(scratch, monkeypatch)
         parse(raw(errand__parallelism="many"), scratch)
 
 
-def test_the_budget_holds_a_point_until_its_cores_are_free():
-    budget = execute.Budget(24)
-    assert budget.take(12) and budget.take(12) and not budget.take(1)
-    budget.give(12)
-    assert budget.take(12)
-    alone = execute.Budget(4)
-    assert alone.take(12)                                          # bigger than the budget: it runs alone
-    assert not alone.take(1)
-
-
-def test_a_pipelined_run_says_when_every_point_has_started(monkeypatch):
-    """V75: the gate opens once the last point has started, not when it ends; the budget is shared."""
-    events, gate = [], threading.Event()
-
-    def run_point(plan, errand, configuration, *, bus, stopper, logs, wait=False):
-        events.append(("start", plan.point.name, gate.is_set()))
-        time.sleep(0.05)
-        return PointResult(True)
-
-    monkeypatch.setattr(execute, "run_point", run_point)
-    monkeypatch.setattr(execute, "stale", lambda plan, rerun: True)
-    monkeypatch.setattr(execute, "cores", lambda plan: 2)
-    budget = execute.Budget(4)
-    done, failed, stopped = execute.run_points(fake_plans(3), None, SimpleNamespace(parallelism=3), stopper=Stopper(),
-                                               rerun=False, budget=budget, started_all=gate.set)
-    assert (done, failed, stopped) == (3, 0, False) and gate.is_set() and budget.used == 0
-    assert [e[2] for e in events[:2]] == [False, False]             # shut while p3 waited for its cores
-    assert len(events) == 3                                          # (it opens as p3 is handed its thread)
-
-
 def test_overlapping_runs_keep_their_points_apart():
-    """V75: in a pipelined sweep two runs have points of the same name at once; each heading names its run."""
+    """Two runs on one bus (a watcher of two runs) have points of the same name at once; each heading names its run."""
     out = io.StringIO()
     view, bus = PlainView(stream=out), Bus()
     bus.subscribe(view)
@@ -244,22 +214,6 @@ def test_a_live_cap_lowered_starts_none_until_fewer_run_and_stops_no_running_poi
 def test_the_live_cap_is_the_stoppers_over_every_configuration_and_ceilinged(monkeypatch):
     stopper = Stopper()
     assert stopper.cap(4) == 4 and stopper.cap(0) == 1
-    seen = []
-    stopper.on_parallelism.append(seen.append)
     assert stopper.set_parallelism(2) is None and stopper.cap(4) == 2 and stopper.cap(1) == 2
     assert stopper.set_parallelism(10 ** 6) == 2 and stopper.parallelism == Stopper.CEILING
-    assert seen == [2, Stopper.CEILING]
     assert stopper.set_parallelism(0) == Stopper.CEILING and stopper.parallelism == 1
-
-
-def test_a_budget_resized_lets_points_start_or_holds_them_without_touching_running_ones():
-    budget = execute.Budget(4)
-    assert budget.take(2) and budget.take(2) and not budget.take(1)
-    budget.resize(6)
-    assert budget.take(2) and not budget.take(1)
-    budget.resize(2)                                          # lowered: what runs keeps its cores, nothing new starts
-    assert budget.used == 6 and not budget.take(1)
-    budget.give(6)
-    assert budget.take(2) and budget.total == 2
-    budget.resize(0)
-    assert budget.total == 1

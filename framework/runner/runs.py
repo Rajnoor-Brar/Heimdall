@@ -297,11 +297,59 @@ def state(data: dict, live: dict | None = None) -> str:
     running = alive(data)
     if running is False:
         return "lost"
+    if data.get("queued") and running:                  # a waiting worker (cli.wait_turn): held when its predecessor was stopped
+        return "held" if data.get("held") else "queued"
     if running is None:
         return f"on {data.get('host')}" if data.get("host") != host() else "in another PID namespace"
     if live is not None and data.get("pid") not in live and data.get("netns") != _namespace("net"):
         return "running (not reachable from here)"
     return "running"
+
+
+#: A queued run's worker looks at its predecessor's entry this often, in seconds (cli.wait_turn).
+QUEUE_POLL = 5.0
+
+
+def queue_file(run_id: str) -> Path:
+    """`<id>.queue.json` beside the entry: what `heimdall runs --dispatch` or `--forget` asks a queued run's waiting
+    worker (cli.wait_turn reads it; the entry keeps its one writer)."""
+    return folder() / f"{run_id}.queue.json"
+
+
+def ask_queue(run_id: str, what: str) -> bool:
+    """A queued run asked to start now ("dispatch") or to leave its queue ("forget"), whole and atomically."""
+    return _write(queue_file(run_id), {"ask": what, "by": os.getpid(), "at": round(time.time(), 3)})
+
+
+def queue_asked(run_id: str) -> str | None:
+    """What a queued run was asked ("dispatch", "forget"), or None."""
+    try:
+        data = json.loads(queue_file(run_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data.get("ask") if isinstance(data, dict) and data.get("ask") in ("dispatch", "forget") else None
+
+
+def queue_of(entries: list[dict], queue: str) -> list[dict]:
+    """A queue's runs in their order: its head (no predecessor among them; the run the queue is named after, which
+    may not say it), then each run queued to the one before. A run dispatched out of it heads a queue of its own,
+    and those queued to it follow it there."""
+    members = [e for e in entries if e.get("queue") == queue or (e.get("id") == queue and not e.get("queue"))]
+    ids = {e.get("id") for e in members}
+    after: dict[str, list[dict]] = {}
+    for e in members:
+        after.setdefault(e.get("queued_to") if e.get("queued_to") in ids else "", []).append(e)
+    out, seen = [], set()
+
+    def walk(at: str) -> None:
+        for e in sorted(after.get(at, []), key=lambda e: (e.get("started") or 0, e.get("id", ""))):
+            if e.get("id") not in seen:
+                seen.add(e.get("id"))
+                out.append(e)
+                walk(e.get("id"))
+
+    walk("")
+    return out + [e for e in members if e.get("id") not in seen]
 
 
 def paused(data: dict) -> bool:
@@ -323,11 +371,11 @@ def again(data: dict) -> list[str]:
     for arg in argv:
         if skip:
             skip = False
-        elif arg == "--worker":
+        elif arg in ("--worker", "--queued-to"):             # a queue's place is not run again
             skip = True
         elif arg == "--rerun" and not since and data.get("started"):
             out += ["--rerun-since", repr(float(data["started"]))]
-        elif not arg.startswith("--worker=") and arg != "--detach" and not (arg == "--rerun" and since):
+        elif not arg.startswith(("--worker=", "--queued-to=")) and arg != "--detach" and not (arg == "--rerun" and since):
             out.append(arg)
     return [*out, "--detach"]
 

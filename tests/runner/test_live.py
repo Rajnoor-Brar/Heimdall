@@ -327,7 +327,7 @@ def test_state_keeps_the_runs_in_those_states_and_an_unknown_one_is_refused(caps
     assert cli.main(["runs", "--state", "failed"]) == 0
     assert capsys.readouterr().out == "no failed runs here\n"
     assert cli.main(["runs", "--state", "sleeping"]) == 2
-    assert "the states: running, paused, failed" in capsys.readouterr().err
+    assert "the states: running, queued, held, paused, failed" in capsys.readouterr().err
 
 
 def test_the_first_line_is_cut_to_the_width_and_never_loses_its_index():

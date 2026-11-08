@@ -86,7 +86,6 @@ class Stopper:
         self.paused = False
         self.parallelism: int | None = None         # a live `--jobs`: the points at once, over each configuration's own
         self.control = threading.Event()            # SIGUSR2: the control file is to be read (never in the handler itself)
-        self.on_parallelism: list = []              # called with the new cap: a pipelined sweep's cores budget
 
     def cap(self, configured: int) -> int:
         """The points at once now: a live `--jobs` if one was given, else the configuration's."""
@@ -96,8 +95,6 @@ class Stopper:
         """A live cap (read at every dispatch: raising starts more points, lowering starts none until fewer run, and no
         running point is stopped); the one it replaces (None: the configuration's). `CEILING` at most."""
         before, self.parallelism = self.parallelism, max(1, min(int(count), self.CEILING))
-        for hook in self.on_parallelism:
-            hook(self.parallelism)
         return before
 
     @property
@@ -149,43 +146,13 @@ def _bus(bus):
     return bus if bus is not None else _Quiet()
 
 
-class Budget:
-    """Cores shared by the runs of a pipelined sweep (V75): a point takes its cores while it runs; one
-    that needs more than is free waits, unless nothing is running (a point bigger than the budget runs
-    alone)."""
-
-    def __init__(self, total: int):
-        self.total, self.used = max(1, total), 0
-        self._lock = threading.Lock()
-
-    def take(self, count: int) -> bool:
-        with self._lock:
-            if self.used and self.used + count > self.total:
-                return False
-            self.used += count
-            return True
-
-    def give(self, count: int) -> None:
-        with self._lock:
-            self.used = max(0, self.used - count)
-
-    def resize(self, total: int) -> None:
-        """The cores the runs share, changed while they run (a live `--jobs`): more lets points start, fewer starts none until
-        enough have ended; a running point keeps its cores."""
-        with self._lock:
-            self.total = max(1, total)
-
-
 def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopper: Stopper,
-               rerun: bool, logs: bool = False, budget: Budget | None = None,
-               started_all=None, wait_held: bool = False) -> tuple[int, int, bool]:
+               rerun: bool, logs: bool = False, wait_held: bool = False) -> tuple[int, int, bool]:
     """Every point not already complete, `configuration.parallelism` at a time, in order: (done,
     failed, halted). A stop (Ctrl-C) starts nothing more and stops the running points through
     their groups' stop ladder; a pause starts nothing more and lets them end, and the run then ends
     halted however many were left (its later stages wait for the rerun). An error of the runner itself is
-    raised once the running points have ended. In a pipelined sweep (V75) a point also waits for its cores in the shared `budget`, and
-    `started_all()` is called once every point has started (the next run may then start). A point another
-    session runs is skipped, or with `wait_held` waited for."""
+    raised once the running points have ended. A point another session runs is skipped, or with `wait_held` waited for."""
     bus = _bus(bus)
     todo = []
     for plan in plans:
@@ -194,42 +161,22 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
                                            **({"stage": plan.point.stage} if plan.point.stage else {})})
         else:
             todo.append(plan)
-    signalled = False
-
-    def all_started() -> None:
-        nonlocal signalled
-        if not signalled and started_all is not None:
-            signalled = True
-            started_all()
 
     done = failed = 0
     stopped = False
     error: BaseException | None = None
-    held: dict = {}                                   # a running point's future → the cores it took
     with ThreadPoolExecutor(max_workers=max(Stopper.CEILING, configuration.parallelism),
                             thread_name_prefix="heimdall-point") as pool:
         running: set = set()
         while todo or running:
             while todo and len(running) < stopper.cap(configuration.parallelism) and not stopper.halted and error is None:
-                plan = todo[0]
-                need = cores(plan) if budget is not None else 0
-                if budget is not None and not budget.take(need):
-                    break                             # its cores are another run's for now
-                todo.pop(0)
-                future = pool.submit(run_point, plan, errand, configuration, bus=bus, stopper=stopper, logs=logs, wait=wait_held)
-                held[future] = need
-                running.add(future)
-            if not todo:
-                all_started()
+                plan = todo.pop(0)
+                running.add(pool.submit(run_point, plan, errand, configuration, bus=bus, stopper=stopper, logs=logs,
+                                        wait=wait_held))
             if not running:
-                if todo and not stopper.halted and error is None:
-                    time.sleep(POLL)                  # waiting for the budget
-                    continue
                 break
             finished, running = wait(running, timeout=0.5, return_when=FIRST_COMPLETED)   # SIGINT gets in
             for future in finished:
-                if budget is not None:
-                    budget.give(held.pop(future, 0))
                 try:
                     result = future.result()
                 except BaseException as caught:          # the runner's own error, not a tool's
@@ -238,7 +185,6 @@ def run_points(plans: list[PointPlan], errand, configuration, *, bus=None, stopp
                 stopped |= result.stopped
                 failed += not result.ok and not result.stopped and not result.held
                 done += result.ok
-    all_started()
     if error is not None:
         raise error
     return done, failed, stopped or stopper.halted

@@ -179,9 +179,9 @@ tags   = ["two"]
 """
 
 
-def test_a_sweep_of_runs_is_pipelined(scratch):
-    """V75 (B8, option B): run y starts its points once run x has started all of its own, in the slot
-    x's last wave leaves free: three 2 s points a run, two at once, overlap across the runs."""
+def test_a_sweep_of_runs_in_one_process_runs_them_one_after_another(scratch):
+    """Without a terminal a sweep runs its configurations in its process, each once the one before has ended
+    (V75's pipelining retired: a sweep with a terminal is a queue, live/run-queue.md)."""
     script = scratch / "check.py"
     script.write_text(CHECK, encoding="utf-8")
     script.chmod(script.stat().st_mode | stat.S_IXUSR)
@@ -194,5 +194,29 @@ def test_a_sweep_of_runs_is_pipelined(scratch):
     assert all(r.get("run") == "x" for r in x) and all(r.get("run") == "y" for r in y)   # each journal its own run's
     x_last_end = max(r["t"] for r in x if r.get("k") == "point" and r.get("state") == "done")
     y_first_start = min(r["t"] for r in y if r.get("k") == "point" and r.get("state") == "started")
-    assert y_first_start < x_last_end - 1.0, (y_first_start, x_last_end)
+    assert y_first_start > x_last_end, (y_first_start, x_last_end)
     assert "── point 1/3 (y): " in done.stdout and "run 02 - y -" in done.stdout
+
+
+def test_a_detached_sweep_is_a_queue_its_runs_one_after_another(scratch):
+    """A sweep with --detach (live/run-queue.md): a worker a configuration, y queued to x and started at its end,
+    each its own entry and log."""
+    from runner import runs
+    script = scratch / "check.py"
+    script.write_text(CHECK, encoding="utf-8")
+    script.chmod(script.stat().st_mode | stat.S_IXUSR)
+    config = scratch / "pipe.toml"
+    config.write_text(PIPE.format(script=script), encoding="utf-8")
+    started = time.time()
+    done = heimdall(config, scratch, "--detach")
+    assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
+    assert "a sweep of 2 runs" in done.stdout
+    mine = lambda: sorted((e for e in runs.entries() if e.get("started", 0) >= started - 1 and "pipe" in e.get("config", "")),
+                          key=lambda e: e["started"])
+    deadline = time.monotonic() + 120
+    while time.monotonic() < deadline and not (len(mine()) == 2 and all(e.get("finished") for e in mine())):
+        time.sleep(0.5)
+    x, y = mine()
+    assert runs.state(x) == runs.state(y) == "done", (x, y)
+    assert y["queued_to"] == x["id"] and y["queue"] == x["id"] and y["began"] >= x["finished"]
+    assert [k for e in (x, y) for k in e["configurations"]] == ["x", "y"]

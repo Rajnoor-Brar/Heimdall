@@ -189,10 +189,10 @@ def test_a_stop_after_a_pause_is_a_stop(handlers):
     assert forced.requested and not forced.paused
 
 
-@pytest.mark.parametrize("stages, verdict", [([], "paused: 2 done, 2 left; not run: plot"),       # pipelined
-                                            (["--stages", "points"], "paused: 2 done, 2 left")])  # one after another
+@pytest.mark.parametrize("stages, verdict", [([], "paused: 2 done, 2 left; not run: plot"),       # every stage
+                                            (["--stages", "points"], "paused: 2 done, 2 left")])  # points only
 def test_a_paused_sweep_begins_no_more_configurations(errand, stages, verdict):
-    """P2: in a sweep of runs, pipelined or one after another, the configurations after a paused one are not
+    """P2: in a sweep of runs (in one process, one after another), the configurations after a paused one are not
     begun."""
     path, marks = errand
     text = path.read_text(encoding="utf-8").replace('configuration = "c"\n', 'configuration = "c"\nsweep_runs    = ["c", "e"]\n')
@@ -208,7 +208,7 @@ def test_a_paused_sweep_begins_no_more_configurations(errand, stages, verdict):
 @pytest.mark.parametrize("sweep", [False, True])
 def test_a_pause_while_it_plans_runs_nothing_and_is_paused(errand, monkeypatch, capsys, sweep):
     """The review's 1 and 6: a pause that comes while the job plans begins nothing, says so, and exits 6 recorded
-    paused, a pipelined sweep's too (it began no run)."""
+    paused, a sweep's too (it began no run)."""
     path, marks = errand
     if sweep:
         text = path.read_text(encoding="utf-8").replace('configuration = "c"\n', 'configuration = "c"\nsweep_runs    = ["c", "e"]\n')

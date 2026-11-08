@@ -23,6 +23,7 @@ plan and run a configuration
 | `--card TAG` | with --plan: that tool's card for the first point, each line with where its value comes from |
 | `--points SEL` | run a subset: tags, indices or quantity=tag |
 | `--detach` | start the job in the background and return: heimdall watch follows it, heimdall stop stops it (on a terminal, a job started without it leaves on d too) |
+| `--queued-to ID\|N` | queue the run after another (its id, or its [N] in heimdall runs): it starts, detached, when that one ends (done, failed or lost; one stopped holds it until heimdall runs --dispatch); queues chain |
 | `--set KEY=VALUE` | override one value for this invocation (repeatable), in the file's own names: errand.events=100 (v3), errand.event_count=100 (v2) |
 | `--tag NAME` | tag each Run this job makes or resumes (over the one it has and its configuration's tag): a letter or digit, then letters, digits, . _ + -, at most 40 |
 | `--rerun` | ignore skip-unchanged; under a serial the file sets, overwrite points made from other inputs |
@@ -226,11 +227,12 @@ live jobs (running and paused), each with its index [N]; with --5, --10, --20 or
 | `--week` | show all jobs from the last 7 days |
 | `--month` | show all jobs from the last 28 days |
 | `--resume N` | resume the paused job [N]: its own command again, detached, in its work dir and checkout (its complete points skipped) |
-| `--forget N` | drop the paused job [N] from the live list (its entry is kept) |
+| `--forget N\|ID` | drop the paused job [N] from the live list (its entry is kept); a queued or held one leaves its queue unrun, the run after it queued to the one before it |
+| `--dispatch ID\|N` | start a queued or held run now, before its turn: it heads a queue of its own, the runs after it following it |
 | `--again ID\|N` | run a failed, stopped or lost run's own command again, detached, from its records' config snapshot (its complete points skipped); not a running or paused one |
 | `-i, --index N\|ID` | the run [N] of the live list (or an id): its block, and on a terminal a prompt of what to do with it: watch, stop, resume, run again, forget (the word typed to confirm) |
 | `--jobs M` | with -i N: change the running job's points at once to M, while it runs (never stops a running point; lowering waits for them to end) |
-| `--state S[,S]` | only the runs in these states: running, paused, failed, stopped, done, lost, not run, submitted, on Slurm, ended, cancelled |
+| `--state S[,S]` | only the runs in these states: running, queued, held, paused, failed, stopped, done, lost, not run, submitted, on Slurm, ended, cancelled |
 | `--plain` | no colour or links |
 
 ## `heimdall tag`

@@ -539,7 +539,8 @@ def _states(entries: list[dict], by_pid: dict) -> list[tuple[dict, str]]:
 
 def _going(e: dict, state: str) -> bool:
     """Whether an entry's job still goes: running, or where this process cannot tell; a submission on Slurm."""
-    return state.startswith("running") or state.startswith("on ") or state == "in another PID namespace" \
+    return state.startswith("running") or state in ("queued", "held") or state.startswith("on ") \
+        or state == "in another PID namespace" \
         or (e.get("kind") == "cluster" and state in ("submitted", "on Slurm"))
 
 
@@ -576,11 +577,13 @@ def live_line(index: int, e: dict, state: str) -> str:
 
 
 #: The states `heimdall runs --state` takes: what `runs.state` says first (a cluster submission's too).
-RUN_STATES = ("running", "paused", "failed", "stopped", "done", "lost", "not run", "submitted", "on Slurm", "ended", "cancelled")
+RUN_STATES = ("running", "queued", "held", "paused", "failed", "stopped", "done", "lost", "not run", "submitted", "on Slurm", "ended", "cancelled")
 
 #: SGR codes of the listing's colour (never left to a library: `[N]` is no markup, and a test reads them).
-SGR = {"bold": "1", "dim": "2", "red": "31", "green": "32", "yellow": "33", "magenta": "35", "cyan": "36", "grey": "90"}
-STATE_STYLE = {"running": "green", "paused": "yellow", "failed": "red", "stopped": "magenta", "done": "dim", "lost": "grey"}
+SGR = {"bold": "1", "dim": "2", "red": "31", "green": "32", "yellow": "33", "blue": "34", "magenta": "35", "cyan": "36",
+       "grey": "90"}
+STATE_STYLE = {"running": "green", "queued": "blue", "held": "yellow", "paused": "yellow", "failed": "red", "stopped": "magenta",
+               "done": "dim", "lost": "grey"}
 
 
 def wants_colour(stream, plain: bool = False) -> bool:
@@ -601,6 +604,11 @@ def link(shown: str, host: str, path: str, on: bool) -> str:
         return shown
     from urllib.parse import quote
     return f"\x1b]8;;file://{host}{quote(path)}\x1b\\{shown}\x1b]8;;\x1b\\"
+
+
+def short_id(run_id: str) -> str:
+    """A run's id as a queue line names it: `…` and its last part (`…c6f9`)."""
+    return "…" + run_id.rsplit("-", 1)[-1] if "-" in run_id else run_id
 
 
 def state_word(state: str) -> str:
@@ -669,6 +677,19 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
     def where(work: str | None) -> str:
         return titles.get(work or "", "") or (Path(work).name if work else "")
 
+    by_id = {e.get("id"): e for e in entries if e.get("id")}
+    places: dict[str, tuple[int, int]] = {}                 # a queued run's place in its queue, and the queue's length
+    for queue in {e.get("queue") for e in entries if e.get("queue")}:
+        chain = runs.queue_of(entries, queue)
+        for n, member in enumerate(chain, 1):
+            places[member.get("id")] = (n, len(chain))
+
+    def named(run_id: str | None) -> str:
+        """A run as a queue line names it: its live [N] and its id's tail."""
+        other = by_id.get(run_id or "")
+        number = live_numbers.get(id(other)) if other is not None else None
+        return (f"[{number}] " if number else "") + short_id(run_id or "?")
+
     def row(e: dict, state: str, number: int | None) -> list[str]:
         started = e.get("started") or 0
         span = _ago((e.get("finished") or now) - started)
@@ -701,10 +722,18 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
                      + (f" ({e['points_failed']} failed)" if not e.get("counts") and e.get("points_failed") else ""))
         if counted:
             parts.append(counted)
+        if word in ("queued", "held") and e.get("queued_to"):
+            parts.insert(1, f"after {named(e['queued_to'])}")
+        if e.get("queue") and e.get("id") in places and places[e["id"]][1] > 1:
+            place, length = places[e["id"]]
+            parts.append(f"queue {short_id(e['queue'])} {place} of {length}")
         tail = []
         if e.get("kind") == "cluster":
             tail.append(f"    cluster jobs {', '.join(map(str, e.get('jobs', [])))}: "
                         + paint(f"heimdall cluster {what} {e.get('configuration', '')} --status", "cyan", color))
+        elif word in ("queued", "held"):
+            ref = number or e.get("id")
+            tail.append(f"    pid {e.get('pid')} : " + paint(f"heimdall runs --dispatch {ref} · heimdall runs --forget {ref}", "cyan", color))
         elif going:
             watch = f"--pid {e.get('pid')}"
             tail.append(f"    pid {e.get('pid')} : " + paint(f"heimdall watch {watch} · heimdall stop {watch}", "cyan", color))

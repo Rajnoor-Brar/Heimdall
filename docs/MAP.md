@@ -104,7 +104,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [failures](stable/internals/failures.md): how a chain of processes fails and how each way is handled; attribution; exit codes (2 KB)
 - [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (4 KB) ⟵ live: live-identity-golden, live-points-library
 - [layout](stable/internals/layout.md): Heimdall's folders, the machine root's and a work dir's; what is in git; how the roots are found; where a run's files go (5 KB)
-- [live-runs](stable/internals/live-runs.md): a run as a worker and a client; the run registry; signals, pausing, resuming, heimdall watch and stop (4 KB) ⟵ live: live-live-parallelism, live-resume-record-config, live-runs-listing
+- [live-runs](stable/internals/live-runs.md): a run as a worker and a client; the run registry; signals, pausing, resuming, heimdall watch and stop (4 KB) ⟵ live: live-live-parallelism, live-resume-record-config, live-run-queue, live-runs-listing
 - [paint](stable/internals/paint.md): Paint inside: the order of a page's arithmetic, drawing, heat maps, dumps; what is load-bearing (4 KB)
 - [plot-backends](stable/internals/plot-backends.md): how the backends beside Paint draw the same pages, what they honour and refuse (2 KB)
 - [plot-stage](stable/internals/plot-stage.md): the plot stage inside: members and stand-in plans, the merged sweep, page documents, drawing, what a record gives a drawing (5 KB)
@@ -145,7 +145,8 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-record-formats](live/record-formats.md): record files carry a format version, and heimdall records upgrade brings old ones to it (2 KB)
 - [live-resume-record-config](live/resume-record-config.md): a paused run resumes with the latest attempted Run's recorded config snapshot (2 KB)
 - [live-run-labels](live/run-labels.md): a Run's tag is one of its labels: key=value words from heimdall tag, in the tag file's TOML, each an across axis @key (3 KB)
-- [live-runs-listing](live/runs-listing.md): heimdall runs lists a run as a six-line block, coloured on a terminal with a log link; --state filters; stop -i N (6 KB)
+- [live-run-queue](live/run-queue.md): heimdall run … --queued-to ID|N starts a run when another ends; a sweep is such a queue; runs shows queues, --dispatch starts one early (6 KB)
+- [live-runs-listing](live/runs-listing.md): heimdall runs lists a run as a six-line block, coloured on a terminal with a log link; --state filters; stop -i N; queued and held runs (run-queue) (6 KB)
 - [live-score-engine](live/score-engine.md): framework/stats/score.py: how a table's rows become a point's score, worst page, veto and per-purpose shares, and the other aggregators (4 KB)
 - [live-score-settings](live/score-settings.md): the [score] table, [stats].metrics and centres, a set's score, a figure's weight, and heimdall explain score (2 KB)
 - [live-scoring](live/scoring.md): the statistics summary and the report's statistics by purpose: standings, a section a purpose, a metric's ranking and table, a head to head only when asked (5 KB)

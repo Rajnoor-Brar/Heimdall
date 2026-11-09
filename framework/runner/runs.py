@@ -31,7 +31,7 @@ import sys
 import tempfile
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import MISSING, dataclass, field, fields
 from pathlib import Path
 
 from .events import namespace as _namespace
@@ -62,6 +62,143 @@ ID_VAR = "HEIMDALL_RUN_ID"
 #: The paused entry a resumed job resumes: marked `resumed_by` before it starts, and cleared again by its
 #: worker when the job never runs (a config error: exit 2), so the pause stays live.
 RESUMES_VAR = "HEIMDALL_RESUMES"
+
+
+@dataclass(frozen=True)
+class Queue:
+    """The part of an entry that puts a run in a queue (cli.wait_turn writes it): which queue, the run it waits for,
+    whether it still waits (`queued`) and is held, when its turn came (`began`), whether it left unrun and the run
+    it was dispatched out of. `keys` remembers which of these the entry has, so `as_dict` gives them back as read."""
+    queue: str | None = None
+    queued_to: str | None = None
+    queued: bool | None = None
+    held: bool | None = None
+    began: float | None = None
+    left_queue: bool | None = None
+    dispatched_from: str | None = None
+    keys: frozenset | None = field(default=None, repr=False, compare=False)
+
+    def as_dict(self) -> dict:
+        return {f.name: getattr(self, f.name) for f in fields(self)
+                if f.name != "keys" and (f.name in self.keys if self.keys is not None else getattr(self, f.name) is not None)}
+
+
+QUEUE_KEYS = tuple(f.name for f in fields(Queue) if f.name != "keys")
+
+
+@dataclass(frozen=True)
+class RunEntry:
+    """A registry entry (`<id>.json`) as a value, parsed once on read (`RunEntry.parse`); `as_dict` gives back the dict
+    it was parsed from, key for key. Writers stay on dicts (`update`, `finish`): one field at a time is already safe.
+
+    Who and where (`host` … `pstart`), when (`started`, `finished`), how it ended (`code`, `verdict`, `state`), what it
+    ran (`config`, `run`, `configurations`, `argv`, `work`, `checkout`, `log`), how far it is (`points_*`,
+    `parallelism`, `point_cores`, `counts`, `verdicts`), what it wrote (`records`), what became of a pause
+    (`resumed_by`, `resumed`, `forgotten`), a cluster submission's (`jobs`, `submission`, `points`) and its `queue`.
+    `extra` keeps every key this version does not know, so an entry of a newer Heimdall is not mangled."""
+    id: str = ""
+    v: int = 1
+    kind: str = "run"
+    host: str = ""
+    pid: int | None = None
+    uid: int | None = None
+    user: str = ""
+    pidns: str | None = None
+    netns: str | None = None
+    boot: str | None = None
+    pstart: str | None = None
+    started: float | None = None
+    finished: float | None = None
+    code: int | None = None
+    verdict: str | None = None
+    state: str | None = None
+    config: str | None = None
+    run: str | None = None
+    configuration: str | None = None
+    configurations: list | None = None
+    configuration_serials: dict | None = None
+    configuration_tags: dict | None = None
+    argv: list | None = None
+    work: str | None = None
+    checkout: str | None = None
+    detached: bool | None = None
+    log: str | None = None
+    records: list | None = None
+    verdicts: dict | None = None
+    counts: dict | None = None
+    points_completed: int | None = None
+    points_total: int | None = None
+    points_failed: int | None = None
+    active_parallel_points: int | None = None
+    parallelism: int | None = None
+    point_cores: int | None = None
+    resumed_by: str | None = None
+    resumed: float | None = None
+    forgotten: float | None = None
+    jobs: list | None = None
+    submission: str | None = None
+    points: int | None = None
+    queue: Queue | None = None
+    extra: dict = field(default_factory=dict, compare=False)
+    keys: frozenset | None = field(default=None, repr=False, compare=False)
+
+    @classmethod
+    def parse(cls, data: dict) -> RunEntry:
+        names = {f.name for f in fields(cls)} - {"queue", "extra", "keys"}
+        queue = {k: data[k] for k in QUEUE_KEYS if k in data}
+        return cls(**{k: data[k] for k in names if k in data},
+                   queue=Queue(**queue, keys=frozenset(queue)) if queue else None,
+                   extra={k: v for k, v in data.items() if k not in names and k not in QUEUE_KEYS},
+                   keys=frozenset(data))
+
+    def as_dict(self) -> dict:
+        out = {}
+        for f in fields(self):
+            if f.name in ("queue", "extra", "keys"):
+                continue
+            value = getattr(self, f.name)
+            default = f.default if f.default is not MISSING else None
+            if (f.name in self.keys) if self.keys is not None else value != default:
+                out[f.name] = value
+        return {**out, **(self.queue.as_dict() if self.queue else {}), **self.extra}
+
+    @property
+    def newer(self) -> bool:
+        """Written by a newer Heimdall: its meaning may not be this one's, so it is listed and never acted on."""
+        return isinstance(self.v, int) and self.v > VERSION
+
+    # What the queue part says, None when the entry has none (these are the Queue's own fields).
+    @property
+    def queue_id(self) -> str | None:
+        return self.queue.queue if self.queue else None
+
+    @property
+    def queued_to(self) -> str | None:
+        return self.queue.queued_to if self.queue else None
+
+    @property
+    def queued(self) -> bool:
+        return bool(self.queue and self.queue.queued)
+
+    @property
+    def held(self) -> bool:
+        return bool(self.queue and self.queue.held)
+
+    @property
+    def left_queue(self) -> bool:
+        return bool(self.queue and self.queue.left_queue)
+
+    @property
+    def began(self) -> float | None:
+        return self.queue.began if self.queue else None
+
+    @property
+    def dispatched_from(self) -> str | None:
+        return self.queue.dispatched_from if self.queue else None
+
+    @property
+    def cluster(self) -> bool:
+        return self.kind == "cluster"
 
 
 def folder() -> Path:
@@ -156,11 +293,18 @@ def log_of(run_id: str) -> Path | None:
     return None
 
 
-def entry(run_id: str) -> dict | None:
+def _entry_dict(run_id: str) -> dict | None:
+    """The entry's file as the dict it was written from: what the writers (`update`, `finish`, the Recorder) read."""
     try:
-        return json.loads((folder() / f"{run_id}.json").read_text(encoding="utf-8"))
+        data = json.loads((folder() / f"{run_id}.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+    return data if isinstance(data, dict) else None
+
+
+def entry(run_id: str) -> RunEntry | None:
+    got = _entry_dict(run_id)
+    return None if got is None else RunEntry.parse(got)
 
 
 def control_file(run_id: str) -> Path:
@@ -203,7 +347,7 @@ def begin(run_id: str, fields: dict) -> str | None:
 
 def update(run_id: str | None, **fields) -> bool:
     """Fields over a run's entry (its record folders as they come, a cluster's state)."""
-    if run_id is None or (got := entry(run_id)) is None:
+    if run_id is None or (got := _entry_dict(run_id)) is None:
         return False
     return _write(folder() / f"{run_id}.json", {**got, **fields})
 
@@ -216,7 +360,7 @@ def finish(run_id: str | None, code: int, verdict: str | None = None, state: str
 
 
 def _own(paths, mine: bool):
-    """(path, entry) of each entry file: named by an id of new_id's shape, holding that id, and (`mine`) this
+    """(path, RunEntry) of each entry file: named by an id of new_id's shape, holding that id, and (`mine`) this
     user's, by the entry and by the file."""
     for path in paths:
         if not ID.fullmatch(path.stem):
@@ -230,14 +374,14 @@ def _own(paths, mine: bool):
             continue
         if mine and (data.get("uid") != os.getuid() or owner != os.getuid()):
             continue
-        yield path, data
+        yield path, RunEntry.parse(data)
 
 
-def entries(now: float | None = None, mine: bool = True) -> list[dict]:
+def entries(now: float | None = None, mine: bool = True) -> list[RunEntry]:
     """The entries, newest first, after pruning those KEEP_DAYS old: this user's (`mine`), else everyone's."""
     prune(now)
     found = [data for _, data in _own(sorted(folder().glob("*.json")) if folder().is_dir() else (), mine)]
-    return sorted(found, key=lambda e: e.get("started", 0), reverse=True)
+    return sorted(found, key=lambda e: e.started or 0, reverse=True)
 
 
 def prune(now: float | None = None) -> None:
@@ -251,7 +395,7 @@ def prune(now: float | None = None) -> None:
         return
     try:
         for path, data in list(_own(where.glob("*.json"), mine=True)):
-            if (data.get("finished") or data.get("started") or now) < edge:
+            if (data.finished or data.started or now) < edge:
                 path.unlink(missing_ok=True)
                 path.with_suffix(".log").unlink(missing_ok=True)
                 control_file(path.stem).unlink(missing_ok=True)
@@ -278,26 +422,26 @@ def ended(pid: int) -> bool:
     return ")" in text and text[text.rfind(")") + 2:].split()[:1] == ["Z"]
 
 
-def alive(data: dict) -> bool | None:
+def alive(data: RunEntry) -> bool | None:
     """Whether an entry's process still runs: True, False, or None when this process cannot tell (another
     host, another PID namespace)."""
     me = here()
-    if data.get("host") != me["host"]:
+    if data.host != me["host"]:
         return None
-    if data.get("boot") and me["boot"] and data["boot"] != me["boot"]:
+    if data.boot and me["boot"] and data.boot != me["boot"]:
         return False                                    # the machine has restarted since
-    if data.get("pidns") and me["pidns"] and data["pidns"] != me["pidns"]:
+    if data.pidns and me["pidns"] and data.pidns != me["pidns"]:
         return None
-    pid = data.get("pid")
+    pid = data.pid
     try:
         os.kill(int(pid), 0)
     except ProcessLookupError:
         return False
     except PermissionError:                             # another user's process: the pid reused, unless it started
-        return bool(data.get("pstart")) and started_at(int(pid)) == data["pstart"]      # when the run's did
+        return bool(data.pstart) and started_at(int(pid)) == data.pstart      # when the run's did
     except (TypeError, ValueError):
         return None
-    return not data.get("pstart") or started_at(int(pid)) == data["pstart"]
+    return not data.pstart or started_at(int(pid)) == data.pstart
 
 
 NAMESPACE = "another PID namespace"
@@ -347,10 +491,10 @@ class RunState:
         return self.word in HOLDS or (self.word == "paused" and self.forgotten)
 
 
-def _verdict_word(data: dict) -> tuple[str, str]:
+def _verdict_word(data: RunEntry) -> tuple[str, str]:
     """The word and its detail of an entry that ended (or a cluster submission): its `state`, else its `verdict`'s first
     part when that is a word of STATES, else the verdict the exit code has, else `exit`. Never read from display text."""
-    state, verdict, code = data.get("state"), data.get("verdict"), data.get("code")
+    state, verdict, code = data.state, data.verdict, data.code
     if state in STATES:
         return state, ""
     if isinstance(verdict, str):
@@ -367,34 +511,34 @@ def _verdict_word(data: dict) -> tuple[str, str]:
     return "exit", "" if code is None else str(code)
 
 
-def state_of(data: dict, live: dict | None = None) -> RunState:
+def state_of(data: RunEntry, live: dict | None = None) -> RunState:
     """What an entry says now: when it ended, its state ("paused") or else its verdict, and whether a pause was resumed
     or forgotten since; running; "lost" (its process is gone, it never said how it ended); or why this process
     cannot tell. `live`: pid → greeting of the sockets this process sees."""
-    if data.get("kind") == "cluster":
-        shown = data.get("verdict") or "submitted"
-        word, detail = _verdict_word(data) if data.get("verdict") else ("submitted", "")
+    if data.cluster:
+        shown = data.verdict or "submitted"
+        word, detail = _verdict_word(data) if data.verdict else ("submitted", "")
         return RunState(word, shown, detail)
-    if data.get("finished") is not None:
+    if data.finished is not None:
         word, detail = _verdict_word(data)
-        shown = f"{data.get('state') or data.get('verdict') or VERDICTS.get(data.get('code'), 'ended')}"
-        if word == "exit" and not (data.get("state") or data.get("verdict")) and data.get("code") not in VERDICTS:
+        shown = f"{data.state or data.verdict or VERDICTS.get(data.code, 'ended')}"
+        if word == "exit" and not (data.state or data.verdict) and data.code not in VERDICTS:
             word = "ended"
-        return RunState(word, shown, detail, resumed=bool(data.get("resumed_by")),
-                        forgotten=bool(data.get("forgotten")) and not data.get("resumed_by"), ended=True)
+        return RunState(word, shown, detail, resumed=bool(data.resumed_by),
+                        forgotten=bool(data.forgotten) and not data.resumed_by, ended=True)
     running = alive(data)
     if running is False:
         return RunState("lost")
-    if data.get("queued") and running:                  # a waiting worker (cli.wait_turn): held when its predecessor was stopped
-        return RunState("held" if data.get("held") else "queued")
+    if data.queued and running:                         # a waiting worker (cli.wait_turn): held when its predecessor was stopped
+        return RunState("held" if data.held else "queued")
     if running is None:
-        return RunState("unknown", where=data.get("host") if data.get("host") != host() else NAMESPACE)
-    if live is not None and data.get("pid") not in live and data.get("netns") != _namespace("net"):
+        return RunState("unknown", where=data.host if data.host != host() else NAMESPACE)
+    if live is not None and data.pid not in live and data.netns != _namespace("net"):
         return RunState("running", reachable=False)
     return RunState("running")
 
 
-def state(data: dict, live: dict | None = None) -> str:
+def state(data: RunEntry, live: dict | None = None) -> str:
     """`state_of(...)` as it is printed."""
     return state_of(data, live).text
 
@@ -425,40 +569,40 @@ def queue_asked(run_id: str) -> str | None:
     return data.get("ask") if isinstance(data, dict) and data.get("ask") in ("dispatch", "forget") else None
 
 
-def queue_of(entries: list[dict], queue: str) -> list[dict]:
+def queue_of(entries: list[RunEntry], queue: str) -> list[RunEntry]:
     """A queue's runs in their order: its head (no predecessor among them; the run the queue is named after, which
     may not say it), then each run queued to the one before. A run dispatched out of it heads a queue of its own,
     and those queued to it follow it there."""
-    members = [e for e in entries if e.get("queue") == queue or (e.get("id") == queue and not e.get("queue"))]
-    ids = {e.get("id") for e in members}
-    after: dict[str, list[dict]] = {}
+    members = [e for e in entries if e.queue_id == queue or (e.id == queue and not e.queue_id)]
+    ids = {e.id for e in members}
+    after: dict[str, list[RunEntry]] = {}
     for e in members:
-        after.setdefault(e.get("queued_to") if e.get("queued_to") in ids else "", []).append(e)
+        after.setdefault(e.queued_to if e.queued_to in ids else "", []).append(e)
     out, seen = [], set()
 
     def walk(at: str) -> None:
-        for e in sorted(after.get(at, []), key=lambda e: (e.get("started") or 0, e.get("id", ""))):
-            if e.get("id") not in seen:
-                seen.add(e.get("id"))
+        for e in sorted(after.get(at, []), key=lambda e: (e.started or 0, e.id)):
+            if e.id not in seen:
+                seen.add(e.id)
                 out.append(e)
-                walk(e.get("id"))
+                walk(e.id)
 
     walk("")
-    return out + [e for e in members if e.get("id") not in seen]
+    return out + [e for e in members if e.id not in seen]
 
 
-def paused(data: dict) -> bool:
+def paused(data: RunEntry) -> bool:
     """Whether an entry is a pause still live: a run that ended paused, neither resumed nor forgotten since."""
-    return data.get("kind", "run") == "run" and data.get("finished") is not None and data.get("state") == "paused" \
-        and not data.get("resumed_by") and not data.get("forgotten")
+    return data.kind == "run" and data.finished is not None and data.state == "paused" \
+        and not data.resumed_by and not data.forgotten
 
 
-def again(data: dict) -> list[str]:
+def again(data: RunEntry) -> list[str]:
     """A paused run's own command again, detached: its argv as typed, without a worker's `--worker <id>` and
     a `--detach`, then `--detach`; a `--rerun` becomes `--rerun-since <its start>`, so the points the paused job
     completed are not run again (one already resumed keeps its first start). [] when the entry holds no `heimdall
     run` command."""
-    argv = [str(arg) for arg in data.get("argv") or []]
+    argv = [str(arg) for arg in data.argv or []]
     if argv[:1] != ["run"]:
         return []
     out, skip = [], False
@@ -468,8 +612,8 @@ def again(data: dict) -> list[str]:
             skip = False
         elif arg in ("--worker", "--queued-to"):             # a queue's place is not run again
             skip = True
-        elif arg == "--rerun" and not since and data.get("started"):
-            out += ["--rerun-since", repr(float(data["started"]))]
+        elif arg == "--rerun" and not since and data.started:
+            out += ["--rerun-since", repr(float(data.started))]
         elif not arg.startswith(("--worker=", "--queued-to=")) and arg != "--detach" and not (arg == "--rerun" and since):
             out.append(arg)
     return [*out, "--detach"]
@@ -594,7 +738,7 @@ class Recorder:
             self._timer.cancel()
             self._timer = None
         if self._kept is None:
-            self._kept = entry(self.run_id)
+            self._kept = _entry_dict(self.run_id)
             if self._kept is None:                          # nothing recorded (a read-only root): nothing kept
                 self.run_id = None
                 return

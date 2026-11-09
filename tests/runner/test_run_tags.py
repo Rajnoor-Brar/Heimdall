@@ -93,8 +93,8 @@ def test_the_tag_comes_from_the_flag_else_the_folder_else_the_configuration(conf
     assert kept() == ("mine", "mine")                                   # run again: the folder keeps its own
     assert run(path, "--tag", "flag") == 0
     assert kept() == ("flag", "flag")                                   # --tag over both
-    (entry, *_) = sorted(runs.entries(), key=lambda e: e.get("started") or 0, reverse=True)
-    assert entry["configuration_tags"] == {"one": "flag"}               # the registry carries it
+    (entry, *_) = sorted(runs.entries(), key=lambda e: e.started or 0, reverse=True)
+    assert entry.configuration_tags == {"one": "flag"}               # the registry carries it
 
 
 def test_an_untagged_run_writes_no_tag(configs):
@@ -103,7 +103,7 @@ def test_an_untagged_run_writes_no_tag(configs):
     assert kept("plain") == (None, None)
     assert not (records_root() / "Demo/plain/one" / record.TAG_FILE).exists()
     (entry,) = runs.entries()
-    assert "configuration_tags" not in entry
+    assert "configuration_tags" not in entry.as_dict()
 
 
 def test_a_plan_says_the_tag_and_writes_none(configs, capsys):
@@ -195,9 +195,10 @@ def test_a_tag_without_a_plot_document_is_the_records(configs):
 
 
 def test_runs_and_status_show_the_tag(configs, capsys):
-    entry = {"id": "20261031-1200-ab", "config": "/w/configs/Demo/t.toml", "work": "/w", "configurations": ["one", "two"],
-             "configuration_serials": {"one": 2}, "configuration_tags": {"one": "nlo"}, "started": 1.0, "finished": 2.0,
-             "code": 0, "pid": 1, "host": runs.host()}
+    entry = runs.RunEntry.parse({"id": "20261031-1200-ab", "config": "/w/configs/Demo/t.toml", "work": "/w",
+                                 "configurations": ["one", "two"], "configuration_serials": {"one": 2},
+                                 "configuration_tags": {"one": "nlo"}, "started": 1.0, "finished": 2.0,
+                                 "code": 0, "pid": 1, "host": runs.host()})
     lines = house.runs_listing([entry], [], {}, now=3.0, limit=5)
     assert "    Demo/t · 02_one [nlo], two" in lines
     path = study(configs, "status", errand__cfgs__one__tag="lo")

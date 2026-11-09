@@ -92,7 +92,7 @@ def test_runs_lists_the_live_ones_indexed_in_the_order_they_began(capsys, mixed)
         assert mixed[gone] not in out
     assert "    paused · " in out and "    heimdall runs --resume 2 · heimdall runs --forget 2" in out
     assert out.count("    running · ") == 3
-    listed = [e["id"] for e, _ in house.live_entries(runs.entries(), [])]
+    listed = [e.id for e, _ in house.live_entries(runs.entries(), [])]
     assert listed == [mixed["again"], mixed["pause"], mixed["running"], mixed["old"]]   # what -i and --resume take
 
 
@@ -171,7 +171,7 @@ def test_resume_starts_its_own_command_detached_in_its_work_dir(capsys, mixed, m
     with paths.configs_at(Path(env[paths.CONFIGS_VAR])):
         assert paths.config_file(command[2]) == latest / "config" / "P" / "b.v2.toml"
     after = runs.entry(mixed["pause"])
-    assert after["resumed_by"] == env[runs.ID_VAR] and after["state"] == "paused"
+    assert after.resumed_by == env[runs.ID_VAR] and after.state == "paused"
     assert "b" not in names(cli_out(capsys))                         # it left the live list
     assert runs.ID_VAR not in os.environ
 
@@ -212,17 +212,17 @@ def test_forget_drops_a_pause_and_keeps_its_entry(capsys, mixed):
     assert cli.main(["runs", "--forget", "3"]) == 2                # a running one
     assert "is running, not paused" in capsys.readouterr().err
     assert cli.main(["runs", "--forget", "2"]) == 0
-    assert (runs.folder() / f"{mixed['pause']}.json").is_file() and runs.entry(mixed["pause"])["forgotten"]
-    listed = [e["id"] for e, _ in house.live_entries(runs.entries(), [])]
+    assert (runs.folder() / f"{mixed['pause']}.json").is_file() and runs.entry(mixed["pause"]).forgotten
+    listed = [e.id for e, _ in house.live_entries(runs.entries(), [])]
     assert listed == [mixed["again"], mixed["running"], mixed["old"]]
 
 
 def test_again_is_its_argv_without_the_worker_detached():
-    assert runs.again({"argv": ["run", "P/b", "--worker", "20261101-000000-h-abcd", "--plain", "--detach"]}) == \
+    assert runs.again(runs.RunEntry.parse({"argv": ["run", "P/b", "--worker", "20261101-000000-h-abcd", "--plain", "--detach"]})) == \
         ["run", "P/b", "--plain", "--detach"]
-    assert runs.again({"argv": ["run", "P/b", "c", "--worker=x", "--set", "errand.events=5"]}) == \
+    assert runs.again(runs.RunEntry.parse({"argv": ["run", "P/b", "c", "--worker=x", "--set", "errand.events=5"]})) == \
         ["run", "P/b", "c", "--set", "errand.events=5", "--detach"]
-    assert runs.again({"argv": ["cluster", "P/b"]}) == [] and runs.again({}) == []
+    assert runs.again(runs.RunEntry.parse({"argv": ["cluster", "P/b"]})) == [] and runs.again(runs.RunEntry.parse({})) == []
 
 
 def test_a_detached_run_takes_the_id_it_is_given(monkeypatch, capsys):
@@ -246,9 +246,9 @@ def test_a_detached_run_takes_the_id_it_is_given(monkeypatch, capsys):
 
 def test_again_keeps_what_a_paused_rerun_completed():
     """The review's 3: a resumed --rerun job reruns what was complete before the paused job began, not what it did."""
-    assert runs.again({"argv": ["run", "P/b", "--rerun"], "started": 1700000000.5}) == \
+    assert runs.again(runs.RunEntry.parse({"argv": ["run", "P/b", "--rerun"], "started": 1700000000.5})) == \
         ["run", "P/b", "--rerun-since", "1700000000.5", "--detach"]
-    assert runs.again({"argv": ["run", "P/b", "--rerun-since", "1600000000.0", "--rerun"], "started": 1700000000.5}) == \
+    assert runs.again(runs.RunEntry.parse({"argv": ["run", "P/b", "--rerun-since", "1600000000.0", "--rerun"], "started": 1700000000.5})) == \
         ["run", "P/b", "--rerun-since", "1600000000.0", "--detach"]
 
 
@@ -260,7 +260,7 @@ def test_a_resume_that_never_runs_leaves_its_pause_live(capsys, mixed, monkeypat
     runs.update(mixed["pause"], records=[str(saved)])
 
     def relaunch(command: list[str], cwd: str, env: dict) -> subprocess.CompletedProcess:
-        assert runs.entry(mixed["pause"])["resumed_by"] == env[runs.ID_VAR]       # marked before it starts
+        assert runs.entry(mixed["pause"]).resumed_by == env[runs.ID_VAR]       # marked before it starts
         monkeypatch.setenv(runs.RESUMES_VAR, env[runs.RESUMES_VAR])
         assert cli.main(["run", str(scratch / "no-such.toml"), "--worker", env[runs.ID_VAR]]) == 2
         assert runs.RESUMES_VAR not in os.environ
@@ -307,7 +307,7 @@ def test_each_state_has_its_colour_and_a_finished_one_its_again():
     entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "config": "/w/configs/P/a.toml",
              "configurations": ["c"]}
     for verdict, code in (("failed", "31"), ("stopped", "35"), ("done", "2")):
-        lines = house.runs_listing([{**entry, "verdict": verdict}], [], {}, now=20.0, limit=5, color=True)
+        lines = house.runs_listing([runs.RunEntry.parse({**entry, "verdict": verdict})], [], {}, now=20.0, limit=5, color=True)
         assert f"\x1b[{code}m{verdict}\x1b[0m" in "\n".join(lines)
         again = "heimdall runs --again 20261026-120000-pp-abcd"
         assert (again in "\n".join(lines)) == (verdict != "done")
@@ -331,9 +331,9 @@ def test_state_keeps_the_runs_in_those_states_and_an_unknown_one_is_refused(caps
 
 
 def test_the_first_line_is_cut_to_the_width_and_never_loses_its_index():
-    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "config": "/w/configs/Demo/a_long_name.toml",
-             "configurations": ["one", "two", "three"], "work": "/w", "pid": os.getpid(), "pstart": runs.started_at(os.getpid()),
-             "host": runs.host()}
+    entry = runs.RunEntry.parse({"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "config": "/w/configs/Demo/a_long_name.toml",
+                                 "configurations": ["one", "two", "three"], "work": "/w", "pid": os.getpid(),
+                                 "pstart": runs.started_at(os.getpid()), "host": runs.host()})
     (head, *_), = [house.runs_listing([entry], [], {"/w": "A study with a title"}, now=5.0, width=30)[1:2]]
     assert len(head) == 30 and head.startswith("[1] ") and head.endswith("…")
     colored = house.runs_listing([entry], [], {}, now=5.0, width=30, color=True)[1]
@@ -349,9 +349,10 @@ def test_a_run_records_its_parallelism_and_its_failures_as_it_goes(monkeypatch):
     recorder.event({"k": "point", "point": "a", "state": "started", "index": 1})
     recorder.event({"k": "point", "point": "a", "state": "failed", "cause": "x", "msg": "m"})
     got = runs.entry(run_id)
-    assert (got["parallelism"], got["points_failed"], got["points_completed"]) == (4, 1, 1)
-    lines = house.runs_listing([{**got, "kind": "run", "started": 1.0, "config": "/w/configs/P/a.toml", "work": "/w",
-                                 "pid": os.getpid(), "pstart": runs.started_at(os.getpid()), "host": runs.host()}], [], {}, now=5.0)
+    assert (got.parallelism, got.points_failed, got.points_completed) == (4, 1, 1)
+    lines = house.runs_listing([runs.RunEntry.parse({**got.as_dict(), "kind": "run", "started": 1.0, "config": "/w/configs/P/a.toml",
+                                                     "work": "/w", "pid": os.getpid(), "pstart": runs.started_at(os.getpid()),
+                                                     "host": runs.host()})], [], {}, now=5.0)
     assert lines[4] == "    running · 0 ongoing · 1/3 (1 failed)"
 
 
@@ -373,8 +374,8 @@ def test_stop_i_stops_the_nth_live_run_and_refuses_a_pause(capsys, mixed, monkey
 
 
 def test_the_log_is_a_link_only_with_colour_and_its_text_is_the_same():
-    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "verdict": "done",
-             "config": "/w/configs/P/a.toml", "configurations": ["c"], "host": "lab", "log": "/runs/a b.log"}
+    entry = runs.RunEntry.parse({"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "verdict": "done",
+                                 "config": "/w/configs/P/a.toml", "configurations": ["c"], "host": "lab", "log": "/runs/a b.log"})
     plain = house.runs_listing([entry], [], {}, now=20.0, limit=5)
     assert plain[-1] == "    log /runs/a b.log" and not any("\x1b" in line for line in plain)
     tinted = house.runs_listing([entry], [], {}, now=20.0, limit=5, color=True)
@@ -403,9 +404,9 @@ def test_again_runs_a_failed_runs_command_from_its_snapshot_and_leaves_its_entry
     (command, cwd, env), = launched
     assert command[0].endswith("framework/bin/heimdall") and command[1:3] == ["run", "P/z"] and command[-1] == "--detach"
     assert "--worker" not in command and "--rerun-since" in command and "--rerun" not in command
-    assert cwd == runs.entry(failed_run)["work"] and env[paths.CONFIGS_VAR].endswith("01_saved/config")
+    assert cwd == runs.entry(failed_run).work and env[paths.CONFIGS_VAR].endswith("01_saved/config")
     assert env[runs.ID_VAR] != failed_run and runs.RESUMES_VAR not in env
-    assert "resumed_by" not in runs.entry(failed_run)                # a finished run's entry is left as it is
+    assert "resumed_by" not in runs.entry(failed_run).as_dict()      # a finished run's entry is left as it is
     out = capsys.readouterr().out
     assert f"running again {failed_run}" in out and "run again as" in out
     assert cli.main(["runs", "--again", failed_run[-4:]]) == 0          # the tail of the id names it too
@@ -485,7 +486,7 @@ def test_a_control_request_is_read_whole_and_a_bad_one_says_what_is_wrong():
     got = runs.read_control(run_id)
     assert (got["parallelism"], got["by"]) == (3, 77) and isinstance(got["at"], float)
     assert not list(runs.folder().glob("*.tmp")) and runs.control_file(run_id).name == f"{run_id}.control.json"
-    assert run_id not in [e["id"] for e in runs.entries()]            # a control file is no entry
+    assert run_id not in [e.id for e in runs.entries()]            # a control file is no entry
     for text, said in (("", "is not JSON"), ("[1]", "no parallelism"), ('{"parallelism": 0}', "no parallelism of at least 1"),
                        ('{"parallelism": "4"}', "no parallelism"), ('{"parallelism": true}', "no parallelism")):
         runs.control_file(run_id).write_text(text, encoding="utf-8")
@@ -506,12 +507,12 @@ def test_a_request_applied_changes_the_cap_the_entry_and_tells_the_views(monkeyp
     stopper = execute.Stopper()
     recorder = runs.Recorder(run_id)
     recorder.event({"k": "run", "state": "started", "points": 4, "parallelism": 1, "cores": 2})
-    assert runs.entry(run_id)["parallelism"] == 1 and runs.entry(run_id)["point_cores"] == 2
+    assert runs.entry(run_id).parallelism == 1 and runs.entry(run_id).point_cores == 2
     cli.apply_control(stopper, run_id, bus, recorder)                 # nothing asked: a note, nothing changed
     assert stopper.parallelism is None and "ignored: there is no" in heard[-1]["msg"]
     runs.write_control(run_id, 3, by=42)
     cli.apply_control(stopper, run_id, bus, recorder)
-    assert stopper.cap(1) == 3 and runs.entry(run_id)["parallelism"] == 3
+    assert stopper.cap(1) == 3 and runs.entry(run_id).parallelism == 3
     assert heard[-1] == {"k": "parallelism", "from": 1, "to": 3, "by": 42, "point": "", "tool": ""} or \
         {k: heard[-1][k] for k in ("k", "from", "to", "by")} == {"k": "parallelism", "from": 1, "to": 3, "by": 42}
     assert State().apply(heard[-1]) == [("say", "   3 points at once now (was 1)")]

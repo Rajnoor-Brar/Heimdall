@@ -211,12 +211,12 @@ def test_a_detached_sweep_is_a_queue_its_runs_one_after_another(scratch):
     done = heimdall(config, scratch, "--detach")
     assert done.returncode == 0, done.stdout[-2000:] + done.stderr[-2000:]
     assert "a sweep of 2 runs" in done.stdout
-    mine = lambda: sorted((e for e in runs.entries() if e.get("started", 0) >= started - 1 and "pipe" in e.get("config", "")),
-                          key=lambda e: e["started"])
+    mine = lambda: sorted((e for e in runs.entries() if (e.started or 0) >= started - 1 and "pipe" in (e.config or "")),
+                          key=lambda e: e.started)
     deadline = time.monotonic() + 120
-    while time.monotonic() < deadline and not (len(mine()) == 2 and all(e.get("finished") for e in mine())):
+    while time.monotonic() < deadline and not (len(mine()) == 2 and all(e.finished for e in mine())):
         time.sleep(0.5)
     x, y = mine()
     assert runs.state(x) == runs.state(y) == "done", (x, y)
-    assert y["queued_to"] == x["id"] and y["queue"] == x["id"] and y["began"] >= x["finished"]
-    assert [k for e in (x, y) for k in e["configurations"]] == ["x", "y"]
+    assert y.queued_to == x.id and y.queue_id == x.id and y.began >= x.finished
+    assert [k for e in (x, y) for k in e.configurations] == ["x", "y"]

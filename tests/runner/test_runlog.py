@@ -69,9 +69,9 @@ def test_the_recorder_counts_a_runs_points(scratch):
 
 
 def test_runs_lists_an_entrys_counts():
-    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "code": 1,
-             "verdict": "failed", "config": "/w/configs/Demo/jets.toml", "configurations": ["generator_pdf"],
-             "counts": {"done": 14, "failed": 2, "stopped": 0, "warned": 5}}
+    entry = runs.RunEntry.parse({"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "code": 1,
+                                 "verdict": "failed", "config": "/w/configs/Demo/jets.toml", "configurations": ["generator_pdf"],
+                                 "counts": {"done": 14, "failed": 2, "stopped": 0, "warned": 5}})
     lines = house.runs_listing([entry], [], {}, now=20.0, limit=5)
     assert "done" not in lines[3]                                       # the counts are on the state line
     assert lines[4] == "    failed · NULL/NULL · 14 done (5 with warnings), 2 failed"

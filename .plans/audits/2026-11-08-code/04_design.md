@@ -39,7 +39,7 @@ They are local to keep `heimdall --help` fast and the ranks clean. Some are need
 837 citations of 133 `V<n>` ids in framework. All resolve (sweep in [00_Index](00_Index.md#method-what-was-run-so-it-can-be-repeated)). But a superseded decision keeps its citations: `tests/integration/test_gates_run_sweep.py:127` still cites V75 ("has not started all its points (V75)") for the pipelining this session retired. A citation says "why", and when the why is retired the code it points at is suspect.
 **Move:** `heimdall docs --drift` checks that every cited `V<n>` is not marked superseded, or names its successor. **Closes when:** that check exists and is clean.
 
-### G-8 Free-text states in records, too · Consider · PLAUSIBLE
+### G-8 Free-text states in records, too · Consider · PLAUSIBLE · closed 1.5 (checked, fine)
 Point attempts carry `verdict` strings, the journal events carry `state` strings, and `status` maps both to words (`record.state_of`). The same pattern as G-1, one layer down. Not yet traced to a behaviour that depends on wording.
 **Move:** check whether any branch reads a verdict's text past equality. If none does, record it as fine. **Closes when:** checked.
 

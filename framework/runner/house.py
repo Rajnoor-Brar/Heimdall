@@ -525,54 +525,54 @@ def _snapshot_record(config: str) -> list[str]:
     return []
 
 
-def _states(entries: list[dict], by_pid: dict) -> list[tuple[dict, runs.RunState]]:
+def _states(entries: list[runs.RunEntry], by_pid: dict) -> list[tuple[runs.RunEntry, runs.RunState]]:
     """Each entry with what it says now (runs.state_of); a cluster submission's from one squeue for them all (V184)."""
     states = [(e, runs.state_of(e, by_pid)) for e in entries]
-    submitted = [e for e, s in states if e.get("kind") == "cluster" and s.word == "submitted"]
+    submitted = [e for e, s in states if e.cluster and s.word == "submitted"]
     if submitted and shutil.which("squeue"):
         from .cluster import active
-        queued = {line.split("|")[0].split("_")[0] for line in active([str(j) for e in submitted for j in e.get("jobs", [])])}
-        states = [(e, runs.RunState("on Slurm" if {str(j) for j in e.get("jobs", [])} & queued else "ended") if e in submitted else s)
+        queued = {line.split("|")[0].split("_")[0] for line in active([str(j) for e in submitted for j in e.jobs or []])}
+        states = [(e, runs.RunState("on Slurm" if {str(j) for j in e.jobs or []} & queued else "ended") if e in submitted else s)
                   for e, s in states]
     return states
 
 
-def _going(e: dict, state: runs.RunState) -> bool:
+def _going(e: runs.RunEntry, state: runs.RunState) -> bool:
     """Whether an entry's job still goes: running, or where this process cannot tell; a submission on Slurm."""
     return state.word in ("running", "queued", "held", "unknown") \
-        or (e.get("kind") == "cluster" and state.word in ("submitted", "on Slurm"))
+        or (e.cluster and state.word in ("submitted", "on Slurm"))
 
 
-def _unrecorded(states: list[tuple[dict, runs.RunState]], by_pid: dict) -> list[tuple[dict, runs.RunState]]:
+def _unrecorded(states: list[tuple[runs.RunEntry, runs.RunState]], by_pid: dict) -> list[tuple[runs.RunEntry, runs.RunState]]:
     """The live sockets with no entry of a going job (a run from inside an image), as entries."""
-    recorded = {e.get("pid") for e, s in states if _going(e, s) and e.get("host") == runs.host()}
-    return [({"id": f"(pid {hello.get('pid')})", **hello, "configurations": hello.get("configurations")},
+    recorded = {e.pid for e, s in states if _going(e, s) and e.host == runs.host()}
+    return [(runs.RunEntry.parse({"id": f"(pid {hello.get('pid')})", **hello, "configurations": hello.get("configurations")}),
              runs.RunState("running", "running (unrecorded)")) for pid, hello in by_pid.items() if pid not in recorded]
 
 
-def live_entries(entries: list[dict], live: list[tuple[str, dict]]) -> list[tuple[dict, runs.RunState]]:
+def live_entries(entries: list[runs.RunEntry], live: list[tuple[str, dict]]) -> list[tuple[runs.RunEntry, runs.RunState]]:
     """The live runs, (entry, state), as `heimdall runs` numbers them, `heimdall watch -i` and `heimdall runs
     --resume`/`--forget` take them: the going jobs (recorded, and live sockets with no entry) and the paused runs
     neither resumed nor forgotten (runs.paused), in the order they began; a run that resumed a pause in that pause's
     place (its `resumed_by` chain's first start). [N] is the Nth, recomputed each time: a run that ends drops out."""
     by_pid = {hello.get("pid"): hello for _, hello in live}
     states = _states(entries, by_pid)
-    resumed = {e["resumed_by"]: e for e in entries if e.get("resumed_by")}
+    resumed = {e.resumed_by: e for e in entries if e.resumed_by}
 
-    def began(e: dict, seen: frozenset = frozenset()) -> float:
-        before = resumed.get(e.get("id"))
-        if before is not None and before.get("id") not in seen:
-            return began(before, seen | {e.get("id")})
-        return e.get("started") or 0
+    def began(e: runs.RunEntry, seen: frozenset = frozenset()) -> float:
+        before = resumed.get(e.id)
+        if before is not None and before.id not in seen:
+            return began(before, seen | {e.id})
+        return e.started or 0
 
     chosen = [(e, s) for e, s in states if _going(e, s) or runs.paused(e)] + _unrecorded(states, by_pid)
-    return sorted(chosen, key=lambda item: (began(item[0]), item[0].get("started") or 0, item[0].get("id", "")))
+    return sorted(chosen, key=lambda item: (began(item[0]), item[0].started or 0, item[0].id))
 
 
-def live_line(index: int, e: dict, state: runs.RunState) -> str:
+def live_line(index: int, e: runs.RunEntry, state: runs.RunState) -> str:
     """One live run in a line, for a refusal that lists them: `[2] <id>  <A>/<E> · <configurations> · paused`."""
-    cfgs = ", ".join(e.get("configurations") or ([e["configuration"]] if e.get("configuration") else []))
-    return f"[{index}] {e.get('id', '?')}  {_config_name(e.get('config', ''), e.get('work'))} · {cfgs} · {state}"
+    cfgs = ", ".join(e.configurations or ([e.configuration] if e.configuration else []))
+    return f"[{index}] {e.id or '?'}  {_config_name(e.config or '', e.work)} · {cfgs} · {state}"
 
 
 #: SGR codes of the listing's colour (never left to a library: `[N]` is no markup, and a test reads them).
@@ -621,10 +621,10 @@ def _cut(text: str, width: int | None) -> str:
     return text if not width or len(text) <= width else text[:max(width - 1, 1)] + "…"
 
 
-def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict[str, str],
+def runs_listing(entries: list[runs.RunEntry], live: list[tuple[str, dict]], titles: dict[str, str],
                  now: float | None = None, limit: int | None = None, days: int | None = None,
                  states: set[str] | None = None, color: bool = False, width: int | None = None,
-                 only: dict | None = None) -> list[str]:
+                 only: runs.RunEntry | None = None) -> list[str]:
     """`heimdall runs` (V182): the live runs by default (running, recorded or a live socket with no entry,
     unrecorded, as from inside an image; and paused), each with its index [N] (live_entries); `limit`, the latest N
     of any state; `days`, all begun within that age; `states` keeps those in these states (a live run keeps its [N]).
@@ -643,7 +643,7 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
     live_numbers = {id(e): n for n, (e, _) in enumerate(live_entries(entries, live), 1)}
     if only is not None:
         found = _states(entries, by_pid)
-        selected = [(e, s) for e, s in found if e.get("id") == only.get("id")]
+        selected = [(e, s) for e, s in found if e.id == only.id]
         heading = "run"
     elif limit is None and days is None:
         selected = live_entries(entries, live)
@@ -652,14 +652,14 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         found = _states(entries, by_pid)
         unrecorded = _unrecorded(found, by_pid)
         if limit is not None:
-            selected = sorted(found + unrecorded, key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")),
+            selected = sorted(found + unrecorded, key=lambda item: (item[0].started or 0, item[0].id),
                               reverse=True)[:limit]
             heading = f"latest {limit} runs"
         else:
             cutoff = now - (days or 0) * 86400
-            selected = [(e, s) for e, s in found + unrecorded if cutoff <= (e.get("started") or 0) <= now]
+            selected = [(e, s) for e, s in found + unrecorded if cutoff <= (e.started or 0) <= now]
             heading = f"runs from the last {days} days"
-        selected.sort(key=lambda item: (item[0].get("started") or 0, item[0].get("id", "")))
+        selected.sort(key=lambda item: (item[0].started or 0, item[0].id))
     live_list = heading == "live"
     numbers = {id(e): n for n, (e, _) in enumerate(selected, 1)} if live_list else live_numbers
     if states is not None:
@@ -668,12 +668,12 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
     def where(work: str | None) -> str:
         return titles.get(work or "", "") or (Path(work).name if work else "")
 
-    by_id = {e.get("id"): e for e in entries if e.get("id")}
+    by_id = {e.id: e for e in entries if e.id}
     places: dict[str, tuple[int, int]] = {}                 # a queued run's place in its queue, and the queue's length
-    for queue in {e.get("queue") for e in entries if e.get("queue")}:
+    for queue in {e.queue_id for e in entries if e.queue_id}:
         chain = runs.queue_of(entries, queue)
         for n, member in enumerate(chain, 1):
-            places[member.get("id")] = (n, len(chain))
+            places[member.id] = (n, len(chain))
 
     def named(run_id: str | None) -> str:
         """A run as a queue line names it: its live [N] and its id's tail."""
@@ -681,59 +681,59 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         number = live_numbers.get(id(other)) if other is not None else None
         return (f"[{number}] " if number else "") + short_id(run_id or "?")
 
-    def row(e: dict, state: runs.RunState, number: int | None) -> list[str]:
-        started = e.get("started") or 0
-        span = _ago((e.get("finished") or now) - started)
+    def row(e: runs.RunEntry, state: runs.RunState, number: int | None) -> list[str]:
+        started = e.started or 0
+        span = _ago((e.finished or now) - started)
         when = time.strftime("%m-%d %H:%M", time.localtime(started))
-        what = _config_name(e.get("config", ""), e.get("work"))
-        shown = _shown_config(e.get("config", ""), e.get("work"))
-        keys = [k for k in (e.get("configurations") or ([e["configuration"]] if e.get("configuration") else [])) if k]
-        serials, tags = e.get("configuration_serials", {}), e.get("configuration_tags", {})
+        what = _config_name(e.config or "", e.work)
+        shown = _shown_config(e.config or "", e.work)
+        keys = [k for k in (e.configurations or ([e.configuration] if e.configuration else [])) if k]
+        serials, tags = e.configuration_serials or {}, e.configuration_tags or {}
         made = ", ".join((f"{serials[key]:02d}_{key}" if isinstance(serials.get(key), int) else key)
                          + (f" [{tags[key]}]" if tags.get(key) else "") for key in keys)      # NN_ only when it is known
-        prefix = (f"[{number}] " if number else "") + ("" if live_list else f"{e.get('id', '?')} ")
-        head = _cut(f"{prefix}{e.get('host') or runs.host()} | {where(e.get('work'))} | {shown}", width)
+        prefix = (f"[{number}] " if number else "") + ("" if live_list else f"{e.id or '?'} ")
+        head = _cut(f"{prefix}{e.host or runs.host()} | {where(e.work)} | {shown}", width)
         if number:
             head = paint(f"[{number}]", "bold", color) + head[len(f"[{number}]"):]
-        recorded = _records_line(e.get("records") or _snapshot_record(e.get("config", "")))
+        recorded = _records_line(e.records or _snapshot_record(e.config or ""))
         config_line = f"    {recorded}" if recorded else f"    {shown} · {made}" if made else f"    {shown}"
         counted = ""
-        if counts := e.get("counts"):                                   # V202: its points, on the state line
+        if counts := e.counts:                                   # V202: its points, on the state line
             counted = (f"{counts.get('done', 0)} done"
                        + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
                        + f", {counts.get('failed', 0)} failed"
                        + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
         going, word = state.word == "running", state.word
-        completed, total = e.get("points_completed"), e.get("points_total")
+        completed, total = e.points_completed, e.points_total
         parts = [paint(state.text, STATE_STYLE.get(word, ""), color) if word in STATE_STYLE else state.text]
-        active = e.get("active_parallel_points")
+        active = e.active_parallel_points
         if going and active is not None:
             parts.append(f"{active} ongoing")
         parts.append(f"{completed if completed is not None else 'NULL'}/{total if total is not None else 'NULL'}"
-                     + (f" ({e['points_failed']} failed)" if not e.get("counts") and e.get("points_failed") else ""))
+                     + (f" ({e.points_failed} failed)" if not e.counts and e.points_failed else ""))
         if counted:
             parts.append(counted)
-        if word in ("queued", "held") and e.get("queued_to"):
-            parts.insert(1, f"after {named(e['queued_to'])}")
-        if e.get("queue") and e.get("id") in places and places[e["id"]][1] > 1:
-            place, length = places[e["id"]]
-            parts.append(f"queue {short_id(e['queue'])} {place} of {length}")
+        if word in ("queued", "held") and e.queued_to:
+            parts.insert(1, f"after {named(e.queued_to)}")
+        if e.queue_id and e.id in places and places[e.id][1] > 1:
+            place, length = places[e.id]
+            parts.append(f"queue {short_id(e.queue_id)} {place} of {length}")
         tail = []
-        if e.get("kind") == "cluster":
-            tail.append(f"    cluster jobs {', '.join(map(str, e.get('jobs', [])))}: "
-                        + paint(f"heimdall cluster {what} {e.get('configuration', '')} --status", "cyan", color))
+        if e.cluster:
+            tail.append(f"    cluster jobs {', '.join(map(str, e.jobs or []))}: "
+                        + paint(f"heimdall cluster {what} {e.configuration or ''} --status", "cyan", color))
         elif word in ("queued", "held"):
-            ref = number or e.get("id")
-            tail.append(f"    pid {e.get('pid')} : " + paint(f"heimdall runs --dispatch {ref} · heimdall runs --forget {ref}", "cyan", color))
+            ref = number or e.id
+            tail.append(f"    pid {e.pid} : " + paint(f"heimdall runs --dispatch {ref} · heimdall runs --forget {ref}", "cyan", color))
         elif going:
-            watch = f"--pid {e.get('pid')}"
-            tail.append(f"    pid {e.get('pid')} : " + paint(f"heimdall watch {watch} · heimdall stop {watch}", "cyan", color))
+            watch = f"--pid {e.pid}"
+            tail.append(f"    pid {e.pid} : " + paint(f"heimdall watch {watch} · heimdall stop {watch}", "cyan", color))
         elif number and runs.paused(e):
             tail.append("    " + paint(f"heimdall runs --resume {number} · heimdall runs --forget {number}", "cyan", color))
-        elif word in ("failed", "stopped", "lost") and e.get("id"):
-            tail.append("    " + paint(f"heimdall runs --again {e['id']}", "cyan", color))
-        if e.get("log"):
-            tail.append("    log " + link(paint(e["log"], "dim", color), e.get("host") or runs.host(), e["log"], color))
+        elif word in ("failed", "stopped", "lost") and e.id:
+            tail.append("    " + paint(f"heimdall runs --again {e.id}", "cyan", color))
+        if e.log:
+            tail.append("    log " + link(paint(e.log, "dim", color), e.host or runs.host(), e.log, color))
         return [head.rstrip(), f"    {when} · {span}", config_line.rstrip(), "    " + " · ".join(parts), *tail]
 
     if not selected:

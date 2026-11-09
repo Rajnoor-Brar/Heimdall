@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -18,12 +19,12 @@ def test_an_entry_says_who_where_and_how_it_ended():
     run_id = runs.new_id()
     assert runs.begin(run_id, {"config": "/w/configs/P/a.toml", "configurations": ["one"], "work": "/w"}) == run_id
     entry = runs.entry(run_id)
-    assert (entry["pid"], entry["uid"], entry["host"], entry["kind"]) == (os.getpid(), os.getuid(), runs.host(), "run")
-    assert entry["pstart"] == runs.started_at(os.getpid()) and runs.state(entry) == "running"
+    assert (entry.pid, entry.uid, entry.host, entry.kind) == (os.getpid(), os.getuid(), runs.host(), "run")
+    assert entry.pstart == runs.started_at(os.getpid()) and runs.state(entry) == "running"
     assert runs.update(run_id, records=["/r/a"]) and runs.finish(run_id, 6)
     entry = runs.entry(run_id)
-    assert (entry["code"], entry["verdict"], entry["records"]) == (6, "stopped", ["/r/a"]) and runs.state(entry) == "stopped"
-    assert not list(runs.folder().glob("*.tmp")) and [e["id"] for e in runs.entries()] == [run_id]
+    assert (entry.code, entry.verdict, entry.records) == (6, "stopped", ["/r/a"]) and runs.state(entry) == "stopped"
+    assert not list(runs.folder().glob("*.tmp")) and [e.id for e in runs.entries()] == [run_id]
 
 
 def test_ids_are_unique_and_a_log_is_reserved_once():
@@ -66,7 +67,7 @@ def test_old_entries_and_their_logs_leave_after_thirty_days():
     for orphan in ("lonely.log", "lonely.queue.json", "lonely.control.json"):    # no entry beside them
         (runs.folder() / orphan).write_text("x\n", encoding="utf-8")
         os.utime(runs.folder() / orphan, (now - 40 * 86400,) * 2)
-    assert [e["id"] for e in runs.entries(now)] == [fresh]
+    assert [e.id for e in runs.entries(now)] == [fresh]
     assert sorted(p.name for p in runs.folder().iterdir()) == sorted(
         [f"{fresh}.json", f"{fresh}.log", f"{fresh}.queue.json", f"{fresh}.control.json"])
 
@@ -97,8 +98,8 @@ def test_another_users_entries_are_neither_listed_nor_pruned():
                                                               "started": 1.0, "finished": 2.0}), encoding="utf-8")
     mine = runs.new_id()
     runs.begin(mine, {})
-    assert [e["id"] for e in runs.entries()] == [mine]
-    assert {e["id"] for e in runs.entries(mine=False)} == {mine, theirs}
+    assert [e.id for e in runs.entries()] == [mine]
+    assert {e.id for e in runs.entries(mine=False)} == {mine, theirs}
     assert (runs.folder() / f"{theirs}.json").exists()           # 30 days old and more, but not ours to prune
 
 
@@ -108,13 +109,13 @@ def test_state_tells_lost_from_unknowable():
     child = subprocess.Popen(["true"])
     child.wait()
     base = {**runs.here(), "id": "x", "started": time.time()}
-    assert runs.state({**base, "pid": child.pid}) == "lost"
-    assert runs.state({**base, "pstart": "1"}) == "lost"                          # this pid, another process
-    assert runs.state({**base, "boot": "another-boot"}) == "lost"
-    assert runs.state({**base, "host": "elsewhere"}) == "on elsewhere"
-    assert runs.state({**base, "pidns": "pid:[1]"}) == "in another PID namespace"
-    assert runs.state({**base, "netns": "net:[1]"}, live={}) == "running (not reachable from here)"
-    assert runs.state({**base, "kind": "cluster"}) == "submitted"
+    assert runs.state(runs.RunEntry.parse({**base, "pid": child.pid})) == "lost"
+    assert runs.state(runs.RunEntry.parse({**base, "pstart": "1"})) == "lost"                          # this pid, another process
+    assert runs.state(runs.RunEntry.parse({**base, "boot": "another-boot"})) == "lost"
+    assert runs.state(runs.RunEntry.parse({**base, "host": "elsewhere"})) == "on elsewhere"
+    assert runs.state(runs.RunEntry.parse({**base, "pidns": "pid:[1]"})) == "in another PID namespace"
+    assert runs.state(runs.RunEntry.parse({**base, "netns": "net:[1]"}), live={}) == "running (not reachable from here)"
+    assert runs.state(runs.RunEntry.parse({**base, "kind": "cluster"})) == "submitted"
 
 
 @pytest.mark.skipif(os.getuid() == 0 or not runs.started_at(1) or os.stat("/proc/1").st_uid == os.getuid(),
@@ -123,9 +124,9 @@ def test_a_pid_reused_by_another_users_process_is_lost():
     """A pid now another user's (init's, here) is this user's run only if it started when the run did: a reused
     pid is "lost", never "in another PID namespace" and listed as running."""
     base = {**runs.here(), "id": "x", "started": time.time(), "pid": 1}
-    assert runs.state({**base, "pstart": "1"}) == "lost"
-    assert runs.state({**base, "pstart": ""}) == "lost"
-    assert runs.state({**base, "pstart": runs.started_at(1)}) == "running"
+    assert runs.state(runs.RunEntry.parse({**base, "pstart": "1"})) == "lost"
+    assert runs.state(runs.RunEntry.parse({**base, "pstart": ""})) == "lost"
+    assert runs.state(runs.RunEntry.parse({**base, "pstart": runs.started_at(1)})) == "running"
 
 
 def test_a_cluster_job_records_nothing_its_submission_does(monkeypatch):
@@ -195,7 +196,7 @@ def test_heimdall_runs_count_flags_show_latest_entries_oldest_first(capsys, monk
 
 def test_heimdall_runs_uses_title_and_configuration_serial_columns():
     pid = os.getpid()
-    entry = {
+    entry = runs.RunEntry.parse({
         **runs.here(),
         "id": "20261030-084424-pp-exphep-e17e",
         "kind": "run",
@@ -212,15 +213,15 @@ def test_heimdall_runs_uses_title_and_configuration_serial_columns():
         "active_parallel_points": 2,
         "parallelism": 4,
         "log": "/runs/20261030-084424-pp-exphep-e17e.log",
-    }
-    lines = house.runs_listing([entry], [], {"/w": "A study"}, now=entry["started"] + 5101)
-    entry_host = entry["host"]
+    })
+    lines = house.runs_listing([entry], [], {"/w": "A study"}, now=entry.started + 5101)
+    entry_host = entry.host
     assert lines[1:] == [f"[1] {entry_host} | A study | Demo/jets",          # the config as run, no [configurations]
-                         f"    {time.strftime('%m-%d %H:%M', time.localtime(entry['started']))} · 1h 25m",
+                         f"    {time.strftime('%m-%d %H:%M', time.localtime(entry.started))} · 1h 25m",
                          "    Demo/jets_more · 12_generator_pdf",           # its records' <A>/<E>, not the config's name
                          "    running · 2 ongoing · 3/7",
                          f"    pid {pid} : heimdall watch --pid {pid} · heimdall stop --pid {pid}",
-                         f"    log {entry['log']}"]
+                         f"    log {entry.log}"]
 
 
 def test_runs_recorder_persists_live_point_progress(monkeypatch):
@@ -238,7 +239,7 @@ def test_runs_recorder_persists_live_point_progress(monkeypatch):
     for event in events:
         recorder.event(event)
     entry = runs.entry(run_id)
-    assert (entry["points_completed"], entry["points_total"], entry["active_parallel_points"]) == (1, 3, 2)
+    assert (entry.points_completed, entry.points_total, entry.active_parallel_points) == (1, 3, 2)
 
 
 def test_the_recorder_counts_configuration_points_not_stages():
@@ -276,11 +277,11 @@ def test_the_total_is_planned_up_front():
     runs.begin(run_id, {"points_completed": 0, "points_total": None})
     recorder = runs.Recorder(run_id)
     recorder.plan({"a": 2, "b": 3, "c": 0})
-    assert runs.entry(run_id)["points_total"] == 5
+    assert runs.entry(run_id).points_total == 5
     recorder.event({"k": "run", "state": "started", "points": 2, "run": "a"})
     recorder.event({"k": "run", "state": "started", "points": 4, "run": "b"})              # planned again
     recorder.event({"k": "run", "state": "started", "points": 7, "run": "c"})
-    assert runs.entry(run_id)["points_total"] == 6
+    assert runs.entry(run_id).points_total == 6
     assert runs.Recorder().progress()["points_total"] is None                               # nothing planned yet
 
 
@@ -299,18 +300,18 @@ def test_the_recorder_writes_at_most_every_few_seconds(monkeypatch):
     assert len(written) == 1
     for name in "abc":
         recorder.event({"k": "point", "point": name, "state": "started", "index": 1})
-    assert len(written) == 1 and runs.entry(run_id)["active_parallel_points"] == 0
+    assert len(written) == 1 and runs.entry(run_id).active_parallel_points == 0
     time.sleep(2.0)
-    assert len(written) == 2 and runs.entry(run_id)["active_parallel_points"] == 3
+    assert len(written) == 2 and runs.entry(run_id).active_parallel_points == 3
     recorder.event({"k": "point", "point": "a", "state": "done"})
     recorder.event({"k": "run", "state": "finished", "verdict": "1 done"})
-    assert runs.entry(run_id)["points_completed"] == 1
+    assert runs.entry(run_id).points_completed == 1
     count = len(written)
     recorder.event({"k": "point", "point": "b", "state": "done"})
     assert recorder.close() == {"points_completed": 2, "points_total": 3, "active_parallel_points": 1, "points_failed": 0,
                                 "configuration_serials": {}}
     time.sleep(2.0)
-    assert len(written) == count and runs.entry(run_id)["points_completed"] == 1        # the timer was cancelled
+    assert len(written) == count and runs.entry(run_id).points_completed == 1        # the timer was cancelled
 
 
 def test_a_sequential_sweep_keys_each_configuration(scratch, monkeypatch):
@@ -331,7 +332,7 @@ def test_a_sequential_sweep_keys_each_configuration(scratch, monkeypatch):
 
     def probe(self, message):
         if message.get("k") == "run" and message.get("state") == "started" and message.get("run") == "a":
-            seen.append(runs.entry(self.run_id)["points_total"])
+            seen.append(runs.entry(self.run_id).points_total)
         return event(self, message)
 
     monkeypatch.setattr(runs.Recorder, "event", probe)
@@ -341,8 +342,8 @@ def test_a_sequential_sweep_keys_each_configuration(scratch, monkeypatch):
     finally:
         os.environ.pop("HEIMDALL_CONFIGS", None)
     (entry,) = runs.entries()
-    assert code == 0 and set(entry["verdicts"]) == {"a", "b"}
-    assert (entry["points_completed"], entry["points_total"], entry["active_parallel_points"]) == (2, 2, 0)
+    assert code == 0 and set(entry.verdicts) == {"a", "b"}
+    assert (entry.points_completed, entry.points_total, entry.active_parallel_points) == (2, 2, 0)
     assert seen == [2]                                                    # planned up front, not as runs start
 
 
@@ -360,12 +361,12 @@ def test_runs_recorder_captures_runner_assigned_output_serial():
     recorder = runs.Recorder(run_id, initial_serials, {"generator_pdf": "generator_pdf"})
     recorder.event({"k": "run", "state": "started",
                     "record": "/work/records/eic/zeus/03_generator_pdf"})
-    assert runs.entry(run_id)["configuration_serials"] == {"generator_pdf": 3}
+    assert runs.entry(run_id).configuration_serials == {"generator_pdf": 3}
 
 
 def test_heimdall_runs_historical_entry_uses_null_counts_without_active_count():
-    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0,
-             "verdict": "done", "config": "/w/configs/eic/zeus.toml", "configurations": ["generator_pdf"]}
+    entry = runs.RunEntry.parse({"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0,
+                                 "verdict": "done", "config": "/w/configs/eic/zeus.toml", "configurations": ["generator_pdf"]})
     lines = house.runs_listing([entry], [], {}, now=20.0, limit=5)
     when = time.strftime("%m-%d %H:%M", time.localtime(0))
     assert lines[2] == f"    {when} · 0m"
@@ -378,16 +379,16 @@ def test_a_listed_config_is_relative_to_here_and_cut_from_its_start(tmp_path, mo
     folder, and a long one keeps its end; the record line holds each Errand's Runs, a library's entries counted."""
     monkeypatch.chdir(tmp_path)
     snapshot = tmp_path / "records" / "Demo" / "jets" / "01_a" / "config" / "Demo" / "jets.toml"
-    entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "verdict": "done",
-             "config": str(snapshot), "work": "/elsewhere",
-             "records": [str(tmp_path / "records/Demo/jets/01_a"), str(tmp_path / "records/Demo/jets/02_b"),
-                         str(tmp_path / "records/Demo/library/0123456789abcdef")]}
+    entry = runs.RunEntry.parse({"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "verdict": "done",
+                                 "config": str(snapshot), "work": "/elsewhere",
+                                 "records": [str(tmp_path / "records/Demo/jets/01_a"), str(tmp_path / "records/Demo/jets/02_b"),
+                                             str(tmp_path / "records/Demo/library/0123456789abcdef")]})
     lines = house.runs_listing([entry], [], {}, now=20.0, limit=5)
     shown = lines[1].rsplit(" | ", 1)[1]
     assert len(shown) == house.CONFIG_WIDTH and shown.startswith("…") and shown.endswith("config/Demo/jets.toml")
     assert "records/Demo/jets/01_a/config/Demo/jets.toml".endswith(shown[1:])
     assert lines[3] == "    Demo/jets · 01_a, 02_b; Demo/library · 1 entry"
-    del entry["records"]                                       # none recorded: the snapshot's record names it
+    entry = replace(entry, records=None)                       # none recorded: the snapshot's record names it
     assert house.runs_listing([entry], [], {}, now=20.0, limit=5)[3] == "    Demo/jets · 01_a"
 
 
@@ -401,15 +402,15 @@ def test_heimdall_runs_period_flags_show_all_states_in_the_period(capsys, monkey
     for label, age in (("day1", 1), ("day6", 6), ("day7", 7), ("day8", 8),
                        ("day27", 27), ("day28", 28), ("day29", 29)):
         started = now - age * 86400 + 1
-        entries.append({"id": label, "kind": "run", "started": started, "finished": started + 10,
-                        "verdict": "failed" if label == "day6" else "done", "config": f"/w/configs/P/{label}.toml",
-                        "work": "/w"})
+        entries.append(runs.RunEntry.parse({"id": label, "kind": "run", "started": started, "finished": started + 10,
+                                            "verdict": "failed" if label == "day6" else "done", "config": f"/w/configs/P/{label}.toml",
+                                            "work": "/w"}))
     monkeypatch.setattr(runs, "entries", lambda: entries)
     monkeypatch.setattr(house, "live_runs", lambda: [])
 
     assert cli.main(["runs", flag]) == 0
     out = capsys.readouterr().out.splitlines()
-    listed = [line.split()[0] for line in out if line and not line.startswith(" ") and line.split()[0] in {e["id"] for e in entries}]
+    listed = [line.split()[0] for line in out if line and not line.startswith(" ") and line.split()[0] in {e.id for e in entries}]
     assert out[0] == f"runs from the last {days} days"
     assert set(listed) == expected
     assert listed == sorted(expected, key=lambda run_id: int(run_id.removeprefix("day")), reverse=True)
@@ -449,11 +450,11 @@ def test_a_run_records_itself(scratch):
     finally:
         os.environ.pop("HEIMDALL_CONFIGS", None)
     (entry,) = runs.entries()
-    assert entry["config"].endswith("rec.toml") and entry["argv"][:2] == ["run", str(config / "rec.toml")]
-    assert (entry["code"], entry["verdict"]) == (code, runs.VERDICTS[code]) and entry["records"]
-    assert entry["detached"] is False and entry["log"] is None
-    assert entry["counts"] == {"done": 1, "failed": 0, "stopped": 0, "warned": 0}          # its points (V202)
-    told = (Path(entry["records"][0]) / "run.jsonl").read_text(encoding="utf-8").splitlines()   # the run's own log
+    assert entry.config.endswith("rec.toml") and entry.argv[:2] == ["run", str(config / "rec.toml")]
+    assert (entry.code, entry.verdict) == (code, runs.VERDICTS[code]) and entry.records
+    assert entry.detached is False and entry.log is None
+    assert entry.counts == {"done": 1, "failed": 0, "stopped": 0, "warned": 0}          # its points (V202)
+    told = (Path(entry.records[0]) / "run.jsonl").read_text(encoding="utf-8").splitlines()   # the run's own log
     assert json.loads(told[0])["state"] == "started" and json.loads(told[-1])["state"] == "finished"
 
 
@@ -485,20 +486,21 @@ TEXTS = [
 
 @pytest.mark.parametrize("fields, text, word", TEXTS, ids=[t for _, t, _ in TEXTS])
 def test_a_state_prints_as_it_always_did_and_has_a_word_of_its_own(fields, text, word):
-    entry = {**runs.here(), "id": "x", "started": 1.0, **fields}
+    entry = runs.RunEntry.parse({**runs.here(), "id": "x", "started": 1.0, **fields})
     got = runs.state_of(entry)
     assert (got.text, str(got), runs.state(entry)) == (text, text, text)
     assert got.word == word and word in runs.STATES
 
 
 def test_a_running_run_this_process_cannot_reach_says_so_and_is_still_running():
-    got = runs.state_of({**runs.here(), "id": "x", "netns": "net:[1]"}, live={})
+    got = runs.state_of(runs.RunEntry.parse({**runs.here(), "id": "x", "netns": "net:[1]"}), live={})
     assert (got.word, got.reachable, got.text) == ("running", False, "running (not reachable from here)")
 
 
 def test_an_entrys_word_never_comes_from_its_display_text(monkeypatch):
     monkeypatch.setattr(runs.RunState, "text", property(lambda self: "something else entirely"))
-    entry = {**runs.here(), "id": "x", "finished": 2.0, "code": 6, "state": "paused", "verdict": "paused", "forgotten": 3.0}
+    entry = runs.RunEntry.parse({**runs.here(), "id": "x", "finished": 2.0, "code": 6, "state": "paused", "verdict": "paused",
+                                 "forgotten": 3.0})
     got = runs.state_of(entry)
     assert (got.word, got.forgotten, got.holds, got.gives_turn) == ("paused", True, True, False)
 
@@ -514,3 +516,36 @@ def test_runs_state_takes_forgotten_and_a_verdict_that_is_more_than_a_word(capsy
         assert cli.main(["runs", "--10", "--state", wanted]) == 0
         out = capsys.readouterr().out
         assert [run_id in out for run_id in (a, b, c)] == [run_id in ids for run_id in (a, b, c)], wanted
+
+
+def test_an_entry_parses_and_gives_back_the_dict_it_was_read_from(monkeypatch):
+    """Every kind of entry a run writes (begun, finished, paused, queued, split out of a queue, a cluster submission, one of
+    a newer Heimdall with a key this one does not know) reads as a `RunEntry` and writes back key for key."""
+    monkeypatch.setattr(runs.Recorder, "EVERY", 0.0)
+    ids = [runs.new_id() for _ in range(7)]
+    runs.begin(ids[0], {"config": "/w/configs/P/a.toml", "configurations": ["one"], "work": "/w", "argv": ["run", "P/a"]})
+    recorder = runs.Recorder(ids[0], {"one": 1})
+    recorder.plan({"": 2})
+    runs.finish(ids[0], 0, **{**recorder.close(), "records": ["/r/a"], "verdicts": {"": "done"}, "counts": {"done": 2}})
+    runs.begin(ids[1], {})
+    runs.finish(ids[1], 6, state="paused")
+    runs.update(ids[1], resumed_by=ids[2], resumed=5.0)
+    runs.begin(ids[2], {"queue": ids[0], "queued_to": ids[0], "queued": True})
+    runs.begin(ids[3], {"queue": ids[3], "queued_to": None, "queued": False, "held": False, "began": 3.0,
+                        "dispatched_from": ids[0]})
+    runs.begin(ids[4], {"kind": "cluster", "config": "/w/configs/P/a.toml", "configuration": "one", "jobs": ["7", "8"],
+                        "submission": "/w/s", "points": 4})
+    runs.begin(ids[5], {"v": 3, "a_key_from_later": {"x": [1, 2]}})
+    runs.finish(ids[6], 1)                                         # nothing begun: no file
+    assert runs.entry(ids[6]) is None
+    for run_id in ids[:6]:
+        written = json.loads((runs.folder() / f"{run_id}.json").read_text(encoding="utf-8"))
+        got = runs.entry(run_id)
+        assert isinstance(got, runs.RunEntry) and got.as_dict() == written and got.id == run_id
+    assert runs.entry(ids[5]).extra == {"a_key_from_later": {"x": [1, 2]}} and runs.entry(ids[5]).newer
+    assert not runs.entry(ids[0]).newer and runs.entry(ids[0]).v == runs.VERSION
+    split = runs.entry(ids[3])
+    assert (split.queue_id, split.queued_to, split.queued, split.began, split.dispatched_from) == (ids[3], None, False, 3.0, ids[0])
+    assert runs.entry(ids[0]).queue is None and runs.entry(ids[2]).queued
+    built = runs.RunEntry(id="x", finished=2.0, code=0)                 # one made by hand gives its non-default fields
+    assert built.as_dict() == {"id": "x", "finished": 2.0, "code": 0}

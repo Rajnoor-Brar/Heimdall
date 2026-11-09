@@ -115,14 +115,14 @@ def test_a_pause_lets_the_running_points_end_and_starts_no_more(errand, capsys):
     plans = plans_of(path)
     assert [record.is_complete(p) for p in plans] == [True, True, False, False]
     (entry,) = runs.entries()
-    assert (entry["code"], entry["state"], entry["verdict"]) == (6, "paused", "paused") and runs.state(entry) == "paused"
-    assert entry["verdicts"][""] == "paused: 2 done, 2 left; not run: plot"
-    assert entry["counts"]["done"] == 2 and entry["counts"]["stopped"] == 0
+    assert (entry.code, entry.state, entry.verdict) == (6, "paused", "paused") and runs.state(entry) == "paused"
+    assert entry.verdicts[""] == "paused: 2 done, 2 left; not run: plot"
+    assert entry.counts["done"] == 2 and entry.counts["stopped"] == 0
     out = capsys.readouterr().out
     assert "paused: 2 done, 2 left; not run: plot" in out
-    told = [json.loads(line) for line in (Path(entry["records"][0]) / "run.jsonl").read_text(encoding="utf-8").splitlines()]
+    told = [json.loads(line) for line in (Path(entry.records[0]) / "run.jsonl").read_text(encoding="utf-8").splitlines()]
     assert told[-1]["state"] == "finished" and told[-1]["verdict"] == "paused: 2 done, 2 left; not run: plot"
-    assert cli.main(["log", entry["records"][0]]) == 0
+    assert cli.main(["log", entry.records[0]]) == 0
     assert "paused: 2 done, 2 left" in capsys.readouterr().out
     assert cli.main(["runs", "--5"]) == 0 and "paused" in capsys.readouterr().out
     assert run(path) == 0                                        # a resume: the same command again
@@ -145,8 +145,8 @@ def test_a_second_pause_discards_the_running_points(errand, capsys):
     assert [record.attempts(p)[-1]["verdict"] for p in plans[:2]] == ["stopped", "stopped"]
     assert [record.attempts(p) for p in plans[2:]] == [[], []]
     (entry,) = runs.entries()
-    assert runs.state(entry) == "paused" and entry["counts"]["stopped"] == 2
-    assert entry["verdicts"][""] == "paused: 0 done, 2 discarded, 2 left; not run: plot"
+    assert runs.state(entry) == "paused" and entry.counts["stopped"] == 2
+    assert entry.verdicts[""] == "paused: 0 done, 2 discarded, 2 left; not run: plot"
     (marks / "go").touch()
     assert run(path) == 0
     assert started(marks) == ["a", "b", "c", "d"] and all(record.is_complete(p) for p in plans_of(path))
@@ -161,7 +161,7 @@ def test_a_pause_one_point_at_a_time(errand):
     helper.join(5)
     assert started(marks) == ["a"] and [record.is_complete(p) for p in plans_of(path)] == [True, False, False, False]
     (entry,) = runs.entries()
-    assert runs.state(entry) == "paused" and entry["verdicts"][""] == "paused: 1 done, 3 left; not run: plot"
+    assert runs.state(entry) == "paused" and entry.verdicts[""] == "paused: 1 done, 3 left; not run: plot"
 
 
 def test_a_stop_after_a_pause_is_a_stop(handlers):
@@ -201,8 +201,8 @@ def test_a_paused_sweep_begins_no_more_configurations(errand, stages, verdict):
     assert cli.main(["run", str(path), "--plain", *stages]) == 6
     helper.join(5)
     (entry,) = runs.entries()
-    assert runs.state(entry) == "paused" and list(entry["verdicts"]) == ["c"] and entry["verdicts"]["c"] == verdict
-    assert len(entry["records"]) == 1
+    assert runs.state(entry) == "paused" and list(entry.verdicts) == ["c"] and entry.verdicts["c"] == verdict
+    assert len(entry.records) == 1
 
 
 @pytest.mark.parametrize("sweep", [False, True])
@@ -263,7 +263,7 @@ def test_a_force_pause_in_post_says_what_it_left(errand, capsys):
     helper.join(5)
     (entry,) = runs.entries()
     assert runs.state(entry) == "paused"
-    assert entry["verdicts"][""].startswith("paused: 4 done") and entry["verdicts"][""].endswith("not run: post, plot")
+    assert entry.verdicts[""].startswith("paused: 4 done") and entry.verdicts[""].endswith("not run: post, plot")
 
 
 def test_rerun_since_runs_again_only_what_completed_before(errand):

@@ -404,6 +404,6 @@ def cancel(planned, out=print) -> int:
         raise HeimdallError(f"scancel failed: {(done.stderr or done.stdout).strip()[-300:]}", where=str(folder))
     out(f"{planned.errand.name} · {planned.configuration.key}: cancelled the submission {folder.name} (jobs {' '.join(ids)})")
     for entry in runs.entries():                                 # its registry entry (V184)
-        if entry.get("kind") == "cluster" and entry.get("submission") == str(folder):
-            runs.update(entry["id"], verdict="cancelled", finished=round(time.time(), 3))
+        if entry.cluster and entry.submission == str(folder):
+            runs.update(entry.id, verdict="cancelled", finished=round(time.time(), 3))
     return 0

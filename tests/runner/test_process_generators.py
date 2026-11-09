@@ -20,18 +20,25 @@ WHIZARD_BASE = "# heimdall: beam_structure = pdf_builtin, epa\nmodel = SM\ninteg
 
 
 @pytest.mark.skipif(not shutil.which("whizard"), reason="gjallarhorn: whizard (its model file names the beams)")
-def test_whizard_card_sets_everything_before_it_includes_the_base():
-    plugin = tools.folders()["whizard"].plugin
+def test_whizard_card_sets_everything_then_holds_the_base_without_its_comments():
+    """SINDARIN runs in order: the point's settings first (sorted by the runner), then the base inlined, comments gone.
+    The beam structure is the base's directive, read by the runner (`[card] directives`) before the comments go."""
+    from runner import cards
+    folder = tools.folders()["whizard"]
+    plugin = folder.plugin
+    directives = {name: value for name, (value, _) in cards.directives(WHIZARD_BASE, folder.spec["card"], "ep.sin").items()}
     text = plugin.card([WHIZARD_BASE], [Override("beams", [2212, -11], "q"), Override("beams_momentum", [275, 18], "q"),
                                         Override("n_events", 100, "built-in")],
-                       render_context("whizard", tag="whizard", output="/p/events.hepmc", base_paths=["/c/ep.sin"]))
+                       render_context("whizard", tag="whizard", output="/p/events.hepmc", base_paths=["/c/ep.sin"],
+                                      rules=folder.spec["card"], directives=directives))
     lines = text.splitlines()
-    assert "beams = p, E1 => pdf_builtin, epa    # q" in lines
-    assert "beams_momentum = 275.0 GeV, 18.0 GeV    # q" in lines
-    assert lines.index("seed = {seed}") < lines.index('include("/c/ep.sin")') == len(lines) - 1
+    assert "beams = p, E1 => pdf_builtin, epa" in lines
+    assert "beams_momentum = 275.0 GeV, 18.0 GeV" in lines
+    assert lines.index("seed = {seed}") < lines.index("model = SM") and lines[-1] == "simulate (x)"
     assert '$sample = "/p/events"' in lines                     # Whizard appends .hepmc itself
+    assert not any("#" in line or "include(" in line for line in lines)
     integration = plugin.prepare_card(lines, [WHIZARD_BASE], {})
-    assert "n_events" not in integration and "$sample" not in integration and "include(" in integration
+    assert "n_events" not in integration and "$sample" not in integration and "integrate (x)" in integration
 
 
 def test_whizard_refuses_a_base_that_sets_what_the_plan_owns():

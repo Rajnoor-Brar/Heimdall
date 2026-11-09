@@ -1,12 +1,15 @@
 """framework/tools/whizard/render.py — Whizard's SINDARIN point card (doc:tool-contract, L13).
 
 SINDARIN is a script: an assignment takes effect when it runs, and the base card's `integrate` and
-`simulate` read what is set at that moment. So the point card comes FIRST and includes the base
+`simulate` read what is set at that moment. So the point's settings come FIRST, sorted, and the base
 LAST, the opposite of Pythia's "later wins", and a base that assigns what the plan owns (seed,
-n_events, beams, …) is refused, because it would run after the plan's value and replace it.
+n_events, beams, …) is refused, because it would run after the plan's value and replace it. The card
+written is the final config: the base inlined as written, without its comments, in place of an
+`include`, so the card holds the whole input.
 
 * Beams are named, not numbered: PDG codes become the model's own names (SM.mdl), and the base
-  card states its structure-function chain in a comment, `# heimdall: beam_structure = pdf_builtin, epa`.
+  card states its structure-function chain in a comment, `# heimdall: beam_structure = pdf_builtin, epa`,
+  which the runner reads (`[card] directives`) before the comments go.
 * The events go to `$sample`, absolute, because generation runs in the prepare cache (where the
   compiled library and the grids are); Whizard appends `.hepmc` itself.
 * The integration card (`prepare_card`) is the point card without `n_events`, `$sample` and
@@ -19,11 +22,11 @@ import re
 import shutil
 from pathlib import Path
 
+from runner import cards
 from runner.errors import HeimdallError
 
 GENERATION = ("n_events", "$sample", "sample_format")
 ASSIGNMENT = re.compile(r"^\s*([?$]?[A-Za-z_][A-Za-z0-9_]*)\s*=")
-STRUCTURE = re.compile(r"^\s*#\s*heimdall:\s*beam_structure\s*=\s*(.+?)\s*$", re.M)
 
 
 def names(model: str = "SM") -> dict[int, str]:
@@ -63,26 +66,26 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
         raise HeimdallError(f"the base card sets {', '.join(owned)}, which the plan owns",
                        where=f"[tools.{context.get('tag')}].baseconfig",
                        hint="SINDARIN runs the base after the point card, so it would replace the plan's value")
-    lines = ["# SINDARIN runs in order: the plan's settings first, the base card (included last) after."]
-    structure = STRUCTURE.search(base)
+    lines = []
+    structure = context.get("directives", {}).get("beam_structure")
     for key, value, origin in overrides:               # the runner's Override (L26)
         if key == "beams":
             table = names()
             missing = [c for c in value if int(c) not in table]
             if missing:
                 raise HeimdallError(f"the SM model has no name for PDG {missing[0]}", where=origin)
-            chain = f" => {structure.group(1)}" if structure else ""
-            lines.append(f"beams = {', '.join(table[int(c)] for c in value)}{chain}    # {origin}")
+            chain = f" => {structure}" if structure else ""
+            lines.append(f"beams = {', '.join(table[int(c)] for c in value)}{chain}")
         elif key == "beams_momentum":
-            lines.append(f"beams_momentum = {', '.join(f'{float(e)} GeV' for e in value)}    # {origin}")
+            lines.append(f"beams_momentum = {', '.join(f'{float(e)} GeV' for e in value)}")
         else:
-            lines.append(f"{key} = {literal(value)}    # {origin}")
+            lines.append(f"{key} = {literal(value)}")
     lines.append("seed = {seed}")
     output = context.get("output", "")
     if output:
         stem = output[: -len(".hepmc")] if output.endswith(".hepmc") else output
         lines += ["sample_format = hepmc", f'$sample = "{stem}"']
-    lines.append(f'include("{context["base_paths"][0]}")')
+    lines += [line.strip() for _, line in cards.cleaned(base, context.get("rules", {"comment": "#"}))]
     return "\n".join(lines) + "\n"
 
 

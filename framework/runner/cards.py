@@ -209,7 +209,25 @@ def final(merged: Merged, rules: dict) -> list[Entry]:
             free.append(entry)
     first.sort(key=lambda e: leading.index(e.normal))
     free.sort(key=lambda e: (e.normal, e.value))
-    return [setting(e.key, e.value, e.origin, rules) for e in first + free + [e for name in sorted(groups) for e in groups[name]]]
+    return [setting(e.key, canonical(e.value, rules), e.origin, rules)
+            for e in first + free + [e for name in sorted(groups) for e in groups[name]]]
+
+
+_YES, _NO = {"on", "true", "yes"}, {"off", "false", "no"}
+
+
+def canonical(value: str, rules: dict) -> str:
+    """A free card's value in one spelling, so a value equal to another source's reads equal: a number as Python
+    writes it (`6.` and `6.00` are `6.0`, `+15` is `15`), a yes or no as the folder's `[card] bools` words. Any
+    other value (a word, a list, a path) as written."""
+    if re.fullmatch(r"[-+]?\d+", value):
+        return str(int(value))
+    if re.fullmatch(r"[-+]?(\d+\.\d*|\.\d+|\d+(\.\d*)?[eE][-+]?\d+)", value):
+        return repr(float(value))
+    bools = rules.get("bools")
+    if bools and value.lower() in _YES | _NO:
+        return bools[0] if value.lower() in _YES else bools[1]
+    return value
 
 
 def write(merged: Merged, rules: dict) -> list[str]:

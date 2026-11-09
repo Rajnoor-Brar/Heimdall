@@ -105,7 +105,7 @@ def test_a_sequential_card_replaces_nothing_and_sorts_only_a_sorted_source():
 
 def test_the_free_writer_leads_with_tunes_sorts_the_rest_then_each_particle_in_written_order():
     assert final([base(), point(("Beams:idA", "11"))]) == [
-        "Tune:pp = 14", "Beams:eCM = 13000.", "Beams:idA = 11", "PDF:pSet = 13", "SoftQCD:nonDiffractive = on",
+        "Tune:pp = 14", "Beams:eCM = 13000.0", "Beams:idA = 11", "PDF:pSet = 13", "SoftQCD:nonDiffractive = on",
         "3122:mayDecay = on", "3122:onMode = off", "3122:onIfMatch = 2212 -211"]
 
 
@@ -165,3 +165,11 @@ def test_a_tree_dumps_sorted_mappings_and_keeps_list_order():
     assert cards.dump_tree(a) == cards.dump_tree(b)
     assert cards.dump_tree(a).index("BEAMS") < cards.dump_tree(a).index("ME") < cards.dump_tree(a).index("PDF_SET")
     assert cards.dump_tree(cards.load_tree("L: [2, 1]\n", "c.yaml")) != cards.dump_tree(cards.load_tree("L: [1, 2]\n", "c.yaml"))
+
+
+def test_a_free_value_has_one_spelling():
+    rules = {**PYTHIA, "bools": ["on", "off"]}
+    assert [cards.canonical(v, rules) for v in ["6.", "6.00", "+15", "1e3", "true", "No", "LHAPDF6:CT18", "1.67,20.13"]] == \
+        ["6.0", "6.0", "15", "1000.0", "on", "off", "LHAPDF6:CT18", "1.67,20.13"]
+    a = final([base("PhaseSpace:pTHatMin = 6.\nHardQCD:all = true\n")], rules)
+    assert a == final([base("PhaseSpace:pTHatMin = 6.0\nHardQCD:all = on\n")], rules) == ["HardQCD:all = on", "PhaseSpace:pTHatMin = 6.0"]

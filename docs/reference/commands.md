@@ -144,7 +144,7 @@ each configuration's points: complete, stale, running, failed or stopped (when, 
 
 ## `heimdall records`
 
-the record files: `records upgrade` brings them to today's format (a backup of each beside it)
+the record files: `records upgrade` gives each its `format` key (a backup of each beside it)
 
 | Argument | Meaning |
 |---|---|

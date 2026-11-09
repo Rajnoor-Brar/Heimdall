@@ -1138,9 +1138,7 @@ def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
         step.identity_parts["exe_sha256"] = sha256_file(step.exe)
     style = folder.card_style
     bools = folder.get("card", "bools", ["true", "false"])
-    base_values = _base_values(tool, errand, folder) if style == "append" else {}
     lines: list[str] = []
-    redundant: list[str] = []          # overrides equal to the base card: rendered, not in the identity
     owners: dict[str, str] = {}
     flags: list[str] = []
     options: dict[str, dict[str, str]] = {}
@@ -1161,8 +1159,6 @@ def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
         line = line_format.replace("{key}", key).replace("{value}", native(value, bools, fmt))
         lines.append(line)
         entries.append(cards.setting(key, native(value, bools, fmt), origin, rules))
-        if base_values.get(normal) is not None and _same(base_values[normal], native(value, bools, fmt)):
-            redundant.append(line)
 
     def apply(mapping, value: Any, origin: str) -> None:
         if mapping.check:
@@ -1225,22 +1221,32 @@ def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
         footer = [expand(line, footer_context, where_footer) for line in folder.get("card", "footer", [])
                   if not all(footer_context.get(n, "x") == "" for n in re.findall(r"\{([a-z_]+)\}", line) or ["-"])]
         header = f"{comment} point card for [tools.{step.tag}], point {plan.point.name}, written by heimdall run"
+        bases = [b.read_text(encoding="utf-8") for b in step.card_base]
         if style == "append":
             step.card_lines = [header, *lines, *footer]
             step.card_point = plan.out / "cards" / f"{step.tag}.point.{ext}"
-            step.card_sources = [*(cards.parse(b.read_text(encoding="utf-8"), rules, b.name) for b in step.card_base),
+            step.card_sources = [*(cards.parse(text, rules, b.name) for b, text in zip(step.card_base, bases)),
                                  cards.Source(tuple(entries), sort=True), cards.given(footer, rules, "the runner (the footer)")]
-            cards.merge(step.card_sources, rules)        # a setting twice in one card is refused here, at --plan
+            step.identity_parts["card"] = cards.write(cards.merge(step.card_sources, rules), rules)   # refuses a key twice
         else:                                   # render.py writes the whole card: base and values merged
-            text = folder.plugin.card([b.read_text(encoding="utf-8") for b in step.card_base], overrides,
+            read = {}                                    # what the bases' comments tell the runner ([card] directives)
+            for b, text in zip(step.card_base, bases):
+                for name, found in cards.directives(text, rules, b.name).items():
+                    if name in read:
+                        raise HeimdallError(f"the directive '{name}' is given twice", where=f"{read[name][1]} and {found[1]}")
+                    read[name] = found
+            ordered = sorted(overrides, key=lambda o: _normal(o.key))   # the quantities' order is not in the card
+            text = folder.plugin.card(bases, ordered,
                                       {"point": plan.point.name, "tag": step.tag, "output_name": output_name,
                                        "output": str(step.outputs[0].path) if step.outputs else "",
                                        "base_paths": [str(b) for b in step.card_base],
                                        "owned": list(folder.get("card", "owned", [])),       # V61: the folder's data
-                                       "render": folder.spec.get("render", {})})
-            step.card_lines = [header, *text.rstrip("\n").splitlines(), *footer]
+                                       "render": folder.spec.get("render", {}), "rules": rules,
+                                       "directives": {name: value for name, (value, _) in read.items()},
+                                       "base_names": [b.name for b in step.card_base]})
+            step.card_lines = [*text.rstrip("\n").splitlines(), *footer]      # the final config: no header
+            step.identity_parts["card"] = step.card_lines
         step.card_combined = plan.out / "cards" / f"{step.tag}.{ext}"
-        step.identity_parts["base_sha256"] = [sha256_file(b) for b in step.card_base]
         owned = {_normal(k) for k in folder.get("card", "owned", [])} if style == "append" else set()
         parse_line = card_parser(folder)
         for base in step.card_base if owned else ():
@@ -1248,7 +1254,6 @@ def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
                 key = parse_line(line)
                 if key and key[0] in owned:
                     plan.notes.append(f"{base.name} sets {key[2]}, which the runner sets: the card's value is not used")
-        step.identity_parts["card"] = [line for line in step.card_lines if line not in redundant]
         _prepare_key(plan, step, errand)
     elif lines:
         raise HeimdallError(f"{folder.name} has no card, but quantities set native keys on it: {', '.join(lines)}",
@@ -1305,23 +1310,22 @@ def beam_order(plan: PointPlan, errand, folder: Folder) -> tuple[int, int] | Non
 
 
 def _prepare_key(plan: PointPlan, step: Step, errand) -> None:
-    """[prepare]: a cache entry per card, .cache/<A>/<tool>/<key>/. The key is the card before
-    seeds, the base cards and the binary, without the lines setting `ignore` keys (the event count,
-    say), so every point, replica and rerun with the same physics shares one integration."""
+    """[prepare]: a cache entry per card, .cache/<A>/<tool>/<key>/. The key is the final config before seeds
+    and the binary, without the lines setting `ignore` keys (the event count, say), so every point, replica and
+    rerun with the same physics shares one integration, and a comment in a base card builds nothing again."""
     spec = step.folder.spec.get("prepare")
     if not spec:
         return
-    comment = step.folder.get("card", "comment", "#")
     ignore = spec.get("ignore", [])
     if spec.get("key", "card") == "base":        # what is built depends on the base card only (MadGraph)
-        step.card_lines_for_key = []
+        rules = step.folder.spec.get("card", {})
+        step.card_lines_for_key = [line.strip() for base in step.card_base
+                                   for _, line in cards.cleaned(base.read_text(encoding="utf-8"), rules)]
     else:
-        step.card_lines_for_key = step.card_lines
+        step.card_lines_for_key = step.identity_parts["card"]
     pattern = re.compile(r"\s*(?:set\s+)?(" + "|".join(map(re.escape, ignore)) + r")\s*[:=\s]") if ignore else None
-    keyed = [line for line in step.card_lines_for_key
-             if not line.startswith(comment) and not (pattern and pattern.match(line))]
-    text = "\n".join([step.folder.name, step.identity_parts.get("exe_sha256", str(step.exe)),
-                      *step.identity_parts["base_sha256"], *keyed])
+    keyed = [line for line in step.card_lines_for_key if not (pattern and pattern.match(line))]
+    text = "\n".join([step.folder.name, step.identity_parts.get("exe_sha256", str(step.exe)), *keyed])
     step.prepare_dir = cache_root() / errand.assignment / step.folder.name / hashlib.sha256(text.encode()).hexdigest()[:16]
     step.identity_parts["prepare"] = step.prepare_dir.name
     if step.folder.card_style == "render" and hasattr(step.folder.plugin, "prepare_card"):
@@ -1341,31 +1345,6 @@ def _prepare_argv(plan: PointPlan, step: Step) -> None:
         piece = expand(template, context, f"{step.folder.name}/tool.toml [prepare].argv")
         argv.extend(piece if isinstance(piece, list) else [piece] if piece != "" else [])
     step.prepare_argv = argv
-
-
-def _base_values(tool, errand, folder: Folder) -> dict[str, str]:
-    """The base cards' `Key = value` settings (last wins), for spotting redundant overrides."""
-    comment = folder.get("card", "comment", "#")
-    values: dict[str, str] = {}
-    for base in tool.baseconfig:
-        path = resolve(base, "baseconfig", assignment=errand.assignment, folder=errand.folder, where=f"[tools.{tool.tag}].baseconfig")
-        if not path.is_file():
-            continue
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            line = raw.split(comment, 1)[0].strip()
-            if "=" in line:
-                key, _, value = line.partition("=")
-                values["".join(key.split()).lower()] = value.strip()
-    return values
-
-
-def _same(a: str, b: str) -> bool:
-    words = {"on": "1", "true": "1", "yes": "1", "off": "0", "false": "0", "no": "0"}
-    a, b = words.get(a.lower(), a.lower()), words.get(b.lower(), b.lower())
-    try:
-        return float(a) == float(b)
-    except ValueError:
-        return a == b
 
 
 def _info_dirs(folder: Folder) -> list[Path]:
@@ -1533,7 +1512,8 @@ def finalise(plan: PointPlan, seed: int) -> None:
             if step.prepare_card is not None:
                 plan.writes[step.prepare_card] = step.folder.plugin.prepare_card(
                     lines + seeding, [b.read_text(encoding="utf-8") for b in step.card_base],
-                    {"prepared": prepared, "base_paths": [str(b) for b in step.card_base], "tag": step.tag})
+                    {"prepared": prepared, "base_paths": [str(b) for b in step.card_base], "tag": step.tag,
+                     "rules": step.folder.spec.get("card", {})})
             continue
         rules = step.folder.spec.get("card", {})
         merged = cards.merge([*step.card_sources, cards.given(seeding, rules, "the runner (the seed)")], rules)

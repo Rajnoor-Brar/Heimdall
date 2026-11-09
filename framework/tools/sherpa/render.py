@@ -10,6 +10,8 @@ beam: an override replaces one entry, never appends). The card on disk is the ca
   with it when the two agreed before, and a card without `MPI_PDF_SET` gets a copy.
 * The plan owns the run control: a base card setting BEAMS, BEAM_ENERGIES, RANDOM_SEED, EVENTS,
   EVENT_OUTPUT or RESULT_DIRECTORY is refused, so a point never silently inherits one.
+* The card written is the final config (cards.dump_tree): mappings by sorted key, lists in order, no
+  comments. A key twice in one mapping of a base is refused (cards.load_tree).
 """
 
 from __future__ import annotations
@@ -18,8 +20,7 @@ import copy
 import re
 from typing import Any
 
-import yaml
-
+from runner import cards
 from runner.errors import HeimdallError
 
 _STEP = re.compile(r"^(?P<name>[^\[\]]+)(?:\[(?P<index>\d+)\])?$")
@@ -63,8 +64,8 @@ def assign(document: dict, path: str, value: Any, origin: str = "") -> None:
 def card(bases: list[str], overrides: list, context: dict) -> str:
     """The whole card before seeds: the bases merged in order, then the overrides."""
     document: dict = {}
-    for text in bases:
-        loaded = yaml.safe_load(text) or {}
+    for text, name in zip(bases, context.get("base_names") or [f"base {i + 1}" for i in range(len(bases))]):
+        loaded = cards.load_tree(text, name) or {}
         if not isinstance(loaded, dict):
             raise HeimdallError("a Sherpa base card must be a YAML mapping", where=context.get("tag", "sherpa"))
         owned = [k for k in loaded if k in context["owned"]]
@@ -81,4 +82,4 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
         if key.startswith("PDF_SET"):
             if "MPI_PDF_SET" not in document or document.get("MPI_PDF_SET") == before:
                 document["MPI_PDF_SET"] = copy.deepcopy(document["PDF_SET"])
-    return yaml.safe_dump(document, sort_keys=False, default_flow_style=None, width=100)
+    return cards.dump_tree(document)

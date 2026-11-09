@@ -394,16 +394,14 @@ def test_an_adopted_runs_plot_document_still_draws_every_point_and_a_changed_one
     before = target.read_text(encoding="utf-8")
     assert len(plot.drawable(plotdoc.load(target)[2])[0]) == 4
     assert cli.main(["library", "adopt", run, "--yes"]) == 0
-    assert "its plot document names the library keys of 4 member(s)" in capsys.readouterr().out
+    assert "its plot document needs no rewrite: it names the keys already" in capsys.readouterr().out
     members = plotdoc.load(target)[2]
     assert len(plot.drawable(members)[0]) == 4                       # the drawing still finds every point complete
-    assert {m.identity for m in members} == {library.key(q) for q in p.every}
-    after = target.read_text(encoding="utf-8")
-    assert [a for a, b in zip(after.splitlines(), before.splitlines()) if a != b] == \
-        [line for line in after.splitlines() if line.startswith("identity = ")]   # only the identities changed
+    assert {m.identity for m in members} == {library.key(q) for q in p.every}   # an identity is its key
+    assert target.read_text(encoding="utf-8") == before
     mine = planned("Demo/plain_a", "pdf")
     plan = mine.every[0]
-    plan.library = "e" * 64                                          # the config changed its physics: another key
+    plan.library = plan.identity = "e" * 64                          # the config changed its physics: another key
     assert record.state_of(plan)[0] == "stale"                       # its link's entry is complete for the old key
     assert record.recorded_identity(plan) == library.key(p.every[0])    # this Run's folder holds the old physics …
     assert record.overwritten([plan]) == [plan] and not record.is_complete(plan)   # … so a new number, as before adopting

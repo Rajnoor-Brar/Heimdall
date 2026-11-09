@@ -161,7 +161,7 @@ Refused at plan time, each with a hint: an unknown key; a quantity no tool consu
 - `heimdall context`: what an AI working in a work dir needs first: the model, a whole errand file, commands, where to read more
 - `heimdall docs`: the docs as one searchable page: settings, pages by reader, their graph
 - `heimdall status`: each configuration's points: complete, stale, running, failed or stopped (when, and why), incomplete or to run; its events, seeds and tools
-- `heimdall records`: the record files: `records upgrade` brings them to today's format (a backup of each beside it)
+- `heimdall records`: the record files: `records upgrade` gives each its `format` key (a backup of each beside it)
 - `heimdall migrate`: rewrite errand files and their cards in today's forms (a diff, or --apply)
 - `heimdall reproduce`: run a finished point again, from its provenance, beside it
 - `heimdall clean`: remove what the runner made and no plan uses: working folders (records/…/logs/) and .cache/ (a point's records with --records)

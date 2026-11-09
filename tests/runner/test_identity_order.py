@@ -1,6 +1,6 @@
 """A point's identity does not depend on how its inputs are written: the order of the [quantities.*] tables and of a
-configuration's `vary`, a card's comments, blank lines and the order of its lines. One physics, one identity, so a
-rewritten config or card reruns nothing. Only the tables' order holds today; the rest are strict xfails."""
+configuration's `vary`, a card's comments, blank lines and the order of its commuting lines. One physics, one identity,
+so a rewritten config or card reruns nothing: the identity hashes each tool's final config (doc:identity)."""
 
 from __future__ import annotations
 
@@ -41,8 +41,6 @@ def _by_physics(name: str) -> dict:
     return {tuple(sorted(plan.point.choice.items())): (plan.point.name, plan.identity, library.key(plan)) for plan in p.every}
 
 
-VARY_ORDER = pytest.mark.xfail(strict=True, reason="a point's quantity lines enter its cards in `vary` order, so reversing vary "
-                               "gives a new identity and seed (a canonical order rekeys every existing point: the developer decides)")
 
 
 def test_swapping_the_quantity_tables_changes_no_identity(reordered):
@@ -50,7 +48,6 @@ def test_swapping_the_quantity_tables_changes_no_identity(reordered):
     assert {k: v[1:] for k, v in other.items()} == {k: v[1:] for k, v in base.items()}
 
 
-@VARY_ORDER
 def test_reordering_a_configs_quantities_changes_no_identity(reordered):
     base = _by_physics("Demo/jets")
     for variant in reordered:
@@ -75,22 +72,16 @@ def _settings(lines: list[str]) -> list[int]:
     return [i for i, line in enumerate(lines) if line.strip() and not line.lstrip().startswith(("!", "#"))]
 
 
-CARD_TEXT = pytest.mark.xfail(strict=True, reason="the identity holds base_sha256, the raw card file's hash, beside its cleaned "
-                              "lines, so a comment or a blank line gives a new identity (the developer decides)")
 
 
-@CARD_TEXT
 def test_comments_and_blank_lines_in_a_card_change_no_identity(trees):
     base = _by_physics("Demo/jets")
     edited = _card_edited(lambda lines: ["! a note", ""] + [line + "   " for line in lines] + ["", "# the end"])
     assert {k: v[1] for k, v in edited.items()} == {k: v[1] for k, v in base.items()}
 
 
-CARD_ORDER = pytest.mark.xfail(strict=True, reason="a base card is hashed as its setting lines in the order written, so two "
-                               "lines swapped give a new identity (order is physics for some tools: the developer decides)")
 
 
-@CARD_ORDER
 def test_swapping_two_lines_of_a_card_changes_no_identity(trees):
     base = _by_physics("Demo/jets")
 

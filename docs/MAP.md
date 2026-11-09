@@ -41,7 +41,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [chains](stable/guide/chains.md): chains of tools: file chains, other generators, comparing generators and setups, stages made once (5 KB)
 - [errand-file](stable/guide/errand-file.md): an errand file's anatomy, a complete example, which value wins, imports and starting a new assignment (6 KB) ⟵ live: live-canonical-cards
 - [guide-failures](stable/guide/failures.md): what to do when a point fails, and what each common refusal means (3 KB)
-- [housekeeping](stable/guide/housekeeping.md): check, status, clean, migrate, reproduce, and pinning which stack a study was made with (3 KB)
+- [housekeeping](stable/guide/housekeeping.md): check, status, clean, migrate, reproduce, and pinning which stack a study was made with (3 KB) ⟵ live: live-canonical-cards
 - [outputs](stable/guide/outputs.md): what a run writes and where: records, results, reports, cache; what is kept; what may be deleted (5 KB) ⟵ live: live-adopted-runs
 - [overlay](stable/guide/overlay.md): heimdall overlay: any YODA or ROOT files on one page, with no errand file (1 KB)
 - [paths](stable/guide/paths.md): how a path in an errand file resolves, how a Run's folder is named, and every placeholder (5 KB)
@@ -66,15 +66,15 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [tools-delphes](stable/tools/delphes.md): the delphes tool: it reads a file, never a FIFO; its card and count check (1 KB) ⟵ live: live-canonical-cards
 - [tools-exec](stable/tools/exec.md): the exec tool: any executable; heimdallkit; turning a program into a tool folder of your own (1 KB)
 - [tools-herwig](stable/tools/herwig.md): the herwig tool: read and run, beams in Herwig's slots, its four PDF objects, the repository (1 KB) ⟵ live: live-canonical-cards
-- [tools-madgraph](stable/tools/madgraph.md): the madgraph tool: proc card, launch script, the cached process directory, showering its LHE (1 KB)
+- [tools-madgraph](stable/tools/madgraph.md): the madgraph tool: proc card, launch script, the cached process directory, showering its LHE (1 KB) ⟵ live: live-canonical-cards
 - [tools-merge](stable/tools/merge.md): the merge tool: rivet-merge, in post; also what shards, combine and merged figures use (1 KB)
 - [tools-module](stable/tools/module.md): the module tool: running a Module.hh program; its config, counts and integrated programs (1 KB)
 - [tools-overview](stable/tools/overview.md): the standard tools at a glance; tools, packages and libraries; what is not a tool (3 KB)
 - [tools-plotmerge](stable/tools/plotmerge.md): the plotmerge tool: the sweep in one file, as a copy elsewhere or a YODA version (0 KB)
 - [tools-pythia](stable/tools/pythia.md): the pythia tool and App_Pythia: its card, what the runner owns, dealing events, the sidecar, what running it taught us (4 KB) ⟵ live: live-canonical-cards
 - [tools-rivet](stable/tools/rivet.md): the rivet tool: analyses and options, shards and how many, counts; what running it taught us (3 KB)
-- [tools-sherpa](stable/tools/sherpa.md): the sherpa tool: YAML cards, what the plan owns, the cached integration, progress, several Sherpas for one curve (3 KB)
-- [tools-whizard](stable/tools/whizard.md): the whizard tool: SINDARIN point cards, beams by name, what the plan owns, its limits (1 KB)
+- [tools-sherpa](stable/tools/sherpa.md): the sherpa tool: YAML cards, what the plan owns, the cached integration, progress, several Sherpas for one curve (3 KB) ⟵ live: live-canonical-cards
+- [tools-whizard](stable/tools/whizard.md): the whizard tool: SINDARIN point cards, beams by name, what the plan owns, its limits (1 KB) ⟵ live: live-canonical-cards
 - [tools-yd2rt](stable/tools/yd2rt.md): the yd2rt tool and App_yd2rt: YODA to ROOT, merging a sweep into one file (1 KB)
 
 ## stable/setup
@@ -94,7 +94,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 ## stable/internals
 
 - [build](stable/internals/build.md): make, heimdall build, the rules, // requires:, the flag cache, and what rebuilds what (4 KB)
-- [caches](stable/internals/caches.md): the prepare cache: what it keeps, its key, what counts as a hit (2 KB)
+- [caches](stable/internals/caches.md): the prepare cache: what it keeps, its key, what counts as a hit (2 KB) ⟵ live: live-canonical-cards
 - [connections](stable/internals/connections.md): how tools connect: FIFOs, files, products, the rules checked at plan time, the context file, sharding (3 KB)
 - [cxx-kits](stable/internals/cxx-kits.md): writing C++ here: Module.hh, integrated programs, Status.hh and the status protocol, heimdallkit (6 KB)
 - [data-model](stable/internals/data-model.md): the runner's types, which module owns each, and what each holds (3 KB)
@@ -102,16 +102,16 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [events](stable/internals/events.md): how a tool's status reaches the views: pipes, filter rules, digests, the event stream and its listeners, the views (6 KB)
 - [extending](stable/internals/extending.md): how to add a standard tool, a plot backend or a figure class, and what each must touch (4 KB)
 - [failures](stable/internals/failures.md): how a chain of processes fails and how each way is handled; attribution; exit codes (2 KB)
-- [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (6 KB) ⟵ live: live-adopted-runs
+- [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (6 KB) ⟵ live: live-adopted-runs, live-canonical-cards
 - [layout](stable/internals/layout.md): Heimdall's folders, Himinbjorg's and a work dir's; what is in git; how the roots are found; where a run's files go (5 KB)
 - [live-runs](stable/internals/live-runs.md): a run as a worker and a client; the run registry, an entry and its state as values; signals, pausing, resuming, again, jobs, the listing (10 KB) ⟵ live: live-runs-ends
 - [paint](stable/internals/paint.md): Paint inside: the order of a page's arithmetic, drawing, heat maps, dumps; what is load-bearing (4 KB)
 - [plot-backends](stable/internals/plot-backends.md): how the backends beside Paint draw the same pages, what they honour and refuse (2 KB)
 - [plot-stage](stable/internals/plot-stage.md): the plot stage inside: members and stand-in plans, the merged sweep, page documents, drawing, what a record gives a drawing (5 KB)
-- [provenance](stable/internals/provenance.md): what a run records and where: provenance.json, attempts.jsonl, points.json, tag, identity.json (4 KB)
+- [provenance](stable/internals/provenance.md): what a run records and where: provenance.json, attempts.jsonl, points.json, tag, identity.json (4 KB) ⟵ live: live-canonical-cards
 - [run-flow](stable/internals/run-flow.md): a run from command to pages: planning, one point, scopes, points at once, several runs, combine, and where each check lives (6 KB)
 - [run-queue](stable/internals/run-queue.md): a run queued to another waits for it; a sweep of runs is such a queue; dispatch, forget and a queue lost to a reboot (6 KB)
-- [runner](stable/internals/runner.md): the runner's modules and ranks, what each owns, what plugins may import; the C++ files and what each links (8 KB)
+- [runner](stable/internals/runner.md): the runner's modules and ranks, what each owns, what plugins may import; the C++ files and what each links (9 KB)
 - [testing](stable/internals/testing.md): the test suites, how they isolate themselves, the gates, and what holds the docs (4 KB)
 - [tool-contract](stable/internals/tool-contract.md): what a tool folder holds, the search path, every tool.toml section and key, render.py, providers, and what the runner does per point (10 KB) ⟵ live: live-canonical-cards
 
@@ -137,5 +137,5 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 ## live
 
 - [live-adopted-runs](live/adopted-runs.md): an adopted Run reads, numbers and draws as before (its points library points by their links, its plot document re-keyed); migrate --layout leaves statistics/ alone (3 KB)
-- [live-canonical-cards](live/canonical-cards.md): an appended tool reads a final config, its sources merged by the folder's [card] order, with no comments and a key twice in one card refused (4 KB)
+- [live-canonical-cards](live/canonical-cards.md): every tool with a card reads a final config with no comments, and the identity hashes it, so one physics is one identity whatever the writing (7 KB)
 - [live-runs-ends](live/runs-ends.md): heimdall runs shows when and how each run ended in its state's colour, orders a history list by its runs' ends, and gives every state a colour (2 KB)

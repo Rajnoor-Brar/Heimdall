@@ -1072,11 +1072,15 @@ def apply(changes: dict[Path, tuple[str, str]]) -> None:
 _RECORD_FILES = (("records", "points.json"), ("records", "provenance.json"), ("records", "identity.json"), ("results", "plot.toml"))
 
 
+#: What `records upgrade` lifts a record file to: the `format` key (1). Format 2 (record.FORMAT: identities hash final
+#: configs) changes what a record's identities are, so a file reaches it only by being remade with them, never here.
+LAYOUT = 1
+
+
 def format_files(scope: str = "") -> list[tuple[Path, str]]:
-    """The record files below the current format, under records/ and results/ (all, or `<A>[/<E>[/<R>]]`): (file,
-    what upgrading does). A file of a newer format is not listed: a newer Heimdall wrote it."""
+    """The record files below format 1, under records/ and results/ (all, or `<A>[/<E>[/<R>]]`): (file, what upgrading
+    does). A file of a newer format is not listed: a newer Heimdall wrote it."""
     from .paths import records_root, results_root
-    from .record import FORMAT
     roots = {"records": records_root(), "results": results_root()}
     found: list[tuple[Path, str]] = []
     for root, name in _RECORD_FILES:
@@ -1093,19 +1097,19 @@ def format_files(scope: str = "") -> list[tuple[Path, str]]:
                 continue
             if have is None:
                 found.append((path, "not a table: left as it is"))
-            elif isinstance(have, int) and have < FORMAT:
-                found.append((path, f"add format = {FORMAT}" + (f" (it is {have})" if have else "")))
+            elif isinstance(have, int) and have < LAYOUT:
+                found.append((path, f"add format = {LAYOUT}" + (f" (it is {have})" if have else "")))
     return found
 
 
 def upgrade_file(path: Path) -> bool:
-    """One record file to the current format, a copy of it beside it first (`<name>.bak`, the first of
+    """One record file to format 1 (LAYOUT), a copy of it beside it first (`<name>.bak`, the first of
     `.bak`, `.bak2`, …); False when it was left (unreadable, or no [source] to hold the key)."""
-    from .record import FORMAT, write_atomic
+    from .record import write_atomic
     text = path.read_text(encoding="utf-8")
     if path.suffix == ".json":
         data = json.loads(text)
-        data = {"format": FORMAT, **{k: v for k, v in data.items() if k != "format"}}
+        data = {"format": LAYOUT, **{k: v for k, v in data.items() if k != "format"}}
         new = json.dumps(data, indent=1, sort_keys=path.name == "identity.json", default=str) + "\n"
     else:
         lines = text.splitlines(keepends=True)
@@ -1115,9 +1119,9 @@ def upgrade_file(path: Path) -> bool:
         end = next((i for i in range(at + 1, len(lines)) if _TABLE.match(lines[i].rstrip("\n"))), len(lines))
         own = next((i for i in range(at + 1, end) if re.match(r"^format\s*=", lines[i])), None)
         if own is None:
-            lines.insert(at + 1, f"format = {FORMAT}\n")
+            lines.insert(at + 1, f"format = {LAYOUT}\n")
         else:
-            lines[own] = f"format = {FORMAT}\n"
+            lines[own] = f"format = {LAYOUT}\n"
         new = "".join(lines)
         tomllib.loads(new)
     copy = path.with_name(path.name + ".bak")

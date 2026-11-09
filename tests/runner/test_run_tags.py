@@ -216,7 +216,7 @@ def test_the_tag_file_is_toml_with_labels_and_an_old_one_line_file_still_reads(t
     (folder / record.TAG_FILE).write_text("", encoding="utf-8")                       # before labels: cleared
     assert record.read_labels(folder) == {"tag": ""} and record.run_tag(folder) == ""
     record.write_labels(folder, {"shower": "new", "tag": "nlo"})
-    assert (folder / record.TAG_FILE).read_text(encoding="utf-8") == 'format = 1\n\n[labels]\ntag = "nlo"\nshower = "new"\n'
+    assert (folder / record.TAG_FILE).read_text(encoding="utf-8") == f'format = {record.FORMAT}\n\n[labels]\ntag = "nlo"\nshower = "new"\n'
     assert record.run_tag(folder) == "nlo" and record.run_labels(folder) == {"shower": "new"}
     record.write_run_tag(folder, "lo")                                               # the tag moves, the labels stay
     assert record.read_labels(folder) == {"tag": "lo", "shower": "new"}

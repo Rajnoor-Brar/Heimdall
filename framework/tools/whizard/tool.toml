@@ -14,6 +14,8 @@ produces_events = true
 style   = "render"
 ext     = "sin"
 comment = "#"
+# A comment the runner reads before the comments go: `# heimdall: beam_structure = pdf_builtin, epa`
+directives = '^\s*#\s*heimdall:\s*(\w+)\s*=\s*(.+?)\s*$'
 # What the plan owns: SINDARIN runs the base after the point card, so a base setting one is refused
 owned   = ["seed", "n_events", "sqrts", "beams", "beams_momentum", "$sample", "sample_format"]
 

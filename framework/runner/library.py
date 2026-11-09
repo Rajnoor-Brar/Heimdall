@@ -1,9 +1,8 @@
 """The points library (rank 3, points-library): generation points pooled per Assignment under a key that ignores the
 point's name, so two Errands that ask for the same physics run it once.
 
-* **The key** (`parts`, `key`, `key_of_recorded`): the sha256 of a point's `record.identity_parts` without the card
-  lines that start with each tool folder's `[card] comment` (where the point's name is). The identity and the seed are
-  untouched.
+* **The key** (`parts`, `key`, `key_of_recorded`): the point's identity. Its cards are final configs, which name no
+  point (doc:identity), so one physics under two names or two Errands is one identity.
 * **The entry** (`plan.folders.library_entry(key)`, `library_product(key)`): records/<A>/library/<key16>/ and
   results/<A>/library/<key16>/. A Run links them as its `points/<name>` (`link`, `link_into`, `unlink_run`).
 * **The index** (`note`, `append`, `entries`, `links`, `first`): records/<A>/library/points.jsonl, appended under an flock
@@ -27,27 +26,12 @@ from .errors import HeimdallError
 from .paths import disk_size, human_size, records_root, results_root
 from .record import identity_parts, now, write_atomic
 from .sweep import tag_of
-from .tools import PointPlan, folders as tool_folders
-
-
-def _without_comments(parts: dict, comment_of) -> dict:
-    """`parts` with each tool's card lines that start with its folder's `[card] comment` dropped (`comment_of(tool's parts)`)."""
-    out = []
-    for step in parts.get("tools", []):
-        step = dict(step)
-        comment = comment_of(step)
-        if comment and "card" in step:
-            step["card"] = [line for line in step["card"] if not line.startswith(comment)]
-        out.append(step)
-    return {**parts, "tools": out}
+from .tools import PointPlan
 
 
 def parts(plan: PointPlan) -> dict:
-    """What the points library keys a point by (points-library P2): `identity_parts` without the card comments, which is
-    where the point's name is (the card's header, `point card for [tools.<tag>], point <name>`). The rule is `seed_basis`'s:
-    a card line that starts with the folder's `[card] comment` is dropped. The seed rule stays, so a manual seed is in the key
-    and an identity or random seed is not."""
-    return _without_comments(identity_parts(plan), lambda step: plan.rendered[step["tag"]].folder.get("card", "comment", ""))
+    """What the points library keys a point by: its identity's parts, which name no point."""
+    return identity_parts(plan)
 
 
 def _hash(parts: dict) -> str:
@@ -55,19 +39,15 @@ def _hash(parts: dict) -> str:
 
 
 def key(plan: PointPlan) -> str:
-    """The points library's key for a point: the sha256 of `parts` (64 hex digits; an entry's folder is its first 16).
-    The same physics under two point names has one key; the identity is unchanged."""
+    """The points library's key for a point: the sha256 of `parts` (64 hex digits; an entry's folder is its first 16),
+    which is its identity (`record.identity`)."""
     return _hash(parts(plan))
 
 
 def key_of_recorded(parts: dict) -> str:
     """The library key of a point from its recorded `identity.json` (its parts, `format` aside): what `heimdall library adopt`
-    files a complete point under. Equal to `key(plan)` of the plan that made it; the comment of each tool is its
-    folder's, found by the tool's name."""
-    known = tool_folders()
-    shown = {k: v for k, v in parts.items() if k != "format"}
-    return _hash(_without_comments(json.loads(json.dumps(shown, default=str)),
-                                     lambda step: known[step["tool"]].get("card", "comment", "") if step.get("tool") in known else ""))
+    files a complete point under. Equal to `key(plan)` of the plan that made it."""
+    return _hash(json.loads(json.dumps({k: v for k, v in parts.items() if k != "format"}, default=str)))
 
 
 # ── the entries, their links and the index ───────────────────────────────────────────────────────────
@@ -451,14 +431,16 @@ def adopt(run: str, apply: bool = False, documents=None) -> list[str]:
             line.update({"coordinates": {q: v.get("tag") for q, v in entry.get("values", {}).items()},
                          "events": prov.get("events"), "threads": prov.get("threads"), "seed": prov.get("seed")})
         append(assignment, line)
-        rekeyed[marker] = key
+        if marker != key:                            # a point recorded before its identity was its key
+            rekeyed[marker] = key
         entry["library"], entry["identity"] = key[:16], key
         changed = True
     if apply and changed:
         write_atomic(manifest_path, json.dumps(manifest, indent=1, default=str) + "\n")
         if documents is not None:
             done = documents(products, rekeyed)
-            out.append(f"its plot document names the library keys of {done} member(s)" if done else "no plot document to rewrite")
+            out.append(f"its plot document names the library keys of {done} member(s)" if done
+                       else "its plot document needs no rewrite: it names the keys already" if not rekeyed else "no plot document to rewrite")
     if not apply:
         out.append("a dry run: --yes makes these moves")
     return out

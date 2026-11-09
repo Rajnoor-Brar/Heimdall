@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 
+from runner import cards
 from runner.errors import HeimdallError
 
 QUIET = "set automatic_html_opening False"
@@ -50,4 +51,6 @@ def card(bases: list[str], overrides: list, context: dict) -> str:
 
 def prepare_card(lines: list[str], bases: list[str], context: dict) -> str:
     """The proc card with `output` into the cache: the process directory, built once."""
-    return "\n".join([QUIET, *[b.rstrip() for b in bases], f"output {context['prepared']}/process -f"]) + "\n"
+    rules = context.get("rules", {"comment": "#"})              # its commands in order, without comments
+    proc = [line.strip() for text in bases for _, line in cards.cleaned(text, rules)]
+    return "\n".join([QUIET, *proc, f"output {context['prepared']}/process -f"]) + "\n"

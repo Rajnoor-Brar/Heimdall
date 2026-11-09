@@ -64,7 +64,7 @@ def test_check_plans_every_configuration_and_fails_with_2(scratch, capsys):
     assert "ok    Demo/jets: 13 configuration(s)" in out and "FAIL  " + str(bad) in out
 
 
-def test_an_identity_record_of_format_0_or_1_reads_the_same_and_a_newer_one_is_refused(scratch):
+def test_an_identity_records_format_is_not_in_it_and_a_newer_one_is_refused(scratch):
     """The record's `format` is not a part of the identity: --why says nothing changed with or without it, and
     a record written by a newer Heimdall is refused with a hint."""
     import json
@@ -72,14 +72,14 @@ def test_an_identity_record_of_format_0_or_1_reads_the_same_and_a_newer_one_is_r
     p = completed(raw(), scratch)
     file = record.identity_record(p)
     written = json.loads(file.read_text(encoding="utf-8"))
-    assert written["format"] == record.FORMAT == 1
+    assert written["format"] == record.FORMAT == 2
     record.complete_marker(p).unlink()                                     # a failed attempt: not complete, so --why compares the parts
     assert record.why(p) == ["nothing changed since it last ran: it did not complete (failed or stopped)"]
     del written["format"]                                                  # as before the key
     file.write_text(json.dumps(written), encoding="utf-8")
     assert record.why(p) == ["nothing changed since it last ran: it did not complete (failed or stopped)"]
     file.write_text(json.dumps({**written, "format": record.FORMAT + 1}), encoding="utf-8")
-    with pytest.raises(HeimdallError, match="format 2") as caught:
+    with pytest.raises(HeimdallError, match="format 3") as caught:
         record.why(p)
     assert "update Heimdall" in caught.value.hint
 

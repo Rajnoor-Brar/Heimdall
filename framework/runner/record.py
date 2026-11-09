@@ -51,8 +51,10 @@ from .tools import DEFAULT_SEED_RANGE, PointPlan, package_states, version_of
 
 
 #: The layout version of a record file: points.json, provenance.json and identity.json carry it as `format`, plot.toml
-#: in [source]. A file without it is format 0 (before the key), read as it always was; a newer one is refused.
-FORMAT = 1
+#: in [source]. A file without it is format 0 (before the key), read as it always was; a newer one is refused. 2: an
+#: identity hashes each tool's final config, with no base card hashes (doc:identity), so an older Heimdall, which would
+#: take every point as stale, refuses a record instead.
+FORMAT = 2
 
 
 def check_format(data, where: str) -> None:
@@ -186,7 +188,7 @@ def seed_of(identity_hex: str, threads: int, seed_range: tuple[int, int] = DEFAU
 
 def seed_basis(plan: PointPlan, replica: bool = True) -> str:
     """What the seeds follow: the identity of the event generators (`produces_events`), without their
-    argv (which names this point's FIFOs) or card comments, whether they run or are only exported to
+    argv (which names this point's FIFOs), whether they run or are only exported to
     an integrated program. A detector simulation downstream does not move the generator's seeds.
     Without `replica`, the generator setup alone (what a manual seed is checked against)."""
     seeded = []
@@ -194,9 +196,6 @@ def seed_basis(plan: PointPlan, replica: bool = True) -> str:
         if not step.folder.get("tool", "produces_events"):      # the generators, not Delphes
             continue
         parts = {k: v for k, v in step.identity_parts.items() if k != "argv" and (replica or k != "replica")}
-        comment = step.folder.get("card", "comment", "")
-        if comment and "card" in parts:                  # the header comment names the point
-            parts["card"] = [line for line in parts["card"] if not line.startswith(comment)]
         seeded.append(parts)
     if not seeded:
         return plan.identity

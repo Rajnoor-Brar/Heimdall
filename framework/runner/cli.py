@@ -194,7 +194,7 @@ def parser() -> argparse.ArgumentParser:
     state.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as heimdall run's, for the view")
     state.add_argument("--stack", action="store_true", help="the loaded stack instead: each package installed, its release and state; the libraries' versions")
 
-    recs = commands.add_parser("records", help="the record files: `records upgrade` brings them to today's format (a backup of each beside it)")
+    recs = commands.add_parser("records", help="the record files: `records upgrade` gives each its `format` key (a backup of each beside it)")
     recs.add_argument("action", choices=["upgrade"], help="upgrade: add `format` to points.json, provenance.json, identity.json and plot.toml that lack it")
     recs.add_argument("scope", nargs="?", default="", metavar="A[/E[/R]]", help="only this Assignment, Errand or Run (default: every record)")
     recs.add_argument("--dry-run", action="store_true", help="list what it would do, change nothing")
@@ -2736,7 +2736,7 @@ def cmd_clean(args) -> int:
 
 
 def cmd_records(args) -> int:
-    """`heimdall records upgrade [--dry-run] [A[/E[/R]]]`: the record files below the current format listed, and (without
+    """`heimdall records upgrade [--dry-run] [A[/E[/R]]]`: the record files without a `format` listed, and (without
     --dry-run) each given `format`, a copy of it beside it first (`<name>.bak`). The layout moves of `heimdall migrate
     --layout` are counted and left to it: they are a work dir's, staged, and its own to apply."""
     from . import migrate

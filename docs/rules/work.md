@@ -14,6 +14,7 @@ Only what is open. Finished work leaves: its decisions and live doc stay in `doc
 | `.plans/ISSUES.md` | pending work, one issue a task, at most about ten lines each: what, why, done when; a plan's link if it has one; `idea` labels an idea |
 | `.plans/plans/<slug>/` | a plan in progress: `00_Plan.md` with an execution map, and a file per phase with its tasks, checks and log |
 | `.plans/audits/<slug>.md` | an audit with findings still open |
+| `.plans/implementation/` | a round of implementation: `00_Plan.md` and a file per phase; `Implementation_Notes.md` (decisions the implementer made off-plan); `Implementation_Issues.md` (findings left open); `Postponed.md` (items read and left for a later round, the next planning's input) |
 
 ## Live docs
 

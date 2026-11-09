@@ -574,3 +574,33 @@ def test_an_entry_of_a_newer_heimdall_is_listed_and_never_acted_on(capsys, monke
     assert not runs.queue_file(run_id).exists()                    # nothing was asked of it
     assert cli.main(["runs", "--again", old]) in (0, 2)             # an old entry is acted on as before: its own errors only
     assert "newer Heimdall" not in capsys.readouterr().err
+
+
+def test_a_pids_start_time_falls_back_to_ps_where_proc_cannot_be_read(monkeypatch):
+    """Without /proc (macOS) the start text is `ps -o lstart=`'s; a pid reused by another process has another text and is
+    not alive; a `ps` that fails, is missing or prints nothing gives ""."""
+    monkeypatch.setattr(runs, "_read", lambda path: "")
+    asked = []
+
+    def ps(says, code=0):
+        def run(argv, **kw):
+            asked.append(argv)
+            return subprocess.CompletedProcess(argv, code, stdout=says, stderr="")
+        return run
+
+    monkeypatch.setattr(runs.subprocess, "run", ps("Mon Nov  9 10:00:00 2026\n"))
+    assert runs.started_at(os.getpid()) == "Mon Nov  9 10:00:00 2026" and asked[0][:3] == ["ps", "-o", "lstart="]
+    mine = runs.RunEntry.parse({**runs.here(), "id": "x"})
+    assert mine.pstart == "Mon Nov  9 10:00:00 2026" and runs.alive(mine) is True
+    other = runs.RunEntry.parse({**runs.here(), "id": "x", "pstart": "Tue Nov 10 11:00:00 2026"})
+    assert runs.alive(other) is False and runs.state(other) == "lost"            # the pid is another process's now
+    monkeypatch.setattr(runs.subprocess, "run", ps("", code=1))
+    assert runs.started_at(os.getpid()) == ""
+    monkeypatch.setattr(runs.subprocess, "run", ps("\n"))
+    assert runs.started_at(os.getpid()) == ""
+
+    def missing(argv, **kw):
+        raise FileNotFoundError("ps")
+
+    monkeypatch.setattr(runs.subprocess, "run", missing)
+    assert runs.started_at(os.getpid()) == ""

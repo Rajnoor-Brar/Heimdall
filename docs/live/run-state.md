@@ -15,6 +15,8 @@ issue: implementation round 1
 
 **Versions.** `runs.VERSION` is 2, written by `begin` as `v`; an entry with `v` 1 or none reads and acts as before. An entry of a newer version (`RunEntry.newer`) is listed with ` (newer Heimdall)` after its state, and is never acted on: `stop` and `stop -i`, `--resume`, `--again`, `--dispatch`, `--forget`, `--jobs` and the keys of `runs -i` refuse it with "this entry is from a newer Heimdall" (an old reader must not act on a meaning it does not know).
 
+**A pid's start time** (`runs.started_at`, how a reused pid is told from the run's own) is `/proc/<pid>/stat`'s on Linux and, where that cannot be read, `ps -o lstart=`'s text, or `""` when `ps` is missing, fails or says nothing.
+
 **No longer holds:** `house.state_word`, which cut a state's text back to its first word, and `house.RUN_STATES`.
 
 **Decisions:** a verdict that is free text (`the runner failed: …`, `killed by signal 9`) has the word its exit code gives (`not run`, `exit`) and prints as it was written. A finished entry with no verdict, no state and an unlisted code is `ended`.

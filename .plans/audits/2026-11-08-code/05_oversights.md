@@ -20,7 +20,7 @@ Each queued run is a sleeping process. After a reboot, `runs.alive` sees a new b
 `runs/` is in Himinbjorg and read by every checkout (invariants). `runs.VERSION = 1` (`runs.py:40`), though the queue added nine fields. An older checkout reading a queued entry has no idea of `queued`: it sees a live pid and calls it "running". Its `--resume` or `stop` would act on a waiter. This is I-68's subject, from the other side: old readers of new files.
 **Move:** bump `VERSION` when an entry's meaning changes, and have a reader refuse to act on an entry of a newer version than it knows ("this entry is from a newer Heimdall"). **Closes when:** both hold, with a test.
 
-### O-7 Pid reuse is guarded only on Linux · Nit · CONFIRMED
+### O-7 Pid reuse is guarded only on Linux · Nit · CONFIRMED · closed 2.7 (on Linux unchanged; proven on macOS only when I-82 runs there)
 `runs.started_at` reads `/proc/<pid>/stat` and returns `""` elsewhere (`runs.py:78–84`). `alive` then trusts the bare pid (`runs.py:285`). On macOS (I-82, unproven) a reused pid makes a dead run look alive, so `heimdall stop` could signal a stranger's process of the same user.
 **Move:** `ps -o lstart= -p PID` as the fallback start time. **Closes when:** `started_at` is non-empty on macOS.
 

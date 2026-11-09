@@ -225,10 +225,17 @@ def _read(path: str) -> str:
 
 def started_at(pid: int) -> str:
     """A pid's start time in clock ticks since boot (Linux /proc/<pid>/stat, field 22): a pid reused by another
-    process has another. "" where there is no /proc."""
+    process has another. Where /proc cannot be read (macOS), what `ps -o lstart=` says (a date text, which tells two
+    processes of one pid apart as well); "" when neither tells."""
     text = _read(f"/proc/{pid}/stat")
     fields = text[text.rfind(")") + 2:].split() if ")" in text else []
-    return fields[19] if len(fields) > 19 else ""
+    if len(fields) > 19:
+        return fields[19]
+    try:
+        done = subprocess.run(["ps", "-o", "lstart=", "-p", str(pid)], capture_output=True, text=True, timeout=2, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return done.stdout.strip() if done.returncode == 0 else ""
 
 
 def user() -> str:

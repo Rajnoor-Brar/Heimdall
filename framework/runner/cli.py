@@ -490,7 +490,7 @@ def _planned_points(errand, configuration, master, points):
     for point in points:
         plan = tools.plan_point(errand, configuration, point, master, pre=pre_plan)
         plan.identity = record.identity(plan)
-        if configuration.library:                # the points library (points-library P4): the key it pools the point by
+        if configuration.library or library.linked(plan):   # the points library (points-library P4), or an adopted Run's point
             plan.library = library.key(plan)
         plans.append(plan)
     return pre_plan, plans

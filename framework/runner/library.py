@@ -93,6 +93,15 @@ def link(plan: PointPlan) -> bool:
     return changed
 
 
+def linked(plan: PointPlan) -> bool:
+    """Whether the point's folder in its Run is a link into the library: a Run `heimdall library adopt` moved in, whose config
+    may not pool. Its plan is a library point all the same, so it reads complete through the link (the entry's .complete
+    holds the key, not the identity), and a run of it writes its own entry under the entry's lock, never through a link
+    another Run shares."""
+    at = plan.folders.points / plan.point.name
+    return at.is_symlink() and Path(os.readlink(at)).parent.name == FOLDER
+
+
 def link_into(link: Path, entry: Path) -> bool:
     """`link` made a relative link to the folder `entry` (within the Assignment): True when made or changed. A link to another
     folder is replaced, an empty folder of the Run's own is replaced, and one with anything in it is refused."""

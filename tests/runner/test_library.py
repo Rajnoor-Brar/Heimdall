@@ -106,7 +106,8 @@ def test_the_manifest_names_the_library_and_its_key_is_the_identity_it_holds(tre
     made = record.points_manifest([plan], p.errand, p.configuration)
     entry = made["points"][0]
     assert entry["library"] == plan.library[:16] and entry["identity"] == plan.library and entry["complete"] is True
-    assert "library" not in record.points_manifest([planned("Demo/jets", "pdf").every[0]], p.errand, p.configuration)["points"][0]
+    unlinked = planned("Demo/jets", "pdf").every[1]                  # [0]'s folder is a link now, so it plans as a library point
+    assert "library" not in record.points_manifest([unlinked], p.errand, p.configuration)["points"][0]
 
 
 def test_every_reader_passes_through_a_linked_point(trees):
@@ -315,6 +316,19 @@ def test_adopt_files_a_runs_complete_points_under_the_key_a_plan_gives_and_links
     entries = library.entries("Demo")
     assert len(entries) == 4 and all(e["first_run"] == run for e in entries.values())
     assert {e["coordinates"]["pdf"] for e in entries.values()} == {q.point.name for q in p.every}
+
+
+def test_an_adopted_run_stays_complete_for_its_own_config_that_does_not_pool(lib_configs, capsys):
+    p, run = own_run("Demo/plain_a")
+    assert cli.main(["library", "adopt", run, "--yes"]) == 0
+    capsys.readouterr()
+    mine = planned("Demo/plain_a", "pdf")                          # the Run's own config: no [errand].library
+    assert str(mine.every[0].folders.record.relative_to(records_root())) == run   # the same Run, not a new number
+    for plan in mine.every:
+        assert plan.library == library.key(plan) and record.is_complete(plan)
+        assert record.record_dir(plan) == plan.folders.library_entry(plan.library)  # a rerun writes the entry, not the link
+    assert cli.main(["status", "Demo/plain_a", "pdf"]) == 0
+    assert f"({run}): 4 complete" in capsys.readouterr().out
 
 
 def test_a_second_runs_same_physics_is_linked_and_its_own_folders_kept_until_prune_duplicates(lib_configs, capsys):

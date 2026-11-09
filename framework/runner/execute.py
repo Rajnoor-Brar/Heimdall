@@ -56,11 +56,11 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from . import hepfiles
+from . import hepfiles, library
 from .errors import HeimdallError
 from .paths import keeping, log_settings, placeholders, portable
 from .record import (LOCK_FILE, PointLock, append_attempt, attempts, card_hashes, complete_marker, held_by, holder,
-                     index_note, is_complete, library_entries, link_library, marker_text, now, stale, provenance, provenance_file, write_atomic, write_identity)
+                     is_complete, marker_text, now, stale, provenance, provenance_file, write_atomic, write_identity)
 from .status import Reader, ToolState, clean_text, digest
 from .tools import CONTEXT_FILE, PointPlan, Step, expand
 
@@ -658,7 +658,7 @@ def run_point(plan: PointPlan, errand, configuration, *, bus=None, stopper: Stop
             bus.emit(plan.point.name, "", {"k": "point", "state": "skipped", "index": plan.point.index, **stage})
             return PointResult(False, held=True)
         if plan.library:                               # idempotent: the Run's links into the library (a cluster job's too)
-            link_library(plan)
+            library.link(plan)
         return _run_point(plan, errand, configuration, bus=bus, stopper=stopper, logs=logs)
     finally:
         lock.release()
@@ -713,7 +713,7 @@ def _run_point(plan: PointPlan, errand, configuration, *, bus, stopper: Stopper,
     write_identity(plan)                          # what it ran with, for --why (V57)
     write_atomic(complete_marker(plan), marker_text(plan) + "\n")
     if plan.library:                              # the library's index: made here, or made again
-        index_note(plan, errand, "rerun" if plan.library in library_entries(plan.folders.assignment) else "created")
+        library.note(plan, errand, "rerun" if plan.library in library.entries(plan.folders.assignment) else "created")
     _tidy(plan)
     result = PointResult(True, tools=results)
     _finished(plan, result, bus, started)

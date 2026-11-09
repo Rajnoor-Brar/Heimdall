@@ -10,7 +10,7 @@ import os
 
 import pytest
 
-from runner import cli, house, record, results
+from runner import cli, house, library, record, results
 from runner.errors import HeimdallError
 from runner.paths import records_root, results_root
 
@@ -21,14 +21,14 @@ def pooled(name="Demo/jets", key="pdf"):
     """A configuration's plans with each generation point given its library key, as phase 4's planning does."""
     p = planned(name, key)
     for plan in p.every:
-        plan.library = record.library_key(plan)
+        plan.library = library.key(plan)
     return p
 
 
 def test_a_library_point_links_relatively_into_the_assignments_library(trees):
     p = pooled()
     plan = p.every[0]
-    assert record.link_library(plan) is True and record.link_library(plan) is False       # again: nothing to do
+    assert library.link(plan) is True and library.link(plan) is False       # again: nothing to do
     link = plan.folders.points / plan.point.name
     assert link.is_symlink() and os.readlink(link) == f"../../../library/{plan.library[:16]}"
     assert link.resolve() == (records_root() / "Demo" / "library" / plan.library[:16]).resolve()
@@ -39,11 +39,11 @@ def test_a_library_point_links_relatively_into_the_assignments_library(trees):
 
 def test_a_point_complete_through_its_link_is_complete_for_every_run_with_its_key(trees):
     first = pooled().every[0]
-    record.link_library(first)
+    library.link(first)
     assert not record.is_complete(first)
     finished(first)                                                   # writes through the links
     record.write_atomic(record.complete_marker(first), record.marker_text(first) + "\n")
-    assert (record.library_entry(first) / ".complete").read_text(encoding="utf-8").strip() == first.library
+    assert (first.folders.library_entry(first.library) / ".complete").read_text(encoding="utf-8").strip() == first.library
     assert record.is_complete(first) and record.recorded_identity(first) == first.identity
     other = pooled("Demo/jets", "pdf").every[0]                      # another Run's plan of the same point
     other.identity = "0" * 64                                         # … with another name's identity
@@ -55,25 +55,25 @@ def test_a_point_complete_through_its_link_is_complete_for_every_run_with_its_ke
 def test_a_name_that_changed_physics_is_relinked_and_a_folder_of_the_runs_own_is_refused(trees):
     p = pooled()
     plan = p.every[0]
-    record.link_library(plan)
+    library.link(plan)
     old = plan.library
     plan.library = "a" * 64
-    assert record.link_library(plan) is True and os.readlink(plan.folders.points / plan.point.name).endswith("a" * 16)
+    assert library.link(plan) is True and os.readlink(plan.folders.points / plan.point.name).endswith("a" * 16)
     assert (records_root() / "Demo" / "library" / old[:16]).is_dir()      # the old entry stays
     mine = p.every[1]
     (mine.folders.points / mine.point.name).mkdir(parents=True)
     (mine.folders.points / mine.point.name / "provenance.json").write_text("{}", encoding="utf-8")
     with pytest.raises(HeimdallError, match="folder of this Run's own"):
-        record.link_library(mine)
+        library.link(mine)
     empty = p.every[2]
     (empty.folders.points / empty.point.name).mkdir(parents=True)
-    assert record.link_library(empty) is True                          # an empty one is replaced
+    assert library.link(empty) is True                          # an empty one is replaced
 
 
 def test_one_lock_serves_every_run_of_an_entry(trees):
     plan = pooled().every[0]
     other = pooled().every[0]
-    assert record.lock_file(plan) == record.library_entry(plan) / ".lock" != plan.out / ".lock"
+    assert record.lock_file(plan) == plan.folders.library_entry(plan.library) / ".lock" != plan.out / ".lock"
     lock, second = record.PointLock(plan), record.PointLock(other)
     assert lock.acquire() and not second.acquire()
     assert record.holder(other) is not None
@@ -85,22 +85,22 @@ def test_one_lock_serves_every_run_of_an_entry(trees):
 def test_the_index_folds_its_lines_and_passes_over_a_cut_one(trees):
     p = pooled()
     plan, errand = p.every[0], p.errand
-    record.index_note(plan, errand, "created")
-    record.index_note(plan, errand, "used")
-    path = record.library_index_file("Demo")
+    library.note(plan, errand, "created")
+    library.note(plan, errand, "used")
+    path = library.index_file("Demo")
     path.write_text(path.read_text(encoding="utf-8") + '{"kind": "used", "key"\n', encoding="utf-8")      # a write cut short
-    record.index_note(plan, errand, "rerun")
-    entry = record.library_entries("Demo")[plan.library]
+    library.note(plan, errand, "rerun")
+    entry = library.entries("Demo")[plan.library]
     assert entry["first_run"] == entry["runs"][0] == str(plan.folders.record.relative_to(records_root()))
     assert entry["events"] == plan.events and entry["seed"] == plan.seed and entry["reruns"] == 1
     assert entry["coordinates"]["pdf"] == plan.point.name and set(entry["coordinates"]) >= {"pdf"}
-    assert len(record.library_entries("Demo")) == 1 and record.library_entries("Nowhere") == {}
+    assert len(library.entries("Demo")) == 1 and library.entries("Nowhere") == {}
 
 
 def test_the_manifest_names_the_library_and_its_key_is_the_identity_it_holds(trees):
     p = pooled()
     plan = p.every[0]
-    record.link_library(plan)
+    library.link(plan)
     finished(plan)
     record.write_atomic(record.complete_marker(plan), record.marker_text(plan) + "\n")
     made = record.points_manifest([plan], p.errand, p.configuration)
@@ -112,7 +112,7 @@ def test_the_manifest_names_the_library_and_its_key_is_the_identity_it_holds(tre
 def test_every_reader_passes_through_a_linked_point(trees):
     p = pooled()
     plan = p.every[0]
-    record.link_library(plan)
+    library.link(plan)
     finished(plan)
     record.write_atomic(record.complete_marker(plan), record.marker_text(plan) + "\n")
     (plan.res / "x.yoda").write_text("BEGIN YODA_HISTO1D_V2 /A\nEND YODA_HISTO1D_V2\n", encoding="utf-8")
@@ -133,7 +133,7 @@ def test_a_page_document_of_a_planned_library_point_reads_back_complete(trees):
     from runner import plotdoc
     p = pooled()
     plan = p.every[0]
-    record.link_library(plan)
+    library.link(plan)
     finished(plan)
     record.write_atomic(record.complete_marker(plan), record.marker_text(plan) + "\n")
     (plan.res / "x.yoda").write_text("BEGIN YODA_HISTO1D_V2 /A\nEND YODA_HISTO1D_V2\n", encoding="utf-8")
@@ -195,7 +195,7 @@ def test_two_errands_plan_one_physics_as_one_library_point(lib_configs):
 
 def test_a_point_the_first_errand_made_is_complete_for_the_second_with_the_seed_it_had(lib_configs):
     first = planned("Demo/lib_a", "pdf").every[0]
-    record.link_library(first)
+    library.link(first)
     finished(first)                                                       # provenance seed 1
     record.write_atomic(record.complete_marker(first), record.marker_text(first) + "\n")
     second = planned("Demo/lib_b", "pdf")
@@ -209,10 +209,10 @@ def test_a_point_the_first_errand_made_is_complete_for_the_second_with_the_seed_
 def test_a_run_links_its_pooled_points_notes_the_library_and_names_who_a_rerun_replaces(lib_configs):
     first = planned("Demo/lib_a", "pdf")
     a = first.every[0]
-    record.link_library(a)
+    library.link(a)
     finished(a)
     record.write_atomic(record.complete_marker(a), record.marker_text(a) + "\n")
-    record.index_note(a, first.errand, "created")
+    library.note(a, first.errand, "created")
     second = planned("Demo/lib_b", "pdf")
     said = Said()
     cli.pool_points(second.every, second.errand, False, said)
@@ -221,7 +221,7 @@ def test_a_run_links_its_pooled_points_notes_the_library_and_names_who_a_rerun_r
     assert said.lines == [f"   note: 1 point(s) come from the library, not run again (first made by "
                            f"{a.folders.record.relative_to(records_root())})"]
     assert second.every[1].folders.points.joinpath(second.every[1].point.name).is_symlink()            # a miss is linked too
-    entry = record.library_entries("Demo")[hit.library]
+    entry = library.entries("Demo")[hit.library]
     assert entry["runs"] == [str(a.folders.record.relative_to(records_root())), str(hit.folders.record.relative_to(records_root()))]
     said = Said()
     cli.pool_points(second.every, second.errand, True, said)
@@ -231,10 +231,10 @@ def test_a_run_links_its_pooled_points_notes_the_library_and_names_who_a_rerun_r
 
 def test_plan_and_why_say_what_the_library_gives(lib_configs, capsys):
     a = planned("Demo/lib_a", "pdf").every[0]
-    record.link_library(a)
+    library.link(a)
     finished(a)
     record.write_atomic(record.complete_marker(a), record.marker_text(a) + "\n")
-    record.index_note(a, planned("Demo/lib_a", "pdf").errand, "created")
+    library.note(a, planned("Demo/lib_a", "pdf").errand, "created")
     assert cli.main(["run", "Demo/lib_b", "pdf", "--why"]) == 0
     assert f"x_{a.point.name}   from the library (first by {a.folders.record.relative_to(records_root())})" in capsys.readouterr().out
     assert cli.main(["run", "Demo/lib_b", "pdf", "--plan"]) == 0
@@ -244,23 +244,23 @@ def test_plan_and_why_say_what_the_library_gives(lib_configs, capsys):
 def test_an_only_run_removes_its_links_and_never_an_entry(lib_configs):
     p = planned("Demo/lib_a", "pdf")
     for plan in p.every:
-        record.link_library(plan)
+        library.link(plan)
     finished(p.every[0])
-    record.unlink_run(p.every)
+    library.unlink_run(p.every)
     for plan in p.every:
         assert not (plan.folders.points / plan.point.name).exists() and not plan.res.exists()
     assert not p.every[0].folders.points.exists()
-    assert (record.library_entry(p.every[0]) / "provenance.json").is_file()      # the entry stays
+    assert (p.every[0].folders.library_entry(p.every[0].library) / "provenance.json").is_file()      # the entry stays
 
 
 def test_clean_removes_a_runs_link_into_the_library_and_never_the_entry(lib_configs):
     p = planned("Demo/lib_a", "pdf")
     plan = p.every[0]
-    record.link_library(plan)
+    library.link(plan)
     finished(plan)
     gone = p.every[1]
-    record.link_library(gone)
-    record.link_library(plan)
+    library.link(gone)
+    library.link(plan)
     # a Run that no longer plans its second point: its link is a target of `clean --records`, its entry is not
     narrower = dataclasses.replace(p, every=[plan], plans=[plan])
     outs, _ = house.clean_targets([narrower], False, records=True)
@@ -268,15 +268,12 @@ def test_clean_removes_a_runs_link_into_the_library_and_never_the_entry(lib_conf
     assert link in outs and plan.folders.points / plan.point.name not in outs
     house.remove(outs)
     assert not link.exists() and not link.is_symlink()
-    assert record.library_entry(gone).is_dir() and (record.library_entry(plan) / "provenance.json").is_file()
+    assert gone.folders.library_entry(gone.library).is_dir() and (plan.folders.library_entry(plan.library) / "provenance.json").is_file()
 
 
 # ── heimdall library (P5) ────────────────────────────────────────────────────────────────────────────
 
-import hashlib
 import shutil
-
-from runner import migrate
 
 
 def own_run(name: str):
@@ -305,17 +302,17 @@ def test_adopt_files_a_runs_complete_points_under_the_key_a_plan_gives_and_links
     assert cli.main(["library", "adopt", run, "--yes"]) == 0
     assert capsys.readouterr().out.count("move ") == 4
     for plan in p.every:
-        key = record.library_key(plan)                           # the key a library plan of it has
+        key = library.key(plan)                           # the key a library plan of it has
         link = plan.folders.points / plan.point.name
         assert link.is_symlink() and (records_root() / "Demo" / "library" / key[:16] / ".complete").read_text(encoding="utf-8").strip() == key
         assert (plan.res / "jets.yoda").is_file() and (results_root() / "Demo" / "library" / key[:16] / "jets.yoda").is_file()
     manifest = json.loads(p.every[0].folders.manifest.read_text(encoding="utf-8"))
-    assert [e["library"] for e in manifest["points"]] == [record.library_key(q)[:16] for q in p.every]
+    assert [e["library"] for e in manifest["points"]] == [library.key(q)[:16] for q in p.every]
     again = planned("Demo/lib_a", "pdf")                           # the same physics, planned as a library point now
     assert all(record.is_complete(q) for q in again.every)
     assert cli.main(["library", "adopt", run, "--yes"]) == 0
     assert capsys.readouterr().out.count("already in the library") == 4
-    entries = record.library_entries("Demo")
+    entries = library.entries("Demo")
     assert len(entries) == 4 and all(e["first_run"] == run for e in entries.values())
     assert {e["coordinates"]["pdf"] for e in entries.values()} == {q.point.name for q in p.every}
 
@@ -363,7 +360,7 @@ def test_prune_removes_what_no_run_links_and_verify_reports_what_is_wrong(lib_co
     assert cli.main(["library", "prune", "--yes"]) == 0
     assert capsys.readouterr().out.count("removed Demo/library") == 3
     assert [d for d in (records_root() / "Demo" / "library").iterdir() if d.is_dir()] == []
-    assert len(record.library_entries("Demo")) == 1                # the index forgets what prune removed; the one removed by hand stays
+    assert len(library.entries("Demo")) == 1                # the index forgets what prune removed; the one removed by hand stays
 
 
 def test_adopt_leaves_what_is_not_complete(lib_configs, capsys):

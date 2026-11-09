@@ -27,7 +27,7 @@ from pathlib import Path
 
 from . import cluster as clustermod
 from . import config as configmod
-from . import execute, house, paths, plot, plotdoc, post, record, runs, sweep, tools
+from . import execute, house, library, paths, plot, plotdoc, post, record, runs, sweep, tools
 from . import doctor as doctormod
 from . import setup as setupmod
 from .errors import HeimdallError, did_you_mean
@@ -488,7 +488,7 @@ def _planned_points(errand, configuration, master, points):
         plan = tools.plan_point(errand, configuration, point, master, pre=pre_plan)
         plan.identity = record.identity(plan)
         if configuration.library:                # the points library (points-library P4): the key it pools the point by
-            plan.library = record.library_key(plan)
+            plan.library = library.key(plan)
         plans.append(plan)
     return pre_plan, plans
 
@@ -671,7 +671,7 @@ def print_plan(errand, configuration, plans, post_plan=None, pre_plan=None, comb
     for plan in plans:
         state = "complete" if record.is_complete(plan) else "to run"
         if plan.library:
-            state += f"; library {plan.library[:16]}" + (f", first by {first}" if (first := record.library_first(plan)) else "")
+            state += f"; library {plan.library[:16]}" + (f", first by {first}" if (first := library.first(plan)) else "")
         for line in tools.describe(plan, errand):
             print(line)
         print(f"  output  {plan.out}\n  results {plan.res}   ({state})")
@@ -693,7 +693,7 @@ def print_why(errand, configuration, plans, post_plan=None, pre_plan=None, combi
     print(f"run {errand.name} · configuration {configuration.key}: {len(todo)} of {len(stages)} to run")
     for plan in stages:
         if plan.library and record.is_complete(plan):
-            print(f"{plan.point.name}   from the library (first by {record.library_first(plan) or '?'})")
+            print(f"{plan.point.name}   from the library (first by {library.first(plan) or '?'})")
     for plan in todo:
         print(f"{plan.point.name}   identity {plan.identity[:12]}")
         for line in record.why(plan):
@@ -1513,20 +1513,20 @@ def not_run(path: Path | None, title: str, message: str, following: Path | None,
 
 def pool_points(plans: list, errand, rerun, bus) -> None:
     """The points library at a run's start (points-library P4): each pooled point of this run is linked into it
-    (`record.link_library`), a Run that links an entry the index does not yet name for it is noted (`used`), and what the
+    (`library.link`), a Run that links an entry the index does not yet name for it is noted (`used`), and what the
     library gives and what `--rerun` replaces is said: the Runs a rerun entry serves are named."""
     pooled = [p for p in plans if p.library]
     if not pooled:
         return
-    entries = record.library_entries(pooled[0].folders.assignment)
+    entries = library.entries(pooled[0].folders.assignment)
     here = str(pooled[0].folders.record.relative_to(records_root()))
     hits, replaced = [], {}
     for plan in pooled:
-        record.link_library(plan)
+        library.link(plan)
         known = entries.get(plan.library)
         complete = record.is_complete(plan)
         if known and here not in known["runs"] and (complete or rerun):
-            record.index_note(plan, errand, "used")
+            library.note(plan, errand, "used")
         if complete and not rerun:
             hits.append((plan, known))
         elif rerun and known:
@@ -1627,7 +1627,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
                       "parallelism": stopper.cap(configuration.parallelism),
                       "cores": max((execute.cores(p) for p in plans), default=1),
                       "record": str(records_root() / tools.run_dir(errand, configuration)),    # the registry's (V182)
-                      **({"library": [str(record.library_entry(p)) for p in plans if p.library]} if only_library else {}),
+                      **({"library": [str(p.folders.library_entry(p.library)) for p in plans if p.library]} if only_library else {}),
                       **({"tag": tag} if tag else {}),
                       **({"header": title_line} if title_line else {}), **({"constants": known} if known else {})})
     if crowded(configuration, plans):
@@ -1742,7 +1742,7 @@ def run_one(args, key: str, stopper: execute.Stopper, *, number: int = 0, follow
         shown.end()
         manifest()
         if only_library:                     # points into the library, no Run kept: its links go, the entries stay
-            record.unlink_run(plans)
+            library.unlink_run(plans)
         bus.unsubscribe(tally)
         bus.unsubscribe(run_log)
         run_log.close()
@@ -2705,10 +2705,9 @@ def cmd_records(args) -> int:
 
 
 def cmd_library(args) -> int:
-    """`heimdall library list | verify | prune | adopt` (points-library P5): house.library_* and migrate.adopt_points. `prune`
+    """`heimdall library list | verify | prune | adopt` (points-library P5): `library.list_lines`, `verify`, `prune` and `adopt`. `prune`
     and `adopt` change nothing without `--yes`; `verify` and `list` read only. `adopt` and a real prune wait while a job of
     the work dir goes."""
-    from . import migrate
     from .paths import work_root
     if args.yes and args.dry_run:
         raise HeimdallError("--yes and --dry-run: one or the other")
@@ -2723,16 +2722,16 @@ def cmd_library(args) -> int:
         raise HeimdallError(f"a job of this work dir is going (pid {going[0].get('pid')})",
                             hint="change the library when it has ended (heimdall runs lists it)")
     if args.action == "list":
-        lines = house.library_list(args.scope)
+        lines = library.list_lines(args.scope)
     elif args.action == "verify":
-        lines, problems = house.library_verify(args.scope)
+        lines, problems = library.verify(args.scope)
         for line in lines:
             print(line)
         return 1 if problems else 0
     elif args.action == "prune":
-        lines = house.library_prune(args.scope, yes=args.yes, duplicates=args.duplicates)
+        lines = library.prune(args.scope, yes=args.yes, duplicates=args.duplicates)
     else:
-        lines = migrate.adopt_points(args.scope, apply=args.yes)
+        lines = library.adopt(args.scope, apply=args.yes)
     for line in lines:
         print(line)
     return 0

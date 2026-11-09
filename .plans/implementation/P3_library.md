@@ -1,6 +1,6 @@
 # Phase 3: one library module
 
-Status: not started. Blocked by: phase 0. Closes S-3 and D-8. It is the precondition of I-25's deletion of `migrate.py`.
+Status: done 2026-11-09 (3.1). Blocked by: phase 0. Closes S-3 and D-8. It is the precondition of I-25's deletion of `migrate.py`.
 
 **Today:** the library is in three modules:
 - **`record.py`:** `_without_comments` (`:89`), `library_parts`, `library_key`, `library_key_of_recorded`, `LIBRARY`, `LIBRARY_INDEX`, `library_entry`, `library_products`, `link_library`, `link_into`, `unlink_run`, `library_first`, `library_index_file`, `index_note`, `index_append`, `library_links`, `library_entries` (`:101–296`), and `_library_seed` (`:455`);
@@ -29,3 +29,7 @@ Status: not started. Blocked by: phase 0. Closes S-3 and D-8. It is the precondi
 - Blocked by: 0.
 
 ## Log
+
+- 3.1: `framework/runner/library.py` (rank 3 in `RANKS`) now holds the points library: `parts`, `key`, `key_of_recorded`, `link`, `link_into`, `unlink_run`, `first`, `index_file`, `note`, `append`, `links`, `entries`, `assignments`, `list_lines`, `verify`, `prune`, `DUPLICATE`, `adopt`. `record.py` keeps `marker_text`, `recorded_identity`, `lock_file`, `record_dir` and `_library_seed`, and reaches an entry by `plan.folders.library_entry(plan.library)`; `tools.RunFolders` gained `library_entry(key)` and `library_product(key)`. `house.py` lost its library section and `migrate.py` lost `adopt_points`; `cli`, `execute` and the tests import from `library`, and nothing re-exports. `house._size` and `house._human` moved to `paths.disk_size` and `paths.human_size`, which `house` and `library` both use. In `cli.cmd_library` the refusal while a job of the work dir goes stays; its `migrate` import went. Live doc: Decisions and Stable-pages-need in `points-library.md`; the `library.*` names in its prose. Marks: S-3 and D-8.
+  - Checks: `grep -rn "def library_\|adopt_points" framework/runner` finds only `RunFolders`' own `library_records`/`library_results`/`library_entry`/`library_product` methods in `tools.py` (the plan's check meant the `library_*` functions; none is left in `record`, `house` or `migrate`). `test_library`, `test_library_key`, `test_migrate`, `test_imports`, `test_identity_golden`: 64 passed. `test_library_share.py` alone: 1 passed (11 s). Identity and seed unchanged: the golden test passes without edits.
+  - Off-plan: the local variables that shadowed the new function names (`links`, `link`) were renamed (`linked`, `at`). `_key_of` became `_hash` (it also hashes a recorded identity in `adopt`).

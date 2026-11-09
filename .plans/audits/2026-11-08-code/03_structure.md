@@ -24,7 +24,7 @@ The stable rank table calls it "argparse … the order of events". 45 relative i
 Its 58 definitions hold `ls`, `explain` (`_special`, 72 lines), the run listing (`runs_listing`, 129 lines; `live_line`, colours, OSC 8 links), `log_target`, `tag_lines`, `show_data` and `show_lines`, `status`, `clean_targets`, and `library_list`, `library_verify` and `library_prune`. Its rank-table row (`docs/stable/internals/runner.md`) names four of them.
 **Move:** split by subject: `listing.py` (runs), `show.py` (log, show, tag), `library.py` ([S-3](#s-3)), and `house.py` keeps ls, explain, status and clean. **Closes when:** the rank table's row is true of each file.
 
-### S-3 The points library is spread over three modules · Required · CONFIRMED
+### S-3 The points library is spread over three modules · Required · CONFIRMED · closed 3.1
 - Key, entry, links and index in `record.py:101–296` (`library_parts`, `library_key`, `link_library`, `unlink_run`, `index_append`, `library_entries` and more).
 - List, verify and prune in `house.py:1192–1313`.
 - Adopt in `migrate.py:1474` (`adopt_points`, `DUPLICATE`).

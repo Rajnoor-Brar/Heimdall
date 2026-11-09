@@ -148,7 +148,7 @@ One file at a time, one item at a time. "→ Pn.m" is built in that step. "→ P
 | 0 | not started |
 | 1 | done 2026-11-09 (1.1–1.5) |
 | 2 | done 2026-11-09 (2.1–2.7) |
-| 3 | not started |
+| 3 | done 2026-11-09 |
 | 4 | not started |
 | 5 | not started |
 | 6 | not started |

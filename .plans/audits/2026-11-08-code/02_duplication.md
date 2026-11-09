@@ -45,7 +45,7 @@ See [R-3](01_dead-and-retired.md#r-3). `house.point_state` (tests only) and `hou
 `cli.py:1067,1101,1124,1194,1336`, `execute.py:534`, `record.py:650`, `watch.py:249,696,772`: ten polling loops, each with its own interval, and some with their own deadline. Several wait for the same thing: an entry to appear, a process to end.
 **Move:** `runs.wait_for(predicate, every, deadline)`, used where the loops wait on the registry. **Closes when:** the registry waits are one helper.
 
-### D-8 Library code across three modules · Required · CONFIRMED
+### D-8 Library code across three modules · Required · CONFIRMED · closed 3.1
 See [S-3](03_structure.md#s-3).
 
 ## Sweeps still to run

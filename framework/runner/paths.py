@@ -552,3 +552,21 @@ def config_file(name: str) -> Path:
                        hint="configs are looked up under configs/<A>/<E>.toml; "
                             "start the name with ./ to give a path from the work dir")
     return path
+
+
+def disk_size(path: Path) -> int:
+    """The bytes of a file, or of every file under a folder; 0 for what is not there."""
+    if not path.exists():
+        return 0
+    if path.is_file():
+        return path.stat().st_size
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+
+def human_size(size: int) -> str:
+    """`size` bytes as "12 B", "3.4 kB", "1.2 MB" or "5.6 GB"."""
+    for unit in ("B", "kB", "MB", "GB"):
+        if size < 1000 or unit == "GB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1000
+    return ""

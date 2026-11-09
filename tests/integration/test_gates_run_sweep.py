@@ -1,7 +1,7 @@
-"""V38, the gate (slow: real `heimdall run` processes): under `[errand].sweep_runs = true` the swept
-configurations run one after another, each exactly the run `heimdall run CONFIG <cfg>` makes, after a
-`run NN - <title> -` line; `swept = false` leaves one out; a failed run leaves the next to start; a
-config error anywhere stops everything before it starts; Ctrl-C starts no more runs."""
+"""V38, the gate (slow: real `heimdall run` processes): under `[errand].sweep_runs = true` and `--plain` (no terminal to
+follow a queue of workers) the swept configurations run one after another in the command's own process, each exactly the
+run `heimdall run CONFIG <cfg>` makes, after a `run NN - <title> -` line; `swept = false` leaves one out; a failed run
+leaves the next to start; a config error anywhere stops everything before it starts; Ctrl-C starts no more runs."""
 
 from __future__ import annotations
 
@@ -121,10 +121,10 @@ def test_points_belong_to_one_configuration(scratch):
 
 def test_ctrl_c_starts_no_more_runs(scratch):
     config = sweep_config(scratch, b_nap="yes")                        # b sleeps a minute …
-    text = config.read_text(encoding="utf-8")                          # … on the first of two points, one at a
-    text = text.replace('title  = "Bee"\n', 'title  = "Bee"\nsweeps = ["twice"]\n')   # time: its run has not
-    text = text.replace('consumes   = ["fail", "nap"]', 'consumes   = ["fail", "nap", "twice"]')   # started all its
-    config.write_text(text + '\n[quantities.twice]\nvalues = [1, 2]\n', encoding="utf-8")       # points (V75)
+    text = config.read_text(encoding="utf-8")                          # … on the first of two points, run one at a
+    text = text.replace('title  = "Bee"\n', 'title  = "Bee"\nsweeps = ["twice"]\n')   # time (the added `twice` quantity
+    text = text.replace('consumes   = ["fail", "nap"]', 'consumes   = ["fail", "nap", "twice"]')   # makes two): b is still
+    config.write_text(text + '\n[quantities.twice]\nvalues = [1, 2]\n', encoding="utf-8")       # on its first point
     runner = subprocess.Popen([str(HEIMDALL), "run", str(config), "--plain", "--journal"], cwd=WORK, env=env(scratch),
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
     journal = base(scratch) / "b" / "status.jsonl"

@@ -25,7 +25,7 @@ See [R-7](01_dead-and-retired.md#r-7). The 11 fixture configs are v2, so v3 is p
 The records accumulate across tests, so order matters and `pytest -n` cannot work. With the slow suite at about 25 min under `taskset -c 0-5`, parallel runs would pay for this.
 **Closes when:** I-76's done-when holds.
 
-### T-6 Comments that cite retired decisions · Nit · CONFIRMED
+### T-6 Comments that cite retired decisions · Nit · CONFIRMED · closed 2.6
 `tests/integration/test_gates_run_sweep.py:127` cites V75 for "has not started all its points", pipelining this session retired. Its module docstring (`:1–4`) still describes the sweep in V38's terms. See [G-7](04_design.md#g-7).
 **Closes when:** the test's comments say what it proves now.
 

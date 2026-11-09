@@ -143,6 +143,6 @@ Asked at once, with recommendations; assumptions listed beside them.
 | P1 | done 2026-11-09: [notes/inventory.md](notes/inventory.md); question A answered ("Use 200") |
 | P2 | done 2026-11-09; the rank-table row added on the developer's yes |
 | P3 | done 2026-11-09; the golden file differs at Decay's 29 points (`base_sha256` of the edited fixture), rewritten once after P4 (the developer, 2026-11-09) |
-| P4 | not started |
+| P4 | done 2026-11-10: the golden file rewritten on the developer's yes (193 points) |
 | P5 | not started |
 | P6 | not started |

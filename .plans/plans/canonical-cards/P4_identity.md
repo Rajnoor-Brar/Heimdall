@@ -27,3 +27,13 @@
 - Blocked by: 4.1.
 
 ## Log
+
+- 2026-11-09: 4.0a, 4.0b, 4.1 and 4.2 written.
+  - The rendered tools get their overrides sorted, and the plugins get `rules`, `directives` and `base_names`. sherpa uses `cards.load_tree` and `dump_tree`; whizard inlines its base and reads the directive from `[card] directives`; madgraph cleans its proc card. No header.
+  - An identity's `card` is the final config before seeds, and `base_sha256` is gone, as is the redundant-override rule. A free value has one spelling (`cards.canonical`) instead.
+  - `library.parts` is `identity_parts`, so the key is the identity. `seed_basis` strips nothing.
+  - `record.FORMAT = 2`. `migrate.LAYOUT = 1`: `records upgrade` stops at 1.
+  - `_prepare_key` keys on the final config, or a `key = "base"` folder's base cards, cleaned.
+  - The tests that pinned the old rules changed with them: test_library_key, an adopt test, test_why, test_run_tags, the Whizard plugin test and test_cards. The three xfail marks are off and their tests pass.
+  - Whole suite, slow included: 2357 passed and 5 failed, of which 4 were fixed after (tests of the old rules, the map). The golden test is left.
+  - **The golden diff** (193 of 193 points): `card` and `base_sha256` in every tool; `prepare`, and the `argv` naming the prepare dir, for sherpa (4), herwig (3), madgraph (1) and whizard (1); one exec's argv (the Herwig prepare it reads). Nothing else differs. ⏸ The rewrite waits for the developer's yes.

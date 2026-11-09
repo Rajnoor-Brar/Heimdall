@@ -10,10 +10,14 @@ Pending work, one issue a task: what, why, done when. Rules: [work](../docs/rule
 
 ## Next pieces
 
+### I-150 Update work dir 2's cards for final configs · P3 · held
+Work dir 2's Lambda card (its copy of the Decay fixture's card) sets `HeavyIon:SigFitNGen` twice (`= 200`, then `= 0`), which a `free` folder now refuses at `--plan` (V269). The developer chose 200 for the fixture (canonical-cards P1, answer A) and left work dir 2 for later (2026-11-09). It has no records, so nothing is remade. **Done when:** on the developer's order, the card is backed up and its `= 0` line deleted, and `heimdall run … --plan` of its configurations plans.
+
 ### I-122 Commit the migrated work dirs · P2 · held
 The names' migration (`[errand]`, `heimdall.toml`) is applied uncommitted in two work dirs. They are the developer's. `heimdall migrate --plot-docs --apply` (plot documents by tag) waits on the same yes. **Done when:** the developer has reviewed and committed them, or says otherwise.
 
-### I-149 A rewritten config or card makes new points · P1 · decision
+### I-149 A rewritten config or card makes new points · P1 · open
+**Built 2026-11-10, waits for review:** [canonical-cards](plans/canonical-cards/00_Plan.md) P1–P6 done; work dir 1 remade. The text below is the issue as it was opened.
 Plan: [canonical-cards](plans/canonical-cards/00_Plan.md) (approved 2026-11-09, being built; its answers replace the choice below: the records are remade once rather than read in two forms, and the prepare caches key on the final base): final configs, merged and canonical, with no comments; the identity hashes them.
 One physics should be one identity, whatever the writing. Today (`test_identity_order.py`; three strict xfails):
 - **`vary`'s order:** quantity lines enter the cards in `vary` order, then the static ones (`tools.py:932`), so `["pdf", "energies"]` and `["energies", "pdf"]` give every point a new identity, library key and, by identity seeding, seed and events. The `[quantities.*]` tables' order is already safe.

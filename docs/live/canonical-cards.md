@@ -1,7 +1,7 @@
 ---
 id: live-canonical-cards
 summary: every tool with a card reads a final config with no comments, and the identity hashes it, so one physics is one identity whatever the writing
-affects: tool-contract, tools-pythia, tools-herwig, tools-delphes, tools-sherpa, tools-whizard, tools-madgraph, errand-file, identity, caches, provenance, housekeeping
+affects: outputs, tool-contract, tools-pythia, tools-herwig, tools-delphes, tools-sherpa, tools-whizard, tools-madgraph, errand-file, identity, caches, provenance, housekeeping
 issue: I-149
 ---
 
@@ -61,5 +61,6 @@ issue: I-149
 - [tools-sherpa](../stable/tools/sherpa.md), [tools-whizard](../stable/tools/whizard.md), [tools-madgraph](../stable/tools/madgraph.md): their final configs.
 - [identity](../stable/internals/identity.md): what is hashed (the final config, no `base_sha256`), the library key as the identity, format 2.
 - [caches](../stable/internals/caches.md): the prepare key.
+- [outputs](../stable/guide/outputs.md): `logs/<point>/cards/` holds `<tag>.<ext>`, the final config the tool reads; `<tag>.json`, its sidecar (a `free` folder's: each value, where it came from, what it overrode); and `<tag>.point.<ext>`, the point's own lines, read by no tool.
 - [provenance](../stable/internals/provenance.md) and [housekeeping](../stable/guide/housekeeping.md): record format 2, and that `records upgrade` gives format 1 only.
 - V268–V270 into [errand-file decisions](../stable/design/decisions/errand-file.md), beside V59; V271–V275 into [identity decisions](../stable/design/decisions/identity.md).

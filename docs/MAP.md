@@ -42,7 +42,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [errand-file](stable/guide/errand-file.md): an errand file's anatomy, a complete example, which value wins, imports and starting a new assignment (6 KB) ⟵ live: live-canonical-cards
 - [guide-failures](stable/guide/failures.md): what to do when a point fails, and what each common refusal means (3 KB)
 - [housekeeping](stable/guide/housekeeping.md): check, status, clean, migrate, reproduce, and pinning which stack a study was made with (3 KB) ⟵ live: live-canonical-cards
-- [outputs](stable/guide/outputs.md): what a run writes and where: records, results, reports, cache; what is kept; what may be deleted (5 KB) ⟵ live: live-adopted-runs
+- [outputs](stable/guide/outputs.md): what a run writes and where: records, results, reports, cache; what is kept; what may be deleted (5 KB) ⟵ live: live-adopted-runs, live-canonical-cards
 - [overlay](stable/guide/overlay.md): heimdall overlay: any YODA or ROOT files on one page, with no errand file (1 KB)
 - [paths](stable/guide/paths.md): how a path in an errand file resolves, how a Run's folder is named, and every placeholder (5 KB)
 - [plots-across](stable/guide/plots-across.md): the Runs of an errand on one page: [plot.across], @events, @tag, [from], prefer and ignore (3 KB)
@@ -137,5 +137,5 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 ## live
 
 - [live-adopted-runs](live/adopted-runs.md): an adopted Run reads, numbers and draws as before (its points library points by their links, its plot document re-keyed); migrate --layout leaves statistics/ alone (3 KB)
-- [live-canonical-cards](live/canonical-cards.md): every tool with a card reads a final config with no comments, and the identity hashes it, so one physics is one identity whatever the writing (8 KB)
+- [live-canonical-cards](live/canonical-cards.md): every tool with a card reads a final config with no comments, and the identity hashes it, so one physics is one identity whatever the writing (9 KB)
 - [live-runs-ends](live/runs-ends.md): heimdall runs shows when and how each run ended in its state's colour, orders a history list by its runs' ends, and gives every state a colour (2 KB)

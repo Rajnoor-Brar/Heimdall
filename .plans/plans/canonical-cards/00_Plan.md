@@ -147,4 +147,4 @@ Asked at once, with recommendations; assumptions listed beside them.
 | P3 | done 2026-11-09; the golden file differs at Decay's 29 points (`base_sha256` of the edited fixture), rewritten once after P4 (the developer, 2026-11-09) |
 | P4 | done 2026-11-10: the golden file rewritten on the developer's yes (193 points) |
 | P5 | done 2026-11-10: checked on an old-form fixture work dir, then work dir 1 remade (states and drawing unchanged); Pythia's argv fixed on the way (74eb9ed) |
-| P6 | not started |
+| P6 | done 2026-11-10: the live doc complete (V268–V275). **Built: ready for review by another session (stage 4), then the close.** For the close: delete this folder (its `oneoff/` with it) and I-149; keep the baselines snapshot `pre-remake-20261110/` and the work dir's `.format1` copies until the developer has looked |

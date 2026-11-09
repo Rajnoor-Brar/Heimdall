@@ -8,3 +8,4 @@
 - Blocked by: P4.
 
 ## Log
+- 2026-11-10: the live doc carries V268–V275 (V274 Pythia reads its final config alone, V275 the remake's rule), and its Stable pages need names identity, tool-contract, the tools' pages, caches, provenance, housekeeping and outputs (the `cards/` files). `test_docs` green. The stable pages change only at a crystallise, on order.

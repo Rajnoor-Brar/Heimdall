@@ -1,17 +1,17 @@
 ---
 id: plot-backends
 summary: how the backends beside Paint draw the same pages, what they honour and refuse
-code: framework/plot/mpl/backend.py, framework/plot/yoda/backend.py
+code: framework/plot/mpl/backend.py, framework/plot/mpl/transforms.py
 ---
 
 # Plot backends
 
 Which to choose: [`backend`](../../reference/settings/plot.md#backend). Every backend draws the same page documents with the ranges and voided bins Paint computed, so all show one window.
 
-They keep mkhtml's look, so only these carry over: a `legend.position` corner (or `best`; `mpl` also the four outside ones and `ratio.gap`), `text.legend`, `text.header`, `ratio.divisions`, `ratio.range` with `ratio.limits`. Alone, they refuse `root_style` and every other style key; beside the root backend those are Paint's and allowed. A legend at `[x, y]` is still refused, because the page sets would disagree.
+`[plot] backend` is `"root"`, `"mpl"` or a list of them. The rivet-mkhtml backend (`yoda`, and `both`) is gone: a file naming it is refused with `"mpl"` or `["root", "mpl"]` as the way on, and `heimdall migrate` rewrites it, comments kept.
 
-**`mpl`** draws what mkhtml would, without it: rivet's `get_plot_configs` reads `.plot` files, the yoda backend's transforms run in memory, YODA's helpers give every number, and mkhtml's generated script's calls are made directly. About 18× faster than mkhtml. `test_plot_stage.py` checks every page against mkhtml's, pixel for pixel. Overflow marks are its one intentional difference.
+`mpl` keeps mkhtml's look, so only these carry over: a `legend.position` corner (or `best`; `mpl` also the four outside ones and `ratio.gap`), `text.legend`, `text.header`, `ratio.divisions`, `ratio.range` with `ratio.limits`. Alone, they refuse `root_style` and every other style key; beside the root backend those are Paint's and allowed. A legend at `[x, y]` is still refused, because the page sets would disagree.
 
-**`yoda`** is deprecated and frozen. Per page set it writes point YODA copies with voided bins blanked; `reference.yoda`, the mapped reference objects renamed `/REF/<analysis>/<object>` (mkhtml's own lookup is off: explicit only); and `pages.plot`. It runs `rivet-mkhtml --no-rivet-refs -o <dir> -c pages.plot <yodas…>`, then writes `ratio.divisions`' locators into each page's script and runs it again, since YODA's generator has no key for the ratio's ticks.
+**`mpl`** draws what mkhtml did, without it: rivet's `get_plot_configs` reads `.plot` files, YODA's helpers give every number, and mkhtml's generated script's calls are made directly. What it borrowed from the old backend is its own: `mpl/transforms.py` holds the voided bins, area normalisation, band envelopes, the reference cut, the ratio window, the page's `.plot` block and `validate`; `mpl/backend.toml` the legend corners and honoured style keys. The pages were checked byte for byte across the move (104 PNGs unchanged); its look stays a thing the developer verifies. The YODA Python library stays, as YODA files are read everywhere.
 
 Writing one: [extending](extending.md).

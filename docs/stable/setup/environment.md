@@ -6,7 +6,7 @@ code: gjallarhorn.sh, launch.sh, env/heimdall_env.sh, framework/runner/bifrost.p
 
 # The environment
 
-`source gjallarhorn.sh` in bash sets `HEIMDALL`, puts the stack and `heimdall` on `PATH`, activates the base and adds `machine.sh`'s lines. The build writes a block into `~/.bashrc` and `~/.zshrc` defining **`gjallarhorn [title]`** and `bifrost`; `gjallarhorn <title>` also goes to that work dir. In zsh it opens a bash, via `launch.sh`, which also runs one command (`launch.sh heimdall run …`) or an image's environment (`gjallarhorn --image <name>`: [images](images.md)). Another shell sourcing it is turned away. `heimdall where` says which Heimdall, stack and work dir a shell sees.
+`source gjallarhorn.sh` in bash sets `HEIMDALL`, puts the stack and `heimdall` on `PATH`, activates the base and adds `machine.sh`'s lines. The build writes a block into `~/.bashrc` and `~/.zshrc` defining **`gjallarhorn [title]`** and `bifrost`; `gjallarhorn <title>` also goes to that work dir. In zsh it opens a bash, via `launch.sh`, which also runs one command (`launch.sh heimdall run …`) or an image's environment (`gjallarhorn --image <name>`: [images](images.md)). Another shell sourcing it is turned away. `heimdall where` says which Heimdall, stack and work dir a shell sees. In bash, TAB after `heimdall` completes its commands, options and arguments (the errands and Runs of `configs/`, `records/` and `results/`, run ids, tools, schema keys), from `env/complete.bash`, which `heimdall_env.sh` sources; it asks `heimdall __complete`, reads only and writes nothing, and `quit` removes it. Nothing is installed.
 
 `heimdall cd ASSIGNMENT [configs|modules|results|records|logs]`, `heimdall quit` (takes out all it added) and `heimdall refresh` (`quit`, then the same stack again) change the shell, so they are the function's. Everything else works without the environment: `framework/bin/heimdall` runs the machine's Python by path, for cron, scripts and Slurm.
 
@@ -42,7 +42,7 @@ The base is activated first: its `bin/` on `PATH`, `CC`, `CXX`, `FC` set. Its `l
 | Variable | Set by | Means |
 |---|---|---|
 | `HEIMDALL` | `gjallarhorn.sh` | Heimdall's folder |
-| `HEIMDALL_MACHINE` | you | the machine root, if not `~/Himinbjorg` |
+| `HEIMDALL_MACHINE` | you | Himinbjorg, if not `~/Himinbjorg` |
 | `HEIMDALL_INSTALL`, `HEIMDALL_VENV`, `HEIMDALL_APPS`, `HEIMDALL_FORGE` | `gjallarhorn.sh` | the loaded stack, its Python, apps, forge |
 | `HEIMDALL_BASE` | `gjallarhorn.sh` | the conda base's environment |
 | `HEIMDALL_STACK` | `stacks/<toolkit>/gjallarhorn.sh` | an isolated toolkit's stack is loaded |

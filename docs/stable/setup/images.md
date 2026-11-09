@@ -1,14 +1,14 @@
 ---
 id: images
-summary: Heimdall and a machine root as one Apptainer image: building, using, what it can and cannot do
+summary: Heimdall and Himinbjorg as one Apptainer image: building, using, what it can and cannot do
 code: framework/runner/image.py, recipes/platforms/container/heimdall.def
 ---
 
 # Apptainer images
 
-An image holds a clean copy of this Heimdall and a machine root built inside it (`/opt/heimdall`, `/opt/himinbjorg`), read-only, in the machine root's `images/`. Work dirs stay outside, bound at their own paths, so paths in provenance mean the same on both sides. No Docker; the Dockerfile beside `heimdall.def` is only the CI workflow's.
+An image holds a clean copy of this Heimdall and Himinbjorg built inside it (`/opt/heimdall`, `/opt/himinbjorg`), read-only, in Himinbjorg's `images/`. Work dirs stay outside, bound at their own paths, so paths in provenance mean the same on both sides. No Docker; the Dockerfile beside `heimdall.def` is only the CI workflow's.
 
-**Needs:** the system's `apptainer`, else `singularity` (setuid or user namespaces, so never in the machine root). To build without sudo, the user in `/etc/subuid` and `/etc/subgid`. About 3 GB for `@core-conda`, 10 GB for `@primary`, 25 GB free while building, and 3 GB of memory per ROOT or Rivet compiler. It downloads Ubuntu and the stack, and takes minutes with a ready-made set, hours from source.
+**Needs:** the system's `apptainer`, else `singularity` (setuid or user namespaces, so never in Himinbjorg). To build without sudo, the user in `/etc/subuid` and `/etc/subgid`. About 3 GB for `@core-conda`, 10 GB for `@primary`, 25 GB free while building, and 3 GB of memory per ROOT or Rivet compiler. It downloads Ubuntu and the stack, and takes minutes with a ready-made set, hours from source.
 
 ```bash
 heimdall image build packages=@core-conda root_cores=2 [--name NAME]   # → images/core-conda.sif

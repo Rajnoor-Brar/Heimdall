@@ -8,7 +8,7 @@ code: src/Apps/Paint/base.toml, framework/runner/plot.py
 
 Every ROOT page starts from `src/Apps/Paint/base.toml`: rivet-mkhtml's look. Every key: [style settings](../../reference/settings/style.md). Over it, key by key:
 
-1. the machine root's `style.toml`: every study on this machine;
+1. Himinbjorg's `style.toml`: every study on this machine;
 2. the work dir's `style.toml`;
 3. `[plot].root_style`: a style file beside the errand file;
 4. `[plot.style]`, inline;
@@ -35,7 +35,7 @@ legend = { position = "out-right" }     # out-right, out-left: a column beside t
 ratio  = { gap = 6.0 }                  # points between the main frame and the ratio's (0: joined)
 ```
 
-Paint keeps the page's size and shrinks the frame; `mpl` keeps the frame and grows the page. A long legend beside the frame takes much of a small page, so a wider `page.size` helps. `yoda` cannot draw either, so they are refused for it.
+Paint keeps the page's size and shrinks the frame; `mpl` keeps the frame and grows the page. A long legend beside the frame takes much of a small page, so a wider `page.size` helps.
 
 ## Checking
 

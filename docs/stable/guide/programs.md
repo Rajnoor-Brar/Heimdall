@@ -79,4 +79,4 @@ window = [1.09, 1.14]
 
 ## A tool of your own
 
-`heimdall tools new fit --from exec` makes `tools/fit/` in the work dir: a folder you can give options, a card or a status of its own, used as `[tools.fit]`. A program you installed (`bifrost <package>`) is named by `--runs <command> --package <package>`. The machine root's `tools/` holds folders every work dir sees. The contract: [tool-contract](../internals/tool-contract.md).
+`heimdall tools new fit --from exec` makes `tools/fit/` in the work dir: a folder you can give options, a card or a status of its own, used as `[tools.fit]`. A program you installed (`bifrost <package>`) is named by `--runs <command> --package <package>`. Himinbjorg's `tools/` holds folders every work dir sees. The contract: [tool-contract](../internals/tool-contract.md).

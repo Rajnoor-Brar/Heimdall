@@ -1,24 +1,25 @@
 ---
 id: layout
-summary: Heimdall's folders, the machine root's and a work dir's; what is in git; how the roots are found; where a run's files go
+summary: Heimdall's folders, Himinbjorg's and a work dir's; what is in git; how the roots are found; where a run's files go
 code: framework/runner/paths.py, framework/templates/work, gjallarhorn.sh
 ---
 
 # Layout
 
-Three roots. **Heimdall** (`$HEIMDALL`) is a git repository: what is authored, nothing built. The **machine root** (`$HEIMDALL_MACHINE`, by default `~/Himinbjorg`) holds what this machine built, outside git. A **work dir** holds a study.
+Three roots. **Heimdall** (`$HEIMDALL`) is a git repository: what is authored, nothing built. **Himinbjorg** (`$HEIMDALL_MACHINE`, by default `~/Himinbjorg`) holds what this machine built, outside git. A **work dir** holds a study.
 
 ## Heimdall
 
 | Path | Holds |
 |---|---|
-| `gjallarhorn.sh`, `launch.sh` | the environment, bash only: sets `HEIMDALL`, the machine root and the loaded stack (`HEIMDALL_INSTALL`, `HEIMDALL_VENV`, `HEIMDALL_BASE`, `HEIMDALL_APPS`, `HEIMDALL_FORGE`, `HEIMDALL_STACK`), then sources `env/heimdall_env.sh`. `launch.sh` is it from any shell |
+| `gjallarhorn.sh`, `launch.sh` | the environment, bash only: sets `HEIMDALL`, Himinbjorg and the loaded stack (`HEIMDALL_INSTALL`, `HEIMDALL_VENV`, `HEIMDALL_BASE`, `HEIMDALL_APPS`, `HEIMDALL_FORGE`, `HEIMDALL_STACK`), then sources `env/heimdall_env.sh`. `launch.sh` is it from any shell |
 | `recipes/` | how the stack is built: `build_stack.py`, `machine.py`, `verify.py`, `toolkits/`, `settings.toml`, `base.toml`, `patches/`, `platforms/` |
 | `env/` | `heimdall_env.sh`, `flags.sh`, `stack.toml` and `stack.py` (each library's flags and version) |
 | `framework/bin/` | `heimdall`, `bifrost`, `run` |
 | `framework/runner/` | the runner, one flat package: [runner](runner.md) |
 | `framework/tools/<tool>/` | the tool folders: [tool-contract](tool-contract.md) |
-| `framework/plot/` | the backends besides Paint (`mpl/`, `yoda/`) and the figures' plugins (`figures/`) |
+| `framework/plot/` | the backend besides Paint (`mpl/`) and the figures' plugins (`figures/`) |
+| `framework/stats/` | the metrics, means and scoring, from Paint's measured bins: [plots-statistics](../guide/plots-statistics.md). Imports numpy, the standard library and `runner.errors` only; runner modules import it inside functions, held by `tests/runner/test_imports.py` |
 | `framework/schema/` | `run.toml`, `v3.toml`, `report.toml`, `quantities.toml` (the vocabulary), `latex.toml`; the editor's JSON schemas, generated |
 | `framework/templates/work/` | what `heimdall setup` lays down |
 | `framework/rules.mk`, `work.mk`, `heimdallkit.py` | the build's rules; a work dir's build; the kit for a Python exec tool |
@@ -29,7 +30,7 @@ Three roots. **Heimdall** (`$HEIMDALL`) is a git repository: what is authored, n
 
 v1 is at High-Energy's tag `rework/v1-final`, and Heimdall's history before its import commit is High-Energy's (`split/base`): consult it there, never restore it wholesale.
 
-## The machine root
+## Himinbjorg
 
 | Path | Holds |
 |---|---|
@@ -44,7 +45,7 @@ v1 is at High-Energy's tag `rework/v1-final`, and Heimdall's history before its 
 | `runs/` | the run registry (`$HEIMDALL_RUNS`): `<id>.json`, `<id>.log`; kept 30 days; nothing is written in a read-only root |
 | `images/` | Apptainer images |
 
-Several checkouts may share one machine root. `recipes/machine.py adopt` moves an older checkout's stack in.
+Several checkouts may share one Himinbjorg. `recipes/machine.py adopt` moves an older checkout's stack in.
 
 A record names a file under a known root by that root's placeholder, never its absolute path: `{apps}`, `{stack}`, `{base}`, `{work}`, `{machine}`, `{heimdall}`, and the point's `{out}` and `{res}` (`paths.portable_texts`). Identities do the same: [identity](identity.md).
 

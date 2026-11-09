@@ -84,6 +84,6 @@ An analysis option its `.info` does not declare is refused: Rivet would ignore i
 sweep_runs = ["pdf", "energies"]       # heimdall run jets: these, in order. true: every one, in file order
 ```
 
-Each makes an ordinary Run. All are checked before the first starts, so a typo in the last costs nothing. They are pipelined: a Run starts once the one before has started all its points, sharing the machine's cores. A failed Run lets the next start; Ctrl-C stops everything; `heimdall watch` follows the whole sweep. A shell loop can do none of that. `heimdall run jets pdf` still runs only `pdf`.
+Each makes an ordinary Run. All are checked before the first starts, so a typo in the last costs nothing. With a terminal or `--detach` they are a queue: one worker a Run, the next starting when the one before ends, each with its own `heimdall runs` entry, log and `[N]`. A failed Run lets the next start; a stopped one holds the rest until `heimdall runs --dispatch`; `heimdall watch` follows each in turn. Without a terminal they run one after another in one process. A shell loop can do none of that. `heimdall run jets pdf` still runs only `pdf`.
 
 A configuration may also choose a tool by a quantity, `chain = [["@generator", "rivet"]]`: [chains](chains.md).

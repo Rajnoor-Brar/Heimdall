@@ -13,7 +13,7 @@ summary: where Heimdall came from, in a dozen lines
 | **audit 1** (V52–V79) | the schema, frozen fixtures, tool folders as data, LaTeX labels, the event stream, the mpl backend, `check`, `migrate`, `reproduce` |
 | **figures** (V80–V89) | `[plot.figures]` |
 | **Heimdall** (V105–V113) | split from High-Energy into its own repository |
-| **audit 3** (V116–V136) | the machine root, toolkits as files, the third errand form, `records/`, one command line |
+| **audit 3** (V116–V136) | Himinbjorg (then the machine root), toolkits as files, the third errand form, `records/`, one command line |
 | **conda** (V140–V155) | a conda base by default, `heimdall`, `gjallarhorn`, `bifrost`, images |
 | **task H** (V156–V160) | snapshots, records as configs, statistics |
 | **run logging** (V195–V205) | attempts, digests, `run.jsonl` |

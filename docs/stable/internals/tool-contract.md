@@ -6,7 +6,7 @@ code: framework/runner/tools.py, framework/tools, framework/runner/paths.py
 
 # The tool-folder contract
 
-Everything the runner knows about a kind of tool is in its folder; the core never names a tool, and a test fails if it does. Folders are found nearest first (`paths.tool_chains`): the work dir's `tools/<tool>/`, the machine root's, then `framework/tools/<tool>/`. A nearer folder replaces a farther one whole, unless its `tool.toml` says `extends = "<tool>"`: then it is laid over, table by table, and its other files are the nearest that has them. `heimdall tools` lists them.
+Everything the runner knows about a kind of tool is in its folder; the core never names a tool, and a test fails if it does. Folders are found nearest first (`paths.tool_chains`): the work dir's `tools/<tool>/`, Himinbjorg's, then `framework/tools/<tool>/`. A nearer folder replaces a farther one whole, unless its `tool.toml` says `extends = "<tool>"`: then it is laid over, table by table, and its other files are the nearest that has them. `heimdall tools` lists them.
 
 ```
 <tool>/

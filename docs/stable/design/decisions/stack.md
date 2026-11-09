@@ -1,6 +1,6 @@
 ---
 id: decisions-stack
-summary: why the stack is built as it is: recipes, toolkits, the conda base, the machine root, images, the cluster
+summary: why the stack is built as it is: recipes, toolkits, the conda base, Himinbjorg, images, the cluster
 ---
 
 # Decisions: the stack
@@ -23,14 +23,14 @@ The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 - **V124** The shell: bash only, one stack at a time, and a quit that undoes everything.
 - **V135** The first run: one path per platform, from the clone to a drawn page.
 - **V139** What porting a real study found: `setup` in a repository whose `.gitignore` ignores a work dir's file.
-- **V140** A conda base is the default for a new machine root: no root needed.
+- **V140** A conda base is the default for a new Himinbjorg: no root needed.
 - **V141** Ready-made toolkits from conda-forge.
 - **V142** The program is `heimdall`; the loader is `gjallarhorn.sh`.
 - **V143** `heimdall recognise`, `workdirs.toml`, `gjallarhorn [title]`.
 - **V144** `bifrost`: adding packages to the environment.
 - **V145** The machine's own recipes; flags gated by version.
 - **V147** `bifrost -c` and `-b`: a tool ready-made or built, and what a switch costs.
-- **V150** Apptainer images: the runtime is the system's, never the machine root's.
+- **V150** Apptainer images: the runtime is the system's, never Himinbjorg's.
 - **V155** MadGraph pointed at the whole stack.
 - **V189** NLO in Sherpa: one-loop providers, `@loops`, Amegic's compile in the prepare step.
 - **V192** A build's compilers follow what the machine has free.

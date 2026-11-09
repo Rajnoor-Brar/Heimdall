@@ -1,6 +1,6 @@
 # Phase 7: crystallise (the developer's order, 2026-11-09)
 
-Status: not started. Blocked by: phases 1–6, whose live docs it merges. Closes P-2, F-6, F-7 and the two docs tests of T-1.
+Status: done 2026-11-09. Blocked by: phases 1–6, whose live docs it merges. Closes P-2, F-6, F-7 and the two docs tests of T-1.
 
 Follow `docs/rules/work.md`'s **Crystallising**, all six steps, over every live doc in `docs/live/`: the 23 of 2026-11-08 and this round's (`run-state`, the tab-complete doc, and the changes to `points-library` and `run-queue`).
 
@@ -25,3 +25,9 @@ Follow `docs/rules/work.md`'s **Crystallising**, all six steps, over every live 
 - Blocked by: 1.5, 2.7, 3.1, 4.1, 5 (its P4), 6.3.
 
 ## Log
+
+- 7.1: all six steps. The merges, the dropped claims and the decision ids (V235–V262) are in [Implementation_Notes.md](Implementation_Notes.md), "Crystallise". `ls docs/live` is `README.md`; `heimdall docs --drift` says no page's code changed since `CRYSTAL.toml`'s commit; `tests/runner/test_docs.py` and `test_imports.py` pass (558 with them, rank table included); `make -s docs` regenerated `docs/MAP.md` and `docs/client/CONTEXT.md`.
+- 7.1, found: two edits outside docs, each its own commit. `framework/stats/means.py`'s `rms` note cited `docs/live/stats-rms.md` (`test_every_page_path_a_string_names_exists`), now without it. And the full suite had one red the plan did not name, `test_detached_runs.py::test_jobs_changes_…`: it expected the listing's pre-2026-11-08 words (`1 of 1 at once`; the listing says `1 ongoing`) and took `[1]` for its own run, which a run of the user's, live on this machine and found by its watch socket, was. It now finds its block by its pid. Alone, the file passes (7).
+- 7.1, the full suite, alone, `taskset -c 0-5 nice -n 10 python -m pytest -q tests`: `1 failed, 2311 passed, 11 skipped, 2 xfailed` in 16 min 53 s; the one failure is the test above, fixed after the run and passing alone, the suite not repeated. The skips and xfails are P6's (and the usual ones).
+- 7.1, step 4 as done: the pages this round touched, held by the docs tests and `--drift`; not every other page re-read against its code (said in the Notes).
+

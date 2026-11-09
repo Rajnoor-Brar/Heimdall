@@ -22,10 +22,15 @@ code: framework/runner/cli.py, framework/runner/watch.py, framework/runner/recor
 | to follow a job | `heimdall watch [CONFIG [CFG]]`, `--pid N`, `-i N`; a `--journal` job's: `--file …` |
 | to pause, and go on later | `p`; later `heimdall runs --resume N` |
 | to leave a job running | `d`; or start with `--detach` |
-| to stop one from elsewhere | `heimdall stop [CONFIG [CFG]]`, `--pid N` |
+| to stop one from elsewhere | `heimdall stop [CONFIG [CFG]]`, `--pid N`, `-i N` |
 | live jobs | `heimdall runs`; `--forget N` drops a pause |
-| recent jobs of any state | `heimdall runs --5`, `--10`, `--20`, `--50`, `--week`, `--month` |
-| a name for a Run | `--tag nlo`, a configuration's `tag`, or later `heimdall tag <A>/<E>/<R> nlo` |
+| recent jobs of any state | `heimdall runs --5`, `--10`, `--20`, `--50`, `--week`, `--month`; `--state running,failed` keeps those states |
+| one job, and what to do with it | `heimdall runs -i N` (or an id): its block and, on a terminal, keys to watch, stop, resume, run again, forget, dispatch (the word typed to confirm) |
+| a failed, stopped or lost run again | `heimdall runs --again ID`, from its record's config snapshot, its complete points skipped |
+| more or fewer points at once, while it runs | `heimdall runs -i N --jobs M` (or `j`) |
+| a run to start when another ends | `--queued-to ID\|N`; a queued run starts early with `runs --dispatch`, or leaves with `--forget` ([the queue](../internals/run-queue.md)) |
+| a queue a reboot lost | `heimdall runs --resume-queue ID` |
+| a name for a Run | `--tag nlo`, a configuration's `tag`, or later `heimdall tag <A>/<E>/<R> nlo`; `key=value` sets a label, `key=` removes it, `--clear` all |
 | a desktop notification at the end | `[errand] notify = "desktop"` |
 | a point faster | `shards = K` on Rivet; more Pythia threads alone do not help |
 | many points faster | `parallelism = K` or `"auto"` |

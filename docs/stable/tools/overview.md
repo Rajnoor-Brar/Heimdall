@@ -6,7 +6,7 @@ code: framework/tools
 
 # The standard tools
 
-A **tool** is a folder, `framework/tools/<tool>/`, and its name is its table's name, or `uses = "<tool>"`. A work dir's `tools/<tool>/` and the machine root's come first, and may replace or extend one. `heimdall tools` lists them all. Keys: [tools settings](../../reference/settings/tools.md).
+A **tool** is a folder, `framework/tools/<tool>/`, and its name is its table's name, or `uses = "<tool>"`. A work dir's `tools/<tool>/` and Himinbjorg's come first, and may replace or extend one. `heimdall tools` lists them all. Keys: [tools settings](../../reference/settings/tools.md).
 
 A folder says how a run drives a program. The program comes from a **package** (a recipe), built into `stack/` or taken ready-made into the base; a **library** is what a module links (`// requires:`). A config never sees how a package was installed: the program is found on `PATH`. `heimdall tools` shows how each is installed; a missing program says which package to get (`bifrost -b sherpa` builds it, `bifrost -c sherpa` takes it ready-made). Switching changes its bytes, so the points that ran it run again.
 

@@ -61,6 +61,10 @@ output = "merged.yoda"
 
 The post stage runs only when every point is complete, and reruns when any changes.
 
+## The same point twice
+
+Two Errands, or two Runs, that ask for the same physics (the point's name apart) run it once with `[errand] library = true` (or per configuration, inherited): the first makes the point into the points library, the others link it and say how many came from it and which Run made them. `--plan` and `--why` show a hit. `"only"` makes the entries and nothing else, for a Run that only feeds the library. [The library](outputs.md#the-points-library).
+
 ## Several event counts
 
 `events = [100_000, 1_000_000]` in a configuration is one configuration per count, `<name>_<count>`, run in turn.

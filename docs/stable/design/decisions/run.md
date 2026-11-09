@@ -19,7 +19,7 @@ The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 - **V157** One `records/` tree; points in `points/`.
 - **V158** A run's snapshot: a record is a config, and pages come from what was recorded, so a run replots after its cards change.
 - **V181** Signals and the watch socket made fit for detached runs: the Ctrl-C ladder.
-- **V182** The run registry: what runs and ran on this machine, in the machine root's `runs/`.
+- **V182** The run registry: what runs and ran on this machine, in Himinbjorg's `runs/`.
 - **V183** A run on a terminal is a worker it follows; `--detach`; `heimdall stop`.
 - **V184** Cluster submissions are in the registry.
 - **V191** The registry reads only your own entries, and never deletes a path an entry names.
@@ -36,3 +36,12 @@ The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 - **V231** Live runs by index: `runs`, `watch -i N`, `runs --resume N`.
 - **V232** Pausing's review defects fixed: a pause while planning says nothing ran.
 - **V234** A combined run's plot stage and a listed row's curve order no longer crash.
+- **V235** A resume reads the last record's config snapshot, never the live `configs/`; a missing or unreadable one refuses with the command to run by hand.
+- **V236** A sweep is a queue: a chain started on each end, each run its own. A failed predecessor lets the next start, a stopped one holds it; a dispatch in the middle splits the queue. Supersedes V75's pipelined sweep.
+- **V237** A queued run is its own waiting worker, not started by its predecessor, so a crashed or killed predecessor still lets it start. The registry keeps one writer per entry, at the cost of a sleeping process.
+- **V238** A registry entry and its state are values: logic reads the state's word, the screen its text, so rewording changes nothing a program does. A newer entry is listed and never acted on.
+- **V239** A free-text verdict gets the word its exit code gives and prints as written; a finished entry with no verdict, state or listed code is `ended`.
+- **V240** `heimdall runs` prints a block a run: records' `<A>/<E>`, ongoing jobs, the commands that fit. Colour is plain SGR codes, not rich, as `[N]` is rich markup. `runs -i` takes a live number or an id.
+- **V241** `--jobs`: the cap is an override on the Stopper, so a sweep's later configurations take it; the pool is sized to 256; a signal handler only sets an Event; lowering stops no running point.
+- **V242** `heimdall show` reads the record alone and recomputes nothing; σ is what the tools reported. `heimdall log` stays as the shorthand.
+- **V243** Record formats are one number for the record files together. `records upgrade` stamps files only, the layout moves staying `migrate --layout`'s; every reader that acts on a record checks it, `show` does not.

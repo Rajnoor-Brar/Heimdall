@@ -25,7 +25,7 @@ The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 - **V106** Two roots, found, never configured: where the code is, and the work dir. A `$HEIMDALL` naming another checkout is refused.
 - **V108** One set of build rules, `framework/rules.mk`, used by Heimdall's Makefile and each work dir's.
 - **V112** Tests run in a frozen work dir of their own, `tests/fixtures/work/`.
-- **V122** The machine root: what a machine built lives outside the checkout. Heimdall holds only what is authored.
+- **V122** Himinbjorg, once the machine root: what a machine built lives outside the checkout. Heimdall holds only what is authored.
 - **V127** A study's own layers: style, vocabulary and LaTeX may be a work dir's; plot code moved to `framework/plot/`.
 - **V134** One command line: every command is the runner's; the shell script only finds Python.
 - **V138** User pages say what they mean without record ids.
@@ -33,3 +33,7 @@ The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 - **V161** High-Energy became a work dir; its VS Code tooling moved to `editor/`.
 - **V213** `hep` → `heimdall` everywhere, a clean break with no alias or fallback.
 - **V228** The words Assignment, Errand, Run, addressed `<A>/<E>/<R>`, everywhere.
+- **V247** `HEIMDALL_MACHINE` keeps its name beside the other `HEIMDALL_*` root variables, and `machine_root` has no alias, though the thing is Himinbjorg.
+- **V248** The tests shadow Himinbjorg in `forge/scratch/machine/`, with links to the real stack and apps, so no live setting decides what a test sees.
+- **V249** TAB completion is our own, over `cli.parser()`, not argcomplete: a new option completes at once, and a kind of argument is one function. It reads only and writes nothing.
+- **V250** TAB offers no live `[N]`, whose numbering needs each run's socket and Slurm's queue, which a completion must not ask. The reply's directive line starts with a colon, so no candidate can be taken for it.

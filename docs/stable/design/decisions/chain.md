@@ -17,7 +17,7 @@ The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 - **V34** Several Rivets in one process: `rivet_threads`, fed first-free from one queue.
 - **V63** One Pythia core, `PythiaRun.hh`, shared by App_Pythia and the integrated program.
 - **V77** `heimdall reproduce` replans a point from its provenance and refuses unless the identity matches.
-- **V125** A tool folder is found nearest first: work dir, machine root, Heimdall.
+- **V125** A tool folder is found nearest first: work dir, Himinbjorg, Heimdall.
 - **V126** One context file per point; exec and module are ordinary folders; module settings are checked.
 - **V146** A tool folder names its packages. Three nouns: a package (a recipe), a library, a tool.
 - **V148** `// requires: pkg:<name>` links any library pkg-config knows; `path:<command>` asks for a program.

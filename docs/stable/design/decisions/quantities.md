@@ -17,7 +17,7 @@ The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 - **V58** A vocabulary of quantities, mapped by each tool's folder: shape and unit checked when the file is read.
 - **V62** Beam order is the errand's `[A, B]`, placed by each tool.
 - **V67** A quantity's value has its own curve look.
-- **V75** `parallelism = "auto"`, and a pipelined sweep of runs. A DAG scheduler was simulated and saved under 5 %, so it was not built.
+- **V75** `parallelism = "auto"`, and a pipelined sweep of runs (superseded by V236's queue). A DAG scheduler was simulated and saved under 5 %, so it was not built.
 - **V76** `notify`, and a shape for a user's own quantity.
 - **V151** A varied quantity no tool of a point reads would give points differing only by seeds: those are refused or collapsed.
 - **V152** One `pdf` for every generator: a provider check returns the value as its tool writes it.

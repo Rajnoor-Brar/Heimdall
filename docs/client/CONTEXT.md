@@ -69,7 +69,7 @@ A rerun of an unchanged study does nothing, and a changed one reruns exactly wha
 ## Three places
 
 - **Heimdall** (`$HEIMDALL`): the framework, authored. `heimdall where` says which one this shell uses.
-- **The machine root** (`$HEIMDALL_MACHINE`, by default `~/Himinbjorg`): what this machine built, the stack and compiled apps.
+- **Himinbjorg** (`$HEIMDALL_MACHINE`, by default `~/Himinbjorg`): what this machine built, the stack and compiled apps.
 - **A work dir:** a study, usually its own git repository. `heimdall setup <dir>` makes one; a `heimdall.toml` marks it, and the runner finds it from the working directory as git finds a repository.
 
 | In a work dir | Holds | In git |

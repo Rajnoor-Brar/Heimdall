@@ -78,6 +78,8 @@ Drawing a set replaces its own `plots/<set>/` and `statistics/<set>/`; other set
 
 Every drawing reads `results/<A>/<E>/<R>/plot.toml` and the folder's `points/`, with no errand file, tool folder or stack beyond Paint. So the folder can be copied anywhere and drawn there. It holds what the Run knows (`[source]`, `[axes]`, `[quantities.<q>]`, `[members.<point>]`), rewritten each run, and what you choose (`[plot]`, `[stats]`), written once from the errand file and then kept. **Edit it to restyle that Run alone.**
 
+A member's `choice` and `values` and `[axes].fixed` name each value by its **tag** (`pdf = "MSTW08lo"`), not its place in `[quantities.<q>].points`, so those points may be reordered and every member keeps its value and label. A point taken out of `[quantities.<q>]` (commented out, removed) leaves the members with that value out of the drawing and the statistics, and `heimdall plot` says so once (`N member(s) left out, a value not in the document's [quantities]: …`); the others are drawn as before. The next job on the folder rewrites `[quantities]` and `[members]`, so a point taken out by hand comes back then: to leave a value out of every drawing, use a set's filter or `--points SEL`. A document that names values by place (`pdf = 2`) reads as before, a place past its list refused naming the member; `heimdall migrate --plot-docs --apply` rewrites it by tag.
+
 | `heimdall plot …` | Draws |
 |---|---|
 | `<A>/<E>/<R>`, or a path into its folder | that Run's document, as it is |

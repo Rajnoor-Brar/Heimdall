@@ -59,7 +59,7 @@ First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py` 
 `retired.py`: `{old: (new, since)}`, read by the schema check, CLI and shell. **Done when:** it replaces the ad-hoc refusals.
 
 ### I-28 Record files with a format version · P2 · decision
-`format = 1` and `heimdall records upgrade` are done ([live-record-formats](../docs/live/record-formats.md)); `upgrade` stamps files and leaves layout moves to `migrate --layout`, short of this done-when. The developer accepts that (the issue leaves) or keeps it open. `points.json`, `provenance.json`, `identity.json`, `plot.toml` carry none; layouts are recognised by heuristics. **Done when:** `format = N` in each, and one `heimdall records upgrade` (dry run first) does the migrate jobs.
+`format = 1` and `heimdall records upgrade` are done ([provenance](../docs/stable/internals/provenance.md)); `upgrade` stamps files and leaves layout moves to `migrate --layout`, short of this done-when. The developer accepts that (the issue leaves) or keeps it open. `points.json`, `provenance.json`, `identity.json`, `plot.toml` carry none; layouts are recognised by heuristics. **Done when:** `format = N` in each, and one `heimdall records upgrade` (dry run first) does the migrate jobs.
 
 ### I-29 Leftover names and stale hints · P3 · open
 `plot.BACKENDS`, `tools.ENV`; hints naming `heimdall plot FILE` rather than `overlay`; wrappers `objects_of`, `raws_of`, `_sha`, `base_of`; `{repo}` in the recipes. **Done when:** gone.

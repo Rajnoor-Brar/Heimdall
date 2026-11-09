@@ -32,10 +32,10 @@ A toolkit is a configuration for building the stack: which recipes, with which s
 
 ## Your own
 
-In the machine root's `toolkits/`, never Heimdall's tree. One with a shipped name is used instead of it, and may extend it. `standard.toml` itself is not replaced: change recipes in `machine.toml` or a toolkit.
+In Himinbjorg's `toolkits/`, never Heimdall's tree. One with a shipped name is used instead of it, and may extend it. `standard.toml` itself is not replaced: change recipes in `machine.toml` or a toolkit.
 
 ```toml
-# <machine root>/toolkits/heavy-ion.toml
+# <Himinbjorg>/toolkits/heavy-ion.toml
 description = "heavy-ion work: JETSCAPE with HDF5, on the lab set"
 extends     = "lab"                   # another toolkit, or a list
 
@@ -57,6 +57,6 @@ The stack is one ABI, one C++ standard (`cxx_std`, 17 by default), since ROOT, R
 
 ## Ready-made
 
-A recipe with `from = "conda-forge"` is installed into the base, not built. `@conda` sets it for every recipe conda-forge carries; `toolkits/conda.toml` says what differs: FastJet without the SISCone patch, so `rivet_threads > 1` is refused; fjcontrib without its separate libraries; ROOT built for C++20 or 23 only, so a ready-made ROOT sets the stack's `cxx_std` to 20 (one set to another standard by a layer is refused); Pythia 8.312; Sherpa 3.0.0 without Rivet's interface. Not on conda-forge, so still built: MadGraph, Whizard, MadAnalysis 5, PHOTOS++, TAUOLA++, SuperChic, MCFM, JETSCAPE, Garfield++, the PDF sets. What a ready-made package needs must be ready-made too, or there would be two copies: the run refuses that. A machine root remembers what it took: a recipe with no `from`, whose package is in the base and not built, is the base's.
+A recipe with `from = "conda-forge"` is installed into the base, not built. `@conda` sets it for every recipe conda-forge carries; `toolkits/conda.toml` says what differs: FastJet without the SISCone patch, so `rivet_threads > 1` is refused; fjcontrib without its separate libraries; ROOT built for C++20 or 23 only, so a ready-made ROOT sets the stack's `cxx_std` to 20 (one set to another standard by a layer is refused); Pythia 8.312; Sherpa 3.0.0 without Rivet's interface. Not on conda-forge, so still built: MadGraph, Whizard, MadAnalysis 5, PHOTOS++, TAUOLA++, SuperChic, MCFM, JETSCAPE, Garfield++, the PDF sets. What a ready-made package needs must be ready-made too, or there would be two copies: the run refuses that. Himinbjorg remembers what it took: a recipe with no `from`, whose package is in the base and not built, is the base's.
 
 Recipes with `status = "new"` are unproven, and their first failure is yours to judge.

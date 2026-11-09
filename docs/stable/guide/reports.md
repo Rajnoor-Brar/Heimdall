@@ -47,7 +47,7 @@ from     = ["Demo/validation/02_pdf"]
 
 [[report.section]]
 title = "Standings"
-stats = ["top5", "ratio_dev"]
+stats = ["standings", "marginals", "chi2_ndf"]
 
 [[report.section]]
 title = "Spectra"
@@ -64,7 +64,7 @@ A section shows one kind of item:
 
 - **`pages`:** globs of a set's page names. `layout = "pages"` shows each source's in turn; `"sources"` side by side, a panel per source, labelled by folder or `label = "events"`.
 - **`compare`:** a compare figure's pages.
-- **`stats`:** parts of the summary (`top5`, `scoreboard`, `head-to-head`, `chi2_ndf`, or `chi2_ndf:ranking`, `:crossed`, `:table`).
+- **`stats`:** parts of the summary: `standings`, `purpose:<name>`, `marginals`, `baseline`, `head-to-head`, a metric (`chi2_ndf`: its ranking, page cells against curves and table) or one part of it (`chi2_ndf:ranking`, `:crossed`, `:table`). The default names `standings`, every purpose, `marginals`, `baseline` and `head-to-head`; what has nothing to show is left out without a word. A report scores a source's csv with the `[score]` its run did. The old names `top5*`, `scoreboard*`, `head-to-head-<n>` and `area` are refused, naming `standings` or `head-to-head`.
 - **`bars`:** globs of page names, each page's bar graph.
 - **`files`:** your own PDF or PNG files, relative to the recipe.
 - **`tools`:** tool tags or globs, `"*"` every tool given a card or options; `hide` leaves varied lines out by key.
@@ -93,7 +93,7 @@ It goes to `.cache/<A>/reports/<its place>/.drawn/…`. **The source is only rea
 
 ## What comes first
 
-Tools sections come first, then **How the numbers are made**, whenever it shows statistics: how a page is compared, a paragraph per statistic with its formula, how points are scored. Then every other section in the recipe's order. `context = "last"` moves these to an appendix, and `method = false` drops the second, each statistics part then keeping its own notes.
+Tools sections come first, then **How the numbers are made**, whenever it shows statistics: how a page is compared, each purpose and metric (a formula for the old columns, its note for the rest), how points are scored and the head to head. Then every other section in the recipe's order. `context = "last"` moves these to an appendix, and `method = false` drops the second, each statistics part then keeping its own notes.
 
 ## Its look
 

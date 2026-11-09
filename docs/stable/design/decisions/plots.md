@@ -7,11 +7,11 @@ summary: why plots and figures work as they do: backends, labels, sets, plot doc
 
 The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 
-- **V10** YODA plotting was `rivet-mkhtml`. Superseded for new pages by V71; the backend is deprecated (V220).
+- **V10** YODA plotting was `rivet-mkhtml`. Superseded for new pages by V71; the backend is gone (V260).
 - **V11** Labels were TLatex. Superseded by V65.
 - **V25** The sweep in one file: every point's YODA merged, rebuilt only when one changes.
 - **V27** Paint looks like rivet-mkhtml by default, and its style is TOML.
-- **V28** `backend = "both"`: one run draws both backends from the same page configs.
+- **V28** (gone, V260) `backend = "both"`: one run draws both backends from the same page configs.
 - **V29** Gutters: `y_gutter = g` puts the top of the y axis at (1 + g) × the largest drawn value.
 - **V37** `"default"` for every drawing option. Its meaning in a child was replaced by V55.
 - **V41** Labels followed TLatex's rules in both backends. Superseded in part by V65.
@@ -56,8 +56,8 @@ The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 - **V173** A plot document is written as an errand file is written by hand.
 - **V174** The summary is a document: a ranking and a table per statistic.
 - **V175** The area ratio, the ratio's mean and its area about one.
-- **V176** The standings: what is best on the most pages.
-- **V177** Head to head: a win rate that counts every place, since V176's points depended on a page's curve count.
+- **V176** The standings: what is best on the most pages. Replaced by V251's scores.
+- **V177** Head to head: a win rate (replaced by V251, no wins counted) that counts every place, since V176's points depended on a page's curve count.
 - **V178** A set with no pages: a page per object, every curve the set chooses on it.
 - **V185** A legend outside the frame; a gap above the ratio pad.
 - **V196** Statistics on A4: summary pages had been sized to content, up to 37.5 in wide.
@@ -69,3 +69,15 @@ The full account of each is at tag `docs/pre-rebuild`, in `docs/07_Record.md`.
 - **V220** Overflow marks past an explicit `y_range`; the yoda backend labelled deprecated.
 - **V224** Runs together by tag; quantities ignored across them.
 - **V233** A range only cuts what is drawn.
+- **V251** Points are scored, not placed: costs by thresholds, RMS over purposes and pages. Replaces V176's places and V177's win rate. A statistic over pages is `[score].mean`, RMS by default.
+- **V252** `[score]` is its own table beside `[stats]`: `[stats]` says what is measured, `[score]` how it is scored. A set's `score` lays over it.
+- **V253** The score engine takes rows and returns scores, importing numpy and the stats modules only, so the summary, report and CLI present what it returns. The chi-square tail is coded there to keep scipy out.
+- **V254** Thresholds come from draws of a true curve as noisy as its reference (`worst` 7 and 25, `tail` 2.5 and 6, `poisson` 3.5 and 9), to be tuned on real studies.
+- **V255** Paint writes the `measured` bins inline in stats.json, 17 digits, for Python to compute from. The totals keep 10 digits, so Python's sums agree to 1e-9. Only Paint was rebuilt.
+- **V256** `statistics.csv` is format 2 with a `statistics.json` sidecar; a csv without one reads as format 1. A `run` column only in tables of Runs together, and no new column for a merged curve's members.
+- **V257** A set's `merge` turns a quantity's values into a curve by pooling or a mean. A merged file is not renormalised (the page does), errors are symmetric, a merge of merges weighs inner curves equally.
+- **V258** Across Runs a quantity a Run never names is `unset`, never matched to another's value: across does not guess. A Run's serial shows wherever Runs meet, so adding a Run changes no label.
+- **V259** A plot document names a member's values by tag; a value gone from `[quantities]` leaves its members out, with a note, rather than refusing the document. In memory members still hold indices.
+- **V260** The yoda backend and `both` are gone: a file naming them is refused and `migrate` rewrites it. mpl owns the transforms it borrowed; the YODA library stays. Supersedes V28 and V220's label.
+- **V261** A Run's tag is one label among `key=value` ones in the tag file; each key is an across axis `@key`, a Run without it `unlabelled`. `--tag` sets the tag alone, so labels survive a rerun.
+- **V262** `heimdall stats` is retired: `plot --stats-only` measures, `heimdall score` reads. A figure's `weight` is not read by the summary yet.

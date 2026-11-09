@@ -38,8 +38,27 @@ objects   = ["d0[1-4]-*"]            # and any [plot] page key, for this set's p
 - **Pages:** a cell per combination, named by tags joined with `_`. With no `pages`, one cell, unless an axis the set does not name pages. `pages = "none"` says no axis pages at all: one page per object, every curve on it.
 - **Curves:** each table in turn, values as written, then point order. A point two tables match is drawn once. With no `curves`, every point of the cell.
 - **An axis the set does not name** with several values among its points pages too, and the stage says so: curves never quietly mix what the set did not ask for.
+- **Merge:** `merge` (an entry or a list, beside `pages` and `curves`) turns a quantity's values into one curve for each combination of the other axes, so a mean can stand in for the members: see below.
 - **Page keys:** a set's lay over `[plot]`'s, and a figure's over the set's. A set's name is its folder, so it may not be `root`, `mpl`, `yoda` or `statistics`.
 - **Checked at plan time:** an unknown quantity, a tag no value has, a quantity in both `pages` and `curves`, a `look` quantity that is not a curve axis.
+
+## Merging a quantity's values
+
+```toml
+[plot.sets.pdf_mean]
+pages  = { generator = "all" }
+merge  = { pdf = "all", how = "rms", band = "minmax", label = "PDF mean", tag = "pdfmean" }
+```
+
+An entry is `{ <quantity> = <what>, how, label, tag, band, settings }`; `<what>` is a filter's value. The members whose value it names become one curve for each combination of the other axes (and of what earlier entries merged), in the first member's place; a combination of one member stays that point, and members it does not name stay as they are. A quantity has one role in a set: pages, curves or merge, and a merged quantity does not page the set. A curve is named by the other axes' tags then the merge tag (default `<quantity>_merged`), labelled `<quantity>, merged` unless `label` says. Entries apply in the order written, a merge of merges weighing each inner curve equally.
+
+- **`how`:** `"combine"` pools the statistics (rivet-merge); any other is a mean of `stats.means` taken bin by bin: a scalar mean on each bin's values, or an ensemble mean (`wasserstein`, `scale_aligned`) on the members' densities. `settings = { floor = … }` are the mean's own, refused if it takes none.
+- **`band`:** `"minmax"` draws the members' lowest and highest in each bin; `"std"` the mean ± one sample standard deviation (3 members at least).
+- **Only the 1D estimates every member has are merged** (not `/RAW`, `/TMP`, the counters). A binning that differs is refused, naming the object and the first edge; errors are written symmetric. A page that normalises renormalises the merged curve as any; a cross-section page never does.
+- **Statistics:** a merged curve has a row of its own with `point = <name>`, and `statistics.json`'s `merged` lists its members. It has no axes, so a marginal never takes it and a baseline names it as not a point of the sweep.
+- **Refused at plan time:** an unknown `how`, a `band` that is not false, `"minmax"` or `"std"`, a quantity not swept, a tag that is one of the quantity's own, two entries of one quantity with one tag. `--plan` lists each merged curve with its points.
+
+The merged files are the Run's own, `plots/<E>/<R>/sets/<name>.yoda`, rebuilt only when a member, `how`, its settings or the band changed.
 
 ## Looks
 

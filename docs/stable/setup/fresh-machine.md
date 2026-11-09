@@ -19,13 +19,13 @@ git clone <Heimdall's URL> ~/Github/Heimdall && cd ~/Github/Heimdall
 python3 recipes/build_stack.py --list                 # each package: release, state, what this run builds
 python3 recipes/build_stack.py packages=@primary      # a conda base, then the stack from source (hours)
 source gjallarhorn.sh                                 # the environment, in bash (any shell: ./launch.sh)
-heimdall build --framework                            # Heimdall's apps, into the machine root's apps/
+heimdall build --framework                            # Heimdall's apps, into Himinbjorg's apps/
 heimdall doctor                                       # what every package can do, checked
 ```
 
 `packages=@primary-conda` takes the tools ready-made instead, in minutes. Which toolkit: [toolkits](toolkits.md). What the build does and how it resumes: [stack](stack.md). Start a long build detached (`setsid nohup … < /dev/null &`), or a session's end kills it.
 
-Everything goes in the machine root, `~/Himinbjorg` (`$HEIMDALL_MACHINE`, or `machine=`), outside git.
+Everything goes in Himinbjorg, `~/Himinbjorg` (`$HEIMDALL_MACHINE`, or `machine=`), outside git.
 
 ## A first work dir
 

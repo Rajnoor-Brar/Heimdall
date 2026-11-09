@@ -38,7 +38,7 @@ code: framework/runner/plot.py, framework/runner/plotdoc.py, framework/runner/re
 
 **Cells** (`_pages.cells`): members by their `plot_points` tags, or by `[plot].sets` (`sweep.set_entries`, `sweep.chosen_points`, checked at plan time by `check_figures`), each cut by `split`. merged, scan and compare figures pass `grouped=False`.
 
-**Statistics:** Paint writes `<page>.toml.stats.json` for every page it reads (`Paint::statistics`, `Transform.hh`). `_draw` runs Paint `--ranges-only` first on pages with a `legend_statistic` and adds numbers to labels, then writes each set's `statistics.csv`. `statistic_pages` builds a statistic figure's pages from those rows.
+**Statistics:** Paint writes `<page>.toml.stats.json` for every page it reads (`Paint::statistics`, `Transform.hh`). `_draw` runs Paint `--ranges-only` first on pages with a `legend_statistic` and adds numbers to labels, then writes each set's `statistics.csv`. Each curve in the stats.json has `"measured": [[lo, hi, y, err, ref_y, ref_err], …]`, the bins its totals were summed over, in x order (the reference's bins in the page's span where the curve covers them exactly; the curve rebinned onto them), written to 17 digits so they read back as the same doubles, NaN and inf as `null`. `framework/stats/` computes the metrics from them; the totals are written to 10 digits, so Python's sums of `measured` equal them to 1e-9 relative. `statistic_pages` builds a statistic figure's pages from those rows.
 
 ## The style
 

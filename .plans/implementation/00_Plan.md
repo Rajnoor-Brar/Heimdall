@@ -152,5 +152,5 @@ One file at a time, one item at a time. "→ Pn.m" is built in that step. "→ P
 | 4 | done 2026-11-09 |
 | 5 | done 2026-11-09 |
 | 6 | done 2026-11-09 |
-| 7 | not started |
+| 7 | done 2026-11-09 |
 | 8 | not started |

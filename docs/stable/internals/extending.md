@@ -52,7 +52,7 @@ These questions decide a folder's design: can it read a FIFO? Does it write σ i
 - `draw(cells, settings, say) -> int`: cells are folders of `plot.Page`s; returns how many failed.
 - `INDEX = True`, optional: the runner writes the index.
 
-Add the name to `[plot.backend]`'s choices. `mpl/backend.py` is the example; the yoda backend is frozen. See [plot-backends](plot-backends.md).
+Add the name to `[plot.backend]`'s choices. A new metric or mean is an entry in `stats.metrics.REGISTRY` or `stats.means.REGISTRY` (purpose, direction, thresholds with their reason, a note; a mean its guard and error rule): the schema, `heimdall explain score` and the summary read the registries, so nothing else names it. The engine reads rows and writes nothing: `stats/score.py`, with the chi-square survival function coded there to keep scipy out. `mpl/backend.py` is the example. See [plot-backends](plot-backends.md).
 
 ## A figure class
 

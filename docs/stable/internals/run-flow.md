@@ -43,7 +43,7 @@ A failure stops the point: products keep partial names, no `.complete`, the work
 
 ## Points at once
 
-`execute.run_points`: points not yet complete run `parallelism` at a time on a thread pool (`heimdall-point` threads), each emitting to the run's event bus. The main thread waits in half-second steps, so Ctrl-C gets in, and starts nothing more once a stop or pause is set (`Stopper.halted`). `"auto"` is `os.cpu_count() //` the costliest point's cores (`execute.auto_parallelism`).
+`execute.run_points`: points not yet complete run `parallelism` at a time on a thread pool made for `Stopper.CEILING` (`heimdall-point` threads, started as points start; a run at 1 is a pool of one), each emitting to the run's event bus. It reads the cap (`Stopper.cap`) at every dispatch, so `heimdall runs -i N --jobs M` changes it while the run goes ([live runs](live-runs.md)). The main thread waits in half-second steps, so Ctrl-C gets in, and starts nothing more once a stop or pause is set (`Stopper.halted`). `"auto"` is `os.cpu_count() //` the costliest point's cores (`execute.auto_parallelism`).
 
 Shared across points: the event bus and the views it feeds, and prepare cache entries (a lock per entry, `flock` on `<entry>.lock`, the `.prepared` stamp rechecked inside).
 
@@ -51,7 +51,7 @@ Shared across points: the event bus and the views it feeds, and prepare cache en
 
 `cmd_run` asks `Errand.runs(name)`: the named configuration; else `sweep_runs`'s list or every swept one in file order; else `[errand].run`. It plans all first, so a bad one means nothing runs.
 
-They then run **pipelined** (`cli._pipelined`): each on its own thread, started once the run before has started all its points, taking cores from one `execute.Budget`. Signals stay on the main thread, and there is one `Stopper`, bus and watch socket, so `heimdall watch` follows the sweep as one stream. Each run emits through an `events.RunBus`; one whose planning fails at its turn gets a `not run` pair of events (`cli.not_run`), so `watch.follow_file` never waits on it.
+With a terminal or `--detach` they are a queue of workers, one run each, the next waiting for the one before ([run queue](run-queue.md)). Otherwise they run in this process, one after another, each emitting through an `events.RunBus`; one whose planning fails at its turn gets a `not run` pair of events (`cli.not_run`), so `watch.follow_file` never waits on it. There is one `Stopper`, which a stop or a pause reaches.
 
 ## On a cluster
 

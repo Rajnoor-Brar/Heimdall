@@ -6,7 +6,7 @@ code: recipes/build_stack.py, recipes/settings.toml, recipes/toolkits/standard.t
 
 # Building the stack
 
-`build_stack.py` builds the software Heimdall runs on, into the machine root. The data says what is built; the engine knows five steps (fetch, unpack, configure or cmake, install, stamp) and five kinds of package: `autotools`, `cmake`, `unpack`, `none` and `external`. A version bump, flag or package is a TOML edit, never a code change. Every setting: [stack settings](../../reference/settings/stack.md).
+`build_stack.py` builds the software Heimdall runs on, into Himinbjorg. The data says what is built; the engine knows five steps (fetch, unpack, configure or cmake, install, stamp) and five kinds of package: `autotools`, `cmake`, `unpack`, `none` and `external`. A version bump, flag or package is a TOML edit, never a code change. Every setting: [stack settings](../../reference/settings/stack.md).
 
 | File | Is |
 |---|---|
@@ -25,7 +25,7 @@ code: recipes/build_stack.py, recipes/settings.toml, recipes/toolkits/standard.t
 
 `key=value` for any setting (`cores=8 graphics=OFF`), `<package>.<key>=value` for a package (`root.release=6.40.06`, `fastjet.patch=`), `key+=value` appends to a list, `env.VAR=…` and `<package>.env.VAR=…` set one variable. `--config my.toml` for many.
 
-**The layers, lowest first:** the recipes (`standard.toml`, then the machine root's `recipes.toml`) and `settings.toml`; the base's; the platform's fixes; the toolkits asked for, each after what it extends; `machine.toml`; `--config` files; the command line. `--list @<toolkit>` says which layer changed which value.
+**The layers, lowest first:** the recipes (`standard.toml`, then Himinbjorg's `recipes.toml`) and `settings.toml`; the base's; the platform's fixes; the toolkits asked for, each after what it extends; `machine.toml`; `--config` files; the command line. `--list @<toolkit>` says which layer changed which value.
 
 **`machine.toml`,** written once from a template and yours to edit, is a layer of `[settings]`, `[env]` and `[packages.<name>]`. A list appends to the shipped one, unless its table says `replace = ["pdf_sets"]`; anything else replaces. `[cluster]` holds `heimdall cluster`'s defaults.
 
@@ -56,7 +56,7 @@ Every tarball is fetched first, four at a time, so a dead link stops the run in 
 
 ## A new package
 
-A `[packages.<name>]` table, best in the machine root's `recipes.toml`, as one of standard's for every toolkit:
+A `[packages.<name>]` table, best in Himinbjorg's `recipes.toml`, as one of standard's for every toolkit:
 
 ```toml
 [packages.mytool]

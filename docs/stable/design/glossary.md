@@ -10,7 +10,7 @@ The core words (assignment, errand, configuration, Run, job, quantity, point, to
 | Term | Means |
 |---|---|
 | **Heimdall** | the framework's repository, `$HEIMDALL` |
-| **machine root** | what a machine built, `$HEIMDALL_MACHINE`, by default `~/Himinbjorg` |
+| **Himinbjorg** | what a machine built, `$HEIMDALL_MACHINE`, by default `~/Himinbjorg` (once: machine root) |
 | **work dir** | a folder whose `heimdall.toml` has `[work]`: a study |
 | **package** | a recipe of the stack |
 | **library** | what a `// requires:` line names, from `env/stack.toml` |

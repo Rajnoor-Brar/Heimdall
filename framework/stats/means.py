@@ -439,7 +439,7 @@ REGISTRY: dict[str, Mean] = {m.name: m for m in (
     _scalar("linear", power_mean, power_error, "any real values",
             "every page counts by its value: a few bad pages are averaged away", "exact", p=1.0),
     _scalar("rms", power_mean, power_error, "any real values",
-            "large values count more: one bad page shows (docs/live/stats-rms.md)", "first order", p=2.0),
+            "large values count more: one bad page shows", "first order", p=2.0),
     _scalar("cubic", power_mean, power_error, "any real values",
             "cubes the values: dominated by the worst one or two; keeps the sign", "first order", p=3.0),
     _scalar("geometric", power_mean, power_error, "values above zero, or a `floor`",

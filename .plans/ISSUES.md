@@ -31,10 +31,10 @@ No `pyproject.toml`, ruff or mypy. **Done when:** ruff (report-only, then enforc
 Every test shares one scratch work dir whose records accumulate. **Done when:** a writing test has its own copy, and `pytest -n` works.
 
 ### I-77 Tests a conda-base root skips · P3 · open
-Seven shell tests know only a venv. `test_v3`'s schema test needs `jsonschema`. `test_the_old_way_is_apt_and_a_venv` fails on a conda root, as it asserts "pixi" appears nowhere and the path holds it. **Done when:** they run on the base, or go with I-80.
+Seven shell tests know only a venv. `test_v3`'s schema test needs `jsonschema`. `test_the_old_way_is_apt_and_a_venv` fails on a conda root, as it asserts "pixi" appears nowhere and the path holds it. The old-way test is skipped on a conda root until the base is decided. **Done when:** they run on the base, or go with I-80.
 
 ### I-79 Legacy gates differ by one digit on the conda base · P2 · decision
-`test_gates_p1.py::test_the_legacy_reference_is_reproduced_byte_for_byte[MSTW|NNLO]`: byte 323 of the YODA. It comes from the rebuilt stack, not the runner; references are never regenerated. Yours: accept the digit with a written tolerance, or find which package moved it.
+`test_gates_p1.py::test_the_legacy_reference_is_reproduced_byte_for_byte[MSTW|NNLO]`: byte 323 of the YODA. It comes from the rebuilt stack, not the runner; references are never regenerated. Yours: accept the digit with a written tolerance, or find which package moved it. (the gates are strict xfails until decided)
 
 ### I-124 Figure paths no test covers · P3 · open
 `derive.scan_value`'s `integral`, `mean`, `entries`; `projection-y`; a sheet's error paths. **Done when:** each has a test.

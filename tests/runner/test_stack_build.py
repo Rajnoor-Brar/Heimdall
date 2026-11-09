@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from runner import plugins
+from runner import paths, plugins
 import functools
 import gzip
 import http.server
@@ -175,6 +175,7 @@ def test_the_dry_run_is_a_bash_script_and_writes_nothing(bs, tmp_path, capsys):
     assert script.index("# == root") < script.index("# == pythia8")
 
 
+@pytest.mark.skipif(paths.base_dir() is not None, reason="asserts no pixi on the path, which a conda base has")
 def test_the_old_way_is_apt_and_a_venv(bs, tmp_path, capsys):
     """base=system: apt_packages and a venv, as before the base."""
     prefix = tmp_path / "heimdall"

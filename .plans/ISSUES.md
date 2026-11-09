@@ -88,7 +88,7 @@ First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py`;
 **Done when:** `doctor` and `status --stack` → `stack doctor`, `stack status`; `make` → `build TARGET`; `image` → `stack image`; `main()` dispatches from a table.
 
 ### I-73 Shell completion · P3 · open
-**Done when:** `heimdall completion bash` covers commands, configs, configurations, point tags.
+TAB completes each command's arguments from configs/, records/ and results/ by kind. Plan: [tab-complete](plans/tab-complete/00_Plan.md) (decided 2026-11-09). **Done when:** TAB in a loaded shell completes commands, options, errands, configurations, Runs, points and their tools, with a test per kind.
 
 ## Plot model
 

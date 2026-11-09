@@ -178,7 +178,9 @@ def test_migrate_layout_moves_logs_into_records_and_points_into_points(scratch):
              log / "pre" / "logs" / "make.log": "m", log / "plots" / "d01.toml": "", log / "status.jsonl": "",
              work / "logs" / "Demo" / "jets" / "compare" / "both" / "d01.toml": "",
              work / "logs" / "Demo" / ".reproduce" / "abc" / "results" / "x": "", work / "logs" / "plots" / "k" / "files.root": "",
-             res / "a" / "jets.yoda": "y", res / "pre" / "made.txt": "", res / "plots" / "root" / "d01.pdf": ""}
+             res / "a" / "jets.yoda": "y", res / "pre" / "made.txt": "", res / "plots" / "root" / "d01.pdf": "",
+             res / "statistics" / "pdf" / "statistics.csv": "", res.parent / "plots" / "pdf" / "d01.pdf": "",
+             res.parent / "statistics" / "pdf" / "statistics.csv": ""}            # V164's, and the Errand's across pages'
     for path, text in files.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
@@ -188,6 +190,7 @@ def test_migrate_layout_moves_logs_into_records_and_points_into_points(scratch):
     moves = dict(migrate.logs_moves(work))
     assert moves[rec / "a"] == rec / "points" / "a" and moves[rec / "pre"] == rec / "points" / "pre"
     assert moves[res / "a"] == res / "points" / "a" and res / "pre" not in moves and res / "plots" not in moves
+    assert res / "statistics" not in moves and not [m for m in moves if res.parent / "plots" in m.parents or res.parent / "statistics" in m.parents]
     assert moves[log / "a"] == rec / "logs" / "a" and moves[log / "plots"] == rec / "plots"
     assert moves[log / "status.jsonl"] == rec / "status.jsonl" and rec / "cluster" not in moves
     assert moves[work / "logs" / "Demo" / "jets" / "compare" / "both"] == work / "records" / "Demo" / "jets" / "compare" / "both"

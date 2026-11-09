@@ -800,15 +800,16 @@ def layout_moves(work: Path) -> list[tuple[Path, Path]]:
 #: What lives in a configuration's folder of records/ beside its points (V157), and of results/: the
 #: stages' products (later stages name them, so they stay) and the pages.
 RECORD_FOLDERS = ("points", "logs", "plots", "config", "cluster")
-RESULT_FOLDERS = ("points", "plots", "pre", "post")
+RESULT_FOLDERS = ("points", "plots", "statistics", "pre", "post")
+ERRAND_FOLDERS = ("compare", "plots", "statistics")   # an Errand's own, beside its Runs: compare figures, across pages and numbers
 
 
 def _configurations(root: Path) -> list[Path]:
-    """A tree's configuration folders, <A>/<E>/<R> relative to it (not compare/, nothing hidden)."""
+    """A tree's configuration folders, <A>/<E>/<R> relative to it (not an Errand's own folders, nothing hidden)."""
     def dirs(folder: Path) -> list[Path]:
         return sorted(p for p in folder.iterdir() if p.is_dir() and not p.name.startswith(".")) if folder.is_dir() else []
     return [cfg.relative_to(root) for assignment in dirs(root) for name in dirs(assignment) for cfg in dirs(name)
-            if cfg.name != "compare"]
+            if cfg.name not in ERRAND_FOLDERS]
 
 
 def logs_moves(work: Path) -> list[tuple[Path, Path]]:

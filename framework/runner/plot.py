@@ -39,11 +39,11 @@ import tomli_w
 
 from . import hepfiles, plugins, schema, statstable
 from .errors import HeimdallError, did_you_mean
-from .labels import canonical, labels_of, lines_of, macros, root_text, tlatex  # noqa: F401 (tlatex et al. re-exported)
+from .labels import canonical, labels_of, root_text, tlatex
 from .paths import apps_dir, cache_root, heimdall_root, log_settings, resolve, results_root
 from .record import check_format, manifest_file, recorded_identity
 from .status import clean_text, digest
-from .statstable import STATISTIC_COLUMNS, heading_of, statistics_of, write_statistics  # noqa: F401 (re-exported)
+from .statstable import statistics_of
 from .tools import merge_files, run_folders, sha256_file
 from .sweep import (Group, Listed, axes, check_set, chosen_points, group_key, group_labels, group_tag, label_of, set_cells,
                     set_entries, split_axes, tag_of)

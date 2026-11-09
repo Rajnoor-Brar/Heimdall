@@ -12,8 +12,8 @@ Each page ends with its items' notes, each once. Matplotlib (the conda base's), 
 
 A page's image is the panels of the metrics on, in the grid that gives each bar the most height, one bar per curve in
 the page's order, each metric on its own axis (no two scales on one): one series, one colour; the values at the bars'
-tips, in text ink; the reference curve (a page without data) is named, not drawn. Rows are plot.statistics_of's
-(runner/plot.py).
+tips, in text ink; the reference curve (a page without data) is named, not drawn. Rows are statstable.statistics_of's
+(runner/statstable.py).
 """
 
 from __future__ import annotations

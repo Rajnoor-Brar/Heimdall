@@ -36,7 +36,7 @@ def same(a: list[dict], b: list[dict]) -> bool:
 
 def test_a_statistics_csv_reads_back_as_the_rows_it_was_written_from(tmp_path):
     pages = [page_with_numbers(tmp_path / "pages", name, NUMBERS) for name in ("d01-x01-y01", "d02-x01-y01")]
-    rows = [r for p in pages for r in plot.statistics_of(p)]
+    rows = [r for p in pages for r in statstable.statistics_of(p)]
     assert statstable.write_statistics(pages, tmp_path / "statistics.csv") == 4
     back = statstable.read(tmp_path / "statistics.csv")
     assert same(back, rows)
@@ -45,11 +45,6 @@ def test_a_statistics_csv_reads_back_as_the_rows_it_was_written_from(tmp_path):
     assert list(back[0])[:len(statstable.STATISTIC_COLUMNS)] == list(statstable.STATISTIC_COLUMNS)    # the old columns first, in order
     assert list(back[0])[len(statstable.STATISTIC_COLUMNS):] == ["norm", "shape", "tilt", "worst"]   # then the new defaults
     assert all(math.isnan(r[k]) for r in back for k in ("norm", "shape", "tilt", "worst"))      # no measured bins in these numbers
-
-
-def test_plot_still_names_what_moved():
-    assert plot.statistics_of is statstable.statistics_of and plot.heading_of is statstable.heading_of
-    assert plot.write_statistics is statstable.write_statistics and plot.STATISTIC_COLUMNS == statstable.STATISTIC_COLUMNS
 
 
 def test_a_sets_numbers_are_its_csv_bar_graphs_and_summary(tmp_path):

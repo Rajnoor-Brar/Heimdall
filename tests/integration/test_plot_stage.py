@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from runner import labels, plot, quantities, record, sweep, tools
+from runner import labels, plot, quantities, record, statstable, sweep, tools
 
 from support import BUILD, apps  # noqa: E402
 
@@ -876,9 +876,9 @@ def test_the_summary_is_scored_by_purpose(stage):
     assert side["score"] == scored and set(names) <= set(side["columns"])        # the table says how it was scored
     bars = plugins.load(plot.heimdall_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
     st = score.settings_of(scored)
-    rows = [r for page in plot.pages(shown, configuration, plans) for r in (plot.statistics_of(page, names) or [])]
+    rows = [r for page in plot.pages(shown, configuration, plans) for r in (statstable.statistics_of(page, names) or [])]
     assert any(math.isfinite(r["worst"]) for r in rows)                          # Paint measured the bins they come from
-    document = bars.summary_model(rows, plot.heading_of(numbers), st)
+    document = bars.summary_model(rows, statstable.heading_of(numbers), st)
     assert len(bars.paper.pages(document)) == count
     assert document.heading.endswith(" · totality")
     assert document.facts[0].startswith("4 point(s) in 2 page cell(s), on 17 object(s)")       # V197: up front

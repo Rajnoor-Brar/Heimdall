@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from runner import plot
+from runner import labels, plot
 from runner.errors import HeimdallError
 
 from helpers import parse, raw
@@ -78,13 +78,13 @@ def test_keys_no_backend_honours_are_errors(scratch, table, message):
     (r"$\pT$ [\GeV], $\sqrt{s} = 13\,\TeV$", "{#it{p}_{T}} [GeV], #sqrt{#it{s}} = 13 TeV"),   # YODA's macros
 ])
 def test_latex_becomes_tlatex(latex, root):
-    assert plot.tlatex(latex) == root
+    assert labels.tlatex(latex) == root
 
 
 def test_a_title_s_lines_each_close_their_math():
-    assert plot.lines_of(r"$a \newline b$") == ["$a$", "$b$"]
-    assert plot.lines_of(r"$a$ x\newline$b$") == ["$a$ x", "$b$"]
-    assert plot.lines_of("no break") == ["no break"]
+    assert labels.lines_of(r"$a \newline b$") == ["$a$", "$b$"]
+    assert labels.lines_of(r"$a$ x\newline$b$") == ["$a$ x", "$b$"]
+    assert labels.lines_of("no break") == ["no break"]
 
 
 def test_root_names_follow_app_yd2rt():
@@ -98,7 +98,7 @@ def test_objects_skip_raw_tmp_and_the_counters():
 
 
 def test_labels_come_from_the_rivet_plot_file_for_every_variant(work_built):
-    plain, variant = plot.labels_of("/photo_eic/d01-x01-y01"), plot.labels_of("/photo_eic:R=0.7/d01-x01-y01")
+    plain, variant = labels.labels_of("/photo_eic/d01-x01-y01"), labels.labels_of("/photo_eic:R=0.7/d01-x01-y01")
     assert plain == variant
     assert plain["LogY"] == "1" and "E_T" in plain["XLabel"]
 
@@ -152,7 +152,7 @@ def test_tlatex_keeps_text_as_text():
     (r"\#1 \\ x", "#1 \\ x"),
 ])
 def test_labels_as_root_draws_them(label, root):
-    assert plot.root_text(label) == root
+    assert labels.root_text(label) == root
 
 
 def test_paint_gets_root_labels_and_the_page_keeps_them_as_written():
@@ -439,7 +439,7 @@ def test_the_mpl_backend_has_nothing_to_honour_in_a_default(scratch):
 
 def test_macros_are_expanded_by_us_in_and_out_of_math():
     """V48: Rivet's own \\GeV needs \\xspace, which matplotlib's LaTeX does not define."""
-    assert plot.macros(r"$Q^2<1\ \GeV^2$ in \GeV, \pT") == r"$Q^2<1\ \mathrm{GeV}^2$ in GeV, $p_\mathrm{T}$"
+    assert labels.macros(r"$Q^2<1\ \GeV^2$ in \GeV, \pT") == r"$Q^2<1\ \mathrm{GeV}^2$ in GeV, $p_\mathrm{T}$"
 
 
 @pytest.mark.parametrize("curves, expected", [

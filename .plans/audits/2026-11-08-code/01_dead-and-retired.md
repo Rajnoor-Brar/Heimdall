@@ -49,7 +49,7 @@ See [D-1](02_duplication.md#d-1). Every fixture config in `tests/fixtures/work/c
 `migrate.py` (1554 lines) holds rewrites for the `[run]` names (`cfgs_text`), placeholders (`placeholder_text`, `{repo}`), `[config]` keys (`config_text`), backends (`backend_text`), figures (`figure_text`), cards and exports (`card_text`, `exports_text`), `formerly`, v3 (`v3_text`), the layout, logs and sets moves, record formats (`upgrade_file`), the `hep.toml` marker and names (`names_changes`), plus `adopt_points` (not a migration: [S-3](03_structure.md#s-3)). Nothing records which work dir still needs which. I-25 says to delete them after dry runs.
 **Move:** run every migration's dry run on both real work dirs (read only), and record per migration "needed by none" with the date. Delete those that no work dir needs, keeping `records upgrade` and `adopt`. **Closes when:** each surviving migration names a work dir or a form still in use.
 
-### R-9 `statstable.py` and `plot.py` re-export for callers that could import the owner · Nit · CONFIRMED
+### R-9 `statstable.py` and `plot.py` re-export for callers that could import the owner · Nit · CONFIRMED · closed 2.4 (statstable's re-export kept: the import rule's door)
 `runner/statstable.py:1,13` re-exports `stats.table`. `plot.py:42,46` re-exports `labels` and `statstable` names ("noqa: F401 (re-exported)"). Re-exports hide a module's real owner, and they survive moves that should have updated their callers.
 **Move:** point the callers at `stats.table` and `labels`, then delete `statstable.py`. **Closes when:** no `re-exported` noqa in framework.
 

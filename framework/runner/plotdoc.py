@@ -40,7 +40,6 @@ from .v3 import NAMES_HINT
 FILE = "plot.toml"
 #: The tables a run rewrites, and those it writes once and keeps (the user's).
 KNOWN = ("source", "axes", "quantities", "members")
-CHOSEN = ("plot", "stats")
 HEADER = ("# A run's plot document: what every drawing of this folder reads. [source], [axes], [quantities] and\n"
           "# [members] are the run's, rewritten by every run of the folder; [plot] and [stats] are yours: edit them to\n"
           "# restyle this run alone, or take the config's with heimdall plot <A>/<E>/<R> --style-sync <config>.\n\n")
@@ -699,10 +698,8 @@ def find(name: str) -> Path | None:
 
 # ── the runs of an errand file together (V169): results/<A>/<E>/plot.toml ─────────────────────────────────
 
-#: An errand file's sets across its runs, [plot.across.<set>] (V169); the attributes each member carries (@tag only
-#: when a run is tagged, V224).
+#: An errand file's sets across its runs, [plot.across.<set>] (V169).
 ACROSS = "across"
-ATTRIBUTES = ("@run", "@events", "@configuration", "@tag")
 #: [plot.across_from] (V224): the errand file's [from], its keys the schema's table of that name.
 FROM = "across_from"
 #: [from]'s keys when the config gives none (V169).

@@ -540,17 +540,6 @@ def refuse_overwrites(planned: Planned, args, stages=None) -> None:
                             f"--rerun replaces them; --why says what changed")
 
 
-def others_of(args):
-    """Another configuration's plans, for a compare figure (V83), of this run or of another errand file
-    (V88): its points, or its combined groups."""
-    def plans_of(ref: str) -> list:                 # "cfg", or "<A>/<E>:<cfg>" (V88)
-        config, _, key = ref.rpartition(":")
-        changed = {"config": config, "set": []} if config else {}
-        planned = build_plans(argparse.Namespace(**{**vars(args), "points": None, "rerun": False, **changed}), key)
-        return planned.combined or planned.every
-    return plans_of
-
-
 def write_documents(errand, configuration, members: list, say=print) -> tuple[Path | None, list[str]]:
     """A folder's plot document (plotdoc.write, V165) and beside it its report's recipe, report.toml (V209): the run
     TOML's [report], else the default report, written again each time. Its failure is said, never the run's."""

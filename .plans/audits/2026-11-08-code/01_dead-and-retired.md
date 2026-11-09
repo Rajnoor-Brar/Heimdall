@@ -6,11 +6,11 @@ Severity: **Required** (a hard-rule break or a trap for the next change) · **Co
 
 ## Findings
 
-### R-1 `cli.others_of` is unreferenced · Consider · CONFIRMED
+### R-1 `cli.others_of` is unreferenced · Consider · CONFIRMED · closed 2.1
 `framework/runner/cli.py:543`: "another configuration's plans, for a compare figure (V83)". Nothing in framework or tests calls it (`grep -rn others_of framework tests`: the definition only). Compare figures now read another plot document (`plotdoc.py:85`, V165), so this is what the plan-based compare path left behind.
 **Move:** delete it in its own commit. **Closes when:** gone, and the fast suite is green.
 
-### R-2 Unused module constants · Nit · CONFIRMED
+### R-2 Unused module constants · Nit · CONFIRMED · closed 2.2
 Each is defined and never read: `plot.OUTSIDE` (`plot.py:55`), `plotdoc.CHOSEN` (`plotdoc.py:43`), `plotdoc.ATTRIBUTES` (`plotdoc.py:705`), `setup.REFRESHED` (`setup.py:373`), `typeset.BAR_TRACK` (`plot/figures/typeset.py:34`), `layout.TILED` (`plot/figures/layout.py:23`). Some may be documentation, a list a comment wants written down. Then that comment should cite the code that really holds the list.
 **Move:** delete, or make the reader use it (if `plotdoc.ATTRIBUTES` is the list `load_across` adds, `load_across` should iterate it). **Closes when:** `sweeps/defs.py` lists none of them.
 

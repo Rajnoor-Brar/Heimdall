@@ -51,8 +51,6 @@ from .sweep import (Group, Listed, axes, check_set, chosen_points, group_key, gr
 BACKENDS = tuple(schema.keys("plot")["backend"]["choices"])
 FORMATS = tuple(schema.keys("plot")["formats"]["choices"])
 LEGENDS = ("top-right", "top-left", "bottom-right", "bottom-left", "best", "out-right", "out-left", "out-top", "out-bottom")
-#: The legend's places outside the frame (V185), which Paint and mpl draw and mkhtml cannot.
-OUTSIDE = ("out-right", "out-left", "out-top", "out-bottom")
 #: Above the frame: the main title and the corners; the legend's first line (V51). [plot] sets them for
 #: every page, a figure ([plot.figures.<figure>]) for its own: it inherits [plot]'s value and may
 #: override it, and a key means the same at both levels.

@@ -31,7 +31,6 @@ PAD = 5.0                       # bp: a cell's padding, each side (\tabcolsep)
 LABEL_MOST = 170.0              # bp: a row label's column, at most (its text wraps)
 HEAD_LINES = 3                  # a column header's most lines
 RANK_BAR = 190.0                # bp: a ranking's bar track
-BAR_TRACK = 34.0                # bp: a statistic's bar track in a page's table
 BAR_HEIGHT = 5.0                # bp
 ROW = 14.0                      # bp: a table's row, about (\\arraystretch 1.3 of 10.5)
 WHOLE = 14                      # a table of this many rows or fewer starts on a page that holds it whole; a longer one

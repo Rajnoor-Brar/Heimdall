@@ -62,7 +62,7 @@ First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py` 
 `format = 1` and `heimdall records upgrade` are done ([live-record-formats](../docs/live/record-formats.md)); `upgrade` stamps files and leaves layout moves to `migrate --layout`, short of this done-when. The developer accepts that (the issue leaves) or keeps it open. `points.json`, `provenance.json`, `identity.json`, `plot.toml` carry none; layouts are recognised by heuristics. **Done when:** `format = N` in each, and one `heimdall records upgrade` (dry run first) does the migrate jobs.
 
 ### I-29 Leftover names and stale hints · P3 · open
-`plot.BACKENDS`, `layout.TILED`, `tools.ENV`; hints naming `heimdall plot FILE` rather than `overlay`; wrappers `objects_of`, `raws_of`, `_sha`, `base_of`; `{repo}` in the recipes. **Done when:** gone.
+`plot.BACKENDS`, `tools.ENV`; hints naming `heimdall plot FILE` rather than `overlay`; wrappers `objects_of`, `raws_of`, `_sha`, `base_of`; `{repo}` in the recipes. **Done when:** gone.
 
 ### I-30 Mark unproven toolkits · P3 · open
 `proven = [...]` in a toolkit file after a recorded build; `--toolkits` shows "unproven". **Done when:** listing says so.

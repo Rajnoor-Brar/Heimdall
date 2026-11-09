@@ -20,8 +20,6 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-TILED = ("pdf", "png")
-
 PNG_DPI = 300                                # a PNG panel's resolution, when it says none (Paint's, base.toml)
 
 _SPECIALS = {"\\": r"\textbackslash{}", "&": r"\&", "%": r"\%", "#": r"\#", "_": r"\_", "{": r"\{",

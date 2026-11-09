@@ -369,10 +369,6 @@ def fetch_datasets(target: Path, out=print) -> list[str]:
     return ["datasets/.gitignore"] if _blocked(ignore, [f"/{n}" for n in names]) else []
 
 
-#: The framework's own files of a work dir, which --refresh brings up to today's template.
-REFRESHED = ("Makefile", "README.md", "CLAUDE.md", GUIDE)
-
-
 def refresh(target: Path, *, yes: bool = False, out=print, ask=None) -> int:
     """`heimdall setup <dir> --refresh`: each framework-written file (the Makefile, .vscode/, Heimdall's
     README.md and CLAUDE.md or HEIMDALL.md) that differs from today's template, as a diff, then written

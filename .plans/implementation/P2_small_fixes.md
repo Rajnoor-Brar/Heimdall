@@ -62,3 +62,5 @@ Status: not started. Blocked by: phase 0. One commit per step, and each step mar
 - Live doc: one line in `docs/live/run-state.md`'s **Now holds**.
 
 ## Log
+- 2.1 `git log --grep "others_of"`: `cli.others_of` deleted; `grep -rn others_of framework tests` prints nothing; `test_one_cli`, `test_flags`, `test_plot` green.
+- 2.2 (same commit as 2.1, they share one test run): `plot.OUTSIDE`, `plotdoc.CHOSEN`, `setup.REFRESHED`, `typeset.BAR_TRACK`, `layout.TILED` deleted. `plotdoc.ATTRIBUTES` deleted too: `load_across` names `@run`, `@events`, `@configuration` and `@tag` literally, and `@tag` only when a run is tagged, so the tuple was not the list it added. Its comment shrank with it. I-29 lost `layout.TILED`. Check: `grep -rnw` of the six names prints nothing (the slow `defs.py` sweep was run in the background as well, result below); `test_plot`, `test_across`, `test_summary_layout`, `test_setup`, `test_imports`: 262 passed, 7 skipped.

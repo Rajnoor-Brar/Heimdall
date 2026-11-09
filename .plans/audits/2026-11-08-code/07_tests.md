@@ -4,7 +4,7 @@
 
 ## Findings
 
-### T-1 Six failures that have become the background · Required · CONFIRMED
+### T-1 Six failures that have become the background · Required · CONFIRMED · closed 6.1–6.3, 7.1
 - The two legacy byte-for-byte gates (I-79, a digit at byte 323, waiting on the developer).
 - `test_docs::test_the_code_a_page_names_exists[stable/internals/plot-backends.md]` and `test_docs::test_the_rank_table_is_the_runners`. Both are stable pages lagging the code, and need a crystallise (F-6, F-7).
 - `test_stack_build::test_the_old_way_is_apt_and_a_venv` (I-77, a conda root).

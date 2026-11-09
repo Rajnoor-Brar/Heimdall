@@ -4,11 +4,11 @@ Not code, but it decides what the next session trusts. `docs/rules/work.md`: `.p
 
 ## Findings
 
-### P-1 Decided, not built, while new work deepens the cost · Required · CONFIRMED
+### P-1 Decided, not built, while new work deepens the cost · Required · CONFIRMED · closed 8.1
 Decided on 2026-10-25 and still open: I-20 and I-21 (one dialect, P1), I-36 (`heimdall plan`), I-41 (retire `plot_points`, still 46 references in `runner/`), I-50 (subpackages), I-57, I-59 and I-86. Since then, three subsystems landed on the old shapes: stats, the library and the queue. Each adds v2-named code to translate later, plus more modules to place when I-50 runs. The order in `ISSUES.md` ("2 safety net → 3 one dialect → …") was overtaken by the 2026-11-07 plans.
 **Move:** the developer re-orders the phases. Recommendation: D-1 next, before any new feature, since every feature until then is written twice. **Closes when:** `ISSUES.md`'s order line matches what is done next.
 
-### P-2 23 live docs since the last crystallise · Consider · CONFIRMED
+### P-2 23 live docs since the last crystallise · Consider · CONFIRMED · closed 7.1
 `docs/stable/CRYSTAL.toml`: 2026-11-02, `4f25f50`. `docs/live/` holds 23 docs, among them `scoring`, `score-engine`, `score-settings`, `stats-core`, `stats-catalogue`, `stats-measured-bins`, `stats-rms` and `statistics-format`: eight on one subject. Two docs tests fail on stable pages that lag the code ([T-1](07_tests.md#t-1)). A reader now merges 23 overlays in their head.
 **Move:** a crystallise, on the developer's order (work.md). **Closes when:** `docs/live/` holds only what changed after it.
 
@@ -23,10 +23,10 @@ Decided on 2026-10-25 and still open: I-20 and I-21 (one dialect, P1), I-36 (`he
 
 **Closes when:** each issue is re-read against the code, as the 2026-11-02 rebuild did.
 
-### P-5 Plan folders held at a milestone · FYI · CONFIRMED
+### P-5 Plan folders held at a milestone · FYI · CONFIRMED · closed 8.2
 `plans/stats-backend/` (every phase done, stopped for the developer's read of one summary) and `plans/points-library/` (done, `adopt` on a real work dir deferred, as this session agreed) are open by design. They leave `.plans/` when the developer signs them off, and their decisions then move to `docs/stable/design/decisions/`.
 
-### P-6 `prompt.md` untracked · FYI · CONFIRMED
+### P-6 `prompt.md` untracked · FYI · CONFIRMED · closed 8.2
 `.plans/plans/prompt.md` is untracked (git status). The 2026-11-07 plan said to delete it once every line maps to a plan, so either the mapping is done and it goes, or it is the developer's working file. It is not this session's to touch.
 
 ## Sweeps still to run

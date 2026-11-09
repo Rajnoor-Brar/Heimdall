@@ -4,20 +4,17 @@ Pending work, one issue a task: what, why, done when. Rules: [work](../docs/rule
 
 **Status:** `open` · `decision` (waits for the developer) · `blocked` · `held` (ask first) · `idea`. **Priority:** P1 this cycle · P2 next · P3 when convenient.
 
-**Order of phases:** 2 safety net (I-13, I-76, I-77) → 3 one dialect (I-20, I-21, I-91) → 4 retirements (I-25, I-26, I-28, I-29, I-30, I-68) → 5 session and CLI (I-35–37, I-70–73, I-100, I-101) → 6 plot model (I-41–48, I-97, I-99) → 7 packages (I-50–52) → 8 stack (I-55–66, I-88) → 9 roots, cluster images (I-75, I-86) → 10 throughput (I-95, I-96, I-98, I-67, I-102) → 11 physics (I-103, I-104). The safety net matters before any change to identity or records. **Plans of 2026-11-07** (from `prompt.md`): safety-net, retire-yoda-backend, set-merge, across-axes, live-runs-ui and names are done (their live docs hold what stays); [stats-backend](plans/stats-backend/00_Plan.md) and [points-library](plans/points-library/00_Plan.md) wait on the developer. Parked: I-80, I-82, I-83, I-85, I-87, I-81.
+**Next:** plan one dialect (I-20, I-21) with the snapshot question in `implementation/Postponed.md`. **Order of phases:** 2 safety net (I-13, I-76, I-77, I-129) → 3 one dialect (I-20, I-21, I-91) → 4 retirements (I-25, I-26, I-28, I-29, I-30, I-68) → 5 session and CLI (I-35–37, I-70–72, I-100, I-101, I-131) → 6 plot model (I-41–48, I-97, I-99) → 7 packages (I-50–52) → 8 stack (I-55–66, I-88) → 9 roots, cluster images (I-75, I-86) → 10 throughput (I-95, I-96, I-98, I-67, I-102) → 11 physics (I-103, I-104). The safety net matters before any change to identity or records. Round 1 (2026-11-09, `implementation/`) built the scoring, the points library, the run queue and TAB completion; what it left is in `implementation/Postponed.md`. Parked: I-80, I-82, I-83, I-85, I-87, I-81.
 
 **Decided (2026-10-25), standing:** drop v2 (a work dir's `configs/legacy/` stays as history) · `plot.toml` stays a drawing's source · retire `plot_points`, old documents still draw · delete the yoda backend, mpl may drift from mkhtml · `[heimdall]` keeps preference switches only · `editor/` stays · doctor's row goes to Himinbjorg, published on purpose · downloads to `<root>/downloads/` · identity golden file approved · `--logs` and `--journal` stay as shorthands · plan inside the image · Herwig for MadGraph, plus MG5aMC_PY8.
 
 ## Next pieces
 
-### I-120 Rework the scoring · P1 · open
-Scoring and drawing sit in one 875-line `figures/bars.py`; fixed points by place, five overlapping statistics summed, no score across Runs. Plan: [stats-backend](plans/stats-backend/00_Plan.md) (approved 2026-11-07). **Done when:** a plan is agreed, scoring is a module of its own (rows in, scores out), and the summary and reports use it.
-
-### I-121 A points library · P1 · open
-A pooled collection of points per Assignment that any Errand and Run can use, rather than per-Run folders. Plan: [points-library](plans/points-library/00_Plan.md) (approved 2026-11-07). Needs I-10, I-11, I-28 first. **Done when:** a plan settles the key, layout, seeds, invalidation and migration, and two Errands share a point without rerunning it.
-
 ### I-122 Commit the migrated work dirs · P2 · held
 The names' migration (`[errand]`, `heimdall.toml`) is applied uncommitted in two work dirs. They are the developer's. **Done when:** the developer has reviewed and committed them, or says otherwise.
+
+### I-130 The points library on a real work dir · P2 · held
+Built and tested on scratch only. `library = "only"` keeps a Run's `logs/` and `run.jsonl` in `records/<A>/<E>/<R>/` (the plan said no folder), and `heimdall library adopt` has not touched a real work dir (the long runs end first, then a dry run with the developer's yes). **Done when:** the developer has confirmed where an `"only"` Run's log lives, and `adopt` has run, with a yes, over a real work dir's Runs, and `verify` is clean.
 
 ## Safety net
 
@@ -26,6 +23,9 @@ By hand on the lab PC: a run, `d`, close the terminal; `heimdall runs`, `watch` 
 
 ### I-13 Static checks · P2 · open
 No `pyproject.toml`, ruff or mypy. **Done when:** ruff (report-only, then enforcing) and mypy on new modules, and `make check` = ruff + import layers + fast suite.
+
+### I-129 Tests that list live runs see the machine's own · P2 · open
+`heimdall runs` finds a run by its watch socket, which no test directory scopes, so a run of the user's that is live on the machine is `[1]` in a test's listing. `test_detached_runs.py` now finds its own block by its pid; `test_cluster.py:298` and the first listing of `test_detached_runs.py` read the whole listing. **Done when:** the sockets a test's runs open and read are the test's own (a root variable `conftest` sets), or each such test names its run by pid, and none depends on the machine being idle.
 
 ### I-76 Tests independent of their order · P2 · open
 Every test shares one scratch work dir whose records accumulate. **Done when:** a writing test has its own copy, and `pytest -n` works.
@@ -86,6 +86,9 @@ First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py` 
 
 ### I-71 Fewer commands for one job · P2 · open
 **Done when:** `doctor` and `status --stack` → `stack doctor`, `stack status`; `make` → `build TARGET`; `image` → `stack image`; `main()` dispatches from a table.
+
+### I-131 TAB completion, by hand · P2 · open
+Tested by a driver and 22 tests, not in a terminal on a real work dir, nor under a cluster login node's bash (its `compopt` is unchecked: bash before 4 gets no `nospace`). **Done when:** TAB after `heimdall `, `heimdall run `, `heimdall plot Demo/…/` and `heimdall runs --resume-queue ` answers in the lab PC's shell and on the cluster's, or a note says which bash lacks what.
 
 ## Plot model
 
@@ -192,7 +195,7 @@ Fake runtime only; `apptainer` is now on this machine. Name downloads first. **D
 
 - **I-95** Per-group identity and skip: changing yd2rt's `select` reran a 16.1 s point instead of 0.2 s.
 - **I-96** Shared generation for analysis-option sweeps; needs I-95.
-- **I-97** Weight variations as a band: scale and PDF uncertainty without extra generations. Not set-merge's band (I-125), which is drawn from separate points: this one reads one point's weights.
+- **I-97** Weight variations as a band: scale and PDF uncertainty without extra generations. Not set-merge's band (I-129), which is drawn from separate points: this one reads one point's weights.
 - **I-98** Shards beyond Rivet; K from threads. Parallel-points timing unmeasured.
 - **I-99** `heimdall plot --suggest-data-map`: lines matched by name, to check and paste.
 - **I-100** `heimdall run --check`: each tool's cheap preflight, never opening a FIFO.

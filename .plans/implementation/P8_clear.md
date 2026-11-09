@@ -1,6 +1,6 @@
 # Phase 8: ISSUES and clearing
 
-Status: not started. Blocked by: phase 7. Closes P-1 (8.1), P-5 and P-6 (8.2).
+Status: done 2026-11-09. Blocked by: phase 7. Closes P-1 (8.1), P-5 and P-6 (8.2).
 
 ### Step 8.1: `ISSUES.md` (Size: S)
 - Acceptance:
@@ -38,3 +38,6 @@ Status: not started. Blocked by: phase 7. Closes P-1 (8.1), P-5 and P-6 (8.2).
 - Check: the report's numbers equal the logs'.
 
 ## Log
+
+- 8.1: I-120 and I-121 deleted from `ISSUES.md` (I-73 went at P5); the order line opens with **Next:** and lost "Plans of 2026-11-07"; its phases list I-129 and I-131 and no longer I-73. `Implementation_Issues.md` had no open entry; the round's three findings are entered there and became I-129 (tests that list live runs see the machine's own), I-130 (the points library on a real work dir, held) and I-131 (TAB by hand). The ids start at 129, not 125: I-125 to I-128 were closed issues of the earlier cycle. Audit marks added: T-1 (6.1–6.3, 7.1), P-1 (8.1), P-2 (7.1). Check: `test_docs.py` all green; the grep for I-120, I-121, I-73 prints nothing.
+

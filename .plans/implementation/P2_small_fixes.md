@@ -1,6 +1,6 @@
 # Phase 2: small fixes
 
-Status: not started. Blocked by: phase 0. One commit per step, and each step marks its finding. Phase check: the fast suite (`taskset -c 0-5 nice -n 10 python -m pytest -q tests/runner -m 'not slow'`) has only the known reds.
+Status: done 2026-11-09 (2.1–2.7). Phase check: fast suite 2197 passed, 10 skipped, 3 known reds. Blocked by: phase 0. One commit per step, and each step marks its finding. Phase check: the fast suite (`taskset -c 0-5 nice -n 10 python -m pytest -q tests/runner -m 'not slow'`) has only the known reds.
 
 ### Step 2.1: R-1, delete `cli.others_of` (Size: XS)
 - Acceptance: `framework/runner/cli.py:543` `others_of` is deleted, together with any import that only it used.
@@ -69,3 +69,4 @@ Status: not started. Blocked by: phase 0. One commit per step, and each step mar
 - 2.5: `cli.record_options(parser, target_help, own=None)` adds `target`, then the command's own options, then `--full` and `--attempt`; `log` and `show` call it. One helper, with the `own` hook, so `show`'s `--help` keeps its option order. `log --help` and `show --help` are byte-identical before and after (captured from the old and the new parser); `make -s docs` changes nothing in `docs/reference/`. Checks: `test_show`, `test_docs` (two known reds), `test_runlog` green.
 - 2.6: `test_gates_run_sweep.py`'s module docstring says a `--plain` sweep runs its configurations one after another in the command's own process, and the comment of `test_ctrl_c_starts_no_more_runs` says what the added `twice` quantity is for; the `V75` cite is gone. Code unchanged. Checks: the file alone, 6 passed (23 s); `test_docs` two known reds.
 - 2.7: `runs.started_at` falls back to `ps -o lstart= -p PID` (2 s timeout, `check=False`) when `/proc/<pid>/stat` gives nothing, and returns `""` when `ps` is missing, fails or prints nothing. Test `test_a_pids_start_time_falls_back_to_ps_where_proc_cannot_be_read`: `_read` faked to `""` and `subprocess.run` faked by a real `CompletedProcess`; the text is returned, a reused pid (another text) is lost, a failed or missing `ps` gives `""`. `test_runs`: 58 passed. Live doc: a line in `run-state.md`. On Linux nothing changes.
+- Off-plan: 2.1 and 2.2 are one commit (one test run proved both); every other step is its own commit.

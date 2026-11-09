@@ -122,7 +122,7 @@ def test_stop_ends_a_detached_run_as_ctrl_c_would(where):
 
 
 def test_jobs_changes_a_detached_runs_points_at_once_while_it_runs(where):
-    """A run of six points at one at a time: `runs -i 1 --jobs 3` raises it; three run at once, its entry says 3."""
+    """A run of six points at one at a time: `runs -i N --jobs 3` raises it; three run at once, its entry says 3."""
     scratch, environment = where
     config = config_of(scratch, 4, fails=(0,) * 6)
     config.write_text(config.read_text(encoding="utf-8").replace("parallelism   = 2", "parallelism   = 1"), encoding="utf-8")
@@ -131,8 +131,10 @@ def test_jobs_changes_a_detached_runs_points_at_once_while_it_runs(where):
     wait_until(lambda: (entries(scratch)[0].get("active_parallel_points") or 0) == 1)
     assert entries(scratch)[0]["parallelism"] == 1
     listed = heimdall(environment, "runs", "--plain").stdout
-    assert "running · 1 of 1 at once" in listed
-    done = heimdall(environment, "runs", "-i", "1", "--jobs", "3")
+    block = next(b for b in listed.split("\n\n") if f"pid {entry['pid']} " in b)   # a run of the user's may be live too: ours is not always [1]
+    assert "running · 1 ongoing" in block
+    number = block.split("]")[0].lstrip("live\n[")
+    done = heimdall(environment, "runs", "-i", number, "--jobs", "3")
     assert done.returncode == 0 and "points at once 1 → 3" in done.stdout, done.stdout + done.stderr
     wait_until(lambda: entries(scratch)[0].get("parallelism") == 3)
     wait_until(lambda: (entries(scratch)[0].get("active_parallel_points") or 0) == 3, timeout=30)

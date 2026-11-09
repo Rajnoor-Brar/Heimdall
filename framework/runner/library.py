@@ -311,10 +311,24 @@ def verify(scope: str = "") -> tuple[list[str], int]:
                        else f"{checked} entr{'y' if checked == 1 else 'ies'} checked: complete for their keys, every link resolves"], len(problems)
 
 
+def _independent(duplicate: Path) -> str | None:
+    """Why an adopted duplicate (records/…/points/<name>.adopted-duplicate) is no copy of the entry its name links: its seed
+    differs from the entry's (a random or manual seed the key leaves out), so it holds other events; None when the seeds
+    are the same (identity seeds: the same events), and when either cannot be read it is kept too."""
+    link = duplicate.with_name(duplicate.name.removesuffix(DUPLICATE))
+    try:
+        mine = json.loads((duplicate / "provenance.json").read_text(encoding="utf-8")).get("seed")
+        theirs = json.loads((link / "provenance.json").read_text(encoding="utf-8")).get("seed")
+    except (OSError, ValueError):
+        return "its seed or its entry's cannot be read"
+    return None if mine == theirs else f"seed {mine}, its entry's {theirs}"
+
+
 def prune(scope: str = "", yes: bool = False, duplicates: bool = False) -> list[str]:
     """`heimdall library prune [A] [--duplicates] [--yes]`: the entries no Run links (and not one a session holds), listed;
     with `yes` removed, records and products, and the index told. `duplicates`: also the `<name>.adopted-duplicate` folders
-    `adopt` left. Without `yes` nothing is touched."""
+    `adopt` left, but for one drawn with another seed than its entry (`_independent`): other events, which are kept. Without
+    `yes` nothing is touched."""
     out: list[str] = []
     for assignment in assignments(scope):
         linked, folded = links(assignment), entries(assignment)
@@ -342,8 +356,15 @@ def prune(scope: str = "", yes: bool = False, duplicates: bool = False) -> list[
                 full = next((k for k in folded if k.startswith(entry.name)), entry.name)
                 append(assignment, {"kind": "pruned", "key": full})
         if duplicates:
+            kept = {}                                      # a duplicate drawn with another seed: its records' path → why
+            for folder in sorted((records_root() / assignment).glob(f"*/*/points/*{DUPLICATE}")) if (records_root() / assignment).is_dir() else ():
+                if (why := _independent(folder)) is not None:
+                    kept[folder.relative_to(records_root())] = why
             for root in (records_root(), results_root()):
                 for folder in sorted((root / assignment).glob(f"*/*/points/*{DUPLICATE}")) if (root / assignment).is_dir() else ():
+                    if (why := kept.get(folder.relative_to(root))) is not None:
+                        out.append(f"kept {folder}  ({why}: other events than its entry's, not a copy)")
+                        continue
                     out.append(f"{'removed' if yes else 'would remove'} {folder}  ({human_size(disk_size(folder))}; a copy `adopt` kept)")
                     if yes:
                         shutil.rmtree(folder)
@@ -359,14 +380,15 @@ def prune(scope: str = "", yes: bool = False, duplicates: bool = False) -> list[
 DUPLICATE = ".adopted-duplicate"
 
 
-def adopt(run: str, apply: bool = False) -> list[str]:
+def adopt(run: str, apply: bool = False, documents=None) -> list[str]:
     """`heimdall library adopt <A>/<E>/<R> [--yes]`: a Run's complete generation points (those its points.json lists, whose
     `.complete` is the hash of their recorded `identity.json`) moved into the Assignment's points library under their keys, and
     linked back as a Run that used the library has them: a reorganisation, nothing is run. A point whose key is already complete
     in the library is linked to that entry, and its own folders are kept beside the link as `<name>.adopted-duplicate`
     (`heimdall library prune --duplicates` removes them). Without `apply` it says what it would do. The Run's points.json gets
-    `library` and the key as `identity` for each adopted point; a plot document of the Run still names the old identities and is
-    drawn "as recorded" until it is written again."""
+    `library` and the key as `identity` for each adopted point; `documents(products folder, {old identity: key})`, when given,
+    does the same for the Run's plot document (`plotdoc.rekey`, which this rank cannot import), so its drawing finds them
+    complete."""
     parts_ = [p for p in run.strip("/").split("/") if p]
     if len(parts_) != 3:
         raise HeimdallError(f"'{run}' is not a Run", hint="a Run is <A>/<E>/<R> (heimdall runs names them)")
@@ -379,6 +401,7 @@ def adopt(run: str, apply: bool = False) -> list[str]:
     library_records, library_results = records_root() / assignment / FOLDER, results_root() / assignment / FOLDER
     out: list[str] = []
     changed = False
+    rekeyed: dict[str, str] = {}                 # the identity each adopted point ran with → its key
     verb = "" if apply else "would "
     for entry in manifest.get("points", []):
         name = entry.get("name", "")
@@ -428,10 +451,14 @@ def adopt(run: str, apply: bool = False) -> list[str]:
             line.update({"coordinates": {q: v.get("tag") for q, v in entry.get("values", {}).items()},
                          "events": prov.get("events"), "threads": prov.get("threads"), "seed": prov.get("seed")})
         append(assignment, line)
+        rekeyed[marker] = key
         entry["library"], entry["identity"] = key[:16], key
         changed = True
     if apply and changed:
         write_atomic(manifest_path, json.dumps(manifest, indent=1, default=str) + "\n")
+        if documents is not None:
+            done = documents(products, rekeyed)
+            out.append(f"its plot document names the library keys of {done} member(s)" if done else "no plot document to rewrite")
     if not apply:
         out.append("a dry run: --yes makes these moves")
     return out

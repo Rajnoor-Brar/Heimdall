@@ -385,3 +385,40 @@ def test_adopt_leaves_what_is_not_complete(lib_configs, capsys):
     assert f"{p.every[0].point.name}: left (its .complete is not the hash of its identity.json)" in out and out.count("move ") == 3
     assert cli.main(["library", "adopt", "Demo/plain_a"]) == 2
     assert "not a Run" in capsys.readouterr().err
+
+
+def test_an_adopted_runs_plot_document_still_draws_every_point_and_a_changed_one_reads_stale(lib_configs, capsys):
+    from runner import plot, plotdoc
+    p, run = own_run("Demo/plain_a")
+    target, _ = plotdoc.write(p.errand, p.configuration, p.every)
+    before = target.read_text(encoding="utf-8")
+    assert len(plot.drawable(plotdoc.load(target)[2])[0]) == 4
+    assert cli.main(["library", "adopt", run, "--yes"]) == 0
+    assert "its plot document names the library keys of 4 member(s)" in capsys.readouterr().out
+    members = plotdoc.load(target)[2]
+    assert len(plot.drawable(members)[0]) == 4                       # the drawing still finds every point complete
+    assert {m.identity for m in members} == {library.key(q) for q in p.every}
+    after = target.read_text(encoding="utf-8")
+    assert [a for a, b in zip(after.splitlines(), before.splitlines()) if a != b] == \
+        [line for line in after.splitlines() if line.startswith("identity = ")]   # only the identities changed
+    mine = planned("Demo/plain_a", "pdf")
+    plan = mine.every[0]
+    plan.library = "e" * 64                                          # the config changed its physics: another key
+    assert record.state_of(plan)[0] == "stale"                       # its link's entry is complete for the old key
+    assert record.recorded_identity(plan) == library.key(p.every[0])    # this Run's folder holds the old physics …
+    assert record.overwritten([plan]) == [plan] and not record.is_complete(plan)   # … so a new number, as before adopting
+
+
+def test_prune_duplicates_keeps_a_duplicate_drawn_with_another_seed(lib_configs, capsys):
+    a, run_a = own_run("Demo/plain_a")
+    b, run_b = own_run("Demo/plain_b")
+    assert cli.main(["library", "adopt", run_a, "--yes"]) == 0 and cli.main(["library", "adopt", run_b, "--yes"]) == 0
+    other = b.every[0]
+    dup = other.folders.points / f"{other.point.name}.adopted-duplicate"
+    (dup / "provenance.json").write_text(json.dumps({"seed": 2}), encoding="utf-8")    # its entry's is 1: other events
+    capsys.readouterr()
+    assert cli.main(["library", "prune", "--duplicates", "--yes"]) == 0
+    out = capsys.readouterr().out
+    assert out.count("kept ") == 2 and "seed 2, its entry's 1" in out and out.count("removed ") == 6
+    assert dup.is_dir() and (other.folders.results / "points" / dup.name).is_dir()
+    assert len(list((records_root() / "Demo").glob("*/*/points/*.adopted-duplicate"))) == 1

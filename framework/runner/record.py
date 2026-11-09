@@ -351,8 +351,8 @@ def state_of(plan: PointPlan) -> tuple[str, dict | None]:
     last = (attempts(plan) or [None])[-1]
     if is_complete(plan):
         return "complete", last
-    if complete_marker(plan).exists():
-        return "stale", last
+    if complete_marker(plan).exists() or recorded_identity(plan) is not None:
+        return "stale", last                     # a library point's link to an entry made for another key is stale too
     if last is not None and last.get("verdict") in ("failed", "stopped"):
         return last["verdict"], last
     if (plan.out.exists() and any(p.name != LOCK_FILE for p in plan.out.iterdir())) or record_dir(plan).exists():
@@ -394,8 +394,13 @@ def stale(plan: PointPlan, rerun) -> bool:
 
 def recorded_identity(plan: PointPlan) -> str | None:
     """The identity a stage last completed with; None when it never did (or a run of it is under way). A library point's
-    marker holds the library key: when it is the plan's, the plan's own identity is what it completed with."""
+    marker holds the library key: when it is the plan's, the plan's own identity is what it completed with. A library
+    point whose Run folder links another entry than its key's holds other physics there: that entry's key."""
     marker = complete_marker(plan)
+    if plan.library and (at := plan.folders.points / plan.point.name).is_symlink():
+        linked = os.path.normpath(at.parent / os.readlink(at))
+        if linked != os.path.normpath(plan.folders.library_entry(plan.library)):
+            marker = Path(linked) / ".complete"
     try:
         text = marker.read_text(encoding="utf-8").strip() if marker.is_file() else None
     except OSError:

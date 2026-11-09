@@ -2790,7 +2790,8 @@ def cmd_library(args) -> int:
     elif args.action == "prune":
         lines = library.prune(args.scope, yes=args.yes, duplicates=args.duplicates)
     else:
-        lines = library.adopt(args.scope, apply=args.yes)
+        from .plotdoc import rekey
+        lines = library.adopt(args.scope, apply=args.yes, documents=rekey)
     for line in lines:
         print(line)
     return 0

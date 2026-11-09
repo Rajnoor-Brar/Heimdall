@@ -112,6 +112,32 @@ def path_of(results: Path) -> Path:
     return results / FILE
 
 
+def rekey(results: Path, keys: dict[str, str]) -> int:
+    """A Run's document after `heimdall library adopt`: each member whose `identity` is one of `keys` (an identity the point
+    ran with → its library key) names the key, as a run writes it for a library point, so the drawing finds it complete
+    through its link. Only those lines change, so the user's [plot] stays as written. The members re-keyed (0 when there
+    is no document)."""
+    path = path_of(results)
+    if not keys or not path.is_file():
+        return 0
+    text = path.read_text(encoding="utf-8")
+    count = 0
+
+    def swap(match: re.Match) -> str:
+        nonlocal count
+        key = keys.get(match.group(2))
+        if key is None:
+            return match.group(0)
+        count += 1
+        return f'{match.group(1)}"{key}"'
+    text = re.sub(r'^(identity\s*=\s*)"([0-9a-f]{64})"', swap, text, flags=re.M)
+    if count:
+        partial = path.with_name(path.name + ".partial")
+        partial.write_text(text, encoding="utf-8")
+        partial.replace(path)
+    return count
+
+
 #: [source]'s keys before the Assignment/Errand names → today's.
 OLD_SOURCE = {"project": "assignment", "run": "errand"}
 

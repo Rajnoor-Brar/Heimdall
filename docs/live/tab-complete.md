@@ -1,0 +1,24 @@
+---
+id: live-tab-complete
+summary: TAB in a loaded shell completes every heimdall command, option and argument from the parser and from configs/, records/ and results/
+affects: environment
+issue: I-73
+---
+
+**Now holds:** in a shell that has loaded Heimdall, TAB after `heimdall` completes each command, its options (the parser's: a new one completes at once) and each argument by its kind. Bash only: `env/complete.bash` is sourced by `env/heimdall_env.sh` beside the shell functions, before its early return (a child shell has it too), and `quit` runs `complete -r heimdall`. Nothing is installed and no file is generated.
+
+**How it answers.** `heimdall __complete CWORD WORD…` (`cli.main` handles it before anything else, so it is not in the generated command reference) prints the candidates one a line and a last line that starts with a colon: `:plain`, `:nospace` (the candidates end in `/`), `:files:PATTERN` (the shell completes files and folders, the files by the pattern) or `:dirs`. `runner/complete.py` walks `cli.parser()` to find the command, the options given and the argument at the cursor, then answers by the argument's kind. `heimdall cd`, `refresh` and `quit` are the shell function's, so `env/complete.bash` answers them itself.
+
+**What each kind offers** (`complete.KINDS` says which argument has which kind; `complete.FREE` lists the arguments of free text or of a number):
+- **errand** (`run`, `status`, `watch`, `stop`, `cluster`): `configs/<A>/<E>`; after `<A>/<E>/` that Errand's Runs from `records/`. A word that starts with `./`, `../`, `/` or `~` goes to the shell's file completion, `.toml` files. **drawing** (`plot`): the same, the Runs of `records/` and of `results/` together. **errand file** (`check`, `migrate`, `clean`, and `--from`, `--style-sync`): configs alone.
+- **configuration**: the configurations of the errand already typed, a config name or a Run of it (`config.load`; a broken or missing errand gives none).
+- **assignment** (`ls`): the folders of `configs/`. **record** (`tag`, `diff`; `migrate --snapshot`): `<A>/<E>/<R>` from `records/`; `diff`'s second also the bare `<R>` of the first one's Errand. **deep** (`show`, `log`): a Run, then its point, then a tool of that point (`logs/<point>/<tag>.log`). **result** (`score`): `<A>/<E>` and `<A>/<E>/<R>` of `results/`. **recipe** (`report`): the recipes and the results. **scope** (`records`, `library`): `<A>`, `<A>/<E>`, `<A>/<E>/<R>`. The folder `library` is never an Errand.
+- **run** (`runs --dispatch|--forget|--again|--resume-queue|-i`): ids from the run registry; `run --queued-to`: the ids not finished; `watch|stop --pid`: the pids of those. **states** (`runs --state`): the states, after each comma. **schema key** (`explain`): the tables, then `<table>.<key>`. **tool** (`tools`): the tool folders and `new`. **command** (`help`). Files: `reproduce` (`provenance.json`), `overlay` (`.yoda`, `.yoda.gz`, `.root`), `--plot`, `--file`; folders: `setup`, `recognise`. Choices complete as the parser gives them.
+
+**Read-only and quiet.** The completer writes nothing: it reads the run registry by globbing and never prunes it (`runs.entries()` prunes), and it makes no note, warning or cache. A `HeimdallError`, an `OSError` or a TOML error gives no candidates, and a traceback never reaches the terminal. Outside a work dir the path kinds give nothing and the commands and options still complete. A completion is about 100 ms, Python's start included; each kind answers within 150 ms once Python is up (a test holds it). A test fails for a positional or a value-taking option that is in neither `KINDS` nor `FREE`.
+
+**No longer holds:** nothing; `heimdall completion bash` of I-73's first wording is not built (the environment loads the function).
+
+**Decisions:** the developer's (2026-11-09): the completer is our own, over `cli.parser()` (`argcomplete` is not installed and would still need a completer for every kind); an errand's Runs are offered after `<A>/<E>/`; run ids and pids are offered, read from the registry; the function is in `env/complete.bash`, sourced by `heimdall_env.sh`; `plot` offers the Runs of both trees. D3 (dynamic names) and D5 (not `gjallarhorn <title>`: it lives in the `~/.bashrc` block, which is ask-first) stood as proposed. Off the plan, in the round: a live number `[N]` is not offered, since its numbering takes each run's watch socket and, for a cluster submission, Slurm's queue, which a completion must not ask; the directive line starts with a colon so a candidate cannot be taken for it; the retired stubs `stats` and `deck` are not offered; bash without `compopt` (before 4) gets no `nospace`.
+
+**Stable pages need:** `setup/environment.md` (one line: TAB completion, from `env/complete.bash`), `internals/runner.md` (the `complete` row of the rank table, rank 5, written at P7 of the round).

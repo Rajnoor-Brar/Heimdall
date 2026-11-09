@@ -83,7 +83,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [build-fixes-generators](stable/setup/build-fixes-generators.md): why the generator recipes are written as they are: each problem a build hit and what is done about it (5 KB)
 - [build-fixes](stable/setup/build-fixes.md): why the core recipes are written as they are: each problem a build hit and what is done about it (5 KB)
 - [cluster](stable/setup/cluster.md): Heimdall on a cluster without sudo: an image or a user-space build, filesystems, what has been proven (2 KB)
-- [environment](stable/setup/environment.md): gjallarhorn, the shell's environment, heimdall build, bifrost, recognised work dirs, every environment variable (5 KB)
+- [environment](stable/setup/environment.md): gjallarhorn, the shell's environment, heimdall build, bifrost, recognised work dirs, every environment variable (5 KB) ⟵ live: live-tab-complete
 - [fresh-machine](stable/setup/fresh-machine.md): from a clone to a working Heimdall on a new machine: what you need, the build, a first work dir, the checks (3 KB)
 - [images](stable/setup/images.md): Heimdall and a machine root as one Apptainer image: building, using, what it can and cannot do (2 KB)
 - [platforms](stable/setup/platforms.md): what differs on Ubuntu and on macOS; what is proven and what is not (2 KB)
@@ -159,3 +159,4 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-stats-core](live/stats-core.md): framework/stats computes metrics and means from Paint's measured bins (2 KB)
 - [live-stats-measured-bins](live/stats-measured-bins.md): Paint writes the bins it measured, in each curve's stats.json (1 KB)
 - [live-stats-rms](live/stats-rms.md): a statistic over pages is a root mean square, not a mean (1 KB)
+- [live-tab-complete](live/tab-complete.md): TAB in a loaded shell completes every heimdall command, option and argument from the parser and from configs/, records/ and results/ (5 KB)

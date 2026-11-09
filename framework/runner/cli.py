@@ -3502,6 +3502,9 @@ def cmd_shell_verb(args) -> int:
 
 
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["__complete"]:                              # TAB in a loaded shell (complete.py): before anything else
+        from .complete import answer
+        return answer(parser(), argv[1:])
     try:
         args = parse(argv)
     except HeimdallError as error:

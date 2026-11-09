@@ -163,6 +163,7 @@ quit() {
         return 0
     fi
     _heimdall_unload
+    complete -r heimdall 2>/dev/null
     unset HEIMDALL_STACK HEIMDALL_INSTALL HEIMDALL_VENV HEIMDALL_BASE HEIMDALL_APPS HEIMDALL_FORGE
 }
 # heimdall_refresh: quit, then the same stack again (an isolated toolkit's included), from scratch.
@@ -193,6 +194,8 @@ heimdall_cd() {
     work=$(command heimdall where --work) || return 2
     cd "$work/${2:-configs}/$1"
 }
+# TAB completion for `heimdall` (env/complete.bash), here and not after the early return below: `complete` specs are not inherited.
+[ -r "$HEIMDALL/env/complete.bash" ] && source "$HEIMDALL/env/complete.bash"
 # heimdall_status: the loaded stack's packages, from their recipes (`heimdall stack status`; kept for a release).
 heimdall_status() { command heimdall stack status "$@"; }
 

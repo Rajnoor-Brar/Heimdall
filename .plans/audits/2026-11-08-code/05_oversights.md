@@ -16,7 +16,7 @@ Each queued run is a sleeping process. After a reboot, `runs.alive` sees a new b
 `PointLock`, the library index and the prepare cache use `fcntl.flock` (`record.py:628`, `:227`; `execute.py:235`). The docstring says a lock is never stale "on this host". On a cluster, array tasks on different nodes share the work dir over NFS or Lustre, where `flock` may be node-local (Lustre's `localflock`, old NFS). Two nodes could then both hold a library entry's lock and write one point. The library makes this newly likely, since its entries are shared across Runs.
 **Move:** verify on the cluster's filesystem (I-87). If `flock` is node-local, use `fcntl.lockf` (POSIX locks, which NFS forwards), or a lock file created with `O_EXCL` that carries host and pid, with a stale check. **Closes when:** two nodes contend for one entry in a test on the real site.
 
-### O-6 Live-state files are read by every checkout, with one format number that never moves · Consider · PLAUSIBLE
+### O-6 Live-state files are read by every checkout, with one format number that never moves · Consider · PLAUSIBLE · closed 1.4
 `runs/` is in Himinbjorg and read by every checkout (invariants). `runs.VERSION = 1` (`runs.py:40`), though the queue added nine fields. An older checkout reading a queued entry has no idea of `queued`: it sees a live pid and calls it "running". Its `--resume` or `stop` would act on a waiter. This is I-68's subject, from the other side: old readers of new files.
 **Move:** bump `VERSION` when an entry's meaning changes, and have a reader refuse to act on an entry of a newer version than it knows ("this entry is from a newer Heimdall"). **Closes when:** both hold, with a test.
 

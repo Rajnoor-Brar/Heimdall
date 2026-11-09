@@ -549,3 +549,28 @@ def test_an_entry_parses_and_gives_back_the_dict_it_was_read_from(monkeypatch):
     assert runs.entry(ids[0]).queue is None and runs.entry(ids[2]).queued
     built = runs.RunEntry(id="x", finished=2.0, code=0)                 # one made by hand gives its non-default fields
     assert built.as_dict() == {"id": "x", "finished": 2.0, "code": 0}
+
+
+def test_an_entry_of_a_newer_heimdall_is_listed_and_never_acted_on(capsys, monkeypatch):
+    """Written with version 3, read by a Heimdall that knows version 2: it is in the listing, marked, and every action on it
+    (stop, resume, again, dispatch, forget, jobs, the prompt's keys) is refused with the same words."""
+    monkeypatch.setattr(house, "live_runs", lambda *a, **k: [])      # no real job of the machine's is numbered or signalled
+    run_id = runs.new_id()
+    runs.begin(run_id, {"v": 3, "config": "/w/configs/P/a.toml", "configurations": ["c"], "work": "/w", "argv": ["run", "P/a"],
+                        "queued": True, "queue": run_id, "queued_to": "x", "checkout": "/c", "records": ["/r"]})
+    old = runs.new_id()
+    runs.begin(old, {"v": 1, "config": "/w/configs/P/b.toml", "configurations": ["c"], "work": "/w"})
+    runs.update(old, finished=2.0, code=1, verdict="failed")
+    assert runs.entry(run_id).newer and not runs.entry(old).newer and runs.entry(run_id).v == 3
+    assert cli.main(["runs", "--10"]) == 0
+    out = capsys.readouterr().out
+    assert "queued (newer Heimdall)" in out and "failed (newer Heimdall)" not in out
+    for argv in (["runs", "--resume", "1"], ["runs", "--again", run_id], ["runs", "--dispatch", run_id],
+                 ["runs", "--forget", run_id], ["runs", "-i", "1", "--jobs", "2"], ["runs", "-i", run_id],
+                 ["stop", "-i", "1"]):
+        assert cli.main(argv) == 2, argv
+        err = capsys.readouterr().err
+        assert "this entry is from a newer Heimdall" in err and "act on it from the checkout that started it" in err, argv
+    assert not runs.queue_file(run_id).exists()                    # nothing was asked of it
+    assert cli.main(["runs", "--again", old]) in (0, 2)             # an old entry is acted on as before: its own errors only
+    assert "newer Heimdall" not in capsys.readouterr().err

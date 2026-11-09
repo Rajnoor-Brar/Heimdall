@@ -1,6 +1,6 @@
 # Phase 1: run state as a value
 
-Status: 1.1, 1.2+1.3, 1.5 done; 1.4 next. Blocked by: phase 0. Closes G-1, D-6, G-3, O-6 and G-8.
+Status: done (1.1–1.5). The fast suite after 1.3: 2196 passed, 10 skipped, the 3 known reds only. Blocked by: phase 0. Closes G-1, D-6, G-3, O-6 and G-8.
 
 **Today:**
 - `runs.state()` (`runs.py:292`) returns display text, such as `done, resumed`, `paused, forgotten`, `running (not reachable from here)`, `on <host>` or `exit 3`.
@@ -100,3 +100,4 @@ Test seams: `tests/runner/test_runs.py`, `test_queue.py` and `test_live.py`, whi
   - `grep -nE '\.get\("(queued|held|queue|queued_to|began|pid|pstart|boot|finished|verdict|state|resumed_by|forgotten)' framework/runner/{house,cli}.py` still prints: `house.py:437,558,642` and `cli.py:1349,2272,2569` are `hello`, a live socket's greeting; `house.py:921,927,955,959,1069` are a point's record rows and attempts; `cli.py:953` is `wait_turn`'s returned dict, which is written, not read as an entry. None is a registry entry.
   - Off-plan: one commit for 1.2 and 1.3 (reason above). `cli.notify` untouched, as the plan says.
 - 1.5 (G-8): checked, fine. Readers: `record.state_of` and `cause_text` (equality with `failed`, `stopped`, `ok`); `house.show_data` (copies the verdict); `house.status` (`==` over `STATES`); `watch` (a journal event's `state` by equality; a point's verdict `ok`/`stopped` by equality); `report` reads none. A point's verdict is one of three words at its source (`execute._finished`); a run's free-text verdict is only stored (`Recorder.verdicts`) and printed. No code change.
+- 1.4: `runs.VERSION = 2`, written by `begin`; `RunEntry.newer`; the listing adds ` (newer Heimdall)`; `cli.refuse_newer` runs before `stop`/`stop -i`, `--resume`, `--again`, `--dispatch`, `--forget`, `--jobs` and `runs -i`. Test `test_an_entry_of_a_newer_heimdall_is_listed_and_never_acted_on` (a `v: 3` entry; each action refused with the same words; an old entry acted on as before). It fakes `house.live_runs` empty: a real job of the machine's was live while the round ran, and `stop -i 1` must never reach it. Green with `test_runs`, `test_queue`, `test_live`, `test_detach`, `test_docs` (two known reds). Live doc: `docs/live/run-state.md`.

@@ -146,7 +146,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [live-resume-record-config](live/resume-record-config.md): a paused run resumes with the latest attempted Run's recorded config snapshot (2 KB)
 - [live-run-labels](live/run-labels.md): a Run's tag is one of its labels: key=value words from heimdall tag, in the tag file's TOML, each an across axis @key (3 KB)
 - [live-run-queue](live/run-queue.md): heimdall run … --queued-to ID|N starts a run when another ends; a sweep is such a queue; runs shows queues, --dispatch starts one early (6 KB)
-- [live-run-state](live/run-state.md): a run's state is a value (runs.RunState: a word and its qualifiers), so logic reads the word and the screen prints the text (2 KB)
+- [live-run-state](live/run-state.md): a run's state is a value (runs.RunState: a word and its qualifiers), so logic reads the word and the screen prints the text (3 KB)
 - [live-runs-listing](live/runs-listing.md): heimdall runs lists a run as a six-line block, coloured on a terminal with a log link; --state filters; stop -i N; queued and held runs (run-queue) (6 KB)
 - [live-score-engine](live/score-engine.md): framework/stats/score.py: how a table's rows become a point's score, worst page, veto and per-purpose shares, and the other aggregators (4 KB)
 - [live-score-settings](live/score-settings.md): the [score] table, [stats].metrics and centres, a set's score, a figure's weight, and heimdall explain score (2 KB)

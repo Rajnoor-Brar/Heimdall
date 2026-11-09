@@ -13,7 +13,7 @@ So rewording a state on screen changes when a queued run starts.
 `v3.is_v3` (`v3.py:66`): a file is v3 if it has `[file]`, `[cfgs]` or `errand.chain`, otherwise v2. A v3 file that writes none of the three, say a minimal one with `[errand] run = …` and `[tools.*]`, is read as v2. Its errors then name v2 keys the user never wrote. Hasty in the sense that the heuristic was written for the files of the day.
 **Move:** goes with D-1. Until then, make `[file]` mandatory in a v3 file, so the sniff is only the fallback for v2. **Closes when:** a v3 file without `[file]` is refused with "add [file]", or v2 is gone.
 
-### G-3 Registry entries are bags of optional keys · Required · CONFIRMED
+### G-3 Registry entries are bags of optional keys · Required · CONFIRMED · closed 1.4
 A run's entry is a dict read with `.get` in `runs.py`, `cli.py` and `house.py`. About 30 keys are read there, many optional and meaningful only together: `queued`, `held`, `queue`, `queued_to`, `began`, `left_queue`, `dispatched_from`, `resumed_by` and `forgotten`, beside `pid`, `pstart`, `boot` and `pidns`. Their valid combinations live only in `wait_turn`'s branches. `runs.VERSION = 1` and never moved, though the queue added nine keys.
 **Move:** a `RunEntry` dataclass parsed once at `runs.entry()`, with the queue fields as one optional `Queue` value (`queue`, `after`, `held`, `dispatched_from`). `VERSION` goes up when the shape does. **Closes when:** `cli` and `house` read attributes, not `.get` on entries.
 

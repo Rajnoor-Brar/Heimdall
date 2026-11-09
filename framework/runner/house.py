@@ -705,7 +705,8 @@ def runs_listing(entries: list[runs.RunEntry], live: list[tuple[str, dict]], tit
                        + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
         going, word = state.word == "running", state.word
         completed, total = e.points_completed, e.points_total
-        parts = [paint(state.text, STATE_STYLE.get(word, ""), color) if word in STATE_STYLE else state.text]
+        shown_state = state.text + (" (newer Heimdall)" if e.newer else "")
+        parts = [paint(shown_state, STATE_STYLE.get(word, ""), color) if word in STATE_STYLE else shown_state]
         active = e.active_parallel_points
         if going and active is not None:
             parts.append(f"{active} ongoing")

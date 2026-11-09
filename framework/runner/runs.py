@@ -38,7 +38,7 @@ from .events import namespace as _namespace
 from .paths import himinbjorg
 
 DIR_VAR = "HEIMDALL_RUNS"
-VERSION = 1
+VERSION = 2
 KEEP_DAYS = 30
 #: A Heimdall cluster job's environment (V184): its submission is recorded, not each job.
 CLUSTER_VAR = "HEIMDALL_CLUSTER_JOB"

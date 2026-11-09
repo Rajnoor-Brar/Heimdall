@@ -13,6 +13,8 @@ issue: implementation round 1
 
 **An entry is a value.** `runs.entry()` and `runs.entries()` return `runs.RunEntry`, parsed once from the entry file: typed fields for every key a run writes, its queue keys as `entry.queue` (`queue_id`, `queued_to`, `queued`, `held`, `began`, `left_queue`, `dispatched_from`), and `extra` for any key this version does not know. `entry.as_dict()` gives back the dict it was parsed from, key for key. Readers (`state_of`, `alive`, `queue_of`, `paused`, `again`, the listing, the `runs` actions) take a `RunEntry`; writers (`runs.update`, `finish`, the Recorder) still write dicts, one field at a time.
 
+**Versions.** `runs.VERSION` is 2, written by `begin` as `v`; an entry with `v` 1 or none reads and acts as before. An entry of a newer version (`RunEntry.newer`) is listed with ` (newer Heimdall)` after its state, and is never acted on: `stop` and `stop -i`, `--resume`, `--again`, `--dispatch`, `--forget`, `--jobs` and the keys of `runs -i` refuse it with "this entry is from a newer Heimdall" (an old reader must not act on a meaning it does not know).
+
 **No longer holds:** `house.state_word`, which cut a state's text back to its first word, and `house.RUN_STATES`.
 
 **Decisions:** a verdict that is free text (`the runner failed: …`, `killed by signal 9`) has the word its exit code gives (`not run`, `exit`) and prints as it was written. A finished entry with no verdict, no state and an unlisted code is `ended`.

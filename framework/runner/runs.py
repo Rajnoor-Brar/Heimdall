@@ -535,7 +535,7 @@ def state_of(data: RunEntry, live: dict | None = None) -> RunState:
                         forgotten=bool(data.forgotten) and not data.resumed_by, ended=True)
     running = alive(data)
     if running is False:
-        return RunState("lost")
+        return RunState("lost", resumed=bool(data.resumed_by))
     if data.queued and running:                         # a waiting worker (cli.wait_turn): held when its predecessor was stopped
         return RunState("held" if data.held else "queued")
     if running is None:

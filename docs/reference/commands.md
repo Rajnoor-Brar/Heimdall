@@ -230,6 +230,7 @@ live jobs (running and paused), each with its index [N]; with --5, --10, --20 or
 | `--forget N\|ID` | drop the paused job [N] from the live list (its entry is kept); a queued or held one leaves its queue unrun, the run after it queued to the one before it |
 | `--dispatch ID\|N` | start a queued or held run now, before its turn: it heads a queue of its own, the runs after it following it |
 | `--again ID\|N` | run a failed, stopped or lost run's own command again, detached, from its records' config snapshot (its complete points skipped); not a running or paused one |
+| `--resume-queue ID\|N` | relaunch the lost runs of the queue this run belongs to, in order, each queued to the one before it (a run that never began from its own command, against today's configs/) |
 | `-i, --index N\|ID` | the run [N] of the live list (or an id): its block, and on a terminal a prompt of what to do with it: watch, stop, resume, run again, forget (the word typed to confirm) |
 | `--jobs M` | with -i N: change the running job's points at once to M, while it runs (never stops a running point; lowering waits for them to end) |
 | `--state S[,S]` | only the runs in these states: running, queued, held, paused, failed, stopped, done, lost, not run, submitted, on Slurm, ended, cancelled, forgotten, exit, unknown |

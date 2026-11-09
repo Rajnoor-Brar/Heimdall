@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 import time
 
-from runner import house, runs
+from runner import house, paths, record, runs
 
 
 def entry(run_id: str, **fields) -> runs.RunEntry:
@@ -163,6 +163,49 @@ def test_queued_to_checks_the_run_now_and_starts_a_waiting_worker(monkeypatch, c
 
 def test_again_does_not_queue_a_relaunch():
     assert runs.again(runs.RunEntry.parse({"argv": ["run", "P/b", "--queued-to", "x", "--worker", "y"]})) == ["run", "P/b", "--detach"]
+
+
+def test_resume_queue_relaunches_what_a_reboot_lost_each_queued_to_the_one_before(monkeypatch, capsys, scratch):
+    monkeypatch.setattr(house, "live_runs", lambda *a, **k: [])
+    monkeypatch.delenv(runs.RESUMES_VAR, raising=False)
+    work = scratch / "work"
+    work.mkdir()
+    gone = {"pid": 2 ** 22 + 7, "pstart": "1", "work": str(work), "checkout": str(paths.heimdall_root())}
+    first, second, third = runs.new_id(), runs.new_id(), runs.new_id()
+    runs.begin(first, {**gone, "queue": first, "argv": ["run", "P/z", "a", "--worker", first]})
+    runs.finish(first, 0)
+    folder = paths.records_root() / "P" / second / "01_saved"                       # the second began: its record has a snapshot
+    (folder / "config").mkdir(parents=True)
+    (folder / "config" / "P").mkdir()
+    (folder / "config" / "P" / "z.toml").write_text("[errand]\n", encoding="utf-8")
+    (folder / "config" / record.SNAPSHOT).write_text('[snapshot]\nconfig = "P/z"\nconfiguration = "b"\n', encoding="utf-8")
+    runs.begin(second, {**gone, "queue": first, "queued_to": first, "argv": ["run", "P/z", "b", "--worker", second, "--queued-to", first],
+                        "records": [str(folder)]})
+    runs.begin(third, {**gone, "queue": first, "queued_to": second, "queued": True,           # the third never began: no record
+                       "argv": ["run", "P/z", "c", "--worker", third, "--queued-to", second]})
+    assert [runs.state(runs.entry(i)) for i in (first, second, third)] == ["done", "lost", "lost"]
+    kept = runs.entry(first)
+    launched = []
+
+    def relaunch(command, cwd, env):
+        launched.append((command, env))
+        after = command[command.index("--queued-to") + 1] if "--queued-to" in command else None
+        runs.begin(env[runs.ID_VAR], {"queued": bool(after), "queued_to": after, "queue": after or env[runs.ID_VAR]})
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(runs, "relaunch", relaunch)
+    assert cli.main(["runs", "--resume-queue", third[-4:]]) == 0
+    (one, env_one), (two, env_two) = launched
+    new_one, new_two = env_one[runs.ID_VAR], env_two[runs.ID_VAR]
+    assert one[1:4] == ["run", "P/z", "b"] and "--queued-to" not in one and env_one[paths.CONFIGS_VAR].endswith("01_saved/config")
+    assert two[1:4] == ["run", "P/z", "c"] and two[-2:] == ["--queued-to", new_one] and paths.CONFIGS_VAR not in env_two
+    out = capsys.readouterr().out
+    assert f"requeued …{second[-4:]} → {new_one}, after at once\n" in out
+    assert f"requeued …{third[-4:]} → {new_two}, after {new_one} (it never began" in out
+    assert f"…{first[-4:]} done" in out and runs.entry(first) == kept
+    assert runs.entry(second).resumed_by == new_one and runs.entry(third).resumed_by == new_two
+    assert cli.main(["runs", "--resume-queue", third[-4:]]) == 2
+    assert "nothing in this queue was lost" in capsys.readouterr().err and len(launched) == 2
 
 
 def test_dispatch_and_forget_ask_the_waiter_and_refuse_what_is_not_queued(capsys):

@@ -1,6 +1,6 @@
 # Phase 4: requeue a queue lost to a reboot
 
-Status: not started. Blocked by: phase 1 (`RunState`, `RunEntry`). Closes O-3 and the first half of E-1. The second half, `--queued-to` on a run already queued, is in Postponed.
+Status: done 2026-11-09 (4.1). Blocked by: phase 1 (`RunState`, `RunEntry`). Closes O-3 and the first half of E-1. The second half, `--queued-to` on a run already queued, is in Postponed.
 
 **Today:**
 - After a reboot, every waiter of a queue is `lost` (`runs.alive`, a new boot id).
@@ -40,3 +40,6 @@ Status: not started. Blocked by: phase 1 (`RunState`, `RunEntry`). Closes O-3 an
 - Blocked by: 1.4.
 
 ## Log
+
+- 4.1: `heimdall runs --resume-queue ID|N` (`cli.resume_queue`). `relaunch_entry` gained `after`, `from_snapshot`, `new` (the id the run is given, so the command can print it) and `quiet` (the command prints its own line a run); a never-begun waiter runs its argv with `HEIMDALL_CONFIGS` removed from the environment (today's `configs/` of its work dir). Test `test_resume_queue_relaunches_what_a_reboot_lost_each_queued_to_the_one_before` (a queue of done, begun-and-lost, waiting-and-lost; `runs.relaunch` faked by a function that registers the new entry): failed first on the old code (`unrecognized arguments: --resume-queue`), passes now; `test_queue` 20 passed; `test_runs`, `test_live`, `test_pause`, `test_docs` only the two known `test_docs` reds. Live docs: `run-queue.md` (a paragraph after dispatch and forget; the summary line), a clause in `run-state.md`. Marks: O-3 and the first half of E-1.
+  - Off-plan: a lost run that is relaunched is marked as a paused one is (`resumed_by`, via `relaunch_entry(resuming=True)`), so a second call finds nothing lost, and a waiter behind it follows `resumed_by` to the new run (`wait_turn` already does). `runs.state_of` therefore gives a lost run `resumed=True`, which reads `lost, resumed`; a queue the command is called on again takes the live run an earlier call relaunched as the one before. The failure message of a resume names the state it stays in (`paused` or `lost`). A run is "began" when its entry lists a record (`records`). The command stops at the first relaunch that fails and says what it had done.

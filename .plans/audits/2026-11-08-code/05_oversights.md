@@ -4,7 +4,7 @@ Use cases the code does not handle, and choices that look made for the case at h
 
 ## Findings
 
-### O-3 A reboot loses a whole queue, and nothing brings it back · Consider · CONFIRMED
+### O-3 A reboot loses a whole queue, and nothing brings it back · Consider · CONFIRMED · closed 4.1
 Each queued run is a sleeping process. After a reboot, `runs.alive` sees a new boot id and every waiter is `lost` (`runs.py:271`). A lost predecessor lets the next run start (tested since O-1's fix), but the next run's process is dead too, so a queue of ten 12-hour runs (the case in this session's work dir) is ten `lost` entries. `--resume` takes one entry and ignores `--queued-to` (`runs.again`), so rebuilding the queue is ten commands, typed in the right order.
 **Move:** `heimdall runs --resume-queue ID|N` restarts the queue's unfinished runs in order, each queued to the one before. The entries already hold `queue` and `queued_to`. **Closes when:** a test kills every worker of a three-run queue, and one command requeues the two not done.
 

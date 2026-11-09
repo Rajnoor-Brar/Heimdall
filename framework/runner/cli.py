@@ -272,6 +272,9 @@ def parser() -> argparse.ArgumentParser:
     run_limits.add_argument("--again", metavar="ID|N",
                             help="run a failed, stopped or lost run's own command again, detached, from its records' "
                                  "config snapshot (its complete points skipped); not a running or paused one")
+    run_limits.add_argument("--resume-queue", metavar="ID|N",
+                            help="relaunch the lost runs of the queue this run belongs to, in order, each queued to the "
+                                 "one before it (a run that never began from its own command, against today's configs/)")
     run_limits.add_argument("-i", "--index", metavar="N|ID",
                             help="the run [N] of the live list (or an id): its block, and on a terminal a prompt of what "
                                  "to do with it: watch, stop, resume, run again, forget (the word typed to confirm)")
@@ -2136,6 +2139,8 @@ def cmd_runs(args) -> int:
         return dispatch_run(args.dispatch)
     if getattr(args, "again", None) is not None:
         return again_run(args.again)
+    if getattr(args, "resume_queue", None) is not None:
+        return resume_queue(args.resume_queue)
     from . import workdirs
     try:
         titles = {entry["path"]: title for title, entry in workdirs.load().items()}
@@ -2195,12 +2200,15 @@ def running_at(index: int, verb: str) -> int:
     return entry.pid
 
 
-def relaunch_entry(entry: runs.RunEntry, ref: int | str, resuming: bool) -> int:
+def relaunch_entry(entry: runs.RunEntry, ref: int | str, resuming: bool, after: str | None = None,
+                   from_snapshot: bool = True, new: str | None = None, quiet: bool = False) -> int:
     """A run's own command again (runs.again: its argv without --worker, detached), by its checkout's bin/heimdall,
     from its work dir ($HEIMDALL_WORK and $HEIMDALL said so), with the latest attempted Run's recorded config snapshot
     in place of live `configs/`, so it continues from its records, its complete points skipped. Its new run's id is
     chosen here ($HEIMDALL_RUN_ID). `resuming` (a pause, by its live [N]): the paused entry points at it
-    (`resumed_by`), leaving the live list; else (a finished run, by its id) the entry is left as it is."""
+    (`resumed_by`), leaving the live list; else (a finished run, by its id) the entry is left as it is.
+    A lost run of a queue is resumed the same way (`heimdall runs --resume-queue`). `after`: the run it is queued to (`--queued-to`). `from_snapshot` False: a run that never began has no record, so it runs
+    its own argv against today's `configs/`. `new`: the id it is given. `quiet`: the caller says what was done."""
     label = f"[{ref}]" if isinstance(ref, int) else ref
     named = f"{label} {entry.id}" if isinstance(ref, int) else entry.id
     command = runs.again(entry)
@@ -2217,13 +2225,20 @@ def relaunch_entry(entry: runs.RunEntry, ref: int | str, resuming: bool) -> int:
     if not work or not Path(work).is_dir():
         raise HeimdallError(f"{named}'s work dir is not there" + (f": {work}" if work else ""),
                             hint=f"run it again by hand from its work dir: heimdall {' '.join(command)}")
-    config_root, config_name = resume_snapshot(entry, ref)
-    command[1] = config_name
-    new = runs.new_id()
-    env = {**os.environ, runs.ID_VAR: new, paths.WORK_VAR: work, paths.CONFIGS_VAR: str(config_root)}
+    if after:
+        command += ["--queued-to", after]
+    new = new or runs.new_id()
+    env = {**os.environ, runs.ID_VAR: new, paths.WORK_VAR: work}
+    if from_snapshot:
+        config_root, config_name = resume_snapshot(entry, ref)
+        command[1] = config_name
+        env[paths.CONFIGS_VAR] = str(config_root)
+    else:
+        env.pop(paths.CONFIGS_VAR, None)
     if paths.HEIMDALL_VAR in env:                            # the checkout it ran with, not this shell's
         env[paths.HEIMDALL_VAR] = str(checkout)
-    print(f"{'resuming' if resuming else 'running again'} {named}: heimdall {' '.join(command)}\n  in {work}, by {program}")
+    if not quiet:
+        print(f"{'resuming' if resuming else 'running again'} {named}: heimdall {' '.join(command)}\n  in {work}, by {program}")
     if "--rerun-since" in command:
         print("  note: its --rerun runs again what was complete before it began, not what it completed itself",
               file=sys.stderr)
@@ -2234,12 +2249,14 @@ def relaunch_entry(entry: runs.RunEntry, ref: int | str, resuming: bool) -> int:
     if code:
         if resuming:
             runs.update(entry.id, resumed_by=None, resumed=None)
-            print(f"not resumed: its command exited {code}; {label} stays paused", file=sys.stderr)
+            print(f"not resumed: its command exited {code}; {label} stays {'paused' if runs.paused(entry) else 'lost'}",
+                  file=sys.stderr)
         else:
             print(f"not run again: its command exited {code}", file=sys.stderr)
         return code
-    print(f"{named} {'resumed' if resuming else 'run again'} as {new}: heimdall runs says whether it runs "
-          "(a config error " + ("leaves it paused)" if resuming else "ends it at once)"))
+    if not quiet:
+        print(f"{named} {'resumed' if resuming else 'run again'} as {new}: heimdall runs says whether it runs "
+              "(a config error " + ("leaves it paused)" if resuming else "ends it at once)"))
     return 0
 
 
@@ -2294,6 +2311,48 @@ def again_run(ref: str | int) -> int:
         raise HeimdallError(f"{shown} is {state}, not finished: only a run that ended is run again",
                             hint=f"heimdall watch -i {number} follows it" if number else "heimdall runs lists the live ones")
     return relaunch_entry(entry, entry.id if not number else number, False)
+
+
+def resume_queue(ref: str | int) -> int:
+    """`heimdall runs --resume-queue ID|N`: the lost runs of the queue a run belongs to, each relaunched detached, in the
+    queue's order: one that began from its record's snapshot (as --again does), one that never began from its own argv against
+    today's `configs/`. Each is queued to the nearest earlier run that is live after this (a relaunched one, or an original
+    still running, queued or held), or starts at once. Done, failed, stopped, paused and forgotten runs are left alone."""
+    entry, _, _ = entry_of(ref)
+    refuse_newer(entry)
+    queue = entry.queue_id or entry.id
+    members = runs.queue_of(runs.entries(), queue)
+    by_pid = {hello.get("pid"): hello for _, hello in house.live_runs()}
+    states = house._states(members, by_pid)
+    lost = [e for e, state in states if state.word == "lost" and not state.resumed]
+    if not lost:
+        raise HeimdallError("nothing in this queue was lost", hint="heimdall runs --state lost lists what a reboot left")
+    for e in lost:
+        refuse_newer(e)
+        if e.cluster:
+            raise HeimdallError(f"{e.id} is a cluster submission: heimdall cluster submits it again",
+                                hint="heimdall runs names its heimdall cluster … --status")
+    left = [f"…{e.id[-4:]} {state}" for e, state in states if e not in lost and state.word not in ("running", "queued", "held")]
+    if left:
+        print("left alone: " + ", ".join(left))
+    tail = None
+    for e, state in states:
+        if state.word in ("running", "queued", "held"):
+            tail = e.id
+        elif state.word == "lost" and state.resumed:           # an earlier call relaunched it: the run waits for that
+            again = runs.entry(e.resumed_by)
+            if again is not None and house._states([again], by_pid)[0][1].word in ("running", "queued", "held"):
+                tail = again.id
+        elif e in lost:
+            began = bool(e.records)
+            new = runs.new_id()
+            code = relaunch_entry(e, e.id, True, after=tail, from_snapshot=began, new=new, quiet=True)
+            if code:
+                return code
+            print(f"requeued …{e.id[-4:]} → {new}, after {tail or 'at once'}"
+                  + ("" if began else " (it never began: from its own argv, against today's configs/)"))
+            tail = new
+    return 0
 
 
 #: The keys of `heimdall runs -i`, and the word typed to confirm each that changes something.

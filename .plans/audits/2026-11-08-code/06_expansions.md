@@ -4,7 +4,7 @@ Features the code is one step from, and the ones the use (12-hour runs, sweeps, 
 
 ## Findings
 
-### E-1 A queue that survives a reboot · Consider
+### E-1 A queue that survives a reboot · Consider · closed 4.1 (first half: `--queued-to` on a queued run is in Postponed)
 See [O-3](05_oversights.md#o-3). `heimdall runs --resume-queue N`, and `heimdall runs --queued-to M` on an already-queued run, which moves it in or between queues. The entries already hold `queue` and `queued_to`, so both are a client-side walk of `runs.queue_of` plus `queue_run`.
 
 ### E-2 Notifications that reach someone who is not at the desk · Consider

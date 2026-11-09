@@ -135,7 +135,7 @@ def test_the_context_file_gives_every_tool_its_card_and_config(scratch):
     assert set(tools_) == {"pythia", "rivet", "probe"} and tools_["pythia"]["tool"] == "pythia"
     assert tools_["pythia"]["card"] == str(pythia.card_combined)
     assert tools_["pythia"]["card_parts"] == [str(x) for x in pythia.card_base] + [str(pythia.card_point)]
-    assert pythia.argv[2:] == tools_["pythia"]["card_parts"]           # App_Pythia reads exactly these, in order
+    assert pythia.argv[2:] == [tools_["pythia"]["card"]]               # App_Pythia reads the final config alone
     assert tools_["rivet"]["analyses"] == ["photo_eic"] and tools_["rivet"]["plugin_path"].endswith("build/Rivet")
     assert tools_["probe"]["config"] == str(p.rendered["probe"].config_path)
     assert p.rendered["probe"].argv[-2:] == [str(p.out / "context.toml"), str(pythia.card_combined)]

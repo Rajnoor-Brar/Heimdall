@@ -357,8 +357,8 @@ def test_prune_removes_what_no_run_links_and_verify_reports_what_is_wrong(lib_co
     p, run = own_run("Demo/plain_a")
     assert cli.main(["library", "adopt", run, "--yes"]) == 0
     capsys.readouterr()
-    entry = next(iter((records_root() / "Demo" / "library").glob("*/")))
-    (entry / ".complete").write_text("0" * 64 + "\n", encoding="utf-8")                          # broken
+    entry = records_root() / "Demo" / "library" / os.readlink(p.every[0].folders.points / p.every[0].point.name).split("/")[-1]
+    (entry / ".complete").write_text("0" * 64 + "\n", encoding="utf-8")                          # broken, not the one gone
     link = p.every[1].folders.points / p.every[1].point.name
     shutil.rmtree(records_root() / "Demo" / "library" / os.readlink(link).split("/")[-1])                 # an entry gone
     assert cli.main(["library", "verify"]) == 1

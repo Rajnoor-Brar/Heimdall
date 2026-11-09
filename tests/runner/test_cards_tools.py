@@ -46,6 +46,17 @@ def test_a_pythia_base_reordered_with_other_comments_makes_the_same_card(scratch
     assert combined(q, "pythia") == combined(p, "pythia")
 
 
+def test_pythia_reads_the_final_config_so_a_renamed_base_is_the_same_identity(scratch):
+    from runner import record
+    _, _, p = plan(raw(), scratch)
+    step = p.rendered["pythia"]
+    assert step.argv[-1] == str(step.card_combined) and not any(str(b) in step.argv for b in step.card_base)
+    other = scratch / "renamed.cmnd"
+    other.write_text(step.card_base[0].read_text(encoding="utf-8"), encoding="utf-8")
+    _, _, q = plan(raw(tools__pythia__baseconfig=str(other)), scratch)
+    assert record.identity(q) == record.identity(p)
+
+
 def test_a_pythia_key_twice_in_one_base_is_refused_at_plan_naming_both_lines(scratch):
     base = scratch / "twice.cmnd"
     base.write_text("HeavyIon:SigFitNGen = 200\n! a comment\nHeavyIon:SigFitNGen = 0\n", encoding="utf-8")

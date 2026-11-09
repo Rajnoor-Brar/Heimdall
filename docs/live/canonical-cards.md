@@ -10,6 +10,7 @@ issue: I-149
   - Each source is parsed by the folder's grammar.
   - The comments go, after the directives they carry are read (`[card] directives`).
   - The sources merge in order, the last winning.
+  - The tool reads that file alone, `{card}` in its argv: App_Pythia no longer reads its base cards and the point card (`{cards}`), so no base card's path is in an identity.
 - **`[card] order` says how the final config is written.**
   - **`free`** (pythia): settings commute, and each is written once.
     - The `leading` keys come first, in that list's order (`Tune:ee`, `Tune:pp`), since a tune resets its parameters when read.
@@ -39,6 +40,7 @@ issue: I-149
 - `base_sha256` in an identity, and the redundant-override rule (a point value equal to the base's left out of the identity): the final config holds it once.
 - The library key as the identity without card comments, and the identity as distinct from it.
 - `records upgrade` bringing a file to the current format.
+- App_Pythia reading its base cards as written, then the point card (`argv` `{cards}`), and a base card's path in each Pythia identity: a base renamed or copied was new physics.
 - Whizard's `include(<base path>)` and `# <origin>` comments, the rendered cards' header.
 
 **Decisions:**
@@ -48,6 +50,8 @@ issue: I-149
 - **V271** The identity hashes what the tool reads, its final config before seeds, and no file's raw bytes. One physics is one identity, and a point's name is in none, so the library key is the identity (developer, gate of 2026-11-09).
 - **V272** Records are remade into format 2 once, never read in two forms. The runner keeps no old-identity code. `records upgrade` stops at format 1, so a file is never marked as holding identities it does not.
 - **V273** A prepare cache keys on the final config, so it is rebuilt once after this change and never for a comment (developer, gate of 2026-11-09).
+- **V274** A tool reads its final config and nothing else: App_Pythia's argv is `{card}`. The base cards are the runner's sources, never the tool's input (developer, 2026-11-10).
+- **V275** A work dir's records are remade once into the new identities, by a one-off that proves each library entry against the Run that made it. Entries that become one physics keep the most linked in the library; each other stays its Run's own beside its link (`<name>.adopted-duplicate`), and entries no Run links are removed (developer, 2026-11-10).
 
 **Stable pages need:**
 - [tool-contract](../stable/internals/tool-contract.md): the `[card]` keys `order`, `leading`, `group` and `directives` in place of `merge`, and the final config.
@@ -58,4 +62,4 @@ issue: I-149
 - [identity](../stable/internals/identity.md): what is hashed (the final config, no `base_sha256`), the library key as the identity, format 2.
 - [caches](../stable/internals/caches.md): the prepare key.
 - [provenance](../stable/internals/provenance.md) and [housekeeping](../stable/guide/housekeeping.md): record format 2, and that `records upgrade` gives format 1 only.
-- V268–V270 into [errand-file decisions](../stable/design/decisions/errand-file.md), beside V59; V271–V273 into [identity decisions](../stable/design/decisions/identity.md).
+- V268–V270 into [errand-file decisions](../stable/design/decisions/errand-file.md), beside V59; V271–V275 into [identity decisions](../stable/design/decisions/identity.md).

@@ -36,7 +36,8 @@ seed_range    = [1, 900_000_000]  # Pythia's Random:seed and Parallelism:seeds (
 footer        = ["Beams:LHEF = {input}"]
 
 [command]
-argv = ["{exe}", "{outputs}", "{cards}"]
+# App_Pythia reads the final config (cards/pythia.cmnd), never a base card: no base path is in the identity
+argv = ["{exe}", "{outputs}", "{card}"]
 
 [outputs]
 sidecar = "{output}.json"           # App_Pythia writes it next to its first output

@@ -137,5 +137,5 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 ## live
 
 - [live-adopted-runs](live/adopted-runs.md): an adopted Run reads, numbers and draws as before (its points library points by their links, its plot document re-keyed); migrate --layout leaves statistics/ alone (3 KB)
-- [live-canonical-cards](live/canonical-cards.md): every tool with a card reads a final config with no comments, and the identity hashes it, so one physics is one identity whatever the writing (7 KB)
+- [live-canonical-cards](live/canonical-cards.md): every tool with a card reads a final config with no comments, and the identity hashes it, so one physics is one identity whatever the writing (8 KB)
 - [live-runs-ends](live/runs-ends.md): heimdall runs shows when and how each run ended in its state's colour, orders a history list by its runs' ends, and gives every state a colour (2 KB)

@@ -31,6 +31,7 @@ def test_the_first_signal_stops_cleanly_the_second_hard(handlers, monkeypatch):
     tools killed at once); SIGHUP (the terminal gone) also sends the output to /dev/null."""
     quiet = []
     monkeypatch.setattr(cli, "_quiet", lambda: quiet.append(True))
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)        # a pytest started under nohup or a detached shell ignores it, and is not caught
     stopper = execute.Stopper()
     previous = cli.catch_signals(stopper)
     assert set(previous) == {signal.SIGINT, signal.SIGTERM, signal.SIGHUP}

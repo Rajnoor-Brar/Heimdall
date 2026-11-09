@@ -1,6 +1,6 @@
 # Phase 6: known reds
 
-Status: in progress 2026-11-09 (6.1, 6.2 done). Blocked by: phase 0. Closes T-1 and F-9 together with P7, which fixes the two docs tests by the crystallise.
+Status: done 2026-11-09 (6.1–6.3). Blocked by: phase 0. Closes T-1 and F-9 together with P7, which fixes the two docs tests by the crystallise.
 
 No reason text may name an issue id or `.plans/`, because `test_docs.py:275` refuses both in code. Say what the mark waits for in words.
 
@@ -26,3 +26,4 @@ No reason text may name an issue id or `.plans/`, because `test_docs.py:275` ref
 - 6.1: the two cases `MSTW` and `NNLO` of `test_the_legacy_reference_is_reproduced_byte_for_byte` are `pytest.param(…, marks=LEGACY_DIGIT)`, a strict xfail with the plan's reason. Check: `test_gates_p1.py -rxX` alone: `1 passed, 2 xfailed` (30 s); `git diff --stat tests/reference` empty. `ISSUES.md` I-79 says "(the gates are strict xfails until decided)".
 - 6.2: `test_the_old_way_is_apt_and_a_venv` has `skipif(paths.base_dir() is not None, …)`: `paths.base_dir()` is the helper that says whether a conda base is loaded (`$HEIMDALL_BASE`); the grep the plan named found no other. Check: `test_stack_build.py -rs`: `83 passed, 1 skipped`, the skip with the plan's reason. I-77 has the note.
 - Off-plan: 6.1 and 6.2 are one commit (both only name a known red by a mark, and ISSUES.md holds both notes).
+- 6.3: alone, three runs in a row passed (0.22 s each), so the flake needed a cause that a plain run does not have. The test asserts `catch_signals` replaced all three handlers, and `catch_signals` leaves SIGHUP alone when it was ignored at the start (nohup). A pytest started by `setsid nohup …` or from a detached shell ignores SIGHUP, so the assertion's `SIGHUP` item was missing. Reproduced: `bash -c 'trap "" HUP; pytest …test_the_first_signal_stops_cleanly_the_second_hard'` failed first on the old test (`Extra items in the right set: SIGHUP`), the full `test_detach.py` passes under the same trap now (22 passed), and five plain runs in a row pass. Not a defect in `catch_signals` (leaving an ignored SIGHUP alone is its stated rule, and `test_an_ignored_sighup_stays_ignored` proves it); the test now sets SIGHUP to the default first, as that sibling test sets it to ignored. The assertion is as it was.

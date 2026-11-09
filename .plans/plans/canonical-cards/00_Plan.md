@@ -97,6 +97,8 @@ It runs after a hard-link snapshot, as a dry run, then on the developer's yes, w
 | The point's name | out of the identity | Its only path in was the header comment |
 | Order where order is physics | kept: `sequential` folders, `leading` and `repeatable` keys | Sorting there would change the events |
 | Old records | remade once by a one-off script, not read in two forms (gate Q4) | the runner stays single-form; 885 entries of a real work dir would otherwise rerun |
+| Pythia's argv | `{card}`, the final config, not `{cards}` (its raw bases, then the point card) (developer, 2026-11-10) | found in P5: Pythia read its bases as written, and their paths were in every Pythia identity, so a renamed base was new physics. App_Pythia takes any number of cards: no rebuild |
+| Entries one physics after the remake | the most linked stays in the library (the earliest made on a tie); each other stays its Run's own as `<name>.adopted-duplicate` beside its link; entries no Run links are removed (developer, 2026-11-10) | the library holds one entry per key; a duplicate with another seed is other events, which `prune --duplicates` keeps. Not `library/.superseded/`: prune would take any unlinked folder there for an entry and delete it |
 
 ## Not yet specified
 
@@ -144,5 +146,5 @@ Asked at once, with recommendations; assumptions listed beside them.
 | P2 | done 2026-11-09; the rank-table row added on the developer's yes |
 | P3 | done 2026-11-09; the golden file differs at Decay's 29 points (`base_sha256` of the edited fixture), rewritten once after P4 (the developer, 2026-11-09) |
 | P4 | done 2026-11-10: the golden file rewritten on the developer's yes (193 points) |
-| P5 | not started |
+| P5 | done 2026-11-10: checked on an old-form fixture work dir, then work dir 1 remade (states and drawing unchanged); Pythia's argv fixed on the way (74eb9ed) |
 | P6 | not started |

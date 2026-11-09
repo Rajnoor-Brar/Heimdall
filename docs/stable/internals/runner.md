@@ -11,6 +11,7 @@ One flat package, `framework/runner/`, with a declared rank per module. A module
 | Rank | Module | Owns |
 |---|---|---|
 | 0 | `errors.py` | `HeimdallError(message, where, hint)`, `did_you_mean` |
+| 0 | `cards.py` | a tool's card as entries: parsed by its folder's `[card]` grammar, its sources merged, the final config written in its `[card] order` (`free`, `sequential`), the sidecar, YAML trees: [tool-contract](tool-contract.md) |
 | 0 | `paths.py` | the two roots: Heimdall (`heimdall_root`, where the code is) and the work dir (`work_root`: `$HEIMDALL_WORK` or the walk up to a `heimdall.toml`), `heimdall.toml` read (`work_meta`) |
 | 0 | `schema.py` | the errand file's schema, `framework/schema/run.toml`: every key's type, choices, bounds, default, inheritance, doc and notes |
 | 0 | `hepfiles.py` | reading YODA text (1D and 2D objects, `/RAW` twins, counters; `.gz` too) and Rivet's data directories, once |

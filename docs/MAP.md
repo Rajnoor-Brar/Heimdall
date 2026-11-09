@@ -136,5 +136,5 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## live
 
-- [live-adopted-runs](live/adopted-runs.md): an adopted Run's points plan as library points whatever its config says; migrate --layout leaves statistics/ and an Errand's folders; adopt still breaks plot (2 KB)
+- [live-adopted-runs](live/adopted-runs.md): an adopted Run reads, numbers and draws as before (its points library points by their links, its plot document re-keyed); migrate --layout leaves statistics/ alone (3 KB)
 - [live-runs-ends](live/runs-ends.md): heimdall runs shows when and how each run ended in its state's colour, orders a history list by its runs' ends, and gives every state a colour (2 KB)

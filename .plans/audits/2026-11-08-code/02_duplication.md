@@ -26,7 +26,7 @@ The developer decided on 2026-10-25 to drop v2 (I-20, then I-21, which makes v3 
 `combine` and the `merge` tool both run rivet-merge, at two stages. The `merged` figure and a set's `merge` with `how = "combine"` both merge at drawing time. A user who wants "these seeds as one curve" has four routes and no guide to choose between them.
 **Move:** decide the model. Proposal: a set's `merge` is the one drawing-time merge, and the `merged` figure becomes a set (I-41 already retires `plot_points` for sets). `combine` stays as the recorded merge. The `merge` post tool is kept only if a use exists that `combine` does not cover: ask. `plotmerge` stays, renamed for what it does (`bundle`), since it does not merge. **Closes when:** a decision note names one mechanism per job, and the rest are front ends or gone.
 
-### D-3 `heimdall log` and `heimdall show --log` · Consider · CONFIRMED
+### D-3 `heimdall log` and `heimdall show --log` · Consider · CONFIRMED · closed 2.5
 `cli.py:280–295`: both take `RECORD[/POINT[/TAG]]`, `--full` and `--attempt N`, and `show --log` is "the logs, as heimdall log prints them". The plan (I-72, `live/show.md`) kept `log` as a shorthand. Two parsers with the same three options will drift: a fourth option added to one is missing from the other.
 **Move:** make `log` an alias that the parser maps to `show --log` (one parser, one set of options). **Closes when:** `log`'s options are defined once.
 

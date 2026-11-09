@@ -37,6 +37,16 @@ from .events import Bus, Hub, Journal, RunBus, RunLog, greeting, connect, hubs
 from .watch import PlainView, follow_events, follow_file, view
 
 
+def record_options(parser: argparse.ArgumentParser, target_help: str, own=None) -> None:
+    """What `log` and `show` take alike: a record's `target`, then (`own` adds them) the command's own options, then `--full`
+    and `--attempt`."""
+    parser.add_argument("target", metavar="RECORD[/POINT[/TAG]]", help=target_help)
+    if own is not None:
+        own(parser)
+    parser.add_argument("--full", action="store_true", help="the whole logs (a job with --logs) instead of the digests")
+    parser.add_argument("--attempt", type=int, metavar="N", help="an earlier attempt's logs, from the point's history/")
+
+
 def parser() -> argparse.ArgumentParser:
     top = argparse.ArgumentParser(prog="heimdall", description="Heimdall: plan, run, draw and record studies (docs/README.md). "
                                                        "`heimdall help <command>` for one command.")
@@ -278,20 +288,14 @@ def parser() -> argparse.ArgumentParser:
     tagged.add_argument("--clear", action="store_true", help="remove its tag and labels")
 
     logged = commands.add_parser("log", help="a record's own account, a point's attempts and logs, or a tool's log")
-    logged.add_argument("target", metavar="RECORD[/POINT[/TAG]]",
-                        help="a record, <A>/<E>/<R>, then a point and a tool, or a path under records/")
-    logged.add_argument("--full", action="store_true", help="the whole logs (a job with --logs) instead of the digests")
-    logged.add_argument("--attempt", type=int, metavar="N", help="an earlier attempt's logs, from the point's history/")
+    record_options(logged, "a record, <A>/<E>/<R>, then a point and a tool, or a path under records/")
 
     shown = commands.add_parser("show", help="what a Run, a point or a tool did, read from its record: identity, seed, tools, "
                                               "cross section, products, attempts")
-    shown.add_argument("target", metavar="RECORD[/POINT[/TAG]]",
-                       help="a Run, <A>/<E>/<R>, then a point and a tool, or a path under records/")
-    shown.add_argument("--parts", action="store_true", help="a point's identity parts too (what its identity hashes)")
-    shown.add_argument("--json", action="store_true", help="the view as JSON")
-    shown.add_argument("--log", action="store_true", help="the logs, as heimdall log prints them (--full and --attempt imply it)")
-    shown.add_argument("--full", action="store_true", help="the whole logs (a job with --logs) instead of the digests")
-    shown.add_argument("--attempt", type=int, metavar="N", help="an earlier attempt's logs, from the point's history/")
+    record_options(shown, "a Run, <A>/<E>/<R>, then a point and a tool, or a path under records/", own=lambda p: (
+        p.add_argument("--parts", action="store_true", help="a point's identity parts too (what its identity hashes)"),
+        p.add_argument("--json", action="store_true", help="the view as JSON"),
+        p.add_argument("--log", action="store_true", help="the logs, as heimdall log prints them (--full and --attempt imply it)")))
 
     pool = commands.add_parser("library", help="the points library: list its points, verify them, prune the unlinked, adopt a Run's points")
     pool.add_argument("action", choices=["list", "verify", "prune", "adopt"],

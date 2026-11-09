@@ -1,0 +1,14 @@
+read snippets/EPCollider.in
+cd /Herwig/Generators
+set /Herwig/Shower/ShowerHandler:PDFB /Herwig/Partons/ShowerLOPDF
+set /Herwig/Partons/MPIExtractor:SecondPDF /Herwig/Partons/MPIPDF
+set /Herwig/Partons/EPExtractor:SecondPDF /Herwig/Partons/HardNLOPDF
+cd /Herwig/MatrixElements/
+insert SubProcess:MatrixElements[0] MEDISNC
+set /Herwig/EventHandlers/Luminosity:BeamEMaxA 18*GeV
+set /Herwig/EventHandlers/Luminosity:BeamEMaxB 275*GeV
+read snippets/HepMC.in
+set /Herwig/Analysis/HepMC:PrintEvent 1000000000
+set /Herwig/Analysis/HepMC:Filename events.hepmc
+cd /Herwig/Generators
+saverun point EventGenerator

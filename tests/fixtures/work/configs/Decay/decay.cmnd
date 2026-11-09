@@ -35,7 +35,6 @@ HeavyIon:mode       = 1
 HeavyIon:SigFitNGen = 200        
  ! let Glauber fit Ne-20 geometry
                                   ! remove SigFitDefPar — those were Pb params
-HeavyIon:SigFitNGen     = 0
 HeavyIon:SigFitDefAvNDb = 1.13
 HeavyIon:SigFitDefPar   = 1.67,20.13,0.14
 ! -----------------------------------------------------------

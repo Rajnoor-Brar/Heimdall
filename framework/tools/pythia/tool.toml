@@ -7,15 +7,19 @@ status          = "standard"
 produces_events = true
 
 [card]
-style   = "append"                  # the point card is read after the base cards: last wins
+style   = "append"                  # the base cards and the point's settings, merged into one final config
 ext     = "cmnd"
 comment = "!"
 drop    = '^\s*[^A-Za-z0-9\s]'   # Pythia reads a line only when it starts with a letter or digit
 trailing = '\s+!.*$'
-# The combined card holds each key once (V59): a base setting the point card sets is left out of it.
-# These particle-data commands add up instead of replacing (three 23:onIfMatch lines all apply), so
-# every one is kept, in order.
-merge      = true
+# The final config (doc:tool-contract): settings commute, so each is written once, sorted, and a key twice
+# in one card is refused. A tune resets its parameters when read, so tunes lead. A particle's commands
+# act in order (onMode = off, then onIfMatch), so each particle's stay together as written. These
+# particle-data commands add up instead of replacing (three 23:onIfMatch lines all apply): every one is
+# kept.
+order      = "free"
+leading    = ["Tune:ee", "Tune:pp"]
+group      = '^(\d+):'
 repeatable = ["onIfAny", "onIfAll", "onIfMatch", "offIfAny", "offIfAll", "offIfMatch", "addChannel",
               "oneChannel", "all", "new", "rescaleBR"]
 # What the runner sets: a base card's value of these is never used (--plan says so, V59)

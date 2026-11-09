@@ -201,14 +201,14 @@ def test_path_prefix_takes_the_command_from_path(scratch):
 
 
 def test_the_combined_card_holds_each_key_once(scratch):
-    """V54, V59: the card on disk is the base's settings without comments, each key once (a base line
-    the point card sets is left out: the point card's value is the one used), then the point card."""
+    """V54, V59: the card on disk is the final config: the base's settings and the point's merged, each key
+    once (a base value the point sets is replaced, and the sidecar says so), and no comments."""
     import json
     from runner import tools
     _, _, p = plan(raw(), scratch)
     step = p.rendered["pythia"]
     combined = p.writes[step.card_combined].splitlines()
-    assert combined[0] == f"! from {step.card_base[0]}"
+    assert not any(line.lstrip().startswith("!") for line in combined)
     parse = tools.card_parser(step.folder)
     keys = [parsed[0] for parsed in map(parse, combined) if parsed]
     assert len(keys) == len(set(keys))                                         # every key once
@@ -241,13 +241,12 @@ def test_settings_reach_the_card_and_a_second_source_is_refused(scratch):
         plan(raw(tools__rivet__settings={"x": 1}), scratch)
 
 
-def test_a_tcl_comment_line_inside_braces_is_kept(scratch):
-    from runner import tools
-    card = scratch / "c.tcl"
-    card.write_text("# top\nset ExecutionPath {\n  A\n#  B\n}\n\n# end\nset X 1  # not a comment in Tcl\n", encoding="utf-8")
-    folder = tools.folders()["delphes"]
-    assert tools.clean_base(card, folder) == [f"# from {card}", "set ExecutionPath {", "  A", "#  B", "}",
-                                              "set X 1  # not a comment in Tcl"]
+def test_a_tcl_comment_line_inside_braces_is_kept():
+    from runner import cards, tools
+    text = "# top\nset ExecutionPath {\n  A\n#  B\n}\n\n# end\nset X 1  # not a comment in Tcl\n"
+    rules = tools.folders()["delphes"].spec["card"]
+    assert [line for _, line in cards.cleaned(text, rules)] == ["set ExecutionPath {", "  A", "#  B", "}",
+                                                                "set X 1  # not a comment in Tcl"]
 
 
 @pytest.mark.skipif(not (apps() / "App_PythiaCheck.exe").exists(), reason="heimdall build --framework")

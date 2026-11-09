@@ -233,8 +233,8 @@ def test_the_card_shows_where_each_line_comes_from(scratch, capsys):
     assert cli.main(["run", path, "pdf", "--plan", "--card", "pythia", "--points", "NNPDF23lo"]) == 0
     shown = capsys.readouterr().out
     assert "pythia's card for point NNPDF23lo" in shown
-    assert "← [quantities.pdf] = NNPDF23lo" in shown and "ep.cmnd:" in shown and "set again below" in shown
-    assert "← the runner (seeds, the footer)" in shown
+    assert "← [quantities.pdf] = NNPDF23lo, over ep.cmnd:" in shown
+    assert "← the runner (the seed)" in shown and "!" not in shown
 
 
 def _identities(errand) -> dict:

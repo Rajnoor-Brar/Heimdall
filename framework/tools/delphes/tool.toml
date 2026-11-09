@@ -13,6 +13,7 @@ consumes_events = true
 
 [card]
 style   = "append"                  # Tcl: a later `set` wins
+order   = "sequential"              # a script: the base as written, then the point's lines, sorted
 ext     = "tcl"
 comment = "#"
 drop_inside_braces = false         # Tcl: a "#" line inside { … } can be a list element

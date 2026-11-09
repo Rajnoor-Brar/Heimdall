@@ -29,7 +29,7 @@ from typing import Any
 
 import tomli_w
 
-from . import plugins
+from . import cards, plugins
 from . import quantities as qmod
 from .config import Tool, chain_prelim, check_read_for, fragment_tags, resolve_chain
 from .errors import HeimdallError, did_you_mean
@@ -43,7 +43,8 @@ FOLDER_SECTIONS = {
     "tool": {"category", "executable", "streamable", "status", "consumes_events", "produces_events", "config_file",
              "config_always", "formerly", "template", "packages"},
     "card": {"style", "ext", "comment", "bools", "seed", "seed_parallel", "seed_range", "line", "footer",
-             "drop", "trailing", "drop_inside_braces", "merge", "repeatable", "owned"},
+             "drop", "trailing", "drop_inside_braces", "repeatable", "owned", "order", "leading", "group",
+             "directives"},
     "command": {"argv", "env", "cwd", "display"},
     "options": None,                                      # free: the schema of tool-specific keys
     "outputs": {"products", "event_count", "sidecar", "written", "deal", "combines"},
@@ -553,6 +554,8 @@ class Step:
     timeout: float = 0.0
     card_base: list[Path] = field(default_factory=list)
     card_lines: list[str] = field(default_factory=list)                # the point card, before seeds
+    card_sources: list = field(default_factory=list)   # style append: the bases', the point's and the footer's cards.Source
+    card_final: tuple = ()                             # style append, once finalised: (the final entries, what each overrode)
     card_point: Path | None = None
     card_combined: Path | None = None
     config_path: Path | None = None
@@ -1144,6 +1147,8 @@ def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
     config_values: dict[str, Any] = {}
     overrides: list[qmod.Override] = []          # style "render": the values, for render.py
     line_format = folder.get("card", "line", "{key} = {value}")
+    rules = folder.spec.get("card", {})
+    entries: list[cards.Entry] = []             # the point's settings, for the final config (cards.merge)
 
     def claim(key: str, value: Any, origin: str, fmt: str = "") -> None:
         normal = "".join(key.split()).lower()
@@ -1155,6 +1160,7 @@ def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
         overrides.append(qmod.Override(key, value, origin))
         line = line_format.replace("{key}", key).replace("{value}", native(value, bools, fmt))
         lines.append(line)
+        entries.append(cards.setting(key, native(value, bools, fmt), origin, rules))
         if base_values.get(normal) is not None and _same(base_values[normal], native(value, bools, fmt)):
             redundant.append(line)
 
@@ -1222,6 +1228,9 @@ def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
         if style == "append":
             step.card_lines = [header, *lines, *footer]
             step.card_point = plan.out / "cards" / f"{step.tag}.point.{ext}"
+            step.card_sources = [*(cards.parse(b.read_text(encoding="utf-8"), rules, b.name) for b in step.card_base),
+                                 cards.Source(tuple(entries), sort=True), cards.given(footer, rules, "the runner (the footer)")]
+            cards.merge(step.card_sources, rules)        # a setting twice in one card is refused here, at --plan
         else:                                   # render.py writes the whole card: base and values merged
             text = folder.plugin.card([b.read_text(encoding="utf-8") for b in step.card_base], overrides,
                                       {"point": plan.point.name, "tag": step.tag, "output_name": output_name,
@@ -1235,7 +1244,7 @@ def _render(plan: PointPlan, step: Step, errand, master: dict) -> None:
         owned = {_normal(k) for k in folder.get("card", "owned", [])} if style == "append" else set()
         parse_line = card_parser(folder)
         for base in step.card_base if owned else ():
-            for line in clean_base(base, folder)[1:]:
+            for _, line in _cleaned(base, folder):
                 key = parse_line(line)
                 if key and key[0] in owned:
                     plan.notes.append(f"{base.name} sets {key[2]}, which the runner sets: the card's value is not used")
@@ -1512,27 +1521,27 @@ def finalise(plan: PointPlan, seed: int) -> None:
             continue
         prepared = str(step.prepare_dir or "")
         lines = [line.replace("{seed}", str(seed)).replace("{prepared}", prepared) for line in step.card_lines]
-        seed_lines = step.folder.get("card", "seed", [])
-        if seed_lines:
+        seeding = []
+        if step.folder.get("card", "seed", []):
             context = {"seed": seed, "seeds": seeds}
-            lines += [expand(line, context, step.folder.name) for line in seed_lines]
+            seeding = [expand(line, context, step.folder.name) for line in step.folder.get("card", "seed", [])]
             if plan.threads > 1:
-                lines += [expand(line, context, step.folder.name) for line in step.folder.get("card", "seed_parallel", [])]
-        point_text = "\n".join(lines) + "\n"
+                seeding += [expand(line, context, step.folder.name) for line in step.folder.get("card", "seed_parallel", [])]
+        point_text = "\n".join(lines + seeding) + "\n"
         if step.card_point is None:                # style "render": the card is whole already
             plan.writes[step.card_combined] = point_text
             if step.prepare_card is not None:
                 plan.writes[step.prepare_card] = step.folder.plugin.prepare_card(
-                    lines, [b.read_text(encoding="utf-8") for b in step.card_base],
+                    lines + seeding, [b.read_text(encoding="utf-8") for b in step.card_base],
                     {"prepared": prepared, "base_paths": [str(b) for b in step.card_base], "tag": step.tag})
             continue
-        if step.folder.get("card", "merge"):
-            combined, settings = merged_card(step, lines)
-            plan.writes[step.card_combined.with_suffix(".json")] = json.dumps(settings, indent=1) + "\n"
-            plan.writes[step.card_combined] = combined + "\n" + point_text
-        else:
-            combined = "\n".join(line for base in step.card_base for line in clean_base(base, step.folder))
-            plan.writes[step.card_combined] = combined + "\n" + point_text
+        rules = step.folder.spec.get("card", {})
+        merged = cards.merge([*step.card_sources, cards.given(seeding, rules, "the runner (the seed)")], rules)
+        step.card_final = (cards.final(merged, rules), merged.overrode)
+        final = [e.line.replace("{seed}", str(seed)).replace("{prepared}", prepared) for e in step.card_final[0]]
+        plan.writes[step.card_combined] = "\n".join(final) + "\n"
+        if rules.get("order") == "free":           # what each setting is, where from and what it overrode
+            plan.writes[step.card_combined.with_suffix(".json")] = json.dumps(cards.sidecar(merged), indent=1) + "\n"
         plan.writes[step.card_point] = point_text
     for step in plan.rendered.values():
         if step.config_path is not None:
@@ -1544,96 +1553,39 @@ def _normal(key: str) -> str:
 
 
 def card_parser(folder: Folder):
-    """A function line → (normal key, value, key as written) or None, from the folder's [card].line
-    (V59): "{key} = {value}" reads `PDF:pSet = 13`, "set {key} {value}" reads `set X:Y 1`. The same
-    template that writes a line reads it, so the grammar is the folder's own."""
-    template = folder.get("card", "line", "{key} = {value}")
-    pattern = ""
-    for piece in re.split(r"(\{key\}|\{value\}|\s+)", template):
-        if piece == "{key}":
-            pattern += r"(?P<key>[^\s=]+)"
-        elif piece == "{value}":
-            pattern += r"(?P<value>.*?)"
-        elif piece and piece.isspace():
-            pattern += r"\s+"
-        elif piece:
-            pattern += r"\s*" + re.escape(piece.strip()) + r"\s*" if piece.strip() else ""
-    regex = re.compile(r"^\s*" + pattern + r"\s*$")
+    """A function line → (normal key, value, key as written) or None, by the folder's grammar (cards.grammar)."""
+    read = cards.grammar(folder.spec.get("card", {}))
 
     def parse(line: str):
-        match = regex.match(line)
-        return (_normal(match["key"]), match["value"], match["key"]) if match else None
+        parsed = read(line)
+        return (_normal(parsed[0]), parsed[1], parsed[0]) if parsed else None
     return parse
 
 
-def merged_card(step: "Step", point_lines: list[str]) -> tuple[str, dict]:
-    """[card] merge = true (V59, Pythia): the base cards' settings with each key the point card sets
-    left out, so the card on disk holds every key once; the point card follows, as it does in the run.
-    A key in [card] repeatable (particle-data commands such as 23:onIfMatch, which add up) is kept
-    every time. Returns the text and each key's value and origin, for cards/<tag>.json."""
-    folder = step.folder
-    parse = card_parser(folder)
-    repeatable = {r.lower() for r in folder.get("card", "repeatable", [])}
-    point = {parsed[0]: parsed for parsed in map(parse, point_lines) if parsed}
-    lines, settings = [], {}
-    for base in step.card_base:
-        lines.append(f"{folder.get('card', 'comment', '#')} from {base}")
-        for number, line in _cleaned(base, folder):
-            parsed = parse(line)
-            if parsed and parsed[0] in point and parsed[0].rpartition(":")[2] not in repeatable:
-                continue                                    # the point card sets it: its value is the one used
-            lines.append(line)
-            if parsed:
-                settings[parsed[2]] = {"value": parsed[1].strip(), "from": f"{base.name}:{number}"}
-    for normal, (_, value, key) in point.items():
-        settings[key] = {"value": value.strip(), "from": step.card_origins.get(normal, "the runner")}
-    return "\n".join(lines), settings
-
-
 def _cleaned(base: Path, folder: Folder):
-    """(line number, line) of a base card's settings: no blank lines or comments (V54)."""
-    comment = folder.get("card", "comment", "#")
-    drop = re.compile(folder.get("card", "drop", r"^\s*" + re.escape(comment)))
-    trailing = folder.get("card", "trailing")
-    trailing = re.compile(trailing) if trailing else None
-    inside = folder.get("card", "drop_inside_braces", True)
-    depth = 0
-    for number, raw in enumerate(base.read_text(encoding="utf-8").splitlines(), start=1):
-        line = raw.rstrip()
-        if line.strip() and not ((inside or depth == 0) and drop.match(line)):
-            yield number, trailing.sub("", line) if trailing else line
-        depth = max(0, depth + line.count("{") - line.count("}"))
-
-
-def clean_base(base: Path, folder: Folder) -> list[str]:
-    """A base card's lines as the combined card carries them (V54): its settings, without blank lines or
-    comments, under one `<comment> from <base>` line. [card] drop is a full-line comment (a regex),
-    trailing a comment after a value; drop_inside_braces = false keeps comment-looking lines inside
-    { … } (Tcl: there they can be list elements)."""
-    return [f"{folder.get('card', 'comment', '#')} from {base}", *(line for _, line in _cleaned(base, folder))]
+    """(line number, line) of a base card's settings: no blank lines or comments (cards.cleaned, V54)."""
+    return cards.cleaned(base.read_text(encoding="utf-8"), folder.spec.get("card", {}))
 
 
 def card_view(plan: PointPlan, tag: str) -> list[str]:
     """`heimdall run --plan --card <tag>` (doc:errand-file): the tool's card for this point as the tool reads it,
-    each line with where its value comes from: a base card's line (and whether the point card sets it
-    again), a setting, a quantity, the vocabulary, a built-in, or the runner (seeds, the footer)."""
+    each line with where its value comes from: a base card's line (and the values it replaced), a setting, a
+    quantity, the vocabulary, a built-in, or the runner (the seed, the footer)."""
     if tag not in plan.rendered:
         raise HeimdallError(f"--card: no tool table '{tag}' in this point", hint="its tools: " + ", ".join(plan.rendered))
     step = plan.rendered[tag]
     if step.card_combined is None:
         raise HeimdallError(f"--card {tag}: {step.folder.name} has no card", hint="its values are flags, options or a config file")
+    if step.card_final:                                  # style append: the final config, each line's source
+        entries, overrode = step.card_final
+        rows = [(e.line, e.origin + "".join(f", over {o.origin}" for o in overrode.get(e.normal, []) if e.key)) for e in entries]
+        width = min(max((len(line) for line, _ in rows), default=20), 64)
+        return [f"{tag}'s card for point {plan.point.name}: {step.card_combined}", *(f"  {line:{width}}  ← {origin}" for line, origin in rows)]
     parse = card_parser(step.folder)
     comment = step.folder.get("card", "comment", "#")
-    point = plan.writes.get(step.card_point or step.card_combined, "\n".join(step.card_lines))
-    point_lines = point.splitlines()
-    again = {parsed[0] for line in point_lines if (parsed := parse(line))}
     rows: list[tuple[str, str]] = []
-    for base in step.card_base if step.card_point is not None else ():
-        for n, line in _cleaned(base, step.folder):
-            parsed = parse(line)
-            rows.append((line, f"{base.name}:{n}" + (", set again below" if parsed and parsed[0] in again else "")))
     render = step.folder.card_style == "render"
-    for line in point_lines:
+    for line in plan.writes.get(step.card_combined, "\n".join(step.card_lines)).splitlines():
         parsed = parse(line)
         if not line.strip() or line.lstrip().startswith(comment):
             rows.append((line, ""))
@@ -1642,7 +1594,7 @@ def card_view(plan: PointPlan, tag: str) -> list[str]:
             rows.append((line, _render_origin(step, line)))
             continue
         origin = step.card_origins.get(parsed[0]) if parsed else None
-        rows.append((line, origin or ("the base card" if step.card_point is None else "the runner (seeds, the footer)")))
+        rows.append((line, origin or "the base card"))
     width = min(max((len(line) for line, origin in rows if origin), default=20), 64)
     return [f"{tag}'s card for point {plan.point.name}: {step.card_combined}",
             *(f"  {line:{width}}  ← {origin}" if origin else f"  {line}" for line, origin in rows)]
@@ -1678,20 +1630,15 @@ _CHECKED: dict[str, list] = {}
 def check_cards(plan: PointPlan) -> None:
     """[checks] card (V59): the tool reads each card it is given and says which lines it rejects (Pythia:
     {apps}/App_PythiaCheck.exe), so a key it does not know or a value of the wrong kind is refused before
-    anything runs, with no list of keys of ours. The card checked is the base cards' settings and the
-    point card before seeds; the answer is kept by its text for the process, and in .cache/<A>/checks/ when the
-    run keeps `cache` (a file there is read either way)."""
+    anything runs, with no list of keys of ours. The card checked is the final config before seeds; the
+    answer is kept by its text for the process, and in .cache/<A>/checks/ when the run keeps `cache` (a
+    file there is read either way)."""
     for step in plan.rendered.values():
         command = step.folder.get("checks", "card")
         if not command or step.card_combined is None:
             continue
-        lines: list[tuple[str, str]] = []                 # (line, where it came from)
-        parse = card_parser(step.folder)
-        for base in step.card_base:
-            lines += [(line, f"{base.name}:{n}") for n, line in _cleaned(base, step.folder)]
-        for line in step.card_lines:
-            parsed = parse(line)
-            lines.append((line, step.card_origins.get(parsed[0], "the point card") if parsed else "the point card"))
+        rules = step.folder.spec.get("card", {})        # the final config before seeds, each line with its source
+        lines = [(e.line, e.origin) for e in cards.final(cards.merge(step.card_sources, rules), rules)]
         text = "\n".join(line for line, _ in lines) + "\n"
         key = hashlib.sha256((step.folder.name + str(step.identity_parts.get("exe_sha256")) + text).encode()).hexdigest()[:16]
         cache = cache_root() / plan.folders.assignment / "checks" / step.folder.name / f"{key}.json"

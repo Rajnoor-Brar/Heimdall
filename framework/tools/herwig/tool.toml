@@ -15,6 +15,7 @@ produces_events = true
 
 [card]
 style   = "append"                  # ThePEG: a later `set` wins; `saverun` must come last (footer)
+order   = "sequential"              # a script: the base as written, then the point's lines, sorted
 ext     = "in"
 comment = "#"
 line    = "set {key} {value}"

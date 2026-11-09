@@ -14,6 +14,7 @@ Pending work, one issue a task: what, why, done when. Rules: [work](../docs/rule
 The names' migration (`[errand]`, `heimdall.toml`) is applied uncommitted in two work dirs. They are the developer's. `heimdall migrate --plot-docs --apply` (plot documents by tag) waits on the same yes. **Done when:** the developer has reviewed and committed them, or says otherwise.
 
 ### I-149 A rewritten config or card makes new points · P1 · decision
+Plan: [canonical-cards](plans/canonical-cards/00_Plan.md) (approved 2026-11-09, being built; its answers replace the choice below: the records are remade once rather than read in two forms, and the prepare caches key on the final base): final configs, merged and canonical, with no comments; the identity hashes them.
 One physics should be one identity, whatever the writing. Today (`test_identity_order.py`; three strict xfails):
 - **`vary`'s order:** quantity lines enter the cards in `vary` order, then the static ones (`tools.py:932`), so `["pdf", "energies"]` and `["energies", "pdf"]` give every point a new identity, library key and, by identity seeding, seed and events. The `[quantities.*]` tables' order is already safe.
 - **A card's text:** the identity holds `base_sha256`, the raw base card's hash (`tools.py:1234`), beside its cleaned lines (V54). So a comment, a blank line or a trailing space in a `.cmnd` or `.yaml` is a new point. The prepare cache also keys on it, and MadGraph's prepare needs it there.

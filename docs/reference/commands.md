@@ -232,7 +232,7 @@ live jobs (running and paused), each with its index [N]; with --5, --10, --20 or
 | `--again ID\|N` | run a failed, stopped or lost run's own command again, detached, from its records' config snapshot (its complete points skipped); not a running or paused one |
 | `-i, --index N\|ID` | the run [N] of the live list (or an id): its block, and on a terminal a prompt of what to do with it: watch, stop, resume, run again, forget (the word typed to confirm) |
 | `--jobs M` | with -i N: change the running job's points at once to M, while it runs (never stops a running point; lowering waits for them to end) |
-| `--state S[,S]` | only the runs in these states: running, queued, held, paused, failed, stopped, done, lost, not run, submitted, on Slurm, ended, cancelled |
+| `--state S[,S]` | only the runs in these states: running, queued, held, paused, failed, stopped, done, lost, not run, submitted, on Slurm, ended, cancelled, forgotten, exit, unknown |
 | `--plain` | no colour or links |
 
 ## `heimdall tag`

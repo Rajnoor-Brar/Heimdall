@@ -4,7 +4,7 @@ Patterns that make the next change harder or let a defect hide. Each finding nam
 
 ## Findings
 
-### G-1 Run state is a sentence, and logic parses it back · Required · CONFIRMED
+### G-1 Run state is a sentence, and logic parses it back · Required · CONFIRMED · closed 1.1
 `runs.state()` returns display text: `"done, resumed"`, `"running (not reachable from here)"`. `house.state_word()` (`house.py:614`) cuts it at the first comma or parenthesis. The queue waiter decides whether to start with `word in ("done", "failed", …) or word.startswith("exit")` (`cli.wait_turn`, `cli.py:1184`). The `runs -i` action menu does the same (`cli.py:2287`), and so does the listing's `--state` filter (`house.py:675`). The states are also listed three times: `runs.VERDICTS` (`runs.py:45`), `house.RUN_STATES` (`house.py:580`, 13 states), and the colours.
 So rewording a state on screen changes when a queued run starts.
 **Move:** `runs.State`, an enum (running, queued, held, paused, done, failed, not run, stopped, lost, forgotten, submitted, …), plus qualifiers (`resumed`, `reachable`) as fields. `runs.state()` returns it, and `house` formats it. The waiter compares enums. **Closes when:** no logic calls `state_word`, and a test rewords a state's text without changing queue behaviour.

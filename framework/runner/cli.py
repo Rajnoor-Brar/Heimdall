@@ -268,7 +268,7 @@ def parser() -> argparse.ArgumentParser:
     listed.add_argument("--jobs", type=int, metavar="M",
                         help="with -i N: change the running job's points at once to M, while it runs (never stops a running "
                              "point; lowering waits for them to end)")
-    listed.add_argument("--state", metavar="S[,S]", help="only the runs in these states: " + ", ".join(house.RUN_STATES))
+    listed.add_argument("--state", metavar="S[,S]", help="only the runs in these states: " + ", ".join(runs.STATES))
     listed.add_argument("--plain", action="store_true", help="no colour or links")
 
     tagged = commands.add_parser("tag", help="a Run's tag and labels: show them, set them (word, or key=value; key= removes), or --clear them")
@@ -1051,7 +1051,7 @@ def queue_run(args, errand, keys: list[str], nothing_runs: bool) -> int:
     shown = f"[{number}] {target['id']}" if number else target["id"]
     if target.get("kind") == "cluster":
         raise HeimdallError(f"{shown} is a cluster submission: a run here is not queued to Slurm's jobs")
-    if target.get("finished") is not None and not runs.paused(target) or state == "lost":
+    if target.get("finished") is not None and not runs.paused(target) or state.word == "lost":
         raise HeimdallError(f"{shown} has ended ({state}): a run queued to it would start at once",
                             hint="run it now: leave --queued-to out")
     if len(keys) > 1:                                       # a sweep: its chain, its head queued to that run
@@ -1207,15 +1207,14 @@ def wait_turn(run_id: str, queued_to: str, fields: dict) -> dict:
                 runs.update(run_id, queued_to=to)
                 _queue_say(f"its predecessor left the queue: it waits for {to}")
                 continue
-            word = house.state_word(runs.state(other))
-            if word in ("done", "failed", "not run", "lost", "forgotten") or word.startswith("exit") \
-                    or (other.get("finished") is not None and word not in ("stopped", "paused")):
-                _queue_say(f"{to} ended {word}: its turn")
+            there = runs.state_of(other)
+            if there.gives_turn:
+                _queue_say(f"{to} ended {there.shown or there.word}: its turn")
                 break
-            if (word == "stopped" or word == "paused" and other.get("forgotten")) and not held:
+            if there.holds and not held:
                 held = True
                 runs.update(run_id, held=True)
-                _queue_say(f"{to} was {'stopped' if word == 'stopped' else 'paused and forgotten'}: held until "
+                _queue_say(f"{to} was {'stopped' if there.word == 'stopped' else 'paused and forgotten'}: held until "
                            f"heimdall runs --dispatch {run_id}")
             time.sleep(runs.QUEUE_POLL)
     except KeyboardInterrupt:
@@ -1336,7 +1335,7 @@ def cmd_stop(args) -> int:
             raise HeimdallError("stop which job? outside a work dir, name it", hint="heimdall stop --pid N (heimdall runs lists them)")
         found = [(n, h) for n, h in found if h in house.runs_here(work)]
     if not found:
-        cluster = next((e for e in runs.entries() if e.get("kind") == "cluster" and runs.state(e) == "submitted"
+        cluster = next((e for e in runs.entries() if e.get("kind") == "cluster" and runs.state_of(e).word == "submitted"
                         and (wanted is None or e.get("config") == str(wanted.path))), None)
         raise HeimdallError("no running job to stop" + (f" for {wanted.path}" if wanted else "")
                        + (f" with pid {args.pid}" if args.pid else ""),
@@ -2163,7 +2162,7 @@ def cmd_runs(args) -> int:
     return 0
 
 
-def live_at(index: int) -> tuple[dict, str]:
+def live_at(index: int) -> tuple[dict, runs.RunState]:
     """The live job [index] of `heimdall runs` (house.live_entries: the same list, made again now), or refused,
     naming the live ones."""
     listed = house.live_entries(runs.entries(), house.live_runs())
@@ -2184,12 +2183,12 @@ def running_at(index: int, verb: str) -> int:
     if entry.get("kind") == "cluster":
         raise HeimdallError(f"[{index}] is a cluster submission: its jobs are on Slurm's nodes",
                             hint="heimdall runs names its heimdall cluster … --status")
-    if state in ("queued", "held"):
+    if state.word in ("queued", "held"):
         if verb == "stopped":                               # its waiting worker: stopped unrun, holding the runs after it
             return entry.get("pid")
         raise HeimdallError(f"[{index}] is {state}: nothing is {verb} until its turn",
                             hint=f"its log: {entry.get('log') or runs.log_of(entry.get('id', ''))}; heimdall runs --dispatch {index} starts it now")
-    if not state.startswith("running"):
+    if state.word != "running":
         raise HeimdallError(f"[{index}] {entry.get('id')} is {state}: it cannot be {verb} from here")
     return entry.get("pid")
 
@@ -2247,12 +2246,12 @@ def resume_run(index: int) -> int:
     entry, state = live_at(index)
     if not runs.paused(entry):
         raise HeimdallError(f"[{index}] is {state}, not paused: only a paused job is resumed",
-                            hint=f"heimdall watch -i {index} follows it" if state.startswith("running") else
+                            hint=f"heimdall watch -i {index} follows it" if state.word == "running" else
                             "heimdall runs lists the live ones")
     return relaunch_entry(entry, index, True)
 
 
-def entry_of(ref: str | int) -> tuple[dict, str, int | None]:
+def entry_of(ref: str | int) -> tuple[dict, runs.RunState, int | None]:
     """A run `heimdall runs` names: its live [N] (digits), or its id, whole or the tail of it (`…-e17e`) when one
     entry has it. (entry, state, its live number or None)."""
     text = str(ref).strip()
@@ -2287,7 +2286,7 @@ def again_run(ref: str | int) -> int:
     if runs.paused(entry):
         raise HeimdallError(f"{shown} is paused, not finished: heimdall runs --resume {number or ''}".rstrip(),
                             hint="a pause continues from its records; --again is for a run that ended")
-    if house._going(entry, state) or entry.get("finished") is None and state != "lost":
+    if house._going(entry, state) or entry.get("finished") is None and state.word != "lost":
         raise HeimdallError(f"{shown} is {state}, not finished: only a run that ended is run again",
                             hint=f"heimdall watch -i {number} follows it" if number else "heimdall runs lists the live ones")
     return relaunch_entry(entry, entry["id"] if not number else number, False)
@@ -2298,19 +2297,19 @@ ACTIONS = {"w": ("watch", None), "s": ("stop", "stop"), "j": ("set jobs", None),
            "a": ("run again", "again"), "f": ("forget", "forget"), "d": ("dispatch", "dispatch"), "q": ("leave", None)}
 
 
-def offered(entry: dict, state: str, number: int | None) -> list[str]:
+def offered(entry: dict, state: runs.RunState, number: int | None) -> list[str]:
     """The keys that fit a run: a running live one is watched or stopped, a paused one resumed or forgotten, a failed,
     stopped or lost one run again."""
     if entry.get("kind") == "cluster":
         return ["q"]
-    if number and state.startswith("running"):
+    if number and state.word == "running":
         return ["w", "s", "j", "q"]
-    if state in ("queued", "held"):
+    if state.word in ("queued", "held"):
         return ["d", "s", "f", "q"]
     if number and runs.paused(entry):
         return ["r", "f", "q"]
-    if not house._going(entry, state) and (entry.get("finished") is not None or state == "lost"):
-        return ["a", "q"] if house.state_word(state) in ("failed", "stopped", "lost") else ["q"]
+    if not house._going(entry, state) and (entry.get("finished") is not None or state.word == "lost"):
+        return ["a", "q"] if state.word in ("failed", "stopped", "lost") else ["q"]
     return ["q"]
 
 
@@ -2383,7 +2382,7 @@ def set_jobs(ref: str | int, count: int) -> int:
     if entry.get("pidns") and namespace("pid") and entry["pidns"] != namespace("pid"):
         raise HeimdallError(f"{shown} (pid {entry.get('pid')}) is another PID namespace's (a container's): signalling it from here "
                             "could reach another process", hint="change it from where it runs")
-    if not state.startswith("running"):
+    if state.word != "running":
         raise HeimdallError(f"{shown} is {state}, not running: there is nothing to change",
                             hint=f"heimdall runs --resume {number} continues a pause" if number and runs.paused(entry) else
                             "heimdall runs lists what runs")
@@ -2407,7 +2406,7 @@ def forget_run(ref: str | int) -> int:
     (its waiting worker ends it: wait_turn), the run after it then waiting for the one before it."""
     entry, state, number = entry_of(ref)
     index = number or entry["id"]
-    if state in ("queued", "held"):
+    if state.word in ("queued", "held"):
         if not runs.ask_queue(entry["id"], "forget"):
             raise HeimdallError(f"{runs.queue_file(entry['id'])} cannot be written")
         print(f"forgetting: [{index}] {entry['id']} leaves its queue unrun"
@@ -2426,7 +2425,7 @@ def dispatch_run(ref: str | int) -> int:
     a queue of its own with the runs after it."""
     entry, state, number = entry_of(ref)
     shown = f"[{number}] {entry['id']}" if number else entry["id"]
-    if state not in ("queued", "held"):
+    if state.word not in ("queued", "held"):
         raise HeimdallError(f"{shown} is {state}, not queued: only a queued or held run is dispatched",
                             hint="heimdall runs lists the queues")
     if not runs.ask_queue(entry["id"], "dispatch"):

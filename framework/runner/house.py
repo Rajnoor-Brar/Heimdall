@@ -525,33 +525,32 @@ def _snapshot_record(config: str) -> list[str]:
     return []
 
 
-def _states(entries: list[dict], by_pid: dict) -> list[tuple[dict, str]]:
-    """Each entry with what it says now (runs.state); a cluster submission's from one squeue for them all (V184)."""
-    states = [(e, runs.state(e, by_pid)) for e in entries]
-    submitted = [e for e, s in states if e.get("kind") == "cluster" and s == "submitted"]
+def _states(entries: list[dict], by_pid: dict) -> list[tuple[dict, runs.RunState]]:
+    """Each entry with what it says now (runs.state_of); a cluster submission's from one squeue for them all (V184)."""
+    states = [(e, runs.state_of(e, by_pid)) for e in entries]
+    submitted = [e for e, s in states if e.get("kind") == "cluster" and s.word == "submitted"]
     if submitted and shutil.which("squeue"):
         from .cluster import active
         queued = {line.split("|")[0].split("_")[0] for line in active([str(j) for e in submitted for j in e.get("jobs", [])])}
-        states = [(e, ("on Slurm" if {str(j) for j in e.get("jobs", [])} & queued else "ended") if e in submitted else s)
+        states = [(e, runs.RunState("on Slurm" if {str(j) for j in e.get("jobs", [])} & queued else "ended") if e in submitted else s)
                   for e, s in states]
     return states
 
 
-def _going(e: dict, state: str) -> bool:
+def _going(e: dict, state: runs.RunState) -> bool:
     """Whether an entry's job still goes: running, or where this process cannot tell; a submission on Slurm."""
-    return state.startswith("running") or state in ("queued", "held") or state.startswith("on ") \
-        or state == "in another PID namespace" \
-        or (e.get("kind") == "cluster" and state in ("submitted", "on Slurm"))
+    return state.word in ("running", "queued", "held", "unknown") \
+        or (e.get("kind") == "cluster" and state.word in ("submitted", "on Slurm"))
 
 
-def _unrecorded(states: list[tuple[dict, str]], by_pid: dict) -> list[tuple[dict, str]]:
+def _unrecorded(states: list[tuple[dict, runs.RunState]], by_pid: dict) -> list[tuple[dict, runs.RunState]]:
     """The live sockets with no entry of a going job (a run from inside an image), as entries."""
     recorded = {e.get("pid") for e, s in states if _going(e, s) and e.get("host") == runs.host()}
     return [({"id": f"(pid {hello.get('pid')})", **hello, "configurations": hello.get("configurations")},
-             "running (unrecorded)") for pid, hello in by_pid.items() if pid not in recorded]
+             runs.RunState("running", "running (unrecorded)")) for pid, hello in by_pid.items() if pid not in recorded]
 
 
-def live_entries(entries: list[dict], live: list[tuple[str, dict]]) -> list[tuple[dict, str]]:
+def live_entries(entries: list[dict], live: list[tuple[str, dict]]) -> list[tuple[dict, runs.RunState]]:
     """The live runs, (entry, state), as `heimdall runs` numbers them, `heimdall watch -i` and `heimdall runs
     --resume`/`--forget` take them: the going jobs (recorded, and live sockets with no entry) and the paused runs
     neither resumed nor forgotten (runs.paused), in the order they began; a run that resumed a pause in that pause's
@@ -570,14 +569,11 @@ def live_entries(entries: list[dict], live: list[tuple[str, dict]]) -> list[tupl
     return sorted(chosen, key=lambda item: (began(item[0]), item[0].get("started") or 0, item[0].get("id", "")))
 
 
-def live_line(index: int, e: dict, state: str) -> str:
+def live_line(index: int, e: dict, state: runs.RunState) -> str:
     """One live run in a line, for a refusal that lists them: `[2] <id>  <A>/<E> · <configurations> · paused`."""
     cfgs = ", ".join(e.get("configurations") or ([e["configuration"]] if e.get("configuration") else []))
     return f"[{index}] {e.get('id', '?')}  {_config_name(e.get('config', ''), e.get('work'))} · {cfgs} · {state}"
 
-
-#: The states `heimdall runs --state` takes: what `runs.state` says first (a cluster submission's too).
-RUN_STATES = ("running", "queued", "held", "paused", "failed", "stopped", "done", "lost", "not run", "submitted", "on Slurm", "ended", "cancelled")
 
 #: SGR codes of the listing's colour (never left to a library: `[N]` is no markup, and a test reads them).
 SGR = {"bold": "1", "dim": "2", "red": "31", "green": "32", "yellow": "33", "blue": "34", "magenta": "35", "cyan": "36",
@@ -611,17 +607,12 @@ def short_id(run_id: str) -> str:
     return "…" + run_id.rsplit("-", 1)[-1] if "-" in run_id else run_id
 
 
-def state_word(state: str) -> str:
-    """The first word of a state (`done, resumed` is done; `running (not reachable from here)` running)."""
-    return state.split(",")[0].split(" (")[0].strip()
-
-
 def check_states(text: str) -> set[str]:
     """`--state running,failed`: the states named, or refused with the list."""
     wanted = {part.strip() for part in text.split(",") if part.strip()}
     for name in wanted:
-        if name not in RUN_STATES:
-            raise HeimdallError(f"no such state '{name}'", hint="the states: " + ", ".join(RUN_STATES))
+        if name not in runs.STATES:
+            raise HeimdallError(f"no such state '{name}'", hint="the states: " + ", ".join(runs.STATES))
     return wanted
 
 
@@ -672,7 +663,7 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
     live_list = heading == "live"
     numbers = {id(e): n for n, (e, _) in enumerate(selected, 1)} if live_list else live_numbers
     if states is not None:
-        selected = [(e, s) for e, s in selected if state_word(s) in states]
+        selected = [(e, s) for e, s in selected if s.word in states]
 
     def where(work: str | None) -> str:
         return titles.get(work or "", "") or (Path(work).name if work else "")
@@ -690,7 +681,7 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
         number = live_numbers.get(id(other)) if other is not None else None
         return (f"[{number}] " if number else "") + short_id(run_id or "?")
 
-    def row(e: dict, state: str, number: int | None) -> list[str]:
+    def row(e: dict, state: runs.RunState, number: int | None) -> list[str]:
         started = e.get("started") or 0
         span = _ago((e.get("finished") or now) - started)
         when = time.strftime("%m-%d %H:%M", time.localtime(started))
@@ -712,9 +703,9 @@ def runs_listing(entries: list[dict], live: list[tuple[str, dict]], titles: dict
                        + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
                        + f", {counts.get('failed', 0)} failed"
                        + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
-        going, word = state.startswith("running"), state_word(state)
+        going, word = state.word == "running", state.word
         completed, total = e.get("points_completed"), e.get("points_total")
-        parts = [paint(state, STATE_STYLE.get(word, ""), color) if word in STATE_STYLE else state]
+        parts = [paint(state.text, STATE_STYLE.get(word, ""), color) if word in STATE_STYLE else state.text]
         active = e.get("active_parallel_points")
         if going and active is not None:
             parts.append(f"{active} ongoing")

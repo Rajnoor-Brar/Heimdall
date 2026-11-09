@@ -1,6 +1,6 @@
 # Phase 1: run state as a value
 
-Status: not started. Blocked by: phase 0. Closes G-1, D-6, G-3, O-6 and G-8.
+Status: 1.1 done; 1.2 next. Blocked by: phase 0. Closes G-1, D-6, G-3, O-6 and G-8.
 
 **Today:**
 - `runs.state()` (`runs.py:292`) returns display text, such as `done, resumed`, `paused, forgotten`, `running (not reachable from here)`, `on <host>` or `exit 3`.
@@ -93,3 +93,6 @@ Test seams: `tests/runner/test_runs.py`, `test_queue.py` and `test_live.py`, whi
 - Blocked by: 1.1.
 
 ## Log
+
+- 1.1 (commit: `git log --grep "run state is a value"`): `runs.STATES`, `GIVES_TURN`, `HOLDS`, `RunState` (word, shown, detail, resumed, forgotten, reachable, where, ended; `text`, `gives_turn`, `holds`), `state_of`; `state()` is `state_of(...).text`. `house.state_word` and `RUN_STATES` are gone (`grep -rn state_word framework` prints nothing); `house._states`, `live_entries`, the listing's filter and colours and `cli`'s turn rule, prompt keys and refusals read `.word`. Fails first: on the old code `check_states("forgotten")` was refused, and `state_word("not run: …")` was the whole text (checked by running the old code from a stash). Checks: `test_runs`, `test_queue`, `test_live`, `test_pause`, `test_runlog`, `test_run_tags` green (the 20-row text table, the patched-`text` queue test, `--state forgotten` and `"not run"`); `docs` regenerated.
+  - Off-plan: `RunState` also carries `shown` (the verdict as written) and `ended`, because free-text verdicts must print unchanged and the turn rule needs to know a run finished; `holds`/`gives_turn` are properties beside the two sets.

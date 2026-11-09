@@ -455,3 +455,62 @@ def test_a_run_records_itself(scratch):
     assert entry["counts"] == {"done": 1, "failed": 0, "stopped": 0, "warned": 0}          # its points (V202)
     told = (Path(entry["records"][0]) / "run.jsonl").read_text(encoding="utf-8").splitlines()   # the run's own log
     assert json.loads(told[0])["state"] == "started" and json.loads(told[-1])["state"] == "finished"
+
+
+#: What `runs.state` printed for each entry below, before the state became a value: the text is the screen's, unchanged.
+TEXTS = [
+    ({"finished": 2.0, "code": 0, "verdict": "done"}, "done", "done"),
+    ({"finished": 2.0, "code": 1, "verdict": "failed"}, "failed", "failed"),
+    ({"finished": 2.0, "code": 3, "verdict": "exit 3"}, "exit 3", "exit"),
+    ({"finished": 2.0, "code": 2, "verdict": "not run: no such file"}, "not run: no such file", "not run"),
+    ({"finished": 2.0, "code": 2, "verdict": "the runner failed: KeyError: 'a'"}, "the runner failed: KeyError: 'a'", "not run"),
+    ({"finished": 2.0, "code": 137, "verdict": "killed by signal 9"}, "killed by signal 9", "exit"),
+    ({"finished": 2.0, "code": 6, "verdict": "stopped"}, "stopped", "stopped"),
+    ({"finished": 2.0, "code": 0}, "done", "done"),
+    ({"finished": 2.0, "code": 9}, "ended", "ended"),
+    ({"finished": 2.0, "code": 6, "state": "paused", "verdict": "paused"}, "paused", "paused"),
+    ({"finished": 2.0, "code": 6, "state": "paused", "verdict": "paused", "resumed_by": "y"}, "paused, resumed", "paused"),
+    ({"finished": 2.0, "code": 6, "state": "paused", "verdict": "paused", "forgotten": 3.0}, "paused, forgotten", "paused"),
+    ({"finished": 2.0, "code": 2, "verdict": "forgotten"}, "forgotten", "forgotten"),
+    ({"queued": True, "queued_to": "x"}, "queued", "queued"),
+    ({"queued": True, "held": True, "queued_to": "x"}, "held", "held"),
+    ({"pstart": "1"}, "lost", "lost"),
+    ({"host": "elsewhere"}, "on elsewhere", "unknown"),
+    ({"pidns": "pid:[1]"}, "in another PID namespace", "unknown"),
+    ({"kind": "cluster"}, "submitted", "submitted"),
+    ({"kind": "cluster", "verdict": "cancelled", "finished": 2.0}, "cancelled", "cancelled"),
+    ({}, "running", "running"),
+]
+
+
+@pytest.mark.parametrize("fields, text, word", TEXTS, ids=[t for _, t, _ in TEXTS])
+def test_a_state_prints_as_it_always_did_and_has_a_word_of_its_own(fields, text, word):
+    entry = {**runs.here(), "id": "x", "started": 1.0, **fields}
+    got = runs.state_of(entry)
+    assert (got.text, str(got), runs.state(entry)) == (text, text, text)
+    assert got.word == word and word in runs.STATES
+
+
+def test_a_running_run_this_process_cannot_reach_says_so_and_is_still_running():
+    got = runs.state_of({**runs.here(), "id": "x", "netns": "net:[1]"}, live={})
+    assert (got.word, got.reachable, got.text) == ("running", False, "running (not reachable from here)")
+
+
+def test_an_entrys_word_never_comes_from_its_display_text(monkeypatch):
+    monkeypatch.setattr(runs.RunState, "text", property(lambda self: "something else entirely"))
+    entry = {**runs.here(), "id": "x", "finished": 2.0, "code": 6, "state": "paused", "verdict": "paused", "forgotten": 3.0}
+    got = runs.state_of(entry)
+    assert (got.word, got.forgotten, got.holds, got.gives_turn) == ("paused", True, True, False)
+
+
+def test_runs_state_takes_forgotten_and_a_verdict_that_is_more_than_a_word(capsys):
+    a, b, c = runs.new_id(), runs.new_id(), runs.new_id()
+    for run_id in (a, b, c):
+        runs.begin(run_id, {"config": "/w/configs/P/a.toml", "configurations": ["one"], "work": "/w"})
+    runs.finish(a, 2, "forgotten", left_queue=True, queued=False)
+    runs.finish(b, 2, "not run: no such file")
+    runs.finish(c, 0)
+    for wanted, ids in (("forgotten", [a]), ("not run", [b]), ("done", [c])):
+        assert cli.main(["runs", "--10", "--state", wanted]) == 0
+        out = capsys.readouterr().out
+        assert [run_id in out for run_id in (a, b, c)] == [run_id in ids for run_id in (a, b, c)], wanted

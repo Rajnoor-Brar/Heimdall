@@ -182,7 +182,7 @@ def test_the_prompt_offers_dispatch_stop_and_forget_for_a_queued_run_and_watch_w
     runs.begin(before, {})
     runs.begin(me, {"queue": before, "queued_to": before, "queued": True})
     entry_, state, number = cli.entry_of(me)
-    assert state == "queued" and cli.offered(entry_, state, number) == ["d", "s", "f", "q"]
+    assert state.word == "queued" and cli.offered(entry_, state, number) == ["d", "s", "f", "q"]
     assert cli.act_on(me, {}, plain=True, key_reader=lambda: "d", line_reader=lambda prompt: "dispatch") == 0
     assert runs.queue_asked(me) == "dispatch"
     assert cli.running_at(number, "stopped") == os.getpid()
@@ -314,3 +314,41 @@ def test_a_queued_worker_that_never_begins_is_ended(monkeypatch, capsys, quick):
     chained_spawn(monkeypatch, slow_at=1, slow=slow)
     assert cli.main(["run", "Demo/jets", "single", "--queued-to", before]) == 1
     assert slow[0].poll() is not None and "had not begun" in capsys.readouterr().err
+
+
+def test_the_queue_decides_on_the_state_word_and_not_on_how_it_is_written(quick, monkeypatch):
+    """The waiter starts, holds and gives the turn as it does when the text is the usual one, whatever the text says."""
+    monkeypatch.setattr(runs.RunState, "text", property(lambda self: "worded some other way"))
+    before, me = runs.new_id(), runs.new_id()
+    runs.begin(before, {})
+    thread, got = waiting(me, before)
+    time.sleep(0.1)
+    assert thread.is_alive()                                       # it waits while the one before runs
+    runs.finish(before, 1)
+    settled(thread)
+    assert got["queued"] is False and got["queued_to"] == before and "began" in got
+
+    stopped, held_one = runs.new_id(), runs.new_id()
+    runs.begin(stopped, {})
+    thread, got = waiting(held_one, stopped)
+    runs.finish(stopped, 6)
+    deadline = time.time() + 5
+    while not runs.entry(held_one).get("held") and time.time() < deadline:
+        time.sleep(0.01)
+    assert runs.entry(held_one)["held"] is True and thread.is_alive()       # a stopped predecessor holds it
+    assert runs.ask_queue(held_one, "forget")
+    settled(thread)
+
+    paused, behind = runs.new_id(), runs.new_id()
+    runs.begin(paused, {})
+    thread, got = waiting(behind, paused)
+    runs.finish(paused, 6, state="paused")
+    time.sleep(0.1)
+    assert thread.is_alive() and not runs.entry(behind).get("held")         # a pause is waited for
+    runs.update(paused, forgotten=1.0)
+    deadline = time.time() + 5
+    while not runs.entry(behind).get("held") and time.time() < deadline:
+        time.sleep(0.01)
+    assert runs.entry(behind)["held"] is True                               # a forgotten one holds
+    assert runs.ask_queue(behind, "forget")
+    settled(thread)

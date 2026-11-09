@@ -318,7 +318,7 @@ def test_state_keeps_the_runs_in_those_states_and_an_unknown_one_is_refused(caps
     assert cli.main(["runs", "--10", "--state", "paused,stopped"]) == 0
     out = capsys.readouterr().out
     states = [line.split()[0] for line in out.splitlines() if line.startswith("    ") and " · " in line and line[4].islower()
-              and line.split()[0].rstrip(",") in house.RUN_STATES]
+              and line.split()[0].rstrip(",") in runs.STATES]
     assert states and set(s.rstrip(",") for s in states) <= {"paused", "stopped"}
     assert "running" not in out and "    done" not in out
     assert cli.main(["runs", "--state", "paused"]) == 0                       # the live list: [N] stays the live number

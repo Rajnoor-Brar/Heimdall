@@ -38,7 +38,7 @@ The developer decided on 2026-10-25 to drop v2 (I-20, then I-21, which makes v3 
 See [R-3](01_dead-and-retired.md#r-3). `house.point_state` (tests only) and `house.status`. A third view is `record.state_of` (`record.py:551`). Three answers to "is this point done?".
 **Move:** one function in `record`, which `status`, `show` and `--plan` call. **Closes when:** `grep "def .*state" framework/runner/{house,record}.py` finds one point-state function.
 
-### D-6 Run state: the registry's and the listing's · Consider · CONFIRMED
+### D-6 Run state: the registry's and the listing's · Consider · CONFIRMED · closed 1.1
 `runs.state()` builds a sentence. `house.state_word()` (`house.py:614`) cuts it back to a word, and `house.RUN_STATES`, `runs.VERDICTS` and the colours each list states again. See [G-1](04_design.md#g-1).
 
 ### D-7 Waiting loops with their own sleeps · Nit · CONFIRMED

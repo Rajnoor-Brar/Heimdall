@@ -31,6 +31,7 @@ import sys
 import tempfile
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from .events import namespace as _namespace
@@ -43,6 +44,16 @@ KEEP_DAYS = 30
 CLUSTER_VAR = "HEIMDALL_CLUSTER_JOB"
 #: What a run's exit code says, in a listing and in an entry; a pause also exits 6, its entry's state "paused".
 VERDICTS = {0: "done", 1: "failed", 2: "not run", 6: "stopped"}
+#: Every word a run's state can have, the one place they are listed: `heimdall runs --state` takes them, the
+#: listing's colours and the queue's turn rule read them. A cluster submission's `submitted` and `on Slurm`, a
+#: queue run that `forgotten` its place, a verdict that is only an exit code (`exit`), and a run this process cannot
+#: see into (`unknown`: another host or PID namespace) are words too.
+STATES = ("running", "queued", "held", "paused", "failed", "stopped", "done", "lost", "not run", "submitted", "on Slurm",
+          "ended", "cancelled", "forgotten", "exit", "unknown")
+#: A queued run's turn comes when its predecessor is in one of these (or any finished state but a hold, below).
+GIVES_TURN = frozenset({"done", "failed", "not run", "lost", "forgotten", "exit", "cancelled", "ended"})
+#: What holds the run after it: a stopped predecessor, and a paused one that was forgotten (a plain pause is waited for).
+HOLDS = frozenset({"stopped"})
 #: An entry's id, as new_id makes it: <YYYYmmdd-HHMMSS>-<host>-<4 hex>. Nothing else is read as one.
 ID = re.compile(r"\d{8}-\d{6}-[A-Za-z0-9_-]+-[0-9a-f]{4}")
 #: The id a detached run takes when it is given one: `heimdall runs --resume` names its new run so, and the
@@ -289,25 +300,103 @@ def alive(data: dict) -> bool | None:
     return not data.get("pstart") or started_at(int(pid)) == data["pstart"]
 
 
-def state(data: dict, live: dict | None = None) -> str:
+NAMESPACE = "another PID namespace"
+
+
+@dataclass(frozen=True)
+class RunState:
+    """What an entry says now, as a value: logic reads `word`, the screen prints `text` (so a rewording of the text
+    never changes what the queue or the listing does).
+
+    `word` is one of STATES. `shown` is the verdict or state the entry itself gave, as it is written (`exit 3`,
+    `not run: no such file`, `the runner failed: …`); `detail` is what the word leaves out (`3`, the message).
+    `resumed` and `forgotten` are a pause's later fate; `reachable` is False for a running run whose socket this
+    process cannot see; `where` is the host (or NAMESPACE) of a run this process cannot see into; `ended`: the entry
+    has a `finished` time."""
+    word: str
+    shown: str = ""
+    detail: str = ""
+    resumed: bool = False
+    forgotten: bool = False
+    reachable: bool = True
+    where: str = ""
+    ended: bool = False
+
+    @property
+    def text(self) -> str:
+        if self.word == "unknown":
+            return "in another PID namespace" if self.where == NAMESPACE else f"on {self.where}"
+        base = self.shown or self.word
+        if self.resumed:
+            base += ", resumed"
+        elif self.forgotten:
+            base += ", forgotten"
+        return base if self.reachable else f"{base} (not reachable from here)"
+
+    def __str__(self) -> str:
+        return self.text
+
+    @property
+    def gives_turn(self) -> bool:
+        """For a queued run behind this one: its turn. A finished run in no set but a hold gives it too."""
+        return self.word in GIVES_TURN or (self.ended and self.word not in ("stopped", "paused"))
+
+    @property
+    def holds(self) -> bool:
+        """For a queued run behind this one: it is held (stopped; paused and forgotten)."""
+        return self.word in HOLDS or (self.word == "paused" and self.forgotten)
+
+
+def _verdict_word(data: dict) -> tuple[str, str]:
+    """The word and its detail of an entry that ended (or a cluster submission): its `state`, else its `verdict`'s first
+    part when that is a word of STATES, else the verdict the exit code has, else `exit`. Never read from display text."""
+    state, verdict, code = data.get("state"), data.get("verdict"), data.get("code")
+    if state in STATES:
+        return state, ""
+    if isinstance(verdict, str):
+        if verdict in STATES:
+            return verdict, ""
+        head, colon, rest = verdict.partition(":")
+        if colon and head in STATES:
+            return head, rest.strip()
+        head, _, number = verdict.rpartition(" ")
+        if number.isdigit() and head in STATES:
+            return head, number
+    if code in VERDICTS:
+        return VERDICTS[code], ""
+    return "exit", "" if code is None else str(code)
+
+
+def state_of(data: dict, live: dict | None = None) -> RunState:
     """What an entry says now: when it ended, its state ("paused") or else its verdict, and whether a pause was resumed
     or forgotten since; running; "lost" (its process is gone, it never said how it ended); or why this process
     cannot tell. `live`: pid → greeting of the sockets this process sees."""
     if data.get("kind") == "cluster":
-        return data.get("verdict") or "submitted"
+        shown = data.get("verdict") or "submitted"
+        word, detail = _verdict_word(data) if data.get("verdict") else ("submitted", "")
+        return RunState(word, shown, detail)
     if data.get("finished") is not None:
-        ended = f"{data.get('state') or data.get('verdict') or VERDICTS.get(data.get('code'), 'ended')}"
-        return f"{ended}, resumed" if data.get("resumed_by") else f"{ended}, forgotten" if data.get("forgotten") else ended
+        word, detail = _verdict_word(data)
+        shown = f"{data.get('state') or data.get('verdict') or VERDICTS.get(data.get('code'), 'ended')}"
+        if word == "exit" and not (data.get("state") or data.get("verdict")) and data.get("code") not in VERDICTS:
+            word = "ended"
+        return RunState(word, shown, detail, resumed=bool(data.get("resumed_by")),
+                        forgotten=bool(data.get("forgotten")) and not data.get("resumed_by"), ended=True)
     running = alive(data)
     if running is False:
-        return "lost"
+        return RunState("lost")
     if data.get("queued") and running:                  # a waiting worker (cli.wait_turn): held when its predecessor was stopped
-        return "held" if data.get("held") else "queued"
+        return RunState("held" if data.get("held") else "queued")
     if running is None:
-        return f"on {data.get('host')}" if data.get("host") != host() else "in another PID namespace"
+        return RunState("unknown", where=data.get("host") if data.get("host") != host() else NAMESPACE)
     if live is not None and data.get("pid") not in live and data.get("netns") != _namespace("net"):
-        return "running (not reachable from here)"
-    return "running"
+        return RunState("running", reachable=False)
+    return RunState("running")
+
+
+def state(data: dict, live: dict | None = None) -> str:
+    """`state_of(...)` as it is printed."""
+    return state_of(data, live).text
 
 
 #: A queued run's worker looks at its predecessor's entry this often, in seconds (cli.wait_turn).

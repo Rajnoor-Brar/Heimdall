@@ -298,7 +298,7 @@ def test_a_coloured_listing_carries_its_codes_and_says_the_same_words(mixed):
     assert [strip(line) for line in tinted] == plain
     out = "\n".join(tinted)
     assert "\x1b[1m[1]\x1b[0m" in out                              # the index, bold
-    assert "\x1b[32mrunning\x1b[0m" in out and "\x1b[33mpaused\x1b[0m" in out        # green, yellow
+    assert "\x1b[96mrunning\x1b[0m" in out and "\x1b[33mpaused\x1b[0m" in out        # bright cyan, yellow
     assert "\x1b[36mheimdall runs --resume 2 · heimdall runs --forget 2\x1b[0m" in out     # commands cyan
     assert __import__("re").search(r"\x1b\[36mheimdall watch --pid \d+ · heimdall stop --pid \d+\x1b\[0m", out)
 
@@ -306,12 +306,15 @@ def test_a_coloured_listing_carries_its_codes_and_says_the_same_words(mixed):
 def test_each_state_has_its_colour_and_a_finished_one_its_again():
     entry = {"id": "20261026-120000-pp-abcd", "kind": "run", "started": 0.0, "finished": 10.0, "config": "/w/configs/P/a.toml",
              "configurations": ["c"]}
-    for verdict, code in (("failed", "31"), ("stopped", "35"), ("done", "2")):
+    end = time.strftime("%H:%M", time.localtime(10.0))
+    for verdict, code in (("failed", "31"), ("stopped", "35"), ("done", "32")):
         lines = house.runs_listing([runs.RunEntry.parse({**entry, "verdict": verdict})], [], {}, now=20.0, limit=5, color=True)
         assert f"\x1b[{code}m{verdict}\x1b[0m" in "\n".join(lines)
+        assert lines[2].endswith(f" · \x1b[{code}m{verdict} {end}\x1b[0m")    # its end, in its state's colour
         again = "heimdall runs --again 20261026-120000-pp-abcd"
         assert (again in "\n".join(lines)) == (verdict != "done")
     assert house.paint("x", "grey", True) == "\x1b[90mx\x1b[0m" and house.paint("x", "grey", False) == "x"
+    assert set(house.STATE_STYLE) == set(runs.STATES)                     # every state its colour
 
 
 def test_state_keeps_the_runs_in_those_states_and_an_unknown_one_is_refused(capsys, mixed):

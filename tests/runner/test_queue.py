@@ -48,7 +48,7 @@ def test_runs_lists_a_queue_with_its_places_and_what_each_waits_for():
     assert f"pid {os.getpid()} : heimdall runs --dispatch 2 · heimdall runs --forget 2" in blocks[1]
     assert house.live_entries([a, b, c], []) and len(house.live_entries([a, b, c], [])) == 3
     tinted = "\n".join(house.runs_listing([a, b, c], [], {}, now=time.time(), color=True))
-    assert "\x1b[34mqueued\x1b[0m" in tinted and "\x1b[33mheld\x1b[0m" in tinted
+    assert "\x1b[34mqueued\x1b[0m" in tinted and "\x1b[93mheld\x1b[0m" in tinted
 
 
 import subprocess

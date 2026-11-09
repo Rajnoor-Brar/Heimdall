@@ -7,7 +7,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 - [code](rules/code.md): how code here is written; rules that hold across modules and are not visible from one file (2 KB)
 - [invariants](rules/invariants.md): what must never happen in this repo and on this machine, and why; read before acting (3 KB)
-- [work](rules/work.md): where work in progress lives; the live-doc format; the crystallise protocol (2 KB)
+- [work](rules/work.md): where work in progress lives; the pipeline from audit or spec to a closed round; the live-doc format; the crystallise protocol (8 KB)
 - [writing](rules/writing.md): how a page is written, where a fact belongs, how anything cites anything (3 KB)
 
 ## client
@@ -42,7 +42,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [errand-file](stable/guide/errand-file.md): an errand file's anatomy, a complete example, which value wins, imports and starting a new assignment (6 KB)
 - [guide-failures](stable/guide/failures.md): what to do when a point fails, and what each common refusal means (3 KB)
 - [housekeeping](stable/guide/housekeeping.md): check, status, clean, migrate, reproduce, and pinning which stack a study was made with (3 KB)
-- [outputs](stable/guide/outputs.md): what a run writes and where: records, results, reports, cache; what is kept; what may be deleted (5 KB)
+- [outputs](stable/guide/outputs.md): what a run writes and where: records, results, reports, cache; what is kept; what may be deleted (5 KB) ⟵ live: live-adopted-runs
 - [overlay](stable/guide/overlay.md): heimdall overlay: any YODA or ROOT files on one page, with no errand file (1 KB)
 - [paths](stable/guide/paths.md): how a path in an errand file resolves, how a Run's folder is named, and every placeholder (5 KB)
 - [plots-across](stable/guide/plots-across.md): the Runs of an errand on one page: [plot.across], @events, @tag, [from], prefer and ignore (3 KB)
@@ -102,9 +102,9 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [events](stable/internals/events.md): how a tool's status reaches the views: pipes, filter rules, digests, the event stream and its listeners, the views (6 KB)
 - [extending](stable/internals/extending.md): how to add a standard tool, a plot backend or a figure class, and what each must touch (4 KB)
 - [failures](stable/internals/failures.md): how a chain of processes fails and how each way is handled; attribution; exit codes (2 KB)
-- [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (6 KB)
+- [identity](stable/internals/identity.md): what a point's identity hashes, how seeds follow from it, what skips a point and what reruns it (6 KB) ⟵ live: live-adopted-runs
 - [layout](stable/internals/layout.md): Heimdall's folders, Himinbjorg's and a work dir's; what is in git; how the roots are found; where a run's files go (5 KB)
-- [live-runs](stable/internals/live-runs.md): a run as a worker and a client; the run registry, an entry and its state as values; signals, pausing, resuming, again, jobs, the listing (10 KB)
+- [live-runs](stable/internals/live-runs.md): a run as a worker and a client; the run registry, an entry and its state as values; signals, pausing, resuming, again, jobs, the listing (10 KB) ⟵ live: live-runs-ends
 - [paint](stable/internals/paint.md): Paint inside: the order of a page's arithmetic, drawing, heat maps, dumps; what is load-bearing (4 KB)
 - [plot-backends](stable/internals/plot-backends.md): how the backends beside Paint draw the same pages, what they honour and refuse (2 KB)
 - [plot-stage](stable/internals/plot-stage.md): the plot stage inside: members and stand-in plans, the merged sweep, page documents, drawing, what a record gives a drawing (5 KB)
@@ -133,3 +133,8 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [history](stable/design/history.md): where Heimdall came from, in a dozen lines (1 KB)
 - [principles](stable/design/principles.md): the principles behind Heimdall's shape, each with what it buys and what it costs (4 KB)
 - [refused](stable/design/refused.md): what Heimdall deliberately does not do, and why (1 KB)
+
+## live
+
+- [live-adopted-runs](live/adopted-runs.md): an adopted Run's points plan as library points whatever its config says; migrate --layout leaves statistics/ and an Errand's folders; adopt still breaks plot (2 KB)
+- [live-runs-ends](live/runs-ends.md): heimdall runs shows when and how each run ended in its state's colour, orders a history list by its runs' ends, and gives every state a colour (2 KB)

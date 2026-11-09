@@ -369,7 +369,7 @@ def test_heimdall_runs_historical_entry_uses_null_counts_without_active_count():
                                  "verdict": "done", "config": "/w/configs/eic/zeus.toml", "configurations": ["generator_pdf"]})
     lines = house.runs_listing([entry], [], {}, now=20.0, limit=5)
     when = time.strftime("%m-%d %H:%M", time.localtime(0))
-    assert lines[2] == f"    {when} · 0m"
+    assert lines[2] == f"    {when} · 0m · done {time.strftime('%H:%M', time.localtime(10))}"   # how and when it ended
     assert lines[4] == "    done · NULL/NULL"                          # nothing recorded: no "at once"
     assert all("active_parallel_points" not in line for line in lines)
 
@@ -604,3 +604,41 @@ def test_a_pids_start_time_falls_back_to_ps_where_proc_cannot_be_read(monkeypatc
 
     monkeypatch.setattr(runs.subprocess, "run", missing)
     assert runs.started_at(os.getpid()) == ""
+
+
+def test_a_history_list_is_ordered_by_when_each_run_ended_and_a_lost_one_by_its_log(tmp_path):
+    day = time.mktime((2026, 11, 9, 8, 0, 0, 0, 0, -1))
+    base = {"kind": "run", "config": "/w/configs/P/a.toml", "configurations": ["c"]}
+    long_one = runs.RunEntry.parse({**base, "id": "20261109-080000-pp-aaaa", "started": day, "finished": day + 6 * 3600,
+                                    "verdict": "done"})
+    short_one = runs.RunEntry.parse({**base, "id": "20261109-090000-pp-bbbb", "started": day + 3600,
+                                     "finished": day + 2 * 3600, "verdict": "failed"})
+    log = tmp_path / "lost.log"
+    log.write_text("x\n", encoding="utf-8")
+    os.utime(log, (day + 4 * 3600, day + 4 * 3600))
+    lost = runs.RunEntry.parse({**base, **runs.here(), "id": "20261109-100000-pp-cccc", "started": day + 2 * 3600, "pid": 2 ** 22 + 7,
+                                "pstart": 1.0, "log": str(log)})
+    lines = house.runs_listing([long_one, short_one, lost], [], {}, now=day + 7 * 3600, limit=5)
+    heads = [line.split()[0] for line in lines if line.startswith("20261109-")]
+    assert heads == [short_one.id, lost.id, long_one.id]                   # by their ends: 10:00, ~12:00, 14:00
+    times = [line for line in lines if line.startswith("    11-09 ")]
+    assert times == ["    11-09 09:00 · 1h 00m · failed 10:00", "    11-09 10:00 · 2h 00m · lost ~12:00",
+                     "    11-09 08:00 · 6h 00m · done 14:00"]
+    latest = house.runs_listing([long_one, short_one, lost], [], {}, now=day + 7 * 3600, limit=1)
+    assert [line.split()[0] for line in latest if line.startswith("20261109-")] == [long_one.id]   # the latest to end
+
+
+def test_a_lost_run_without_a_log_ends_at_its_entrys_last_write_never_now(tmp_path):
+    day = time.mktime((2026, 11, 9, 8, 0, 0, 0, 0, -1))
+    base = {"kind": "run", "config": "/w/configs/P/a.toml", "configurations": ["c"], **runs.here()}
+    run_id = runs.new_id(day)
+    runs.begin(run_id, {**base, "started": day, "pid": 2 ** 22 + 7, "pstart": 1.0})
+    os.utime(runs.folder() / f"{run_id}.json", (day + 3600, day + 3600))      # its last progress, an hour in
+    lost = runs.entry(run_id)
+    done = runs.RunEntry.parse({**base, "id": "20261109-090000-pp-bbbb", "started": day + 1800, "finished": day + 2 * 3600,
+                                "verdict": "done"})
+    lines = house.runs_listing([lost, done], [], {}, now=day + 30 * 86400, limit=5)
+    assert [line.split()[0] for line in lines if line.startswith("20261109-")] == [run_id, done.id]   # not last: not now
+    assert "    11-09 08:00 · 1h 00m · lost ~09:00" in lines
+    (runs.folder() / f"{run_id}.json").unlink()
+    assert house.ended_at(lost, runs.RunState("lost")) == (day, True)        # nothing left of it: its start

@@ -561,9 +561,13 @@ def live_line(index: int, e: runs.RunEntry, state: runs.RunState) -> str:
 
 #: SGR codes of the listing's colour (never left to a library: `[N]` is no markup, and a test reads them).
 SGR = {"bold": "1", "dim": "2", "red": "31", "green": "32", "yellow": "33", "blue": "34", "magenta": "35", "cyan": "36",
-       "grey": "90"}
-STATE_STYLE = {"running": "green", "queued": "blue", "held": "yellow", "paused": "yellow", "failed": "red", "stopped": "magenta",
-               "done": "dim", "lost": "grey"}
+       "grey": "90", "bright-yellow": "93", "bright-blue": "94", "bright-cyan": "96"}
+#: Each of runs.STATES its colour: going cyan, done green, failed red, stopped magenta, waiting yellow or blue, the rest grey.
+STATE_STYLE = {"running": "bright-cyan", "queued": "blue", "held": "bright-yellow", "paused": "yellow", "failed": "red",
+               "stopped": "magenta", "done": "green", "lost": "grey", "not run": "grey", "submitted": "bright-blue",
+               "on Slurm": "bright-blue", "ended": "dim", "cancelled": "grey", "forgotten": "grey", "exit": "red", "unknown": "dim"}
+#: The words of a state line's counts: `3 done`, `1 failed`, `2 stopped`, `(1 with warnings)`, `2 ongoing`.
+COUNT_STYLE = {"done": "green", "failed": "red", "stopped": "magenta", "warnings": "yellow", "ongoing": "bright-cyan"}
 
 
 def wants_colour(stream, plain: bool = False) -> bool:
@@ -605,6 +609,31 @@ def _cut(text: str, width: int | None) -> str:
     return text if not width or len(text) <= width else text[:max(width - 1, 1)] + "…"
 
 
+def ended_at(e: runs.RunEntry, state: runs.RunState) -> tuple[float | None, bool]:
+    """When a run ended, and whether that is a guess: its entry's `finished` (done, failed, stopped, paused: runs.finish
+    writes it at every end). A lost run's process died without saying when, so its end is the last sign of it: its log's
+    last write, else its entry's (the Recorder wrote progress while it went), else its start. Going: none."""
+    if e.finished is not None:
+        return e.finished, False
+    if state.word != "lost":
+        return None, False
+    for path in ([Path(e.log)] if e.log else []) + ([runs.folder() / f"{e.id}.json"] if e.id else []):
+        try:
+            return max(path.stat().st_mtime, e.started or 0), True
+        except OSError:
+            pass
+    return e.started or 0, True
+
+
+def _end_stamp(state: runs.RunState, start: float, end: float | None, guessed: bool) -> str:
+    """How a run ended and when, for its time line: `done 18:05` (`MM-DD HH:MM` on another day than it began; `~` before a
+    guess); empty while it has no end."""
+    if end is None:
+        return ""
+    same_day = time.localtime(start)[:3] == time.localtime(end)[:3]
+    return f"{state.word} {'~' if guessed else ''}{time.strftime('%H:%M' if same_day else '%m-%d %H:%M', time.localtime(end))}"
+
+
 def runs_listing(entries: list[runs.RunEntry], live: list[tuple[str, dict]], titles: dict[str, str],
                  now: float | None = None, limit: int | None = None, days: int | None = None,
                  states: set[str] | None = None, color: bool = False, width: int | None = None,
@@ -612,9 +641,11 @@ def runs_listing(entries: list[runs.RunEntry], live: list[tuple[str, dict]], tit
     """`heimdall runs` (V182): the live runs by default (running, recorded or a live socket with no entry,
     unrecorded, as from inside an image; and paused), each with its index [N] (live_entries); `limit`, the latest N
     of any state; `days`, all begun within that age; `states` keeps those in these states (a live run keeps its [N]).
-    Oldest first, a block each (a history list's names the run's id first, a live one's its [N]):
+    A live list in the order its runs began ([N] stays put); a history list by when each ended (ended_at; a run still
+    going last), the latest last. A block each (a history list's names the run's id first, a live one's its [N]):
         [N] <host> | <work dir's title> | <config>                  (the config cut to CONFIG_WIDTH)
-            MM-DD HH:MM · <span>
+            MM-DD HH:MM · <span> · <state> HH:MM                        (began, how long, how it ended and when, in the
+                                                                       state's colour; ~ before a lost run's log's last write)
             <A>/<E> · <R>, …                                           (its record folders: records/<A>/<E>/<R>)
             <state> · <P> ongoing · <ended>/<total> (<F> failed)      (NULL: not recorded, as by an older entry)
                                                                       (once it ended: · X done (W with warnings), F failed)
@@ -635,15 +666,18 @@ def runs_listing(entries: list[runs.RunEntry], live: list[tuple[str, dict]], tit
     else:
         found = _states(entries, by_pid)
         unrecorded = _unrecorded(found, by_pid)
+
+        def last(item) -> tuple:                         # when it ended; one still going is the latest
+            end = ended_at(*item)[0]
+            return (now if end is None else end, item[0].started or 0, item[0].id or "")
         if limit is not None:
-            selected = sorted(found + unrecorded, key=lambda item: (item[0].started or 0, item[0].id),
-                              reverse=True)[:limit]
+            selected = sorted(found + unrecorded, key=last, reverse=True)[:limit]
             heading = f"latest {limit} runs"
         else:
             cutoff = now - (days or 0) * 86400
-            selected = [(e, s) for e, s in found + unrecorded if cutoff <= (e.started or 0) <= now]
+            selected = [item for item in found + unrecorded if cutoff <= last(item)[0] and (item[0].started or 0) <= now]
             heading = f"runs from the last {days} days"
-        selected.sort(key=lambda item: (item[0].started or 0, item[0].id))
+        selected.sort(key=last)
     live_list = heading == "live"
     numbers = {id(e): n for n, (e, _) in enumerate(selected, 1)} if live_list else live_numbers
     if states is not None:
@@ -667,8 +701,11 @@ def runs_listing(entries: list[runs.RunEntry], live: list[tuple[str, dict]], tit
 
     def row(e: runs.RunEntry, state: runs.RunState, number: int | None) -> list[str]:
         started = e.started or 0
-        span = _ago((e.finished or now) - started)
+        end, guessed = ended_at(e, state)
+        span = _ago((now if end is None else end) - started)
         when = time.strftime("%m-%d %H:%M", time.localtime(started))
+        stamp = _end_stamp(state, started, end, guessed)
+        timing = f"    {when} · {span}" + (" · " + paint(stamp, STATE_STYLE.get(state.word, "dim"), color) if stamp else "")
         what = _config_name(e.config or "", e.work)
         shown = _shown_config(e.config or "", e.work)
         keys = [k for k in (e.configurations or ([e.configuration] if e.configuration else [])) if k]
@@ -683,19 +720,22 @@ def runs_listing(entries: list[runs.RunEntry], live: list[tuple[str, dict]], tit
         config_line = f"    {recorded}" if recorded else f"    {shown} · {made}" if made else f"    {shown}"
         counted = ""
         if counts := e.counts:                                   # V202: its points, on the state line
-            counted = (f"{counts.get('done', 0)} done"
-                       + (f" ({counts['warned']} with warnings)" if counts.get("warned") else "")
-                       + f", {counts.get('failed', 0)} failed"
-                       + (f", {counts['stopped']} stopped" if counts.get("stopped") else ""))
+            def tint(n: int, word: str, style: str) -> str:   # a count in its word's colour, a zero plain
+                return paint(f"{n} {word}", COUNT_STYLE[style], color and n > 0)
+            counted = (tint(counts.get('done', 0), "done", "done")
+                       + (" (" + tint(counts['warned'], "with warnings", "warnings") + ")" if counts.get("warned") else "")
+                       + ", " + tint(counts.get('failed', 0), "failed", "failed")
+                       + (", " + tint(counts['stopped'], "stopped", "stopped") if counts.get("stopped") else ""))
         going, word = state.word == "running", state.word
         completed, total = e.points_completed, e.points_total
         shown_state = state.text + (" (newer Heimdall)" if e.newer else "")
         parts = [paint(shown_state, STATE_STYLE.get(word, ""), color) if word in STATE_STYLE else shown_state]
         active = e.active_parallel_points
         if going and active is not None:
-            parts.append(f"{active} ongoing")
+            parts.append(paint(f"{active} ongoing", COUNT_STYLE["ongoing"], color))
         parts.append(f"{completed if completed is not None else 'NULL'}/{total if total is not None else 'NULL'}"
-                     + (f" ({e.points_failed} failed)" if not e.counts and e.points_failed else ""))
+                     + (" (" + paint(f"{e.points_failed} failed", COUNT_STYLE["failed"], color) + ")"
+                        if not e.counts and e.points_failed else ""))
         if counted:
             parts.append(counted)
         if word in ("queued", "held") and e.queued_to:
@@ -719,7 +759,7 @@ def runs_listing(entries: list[runs.RunEntry], live: list[tuple[str, dict]], tit
             tail.append("    " + paint(f"heimdall runs --again {e.id}", "cyan", color))
         if e.log:
             tail.append("    log " + link(paint(e.log, "dim", color), e.host or runs.host(), e.log, color))
-        return [head.rstrip(), f"    {when} · {span}", config_line.rstrip(), "    " + " · ".join(parts), *tail]
+        return [head.rstrip(), timing, config_line.rstrip(), "    " + " · ".join(parts), *tail]
 
     if not selected:
         if states is not None and (limit is not None or days is not None or live_list):

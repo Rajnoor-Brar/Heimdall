@@ -34,7 +34,7 @@ The developer decided on 2026-10-25 to drop v2 (I-20, then I-21, which makes v3 
 `plot.write_index` (`plot.py:1620`), `plot.write_sets_index` (`:1871`), `report._index` (`report.py:2227`), `figures/webpage.py:245`, `viewer.py:157`, plus `knowledge_site.html`. Each writes its own `<!DOCTYPE html>`, head and escaping. This is I-44 ("One HTML index writer").
 **Move:** one `html` helper (page shell, escape, a table, an image grid), used by all of them. **Closes when:** one `<!DOCTYPE` in framework Python.
 
-### D-5 A point's state, computed twice · Consider · CONFIRMED
+### D-5 A point's state, computed twice · Consider · CONFIRMED · closed 2.3
 See [R-3](01_dead-and-retired.md#r-3). `house.point_state` (tests only) and `house.status`. A third view is `record.state_of` (`record.py:551`). Three answers to "is this point done?".
 **Move:** one function in `record`, which `status`, `show` and `--plan` call. **Closes when:** `grep "def .*state" framework/runner/{house,record}.py` finds one point-state function.
 

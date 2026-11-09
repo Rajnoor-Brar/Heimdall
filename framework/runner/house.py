@@ -1036,14 +1036,6 @@ def show_lines(data: dict) -> list[str]:
     return out
 
 
-def point_state(plan) -> str:
-    """complete; stale (complete for an earlier identity: a changed setup reruns it); running (a
-    session holds its lock); failed or stopped (its last attempt's verdict, V200); incomplete (begun,
-    not done, with no attempt recorded: before V200); to run (never begun, or its logs are gone). From its
-    records and its lock: deleting logs/ or .cache/ changes no state but incomplete's (record.state_of)."""
-    return state_of(plan)[0]
-
-
 def status(planned: list, running: dict[str, list[str]]) -> list[str]:
     """Per configuration, its counts by state, its constants (V200: events, threads, seeds, tools), then a line
     per point: its state, when it finished, its results' size, and why a failed or stopped one ended."""

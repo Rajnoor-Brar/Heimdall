@@ -60,7 +60,7 @@ def test_a_point_another_session_runs_is_skipped_naming_it(trees):
     lock = record.PointLock(plan)
     assert lock.acquire()
     try:
-        assert record.holder(plan)["pid"] > 0 and house.point_state(plan) == "running"
+        assert record.holder(plan)["pid"] > 0 and record.state_of(plan)[0] == "running"
         heard = []
 
         class Bus:
@@ -75,7 +75,7 @@ def test_a_point_another_session_runs_is_skipped_naming_it(trees):
         assert "running" in line and "pid" in line
     finally:
         lock.release()
-    assert record.holder(plan) is None and house.point_state(plan) == "to run"
+    assert record.holder(plan) is None and record.state_of(plan)[0] == "to run"
 
 
 def test_a_lock_dies_with_its_process(trees):

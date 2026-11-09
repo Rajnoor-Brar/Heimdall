@@ -14,7 +14,7 @@ Severity: **Required** (a hard-rule break or a trap for the next change) · **Co
 Each is defined and never read: `plot.OUTSIDE` (`plot.py:55`), `plotdoc.CHOSEN` (`plotdoc.py:43`), `plotdoc.ATTRIBUTES` (`plotdoc.py:705`), `setup.REFRESHED` (`setup.py:373`), `typeset.BAR_TRACK` (`plot/figures/typeset.py:34`), `layout.TILED` (`plot/figures/layout.py:23`). Some may be documentation, a list a comment wants written down. Then that comment should cite the code that really holds the list.
 **Move:** delete, or make the reader use it (if `plotdoc.ATTRIBUTES` is the list `load_across` adds, `load_across` should iterate it). **Closes when:** `sweeps/defs.py` lists none of them.
 
-### R-3 `house.point_state` is read only by tests · Consider · CONFIRMED
+### R-3 `house.point_state` is read only by tests · Consider · CONFIRMED · closed 2.3
 `house.py:1047`, used by `tests/runner/test_lifecycle.py:63,78` alone. `status` computes states its own way. Either the tests hold a second, unused definition of a point's state, or `status` should call it.
 **Move:** make `house.status` use `point_state`, or move the test to what `status` prints. **Closes when:** one definition of a point's state, used by the command.
 

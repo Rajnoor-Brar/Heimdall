@@ -22,4 +22,4 @@
 
 On a conflict: code, then generated, then live, then stable, then plans. One fact has one owner, and `tests/runner/test_docs.py` holds what it can. Rules: [writing](rules/writing.md), [work](rules/work.md).
 
-The old manual is at git tag `docs/pre-rebuild`. Pending work: [.plans/ISSUES.md](../.plans/ISSUES.md).
+The old manual is at git tag `docs/pre-rebuild`. Pending work: [.plans/Issues.md](../.plans/Issues.md); what the developer has still to read: [.plans/Notes.md](../.plans/Notes.md).

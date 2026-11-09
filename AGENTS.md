@@ -10,6 +10,7 @@ Read docs/rules/invariants.md first. Read docs/rules/code.md before writing code
 
 ## Planning
 
+- Work moves through the pipeline in docs/rules/work.md: source (audit or spec) → design plan for the developer → implementation round for an agent → review by another session → close into .plans/Issues.md and .plans/Notes.md. Say which stage you are in, and do only that stage's work.
 - Non-trivial work gets a plan file in .plans/ before any code, written progressively, linked from its issue.
 - Read the code before proposing. Treat inherited plans and issues as claims to re-verify.
 - Ask every decision up front, batched, each with a recommendation. Nothing is asked mid-execution that could have been asked before.

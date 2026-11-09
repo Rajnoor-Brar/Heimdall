@@ -19,7 +19,8 @@ BY_ID = {p.id: p for p in PAGES}
 AUTHORED = [p for p in PAGES if p.meta.get("generated") != "true"]
 ROWS = re.compile(r"^- \*\*((?:V|L|F|R)\d+)\*\* (.*)$", re.M)
 FRONT_DOORS = [REPO / "AGENTS.md", REPO / "CLAUDE.md", REPO / "README.md", knowledge.docs_root() / "README.md",
-               REPO / ".plans" / "ISSUES.md", REPO / "recipes" / "README.md", REPO / "recipes" / "platforms" / "mac" / "README.md"]
+               REPO / ".plans" / "Issues.md", REPO / ".plans" / "Notes.md", REPO / "recipes" / "README.md",
+               REPO / "recipes" / "platforms" / "mac" / "README.md"]
 
 
 def text(path: Path) -> str:

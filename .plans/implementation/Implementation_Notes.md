@@ -36,3 +36,29 @@ Done 2026-11-09 against `docs/stable/CRYSTAL.toml`'s commit; `heimdall docs --dr
 **Decision ids given:** V235 resume from the snapshot; V236–V243 run (queue, waiter, entry and state values, free-text verdict, listing, `--jobs`, `show`, record format); V244–V246 identity (golden mask, library key and settings); V247–V250 architecture (`HEIMDALL_MACHINE`, shadow Himinbjorg, TAB); V251–V262 plots (scoring and statistics, merge, across, plot document, backends, labels, `stats` retired). V28, V75, V176, V177, V10 and V220 carry a pointer to their replacement.
 
 One edit outside docs: `framework/stats/means.py`'s `rms` note cited `docs/live/stats-rms.md`, which crystallising removes; the note's text lost that parenthesis (own commit).
+
+## Checklist: every item of `.plans/` that is implemented
+
+Written at the round's end, 2026-11-09. `[x]` is built and verified by the check its step names (the full suite's counts are in P7's log); a hash is the commit. The deleted files are in git at `7bed373` (`.plans/plans/…`, `.plans/audits/2026-11-08-code/`). What the round left is in [Postponed.md](Postponed.md), and the three findings it made are I-129 to I-131.
+
+**This round's steps**
+- [x] 0.1 planning committed (`7bed373`) · 0.2 `work.md` row (`f1b33d3`) · 0.3–0.4 the old Implementation files folded (`08d1863`) · 0.5 I-25 corrected (`08d1863`)
+- [x] 1.1 `runs.RunState` (`4ee46cb`) · 1.2 and 1.3 `runs.RunEntry`, the readers' attributes (`bb86f34`) · 1.4 `runs.VERSION = 2` (`c45a555`) · 1.5 free-text states, checked, fine
+- [x] 2.1 `cli.others_of` (`a8a2a31`) · 2.2 unused constants (`a8a2a31`) · 2.3 one point state (`60974d0`) · 2.4 `plot.py` re-exports (`40ab3de`) · 2.5 `log` and `show` options once (`39eef9b`) · 2.6 a sweep test's comments (`f45dfbe`) · 2.7 a pid's start time without `/proc` (`4c85f1c`)
+- [x] 3.1 the points library is one module, `runner/library.py` (`e782866`)
+- [x] 4.1 `heimdall runs --resume-queue` (`7b4ad72`)
+- [x] 5 TAB completion, the tab-complete plan's P1–P4 (`31e2f2e`)
+- [x] 6.1 and 6.2 the known reds named (`06d4e80`) · 6.3 `test_detach` fixed at its cause (`c664872`)
+- [x] 7.1 crystallise (`794bd12`; with `6f27bbe` and `8ac8035`, the two edits it found outside docs)
+- [x] 8.1 `ISSUES.md` (`8f0965e`) · 8.2 what is homed, deleted · 8.3 the round closed
+
+**Plans folders, built before this round and now deleted with their decisions in `docs/stable/design/decisions/`**
+- [x] `stats-backend` phases 1–8: Paint's measured bins, the stats core, the catalogue (27 metrics, 22 means), the table and sidecar, the engine, the summary, marginals and baselines, `heimdall score` (V251–V256, V262)
+- [x] `points-library` phases 1–5: the probe, the key, the layout, the setting, the commands (V245, V246)
+- [x] `tab-complete`: all four phases (V249, V250)
+- [x] The plans of 2026-11-07 named by the old order line: safety net, retire the yoda backend (V260), set-merge (V257), across-axes (V258), run labels (V261), live-runs UI (V238–V243), names
+
+**Audit findings closed:** R-1, R-2, R-3, R-6, R-9 · D-3, D-5, D-6, D-8 · S-3 · G-1, G-3, G-8 · O-3, O-6, O-7 · E-1 (the requeue) · T-1, T-6 · P-1 to P-6. Every other finding is in Postponed.md.
+
+**Not implemented, by decision:** one dialect (D-1, I-20, I-21) and what rides with it; the retirement dates (R-4, R-5, O-8); D-2, D-4, D-7; S-1, S-2, S-4 to S-8; G-2, G-4 to G-7; O-4, O-5, O-9, O-10; E-2 to E-9; T-2 to T-4; every audit sweep. The held items of stats-backend and points-library.
+

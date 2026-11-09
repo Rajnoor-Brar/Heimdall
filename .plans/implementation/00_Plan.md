@@ -1,4 +1,4 @@
-# Implementation round 1: clean-up and core
+# Implementation round 1: clean-up and core · done, ripe to clear after the developer's review
 
 Status: planned 2026-11-09, approved at the gate the same day; not started. Implement on the developer's order to start the round.
 
@@ -145,7 +145,7 @@ One file at a time, one item at a time. "→ Pn.m" is built in that step. "→ P
 | Phase | Status |
 |---|---|
 | Plan | approved 2026-11-09 |
-| 0 | not started |
+| 0 | done 2026-11-09 (0.1–0.5) |
 | 1 | done 2026-11-09 (1.1–1.5) |
 | 2 | done 2026-11-09 (2.1–2.7) |
 | 3 | done 2026-11-09 |
@@ -153,4 +153,4 @@ One file at a time, one item at a time. "→ Pn.m" is built in that step. "→ P
 | 5 | done 2026-11-09 |
 | 6 | done 2026-11-09 |
 | 7 | done 2026-11-09 |
-| 8 | not started |
+| 8 | done 2026-11-09 |

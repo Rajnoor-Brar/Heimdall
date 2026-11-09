@@ -1,6 +1,6 @@
 # Phase 0: commit, rules, fold the old files
 
-Status: not started. Blocked by: none. Closes P-3 (0.2–0.4) and P-4 (0.5).
+Status: done 2026-11-09 (0.1–0.5, commits 7bed373 to 08d1863). Blocked by: none. Closes P-3 (0.2–0.4) and P-4 (0.5).
 
 ### Step 0.1: commit the planning work (Size: XS)
 - Acceptance: one commit holds `.plans/audits/2026-11-08-code/`, `.plans/plans/prompt.md`, `.plans/plans/tab-complete/`, `.plans/ISSUES.md` (the I-73 edit) and `.plans/implementation/`, staged by those paths. `.codex/` is not staged. Message: `plans: the 2026-11-08 audit, the tab-complete plan and implementation round 1, committed before the round clears them`.

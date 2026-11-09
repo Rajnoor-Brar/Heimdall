@@ -40,4 +40,6 @@ Status: done 2026-11-09. Blocked by: phase 7. Closes P-1 (8.1), P-5 and P-6 (8.2
 ## Log
 
 - 8.1: I-120 and I-121 deleted from `ISSUES.md` (I-73 went at P5); the order line opens with **Next:** and lost "Plans of 2026-11-07"; its phases list I-129 and I-131 and no longer I-73. `Implementation_Issues.md` had no open entry; the round's three findings are entered there and became I-129 (tests that list live runs see the machine's own), I-130 (the points library on a real work dir, held) and I-131 (TAB by hand). The ids start at 129, not 125: I-125 to I-128 were closed issues of the earlier cycle. Audit marks added: T-1 (6.1–6.3, 7.1), P-1 (8.1), P-2 (7.1). Check: `test_docs.py` all green; the grep for I-120, I-121, I-73 prints nothing.
+- 8.2: walked the ledger: every item of `plans/prompt.md`, `plans/stats-backend/`, `plans/points-library/` and the 2026-11-08 audit (nine files and `sweeps/`) is closed (its mark in the file) or named in `Postponed.md`; P-1, P-2, P-5, P-6 and T-1 were the last unmarked and got their marks. All four were `git rm`'d. `ls .plans` shows `ISSUES.md` and `implementation/`; nothing outside `.plans/` links into the deleted files. Check: `test_docs.py` green.
+- 8.3: `00_Plan.md`'s Progress is complete and its title says it is done; the round's report is the pause below.
 

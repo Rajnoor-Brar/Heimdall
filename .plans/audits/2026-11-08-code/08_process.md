@@ -12,11 +12,11 @@ Decided on 2026-10-25 and still open: I-20 and I-21 (one dialect, P1), I-36 (`he
 `docs/stable/CRYSTAL.toml`: 2026-11-02, `4f25f50`. `docs/live/` holds 23 docs, among them `scoring`, `score-engine`, `score-settings`, `stats-core`, `stats-catalogue`, `stats-measured-bins`, `stats-rms` and `statistics-format`: eight on one subject. Two docs tests fail on stable pages that lag the code ([T-1](07_tests.md#t-1)). A reader now merges 23 overlays in their head.
 **Move:** a crystallise, on the developer's order (work.md). **Closes when:** `docs/live/` holds only what changed after it.
 
-### P-3 A second issue list outside the rules · Consider · CONFIRMED
+### P-3 A second issue list outside the rules · Consider · CONFIRMED · closed 0.3-0.4
 `.plans/Implementation_Issues.md` (7 `F-` findings) and `.plans/Implementation_Notes.md` (134 lines of implementer decisions) are not in work.md's table of what `.plans/` holds. F-2, F-4, F-6, F-7 and F-9 are real open findings ([O-9](05_oversights.md#o-9), [T-1](07_tests.md#t-1)), and none has an `I-` id. The notes hold decisions the implementer made alone ([O-10](05_oversights.md#o-10)).
 **Move:** triage: each `F-` becomes an `I-` or is closed, and each note is accepted into a decision note or reopened. Then delete both files, or add them to work.md if they are meant to stay. **Closes when:** `.plans/` holds only what work.md lists.
 
-### P-4 Issues that disagree with the code · Consider · CONFIRMED
+### P-4 Issues that disagree with the code · Consider · CONFIRMED · closed 0.5
 - I-25 deletes `framework/tools/plotmerge/`, a live and tested tool ([R-6](01_dead-and-retired.md#r-6)).
 - I-25 deletes `migrate.py`, which now holds `library adopt` ([S-3](03_structure.md#s-3)).
 - `ISSUES.md`'s order line still lists the 2026-11-07 plans by name, and stats-backend and points-library as waiting. I-125–I-128 are gone from the file (closed), which agrees.

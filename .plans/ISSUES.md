@@ -53,7 +53,7 @@ v3 is translated into v2 tables; the rename table is written many times; errors 
 ## Retirements
 
 ### I-25 Retire migrations and guards for retired names · P1 · blocked on I-21
-First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py`; legacy probes and `check_retired()`; `paths.RETIRED`, `HEKIT_*`, `{repo}`, `[tool] formerly`, `tools.EXPORT`; `[file].master`; `framework/tools/plotmerge/`; `machine.py adopt`; `recipes/build_by_hand.txt` (drifted: 404s, no base); the shell's `quit`, `heimdall_status`, `heimdall_stash`, `heimdall_forge`, `heimdall_stack`; `strict=False`. **Done when:** gone, with refusals naming the new form.
+First `migrate --layout` dry runs over the real work dirs. Delete: `migrate.py` (after `adopt_points` has moved to `runner/library.py`, round 1 P3); legacy probes and `check_retired()`; `paths.RETIRED`, `HEKIT_*`, `{repo}`, `[tool] formerly`, `tools.EXPORT`; `[file].master`; `machine.py adopt`; `recipes/build_by_hand.txt` (drifted: 404s, no base); the shell's `quit`, `heimdall_status`, `heimdall_stash`, `heimdall_forge`, `heimdall_stack`; `strict=False`. **Done when:** gone, with refusals naming the new form.
 
 ### I-26 One table of retired names · P2 · blocked on I-25
 `retired.py`: `{old: (new, since)}`, read by the schema check, CLI and shell. **Done when:** it replaces the ad-hoc refusals.

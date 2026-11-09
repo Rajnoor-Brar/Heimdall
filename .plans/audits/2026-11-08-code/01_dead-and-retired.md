@@ -38,7 +38,7 @@ One concern, seven mechanisms:
 Each has its own message shape and none has a date. This is I-26, blocked on I-25 (which is blocked on I-21). The table is cheap even before the deletions it should eventually drive.
 **Move:** `runner/retired.py`, `{old: (new, since, kind)}`, read by every site above. **Closes when:** each site is a lookup, and the table names a date for each row.
 
-### R-6 `plotmerge` is live, yet I-25 lists it for deletion · Consider · CONFIRMED
+### R-6 `plotmerge` is live, yet I-25 lists it for deletion · Consider · CONFIRMED · closed 0.5
 `framework/tools/plotmerge/tool.toml` (`App_yd2rt --merge`, every point's histograms in one ROOT or YODA file) is used and tested (`tests/integration/test_post.py:194–203`). I-25 says to delete `framework/tools/plotmerge/`. It is not a statistical merge, and it is the only way to get a sweep as one file. The issue is wrong, or out of date.
 **Move:** correct I-25, keeping plotmerge, and fold it into [D-2](02_duplication.md#d-2)'s naming. **Closes when:** I-25 and the tool agree.
 

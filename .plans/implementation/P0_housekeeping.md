@@ -29,3 +29,9 @@ Status: not started. Blocked by: none. Closes P-3 (0.2–0.4) and P-4 (0.5).
 - Check: `grep -n plotmerge .plans/ISSUES.md` finds no delete of it.
 
 ## Log
+
+- 0.1 `7bed373`: planning work committed (30 files); `.codex/` not staged.
+- 0.2 (work.md row): done in its own commit; test_docs has only the two known reds (stable pages, P7).
+- 0.3: F-2, F-4, F-11, F-12 found in Postponed.md (6 hits); `.plans/Implementation_Issues.md` deleted.
+- 0.4: every dated bullet (about 86) was checked by its distinctive terms against `docs/live/*.md`, and the weakest hits (sign of the power mean, log ratio floor, barycentre rate, Hodges–Lehmann, Wasserstein, FORMULAS, crossed table, library seed, `"only"`, id tail) were read in their docs. Each is stated in a live doc (`stats-catalogue`, `score-*`, `set-merge`, `points-library`, `runs-listing`, `run-labels`) or is process history (commit hashes, the baseline run, the checklist); no bullet was added. The file is deleted.
+- 0.5: I-25 corrected in `ISSUES.md` (plotmerge no longer in its delete list; `migrate.py` waits for `adopt_points`'s move). R-6, P-4 and P-3 marked in their audit files. A mark carries the step id only: a commit cannot hold its own hash (decision in Implementation_Notes).

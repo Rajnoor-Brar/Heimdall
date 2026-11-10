@@ -139,7 +139,7 @@ class Errand:
     families: dict = field(default_factory=dict)        # v3: a configuration with several event counts → its configurations
     form: int = 2                                       # the file's form: 2, or 3 (runner/v3.py)
     stats: dict = field(default_factory=dict)           # [stats] (V168): what the statistics measure, over the pages
-    score: dict = field(default_factory=dict)           # [score]: how the statistics become a score
+    ranking: dict = field(default_factory=dict)         # [ranking]: how the statistics become each point's loss
     applied: dict = field(default_factory=dict)         # V179: the configuration's own vars and data it was read with
     report: dict = field(default_factory=dict)          # V209: [report], its template laid under it (a report's recipe)
     templates: list = field(default_factory=list)       # V209: the report templates it read (a record's snapshot copies them)
@@ -556,8 +556,31 @@ def _page_keys(found: list, place: str, table) -> None:
             table[key] = _id(found, f"{place}.{key}", table[key])
 
 
+#: The ranking table's name and keys as they were (old → new): the table was [score].
+RANKING_TABLE = ("score", "ranking")
+RANKING_KEYS = {"normalise": "cost", "mean": "over_pages", "veto": "veto_loss"}
+
+
+def _keys(found: list, place: str, table: dict, keys: dict) -> None:
+    """`table`'s keys renamed in place, as `keys` says (old → new), each noted in `found`."""
+    for old, new in keys.items():
+        if old in table and new not in table:
+            table[new] = table.pop(old)
+            found.append((f"{place}.{old}", old, new))
+
+
+def _table(found: list, owner, names: tuple, place: str, said: tuple) -> None:
+    """`owner[names[0]]` moved to `owner[names[1]]` (a table under its old name), noted in `found` as `said` (old, new)."""
+    old, new = names
+    if isinstance(owner, dict) and old in owner and new not in owner:
+        owner[new] = owner.pop(old)
+        found.append((place, *said))
+
+
 def _scoring(found: list, place: str, table) -> None:
+    """A ranking table: its old keys and the metric ids it names."""
     if isinstance(table, dict):
+        _keys(found, place, table, RANKING_KEYS)
         for key in ("metrics", "thresholds"):
             _ids_in(found, place, table, key)
 
@@ -595,7 +618,8 @@ def _sets(found: list, place: str, sets) -> None:
     for key, entry in entries:
         if isinstance(entry, dict):
             at = f"{place}.{key}" if isinstance(sets, dict) else f"{place}[{key}]"
-            _scoring(found, f"{at}.score", entry.get("score"))
+            _table(found, entry, RANKING_TABLE, f"{at}.score", ("score", "ranking"))
+            _scoring(found, f"{at}.ranking", entry.get("ranking"))
             _page_keys(found, at, entry)
 
 
@@ -607,7 +631,8 @@ def renamed(raw: dict, where: str, recorded: bool) -> dict:
     found: list = []
     if isinstance(out.get("stats"), dict):
         _ids_in(found, "[stats]", out["stats"], "metrics")
-    _scoring(found, "[score]", out.get("score"))
+    _table(found, out, RANKING_TABLE, "[score]", ("[score]", "[ranking]"))
+    _scoring(found, "[ranking]", out.get("ranking"))
     plot = out.get("plot")
     if isinstance(plot, dict):
         _page_keys(found, "[plot]", plot)
@@ -1427,8 +1452,8 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
     check_plot(plot, f"{where}: [plot]", strict=strict)
     stats = raw.get("stats", {})
     check_stats(stats, f"{where}: [stats]")
-    score = raw.get("score", {})
-    check_score(score, f"{where}: [score]")
+    ranking = raw.get("ranking", {})
+    check_ranking(ranking, f"{where}: [ranking]")
     if "report" in raw:                                    # V209: what its folders' reports show
         check_report(raw["report"], f"{where}: [report]", run_toml=True)
 
@@ -1437,7 +1462,7 @@ def parse(raw: dict, path: Path, strict: bool = True) -> Errand:
                   prelim=prelim, static=static, tools=tools, quantities=quantities, plot=plot,
                   master_toml=file_config.get("master"), meta=dict(file_config.get("meta", {})), raw=raw, sweep_runs=sweep_on,
                   sweep_list=list(errand["sweep_runs"]) if isinstance(errand.get("sweep_runs"), list) else [],
-                  families=families, form=form, stats=dict(stats), score=dict(score))
+                  families=families, form=form, stats=dict(stats), ranking=dict(ranking))
 
 
 TEXT_KEYS = ("labels", "title", "title_left", "title_right", "legend_header", "x_label", "y_label", "legend")
@@ -1534,36 +1559,36 @@ def check_stats(stats: dict, where: str) -> None:
 # ── a report's recipe ([report]) ─────────────────────────────────────────────────────────
 
 #: What a report's section shows: exactly one of these (framework/schema/report.toml).
-def check_score(score: dict, where: str, *, whole: bool = True) -> None:
-    """[score] (or a set's `score`) against the schema; its metric, mean and threshold names against the registries."""
-    if not isinstance(score, dict):
-        raise HeimdallError("[score] is a table", where=where)
-    schema.check(score, "score", where)
-    from stats import means, metrics            # numpy loads here, only when a file has a [score]
+def check_ranking(ranking: dict, where: str, *, whole: bool = True) -> None:
+    """[ranking] (or a set's `ranking`) against the schema; its metric, mean and threshold names against the registries."""
+    if not isinstance(ranking, dict):
+        raise HeimdallError("[ranking] is a table", where=where)
+    schema.check(ranking, "ranking", where)
+    from stats import means, metrics            # numpy loads here, only when a file has a [ranking]
     known = list(metrics.REGISTRY)
 
     def metric_name(name, at):
         if name not in metrics.REGISTRY:
-            raise HeimdallError(f"no metric '{name}'", where=at, hint=did_you_mean(name, known) or "metrics: heimdall explain score")
+            raise HeimdallError(f"no metric '{name}'", where=at, hint=did_you_mean(name, known) or "metrics: heimdall explain ranking")
 
-    given = score.get("metrics")
+    given = ranking.get("metrics")
     for name in (given if isinstance(given, list) else (given or {})):
         metric_name(name, f"{where}.metrics")
     if isinstance(given, dict):
         for name, weight in given.items():
             if isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight < 0:
                 raise HeimdallError(f"the weight of '{name}' is a number of zero or more", where=f"{where}.metrics.{name}", hint=f"got {weight!r}")
-    for name, pair in (score.get("thresholds") or {}).items():
+    for name, pair in (ranking.get("thresholds") or {}).items():
         metric_name(name, f"{where}.thresholds")
         if (not isinstance(pair, list) or len(pair) != 2 or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in pair)
                 or pair[0] == pair[1]):
             raise HeimdallError(f"thresholds of '{name}' are [good, bad], two different numbers", where=f"{where}.thresholds.{name}", hint=f"got {pair!r}")
-    for glob, weight in (score.get("weights") or {}).items():
+    for glob, weight in (ranking.get("weights") or {}).items():
         if isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight < 0:
             raise HeimdallError(f"the weight of '{glob}' is a number of zero or more", where=f"{where}.weights.{glob}", hint=f"got {weight!r}")
-    mean = score.get("mean")
+    mean = ranking.get("over_pages")
     if mean is not None and mean not in means.MEANS_BY_NAME:
-        raise HeimdallError(f"no mean '{mean}'", where=f"{where}.mean", hint=did_you_mean(mean, means.MEANS_BY_NAME) or "means: heimdall explain score")
+        raise HeimdallError(f"no mean '{mean}'", where=f"{where}.over_pages", hint=did_you_mean(mean, means.MEANS_BY_NAME) or "means: heimdall explain ranking")
 
 
 def _check_stats_metrics(stats: dict, where: str) -> None:
@@ -1572,7 +1597,7 @@ def _check_stats_metrics(stats: dict, where: str) -> None:
         from stats import metrics
         for name in names:
             if name not in metrics.REGISTRY:
-                raise HeimdallError(f"no metric '{name}'", where=f"{where}.metrics", hint=did_you_mean(name, metrics.REGISTRY) or "metrics: heimdall explain score")
+                raise HeimdallError(f"no metric '{name}'", where=f"{where}.metrics", hint=did_you_mean(name, metrics.REGISTRY) or "metrics: heimdall explain ranking")
 
 
 REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files", "tools")

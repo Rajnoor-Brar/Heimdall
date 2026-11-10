@@ -33,7 +33,7 @@ import re
 from .errors import HeimdallError, did_you_mean
 
 #: The tables of a v3 file.
-TABLES = ("file", "errand", "cfgs", "tools", "quantities", "plot", "stats", "score", "report", "cluster", "heimdall")
+TABLES = ("file", "errand", "cfgs", "tools", "quantities", "plot", "stats", "ranking", "report", "cluster", "heimdall")
 #: v2 tables a v3 file may not have: where their content goes.
 V2_TABLES = {"config": "[file]", "static": "each quantity's fixed (a configuration's own: fixed = { q = tag })",
              "prelim": "nothing: FIFOs and files are inferred from the chain (keep = false on a scratch file's producer; "
@@ -383,8 +383,8 @@ def translate(raw: dict, where: str) -> dict:
         out["heimdall"] = raw["heimdall"]
     if "stats" in raw:                                  # V168: what the statistics measure
         out["stats"] = {k: v for k, v in raw["stats"].items() if v != "default"}
-    if "score" in raw:                                  # how the statistics become a score
-        out["score"] = {k: v for k, v in raw["score"].items() if v != "default"}
+    if "ranking" in raw:                                # how the statistics become a ranking
+        out["ranking"] = {k: v for k, v in raw["ranking"].items() if v != "default"}
     if "report" in raw:                                 # V209: its folders' reports, as v2 has it
         out["report"] = raw["report"]
     if "cluster" in raw:

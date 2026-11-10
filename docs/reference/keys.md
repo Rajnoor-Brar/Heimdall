@@ -158,18 +158,18 @@ stats.auto_range | true or false | -
 stats.range_pad | integer | -
 stats.metrics | list of strings | -
 stats.centres | string | "mid"
-score.metrics | list of strings or table | -
-score.normalise | string | "thresholds"
-score.thresholds | table | -
-score.weights | table | -
-score.weights_by | string | "equal"
-score.mean | string | "rms"
-score.by | string or list of strings | -
-score.baseline | string or table | -
-score.veto | number | -
-score.aggregate | string | "rms"
-score.dominated | true or false | false
-score.head_to_head | string | -
+ranking.metrics | list of strings or table | -
+ranking.cost | string | "thresholds"
+ranking.thresholds | table | -
+ranking.weights | table | -
+ranking.weights_by | string | "equal"
+ranking.over_pages | string | "rms"
+ranking.by | string or list of strings | -
+ranking.baseline | string or table | -
+ranking.veto_loss | number | -
+ranking.aggregate | string | "rms"
+ranking.dominated | true or false | false
+ranking.head_to_head | string | -
 report.title | string | -
 report.subtitle | string | -
 report.from | list of strings | -

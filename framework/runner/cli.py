@@ -1887,7 +1887,7 @@ def cmd_plot(args) -> int:
 
 def style_sync(args) -> int:
     """`heimdall plot <A>/<E>/<R> | <A>/<E> --style-sync CONFIG [--plan] [--replot]` (V166): each named plot
-    document's [plot], [stats] and [score] replaced by the config's (its configuration's, resolved as a run writes them),
+    document's [plot], [stats] and [ranking] replaced by the config's (its configuration's, resolved as a run writes them),
     what the run knows left as it is. A document whose configuration the config lacks, or whose points the
     config's [plot] cannot page (a set naming a quantity or tag it has not), is left, and said; the others are
     synced. --plan says what would change and writes nothing; --replot then draws the synced ones."""
@@ -1914,10 +1914,10 @@ def style_sync(args) -> int:
             continue
         live, picks = configmod.for_configuration(errand, configuration.key)   # V179: its own data
         new_plot, new_stats = plotdoc.chosen_of(live, configuration, members, picks=picks)
-        new_score = dict(getattr(live, "score", None) or {})
+        new_ranking = dict(getattr(live, "ranking", None) or {})
         changed = sorted(k for k in {*doc.plot, *new_plot} if doc.plot.get(k) != new_plot.get(k))
         changed += ["[stats]"] if doc.stats != new_stats else []
-        changed += ["[score]"] if doc.score != new_score else []
+        changed += ["[ranking]"] if doc.ranking != new_ranking else []
         if not changed:
             print(f"same    {rel}")
             continue
@@ -1930,7 +1930,7 @@ def style_sync(args) -> int:
             continue
         print(f"{'would sync' if args.plan else 'synced '} {rel}: " + ", ".join(k if k.startswith("[") else f"[plot].{k}" for k in changed))
         if not args.plan:
-            plotdoc.write_chosen(target, new_plot, new_stats, score=new_score)
+            plotdoc.write_chosen(target, new_plot, new_stats, ranking=new_ranking)
             synced.append(target)
     print(f"{len(synced) if not args.plan else 'nothing'} synced" + (f", {left} left" if left else "")
           + ("" if args.plan else "" if args.replot or not synced else ": heimdall plot … draws them (or --replot)"))
@@ -2006,7 +2006,7 @@ def across_of(args) -> Path:
 
 
 def style_sync_across(args) -> int:
-    """`heimdall plot CONFIG --across --style-sync CONFIG`: the Name level's [plot], [stats] and [score] become the config's
+    """`heimdall plot CONFIG --across --style-sync CONFIG`: the Name level's [plot], [stats] and [ranking] become the config's
     (its [plot] with its [plot.across] sets), and its [from] the config's [plot.across_from] when it has one (V224);
     --plan says what would change; --replot draws."""
     errand = configmod.load(args.style_sync, sets=args.set)
@@ -2018,22 +2018,22 @@ def style_sync_across(args) -> int:
         print(f"plot: wrote {target}")
         return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
     new_plot, new_stats = plotdoc.across_chosen(errand)
-    new_score = dict(getattr(errand, "score", None) or {})
+    new_ranking = dict(getattr(errand, "ranking", None) or {})
     wanted = plotdoc.from_of(errand) if (errand.plot or {}).get(plotdoc.FROM) is not None else None
     try:                                                    # read as it is: a [from] in error is what a sync mends
         kept = tomllib.loads(target.read_text(encoding="utf-8"))
-        had, had_score = dict(kept.get("plot", {})), dict(kept.get("score", {}))
+        had, had_ranking = dict(kept.get("plot", {})), dict(kept.get("ranking", {}))
     except (OSError, tomllib.TOMLDecodeError) as error:
         raise HeimdallError(f"the plot document cannot be read: {error}", where=str(target)) from None
     changed = [f"[plot].{k}" for k in sorted(k for k in {*had, *new_plot} if had.get(k) != new_plot.get(k))]
     if wanted is not None and wanted != plotdoc.from_in(target):
         changed.insert(0, "[from]")
-    if had_score != new_score:
-        changed.append("[score]")
+    if had_ranking != new_ranking:
+        changed.append("[ranking]")
     print(f"{'would sync' if args.plan else 'synced '} {target}: " + (", ".join(changed) or "the same"))
     if args.plan or not changed:
         return 0
-    plotdoc.write_chosen(target, new_plot, new_stats, wanted, score=new_score)
+    plotdoc.write_chosen(target, new_plot, new_stats, wanted, ranking=new_ranking)
     return 1 if args.replot and plot.draw(*plotdoc.load(target), print) else 0
 
 

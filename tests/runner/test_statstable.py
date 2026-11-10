@@ -111,31 +111,31 @@ def test_a_csv_from_before_format_2_has_no_sidecar_and_reads_as_format_1(tmp_pat
     assert statstable.columns_for(["log_yield_ratio", "chi2_ndf", "log_yield_ratio"]) == [*statstable.STATISTIC_COLUMNS, "log_yield_ratio"]
 
 
-def test_a_set_is_scored_with_the_errands_score_and_its_own_laid_over_it(tmp_path):
+def test_a_set_is_ranked_with_the_errands_ranking_and_its_own_laid_over_it(tmp_path):
     from types import SimpleNamespace
-    errand = SimpleNamespace(plot={"sets": {"mine": {"points": ["a=1"], "score": {"veto": 2.0}}, "other": {"points": ["a=2"]}}},
-                             score={"mean": "median", "veto": 9.0}, stats={"metrics": ["log_yield_ratio"]})
-    assert statstable.score_of(errand, "mine") == {"mean": "median", "veto": 2.0}
-    assert statstable.score_of(errand, "other") == {"mean": "median", "veto": 9.0}
-    assert statstable.score_of(errand, "totality") == {"mean": "median", "veto": 9.0}      # a set it does not name
-    assert statstable.score_of(SimpleNamespace(plot={}, score={}), "totality") == {}
+    errand = SimpleNamespace(plot={"sets": {"mine": {"points": ["a=1"], "ranking": {"veto_loss": 2.0}}, "other": {"points": ["a=2"]}}},
+                             ranking={"over_pages": "median", "veto_loss": 9.0}, stats={"metrics": ["log_yield_ratio"]})
+    assert statstable.ranking_of(errand, "mine") == {"over_pages": "median", "veto_loss": 2.0}
+    assert statstable.ranking_of(errand, "other") == {"over_pages": "median", "veto_loss": 9.0}
+    assert statstable.ranking_of(errand, "totality") == {"over_pages": "median", "veto_loss": 9.0}      # a set it does not name
+    assert statstable.ranking_of(SimpleNamespace(plot={}, ranking={}), "totality") == {}
 
 
 def test_the_columns_are_the_stats_metrics_and_every_metric_scored_and_the_table_keeps_how_it_was_scored(tmp_path):
     assert statstable.metric_names(None, None) == list(statstable.default_metrics())
-    score = {"metrics": ["chi2_ndf", "yield_weighted_abs_dev"], "veto": 3.0}
+    score = {"metrics": ["chi2_ndf", "yield_weighted_abs_dev"], "veto_loss": 3.0}
     assert statstable.metric_names({"metrics": ["log_yield_ratio"]}, score) == ["log_yield_ratio", "chi2_ndf", "yield_weighted_abs_dev"]
     pages = [page_with_numbers(tmp_path / "pages", "d01-x01-y01", NUMBERS)]
     numbers = tmp_path / "statistics" / "totality"
     statstable.write_set(pages, numbers, ["png"], None, ["chi2_ndf", "yield_weighted_abs_dev"], score)
     side = statstable.sidecar(numbers / "statistics.csv")
-    assert side["score"] == score and "yield_weighted_abs_dev" in side["metrics"]
+    assert side["ranking"] == score and "yield_weighted_abs_dev" in side["metrics"]
     plain = tmp_path / "plain"
     statstable.write_set(pages, plain, ["png"])
-    assert "score" not in statstable.sidecar(plain / "statistics.csv")                  # no settings: the defaults, unsaid
+    assert "ranking" not in statstable.sidecar(plain / "statistics.csv")                  # no settings: the defaults, unsaid
 
 
-def test_a_points_axes_are_read_from_the_run_s_plot_document_and_kept_in_the_sidecar(tmp_path):
+def test_a_points_values_are_read_from_the_run_s_plot_document_and_kept_in_the_sidecar(tmp_path):
     run = tmp_path / "run"
     (run / "statistics" / "totality").mkdir(parents=True)
     (run / "plot.toml").write_text(
@@ -144,12 +144,12 @@ def test_a_points_axes_are_read_from_the_run_s_plot_document_and_kept_in_the_sid
         '[members.py8_B]\nchoice = { generator = 0, pdf = 1 }\n[members.sh3_A]\nchoice = { generator = 1, pdf = 0 }\n'
         '[members.odd]\nchoice = { pdf = 7 }\n', encoding="utf-8")
     numbers = run / "statistics" / "totality"
-    axes = statstable.point_axes(numbers)
+    axes = statstable.point_values(numbers)
     assert axes == {"py8_B": {"generator": "py8", "pdf": "B"}, "sh3_A": {"generator": "sh3", "pdf": "A"}}
-    assert statstable.point_axes(tmp_path / "nowhere" / "x") == {}
+    assert statstable.point_values(tmp_path / "nowhere" / "x") == {}
     pages = [page_with_numbers(tmp_path / "pages", "d01-x01-y01", NUMBERS)]
     statstable.write_set(pages, numbers, ["png"])
-    assert statstable.sidecar(numbers / "statistics.csv")["axes"] == axes
+    assert statstable.sidecar(numbers / "statistics.csv")["values"] == axes
 
 
 def test_the_sidecar_names_the_points_a_merged_curve_is_made_of_only_when_there_are_any():
@@ -198,6 +198,7 @@ def test_a_format_2_table_reads_with_every_metric_under_its_id_now_and_no_value_
     assert read["metrics"]["log_yield_ratio"] == {"category": "normalisation", "polarity": "lower", "thresholds": [0.02, 0.15]}
     assert read["metrics"]["tail_slope"]["polarity"] == "descriptor"
     assert read["metrics"]["log_dev_shrunk"]["category"] == "accuracy"                # the category's key was shape
-    assert read["score"]["metrics"] == {"log_yield_ratio": 2.0, "log_dev_shrunk": 1.0}
-    assert read["score"]["thresholds"] == {"peak_pull2": [5, 20]} and read["score"]["normalise"] == "thresholds"
+    assert read["ranking"]["metrics"] == {"log_yield_ratio": 2.0, "log_dev_shrunk": 1.0}
+    assert read["ranking"]["thresholds"] == {"peak_pull2": [5, 20]} and read["ranking"]["cost"] == "thresholds"
+    assert read["values"] == {"x": {"pdf": "A"}} and "score" not in read and "axes" not in read
     assert json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8")) == side          # never written back

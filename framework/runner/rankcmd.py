@@ -77,8 +77,8 @@ def settings_for(table: Table, by: str | None, baseline: str | None):
         over["by"] = [b.strip() for b in by.split(",") if b.strip()]
     if baseline:
         over["baseline"] = parse_filter(baseline)
-    axes = dict(side.get("axes") or {}) or statstable.point_axes(table.csv.parent)      # a table from before the sidecar held them
-    return ranking.settings_of(side.get("score"), over), axes
+    values = dict(side.get("values") or {}) or statstable.point_values(table.csv.parent)   # a table from before the sidecar held them
+    return ranking.settings_of(side.get("ranking"), over), values
 
 
 def scored(table: Table, by: str | None = None, baseline: str | None = None, rows: list | None = None):

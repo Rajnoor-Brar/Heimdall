@@ -1,7 +1,9 @@
-"""[score] and the new [stats] keys: checked when the file is read, names against the registries, a set's own `score`
+"""[ranking] and the new [stats] keys: checked when the file is read, names against the registries, a set's own `ranking`
 and a figure's `weight`; `heimdall explain score` lists the metrics and means."""
 
 from __future__ import annotations
+
+import re
 
 import pytest
 
@@ -11,14 +13,14 @@ from runner.errors import HeimdallError
 from runner.sweep import set_entries
 
 
-def test_score_is_a_section_with_its_keys(scratch):
-    score = {"metrics": {"chi2_ndf": 1, "log_yield_ratio": 2, "js_divergence": 0.5}, "normalise": "thresholds", "thresholds": {"log_yield_ratio": [0.01, 0.1]},
-             "weights": {"d01-*": 2}, "mean": "rms", "veto": 3.0, "dominated": True, "aggregate": "rms", "weights_by": "equal",
+def test_ranking_is_a_section_with_its_keys(scratch):
+    score = {"metrics": {"chi2_ndf": 1, "log_yield_ratio": 2, "js_divergence": 0.5}, "cost": "thresholds", "thresholds": {"log_yield_ratio": [0.01, 0.1]},
+             "weights": {"d01-*": 2}, "over_pages": "rms", "veto_loss": 3.0, "dominated": True, "aggregate": "rms", "weights_by": "equal",
              "by": ["pdf"], "baseline": {"pdf": "NNPDF23lo"}}
-    errand = config.parse(raw(score=score), scratch / "t.toml")
-    assert errand.score == score
-    assert config.parse(raw(), scratch / "u.toml").score == {}
-    assert config.parse(raw(score={"metrics": ["log_yield_ratio", "tilt"]}), scratch / "v.toml").score == {"metrics": ["log_yield_ratio", "tilt"]}
+    errand = config.parse(raw(ranking=score), scratch / "t.toml")
+    assert errand.ranking == score
+    assert config.parse(raw(), scratch / "u.toml").ranking == {}
+    assert config.parse(raw(ranking={"metrics": ["log_yield_ratio", "tilt"]}), scratch / "v.toml").ranking == {"metrics": ["log_yield_ratio", "tilt"]}
 
 
 @pytest.mark.parametrize("bad,message", [
@@ -29,23 +31,23 @@ def test_score_is_a_section_with_its_keys(scratch):
     ({"thresholds": {"log_yield_ratio": [0.1, 0.1]}}, r"\[good, bad\]"),
     ({"thresholds": {"zzz": [0.1, 0.2]}}, "no metric 'zzz'"),
     ({"weights": {"d01-*": "heavy"}}, "a number of zero or more"),
-    ({"mean": "rmss"}, "no mean 'rmss'"),
-    ({"normalise": "zscore"}, "must be one of"),
-    ({"veto": -1.0}, "at least"),
+    ({"over_pages": "rmss"}, "no mean 'rmss'"),
+    ({"cost": "zscore"}, "must be one of"),
+    ({"veto_loss": -1.0}, "at least"),
     ({"aggregate": "sum"}, "must be one of"),
     ({"surprise": 1}, "unknown key 'surprise'"),
 ])
-def test_a_bad_score_is_refused_with_a_hint(scratch, bad, message):
+def test_a_bad_ranking_is_refused_with_a_hint(scratch, bad, message):
     with pytest.raises(HeimdallError, match=message):
-        config.parse(raw(score=bad), scratch / "t.toml")
+        config.parse(raw(ranking=bad), scratch / "t.toml")
 
 
 def test_a_mistyped_metric_gets_a_hint(scratch):
     with pytest.raises(HeimdallError) as caught:
-        config.parse(raw(score={"metrics": ["chi2_nfd"]}), scratch / "t.toml")
+        config.parse(raw(ranking={"metrics": ["chi2_nfd"]}), scratch / "t.toml")
     assert "chi2_ndf" in str(caught.value)
     with pytest.raises(HeimdallError) as caught:
-        config.parse(raw(score={"mean": "trimed"}), scratch / "t.toml")
+        config.parse(raw(ranking={"over_pages": "trimed"}), scratch / "t.toml")
     assert "trimmed" in str(caught.value)
 
 
@@ -58,17 +60,17 @@ def test_stats_takes_metrics_and_centres_and_checks_the_names(scratch):
         config.parse(raw(stats={"centres": "median"}), scratch / "v.toml")
 
 
-def test_a_set_may_carry_its_own_score_and_a_figure_its_weight():
-    got = set_entries([{"name": "lo", "points": ["py8"], "score": {"mean": "median", "veto": 2.0}}], "w")
-    assert got[0].score == {"mean": "median", "veto": 2.0}
+def test_a_set_may_carry_its_own_ranking_and_a_figure_its_weight():
+    got = set_entries([{"name": "lo", "points": ["py8"], "ranking": {"over_pages": "median", "veto_loss": 2.0}}], "w")
+    assert got[0].ranking == {"over_pages": "median", "veto_loss": 2.0}
     with pytest.raises(HeimdallError, match="unknown key"):
-        set_entries([{"name": "lo", "points": ["py8"], "score": {"bogus": 1}}], "w")
+        set_entries([{"name": "lo", "points": ["py8"], "ranking": {"bogus": 1}}], "w")
     assert "weight" in schema.FIGURE_OWN and schema.keys("figure")["weight"]["min"] == 0
 
 
 def test_explain_score_lists_the_keys_the_metrics_by_purpose_and_the_means():
     lines = "\n".join(house.explain("score"))
-    for word in ("[score]", "thresholds", "metrics, statistical compatibility", "metrics, local defects", "chi2_ndf", "(default)", "wasserstein", "trimmed"):
+    for word in ("[ranking]", "thresholds", "metrics, statistical compatibility", "metrics, local defects", "chi2_ndf", "(default)", "wasserstein", "trimmed"):
         assert word in lines, word
 
 
@@ -77,18 +79,18 @@ def test_explain_one_metric_or_mean_in_full():
     assert "good 0.03, bad 0.25" in tilt and "because" in tilt and "by default" in tilt
     trimmed = "\n".join(house.explain("score.trimmed"))
     assert "guard" in trimmed and "approximate" in trimmed and "alpha" in trimmed
-    assert "[score].mean" in "\n".join(house.explain("score.mean"))
+    assert "[ranking].over_pages" in "\n".join(house.explain("score.over_pages"))
 
 
 # ── an old metric id: refused in a user's file, read in a record ──────────────────────────────
 
 OLD_IN_PLACE = [
     ({"stats": {"metrics": ["chi2_ndf", "norm"]}}, "[stats].metrics", "norm", "log_yield_ratio"),
-    ({"score": {"metrics": ["shape"]}}, "[score].metrics", "shape", "log_dev_shrunk"),
-    ({"score": {"metrics": {"worst": 2}}}, "[score].metrics", "worst", "peak_pull2"),
-    ({"score": {"thresholds": {"rho1": [0.3, 0.9]}}}, "[score].thresholds", "rho1", "pull_autocorr"),
-    ({"plot": {"sets": [{"name": "a", "score": {"metrics": ["L4"]}}]}}, "[plot].sets[1].score.metrics", "L4", "log_dev_l4"),
-    ({"plot": {"sets": {"a": {"score": {"thresholds": {"cvar": [1, 2]}}}}}}, "[plot].sets.a.score.thresholds", "cvar", "peak_deviance"),
+    ({"ranking": {"metrics": ["shape"]}}, "[ranking].metrics", "shape", "log_dev_shrunk"),
+    ({"ranking": {"metrics": {"worst": 2}}}, "[ranking].metrics", "worst", "peak_pull2"),
+    ({"ranking": {"thresholds": {"rho1": [0.3, 0.9]}}}, "[ranking].thresholds", "rho1", "pull_autocorr"),
+    ({"plot": {"sets": [{"name": "a", "ranking": {"metrics": ["L4"]}}]}}, "[plot].sets[1].ranking.metrics", "L4", "log_dev_l4"),
+    ({"plot": {"sets": {"a": {"ranking": {"thresholds": {"cvar": [1, 2]}}}}}}, "[plot].sets.a.ranking.thresholds", "cvar", "peak_deviance"),
     ({"plot": {"legend_statistic": "ratio_dev"}}, "[plot].legend_statistic", "ratio_dev", "mean_abs_ratio_dev"),
     ({"plot": {"figures": {"f": {"class": "statistic", "statistic": "area_ratio"}}}}, "[plot.figures.f].statistic", "area_ratio",
      "yield_ratio"),
@@ -120,5 +122,30 @@ def test_an_old_metric_id_in_a_record_is_read_as_its_id_now_and_noted_once(given
 
 
 def test_a_file_with_no_old_name_is_returned_as_it_is():
-    given = {"score": {"metrics": ["log_dev_shrunk"]}, "plot": {"legend_statistic": "chi2_ndf", "sets": ["pdf=A"]}}
+    given = {"ranking": {"metrics": ["log_dev_shrunk"]}, "plot": {"legend_statistic": "chi2_ndf", "sets": ["pdf=A"]}}
     assert config.renamed(given, "t.toml", recorded=False) is given
+
+
+# ── the table was [score]: its old name and keys refused in a user's file, read in a record ───────────────
+
+OLD_TABLE = [
+    ({"score": {"veto": 2}}, "[score]", "[score]", "[ranking]"),
+    ({"ranking": {"mean": "median"}}, "[ranking].mean", "mean", "over_pages"),
+    ({"ranking": {"normalise": "median"}}, "[ranking].normalise", "normalise", "cost"),
+    ({"plot": {"sets": [{"name": "a", "score": {}}]}}, "[plot].sets[1].score", "score", "ranking"),
+]
+
+
+@pytest.mark.parametrize("given,place,old,new", OLD_TABLE)
+def test_the_old_ranking_table_and_keys_in_a_users_file_are_refused(given, place, old, new):
+    with pytest.raises(HeimdallError, match=f"renamed: {re.escape(old)} is {re.escape(new)}") as caught:
+        config.renamed(given, "configs/T/t.toml", recorded=False)
+    assert caught.value.where == f"configs/T/t.toml: {place}"
+
+
+def test_a_records_score_table_reads_as_ranking_with_its_keys_now(monkeypatch):
+    monkeypatch.setattr(config, "OLD_NAMES", [])
+    read = config.renamed({"score": {"normalise": "median", "veto": 2}}, "records/…/config/T/t.toml", recorded=True)
+    assert read == {"ranking": {"cost": "median", "veto_loss": 2}}
+    sets = config.renamed({"plot": {"sets": [{"name": "a", "score": {"mean": "rms"}}]}}, "records/…/t.toml", recorded=True)
+    assert sets["plot"]["sets"][0] == {"name": "a", "ranking": {"over_pages": "rms"}}

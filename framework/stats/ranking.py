@@ -53,14 +53,14 @@ class Settings:
         return self.thresholds.get(name) or metrics.REGISTRY[name].thresholds
 
 
-def overlaid(score: dict | None = None, over: dict | None = None) -> dict:
-    """A set's `score` laid over the errand's `[score]`, as a plain dict a statistics.json can hold."""
-    return {**(score or {}), **(over or {})}
+def overlaid(table: dict | None = None, over: dict | None = None) -> dict:
+    """A set's `ranking` laid over the errand's `[ranking]`, as a plain dict a statistics.json can hold."""
+    return {**(table or {}), **(over or {})}
 
 
-def settings_of(score: dict | None = None, over: dict | None = None) -> Settings:
-    """Settings from a `[score]` table with a set's `score` over it; names are checked here too (a set's are not at parse)."""
-    merged = overlaid(score, over)
+def settings_of(table: dict | None = None, over: dict | None = None) -> Settings:
+    """Settings from a `[ranking]` table with a set's `ranking` over it; names are checked here too (a set's are not at parse)."""
+    merged = overlaid(table, over)
     given = merged.get("metrics")
     if given is None:
         weights = {n: 1.0 for n, m in metrics.REGISTRY.items() if m.default}
@@ -70,28 +70,28 @@ def settings_of(score: dict | None = None, over: dict | None = None) -> Settings
         weights = {metrics.resolve(n): 1.0 for n in given}
     for name in weights:
         if name not in metrics.REGISTRY:
-            raise HeimdallError(f"no metric '{name}'", hint=did_you_mean(name, metrics.REGISTRY) or "heimdall explain score")
+            raise HeimdallError(f"no metric '{name}'", hint=did_you_mean(name, metrics.REGISTRY) or "heimdall explain ranking")
     if not weights or sum(weights.values()) <= 0:
-        raise HeimdallError("[score].metrics scores nothing", hint="name at least one metric with a weight above zero")
-    for key, choices in (("normalise", COSTS), ("aggregate", AGGREGATE), ("weights_by", ("equal", "critic"))):
-        if merged.get(key, choices[0] if key != "weights_by" else "equal") not in choices:
-            raise HeimdallError(f"[score].{key} is one of {', '.join(choices)}", hint=f"got {merged[key]!r}")
-    mean = merged.get("mean", "rms")
+        raise HeimdallError("[ranking].metrics scores nothing", hint="name at least one metric with a weight above zero")
+    for key, choices in (("cost", COSTS), ("aggregate", AGGREGATE), ("weights_by", ("equal", "critic"))):
+        if merged.get(key, choices[0]) not in choices:
+            raise HeimdallError(f"[ranking].{key} is one of {', '.join(choices)}", hint=f"got {merged[key]!r}")
+    mean = merged.get("over_pages", "rms")
     if mean not in means.MEANS_BY_NAME:
-        raise HeimdallError(f"no mean '{mean}'", hint=did_you_mean(mean, means.MEANS_BY_NAME) or "heimdall explain score")
+        raise HeimdallError(f"no mean '{mean}'", hint=did_you_mean(mean, means.MEANS_BY_NAME) or "heimdall explain ranking")
     thresholds = {}
     for name, pair in (merged.get("thresholds") or {}).items():
         name = metrics.resolve(name)
         if name not in metrics.REGISTRY:
-            raise HeimdallError(f"no metric '{name}'", hint=did_you_mean(name, metrics.REGISTRY) or "heimdall explain score")
+            raise HeimdallError(f"no metric '{name}'", hint=did_you_mean(name, metrics.REGISTRY) or "heimdall explain ranking")
         thresholds[name] = (float(pair[0]), float(pair[1]))
     base = merged.get("baseline")
     if base is not None and not isinstance(base, (str, dict)):
-        raise HeimdallError("[score].baseline is a point's name or a filter { axis = \"value\" }", hint=f"got {base!r}")
+        raise HeimdallError("[ranking].baseline is a point's name or a filter { quantity = \"value\" }", hint=f"got {base!r}")
     by = merged.get("by") or ()
-    return Settings(metrics=weights, cost=merged.get("normalise", "thresholds"), thresholds=thresholds,
+    return Settings(metrics=weights, cost=merged.get("cost", "thresholds"), thresholds=thresholds,
                     weights=dict(merged.get("weights") or {}), weights_by=merged.get("weights_by", "equal"), over_pages=mean,
-                    veto_loss=merged.get("veto"), aggregate=merged.get("aggregate", "rms"),
+                    veto_loss=merged.get("veto_loss"), aggregate=merged.get("aggregate", "rms"),
                     dominated=bool(merged.get("dominated", False)), by=(by,) if isinstance(by, str) else tuple(by),
                     baseline=merged.get("baseline"), head_to_head=merged.get("head_to_head"))
 
@@ -148,7 +148,7 @@ def null_p(name: str, value: float, row: dict) -> float:
     if name == "tail_excess_sigma":
         return math.erfc(abs(value) / math.sqrt(2))
     raise HeimdallError(f"'{name}' has no null distribution, so no surprisal or Fisher p-value",
-                        hint="chi2_ndf, chi2_sigma and tail_excess_sigma have one; use normalise = \"thresholds\" for the rest")
+                        hint="chi2_ndf, chi2_sigma and tail_excess_sigma have one; use cost = \"thresholds\" for the rest")
 
 
 # ── observations ──────────────────────────────────────────────────────────────────────────────
@@ -202,12 +202,12 @@ def _cost_column(name: str, obs: list[Obs], st: Settings) -> list[float]:
     values = [o.row.get(name, math.nan) for o in obs]
     if st.cost == "thresholds":
         if st.thresholds_of(name) is None:
-            raise HeimdallError(f"'{name}' has no thresholds, so it cannot be hinged", hint=f"[score.thresholds] {name} = [good, bad], or another normalise")
+            raise HeimdallError(f"'{name}' has no thresholds, so it cannot be hinged", hint=f"[ranking.thresholds] {name} = [good, bad], or another cost")
         return [m.loss(v, st.thresholds.get(name)) if not math.isnan(v) else math.nan for v in values]
     if st.cost == "surprisal":
         return [(-math.log(max(null_p(name, v, o.row), P_FLOOR)) if not math.isnan(v) else math.nan) for v, o in zip(values, obs)]
     if m.polarity in ("higher", "descriptor"):
-        raise HeimdallError(f"'{name}' cannot be normalised against the pool ({st.cost})", hint='use normalise = "thresholds"')
+        raise HeimdallError(f"'{name}' cannot be normalised against the pool ({st.cost})", hint='use cost = "thresholds"')
     q = np.array([m.scored(v) if not math.isnan(v) else math.nan for v in values], dtype=float)
     ok = np.isfinite(q)
     if not ok.any():
@@ -267,7 +267,7 @@ def costs(obs: list[Obs], st: Settings) -> dict[str, float]:
     return weights
 
 
-# ── scores ────────────────────────────────────────────────────────────────────────────────────
+# ── losses ────────────────────────────────────────────────────────────────────────────────────
 
 @dataclass
 class PointLoss:
@@ -365,7 +365,7 @@ def _aggregate(result: Scores, obs: list[Obs], groups: dict) -> None:
         return
     if st.aggregate == "topsis":
         result.notes.append("topsis: 1 − closeness to the best and worst page loss among the cell's points; pool-dependent: adding "
-                            "a curve changes the others' scores (rank reversal)")
+                            "a curve changes the others' losses (rank reversal)")
         pages: dict = {}
         for o in obs:
             pages.setdefault((o.cell, o.page), []).append(o)
@@ -383,7 +383,7 @@ def _aggregate(result: Scores, obs: list[Obs], groups: dict) -> None:
             p.loss = 1 - math.sqrt(dm) / (math.sqrt(dp) + math.sqrt(dm)) if dp + dm > 0 else 0.0
         return
     result.notes.append("promethee: net outranking flow Φ over the curves of each page, per metric with indifference 0.1 and strict "
-                        "preference 1.0 of the good-to-bad span; score (1 − Φ)/2; pool-dependent, and a 100× blow-up costs no more than a 5×")
+                        "preference 1.0 of the good-to-bad span; loss (1 − Φ)/2; pool-dependent, and a 100× blow-up costs no more than a 5×")
     names = list(st.metrics)
     pages = {}
     for o in obs:
@@ -484,7 +484,7 @@ def marginals(scores: Scores, values: dict, st: Settings | None = None) -> list[
     names = list(st.by) or list(every)
     for quantity in names:
         if quantity not in every:
-            raise HeimdallError(f"[score].by: '{quantity}' is not a quantity these points vary",
+            raise HeimdallError(f"[ranking].by: '{quantity}' is not a quantity these points vary",
                                 hint=("quantities varied: " + ", ".join(every)) if every else "no quantity is varied among the scored points")
     out = []
     for quantity in names:
@@ -524,10 +524,10 @@ class Baseline:
 
 
 def baseline_filter(given, values: dict) -> dict:
-    """`[score].baseline` as a filter {quantity: value}: a table as it is, a point's name as that point's every quantity."""
+    """`[ranking].baseline` as a filter {quantity: value}: a table as it is, a point's name as that point's every quantity."""
     if isinstance(given, str):
         if given not in values:
-            raise HeimdallError(f"[score].baseline: no point '{given}'", hint="a point's name, or a filter { quantity = \"value\" }")
+            raise HeimdallError(f"[ranking].baseline: no point '{given}'", hint="a point's name, or a filter { quantity = \"value\" }")
         return dict(values[given])
     return {str(k): str(v) for k, v in dict(given).items()}
 
@@ -538,12 +538,12 @@ def baseline(scores: Scores, values: dict, given=None) -> Baseline:
     unmatched with the reason."""
     given = scores.settings.baseline if given is None else given
     if not given:
-        raise HeimdallError("no baseline: [score].baseline is not set")
+        raise HeimdallError("no baseline: [ranking].baseline is not set")
     wanted = baseline_filter(given, values)
     known = set().union(*(set(a) for a in values.values())) if values else set()
     for quantity in wanted:
         if quantity not in known:
-            raise HeimdallError(f"[score].baseline: '{quantity}' is not a quantity of these points", hint="quantities: " + ", ".join(sorted(known)))
+            raise HeimdallError(f"[ranking].baseline: '{quantity}' is not a quantity of these points", hint="quantities: " + ", ".join(sorted(known)))
     by_values: dict = {}
     for ps in scores.points:
         if ps.point in values:

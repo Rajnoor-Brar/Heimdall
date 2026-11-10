@@ -28,7 +28,7 @@
 # heimdall.toml [cluster], V114).
 
 [sections]
-order = ["config", "errand", "prelim", "static", "tools", "quantities", "plot", "stats", "score", "report", "cluster", "heimdall"]
+order = ["config", "errand", "prelim", "static", "tools", "quantities", "plot", "stats", "ranking", "report", "cluster", "heimdall"]
 # [heimdall] (V188): the commands' own flags, by their option names; the CLI checks them against its parser.
 # [report] (V209): what its folders' reports show, a report's recipe (framework/schema/report.toml, doc:reports).
 
@@ -892,7 +892,7 @@ notes = """\
   their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: \
   the union, in order), `merge` (an entry or a list: `{ pdf = ["a", "b"], how = "linear", label = "…", tag = "…", \
   band = false | "minmax" | "std", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the \
-  points' statistics (rivet-merge), any mean of `heimdall explain score`'s catalogue merges bin by bin, `linear` the default; \
+  points' statistics (rivet-merge), any mean of `heimdall explain ranking`'s catalogue merges bin by bin, `linear` the default; \
   a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \
   "<q>", line = "<q>" }`, or `"palette"`; with none, two varying curve axes: the one of at most 4 values \
   the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \
@@ -1081,10 +1081,10 @@ doc  = "as [plot].range_pad, for the numbers"
 [stats.metrics]
 type  = "list"
 items = "str"
-doc   = "the metrics computed for the table, beside the old columns (default: chi2_ndf, norm, shape, tilt, worst)"
+doc   = "the metrics computed for the table, beside the fixed columns (default: the metrics `heimdall explain ranking` marks)"
 notes = """\
-  names from `heimdall explain score`; each becomes a column of statistics.csv and is described in \
-  statistics.json. A metric not in the list is not computed; `[score].metrics` scores a metric that is"""
+  ids from `heimdall explain ranking`; each becomes a column of statistics.csv and is described in \
+  statistics.json. A metric not in the list is not computed; `[ranking].metrics` scores a metric that is"""
 
 [stats.centres]
 type    = "str"
@@ -1092,72 +1092,72 @@ choices = ["mid", "barycentre"]
 default = "mid"
 doc     = "where a bin sits in x for tilt and roughness: its middle, or the centre of gravity of the reference's local exponential"
 
-# ── [score]: how the statistics become a score (stats-backend) ───────────────────────────────────
-# Unset, a key is the default. A set's `score = { … }` lays over this table for its pages.
+# ── [ranking]: how the statistics become each point's loss and its rank ─────────────────────────
+# Unset, a key is the default. A set's `ranking = { … }` lays over this table for its pages.
 
-[score.metrics]
+[ranking.metrics]
 type  = "list|table"
 items = "str"
-doc   = "the metrics scored: a list of names, or { name = weight } (default: the five default metrics, weight 1)"
+doc   = "the metrics scored: a list of ids, or { id = weight } (default: the default metrics, weight 1)"
 notes = """\
   a metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS \
-  of its metrics' normalised values, so four shape metrics weigh one category and not four"""
+  of its metrics' costs, so four accuracy metrics weigh one category and not four"""
 
-[score.normalise]
+[ranking.cost]
 type    = "str"
 choices = ["thresholds", "median", "mad", "minmax", "surprisal"]
 default = "thresholds"
 doc     = "how a metric becomes a cost: hinged between its good and bad thresholds (pool-independent), or against the pool"
 notes = """\
-  `thresholds`: 0 at or under `good`, 1 at `bad`, linear beyond; the same whatever else is in the pool, so scores \
+  `thresholds`: 0 at or under `good`, 1 at `bad`, linear beyond; the same whatever else is in the pool, so losses \
   compare across Runs. `median`, `mad`, `minmax`, `surprisal` divide by, or scale to, the pool of curves on the \
-  page: adding a curve changes the others' scores"""
+  page: adding a curve changes the others' losses"""
 
-[score.thresholds]
+[ranking.thresholds]
 type = "table"
-doc  = "{ metric = [good, bad] }: thresholds over the registry's, in the metric's scored unit"
+doc  = "{ id = [good, bad] }: thresholds over the registry's, in the metric's scored unit"
 
-[score.weights]
+[ranking.weights]
 type = "table"
 doc  = "{ \"d01-*\" = 2 }: page weights by object glob (precedence: a figure's weight, a set's weights, these, 1)"
 
-[score.weights_by]
+[ranking.weights_by]
 type    = "str"
 choices = ["equal", "critic"]
 default = "equal"
 doc     = "equal metric weights, or CRITIC's (by contrast and independence; needs many curves)"
 
-[score.mean]
+[ranking.over_pages]
 type    = "str"
 default = "rms"
-doc     = "how pages become a point's score: a mean from `heimdall explain score` (default rms)"
+doc     = "how a point's page losses become its loss: a mean from `heimdall explain ranking` (default rms)"
 
-[score.by]
+[ranking.by]
 type  = "str|list"
 items = "str"
-doc   = "the point name fields a score is averaged over, as marginals (a quantity of the sweep, or generator, pdf, …)"
+doc   = "the quantities a marginal is made for (a quantity of the sweep, or generator, pdf, …); default: every varied one"
 
-[score.baseline]
+[ranking.baseline]
 type = "str|table"
-doc  = "the point every score is also shown against: a point name, or a filter { pdf = \"NNPDF23lo\" }"
+doc  = "the point every loss is also shown against: a point name, or a filter { pdf = \"NNPDF23lo\" }"
 
-[score.veto]
+[ranking.veto_loss]
 type = "float"
 min  = 0
 doc  = "a point whose worst page loses more than this is vetoed (default: none)"
 
-[score.aggregate]
+[ranking.aggregate]
 type    = "str"
 choices = ["rms", "fisher", "topsis", "promethee"]
 default = "rms"
 doc     = "how metrics and pages combine: RMS over categories (default), or Fisher's combined probability, TOPSIS, PROMETHEE"
 
-[score.dominated]
+[ranking.dominated]
 type    = "bool"
 default = false
 doc     = "add a column marking a point that another beats on every category"
 
-[score.head_to_head]
+[ranking.head_to_head]
 type = "str"
 doc  = "the pages the summary plays as matches, each pair of curves: \"<cell>/<object>\" (a page cell's object, its short name), or \"all\" for every page; default: none"
 
@@ -1246,7 +1246,7 @@ notes = """\
 [figure.weight]
 type = "float"
 min  = 0
-doc  = "the weight of this figure's pages in a score (default: 1, or [score].weights')"
+doc  = "the weight of this figure's pages in a point's loss (default: 1, or [ranking].weights')"
 
 [figure.sort]
 type    = "bool"

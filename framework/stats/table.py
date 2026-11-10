@@ -93,9 +93,9 @@ def _add_metrics(rows: list[dict], made: dict, page, names: list[str]) -> None:
             row[name] = metrics.evaluate(name, curves[i], pool=curves) if curves and i < len(curves) else float("nan")
 
 
-def sidecar_of(names, score: dict | None = None, axes: dict | None = None, merged: dict | None = None, run: bool = False) -> dict:
-    """What statistics.json holds for a table with the metrics `names`, scored as `score` (the merged [score] table, a plain
-    dict) says: the summary and the report score the rows the way the table was written."""
+def sidecar_of(names, ranking: dict | None = None, values: dict | None = None, merged: dict | None = None, run: bool = False) -> dict:
+    """What statistics.json holds for a table with the metrics `names`, ranked as `ranking` (the merged [ranking] table, a
+    plain dict) says: the summary and the report rank the rows the way the table was written."""
     from . import metrics
     columns = columns_for(names, run)
     out = {"format": FORMAT, "columns": columns,
@@ -103,16 +103,16 @@ def sidecar_of(names, score: dict | None = None, axes: dict | None = None, merge
                            "thresholds": list(m.thresholds) if m.thresholds else None, "default": m.default, "note": m.note,
                            "why": m.why}
                        for n in columns if (m := metrics.REGISTRY.get(n))}}
-    if score:
-        out["score"] = score
-    if axes:
-        out["axes"] = axes                                  # {point: {axis: tag}}: what each point's sweep chose
+    if ranking:
+        out["ranking"] = ranking
+    if values:
+        out["values"] = values                              # {point: {quantity: tag}}: what each point's sweep chose
     if merged:
         out["merged"] = merged                              # {curve: [its points]}: a set's merge, a curve of its own
     return out
 
 
-def write_statistics(todo: list, target: Path, names=None, score: dict | None = None, axes: dict | None = None,
+def write_statistics(todo: list, target: Path, names=None, *, ranking: dict | None = None, values: dict | None = None,
                      merged: dict | None = None) -> int:
     """results/…/statistics.csv (V160) and its statistics.json: every drawn page's curves; the number of rows."""
     names = list(default_metrics() if names is None else names)
@@ -127,7 +127,7 @@ def write_statistics(todo: list, target: Path, names=None, score: dict | None = 
         out.writeheader()
         for row in rows:
             out.writerow({k: ("" if isinstance(v, float) and v != v else v) for k, v in row.items()})
-    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names, score, axes, merged, run), indent=2) + "\n", encoding="utf-8")
+    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names, ranking, values, merged, run), indent=2) + "\n", encoding="utf-8")
     return len(rows)
 
 
@@ -136,6 +136,9 @@ def _raw(path: Path) -> dict | None:
     return json.loads(side.read_text(encoding="utf-8")) if side.is_file() else None
 
 
+#: A format 2 sidecar's tables, and its ranking table's keys, by their names in format 3.
+OLD_TABLES = {"score": "ranking", "axes": "values"}
+OLD_RANKING_KEYS = {"normalise": "cost", "mean": "over_pages", "veto": "veto_loss"}
 #: A metric's keys in a format 2 sidecar → (their key in format 3, the values that changed).
 OLD_KEYS = {"better": ("polarity", {"none": "descriptor"}), "purpose": ("category", {"shape": "accuracy"})}
 
@@ -158,16 +161,22 @@ def upgraded(side: dict) -> dict:
                     entry.setdefault(new, values.get(value, value))
             named[metrics.resolve(name)] = entry
         out["metrics"] = named
-    if isinstance(out.get("score"), dict):
-        score = dict(out["score"])
-        given = score.get("metrics")
+    for old, new in OLD_TABLES.items():
+        if old in out and new not in out:
+            out[new] = out.pop(old)
+    if isinstance(out.get("ranking"), dict):
+        table = dict(out["ranking"])
+        for old, new in OLD_RANKING_KEYS.items():
+            if old in table and new not in table:
+                table[new] = table.pop(old)
+        given = table.get("metrics")
         if isinstance(given, dict):
-            score["metrics"] = {metrics.resolve(n): w for n, w in given.items()}
+            table["metrics"] = {metrics.resolve(n): w for n, w in given.items()}
         elif isinstance(given, list):
-            score["metrics"] = [metrics.resolve(n) for n in given]
-        if isinstance(score.get("thresholds"), dict):
-            score["thresholds"] = {metrics.resolve(n): v for n, v in score["thresholds"].items()}
-        out["score"] = score
+            table["metrics"] = [metrics.resolve(n) for n in given]
+        if isinstance(table.get("thresholds"), dict):
+            table["thresholds"] = {metrics.resolve(n): v for n, v in table["thresholds"].items()}
+        out["ranking"] = table
     return out
 
 

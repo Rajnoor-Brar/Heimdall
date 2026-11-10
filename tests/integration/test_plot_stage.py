@@ -857,15 +857,15 @@ def test_the_summary_is_scored_by_category(stage):
     curves and table (a row per point, a column per object in natural order, then the mean; the reference "ref"); each item
     names its notes. A table wider than the page is cut into column blocks, the mean on the last. V197: a table in curve
     order groups its rows under their cells' bands; the facts, contents and notes up front. V199: summary.html beside it.
-    A head to head only for the pages `[score].head_to_head` names."""
+    A head to head only for the pages `[ranking].head_to_head` names."""
     import re
     from runner import plugins
     from stats import metrics, ranking
     errand, configuration, plans = stage
     names = ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "yield_weighted_abs_dev", "yield_ratio",
              "mean_bin_ratio", "mean_abs_ratio_dev"]
-    scored = {"metrics": names, "veto": 5.0, "head_to_head": "em/d01-x01-y01"}
-    shown = replace(errand, score=scored, plot={**errand.plot, "formats": ["pdf", "png"]})
+    scored = {"metrics": names, "veto_loss": 5.0, "head_to_head": "em/d01-x01-y01"}
+    shown = replace(errand, ranking=scored, plot={**errand.plot, "formats": ["pdf", "png"]})
     assert plot.draw(shown, configuration, plans, lambda line: None) == 0
     numbers = plans[0].folders.statistics / "totality"
     pdf = (numbers / "summary.pdf").read_bytes()
@@ -875,7 +875,7 @@ def test_the_summary_is_scored_by_category(stage):
     assert len(list((numbers / "summary").glob("summary_*.png"))) == count
     assert "<h2>Head to head</h2>" in (numbers / "summary.html").read_text(encoding="utf-8")   # V199: the same, a page
     side = json.loads((numbers / "statistics.json").read_text(encoding="utf-8"))
-    assert side["score"] == scored and set(names) <= set(side["columns"])        # the table says how it was scored
+    assert side["ranking"] == scored and set(names) <= set(side["columns"])        # the table says how it was scored
     bars = plugins.load(plot.heimdall_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
     st = ranking.settings_of(scored)
     rows = [r for page in plot.pages(shown, configuration, plans) for r in (statstable.statistics_of(page, names) or [])]

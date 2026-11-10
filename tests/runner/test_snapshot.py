@@ -238,23 +238,23 @@ def test_style_sync_takes_the_configs_plot_into_the_documents(trees, capsys):
     assert f"same    {rel}" in capsys.readouterr().out
 
 
-def test_style_sync_takes_the_configs_score(trees, capsys):
-    """A document's [score] is the config's after --style-sync, as its [plot] and [stats] are, and --plan names it."""
+def test_style_sync_takes_the_configs_ranking(trees, capsys):
+    """A document's [ranking] is the config's after --style-sync, as its [plot] and [stats] are, and --plan names it."""
     from runner import plotdoc
     p = recorded_run("Demo/jets", "pdf")
     rel = str(p.every[0].folders.record.relative_to(paths.records_root()))
     assert cli.migrate_plot_docs(argparse.Namespace(plot_docs=[], apply=True)) == 0
     target = p.every[0].folders.results / plotdoc.FILE
     doc = plotdoc.load(target)[0]
-    plotdoc.write_chosen(target, doc.plot, doc.stats, score={"mean": "linear"})
-    assert plotdoc.load(target)[0].score == {"mean": "linear"}
+    plotdoc.write_chosen(target, doc.plot, doc.stats, ranking={"over_pages": "linear"})
+    assert plotdoc.load(target)[0].ranking == {"over_pages": "linear"}
     capsys.readouterr()
     args = argparse.Namespace(command="plot", config=rel, configuration=None, set=[], style_sync="Demo/jets", plan=True,
                               replot=False, plot_file=None, page_points=None)
     assert cli.cmd_plot(args) == 0
-    assert f"would sync {rel}: [score]" in capsys.readouterr().out and plotdoc.load(target)[0].score == {"mean": "linear"}
+    assert f"would sync {rel}: [ranking]" in capsys.readouterr().out and plotdoc.load(target)[0].ranking == {"over_pages": "linear"}
     args.plan = False
-    assert cli.cmd_plot(args) == 0 and plotdoc.load(target)[0].score == {}
+    assert cli.cmd_plot(args) == 0 and plotdoc.load(target)[0].ranking == {}
 
 
 def test_an_event_count_is_a_tag():
@@ -405,12 +405,12 @@ def test_an_old_name_in_a_snapshot_is_read_and_said_once_and_refused_in_configs(
     p = recorded_run("Demo/jets", "pdf")
     folder = p.every[0].folders.config
     snapshot = folder / "Demo" / "jets.toml"
-    text = snapshot.read_text(encoding="utf-8") + '\n[score]\nmetrics = ["shape"]\n'
+    text = snapshot.read_text(encoding="utf-8") + '\n[ranking]\nmetrics = ["shape"]\n'
     snapshot.write_text(text, encoding="utf-8")
     config.OLD_NAMES.clear()
     with paths.configs_at(folder):
         assert paths.in_record()
-        assert config.load("Demo/jets").score == {"metrics": ["log_dev_shrunk"]}
+        assert config.load("Demo/jets").ranking == {"metrics": ["log_dev_shrunk"]}
     assert config.OLD_NAMES == ["`shape` → `log_dev_shrunk`"]
     assert not paths.in_record()
     live = p.errand.path.read_text(encoding="utf-8")                          # the session's work dir: put back after
@@ -418,8 +418,8 @@ def test_an_old_name_in_a_snapshot_is_read_and_said_once_and_refused_in_configs(
     try:
         with pytest.raises(HeimdallError, match="renamed: shape is log_dev_shrunk") as caught:
             config.load("Demo/jets")
-        assert caught.value.where.endswith("[score].metrics")
-        assert config.load("Demo/jets", strict=False).score == {"metrics": ["log_dev_shrunk"]}
+        assert caught.value.where.endswith("[ranking].metrics")
+        assert config.load("Demo/jets", strict=False).ranking == {"metrics": ["log_dev_shrunk"]}
         assert not config.LENIENT.get()
     finally:
         p.errand.path.write_text(live, encoding="utf-8")

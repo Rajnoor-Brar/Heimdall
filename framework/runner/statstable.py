@@ -33,24 +33,24 @@ def heading_of(numbers: Path) -> str:
     return f"{where} · {numbers.name}"
 
 
-def score_of(errand, set_: str) -> dict:
-    """The [score] a set is scored with: the errand's, a set's own `score` laid over it (a plain dict)."""
+def ranking_of(errand, set_: str) -> dict:
+    """The [ranking] a set is ranked with: the errand's, a set's own `ranking` laid over it (a plain dict)."""
     from stats import ranking
     from .sweep import set_entries
     sets = (errand.plot or {}).get("sets")
-    own = next((s.score for s in set_entries(sets, "[plot].sets") if s.name == set_), {}) if sets else {}
-    return ranking.overlaid(errand.score, own)
+    own = next((s.ranking for s in set_entries(sets, "[plot].sets") if s.name == set_), {}) if sets else {}
+    return ranking.overlaid(errand.ranking, own)
 
 
-def metric_names(errand_stats: dict | None, score_table: dict | None) -> list[str]:
-    """The metric columns a table carries: `[stats].metrics` (the defaults when it names none) and every metric `[score]`
+def metric_names(errand_stats: dict | None, ranking_table: dict | None) -> list[str]:
+    """The metric columns a table carries: `[stats].metrics` (the defaults when it names none) and every metric `[ranking]`
     has on, so that whatever is scored is there to read."""
     from stats import ranking
     names = list((errand_stats or {}).get("metrics") or default_metrics())
-    return names + [n for n in ranking.settings_of(score_table).metrics if n not in names]
+    return names + [n for n in ranking.settings_of(ranking_table).metrics if n not in names]
 
 
-def point_axes(numbers: Path) -> dict:
+def point_values(numbers: Path) -> dict:
     """What each point's sweep chose, {point: {quantity: tag}}, from the run's plot document (statistics/<set> is beside it);
     {} when it has none to read."""
     import tomllib
@@ -74,18 +74,18 @@ def point_axes(numbers: Path) -> dict:
     return out
 
 
-def write_set(pages: list, numbers: Path, formats: list[str], module=None, names=None, score: dict | None = None) -> tuple[int, int]:
-    """A set's numbers, statistics/<set>/ (V160, V164): statistics.csv and statistics.json (the metrics `names`, scored as
-    `score` says), then each page's bar graph and the summary (bars.draw), when any page has numbers. (rows written, images
-    made). `module`: bars, loaded once by the caller."""
-    from stats import ranking as scoring
-    names = list(names) if names is not None else metric_names(None, score)
-    axes = point_axes(numbers)
+def write_set(pages: list, numbers: Path, formats: list[str], module=None, names=None, ranking: dict | None = None) -> tuple[int, int]:
+    """A set's numbers, statistics/<set>/ (V160, V164): statistics.csv and statistics.json (the metrics `names`, ranked as
+    `ranking` says), then each page's bar graph and the summary (bars.draw), when any page has numbers. (rows written,
+    images made). `module`: bars, loaded once by the caller."""
+    from stats import ranking as engine
+    names = list(names) if names is not None else metric_names(None, ranking)
+    values = point_values(numbers)
     merged = {name: members for page in pages for name, members in getattr(page, "merged", {}).items()}
-    count = write_statistics(pages, numbers / "statistics.csv", names, score, axes, merged)
+    count = write_statistics(pages, numbers / "statistics.csv", names, ranking=ranking, values=values, merged=merged)
     if not count:
         return 0, 0
     module = module or bars()
     images = module.draw([(p.rel, statistics_of(p, names) or []) for p in pages], numbers / "bars", formats,
-                         summary=numbers / "summary", heading=heading_of(numbers), st=scoring.settings_of(score), axes=axes)
+                         summary=numbers / "summary", heading=heading_of(numbers), st=engine.settings_of(ranking), axes=values)
     return count, images

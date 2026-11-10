@@ -51,7 +51,7 @@ RECIPE = "report.toml"
 #: Whose drawn pages a section takes, in order of preference, when it names none.
 BACKENDS = ("root", "mpl")
 #: The default report's headline: the top five and each statistic's ranking (the area has none).
-#: The default Standings section: the standings, a section a category, then the marginals, the baseline and the head to head when `[score]` has what they need
+#: The default Standings section: the standings, a section a category, then the marginals, the baseline and the head to head when `[ranking]` has what they need
 #: (what has nothing to show is left out without a word). A test holds the categories to stats.metrics.CATEGORIES.
 HEADLINE = ["standings", *(f"category:{p}" for p in ("compatibility", "normalisation", "accuracy", "similarity", "trend",
                                                        "defects", "integrity", "quality")), "marginals", "baseline", "head-to-head"]
@@ -1465,15 +1465,15 @@ def _measuring():
 
 
 def _scored(csv_path: Path):
-    """The settings a statistics.csv was scored with: its statistics.json's `score`, the defaults for a csv without."""
+    """The settings a statistics.csv was ranked with: its statistics.json's `ranking`, the defaults for a csv without."""
     from stats import ranking
     side = statstable.sidecar(csv_path)
-    return ranking.settings_of((side or {}).get("score"))
+    return ranking.settings_of((side or {}).get("ranking"))
 
 
 def _axes(csv_path: Path) -> dict:
-    """What each point's sweep chose, from its statistics.json: {point: {axis: tag}}, {} for a csv without."""
-    return dict((statstable.sidecar(csv_path) or {}).get("axes") or {})
+    """What each point's sweep chose, from its statistics.json: {point: {quantity: tag}}, {} for a csv without."""
+    return dict((statstable.sidecar(csv_path) or {}).get("values") or {})
 
 
 def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method: bool = False) -> Typeset | None:

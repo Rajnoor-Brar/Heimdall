@@ -32,7 +32,7 @@ def test_the_default_settings_score_the_five_default_metrics_at_weight_one():
     assert st.cost == "thresholds" and st.over_pages == "rms" and st.aggregate == "rms"
 
 
-@pytest.mark.parametrize("bad", [{"metrics": ["chi2_nfd"]}, {"mean": "rsm"}, {"normalise": "zscore"},
+@pytest.mark.parametrize("bad", [{"metrics": ["chi2_nfd"]}, {"over_pages": "rsm"}, {"cost": "zscore"},
                                  {"thresholds": {"nrom": [0.1, 0.2]}}, {"metrics": {"log_yield_ratio": 0.0}}, {"aggregate": "borda"}])
 def test_a_wrong_name_or_a_scoreless_choice_is_refused_by_name(bad):
     with pytest.raises(HeimdallError):
@@ -40,7 +40,7 @@ def test_a_wrong_name_or_a_scoreless_choice_is_refused_by_name(bad):
 
 
 def test_a_set_s_score_table_is_laid_over_the_run_s():
-    st = ranking.settings_of({"mean": "rms", "veto": 3.0}, {"mean": "median"})
+    st = ranking.settings_of({"over_pages": "rms", "veto_loss": 3.0}, {"over_pages": "median"})
     assert st.over_pages == "median" and st.veto_loss == 3.0
 
 
@@ -95,7 +95,7 @@ def test_adding_a_curve_leaves_the_others_threshold_scores_unchanged():
 
 def test_a_pool_normalisation_changes_when_a_curve_is_added_and_says_so():
     rows = [row("a", chi2_ndf=2.0), row("b", chi2_ndf=4.0), row("c", chi2_ndf=3.0)]
-    st = ranking.settings_of({"metrics": ["chi2_ndf"], "normalise": "minmax"})
+    st = ranking.settings_of({"metrics": ["chi2_ndf"], "cost": "minmax"})
     first = {p.point: p.loss for p in ranking.score(rows, st).points}
     second = {p.point: p.loss for p in ranking.score(rows + [row("d", chi2_ndf=40.0)], st).points}
     assert first == {"a": 0.0, "b": 1.0, "c": 0.5}
@@ -123,11 +123,11 @@ def test_pages_against_data_win_over_pages_against_a_curve():
 
 def test_the_worst_page_and_the_veto():
     rows = [row("a", page="good", chi2_ndf=1.0), row("a", page="awful", chi2_ndf=9.0)]
-    st = ranking.settings_of({"metrics": ["chi2_ndf"], "veto": 2.0})
+    st = ranking.settings_of({"metrics": ["chi2_ndf"], "veto_loss": 2.0})
     (p,) = ranking.score(rows, st).points
     assert p.worst_page == "awful" and p.worst_loss == pytest.approx(4.0)
     assert p.vetoed is True
-    assert ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"], "veto": 5.0})).points[0].vetoed is False
+    assert ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"], "veto_loss": 5.0})).points[0].vetoed is False
     assert ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"]})).points[0].vetoed is False
 
 
@@ -144,7 +144,7 @@ def test_page_weights_by_figure_and_by_glob_and_the_figure_wins():
 def test_the_mean_is_a_setting_median_ignores_one_bad_page():
     rows = [row("a", page=f"p{i}", chi2_ndf=1.0) for i in range(4)] + [row("a", page="bad", chi2_ndf=9.0)]
     rms = ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"]})).points[0].loss
-    med = ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"], "mean": "median"})).points[0].loss
+    med = ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"], "over_pages": "median"})).points[0].loss
     assert med == 0.0 and rms > 1.0
 
 
@@ -187,26 +187,26 @@ def test_the_gaussian_nulls():
 
 def test_surprisal_is_minus_the_log_of_the_null_probability():
     rows = [row("a", chi2_ndf=1.8307038, ndf=10)]                         # χ² = 18.307: p = 0.05
-    st = ranking.settings_of({"metrics": ["chi2_ndf"], "normalise": "surprisal"})
+    st = ranking.settings_of({"metrics": ["chi2_ndf"], "cost": "surprisal"})
     assert ranking.score(rows, st).points[0].loss == pytest.approx(-math.log(0.05), rel=1e-4)
 
 
 def test_surprisal_refuses_a_metric_with_no_null():
     with pytest.raises(HeimdallError, match="no null"):
-        ranking.score([row("a")], ranking.settings_of({"metrics": ["log_yield_ratio"], "normalise": "surprisal"}))
+        ranking.score([row("a")], ranking.settings_of({"metrics": ["log_yield_ratio"], "cost": "surprisal"}))
 
 
 # ── the pool normalisations ───────────────────────────────────────────────────────────────────
 
 def test_median_normalisation_makes_the_typical_curve_cost_one():
     rows = [row("a", chi2_ndf=2.0), row("b", chi2_ndf=4.0), row("c", chi2_ndf=8.0)]
-    out = {p.point: p.loss for p in ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"], "normalise": "median"})).points}
+    out = {p.point: p.loss for p in ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"], "cost": "median"})).points}
     assert out == {"a": pytest.approx(0.5), "b": pytest.approx(1.0), "c": pytest.approx(2.0)}
 
 
 def test_mad_normalisation_orders_by_the_metric_and_stays_positive():
     rows = [row(c, chi2_ndf=v) for c, v in zip("abcde", (1.0, 1.1, 1.2, 1.3, 9.0))]
-    out = ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"], "normalise": "mad"}))
+    out = ranking.score(rows, ranking.settings_of({"metrics": ["chi2_ndf"], "cost": "mad"}))
     s = {p.point: p.loss for p in out.points}
     assert all(v > 0 for v in s.values()) and s["a"] < s["d"] < s["e"]
 
@@ -217,7 +217,7 @@ def test_a_pool_normalisation_refuses_a_higher_is_better_metric():
         pytest.skip("no higher-is-better metric")
     rows = [row("a", **{higher[0]: 0.5})]
     with pytest.raises(HeimdallError, match="pool"):
-        ranking.score(rows, ranking.settings_of({"metrics": [higher[0]], "normalise": "minmax"}))
+        ranking.score(rows, ranking.settings_of({"metrics": [higher[0]], "cost": "minmax"}))
 
 
 # ── CRITIC ────────────────────────────────────────────────────────────────────────────────────

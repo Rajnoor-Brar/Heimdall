@@ -196,7 +196,7 @@ def _tables() -> list[tuple[str, dict[str, dict]]]:
     v3 = [(f"[{title}]", schema.v3_entries(t)) for title, t in
           (("file", "file"), ("errand", "errand"), ("cfgs.<name>", "cfgs"), ("quantities.<q>", "quantities"), ("tools.<name>", "tools"))]
     return v3 + [("[plot]", schema.keys("plot")), ("[plot.figures.<name>]", schema.spec().get("figure", {})),
-                 ("[plot.data]", schema.keys("data")), ("[plot.across_from]", schema.keys("across_from")), ("[stats]", schema.keys("stats")), ("[score]", schema.keys("score")),
+                 ("[plot.data]", schema.keys("data")), ("[plot.across_from]", schema.keys("across_from")), ("[stats]", schema.keys("stats")), ("[ranking]", schema.keys("ranking")),
                  ("[report]", schema.keys("report")), ("[[report.section]]", schema.keys("section")), ("[cluster]", schema.keys("cluster"))]
 
 

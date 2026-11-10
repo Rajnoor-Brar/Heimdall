@@ -1,6 +1,6 @@
 ---
 id: settings-plot
-summary: every key of [plot], its figures, data and runs together, and [stats] and [score]: type, default, values, effect
+summary: every key of [plot], its figures, data and runs together, and [stats] and [ranking]: type, default, values, effect
 code: framework/schema/run.toml
 generated: true
 ---
@@ -200,7 +200,7 @@ Whole bins kept either side of the filled ones. A figure may override it.
 |---|---|---|
 | list of integers or strings or lists or tables or table | — | — |
 
-The pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`"sh3_NNPDF40*"`), a tag of a quantity's (`"py8"`: every point with it), `"quantity=tag"`, or `"all"`; a string entry names its folder (`"pdf=X"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = ["a", "b"], how = "linear", label = "…", tag = "…", band = false | "minmax" | "std", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain score`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = "<q>", line = "<q>" }`, or `"palette"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = "all" | tag | glob | "!tag" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = "…", colour, line, width }`, or several values' in order, `{ tags = "all" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only. A figure may override it.
+The pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`"sh3_NNPDF40*"`), a tag of a quantity's (`"py8"`: every point with it), `"quantity=tag"`, or `"all"`; a string entry names its folder (`"pdf=X"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = ["a", "b"], how = "linear", label = "…", tag = "…", band = false | "minmax" | "std", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain ranking`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = "<q>", line = "<q>" }`, or `"palette"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = "all" | tag | glob | "!tag" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = "…", colour, line, width }`, or several values' in order, `{ tags = "all" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only. A figure may override it.
 
 ## `looks`
 
@@ -388,7 +388,7 @@ A statistic figure's number, as `statistics.csv` has it: per cell (or set) and o
 |---|---|---|
 | number | — | at least 0 |
 
-The weight of this figure's pages in a score (default: 1, or [score].weights')
+The weight of this figure's pages in a point's loss (default: 1, or [ranking].weights')
 
 ### `sort`
 
@@ -620,7 +620,7 @@ As [plot].range_pad, for the numbers.
 |---|---|---|
 | list of strings | — | — |
 
-Names from `heimdall explain score`; each becomes a column of statistics.csv and is described in statistics.json. A metric not in the list is not computed; `[score].metrics` scores a metric that is.
+Ids from `heimdall explain ranking`; each becomes a column of statistics.csv and is described in statistics.json. A metric not in the list is not computed; `[ranking].metrics` scores a metric that is.
 
 ## `centres`
 
@@ -630,9 +630,9 @@ Names from `heimdall explain score`; each becomes a column of statistics.csv and
 
 Where a bin sits in x for tilt and roughness: its middle, or the centre of gravity of the reference's local exponential.
 
-# `[score]`
+# `[ranking]`
 
-[`metrics`](#metrics-1) · [`normalise`](#normalise-2) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`mean`](#mean) · [`by`](#by) · [`baseline`](#baseline) · [`veto`](#veto) · [`aggregate`](#aggregate) · [`dominated`](#dominated) · [`head_to_head`](#head_to_head)
+[`metrics`](#metrics-1) · [`cost`](#cost) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`over_pages`](#over_pages) · [`by`](#by) · [`baseline`](#baseline) · [`veto_loss`](#veto_loss) · [`aggregate`](#aggregate) · [`dominated`](#dominated) · [`head_to_head`](#head_to_head)
 
 ## `metrics`
 
@@ -640,15 +640,15 @@ Where a bin sits in x for tilt and roughness: its middle, or the centre of gravi
 |---|---|---|
 | list of strings or table | — | — |
 
-A metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS of its metrics' normalised values, so four shape metrics weigh one category and not four.
+A metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS of its metrics' costs, so four accuracy metrics weigh one category and not four.
 
-## `normalise`
+## `cost`
 
 | Type | Default | Acceptable |
 |---|---|---|
 | string | `"thresholds"` | `"thresholds"`, `"median"`, `"mad"`, `"minmax"`, `"surprisal"` |
 
-`thresholds`: 0 at or under `good`, 1 at `bad`, linear beyond; the same whatever else is in the pool, so scores compare across Runs. `median`, `mad`, `minmax`, `surprisal` divide by, or scale to, the pool of curves on the page: adding a curve changes the others' scores.
+`thresholds`: 0 at or under `good`, 1 at `bad`, linear beyond; the same whatever else is in the pool, so losses compare across Runs. `median`, `mad`, `minmax`, `surprisal` divide by, or scale to, the pool of curves on the page: adding a curve changes the others' losses.
 
 ## `thresholds`
 
@@ -656,7 +656,7 @@ A metric is scored through its category: a page's loss is the RMS over categorie
 |---|---|---|
 | table | — | — |
 
-{ metric = [good, bad] }: thresholds over the registry's, in the metric's scored unit.
+{ id = [good, bad] }: thresholds over the registry's, in the metric's scored unit.
 
 ## `weights`
 
@@ -674,13 +674,13 @@ A metric is scored through its category: a page's loss is the RMS over categorie
 
 Equal metric weights, or CRITIC's (by contrast and independence; needs many curves)
 
-## `mean`
+## `over_pages`
 
 | Type | Default | Acceptable |
 |---|---|---|
 | string | `"rms"` | — |
 
-How pages become a point's score: a mean from `heimdall explain score` (default rms)
+How a point's page losses become its loss: a mean from `heimdall explain ranking` (default rms)
 
 ## `by`
 
@@ -688,7 +688,7 @@ How pages become a point's score: a mean from `heimdall explain score` (default 
 |---|---|---|
 | string or list of strings | — | — |
 
-The point name fields a score is averaged over, as marginals (a quantity of the sweep, or generator, pdf, …)
+The quantities a marginal is made for (a quantity of the sweep, or generator, pdf, …); default: every varied one.
 
 ## `baseline`
 
@@ -696,9 +696,9 @@ The point name fields a score is averaged over, as marginals (a quantity of the 
 |---|---|---|
 | string or table | — | — |
 
-The point every score is also shown against: a point name, or a filter { pdf = "NNPDF23lo" }.
+The point every loss is also shown against: a point name, or a filter { pdf = "NNPDF23lo" }.
 
-## `veto`
+## `veto_loss`
 
 | Type | Default | Acceptable |
 |---|---|---|

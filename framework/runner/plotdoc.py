@@ -70,7 +70,7 @@ class Doc:
     configuration: DocConfiguration
     source: dict = field(default_factory=dict)
     sweep_runs: bool = False
-    score: dict = field(default_factory=dict)     # [score]: how its statistics are scored, copied from the config
+    ranking: dict = field(default_factory=dict)   # [ranking]: how its statistics are ranked, copied from the config
     left: dict = field(default_factory=dict)      # member → why it is not drawn (a value its [quantities] no longer lists)
 
     @property
@@ -167,8 +167,8 @@ def _sweeps(configuration) -> list:
 #: inline under it, as an errand file is written by hand ("*": any key). The document's order: members last.
 HEADERS = (("source",), ("axes",), ("quantities", "*"), ("plot",), ("plot", "data"), ("plot", "data", "map"),
            ("plot", "style"), ("plot", "sets", "*"), ("plot", "across", "*"), ("plot", "figures", "*"),
-           ("plot", "looks", "*"), ("stats",), ("score",), ("from",), ("members", "*"))
-ORDER = ("source", "from", "axes", "quantities", "plot", "stats", "score", "members")
+           ("plot", "looks", "*"), ("stats",), ("ranking",), ("from",), ("members", "*"))
+ORDER = ("source", "from", "axes", "quantities", "plot", "stats", "ranking", "members")
 #: A member's keys in the order a document writes them: what it is first, its value indices after.
 MEMBER_ORDER = ("index", "identity", "complete", "planned", "events", "stage", "yoda", "choice", "values", "texts")
 
@@ -530,7 +530,7 @@ def write(errand, configuration, members: list) -> tuple[Path | None, list[str]]
     made = known(errand, configuration, members)
     notes = []
     plot, stats = chosen_of(errand, configuration, members)
-    score = dict(getattr(errand, "score", None) or {})
+    ranking = dict(getattr(errand, "ranking", None) or {})
     if target.is_file():
         import tomllib
         try:
@@ -544,13 +544,13 @@ def write(errand, configuration, members: list) -> tuple[Path | None, list[str]]
                 notes.append(f"the config's [plot] differs from {rel}/{FILE}'s, which is drawn: heimdall plot {rel} "
                              f"--style-sync {made['source']['config']} takes the config's")
             plot, stats = kept.get("plot", {}), kept.get("stats", {})
-        if "score" in kept:
-            score = kept["score"]                                               # the user's, as [plot] and [stats] are
+        if "ranking" in kept:
+            ranking = kept["ranking"]                                           # the user's, as [plot] and [stats] are
     made["plot"] = plot
     if stats:
         made["stats"] = stats
-    if score:
-        made["score"] = score
+    if ranking:
+        made["ranking"] = ranking
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_name(target.name + ".partial")
     partial.write_text(HEADER + dumps(made), encoding="utf-8")
@@ -558,8 +558,8 @@ def write(errand, configuration, members: list) -> tuple[Path | None, list[str]]
     return target, notes
 
 
-def write_chosen(target: Path, plot: dict, stats: dict, wanted: dict | None = None, score: dict | None = None) -> None:
-    """A document's [plot] and [stats] replaced (--style-sync), its [score] when `score` is given, and a Name level's
+def write_chosen(target: Path, plot: dict, stats: dict, wanted: dict | None = None, ranking: dict | None = None) -> None:
+    """A document's [plot] and [stats] replaced (--style-sync), its [ranking] when `ranking` is given, and a Name level's
     [from] when `wanted` (V224); what the run knows left as it is."""
     import tomllib
     data = tomllib.loads(target.read_text(encoding="utf-8"))
@@ -569,10 +569,10 @@ def write_chosen(target: Path, plot: dict, stats: dict, wanted: dict | None = No
     data.pop("stats", None)
     if stats:
         data["stats"] = stats
-    if score is not None:
-        data.pop("score", None)
-        if score:
-            data["score"] = dict(score)
+    if ranking is not None:
+        data.pop("ranking", None)
+        if ranking:
+            data["ranking"] = dict(ranking)
     partial = target.with_name(target.name + ".partial")
     partial.write_text((ACROSS_HEADER if "members" not in data and "from" in data else HEADER) + dumps(data), encoding="utf-8")
     partial.replace(target)
@@ -655,7 +655,7 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
                                      source.get("title", ""))
     doc = Doc(path, source.get("assignment", ""), source.get("errand", ""), dict(data.get("plot", {})), dict(data.get("stats", {})),
               quantities, configuration, dict(source),
-              score=dict(data.get("score", {})))
+              ranking=dict(data.get("ranking", {})))
     own = _folders(path.parent, doc.assignment)
     members = []
     for name, entry in data["members"].items():
@@ -812,8 +812,8 @@ def write_across(errand) -> tuple[Path | None, bool]:
             "from": from_of(errand), "plot": plot}
     if stats:
         made["stats"] = stats
-    if getattr(errand, "score", None):
-        made["score"] = dict(errand.score)
+    if getattr(errand, "ranking", None):
+        made["ranking"] = dict(errand.ranking)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(ACROSS_HEADER + dumps(made), encoding="utf-8")
     return target, True
@@ -959,7 +959,7 @@ def load_across(path: Path, data: dict, into: RunFolders | None = None) -> tuple
             kept[run_name] = {q: found[0] for q, found in held.items() if found}
     configuration = DocConfiguration(ACROSS, errand, [[q] for q in swept], [], [], {}, None, f"{errand}: its runs together")
     doc = Doc(path, assignment, errand, dict(data.get("plot", {})), dict(data.get("stats", {})), quantities, configuration,
-              {**source, "shadowed": shadowed, **({"ignored": kept} if kept else {})}, score=dict(data.get("score", {})),
+              {**source, "shadowed": shadowed, **({"ignored": kept} if kept else {})}, ranking=dict(data.get("ranking", {})),
               left={f"{run_name}__{name}": why for run_name, run_doc, _, _ in loaded for name, why in run_doc.left.items()})
     return doc, configuration, members
 

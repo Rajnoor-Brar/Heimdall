@@ -25,7 +25,7 @@ def reference(page="p1", obj="run/pt/jet"):
     return {**row("data", 1.0, page, obj), "is_reference": True}
 
 
-def make_run(root, name, rows, serial=None, axes=None, score=None):
+def make_run(root, name, rows, serial=None, axes=None, ranking=None):
     folder = root / name
     out = folder / "statistics" / "totality"
     out.mkdir(parents=True)
@@ -34,7 +34,7 @@ def make_run(root, name, rows, serial=None, axes=None, score=None):
         writer = csv.DictWriter(handle, fieldnames=table.columns_for(names), restval="")
         writer.writeheader()
         writer.writerows([{k: ("" if isinstance(v, float) and v != v else v) for k, v in r.items()} for r in rows])
-    (out / "statistics.json").write_text(json.dumps(table.sidecar_of(names, score, axes)), encoding="utf-8")
+    (out / "statistics.json").write_text(json.dumps(table.sidecar_of(names, ranking, axes)), encoding="utf-8")
     if serial is not None:
         (folder / "plot.toml").write_text(f'[source]\nserial = {serial}\n', encoding="utf-8")
     return folder
@@ -131,7 +131,7 @@ def test_across_reads_the_errands_own_folder(results, capsys):
 
 
 def test_a_table_scored_with_its_own_settings_keeps_them_and_by_overlays(results):
-    make_run(results, "A/E/R1", sweep_rows(), axes=AXES, score={"by": ["pdf"], "mean": "median"})
+    make_run(results, "A/E/R1", sweep_rows(), axes=AXES, ranking={"by": ["pdf"], "over_pages": "median"})
     (t,) = rankcmd.tables_of("A/E/R1", None, False)
     st, axes = rankcmd.settings_for(t, None, None)
     assert st.by == ("pdf",) and st.over_pages == "median" and axes == AXES

@@ -53,7 +53,7 @@ def worst_rows() -> list[dict]:
 
 #: Every metric the fixture has a column for: the defaults and the old columns.
 LEGACY = ("yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev")
-ALL = ranking.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", *LEGACY], "veto": 10.0,
+ALL = ranking.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", *LEGACY], "veto_loss": 10.0,
                          "head_to_head": "NNPDF23lo_lpdfon/d01-x01-y01"})
 
 
@@ -430,7 +430,7 @@ def test_the_default_summary_is_the_standings_then_a_section_per_purpose_with_a_
 
 
 def test_the_standings_are_the_engines_scores_and_veto_and_dominated_columns_follow_the_settings():
-    st = ranking.settings_of({"veto": 0.5, "dominated": True})
+    st = ranking.settings_of({"veto_loss": 0.5, "dominated": True})
     rows = worst_rows()
     document = bars.summary_model(rows, "", st)
     standings = next(i for s in document.sections for i in s.items if i.key == "standings")

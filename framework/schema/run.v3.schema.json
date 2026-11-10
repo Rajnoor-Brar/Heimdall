@@ -2079,7 +2079,7 @@
      "default": 0
     },
     "sets": {
-     "description": "page folders of chosen points: [[1, 4], \"py8\", \"all\"], or tables of page axes and curve groups, { name, pages = { … }, curves = [{ … }] }\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = [\"a\", \"b\"], how = \"linear\", label = \"…\", tag = \"…\", band = false | \"minmax\" | \"std\", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain score`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
+     "description": "page folders of chosen points: [[1, 4], \"py8\", \"all\"], or tables of page axes and curve groups, { name, pages = { … }, curves = [{ … }] }\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = [\"a\", \"b\"], how = \"linear\", label = \"…\", tag = \"…\", band = false | \"minmax\" | \"std\", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain ranking`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
      "type": [
       "array",
       "object"
@@ -2512,7 +2512,7 @@
         ]
        },
        "sets": {
-        "description": "as [plot].sets, for these pages\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = [\"a\", \"b\"], how = \"linear\", label = \"…\", tag = \"…\", band = false | \"minmax\" | \"std\", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain score`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
+        "description": "as [plot].sets, for these pages\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = [\"a\", \"b\"], how = \"linear\", label = \"…\", tag = \"…\", band = false | \"minmax\" | \"std\", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain ranking`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
         "anyOf": [
          {
           "type": [
@@ -2673,7 +2673,7 @@
         ]
        },
        "weight": {
-        "description": "the weight of this figure's pages in a score (default: 1, or [score].weights')",
+        "description": "the weight of this figure's pages in a point's loss (default: 1, or [ranking].weights')",
         "type": "number",
         "minimum": 0
        },
@@ -2825,7 +2825,7 @@
      "minimum": 0
     },
     "metrics": {
-     "description": "the metrics computed for the table, beside the old columns (default: chi2_ndf, norm, shape, tilt, worst)\n\nnames from `heimdall explain score`; each becomes a column of statistics.csv and is described in statistics.json. A metric not in the list is not computed; `[score].metrics` scores a metric that is",
+     "description": "the metrics computed for the table, beside the fixed columns (default: the metrics `heimdall explain ranking` marks)\n\nids from `heimdall explain ranking`; each becomes a column of statistics.csv and is described in statistics.json. A metric not in the list is not computed; `[ranking].metrics` scores a metric that is",
      "type": "array",
      "items": {
       "type": "string"
@@ -2843,11 +2843,11 @@
    },
    "additionalProperties": false
   },
-  "score": {
+  "ranking": {
    "type": "object",
    "properties": {
     "metrics": {
-     "description": "the metrics scored: a list of names, or { name = weight } (default: the five default metrics, weight 1)\n\na metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS of its metrics' normalised values, so four shape metrics weigh one category and not four",
+     "description": "the metrics scored: a list of ids, or { id = weight } (default: the default metrics, weight 1)\n\na metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS of its metrics' costs, so four accuracy metrics weigh one category and not four",
      "type": [
       "array",
       "object"
@@ -2856,8 +2856,8 @@
       "type": "string"
      }
     },
-    "normalise": {
-     "description": "how a metric becomes a cost: hinged between its good and bad thresholds (pool-independent), or against the pool\n\n`thresholds`: 0 at or under `good`, 1 at `bad`, linear beyond; the same whatever else is in the pool, so scores compare across Runs. `median`, `mad`, `minmax`, `surprisal` divide by, or scale to, the pool of curves on the page: adding a curve changes the others' scores",
+    "cost": {
+     "description": "how a metric becomes a cost: hinged between its good and bad thresholds (pool-independent), or against the pool\n\n`thresholds`: 0 at or under `good`, 1 at `bad`, linear beyond; the same whatever else is in the pool, so losses compare across Runs. `median`, `mad`, `minmax`, `surprisal` divide by, or scale to, the pool of curves on the page: adding a curve changes the others' losses",
      "type": "string",
      "enum": [
       "thresholds",
@@ -2869,7 +2869,7 @@
      "default": "thresholds"
     },
     "thresholds": {
-     "description": "{ metric = [good, bad] }: thresholds over the registry's, in the metric's scored unit",
+     "description": "{ id = [good, bad] }: thresholds over the registry's, in the metric's scored unit",
      "type": "object"
     },
     "weights": {
@@ -2885,13 +2885,13 @@
      ],
      "default": "equal"
     },
-    "mean": {
-     "description": "how pages become a point's score: a mean from `heimdall explain score` (default rms)",
+    "over_pages": {
+     "description": "how a point's page losses become its loss: a mean from `heimdall explain ranking` (default rms)",
      "type": "string",
      "default": "rms"
     },
     "by": {
-     "description": "the point name fields a score is averaged over, as marginals (a quantity of the sweep, or generator, pdf, …)",
+     "description": "the quantities a marginal is made for (a quantity of the sweep, or generator, pdf, …); default: every varied one",
      "type": [
       "string",
       "array"
@@ -2901,13 +2901,13 @@
      }
     },
     "baseline": {
-     "description": "the point every score is also shown against: a point name, or a filter { pdf = \"NNPDF23lo\" }",
+     "description": "the point every loss is also shown against: a point name, or a filter { pdf = \"NNPDF23lo\" }",
      "type": [
       "string",
       "object"
      ]
     },
-    "veto": {
+    "veto_loss": {
      "description": "a point whose worst page loses more than this is vetoed (default: none)",
      "type": "number",
      "minimum": 0
@@ -3051,7 +3051,7 @@
         }
        },
        "stats": {
-        "description": "the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): standings (each point's score, worst page, veto and categories), `category:<name>` (a category's section: what it asks and its metrics), marginals (a table per axis: the mean score of the points having each value), baseline (each point against `[score].baseline`), head-to-head (the pages `[score].head_to_head` names), or a metric's id (`chi2_sigma`) for its section, `<metric>:ranking`, `:crossed` or `:table` for one of its parts",
+        "description": "the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): standings (each point's loss, worst page, veto and categories), `category:<name>` (a category's section: what it asks and its metrics), marginals (a table per quantity: the loss of the points having each value), baseline (each point against `[ranking].baseline`), head-to-head (the pages `[ranking].head_to_head` names), or a metric's id (`chi2_sigma`) for its section, `<metric>:ranking`, `:crossed` or `:table` for one of its parts",
         "type": "array",
         "items": {
          "type": "string"
@@ -3368,7 +3368,7 @@
           "default": 0
          },
          "sets": {
-          "description": "page folders of chosen points: [[1, 4], \"py8\", \"all\"], or tables of page axes and curve groups, { name, pages = { … }, curves = [{ … }] }\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = [\"a\", \"b\"], how = \"linear\", label = \"…\", tag = \"…\", band = false | \"minmax\" | \"std\", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain score`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
+          "description": "page folders of chosen points: [[1, 4], \"py8\", \"all\"], or tables of page axes and curve groups, { name, pages = { … }, curves = [{ … }] }\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = [\"a\", \"b\"], how = \"linear\", label = \"…\", tag = \"…\", band = false | \"minmax\" | \"std\", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain ranking`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
           "type": [
            "array",
            "object"
@@ -3801,7 +3801,7 @@
              ]
             },
             "sets": {
-             "description": "as [plot].sets, for these pages\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = [\"a\", \"b\"], how = \"linear\", label = \"…\", tag = \"…\", band = false | \"minmax\" | \"std\", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain score`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
+             "description": "as [plot].sets, for these pages\n\nthe pages' cells, instead of the `plot_points` grid. An entry is a selector, a list of them (`set<k>`, its place), or a table. A selector is a 1-based index (as `point i/n` counts), a point's name, a glob of names (`\"sh3_NNPDF40*\"`), a tag of a quantity's (`\"py8\"`: every point with it), `\"quantity=tag\"`, or `\"all\"`; a string entry names its folder (`\"pdf=X\"` → `pdf-X`); its points are its curves, in the order named. A table (`[[plot.sets]]`): `name` (its folder, default `set<k>`), `points` (selectors), `pages` (a filter whose quantities are the page axes: a cell per combination of their values among the set's points, `<set>/<cell>/<object>`), `curves` (a filter, or a list of them: the union, in order), `merge` (an entry or a list: `{ pdf = [\"a\", \"b\"], how = \"linear\", label = \"…\", tag = \"…\", band = false | \"minmax\" | \"std\", settings = { … } }`, a quantity whose values become one curve, by `how`: `combine` pools the points' statistics (rivet-merge), any mean of `heimdall explain ranking`'s catalogue merges bin by bin, `linear` the default; a quantity is in one of pages, curves and merge), `reference` (a filter: the curve moved first on each page), `look` (`{ colour = \"<q>\", line = \"<q>\" }`, or `\"palette\"`; with none, two varying curve axes: the one of at most 4 values the line), and any page key of `[plot]`, `objects` and `style` for its pages. A filter is `{ quantity = \"all\" | tag | glob | \"!tag\" | number | [those] }`: every combination of its quantities' values (an outer product). In `curves`, a value may carry its curves' look: `{ tag = \"…\", colour, line, width }`, or several values' in order, `{ tags = \"all\" | […] (or all = true), colours = […], lines = […], widths = […] }` (`color`, `colors` accepted). A swept quantity a table names in neither pages nor curves, taking several values, pages too, and the stage says so. A selector, tag or quantity no point has is refused at plan time. merged, scan and compare figures page by `plot_points` only",
              "anyOf": [
               {
                "type": [
@@ -3962,7 +3962,7 @@
              ]
             },
             "weight": {
-             "description": "the weight of this figure's pages in a score (default: 1, or [score].weights')",
+             "description": "the weight of this figure's pages in a point's loss (default: 1, or [ranking].weights')",
              "type": "number",
              "minimum": 0
             },
@@ -4103,7 +4103,7 @@
      "default": 2
     },
     "method": {
-     "description": "a section How the numbers are made, whenever the report shows statistics or bar tables: how a page is compared, each statistic shown (its formula and what it means, a paragraph each) and how points are scored; the statistics parts then leave those notes out. false: each part keeps its own",
+     "description": "a section How the numbers are made, whenever the report shows statistics or bar tables: how a page is compared, each statistic shown (its formula and what it means, a paragraph each) and how a point's loss is made; the statistics parts then leave those notes out. false: each part keeps its own",
      "type": "boolean",
      "default": true
     },

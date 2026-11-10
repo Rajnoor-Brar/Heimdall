@@ -231,6 +231,16 @@ def test_json_carries_the_method_the_sidecar_holds(results, capsys):
     assert got["made_by"]["leaderboard"] == result.method.made_by("leaderboard")
 
 
+def test_json_writes_a_number_it_has_not_as_null(results, capsys):
+    rows = [*sweep_rows(), row("py8_c", 3.0), row("empty", float("nan"))]    # pdf c in one stratum; a point with no loss
+    make_run(results, "A/E/R1", rows, axes={**AXES, "py8_c": {"generator": "py8", "pdf": "c"}, "empty": {"generator": "hw7", "pdf": "d"}})
+    assert rankcmd.run(args("A/E/R1", json=True)) == 0
+    (got,) = json.loads(capsys.readouterr().out)["tables"]
+    empty = next(p for p in got["leaderboard"] if p["point"] == "empty")
+    assert empty["loss"] is None and empty["rank"] is None
+    assert any(v["effect_se"] is None for m in got["marginals"] for v in m["values"])      # a value with one stratum
+
+
 def test_a_terminal_that_is_not_utf8_gets_the_ascii_glyphs(results, capsys, monkeypatch):
     import io
 

@@ -261,6 +261,18 @@ def lines_of(report: dict) -> list[str]:
     return out + [f"note: {n}" for n in report["notes"]]
 
 
+def plain(value):
+    """`value` for JSON: a number that is not finite (NaN, ±inf: a point with no loss, a value with one stratum) as null,
+    through dicts, lists and tuples."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: plain(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [plain(v) for v in value]
+    return value
+
+
 def run(args) -> int:
     """`heimdall rank <A>/<E>[/<R>] [--set S] [--across] [--by QUANTITIES] [--baseline q=value] [--trim ALPHA]
     [--head-to-head PAGE|all] [--detail] [--method] [--json]`."""
@@ -270,7 +282,7 @@ def run(args) -> int:
     if len(by_run) > 1 and not args.across:                  # an errand's Runs: a row a Run
         runs = runs_of(tables, flags)
         if args.json:
-            print(json.dumps({"runs": runs}, indent=2, allow_nan=False, default=lambda v: None if v != v else str(v)))
+            print(json.dumps(plain({"runs": runs}), indent=2, allow_nan=False, default=str))
             return 0
         for set_ in dict.fromkeys(r["set"] for r in runs):
             mine = [r for r in runs if r["set"] == set_]
@@ -281,7 +293,7 @@ def run(args) -> int:
         return 0
     reports = [report_of(t, flags) for t in tables]
     if args.json:
-        print(json.dumps({"tables": reports}, indent=2, allow_nan=False, default=lambda v: None if v != v else str(v)))
+        print(json.dumps(plain({"tables": reports}), indent=2, allow_nan=False, default=str))
         return 0
     shown = method_lines if getattr(args, "method", False) else lines_of
     print("\n".join(line for r in reports for line in shown(r)))

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, NamedTuple
 
 import numpy as np
 
@@ -198,6 +198,36 @@ def trimmed(x, w=None, alpha: float = 0.25) -> float:
         return math.nan
     xs, kept = _trim_weights(c[0], c[1], alpha, "the trimmed mean")
     return float(np.sum(kept * xs) / np.sum(kept))
+
+
+class Trimmed(NamedTuple):
+    mean: float
+    se: float             # Tukey and McLaughlin's; NaN when n − 2g < 2
+    n: int                # the values counted, NaN dropped
+    g: int                # trimmed at each end
+
+
+def trim_count(n: int, alpha: float) -> int:
+    """g(n): none for n ≤ 2 or α = 0, else ⌊α n⌋ and at least one."""
+    return 0 if n <= 2 or alpha == 0 else max(1, math.floor(alpha * n))
+
+
+def trimmed_se(values, alpha: float = 0.2) -> Trimmed:
+    """The α-trimmed mean of `values` and its standard error, for a marginal: g values off each end, the mean of the rest,
+    and the SE s_w / ((1 − 2g/n) √n) from the SD of the winsorised sample (the values clamped to the kept range)."""
+    if not 0 <= alpha < 0.5:
+        raise HeimdallError(f"a trim is 0 or more and under 0.5, not {alpha!r}", hint="[ranking].trim = 0.2 trims a fifth off each end")
+    x = np.sort(np.array([v for v in values if v == v], dtype=float))
+    n = len(x)
+    g = trim_count(n, alpha)
+    if n == 0:
+        return Trimmed(math.nan, math.nan, 0, 0)
+    mean = float(np.mean(x[g:n - g]))
+    if n - 2 * g < 2:
+        return Trimmed(mean, math.nan, n, g)
+    winsorised = np.clip(x, x[g], x[n - g - 1])
+    se = float(np.std(winsorised, ddof=1)) / ((1 - 2 * g / n) * math.sqrt(n))
+    return Trimmed(mean, se, n, g)
 
 
 def trimmed_geometric(x, w=None, alpha: float = 0.25, floor: float | None = None) -> float:

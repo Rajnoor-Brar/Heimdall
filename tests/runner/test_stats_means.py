@@ -330,3 +330,38 @@ def test_an_unknown_mean_lists_the_known():
     with pytest.raises(HeimdallError) as caught:
         means.evaluate("nope", X)
     assert "geometric" in str(caught.value)
+
+
+# ── the trimmed mean and its error (marginals) ──────────────────────────────────────────────────
+
+def test_the_trimmed_mean_at_no_trim_is_the_mean_and_its_error_s_over_root_n():
+    x = [1.0, 2.0, 4.0, 7.0]
+    t = means.trimmed_se(x, alpha=0.0)
+    assert t.g == 0 and t.n == 4 and t.mean == pytest.approx(3.5)
+    assert t.se == pytest.approx(np.std(x, ddof=1) / math.sqrt(4))
+
+
+def test_the_trimmed_mean_at_its_widest_trim_is_the_median():
+    t = means.trimmed_se([5.0, 1.0, 9.0, 3.0, 100.0], alpha=0.4)              # g = ⌊0.4 · 5⌋ = 2: the middle value alone
+    assert t.g == 2 and t.mean == 5.0 and math.isnan(t.se)                     # n − 2g = 1 < 2: no error
+
+
+def test_ten_values_trimmed_by_a_fifth_by_hand():
+    """Sorted: 0.2 0.3 0.5 0.7 0.9 1.1 1.4 1.8 2.5 9.0; g = ⌊0.2 · 10⌋ = 2. The mean of the kept six, 0.5 … 1.8: 6.4 / 6. The
+    winsorised sample clamps to [0.5, 1.8]: 0.5 ×3, 0.7, 0.9, 1.1, 1.4, 1.8 ×3, mean 1.1, Σ(x − 1.1)² = 1.08 + 0.16 + 0.04 + 0
+    + 0.09 + 1.47 = 2.84, s_w = √(2.84 / 9). SE = s_w / ((1 − 2·2/10) √10)."""
+    t = means.trimmed_se([0.3, 1.1, 0.7, 2.5, 0.9, 1.4, 0.2, 1.8, 0.5, 9.0, math.nan])     # NaN dropped before n is counted
+    assert (t.n, t.g) == (10, 2)
+    assert t.mean == pytest.approx(6.4 / 6)
+    assert t.se == pytest.approx(math.sqrt(2.84 / 9) / (0.6 * math.sqrt(10)))
+
+
+def test_two_values_or_fewer_are_not_trimmed_and_a_bad_alpha_is_refused():
+    assert [means.trimmed_se([1.0] * n).g for n in (0, 1, 2)] == [0, 0, 0]
+    assert math.isnan(means.trimmed_se([]).mean) and math.isnan(means.trimmed_se([2.0]).se)
+    pair = means.trimmed_se([1.0, 3.0])
+    assert pair.mean == 2.0 and pair.se == pytest.approx(math.sqrt(2) / math.sqrt(2))       # s = √2, over √2
+    assert means.trimmed_se([1.0, 2.0, 3.0]).g == 1                              # n ≥ 3: at least one off each end
+    for bad in (-0.1, 0.5, 0.7):
+        with pytest.raises(HeimdallError, match="trim"):
+            means.trimmed_se([1.0, 2.0], alpha=bad)

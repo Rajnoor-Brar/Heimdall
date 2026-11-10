@@ -86,7 +86,7 @@ The table is **ordered by E_v**. M_v is what the request asked for, the trimmed 
 - **When the gate or the sweep makes the design unbalanced, M_v is confounded and E_v is not.** On B3 the vetoed Sherpa point leaves MSHT20qed_lo with only its Pythia point. Its M_v (1.42) then looks best because Pythia is the better generator, not because of the PDF. E_v compares each point with its own generator's mean instead.
 - **Strata with one surviving value** cannot say anything about q. They are counted as *unmatched*, never dropped quietly.
 
-### 2.3 The trimmed mean and its error
+### 2.3 The trimmed mean and its error · closed 4.1 (the error), 4.2 (the paired test)
 
 For n values x₍₁₎ ≤ … ≤ x₍ₙ₎ and trim α (default 0.2):
 
@@ -154,5 +154,5 @@ The record lives in the sidecar (`statistics.json`, `"method"`), in `rank --json
 5. **Compression fixed points:** c(0) = 0, c(1) = 1; c is concave beyond 1. · closed 3.1
 6. **Matched effects are invariant to a stratum's difficulty:** adding a constant to every point of one stratum leaves every E_v unchanged.
 7. **Small-n rules,** as the table in §2.4.
-8. **Trimmed mean:** TM₀ is the mean, and TM at g = ⌊(n−1)/2⌋ is the median. The SE matches a reference value computed by hand on a built sample.
+8. **Trimmed mean:** TM₀ is the mean, and TM at g = ⌊(n−1)/2⌋ is the median. The SE matches a reference value computed by hand on a built sample. · closed 4.1
 9. **The method record is complete.** For each setting of `[ranking]`, a set's `ranking`, a figure's `weight` and each CLI flag, changing it from its default changes either the numbers and the record together, or neither. A setting that moves a number the record does not name fails the test.

@@ -241,18 +241,22 @@ def test_json_writes_a_number_it_has_not_as_null(results, capsys):
     assert any(v["effect_se"] is None for m in got["marginals"] for v in m["values"])      # a value with one stratum
 
 
-def test_a_terminal_that_is_not_utf8_gets_the_ascii_glyphs(results, capsys, monkeypatch):
+def test_a_terminal_that_is_not_utf8_gets_ascii_and_never_an_encoding_error(results, capsys, monkeypatch):
     import io
-
-    class Ascii(io.StringIO):
-        encoding = "ascii"
     import sys
     make_run(results, "A/E/R1", sweep_rows(), axes=AXES)
-    shown, real = Ascii(), sys.stdout
-    monkeypatch.setattr("sys.stdout", shown)
-    assert rankcmd.run(args("A/E/R1")) == 0
-    header = next(l for l in shown.getvalue().splitlines() if "point loss" in l)
-    assert "point loss [v]" in header and "↓" not in header
+    real = sys.stdout
+    for method in (False, True):
+        raw = io.BytesIO()
+        shown = io.TextIOWrapper(raw, encoding="ascii")                   # a real ASCII stream: it refuses what it cannot encode
+        monkeypatch.setattr("sys.stdout", shown)
+        assert rankcmd.run(args("A/E/R1", method=method)) == 0
+        shown.flush()
+        text = raw.getvalue().decode("ascii")
+        if not method:
+            header = next(l for l in text.splitlines() if "point loss" in l)
+            assert "point loss [v]" in header
+        assert "A/E/R1" in text
     monkeypatch.setattr("sys.stdout", real)
     assert rankcmd.run(args("A/E/R1")) == 0
     assert "point loss ↓" in capsys.readouterr().out                            # pytest's capture is UTF-8

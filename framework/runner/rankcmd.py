@@ -261,6 +261,20 @@ def lines_of(report: dict) -> list[str]:
     return out + [f"note: {n}" for n in report["notes"]]
 
 
+#: What rank prints beyond the polarity glyphs, as a terminal that is not UTF-8 can print it.
+ASCII_TEXT = str.maketrans({"·": "-", "–": "-", "—": "-", "×": "x", "±": "+/-", "≈": "~", "≥": ">=", "≤": "<=", "Δ": "d",
+                            "₂": "2", "²": "^2", "χ": "chi", "σ": "sigma", "ℓ": "l", "→": "->", "…": "...", "’": "'"})
+
+
+def say(text: str) -> None:
+    """Print `text` as this terminal can take it: unchanged on UTF-8, else in ASCII forms, and any sign still left
+    replaced rather than refused (rank never fails on its own output)."""
+    encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+    if encoding.lower().replace("-", "").replace("_", "") != "utf8":
+        text = text.translate(ASCII_TEXT).encode(encoding, "replace").decode(encoding)
+    print(text)
+
+
 def plain(value):
     """`value` for JSON: a number that is not finite (NaN, ±inf: a point with no loss, a value with one stratum) as null,
     through dicts, lists and tuples."""
@@ -286,15 +300,15 @@ def run(args) -> int:
             return 0
         for set_ in dict.fromkeys(r["set"] for r in runs):
             mine = [r for r in runs if r["set"] == set_]
-            print(f"{args.target} · {set_}: each Run's loss over the {mine[0]['pages']} page(s) its Runs share (lower is better)")
+            say(f"{args.target} · {set_}: each Run's loss over the {mine[0]['pages']} page(s) its Runs share (lower is better)")
             rows = [[r["serial"] or "–", r["run"], str(r["points"]), _num(r["loss"]), r["best"], _num(r["best_loss"]),
                      r["worst_page"].rsplit("/", 1)[-1] or "–"] for r in mine]
-            print("\n".join(_grid(["run", "folder", "points", "loss", "best point", "best", "worst page"], rows, 2)), "\n", sep="")
+            say("\n".join(_grid(["run", "folder", "points", "loss", "best point", "best", "worst page"], rows, 2)) + "\n")
         return 0
     reports = [report_of(t, flags) for t in tables]
     if args.json:
         print(json.dumps(plain({"tables": reports}), indent=2, allow_nan=False, default=str))
         return 0
     shown = method_lines if getattr(args, "method", False) else lines_of
-    print("\n".join(line for r in reports for line in shown(r)))
+    say("\n".join(line for r in reports for line in shown(r)))
     return 0

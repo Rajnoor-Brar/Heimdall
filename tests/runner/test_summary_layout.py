@@ -63,7 +63,7 @@ def worst_rows() -> list[dict]:
 #: Every metric the fixture has a column for: the defaults, chi2_ndf and the old columns.
 LEGACY = ("yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev")
 ALL = ranking.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", *LEGACY], "veto_loss": 10.0,
-                         "head_to_head": "NNPDF23lo_lpdfon/d01-x01-y01"})
+                         "head_to_head": "NNPDF23lo_lpdfon/d01-x01-y01", "detail": True})
 
 
 @pytest.fixture(scope="module")
@@ -268,7 +268,7 @@ def test_cells_against_curves_hold_each_points_mean_the_longer_list_down():
     rows = worst_rows()
     document = summary(rows, "", ALL)
     items = {i.key: i for s in document.sections for i in s.items}
-    keys = [i.key for s in document.sections if s.key == "category-normalisation" for i in s.items
+    keys = [i.key for s in document.sections if s.key == "yield_ratio" for i in s.items
             if i.key.startswith("yield_ratio") and not i.key.endswith("-made")]
     assert keys == ["yield_ratio-ranking", "yield_ratio-crossed", "yield_ratio"]
     crossed = items["chi2_ndf-crossed"]
@@ -451,12 +451,9 @@ def test_the_default_summary_is_the_leaderboard_then_a_section_per_category_with
     assert list(keys) == ["leaderboard", "category-compatibility", "category-normalisation", "category-accuracy", "category-trend",
                           "category-defects"]                                  # the nine defaults; no similarity, no quality
     assert keys["leaderboard"] == ["leaderboard", "metric-values"]
-    pairs = {"compatibility": ("chi2_sigma", "poisson_dev"), "accuracy": ("log_dev_shrunk", "log_dev_l4"),
-             "trend": ("tilt", "pull_autocorr"), "defects": ("peak_pull2", "log_ratio_roughness")}    # 02's pairs
-    for category, (a, b) in pairs.items():
-        assert keys[f"category-{category}"] == [f"category-{category}-asks", f"category-{category}-ranking", f"{a}-ranking",
-                                                f"{a}-crossed", a, f"{b}-ranking", f"{b}-crossed", b]
-    assert keys["category-normalisation"][2:] == ["log_yield_ratio-ranking", "log_yield_ratio-crossed", "log_yield_ratio"]
+    for category in ("compatibility", "normalisation", "accuracy", "trend", "defects"):
+        assert keys[f"category-{category}"] == [f"category-{category}-asks", f"category-{category}-ranking"]    # no detail by default
+    assert not any(k.endswith("-crossed") for items in keys.values() for k in items)
     standings = item_of(document, "leaderboard")
     assert "gate" not in standings.headers and "dominated" not in standings.headers
     assert not any(s.key == "head-to-head" for s in document.sections)         # only when asked
@@ -505,8 +502,27 @@ def test_a_head_to_head_is_played_for_the_pages_asked_and_counts_no_wins():
     assert not any(s.key == "head-to-head" for s in none.sections)
 
 
+def test_each_metric_has_its_own_section_after_its_category_with_detail_or_when_named():
+    detailed = shown_keys(summary(worst_rows(), "", ranking.settings_of({"detail": True})))
+    pairs = {"compatibility": ("chi2_sigma", "poisson_dev"), "normalisation": ("log_yield_ratio",),
+             "accuracy": ("log_dev_shrunk", "log_dev_l4"), "trend": ("tilt", "pull_autocorr"),
+             "defects": ("peak_pull2", "log_ratio_roughness")}                  # 02's pairs
+    expected = [k for c, ms in pairs.items() for k in (f"category-{c}", *ms)]
+    assert list(detailed)[1:] == expected                                       # each metric's section after its category's
+    for m in (m for ms in pairs.values() for m in ms):
+        assert detailed[m] == [f"{m}-ranking", f"{m}-crossed", m]
+    named = summary_detail(["tilt"])
+    assert [k for k in shown_keys(named) if k in ("tilt", "pull_autocorr")] == ["tilt"]       # the one named alone
+    assert "detail: off (default)." in " ".join(line[1] for line in item_of(named, "tilt-crossed-made").lines)
+
+
+def summary_detail(metrics_named):
+    rows = worst_rows()
+    return bars.summary_model(rows, "", ranking.rank(bars._rows_of(rows), ranking.settings_of()), metrics_named)
+
+
 def test_a_table_past_bad_still_tells_its_worst_from_its_next():
-    document = summary(worst_rows(), "", ranking.settings_of({"metrics": ["chi2_ndf"]}))
+    document = summary(worst_rows(), "", ranking.settings_of({"metrics": ["chi2_ndf"], "detail": True}))
     table = next(i for s in document.sections for i in s.items if i.key == "chi2_ndf")
     fills = {tuple(c.fill) for r in table.rows if not r.band for c in r.cells[:-1]}
     assert len(fills) > 5                                                        # not one dark block
@@ -641,7 +657,7 @@ def test_every_table_has_its_made_by_under_it_and_the_legend_as_its_first_note(f
                 assert after.key == f"{item.key}-made" and after.aside and after.title == "Made by" and after.lines, item.key
                 assert item.notes[0] == "legend", item.key
                 seen += 1
-    assert seen > 20 and document.notes["legend"].startswith("↓ lower is better · ↑ higher is better")
+    assert seen > 10 and document.notes["legend"].startswith("↓ lower is better · ↑ higher is better")
     contents = paper._front(document).items[1]
     assert not any(line[1].strip() == "Made by" for line in contents.lines)        # an aside is not in the contents
 

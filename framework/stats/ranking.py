@@ -52,6 +52,7 @@ class Settings:
     by: tuple = ()
     baseline: object = None
     head_to_head: str | None = None                    # "<cell>/<object>" or "all": the pages the summary plays as matches
+    detail: bool = False                               # the summary's per-metric sections, after their category's
     sources: dict = field(default_factory=dict)        # key → "default", "[ranking]", "set <name>" or "--<flag>"
 
     def thresholds_of(self, name: str):
@@ -70,7 +71,7 @@ class Settings:
 
 #: The keys of [ranking], in Settings' order: what a source is kept for.
 KEYS = ("metrics", "cost", "thresholds", "weights", "weights_by", "over_pages", "veto_loss", "gates", "aggregate", "dominated",
-        "trim", "by", "baseline", "head_to_head")
+        "trim", "by", "baseline", "head_to_head", "detail")
 
 
 def overlaid(table: dict | None = None, over: dict | None = None) -> dict:
@@ -122,7 +123,7 @@ def settings_of(table: dict | None = None, flags: dict | None = None, sources: d
                     veto_loss=merged.get("veto_loss"), gates=gates_of(merged.get("gates", True)),
                     aggregate=merged.get("aggregate", "rms"), dominated=bool(merged.get("dominated", False)),
                     by=(by,) if isinstance(by, str) else tuple(by), baseline=merged.get("baseline"),
-                    head_to_head=merged.get("head_to_head"), sources=where)
+                    head_to_head=merged.get("head_to_head"), detail=bool(merged.get("detail", False)), sources=where)
 
 
 def gates_of(given) -> object:
@@ -507,6 +508,7 @@ OPTIN_NOTES = {
     "weights_by": "equal: the metric weights as given; critic: learned from the metrics' correlations, so pool-dependent",
     "baseline": "the point every loss is also shown against; it moves no rank",
     "head_to_head": "the pages the summary plays as matches; it moves no rank",
+    "detail": "each metric's ranking, page cells against curves and object table, after its category; it moves no rank",
 }
 
 
@@ -556,7 +558,7 @@ def _stages(result: "Ranking", rows: list[dict], obs: list[Obs]) -> dict:
                         "the root mean square over the categories with a cost, each equal: four metrics of one category weigh as one"),
                  Choice("categories with a cost", had, "table"))
     optin = []
-    for key in ("aggregate", "dominated", "weights_by", "baseline", "head_to_head"):
+    for key in ("aggregate", "dominated", "weights_by", "baseline", "head_to_head", "detail"):
         value = getattr(st, key)
         note = OPTIN_NOTES[key]
         if key == "aggregate" and value != "rms":

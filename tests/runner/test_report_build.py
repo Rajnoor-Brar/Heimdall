@@ -168,10 +168,13 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     bars = statstable.bars()
     rows = statstable.read(trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv")
     csv_path = trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv"
-    document, missing = report.chosen(bars.summary_model(rows, "here", report._ranked(csv_path, rows)),
-                                      ["leaderboard", "chi2_ndf:ranking", "area:ranking"])
-    assert [s.key for s in document.sections] == ["leaderboard", "category-compatibility"] and missing == ["area:ranking"]
+    keys = ["leaderboard", "chi2_ndf:ranking", "area:ranking"]
+    whole = bars.summary_model(rows, "here", report._ranked(csv_path, rows))
+    assert not any(s.key == "chi2_ndf" for s in whole.sections)                   # [ranking].detail is off
+    document, missing = report.chosen(bars.summary_model(rows, "here", report._ranked(csv_path, rows), report.detail_of(keys)), keys)
+    assert [s.key for s in document.sections] == ["leaderboard", "chi2_ndf"] and missing == ["area:ranking"]
     assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking", "chi2_ndf-ranking-made"]     # with its "Made by"
+    assert report.detail_of(["leaderboard", "chi2_ndf:table", "category:trend", "roughness:crossed"]) == ["chi2_ndf", "log_ratio_roughness"]
     recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Leaderboard"\n'
                              'stats = ["chi2_ndf:ranking"]\n\n[[report.section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
     _, said = built("P/numbers.toml", [])

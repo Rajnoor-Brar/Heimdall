@@ -2948,6 +2948,11 @@
     "head_to_head": {
      "description": "the pages the summary plays as matches, each pair of curves: \"<cell>/<object>\" (a page cell's object, its short name), or \"all\" for every page; default: none",
      "type": "string"
+    },
+    "detail": {
+     "description": "the summary's per-metric sections, each after its category's: a metric's ranking, its page cells against its curves and its object table (a report section naming a metric draws that metric's alone)",
+     "type": "boolean",
+     "default": false
     }
    },
    "additionalProperties": false

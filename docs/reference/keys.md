@@ -172,6 +172,7 @@ ranking.aggregate | string | "rms"
 ranking.trim | number | 0.2
 ranking.dominated | true or false | false
 ranking.head_to_head | string | -
+ranking.detail | true or false | false
 report.title | string | -
 report.subtitle | string | -
 report.from | list of strings | -

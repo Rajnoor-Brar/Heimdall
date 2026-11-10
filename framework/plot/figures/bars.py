@@ -6,8 +6,9 @@ The summary is a document (V196): `summary_model` builds it as paper.py's model,
 pages. Up front, the reading key and the whole record of how the numbers were made (stats/ranking.py's Method). Then the
 leaderboard, a row a point in the engine's order (its rank, its quantities, its loss, its worst page, a column a category,
 its n_eff, its gate when vetoed: unnumbered and last) and each point's metric values; the marginals; a section per category
-that has a metric on (what it asks, a ranking by its cost, and for each metric of it a ranking, its page cells against its
-curves and a table, a row per point and a column per object); the baseline; a head-to-head section only for the pages
+that has a metric on (what it asks, a ranking by its cost), and with `[ranking].detail` after it a section for each of its
+metrics (a ranking, its page cells against its curves and a table, a row per point and a column per object); the baseline;
+a head-to-head section only for the pages
 `[ranking].head_to_head` names. Under every table, its "Made by": the record's sentences that shaped it; a presenter states
 no rule of its own. statistics/<set>/summary.pdf holds
 every page; a PNG or SVG is a file a page in statistics/<set>/summary/, numbered in the PDF's order (summary_01.png, …).
@@ -648,10 +649,10 @@ def _leaderboard(rows: list[dict], names: list[str], st, notes: dict, ranked) ->
     return _made(leaderboard, made) + _made(values, _lines(ranked, "metrics", _of_metrics(names)))
 
 
-def _category_sections(rows: list[dict], names: list[str], st, notes: dict, ranked) -> list:
+def _category_sections(rows: list[dict], names: list[str], st, notes: dict, ranked, detail=()) -> list:
     """A section a category with a metric on: what it asks and each metric (its polarity, what it is, its thresholds), one
-    ranking of the points by the category's cost (the vetoed last and marked), then each metric's ranking, its page cells
-    against its curves, and its table."""
+    ranking of the points by the category's cost (the vetoed last and marked). After it, a section a metric of `detail` (every
+    one with `[ranking].detail`): its ranking, its page cells against its curves, and its table."""
     sections = []
     rows_ = _rows_of(rows)
     points = _points(rows_)
@@ -661,6 +662,8 @@ def _category_sections(rows: list[dict], names: list[str], st, notes: dict, rank
         if not here:
             continue
         notes[f"category-{category}"] = f"{M.CATEGORIES[category]}. {M.QUESTIONS[category]}"
+        for n in here:
+            _notes_of(n, st, notes)                       # a report's "How the numbers are made" defines each from these
         asks = [("", M.QUESTIONS[category], "", False)] + [
             ("", f"{n} {_glyph(n)} ({M.PHRASE[M.REGISTRY[n].polarity]}). {M.describe(n, st.thresholds.get(n))}", "", False)
             for n in here]
@@ -674,12 +677,18 @@ def _category_sections(rows: list[dict], names: list[str], st, notes: dict, rank
                                     notes=("legend", f"category-{category}"))
             items += _made(ranking, [*_lines(ranked, "metrics", _of_metrics(here)), *_lines(ranked, "category"),
                                      *_lines(ranked, "pages")])
+        sections.append(paper.Section(f"category-{category}", M.CATEGORIES[category], items))
         for key in here:
-            detail = [*_lines(ranked, "metrics", _of_metrics([key])), *_lines(ranked, "pages", lambda c: c.name == "over_pages")]
+            if not (st.detail or key in detail):
+                continue
+            made = [*_lines(ranked, "metrics", _of_metrics([key])), *_lines(ranked, "pages", lambda c: c.name == "over_pages"),
+                    *_lines(ranked, "optin", lambda c: c.name == "detail")]
+            drawn = []
             for item in (_ranking(rows, key, notes, st), _crossed(rows, key, notes, st), _table_of(rows, key, notes, st)):
                 if item is not None:
-                    items += _made(item, detail)
-        sections.append(paper.Section(f"category-{category}", M.CATEGORIES[category], items))
+                    drawn += _made(item, made)
+            if drawn:
+                sections.append(paper.Section(key, M.title_of(key), drawn))
     return sections
 
 
@@ -868,12 +877,13 @@ def _front(rows: list[dict], names: list[str], st, ranked) -> list:
             paper.Text("front-method", "How these numbers were made", record)]
 
 
-def summary_model(rows: list[dict], heading: str = "", ranking=None):
+def summary_model(rows: list[dict], heading: str = "", ranking=None, detail=()):
     """The summary as a document (V196): its facts, reading key and record up front (V197), then the leaderboard and the metric
     values, the marginals, a section a category with a metric on (what it asks, a ranking, and each metric's ranking, page cells
     against curves and table), the baseline, and the head to head for the pages `[ranking].head_to_head` names; under every table
     its "Made by", from the record. `ranking`: the stats.ranking.Ranking of these rows (ranked here with the defaults when None:
-    no marginals then, having no values)."""
+    no marginals then, having no values). `detail`: the metrics whose own section follows their category's, as
+    `[ranking].detail` gives every one (a report names those it shows)."""
     ranked = ranking or S.rank(_rows_of(rows))
     st = ranked.settings
     notes: dict = {}
@@ -885,7 +895,7 @@ def summary_model(rows: list[dict], heading: str = "", ranking=None):
         if board:
             sections.append(paper.Section("leaderboard", "Leaderboard", board))
         sections += _marginals(rows, st, notes, ranked)
-        sections += _category_sections(rows, names, st, notes, ranked)
+        sections += _category_sections(rows, names, st, notes, ranked, set(detail))
         sections += _baseline(rows, st, notes, ranked)
         sections += _matches(rows, st, notes, ranked)
         front = _front(rows, names, st, ranked) if sections else []

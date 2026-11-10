@@ -866,7 +866,7 @@ def test_the_summary_is_scored_by_category(stage):
     errand, configuration, plans = stage
     names = ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "yield_weighted_abs_dev", "yield_ratio",
              "mean_bin_ratio", "mean_abs_ratio_dev"]
-    scored = {"metrics": names, "veto_loss": 5.0, "head_to_head": "em/d01-x01-y01"}
+    scored = {"metrics": names, "veto_loss": 5.0, "head_to_head": "em/d01-x01-y01", "detail": True}
     shown = replace(errand, ranking=scored, plot={**errand.plot, "formats": ["pdf", "png"]})
     assert plot.draw(shown, configuration, plans, lambda line: None) == 0
     numbers = plans[0].folders.statistics / "totality"
@@ -887,12 +887,14 @@ def test_the_summary_is_scored_by_category(stage):
     assert document.heading.endswith(" · totality")
     assert document.facts[0].startswith("4 point(s) in 2 page cell(s), on 17 object(s)")       # V197: up front
     sections = {s.key: s for s in document.sections}
-    assert list(sections) == ["leaderboard", "category-compatibility", "category-normalisation", "category-accuracy",
-                              "category-trend", "category-defects", "head-to-head"]
+    assert [k for k in sections if not k in names] == ["leaderboard", "category-compatibility", "category-normalisation",
+                                                       "category-accuracy", "category-trend", "category-defects", "head-to-head"]
     items = {item.key: item for s in document.sections for item in s.items}
     assert [i.key for i in sections["category-compatibility"].items] == [
-        "category-compatibility-asks", "category-compatibility-ranking", "category-compatibility-ranking-made", "chi2_ndf-ranking",
-        "chi2_ndf-ranking-made", "chi2_ndf-crossed", "chi2_ndf-crossed-made", "chi2_ndf", "chi2_ndf-made"]
+        "category-compatibility-asks", "category-compatibility-ranking", "category-compatibility-ranking-made"]
+    assert list(sections).index("chi2_ndf") == list(sections).index("category-compatibility") + 1      # its detail after it
+    assert [i.key for i in sections["chi2_ndf"].items] == ["chi2_ndf-ranking", "chi2_ndf-ranking-made", "chi2_ndf-crossed",
+                                                           "chi2_ndf-crossed-made", "chi2_ndf", "chi2_ndf-made"]
     crossed = items["chi2_ndf-crossed"]                                         # V198: page cells against curves
     assert crossed.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "rms"] and [r.label for r in crossed.rows] == [
         "em", "ep", "rms"]

@@ -674,7 +674,7 @@ def test_the_record_names_each_metric_its_thresholds_weight_and_what_is_computed
     assert not any(l.startswith(("peak_bin_ratio", "yield_sign")) for l in lines)          # gates are the Gates stage's
     record = ranking.rank(rows, st).method
     assert record.lines("cost")[0].startswith("cost: thresholds (default).") and "log₂(1 + z)" in record.lines("cost")[0]
-    assert [c.name for c in record.optin] == ["aggregate", "dominated", "weights_by", "baseline", "head_to_head"]
+    assert [c.name for c in record.optin] == ["aggregate", "dominated", "weights_by", "baseline", "head_to_head", "detail"]
     assert "categories with a cost: compatibility, normalisation (table)." in record.lines("page_loss")
 
 

@@ -1405,6 +1405,13 @@ def _figure(build: _Build, figure: Figure, folder: Path, stem: str) -> tuple[Pat
     return pdf, png
 
 
+def detail_of(keys: list[str]) -> list[str]:
+    """The metrics a report's section keys name (`chi2_sigma`, `chi2_sigma:crossed`): their own sections are drawn for it,
+    whatever `[ranking].detail` says."""
+    from stats import metrics
+    return [m for k in keys if (m := metrics.resolve(k.partition(":")[0])) in metrics.REGISTRY]
+
+
 def chosen(document, keys: list[str]):
     """The summary's sections that `keys` name, in their order: `leaderboard`, `head-to-head`, `category:<name>` (a whole
     category's section), or a metric (`chi2_ndf`: its ranking, page cells against curves and table; `:ranking`, `:crossed`,
@@ -1416,7 +1423,7 @@ def chosen(document, keys: list[str]):
         statistic, _, part = key.partition(":")
         if statistic == "category":
             section, wanted = by_key.get(f"category-{part}"), None
-        elif statistic in by_key:
+        elif statistic in by_key and not part:
             section, wanted = by_key[statistic], None
         else:
             wanted = {statistic, f"{statistic}-ranking", f"{statistic}-crossed"} if not part else \
@@ -1491,7 +1498,7 @@ def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method:
         f"{part.source.address} · {part.set}" + (" · as this report measures it" if part.look else "")
     _measuring()
     rows = statstable.read(part.csv)
-    document, gone = chosen(bars.summary_model(rows, heading, _ranked(part.csv, rows)), part.keys)
+    document, gone = chosen(bars.summary_model(rows, heading, _ranked(part.csv, rows), detail_of(part.keys)), part.keys)
     gone = [k for k in gone if not (part.optional and (k.startswith("category:") or k in ("marginals", "baseline", "head-to-head")))]
     if gone:
         say(f"report: {heading} has no {', '.join(gone)} (too few curves or page cells for them)")

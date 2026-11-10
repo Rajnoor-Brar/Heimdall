@@ -1173,6 +1173,11 @@ doc     = "add a column marking a point that another beats on every category"
 type = "str"
 doc  = "the pages the summary plays as matches, each pair of curves: \"<cell>/<object>\" (a page cell's object, its short name), or \"all\" for every page; default: none"
 
+[ranking.detail]
+type    = "bool"
+default = false
+doc     = "the summary's per-metric sections, each after its category's: a metric's ranking, its page cells against its curves and its object table (a report section naming a metric draws that metric's alone)"
+
 # ── [plot.figures.<figure>]: a recipe for pages ─────────────────────────────────────────────
 # A figure takes every [plot] key marked `page = true`, meaning the same for its pages ("default":
 # [plot]'s value), and these, which only a figure sets (schema.keys("figure") joins the two).

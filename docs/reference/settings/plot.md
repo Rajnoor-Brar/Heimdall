@@ -632,7 +632,7 @@ Where a bin sits in x for tilt and roughness: its middle, or the centre of gravi
 
 # `[ranking]`
 
-[`metrics`](#metrics-1) · [`cost`](#cost) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`over_pages`](#over_pages) · [`by`](#by) · [`baseline`](#baseline) · [`veto_loss`](#veto_loss) · [`gates`](#gates) · [`aggregate`](#aggregate) · [`trim`](#trim) · [`dominated`](#dominated) · [`head_to_head`](#head_to_head)
+[`metrics`](#metrics-1) · [`cost`](#cost) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`over_pages`](#over_pages) · [`by`](#by) · [`baseline`](#baseline) · [`veto_loss`](#veto_loss) · [`gates`](#gates) · [`aggregate`](#aggregate) · [`trim`](#trim) · [`dominated`](#dominated) · [`head_to_head`](#head_to_head) · [`detail`](#detail)
 
 ## `metrics`
 
@@ -745,3 +745,11 @@ Add a column marking a point that another beats on every category.
 | string | — | — |
 
 The pages the summary plays as matches, each pair of curves: "<cell>/<object>" (a page cell's object, its short name), or "all" for every page; default: none.
+
+## `detail`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| true or false | `false` | — |
+
+The summary's per-metric sections, each after its category's: a metric's ranking, its page cells against its curves and its object table (a report section naming a metric draws that metric's alone)

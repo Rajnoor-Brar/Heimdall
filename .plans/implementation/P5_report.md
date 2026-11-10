@@ -1,6 +1,6 @@
 # Phase 5: the leaderboard, the sections, and the record shown
 
-Status: in progress (5.1 done). Blocked by: phase 4. Source: [04](../plans/grand-ranking/04_Report.md), all of it; [02](../plans/grand-ranking/02_Metrics.md) for where a glyph goes; [03 §3 property 9](../plans/grand-ranking/03_Math.md). Names in code: [Tables](Tables.md) T4, T6, T7, T8.
+Status: in progress (5.1, 5.2 done). Blocked by: phase 4. Source: [04](../plans/grand-ranking/04_Report.md), all of it; [02](../plans/grand-ranking/02_Metrics.md) for where a glyph goes; [03 §3 property 9](../plans/grand-ranking/03_Math.md). Names in code: [Tables](Tables.md) T4, T6, T7, T8.
 
 The rule of this phase: **a presenter renders the record and writes no rule of its own.** `bars.py`, `rankcmd.py` and `report.py` hold no sentence about a mean, a gate, a weight or a compression except through `Method.lines`.
 
@@ -66,3 +66,11 @@ The rule of this phase: **a presenter renders the record and writes no rule of i
   - Tests: the section order, and the front's key and whole record with a worked row whose c = log₂(1 + z). Every table and ranking is followed by its "Made by" and has the legend first, and an aside is not in the contents. Flat on the built table, banded when one cell's reference differs, with the reason in "Made by". `over_pages = "median"` is said with `[ranking]`. No title says "lower is better", and the headers carry their glyphs. The metric values are the engine's medians in the leaderboard's order. The PDF holds 25 of 76 points plus "51 more …", and the HTML holds all of them. The vetoed row is last, unranked, under a "vetoed" band, with its gate. The older tests were moved to the new keys and headers.
   - Check: `test_summary_layout.py` 37 passed. `tests/runner -m 'not slow'`: 2280 passed, 11 skipped, and the two named reds. `tests/integration -m 'not slow'`: 131 passed. `test_plot_stage.py -k summary`: 1 passed.
   - A reader may rely on: the summary's section order and the leaderboard's columns; "Made by" under every table; the reading key and the record at the front; R14's cut.
+- **5.2 · done 2026-11-10.** `[ranking].detail` (bool, default false): `Settings.detail`, `KEYS`, the schema, and an Opt-in choice in the record.
+  - **Sections:** with `detail` on, each of a category's metrics has its own section right after the category's, keyed by the metric's id and titled by it. It holds the metric's ranking, its page cells against its curves and its object table, each followed by its "Made by" (the metric's choices, `over_pages` and `detail`). Off by default.
+  - **Without detail:** `bars.summary_model(…, detail=())` takes the metrics to draw anyway. `report.detail_of(keys)` gives those a report's section keys name (`chi2_ndf`, `chi2_ndf:table`, an old alias), and `report._part` passes them.
+  - **Fix:** `report.chosen` no longer takes a whole metric section for `<metric>:<part>`.
+  - Fails first: the detail test (`KeyError` on `detail`'s sections) and `test_a_statistics_part_holds_the_sections_chosen` (the section `chi2_ndf`).
+  - Check: the step's five test files 213 passed; `tests/runner -m 'not slow'` 2281 passed, 11 skipped, the two named reds; `tests/integration -m 'not slow'` 131 passed.
+  - Tests: off by default (no `-crossed` anywhere), and on, each default metric's section with its three items, after its category. A named metric alone, with `detail: off (default)` in its "Made by". A report naming `chi2_ndf:ranking` gets that item with detail off, through `detail_of`, the tree having `chi2_ndf` only. The fixtures that read detail items set `detail = true`.
+  - A reader may rely on: `[ranking].detail`; a report section naming a metric draws that metric's tables.

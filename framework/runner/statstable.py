@@ -44,7 +44,7 @@ def ranking_of(errand, set_: str) -> dict:
 
 def metric_names(errand_stats: dict | None, ranking_table: dict | None) -> list[str]:
     """The metric columns a table carries: `[stats].metrics` (the defaults when it names none) and every metric `[ranking]`
-    has on, so that whatever is scored is there to read."""
+    has on, so that whatever is ranked by is there to read."""
     from stats import ranking
     names = list((errand_stats or {}).get("metrics") or default_metrics())
     return names + [n for n in ranking.settings_of(ranking_table).metrics if n not in names]

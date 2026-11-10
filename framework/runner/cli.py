@@ -129,21 +129,28 @@ def parser() -> argparse.ArgumentParser:
     draw.add_argument("configuration", nargs="?", help="overrides [errand].configuration; under sweep_runs, only it")
     draw.add_argument("--set", metavar="KEY=VALUE", action="append", default=[], help="as for heimdall run")
 
-    numbers = commands.add_parser("stats", help="retired: heimdall plot RUN --stats-only measures a Run's statistics, heimdall score reads them")
+    numbers = commands.add_parser("stats", help="retired: heimdall plot RUN --stats-only measures a Run's statistics, heimdall rank reads them")
     numbers.add_argument("rest", nargs="*", help=argparse.SUPPRESS)       # what it took, so any old line stops with the message
     numbers.add_argument("--sets", dest="draw_sets", help=argparse.SUPPRESS)
     numbers.add_argument("--set", action="append", default=[], help=argparse.SUPPRESS)
     numbers.add_argument("--across", action="store_true", help=argparse.SUPPRESS)
 
-    scored = commands.add_parser("score", help="a Run's standings, marginals and baseline from its statistics.csv, drawing nothing")
-    scored.add_argument("target", help="a Run <A>/<E>/<R>, or <A>/<E>: a row for each of its Runs (their score over the pages "
-                                       "they share); with --across, the errand's own results folder")
-    scored.add_argument("--set", metavar="SET", dest="set_name", help="this set's statistics only (default: every set found)")
-    scored.add_argument("--across", action="store_true", help="the errand's own statistics (its Runs together, heimdall plot --across)")
-    scored.add_argument("--by", metavar="AXES", help="marginals by these axes (comma-separated), over the table's own [score].by")
-    scored.add_argument("--baseline", metavar="FILTER",
-                        help="deltas against a baseline: axis=tag[,axis=tag…], or a point's name, over the table's own")
-    scored.add_argument("--json", action="store_true", help="the same numbers as JSON")
+    ranks = commands.add_parser("rank", help="a Run's leaderboard, marginals and baseline from its statistics.csv, drawing nothing")
+    ranks.add_argument("target", help="a Run <A>/<E>/<R>, or <A>/<E>: a row for each of its Runs (their loss over the pages "
+                                      "they share); with --across, the errand's own results folder")
+    ranks.add_argument("--set", metavar="SET", dest="set_name", help="this set's statistics only (default: every set found)")
+    ranks.add_argument("--across", action="store_true", help="the errand's own statistics (its Runs together, heimdall plot --across)")
+    ranks.add_argument("--by", metavar="QUANTITIES", help="marginals by these quantities (comma-separated), over the table's own [ranking].by")
+    ranks.add_argument("--baseline", metavar="q=value",
+                       help="deltas against a baseline: quantity=value[,quantity=value…], or a point's name, over the table's own")
+    ranks.add_argument("--json", action="store_true", help="the same numbers as JSON")
+
+    old_rank = commands.add_parser("score", help="retired: heimdall rank reads a Run's statistics")
+    old_rank.add_argument("rest", nargs="*", help=argparse.SUPPRESS)      # what it took, so any old line stops with the message
+    for flag in ("--set", "--by", "--baseline"):
+        old_rank.add_argument(flag, help=argparse.SUPPRESS)
+    for flag in ("--across", "--json"):
+        old_rank.add_argument(flag, action="store_true", help=argparse.SUPPRESS)
 
     overlay = commands.add_parser("overlay", help="overlay any YODA/ROOT files through Paint, with no errand file")
     overlay.add_argument("files", nargs="+", metavar="FILE", help="YODA (.yoda, .yoda.gz) or ROOT files")
@@ -1972,8 +1979,14 @@ def cmd_stats(args) -> int:
 def cmd_stats_retired(args) -> int:
     """`heimdall stats …`, retired for a release (the way `deck` was): it stops, naming its two successors."""
     raise HeimdallError("heimdall stats is now heimdall plot RUN --stats-only: a Run's statistics measured, no page drawn; "
-                        "heimdall score RUN reads them",
-                        hint="heimdall plot <A>/<E>/<R> --stats-only [--sets NAMES]; heimdall score <A>/<E>/<R> [--by AXIS] [--baseline FILTER]")
+                        "heimdall rank RUN reads them",
+                        hint="heimdall plot <A>/<E>/<R> --stats-only [--sets NAMES]; heimdall rank <A>/<E>/<R> [--by QUANTITIES] [--baseline q=value]")
+
+
+def cmd_score_retired(args) -> int:
+    """`heimdall score …`, renamed: it stops, naming `heimdall rank`."""
+    raise HeimdallError("renamed: heimdall score is heimdall rank",
+                        hint="heimdall rank <A>/<E>/<R> [--set S] [--across] [--by QUANTITIES] [--baseline q=value] [--json]")
 
 
 def cmd_diff(args) -> int:
@@ -1982,8 +1995,8 @@ def cmd_diff(args) -> int:
     return diffcmd.run(args)
 
 
-def cmd_score(args) -> int:
-    """`heimdall score TARGET [--set S] [--across] [--by AXES] [--baseline FILTER] [--json]`: standings, marginals and
+def cmd_rank(args) -> int:
+    """`heimdall rank TARGET [--set S] [--across] [--by QUANTITIES] [--baseline q=value] [--json]`: the leaderboard, marginals and
     baselines read from the statistics already measured; see rankcmd."""
     from . import rankcmd
     return rankcmd.run(args)
@@ -3598,8 +3611,10 @@ def _main(argv: list[str]) -> int:
             return cmd_plot(args)
         if args.command == "stats":
             return cmd_stats_retired(args)
+        if args.command == "rank":
+            return cmd_rank(args)
         if args.command == "score":
-            return cmd_score(args)
+            return cmd_score_retired(args)
         if args.command == "diff":
             return cmd_diff(args)
         if args.command == "check":

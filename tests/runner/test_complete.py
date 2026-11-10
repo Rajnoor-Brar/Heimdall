@@ -58,7 +58,7 @@ def registry(monkeypatch):
 def test_commands_and_options_come_from_the_parser():
     assert ask("run", "--q") == (["--queued-to"], "plain")
     assert ask("records", "") == (["upgrade"], "plain")
-    assert ask("--plain", "r")[0] == ["recognise", "records", "refresh", "report", "reproduce", "run", "runs"]
+    assert ask("--plain", "r")[0] == ["rank", "recognise", "records", "refresh", "report", "reproduce", "run", "runs"]
     assert "--plain" in ask("--")[0] and "stats" not in ask("s")[0] and "deck" not in ask("d")[0]
     assert ask("library", "")[0] == ["adopt", "list", "prune", "verify"]
     assert ask("run", "--only", "p")[0] == ["plot", "post", "pre"] and ask("run", "--only", "po")[0] == ["post"]
@@ -144,8 +144,8 @@ def test_a_record_a_result_and_a_scope(tree):
     assert ask("tag", "Demo/jets/")[0] == ["Demo/jets/01_first", "Demo/jets/02_second"]
     assert ask("diff", "Demo/jets/01_first", "02")[0] == ["02_second"]                  # the bare Run of the first one's Errand
     assert "Demo/jets/02_second" in ask("diff", "Demo/jets/01_first", "Demo/jets/0")[0]
-    assert ask("score", "Demo/jets/")[0] == ["Demo/jets/01_first", "Demo/jets/03_results_only"]
-    assert ask("score", "Demo/je") == (["Demo/jets", "Demo/jets/"], "nospace")         # an Errand's results, or a Run's
+    assert ask("rank", "Demo/jets/")[0] == ["Demo/jets/01_first", "Demo/jets/03_results_only"]
+    assert ask("rank", "Demo/je") == (["Demo/jets", "Demo/jets/"], "nospace")         # an Errand's results, or a Run's
     assert ask("records", "upgrade", "Demo/")[0] == ["Demo/jets", "Demo/jets/"] and ask("library", "list", "")[0] == ["Demo", "Demo/", "Generators", "Generators/"]
     assert ask("library", "list", "Demo/")[0] == ["Demo/jets", "Demo/jets/"] and "Demo/library" not in ask("records", "upgrade", "Demo/")[0]
     assert ask("migrate", "--snapshot", "Demo/jets/0")[0] == ["Demo/jets/01_first", "Demo/jets/02_second"]
@@ -214,7 +214,7 @@ def hear(*words: str, cwd: Path | None = None) -> tuple[list[str], str, float]:
 
 
 CASES = [("",), ("r",), ("run", "--q"), ("run", ""), ("run", "Demo/jets/"), ("run", "Demo/jets", ""), ("plot", "Demo/jets/"),
-         ("show", "Demo/jets/01_first/pdf_a/"), ("score", "Demo/"), ("explain", "plot.y_"), ("tools", "p"),
+         ("show", "Demo/jets/01_first/pdf_a/"), ("rank", "Demo/"), ("explain", "plot.y_"), ("tools", "p"),
          ("runs", "--again", ""), ("runs", "--state", "failed,"), ("stop", "--pid", ""), ("diff", "Demo/jets/01_first", ""),
          ("records", "upgrade", ""), ("library", "list", ""), ("report", ""), ("ls", ""), ("help", "")]
 
@@ -263,7 +263,7 @@ def reply(*words: str) -> tuple[list[str], list[str]]:
 
 
 def test_the_bash_function_sets_compreply_from_the_answer(tree):
-    assert reply("r") == (["recognise", "records", "refresh", "report", "reproduce", "run", "runs"], [])
+    assert reply("r") == (["rank", "recognise", "records", "refresh", "report", "reproduce", "run", "runs"], [])
     assert reply("run", "--q") == (["--queued-to"], [])
     assert reply("run", "Demo/jets/") == (["Demo/jets/01_first", "Demo/jets/02_second"], [])
     assert reply("run", "Demo/je") == (["Demo/jets"], [])

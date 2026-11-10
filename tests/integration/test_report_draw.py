@@ -81,14 +81,14 @@ def test_a_folder_never_drawn_is_drawn_for_its_report(folder):
     assert (drawn / "statistics" / "totality" / "statistics.csv").is_file() and (root / report.slug(address) / "drawn.key").is_file()
     out = paths.reports_root() / address
     assert plan.out == out and (out / "report.pdf").is_file()
-    assert [s.title for s in plan.sections] == ["Standings", "Pages: totality", "Pages: by_pdf"] and not plan.drawn()
+    assert [s.title for s in plan.sections] == ["Leaderboard", "Pages: totality", "Pages: by_pdf"] and not plan.drawn()
     shown = sorted(p.relative_to(out / "figures").as_posix() for p in (out / "figures").rglob("*.pdf"))
     assert len(shown) == 34 + 4 and "02_Pages_totality/001_one_em_d01-x01-y01.pdf" in shown        # 34 pages, by_pdf's 4
     assert list((out / "stats" / "01_Standings").glob("*.csv")) and not list((out / "stats").rglob("*.pdf"))   # typeset
     rows = list(csv.reader(open(out / "figures" / "02_Pages_totality" / "001_one_em_d01-x01-y01.csv", encoding="utf-8")))
     assert rows[0] == list(report.FIGURE_COLUMNS) and {r[0] for r in rows[1:]} >= {p.point.name for p in plans if p.point.name.startswith("em_")}
     words = text_of(out / "report.pdf")
-    assert "Drawn for this report" in words and "Standings" in words
+    assert "Drawn for this report" in words and "Leaderboard" in words
     again: list[str] = []
     report.build(report.planned(address, []), again.append)
     assert not any(line.startswith("report: drawing") for line in again), again

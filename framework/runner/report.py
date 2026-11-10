@@ -51,9 +51,9 @@ RECIPE = "report.toml"
 #: Whose drawn pages a section takes, in order of preference, when it names none.
 BACKENDS = ("root", "mpl")
 #: The default report's headline: the top five and each statistic's ranking (the area has none).
-#: The default Standings section: the standings, a section a category, then the marginals, the baseline and the head to head when `[ranking]` has what they need
+#: The default Leaderboard section: the leaderboard, a section a category, then the marginals, the baseline and the head to head when `[ranking]` has what they need
 #: (what has nothing to show is left out without a word). A test holds the categories to stats.metrics.CATEGORIES.
-HEADLINE = ["standings", *(f"category:{p}" for p in ("compatibility", "normalisation", "accuracy", "similarity", "trend",
+HEADLINE = ["leaderboard", *(f"category:{p}" for p in ("compatibility", "normalisation", "accuracy", "similarity", "trend",
                                                        "defects", "integrity", "quality")), "marginals", "baseline", "head-to-head"]
 #: What a title or subtitle may name, filled in from its sources' plot documents.
 PLACEHOLDERS = ("assignment", "errand", "configuration", "title")
@@ -311,13 +311,13 @@ def _drawn_sets(plot: dict) -> list[str]:
 
 def _sections(sets: list[str], measured: list[str], tools: list[str] | None) -> list[dict]:
     first = [] if tools == [] else [{"title": "Tools", "tools": list(tools or ["*"]), "optional": True}]
-    head = [{"title": "Standings", "set": measured[0], "stats": list(HEADLINE), "optional": True}] if measured else []
+    head = [{"title": "Leaderboard", "set": measured[0], "stats": list(HEADLINE), "optional": True}] if measured else []
     return first + head + [{"title": f"Pages: {s}", "set": s, "pages": ["*"], "optional": True} for s in sets]
 
 
 def default_sections(plot: dict, stats: dict, tools: list[str] | None = None) -> list[dict]:
     """The default report's sections for a plot document's [plot] and [stats] (A1, A8): what its tools were
-    given (`tools`: [report].tools; None every tool given a card or options, [] none), then Standings, the
+    given (`tools`: [report].tools; None every tool given a card or options, [] none), then Leaderboard, the
     statistics' headline, on the first set it measures ([stats].sets, else the sets drawn), then the pages of each
     set it draws; every one optional, so a set drawn nowhere is left out."""
     sets = _drawn_sets(plot)
@@ -1227,7 +1227,7 @@ def starter(name: str, source: Source) -> str:
     shown = [s["set"] for s in sections if "pages" in s]
     for section in sections:
         if "stats" in section:
-            lines += ["[[report.section]]", 'title = "Standings"', f'set   = "{section["set"]}"',
+            lines += ["[[report.section]]", 'title = "Leaderboard"', f'set   = "{section["set"]}"',
                       "stats = [" + ", ".join(f'"{k}"' for k in section["stats"]) + "]", "optional = true", ""]
     for set_ in [*shown, *(s for s in source.sets() if s not in shown)]:
         pages = source.pages(set_, BACKENDS)
@@ -1406,7 +1406,7 @@ def _figure(build: _Build, figure: Figure, folder: Path, stem: str) -> tuple[Pat
 
 
 def chosen(document, keys: list[str]):
-    """The summary's sections that `keys` name, in their order: `standings`, `head-to-head`, `category:<name>` (a whole
+    """The summary's sections that `keys` name, in their order: `leaderboard`, `head-to-head`, `category:<name>` (a whole
     category's section), or a metric (`chi2_ndf`: its ranking, page cells against curves and table; `:ranking`, `:crossed`,
     `:table` for one). Its facts and notes stay (only the notes its items name are numbered). (The document, the keys it has
     no part for.)"""
@@ -1449,8 +1449,8 @@ class Typeset:
 
 
 #: The notes How the numbers are made gives: each statistic's definition (stat-<key>), how a page is compared,
-#: and how points are scored and play their matches; a statistics part then leaves them out.
-METHOD_NOTES = ("compared", "counted", "apart", "score", "h2h")
+#: and how points are ranked and play their matches; a statistics part then leaves them out.
+METHOD_NOTES = ("compared", "counted", "apart", "loss", "h2h")
 METHOD_TITLE = "How the numbers are made"
 
 
@@ -1723,7 +1723,7 @@ def _sentence(text: str) -> str:
 def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
     """How the numbers are made, from the notes of the statistics shown: how a page is compared; each statistic
     shown, in the summary's order, its name, its formula set as display math and what it sums over and means, a
-    paragraph each; how points are scored (each part's rule on the pages counted) and play their matches."""
+    paragraph each; how points are ranked (each part's rule on the pages counted) and play their matches."""
     typeset, tex, esc = _typeset(), _layout().tex, html.escape
     notes: dict = {}
     for item in shown:
@@ -1735,7 +1735,7 @@ def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
     asked = [p for p in bars.M.CATEGORIES if f"category-{p}" in notes]
     where = "below" if plan.context == "first" else "above"
     lines = [rf"\hdNote{{What each number in the statistics and bar tables {where} is: how a page is compared with its "
-             r"reference, each statistic's formula and what it says, and how points are scored.}"]
+             r"reference, each statistic's formula and what it says, and how points are ranked.}"]
     page = [f"<p>What each number in the statistics and bar tables {where} is.</p>"]
 
     def heading(title: str) -> None:
@@ -1763,9 +1763,9 @@ def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
                 page.append(f"<p><strong>{esc(title)}</strong>: {esc(_sentence(rest))}</p>")
             else:
                 paragraphs([f"{title}: {rest}"])
-    if "score" in notes:
-        heading("How points are scored")
-        paragraphs([notes["score"], bars.APART, *counted])
+    if "loss" in notes:
+        heading("How points are ranked")
+        paragraphs([notes["loss"], bars.APART, *counted])
     if "h2h" in notes:
         heading("Head to head")
         paragraphs([notes["h2h"]])

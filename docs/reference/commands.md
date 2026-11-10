@@ -58,20 +58,24 @@ draw a configuration's pages from its complete points
 
 ## `heimdall stats`
 
-retired: heimdall plot RUN --stats-only measures a Run's statistics, heimdall score reads them
+retired: heimdall plot RUN --stats-only measures a Run's statistics, heimdall rank reads them
 
-## `heimdall score`
+## `heimdall rank`
 
-a Run's standings, marginals and baseline from its statistics.csv, drawing nothing
+a Run's leaderboard, marginals and baseline from its statistics.csv, drawing nothing
 
 | Argument | Meaning |
 |---|---|
-| `target` | a Run <A>/<E>/<R>, or <A>/<E>: a row for each of its Runs (their score over the pages they share); with --across, the errand's own results folder |
+| `target` | a Run <A>/<E>/<R>, or <A>/<E>: a row for each of its Runs (their loss over the pages they share); with --across, the errand's own results folder |
 | `--set SET` | this set's statistics only (default: every set found) |
 | `--across` | the errand's own statistics (its Runs together, heimdall plot --across) |
-| `--by AXES` | marginals by these axes (comma-separated), over the table's own [score].by |
-| `--baseline FILTER` | deltas against a baseline: axis=tag[,axis=tag…], or a point's name, over the table's own |
+| `--by QUANTITIES` | marginals by these quantities (comma-separated), over the table's own [ranking].by |
+| `--baseline q=value` | deltas against a baseline: quantity=value[,quantity=value…], or a point's name, over the table's own |
 | `--json` | the same numbers as JSON |
+
+## `heimdall score`
+
+retired: heimdall rank reads a Run's statistics
 
 ## `heimdall overlay`
 

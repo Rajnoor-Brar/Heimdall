@@ -1,8 +1,8 @@
 """Ranking: rows in, losses out. No files, no drawing.
 
 The rows are a statistics table's (stats/table.py): one per curve of a page, with the metric columns. A *point* is a
-curve's `point`, scored within a page *cell* (points of different cells never meet). A curve on a page is an observation;
-the page's reference rows are not scored.
+curve's `point`, ranked within a page *cell* (points of different cells never meet). A curve on a page is an observation;
+the page's reference rows have no loss.
 
     cost        each metric made a cost (`cost`: hinged thresholds by default, which depend on the metric alone, so a loss is
                 the same whatever else is in the pool and compares across Runs; the others use the pool of curves on the page)
@@ -72,7 +72,7 @@ def settings_of(table: dict | None = None, over: dict | None = None) -> Settings
         if name not in metrics.REGISTRY:
             raise HeimdallError(f"no metric '{name}'", hint=did_you_mean(name, metrics.REGISTRY) or "heimdall explain ranking")
     if not weights or sum(weights.values()) <= 0:
-        raise HeimdallError("[ranking].metrics scores nothing", hint="name at least one metric with a weight above zero")
+        raise HeimdallError("[ranking].metrics weighs no metric", hint="name at least one metric with a weight above zero")
     for key, choices in (("cost", COSTS), ("aggregate", AGGREGATE), ("weights_by", ("equal", "critic"))):
         if merged.get(key, choices[0]) not in choices:
             raise HeimdallError(f"[ranking].{key} is one of {', '.join(choices)}", hint=f"got {merged[key]!r}")
@@ -178,7 +178,7 @@ def page_weight(object_path: str, page: str, st: Settings, figure_weights: dict 
 
 
 def observations(rows: list[dict], st: Settings, figure_weights: dict | None = None) -> list[Obs]:
-    """The scored curves: a page's reference curve is not scored; when any page is measured against data, only those pages count
+    """The curves with a loss: a page's reference curve has none; when any page is measured against data, only those pages count
     (a page against its first curve ranks the curves against a generator, not the data)."""
     by_page: dict = {}
     for row in rows:
@@ -446,11 +446,11 @@ class Marginal:
     confounded: list = field(default_factory=list)  # sentences: which values of other quantities share this quantity's values unevenly
 
 
-def varied(values: dict, scored: set | None = None) -> dict[str, list[str]]:
-    """The quantities with at least two values among the points (those in `scored`, when given): {quantity: its values, in the order met}."""
+def varied(values: dict, ranked: set | None = None) -> dict[str, list[str]]:
+    """The quantities with at least two values among the points (those in `ranked`, when given): {quantity: its values, in the order met}."""
     seen: dict[str, dict] = {}
     for point, chosen in values.items():
-        if scored is not None and point not in scored:
+        if ranked is not None and point not in ranked:
             continue
         for quantity, value in chosen.items():
             seen.setdefault(quantity, {})[str(value)] = None
@@ -474,23 +474,23 @@ def _confounded(quantity: str, every: dict[str, list[str]], values: dict, points
     return out
 
 
-def marginals(scores: Scores, values: dict, st: Settings | None = None) -> list[Marginal]:
+def marginals(result: Scores, values: dict, st: Settings | None = None) -> list[Marginal]:
     """For each quantity in `st.by` (every varied quantity when it names none), a table of value → the `over_pages` mean of the losses of the points
     having it, the points' number and each category's value; and which other quantities' values confound it (spread unevenly over this
     quantity's values, as pdf = X only with generator = Y). A quantity named that is not varied is refused."""
-    st = st or scores.settings
-    scored = {p.point for p in scores.points if p.loss == p.loss and p.point in values}
-    every = varied(values, scored)
+    st = st or result.settings
+    ranked = {p.point for p in result.points if p.loss == p.loss and p.point in values}
+    every = varied(values, ranked)
     names = list(st.by) or list(every)
     for quantity in names:
         if quantity not in every:
             raise HeimdallError(f"[ranking].by: '{quantity}' is not a quantity these points vary",
-                                hint=("quantities varied: " + ", ".join(every)) if every else "no quantity is varied among the scored points")
+                                hint=("quantities varied: " + ", ".join(every)) if every else "no quantity is varied among the ranked points")
     out = []
     for quantity in names:
-        marginal = Marginal(quantity, confounded=_confounded(quantity, every, values, scored))
+        marginal = Marginal(quantity, confounded=_confounded(quantity, every, values, ranked))
         for value in every[quantity]:
-            mine = [p for p in scores.points if p.point in scored and str(values[p.point].get(quantity)) == value and p.loss == p.loss]
+            mine = [p for p in result.points if p.point in ranked and str(values[p.point].get(quantity)) == value and p.loss == p.loss]
             if not mine:
                 continue
             categories = {}
@@ -532,11 +532,11 @@ def baseline_filter(given, values: dict) -> dict:
     return {str(k): str(v) for k, v in dict(given).items()}
 
 
-def baseline(scores: Scores, values: dict, given=None) -> Baseline:
+def baseline(result: Scores, values: dict, given=None) -> Baseline:
     """Each point's Δ against the baseline point equal to it on every quantity the filter leaves alone (the filter's values on the
     others): its Δloss, and its Δloss on each object. A point with no partner, or none of whose values are known, is listed as
     unmatched with the reason."""
-    given = scores.settings.baseline if given is None else given
+    given = result.settings.baseline if given is None else given
     if not given:
         raise HeimdallError("no baseline: [ranking].baseline is not set")
     wanted = baseline_filter(given, values)
@@ -545,11 +545,11 @@ def baseline(scores: Scores, values: dict, given=None) -> Baseline:
         if quantity not in known:
             raise HeimdallError(f"[ranking].baseline: '{quantity}' is not a quantity of these points", hint="quantities: " + ", ".join(sorted(known)))
     by_values: dict = {}
-    for ps in scores.points:
+    for ps in result.points:
         if ps.point in values:
             by_values.setdefault(frozenset((k, str(v)) for k, v in values[ps.point].items()), []).append(ps)
     out = Baseline(wanted)
-    for ps in scores.points:
+    for ps in result.points:
         if ps.point not in values:
             out.unmatched.append((ps.cell, ps.point, "not a point of the sweep (a merged curve), or its values were not recorded"))
             continue

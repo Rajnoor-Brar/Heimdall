@@ -162,15 +162,15 @@ def test_a_rebuild_makes_nothing_and_a_changed_page_is_copied_again(trees):
 def test_a_statistics_part_holds_the_sections_chosen(trees):
     bars = statstable.bars()
     rows = statstable.read(trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv")
-    document, missing = report.chosen(bars.summary_model(rows, "here"), ["standings", "chi2_ndf:ranking", "area:ranking"])
-    assert [s.key for s in document.sections] == ["standings", "category-compatibility"] and missing == ["area:ranking"]
+    document, missing = report.chosen(bars.summary_model(rows, "here"), ["leaderboard", "chi2_ndf:ranking", "area:ranking"])
+    assert [s.key for s in document.sections] == ["leaderboard", "category-compatibility"] and missing == ["area:ranking"]
     assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking"]
-    recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Standings"\n'
+    recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Leaderboard"\n'
                              'stats = ["chi2_ndf:ranking"]\n\n[[report.section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
     _, said = built("P/numbers.toml", [])
     out = trees / "reports" / "P" / "validation" / "01_pdf"                     # where results/ has its source
     source = trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv"
-    standings = out / "stats" / "01_Standings"                                   # typeset; its numbers beside it
+    standings = out / "stats" / "01_Leaderboard"                                   # typeset; its numbers beside it
     assert sorted(p.name for p in standings.iterdir()) == ["01_01_pdf__totality.csv", "01_01_pdf__totality.html"]
     assert (standings / "01_01_pdf__totality.csv").read_bytes() == source.read_bytes()
     assert not list(out.rglob("stats/**/*.pdf")) and not list(out.rglob("stats/**/*.png"))
@@ -186,11 +186,11 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     # How the numbers are made: before the results, a paragraph a metric shown, its formula in display when it has one;
     # the parts keep only the notes on reading their own items
     body = tex.split(r"\begin{document}")[1]
-    assert body.index(r"\section*{How the numbers are made}") < body.index(r"\section{Standings}")
+    assert body.index(r"\section*{How the numbers are made}") < body.index(r"\section{Leaderboard}")
     assert body.count(r"\hdDefinition{") == 1 and r"\hdDefinition{χ²/ndf}{\chi^2/\mathrm{ndf} = " in body
     assert r"\hdStatSection{The metrics}" in body
     assert r"What each category asks" not in body                                        # no category section is shown here
-    assert r"\hdStatSection{How a page is compared}" in body and "How points are scored" not in body
+    assert r"\hdStatSection{How a page is compared}" in body and "How points are ranked" not in body
     assert "Scored from 1 (cost 0) to 3 (cost 1)" in body                              # a metric's thresholds, said
     notes = body[body.index(r"\begin{hdNotes}"):body.index(r"\end{hdNotes}")]
     assert "Per point" in notes and "1 is a true curve" not in notes and "Each page as drawn" not in notes

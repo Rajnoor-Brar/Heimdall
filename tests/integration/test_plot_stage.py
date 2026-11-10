@@ -661,7 +661,7 @@ def test_a_run_draws_from_its_plot_document(stage):
     assert [p.document for p in plot.pages(doc, kept, members)] == [p.document for p in plot.pages(errand, configuration, plans)]
     recipe = tomllib.loads(target.with_name("report.toml").read_text(encoding="utf-8"))
     given, standings, pages = recipe["report"]["section"]                                     # V218: what was run first
-    assert [s["title"] for s in (given, standings, pages)] == ["Tools", "Standings", "Pages: totality"]
+    assert [s["title"] for s in (given, standings, pages)] == ["Tools", "Leaderboard", "Pages: totality"]
     assert standings["set"] == pages["set"] == "totality" and given["tools"] == ["*"]          # V210: what they were given
     assert all(s["optional"] for s in (standings, pages, given))
 
@@ -852,7 +852,7 @@ def test_plot_looks_give_a_value_its_look_by_tag(stage, scratch):
 
 
 def test_the_summary_is_scored_by_category(stage):
-    """V174, V196: statistics/<set>/summary.pdf, every page A4 portrait: the standings (score, worst page, veto, a column a
+    """V174, V196: statistics/<set>/summary.pdf, every page A4 portrait: the leaderboard (loss, worst page, veto, a column a
     category), then a section per category with a metric on: its ranking, then each metric's ranking, page cells against
     curves and table (a row per point, a column per object in natural order, then the mean; the reference "ref"); each item
     names its notes. A table wider than the page is cut into column blocks, the mean on the last. V197: a table in curve
@@ -885,7 +885,7 @@ def test_the_summary_is_scored_by_category(stage):
     assert document.heading.endswith(" · totality")
     assert document.facts[0].startswith("4 point(s) in 2 page cell(s), on 17 object(s)")       # V197: up front
     sections = {s.key: s for s in document.sections}
-    assert list(sections) == ["standings", "category-compatibility", "category-normalisation", "category-accuracy",
+    assert list(sections) == ["leaderboard", "category-compatibility", "category-normalisation", "category-accuracy",
                               "category-trend", "category-defects", "head-to-head"]
     items = {item.key: item for s in document.sections for item in s.items}
     assert [i.key for i in sections["category-compatibility"].items] == [
@@ -914,9 +914,9 @@ def test_the_summary_is_scored_by_category(stage):
 
     scores = ranking.score(rows, st)                                              # the standings are the engine's
     assert [p.n_pages for p in scores.points] == [1, 1, 1, 1]                   # only d01 has data: one page each
-    standings = items["standings"]
+    standings = items["leaderboard"]
     assert [r.label for r in standings.rows if r.band] == ["em", "ep"] and standings.headers[:4] == [
-        "score", "worst page", "worst", "veto"]
+        "loss", "worst page", "worst", "veto"]
     for cell in ("em", "ep"):
         mine = sorted((p for p in scores.points if p.cell == cell), key=lambda p: p.loss)
         first = next(r for r in standings.rows[standings.rows.index(next(r for r in standings.rows if r.band and r.label == cell)) + 1:]

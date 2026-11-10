@@ -63,22 +63,22 @@ Lower-is-better runs through one family of words: cost → category cost → pag
 
 | Current | Proposed | Where it changes |
 |---|---|---|
-| score (a point's number) | **point loss**, `loss` | `PointScore.score` → `PointLoss.loss`; summary and report headers; `--json` keys |
+| score (a point's number) | **point loss**, `loss` | `PointScore.score` → `PointLoss.loss`; summary and report headers; `--json` keys | · closed 1.5
 | `[score]` | **`[ranking]`** | schema, errand files (migrate), the sidecar's `score` key → `ranking` |
-| `heimdall score` | **`heimdall rank`** | CLI; `score` refused, naming `rank` |
-| `score = {…}` on a set | `ranking = {…}` | `sweep.SetSpec.score` |
-| purpose, `PURPOSES`, `ASKS` | **category**, `CATEGORIES`, `QUESTIONS` | stats, bars, report, sidecar (`purpose` → `category`) |
+| `heimdall score` | **`heimdall rank`** | CLI; `score` refused, naming `rank` | · closed 1.5
+| `score = {…}` on a set | `ranking = {…}` | `sweep.SetSpec.score` | · closed 1.5
+| purpose, `PURPOSES`, `ASKS` | **category**, `CATEGORIES`, `QUESTIONS` | stats, bars, report, sidecar (`purpose` → `category`) | · closed 1.4
 | `purpose:<name>` (a report section key) | `category:<name>` | report recipes (migrate) |
-| standings | **leaderboard** | the section key `standings` → `leaderboard` (old key refused, naming the new) |
-| axis, axes (a swept quantity) | **quantity**, quantities | `[ranking].by` takes quantities; sidecar `axes` → `values` (`{point: {quantity: value}}`); `--by QUANTITIES`; `--baseline q=value` |
+| standings | **leaderboard** | the section key `standings` → `leaderboard` (old key refused, naming the new) | · closed 1.5
+| axis, axes (a swept quantity) | **quantity**, quantities | `[ranking].by` takes quantities; sidecar `axes` → `values` (`{point: {quantity: value}}`); `--by QUANTITIES`; `--baseline q=value` | · closed 1.5
 | tag (a quantity's value, user-facing) | **value** | messages and docs only; the TOML key `tag` stays |
-| `veto` (a loss threshold) | **`veto_loss`** | `[ranking]`; the gate is the default veto |
-| `[score].normalise` | **`[ranking].cost`** (`thresholds` default) | frees "normalise" for pages |
-| `[score].mean` | **`[ranking].over_pages`** (`rms` default) | its job, not its kind |
+| `veto` (a loss threshold) | **`veto_loss`** | `[ranking]`; the gate is the default veto | · closed 1.5
+| `[score].normalise` | **`[ranking].cost`** (`thresholds` default) | frees "normalise" for pages | · closed 1.5
+| `[score].mean` | **`[ranking].over_pages`** (`rms` default) | its job, not its kind | · closed 1.5
 | `legend_statistic` | **`legend_metric`** | `[plot]` |
 | figure kind `statistic`, `[figure].statistic` | **`metric`** | figures |
 | "the bars' baseline" | **zero line** | `bars.py` docstrings and keys |
-| metric ids | see 02 | registry, alias table |
+| metric ids | see 02 | registry, alias table | · closed 1.1
 
 **Kept as they are:** `[stats]`, `statistics.csv`, `--stats-only`, `statistics/<set>/` (the table of metrics is "the statistics"), "configuration" (Heimdall's recipe), `tests/reference/`.
 

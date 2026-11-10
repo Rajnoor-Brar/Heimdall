@@ -68,18 +68,25 @@ def test_a_set_may_carry_its_own_ranking_and_a_figure_its_weight():
     assert "weight" in schema.FIGURE_OWN and schema.keys("figure")["weight"]["min"] == 0
 
 
-def test_explain_score_lists_the_keys_the_metrics_by_purpose_and_the_means():
-    lines = "\n".join(house.explain("score"))
+def test_explain_ranking_lists_the_keys_the_metrics_by_category_and_the_means():
+    lines = "\n".join(house.explain("ranking"))
     for word in ("[ranking]", "thresholds", "metrics, statistical compatibility", "metrics, local defects", "chi2_ndf", "(default)", "wasserstein", "trimmed"):
         assert word in lines, word
 
 
 def test_explain_one_metric_or_mean_in_full():
-    tilt = "\n".join(house.explain("score.tilt"))
+    tilt = "\n".join(house.explain("ranking.tilt"))
     assert "good 0.03, bad 0.25" in tilt and "because" in tilt and "by default" in tilt
-    trimmed = "\n".join(house.explain("score.trimmed"))
+    trimmed = "\n".join(house.explain("ranking.trimmed"))
     assert "guard" in trimmed and "approximate" in trimmed and "alpha" in trimmed
-    assert "[ranking].over_pages" in "\n".join(house.explain("score.over_pages"))
+    assert "[ranking].over_pages" in "\n".join(house.explain("ranking.over_pages"))
+
+
+def test_explain_score_is_refused_naming_explain_ranking():
+    for word in ("score", "score.tilt"):
+        with pytest.raises(HeimdallError, match="renamed: explain score is explain ranking") as caught:
+            house.explain(word)
+        assert "heimdall explain ranking" in caught.value.hint
 
 
 # ── an old metric id: refused in a user's file, read in a record ──────────────────────────────
@@ -98,7 +105,7 @@ OLD_IN_PLACE = [
      "mean_bin_ratio"),
     ({"report": {"section": [{"title": "a", "plot": {"legend_statistic": "rel_abs_area"}}]}}, "[report].section[1].plot.legend_statistic",
      "rel_abs_area", "yield_weighted_abs_dev"),
-    ({"report": {"section": [{"title": "a", "stats": ["standings", "chi2_z:ranking"]}]}}, "[report].section[1].stats", "chi2_z",
+    ({"report": {"section": [{"title": "a", "stats": ["leaderboard", "chi2_z:ranking"]}]}}, "[report].section[1].stats", "chi2_z",
      "chi2_sigma"),
 ]
 
@@ -133,6 +140,7 @@ OLD_TABLE = [
     ({"ranking": {"mean": "median"}}, "[ranking].mean", "mean", "over_pages"),
     ({"ranking": {"normalise": "median"}}, "[ranking].normalise", "normalise", "cost"),
     ({"plot": {"sets": [{"name": "a", "score": {}}]}}, "[plot].sets[1].score", "score", "ranking"),
+    ({"report": {"section": [{"title": "a", "stats": ["standings"]}]}}, "[report].section[1].stats", "standings", "leaderboard"),
 ]
 
 

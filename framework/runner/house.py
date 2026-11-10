@@ -196,13 +196,13 @@ TABLE_TEXT = {
 }
 
 
-def _score_names() -> list[str]:
+def _ranking_names() -> list[str]:
     from stats import means, metrics
     return [*metrics.REGISTRY, *means.REGISTRY]
 
 
-def _score_lines(name: str) -> list[str]:
-    """`heimdall explain score`: the keys of [ranking], the metrics by category and the means; `score.<name>` one in full."""
+def _ranking_lines(name: str) -> list[str]:
+    """`heimdall explain ranking`: the keys of [ranking], the metrics by category and the means; `ranking.<name>` one in full."""
     from stats import means, metrics
     if name in metrics.REGISTRY:
         m = metrics.REGISTRY[name]
@@ -214,7 +214,7 @@ def _score_lines(name: str) -> list[str]:
     if name in means.REGISTRY:
         m = means.REGISTRY[name]
         return [f"mean {name}: {m.kind}", f"  guard   {m.guard}", f"  error   {m.error_kind}", *([f"  takes   {', '.join(m.settings)}"] if m.settings else []), f"  {m.note}"]
-    lines = ["[ranking]: how the statistics become a loss (heimdall explain score.<key> for a key, score.<metric or mean> for one in full)"]
+    lines = ["[ranking]: how the statistics become a loss (heimdall explain ranking.<key> for a key, ranking.<metric or mean> for one in full)"]
     lines += [f"  {k:12} {knowledge.plain(c["doc"])[:90]}" for k, c in schema.keys("ranking").items()]
     for category, title in metrics.CATEGORIES.items():
         lines += ["", f"metrics, {title.lower()}:"]
@@ -246,8 +246,10 @@ def _special(key: str) -> list[str] | None:
     if word.split(".")[0].split("]")[0] == "run":                         # the old names
         raise HeimdallError(f"[run] is now [errand]: {key}",
                        hint="heimdall explain errand" + word.removeprefix("run").replace("]", "").replace(".project", ".assignment"))
-    if word == "score" or (word.startswith("score.") and word[6:] in _score_names()):
-        return _score_lines(word.removeprefix("score").lstrip("."))
+    if word == "score" or word.startswith("score."):
+        raise HeimdallError("renamed: explain score is explain ranking", hint=f"heimdall explain {'ranking' + word[5:]}")
+    if word == "ranking" or (word.startswith("ranking.") and word[8:] in _ranking_names()):
+        return _ranking_lines(word.removeprefix("ranking").lstrip("."))
     table = TABLES.get(word, {"file": "config", "cfgs": "configuration"}.get(word))
     if table and "." not in word:
         v3 = {"file": "file", "cfgs": "cfgs", "errand": "errand", "tools": "tools", "quantities": "quantities"}.get(word)

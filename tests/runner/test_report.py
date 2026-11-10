@@ -159,8 +159,8 @@ def test_a_tagged_source_names_its_tag(trees):
 def test_the_default_report_is_the_headline_and_each_set_its_document_draws(trees):
     plan = report.planned("P/validation/01_pdf", [])
     assert plan.name == "P/validation/01_pdf" and plan.out == trees / "reports" / "P" / "validation" / "01_pdf"
-    standings, pages = plan.sections
-    assert standings.title == "Standings" and [p.keys for p in standings.parts] == [report.HEADLINE]
+    leaderboard, pages = plan.sections
+    assert leaderboard.title == "Leaderboard" and [p.keys for p in leaderboard.parts] == [report.HEADLINE]
     assert pages.title == "Pages: totality"
     assert [g.caption for g in pages.grids] == ["P/validation/01_pdf · totality · 18x275", "P/validation/01_pdf · totality · 27x920"]
     assert [f.page for f in pages.grids[0].figures] == ["18x275/d01-x01-y01", "18x275/d02-x01-y01", "18x275/d10-x01-y01"]
@@ -169,7 +169,7 @@ def test_the_default_report_is_the_headline_and_each_set_its_document_draws(tree
     assert whole.name == "P/validation" and whole.out == trees / "reports" / "P" / "validation"    # a run's: its folder
     folder(trees / "results", "03_few", "few", 1_000_000, draw=("totality", "few"))                  # few: drawn nowhere
     plan = report.planned("P/validation/03_few", [])
-    assert [s.title for s in plan.sections] == ["Standings", "Pages: totality"]
+    assert [s.title for s in plan.sections] == ["Leaderboard", "Pages: totality"]
     assert plan.left == ["Tools: no source has a record of its points' tools",
                          "Pages: few: no source has few drawn, or a page of it to draw"]          # nor a set few to draw
     assert "  left out: Pages: few: no source has few drawn, or a page of it to draw" in report.listing(plan)
@@ -177,10 +177,10 @@ def test_the_default_report_is_the_headline_and_each_set_its_document_draws(tree
 
 
 
-def test_the_default_standings_name_every_category_in_order():
+def test_the_default_leaderboard_names_every_category_in_order():
     from stats import metrics
     assert [k.partition(":")[2] for k in report.HEADLINE if k.startswith("category:")] == list(metrics.CATEGORIES)
-    assert report.HEADLINE[0] == "standings" and report.HEADLINE[-3:] == ["marginals", "baseline", "head-to-head"]
+    assert report.HEADLINE[0] == "leaderboard" and report.HEADLINE[-3:] == ["marginals", "baseline", "head-to-head"]
 
 
 def test_a_recipe_picks_pages_side_by_side_and_its_sources_can_be_replaced(trees):
@@ -216,13 +216,13 @@ def test_a_recipe_is_checked(trees):
     with pytest.raises(HeimdallError, match="pagez") as error:
         report.planned("P/typo.toml", ["P/validation/01_pdf"])
     assert "pages" in str(error.value.hint)
-    recipe(trees, "two", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nstats = ["standings"]\n')
+    recipe(trees, "two", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nstats = ["leaderboard"]\n')
     with pytest.raises(HeimdallError, match="one of pages"):
         report.planned("P/two.toml", ["P/validation/01_pdf"])
     recipe(trees, "stat", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["chi2_ndf:rankin"]\n')
     with pytest.raises(HeimdallError, match="no part 'rankin' of chi2_ndf"):
         report.planned("P/stat.toml", ["P/validation/01_pdf"])
-    for old, new in (("top5", "standings"), ("scoreboard-cells", "standings"), ("head-to-head-2", "head-to-head")):
+    for old, new in (("top5", "leaderboard"), ("scoreboard-cells", "leaderboard"), ("head-to-head-2", "head-to-head")):
         recipe(trees, "old", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["%s"]\n' % old)
         with pytest.raises(HeimdallError, match=f"'{old}' is now '{new}'"):
             report.planned("P/old.toml", ["P/validation/01_pdf"])
@@ -250,11 +250,11 @@ def test_a_recipe_is_checked(trees):
 
 def test_what_no_document_can_draw_is_refused_naming_what_it_has(trees):
     recipe(trees, "few", '[report]\n\n[[report.section]]\ntitle = "a"\nset = "few"\npages = ["*"]\n\n'
-                         '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["standings"]\n')
+                         '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["leaderboard"]\n')
     with pytest.raises(HeimdallError, match="has no set few drawn, and its plot document no set few to draw") as error:
         report.planned("P/few.toml", ["P/validation/01_pdf"])
     assert error.value.hint == "drawn there: totality; its sets: totality; optional = true passes it over"
-    recipe(trees, "numbers", '[report]\n\n[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["standings"]\n')
+    recipe(trees, "numbers", '[report]\n\n[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["leaderboard"]\n')
     with pytest.raises(HeimdallError, match="has no set few measured, and its plot document no set few to draw"):
         report.planned("P/numbers.toml", ["P/validation/01_pdf"])
     recipe(trees, "events", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["d01-*"]\nlayout = "sources"\nlabel = "events"\n')
@@ -268,7 +268,7 @@ def test_what_a_source_has_not_drawn_is_drawn_for_the_report(trees):
     cache; --list says which and why. Until drawn, a grid waits (a figure with no file) and so do its numbers."""
     folder(trees / "results", "03_few", "few", 1_000_000, sets=("few",))
     recipe(trees, "drawn", '[report]\n\n[[report.section]]\ntitle = "a"\nset = "few"\npages = ["*"]\n\n'
-                           '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["standings"]\n\n'
+                           '[[report.section]]\ntitle = "b"\nset = "few"\nstats = ["leaderboard"]\n\n'
                            '[[report.section]]\ntitle = "c"\npages = ["d01-*"]\nplot = { normalise = "area" }\n\n'
                            '[[report.section]]\ntitle = "d"\nbars = ["*"]\nplot = { normalise = "area" }\n\n'
                            '[[report.section]]\ntitle = "e"\npages = ["d01-*"]\n\n'
@@ -358,7 +358,7 @@ def test_a_folder_reads_its_own_report_toml(trees):
     assert plan.title == "validation: pdf" and plan.out == trees / "reports" / "P" / "validation" / "01_pdf"
     assert report.planned(str(where / report.RECIPE), []).sources[0].address == "P/validation/01_pdf"   # named itself
     both = report.planned("P/validation", [])                    # several: the default, not one folder's recipe
-    assert [s.title for s in both.sections] == ["Standings", "Pages: totality"]               # Tools: no records
+    assert [s.title for s in both.sections] == ["Leaderboard", "Pages: totality"]               # Tools: no records
     recipe(trees, "weekly", '[report]\ntitle = "Weekly {configuration}"\n\n[[report.section]]\ntitle = "All"\npages = ["*"]\n')
     over = report.planned("P/weekly.toml", ["P/validation/01_pdf"])            # a recipe over it: the recipe's
     assert [s.title for s in over.sections] == ["All"] and over.title == "Weekly pdf"
@@ -371,7 +371,7 @@ def study(trees):
     demo = trees / "configs" / "Demo"
     shutil.copytree(Path(os.environ["HEIMDALL_WORK"]) / "configs" / "Demo", demo)
     (demo / "weekly.toml").write_text('[report]\ntitle = "Weekly"\nsubtitle = "for the group"\nfrom = ["P/validation/01_pdf"]\n'
-                                      'output = "Demo/weekly"\n\n[[report.section]]\ntitle = "Standings"\nstats = ["standings"]\n',
+                                      'output = "Demo/weekly"\n\n[[report.section]]\ntitle = "Leaderboard"\nstats = ["leaderboard"]\n',
                                       encoding="utf-8")
     text = (demo / "validation.toml").read_text(encoding="utf-8")
     (demo / "study.toml").write_text(text + '\n[report]\ntemplate = "weekly"\ntitle = "{assignment} · {configuration}"\n\n'
@@ -381,11 +381,11 @@ def study(trees):
 
 def test_a_run_tomls_report_lays_its_own_over_its_template(study):
     plan = report.planned("Demo/study.toml", ["P/validation/01_pdf"])
-    assert [s.title for s in plan.sections] == ["Standings", "Mine"]                        # the template's first
+    assert [s.title for s in plan.sections] == ["Leaderboard", "Mine"]                        # the template's first
     assert plan.title == "P · pdf" and plan.subtitle == "for the group"                  # its keys over the template's
     assert plan.out.parts[-3:] == ("P", "validation", "01_pdf")              # the template's output: a recipe's own
     plain = report.planned("Demo/validation.toml", ["P/validation/01_pdf"])         # no [report]: the default
-    assert [s.title for s in plain.sections] == ["Standings", "Pages: totality"]
+    assert [s.title for s in plain.sections] == ["Leaderboard", "Pages: totality"]
     with pytest.raises(HeimdallError, match="name the folders"):
         report.planned("Demo/study.toml", [])
 
@@ -423,7 +423,7 @@ def test_the_run_writes_its_report_toml_from_the_config(study, trees):
     assert written == where / "report.toml" and "Demo/study.toml's [report] and its template Demo/weekly.toml" in text
     assert 'title = "P · pdf"' in text and "from" not in text.split("\n[report]\n", 1)[1] and "output" not in text
     plan = report.planned("P/validation/01_pdf", [])
-    assert [s.title for s in plan.sections] == ["Standings", "Mine"] and plan.title == "P · pdf"
+    assert [s.title for s in plan.sections] == ["Leaderboard", "Mine"] and plan.title == "P · pdf"
     written = report.write_recipe(config.load("Demo/validation"), where / "plot.toml")      # no [report]: the default
     text = written.read_text(encoding="utf-8")
     assert "the default report (Demo/validation.toml has no [report])" in text
@@ -435,7 +435,7 @@ def test_list_writes_nothing_and_init_writes_a_recipe_once(trees, capsys):
     args = argparse.Namespace(names=["P/validation/01_pdf"], list=True, init=None, output=None)
     assert cli.cmd_report(args) == 0
     said = capsys.readouterr().out
-    assert said.startswith("report P/validation/01_pdf → ") and "1 Standings: statistics of P/validation/01_pdf" in said
+    assert said.startswith("report P/validation/01_pdf → ") and "1 Leaderboard: statistics of P/validation/01_pdf" in said
     assert "2 of 2 point(s), 10M events" in said and not (trees / "reports").exists()
     made = argparse.Namespace(names=["P/weekly.toml"], list=False, init="P/validation/01_pdf", output=None)
     assert cli.cmd_report(made) == 0 and (trees / "configs" / "P" / "weekly.toml").is_file()
@@ -444,7 +444,7 @@ def test_list_writes_nothing_and_init_writes_a_recipe_once(trees, capsys):
     with pytest.raises(HeimdallError, match="name it, <A>/<E>.toml"):
         cli.cmd_report(argparse.Namespace(names=["P/weekly"], list=False, init="P/validation/01_pdf", output=None))
     plan = report.planned("P/weekly.toml", [])
-    assert [s.title for s in plan.sections] == ["Standings", "totality"] and plan.sources[0].address == "P/validation/01_pdf"
+    assert [s.title for s in plan.sections] == ["Leaderboard", "totality"] and plan.sources[0].address == "P/validation/01_pdf"
     assert report.recipes("P") == ["P/weekly.toml"]
     assert "# accent   = \"#2a78d6\"" in (trees / "configs" / "P" / "weekly.toml").read_text(encoding="utf-8")
 
@@ -528,14 +528,14 @@ def test_a_point_without_a_record_is_said_and_an_older_record_read_from_its_card
 def test_the_default_report_begins_with_its_tools_and_tools_chooses_them(trees):
     recorded(trees)
     plan = report.planned("P/validation/01_pdf", [])
-    assert [s.title for s in plan.sections] == ["Tools", "Standings", "Pages: totality"]           # what was run first
+    assert [s.title for s in plan.sections] == ["Tools", "Leaderboard", "Pages: totality"]           # what was run first
     assert [g.tag for g in plan.sections[0].given] == ["pythia", "rivet", "sherpa"]
     assert "  1 Tools: tools of P/validation/01_pdf: pythia (2 point(s), 2 card line(s) alike, 2 varied key(s)), rivet (2 " \
            "point(s), 2 option(s) alike, 1 varied key(s)), sherpa (2 point(s), 3 card line(s) alike, a list of what varied)" \
            in report.listing(plan)
     where = trees / "results" / "P" / "validation" / "01_pdf"
     (where / report.RECIPE).write_text('[report]\ntools = []\n', encoding="utf-8")       # sections the default's
-    assert [s.title for s in report.planned("P/validation/01_pdf", []).sections] == ["Standings", "Pages: totality"]
+    assert [s.title for s in report.planned("P/validation/01_pdf", []).sections] == ["Leaderboard", "Pages: totality"]
     (where / report.RECIPE).write_text('[report]\ntools = ["sh*"]\n', encoding="utf-8")
     assert [g.tag for g in report.planned("P/validation/01_pdf", []).sections[0].given] == ["sherpa"]
     recipe(trees, "bad", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nhide = ["x"]\n')

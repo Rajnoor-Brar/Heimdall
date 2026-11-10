@@ -26,7 +26,7 @@ from pathlib import Path
 from .errors import HeimdallError
 
 #: Commands that are retired stubs: they complete nothing, and are not offered.
-RETIRED = ("stats", "deck")
+RETIRED = ("stats", "deck", "score")
 
 #: What a command's own argv is, where its parser says only "the rest" (`heimdall stack …`).
 REST = {"stack": ("build", "list", "status", "doctor")}
@@ -42,7 +42,7 @@ KINDS = {
     ("tag", "target"): "record", ("diff", "first"): "record", ("diff", "second"): "record_or_run",
     ("migrate", "snapshot"): "record", ("migrate", "plot_docs"): "record", ("migrate", "source"): "errand_file",
     ("plot", "style_sync"): "errand_file",
-    ("score", "target"): "result", ("report", "names"): "recipe", ("report", "init"): "result",
+    ("rank", "target"): "result", ("report", "names"): "recipe", ("report", "init"): "result",
     ("report", "output"): "dir",
     ("records", "scope"): "scope", ("library", "scope"): "scope",
     ("reproduce", "provenance"): "provenance", ("overlay", "files"): "data_file", ("overlay", "style"): "file",
@@ -59,7 +59,7 @@ FREE = {
     ("run", "card"), ("run", "points"), ("run", "worker"), ("run", "sweep_member"), ("run", "set"), ("run", "tag"),
     ("run", "rerun_since"), ("run", "stages"), ("run", "keep"),
     ("plot", "draw_sets"), ("plot", "page_points"), ("plot", "keep"), ("plot", "set"),
-    ("score", "set_name"), ("score", "by"), ("score", "baseline"),
+    ("rank", "set_name"), ("rank", "by"), ("rank", "baseline"),
     ("overlay", "output"), ("overlay", "labels"), ("overlay", "objects"), ("overlay", "formats"),
     ("status", "set"), ("clean", "set"), ("check", "set"), ("migrate", "set"), ("cluster", "points"), ("cluster", "set"),
     ("cluster", "keep"), ("diff", "points"), ("watch", "index"), ("stop", "index"),

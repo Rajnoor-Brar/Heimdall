@@ -229,7 +229,7 @@ Compare figures' names: their pages, from each source's errand's compare/<name>/
 |---|---|---|
 | list of strings | — | — |
 
-The statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): standings (each point's loss, worst page, veto and categories), `category:<name>` (a category's section: what it asks and its metrics), marginals (a table per quantity: the loss of the points having each value), baseline (each point against `[ranking].baseline`), head-to-head (the pages `[ranking].head_to_head` names), or a metric's id (`chi2_sigma`) for its section, `<metric>:ranking`, `:crossed` or `:table` for one of its parts.
+The statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): leaderboard (each point's loss, worst page, veto and categories), `category:<name>` (a category's section: what it asks and its metrics), marginals (a table per quantity: the loss of the points having each value), baseline (each point against `[ranking].baseline`), head-to-head (the pages `[ranking].head_to_head` names), or a metric's id (`chi2_sigma`) for its section, `<metric>:ranking`, `:crossed` or `:table` for one of its parts.
 
 ### `bars`
 

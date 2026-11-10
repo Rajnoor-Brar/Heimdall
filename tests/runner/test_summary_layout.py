@@ -238,10 +238,10 @@ def test_rows_in_curve_order_are_grouped_under_their_cells():
     bands = [r.label for r in table.rows if r.band]
     assert len(bands) == 38 and bands[0] == "NNPDF23lo_lpdfon"
     assert {r.label for r in table.rows if not r.band} == {"lepton QED shower on", "lepton QED shower off"}
-    standings = items["standings"]                                              # ranked within each cell's band
+    standings = items["leaderboard"]                                              # ranked within each cell's band
     labels = [r.label for r in standings.rows if not r.band]
     assert len([r for r in standings.rows if r.band]) == 38 and labels[0].startswith("1. lepton QED shower")
-    assert standings.headers[:3] == ["score", "worst page", "worst"] and "veto" in standings.headers
+    assert standings.headers[:3] == ["loss", "worst page", "worst"] and "veto" in standings.headers
     assert all(c.cells[1].align == "left" for c in standings.rows if not c.band)    # the worst page's name
     one = bars.summary_model([dict(r, cell="") for r in worst_rows() if r["cell"] == "NNPDF23lo_lpdfon"], "", ALL)
     assert not any(r.band for s in one.sections for i in s.items if isinstance(i, paper.Table) for r in i.rows)
@@ -417,24 +417,24 @@ def keys_of(document):
     return {s.key: [i.key for i in s.items] for s in document.sections}
 
 
-def test_the_default_summary_is_the_standings_then_a_section_per_purpose_with_a_metric_on():
+def test_the_default_summary_is_the_leaderboard_then_a_section_per_category_with_a_metric_on():
     document = bars.summary_model(worst_rows(), "", ranking.settings_of())
     keys = keys_of(document)
-    assert list(keys) == ["standings", "category-compatibility", "category-normalisation", "category-accuracy", "category-trend",
+    assert list(keys) == ["leaderboard", "category-compatibility", "category-normalisation", "category-accuracy", "category-trend",
                           "category-defects"]                                  # the five defaults; no similarity, no quality
-    assert keys["standings"] == ["standings", "categories"]
+    assert keys["leaderboard"] == ["leaderboard", "categories"]
     assert keys["category-trend"] == ["category-trend-ranking", "tilt-ranking", "tilt-crossed", "tilt"]
-    standings = next(i for s in document.sections for i in s.items if i.key == "standings")
+    standings = next(i for s in document.sections for i in s.items if i.key == "leaderboard")
     assert "veto" not in standings.headers and "dominated" not in standings.headers
     assert not any(s.key == "head-to-head" for s in document.sections)         # only when asked
 
 
-def test_the_standings_are_the_engines_scores_and_veto_and_dominated_columns_follow_the_settings():
+def test_the_leaderboard_is_the_engines_losses_and_veto_and_dominated_columns_follow_the_settings():
     st = ranking.settings_of({"veto_loss": 0.5, "dominated": True})
     rows = worst_rows()
     document = bars.summary_model(rows, "", st)
-    standings = next(i for s in document.sections for i in s.items if i.key == "standings")
-    assert standings.headers[:4] == ["score", "worst page", "worst", "veto"] and standings.headers[-1] == "dominated"
+    standings = next(i for s in document.sections for i in s.items if i.key == "leaderboard")
+    assert standings.headers[:4] == ["loss", "worst page", "worst", "veto"] and standings.headers[-1] == "dominated"
     scored = {p.point: p for p in ranking.score(rows, st).points}
     first = next(r for r in standings.rows if not r.band)
     best = min((p for p in scored.values() if p.cell == "NNPDF23lo_lpdfon"), key=lambda p: p.loss)
@@ -450,7 +450,7 @@ def test_a_purposes_section_says_what_it_asks_and_each_metric_what_it_is_and_how
     assert document.notes["stat-chi2_ndf"] == metrics.describe("chi2_ndf")
     assert "Scored from 0.1 (cost 0) to 0.5 (cost 1)" in document.notes["stat-log_yield_ratio"]    # the setting's thresholds, not the registry's
     ranked = next(i for s in document.sections for i in s.items if i.key == "category-accuracy-ranking")
-    assert {"category-accuracy", "score"} <= set(ranked.notes)
+    assert {"category-accuracy", "loss"} <= set(ranked.notes)
 
 
 def test_a_head_to_head_is_played_for_the_pages_asked_and_counts_no_wins():
@@ -498,7 +498,7 @@ def test_a_curve_with_an_infinite_number_is_drawn_not_a_crash(scratch):
     made = bars.summary_of(rows, scratch / "inf" / "summary", ["png"], "inf", st)
     assert made
     document = bars.summary_model(rows, "", st)
-    standings = next(i for s in document.sections for i in s.items if i.key == "standings")
+    standings = next(i for s in document.sections for i in s.items if i.key == "leaderboard")
     assert "∞" in [c.text for r in standings.rows for c in r.cells]
     match = next(s for s in document.sections if s.key == "head-to-head").items[0]
     assert match.rows[0].cells[1].text == "+∞" and match.rows[1].cells[0].text == "−∞"
@@ -519,10 +519,10 @@ def test_marginals_and_a_baseline_are_sections_when_the_points_axes_are_known():
     assert keys["marginals"] == ["marginal-pdf", "marginal-lepton", "marginal-shower"] and keys["baseline"] == ["baseline"]
     assert list(keys)[-2:] == ["marginals", "baseline"]
     pdf = next(i for s in document.sections for i in s.items if i.key == "marginal-pdf")
-    assert pdf.headers[:2] == ["score", "points"] and len([r for r in pdf.rows]) == len(PDFS)
+    assert pdf.headers[:2] == ["loss", "points"] and len([r for r in pdf.rows]) == len(PDFS)
     assert {r.cells[1].text for r in pdf.rows} == {"4"}                          # lepton × shower: four points a PDF
     base = next(i for s in document.sections for i in s.items if i.key == "baseline")
-    assert base.headers[:3] == ["score", "baseline", "Δscore"] and len(base.headers) == 3 + 12
+    assert base.headers[:3] == ["loss", "baseline", "Δloss"] and len(base.headers) == 3 + 12
     assert sum(1 for r in base.rows if not r.band and r.label.endswith("(baseline)")) == 38     # the "on" points are their own
     assert "marginals" in document.notes and "baseline" in document.notes
     none = bars.summary_model(rows, "", st, {})

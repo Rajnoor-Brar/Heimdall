@@ -1,4 +1,4 @@
-"""`heimdall score`: standings, marginals and baselines read from a statistics.csv with no page drawn, a row a Run for an
+"""`heimdall rank`: the leaderboard, marginals and baselines read from a statistics.csv with no page drawn, a row a Run for an
 Errand; `heimdall stats` retired for `heimdall plot --stats-only`. The tables are written by hand, so each number is
 checked against the engine's own."""
 
@@ -60,7 +60,7 @@ def sweep_rows():
     return [reference(), *(row(p, v) for p, v in losses.items())]
 
 
-def test_a_run_prints_its_standings_best_first(results, capsys):
+def test_a_run_prints_its_leaderboard_best_first(results, capsys):
     make_run(results, "A/E/R1", sweep_rows(), serial=3, axes=AXES)
     assert rankcmd.run(args("A/E/R1")) == 0
     out = capsys.readouterr().out
@@ -75,23 +75,25 @@ def test_json_carries_the_same_numbers_and_the_baseline(results, capsys):
     make_run(results, "A/E/R1", sweep_rows(), axes=AXES)
     assert rankcmd.run(args("A/E/R1", json=True, baseline="generator=py8")) == 0
     data = json.loads(capsys.readouterr().out)["tables"][0]
-    scores = {s["point"]: s["score"] for s in data["standings"]}
-    assert scores["py8_a"] < scores["py8_b"] < scores["hw7_a"] < scores["hw7_b"]
-    marginal = {m["axis"]: {v["value"]: v for v in m["values"]} for m in data["marginals"]}
-    assert marginal["generator"]["py8"]["points"] == 2 and marginal["generator"]["py8"]["score"] < marginal["generator"]["hw7"]["score"]
+    losses = {s["point"]: s["loss"] for s in data["leaderboard"]}
+    assert losses["py8_a"] < losses["py8_b"] < losses["hw7_a"] < losses["hw7_b"]
+    assert [s["rank"] for s in data["leaderboard"]] == [1, 2, 3, 4] and all(s["vetoed"] is False for s in data["leaderboard"])
+    assert not {"standings", "place", "score", "veto", "axis"} & {*data, *data["leaderboard"][0], *data["marginals"][0]}
+    marginal = {m["quantity"]: {v["value"]: v for v in m["values"]} for m in data["marginals"]}
+    assert marginal["generator"]["py8"]["points"] == 2 and marginal["generator"]["py8"]["loss"] < marginal["generator"]["hw7"]["loss"]
     deltas = {r["point"]: r for r in data["baseline"]["rows"]}
-    assert deltas["hw7_a"]["partner"] == "py8_a" and deltas["hw7_a"]["delta"] == pytest.approx(scores["hw7_a"] - scores["py8_a"])
+    assert deltas["hw7_a"]["partner"] == "py8_a" and deltas["hw7_a"]["delta"] == pytest.approx(losses["hw7_a"] - losses["py8_a"])
     assert data["baseline"]["filter"] == {"generator": "py8"}
 
 
-def test_a_filter_is_axis_tag_pairs_or_a_point_name():
+def test_a_filter_is_quantity_value_pairs_or_a_point_name():
     assert rankcmd.parse_filter("generator=py8, pdf=a") == {"generator": "py8", "pdf": "a"}
     assert rankcmd.parse_filter(" py8_a ") == "py8_a"
-    with pytest.raises(HeimdallError, match="not axis=tag"):
+    with pytest.raises(HeimdallError, match="not quantity=value"):
         rankcmd.parse_filter("generator=py8,pdf")
 
 
-def test_a_table_without_axes_says_so_when_marginals_were_asked(results, capsys):
+def test_a_table_without_values_says_so_when_marginals_were_asked(results, capsys):
     make_run(results, "A/E/R1", sweep_rows())
     assert rankcmd.run(args("A/E/R1", by="generator")) == 0
     out = capsys.readouterr().out
@@ -106,10 +108,10 @@ def test_an_errand_prints_a_row_a_run_over_the_pages_they_share(results, capsys)
     assert rankcmd.run(args("A/E", json=True)) == 0
     runs = {r["serial"]: r for r in json.loads(capsys.readouterr().out)["runs"]}
     assert set(runs) == {"1", "2"} and runs["1"]["pages"] == runs["2"]["pages"] == 1
-    assert runs["1"]["score"] < runs["2"]["score"] and runs["2"]["best"] == "x" and runs["1"]["points"] == 1
+    assert runs["1"]["loss"] < runs["2"]["loss"] and runs["2"]["best"] == "x" and runs["1"]["points"] == 1
     assert rankcmd.run(args("A/E")) == 0
     text = capsys.readouterr().out
-    assert "each Run's score over the 1 page(s) its Runs share" in text and "A/E/R1" in text and "A/E/R2" in text
+    assert "each Run's loss over the 1 page(s) its Runs share" in text and "A/E/R1" in text and "A/E/R2" in text
 
 
 def test_the_set_option_picks_a_set_and_a_missing_one_is_refused(results):
@@ -145,15 +147,19 @@ def test_an_infinite_loss_prints_as_infinity_not_a_crash(results, capsys):
     assert "∞" in capsys.readouterr().out
 
 
-def test_the_parser_takes_score_and_plot_stats_only_and_stats_is_retired():
+def test_the_parser_takes_rank_and_plot_stats_only_and_stats_and_score_are_retired():
     p = cli.parser()
-    got = p.parse_args(["score", "A/E", "--set", "totality", "--by", "generator", "--baseline", "pdf=a", "--json", "--across"])
+    got = p.parse_args(["rank", "A/E", "--set", "totality", "--by", "generator", "--baseline", "pdf=a", "--json", "--across"])
     assert (got.target, got.set_name, got.by, got.baseline, got.json, got.across) == ("A/E", "totality", "generator", "pdf=a", True, True)
     assert p.parse_args(["plot", "A/E/R1", "--stats-only"]).stats_only is True
     old = p.parse_args(["stats", "A/E/R1", "--sets", "totality"])
     with pytest.raises(HeimdallError, match="heimdall plot RUN --stats-only") as caught:
         cli.cmd_stats_retired(old)
-    assert "heimdall score" in str(caught.value)
+    assert "heimdall rank" in str(caught.value)
+    old = p.parse_args(["score", "A/E/R1", "--by", "generator", "--json"])
+    with pytest.raises(HeimdallError, match="renamed: heimdall score is heimdall rank"):
+        cli.cmd_score_retired(old)
+    assert cli.main(["score", "A/E/R1"]) != 0
 
 
 def test_stats_only_will_not_mix_with_plan_or_style_sync():

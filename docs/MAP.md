@@ -50,11 +50,11 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 - [plots-data](stable/guide/plots-data.md): reference data on pages, why the map is explicit, and ratio pads (1 KB)
 - [plots-figures](stable/guide/plots-figures.md): figure classes and what each builds, types, and how a figure inherits [plot] (5 KB)
 - [plots-sets](stable/guide/plots-sets.md): pages of chosen points: the totality set, named sets with page axes and curve groups, looks, short forms, split (7 KB)
-- [plots-statistics](stable/guide/plots-statistics.md): the numbers behind each page: statistics.csv's columns and sidecar, [stats], [score], the summary and how points are scored (9 KB) ⟵ live: live-grand-ranking
+- [plots-statistics](stable/guide/plots-statistics.md): the numbers behind each page: statistics.csv's columns and sidecar, [stats], [score], the summary and how points are scored (9 KB) ⟵ live: live-grand-ranking-choices, live-grand-ranking
 - [plots-style](stable/guide/plots-style.md): how a page's look is layered, a style file, legends outside the frame, and seeing the merged style (2 KB)
 - [plots](stable/guide/plots.md): how a run's pages get made, and how to get the ones you want; objects, figures, pages and sets (8 KB)
 - [programs](stable/guide/programs.md): your own programs in a chain: a module, an integrated program, an exec tool, a tool folder of your own (4 KB)
-- [reports](stable/guide/reports.md): heimdall report: an A4 report of Runs' pages and numbers; recipes, sections, what it draws for itself, where it is built (7 KB) ⟵ live: live-grand-ranking
+- [reports](stable/guide/reports.md): heimdall report: an A4 report of Runs' pages and numbers; recipes, sections, what it draws for itself, where it is built (7 KB) ⟵ live: live-grand-ranking-choices, live-grand-ranking
 - [results-python](stable/guide/results-python.md): reading a run's results from Python, for notebooks and statistics tools (1 KB)
 - [scale](stable/guide/scale.md): making a study bigger: more Rivets, several points at once, replicas and combine, seeds, several event counts, Slurm (6 KB)
 - [sweeps](stable/guide/sweeps.md): recipes for varying things: grids, zips, fixed values, native keys, analysis options, several configurations, listed points (4 KB)
@@ -138,5 +138,6 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 - [live-adopted-runs](live/adopted-runs.md): an adopted Run reads, numbers and draws as before (its points library points by their links, its plot document re-keyed); migrate --layout leaves statistics/ alone (3 KB)
 - [live-canonical-cards](live/canonical-cards.md): every tool with a card reads a final config with no comments, and the identity hashes it, so one physics is one identity whatever the writing (9 KB)
+- [live-grand-ranking-choices](live/grand-ranking-choices.md): the Grand Ranking's smaller rules, chosen while building it: rank's JSON and terminal, migrate's reach, edge values, the summary's layout (4 KB)
 - [live-grand-ranking](live/grand-ranking.md): points ranked by a loss; compressed costs, eleven curated metrics, opt-in gates, matched marginals; every table says how its numbers were made (12 KB)
 - [live-runs-ends](live/runs-ends.md): heimdall runs shows when and how each run ended in its state's colour, orders a history list by its runs' ends, and gives every state a colour (2 KB)

@@ -24,9 +24,49 @@ The implementer made these under the developer's word for the session ("make dec
 - **Left for the developer to delete:** the remake's `.format1` copies in work dir 1, and the snapshot `~/heimdall-baselines/pre-remake-20261110/`.
 - **`test_prune_removes_what_no_run_links_and_verify_reports_what_is_wrong`** now breaks an entry it names: it took the first its glob listed, which the new keys made the entry it also deletes.
 
+### The Grand Ranking's off-plan decisions (2026-11-11)
+The implementer made these alone; the plan's own decisions were the developer's at two gates (2026-11-10, 2026-11-11). Each is stated in [live-grand-ranking-choices](../docs/live/grand-ranking-choices.md) as V287–V298; the full list, with step and why, is in git at the close's parent (`.plans/implementation/Implementation_Notes.md`).
+- **`rank --json`** writes a missing number as null, `loss` wherever it said `score`, a vetoed point's rank null (V287).
+- **A terminal that is not UTF-8** gets ASCII forms of every sign `rank` prints (V288).
+- **`migrate`** rewrites `heimdall score` in a comment only, a section's `stats` under `[[report.section]]` only, and every form of `[score]` (V290).
+- **Edge values:** `peak_bin_ratio` NaN with no yield; a `one` metric's thresholds on |log₁₀ m|; α = 0 trims nothing (V291).
+- **A set without measured bins** has no leaderboard now that `chi2_ndf` is not a default (V292).
+- **A figure weight's source** is `figure`, named by its page, not by the figure (V293): naming the figure needs `page_weights` to carry it, a shape change left to you.
+- **Marginal headlines** and "indistinguishable" at ≤ 2 SE (V294); **the summary's front order and "Made by"** (V295); **the leaderboard's columns** and "Metric values" (V296).
+- **`--head-to-head`** on `plot` and `report` kept in the sidecar with its source (V297).
+- **`yield_sign`'s thresholds (0, 1)** (V298), and the integrity metrics compressed like any (the second gate).
+- **`migrate` rewrites `configs/` only**, never a record, unlike earlier renames (V282): gate answer 1, narrowed.
+
 - **A real study's config fails `heimdall check`.** Its `[plot].sets[4].curves[1].pdf` names a PDF that its `[quantities.pdf]` does not enable (seen 2026-11-08). It is the study's file, so Heimdall does not change it.
 
 ## Rounds
+
+### Grand Ranking, 2026-11-10 to 11: gates, curated metrics, matched marginals, the record (I-151)
+- **Source and plan:** I-151, the design plan `grand-ranking` (an audit of four real Runs, B1–B4), approved 2026-11-10; the implementation round's second gate at its milestone, 2026-11-11 (the veto optional; phase 7 into scratch; the close after a review). The plans, logs, ledger and probes are in git at the close's parent (`.plans/plans/grand-ranking/`, `.plans/implementation/`).
+- **Built** (`4d225a3..` the close, local, not pushed):
+  - the renames (`[score]` → `[ranking]`, `heimdall rank`, loss, category, metric ids, polarity), refused in a user's file, read in a record, rewritten by `migrate`;
+  - opt-in integrity gates, and the integrity metrics scored by default;
+  - compressed costs, eleven curated defaults, figure weights in the loss;
+  - matched, trimmed marginals with a paired test;
+  - the method record, rendered as "Made by" under every table, at the summary's front, in the report and in `rank` (`--method`, `--json`);
+  - a test that no setting moves a number the record does not name;
+  - the live docs `live-grand-ranking` (V276–V286) and `live-grand-ranking-choices` (V287–V298).
+- **Benchmarks** (phase 7, read from the work dir, written to `~/Himinbjorg/forge/scratch/grand-ranking/`, the work dir's Runs unchanged):
+  - **Defaults:** every pathological point ranks last by its loss, with none vetoed.
+  - **Gates on:** 12, 6, 1 and 0 vetoed.
+  - **Shares:** the largest category share is 31–42 %.
+  - **Agreement:** B4 against 05's "today" has Spearman 0.961, and the engine matches the hand computation to 2e-15.
+  - **Against each Run's old summary:** Spearman 0.894 (B1), 0.685 (B2), 0.853 (B3), 0.628 (B4). B4's old table had no measured bins.
+  - **One item fails under the defaults:** B1's dr32 is not distinguishable (I-157).
+- **Suites at the review** (`173ba4e`): fast 2315 passed, 11 skipped; full 2496 passed, 11 skipped, 2 xfailed, in 47 min. Each run's only failures were the two stable-docs reds (I-152). The developer's Sherpa jobs kept the load at 32–34 throughout. After the fixes: fast 2320 passed; `test_plot_stage` 53, `test_report_draw` 2.
+- **The review** (stage 4, by an agent that did not implement, on the developer's choice): five proven defects, each fixed with a test that fails on the old code:
+  - `rank --json` crashed on any NaN (high);
+  - `rank` crashed on an ASCII terminal; its test faked the stream (medium);
+  - the record said "no gate is applied" above `veto_loss`'s vetoes (low);
+  - `migrate` missed three forms of `[score]` its refusal sends to it (low);
+  - a test cited a plan id (low).
+
+  One more item is for a decision (I-158). **Verdict:** sound after the fixes.
 
 ### Canonical cards, 2026-11-10: final configs and the identity that hashes them (I-149)
 - **Source and plan:** I-149, planned as `canonical-cards` and gated on 2026-11-09; the plan, its logs and the one-off are in git at `7c1a205` (`.plans/plans/canonical-cards/`).

@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from stats.table import (COUNTS, FORMAT, SIDECAR, STATISTIC_COLUMNS, TEXT, columns_for, default_metrics, format_of,  # noqa: F401 (re-exported)
-                         read, sidecar, statistics_of, write_statistics)
+                         read, sidecar, statistics_of, upgraded, write_statistics)
 
 from . import plugins
 from .paths import heimdall_root, results_root

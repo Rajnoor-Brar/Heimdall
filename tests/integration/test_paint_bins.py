@@ -78,7 +78,7 @@ def test_python_sums_of_the_measured_bins_are_paints_totals(stage):
 
 @pytest.mark.slow
 def test_the_old_columns_from_the_bins_are_statstables_on_every_fixture_curve(stage):
-    """metrics.REGISTRY's rel_abs_area, area_ratio, ratio_mean, ratio_dev and chi2_ndf, from `measured`, equal
+    """metrics.REGISTRY's yield_weighted_abs_dev, yield_ratio, mean_bin_ratio, mean_abs_ratio_dev and chi2_ndf, from `measured`, equal
     statstable.statistics_of (Paint's totals) to the totals' precision."""
     from runner import statstable
     from stats import bins, metrics
@@ -92,7 +92,7 @@ def test_the_old_columns_from_the_bins_are_statstables_on_every_fixture_curve(st
             continue
         made = json.loads(Path(f"{page.config}.stats.json").read_text(encoding="utf-8"))
         for row, curve in zip(rows, bins.curves(made, bool(page.document["page"]["logx"]))):
-            for name in ("rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "chi2_ndf"):
+            for name in ("yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev", "chi2_ndf"):
                 mine, theirs = metrics.REGISTRY[name](curve), row[name]
                 assert (math.isnan(mine) and math.isnan(theirs)) or close(mine, theirs), (page.name, row["curve"], name, mine, theirs)
                 compared += 1

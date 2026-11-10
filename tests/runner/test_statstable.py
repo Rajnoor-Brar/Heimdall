@@ -93,10 +93,11 @@ def test_the_sidecar_says_what_the_columns_are(tmp_path):
     target = tmp_path / "statistics.csv"
     statstable.write_statistics([page], target)
     side = json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8"))
-    assert side["format"] == 2 == statstable.FORMAT and statstable.format_of(target) == 2
+    assert side["format"] == 3 == statstable.FORMAT and statstable.format_of(target) == 3
     assert side["columns"] == list(statstable.read(target)[0])
     assert set(side["metrics"]) == {"chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev"}   # the old columns that are metrics too
     norm = side["metrics"]["log_yield_ratio"]
+    assert norm["polarity"] == "lower" and norm["phrase"] == "lower is better" and norm["scale"] == "linear"
     assert norm["purpose"] == "normalisation" and norm["thresholds"] == [0.02, 0.15] and norm["default"] and norm["note"]
 
 
@@ -170,3 +171,31 @@ def test_a_table_of_runs_together_has_a_run_column_after_point_and_no_other_tabl
     assert [(r["point"], r["run"]) for r in rows] == [("p1", "03·nlo"), ("p2", "04·pdfs")]
     columns = table.sidecar(across)["columns"]
     assert columns[columns.index("point") + 1] == "run" and list(rows[0]) == columns[:len(rows[0])]
+
+
+def test_a_format_2_table_reads_with_every_metric_under_its_id_now_and_no_value_changed(tmp_path):
+    """A csv and sidecar as format 2 wrote them, with the old ids: the rows carry the new ids, the sidecar says format 3's
+    keys, and every number is the one written."""
+    target = tmp_path / "statistics.csv"
+    old = ["page", "cell", "object", "curve", "point", "reference", "is_reference", "bins", "area", "rel_abs_area",
+           "area_ratio", "ratio_dev", "chi2_ndf", "norm", "shape", "worst", "lambda"]
+    values = ["p", "c", "/A/b", "x", "x", "data", "False", "9", "2.5", "0.1", "1.2", "0.3", "1.5", "0.02", "0.04", "8.0", "0.7"]
+    target.write_text(",".join(old) + "\n" + ",".join(values) + "\n", encoding="utf-8")
+    side = {"format": 2, "columns": old,
+            "metrics": {"norm": {"purpose": "normalisation", "better": "lower", "thresholds": [0.02, 0.15]},
+                        "lambda": {"purpose": "quality", "better": "none", "thresholds": None}},
+            "score": {"metrics": {"norm": 2.0, "shape": 1.0}, "thresholds": {"worst": [5, 20]}, "normalise": "thresholds"},
+            "axes": {"x": {"pdf": "A"}}}
+    (tmp_path / "statistics.json").write_text(json.dumps(side), encoding="utf-8")
+    (row,) = statstable.read(target)
+    assert list(row)[9:] == ["yield_weighted_abs_dev", "yield_ratio", "mean_abs_ratio_dev", "chi2_ndf", "log_yield_ratio",
+                             "log_dev_shrunk", "peak_pull2", "tail_slope"]
+    assert [row[k] for k in list(row)[8:]] == [2.5, 0.1, 1.2, 0.3, 1.5, 0.02, 0.04, 8.0, 0.7]
+    read = statstable.sidecar(target)
+    assert read["format"] == 3 and statstable.format_of(target) == 2               # the file's own format, as written
+    assert read["columns"] == list(row)
+    assert read["metrics"]["log_yield_ratio"] == {"purpose": "normalisation", "polarity": "lower", "thresholds": [0.02, 0.15]}
+    assert read["metrics"]["tail_slope"]["polarity"] == "descriptor"
+    assert read["score"]["metrics"] == {"log_yield_ratio": 2.0, "log_dev_shrunk": 1.0}
+    assert read["score"]["thresholds"] == {"peak_pull2": [5, 20]} and read["score"]["normalise"] == "thresholds"
+    assert json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8")) == side          # never written back

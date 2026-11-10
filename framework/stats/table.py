@@ -16,7 +16,7 @@ import json
 import math
 from pathlib import Path
 
-FORMAT = 2
+FORMAT = 3
 STATISTIC_COLUMNS = ("page", "cell", "object", "curve", "point", "reference", "is_reference", "bins", "area", "area_err",
                      "ref_area", "cmp_area", "abs_area", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio",
                      "mean_abs_ratio_dev", "chi2", "ndf",
@@ -99,8 +99,9 @@ def sidecar_of(names, score: dict | None = None, axes: dict | None = None, merge
     from . import metrics
     columns = columns_for(names, run)
     out = {"format": FORMAT, "columns": columns,
-           "metrics": {n: {"purpose": m.purpose, "better": "none" if m.polarity == "descriptor" else m.polarity, "thresholds": list(m.thresholds) if m.thresholds else None,
-                           "default": m.default, "note": m.note, "why": m.why}
+           "metrics": {n: {"purpose": m.purpose, "polarity": m.polarity, "phrase": metrics.PHRASE[m.polarity], "scale": m.scale,
+                           "thresholds": list(m.thresholds) if m.thresholds else None, "default": m.default, "note": m.note,
+                           "why": m.why}
                        for n in columns if (m := metrics.REGISTRY.get(n))}}
     if score:
         out["score"] = score
@@ -130,21 +131,58 @@ def write_statistics(todo: list, target: Path, names=None, score: dict | None = 
     return len(rows)
 
 
-def sidecar(path: Path) -> dict | None:
-    """The statistics.json beside a csv, or None (a csv from before format 2)."""
+def _raw(path: Path) -> dict | None:
     side = Path(path).with_name(SIDECAR)
     return json.loads(side.read_text(encoding="utf-8")) if side.is_file() else None
 
 
+def upgraded(side: dict) -> dict:
+    """A sidecar of format 1, 2 or 3 as format 3 says it, never written back: each metric under its id now, a metric's
+    `better` as `polarity` (`none` a `descriptor`). A key format 3 has and the file lacks stays absent."""
+    from . import metrics
+    out = dict(side)
+    out["format"] = FORMAT
+    if "columns" in out:
+        out["columns"] = [metrics.resolve(c) for c in out["columns"]]
+    if "metrics" in out:
+        named = {}
+        for name, entry in out["metrics"].items():
+            entry = dict(entry)
+            if "better" in entry:
+                better = entry.pop("better")
+                entry.setdefault("polarity", "descriptor" if better == "none" else better)
+            named[metrics.resolve(name)] = entry
+        out["metrics"] = named
+    if isinstance(out.get("score"), dict):
+        score = dict(out["score"])
+        given = score.get("metrics")
+        if isinstance(given, dict):
+            score["metrics"] = {metrics.resolve(n): w for n, w in given.items()}
+        elif isinstance(given, list):
+            score["metrics"] = [metrics.resolve(n) for n in given]
+        if isinstance(score.get("thresholds"), dict):
+            score["thresholds"] = {metrics.resolve(n): v for n, v in score["thresholds"].items()}
+        out["score"] = score
+    return out
+
+
+def sidecar(path: Path) -> dict | None:
+    """The statistics.json beside a csv, `upgraded` to format 3; None for a csv from before format 2."""
+    side = _raw(path)
+    return upgraded(side) if side is not None else None
+
+
 def format_of(path: Path) -> int:
-    """1 for a csv with no sidecar, else the sidecar's format."""
-    side = sidecar(path)
+    """1 for a csv with no sidecar, else the format its sidecar was written in."""
+    side = _raw(path)
     return int(side.get("format", 1)) if side else 1
 
 
 def read(path: Path) -> list[dict]:
     """A statistics.csv's rows, typed as statistics_of gives them: text as str, is_reference a bool, bins and
-    ndf ints, every other number (the metrics too) a float ("" is NaN). A format 1 csv has only the old columns."""
+    ndf ints, every other number (the metrics too) a float ("" is NaN). A format 1 csv has only the old columns; a column
+    named by a metric's former id is read under its id now."""
+    from . import metrics
     def value(key: str, text: str):
         if key in TEXT:
             return text
@@ -158,4 +196,4 @@ def read(path: Path) -> list[dict]:
             return math.nan
 
     with open(path, encoding="utf-8", newline="") as handle:
-        return [{k: value(k, v) for k, v in row.items()} for row in csv.DictReader(handle)]
+        return [{metrics.resolve(k): value(k, v) for k, v in row.items()} for row in csv.DictReader(handle)]

@@ -592,12 +592,13 @@ def test_statistics_are_a_table_and_a_legend_may_show_them(stage):
     d01 = [r for r in rows if r["page"] == "em/d01-x01-y01"]
     assert [r["point"] for r in d01] == ["em_MSTW08lo", "em_NNPDF23lo"] and all(r["reference"] == "legacy" for r in d01)
     assert all(int(r["ndf"]) > 0 and float(r["chi2"]) > 0 and float(r["ref_area"]) > 0 for r in d01)
-    assert all(abs(float(r["rel_abs_area"]) - float(r["abs_area"]) / float(r["ref_area"])) < 1e-9 for r in d01)
-    assert all(abs(float(r["area_ratio"]) - float(r["cmp_area"]) / float(r["ref_area"])) < 1e-9 for r in d01)   # V175
-    assert all(0 < float(r["ratio_dev"]) < 10 and abs(float(r["ratio_mean"]) - 1) <= float(r["ratio_dev"]) + 1e-12 for r in d01)
+    assert all(abs(float(r["yield_weighted_abs_dev"]) - float(r["abs_area"]) / float(r["ref_area"])) < 1e-9 for r in d01)
+    assert all(abs(float(r["yield_ratio"]) - float(r["cmp_area"]) / float(r["ref_area"])) < 1e-9 for r in d01)   # V175
+    assert all(0 < float(r["mean_abs_ratio_dev"]) < 10 and abs(float(r["mean_bin_ratio"]) - 1) <= float(r["mean_abs_ratio_dev"]) + 1e-12
+               for r in d01)
     d02 = [r for r in rows if r["page"] == "em/d02-x01-y01"]
     assert [r["is_reference"] for r in d02] == ["True", "False"] and float(d02[0]["chi2"]) == 0
-    assert float(d02[0]["area_ratio"]) == float(d02[0]["ratio_mean"]) == 1 and float(d02[0]["ratio_dev"]) == 0   # itself
+    assert float(d02[0]["yield_ratio"]) == float(d02[0]["mean_bin_ratio"]) == 1 and float(d02[0]["mean_abs_ratio_dev"]) == 0   # itself
     assert d01[0]["curve"] == "MSTW 2008 LO"                                   # the table's labels are plain
     bars = table.parent                                                          # V162: the table as bar graphs
     assert (bars / "bars" / "em" / "d01-x01-y01.png").is_file()
@@ -861,7 +862,8 @@ def test_the_summary_is_scored_by_purpose(stage):
     from runner import plugins
     from stats import metrics, score
     errand, configuration, plans = stage
-    names = ["chi2_ndf", "norm", "shape", "tilt", "worst", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev"]
+    names = ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "yield_weighted_abs_dev", "yield_ratio",
+             "mean_bin_ratio", "mean_abs_ratio_dev"]
     scored = {"metrics": names, "veto": 5.0, "head_to_head": "em/d01-x01-y01"}
     shown = replace(errand, score=scored, plot={**errand.plot, "formats": ["pdf", "png"]})
     assert plot.draw(shown, configuration, plans, lambda line: None) == 0
@@ -877,7 +879,7 @@ def test_the_summary_is_scored_by_purpose(stage):
     bars = plugins.load(plot.heimdall_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
     st = score.settings_of(scored)
     rows = [r for page in plot.pages(shown, configuration, plans) for r in (statstable.statistics_of(page, names) or [])]
-    assert any(math.isfinite(r["worst"]) for r in rows)                          # Paint measured the bins they come from
+    assert any(math.isfinite(r["peak_pull2"]) for r in rows)                          # Paint measured the bins they come from
     document = bars.summary_model(rows, statstable.heading_of(numbers), st)
     assert len(bars.paper.pages(document)) == count
     assert document.heading.endswith(" · totality")
@@ -922,7 +924,7 @@ def test_the_summary_is_scored_by_purpose(stage):
         assert first.cells[0].text == bars._shown(mine[0].score) and first.label.startswith("1. ")
     for key in names:
         ranking = items[f"{key}-ranking"]
-        ratio = key in ("area_ratio", "ratio_mean")
+        ratio = key in ("yield_ratio", "mean_bin_ratio")
         have = {r["point"] for r in rows if not r["is_reference"] and math.isfinite(r[key])}
         assert len(ranking.values) == len(have) >= 2                            # a point with no number is left out
         assert ranking.values == sorted(ranking.values, key=lambda m: abs(math.log10(m)) if ratio else m)

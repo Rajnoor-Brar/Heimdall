@@ -632,7 +632,7 @@ Where a bin sits in x for tilt and roughness: its middle, or the centre of gravi
 
 # `[ranking]`
 
-[`metrics`](#metrics-1) · [`cost`](#cost) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`over_pages`](#over_pages) · [`by`](#by) · [`baseline`](#baseline) · [`veto_loss`](#veto_loss) · [`gates`](#gates) · [`aggregate`](#aggregate) · [`dominated`](#dominated) · [`head_to_head`](#head_to_head)
+[`metrics`](#metrics-1) · [`cost`](#cost) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`over_pages`](#over_pages) · [`by`](#by) · [`baseline`](#baseline) · [`veto_loss`](#veto_loss) · [`gates`](#gates) · [`aggregate`](#aggregate) · [`trim`](#trim) · [`dominated`](#dominated) · [`head_to_head`](#head_to_head)
 
 ## `metrics`
 
@@ -721,6 +721,14 @@ The integrity gates: true (every gate metric: peak_bin_ratio, yield_sign), false
 | string | `"rms"` | `"rms"`, `"fisher"`, `"topsis"`, `"promethee"` |
 
 How metrics and pages combine: RMS over categories (default), or Fisher's combined probability, TOPSIS, PROMETHEE.
+
+## `trim`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| number | `0.2` | at least 0 |
+
+A marginal's trim α: ⌊α n⌋ values off each end of its trimmed means, at least one at n ≥ 3 (under 0.5)
 
 ## `dominated`
 

@@ -168,7 +168,7 @@ Frontier: one step at a time, in the table's order. Nothing runs in parallel: ev
 | 1 | done 2026-11-10 (1.1–1.7, `f0a3f5d`…): every name of T1–T4 in place, the old ones refused in a user's file and read in a record, `heimdall migrate` rewrites them; no number changed. Fast suite green but for the two stable-docs reds of Implementation_Issues |
 | 2 | done 2026-11-10 (2.1 `cf9f6c0`, 2.2 `31f1575`): the gate metrics in every new table; `ranking.rank` the one entry, a vetoed point after every passing one, the Gates and Order stages of the record. Fast suite 2375 passed, 11 skipped, the two stable-docs reds |
 | 3 | done 2026-11-10 (3.1 `bde11f5`, 3.2 `66efbc4`, 3.3): costs hinged and compressed, the nine defaults, a figure's weight in the loss, one ranking a set recorded in its sidecar. Fast suite 2388 passed, 11 skipped, the two stable-docs reds; plot_stage 53 passed |
-| 4 | in progress |
-| 5 | not started |
+| 4 | done 2026-11-10 (4.1 `ee9dc32`, 4.2): `trimmed_se`; marginals gated, matched and trimmed, ordered by the effect, with the paired test and a headline. Fast suite 2403 passed, 11 skipped, the two stable-docs reds |
+| 5 | in progress |
 | 6 | not started |
 | 7 ⏸ | not started |

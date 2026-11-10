@@ -1,6 +1,6 @@
 # Phase 4: quantity marginals
 
-Status: in progress (4.1). Blocked by: phase 3. Source: [03 §2](../plans/grand-ranking/03_Math.md), all of it. Names in code: [Tables](Tables.md) T6, T7.
+Status: done (4.1, 4.2). Blocked by: phase 3. Source: [03 §2](../plans/grand-ranking/03_Math.md), all of it. Names in code: [Tables](Tables.md) T6, T7.
 
 **Today:** a marginal is `over_pages` (RMS) of a slice's losses, sorted by it (`ranking.marginals`, was `score.py:473–497`); it is not gated, trimmed or matched. `_confounded` (was :456) writes the confounding sentences.
 
@@ -38,3 +38,8 @@ Status: in progress (4.1). Blocked by: phase 3. Source: [03 §2](../plans/grand-
   - Fails first: `AttributeError: module 'stats.means' has no attribute 'trimmed_se'`.
   - Tests: α = 0 is the mean and s/√n; n = 5, α = 0.4 is the median (g = 2, no SE); ten values at α = 0.2 by hand (6.4/6, √(2.84/9)/(0.6√10)); n ≤ 2 untrimmed, n = 3 trims one; a bad α refused.
   - Check: `test_stats_means.py`, 47 passed.
+- **4.2 · done 2026-11-10.** `ranking.marginals(points, values, settings) -> (Marginals, stage)`, `MarginalRow` and `Marginal` as T7; `rank` stores both (`Ranking.marginals`, `Method.marginals`). Slices without the vetoed, strata on the other varied quantities, ℓ = ln(0.01 + L), E and M trimmed (`means.trimmed_se`), the paired test against the best, the small-n marks, the headline, a wholly confounded quantity by level with today's sentence. `[ranking].trim` (default 0.2) in `Settings`, the schema and `check_ranking`. `rank --json`'s `values[]` hold a row's fields, a marginal its `headline` and `strata`; `rank`'s terminal table and the summary's show the new columns (× vs strata, ± SE, vs best, level, n, trimmed, vetoed, unmatched); the note of "the mean of the losses" is gone.
+  - Fails first: `AttributeError: 'list' object has no attribute 'points'` (the new signature); `'Marginal' object has no attribute 'strata'`.
+  - Tests on built designs: balanced 3 × 4 (at trim 0, E = M − const and the same order); property 6 (ℓ + 0.7 on one stratum: every E unchanged, a level moved); a slice half vetoed (counted, two strata unmatched; all vetoed marked "every point vetoed (4 of 4)"); 03 §2.2's confounded case (level best, effect not); property 7 for n = 1, 2, 3, 5; paired (×1.2 over 10 strata told apart, noise σ 0.5 against ×1.02 not); the trim setting and the Marginals stage. The engine's four old marginal tests rewritten to the new shapes.
+  - Check: the step's files, 175 passed. Fast suite: 2403 passed, 11 skipped, the two named reds, and `test_no_code_cites_a_page_by_its_old_place` for two design citations in a docstring and a test's comment; removed, `test_docs.py` with `test_stats_ranking.py` 639 passed and the two named reds.
+  - A reader may rely on: a marginal ordered by the matched effect, vetoed points out and counted, its headline; `[ranking].trim`.

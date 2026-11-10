@@ -65,14 +65,14 @@ Ties in L at display precision share a rank: 1, 2, 2, 4. A point with no scored 
 
 ## 2. Quantity-wise marginals (the trimmed mean over orthogonal variations)
 
-### 2.1 Sets
+### 2.1 Sets · closed 4.2
 
 - Q is the set of varied quantities among the scored points. For quantity q with values V_q, the **slice** of v is S_v = {p : q(p) = v, p not vetoed}.
 - The **stratum** of p is r(p) = (q′(p))_{q′ ∈ Q∖{q}}, its values on every other varied quantity.
 - R_v is the set of strata that have a point in S_v.
 - Each point has the log loss ℓ(p) = ln(δ + L(p)), δ = 0.01. Since L ≥ 0 and is ratio-scaled, differences of ℓ are relative: Δℓ = −0.1 reads "×0.90, a tenth lower". δ keeps a point that is within good everywhere finite.
 
-### 2.2 The two statistics a row reports
+### 2.2 The two statistics a row reports · closed 4.2
 
 ```
 level            M_v  =  TM_α { ℓ(p) : p ∈ S_v }                          shown as e^{M_v}, a typical point loss
@@ -86,7 +86,7 @@ The table is **ordered by E_v**. M_v is what the request asked for, the trimmed 
 - **When the gate or the sweep makes the design unbalanced, M_v is confounded and E_v is not.** On B3 the vetoed Sherpa point leaves MSHT20qed_lo with only its Pythia point. Its M_v (1.42) then looks best because Pythia is the better generator, not because of the PDF. E_v compares each point with its own generator's mean instead.
 - **Strata with one surviving value** cannot say anything about q. They are counted as *unmatched*, never dropped quietly.
 
-### 2.3 The trimmed mean and its error · closed 4.1 (the error), 4.2 (the paired test)
+### 2.3 The trimmed mean and its error · closed 4.1, 4.2
 
 For n values x₍₁₎ ≤ … ≤ x₍ₙ₎ and trim α (default 0.2):
 
@@ -104,7 +104,7 @@ SE is Tukey and McLaughlin's. It is not given when n − 2g < 2.
 - The test is paired, because strata are shared.
 - It is one test per value against the best, not all pairs. K − 1 tests stay readable, and the note says they are not corrected for multiplicity.
 
-### 2.4 Small n, and what each row says
+### 2.4 Small n, and what each row says · closed 4.2
 
 | n (matched strata) | Trim | What is shown |
 |---|---|---|
@@ -140,7 +140,7 @@ Every engine call returns, beside its numbers, a `Method` value: what was applie
 | Page loss | the mean across categories (RMS, equal), and which categories had a cost · closed 3.1 |
 | Pages | each page's weight ω_k and its source (figure `weight` > first matching glob, named > 1); the mean across pages (`over_pages`, RMS by default); the pages left out and why (a reference curve, pages against a curve when others are against data, no bins) · closed 3.3 |
 | Order | the rank rule (03 §1.4), ties, and the cells the ranking is flat across or banded within, with the reason · closed 2.2 |
-| Marginals | α, g(n), δ, log scale; E vs M and which orders the table; the strata's quantities; per row n, g, vetoed, unmatched; the paired test against the best and that it is uncorrected for multiplicity |
+| Marginals | α, g(n), δ, log scale; E vs M and which orders the table; the strata's quantities; per row n, g, vetoed, unmatched; the paired test against the best and that it is uncorrected for multiplicity · closed 4.2 |
 | Opt-in aggregators | `aggregate`, `weights_by = "critic"` (the learned weights, printed), `dominated`, each with what it costs · closed 3.1 |
 
 The record lives in the sidecar (`statistics.json`, `"method"`), in `rank --json`, in the summary's and the report's method section, and in a short form under every table (04 §Method).
@@ -152,7 +152,7 @@ The record lives in the sidecar (`statistics.json`, `"method"`), in `rank --json
 3. **Lexicographic veto:** a vetoed point ranks after every passing point, for any losses. · closed 2.2
 4. **Category balance:** n metrics of one category on a page weigh as one category (today's test, kept). · closed 3.1
 5. **Compression fixed points:** c(0) = 0, c(1) = 1; c is concave beyond 1. · closed 3.1
-6. **Matched effects are invariant to a stratum's difficulty:** adding a constant to every point of one stratum leaves every E_v unchanged.
-7. **Small-n rules,** as the table in §2.4.
+6. **Matched effects are invariant to a stratum's difficulty:** adding a constant to every point of one stratum leaves every E_v unchanged. · closed 4.2
+7. **Small-n rules,** as the table in §2.4. · closed 4.2
 8. **Trimmed mean:** TM₀ is the mean, and TM at g = ⌊(n−1)/2⌋ is the median. The SE matches a reference value computed by hand on a built sample. · closed 4.1
 9. **The method record is complete.** For each setting of `[ranking]`, a set's `ranking`, a figure's `weight` and each CLI flag, changing it from its default changes either the numbers and the record together, or neither. A setting that moves a number the record does not name fails the test.

@@ -537,8 +537,8 @@ def test_marginals_and_a_baseline_are_sections_when_the_points_axes_are_known():
     assert keys["marginals"] == ["marginal-pdf", "marginal-lepton", "marginal-shower"] and keys["baseline"] == ["baseline"]
     assert list(keys)[-2:] == ["marginals", "baseline"]
     pdf = next(i for s in document.sections for i in s.items if i.key == "marginal-pdf")
-    assert pdf.headers[:2] == ["loss", "points"] and len([r for r in pdf.rows]) == len(PDFS)
-    assert {r.cells[1].text for r in pdf.rows} == {"4"}                          # lepton × shower: four points a PDF
+    assert pdf.headers[:2] == ["× vs strata", "± SE"] and len([r for r in pdf.rows]) == len(PDFS)
+    assert {r.cells[pdf.headers.index("n")].text for r in pdf.rows} == {"4"}      # lepton × shower: four strata a PDF
     base = next(i for s in document.sections for i in s.items if i.key == "baseline")
     assert base.headers[:3] == ["loss", "baseline", "Δloss"] and len(base.headers) == 3 + 12
     assert sum(1 for r in base.rows if not r.band and r.label.endswith("(baseline)")) == 38     # the "on" points are their own
@@ -553,7 +553,10 @@ def test_a_confounded_marginal_says_so_and_an_unmatched_point_is_listed():
     st = ranking.settings_of({"by": ["shower"], "baseline": {"shower": "on"}})
     document = summary(rows, "", st, axes)
     assert keys_of(document)["marginals"] == ["marginal-shower"]
-    assert document.notes["confounded-shower"].startswith("Confounded: ")
+    shower = next(i for s in document.sections for i in s.items if i.key == "marginal-shower")
+    unmatched = {r.label: r.cells[shower.headers.index("unmatched")].text for r in shower.rows}
+    assert unmatched == {"on": "0", "off": "1"}                                   # NNPDF23lo_lpdfon holds its "off" point alone
+    assert document.notes["headline-shower"].startswith("shower: ")
     assert "NNPDF23lo_lpdfon_off" in document.notes["unmatched"] and "no point equal to it" in document.notes["unmatched"]
     with pytest.raises(Exception, match="not a quantity"):
         summary(rows, "", ranking.settings_of({"by": "beams"}), axes)

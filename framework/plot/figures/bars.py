@@ -684,32 +684,42 @@ def _shown_delta(v: float) -> str:
     return "∞" if math.isinf(v) else f"{v:+.2f}"
 
 
+MARGINAL_HEADERS = ["× vs strata", "± SE", "vs best", "level", "n", "trimmed", "vetoed", "unmatched"]
+
+
+def _times(x) -> str:
+    return f"×{math.exp(x):.2f}" if _finite(x) else "–"
+
+
 def _marginals(rows: list[dict], st, notes: dict, ranked) -> list:
-    """The marginals section: for each quantity (`[ranking].by`, else every varied quantity) a table of its values, the mean loss
-    of the points having each, their number and a column a category; a confounded quantity says which values confound it."""
-    found = ranked.marginals
+    """The marginals section: for each quantity (`[ranking].by`, else every varied quantity) its headline and a row a value,
+    ordered by the matched effect: e^E against its strata with its SE, against the best, the level e^M, the strata matched,
+    those trimmed, the slice's vetoed points and its unmatched strata; ≈ best shaded with the best."""
     items = []
-    for marginal in found:
+    for marginal in ranked.marginals:
         if len(marginal.rows) < 2:
             continue
-        categories = [p for p in M.CATEGORIES if any(p in r[3] for r in marginal.rows)]
-        top = max([1.0] + [r[1] for r in marginal.rows if math.isfinite(r[1])])
-
-        def cost(v):
-            f = min(v / top, 1.0) if math.isfinite(v) else 1.0
-            return ("∞" if math.isinf(v) else _shown(v), _shade(f), "white" if f > 0.55 else INK)
-        styled = [[cost(loss), (str(n), SURFACE, INK)] + [cost(by[p]) if p in by else ("–", SURFACE, MUTED) for p in categories]
-                  for _, loss, n, by in marginal.rows]
+        styled = []
+        for r in marginal.rows:
+            shade = (_shade(0.15), INK) if r.same_as_best else (SURFACE, INK)
+            against = "best" if r.vs_best == 0 and r.same_as_best else "≈ best" if r.same_as_best else \
+                f"{_times(r.vs_best)} ± {r.vs_best_se:.2f}" if _finite(r.vs_best) and _finite(r.vs_best_se) else _times(r.vs_best)
+            styled.append([(_times(r.effect) + (f" ({r.mark})" if r.mark else ""), *shade), (f"{r.effect_se:.2f}" if _finite(r.effect_se) else "–", SURFACE, INK),
+                           (against, *shade), (f"{math.exp(r.level):.2f}" if _finite(r.level) else "–", SURFACE, INK),
+                           (str(r.n), SURFACE, INK), (f"{r.g} + {r.g}", SURFACE, INK), (str(r.vetoed), SURFACE, INK),
+                           (str(r.unmatched), SURFACE, INK)])
         key = f"marginal-{marginal.quantity}"
-        notes["marginals"] = ("A marginal: the mean of the losses of the points having each value of the quantity (not the loss of a "
-                              "mean curve), their number, and each category's value likewise; best first. Confounded: other quantities' "
-                              "values that share this quantity's values unevenly, so the difference between them is not this quantity's alone.")
+        notes["marginals"] = ("A marginal: for each value, e^E, its points' loss against the other points of their stratum (the same "
+                              "values of every other varied quantity), as a ratio; and e^M, the level: its points' typical loss. Both "
+                              "are trimmed means of ln(0.01 + loss); the table is ordered by E. Against the best: the paired ratio over "
+                              "the strata both hold, ≈ best within two standard errors, uncorrected for multiplicity. A vetoed point is "
+                              "in no number and is counted; a stratum where no other value survives is unmatched.")
+        notes[f"headline-{marginal.quantity}"] = marginal.headline + "."
         if marginal.confounded:
-            notes[f"confounded-{marginal.quantity}"] = f"Confounded: {'; '.join(marginal.confounded)}."
-        items.append(_table(key, f"By {marginal.quantity}\nthe mean loss of the points having each value" + (
-            "; confounded" if marginal.confounded else ""), [r[0] for r in marginal.rows],
-            ["loss", "points"] + [M.CATEGORIES[p] for p in categories], styled,
-            ("marginals",) + ((f"confounded-{marginal.quantity}",) if marginal.confounded else ())))
+            notes[f"confounded-{marginal.quantity}"] = f"Confounded: {marginal.confounded}."
+        items.append(_table(key, f"By {marginal.quantity}\n{marginal.headline}" + ("; confounded" if marginal.confounded else ""),
+                            [r.value for r in marginal.rows], MARGINAL_HEADERS, styled,
+                            ("marginals", f"headline-{marginal.quantity}") + ((f"confounded-{marginal.quantity}",) if marginal.confounded else ())))
     return [paper.Section("marginals", "Marginals", items)] if items else []
 
 

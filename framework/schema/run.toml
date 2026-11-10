@@ -1158,6 +1158,12 @@ choices = ["rms", "fisher", "topsis", "promethee"]
 default = "rms"
 doc     = "how metrics and pages combine: RMS over categories (default), or Fisher's combined probability, TOPSIS, PROMETHEE"
 
+[ranking.trim]
+type    = "float"
+min     = 0
+default = 0.2
+doc     = "a marginal's trim α: ⌊α n⌋ values off each end of its trimmed means, at least one at n ≥ 3 (under 0.5)"
+
 [ranking.dominated]
 type    = "bool"
 default = false

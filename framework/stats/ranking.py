@@ -48,6 +48,7 @@ class Settings:
     gates: object = True                               # True (every gate metric), False, or a tuple of gate metric ids
     aggregate: str = "rms"
     dominated: bool = False
+    trim: float = 0.2                                  # α of a marginal's trimmed means
     by: tuple = ()
     baseline: object = None
     head_to_head: str | None = None                    # "<cell>/<object>" or "all": the pages the summary plays as matches
@@ -69,7 +70,7 @@ class Settings:
 
 #: The keys of [ranking], in Settings' order: what a source is kept for.
 KEYS = ("metrics", "cost", "thresholds", "weights", "weights_by", "over_pages", "veto_loss", "gates", "aggregate", "dominated",
-        "by", "baseline", "head_to_head")
+        "trim", "by", "baseline", "head_to_head")
 
 
 def overlaid(table: dict | None = None, over: dict | None = None) -> dict:
@@ -113,7 +114,10 @@ def settings_of(table: dict | None = None, flags: dict | None = None, sources: d
     if base is not None and not isinstance(base, (str, dict)):
         raise HeimdallError("[ranking].baseline is a point's name or a filter { quantity = \"value\" }", hint=f"got {base!r}")
     by = merged.get("by") or ()
-    return Settings(metrics=weights, cost=merged.get("cost", "thresholds"), thresholds=thresholds,
+    trim = merged.get("trim", 0.2)
+    if isinstance(trim, bool) or not isinstance(trim, (int, float)) or not 0 <= trim < 0.5:
+        raise HeimdallError("[ranking].trim is 0 or more and under 0.5", hint=f"got {trim!r}; 0.2 trims a fifth off each end")
+    return Settings(trim=float(trim), metrics=weights, cost=merged.get("cost", "thresholds"), thresholds=thresholds,
                     weights=dict(merged.get("weights") or {}), weights_by=merged.get("weights_by", "equal"), over_pages=mean,
                     veto_loss=merged.get("veto_loss"), gates=gates_of(merged.get("gates", True)),
                     aggregate=merged.get("aggregate", "rms"), dominated=bool(merged.get("dominated", False)),
@@ -475,11 +479,13 @@ def rank(rows: list[dict], settings: Settings | None = None, page_weights: dict 
         _dominated(result)
     gates = _gates(result, obs, groups)
     order = _order(result, obs)
-    result.method = Method(gates=gates, order=order, pages=_pages_stage(rows, obs, st, page_weights), **_stages(result, rows, obs))
+    marginal_stage = ()
     if values:
-        result.marginals = marginals(result, values, st)
+        result.marginals, marginal_stage = marginals(result.points, values, st)
         if st.baseline:
             result.baseline = baseline(result, values)
+    result.method = Method(gates=gates, order=order, pages=_pages_stage(rows, obs, st, page_weights), marginals=marginal_stage,
+                           **_stages(result, rows, obs))
     return result
 
 
@@ -764,11 +770,32 @@ def head_to_head(rows: list[dict], page: str, st: Settings | None = None) -> dic
 # marginal is a mean of the points' losses, never the loss of a mean curve: a curve merged from several points has no entry
 # in `values`, so it never enters one.
 
-@dataclass
+DELTA = 0.01            # a point's log loss is ln(δ + L): finite for a point within good everywhere
+
+
+@dataclass(frozen=True)
+class MarginalRow:
+    value: str
+    n: int                  # matched strata this value has a loss in
+    g: int                  # trimmed from each end
+    vetoed: int             # the slice's vetoed points, out of every number
+    unmatched: int          # strata of the slice where no other value survives
+    effect: float           # E_v, in ln: the trimmed mean of ℓ(p) − ℓ̄(stratum); NaN when n = 0
+    effect_se: float
+    level: float            # M_v: the trimmed mean of ℓ(p) over the slice
+    vs_best: float          # the trimmed mean of the paired differences against the best row; 0 for the best
+    vs_best_se: float
+    same_as_best: bool
+    mark: str               # "", "one stratum", "n = 2: not robust", or why there is no number
+
+
+@dataclass(frozen=True)
 class Marginal:
     quantity: str
-    rows: list = field(default_factory=list)        # (value, loss, points, {category: value}), best loss first
-    confounded: list = field(default_factory=list)  # sentences: which values of other quantities share this quantity's values unevenly
+    rows: tuple             # MarginalRow, ordered by effect, rows without one last
+    strata: tuple           # the other varied quantities the strata are made of
+    headline: str
+    confounded: str = ""    # today's sentence, for a quantity with no matched stratum
 
 
 def varied(values: dict, ranked: set | None = None) -> dict[str, list[str]]:
@@ -799,34 +826,108 @@ def _confounded(quantity: str, every: dict[str, list[str]], values: dict, points
     return out
 
 
-def marginals(result: Ranking, values: dict, st: Settings | None = None) -> list[Marginal]:
-    """For each quantity in `st.by` (every varied quantity when it names none), a table of value → the `over_pages` mean of the losses of the points
-    having it, the points' number and each category's value; and which other quantities' values confound it (spread unevenly over this
-    quantity's values, as pdf = X only with generator = Y). A quantity named that is not varied is refused."""
-    st = st or result.settings
-    ranked = {p.point for p in result.points if p.loss == p.loss and p.point in values}
-    every = varied(values, ranked)
-    names = list(st.by) or list(every)
+def _ell(loss: float) -> float:
+    return math.log(DELTA + loss)
+
+
+def _shown_ratio(x: float) -> str:
+    return f"×{math.exp(x):.2f}" if math.isfinite(x) else "–"
+
+
+def marginals(points: list, values: dict, settings: Settings) -> tuple[list, tuple]:
+    """For each quantity in `settings.by` (every varied one when it names none, in the order met), a row a value: its matched
+    effect E (the trimmed mean of ℓ(p) − ℓ̄(stratum) over the slice's points whose stratum holds another value), its level M
+    (the trimmed mean of ℓ over the slice) and the paired test against the best row; vetoed points are out and counted.
+    ℓ = ln(δ + L), a stratum a point's values on the other varied quantities. (the Marginals, the record's Marginals stage)."""
+    alpha = settings.trim
+    known = [p for p in points if p.point in values and p.loss == p.loss]
+    every = varied(values, {p.point for p in known})
+    names = list(settings.by) or list(every)
     for quantity in names:
         if quantity not in every:
             raise HeimdallError(f"[ranking].by: '{quantity}' is not a quantity these points vary",
                                 hint=("quantities varied: " + ", ".join(every)) if every else "no quantity is varied among the ranked points")
     out = []
     for quantity in names:
-        marginal = Marginal(quantity, confounded=_confounded(quantity, every, values, ranked))
+        others = tuple(q for q in every if q != quantity)
+        stratum = {p.point: tuple(str(values[p.point].get(q)) for q in others) for p in known}
+        alive = [p for p in known if not p.vetoed]
+        members: dict = {}
+        for p in alive:
+            members.setdefault(stratum[p.point], []).append(p)
+        mean_of = {r: float(np.mean([_ell(p.loss) for p in ps])) for r, ps in members.items()}
+        per_value = {}                                    # value → {stratum: the mean ℓ of its points there}
+        rows = []
         for value in every[quantity]:
-            mine = [p for p in result.points if p.point in ranked and str(values[p.point].get(quantity)) == value and p.loss == p.loss]
-            if not mine:
+            mine = [p for p in known if str(values[p.point].get(quantity)) == value]
+            slice_ = [p for p in mine if not p.vetoed]
+            cells: dict = {}
+            for p in slice_:
+                cells.setdefault(stratum[p.point], []).append(_ell(p.loss))
+            per_value[value] = {r: float(np.mean(v)) for r, v in cells.items()}
+            matched = {r: float(np.mean([v - mean_of[r] for v in vs])) for r, vs in cells.items() if len(members[r]) >= 2}
+            effect = means.trimmed_se(list(matched.values()), alpha)
+            level = means.trimmed_se([_ell(p.loss) for p in slice_], alpha)
+            vetoed = len(mine) - len(slice_)
+            n = effect.n
+            if n == 0:
+                mark = (f"every point vetoed ({vetoed} of {len(mine)})" if mine and not slice_ else "no stratum holds another value")
+            else:
+                mark = "one stratum" if n == 1 else "n = 2: not robust" if n == 2 else ""
+            rows.append(dict(value=value, n=n, g=effect.g, vetoed=vetoed, unmatched=len(cells) - len(matched),
+                             effect=effect.mean, effect_se=effect.se, level=level.mean, mark=mark))
+        matched_any = any(r["n"] for r in rows)
+        key = "effect" if matched_any else "level"
+        rows.sort(key=lambda r: (r[key] != r[key], r[key] if r[key] == r[key] else 0.0))
+        best = rows[0]["value"] if rows and rows[0][key] == rows[0][key] else None
+        done = []
+        for r in rows:
+            if best is None or r[key] != r[key]:
+                done.append(MarginalRow(**r, vs_best=math.nan, vs_best_se=math.nan, same_as_best=False))
                 continue
-            categories = {}
-            for category in metrics.CATEGORIES:
-                have = [p.categories[category] for p in mine if category in p.categories]
-                if have:
-                    categories[category] = means.evaluate(st.over_pages, have)
-            marginal.rows.append((value, means.evaluate(st.over_pages, [p.loss for p in mine]), len({p.point for p in mine}), categories))
-        marginal.rows.sort(key=lambda r: r[1])
-        out.append(marginal)
-    return out
+            if r["value"] == best:
+                done.append(MarginalRow(**r, vs_best=0.0, vs_best_se=0.0, same_as_best=True))
+                continue
+            shared = [per_value[r["value"]][k] - per_value[best][k] for k in per_value[r["value"]] if k in per_value[best]]
+            d = means.trimmed_se(shared, alpha)
+            same = d.se == d.se and abs(d.mean) <= 2 * d.se
+            done.append(MarginalRow(**r, vs_best=d.mean, vs_best_se=d.se, same_as_best=same))
+        confounded = "" if matched_any else "; ".join(_confounded(quantity, every, values, {p.point for p in known}))
+        out.append(Marginal(quantity, tuple(done), others, _headline(quantity, done, key), confounded))
+    return out, _marginals_stage(settings, out)
+
+
+def _headline(quantity: str, rows: list, key: str) -> str:
+    """A quantity's headline: the best value, its ratio to the next, the strata it holds, and those indistinguishable from it."""
+    ranked = [r for r in rows if getattr(r, key) == getattr(r, key)]
+    if not ranked:
+        return f"{quantity}: no value has a loss that is not vetoed"
+    best = ranked[0]
+    if len(ranked) == 1:
+        return f"{quantity}: {best.value} alone has a loss"
+    nxt = ranked[1]
+    against = -nxt.vs_best if key == "effect" else best.level - nxt.level
+    line = f"{quantity}: {best.value}, {_shown_ratio(against)} against {nxt.value}"
+    line += f", {best.n} strata" if key == "effect" else ", by level alone: no stratum holds two values"
+    same = [r.value for r in ranked[1:] if r.same_as_best]
+    return line + (f"; indistinguishable from the best: {', '.join(same)}" if same else "")
+
+
+def _marginals_stage(settings: Settings, found: list) -> tuple:
+    stage = [Choice("trim", settings.trim, settings.source("trim"),
+                    "α: g = ⌊α n⌋ values off each end, at least one at n ≥ 3, none at n ≤ 2; the error is Tukey and McLaughlin's"),
+             Choice("δ", DELTA, "default", "a point's log loss is ln(δ + L): a ratio of losses, finite at 0"),
+             Choice("order", "the matched effect E", "default",
+                    "E: the trimmed mean of ℓ(p) − ℓ̄(its stratum), over the slice's points whose stratum holds another value; "
+                    "the level M, the trimmed mean of ℓ over the slice, is shown beside and orders a quantity with no matched stratum"),
+             Choice("against the best", "paired", "default",
+                    "each value against the best over the strata both hold, its differences trimmed; ≈ best within 2 SE; "
+                    "one test a value, not corrected for multiplicity"),
+             Choice("vetoed", "out", "default", "a vetoed point is in no slice and no stratum's mean; each row counts its own")]
+    for m in found:
+        stage.append(Choice(f"strata of {m.quantity}", list(m.strata) or ["none"], "table",
+                            "; ".join(f"{r.value}: n {r.n}, g {r.g}, vetoed {r.vetoed}, unmatched {r.unmatched}" for r in m.rows)))
+    return tuple(stage)
 
 
 @dataclass

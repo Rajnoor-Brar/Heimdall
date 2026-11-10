@@ -1612,6 +1612,9 @@ def check_ranking(ranking: dict, where: str, *, whole: bool = True) -> None:
     mean = ranking.get("over_pages")
     if mean is not None and mean not in means.MEANS_BY_NAME:
         raise HeimdallError(f"no mean '{mean}'", where=f"{where}.over_pages", hint=did_you_mean(mean, means.MEANS_BY_NAME) or "means: heimdall explain ranking")
+    trim = ranking.get("trim")
+    if isinstance(trim, (int, float)) and not isinstance(trim, bool) and trim >= 0.5:
+        raise HeimdallError("[ranking].trim is under 0.5", where=f"{where}.trim", hint=f"got {trim!r}; 0.2 trims a fifth off each end")
     gates = [n for n, m in metrics.REGISTRY.items() if m.gate is not None]
     for name in ranking.get("gates") if isinstance(ranking.get("gates"), list) else ():
         if name not in gates:

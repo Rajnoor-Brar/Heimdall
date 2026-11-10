@@ -329,42 +329,144 @@ BALANCED = {("py8", "A"): 0.5, ("py8", "B"): 1.0, ("sh3", "A"): 1.5, ("sh3", "B"
 ONE = ranking.settings_of({"metrics": ["chi2_ndf"]})
 
 
-def test_a_marginal_is_the_mean_score_over_the_points_having_each_value():
+def ell(loss):
+    return math.log(0.01 + loss)
+
+
+def test_a_marginal_is_the_matched_effect_of_each_value_against_its_strata():
     rows, axes = sweep_rows(BALANCED)
-    out = ranking.rank(rows, ONE)
-    by = {m.quantity: m for m in ranking.marginals(out, axes)}
-    assert set(by) == {"generator", "pdf"}
-    s = {p.point: p.loss for p in out.points}
-    py8 = next(r for r in by["generator"].rows if r[0] == "py8")
-    assert py8[1] == pytest.approx(math.sqrt((s["py8_A"] ** 2 + s["py8_B"] ** 2) / 2)) and py8[2] == 2
-    assert [r[0] for r in by["generator"].rows] == ["py8", "sh3"]                 # best first
-    assert by["generator"].confounded == [] and by["pdf"].confounded == []
-    assert set(py8[3]) == {"compatibility"}
+    out = ranking.rank(rows, ONE, values=axes)
+    by = {m.quantity: m for m in out.marginals}
+    assert set(by) == {"generator", "pdf"} and by["generator"].strata == ("pdf",)
+    s = {p.point: ell(p.loss) for p in out.points}
+    py8 = next(r for r in by["generator"].rows if r.value == "py8")
+    # each stratum (a pdf) holds both generators: py8's deviation from the stratum's mean, averaged over A and B (n = 2, no trim)
+    assert py8.effect == pytest.approx(((s["py8_A"] - (s["py8_A"] + s["sh3_A"]) / 2) + (s["py8_B"] - (s["py8_B"] + s["sh3_B"]) / 2)) / 2)
+    assert py8.level == pytest.approx((s["py8_A"] + s["py8_B"]) / 2) and (py8.n, py8.g, py8.mark) == (2, 0, "n = 2: not robust")
+    assert [r.value for r in by["generator"].rows] == ["py8", "sh3"] and by["generator"].confounded == ""
+    assert by["generator"].headline.startswith("generator: py8, ×") and " against sh3, 2 strata" in by["generator"].headline
 
 
-def test_a_marginal_says_which_values_confound_it():
+def test_a_marginal_counts_a_stratum_without_another_value_as_unmatched_and_a_wholly_confounded_one_says_so():
     rows, axes = sweep_rows(BALANCED, drop=[("sh3", "B")])                       # B only with py8
-    by = {m.quantity: m for m in ranking.marginals(ranking.rank(rows, ONE), axes)}
-    assert by["generator"].confounded == ["pdf = B only with generator = py8"]
-    assert by["pdf"].confounded == ["generator = sh3 only with pdf = A"]
+    out = ranking.rank(rows, ONE, values=axes)
+    by = {m.quantity: {r.value: r for r in m.rows} for m in out.marginals}
+    assert (by["generator"]["py8"].n, by["generator"]["py8"].unmatched) == (1, 1) and by["generator"]["py8"].mark == "one stratum"
+    assert (by["pdf"]["A"].unmatched, by["pdf"]["B"].unmatched) == (1, 0)
+    together = {"x1": {"generator": "py8", "pdf": "A"}, "x2": {"generator": "sh3", "pdf": "B"}}      # varied only together
+    points = [ranking.PointLoss(cell="c", point="x1", loss=1.0), ranking.PointLoss(cell="c", point="x2", loss=2.0)]
+    found, _ = ranking.marginals(points, together, ONE)
+    (gen,) = [m for m in found if m.quantity == "generator"]
+    assert all(r.n == 0 and r.mark == "no stratum holds another value" for r in gen.rows)
+    assert [r.value for r in gen.rows] == ["py8", "sh3"] and gen.confounded.startswith("pdf = A only with generator = py8")
+    assert "by level alone" in gen.headline
 
 
 def test_an_axis_that_is_not_varied_is_refused_and_by_chooses_the_axes():
     rows, axes = sweep_rows(BALANCED)
     out = ranking.rank(rows, ONE)
     only = ranking.settings_of({"metrics": ["chi2_ndf"], "by": "pdf"})
-    assert [m.quantity for m in ranking.marginals(out, axes, only)] == ["pdf"]
+    assert [m.quantity for m in ranking.marginals(out.points, axes, only)[0]] == ["pdf"]
     with pytest.raises(HeimdallError, match="not a quantity"):
-        ranking.marginals(out, axes, ranking.settings_of({"metrics": ["chi2_ndf"], "by": ["beams"]}))
+        ranking.marginals(out.points, axes, ranking.settings_of({"metrics": ["chi2_ndf"], "by": ["beams"]}))
     fixed = {k: {**v, "generator": "py8"} for k, v in axes.items()}
-    assert [m.quantity for m in ranking.marginals(out, fixed)] == ["pdf"]               # a fixed axis is not varied
+    assert [m.quantity for m in ranking.marginals(out.points, fixed, ONE)[0]] == ["pdf"]          # a fixed axis is not varied
 
 
 def test_a_point_with_no_axes_never_enters_a_marginal():
     rows, axes = sweep_rows(BALANCED)
     rows += [row("merged", page="c/d01-x01-y01", cell="c", obj="run/pt/d01-x01-y01", chi2_ndf=99.0)]
-    by = {m.quantity: m for m in ranking.marginals(ranking.rank(rows, ONE), axes)}
-    assert sum(r[2] for r in by["generator"].rows) == 4
+    by = {m.quantity: m for m in ranking.rank(rows, ONE, values=axes).marginals}
+    assert sum(r.n for r in by["generator"].rows) == 4
+
+
+# ── gated, matched marginals on built designs (losses given) ────────────────────────────────────
+
+def design(losses: dict, vetoed=()) -> tuple[list, dict]:
+    """PointLosses from {(a, b): loss}, a point a cell of two quantities, and their values."""
+    points = [ranking.PointLoss(cell="c", point=f"{a}_{b}", loss=loss, vetoed=(a, b) in vetoed) for (a, b), loss in losses.items()]
+    return points, {f"{a}_{b}": {"pdf": a, "gen": b} for a, b in losses}
+
+
+def rows_of(found, quantity):
+    return {r.value: r for r in next(m for m in found if m.quantity == quantity).rows}
+
+
+def test_balanced_the_effect_is_the_level_less_a_constant_and_orders_alike():
+    import random
+    rng = random.Random(42)
+    losses = {(a, b): rng.uniform(0.2, 5.0) for a in ("p1", "p2", "p3") for b in ("g1", "g2", "g3", "g4")}
+    plain = ranking.settings_of({"metrics": ["chi2_ndf"], "trim": 0.0})          # exact for plain means; a trim keeps other points
+    pdf = rows_of(ranking.marginals(*design(losses), plain)[0], "pdf")
+    offsets = {round(r.level - r.effect, 12) for r in pdf.values()}
+    assert len(offsets) == 1                                              # one constant: the mean of the strata means
+    assert [r.value for r in sorted(pdf.values(), key=lambda r: r.effect)] == [r.value for r in sorted(pdf.values(), key=lambda r: r.level)]
+    found, stage = ranking.marginals(*design(losses), ONE)
+    assert all(r.n == 4 and r.g == 1 for r in rows_of(found, "pdf").values())    # four strata, a fifth trimmed and at least one
+    assert any(c.name == "trim" and c.value == 0.2 for c in stage)
+
+
+def test_a_constant_added_to_one_strata_leaves_every_effect_and_moves_a_level():
+    import random
+    rng = random.Random(6)
+    losses = {(a, b): rng.uniform(0.2, 5.0) for a in ("p1", "p2", "p3") for b in ("g1", "g2", "g3", "g4", "g5")}
+    harder = {k: (0.01 + v) * math.e ** 0.7 - 0.01 if k[1] == "g2" else v for k, v in losses.items()}   # ℓ + 0.7 on stratum g2
+    before, after = rows_of(ranking.marginals(*design(losses), ONE)[0], "pdf"), rows_of(ranking.marginals(*design(harder), ONE)[0], "pdf")
+    assert all(after[v].effect == pytest.approx(before[v].effect, abs=1e-12) for v in before)
+    assert any(abs(after[v].level - before[v].level) > 0.01 for v in before)
+
+
+def test_a_slice_half_vetoed_counts_its_vetoed_and_a_stratum_left_with_one_value_is_unmatched():
+    losses = {(a, b): 1.0 + i for i, (a, b) in enumerate((a, b) for a in ("p1", "p2") for b in ("g1", "g2", "g3", "g4"))}
+    found, _ = ranking.marginals(*design(losses, vetoed={("p2", "g1"), ("p2", "g2")}), ONE)
+    pdf = rows_of(found, "pdf")
+    assert (pdf["p2"].vetoed, pdf["p2"].n, pdf["p2"].unmatched) == (2, 2, 0)
+    assert (pdf["p1"].vetoed, pdf["p1"].n, pdf["p1"].unmatched) == (0, 2, 2)  # g1, g2 hold p1 alone now
+    allout, _ = ranking.marginals(*design(losses, vetoed={(a, b) for a, b in losses if a == "p2"}), ONE)
+    assert rows_of(allout, "pdf")["p2"].mark == "every point vetoed (4 of 4)"
+
+
+def test_a_value_whose_only_survivor_is_in_the_easy_stratum_has_the_best_level_and_not_the_best_effect():
+    """The confounded case: g1 is the easy generator. qed's g2 point is vetoed, so its level is its g1 point alone and looks best;
+    its effect compares that point with g1's own mean, where it is the worse."""
+    losses = {("nn", "g1"): 0.5, ("nn", "g2"): 3.0, ("ms", "g1"): 0.6, ("ms", "g2"): 3.2, ("qed", "g1"): 0.8, ("qed", "g2"): 9.0}
+    pdf = rows_of(ranking.marginals(*design(losses, vetoed={("qed", "g2")}), ONE)[0], "pdf")
+    assert min(pdf, key=lambda v: pdf[v].level) == "qed"
+    assert min(pdf, key=lambda v: pdf[v].effect) == "nn" and pdf["qed"].effect > pdf["ms"].effect
+
+
+@pytest.mark.parametrize("strata,g,mark", [(1, 0, "one stratum"), (2, 0, "n = 2: not robust"), (3, 1, ""), (5, 1, "")])
+def test_the_small_n_marks_and_trims(strata, g, mark):
+    losses = {(a, f"g{i}"): 1.0 + 0.1 * i + (0.5 if a == "p2" else 0.0) for a in ("p1", "p2") for i in range(strata)}
+    row = rows_of(ranking.marginals(*design(losses), ONE)[0], "pdf")["p1"]
+    assert (row.n, row.g, row.mark) == (strata, g, mark)
+    assert math.isnan(row.effect_se) == (strata - 2 * g < 2)
+
+
+def test_two_values_a_constant_ratio_apart_are_told_apart_and_with_noise_larger_they_are_not():
+    import random
+    rng = random.Random(9)
+    base = {i: rng.uniform(0.5, 5.0) for i in range(10)}
+    clean = {**{("a", f"g{i}"): v for i, v in base.items()}, **{("b", f"g{i}"): (0.01 + v) * 1.2 - 0.01 for i, v in base.items()}}
+    pdf = rows_of(ranking.marginals(*design(clean), ONE)[0], "pdf")
+    assert pdf["a"].same_as_best and pdf["a"].vs_best == 0 and not pdf["b"].same_as_best
+    assert pdf["b"].vs_best == pytest.approx(math.log(1.2))
+    noisy = {**{("a", f"g{i}"): v for i, v in base.items()},
+             **{("b", f"g{i}"): (0.01 + v) * 1.02 * math.exp(rng.gauss(0, 0.5)) - 0.01 for i, v in base.items()}}
+    rows = rows_of(ranking.marginals(*design(noisy), ONE)[0], "pdf")
+    assert all(r.same_as_best for r in rows.values())
+
+
+def test_the_trim_is_a_setting_and_the_record_holds_the_marginals_stage():
+    losses = {(a, f"g{i}"): 1.0 + i + (a == "p2") for a in ("p1", "p2") for i in range(6)}
+    st = ranking.settings_of({"metrics": ["chi2_ndf"], "trim": 0.0})
+    found, stage = ranking.marginals(*design(losses), st)
+    assert all(r.g == 0 for r in rows_of(found, "pdf").values())
+    lines = ranking.Method(marginals=stage).lines("marginals")
+    assert lines[0].startswith("trim: 0 ([ranking]).") and any("not corrected for multiplicity" in l for l in lines)
+    assert any(l.startswith("strata of pdf: gen (table). p1: n 6, g 0, vetoed 0, unmatched 0") for l in lines)
+    with pytest.raises(HeimdallError, match="trim"):
+        ranking.settings_of({"trim": 0.5})
 
 
 def test_a_baseline_is_taken_against_the_point_equal_on_every_other_axis():

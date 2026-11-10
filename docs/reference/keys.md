@@ -169,6 +169,7 @@ ranking.baseline | string or table | -
 ranking.veto_loss | number | -
 ranking.gates | true or false or list of strings | true
 ranking.aggregate | string | "rms"
+ranking.trim | number | 0.2
 ranking.dominated | true or false | false
 ranking.head_to_head | string | -
 report.title | string | -

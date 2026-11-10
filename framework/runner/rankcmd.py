@@ -7,6 +7,7 @@ values); `<A>/<E>` names every Run under it, and `--across` the errand's own fol
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import math
 import tomllib
@@ -90,6 +91,11 @@ def ranked(table: Table, by: str | None = None, baseline: str | None = None, row
     return rows, st, values, ranking.rank(rows, st, side.get("page_weights"), values)
 
 
+def _times(v: float) -> str:
+    """A log ratio as the ratio itself."""
+    return "–" if v != v or math.isinf(v) else f"×{math.exp(v):.2f}"
+
+
 def _num(v: float, digits: int = 3) -> str:
     return "–" if v != v else "∞" if math.isinf(v) else f"{v:.{digits}g}"
 
@@ -116,9 +122,8 @@ def report_of(table: Table, by: str | None, baseline: str | None) -> dict:
     out = {"run": table.run, "serial": table.serial, "set": table.set, "metrics": list(st.metrics), "flat": result.flat,
            "leaderboard": leaderboard_of(result), "notes": list(result.notes), "method": result.method.as_dict()}
     if values:
-        out["marginals"] = [{"quantity": m.quantity, "confounded": m.confounded,
-                             "values": [{"value": v, "loss": s, "points": n, "categories": by_p} for v, s, n, by_p in m.rows]}
-                            for m in result.marginals]
+        out["marginals"] = [{"quantity": m.quantity, "headline": m.headline, "strata": list(m.strata), "confounded": m.confounded,
+                             "values": [dataclasses.asdict(r) for r in m.rows]} for m in result.marginals]
         if result.baseline is not None:
             b = result.baseline
             out["baseline"] = {"filter": b.filter, "unmatched": [{"cell": c, "point": p, "why": w} for c, p, w in b.unmatched],
@@ -165,9 +170,13 @@ def lines_of(report: dict) -> list[str]:
     out += ["Leaderboard (lower loss is better; a vetoed point last, whatever its loss):", *_grid(headers, body, 2)]
     out += [f"  vetoed: {s['point']}: {s['gate_reason']}" for s in board if s["vetoed"]] + [""]
     for m in report.get("marginals", []):
-        rows = [[v["value"], _num(v["loss"]), str(v["points"])] for v in m["values"]]
-        out += [f"By {m['quantity']}:", *_grid([m["quantity"], "loss", "points"], rows)]
-        out += [f"  confounded: {c}" for c in m["confounded"]] + [""]
+        rows = [[v["value"], _times(v["effect"]) + (f" ({v['mark']})" if v["mark"] else ""), _num(v["effect_se"], 2),
+                 "best" if v["same_as_best"] and v["vs_best"] == 0 else "≈ best" if v["same_as_best"]
+                 else f"{_times(v['vs_best'])} ± {_num(v['vs_best_se'], 2)}", _times(v["level"]).lstrip("×"), str(v["n"]), f"{v['g']} + {v['g']}",
+                 str(v["vetoed"]), str(v["unmatched"])] for v in m["values"]]
+        out += [f"By {m['quantity']}: {m['headline']}",
+                *_grid([m["quantity"], "× vs strata", "± SE", "vs best", "level", "n", "trimmed", "vetoed", "unmatched"], rows)]
+        out += ([f"  confounded: {m['confounded']}"] if m["confounded"] else []) + [""]
     if "baseline" in report:
         b = report["baseline"]
         given = ", ".join(f"{k} = {v}" for k, v in b["filter"].items())

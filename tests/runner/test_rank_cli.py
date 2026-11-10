@@ -81,7 +81,9 @@ def test_json_carries_the_same_numbers_and_the_baseline(results, capsys):
     assert [s["rank"] for s in data["leaderboard"]] == [1, 2, 3, 4] and all(s["vetoed"] is False for s in data["leaderboard"])
     assert not {"standings", "place", "score", "veto", "axis"} & {*data, *data["leaderboard"][0], *data["marginals"][0]}
     marginal = {m["quantity"]: {v["value"]: v for v in m["values"]} for m in data["marginals"]}
-    assert marginal["generator"]["py8"]["points"] == 2 and marginal["generator"]["py8"]["loss"] < marginal["generator"]["hw7"]["loss"]
+    assert marginal["generator"]["py8"]["n"] == 2 and marginal["generator"]["py8"]["effect"] < marginal["generator"]["hw7"]["effect"]
+    gen = next(m for m in data["marginals"] if m["quantity"] == "generator")
+    assert gen["strata"] == ["pdf"] and gen["headline"].startswith("generator: py8, ×") and "level" in gen["values"][0]
     deltas = {r["point"]: r for r in data["baseline"]["rows"]}
     assert deltas["hw7_a"]["partner"] == "py8_a" and deltas["hw7_a"]["delta"] == pytest.approx(losses["hw7_a"] - losses["py8_a"])
     assert data["baseline"]["filter"] == {"generator": "py8"}

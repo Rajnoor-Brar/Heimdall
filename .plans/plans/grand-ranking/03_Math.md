@@ -155,4 +155,4 @@ The record lives in the sidecar (`statistics.json`, `"method"`), in `rank --json
 6. **Matched effects are invariant to a stratum's difficulty:** adding a constant to every point of one stratum leaves every E_v unchanged. · closed 4.2
 7. **Small-n rules,** as the table in §2.4. · closed 4.2
 8. **Trimmed mean:** TM₀ is the mean, and TM at g = ⌊(n−1)/2⌋ is the median. The SE matches a reference value computed by hand on a built sample. · closed 4.1
-9. **The method record is complete.** For each setting of `[ranking]`, a set's `ranking`, a figure's `weight` and each CLI flag, changing it from its default changes either the numbers and the record together, or neither. A setting that moves a number the record does not name fails the test.
+9. **The method record is complete.** For each setting of `[ranking]`, a set's `ranking`, a figure's `weight` and each CLI flag, changing it from its default changes either the numbers and the record together, or neither. A setting that moves a number the record does not name fails the test. · closed 5.3

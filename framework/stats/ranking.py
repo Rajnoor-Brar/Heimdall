@@ -919,7 +919,8 @@ def _headline(quantity: str, rows: list, key: str) -> str:
 
 
 def _marginals_stage(settings: Settings, found: list) -> tuple:
-    stage = [Choice("trim", settings.trim, settings.source("trim"),
+    stage = [Choice("by", list(settings.by) or "every varied quantity", settings.source("by"), "the quantities whose marginals are shown"),
+             Choice("trim", settings.trim, settings.source("trim"),
                     "α: g = ⌊α n⌋ values off each end, at least one at n ≥ 3, none at n ≤ 2; the error is Tukey and McLaughlin's"),
              Choice("δ", DELTA, "default", "a point's log loss is ln(δ + L): a ratio of losses, finite at 0"),
              Choice("order", "the matched effect E", "default",

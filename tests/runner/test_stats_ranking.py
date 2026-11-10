@@ -463,7 +463,8 @@ def test_the_trim_is_a_setting_and_the_record_holds_the_marginals_stage():
     found, stage = ranking.marginals(*design(losses), st)
     assert all(r.g == 0 for r in rows_of(found, "pdf").values())
     lines = ranking.Method(marginals=stage).lines("marginals")
-    assert lines[0].startswith("trim: 0 ([ranking]).") and any("not corrected for multiplicity" in l for l in lines)
+    assert lines[0] == "by: every varied quantity (default). the quantities whose marginals are shown"
+    assert lines[1].startswith("trim: 0 ([ranking]).") and any("not corrected for multiplicity" in l for l in lines)
     assert any(l.startswith("strata of pdf: gen (table). p1: n 6, g 0, vetoed 0, unmatched 0") for l in lines)
     with pytest.raises(HeimdallError, match="trim"):
         ranking.settings_of({"trim": 0.5})
@@ -686,3 +687,79 @@ def test_the_pages_stage_names_each_weight_and_its_source_and_the_pages_left_out
     assert "page p1: 2 ([ranking]). the glob 'jet_*'" in lines and "page p2: 4 (figure)." in lines
     assert any(l.startswith("every other page: 1 (default). 1 page(s)") for l in lines)
     assert any(l.startswith("pages left out: 1 (table). against their first curve") for l in lines)
+
+
+# ── property 9: no setting moves a number the record does not name ──────────────────────────────────────
+
+def record_table():
+    """Two cells of the same three objects (one order), a point a value of `a` × `b` in each, every default and gate column
+    drawn from a seeded stream; one point fails a gate on one page."""
+    import random
+    draw = random.Random(9)
+    rows, values = [], {}
+    for cell in ("c1", "c2"):
+        for a in ("a1", "a2"):
+            for b in ("b1", "b2"):
+                point = f"{cell}_{a}_{b}"
+                values[point] = {"c": cell, "a": a, "b": b}
+                for k in (1, 2, 3):
+                    rows.append(row(point, page=f"{cell}/d0{k}-x01-y01", cell=cell, obj=f"run/pt/d0{k}-x01-y01",
+                                    chi2_ndf=draw.uniform(0.5, 6.0), chi2_sigma=draw.uniform(-1.0, 6.0),
+                                    poisson_dev=draw.uniform(0.5, 6.0), log_yield_ratio=draw.uniform(0.0, 0.4),
+                                    log_dev_shrunk=draw.uniform(0.0, 0.4), log_dev_l4=draw.uniform(0.0, 0.6),
+                                    tilt=draw.uniform(0.0, 0.4), pull_autocorr=draw.uniform(0.0, 0.8),
+                                    peak_pull2=draw.uniform(1.0, 30.0), log_ratio_roughness=draw.uniform(0.0, 0.5),
+                                    n_eff=draw.uniform(200.0, 1e4), yield_sign=0.0,
+                                    peak_bin_ratio=5.0 if (point, k) == ("c2_a2_b1", 2) else 0.0) | {"reference": "data"})
+    return rows, values
+
+
+RECORD = record_table()
+
+#: A value a test gives each `[ranking]` key, off its default. A key of the schema without one fails the test by name.
+EXAMPLES = {"metrics": ["chi2_sigma", "tilt", "peak_pull2"], "cost": "median", "thresholds": {"tilt": [0.05, 0.3]},
+            "weights": {"*d02*": 3.0}, "weights_by": "critic", "over_pages": "median", "veto_loss": 1.0, "gates": False,
+            "aggregate": "fisher", "dominated": True, "trim": 0.0, "by": ["a"], "baseline": {"b": "b1"},
+            "head_to_head": "all", "detail": True}
+FLAGS = ("by", "baseline", "trim", "head_to_head", "detail")       # the flags of `heimdall rank` that reach the engine
+
+
+def _keys():
+    from runner import schema
+    return list(schema.keys("ranking"))
+
+
+def ranked_with(table=None, flags=None, sources=None, page_weights=None):
+    rows, values = RECORD
+    return ranking.rank(rows, ranking.settings_of(table, flags, sources), page_weights, values)
+
+
+def numbers_of(result) -> str:
+    """Every number of a Ranking, its marginals and its baseline, as one comparable text (NaN as nan)."""
+    import dataclasses
+    points = [(p.cell, p.point, p.rank, p.loss, p.vetoed, p.failed_pages, p.gate_reason, p.worst_page, p.worst_loss,
+               sorted(p.categories.items()), sorted(p.pages.items()), sorted(p.values.items()), p.dominated) for p in result.points]
+    marginals = [(m.quantity, [dataclasses.astuple(r) for r in m.rows]) for m in result.marginals]
+    base = None if result.baseline is None else [dataclasses.asdict(r) for r in result.baseline.rows]
+    return repr((result.flat, points, marginals, base))
+
+
+@pytest.mark.parametrize("case", [*_keys(), "set", "figure weight", *(f"--{f.replace('_', '-')}" for f in FLAGS)])
+def test_no_setting_moves_a_number_the_record_does_not_name(case):
+    before = ranked_with()
+    if case == "set":
+        after, source = ranked_with({"over_pages": "median"}, sources={"over_pages": "set S"}), "set S"
+    elif case == "figure weight":
+        after, source = ranked_with(page_weights={"c1/d02-x01-y01": 3.0, "c2/d02-x01-y01": 3.0}), "figure"
+    elif case.startswith("--"):
+        key = case[2:].replace("-", "_")
+        after, source = ranked_with(flags={key: EXAMPLES[key]}), case
+    else:
+        if case not in EXAMPLES:
+            pytest.fail(f"[ranking].{case} has no example value here: give it one in EXAMPLES")
+        after, source = ranked_with({case: EXAMPLES[case]}), "[ranking]"
+    was, now = before.method.as_dict(), after.method.as_dict()
+    assert not (numbers_of(after) != numbers_of(before) and now == was), f"{case} moved a number and the record did not change"
+    if now != was:
+        changed = [c for stage in now for c in now[stage] if c not in was[stage]]
+        assert any(c["source"] == source for c in changed), (case, changed)

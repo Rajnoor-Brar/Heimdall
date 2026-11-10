@@ -1,6 +1,6 @@
 # Phase 5: the leaderboard, the sections, and the record shown
 
-Status: in progress (5.1, 5.2 done). Blocked by: phase 4. Source: [04](../plans/grand-ranking/04_Report.md), all of it; [02](../plans/grand-ranking/02_Metrics.md) for where a glyph goes; [03 §3 property 9](../plans/grand-ranking/03_Math.md). Names in code: [Tables](Tables.md) T4, T6, T7, T8.
+Status: in progress (5.1–5.3 done). Blocked by: phase 4. Source: [04](../plans/grand-ranking/04_Report.md), all of it; [02](../plans/grand-ranking/02_Metrics.md) for where a glyph goes; [03 §3 property 9](../plans/grand-ranking/03_Math.md). Names in code: [Tables](Tables.md) T4, T6, T7, T8.
 
 The rule of this phase: **a presenter renders the record and writes no rule of its own.** `bars.py`, `rankcmd.py` and `report.py` hold no sentence about a mean, a gate, a weight or a compression except through `Method.lines`.
 
@@ -74,3 +74,11 @@ The rule of this phase: **a presenter renders the record and writes no rule of i
   - Check: the step's five test files 213 passed; `tests/runner -m 'not slow'` 2281 passed, 11 skipped, the two named reds; `tests/integration -m 'not slow'` 131 passed.
   - Tests: off by default (no `-crossed` anywhere), and on, each default metric's section with its three items, after its category. A named metric alone, with `detail: off (default)` in its "Made by". A report naming `chi2_ndf:ranking` gets that item with detail off, through `detail_of`, the tree having `chi2_ndf` only. The fixtures that read detail items set `detail = true`.
   - A reader may rely on: `[ranking].detail`; a report section naming a metric draws that metric's tables.
+- **5.3 · done 2026-11-10.** `test_no_setting_moves_a_number_the_record_does_not_name`, in `test_stats_ranking.py`, has 22 cases. The table it runs on has two cells of the same three objects, so it is ranked as one order. It has a point for each value of `a` × `b` in each cell, every default and gate column drawn from a seeded stream, and one gate failed on one page.
+  - **Cases:** every key of `schema.keys("ranking")`, each with a value from `EXAMPLES`; a key without one fails by name. Then a set's `ranking = {over_pages = "median"}` with the source `set S`, a figure's weight on d02, and the flags `--by`, `--baseline`, `--trim`, `--head-to-head` and `--detail`.
+  - **What it compares:** every number of the Ranking (each point's rank, loss, veto, failed pages, reason, worst page and loss, categories, pages, values and dominated), its marginal rows and its baseline rows, before and after; and `Method.as_dict()`. A case fails when a number moved and the record did not. When the record changed, some changed choice must carry the source that was set.
+  - Found: `by` changed which marginals exist, and the record had no choice for it. The Marginals stage gains "by: <quantities> | every varied quantity (<source>)". `test_the_trim_is_a_setting…` reads it as the stage's first line.
+  - Fails first: `[by]` and `[--by]` (`AssertionError: ('by', [])`: the record changed only by losing strata, and no choice names the source).
+  - Shown to fail, not committed: with the `over_pages` choice removed from the Pages stage, `[over_pages]` and `[set]` fail ("moved a number and the record did not change"). `ranking.py` was restored from a copy.
+  - Check: `-k record` 26 passed; `tests/runner -m 'not slow'` 2303 passed, 11 skipped, the two named reds.
+  - A reader may rely on: the record names every `[ranking]` key, set, figure weight and flag that moves a number; a key added to the schema needs an example value here.

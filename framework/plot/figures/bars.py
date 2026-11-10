@@ -268,7 +268,7 @@ def _fraction(name: str, st, rule: str, found: list[float]):
     """How dark a number's cell is, 0 to 1, among the numbers `found`, by a metric's rule."""
     if rule == "cost":
         m = M.REGISTRY[name]
-        cost = lambda v: m.loss(v, st.thresholds.get(name))          # noqa: E731
+        cost = lambda v: m.cost(v, st.thresholds.get(name))          # noqa: E731
         top = max([1.0] + [c for v in found if _finite(c := cost(v))])
         return lambda v: min(cost(v) / top, 1.0) if _finite(v) else 0.0   # a table past bad still tells its worst from its next
     low, high = min(found), max(found)

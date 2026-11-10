@@ -107,7 +107,7 @@ def test_a_true_curve_with_noise_costs_almost_nothing_under_every_metric():
     for m in metrics.REGISTRY.values():
         if not scored(m):
             continue
-        losses = np.array([m.loss(m(c)) for c in curves])
+        losses = np.array([m.cost(m(c)) for c in curves])
         assert np.nanmedian(losses) <= 0.05, (m.name, np.nanmedian(losses))
         assert np.nanpercentile(losses, 90) <= 0.5, (m.name, np.nanpercentile(losses, 90))
 
@@ -173,7 +173,7 @@ def test_the_old_columns_are_statstables_on_the_same_bins(tmp_path):
 
 def loss(name: str, curve: bins.Curve, **settings) -> float:
     m = metrics.REGISTRY[name]
-    return m.loss(m(curve, **settings))
+    return m.cost(m(curve, **settings))
 
 
 def flat(n=N, ref=10.0, ref_err=1.0, y=None, err=None, width=1.0, logx=False) -> bins.Curve:
@@ -222,7 +222,7 @@ def test_chi2_sigma_is_wilson_hilferty():
 def test_chi2_sigma_is_one_sided():
     c = spectrum()                                                    # the curve a few percent off, errors 2 %: χ² under 1
     c = bins.Curve(c.lo, c.hi, c.ref_y * 1.001, c.err, c.ref_y, c.ref_err)
-    assert metrics.chi2_sigma(c) < 0 and metrics.REGISTRY["chi2_sigma"].loss(metrics.chi2_sigma(c)) == 0
+    assert metrics.chi2_sigma(c) < 0 and metrics.REGISTRY["chi2_sigma"].cost(metrics.chi2_sigma(c)) == 0
 
 
 def test_a_yield_off_by_twenty_percent_costs_the_yield_and_ratio_metrics_and_not_the_shape_ones():
@@ -255,7 +255,7 @@ def test_one_bin_zero_costs_the_hole_metrics():
     assert metrics.hole_fraction(c) == pytest.approx(1 / N)
     for name in ("peak_deviance", "log_ratio_roughness", "log_roughness", "smoothness_chi2", "log_dev_l4"):
         assert loss(name, c) >= 1.0, name
-    assert loss("hole_fraction", c) == pytest.approx((1 / N) / 0.10)
+    assert loss("hole_fraction", c) == pytest.approx(math.log2(1 + (1 / N) / 0.10))      # z = (1/N) / 0.10, compressed
 
 
 def test_a_tail_excess_is_found_by_tail_excess_sigma_and_pooled():
@@ -341,7 +341,7 @@ def test_n_eff_flags_one_huge_weight():
     err[10] = y[10]
     spiky = bins.Curve(c.lo, c.hi, y, err, c.ref_y, c.ref_err)
     assert metrics.n_eff(spiky) < 3 and loss("n_eff", spiky) >= 1.0
-    assert metrics.REGISTRY["n_eff"].loss(1e6) == 0
+    assert metrics.REGISTRY["n_eff"].cost(1e6) == 0
 
 
 def test_the_hole_fraction_leaves_a_tail_of_zeros_alone():
@@ -401,14 +401,24 @@ def test_consensus_dev_is_the_shape_against_the_pool_s_median():
     assert metrics.REGISTRY["consensus_dev"].pool and not metrics.REGISTRY["consensus_dev"].needs_reference
 
 
-def test_the_loss_is_hinged_and_works_for_every_direction():
+def test_the_cost_is_the_hinged_excess_compressed_and_works_for_every_direction():
     m = metrics.REGISTRY
-    assert m["log_yield_ratio"].loss(0.02) == 0 and m["log_yield_ratio"].loss(0.085) == pytest.approx(0.5) and m["log_yield_ratio"].loss(0.15) == pytest.approx(1)
-    assert m["n_eff"].loss(1000) == 0 and m["n_eff"].loss(550) == pytest.approx(0.5) and m["n_eff"].loss(100) == pytest.approx(1)
-    assert m["yield_ratio"].loss(1.0) == 0 and m["yield_ratio"].loss(1.2) == pytest.approx(m["yield_ratio"].loss(1 / 1.2), rel=0.03)
-    assert m["log_yield_ratio"].loss(0.3) > 1                                       # linear beyond bad, not capped
-    assert math.isnan(m["log_yield_ratio"].loss(math.nan))
-    assert m["log_yield_ratio"].loss(0.1, thresholds=(0.0, 0.2)) == pytest.approx(0.5)   # a setting overrides the registry's
+    ly = m["log_yield_ratio"]                                                       # lower, thresholds (0.02, 0.15)
+    assert ly.excess(0.02) == 0 and ly.excess(0.085) == pytest.approx(0.5) and ly.excess(0.15) == pytest.approx(1)
+    assert ly.cost(0.01) == 0 and ly.cost(0.15) == pytest.approx(1)                 # the fixed points: 0 within good, 1 at bad
+    assert ly.cost(0.085) == pytest.approx(math.log2(1.5))                          # z = 0.5
+    assert ly.cost(0.02 + 3 * 0.13) == pytest.approx(2.0)                           # z = 3: c = log2(4)
+    zs = [1.5, 2.0, 4.0, 9.0, 170.0]
+    cs = [ly.cost(0.02 + z * 0.13) for z in zs]
+    assert all(c2 - c1 < z2 - z1 for (z1, c1), (z2, c2) in zip(zip(zs, cs), zip(zs[1:], cs[1:])))   # slower than z beyond bad
+    ne = m["n_eff"]                                                                 # higher, log scale, (1000, 100): q(g) = −3, q(b) = −2
+    assert ne.excess(1000) == 0 and ne.excess(10 ** 2.5) == pytest.approx(0.5) and ne.excess(100) == pytest.approx(1)
+    assert ne.excess(316.2) == pytest.approx(0.5, abs=1e-4) and ne.excess(1e6) == 0 and math.isnan(ne.excess(0.0))
+    assert m["yield_ratio"].cost(1.0) == 0 and m["yield_ratio"].cost(1.2) == pytest.approx(m["yield_ratio"].cost(1 / 1.2))
+    assert math.isnan(ly.cost(math.nan)) and ly.cost(math.inf) == math.inf
+    assert ly.excess(0.1, thresholds=(0.0, 0.2)) == pytest.approx(0.5)              # a setting overrides the registry's
+    with pytest.raises(HeimdallError, match="descriptor"):
+        m["tail_slope"].cost(1.0)
 
 
 # ── the gate metrics ──────────────────────────────────────────────────────────────────────────

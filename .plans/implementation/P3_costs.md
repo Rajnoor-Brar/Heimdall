@@ -1,6 +1,6 @@
 # Phase 3: compressed costs, the default set, figure weights
 
-Status: not started. Blocked by: phase 2. Sources: [03 §1.2, §1.3, §3a](../plans/grand-ranking/03_Math.md), [02 §Defaults](../plans/grand-ranking/02_Metrics.md). Names in code: [Tables](Tables.md) T1 (flags), T5, T7, T8.
+Status: in progress (3.1). Blocked by: phase 2. Sources: [03 §1.2, §1.3, §3a](../plans/grand-ranking/03_Math.md), [02 §Defaults](../plans/grand-ranking/02_Metrics.md). Names in code: [Tables](Tables.md) T1 (flags), T5, T7, T8.
 
 Every loss changes in this phase, on purpose. A test's expected number is rewritten in the step that changes it, computed by hand in the test's own comment, never copied from the new code's output.
 
@@ -49,3 +49,8 @@ Every loss changes in this phase, on purpose. A test's expected number is rewrit
 - Blocked by: 3.2.
 
 ## Log
+- **3.1 · done 2026-11-10.** `Metric.oriented`, `excess`, `cost` (log₂(1 + z)); `scored` and `loss` are gone, and a descriptor refuses all three. `_cost_column`'s hinge calls `cost`, its pool branches `oriented`, and their numbers are those of before (a test holds one point of each). `bars._fraction` shades by `cost`. The record's Metrics, Cost, Category, Page loss and Opt-in stages are filled; an opt-in cost says it is pool-dependent (but surprisal) and not compressed. `describe` names the compression.
+  - Fails first: `AttributeError: 'Metric' object has no attribute 'excess'`; the record's stages empty; the hand numbers of the linear hinge.
+  - Hand numbers rewritten in their tests' comments: the RMS test (log₂ 1.5), the worst page (log₂ 5), the three points on two pages, `veto_loss` as G3 (2.32), `sweep_rows` (χ²/ndf = 1 + 2(2^c − 1) so a page costs c), `hole_fraction` (log₂ 1.25).
+  - Check: the two step files, 108 passed. Fast suite: 2358 passed, 11 skipped, the two named reds, and `test_stats_registry.py`'s 26 cases of `describe`'s exact ending, which now names the compression; rewritten, that file with `test_report_build.py` and `test_summary_layout.py`, 154 passed.
+  - A reader may rely on: a metric's cost 0 within good, 1 at bad, log₂(1 + z) beyond; the opt-in costs unchanged; the method record's stages but Pages and Marginals.

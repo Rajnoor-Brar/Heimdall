@@ -246,12 +246,12 @@ def _cost_column(name: str, obs: list[Obs], st: Settings) -> list[float]:
     if st.cost == "thresholds":
         if st.thresholds_of(name) is None:
             raise HeimdallError(f"'{name}' has no thresholds, so it cannot be hinged", hint=f"[ranking.thresholds] {name} = [good, bad], or another cost")
-        return [m.loss(v, st.thresholds.get(name)) if not math.isnan(v) else math.nan for v in values]
+        return [m.cost(v, st.thresholds.get(name)) if not math.isnan(v) else math.nan for v in values]
     if st.cost == "surprisal":
         return [(-math.log(max(null_p(name, v, o.row), P_FLOOR)) if not math.isnan(v) else math.nan) for v, o in zip(values, obs)]
     if m.polarity in ("higher", "descriptor"):
         raise HeimdallError(f"'{name}' cannot be normalised against the pool ({st.cost})", hint='use cost = "thresholds"')
-    q = np.array([m.scored(v) if not math.isnan(v) else math.nan for v in values], dtype=float)
+    q = np.array([m.oriented(v) if not math.isnan(v) else math.nan for v in values], dtype=float)
     ok = np.isfinite(q)
     if not ok.any():
         return [math.nan] * len(q)
@@ -431,12 +431,87 @@ def rank(rows: list[dict], settings: Settings | None = None, page_weights: dict 
         _dominated(result)
     gates = _gates(result, obs, groups)
     order = _order(result, obs)
-    result.method = Method(gates=gates, order=order)
+    result.method = Method(gates=gates, order=order, **_stages(result, rows, obs))
     if values:
         result.marginals = marginals(result, values, st)
         if st.baseline:
             result.baseline = baseline(result, values)
     return result
+
+
+# ── the record of how the numbers were made ────────────────────────────────────────────────────
+
+COST_NOTES = {
+    "thresholds": "each metric oriented (lower: T(m), higher: −T(m), one: |log10 m|; T is log10 on a log scale), hinged on its "
+                  "thresholds to z = max(0, (q − q(g)) / (q(b) − q(g))) and compressed to c = log₂(1 + z): 0 within good, 1 at bad, "
+                  "2 at z = 3. The metric's own thresholds, so a loss does not depend on the other curves",
+    "median": "each metric's oriented value over the median of the page's curves: pool-dependent, and not compressed",
+    "mad": "each metric's distance to the page's median in units of their spread, through a softplus: pool-dependent, and not compressed",
+    "minmax": "each metric 0 for the page's best curve, 1 for its worst: pool-dependent, and not compressed",
+    "surprisal": "−ln of the probability a true curve reads as badly, under the metric's null: of the curve alone, not compressed",
+}
+OPTIN_NOTES = {
+    "aggregate": "how a point's pages become its loss; rms is the Grand Ranking, the others are opt-in and say what they cost",
+    "dominated": "a column marking a point another beats on every category (Pareto); it moves no rank",
+    "weights_by": "equal: the metric weights as given; critic: learned from the metrics' correlations, so pool-dependent",
+    "baseline": "the point every loss is also shown against; it moves no rank",
+    "head_to_head": "the pages the summary plays as matches; it moves no rank",
+}
+
+
+def _why_not(name: str) -> str:
+    m = metrics.REGISTRY[name]
+    if m.polarity == "descriptor":
+        return "a descriptor: it describes a curve and has no better or worse"
+    if m.gate is not None and not m.thresholds:
+        return "a gate only"
+    if m.shown:
+        return "shown, not scored unless [ranking].metrics names it"
+    return "not named in [ranking].metrics"
+
+
+def _stages(result: "Ranking", rows: list[dict], obs: list[Obs]) -> dict:
+    """The record's Metrics, Cost, Category, Page loss and Opt-in stages."""
+    st = result.settings
+    columns = {k for r in rows for k in r if k in metrics.REGISTRY}
+    stage = []
+    for name, weight in st.metrics.items():
+        m = metrics.REGISTRY[name]
+        if name not in columns:
+            stage.append(Choice(name, "not in this table", "table", "its column is missing: it is skipped, not scored as zero"))
+            continue
+        stage.append(Choice(name, f"{m.polarity}, {m.scale} scale", "registry", f"category {m.category}"))
+        good_bad = st.thresholds_of(name)
+        if good_bad is not None:
+            mine = name in st.thresholds
+            stage.append(Choice(f"thresholds of {name}", list(good_bad), st.source("thresholds") if mine else "registry",
+                                "" if mine else m.why))
+        stage.append(Choice(f"weight of {name}", result.weights.get(name, weight), st.source("metrics") if st.weights_by == "equal"
+                            else st.source("weights_by"), "" if st.weights_by == "equal" else f"given {weight:g}, times CRITIC's"))
+    gates = set(st.gate_ids())
+    for name in sorted(columns - set(st.metrics) - gates, key=list(metrics.REGISTRY).index):
+        stage.append(Choice(name, "computed, not scored", "registry", _why_not(name)))
+    cost = (Choice("cost", st.cost, st.source("cost"), COST_NOTES[st.cost] + "."),)
+    used: dict = {}
+    for name in st.metrics:
+        if name in columns:
+            used.setdefault(metrics.REGISTRY[name].category, []).append(name)
+    category = (Choice("mean in a category", "rms", "default", "the root mean square of its metrics' costs, metric weights counting"),
+                *(Choice(f"category {key}", names, "registry") for key, names in used.items()))
+    had = list(dict.fromkeys(k for o in obs for k in o.categories))
+    page_loss = (Choice("mean over categories", "rms", "default",
+                        "the root mean square over the categories with a cost, each equal: four metrics of one category weigh as one"),
+                 Choice("categories with a cost", had, "table"))
+    optin = []
+    for key in ("aggregate", "dominated", "weights_by", "baseline", "head_to_head"):
+        value = getattr(st, key)
+        note = OPTIN_NOTES[key]
+        if key == "aggregate" and value != "rms":
+            note = next((n for n in result.notes if n.startswith(value)), note)
+        if key == "weights_by" and value == "critic":
+            note += ": " + ", ".join(f"{n} {w:.3g}" for n, w in result.weights.items())
+        optin.append(Choice(key, value if value is not None else "none", st.source(key), note))
+    return {"metrics": tuple(stage), "cost": cost, "category": category, "page_loss": page_loss, "optin": tuple(optin)}
 
 
 # ── the gates and the order ───────────────────────────────────────────────────────────────────

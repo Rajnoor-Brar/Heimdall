@@ -130,17 +130,47 @@ class Metric:
     def __call__(self, curve: Curve, **settings) -> float:
         return self.fn(curve, **settings)
 
-    def scored(self, value: float) -> float:
-        """The quantity the thresholds are on: |log10 value| for "one", else the value."""
-        if self.polarity == "one":
-            return abs(math.log10(value)) if value > 0 else math.inf
+    def _descriptor(self) -> None:
+        if self.polarity == "descriptor":
+            from runner.errors import HeimdallError
+            raise HeimdallError(f"'{self.name}' is a descriptor: it has no cost", hint="name a metric that is scored, or a gate")
+
+    def _scaled(self, value: float) -> float:
+        """T: log10 for a metric on a log scale (NaN at or below zero), else the value."""
+        if self.scale == "log":
+            return math.log10(value) if value > 0 else math.nan
         return value
 
-    def loss(self, value: float, thresholds: tuple[float, float] | None = None) -> float:
-        """The hinged penalty: 0 at or inside `good`, 1 at `bad`, linear between and beyond (lower or higher alike)."""
+    def oriented(self, value: float) -> float:
+        """q, the oriented excess: T(m) for "lower", −T(m) for "higher", |log10 m| for "one" (+inf at m ≤ 0); NaN stays NaN."""
+        self._descriptor()
+        if value != value:
+            return math.nan
+        if self.polarity == "one":
+            return abs(math.log10(value)) if value > 0 else math.inf
+        t = self._scaled(value)
+        return -t if self.polarity == "higher" else t
+
+    def _edge(self, threshold: float) -> float:
+        """A threshold oriented as a value is; a "one" metric's thresholds are given on |log10| already."""
+        return threshold if self.polarity == "one" else self.oriented(threshold)
+
+    def excess(self, value: float, thresholds: tuple[float, float] | None = None) -> float:
+        """z, the hinged tolerance excess: 0 at or inside good, 1 at bad, in proportion beyond; +inf for q = +inf, 0 for q = −inf
+        (infinitely good), NaN stays NaN."""
         good, bad = thresholds or self.thresholds or (math.nan, math.nan)
-        m = self.scored(value)
-        return max(0.0, (m - good) / (bad - good)) if math.isfinite(m) else (math.nan if math.isnan(m) else math.inf)
+        q = self.oriented(value)
+        if q != q:
+            return math.nan
+        if math.isinf(q):
+            return math.inf if q > 0 else 0.0
+        g, b = self._edge(good), self._edge(bad)
+        return max(0.0, (q - g) / (b - g))
+
+    def cost(self, value: float, thresholds: tuple[float, float] | None = None) -> float:
+        """c = log2(1 + z): 0 within good, 1 at bad, 2 at z = 3; grows ever slower beyond bad."""
+        z = self.excess(value, thresholds)
+        return z if z != z or math.isinf(z) else math.log2(1.0 + z)
 
 
 # ── the log ratio ─────────────────────────────────────────────────────────────────────────────
@@ -681,7 +711,8 @@ def describe(name: str, thresholds: tuple[float, float] | None = None) -> str:
     used = thresholds or m.thresholds
     if used:
         good, bad = used
-        text += f" Scored from {good:g} (cost 0) to {bad:g} (cost 1)" + (f": {m.why}." if m.why and not thresholds else ".")
+        text += (f" Scored from {good:g} (cost 0) to {bad:g} (cost 1), compressed beyond: log₂(1 + excess)"
+                 + (f": {m.why}." if m.why and not thresholds else "."))
     elif m.gate is not None:
         text += f" A gate only: a page fails it at {m.gate:g} or more, and it is not scored."
     else:

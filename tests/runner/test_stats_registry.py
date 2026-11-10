@@ -86,7 +86,7 @@ def test_a_metric_describes_itself_with_its_thresholds_and_a_setting_overrides_t
     assert text.startswith(f"{metrics.title_of(name)}: {m.note}")
     assert ("Scored from" in text) == (m.thresholds is not None)
     if m.thresholds:
-        assert metrics.describe(name, (0.5, 2.0)).endswith("Scored from 0.5 (cost 0) to 2 (cost 1).")
+        assert metrics.describe(name, (0.5, 2.0)).endswith("Scored from 0.5 (cost 0) to 2 (cost 1), compressed beyond: log₂(1 + excess).")
 
 
 def test_every_polarity_has_a_glyph_an_ascii_form_and_a_phrase():

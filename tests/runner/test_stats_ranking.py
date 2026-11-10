@@ -52,10 +52,10 @@ def test_a_perfect_curve_scores_zero_and_a_point_at_bad_scores_one_per_metric():
 
 
 def test_the_loss_is_the_rms_over_purposes_of_the_rms_within_each():
-    rows = [row("a", chi2_ndf=2.0, log_yield_ratio=0.0)]                              # chi2: (2−1)/(3−1) = 0.5; norm: 0
+    rows = [row("a", chi2_ndf=2.0, log_yield_ratio=0.0)]          # chi2: z = (2−1)/(3−1) = 0.5, c = log2(1.5); norm: 0
     (p,) = ranking.rank(rows, two_categories()).points
-    assert p.loss == pytest.approx(math.sqrt((0.5**2 + 0.0) / 2))
-    assert p.categories == pytest.approx({"compatibility": 0.5, "normalisation": 0.0})
+    assert p.loss == pytest.approx(math.sqrt((math.log2(1.5) ** 2 + 0.0) / 2))
+    assert p.categories == pytest.approx({"compatibility": math.log2(1.5), "normalisation": 0.0})
 
 
 def test_the_shares_of_the_loss_sum_to_one_and_name_the_purpose_that_costs():
@@ -125,7 +125,7 @@ def test_the_worst_page_and_the_veto():
     rows = [row("a", page="good", chi2_ndf=1.0), row("a", page="awful", chi2_ndf=9.0)]
     st = ranking.settings_of({"metrics": ["chi2_ndf"], "veto_loss": 2.0})
     (p,) = ranking.rank(rows, st).points
-    assert p.worst_page == "awful" and p.worst_loss == pytest.approx(4.0)
+    assert p.worst_page == "awful" and p.worst_loss == pytest.approx(math.log2(5.0))     # z = (9−1)/2 = 4, c = log2(5)
     assert p.vetoed is True
     assert ranking.rank(rows, ranking.settings_of({"metrics": ["chi2_ndf"], "veto_loss": 5.0})).points[0].vetoed is False
     assert ranking.rank(rows, ranking.settings_of({"metrics": ["chi2_ndf"]})).points[0].vetoed is False
@@ -305,14 +305,15 @@ def test_head_to_head_on_a_page_that_is_not_there_names_the_pages():
 # ── marginals and baselines ───────────────────────────────────────────────────────────────────
 
 def sweep_rows(losses: dict, drop=()):
-    """A point per (generator, pdf), its one page's χ²/ndf set so that its loss is losses[(g, p)] (χ²/ndf = 1 + 2·loss)."""
+    """A point per (generator, pdf), its d01 page's χ²/ndf set so that the page costs losses[(g, p)] and its d02 page twice that:
+    a cost c is z = 2^c − 1 on the hinge (1, 3), so χ²/ndf = 1 + 2·(2^c − 1)."""
     rows, axes = [], {}
     for (g, p), loss in losses.items():
         if (g, p) in drop:
             continue
         name = f"{g}_{p}"
-        rows.append(row(name, page="c/d01-x01-y01", cell="c", obj="run/pt/d01-x01-y01", chi2_ndf=1.0 + 2.0 * loss))
-        rows.append(row(name, page="c/d02-x01-y01", cell="c", obj="run/pt/d02-x01-y01", chi2_ndf=1.0 + 2.0 * loss * 2))
+        rows.append(row(name, page="c/d01-x01-y01", cell="c", obj="run/pt/d01-x01-y01", chi2_ndf=1.0 + 2.0 * (2 ** loss - 1)))
+        rows.append(row(name, page="c/d02-x01-y01", cell="c", obj="run/pt/d02-x01-y01", chi2_ndf=1.0 + 2.0 * (2 ** (2 * loss) - 1)))
         axes[name] = {"generator": g, "pdf": p}
     return rows, axes
 
@@ -388,16 +389,17 @@ def test_a_baseline_by_point_name_and_a_point_without_a_partner_is_listed_not_dr
 
 
 def test_three_points_on_two_pages_lose_what_the_hinge_and_the_rms_give_by_hand():
-    """chi2_ndf hinged on (1, 3), log_yield_ratio on (0.02, 0.15); a page's loss is the RMS over its two categories, a point's the
-    RMS over its two pages. a: costs (0.5, 0) and (0, 0.5), each page √0.125, so √0.125. b: (1, 1) and (0, 0): pages 1 and 0, so
-    √0.5. c: (1.5, 0) and (0.25, 0.25): pages √1.125 and 0.25, so √((1.125 + 0.0625) / 2)."""
+    """chi2_ndf hinged on (1, 3), log_yield_ratio on (0.02, 0.15), each excess z compressed to c = log2(1 + z); a page's loss is
+    the RMS over its two categories, a point's the RMS over its two pages. a: z (0.5, 0) and (0, 0.5), so c = log2 1.5 on one
+    category of each page: each page log2(1.5)/√2, and so the point. b: z (1, 1) and (0, 0): c 1 and 0, pages 1 and 0, so √0.5.
+    c: z (1.5, 0) and (0.25, 0.25): page 1 log2(2.5)/√2, page 2 log2(1.25), so √((log2(2.5)²/2 + log2(1.25)²) / 2)."""
     values = {("a", "p1"): (2.0, 0.02), ("a", "p2"): (1.0, 0.085), ("b", "p1"): (3.0, 0.15), ("b", "p2"): (1.0, 0.02),
               ("c", "p1"): (4.0, 0.02), ("c", "p2"): (1.5, 0.0525)}
     rows = [row(point, page=page, chi2_ndf=chi2, log_yield_ratio=norm) for (point, page), (chi2, norm) in values.items()]
     got = {p.point: p.loss for p in ranking.rank(rows, two_categories()).points}
-    assert got["a"] == pytest.approx(0.3535533905932738, abs=1e-12)
+    assert got["a"] == pytest.approx(math.log2(1.5) / math.sqrt(2), abs=1e-12)                  # 0.41363
     assert got["b"] == pytest.approx(0.7071067811865476, abs=1e-12)
-    assert got["c"] == pytest.approx(0.7705517503711221, abs=1e-12)
+    assert got["c"] == pytest.approx(math.sqrt((math.log2(2.5) ** 2 / 2 + math.log2(1.25) ** 2) / 2), abs=1e-12)   # 0.69907
 
 
 # ── the gates and the order ─────────────────────────────────────────────────────────────────────
@@ -468,9 +470,9 @@ def test_a_named_gate_list_leaves_the_other_gate_unapplied():
 def test_veto_loss_is_a_gate_on_the_page_loss():
     rows = [row("a", page="good", chi2_ndf=1.0), row("a", page="awful", chi2_ndf=9.0), row("b", page="good", chi2_ndf=5.0),
             row("b", page="awful", chi2_ndf=5.0)]
-    out = ranking.rank(rows, ranking.settings_of({**CHI2, "veto_loss": 3.0}))
-    assert [p.point for p in out.points] == ["b", "a"]
-    assert out.points[1].gate_reason == "a page loss of up to 4 on 1 of 2 pages"
+    out = ranking.rank(rows, ranking.settings_of({**CHI2, "veto_loss": 2.0}))      # a's awful page: z 4, c log2 5 = 2.32 > 2
+    assert [p.point for p in out.points] == ["b", "a"]                              # b's pages: z 2, c log2 3 = 1.58: it passes
+    assert out.points[1].gate_reason == "a page loss of up to 2.32 on 1 of 2 pages"
 
 
 def test_a_table_without_the_gate_columns_vetoes_none_and_says_not_evaluated():
@@ -487,7 +489,8 @@ def test_the_record_holds_every_stage_and_the_sources_follow_the_flags():
     assert ranking.settings_of({"cost": "mad"}, sources={"cost": "set lo"}).sources["cost"] == "set lo"
     assert ranking.settings_of(flags={"head_to_head": "all"}).sources["head_to_head"] == "--head-to-head"
     record = ranking.rank([row("a")], ranking.settings_of(CHI2)).method.as_dict()
-    assert list(record) == list(ranking.Method.STAGES) and record["metrics"] == [] and record["order"]
+    assert list(record) == list(ranking.Method.STAGES) and record["pages"] == [] and record["marginals"] == []    # 3.3, 4.2
+    assert all(record[stage] for stage in ("gates", "metrics", "cost", "category", "page_loss", "order", "optin"))
 
 
 def test_cells_are_one_order_when_their_pages_match_else_an_order_a_cell():
@@ -498,3 +501,69 @@ def test_cells_are_one_order_when_their_pages_match_else_an_order_a_cell():
     out = ranking.rank(apart, ranking.settings_of(CHI2))
     assert not out.flat and [(p.point, p.rank) for p in out.points] == [("a", 1), ("b", 1)]
     assert out.method.lines("order")[-1].startswith("cells: banded (table).")
+
+
+# ── compression and the record of how a loss is made ────────────────────────────────────────────
+
+def test_raising_one_metric_past_good_never_lowers_the_loss():
+    import random
+    rng = random.Random(311)
+    names = ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2"]
+    st = ranking.settings_of({"metrics": names})
+    for _ in range(200):
+        values = {n: rng.uniform(0, 3) if n == "tilt" else rng.uniform(0, 0.4) if n != "chi2_ndf" else rng.uniform(0.5, 30) for n in names}
+        before = ranking.rank([row("a", **values)], st).points[0].loss
+        name = rng.choice(names)
+        after = ranking.rank([row("a", **{**values, name: values[name] * rng.uniform(1, 50) + 1e-3})], st).points[0].loss
+        assert after >= before - 1e-12, (name, values)
+
+
+def test_adding_a_point_changes_no_other_points_loss_over_random_tables():
+    import random
+    rng = random.Random(312)
+    st = ranking.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio", "tilt"]})
+    for _ in range(50):
+        rows = [row(f"p{i}", page=f"g{j}", chi2_ndf=rng.uniform(0.5, 20), log_yield_ratio=rng.uniform(0, 0.5), tilt=rng.uniform(0, 4))
+                for i in range(4) for j in range(3)]
+        before = {p.point: p.loss for p in ranking.rank(rows, st).points}
+        more = rows + [row("new", page=f"g{j}", chi2_ndf=rng.uniform(0.5, 100), log_yield_ratio=1.0, tilt=9.0) for j in range(3)]
+        after = {p.point: p.loss for p in ranking.rank(more, st).points}
+        assert all(after[k] == before[k] for k in before)
+
+
+ROWS_R19 = [row("a", chi2_ndf=1.2, log_yield_ratio=0.03), row("b", chi2_ndf=2.5, log_yield_ratio=0.2),
+            row("c", chi2_ndf=6.0, log_yield_ratio=0.01), row("d", chi2_ndf=1.0, log_yield_ratio=0.09)]
+
+
+@pytest.mark.parametrize("cost,metrics_on,expected", [               # each as the engine gave it before compression came
+    ("median", ["chi2_ndf", "log_yield_ratio"], {"a": 0.5791135766815168, "b": 2.5433503087374962}),
+    ("mad", ["chi2_ndf", "log_yield_ratio"], {"a": 0.4576540454378009, "c": 2.667813189863337}),
+    ("minmax", ["chi2_ndf", "log_yield_ratio"], {"a": 0.07962516062769448, "b": 0.73824115301167}),
+    ("surprisal", ["chi2_ndf"], {"d": 0.8198600776149134, "c": 19.435604408046576}),
+])
+def test_an_opt_in_cost_is_not_compressed_and_its_numbers_do_not_move(cost, metrics_on, expected):
+    out = ranking.rank(ROWS_R19, ranking.settings_of({"metrics": metrics_on, "cost": cost}))
+    got = {p.point: p.loss for p in out.points}
+    assert {k: got[k] for k in expected} == pytest.approx(expected, rel=1e-12)
+    (line,) = out.method.lines("cost")
+    assert line.startswith(f"cost: {cost} ([ranking]).") and "not compressed" in line
+    assert ("pool-dependent" in line) == (cost != "surprisal")
+
+
+def test_the_record_names_each_metric_its_thresholds_weight_and_what_is_computed_but_not_scored():
+    rows = [row("a", tail_slope=0.3, n_eff=5000.0, peak_bin_ratio=0.0, yield_sign=0.0)]
+    st = ranking.settings_of({"metrics": {"chi2_ndf": 2, "log_yield_ratio": 1, "chi2_sigma": 1},
+                              "thresholds": {"log_yield_ratio": [0.01, 0.1]}})
+    lines = ranking.rank(rows, st).method.lines("metrics")
+    assert "chi2_ndf: lower, linear scale (registry). category compatibility" in lines
+    assert any(l.startswith("thresholds of chi2_ndf: 1, 3 (registry).") for l in lines)
+    assert "thresholds of log_yield_ratio: 0.01, 0.1 ([ranking])." in lines
+    assert "weight of chi2_ndf: 2 ([ranking])." in lines
+    assert any(l.startswith("chi2_sigma: not in this table (table).") for l in lines)
+    assert any(l.startswith("tail_slope: computed, not scored (registry). a descriptor") for l in lines)
+    assert any(l.startswith("n_eff: computed, not scored (registry).") for l in lines)             # shown from 3.2
+    assert not any(l.startswith(("peak_bin_ratio", "yield_sign")) for l in lines)          # gates are the Gates stage's
+    record = ranking.rank(rows, st).method
+    assert record.lines("cost")[0].startswith("cost: thresholds (default).") and "log₂(1 + z)" in record.lines("cost")[0]
+    assert [c.name for c in record.optin] == ["aggregate", "dominated", "weights_by", "baseline", "head_to_head"]
+    assert "categories with a cost: compatibility, normalisation (table)." in record.lines("page_loss")

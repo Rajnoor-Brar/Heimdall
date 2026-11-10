@@ -1365,6 +1365,155 @@ def errand_text(text: str) -> str:
     return "".join(out)
 
 
+#: A ranking header, `[score]` or `[score.<sub>]`, commented out or not: (lead, `[`, the rest from its dot or `]`).
+_OLD_RANKING = re.compile(r"^(\s*(?:#+\s*)?)(\[\s*)score(\s*[.\]])")
+#: Inside a value: a key whose value names metrics (`metrics = …` in a set's ranking table, a figure's `metric = …`).
+_ID_KEYS = re.compile(r"(?<![\w.\-])(metrics|thresholds|legend_metric|metric)(\s*=\s*)")
+#: An inline ranking table, a set's: `score = {` or `ranking = {`.
+_INLINE_RANKING = re.compile(r"(?<![\w.\-])(score|ranking)(\s*=\s*)\{")
+#: The command line's words, in a comment: `heimdall score`, `explain score`.
+COMMAND_RULES = ((re.compile(r"\bheimdall(\s+)score\b"), r"heimdall\1rank"), (re.compile(r"\bexplain(\s+)score\b"), r"explain\1ranking"))
+
+
+def _span(text: str, start: int) -> int:
+    """Where the TOML value at `start` ends on this line: a string's closing quote, a bracket's match (the line's end
+    when it is left open), else the next `,` or `}` of the inline table it is in."""
+    if start >= len(text):
+        return start
+    if text[start] in "\"'":
+        end = text.find(text[start], start + 1)
+        return len(text) if end < 0 else end + 1
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] in "[{":
+            depth += 1
+        elif text[i] in "]}":
+            depth -= 1
+            if depth <= 0:
+                return i + 1 if depth == 0 else i
+        elif text[i] == "," and depth == 0:
+            return i
+    return len(text)
+
+
+def _keys_in(value: str, keys: dict) -> str:
+    """An inline table's keys renamed (old → new): `{ mean = …` → `{ over_pages = …`."""
+    return re.sub(r"([{,]\s*)(" + "|".join(map(re.escape, keys)) + r")(\s*=)", lambda m: m[1] + keys[m[2]] + m[3], value)
+
+
+def _ids(value: str, sections: bool) -> str:
+    """A value naming metrics in today's ids: a quoted id (`"norm"`) and a bare key of an inline table (`{ norm = 2 }`);
+    with `sections` (a report section's `stats`) `"norm:ranking"`, `"standings"` and `"purpose:<key>"` too."""
+    from stats import metrics
+
+    from .config import OLD_CATEGORIES, OLD_SECTIONS
+
+    def quoted(match) -> str:
+        quote, head, colon, tail = match[1], match[2], match[3] or "", match[4]
+        if not sections:
+            return f"{quote}{metrics.resolve(head)}{quote}" if not colon else match[0]
+        if not colon and head in OLD_SECTIONS:
+            return f"{quote}{OLD_SECTIONS[head]}{quote}"
+        if head == "purpose" and colon:
+            return f"{quote}category:{OLD_CATEGORIES.get(tail, tail)}{quote}"
+        return f"{quote}{metrics.resolve(head)}{colon}{tail}{quote}"
+    value = re.sub(r"""(["'])([A-Za-z0-9_]+)(:)?([A-Za-z0-9_\-]*)\1""", quoted, value)
+    return re.sub(r"([{,]\s*)([A-Za-z0-9_]+)(\s*=)", lambda m: m[1] + metrics.resolve(m[2]) + m[3], value)
+
+
+def _inline(value: str) -> str:
+    """A value's inline tables in today's names: a set's `score = {…}` (→ `ranking = {…}`, its three keys renamed),
+    `legend_statistic`, a figure's `class = "statistic"` and its `statistic`, and the ids under `metrics`, `thresholds`,
+    `legend_metric` and `metric`."""
+    from .config import FIGURE_KEYS, OLD_CLASSES, PAGE_KEYS, RANKING_KEYS
+    out, at = [], 0
+    for match in _INLINE_RANKING.finditer(value):
+        if match.start() < at:
+            continue
+        start = match.end() - 1
+        end = _span(value, start)
+        out += [value[at:match.start()], "ranking", match[2], _keys_in(value[start:end], RANKING_KEYS)]
+        at = end
+    value = "".join(out) + value[at:]
+    value = _keys_in(value, PAGE_KEYS)
+    classes = "|".join(OLD_CLASSES)
+    if re.search(r"""\bclass\s*=\s*["'](?:""" + classes + r")[\"']", value):
+        value = re.sub(r"""(\bclass\s*=\s*)(["'])(""" + classes + r")\2", lambda m: m[1] + m[2] + OLD_CLASSES[m[3]] + m[2], value)
+        value = _keys_in(value, FIGURE_KEYS)
+    out, at = [], 0
+    for match in _ID_KEYS.finditer(value):
+        if match.start() < at:
+            continue
+        end = _span(value, match.end())
+        out += [value[at:match.end()], _ids(value[match.end():end], False)]
+        at = end
+    return "".join(out) + value[at:]
+
+
+def ranking_text(text: str) -> str:
+    """A config's or a recipe's text in the Grand Ranking's names, by line so comments and layout stay, from the tables
+    `config.renamed` reads them by: `[score]` and `[score.…]` → `[ranking…]` (commented-out ones too); under it, or in a
+    set's `score = {…}` (→ `ranking = {…}`), `normalise`, `mean`, `veto` → `cost`, `over_pages`, `veto_loss`;
+    `legend_statistic` → `legend_metric`; a figure's `class = "statistic"` and `statistic` → `metric`; an old metric id
+    in a value of `metrics`, `thresholds`, `legend_metric` or `metric`, or as a key under `[ranking.metrics]` or
+    `[ranking.thresholds]`; a report section's `stats` (`standings`, `purpose:<key>`, `<old id>[:part]`); and in a
+    comment, `heimdall score` and `explain score`. A string value is never touched otherwise (a tool's arguments are
+    hashed), nor an id in a comment's prose. Idempotent."""
+    from stats import metrics
+
+    from .config import FIGURE_KEYS, OLD_CLASSES, PAGE_KEYS, RANKING_KEYS
+    out: list[str] = []
+    table, listing, depth, multi = "", "", 0, None
+    for line in text.splitlines(keepends=True):
+        bare = line.rstrip("\n")
+        end = line[len(bare):]
+        code, note = _comment_of(bare)
+        if multi:                                          # inside a """ string: a value's text, left
+            multi = None if code.count(multi) % 2 else multi
+        elif depth > 0:                                    # a value over lines
+            code = _ids(code, listing == "stats") if listing else _inline(code)
+            depth = max(0, depth + _depth(code))
+            listing = listing if depth else ""
+        elif not code.strip():                             # a comment: a commented-out header in today's names
+            note = _OLD_RANKING.sub(r"\1\2ranking\3", note)
+        elif _TABLE.match(code):
+            code = _OLD_RANKING.sub(r"\1\2ranking\3", code)
+            table = _TABLE.match(code)[1].strip()
+        elif (key := _KEY.match(code)):
+            name = key[2].strip('"')
+            figure = table.startswith("plot.figures.") and table.count(".") == 2
+            if table == "ranking" and name in RANKING_KEYS:
+                code = _renamed_key(code, RANKING_KEYS[name])
+            elif table in ("ranking.metrics", "ranking.thresholds") and metrics.resolve(name) != name:
+                code = key[1] + metrics.resolve(name) + key[3] + key[4]
+            elif name in PAGE_KEYS:
+                code = _renamed_key(code, PAGE_KEYS[name])
+            elif figure and name in FIGURE_KEYS:
+                code = _renamed_key(code, FIGURE_KEYS[name])
+            elif name == "score" and key[4].lstrip().startswith("{"):          # a set's table form: score = { … }
+                code = _renamed_key(code, "ranking")
+            key = _KEY.match(code)
+            name, value = key[2].strip('"'), key[4]
+            if figure and name == "class":
+                value = re.sub(r"""^(["'])(""" + "|".join(OLD_CLASSES) + r")\1", lambda m: m[1] + OLD_CLASSES[m[2]] + m[1], value)
+            if name in ("metrics", "thresholds", "legend_metric", "metric") or (name == "stats" and table == "report.section"):
+                listing = name
+                value = _ids(value, name == "stats")
+            else:
+                listing = ""
+                value = _inline(value)
+                if name == "ranking":
+                    value = _keys_in(value, RANKING_KEYS)
+            code = key[1] + key[2] + key[3] + value
+            multi = next((q for q in ('"""', "'''") if value.count(q) % 2), None)
+            depth = 0 if multi else max(0, _depth(value))
+            listing = listing if depth else ""
+        for pattern, repl in COMMAND_RULES:
+            note = pattern.sub(repl, note)
+        out.append(code + note + end)
+    return "".join(out)
+
+
 def source_text(text: str) -> str:
     """A plot document's text in today's names: [source].project → assignment, [source].run → errand. Idempotent."""
     out, table = [], ""
@@ -1420,7 +1569,7 @@ def provenance_text(text: str) -> str:
 
 
 def errand_changes(work: Path, changes: dict[Path, tuple[str, str]] | None = None) -> dict[Path, tuple[str, str]]:
-    """Each of a work dir's files the Assignment/Errand names change: its configs (configs/**/*.toml, errand_text), its records'
+    """Each of a work dir's files the Assignment/Errand names change: its configs (configs/**/*.toml, errand_text, then ranking_text: a record's are read by config.renamed), its records'
     snapshots (records/**/config/: the configs, snapshot.toml's digests and --set overrides) and points' provenance
     (its --set overrides), its plot documents (results/**/plot.toml, source_text) and folders' report.toml (their
     title's placeholders); --set and explain lines in its own sources (_sources; never modules/, whose source is
@@ -1450,7 +1599,8 @@ def errand_changes(work: Path, changes: dict[Path, tuple[str, str]] | None = Non
             continue
         if path.is_relative_to(work / "configs") and path.suffix not in (".toml", ".md", ".sh", ".txt"):
             continue                                       # a base card: its bytes are its points' identity
-        put(path, errand_text if path.suffix == ".toml" and path.is_relative_to(work / "configs") else lines_of)
+        put(path, (lambda text: ranking_text(errand_text(text))) if path.suffix == ".toml" and path.is_relative_to(work / "configs")
+            else lines_of)
     records = work / "records"
     for snapshot in sorted(records.glob("*/*/*/config/snapshot.toml")) if records.is_dir() else ():
         folder, digests = snapshot.parent, {}

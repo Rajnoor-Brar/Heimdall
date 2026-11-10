@@ -165,7 +165,7 @@ Frontier: one step at a time, in the table's order. Nothing runs in parallel: ev
 |---|---|
 | Plan | written and hardened 2026-11-10 (Tables, R19–R24); waits for the order to start |
 | 0 | done 2026-11-10: fast suite 2182 passed, 11 skipped; no known reds |
-| 1 | not started |
+| 1 | done 2026-11-10 (1.1–1.7, `f0a3f5d`…): every name of T1–T4 in place, the old ones refused in a user's file and read in a record, `heimdall migrate` rewrites them; no number changed. Fast suite green but for the two stable-docs reds of Implementation_Issues |
 | 2 | not started |
 | 3 | not started |
 | 4 | not started |

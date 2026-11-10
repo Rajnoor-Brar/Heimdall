@@ -604,8 +604,9 @@ def _scoring(found: list, place: str, table) -> None:
             _ids_in(found, place, table, key)
 
 
-#: A metric's category, by the key it had as a report's `purpose:<key>`.
+#: A metric's category, by the key it had as a report's `purpose:<key>`; a summary section's key as it was.
 OLD_CATEGORIES = {"shape": "accuracy"}
+OLD_SECTIONS = {"standings": "leaderboard"}
 
 
 def _stats_entry(found: list, place: str, entry):
@@ -614,9 +615,9 @@ def _stats_entry(found: list, place: str, entry):
     if not isinstance(entry, str):
         return entry
     head, colon, tail = entry.partition(":")
-    if entry == "standings":
-        found.append((place, entry, "leaderboard"))
-        return "leaderboard"
+    if entry in OLD_SECTIONS:
+        found.append((place, entry, OLD_SECTIONS[entry]))
+        return OLD_SECTIONS[entry]
     if head == "purpose":
         new = f"category:{OLD_CATEGORIES.get(tail, tail)}"
         found.append((place, entry, new))

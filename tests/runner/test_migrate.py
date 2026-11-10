@@ -449,3 +449,75 @@ def test_records_upgrade_gives_the_old_files_a_format_and_a_copy(scratch, monkey
     assert "nothing to upgrade" in capsys.readouterr().out
     assert cli.cmd_records(argparse.Namespace(action="upgrade", scope="", dry_run=True)) == 0     # the other record is still old
     assert capsys.readouterr().out.count("add format = 1") == 1
+
+
+RANKING_OLD = '''# heimdall score P/study; heimdall explain score.mean says how. The shape of a curve is not a metric here.
+[score]
+normalise = "median"   # how a metric becomes a cost
+mean      = "rms"
+veto      = 3.0
+metrics   = ["shape", "norm"]
+# [score.weights]
+
+[score.thresholds]
+worst = [5, 20]
+
+[stats]
+metrics = [
+    "chi2_ndf",
+    "ratio_dev",
+]
+
+[plot]
+legend_statistic = "ratio_dev"
+sets = [{ name = "lo", points = ["pdf=MSTW08lo"], score = { mean = "median", veto = 2.0, metrics = ["L4"] } }]
+
+[plot.figures.rank]
+class     = "statistic"
+statistic = "area_ratio"
+objects   = ["d01-*"]
+'''
+RECIPE_OLD = '''[report]
+title = "x"
+
+[[report.section]]
+title = "Standings"
+stats = ["standings", "purpose:shape", "chi2_z:ranking", "worst"]   # see heimdall explain score
+'''
+
+
+def test_the_ranking_names_are_rewritten_by_line_and_a_records_are_left(scratch, monkeypatch):
+    """`migrate.ranking_text` rewrites every old name a user writes (T3) in a config and a recipe: once, they load with
+    nothing renamed; twice, nothing changes. An id in a comment's prose and a quantity's key `shape` are left, and a
+    tool's arguments (hashed) too. `errand_changes` rewrites configs/, not a record's snapshot: that is read."""
+    import tomli_w
+    from helpers import BASE
+    base = {**BASE, "quantities": {**BASE["quantities"], "shape": {"values": ["a", "b"]}},
+            "tools": {**BASE["tools"], "rivet": {**BASE["tools"]["rivet"], "arguments": ["heimdall score x"]}}}
+    old = tomli_w.dumps(base) + "\n" + RANKING_OLD
+    new = migrate.ranking_text(old)
+    assert migrate.ranking_text(new) == new and migrate.ranking_text(RECIPE_OLD) == migrate.ranking_text(migrate.ranking_text(RECIPE_OLD))
+    raw = tomllib.loads(new)
+    assert config.renamed(raw, "configs/P/study.toml", recorded=False) is raw            # no old name left
+    errand = config.parse(raw, scratch / "study.toml")
+    assert errand.ranking == {"cost": "median", "over_pages": "rms", "veto_loss": 3.0, "metrics": ["log_dev_shrunk", "log_yield_ratio"],
+                              "thresholds": {"peak_pull2": [5, 20]}}
+    assert errand.stats["metrics"] == ["chi2_ndf", "mean_abs_ratio_dev"] and errand.plot["legend_metric"] == "mean_abs_ratio_dev"
+    assert errand.plot["sets"][0]["ranking"] == {"over_pages": "median", "veto_loss": 2.0, "metrics": ["log_dev_l4"]}
+    assert errand.plot["figures"]["rank"] == {"class": "metric", "metric": "yield_ratio", "objects": ["d01-*"]}
+    assert "\n# heimdall rank P/study; heimdall explain ranking.mean says how. The shape of a curve" in new
+    assert 'cost      = "median"   # how a metric becomes a cost\n' in new and "# [ranking.weights]\n" in new
+    assert "shape" in raw["quantities"] and raw["tools"]["rivet"]["arguments"] == ["heimdall score x"]
+    recipe = tomllib.loads(migrate.ranking_text(RECIPE_OLD))
+    assert recipe["report"]["section"][0]["stats"] == ["leaderboard", "category:accuracy", "chi2_sigma:ranking", "peak_pull2"]
+    assert config.renamed(recipe, "configs/P/weekly.toml", recorded=False) is recipe
+    assert "see heimdall explain ranking" in migrate.ranking_text(RECIPE_OLD)
+    work = scratch / "w"
+    for name, text in {"heimdall.toml": '[work]\nname = "w"\n', "configs/P/study.toml": old,
+                       "records/P/s/01_a/config/P/study.toml": old,
+                       "records/P/s/01_a/config/snapshot.toml": '[snapshot]\nconfig = "P/study"\n\n[files]\n'}.items():
+        (work / name).parent.mkdir(parents=True, exist_ok=True)
+        (work / name).write_text(text, encoding="utf-8")
+    changes = migrate.errand_changes(work)
+    assert changes[work / "configs/P/study.toml"] == (old, new)
+    assert work / "records/P/s/01_a/config/P/study.toml" not in changes

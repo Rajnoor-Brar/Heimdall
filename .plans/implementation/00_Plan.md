@@ -186,4 +186,4 @@ Frontier: one step at a time, in the table's order. Nothing runs in parallel: ev
 | 6 | done 2026-11-10 (6.1 `77de8ee`, 6.2): `live-grand-ranking`; fast suite 2314 passed, 11 skipped, the two stable-docs reds; plot_stage 53, report_draw 2. The round waits at its milestone for the order to run phase 7 |
 | 8 | done 2026-11-11 (8.1): gates opt-in, the integrity metrics scored; fast suite 2315 passed, the two stable-docs reds; plot_stage 53, report_draw 2 |
 | 7 | done 2026-11-11 (7.1, 7.2): 05's items hold under the defaults but the marginals' item 5 (an issue); vetoed 12, 6, 1, 0 with gates on; the four Runs rescored into scratch, a report of B1 and B4; the work dir unchanged |
-| 9 | not started |
+| 9 | 9.1, 9.2 done 2026-11-11: issues triaged; the review's five defects fixed; fast suite 2320 passed. 9.3 is the close |

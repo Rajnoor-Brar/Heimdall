@@ -1,6 +1,6 @@
 # Implementation round 2: the Grand Ranking
 
-Status: planned 2026-11-10 from the approved design plan, and hardened the same day against the code at `db72aa7`; not started. Implement on the developer's order to start the round.
+Status: planned 2026-11-10 from the approved design plan, and hardened the same day against the code at `db72aa7`; started 2026-11-10 on the developer's order.
 
 Stage 3 of `docs/rules/work.md`. The source is [`.plans/plans/grand-ranking/`](../plans/grand-ranking/00_Plan.md) (stage 2, approved 2026-11-10). The design files own the formulas and the tables: this round links to them and never restates one. Where this file and a design file disagree, this file is the later decision and says so under [Found while planning](#found-while-planning-verified-at-db72aa7).
 
@@ -164,7 +164,7 @@ Frontier: one step at a time, in the table's order. Nothing runs in parallel: ev
 | Phase | Status |
 |---|---|
 | Plan | written and hardened 2026-11-10 (Tables, R19–R24); waits for the order to start |
-| 0 | not started |
+| 0 | done 2026-11-10: fast suite 2182 passed, 11 skipped; no known reds |
 | 1 | not started |
 | 2 | not started |
 | 3 | not started |

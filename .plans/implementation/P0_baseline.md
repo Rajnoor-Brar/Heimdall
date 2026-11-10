@@ -1,6 +1,6 @@
 # Phase 0: the baseline
 
-Status: not started. Blocked by: none.
+Status: done 2026-11-10. Blocked by: none.
 
 Every loss changes in this round, on purpose. This phase writes down what holds before, so a later red is told from an old one, and "what changed" at phase 7 has a before.
 
@@ -15,3 +15,5 @@ Every loss changes in this round, on purpose. This phase writes down what holds 
 - Blocked by: none.
 
 ## Log
+
+- **0.1 · done 2026-11-10 at `4d225a3`.** Fast suite (`tests/runner -m 'not slow'`): 2182 passed, 11 skipped, 0 failed, in 1 min 42 s. No known reds. `tests/integration/test_plot_stage.py` alone: 53 passed (3 min 48 s). `tests/integration/test_report_draw.py` alone: 2 passed. `git status --short`: only `?? .codex/`, another session's, never staged.

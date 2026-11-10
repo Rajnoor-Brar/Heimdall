@@ -5,6 +5,7 @@ naming only its own folder's files, report.pdf on A4, index.html; a rebuild make
 from __future__ import annotations
 
 import csv
+import json
 import re
 import shutil
 import subprocess
@@ -14,6 +15,7 @@ import pytest
 
 from runner import report, statstable
 from runner.errors import HeimdallError
+from stats import table
 
 TOOLS = all(shutil.which(t) for t in ("pdflatex", "pdftoppm", "pdfinfo", "pdftotext"))
 pytestmark = pytest.mark.skipif(not TOOLS, reason="pdflatex and poppler make and read the report")
@@ -95,6 +97,9 @@ def source(results: Path, name: str, png: bool) -> Path:
         out = csv.DictWriter(handle, fieldnames=statstable.STATISTIC_COLUMNS)
         out.writeheader()
         out.writerows(rows)
+    side = table.sidecar_of(["chi2_ndf"], {"metrics": ["chi2_ndf"]})       # its rows are made to be ranked by their χ²/ndf
+    side["columns"] = list(statstable.STATISTIC_COLUMNS)
+    (numbers.parent / "statistics.json").write_text(json.dumps(side), encoding="utf-8")
     return where
 
 
@@ -162,7 +167,9 @@ def test_a_rebuild_makes_nothing_and_a_changed_page_is_copied_again(trees):
 def test_a_statistics_part_holds_the_sections_chosen(trees):
     bars = statstable.bars()
     rows = statstable.read(trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv")
-    document, missing = report.chosen(bars.summary_model(rows, "here"), ["leaderboard", "chi2_ndf:ranking", "area:ranking"])
+    csv_path = trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv"
+    document, missing = report.chosen(bars.summary_model(rows, "here", report._ranked(csv_path, rows)),
+                                      ["leaderboard", "chi2_ndf:ranking", "area:ranking"])
     assert [s.key for s in document.sections] == ["leaderboard", "category-compatibility"] and missing == ["area:ranking"]
     assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking"]
     recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Leaderboard"\n'

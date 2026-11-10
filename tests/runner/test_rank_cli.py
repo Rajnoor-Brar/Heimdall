@@ -34,6 +34,7 @@ def make_run(root, name, rows, serial=None, axes=None, ranking=None):
         writer = csv.DictWriter(handle, fieldnames=table.columns_for(names), restval="")
         writer.writeheader()
         writer.writerows([{k: ("" if isinstance(v, float) and v != v else v) for k, v in r.items()} for r in rows])
+    ranking = {"metrics": ["chi2_ndf"], **(ranking or {})}             # the rows are made to be ranked by their χ²/ndf
     (out / "statistics.json").write_text(json.dumps(table.sidecar_of(names, ranking, axes)), encoding="utf-8")
     if serial is not None:
         (folder / "plot.toml").write_text(f'[source]\nserial = {serial}\n', encoding="utf-8")

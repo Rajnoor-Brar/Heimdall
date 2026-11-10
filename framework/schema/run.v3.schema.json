@@ -2825,7 +2825,7 @@
      "minimum": 0
     },
     "metrics": {
-     "description": "the metrics computed for the table, beside the fixed columns (default: the metrics `heimdall explain ranking` marks)\n\nids from `heimdall explain ranking`; each becomes a column of statistics.csv and is described in statistics.json. A metric not in the list is not computed; `[ranking].metrics` scores a metric that is",
+     "description": "the metrics computed for the table, beside the fixed columns (default: the registry's defaults, shown metrics and gates; `heimdall explain ranking` lists them)\n\nids from `heimdall explain ranking`; each becomes a column of statistics.csv and is described in statistics.json. A metric not in the list is not computed; `[ranking].metrics` scores a metric that is",
      "type": "array",
      "items": {
       "type": "string"
@@ -2847,7 +2847,7 @@
    "type": "object",
    "properties": {
     "metrics": {
-     "description": "the metrics scored: a list of ids, or { id = weight } (default: the default metrics, weight 1)\n\na metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS of its metrics' costs, so four accuracy metrics weigh one category and not four",
+     "description": "the metrics scored: a list of ids, or { id = weight } (default: the registry's defaults, weight 1; `heimdall explain ranking` lists them)\n\na metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS of its metrics' costs, so four accuracy metrics weigh one category and not four",
      "type": [
       "array",
       "object"

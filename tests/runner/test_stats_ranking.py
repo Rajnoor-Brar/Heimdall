@@ -77,12 +77,19 @@ def test_metrics_of_one_purpose_weigh_one_purpose_not_one_each():
 
 
 def test_a_metric_weight_counts_within_its_category():
-    shape = [n for n, m in metrics.REGISTRY.items() if m.category == "accuracy" and m.default][0]
-    bad = metrics.REGISTRY[shape].thresholds[1]
-    st = ranking.settings_of({"metrics": {shape: 3.0, "tilt": 1.0}})
-    # tilt is another category: weights do not leak across categories
-    (p,) = ranking.rank([row("a", **{shape: bad, "tilt": 0.0})], st).points
-    assert p.categories[metrics.REGISTRY[shape].category] == pytest.approx(1.0)
+    first, second = [n for n, m in metrics.REGISTRY.items() if m.category == "accuracy" and m.default]   # 02's pair
+    bad, good = metrics.REGISTRY[first].thresholds[1], metrics.REGISTRY[second].thresholds[0]
+    st = ranking.settings_of({"metrics": {first: 3.0, second: 1.0, "tilt": 9.0}})
+    # costs 1 (weight 3) and 0 (weight 1): the category is √((3·1 + 1·0) / 4); tilt is another category, its weight does not leak
+    (p,) = ranking.rank([row("a", **{first: bad, second: good, "tilt": 0.0})], st).points
+    assert p.categories["accuracy"] == pytest.approx(math.sqrt(0.75)) and p.categories["trend"] == 0.0
+
+
+def test_a_points_values_are_the_median_over_its_pages_of_each_default_and_shown_metric():
+    rows = [row("a", page=f"p{i}", chi2_sigma=v, n_eff=e) for i, (v, e) in enumerate([(1.0, 500.0), (3.0, NAN), (8.0, 900.0)])]
+    (p,) = ranking.rank(rows, ranking.settings_of(CHI2)).points
+    assert p.values["chi2_sigma"] == 3.0 and p.values["n_eff"] == pytest.approx(700.0)      # NaN skipped
+    assert set(p.values) == {n for n, m in metrics.REGISTRY.items() if m.default or m.shown} and math.isnan(p.values["poisson_dev"])
 
 
 def test_adding_a_curve_leaves_the_others_threshold_scores_unchanged():
@@ -561,7 +568,7 @@ def test_the_record_names_each_metric_its_thresholds_weight_and_what_is_computed
     assert "weight of chi2_ndf: 2 ([ranking])." in lines
     assert any(l.startswith("chi2_sigma: not in this table (table).") for l in lines)
     assert any(l.startswith("tail_slope: computed, not scored (registry). a descriptor") for l in lines)
-    assert any(l.startswith("n_eff: computed, not scored (registry).") for l in lines)             # shown from 3.2
+    assert any(l.startswith("n_eff: computed, not scored (registry). shown") for l in lines)
     assert not any(l.startswith(("peak_bin_ratio", "yield_sign")) for l in lines)          # gates are the Gates stage's
     record = ranking.rank(rows, st).method
     assert record.lines("cost")[0].startswith("cost: thresholds (default).") and "log₂(1 + z)" in record.lines("cost")[0]

@@ -10,7 +10,6 @@ import pytest
 from stats import means, metrics
 
 TESTS = Path(__file__).parent
-DEFAULTS = {"chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2"}
 
 
 def is_tested(name: str, *files: str) -> bool:
@@ -43,18 +42,24 @@ def test_a_scored_metric_has_ordered_thresholds_and_the_reason_for_them(name):
     assert (good > bad) if m.polarity == "higher" else (good < bad)
 
 
-def test_exactly_the_five_are_on_by_default():
-    assert {n for n, m in metrics.REGISTRY.items() if m.default} == DEFAULTS
-
-
-def test_every_category_has_a_metric_and_the_defaults_cover_all_but_three():
+def test_the_defaults_are_the_nine_the_gates_two_and_n_eff_is_shown():
     used = {m.category for m in metrics.REGISTRY.values()}
     assert used == set(metrics.CATEGORIES)
+    assert {n for n, m in metrics.REGISTRY.items() if m.default} == {
+        "chi2_sigma", "poisson_dev", "log_yield_ratio", "log_dev_shrunk", "log_dev_l4", "tilt", "pull_autocorr", "peak_pull2",
+        "log_ratio_roughness"}
     assert {n for n, m in metrics.REGISTRY.items() if m.gate is not None} == {"peak_bin_ratio", "yield_sign"}
+    assert {n for n, m in metrics.REGISTRY.items() if m.shown} == {"n_eff"} and metrics.REGISTRY["n_eff"].thresholds == (1000.0, 100.0)
     on = {m.category for m in metrics.REGISTRY.values() if m.default}
     assert set(metrics.CATEGORIES) - on == {"similarity", "integrity", "quality"}
     assert list(metrics.CATEGORIES) == ["compatibility", "normalisation", "accuracy", "similarity", "trend", "defects",
                                         "integrity", "quality"]
+
+
+def test_a_default_table_holds_nine_scored_two_gates_and_one_shown_beside_the_fixed_columns():
+    from stats import table
+    extra = [c for c in table.columns_for(table.default_metrics()) if c not in table.STATISTIC_COLUMNS]
+    assert len(extra) == 9 + 2 + 1 and "chi2_ndf" in table.STATISTIC_COLUMNS and not metrics.REGISTRY["chi2_ndf"].default
 
 
 def test_a_metric_that_needs_no_reference_says_so_and_a_pooled_one_is_flagged():

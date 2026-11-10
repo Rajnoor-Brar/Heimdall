@@ -51,7 +51,8 @@ def test_the_curve_is_its_own_reference_costs_nothing():
     c = spectrum()
     c = bins.Curve(c.lo, c.hi, c.ref_y, c.ref_err, c.ref_y, c.ref_err)
     for name, value in all_metrics(c).items():
-        assert value == pytest.approx(0, abs=1e-9), name
+        cost = metrics.REGISTRY[name].cost(value)                  # chi2_sigma reads below 0: within good
+        assert cost != cost or cost == pytest.approx(0, abs=1e-9), name   # pull_autocorr of no pull at all: NaN, skipped
 
 
 def test_twenty_percent_high_is_a_normalisation_defect():

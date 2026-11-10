@@ -1081,7 +1081,7 @@ doc  = "as [plot].range_pad, for the numbers"
 [stats.metrics]
 type  = "list"
 items = "str"
-doc   = "the metrics computed for the table, beside the fixed columns (default: the metrics `heimdall explain ranking` marks)"
+doc   = "the metrics computed for the table, beside the fixed columns (default: the registry's defaults, shown metrics and gates; `heimdall explain ranking` lists them)"
 notes = """\
   ids from `heimdall explain ranking`; each becomes a column of statistics.csv and is described in \
   statistics.json. A metric not in the list is not computed; `[ranking].metrics` scores a metric that is"""
@@ -1098,7 +1098,7 @@ doc     = "where a bin sits in x for tilt and roughness: its middle, or the cent
 [ranking.metrics]
 type  = "list|table"
 items = "str"
-doc   = "the metrics scored: a list of ids, or { id = weight } (default: the default metrics, weight 1)"
+doc   = "the metrics scored: a list of ids, or { id = weight } (default: the registry's defaults, weight 1; `heimdall explain ranking` lists them)"
 notes = """\
   a metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS \
   of its metrics' costs, so four accuracy metrics weigh one category and not four"""

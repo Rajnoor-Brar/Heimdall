@@ -609,13 +609,13 @@ def yield_sign(c: Curve, **_) -> float:
 
 REGISTRY: dict[str, Metric] = {m.name: m for m in (
     # 1. Statistical compatibility
-    Metric("chi2_ndf", chi2_ndf, "compatibility", thresholds=(1.0, 3.0), default=True,
+    Metric("chi2_ndf", chi2_ndf, "compatibility", thresholds=(1.0, 3.0),
            why="1 is the expectation for a true curve; 3 is a fit no one calls compatible",
            note="Σ (y − ref)² / (σ² + σ_ref²) per bin with an error; 1 is a true curve. Blind to a bin whose error is as big as its excess"),
-    Metric("chi2_sigma", chi2_sigma, "compatibility", thresholds=(2.5, 6.0),
+    Metric("chi2_sigma", chi2_sigma, "compatibility", thresholds=(2.5, 6.0), default=True,
            why="Z of χ²/ndf (Wilson–Hilferty): 6 is χ²/ndf = 3 on 40 bins; 2.5 is the 99th percentile of a true curve",
            note="χ²/ndf as standard deviations (Wilson–Hilferty), so pages of 5 and 50 bins share one scale"),
-    Metric("poisson_dev", poisson_dev, "compatibility", thresholds=(3.5, 9.0),
+    Metric("poisson_dev", poisson_dev, "compatibility", thresholds=(3.5, 9.0), default=True,
            why="a true curve as noisy as its reference averages 2 (its value is 1 + (σ/σ_ref)²), p97 3.0",
            note="Baker–Cousins deviance anchored to the reference's counts: a spike cannot hide in its own error bar"),
     Metric("tail_excess_sigma", tail_excess_sigma, "compatibility", thresholds=(2.5, 6.0),
@@ -635,7 +635,7 @@ REGISTRY: dict[str, Metric] = {m.name: m for m in (
     Metric("log_dev_shrunk", log_dev_shrunk, "accuracy", thresholds=(0.02, 0.15), default=True,
            why="2 % is the noise floor of a precise page, 15 % a shape no one accepts",
            note="the log ratio's mean size over the axis, a bin less precise than 10 % counted less"),
-    Metric("log_dev_l4", log_dev_l4, "accuracy", thresholds=(0.07, 0.40),
+    Metric("log_dev_l4", log_dev_l4, "accuracy", thresholds=(0.07, 0.40), default=True,
            why="a true curve reads 0.05 at p97; 0.4 is a bin off by a factor 1.5 in a fifth of the bins or a 10× in one",
            note="(mean |ln ratio|⁴)^¼: one bin off by 10× costs as much as thousands of 10 % ones"),
     Metric("mean_abs_ratio_dev", mean_abs_ratio_dev, "accuracy", thresholds=(0.04, 0.25),
@@ -658,7 +658,7 @@ REGISTRY: dict[str, Metric] = {m.name: m for m in (
     Metric("tilt", tilt, "trend", thresholds=(0.03, 0.25), default=True,
            why="3 % across the page is inside the noise of a precise page, 25 % a trend nobody accepts",
            note="the log ratio's fitted change from the first edge to the last"),
-    Metric("pull_autocorr", pull_autocorr, "trend", thresholds=(0.35, 0.8),
+    Metric("pull_autocorr", pull_autocorr, "trend", thresholds=(0.35, 0.8), default=True,
            why="the lag-1 autocorrelation of 40 true pulls has σ = 0.16 (p97 0.26, max 0.38); a tilt of e^0.6 reads 0.9",
            note="near 0 for scatter; near 1 when the curve sits on one side of the reference for stretches"),
     # 6. Local defects
@@ -669,11 +669,11 @@ REGISTRY: dict[str, Metric] = {m.name: m for m in (
     Metric("peak_deviance", peak_deviance, "defects", thresholds=(14.0, 45.0),
            why="twice peak_pull2's: the reference-anchored deviance of two equally noisy curves is twice a pull²; true curves read 8 (p97 13)",
            note="peak_pull2 on the Poisson deviance: a spike counts in full, whatever its error"),
-    Metric("log_ratio_roughness", log_ratio_roughness, "defects", thresholds=(0.06, 0.40),
+    Metric("log_ratio_roughness", log_ratio_roughness, "defects", thresholds=(0.06, 0.40), default=True,
            why="a true curve reads 0.042 at p97; a bin ×20 reads 0.6, a hole 0.9",
            note="the RMS second difference of the log ratio: a spike or a hole, never a shift or a tilt"),
     # 7. Monte Carlo quality, without a reference
-    Metric("n_eff", n_eff, "quality", polarity="higher", scale="log", thresholds=(1000.0, 100.0), needs_reference=False,
+    Metric("n_eff", n_eff, "quality", polarity="higher", scale="log", thresholds=(1000.0, 100.0), shown=True, needs_reference=False,
            why="a yield known to 3 % is worth 1000 equal-weight events, to 10 % 100",
            note="Kish's (Σ y Δx)² / Σ (σ Δx)²: how many equal-weight events the histogram is worth"),
     Metric("hole_fraction", hole_fraction, "quality", thresholds=(0.0, 0.10), needs_reference=False,

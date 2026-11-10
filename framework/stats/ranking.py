@@ -326,6 +326,7 @@ class PointLoss:
     categories: dict = field(default_factory=dict)    # category → RMS over pages of its cost
     shares: dict = field(default_factory=dict)        # category → its share of the squared loss
     pages: dict = field(default_factory=dict)         # page → loss
+    values: dict = field(default_factory=dict)        # metric → median over its pages of its value, for default and shown metrics
     dominated: bool | None = None
     n_pages: int = 0
 
@@ -394,6 +395,15 @@ class Ranking:
         return [p for p in self.points if cell is None or p.cell == cell]
 
 
+#: The metrics a point's `values` tell: those scored by default and those shown.
+TOLD = tuple(n for n, m in metrics.REGISTRY.items() if m.default or m.shown)
+
+
+def _median(values) -> float:
+    have = [float(v) for v in values if v is not None and v == v]
+    return float(np.median(have)) if have else math.nan
+
+
 def _weighted(name: str, values, weights) -> float:
     return means.evaluate(name, values, weights)
 
@@ -410,7 +420,8 @@ def rank(rows: list[dict], settings: Settings | None = None, page_weights: dict 
     out = []
     for (cell, point), group in groups.items():
         good = [o for o in group if not math.isnan(o.loss)]
-        ps = PointLoss(cell=cell, point=point, n_pages=len(good), pages={o.page: o.loss for o in good})
+        ps = PointLoss(cell=cell, point=point, n_pages=len(good), pages={o.page: o.loss for o in good},
+                       values={name: _median([o.row.get(name, math.nan) for o in group]) for name in TOLD})
         if good:
             weights = [o.weight for o in good]
             ps.loss = _weighted(st.over_pages, [o.loss for o in good], weights)

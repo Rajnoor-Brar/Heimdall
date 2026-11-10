@@ -34,8 +34,9 @@ def summary(rows: list[dict], heading: str = "", st=None, values: dict | None = 
 
 
 def worst_rows() -> list[dict]:
-    """76 points: 38 page cells (a PDF, the lepton PDF on or off) of two curves (the QED shower), 12 objects."""
-    draw = random.Random(7)
+    """76 points: 38 page cells (a PDF, the lepton PDF on or off) of two curves (the QED shower), 12 objects. The columns of the
+    later defaults draw from their own stream, so the first ones keep their numbers."""
+    draw, later = random.Random(7), random.Random(11)
     rows = []
     for pdf in PDFS:
         for lepton in ("lpdfon", "lpdfoff"):
@@ -52,11 +53,14 @@ def worst_rows() -> list[dict]:
                                  "mean_bin_ratio": draw.uniform(0.4, 1.6), "mean_abs_ratio_dev": draw.uniform(0.1, 0.9),
                                  "chi2": 0.0, "ndf": 10, "chi2_ndf": draw.uniform(1.0, 60.0),
                                  "log_yield_ratio": draw.uniform(0.0, 0.5), "log_dev_shrunk": draw.uniform(0.0, 0.4),
-                                 "tilt": draw.uniform(0.0, 0.5), "peak_pull2": draw.uniform(1.0, 80.0)})
+                                 "tilt": draw.uniform(0.0, 0.5), "peak_pull2": draw.uniform(1.0, 80.0),
+                                 "chi2_sigma": later.uniform(-1.0, 15.0), "poisson_dev": later.uniform(1.0, 20.0),
+                                 "log_dev_l4": later.uniform(0.0, 0.8), "pull_autocorr": later.uniform(0.0, 1.0),
+                                 "log_ratio_roughness": later.uniform(0.0, 0.8), "n_eff": later.uniform(50.0, 1e5)})
     return rows
 
 
-#: Every metric the fixture has a column for: the defaults and the old columns.
+#: Every metric the fixture has a column for: the defaults, chi2_ndf and the old columns.
 LEGACY = ("yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev")
 ALL = ranking.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", *LEGACY], "veto_loss": 10.0,
                          "head_to_head": "NNPDF23lo_lpdfon/d01-x01-y01"})
@@ -429,9 +433,14 @@ def test_the_default_summary_is_the_leaderboard_then_a_section_per_category_with
     document = summary(worst_rows(), "", ranking.settings_of())
     keys = keys_of(document)
     assert list(keys) == ["leaderboard", "category-compatibility", "category-normalisation", "category-accuracy", "category-trend",
-                          "category-defects"]                                  # the five defaults; no similarity, no quality
+                          "category-defects"]                                  # the nine defaults; no similarity, no quality
     assert keys["leaderboard"] == ["leaderboard", "categories"]
-    assert keys["category-trend"] == ["category-trend-ranking", "tilt-ranking", "tilt-crossed", "tilt"]
+    pairs = {"compatibility": ("chi2_sigma", "poisson_dev"), "accuracy": ("log_dev_shrunk", "log_dev_l4"),
+             "trend": ("tilt", "pull_autocorr"), "defects": ("peak_pull2", "log_ratio_roughness")}    # 02's pairs
+    for category, (a, b) in pairs.items():
+        assert keys[f"category-{category}"] == [f"category-{category}-ranking", f"{a}-ranking", f"{a}-crossed", a,
+                                                f"{b}-ranking", f"{b}-crossed", b]
+    assert keys["category-normalisation"][1:] == ["log_yield_ratio-ranking", "log_yield_ratio-crossed", "log_yield_ratio"]
     standings = next(i for s in document.sections for i in s.items if i.key == "leaderboard")
     assert "veto" not in standings.headers and "dominated" not in standings.headers
     assert not any(s.key == "head-to-head" for s in document.sections)         # only when asked
@@ -455,7 +464,7 @@ def test_a_purposes_section_says_what_it_asks_and_each_metric_what_it_is_and_how
     from stats import metrics
     document = summary(worst_rows(), "", ranking.settings_of({"thresholds": {"log_yield_ratio": [0.1, 0.5]}}))
     assert document.notes["category-accuracy"].startswith("Shape accuracy, bin by bin. ")
-    assert document.notes["stat-chi2_ndf"] == metrics.describe("chi2_ndf")
+    assert document.notes["stat-chi2_sigma"] == metrics.describe("chi2_sigma")
     assert "Scored from 0.1 (cost 0) to 0.5 (cost 1)" in document.notes["stat-log_yield_ratio"]    # the setting's thresholds, not the registry's
     ranked = next(i for s in document.sections for i in s.items if i.key == "category-accuracy-ranking")
     assert {"category-accuracy", "loss"} <= set(ranked.notes)
@@ -489,11 +498,12 @@ def test_a_page_image_has_a_panel_a_metric_on(scratch):
     assert [p.name for p in made] == ["d01.png"]
     assert bars.grid(4, 1.0, 3)[:2] == (3, 1)                                    # three panels fit across
     assert [t for _, t in bars.panels(["chi2_ndf", "tilt"])] == ["χ²/ndf", "tilt, Δ ln ratio across the page"]
-    assert [n for n, _ in bars.panels()] == ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2"]
+    assert [n for n, _ in bars.panels()] == ["chi2_sigma", "poisson_dev", "log_yield_ratio", "log_dev_shrunk", "log_dev_l4", "tilt",
+                                             "pull_autocorr", "peak_pull2", "log_ratio_roughness"]
 
 
 def test_a_metric_off_or_without_numbers_has_no_section():
-    rows = [{k: v for k, v in r.items() if k != "tilt"} for r in worst_rows()]
+    rows = [{k: v for k, v in r.items() if k not in ("tilt", "pull_autocorr")} for r in worst_rows()]
     document = summary(rows, "", ranking.settings_of())
     assert "category-trend" not in keys_of(document)
     assert summary([], "", ranking.settings_of()).sections == []

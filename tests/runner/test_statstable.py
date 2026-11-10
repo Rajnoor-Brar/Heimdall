@@ -43,18 +43,22 @@ def test_a_statistics_csv_reads_back_as_the_rows_it_was_written_from(tmp_path):
     assert back[0]["is_reference"] is True and back[1]["is_reference"] is False
     assert isinstance(back[1]["bins"], int) and isinstance(back[1]["ndf"], int) and math.isnan(back[0]["chi2"])
     assert list(back[0])[:len(statstable.STATISTIC_COLUMNS)] == list(statstable.STATISTIC_COLUMNS)    # the old columns first, in order
-    assert list(back[0])[len(statstable.STATISTIC_COLUMNS):] == ["log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "peak_bin_ratio", "yield_sign"]   # then the defaults and the gates
-    assert all(math.isnan(r[k]) for r in back for k in ("log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2"))      # no measured bins in these numbers
+    later = ["chi2_sigma", "poisson_dev", "log_yield_ratio", "log_dev_shrunk", "log_dev_l4", "tilt", "pull_autocorr", "peak_pull2",
+             "log_ratio_roughness", "n_eff", "peak_bin_ratio", "yield_sign"]
+    assert list(back[0])[len(statstable.STATISTIC_COLUMNS):] == later        # then the nine defaults, n_eff shown, the two gates
+    assert all(math.isnan(r[k]) for r in back for k in later)                 # no measured bins in these numbers
 
 
 def test_a_sets_numbers_are_its_csv_bar_graphs_and_summary(tmp_path):
     pages = [page_with_numbers(tmp_path / "pages", name, NUMBERS) for name in ("d01-x01-y01", "d02-x01-y01")]
     numbers = tmp_path / "statistics" / "totality"
-    count, images = statstable.write_set(pages, numbers, ["png"])
+    count, images = statstable.write_set(pages, numbers, ["png"], ranking={"metrics": ["chi2_ndf"]})
     assert count == 4 and images == 3                                    # a bar graph a page, and the summary
     assert (numbers / "statistics.csv").is_file() and (numbers / "summary.html").is_file()
     assert sorted(p.name for p in (numbers / "bars").iterdir()) == ["d01-x01-y01.png", "d02-x01-y01.png"]
     assert statstable.write_set([], tmp_path / "empty", ["png"]) == (0, 0) and not (tmp_path / "empty").exists()
+    bare = tmp_path / "statistics" / "bare"                              # no measured bins: no default metric has a number
+    assert statstable.write_set(pages, bare, ["png"]) == (4, 3) and not (bare / "summary.html").exists()   # its facts page alone
 
 
 def measured_page(folder: Path, name: str, y_scale: float = 1.2) -> plot.Page:
@@ -95,7 +99,10 @@ def test_the_sidecar_says_what_the_columns_are(tmp_path):
     side = json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8"))
     assert side["format"] == 3 == statstable.FORMAT and statstable.format_of(target) == 3
     assert side["columns"] == list(statstable.read(target)[0])
-    assert set(side["metrics"]) == {"chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev", "peak_bin_ratio", "yield_sign"}   # the old columns that are metrics too, and the gates
+    assert set(side["metrics"]) == {"chi2_ndf", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev",
+                                    "chi2_sigma", "poisson_dev", "log_yield_ratio", "log_dev_shrunk", "log_dev_l4", "tilt",
+                                    "pull_autocorr", "peak_pull2", "log_ratio_roughness", "n_eff", "peak_bin_ratio",
+                                    "yield_sign"}   # the old columns that are metrics too, the nine, n_eff, the gates
     norm = side["metrics"]["log_yield_ratio"]
     assert norm["polarity"] == "lower" and norm["phrase"] == "lower is better" and norm["scale"] == "linear"
     assert norm["category"] == "normalisation" and norm["thresholds"] == [0.02, 0.15] and norm["default"] and norm["note"]

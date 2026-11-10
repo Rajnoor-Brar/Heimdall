@@ -16,7 +16,7 @@ from stats import table
 
 
 def row(point, loss, page="p1", obj="run/pt/jet", **values):
-    base = {name: 0.0 for name in ("norm", "shape", "tilt", "worst")}
+    base = {name: 0.0 for name in ("log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2")}
     return {"cell": "c", "page": page, "object": obj, "point": point, "curve": point, "is_reference": False, "ndf": 10, "bins": 10,
             **base, "chi2_ndf": loss, **values}
 
@@ -29,7 +29,7 @@ def make_run(root, name, rows, serial=None, axes=None, score=None):
     folder = root / name
     out = folder / "statistics" / "totality"
     out.mkdir(parents=True)
-    names = ["chi2_ndf", "norm", "shape", "tilt", "worst"]
+    names = ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2"]
     with open(out / "statistics.csv", "w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=table.columns_for(names), restval="")
         writer.writeheader()

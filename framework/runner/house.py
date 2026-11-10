@@ -207,7 +207,7 @@ def _score_lines(name: str) -> list[str]:
     if name in metrics.REGISTRY:
         m = metrics.REGISTRY[name]
         thresholds = f"good {m.thresholds[0]:g}, bad {m.thresholds[1]:g}" if m.thresholds else "none (give [score].thresholds to score it)"
-        return [f"metric {name}: {metrics.PURPOSES[m.purpose]}", f"  better     {m.better}", f"  thresholds {thresholds}",
+        return [f"metric {name}: {metrics.PURPOSES[m.purpose]}", f"  polarity   {m.polarity}: {metrics.PHRASE[m.polarity]}", f"  thresholds {thresholds}",
                 *([f"  because    {m.why}"] if m.why else []), f"  on         {'by default' if m.default else 'when named in [stats].metrics'}",
                 f"  needs      {'a reference' if m.needs_reference else 'no reference'}{', and the page\'s other curves' if m.pool else ''}",
                 f"  {m.note}"]

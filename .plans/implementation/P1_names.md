@@ -1,6 +1,6 @@
 # Phase 1: names and polarity
 
-Status: not started. Blocked by: phase 0. Sources: [01](../plans/grand-ranking/01_Glossary.md) (the rename table), [02](../plans/grand-ranking/02_Metrics.md) (ids, polarity, the alias table). Names in code: [Tables](Tables.md) T1–T6, T9, T10.
+Status: in progress. Blocked by: phase 0. Sources: [01](../plans/grand-ranking/01_Glossary.md) (the rename table), [02](../plans/grand-ranking/02_Metrics.md) (ids, polarity, the alias table). Names in code: [Tables](Tables.md) T1–T6, T9, T10.
 
 No number changes in this phase. A loss computed after 1.7 equals the score computed before 1.1 on the same table, and step 1.5's test holds that.
 
@@ -109,3 +109,8 @@ Three commits, in this order, each with the fast suite as the baseline: (a) the 
 - Blocked by: 1.6.
 
 ## Log
+
+- **1.1 · done 2026-11-10.** The registry has T1's new ids and functions, 02's titles and notes; `wmape_yield` and `wmape_axis` are gone. `Metric.better` is `polarity` (`descriptor` for `none`), `Metric.scale` is added (`log` for `n_eff` only), and `GLYPH`, `ASCII`, `PHRASE`, `POLARITIES`, `SCALES` exist. `ALIASES` (24 keys) and `resolve` exist. `evaluate`, `describe`, `Settings.thresholds_of`, `settings_of` (metric and threshold keys) and `null_p` resolve an old id. `null_p`, the Fisher loop and `consensus_dev`'s `base` name the new ids. The four fixed columns were renamed here, not at 1.2 (Notes), with `plot.STATISTIC_LABELS`' keys; `legend_statistic` and a statistic figure's `statistic` go through `resolve`. `bars`, `house` and `table` read `.polarity`.
+  - Fails first: `AttributeError: module 'stats.metrics' has no attribute 'ALIASES'` (the new registry test, against `HEAD`'s `framework/`).
+  - Check: the three step files, 190 passed. Fast suite: 2180 passed, 11 skipped. The baseline had 2182; the 6 parametrized cases of the two deleted metrics went, and 4 tests were added.
+  - A reader may rely on: the new ids as columns and settings; an old id still evaluating, describing and scoring; each metric's polarity, scale, glyph and phrase.

@@ -1085,13 +1085,16 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
 # ── page statistics (V160): Paint's numbers, as it draws the page ──────────────────────────────
 
 #: What each statistic is called after a legend entry (LaTeX, as every label).
-STATISTIC_LABELS = {"area": "area", "abs_area": "$|\\Delta|$ area", "rel_abs_area": "$|\\Delta|$/ref",
-                    "area_ratio": "area/ref", "ratio_mean": "mean ratio", "ratio_dev": "|ratio-1|", "chi2": "$\\chi^{2}$", "chi2_ndf": "$\\chi^{2}$/ndf"}
+STATISTIC_LABELS = {"area": "area", "abs_area": "$|\\Delta|$ area", "yield_weighted_abs_dev": "$|\\Delta|$/ref",
+                    "yield_ratio": "area/ref", "mean_bin_ratio": "mean ratio", "mean_abs_ratio_dev": "|ratio-1|", "chi2": "$\\chi^{2}$", "chi2_ndf": "$\\chi^{2}$/ndf"}
 
 
 def _statistic_of(override: dict, settings: dict) -> str:
     chosen_one = chosen("legend_statistic", "none", "none", (override, settings))
-    return "" if chosen_one in ("none", DEFAULT, None) else chosen_one
+    if chosen_one in ("none", DEFAULT, None):
+        return ""
+    from stats import metrics
+    return metrics.resolve(chosen_one)
 
 
 def _shown(value: float) -> str:
@@ -1122,7 +1125,9 @@ def statistic_pages(errand, figure: Figure, todo: list[Page], where: Path) -> li
     their `statistic` against the page's reference; `sort`: the smallest first. A Scatter2D per page, as a
     scan figure's (derive.scatter), into .cache/…/statistic/<name>/, converted for Paint; drawn into the page's
     set's statistics/<set>/figures/<backend>/<cell>/<name>/<object> (V164)."""
+    from stats import metrics
     module = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
+    figure = replace(figure, statistic=metrics.resolve(figure.statistic))
     where.mkdir(parents=True, exist_ok=True)
     style, base = errand_style(errand), base_style()
     made = []

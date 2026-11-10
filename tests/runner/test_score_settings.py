@@ -12,21 +12,21 @@ from runner.sweep import set_entries
 
 
 def test_score_is_a_section_with_its_keys(scratch):
-    score = {"metrics": {"chi2_ndf": 1, "norm": 2, "js": 0.5}, "normalise": "thresholds", "thresholds": {"norm": [0.01, 0.1]},
+    score = {"metrics": {"chi2_ndf": 1, "log_yield_ratio": 2, "js_divergence": 0.5}, "normalise": "thresholds", "thresholds": {"log_yield_ratio": [0.01, 0.1]},
              "weights": {"d01-*": 2}, "mean": "rms", "veto": 3.0, "dominated": True, "aggregate": "rms", "weights_by": "equal",
              "by": ["pdf"], "baseline": {"pdf": "NNPDF23lo"}}
     errand = config.parse(raw(score=score), scratch / "t.toml")
     assert errand.score == score
     assert config.parse(raw(), scratch / "u.toml").score == {}
-    assert config.parse(raw(score={"metrics": ["norm", "tilt"]}), scratch / "v.toml").score == {"metrics": ["norm", "tilt"]}
+    assert config.parse(raw(score={"metrics": ["log_yield_ratio", "tilt"]}), scratch / "v.toml").score == {"metrics": ["log_yield_ratio", "tilt"]}
 
 
 @pytest.mark.parametrize("bad,message", [
     ({"metrics": ["chi2_nfd"]}, "no metric 'chi2_nfd'"),
     ({"metrics": {"nope": 1}}, "no metric 'nope'"),
-    ({"metrics": {"norm": -1}}, "a number of zero or more"),
-    ({"thresholds": {"norm": [0.1]}}, r"\[good, bad\]"),
-    ({"thresholds": {"norm": [0.1, 0.1]}}, r"\[good, bad\]"),
+    ({"metrics": {"log_yield_ratio": -1}}, "a number of zero or more"),
+    ({"thresholds": {"log_yield_ratio": [0.1]}}, r"\[good, bad\]"),
+    ({"thresholds": {"log_yield_ratio": [0.1, 0.1]}}, r"\[good, bad\]"),
     ({"thresholds": {"zzz": [0.1, 0.2]}}, "no metric 'zzz'"),
     ({"weights": {"d01-*": "heavy"}}, "a number of zero or more"),
     ({"mean": "rmss"}, "no mean 'rmss'"),
@@ -50,8 +50,8 @@ def test_a_mistyped_metric_gets_a_hint(scratch):
 
 
 def test_stats_takes_metrics_and_centres_and_checks_the_names(scratch):
-    errand = config.parse(raw(stats={"metrics": ["chi2_ndf", "norm", "js"], "centres": "barycentre"}), scratch / "t.toml")
-    assert errand.stats == {"metrics": ["chi2_ndf", "norm", "js"], "centres": "barycentre"}
+    errand = config.parse(raw(stats={"metrics": ["chi2_ndf", "log_yield_ratio", "js_divergence"], "centres": "barycentre"}), scratch / "t.toml")
+    assert errand.stats == {"metrics": ["chi2_ndf", "log_yield_ratio", "js_divergence"], "centres": "barycentre"}
     with pytest.raises(HeimdallError, match="no metric 'jss'"):
         config.parse(raw(stats={"metrics": ["jss"]}), scratch / "u.toml")
     with pytest.raises(HeimdallError, match="must be one of"):

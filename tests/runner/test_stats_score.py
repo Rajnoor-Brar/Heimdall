@@ -14,7 +14,7 @@ NAN = float("nan")
 
 
 def row(point, page="p", cell="c", obj="run/pt/jet", ndf=10, reference=False, **values):
-    base = {name: 0.0 for name in ("norm", "shape", "tilt", "worst")}
+    base = {name: 0.0 for name in ("log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2")}
     base["chi2_ndf"] = 1.0
     return {"cell": cell, "page": page, "object": obj, "point": point, "curve": point, "is_reference": reference,
             "ndf": ndf, **base, **values}
@@ -22,7 +22,7 @@ def row(point, page="p", cell="c", obj="run/pt/jet", ndf=10, reference=False, **
 
 def two_purposes():
     """chi2_ndf (compatibility) and norm (normalisation): two purposes of one metric each."""
-    return score.settings_of({"metrics": ["chi2_ndf", "norm"]})
+    return score.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio"]})
 
 
 def test_the_default_settings_score_the_five_default_metrics_at_weight_one():
@@ -33,7 +33,7 @@ def test_the_default_settings_score_the_five_default_metrics_at_weight_one():
 
 
 @pytest.mark.parametrize("bad", [{"metrics": ["chi2_nfd"]}, {"mean": "rsm"}, {"normalise": "zscore"},
-                                 {"thresholds": {"nrom": [0.1, 0.2]}}, {"metrics": {"norm": 0.0}}, {"aggregate": "borda"}])
+                                 {"thresholds": {"nrom": [0.1, 0.2]}}, {"metrics": {"log_yield_ratio": 0.0}}, {"aggregate": "borda"}])
 def test_a_wrong_name_or_a_scoreless_choice_is_refused_by_name(bad):
     with pytest.raises(HeimdallError):
         score.settings_of(bad)
@@ -45,21 +45,21 @@ def test_a_set_s_score_table_is_laid_over_the_run_s():
 
 
 def test_a_perfect_curve_scores_zero_and_a_point_at_bad_scores_one_per_metric():
-    rows = [row("good"), row("bad", chi2_ndf=3.0, norm=0.15)]
+    rows = [row("good"), row("bad", chi2_ndf=3.0, log_yield_ratio=0.15)]
     out = {p.point: p for p in score.score(rows, two_purposes()).points}
     assert out["good"].score == 0.0
     assert out["bad"].score == pytest.approx(1.0)                         # both at their `bad` threshold: cost 1 each
 
 
 def test_the_loss_is_the_rms_over_purposes_of_the_rms_within_each():
-    rows = [row("a", chi2_ndf=2.0, norm=0.0)]                              # chi2: (2−1)/(3−1) = 0.5; norm: 0
+    rows = [row("a", chi2_ndf=2.0, log_yield_ratio=0.0)]                              # chi2: (2−1)/(3−1) = 0.5; norm: 0
     (p,) = score.score(rows, two_purposes()).points
     assert p.score == pytest.approx(math.sqrt((0.5**2 + 0.0) / 2))
     assert p.purposes == pytest.approx({"compatibility": 0.5, "normalisation": 0.0})
 
 
 def test_the_shares_of_the_loss_sum_to_one_and_name_the_purpose_that_costs():
-    rows = [row("a", chi2_ndf=3.0, norm=0.02)]                             # chi2 at bad: 1; norm at good: 0
+    rows = [row("a", chi2_ndf=3.0, log_yield_ratio=0.02)]                             # chi2 at bad: 1; norm at good: 0
     (p,) = score.score(rows, two_purposes()).points
     assert p.shares["compatibility"] == pytest.approx(1.0) and p.shares["normalisation"] == pytest.approx(0.0)
     assert sum(p.shares.values()) == pytest.approx(1.0)
@@ -86,9 +86,9 @@ def test_a_metric_weight_counts_within_its_purpose():
 
 
 def test_adding_a_curve_leaves_the_others_threshold_scores_unchanged():
-    rows = [row("a", chi2_ndf=2.0, norm=0.05), row("b", chi2_ndf=1.2, norm=0.01)]
+    rows = [row("a", chi2_ndf=2.0, log_yield_ratio=0.05), row("b", chi2_ndf=1.2, log_yield_ratio=0.01)]
     before = {p.point: p.score for p in score.score(rows, two_purposes()).points}
-    more = rows + [row("c", chi2_ndf=40.0, norm=0.9)]
+    more = rows + [row("c", chi2_ndf=40.0, log_yield_ratio=0.9)]
     after = {p.point: p.score for p in score.score(more, two_purposes()).points}
     assert after["a"] == before["a"] and after["b"] == before["b"]
 
@@ -149,22 +149,22 @@ def test_the_mean_is_a_setting_median_ignores_one_bad_page():
 
 
 def test_a_missing_metric_is_skipped_not_scored_as_zero():
-    rows = [row("a", chi2_ndf=NAN, norm=0.15)]
+    rows = [row("a", chi2_ndf=NAN, log_yield_ratio=0.15)]
     (p,) = score.score(rows, two_purposes()).points
     assert list(p.purposes) == ["normalisation"] and p.score == pytest.approx(1.0)
 
 
 def test_a_point_with_nothing_to_score_has_a_nan_score_and_ranks_last():
-    rows = [row("none", chi2_ndf=NAN, norm=NAN), row("ok", chi2_ndf=1.0, norm=0.0)]
+    rows = [row("none", chi2_ndf=NAN, log_yield_ratio=NAN), row("ok", chi2_ndf=1.0, log_yield_ratio=0.0)]
     out = score.score(rows, two_purposes())
     assert math.isnan(out.points[0].score)
     assert [p.point for p in out.ranked()] == ["ok", "none"]
 
 
 def test_dominated_is_pareto_over_purposes():
-    rows = [row("best", chi2_ndf=1.0, norm=0.0), row("worse", chi2_ndf=2.0, norm=0.1),
-            row("tradeoff", chi2_ndf=1.0, norm=0.3), row("other", chi2_ndf=3.0, norm=0.0)]
-    st = score.settings_of({"metrics": ["chi2_ndf", "norm"], "dominated": True})
+    rows = [row("best", chi2_ndf=1.0, log_yield_ratio=0.0), row("worse", chi2_ndf=2.0, log_yield_ratio=0.1),
+            row("tradeoff", chi2_ndf=1.0, log_yield_ratio=0.3), row("other", chi2_ndf=3.0, log_yield_ratio=0.0)]
+    st = score.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio"], "dominated": True})
     out = {p.point: p.dominated for p in score.score(rows, st).points}
     assert out == {"best": False, "worse": True, "tradeoff": True, "other": True}
 
@@ -178,11 +178,11 @@ def test_the_chi_square_survival_function_matches_the_tables(chi2, ndf, p):
 
 
 def test_the_gaussian_nulls():
-    assert score.null_p("tail", 1.959964, {}) == pytest.approx(0.05, abs=1e-6)       # two-sided
-    assert score.null_p("chi2_z", 1.644854, {}) == pytest.approx(0.05, abs=1e-6)     # one-sided
+    assert score.null_p("tail_excess_sigma", 1.959964, {}) == pytest.approx(0.05, abs=1e-6)       # two-sided
+    assert score.null_p("chi2_sigma", 1.644854, {}) == pytest.approx(0.05, abs=1e-6)     # one-sided
     assert score.null_p("chi2_ndf", 1.0, {"ndf": 10}) == pytest.approx(score.chi2_p(10, 10))
     with pytest.raises(HeimdallError, match="no null"):
-        score.null_p("norm", 0.1, {})
+        score.null_p("log_yield_ratio", 0.1, {})
 
 
 def test_surprisal_is_minus_the_log_of_the_null_probability():
@@ -193,7 +193,7 @@ def test_surprisal_is_minus_the_log_of_the_null_probability():
 
 def test_surprisal_refuses_a_metric_with_no_null():
     with pytest.raises(HeimdallError, match="no null"):
-        score.score([row("a")], score.settings_of({"metrics": ["norm"], "normalise": "surprisal"}))
+        score.score([row("a")], score.settings_of({"metrics": ["log_yield_ratio"], "normalise": "surprisal"}))
 
 
 # ── the pool normalisations ───────────────────────────────────────────────────────────────────
@@ -212,7 +212,7 @@ def test_mad_normalisation_orders_by_the_metric_and_stays_positive():
 
 
 def test_a_pool_normalisation_refuses_a_higher_is_better_metric():
-    higher = [n for n, m in metrics.REGISTRY.items() if m.better == "higher"]
+    higher = [n for n, m in metrics.REGISTRY.items() if m.polarity == "higher"]
     if not higher:
         pytest.skip("no higher-is-better metric")
     rows = [row("a", **{higher[0]: 0.5})]
@@ -223,17 +223,17 @@ def test_a_pool_normalisation_refuses_a_higher_is_better_metric():
 # ── CRITIC ────────────────────────────────────────────────────────────────────────────────────
 
 def test_critic_needs_enough_curves_to_correlate():
-    rows = [row(f"p{i}", chi2_ndf=1.0 + i, norm=0.01 * i) for i in range(5)]
+    rows = [row(f"p{i}", chi2_ndf=1.0 + i, log_yield_ratio=0.01 * i) for i in range(5)]
     with pytest.raises(HeimdallError, match="critic"):
-        score.score(rows, score.settings_of({"metrics": ["chi2_ndf", "norm"], "weights_by": "critic"}))
+        score.score(rows, score.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio"], "weights_by": "critic"}))
 
 
 def test_critic_downweights_a_metric_that_repeats_another():
     # three metrics, two of which are the same ranking: the independent one weighs more than each of the repeated pair
-    shape, tilt, norm = "shape", "tilt", "norm"
+    shape, tilt, norm = "log_dev_shrunk", "tilt", "log_yield_ratio"
     rows = []
     for i in range(20):
-        rows.append(row(f"p{i}", shape=0.01 * i, tilt=0.01 * i + 0.001, norm=0.01 * ((i * 7) % 20)))
+        rows.append(row(f"p{i}", log_dev_shrunk=0.01 * i, tilt=0.01 * i + 0.001, log_yield_ratio=0.01 * ((i * 7) % 20)))
     obs = score.observations(rows, score.settings_of({"metrics": [shape, tilt, norm]}))
     st = score.settings_of({"metrics": [shape, tilt, norm]})
     score.costs(obs, st)
@@ -243,8 +243,8 @@ def test_critic_downweights_a_metric_that_repeats_another():
 
 
 def test_critic_through_the_score_runs_and_keeps_the_ranking_of_a_clear_case():
-    rows = [row(f"p{i}", chi2_ndf=1.0 + 0.1 * i, norm=0.01 * i, shape=0.01 * i) for i in range(20)]
-    st = score.settings_of({"metrics": ["chi2_ndf", "norm", "shape"], "weights_by": "critic"})
+    rows = [row(f"p{i}", chi2_ndf=1.0 + 0.1 * i, log_yield_ratio=0.01 * i, log_dev_shrunk=0.01 * i) for i in range(20)]
+    st = score.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk"], "weights_by": "critic"})
     order = [p.point for p in score.score(rows, st).ranked()]
     assert order[0] == "p0" and order[-1] == "p19"
 
@@ -264,13 +264,13 @@ def test_fisher_orders_by_the_probability_and_is_pool_independent():
 
 
 def test_topsis_is_pool_dependent_and_says_so():
-    rows = [row("a", chi2_ndf=1.0, norm=0.0), row("b", chi2_ndf=2.0, norm=0.1), row("c", chi2_ndf=3.0, norm=0.2)]
-    st = score.settings_of({"metrics": ["chi2_ndf", "norm"], "aggregate": "topsis"})
+    rows = [row("a", chi2_ndf=1.0, log_yield_ratio=0.0), row("b", chi2_ndf=2.0, log_yield_ratio=0.1), row("c", chi2_ndf=3.0, log_yield_ratio=0.2)]
+    st = score.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio"], "aggregate": "topsis"})
     out = score.score(rows, st)
     s = {p.point: p.score for p in out.points}
     assert s["a"] == pytest.approx(0.0) and s["c"] == pytest.approx(1.0) and 0 < s["b"] < 1
     assert any("rank reversal" in n for n in out.notes)
-    wider = {p.point: p.score for p in score.score(rows + [row("d", chi2_ndf=9.0, norm=0.9)], st).points}
+    wider = {p.point: p.score for p in score.score(rows + [row("d", chi2_ndf=9.0, log_yield_ratio=0.9)], st).points}
     assert wider["b"] != s["b"]
 
 
@@ -286,14 +286,14 @@ def test_promethee_ranks_by_net_outranking_flow():
 # ── head to head ──────────────────────────────────────────────────────────────────────────────
 
 def test_head_to_head_gives_the_pairwise_differences_and_counts_no_wins():
-    rows = [row("a", chi2_ndf=1.0, norm=0.0), row("b", chi2_ndf=3.0, norm=0.02), row("c", chi2_ndf=2.0, norm=0.15)]
+    rows = [row("a", chi2_ndf=1.0, log_yield_ratio=0.0), row("b", chi2_ndf=3.0, log_yield_ratio=0.02), row("c", chi2_ndf=2.0, log_yield_ratio=0.15)]
     out = score.head_to_head(rows, "p", two_purposes())
     assert out["points"] == ["a", "b", "c"]
     pairs = {(p["a"], p["b"]): p for p in out["pairs"]}
     assert set(pairs) == {("a", "b"), ("a", "c"), ("b", "c")}
     assert pairs[("a", "b")]["metrics"]["chi2_ndf"] == pytest.approx(0.0 - 1.0)       # a is better by one on χ²
     assert pairs[("a", "b")]["loss"] < 0
-    assert pairs[("b", "c")]["metrics"]["norm"] == pytest.approx(0.0 - 1.0)
+    assert pairs[("b", "c")]["metrics"]["log_yield_ratio"] == pytest.approx(0.0 - 1.0)
     assert not any("wins" in p for p in out["pairs"])
 
 

@@ -18,7 +18,8 @@ from pathlib import Path
 
 FORMAT = 2
 STATISTIC_COLUMNS = ("page", "cell", "object", "curve", "point", "reference", "is_reference", "bins", "area", "area_err",
-                     "ref_area", "cmp_area", "abs_area", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev", "chi2", "ndf",
+                     "ref_area", "cmp_area", "abs_area", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio",
+                     "mean_abs_ratio_dev", "chi2", "ndf",
                      "chi2_ndf")
 #: The columns that hold text, and the counts; every other one is a number ("" in the file: NaN).
 TEXT = ("page", "cell", "object", "curve", "point", "run", "reference")
@@ -65,10 +66,10 @@ def statistics_of(page, names=None) -> list[dict] | None:
         rows.append({"page": page.rel or page.name, "cell": page.cell, "object": page.object, "curve": label,
                      "point": curve["object"].split("/", 1)[0], "reference": reference,
                      "is_reference": bool(numbers.get("reference")), "bins": numbers.get("bins", 0), **number,
-                     "rel_abs_area": number["abs_area"] / number["ref_area"] if number["ref_area"] else float("nan"),
-                     "area_ratio": number["cmp_area"] / number["ref_area"] if number["ref_area"] else float("nan"),
-                     "ratio_mean": ratio_sum / ratio_width if ratio_width else float("nan"),
-                     "ratio_dev": ratio_area / ratio_width if ratio_width else float("nan"),
+                     "yield_weighted_abs_dev": number["abs_area"] / number["ref_area"] if number["ref_area"] else float("nan"),
+                     "yield_ratio": number["cmp_area"] / number["ref_area"] if number["ref_area"] else float("nan"),
+                     "mean_bin_ratio": ratio_sum / ratio_width if ratio_width else float("nan"),
+                     "mean_abs_ratio_dev": ratio_area / ratio_width if ratio_width else float("nan"),
                      "ndf": numbers.get("ndf", 0),
                      "chi2_ndf": number["chi2"] / numbers["ndf"] if numbers.get("ndf") else float("nan")})
         if run := getattr(page, "runs", {}).get(rows[-1]["point"]):          # a table of Runs together: whose each is
@@ -98,7 +99,7 @@ def sidecar_of(names, score: dict | None = None, axes: dict | None = None, merge
     from . import metrics
     columns = columns_for(names, run)
     out = {"format": FORMAT, "columns": columns,
-           "metrics": {n: {"purpose": m.purpose, "better": m.better, "thresholds": list(m.thresholds) if m.thresholds else None,
+           "metrics": {n: {"purpose": m.purpose, "better": "none" if m.polarity == "descriptor" else m.polarity, "thresholds": list(m.thresholds) if m.thresholds else None,
                            "default": m.default, "note": m.note, "why": m.why}
                        for n in columns if (m := metrics.REGISTRY.get(n))}}
     if score:

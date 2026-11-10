@@ -23,7 +23,7 @@ T is the metric's `scale`: `linear` (T(m) = m) or `log` (T(m) = log₁₀ m, for
 
 A Δ column says its own reading: `Δ loss ↓ (negative: better than the baseline)`.
 
-## The catalogue
+## The catalogue · closed 1.1
 
 **Default?** ● scored by default · ◆ a gate, on by default · ◇ shown by default, not scored · blank: opt-in. "Old id" is today's. "—" in Old id marks a metric this plan adds.
 

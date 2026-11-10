@@ -43,17 +43,17 @@ def worst_rows() -> list[dict]:
                                  "curve": f"lepton QED shower {shower}", "point": f"{cell}_{shower}",
                                  "reference": "ZEUS 2012", "is_reference": False, "bins": 10, "area": area,
                                  "area_err": 0.01, "ref_area": 1.0, "cmp_area": area, "abs_area": draw.uniform(0.05, 0.4),
-                                 "rel_abs_area": draw.uniform(0.05, 0.4), "area_ratio": area,
-                                 "ratio_mean": draw.uniform(0.4, 1.6), "ratio_dev": draw.uniform(0.1, 0.9),
+                                 "yield_weighted_abs_dev": draw.uniform(0.05, 0.4), "yield_ratio": area,
+                                 "mean_bin_ratio": draw.uniform(0.4, 1.6), "mean_abs_ratio_dev": draw.uniform(0.1, 0.9),
                                  "chi2": 0.0, "ndf": 10, "chi2_ndf": draw.uniform(1.0, 60.0),
-                                 "norm": draw.uniform(0.0, 0.5), "shape": draw.uniform(0.0, 0.4),
-                                 "tilt": draw.uniform(0.0, 0.5), "worst": draw.uniform(1.0, 80.0)})
+                                 "log_yield_ratio": draw.uniform(0.0, 0.5), "log_dev_shrunk": draw.uniform(0.0, 0.4),
+                                 "tilt": draw.uniform(0.0, 0.5), "peak_pull2": draw.uniform(1.0, 80.0)})
     return rows
 
 
 #: Every metric the fixture has a column for: the defaults and the old columns.
-LEGACY = ("rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev")
-ALL = score.settings_of({"metrics": ["chi2_ndf", "norm", "shape", "tilt", "worst", *LEGACY], "veto": 10.0,
+LEGACY = ("yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev")
+ALL = score.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", *LEGACY], "veto": 10.0,
                          "head_to_head": "NNPDF23lo_lpdfon/d01-x01-y01"})
 
 
@@ -255,8 +255,8 @@ def test_cells_against_curves_hold_each_points_mean_the_longer_list_down():
     document = bars.summary_model(rows, "", ALL)
     items = {i.key: i for s in document.sections for i in s.items}
     keys = [i.key for s in document.sections if s.key == "purpose-normalisation" for i in s.items
-            if i.key.startswith("area_ratio")]
-    assert keys == ["area_ratio-ranking", "area_ratio-crossed", "area_ratio"]
+            if i.key.startswith("yield_ratio")]
+    assert keys == ["yield_ratio-ranking", "yield_ratio-crossed", "yield_ratio"]
     crossed = items["chi2_ndf-crossed"]
     assert crossed.headers == ["lepton QED shower on", "lepton QED shower off", "rms"]   # 38 cells down, 2 across
     assert [r.label for r in crossed.rows][:2] == ["NNPDF23lo_lpdfon", "NNPDF23lo_lpdfoff"]
@@ -266,8 +266,8 @@ def test_cells_against_curves_hold_each_points_mean_the_longer_list_down():
     on, off = means["NNPDF23lo_lpdfon_on"][0], means["NNPDF23lo_lpdfon_off"][0]
     assert [c.text for c in first.cells] == [bars._shown(on), bars._shown(off), bars._shown(math.sqrt((on * on + off * off) / 2))]
     assert [c.bold for c in first.cells[:2]] == [on <= off, off <= on]          # the best in its row
-    ratio = items["area_ratio-crossed"].rows[0].cells
-    a, b = (means_ := bars._means(rows, "area_ratio"))["NNPDF23lo_lpdfon_on"][0], means_["NNPDF23lo_lpdfon_off"][0]
+    ratio = items["yield_ratio-crossed"].rows[0].cells
+    a, b = (means_ := bars._means(rows, "yield_ratio"))["NNPDF23lo_lpdfon_on"][0], means_["NNPDF23lo_lpdfon_off"][0]
     assert ratio[2].text == bars._shown(math.sqrt((a * a + b * b) / 2))        # a ratio's too
 
 
@@ -363,13 +363,13 @@ def test_a_bar_far_beyond_the_rest_is_cut_and_every_value_stays_on_its_panel(scr
     10⁸ pixels off the panel, more than FreeType could raster; a negative value drew over the curve labels."""
     assert paper.reach([0.3, 0.8, 0.5, 0.2, 3.8e8]) == 0.8 and paper.reach([1.0, 30.0]) == 30.0
     assert paper.reach([0.0, 0.0, 5.0]) == 5.0 and paper.reach([]) == 0.0
-    wild = {"area": 1.3e13, "area_ratio": 7.2e9, "ratio_mean": -3.8e8, "rel_abs_area": 8.0e9, "ratio_dev": 4.3e9,
+    wild = {"area": 1.3e13, "yield_ratio": 7.2e9, "mean_bin_ratio": -3.8e8, "yield_weighted_abs_dev": 8.0e9, "mean_abs_ratio_dev": 4.3e9,
             "chi2_ndf": 1.86}
     rows = [r for r in worst_rows() if r["page"] == "NNPDF23lo_lpdfon/d01"]
-    rows = [dict(rows[0], point=f"p{i}", curve=f"curve {i}", ratio_mean=0.5 - 0.15 * i) for i in range(6)] + \
+    rows = [dict(rows[0], point=f"p{i}", curve=f"curve {i}", mean_bin_ratio=0.5 - 0.15 * i) for i in range(6)] + \
         [dict(rows[0], point="wild", curve="wild", **wild)]
     label = max(paper.width(r["curve"], 8) for r in rows) + 0.12
-    shown = bars.panels(["chi2_ndf", "rel_abs_area", "area_ratio", "ratio_mean", "ratio_dev"])
+    shown = bars.panels(["chi2_ndf", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev"])
     columns, _, bar, _ = bars.grid(len(rows), label, len(shown))
     figure = bars._page_figure(rows, "a page", columns, bar, label, plt, shown)
     figure.savefig(scratch / "wild.png", dpi=150)                          # raster overflow before
@@ -380,7 +380,7 @@ def test_a_bar_far_beyond_the_rest_is_cut_and_every_value_stays_on_its_panel(scr
             box = text.get_window_extent(renderer)
             assert panel.x0 - 1 <= box.x0 and box.x1 <= panel.x1 + 1, (ax.get_title(loc="left"), text.get_text())
     said = {ax.get_title(loc="left"): [t.get_text() for t in ax.texts] for ax in figure.axes}
-    assert said["mean ratio"][-1] == "-3.8e+08 «" and said["area / reference"][-1] == "» 7.2e+09"
+    assert said["mean bin ratio"][-1] == "-3.8e+08 «" and said["yield ratio"][-1] == "» 7.2e+09"
     assert paper.CUT_KEY in [t.get_text().replace("\n", " ") for t in figure.texts]          # its key at the foot
     plt.close(figure)
     ranking = paper.Ranking("r", "mean ratio", [f"p{i}" for i in range(7)], [0.9, 1.1, 0.8, 1.2, 0.95, 1.05, -3.8e8],
@@ -445,10 +445,10 @@ def test_the_standings_are_the_engines_scores_and_veto_and_dominated_columns_fol
 
 def test_a_purposes_section_says_what_it_asks_and_each_metric_what_it_is_and_how_it_is_scored():
     from stats import metrics
-    document = bars.summary_model(worst_rows(), "", score.settings_of({"thresholds": {"norm": [0.1, 0.5]}}))
+    document = bars.summary_model(worst_rows(), "", score.settings_of({"thresholds": {"log_yield_ratio": [0.1, 0.5]}}))
     assert document.notes["purpose-shape"].startswith("Shape accuracy, bin by bin. ")
     assert document.notes["stat-chi2_ndf"] == metrics.describe("chi2_ndf")
-    assert "Scored from 0.1 (cost 0) to 0.5 (cost 1)" in document.notes["stat-norm"]    # the setting's thresholds, not the registry's
+    assert "Scored from 0.1 (cost 0) to 0.5 (cost 1)" in document.notes["stat-log_yield_ratio"]    # the setting's thresholds, not the registry's
     ranking = next(i for s in document.sections for i in s.items if i.key == "purpose-shape-ranking")
     assert {"purpose-shape", "score"} <= set(ranking.notes)
 
@@ -477,11 +477,11 @@ def test_a_table_past_bad_still_tells_its_worst_from_its_next():
 
 def test_a_page_image_has_a_panel_a_metric_on(scratch):
     rows = [r for r in worst_rows() if r["page"] == "NNPDF23lo_lpdfon/d01"]
-    made = bars.page(rows, scratch / "bars" / "d01", ["png"], "d01", ["chi2_ndf", "norm", "worst"])
+    made = bars.page(rows, scratch / "bars" / "d01", ["png"], "d01", ["chi2_ndf", "log_yield_ratio", "peak_pull2"])
     assert [p.name for p in made] == ["d01.png"]
     assert bars.grid(4, 1.0, 3)[:2] == (3, 1)                                    # three panels fit across
-    assert [t for _, t in bars.panels(["chi2_ndf", "tilt"])] == ["χ²/ndf", "tilt"]
-    assert [n for n, _ in bars.panels()] == ["chi2_ndf", "norm", "shape", "tilt", "worst"]
+    assert [t for _, t in bars.panels(["chi2_ndf", "tilt"])] == ["χ²/ndf", "tilt, Δ ln ratio across the page"]
+    assert [n for n, _ in bars.panels()] == ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2"]
 
 
 def test_a_metric_off_or_without_numbers_has_no_section():
@@ -494,7 +494,7 @@ def test_a_metric_off_or_without_numbers_has_no_section():
 def test_a_curve_with_an_infinite_number_is_drawn_not_a_crash(scratch):
     rows = [r for r in worst_rows() if r["page"] == "NNPDF23lo_lpdfon/d01"]
     rows = [dict(rows[0], chi2_ndf=float("inf")), dict(rows[1])]
-    st = score.settings_of({"metrics": ["chi2_ndf", "norm"], "head_to_head": "all"})
+    st = score.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio"], "head_to_head": "all"})
     made = bars.summary_of(rows, scratch / "inf" / "summary", ["png"], "inf", st)
     assert made
     document = bars.summary_model(rows, "", st)

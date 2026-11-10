@@ -5,3 +5,8 @@ Written by the implementing agent. Every decision made off the plan, newest last
 The developer reviews this file at the round's end, and then it leaves `.plans/`: a decision kept goes to a decision note.
 
 ## Decisions
+
+- **2026-11-10 · 1.1.** `ALIASES` has 24 keys, not 22. T1 lists 24 rows whose id changes, `lambda` and the two removed twins among them, and the test holds 24.
+- **2026-11-10 · 1.1.** The four fixed columns (`yield_weighted_abs_dev`, `yield_ratio`, `mean_bin_ratio`, `mean_abs_ratio_dev`) were renamed in 1.1 rather than 1.2. They are registry metrics under the same id, so renaming the registry alone would have left the table's columns out of the sidecar's metrics. `plot.STATISTIC_LABELS`' keys and the `resolve` of `legend_statistic` and a figure's `statistic` came with them. 1.2 keeps the rest: format 3, `table.read`'s mapping, `upgraded`.
+- **2026-11-10 · 1.1.** `settings_of` resolves an old id in `metrics` and `thresholds` too, beside the three readers named in 1.1, so a ranking table still naming one scores until 1.3 refuses it in a user's file. `bars.py` and `house.py` moved off `.better` here, since the field is gone.
+- **2026-11-10 · 1.1.** Display names and notes are 02's catalogue rows; the formulas' LaTeX left-hand sides (`|Δ|/reference`, `area/reference`, `mean ratio`) are kept as written.

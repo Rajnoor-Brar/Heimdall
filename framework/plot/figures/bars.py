@@ -188,7 +188,7 @@ def _page_figure(rows: list[dict], title: str, columns: int, bar: float, label: 
         values = [None if r_["is_reference"] else _number(r_.get(key)) for r_ in rows]
         _style(ax, labels)
         cut = _bars(ax, values, notes, size, panel) or cut
-        if key in M.REGISTRY and M.REGISTRY[key].better == "one":
+        if key in M.REGISTRY and M.REGISTRY[key].polarity == "one":
             ax.axvline(1, color=MUTED, linewidth=0.8, linestyle=":")          # the reference's own
         ax.set_title(name, color=INK, fontsize=9, loc="left")
         ax.set_yticks(range(len(labels)), labels if c == 0 else [""] * len(labels), color=INK, fontsize=size)
@@ -248,7 +248,7 @@ def _rule(name: str) -> str:
     """How a metric's cells are shaded: "ratio" for a number that is best at 1; "cost" for one with thresholds (the hinged
     cost, so a colour means the same on every table); "linear" for a descriptor."""
     m = M.REGISTRY[name]
-    return "ratio" if m.better == "one" else "cost" if m.thresholds else "linear"
+    return "ratio" if m.polarity == "one" else "cost" if m.thresholds else "linear"
 
 
 def _short(objects: list[str]) -> dict[str, str]:
@@ -327,9 +327,9 @@ def _distance(key: str, value) -> float | None:
     if not _finite(value):
         return None
     m = M.REGISTRY[key]
-    if m.better == "one":
+    if m.polarity == "one":
         return abs(math.log10(value)) if value > 0 else None
-    return -float(value) if m.better == "higher" else float(value)
+    return -float(value) if m.polarity == "higher" else float(value)
 
 
 def _table(key: str, title: str, labels: list[str], headers: list[str], cells: list[list[tuple]], notes: tuple,
@@ -384,7 +384,7 @@ def _ranking(rows: list[dict], key: str, notes: dict, st):
         return None
     ratio = rule == "ratio"
     ranked = sorted(means, key=lambda p: (_distance(key, means[p][0]), points[p]))
-    higher = M.REGISTRY[key].better == "higher"
+    higher = M.REGISTRY[key].polarity == "higher"
     order = "closest to 1 first, bars from 1: blue above, orange below" if ratio else "highest first" if higher else "lowest first"
     name = M.title_of(key)
     notes[f"ranking-{key}"] = RANKING_NOTE.format(name=name, order=order, mean=_mean_name(st))

@@ -1,9 +1,10 @@
 """The metrics: a number for one curve against its page's reference, from Paint's measured bins.
 
-`REGISTRY` maps a name to a `Metric`: its function, the purpose it answers (PURPOSES), which way is better, the
-(good, bad) thresholds that normalise it (a value at or under `good` costs nothing; at `bad`, 1), whether it needs a
+`REGISTRY` maps an id to a `Metric`: its function, the purpose it answers (PURPOSES), its polarity (which way is
+better, POLARITIES), its scale, the (good, bad) thresholds that normalise it (a value at or under `good` costs nothing; at `bad`, 1), whether it needs a
 reference, whether it is on by default, and a note saying what it measures and what it is blind to. A function takes a
-`bins.Curve` and returns a float, NaN when the curve has too little to say.
+`bins.Curve` and returns a float, NaN when the curve has too little to say. `ALIASES` maps an id a metric had before to
+the one it has, and `resolve` reads either.
 
 Notation, for the curve y ± σ on the reference's bins (ref, σ_ref), bin width Δx (drawn: log10 x on a log-x page):
     ℓ = ln(max(y, ε·ref) / ref)                         the log ratio, floored so a hole is finite (ε = 0.01)
@@ -22,7 +23,7 @@ import numpy as np
 from .bins import Curve
 
 EPS = 0.01        # the floor of the log ratio, as a fraction of the reference
-TAU = 0.10        # the model tolerance that sets how much a noisy bin counts in `shape`
+TAU = 0.10        # the model tolerance that sets how much a noisy bin counts in `log_dev_shrunk`
 TAU0 = 0.01       # keeps one very precise bin from owning the `tilt` regression
 
 #: What a metric answers, in the order the summary and the report show them.
@@ -49,16 +50,43 @@ ASKS = {
     "quality": "Is the curve itself sound as a Monte Carlo histogram, with no reference: smooth, filled, enough events?",
 }
 
-#: Each metric's name where it is shown (a column, a panel, a section); the name itself where none is given.
+#: Each metric's name where it is shown (a column, a panel, a section); the id itself where none is given.
 TITLES = {
-    "chi2_ndf": "χ²/ndf", "chi2_z": "χ² as Z", "poisson": "Poisson deviance", "tail": "tail Z", "norm": "norm |ln yield ratio|",
-    "area_ratio": "area / reference", "ratio_mean": "mean ratio", "wmape_yield": "yield-weighted error",
-    "shape": "shape |ln ratio|", "ratio_dev": "mean |ratio − 1|", "rel_abs_area": "|Δ| / reference", "wmape_axis": "axis-weighted error",
-    "L4": "L4 |ln ratio|", "consensus": "shape vs consensus", "js": "Jensen–Shannon", "ad": "Anderson–Darling", "tilt": "tilt",
-    "rho1": "lag-1 autocorrelation", "worst": "worst bins", "cvar": "worst deviances", "roughness": "roughness",
-    "n_eff": "effective events", "holes": "holes", "r_int": "ln roughness", "chi2_smooth": "smoothness χ²", "r2_ln": "tail 1 − R²",
-    "lambda": "tail decay rate",
+    "chi2_ndf": "χ²/ndf", "chi2_sigma": "χ² significance (σ)", "poisson_dev": "Poisson deviance per bin",
+    "tail_excess_sigma": "tail excess (σ)", "log_yield_ratio": "yield ratio, |ln|", "yield_ratio": "yield ratio",
+    "mean_bin_ratio": "mean bin ratio", "log_dev_shrunk": "mean |ln ratio|, precision-shrunk", "log_dev_l4": "L4 |ln ratio|",
+    "mean_abs_ratio_dev": "mean |ratio − 1|", "yield_weighted_abs_dev": "yield-weighted |Δ|",
+    "consensus_dev": "deviation from the page's median curve", "js_divergence": "Jensen–Shannon divergence (bits)",
+    "ad_distance": "Anderson–Darling distance", "tilt": "tilt, Δ ln ratio across the page",
+    "pull_autocorr": "pull autocorrelation, lag 1", "peak_pull2": "largest pulls², mean of the top k",
+    "peak_deviance": "largest deviances, mean of the top k", "log_ratio_roughness": "roughness of ln ratio",
+    "n_eff": "effective events", "hole_fraction": "hole fraction", "log_roughness": "roughness of ln y",
+    "smoothness_chi2": "smoothness χ²", "tail_nonlinearity": "tail non-linearity, 1 − R²", "tail_slope": "tail decay rate",
 }
+
+#: Each metric's id before the catalogue was renamed → its id now. Two retired twins read as the metric they equal.
+ALIASES = {
+    "chi2_z": "chi2_sigma", "poisson": "poisson_dev", "tail": "tail_excess_sigma", "norm": "log_yield_ratio",
+    "area_ratio": "yield_ratio", "ratio_mean": "mean_bin_ratio", "wmape_yield": "yield_weighted_abs_dev",
+    "shape": "log_dev_shrunk", "L4": "log_dev_l4", "ratio_dev": "mean_abs_ratio_dev", "rel_abs_area": "yield_weighted_abs_dev",
+    "wmape_axis": "mean_abs_ratio_dev", "consensus": "consensus_dev", "js": "js_divergence", "ad": "ad_distance",
+    "rho1": "pull_autocorr", "worst": "peak_pull2", "cvar": "peak_deviance", "roughness": "log_ratio_roughness",
+    "holes": "hole_fraction", "r_int": "log_roughness", "chi2_smooth": "smoothness_chi2", "r2_ln": "tail_nonlinearity",
+    "lambda": "tail_slope",
+}
+
+#: Which way a metric is better, and how each is said: a glyph, its form for a terminal that is not UTF-8, a phrase.
+POLARITIES = ("lower", "higher", "one", "descriptor")
+GLYPH = {"lower": "↓", "higher": "↑", "one": "→1", "descriptor": "○"}
+ASCII = {"lower": "[v]", "higher": "[^]", "one": "[=1]", "descriptor": "[o]"}
+PHRASE = {"lower": "lower is better", "higher": "higher is better", "one": "closest to 1 is better",
+          "descriptor": "a descriptor, not scored"}
+SCALES = ("linear", "log")
+
+
+def resolve(name: str) -> str:
+    """A metric's id, from its id or the id it had before."""
+    return ALIASES.get(name, name)
 
 
 def title_of(name: str) -> str:
@@ -70,11 +98,11 @@ def title_of(name: str) -> str:
 FORMULAS = {
     "chi2_ndf": r"\chi^2/\mathrm{ndf} = \frac{1}{\mathrm{ndf}} \sum_i "
                 r"\frac{(y_i - y_{\mathrm{ref},i})^2}{\sigma_i^2 + \sigma_{\mathrm{ref},i}^2}",
-    "rel_abs_area": r"\frac{|\Delta|}{\mathrm{reference}} = "
+    "yield_weighted_abs_dev": r"\frac{|\Delta|}{\mathrm{reference}} = "
                     r"\frac{\sum_i |y_i - y_{\mathrm{ref},i}|\,\Delta x_i}{\sum_i y_{\mathrm{ref},i}\,\Delta x_i}",
-    "area_ratio": r"\frac{\mathrm{area}}{\mathrm{reference}} = \frac{\sum_i y_i\,\Delta x_i}{\sum_i y_{\mathrm{ref},i}\,\Delta x_i}",
-    "ratio_mean": r"\mathrm{mean\ ratio} = \frac{\sum_i (y_i / y_{\mathrm{ref},i})\,\Delta x_i}{\sum_i \Delta x_i}",
-    "ratio_dev": r"\mathrm{mean}\,|\mathrm{ratio} - 1| = "
+    "yield_ratio": r"\frac{\mathrm{area}}{\mathrm{reference}} = \frac{\sum_i y_i\,\Delta x_i}{\sum_i y_{\mathrm{ref},i}\,\Delta x_i}",
+    "mean_bin_ratio": r"\mathrm{mean\ ratio} = \frac{\sum_i (y_i / y_{\mathrm{ref},i})\,\Delta x_i}{\sum_i \Delta x_i}",
+    "mean_abs_ratio_dev": r"\mathrm{mean}\,|\mathrm{ratio} - 1| = "
                  r"\frac{\sum_i |y_i / y_{\mathrm{ref},i} - 1|\,\Delta x_i}{\sum_i \Delta x_i}",
 }
 
@@ -84,7 +112,8 @@ class Metric:
     name: str
     fn: Callable[..., float]
     purpose: str
-    better: str = "lower"                     # "lower"; "higher"; "one": closest to 1, scored by |log10|, as the old ratios; "none": a descriptor
+    polarity: str = "lower"                   # one of POLARITIES; "one": closest to 1, scored by |log10|; "descriptor": not scored
+    scale: str = "linear"                     # "log": the metric spans decades, as n_eff
     thresholds: tuple[float, float] | None = None   # (good, bad), in the scored quantity; None: none chosen, so it cannot be normalised by default
     needs_reference: bool = True
     default: bool = False
@@ -97,7 +126,7 @@ class Metric:
 
     def scored(self, value: float) -> float:
         """The quantity the thresholds are on: |log10 value| for "one", else the value."""
-        if self.better == "one":
+        if self.polarity == "one":
             return abs(math.log10(value)) if value > 0 else math.inf
         return value
 
@@ -152,7 +181,7 @@ def centres(c: Curve, mode: str = "mid", of: np.ndarray | None = None) -> np.nda
     return np.where(small | ~np.isfinite(exact), mid, exact)
 
 
-# ── the five that are on by default ───────────────────────────────────────────────────────────
+# ── the five the defaults began with ───────────────────────────────────────────────────────────
 
 def chi2_ndf(c: Curve, **_) -> float:
     """χ²/ndf as Paint counts it: Σ (y − ref)² / (σ² + σ_ref²) over the bins with a nonzero error, per such bin."""
@@ -162,7 +191,7 @@ def chi2_ndf(c: Curve, **_) -> float:
     return float(np.sum(d[use] ** 2 / s2[use]) / use.sum()) if use.any() else math.nan
 
 
-def norm(c: Curve, eps: float = EPS, **_) -> float:
+def log_yield_ratio(c: Curve, eps: float = EPS, **_) -> float:
     """|ln(Σ y·Δx / Σ ref·Δx)|: the yield off by a factor, either way alike (a curve 20 % high and one 1/1.2 low
     are equally wrong). Blind to where the yield goes. A curve with no yield counts as ε of the reference."""
     use = np.isfinite(c.y) & np.isfinite(c.ref_y)
@@ -173,9 +202,9 @@ def norm(c: Curve, eps: float = EPS, **_) -> float:
     return abs(math.log(cmp_area / ref_area))
 
 
-def shape(c: Curve, eps: float = EPS, tau: float = TAU, **_) -> float:
+def log_dev_shrunk(c: Curve, eps: float = EPS, tau: float = TAU, **_) -> float:
     """Σ Δx·s·|ℓ| / Σ Δx, s = τ²/(τ² + σ_ℓ²): the log ratio's mean size over the axis, a noisy bin counted less
-    (it cannot be told from a fluctuation) and a wide bin more. Blind to a uniform shift that `norm` carries too."""
+    (it cannot be told from a fluctuation) and a wide bin more. Blind to a uniform shift that `log_yield_ratio` carries too."""
     ell, sigma, use = log_ratio(c, eps)
     dx = c.drawn
     use = use & (dx > 0)
@@ -202,9 +231,9 @@ def tilt(c: Curve, eps: float = EPS, tau0: float = TAU0, centres_mode: str = "mi
     return abs(float(np.sum(w * (xs - xbar) * (ys - ybar))) / var) * c.span
 
 
-def worst(c: Curve, k_floor: int = 3, k_frac: float = 0.10, **_) -> float:
+def peak_pull2(c: Curve, k_floor: int = 3, k_frac: float = 0.10, **_) -> float:
     """The mean of the k largest squared pulls (y − ref)/σ, k = max(3, ⌈0.1 N⌉): a glitch that χ²/ndf spreads over
-    all the bins, undiluted. A spike whose own error is as large as itself hides in its σ: `poisson` and `cvar`
+    all the bins, undiluted. A spike whose own error is as large as itself hides in its σ: `poisson_dev` and `peak_deviance`
     anchor the error to the reference instead (the catalogue)."""
     d = c.y - c.ref_y
     s2 = np.nan_to_num(c.err) ** 2 + np.nan_to_num(c.ref_err) ** 2
@@ -216,7 +245,7 @@ def worst(c: Curve, k_floor: int = 3, k_frac: float = 0.10, **_) -> float:
     return float(np.mean(z2[:k]))
 
 
-# ── today's statistics (the old table's columns), from the same bins ──────────────────────────
+# ── the table's fixed ratio columns, from the same bins ───────────────────────────────────────
 
 def _ratio_terms(c: Curve):
     ref = c.ref_y
@@ -225,27 +254,27 @@ def _ratio_terms(c: Curve):
     return use, drawn
 
 
-def rel_abs_area(c: Curve, **_) -> float:
-    """Σ |y − ref|·Δx / Σ ref·Δx (the old `rel_abs_area`; the yield-weighted ratio error)."""
+def yield_weighted_abs_dev(c: Curve, **_) -> float:
+    """Σ |y − ref|·Δx / Σ ref·Δx: the yield-weighted error, shape and normalisation together."""
     ref_area = float(np.sum(c.ref_y * c.width))
     return float(np.sum(np.abs(c.y - c.ref_y) * c.width)) / ref_area if ref_area else math.nan
 
 
-def area_ratio(c: Curve, **_) -> float:
-    """Σ y·Δx / Σ ref·Δx (the old `area_ratio`)."""
+def yield_ratio(c: Curve, **_) -> float:
+    """Σ y·Δx / Σ ref·Δx: the curve's yield over the reference's."""
     ref_area = float(np.sum(c.ref_y * c.width))
     return float(np.sum(c.y * c.width)) / ref_area if ref_area else math.nan
 
 
-def ratio_mean(c: Curve, **_) -> float:
-    """The mean of y/ref over the page as drawn (the ratio pad's width: log10 x on a log-x page); the old `ratio_mean`."""
+def mean_bin_ratio(c: Curve, **_) -> float:
+    """The mean of y/ref over the page as drawn (the ratio pad's width: log10 x on a log-x page)."""
     use, drawn = _ratio_terms(c)
     width = float(np.sum(drawn[use]))
     return float(np.sum(c.y[use] / c.ref_y[use] * drawn[use])) / width if width else math.nan
 
 
-def ratio_dev(c: Curve, **_) -> float:
-    """The mean of |y/ref − 1| over the page as drawn; the old `ratio_dev`."""
+def mean_abs_ratio_dev(c: Curve, **_) -> float:
+    """The mean of |y/ref − 1| over the page as drawn: every unit of the axis alike, noise and all."""
     use, drawn = _ratio_terms(c)
     width = float(np.sum(drawn[use]))
     return float(np.sum(np.abs(c.y[use] / c.ref_y[use] - 1) * drawn[use])) / width if width else math.nan
@@ -260,7 +289,7 @@ def _pulls2(c: Curve):
     return d, s2, (s2 > 0) & np.isfinite(d)
 
 
-def chi2_z(c: Curve, **_) -> float:
+def chi2_sigma(c: Curve, **_) -> float:
     """χ²/ndf as a number of standard deviations (Wilson–Hilferty): Z = ((χ²/ν)^(1/3) − (1 − 2/9ν)) / √(2/9ν), ν the bins
     counted. One-sided as the plain χ²/ndf is: a fit better than expected comes out negative, which costs nothing.
     Puts a 12-bin page and a 120-bin page on one scale, which χ²/ndf does not (its spread shrinks as 1/√ν)."""
@@ -293,14 +322,14 @@ def deviance(c: Curve) -> tuple[np.ndarray, np.ndarray]:
     return np.where(use, d2, np.nan), use
 
 
-def poisson(c: Curve, **_) -> float:
+def poisson_dev(c: Curve, **_) -> float:
     """The mean Poisson deviance per bin against the reference (Baker–Cousins), anchored to the reference: χ²/ndf that
     stays right in low-count tail bins and cannot be fooled by a spike's own error bar (`deviance`)."""
     d2, use = deviance(c)
     return float(np.mean(d2[use])) if use.any() else math.nan
 
 
-def tail(c: Curve, from_cdf: float = 0.90, **_) -> float:
+def tail_excess_sigma(c: Curve, from_cdf: float = 0.90, **_) -> float:
     """|Z| of the tail's pooled excess: |Σ (y − ref)Δx| / √Σ (σ² + σ_ref²)Δx² over the bins whose left edge is past
     `from_cdf` of the reference yield (at least the last max(2, N/4) bins when fewer than two are). Pooling K wide
     noisy bins gains √K, so a systematic tail excess shows that no one bin does; blind to an excess that changes
@@ -321,28 +350,14 @@ def tail(c: Curve, from_cdf: float = 0.90, **_) -> float:
     return abs(float(np.sum((y[mask] - r[mask]) * dx[mask]))) / sigma if sigma > 0 else math.nan
 
 
-def wmape_yield(c: Curve, **_) -> float:
-    """Σ |y − ref|Δx / Σ ref Δx: the mean relative error weighted by the reference's yield (the old `rel_abs_area`)."""
-    return rel_abs_area(c)
-
-
-def wmape_axis(c: Curve, **_) -> float:
-    """Σ Δx |y/ref − 1| / Σ Δx over the page as drawn: every unit of the axis counts alike, noise and all. Right when
-    every bin is precise; a noisy wide tail bin makes a true curve look wrong (`shape` shrinks it), and a hole costs
-    at most 1 (`shape` and `L4` take the log)."""
-    use, drawn = _ratio_terms(c)
-    width = float(np.sum(drawn[use]))
-    return float(np.sum(np.abs(c.y[use] / c.ref_y[use] - 1) * drawn[use])) / width if width else math.nan
-
-
-def L4(c: Curve, eps: float = EPS, **_) -> float:
+def log_dev_l4(c: Curve, eps: float = EPS, **_) -> float:
     """(mean |ℓ|⁴)^¼: the fourth-power mean of the log ratio, which counts a 10× blow-up or dropout some 3500× a 10 %
     fluctuation. Not weighted by precision: a noisy wide bin that fluctuates counts in full."""
     ell, _, use = log_ratio(c, eps)
     return float(np.mean(np.abs(ell[use]) ** 4) ** 0.25) if use.any() else math.nan
 
 
-def rho1(c: Curve, **_) -> float:
+def pull_autocorr(c: Curve, **_) -> float:
     """The lag-1 autocorrelation of the signed Poisson-deviance pulls: ~0 for scatter that changes sign bin to bin,
     toward 1 for a curve that sits above the reference for a stretch and below for the next. A systematic, whatever
     the χ². NaN under 8 bins (it is unreliable there); blind to an isolated spike, which has no neighbour like it."""
@@ -355,8 +370,8 @@ def rho1(c: Curve, **_) -> float:
     return float(np.sum(d[:-1] * d[1:]) / den) if den > 0 else math.nan
 
 
-def cvar(c: Curve, k: int | None = None, **_) -> float:
-    """The mean of the k largest Poisson deviances, k = max(3, ⌈0.1 N⌉) unless given: `worst` on the reference's
+def peak_deviance(c: Curve, k: int | None = None, **_) -> float:
+    """The mean of the k largest Poisson deviances, k = max(3, ⌈0.1 N⌉) unless given: `peak_pull2` on the reference's
     anchor, so a spike with an error as large as itself counts in full. Two curves with the same worst bins tie."""
     d2, use = deviance(c)
     if not use.any():
@@ -374,7 +389,7 @@ def _second_difference(values: np.ndarray, x: np.ndarray) -> tuple[np.ndarray, n
     return values[1:-1] - (wl * values[:-2] + wr * values[2:]), wl, wr
 
 
-def roughness(c: Curve, eps: float = EPS, centres_mode: str = "mid", **_) -> float:
+def log_ratio_roughness(c: Curve, eps: float = EPS, centres_mode: str = "mid", **_) -> float:
     """The RMS second difference of the log ratio over bin centres: each bin against the line through its neighbours.
     Fires on a spike or a hole and not on a normalisation or tilt (a constant and a line have no second difference);
     blind to those, and to a defect two bins wide that its neighbours share."""
@@ -398,9 +413,9 @@ def _intrinsic(c: Curve, eps: float):
     return np.log(star), sigma, use & (total > 0)
 
 
-def r_int(c: Curve, eps: float = EPS, **_) -> float:
+def log_roughness(c: Curve, eps: float = EPS, **_) -> float:
     """The RMS second difference of ln y, no reference: a smooth exponential or power law has none, a spike or a hole
-    has a lot. Counts statistical scatter too, so a noisy tail reads rough (`chi2_smooth` forgives scatter)."""
+    has a lot. Counts statistical scatter too, so a noisy tail reads rough (`smoothness_chi2` forgives scatter)."""
     eta, _, ok = _intrinsic(c, eps)
     a, b = c.edges
     x = ((a + b) / 2)[ok]
@@ -410,8 +425,8 @@ def r_int(c: Curve, eps: float = EPS, **_) -> float:
     return float(math.sqrt(np.mean(jump**2)))
 
 
-def chi2_smooth(c: Curve, eps: float = EPS, **_) -> float:
-    """r_int's jumps in units of what scatter explains, per bin: jump² / (V_n + σ̃²), V_n the neighbours' interpolated
+def smoothness_chi2(c: Curve, eps: float = EPS, **_) -> float:
+    """log_roughness's jumps in units of what scatter explains, per bin: jump² / (V_n + σ̃²), V_n the neighbours' interpolated
     variance and σ̃² the mean of their error² standing in for the bin's own, which a spike would inflate to excuse
     itself. About 1 for a smooth curve with honest errors; the note's denominator (2 V_n) gives 1.5 for it."""
     eta, sigma, ok = _intrinsic(c, eps)
@@ -434,7 +449,7 @@ def n_eff(c: Curve, **_) -> float:
     return float(np.sum(np.maximum(c.y[use], 0) * c.width[use]) ** 2 / den) if den > 0 else math.nan
 
 
-def holes(c: Curve, **_) -> float:
+def hole_fraction(c: Curve, **_) -> float:
     """The share of the axis (as drawn) in interior bins with y ≤ 0, that is, with a positive bin after them: an
     unphysical dropout or negative weight. A tail that runs out to zeros is not interior."""
     use = np.isfinite(c.y)
@@ -469,18 +484,18 @@ def tail_fit(c: Curve, eps: float = EPS, tau0: float = TAU0, last: float = 0.25,
     return -slope, (1.0 - resid / total) if total > 0 else 1.0
 
 
-def tail_rate(c: Curve, **settings) -> float:
+def tail_slope(c: Curve, **settings) -> float:
     """λ of `tail_fit`: how fast the tail falls, per unit of drawn x. A descriptor: it has no better or worse."""
     return tail_fit(c, **settings)[0]
 
 
-def r2_ln(c: Curve, **settings) -> float:
+def tail_nonlinearity(c: Curve, **settings) -> float:
     """1 − R² of `tail_fit`: how far the tail is from a straight line in log y (0 is exactly exponential)."""
     return 1.0 - tail_fit(c, **settings)[1]
 
 
-def consensus(c: Curve, pool: list | None = None, base: str = "shape", **settings) -> float:
-    """`base` (shape by default) of the curve against the median of the pool, not the reference: the curve that
+def consensus_dev(c: Curve, pool: list | None = None, base: str = "log_dev_shrunk", **settings) -> float:
+    """`base` (`log_dev_shrunk` by default) of the curve against the median of the pool, not the reference: the curve that
     disagrees with the others, for a page without a trusted reference. The pool's median density and median error per
     bin (bins matched by edges) stand in for the reference; needs three curves with the bin. Pool-dependent: add a
     curve and the others' values move."""
@@ -501,7 +516,7 @@ def consensus(c: Curve, pool: list | None = None, base: str = "shape", **setting
     return REGISTRY[base](against, **settings)
 
 
-def js(c: Curve, **_) -> float:
+def js_divergence(c: Curve, **_) -> float:
     """The Jensen–Shannon divergence of the two shapes, each normalised to unit yield, in bits (0 to 1): blind to
     normalisation by construction, ignores the errors, and dominated by the bulk where the probability is."""
     use = np.isfinite(c.y) & np.isfinite(c.ref_y)
@@ -515,7 +530,7 @@ def js(c: Curve, **_) -> float:
     return max(0.0, (kl(p) + kl(q)) / (2 * math.log(2)))
 
 
-def ad(c: Curve, **_) -> float:
+def ad_distance(c: Curve, **_) -> float:
     """The Anderson–Darling distance between the two cumulative shapes: Σ (F_c − F_r)² / (F_r (1 − F_r)) · q over the
     interior edges. The weight 1/(1 − F_r) grows as the reference's tail runs out, so a tail discrepancy counts as much as
     the peak's; blind to normalisation and to a self-cancelling wiggle."""
@@ -533,99 +548,92 @@ REGISTRY: dict[str, Metric] = {m.name: m for m in (
     # 1. Statistical compatibility
     Metric("chi2_ndf", chi2_ndf, "compatibility", thresholds=(1.0, 3.0), default=True,
            why="1 is the expectation for a true curve; 3 is a fit no one calls compatible",
-           note="reduced χ² as Paint counts it; blind to a bin whose own error is as large as its excess"),
-    Metric("chi2_z", chi2_z, "compatibility", thresholds=(2.5, 6.0),
+           note="Σ (y − ref)² / (σ² + σ_ref²) per bin with an error; 1 is a true curve. Blind to a bin whose error is as big as its excess"),
+    Metric("chi2_sigma", chi2_sigma, "compatibility", thresholds=(2.5, 6.0),
            why="Z of χ²/ndf (Wilson–Hilferty): 6 is χ²/ndf = 3 on 40 bins; 2.5 is the 99th percentile of a true curve",
-           note="χ²/ndf in standard deviations, so pages with 12 and 120 bins share a scale; the same blind spot as χ²/ndf"),
-    Metric("poisson", poisson, "compatibility", thresholds=(3.5, 9.0),
+           note="χ²/ndf as standard deviations (Wilson–Hilferty), so pages of 5 and 50 bins share one scale"),
+    Metric("poisson_dev", poisson_dev, "compatibility", thresholds=(3.5, 9.0),
            why="a true curve as noisy as its reference averages 2 (its value is 1 + (σ/σ_ref)²), p97 3.0",
-           note="mean Poisson deviance anchored to the reference; right in low-count tails and not fooled by a spike's own "
-                "error bar; reads high when the curve is noisier than the reference"),
-    Metric("tail", tail, "compatibility", thresholds=(2.5, 6.0),
+           note="Baker–Cousins deviance anchored to the reference's counts: a spike cannot hide in its own error bar"),
+    Metric("tail_excess_sigma", tail_excess_sigma, "compatibility", thresholds=(2.5, 6.0),
            why="|Z| of a true tail is half-normal: p97 is 2.2; 6 is a tail off by several sigma",
-           note="|Z| of the pooled excess over the last 10 % of the reference's yield; blind to an excess that changes sign inside the tail"),
+           note="|Z| of the summed excess beyond 90 % of the reference's yield"),
     # 2. Normalisation
-    Metric("norm", norm, "normalisation", thresholds=(0.02, 0.15), default=True,
+    Metric("log_yield_ratio", log_yield_ratio, "normalisation", thresholds=(0.02, 0.15), default=True,
            why="2 % is inside a good normalisation, 15 % is a curve off by a luminosity",
-           note="|ln| of the yield ratio; blind to where the yield goes"),
-    Metric("area_ratio", area_ratio, "normalisation", better="one", thresholds=(0.009, 0.065),
-           why="the same as norm in log10: 2 % and 15 %",
-           note="the old column: yield over reference yield, scored by |log10|. Moves with ratio_mean (collinear)"),
-    Metric("ratio_mean", ratio_mean, "normalisation", better="one", thresholds=(0.009, 0.065),
-           why="the same as area_ratio",
-           note="the old column: the ratio pad's mean ratio, scored by |log10|"),
-    Metric("wmape_yield", wmape_yield, "normalisation", thresholds=(0.03, 0.20),
-           why="a true curve reads 0.016 at p97; 20 % is a yield-weighted error nobody accepts",
-           note="Σ|y−ref|Δx / Σ ref Δx: the yield-weighted mean relative error (= rel_abs_area); blind to where in x the error is"),
+           note="|ln(Σ y Δx / Σ ref Δx)|: off by a factor, either way alike; blind to where the yield goes"),
+    Metric("yield_ratio", yield_ratio, "normalisation", polarity="one", thresholds=(0.009, 0.065),
+           why="the same as log_yield_ratio in log10: 2 % and 15 %",
+           note="the curve's yield over the reference's on the compared bins"),
+    Metric("mean_bin_ratio", mean_bin_ratio, "normalisation", polarity="one", thresholds=(0.009, 0.065),
+           why="the same as yield_ratio",
+           note="the ratio pad's mean height over the axis as drawn"),
     # 3. Shape accuracy, bin by bin
-    Metric("shape", shape, "shape", thresholds=(0.02, 0.15), default=True,
+    Metric("log_dev_shrunk", log_dev_shrunk, "shape", thresholds=(0.02, 0.15), default=True,
            why="2 % is the noise floor of a precise page, 15 % a shape no one accepts",
-           note="mean |ln ratio| over the axis, a noisy bin counted less; shares a uniform shift with norm"),
-    Metric("ratio_dev", ratio_dev, "shape", thresholds=(0.04, 0.25),
-           why="a true curve reads 0.023 at p97; 25 % as wmape_axis's bad",
-           note="the old column: the ratio pad's mean |ratio − 1|. Moves with rel_abs_area (collinear)"),
-    Metric("rel_abs_area", rel_abs_area, "shape", thresholds=(0.03, 0.20),
-           why="as wmape_yield, which it equals",
-           note="the old column: Σ|y−ref|Δx / Σ ref Δx. Moves with ratio_dev (collinear)"),
-    Metric("wmape_axis", wmape_axis, "shape", thresholds=(0.04, 0.25),
-           why="a true curve reads 0.023 at p97; 25 % is a ratio pad off by a quarter on average",
-           note="mean |ratio − 1| over the axis, noise and all; a noisy wide bin makes a true curve read wrong"),
-    Metric("L4", L4, "shape", thresholds=(0.07, 0.40),
+           note="the log ratio's mean size over the axis, a bin less precise than 10 % counted less"),
+    Metric("log_dev_l4", log_dev_l4, "shape", thresholds=(0.07, 0.40),
            why="a true curve reads 0.05 at p97; 0.4 is a bin off by a factor 1.5 in a fifth of the bins or a 10× in one",
-           note="(mean |ln ratio|⁴)^¼: counts an outlier of either direction far more than a fluctuation; not weighted by precision"),
-    Metric("consensus", consensus, "shape", thresholds=(0.03, 0.20), needs_reference=False, pool=True,
-           why="shape against the median of at least three curves: a true curve among true curves reads 0.02 to 0.03",
-           note="shape against the median curve of the page, not the reference; pool-dependent: add a curve and the others' values move"),
+           note="(mean |ln ratio|⁴)^¼: one bin off by 10× costs as much as thousands of 10 % ones"),
+    Metric("mean_abs_ratio_dev", mean_abs_ratio_dev, "shape", thresholds=(0.04, 0.25),
+           why="a true curve reads 0.023 at p97; 25 % is a ratio pad off by a quarter on average",
+           note="the ratio pad's mean distance from 1 over the axis, every bin alike"),
+    Metric("yield_weighted_abs_dev", yield_weighted_abs_dev, "shape", thresholds=(0.03, 0.20),
+           why="a true curve reads 0.016 at p97; 20 % is a yield-weighted error nobody accepts",
+           note="Σ |y − ref| Δx / Σ ref Δx: shape and normalisation together, where the yield is"),
+    Metric("consensus_dev", consensus_dev, "shape", thresholds=(0.03, 0.20), needs_reference=False, pool=True,
+           why="log_dev_shrunk against the median of at least three curves: a true curve among true curves reads 0.02 to 0.03",
+           note="log_dev_shrunk against the median of ≥ 3 curves, not the reference; pool-dependent"),
     # 4. Shape similarity, as distributions
-    Metric("js", js, "similarity", thresholds=(0.0005, 0.02),
+    Metric("js_divergence", js_divergence, "similarity", thresholds=(0.0005, 0.02),
            why="a true curve reads 8e-5 at p97; a tilt of e^0.6 across the page reads 0.004; a bin ×20, 0.15",
-           note="Jensen–Shannon divergence of the shapes in bits; blind to normalisation and the errors, dominated by the bulk"),
-    Metric("ad", ad, "similarity", thresholds=(0.0005, 0.02),
+           note="the two shapes as distributions; blind to normalisation and errors"),
+    Metric("ad_distance", ad_distance, "similarity", thresholds=(0.0005, 0.02),
            why="a true curve reads 2e-5 at p97; the same tilt reads 0.011; a bin ×20, 0.067",
-           note="Anderson–Darling distance of the cumulative shapes; weights a gap by 1/(F(1−F)), so one in the tail counts more than in the bulk; blind to normalisation"),
+           note="the cumulative shapes, a gap in the tail weighted up"),
     # 5. Trend
     Metric("tilt", tilt, "trend", thresholds=(0.03, 0.25), default=True,
            why="3 % across the page is inside the noise of a precise page, 25 % a trend nobody accepts",
-           note="the ratio's total change across the page (weighted slope × span); blind to a kink"),
-    Metric("rho1", rho1, "trend", thresholds=(0.35, 0.8),
+           note="the log ratio's fitted change from the first edge to the last"),
+    Metric("pull_autocorr", pull_autocorr, "trend", thresholds=(0.35, 0.8),
            why="the lag-1 autocorrelation of 40 true pulls has σ = 0.16 (p97 0.26, max 0.38); a tilt of e^0.6 reads 0.9",
-           note="lag-1 autocorrelation of the signed pulls, mean removed: a curve above the reference for a stretch and below for the next; "
-                "blind to a uniform offset and to an isolated spike; NaN under 8 bins"),
+           note="near 0 for scatter; near 1 when the curve sits on one side of the reference for stretches"),
     # 6. Local defects
-    Metric("worst", worst, "defects", thresholds=(7.0, 25.0), default=True,
+    Metric("peak_pull2", peak_pull2, "defects", thresholds=(7.0, 25.0), default=True,
            why="the mean of the top 4 of 40 true squared pulls has median 4.1, p97 6.6, max 9.2 (the notes' good = 2 would charge a "
                "true curve 0.3); 25 is one bin at 10 sigma",
-           note="the mean of the k largest squared pulls; a spike with an error as big as itself hides in it"),
-    Metric("cvar", cvar, "defects", thresholds=(14.0, 45.0),
-           why="twice worst's: the reference-anchored deviance of two equally noisy curves is twice a pull²; true curves read 8 (p97 13)",
-           note="the mean of the k largest Poisson deviances (k settable); a spike counts in full whatever its own error; ties on the same worst bins"),
-    Metric("roughness", roughness, "defects", thresholds=(0.06, 0.40),
+           note="the mean of the k = max(3, ⌈N/10⌉) largest squared pulls: a glitch χ² spreads thin"),
+    Metric("peak_deviance", peak_deviance, "defects", thresholds=(14.0, 45.0),
+           why="twice peak_pull2's: the reference-anchored deviance of two equally noisy curves is twice a pull²; true curves read 8 (p97 13)",
+           note="peak_pull2 on the Poisson deviance: a spike counts in full, whatever its error"),
+    Metric("log_ratio_roughness", log_ratio_roughness, "defects", thresholds=(0.06, 0.40),
            why="a true curve reads 0.042 at p97; a bin ×20 reads 0.6, a hole 0.9",
-           note="RMS second difference of the log ratio; fires on a spike or a hole, not on a shift or a tilt; counts scatter too"),
+           note="the RMS second difference of the log ratio: a spike or a hole, never a shift or a tilt"),
     # 7. Monte Carlo quality, without a reference
-    Metric("n_eff", n_eff, "quality", better="higher", thresholds=(1000.0, 100.0), needs_reference=False,
+    Metric("n_eff", n_eff, "quality", polarity="higher", scale="log", thresholds=(1000.0, 100.0), needs_reference=False,
            why="a yield known to 3 % is worth 1000 equal-weight events, to 10 % 100",
-           note="Kish's effective count; one huge weight in one bin takes it to about 1; says nothing where errors are not weight errors"),
-    Metric("holes", holes, "quality", thresholds=(0.0, 0.10), needs_reference=False,
+           note="Kish's (Σ y Δx)² / Σ (σ Δx)²: how many equal-weight events the histogram is worth"),
+    Metric("hole_fraction", hole_fraction, "quality", thresholds=(0.0, 0.10), needs_reference=False,
            why="no hole is the only good; a tenth of the axis is a histogram with gaps",
-           note="share of the axis in interior bins with y ≤ 0; a tail running out to zeros is not interior"),
-    Metric("r_int", r_int, "quality", thresholds=(0.05, 0.40), needs_reference=False,
+           note="the axis share of interior bins with y ≤ 0"),
+    Metric("log_roughness", log_roughness, "quality", thresholds=(0.05, 0.40), needs_reference=False,
            why="a true curve of this precision reads 0.029 at p97; a spike or a hole reads 0.6 to 0.8",
-           note="RMS second difference of ln y; counts scatter, so a sparse tail reads rough (chi2_smooth forgives scatter)"),
-    Metric("chi2_smooth", chi2_smooth, "quality", thresholds=(2.5, 8.0), needs_reference=False,
+           note="the RMS second difference of ln y, no reference"),
+    Metric("smoothness_chi2", smoothness_chi2, "quality", thresholds=(2.5, 8.0), needs_reference=False,
            why="about 1 for a smooth curve with honest errors (p97 1.7); a spike reads hundreds",
-           note="the jumps of ln y in units of what scatter explains, anchored to the neighbours' errors"),
-    Metric("r2_ln", r2_ln, "quality", thresholds=(0.05, 0.30), needs_reference=False,
+           note="log_roughness's jumps in units of what scatter explains"),
+    Metric("tail_nonlinearity", tail_nonlinearity, "quality", thresholds=(0.05, 0.30), needs_reference=False,
            why="1 − R² of the log-linear tail fit: p97 0.023 for a true exponential tail",
-           note="how far the last quarter of the curve is from a straight line in ln y; blind to a wrong slope: see tail_rate"),
-    Metric("lambda", tail_rate, "quality", better="none", needs_reference=False,
-           note="the fitted decay rate of the last quarter of the curve; a descriptor, it has no better or worse (give thresholds to score it)"),
+           note="how far the last quarter is from a straight line in ln y"),
+    Metric("tail_slope", tail_slope, "quality", polarity="descriptor", needs_reference=False,
+           note="the fitted decay rate of the last quarter; a descriptor"),
 )}
 
 
 def describe(name: str, thresholds: tuple[float, float] | None = None) -> str:
     """A metric as a footnote says it: its title and note, then what its thresholds are (`thresholds`: the setting's, else the
     registry's) and why."""
+    name = resolve(name)
     m = REGISTRY[name]
     text = f"{title_of(name)}: {m.note}."
     used = thresholds or m.thresholds
@@ -640,6 +648,7 @@ def describe(name: str, thresholds: tuple[float, float] | None = None) -> str:
 def evaluate(name: str, curve: Curve, **settings) -> float:
     """metric `name` of `curve` (`pool=` the page's curves for a pooled one); an unknown name is an error that lists the known ones."""
     from runner.errors import HeimdallError
+    name = resolve(name)
     if name not in REGISTRY:
         raise HeimdallError(f"no metric '{name}'", hint="metrics: " + ", ".join(REGISTRY))
     return REGISTRY[name](curve, **settings)

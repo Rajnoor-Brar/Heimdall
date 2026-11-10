@@ -56,32 +56,32 @@ def test_the_curve_is_its_own_reference_costs_nothing():
 
 def test_twenty_percent_high_is_a_normalisation_defect():
     got = all_metrics(spectrum(scale=1.2))
-    assert got["norm"] == pytest.approx(math.log(1.2), rel=0.05)
-    assert got["norm"] > metrics.REGISTRY["norm"].thresholds[1]            # worse than `bad`
+    assert got["log_yield_ratio"] == pytest.approx(math.log(1.2), rel=0.05)
+    assert got["log_yield_ratio"] > metrics.REGISTRY["log_yield_ratio"].thresholds[1]            # worse than `bad`
     assert got["tilt"] < good("tilt")                                       # not a tilt: the ratio is flat
     # and it is exactly as bad the other way round
-    assert all_metrics(spectrum(scale=1 / 1.2))["norm"] == pytest.approx(got["norm"], rel=0.05)
+    assert all_metrics(spectrum(scale=1 / 1.2))["log_yield_ratio"] == pytest.approx(got["log_yield_ratio"], rel=0.05)
 
 
-def test_a_tilt_is_found_by_tilt_and_not_by_norm():
+def test_a_tilt_is_found_by_tilt_and_not_by_log_yield_ratio():
     got = all_metrics(spectrum(tilt=0.6))
     assert got["tilt"] == pytest.approx(0.6, rel=0.05)                      # the ratio changes by e^0.6 across the page
     assert got["tilt"] > metrics.REGISTRY["tilt"].thresholds[1]
-    assert got["norm"] < metrics.REGISTRY["norm"].thresholds[1]             # the yield is nearly right
+    assert got["log_yield_ratio"] < metrics.REGISTRY["log_yield_ratio"].thresholds[1]             # the yield is nearly right
 
 
-def test_one_bin_times_twenty_is_a_defect_for_worst():
+def test_one_bin_times_twenty_is_a_defect_for_peak_pull2():
     got = all_metrics(spectrum(bump=(N // 3, 20.0)))
-    assert got["worst"] > metrics.REGISTRY["worst"].thresholds[1]
-    assert got["worst"] > 20 * all_metrics(spectrum(scale=1.01))["worst"]
+    assert got["peak_pull2"] > metrics.REGISTRY["peak_pull2"].thresholds[1]
+    assert got["peak_pull2"] > 20 * all_metrics(spectrum(scale=1.01))["peak_pull2"]
     assert got["tilt"] < metrics.REGISTRY["tilt"].thresholds[1]             # one bin does not make a trend
 
 
 def test_one_bin_zero_is_finite_and_found():
     got = all_metrics(spectrum(hole=N // 2))
     assert all(math.isfinite(v) for v in got.values())
-    assert got["worst"] > good("worst")
-    assert got["shape"] > good("shape") or got["worst"] > metrics.REGISTRY["worst"].thresholds[1]
+    assert got["peak_pull2"] > good("peak_pull2")
+    assert got["log_dev_shrunk"] > good("log_dev_shrunk") or got["peak_pull2"] > metrics.REGISTRY["peak_pull2"].thresholds[1]
 
 
 def true_curves(n=60, seed=1000):
@@ -93,7 +93,7 @@ def true_curves(n=60, seed=1000):
     return out
 
 
-QUALITY = ("n_eff", "holes", "r_int", "chi2_smooth", "r2_ln")          # no reference needed
+QUALITY = ("n_eff", "hole_fraction", "log_roughness", "smoothness_chi2", "tail_nonlinearity")          # no reference needed
 
 
 def scored(m):
@@ -116,13 +116,13 @@ def test_log_x_changes_the_drawn_width_not_the_yield():
     lin, log = spectrum(scale=1.2), spectrum(scale=1.2, logx=True)
     assert log.drawn.sum() == pytest.approx(3.0)                            # log10(1000) decades
     assert lin.drawn.sum() == pytest.approx(8.0)
-    assert metrics.norm(lin) == pytest.approx(metrics.norm(log), rel=0.05)
+    assert metrics.log_yield_ratio(lin) == pytest.approx(metrics.log_yield_ratio(log), rel=0.05)
 
 
 def test_a_curve_with_no_reference_bins_has_nothing_to_say():
     c = spectrum()
     empty = bins.Curve(c.lo, c.hi, c.y, c.err, np.zeros(N), np.zeros(N))
-    assert math.isnan(metrics.shape(empty)) and math.isnan(metrics.tilt(empty)) and math.isnan(metrics.norm(empty))
+    assert math.isnan(metrics.log_dev_shrunk(empty)) and math.isnan(metrics.tilt(empty)) and math.isnan(metrics.log_yield_ratio(empty))
 
 
 def test_tilt_needs_three_usable_bins():
@@ -147,7 +147,7 @@ def test_an_unknown_metric_lists_the_known():
 
 
 def test_the_old_columns_are_statstables_on_the_same_bins(tmp_path):
-    """rel_abs_area, area_ratio, ratio_mean, ratio_dev and chi2_ndf, from the bins, are what Paint's totals make."""
+    """yield_weighted_abs_dev, yield_ratio, mean_bin_ratio, mean_abs_ratio_dev and chi2_ndf, from the bins, are what Paint's totals make."""
     for logx in (False, True):
         c = spectrum(scale=1.1, tilt=0.3, bump=(7, 2.0), logx=logx)
         rows = list(zip(c.lo, c.hi, c.y, c.err, c.ref_y, c.ref_err))
@@ -159,10 +159,10 @@ def test_the_old_columns_are_statstables_on_the_same_bins(tmp_path):
                       ratio_width=float(np.sum(c.drawn)))
         s2 = c.err**2 + c.ref_err**2
         want = {
-            "rel_abs_area": totals["abs_area"] / totals["ref_area"],
-            "area_ratio": totals["cmp_area"] / totals["ref_area"],
-            "ratio_mean": totals["ratio_sum"] / totals["ratio_width"],
-            "ratio_dev": totals["ratio_area"] / totals["ratio_width"],
+            "yield_weighted_abs_dev": totals["abs_area"] / totals["ref_area"],
+            "yield_ratio": totals["cmp_area"] / totals["ref_area"],
+            "mean_bin_ratio": totals["ratio_sum"] / totals["ratio_width"],
+            "mean_abs_ratio_dev": totals["ratio_area"] / totals["ratio_width"],
             "chi2_ndf": float(np.sum((c.y - c.ref_y) ** 2 / s2) / len(rows)),
         }
         for name, value in want.items():
@@ -190,7 +190,7 @@ def test_the_poisson_deviance_of_one_bin_by_hand():
     c = flat(n=1, ref=10.0, ref_err=math.sqrt(10.0), y=[12.0], err=[1.0])
     d2, use = metrics.deviance(c)
     assert use[0] and d2[0] == pytest.approx(2 * (2 + 10 * math.log(10 / 12)))
-    assert metrics.poisson(c) == pytest.approx(d2[0])
+    assert metrics.poisson_dev(c) == pytest.approx(d2[0])
 
 
 def test_the_deviance_floor_is_half_an_unweighted_count():
@@ -209,114 +209,113 @@ def test_a_reference_bin_with_no_content_costs_twice_the_curve_floor():
     assert metrics.deviance(c)[0][0] == pytest.approx(2 * 3.0)       # s = 1, n_r = 0: 2 n_c
 
 
-def test_chi2_z_is_wilson_hilferty():
+def test_chi2_sigma_is_wilson_hilferty():
     """40 bins each with a squared pull of 2: χ²/ndf = 2 and Z = (2^⅓ − (1 − 2/360)) / √(2/360)."""
     sigma = math.sqrt(1.0 + 1.0)                                     # σ² + σ_ref² with both errors 1
     c = flat(n=40, ref=10.0, ref_err=1.0, y=np.full(40, 10.0 + math.sqrt(2) * sigma), err=np.full(40, 1.0))
     assert metrics.chi2_ndf(c) == pytest.approx(2.0)
     a = 2 / 360
-    assert metrics.chi2_z(c) == pytest.approx((2 ** (1 / 3) - (1 - a)) / math.sqrt(a))
-    assert metrics.chi2_z(c) == pytest.approx(3.57, abs=0.01)
+    assert metrics.chi2_sigma(c) == pytest.approx((2 ** (1 / 3) - (1 - a)) / math.sqrt(a))
+    assert metrics.chi2_sigma(c) == pytest.approx(3.57, abs=0.01)
 
 
-def test_chi2_z_is_one_sided():
+def test_chi2_sigma_is_one_sided():
     c = spectrum()                                                    # the curve a few percent off, errors 2 %: χ² under 1
     c = bins.Curve(c.lo, c.hi, c.ref_y * 1.001, c.err, c.ref_y, c.ref_err)
-    assert metrics.chi2_z(c) < 0 and metrics.REGISTRY["chi2_z"].loss(metrics.chi2_z(c)) == 0
+    assert metrics.chi2_sigma(c) < 0 and metrics.REGISTRY["chi2_sigma"].loss(metrics.chi2_sigma(c)) == 0
 
 
 def test_a_yield_off_by_twenty_percent_costs_the_yield_and_ratio_metrics_and_not_the_shape_ones():
     c = spectrum(scale=1.2)
-    for name in ("wmape_yield", "rel_abs_area", "area_ratio", "ratio_mean", "wmape_axis", "ratio_dev", "poisson", "chi2_z"):
+    for name in ("yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev", "poisson_dev", "chi2_sigma"):
         assert loss(name, c) > 0.7, name
-    for name in ("js", "ad", "roughness", "rho1", "r_int"):
+    for name in ("js_divergence", "ad_distance", "log_ratio_roughness", "pull_autocorr", "log_roughness"):
         assert loss(name, c) == pytest.approx(0, abs=1e-6), name        # a shift is invisible to them by design
-    assert metrics.js(c) == pytest.approx(0, abs=1e-12) and metrics.ad(c) == pytest.approx(0, abs=1e-12)
+    assert metrics.js_divergence(c) == pytest.approx(0, abs=1e-12) and metrics.ad_distance(c) == pytest.approx(0, abs=1e-12)
 
 
 def test_a_tilt_costs_the_trend_and_the_shape_distances_and_not_roughness():
     c = spectrum(tilt=0.6)
-    assert loss("rho1", c) > 1.0                                      # one sign, then the other, across the page
-    assert loss("js", c) > 0.1 and loss("ad", c) > 0.4
-    assert loss("roughness", c) == pytest.approx(0, abs=1e-6)         # a straight tilt has no second difference
-    assert metrics.rho1(spectrum(scale=1.2)) < 0.35                   # a uniform shift has no trend once its mean is gone
+    assert loss("pull_autocorr", c) > 1.0                                      # one sign, then the other, across the page
+    assert loss("js_divergence", c) > 0.1 and loss("ad_distance", c) > 0.4
+    assert loss("log_ratio_roughness", c) == pytest.approx(0, abs=1e-6)         # a straight tilt has no second difference
+    assert metrics.pull_autocorr(spectrum(scale=1.2)) < 0.35                   # a uniform shift has no trend once its mean is gone
 
 
 def test_one_bin_times_twenty_costs_the_defect_metrics_and_the_intrinsic_ones():
     c = spectrum(bump=(N // 3, 20.0))
-    for name in ("cvar", "roughness", "r_int", "chi2_smooth", "js", "ad", "L4", "poisson"):
+    for name in ("peak_deviance", "log_ratio_roughness", "log_roughness", "smoothness_chi2", "js_divergence", "ad_distance", "log_dev_l4", "poisson_dev"):
         assert loss(name, c) >= 1.0, name
-    assert loss("rho1", c) < 0.1                                      # an isolated spike has no neighbour like it
-    assert loss("tail", c) == pytest.approx(0, abs=1e-6)              # and it is not in the tail
+    assert loss("pull_autocorr", c) < 0.1                                      # an isolated spike has no neighbour like it
+    assert loss("tail_excess_sigma", c) == pytest.approx(0, abs=1e-6)              # and it is not in the tail
 
 
 def test_one_bin_zero_costs_the_hole_metrics():
     c = spectrum(hole=N // 2)
-    assert metrics.holes(c) == pytest.approx(1 / N)
-    for name in ("cvar", "roughness", "r_int", "chi2_smooth", "L4"):
+    assert metrics.hole_fraction(c) == pytest.approx(1 / N)
+    for name in ("peak_deviance", "log_ratio_roughness", "log_roughness", "smoothness_chi2", "log_dev_l4"):
         assert loss(name, c) >= 1.0, name
-    assert loss("holes", c) == pytest.approx((1 / N) / 0.10)
+    assert loss("hole_fraction", c) == pytest.approx((1 / N) / 0.10)
 
 
-def test_a_tail_excess_is_found_by_tail_and_pooled():
+def test_a_tail_excess_is_found_by_tail_excess_sigma_and_pooled():
     c = spectrum()
     y = c.y.copy()
     y[-8:] *= 1.15
     c = bins.Curve(c.lo, c.hi, y, c.err, c.ref_y, c.ref_err)
-    assert metrics.tail(c) > metrics.REGISTRY["tail"].thresholds[1]
+    assert metrics.tail_excess_sigma(c) > metrics.REGISTRY["tail_excess_sigma"].thresholds[1]
     clean = spectrum()
     one = clean.y.copy()
     one[-1] *= 1.04                                                    # one bin 4 % high is within its errors
-    assert metrics.tail(bins.Curve(c.lo, c.hi, one, c.err, c.ref_y, c.ref_err)) < metrics.REGISTRY["tail"].thresholds[0]
+    assert metrics.tail_excess_sigma(bins.Curve(c.lo, c.hi, one, c.err, c.ref_y, c.ref_err)) < metrics.REGISTRY["tail_excess_sigma"].thresholds[0]
 
 
 def test_the_tail_is_the_last_bins_when_the_reference_has_too_few_past_ninety_percent():
     c = flat(n=12, y=[10.0] * 6 + [12.0] * 6)                          # a flat reference: 90 % is bin 11, one bin
     # the last max(2, 12 // 4) = 3 bins are the tail, so only they count: 3 bins of +2 with σ² = 2
-    assert metrics.tail(c) == pytest.approx(3 * 2.0 / math.sqrt(3 * 2.0))
+    assert metrics.tail_excess_sigma(c) == pytest.approx(3 * 2.0 / math.sqrt(3 * 2.0))
 
 
-def test_L4_counts_an_outlier_far_more_than_a_fluctuation():
+def test_log_dev_l4_counts_an_outlier_far_more_than_a_fluctuation():
     quiet = flat(n=20, y=[10.0 * 1.05] * 20)
     spike = flat(n=20, y=[10.0] * 19 + [100.0])
-    assert metrics.L4(quiet) == pytest.approx(math.log(1.05))
-    assert metrics.L4(spike) > 10 * metrics.L4(quiet)
+    assert metrics.log_dev_l4(quiet) == pytest.approx(math.log(1.05))
+    assert metrics.log_dev_l4(spike) > 10 * metrics.log_dev_l4(quiet)
 
 
-def test_wmape_axis_counts_every_unit_of_the_axis_alike():
+def test_mean_abs_ratio_dev_counts_every_unit_of_the_axis_alike():
     narrow = np.array([1.0] * 30 + [10.0] * 3)                        # 30 narrow bins, then 3 wide
     lo = np.concatenate(([0.0], np.cumsum(narrow)[:-1]))
     ref = np.full(33, 10.0)
     y = ref.copy()
     y[-3:] *= 1.25
     c = bins.Curve(lo, lo + narrow, y, np.full(33, 0.1), ref, np.full(33, 0.1))
-    assert metrics.wmape_axis(c) == pytest.approx(0.25 * 30 / 60)       # 30 of 60 units are 25 % off
-    assert metrics.wmape_yield(c) == pytest.approx(metrics.rel_abs_area(c))
+    assert metrics.mean_abs_ratio_dev(c) == pytest.approx(0.25 * 30 / 60)       # 30 of 60 units are 25 % off
 
 
-def test_rho1_separates_scatter_from_a_systematic_with_the_same_chi2():
+def test_pull_autocorr_separates_scatter_from_a_systematic_with_the_same_chi2():
     sign = np.tile([1.0, -1.0], 20)
     scatter = flat(n=40, y=10 + sign * 1.0)
     block = flat(n=40, y=10 + np.repeat([1.0, -1.0], 20) * 1.0)
     assert metrics.chi2_ndf(scatter) == pytest.approx(metrics.chi2_ndf(block))
-    assert metrics.rho1(scatter) < -0.9 and metrics.rho1(block) > 0.9
-    assert math.isnan(metrics.rho1(flat(n=7, y=[11.0] * 7)))
+    assert metrics.pull_autocorr(scatter) < -0.9 and metrics.pull_autocorr(block) > 0.9
+    assert math.isnan(metrics.pull_autocorr(flat(n=7, y=[11.0] * 7)))
 
 
-def test_cvar_k_is_settable_and_a_spike_counts_in_full_whatever_its_own_error():
+def test_peak_deviance_k_is_settable_and_a_spike_counts_in_full_whatever_its_own_error():
     c = flat(n=40, y=[10.0] * 39 + [200.0], err=[1.0] * 39 + [200.0])  # an MC spike whose error is as large as itself
-    assert metrics.worst(c) < 1.0                                       # excused by its own error bar
-    assert metrics.cvar(c, k=1) > 1000
-    assert metrics.cvar(c, k=1) > metrics.cvar(c, k=3) > metrics.cvar(c)
+    assert metrics.peak_pull2(c) < 1.0                                       # excused by its own error bar
+    assert metrics.peak_deviance(c, k=1) > 1000
+    assert metrics.peak_deviance(c, k=1) > metrics.peak_deviance(c, k=3) > metrics.peak_deviance(c)
 
 
-def test_roughness_ignores_a_shift_and_a_line_and_not_a_kink():
+def test_log_ratio_roughness_ignores_a_shift_and_a_line_and_not_a_kink():
     x = np.arange(20, dtype=float)
     ref = np.full(20, 10.0)
     lin = bins.Curve(x, x + 1, ref * np.exp(0.5 + 0.1 * (x + 0.5)), ref * 0.01, ref, ref * 0.01)
-    assert metrics.roughness(lin) == pytest.approx(0, abs=1e-12)
+    assert metrics.log_ratio_roughness(lin) == pytest.approx(0, abs=1e-12)
     kink = bins.Curve(x, x + 1, ref * np.exp(0.2 * np.abs(x - 9.5)), ref * 0.01, ref, ref * 0.01)
-    assert metrics.roughness(kink) > 0.0
+    assert metrics.log_ratio_roughness(kink) > 0.0
 
 
 def test_the_barycentre_of_a_wide_bin_moves_the_trend_the_right_way():
@@ -349,29 +348,29 @@ def test_the_hole_fraction_leaves_a_tail_of_zeros_alone():
     c = spectrum()
     y = c.y.copy()
     y[-5:] = 0.0
-    assert metrics.holes(bins.Curve(c.lo, c.hi, y, c.err, c.ref_y, c.ref_err)) == 0.0
+    assert metrics.hole_fraction(bins.Curve(c.lo, c.hi, y, c.err, c.ref_y, c.ref_err)) == 0.0
 
 
 def test_the_tail_fit_finds_the_rate_and_how_straight_it_is():
     c = spectrum()
-    assert metrics.tail_rate(c) == pytest.approx(3.0 / 7.8, rel=1e-9)    # ref = 1000 e^(−3u), u over the middles 0.1 to 7.9
-    assert metrics.r2_ln(c) == pytest.approx(0, abs=1e-9)
+    assert metrics.tail_slope(c) == pytest.approx(3.0 / 7.8, rel=1e-9)    # ref = 1000 e^(−3u), u over the middles 0.1 to 7.9
+    assert metrics.tail_nonlinearity(c) == pytest.approx(0, abs=1e-9)
     y = c.y.copy()
     y[-10:] *= np.exp(-0.8 * np.arange(10) ** 2 / 20)                    # a tail that bends
     bent = bins.Curve(c.lo, c.hi, y, c.err, c.ref_y, c.ref_err)
-    assert metrics.r2_ln(bent) > metrics.r2_ln(c) + 0.01
-    assert metrics.REGISTRY["lambda"].better == "none" and metrics.REGISTRY["lambda"].thresholds is None
+    assert metrics.tail_nonlinearity(bent) > metrics.tail_nonlinearity(c) + 0.01
+    assert metrics.REGISTRY["tail_slope"].polarity == "descriptor" and metrics.REGISTRY["tail_slope"].thresholds is None
 
 
-def test_js_and_ad_are_blind_to_normalisation_and_js_is_bounded():
+def test_js_divergence_and_ad_distance_are_blind_to_normalisation_and_js_is_bounded():
     a, b = spectrum(scale=1.0), spectrum(scale=7.0)
-    assert metrics.js(b) == pytest.approx(0, abs=1e-12) and metrics.ad(b) == pytest.approx(0, abs=1e-12)
+    assert metrics.js_divergence(b) == pytest.approx(0, abs=1e-12) and metrics.ad_distance(b) == pytest.approx(0, abs=1e-12)
     far = flat(n=10, y=[10.0] * 5 + [0.0] * 5, err=[0.1] * 10)
     far = bins.Curve(far.lo, far.hi, np.array([10.0] * 5 + [0.0] * 5), far.err, np.array([0.0] * 5 + [10.0] * 5), far.ref_err)
-    assert metrics.js(far) == pytest.approx(1.0)                         # disjoint shapes: the bound, in bits
+    assert metrics.js_divergence(far) == pytest.approx(1.0)                         # disjoint shapes: the bound, in bits
 
 
-def test_ad_counts_a_gap_in_the_tail_more_than_cramer_von_mises_does():
+def test_ad_distance_counts_a_gap_in_the_tail_more_than_cramer_von_mises_does():
     """AD is the Cramér–von Mises sum with the weight 1/(F(1−F)): the same cumulative gap, made deep in the tail,
     counts several times more relative to the plain sum than one made in the bulk. JS, by mass, finds the bulk's."""
     ref = np.exp(-0.5 * np.arange(30))
@@ -388,25 +387,25 @@ def test_ad_counts_a_gap_in_the_tail_more_than_cramer_von_mises_does():
         return bins.Curve(lo, lo + 1, y, y * 0.01, ref, ref * 0.01)
 
     bulk, deep = with_error(0), with_error(20)
-    assert metrics.ad(deep) / cvm(deep) > 5 * metrics.ad(bulk) / cvm(bulk)
-    assert metrics.js(bulk) > metrics.js(deep)
+    assert metrics.ad_distance(deep) / cvm(deep) > 5 * metrics.ad_distance(bulk) / cvm(bulk)
+    assert metrics.js_divergence(bulk) > metrics.js_divergence(deep)
 
 
-def test_consensus_is_the_shape_against_the_pool_s_median():
+def test_consensus_dev_is_the_shape_against_the_pool_s_median():
     base = spectrum()
     pool = [bins.Curve(base.lo, base.hi, base.ref_y * f, base.err, base.ref_y, base.ref_err) for f in (1.0, 1.0, 1.0, 1.0, 1.3)]
-    odd = metrics.REGISTRY["consensus"](pool[-1], pool=pool)
-    fine = metrics.REGISTRY["consensus"](pool[0], pool=pool)
+    odd = metrics.REGISTRY["consensus_dev"](pool[-1], pool=pool)
+    fine = metrics.REGISTRY["consensus_dev"](pool[0], pool=pool)
     assert fine == pytest.approx(0, abs=1e-12) and odd == pytest.approx(math.log(1.3), rel=0.1)
-    assert math.isnan(metrics.REGISTRY["consensus"](pool[0], pool=pool[:2])) and math.isnan(metrics.REGISTRY["consensus"](pool[0]))
-    assert metrics.REGISTRY["consensus"].pool and not metrics.REGISTRY["consensus"].needs_reference
+    assert math.isnan(metrics.REGISTRY["consensus_dev"](pool[0], pool=pool[:2])) and math.isnan(metrics.REGISTRY["consensus_dev"](pool[0]))
+    assert metrics.REGISTRY["consensus_dev"].pool and not metrics.REGISTRY["consensus_dev"].needs_reference
 
 
 def test_the_loss_is_hinged_and_works_for_every_direction():
     m = metrics.REGISTRY
-    assert m["norm"].loss(0.02) == 0 and m["norm"].loss(0.085) == pytest.approx(0.5) and m["norm"].loss(0.15) == pytest.approx(1)
+    assert m["log_yield_ratio"].loss(0.02) == 0 and m["log_yield_ratio"].loss(0.085) == pytest.approx(0.5) and m["log_yield_ratio"].loss(0.15) == pytest.approx(1)
     assert m["n_eff"].loss(1000) == 0 and m["n_eff"].loss(550) == pytest.approx(0.5) and m["n_eff"].loss(100) == pytest.approx(1)
-    assert m["area_ratio"].loss(1.0) == 0 and m["area_ratio"].loss(1.2) == pytest.approx(m["area_ratio"].loss(1 / 1.2), rel=0.03)
-    assert m["norm"].loss(0.3) > 1                                       # linear beyond bad, not capped
-    assert math.isnan(m["norm"].loss(math.nan))
-    assert m["norm"].loss(0.1, thresholds=(0.0, 0.2)) == pytest.approx(0.5)   # a setting overrides the registry's
+    assert m["yield_ratio"].loss(1.0) == 0 and m["yield_ratio"].loss(1.2) == pytest.approx(m["yield_ratio"].loss(1 / 1.2), rel=0.03)
+    assert m["log_yield_ratio"].loss(0.3) > 1                                       # linear beyond bad, not capped
+    assert math.isnan(m["log_yield_ratio"].loss(math.nan))
+    assert m["log_yield_ratio"].loss(0.1, thresholds=(0.0, 0.2)) == pytest.approx(0.5)   # a setting overrides the registry's

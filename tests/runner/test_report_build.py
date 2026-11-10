@@ -87,8 +87,8 @@ def source(results: Path, name: str, png: bool) -> Path:
             off = 0.1 * (k + 1) * (n + 1)
             rows.append({"page": f"{cell}/{obj}", "cell": cell, "object": f"/ZEUS/{obj}", "curve": curve, "point": point,
                          "reference": "ZEUS", "is_reference": False, "bins": 10, "area": 1.0 + off, "area_err": 0.1,
-                         "ref_area": 1.0, "cmp_area": 1.0 + off, "abs_area": off, "rel_abs_area": off, "area_ratio": 1.0 + off,
-                         "ratio_mean": 1.0 + off, "ratio_dev": off, "chi2": 9.0 * (1 + off), "ndf": 9, "chi2_ndf": 1.0 + off})
+                         "ref_area": 1.0, "cmp_area": 1.0 + off, "abs_area": off, "yield_weighted_abs_dev": off, "yield_ratio": 1.0 + off,
+                         "mean_bin_ratio": 1.0 + off, "mean_abs_ratio_dev": off, "chi2": 9.0 * (1 + off), "ndf": 9, "chi2_ndf": 1.0 + off})
     numbers = where / "statistics" / "totality" / "statistics.csv"
     numbers.parent.mkdir(parents=True)
     with open(numbers, "w", encoding="utf-8", newline="") as handle:
@@ -193,11 +193,11 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     assert r"\hdStatSection{How a page is compared}" in body and "How points are scored" not in body
     assert "Scored from 1 (cost 0) to 3 (cost 1)" in body                              # a metric's thresholds, said
     notes = body[body.index(r"\begin{hdNotes}"):body.index(r"\end{hdNotes}")]
-    assert "Per point" in notes and "reduced χ²" not in notes and "Each page as drawn" not in notes
+    assert "Per point" in notes and "1 is a true curve" not in notes and "Each page as drawn" not in notes
     assert r"\hyperref[hd:method]{How the numbers are made, page~\pageref*{hd:method}}" in body
-    assert "as Paint counts it" in " ".join(text.split())                                  # in the PDF, as prose
+    assert "1 is a true curve" in " ".join(text.split())                                  # in the PDF, as prose
     html_part = (standings / "01_01_pdf__totality.html").read_text(encoding="utf-8")
-    assert "reduced χ² as Paint counts it" in html_part                                    # its own page keeps them all
+    assert "per bin with an error; 1 is a true curve" in html_part                                    # its own page keeps them all
     page = (out / "index.html").read_text(encoding="utf-8")
     assert page.index('<section class="block" id="method"') < page.index('<section class="block" id="s01-001"')
 

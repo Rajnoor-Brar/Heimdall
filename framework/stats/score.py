@@ -49,6 +49,7 @@ class Settings:
     head_to_head: str | None = None                    # "<cell>/<object>" or "all": the pages the summary plays as matches
 
     def thresholds_of(self, name: str):
+        name = metrics.resolve(name)
         return self.thresholds.get(name) or metrics.REGISTRY[name].thresholds
 
 
@@ -64,9 +65,9 @@ def settings_of(score: dict | None = None, over: dict | None = None) -> Settings
     if given is None:
         weights = {n: 1.0 for n, m in metrics.REGISTRY.items() if m.default}
     elif isinstance(given, dict):
-        weights = {n: float(w) for n, w in given.items()}
+        weights = {metrics.resolve(n): float(w) for n, w in given.items()}
     else:
-        weights = {n: 1.0 for n in given}
+        weights = {metrics.resolve(n): 1.0 for n in given}
     for name in weights:
         if name not in metrics.REGISTRY:
             raise HeimdallError(f"no metric '{name}'", hint=did_you_mean(name, metrics.REGISTRY) or "heimdall explain score")
@@ -80,6 +81,7 @@ def settings_of(score: dict | None = None, over: dict | None = None) -> Settings
         raise HeimdallError(f"no mean '{mean}'", hint=did_you_mean(mean, means.MEANS_BY_NAME) or "heimdall explain score")
     thresholds = {}
     for name, pair in (merged.get("thresholds") or {}).items():
+        name = metrics.resolve(name)
         if name not in metrics.REGISTRY:
             raise HeimdallError(f"no metric '{name}'", hint=did_you_mean(name, metrics.REGISTRY) or "heimdall explain score")
         thresholds[name] = (float(pair[0]), float(pair[1]))
@@ -133,18 +135,19 @@ def chi2_p(chi2: float, ndf: float) -> float:
 
 def null_p(name: str, value: float, row: dict) -> float:
     """The probability that a true curve gives a value this large, for the metrics with a known null: chi2_ndf (with the
-    row's ndf), chi2_z (one-sided Gaussian) and tail (two-sided Gaussian). Others have none."""
+    row's ndf), chi2_sigma (one-sided Gaussian) and tail_excess_sigma (two-sided Gaussian). Others have none."""
+    name = metrics.resolve(name)
     if name == "chi2_ndf":
         ndf = row.get("ndf") or 0
         if not ndf:
             return math.nan
         return chi2_p(value * ndf, ndf)
-    if name == "chi2_z":
+    if name == "chi2_sigma":
         return 0.5 * math.erfc(value / math.sqrt(2))
-    if name == "tail":
+    if name == "tail_excess_sigma":
         return math.erfc(abs(value) / math.sqrt(2))
     raise HeimdallError(f"'{name}' has no null distribution, so no surprisal or Fisher p-value",
-                        hint="chi2_ndf, chi2_z and tail have one; use normalise = \"thresholds\" for the rest")
+                        hint="chi2_ndf, chi2_sigma and tail_excess_sigma have one; use normalise = \"thresholds\" for the rest")
 
 
 # ── observations ──────────────────────────────────────────────────────────────────────────────
@@ -202,7 +205,7 @@ def _cost_column(name: str, obs: list[Obs], st: Settings) -> list[float]:
         return [m.loss(v, st.thresholds.get(name)) if not math.isnan(v) else math.nan for v in values]
     if st.normalise == "surprisal":
         return [(-math.log(max(null_p(name, v, o.row), P_FLOOR)) if not math.isnan(v) else math.nan) for v, o in zip(values, obs)]
-    if m.better in ("higher", "none"):
+    if m.polarity in ("higher", "descriptor"):
         raise HeimdallError(f"'{name}' cannot be normalised against the pool ({st.normalise})", hint='use normalise = "thresholds"')
     q = np.array([m.scored(v) if not math.isnan(v) else math.nan for v in values], dtype=float)
     ok = np.isfinite(q)
@@ -342,13 +345,13 @@ def _dominated(result: Scores) -> None:
 def _aggregate(result: Scores, obs: list[Obs], groups: dict) -> None:
     st = result.settings
     if st.aggregate == "fisher":
-        result.notes.append("fisher: Σ −2 ln p over each page's χ² and tail p-values; needs chi2_ndf (with ndf) and optionally tail; "
+        result.notes.append("fisher: Σ −2 ln p over each page's χ² and tail p-values; needs chi2_ndf (with ndf) and optionally tail_excess_sigma; "
                             "a p-value under 1e-300 is capped, so hopeless fits tie")
         for p in result.points:
             terms, weights = [], []
             for o in groups[(p.cell, p.point)]:
                 x = 0.0
-                for name in ("chi2_ndf", "tail"):
+                for name in ("chi2_ndf", "tail_excess_sigma"):
                     if name in st.metrics or name == "chi2_ndf":
                         v = o.row.get(name, math.nan)
                         if not math.isnan(v):

@@ -10,7 +10,7 @@ import pytest
 from stats import means, metrics
 
 TESTS = Path(__file__).parent
-DEFAULTS = {"chi2_ndf", "norm", "shape", "tilt", "worst"}
+DEFAULTS = {"chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2"}
 
 
 def is_tested(name: str, *files: str) -> bool:
@@ -19,11 +19,12 @@ def is_tested(name: str, *files: str) -> bool:
 
 
 @pytest.mark.parametrize("name", sorted(metrics.REGISTRY))
-def test_every_metric_has_a_purpose_a_direction_a_note_and_a_test(name):
+def test_every_metric_has_a_purpose_a_polarity_a_scale_a_note_and_a_test(name):
     m = metrics.REGISTRY[name]
     assert m.name == name
     assert m.purpose in metrics.PURPOSES
-    assert m.better in ("lower", "higher", "one", "none")
+    assert m.polarity in ("lower", "higher", "one", "descriptor")
+    assert m.scale in ("linear", "log")
     assert m.note.strip(), "say what it measures and what it is blind to"
     assert is_tested(name, "test_stats_metrics.py"), f"no test names {name}"
 
@@ -31,12 +32,12 @@ def test_every_metric_has_a_purpose_a_direction_a_note_and_a_test(name):
 @pytest.mark.parametrize("name", sorted(metrics.REGISTRY))
 def test_a_scored_metric_has_ordered_thresholds_and_the_reason_for_them(name):
     m = metrics.REGISTRY[name]
-    if m.better == "none":
+    if m.polarity == "descriptor":
         assert m.thresholds is None                                       # a descriptor: it has no better or worse
         return
     assert m.thresholds is not None and m.why.strip(), f"{name}: thresholds and why"
     good, bad = m.thresholds
-    assert (good > bad) if m.better == "higher" else (good < bad)
+    assert (good > bad) if m.polarity == "higher" else (good < bad)
 
 
 def test_exactly_the_five_are_on_by_default():
@@ -80,3 +81,35 @@ def test_a_metric_describes_itself_with_its_thresholds_and_a_setting_overrides_t
     assert ("Scored from" in text) == (m.thresholds is not None)
     if m.thresholds:
         assert metrics.describe(name, (0.5, 2.0)).endswith("Scored from 0.5 (cost 0) to 2 (cost 1).")
+
+
+def test_every_polarity_has_a_glyph_an_ascii_form_and_a_phrase():
+    for table in (metrics.GLYPH, metrics.ASCII, metrics.PHRASE):
+        assert set(table) == set(metrics.POLARITIES)
+    assert metrics.REGISTRY["n_eff"].scale == "log"
+    assert {n for n, m in metrics.REGISTRY.items() if m.scale == "log"} == {"n_eff"}
+
+
+def test_an_old_id_is_an_alias_of_one_metric_and_never_a_metric_itself():
+    assert len(metrics.ALIASES) == 24
+    for old, new in metrics.ALIASES.items():
+        assert old not in metrics.REGISTRY, old
+        assert new in metrics.REGISTRY, (old, new)
+        assert metrics.resolve(old) == new
+    assert metrics.resolve("tilt") == "tilt"
+    assert metrics.ALIASES["wmape_yield"] == "yield_weighted_abs_dev" and metrics.ALIASES["wmape_axis"] == "mean_abs_ratio_dev"
+
+
+def test_no_two_metrics_share_a_function():
+    fns = [m.fn for m in metrics.REGISTRY.values()]
+    assert len(fns) == len(set(fns))
+
+
+def test_an_old_id_evaluates_and_describes_as_its_new_one():
+    import numpy as np
+    from stats import bins
+    lo = np.arange(10, dtype=float)
+    ref = np.full(10, 10.0)
+    curve = bins.Curve(lo, lo + 1, ref * np.linspace(0.9, 1.2, 10), ref * 0.05, ref, ref * 0.05)
+    assert metrics.evaluate("shape", curve) == metrics.evaluate("log_dev_shrunk", curve)
+    assert metrics.describe("worst") == metrics.describe("peak_pull2")

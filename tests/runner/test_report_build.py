@@ -152,6 +152,11 @@ def test_the_default_report_is_a4_and_holds_everything_it_shows(trees, tmp_path)
     assert "figures/02_Pages_totality/001_01_pdf_18x275_d01-x01-y01.png" in page and "P/validation/02_more" in page
     assert (out / "stats" / "summaries" / "P_validation_01_pdf__totality.html").is_file()
     assert 'href="stats/summaries/P_validation_01_pdf__totality.html"' in page
+    body = (out / "report.tex").read_text(encoding="utf-8").split(r"\begin{document}")[1]
+    method = body[body.index(r"\section*{How the numbers are made}"):]
+    ranked = method[method.index(r"\hdStatSection{How points are ranked}"):]      # from the leaderboard's record
+    assert r"Gates. gate peak\_bin\_ratio: 3 (table). not evaluated" in ranked and "cells: flat (table)." in ranked
+    assert r"over\_pages: rms (default)." in ranked and r"Worked: chi2\_ndf of 18x275" in ranked      # one row through the cost
 
 
 def test_a_rebuild_makes_nothing_and_a_changed_page_is_copied_again(trees):
@@ -175,6 +180,10 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     assert [s.key for s in document.sections] == ["leaderboard", "chi2_ndf"] and missing == ["area:ranking"]
     assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking", "chi2_ndf-ranking-made"]     # with its "Made by"
     assert report.detail_of(["leaderboard", "chi2_ndf:table", "category:trend", "roughness:crossed"]) == ["chi2_ndf", "log_ratio_roughness"]
+    headline, _ = report.chosen(whole, report.HEADLINE)
+    order = {k.replace("category:", "category-"): i for i, k in enumerate(report.HEADLINE)}
+    keys = [s.key for s in headline.sections]
+    assert keys[0] == "leaderboard" and keys == sorted(keys, key=order.__getitem__)    # the default report's order
     recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Leaderboard"\n'
                              'stats = ["chi2_ndf:ranking"]\n\n[[report.section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
     _, said = built("P/numbers.toml", [])

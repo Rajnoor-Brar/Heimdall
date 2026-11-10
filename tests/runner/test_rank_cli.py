@@ -138,10 +138,10 @@ def test_across_reads_the_errands_own_folder(results, capsys):
 def test_a_table_scored_with_its_own_settings_keeps_them_and_by_overlays(results):
     make_run(results, "A/E/R1", sweep_rows(), axes=AXES, ranking={"by": ["pdf"], "over_pages": "median"})
     (t,) = rankcmd.tables_of("A/E/R1", None, False)
-    st, axes = rankcmd.settings_for(t, None, None)
+    st, axes = rankcmd.settings_for(t)
     assert st.by == ("pdf",) and st.over_pages == "median" and axes == AXES
-    assert rankcmd.settings_for(t, "generator,pdf", None)[0].by == ("generator", "pdf")
-    assert rankcmd.settings_for(t, None, "generator=hw7")[0].baseline == {"generator": "hw7"}
+    assert rankcmd.settings_for(t, rankcmd.flags_of(args("x", by="generator,pdf")))[0].by == ("generator", "pdf")
+    assert rankcmd.settings_for(t, rankcmd.flags_of(args("x", baseline="generator=hw7")))[0].baseline == {"generator": "hw7"}
 
 
 def test_an_infinite_loss_prints_as_infinity_not_a_crash(results, capsys):
@@ -190,3 +190,82 @@ def test_a_vetoed_point_is_last_with_its_reason_and_the_json_holds_the_record(re
     assert rankcmd.run(args("A/E/R1")) == 0
     text = capsys.readouterr().out
     assert text.index("fine") < text.index("blown") and "vetoed: blown: a bin 10^10.7 × reference on 1 of 1 page" in text
+
+
+# ── the record shown (grand-ranking 5.4) ──────────────────────────────────────────────────────────────
+
+def test_each_terminal_table_has_its_made_by_line_under_it(results, capsys):
+    make_run(results, "A/E/R1", sweep_rows(), axes=AXES)
+    assert rankcmd.run(args("A/E/R1")) == 0
+    lines = capsys.readouterr().out.splitlines()
+    board = lines.index("Leaderboard:")
+    blank = lines.index("", board)
+    assert lines[blank - 1].startswith("  made by: ") and any(l.startswith("  made by: cells: flat (table).") for l in lines[board:blank])
+    for quantity in ("generator", "pdf"):
+        at = next(i for i, l in enumerate(lines) if l.startswith(f"By {quantity}: "))
+        under = lines[at:lines.index("", at)]
+        assert "  made by: by: every varied quantity (default). the quantities whose marginals are shown" in under
+        assert any(l.startswith(f"  made by: strata of {quantity}: ") for l in under)
+
+
+def test_method_prints_the_whole_record_and_no_table(results, capsys):
+    from stats import ranking
+    make_run(results, "A/E/R1", sweep_rows(), axes=AXES)
+    assert rankcmd.run(args("A/E/R1", method=True)) == 0
+    out = capsys.readouterr().out
+    assert "Leaderboard:" not in out
+    _, _, _, result = rankcmd.ranked(rankcmd.tables_of("A/E/R1", None, False)[0])
+    for stage in ranking.Method.STAGES:
+        assert (f"\n{ranking.Method.TITLES[stage]}:\n" in out) == bool(getattr(result.method, stage)), stage
+    assert all(f"  {line}" in out for line in result.method.lines())
+
+
+def test_json_carries_the_method_the_sidecar_holds(results, capsys):
+    folder = make_run(results, "A/E/R1", sweep_rows(), axes=AXES)
+    side = folder / "statistics" / "totality" / "statistics.json"
+    _, _, _, result = rankcmd.ranked(rankcmd.tables_of("A/E/R1", None, False)[0])
+    side.write_text(json.dumps({**json.loads(side.read_text(encoding="utf-8")), "method": result.method.as_dict()}), encoding="utf-8")
+    assert rankcmd.run(args("A/E/R1", json=True)) == 0
+    (got,) = json.loads(capsys.readouterr().out)["tables"]
+    assert got["method"] == json.loads(side.read_text(encoding="utf-8"))["method"]
+    assert got["made_by"]["leaderboard"] == result.method.made_by("leaderboard")
+
+
+def test_a_terminal_that_is_not_utf8_gets_the_ascii_glyphs(results, capsys, monkeypatch):
+    import io
+
+    class Ascii(io.StringIO):
+        encoding = "ascii"
+    import sys
+    make_run(results, "A/E/R1", sweep_rows(), axes=AXES)
+    shown, real = Ascii(), sys.stdout
+    monkeypatch.setattr("sys.stdout", shown)
+    assert rankcmd.run(args("A/E/R1")) == 0
+    header = next(l for l in shown.getvalue().splitlines() if "point loss" in l)
+    assert "point loss [v]" in header and "↓" not in header
+    monkeypatch.setattr("sys.stdout", real)
+    assert rankcmd.run(args("A/E/R1")) == 0
+    assert "point loss ↓" in capsys.readouterr().out                            # pytest's capture is UTF-8
+
+
+def test_head_to_head_all_adds_the_matches_and_the_record_names_the_flag(results, capsys):
+    make_run(results, "A/E/R1", sweep_rows(), axes=AXES)
+    assert rankcmd.run(args("A/E/R1", head_to_head="all", trim=0.1, detail=True, json=True)) == 0
+    (got,) = json.loads(capsys.readouterr().out)["tables"]
+    (match,) = got["head_to_head"]["pages"]
+    assert match["page"] == "p1" and set(match["points"]) == {"py8_a", "py8_b", "hw7_a", "hw7_b"}
+    sources = {c["name"]: c["source"] for stage in got["method"].values() for c in stage}
+    assert sources["head_to_head"] == "--head-to-head" and sources["trim"] == "--trim" and sources["detail"] == "--detail"
+    assert got["made_by"]["leaderboard"] and "head_to_head: all (--head-to-head)." in got["head_to_head"]["made_by"][0]
+    assert rankcmd.run(args("A/E/R1", head_to_head="all", detail=True)) == 0
+    out = capsys.readouterr().out
+    assert "Head to head: p1 (the row's loss less the column's):" in out and "Metric values:" in out
+
+
+def test_the_parser_takes_the_flags_that_reach_the_engine():
+    p = cli.parser()
+    got = p.parse_args(["rank", "A/E/R", "--trim", "0.1", "--head-to-head", "all", "--detail", "--method"])
+    assert (got.trim, got.head_to_head, got.detail, got.method) == (0.1, "all", True, True)
+    assert rankcmd.flags_of(got) == {"trim": 0.1, "head_to_head": "all", "detail": True}
+    assert p.parse_args(["plot", "A/E/R", "--stats-only", "--head-to-head", "em/d01"]).head_to_head == "em/d01"
+    assert p.parse_args(["report", "A/E/R", "--head-to-head", "all"]).head_to_head == "all"

@@ -27,7 +27,7 @@ from pathlib import Path
 
 from . import cluster as clustermod
 from . import config as configmod
-from . import execute, house, library, paths, plot, plotdoc, post, record, runs, sweep, tools
+from . import execute, house, library, paths, plot, plotdoc, post, record, runs, statstable, sweep, tools
 from . import doctor as doctormod
 from . import setup as setupmod
 from .errors import HeimdallError, did_you_mean
@@ -124,6 +124,8 @@ def parser() -> argparse.ArgumentParser:
     draw.add_argument("--stats-only", action="store_true", dest="stats_only",
                       help="the statistics alone: the pages' numbers against the data, read by Paint into statistics/<set>/, "
                            "no page drawn (--sets: these sets only; target also <A>/<E>, each of its Runs)")
+    draw.add_argument("--head-to-head", metavar="PAGE|all", dest="head_to_head",
+                      help="the summary plays this page's curves pairwise (\"<cell>/<object>\", a page's name, or all), over [ranking].head_to_head")
     draw.add_argument("--keep", action="append", default=[], metavar="WHAT",
                       help="cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway")
     draw.add_argument("configuration", nargs="?", help="overrides [errand].configuration; under sweep_runs, only it")
@@ -143,6 +145,11 @@ def parser() -> argparse.ArgumentParser:
     ranks.add_argument("--by", metavar="QUANTITIES", help="marginals by these quantities (comma-separated), over the table's own [ranking].by")
     ranks.add_argument("--baseline", metavar="q=value",
                        help="deltas against a baseline: quantity=value[,quantity=value…], or a point's name, over the table's own")
+    ranks.add_argument("--trim", metavar="ALPHA", type=float, help="the marginals' trim α (0 to under 0.5), over the table's own [ranking].trim")
+    ranks.add_argument("--head-to-head", metavar="PAGE|all", dest="head_to_head",
+                       help="play this page's curves pairwise (\"<cell>/<object>\", a page's name, or all), over [ranking].head_to_head")
+    ranks.add_argument("--detail", action="store_true", help="each point's metric values too ([ranking].detail)")
+    ranks.add_argument("--method", action="store_true", help="each table's whole record of how its numbers were made, and no table")
     ranks.add_argument("--json", action="store_true", help="the same numbers as JSON")
 
     old_rank = commands.add_parser("score", help="retired: heimdall rank reads a Run's statistics")
@@ -180,6 +187,8 @@ def parser() -> argparse.ArgumentParser:
                                                            "pages, listed")
     reported.add_argument("-o", "--output", metavar="DIR", help="build into DIR (default: its recipe's [report].output, "
                                                                 "else reports/<A>/<E>/<R>/ as results/ has its sources)")
+    reported.add_argument("--head-to-head", metavar="PAGE|all", dest="head_to_head",
+                          help="its statistics play this page's curves pairwise (\"<cell>/<object>\", a page's name, or all)")
 
     listing = commands.add_parser("ls", help="every config and its configurations")
     listing.add_argument("assignment", nargs="?", help="only this assignment's errand files")
@@ -1996,8 +2005,9 @@ def cmd_diff(args) -> int:
 
 
 def cmd_rank(args) -> int:
-    """`heimdall rank TARGET [--set S] [--across] [--by QUANTITIES] [--baseline q=value] [--json]`: the leaderboard, marginals and
-    baselines read from the statistics already measured; see rankcmd."""
+    """`heimdall rank TARGET [--set S] [--across] [--by QUANTITIES] [--baseline q=value] [--trim ALPHA] [--head-to-head PAGE|all]
+    [--detail] [--method] [--json]`: the leaderboard, marginals and baselines read from the statistics already measured; see
+    rankcmd."""
     from . import rankcmd
     return rankcmd.run(args)
 
@@ -3212,6 +3222,7 @@ NOT_PREFERENCES = {
     "tag": ("the study's own setting", "a configuration's tag key, or [errand] tag = \"...\""),
     "no_plot": ("the study's own setting", "[errand] plot = false"),
     "no_stats": ("the study's own setting", "[errand] stats = false"),
+    "head_to_head": ("the study's own setting", "[ranking] head_to_head = \"<cell>/<object>\" or \"all\""),
     "rerun_since": ("heimdall runs --resume's own", "heimdall runs --resume N gives it"),
 }
 
@@ -3608,7 +3619,8 @@ def _main(argv: list[str]) -> int:
         if args.command == "run":
             return cmd_run(args)
         if args.command == "plot":
-            return cmd_plot(args)
+            with statstable.flagged({"head_to_head": args.head_to_head} if getattr(args, "head_to_head", None) else {}):
+                return cmd_plot(args)
         if args.command == "stats":
             return cmd_stats_retired(args)
         if args.command == "rank":
@@ -3624,7 +3636,8 @@ def _main(argv: list[str]) -> int:
         if args.command == "deck":
             return cmd_deck(args)
         if args.command == "report":
-            return cmd_report(args)
+            with statstable.flagged({"head_to_head": args.head_to_head} if getattr(args, "head_to_head", None) else {}):
+                return cmd_report(args)
         if args.command == "ls":
             for line in house.ls(args.assignment):
                 print(line)

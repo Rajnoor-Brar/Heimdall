@@ -63,6 +63,18 @@ def test_a_sets_numbers_are_its_csv_bar_graphs_and_summary(tmp_path):
     assert statstable.write_set(pages, bare, ["png"]) == (4, 3) and not (bare / "summary.html").exists()   # its facts page alone
 
 
+def test_a_commands_head_to_head_flag_reaches_the_sidecar_with_its_source(tmp_path):
+    pages = [page_with_numbers(tmp_path / "pages", name, NUMBERS) for name in ("d01-x01-y01", "d02-x01-y01")]
+    numbers = tmp_path / "statistics" / "totality"
+    with statstable.flagged({"head_to_head": "all"}):                     # `heimdall plot --stats-only --head-to-head all`
+        statstable.write_set(pages, numbers, ["png"], ranking={"metrics": ["chi2_ndf"]})
+    side = json.loads((numbers / "statistics.json").read_text(encoding="utf-8"))
+    assert side["ranking"]["head_to_head"] == "all" and side["ranking_sources"]["head_to_head"] == "--head-to-head"
+    assert {"name": "head_to_head", "value": "all", "source": "--head-to-head"}.items() <= next(
+        c for c in side["method"]["optin"] if c["name"] == "head_to_head").items()
+    assert statstable.FLAGS.get() == {}                                    # the flag is the command's alone
+
+
 def measured_page(folder: Path, name: str, y_scale: float = 1.2) -> plot.Page:
     """A page whose stats.json carries `measured` bins: 10 bins, a falling reference, the second curve y_scale times it."""
     ref = [100.0 * math.exp(-0.3 * i) for i in range(10)]
@@ -244,7 +256,7 @@ def test_a_figures_weight_reaches_the_loss_and_the_sidecar_holds_the_same_record
     side = json.loads((numbers / "statistics.json").read_text(encoding="utf-8"))
     assert side["page_weights"] == {"d01-x01-y01": 3.0}
     assert side["ranking_sources"] == {"metrics": "[ranking]", "weights": "[ranking]", "over_pages": "set totality"}
-    report = rankcmd.report_of(rankcmd.Table("A/E/R", "", "totality", numbers / "statistics.csv"), None, None)
+    report = rankcmd.report_of(rankcmd.Table("A/E/R", "", "totality", numbers / "statistics.csv"))
     (p2,) = [s for s in report["leaderboard"] if s["point"] == "p2"]
     assert p2["loss"] == pytest.approx(math.sqrt((3 * math.log2(1.5) ** 2 + math.log2(2.5) ** 2) / 4))
     assert json.loads(json.dumps(report["method"])) == side["method"]                  # one record, wherever it is read

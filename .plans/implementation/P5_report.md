@@ -1,6 +1,6 @@
 # Phase 5: the leaderboard, the sections, and the record shown
 
-Status: in progress (5.1–5.3 done). Blocked by: phase 4. Source: [04](../plans/grand-ranking/04_Report.md), all of it; [02](../plans/grand-ranking/02_Metrics.md) for where a glyph goes; [03 §3 property 9](../plans/grand-ranking/03_Math.md). Names in code: [Tables](Tables.md) T4, T6, T7, T8.
+Status: done. Blocked by: phase 4. Source: [04](../plans/grand-ranking/04_Report.md), all of it; [02](../plans/grand-ranking/02_Metrics.md) for where a glyph goes; [03 §3 property 9](../plans/grand-ranking/03_Math.md). Names in code: [Tables](Tables.md) T4, T6, T7, T8.
 
 The rule of this phase: **a presenter renders the record and writes no rule of its own.** `bars.py`, `rankcmd.py` and `report.py` hold no sentence about a mean, a gate, a weight or a compression except through `Method.lines`.
 
@@ -82,3 +82,16 @@ The rule of this phase: **a presenter renders the record and writes no rule of i
   - Shown to fail, not committed: with the `over_pages` choice removed from the Pages stage, `[over_pages]` and `[set]` fail ("moved a number and the record did not change"). `ranking.py` was restored from a copy.
   - Check: `-k record` 26 passed; `tests/runner -m 'not slow'` 2303 passed, 11 skipped, the two named reds.
   - A reader may rely on: the record names every `[ranking]` key, set, figure weight and flag that moves a number; a key added to the schema needs an example value here.
+- **5.4 · done 2026-11-10.**
+  - **Report:** `report.HEADLINE` is `leaderboard, marginals, category:…, baseline, head-to-head`, and its test holds it to `CATEGORIES`. "How points are ranked" in the report's method section is each leaderboard part's record (`Typeset.record`), a paragraph per stage, with the worked row. The part itself drops its front's record when the method section gives it. `METHOD_NOTES` = (`compared`, `h2h`).
+  - **`heimdall rank`:**
+    - Gains `--trim ALPHA`, `--head-to-head PAGE|all`, `--detail` and `--method`. `rankcmd.flags_of(args)` gathers the five flags that reach the engine, and `settings_for` / `ranked` / `report_of` / `runs_of` take that dict.
+    - A "made by:" line under the leaderboard, each marginal, the baseline, the head to head and (with `--detail`) the metric values.
+    - The headers carry glyphs: Unicode on a UTF-8 stdout, else 02's ASCII (`rankcmd.glyphs`). The leaderboard title loses "(lower loss is better …)".
+    - `--json` adds `made_by`, `detail`, `head_to_head` and each row's `values`.
+  - **Other commands:** `heimdall plot` and `heimdall report` take `--head-to-head` through `statstable.flagged`, and the sidecar records the source `--head-to-head`. `complete.py`'s FREE gains the new value-taking options.
+  - **Engine:** `Method.made_by` and `ranking.matched_pages`; bars uses both.
+  - Fails first: nine tests on the old code (the seven new rank tests; the HEADLINE test; the default report's method section) and the flag's sidecar test.
+  - Tests: "made by:" under the leaderboard and under each marginal; `--method` prints exactly the non-empty stages' titles and every line, and no table; `--json`'s `method` equals the sidecar's; a non-UTF-8 stdout prints `point loss [v]`; `--head-to-head all` (with `--trim` and `--detail`) adds the match and the record's sources name each flag; the parser takes the flags; `plot`'s flag reaches the sidecar with its source and the ContextVar is empty after; the default report's statistics in HEADLINE's order; the report's method section holds the gates, `cells: flat`, `over_pages: rms (default)` and the worked row.
+  - Check: `tests/runner -m 'not slow'` 2310 passed, 11 skipped, the two named reds; `test_plot_stage.py` alone 53 passed; `test_report_draw.py` alone 2 passed, after the two fixes in Notes.
+  - A reader may rely on: `rank`'s new flags and its "made by:" lines; `--json`'s `made_by`; `--head-to-head` on `plot` and `report`; the report's ranking prose is the record.

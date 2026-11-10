@@ -415,6 +415,31 @@ class Method:
         return [f"{c.name}: {_said(c.value)} ({c.source})." + (f" {c.note}" if c.note else "")
                 for stage in (stages or self.STAGES) for c in getattr(self, stage)]
 
+    def _of(self, stage: str, keep=lambda c: True) -> list[str]:
+        return [line for c in getattr(self, stage) if keep(c) for line in Method(**{stage: (c,)}).lines(stage)]
+
+    def made_by(self, kind: str, metrics=(), quantity: str = "") -> list[str]:
+        """The sentences under a table, the choices that shaped its numbers, by its kind: "leaderboard"; "values" (the metric
+        values of `metrics`); "category" (a category's ranking, its `metrics`); "detail" (a metric's own tables); "marginal"
+        (`quantity`'s); "baseline"; "head_to_head"; "key" (the reading key: the cost, the gates, the order)."""
+        def of_metrics(c):
+            return c.name == "values shown" or any(c.name == n or c.name.endswith(f" of {n}") for n in metrics)
+
+        def not_vetoed(c):
+            return not c.name.startswith("vetoed ")
+
+        def over_pages(c):
+            return c.name == "over_pages"
+        parts = {"leaderboard": [("gates", not_vetoed), ("cost",), ("category",), ("page_loss",), ("pages",), ("order",)],
+                 "values": [("metrics", of_metrics)],
+                 "category": [("metrics", of_metrics), ("category",), ("pages",)],
+                 "detail": [("metrics", of_metrics), ("pages", over_pages), ("optin", lambda c: c.name == "detail")],
+                 "marginal": [("marginals", lambda c: not c.name.startswith("strata of ") or c.name == f"strata of {quantity}")],
+                 "baseline": [("optin", lambda c: c.name == "baseline"), ("pages", over_pages)],
+                 "head_to_head": [("optin", lambda c: c.name == "head_to_head")],
+                 "key": [("cost",), ("gates", not_vetoed), ("order",)]}[kind]
+        return [line for stage, *keep in parts for line in self._of(stage, *keep)]
+
 
 @dataclass(kw_only=True)
 class Ranking:
@@ -767,6 +792,18 @@ def head_to_head(rows: list[dict], page: str, st: Settings | None = None) -> dic
                           "metrics": {n: a.cost[n] - b.cost[n] for n in st.metrics}})
     return {"page": chosen[0]["page"], "points": [o.point for o in obs], "pairs": pairs,
             "losses": {o.point: o.loss for o in obs}}
+
+
+def matched_pages(rows: list[dict], want: str | None) -> list[str]:
+    """The pages `[ranking].head_to_head` names, in the rows' order: every page with a curve for "all", else those whose name
+    or "<cell>/<object>" (the object's short name) is `want`; none when unset."""
+    if not want:
+        return []
+    pages = list(dict.fromkeys(r["page"] for r in rows if not r["is_reference"]))
+    if want == "all":
+        return pages
+    named = {r["page"] for r in rows if r["page"] == want or f"{r['cell']}/{str(r.get('object', '')).rsplit('/', 1)[-1]}" == want}
+    return [p for p in pages if p in named]
 
 
 # ── marginals and baselines ───────────────────────────────────────────────────────────────────

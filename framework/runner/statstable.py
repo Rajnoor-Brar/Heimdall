@@ -8,6 +8,8 @@ document, curves' plain labels, name, cell, object and set.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 from stats.table import (COUNTS, FORMAT, SIDECAR, STATISTIC_COLUMNS, TEXT, columns_for, default_metrics, format_of,  # noqa: F401 (re-exported)
@@ -44,6 +46,20 @@ def ranking_of(errand, set_: str) -> dict:
     """The [ranking] a set is ranked with: the errand's, a set's own `ranking` laid over it (a plain dict)."""
     from stats import ranking
     return ranking.overlaid(errand.ranking, own_ranking(errand, set_))
+
+
+#: A command's flags over every ranking it writes or reads (`heimdall plot` and `heimdall report`'s `--head-to-head`), each
+#: the source "--<flag>" in the record.
+FLAGS: ContextVar = ContextVar("ranking_flags", default={})
+
+
+@contextmanager
+def flagged(flags: dict):
+    token = FLAGS.set(dict(flags))
+    try:
+        yield
+    finally:
+        FLAGS.reset(token)
 
 
 def sources_of(table: dict | None, over: dict | None, set_name: str) -> dict:
@@ -100,11 +116,12 @@ def write_set(pages: list, numbers: Path, formats: list[str], module=None, names
     rows = [r for _, page_rows in drawn for r in page_rows]
     if not rows:
         return 0, 0
-    sources = sources_of(ranking, over, set_name)
+    flags = FLAGS.get()
+    sources = {**sources_of(ranking, over, set_name), **{k: "--" + k.replace("_", "-") for k in flags}}
     page_weights = {(p.rel or p.name): float(p.weight) for p in pages if getattr(p, "weight", None) is not None}
     shown = [r for r in rows if not str(r.get("object", "")).startswith("/overlay/")]
-    ranked = engine.rank(shown, engine.settings_of(table, None, sources), page_weights or None, values)
-    count = write_statistics(pages, numbers / "statistics.csv", names, ranking=table, values=values, merged=merged, rows=rows,
+    ranked = engine.rank(shown, engine.settings_of(table, flags, sources), page_weights or None, values)
+    count = write_statistics(pages, numbers / "statistics.csv", names, ranking={**table, **flags}, values=values, merged=merged, rows=rows,
                              extra={"ranking_sources": sources, "page_weights": page_weights, "method": ranked.method.as_dict()})
     module = module or bars()
     images = module.draw(drawn, numbers / "bars", formats, summary=numbers / "summary", heading=heading_of(numbers), ranking=ranked)

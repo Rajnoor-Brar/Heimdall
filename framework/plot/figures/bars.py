@@ -534,21 +534,6 @@ def _on(rows: list[dict], st) -> list[str]:
     return sorted(have, key=lambda n: (categories.index(M.REGISTRY[n].category), named.index(n)))
 
 
-def _lines(ranked, stage: str, keep=lambda choice: True) -> list[str]:
-    """The record's sentences of a stage, of the choices `keep` keeps."""
-    import dataclasses
-    return dataclasses.replace(S.Method(), **{stage: tuple(c for c in getattr(ranked.method, stage) if keep(c))}).lines(stage)
-
-
-def _of_metrics(names) -> object:
-    """Keeps a Metrics choice about one of `names` (its polarity, thresholds or weight), and how the values shown are made."""
-    return lambda c: c.name == "values shown" or any(c.name == n or c.name.endswith(f" of {n}") for n in names)
-
-
-def _not_vetoed(choice) -> bool:
-    return not choice.name.startswith("vetoed ")
-
-
 def _made(item, lines: list[str]) -> list:
     """`item` and the "Made by" under it: the record's sentences that shaped its numbers."""
     return [item, paper.Text(f"{item.key}-made", "Made by", [("", line, "", False) for line in lines], aside=True)]
@@ -644,9 +629,7 @@ def _leaderboard(rows: list[dict], names: list[str], st, notes: dict, ranked) ->
     values = paper.Table("metric-values", "Metric values", [f"{n} {_glyph(n)}" for n in names],
                          _ranked_rows(shown, banded, lambda s: [value(s, n) for n in names], label),
                          subtitle=SHADING["cost"], notes=("legend",))
-    made = [*_lines(ranked, "gates", _not_vetoed), *_lines(ranked, "cost"), *_lines(ranked, "category"),
-            *_lines(ranked, "page_loss"), *_lines(ranked, "pages"), *_lines(ranked, "order")]
-    return _made(leaderboard, made) + _made(values, _lines(ranked, "metrics", _of_metrics(names)))
+    return _made(leaderboard, ranked.method.made_by("leaderboard")) + _made(values, ranked.method.made_by("values", names))
 
 
 def _category_sections(rows: list[dict], names: list[str], st, notes: dict, ranked, detail=()) -> list:
@@ -675,34 +658,30 @@ def _category_sections(rows: list[dict], names: list[str], st, notes: dict, rank
                                     [points[s.point] + (" · vetoed" if s.vetoed else "") for s in ordered],
                                     [s.categories[category] for s in ordered], subtitle="the vetoed last, whatever their cost",
                                     notes=("legend", f"category-{category}"))
-            items += _made(ranking, [*_lines(ranked, "metrics", _of_metrics(here)), *_lines(ranked, "category"),
-                                     *_lines(ranked, "pages")])
+            items += _made(ranking, ranked.method.made_by("category", here))
         sections.append(paper.Section(f"category-{category}", M.CATEGORIES[category], items))
-        for key in here:
-            if not (st.detail or key in detail):
-                continue
-            made = [*_lines(ranked, "metrics", _of_metrics([key])), *_lines(ranked, "pages", lambda c: c.name == "over_pages"),
-                    *_lines(ranked, "optin", lambda c: c.name == "detail")]
-            drawn = []
-            for item in (_ranking(rows, key, notes, st), _crossed(rows, key, notes, st), _table_of(rows, key, notes, st)):
-                if item is not None:
-                    drawn += _made(item, made)
-            if drawn:
-                sections.append(paper.Section(key, M.title_of(key), drawn))
+        sections += [d for key in here if st.detail or key in detail if (d := _detail(rows, key, notes, st, ranked))]
     return sections
+
+
+def _detail(rows: list[dict], key: str, notes: dict, st, ranked):
+    """A metric's own section: its ranking, its page cells against its curves and its table, each with its "Made by"; None
+    when it has no number."""
+    made = ranked.method.made_by("detail", [key])
+    drawn = []
+    for item in (_ranking(rows, key, notes, st), _crossed(rows, key, notes, st), _table_of(rows, key, notes, st)):
+        if item is not None:
+            drawn += _made(item, made)
+    return paper.Section(key, M.title_of(key), drawn) if drawn else None
 
 
 def _matches(rows: list[dict], st, notes: dict, ranked) -> list:
     """The head-to-head section: for each page `[ranking].head_to_head` names, its curves pairwise, the row's loss less the
     column's (blue: the row's curve is better), each pair on its own and no wins counted."""
-    want = st.head_to_head
-    if not want:
-        return []
     rows = _rows_of(rows)
-    pages = list(dict.fromkeys(r["page"] for r in rows if not r["is_reference"]))
-    if want != "all":
-        pages = [p for p in pages if any(f"{r['cell']}/{r['object'].rsplit('/', 1)[-1]}" == want or r["page"] == want
-                                         for r in rows if r["page"] == p)]
+    pages = S.matched_pages(rows, st.head_to_head)
+    if not pages:
+        return []
     notes["h2h"] = ("Each pair of a page's curves: the row's loss less the column's on that page (negative: the row's curve "
                     "is closer to agreement), blue where the row's is better, orange where it is worse, darker further from "
                     "even; no wins are counted. loss: the curve's own loss on the page.")
@@ -736,7 +715,7 @@ def _matches(rows: list[dict], st, notes: dict, ranked) -> list:
                                                                                     if n == 1 else ""),
                               [short[p] for p in members], [short[p] for p in members] + [f"loss {LOWER}"], styled,
                               ("legend", "h2h"), tail=1),
-                       _lines(ranked, "optin", lambda c: c.name == "head_to_head"))       # one line: a match a page, many pages
+                       ranked.method.made_by("head_to_head"))       # one line: a match a page, and many pages
     return [paper.Section("head-to-head", "Head to head", items)] if items else []
 
 
@@ -775,8 +754,7 @@ def _marginals(rows: list[dict], st, notes: dict, ranked) -> list:
         table = _table(key, f"By {marginal.quantity}" + ("\nconfounded" if marginal.confounded else ""),
                        [r.value for r in marginal.rows], MARGINAL_HEADERS, styled,
                        ("legend",) + ((f"confounded-{marginal.quantity}",) if marginal.confounded else ()))
-        items += _made(table, _lines(ranked, "marginals", lambda c, q=marginal.quantity: not c.name.startswith("strata of ")
-                                     or c.name == f"strata of {q}"))
+        items += _made(table, ranked.method.made_by("marginal", quantity=marginal.quantity))
     return [paper.Section("marginals", "Marginals", items)]
 
 
@@ -816,8 +794,7 @@ def _baseline(rows: list[dict], st, notes: dict, ranked) -> list:
         notes["unmatched"] = "Unmatched: points with no baseline partner, so no Δ: " + "; ".join(
             f"{c + ' · ' if c else ''}{p} ({why})" for c, p, why in result.unmatched) + "."
         table.notes = table.notes + ("unmatched",)
-    return [paper.Section("baseline", "Baseline", _made(table, [*_lines(ranked, "optin", lambda c: c.name == "baseline"),
-                                                                 *_lines(ranked, "pages", lambda c: c.name == "over_pages")]))]
+    return [paper.Section("baseline", "Baseline", _made(table, ranked.method.made_by("baseline")))]
 
 
 def _facts(rows: list[dict]) -> list[str]:
@@ -863,7 +840,7 @@ def _worked(rows: list[dict], names: list[str], st, ranked) -> str:
 def _front(rows: list[dict], names: list[str], st, ranked) -> list:
     """The front's reading key (the legend, the cost, the gates, the order) and "How these numbers were made": the whole record,
     stage by stage, with one row worked through the cost."""
-    key = [LEGEND, *_lines(ranked, "cost"), *_lines(ranked, "gates", _not_vetoed), *_lines(ranked, "order")]
+    key = [LEGEND, *ranked.method.made_by("key")]
     record = []
     for stage in S.Method.STAGES:
         lines = ranked.method.lines(stage)
@@ -896,6 +873,9 @@ def summary_model(rows: list[dict], heading: str = "", ranking=None, detail=()):
             sections.append(paper.Section("leaderboard", "Leaderboard", board))
         sections += _marginals(rows, st, notes, ranked)
         sections += _category_sections(rows, names, st, notes, ranked, set(detail))
+        others = [k for k in dict.fromkeys(detail) if k not in names and k in M.REGISTRY]    # named, not scored: a column alone
+        sections += [d for k in others if any(_number(r.get(k)) is not None for r in _rows_of(rows))
+                     if (d := _detail(rows, k, notes, st, ranked))]
         sections += _baseline(rows, st, notes, ranked)
         sections += _matches(rows, st, notes, ranked)
         front = _front(rows, names, st, ranked) if sections else []

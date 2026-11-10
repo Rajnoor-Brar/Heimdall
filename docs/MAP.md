@@ -16,7 +16,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 ## reference
 
-- [commands](reference/commands.md): every heimdall command and its arguments (22 KB)
+- [commands](reference/commands.md): every heimdall command and its arguments (23 KB)
 - [keys](reference/keys.md): every setting in one line each, for grep: key, type, default (10 KB)
 - [legacy](reference/legacy.md): the errand file's older (v2) names and today's (2 KB)
 

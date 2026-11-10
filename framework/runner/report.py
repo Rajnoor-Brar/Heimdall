@@ -50,11 +50,12 @@ from .tools import RunFolders
 RECIPE = "report.toml"
 #: Whose drawn pages a section takes, in order of preference, when it names none.
 BACKENDS = ("root", "mpl")
-#: The default report's headline: the top five and each statistic's ranking (the area has none).
-#: The default Leaderboard section: the leaderboard, a section a category, then the marginals, the baseline and the head to head when `[ranking]` has what they need
-#: (what has nothing to show is left out without a word). A test holds the categories to stats.metrics.CATEGORIES.
-HEADLINE = ["leaderboard", *(f"category:{p}" for p in ("compatibility", "normalisation", "accuracy", "similarity", "trend",
-                                                       "defects", "integrity", "quality")), "marginals", "baseline", "head-to-head"]
+#: The default Leaderboard section: the leaderboard, the marginals, a section a category, then the baseline and the head to head
+#: when `[ranking]` has what they need (what has nothing to show is left out without a word). A test holds the categories to
+#: stats.metrics.CATEGORIES.
+HEADLINE = ["leaderboard", "marginals", *(f"category:{p}" for p in ("compatibility", "normalisation", "accuracy", "similarity",
+                                                                     "trend", "defects", "integrity", "quality")),
+            "baseline", "head-to-head"]
 #: What a title or subtitle may name, filled in from its sources' plot documents.
 PLACEHOLDERS = ("assignment", "errand", "configuration", "title")
 #: Panels on an A4 page of a grid, for the listing's page count (the build lays them out).
@@ -1454,11 +1455,12 @@ class Typeset:
     toc: str = ""                # its line in the contents, when not its title
     notes: dict = field(default_factory=dict)    # the notes its items name, every one (key → text)
     refer: bool = False          # its definitions are How the numbers are made's, not its own
+    record: tuple = ()           # its ranking's record, (title or "", sentence) a line, when it shows the leaderboard
 
 
-#: The notes How the numbers are made gives: each statistic's definition (stat-<key>), how a page is compared,
-#: and how points are ranked and play their matches; a statistics part then leaves them out.
-METHOD_NOTES = ("compared", "counted", "apart", "loss", "h2h")
+#: The notes How the numbers are made gives: each statistic's definition (stat-<key>), how a page is compared and how
+#: points play their matches; a statistics part then leaves them out. How points are ranked is the record's.
+METHOD_NOTES = ("compared", "h2h")
 METHOD_TITLE = "How the numbers are made"
 
 
@@ -1477,7 +1479,7 @@ def _settings(csv_path: Path):
     csv without."""
     from stats import ranking
     side = statstable.sidecar(csv_path) or {}
-    return ranking.settings_of(side.get("ranking"), None, side.get("ranking_sources"))
+    return ranking.settings_of(side.get("ranking"), statstable.FLAGS.get(), side.get("ranking_sources"))
 
 
 def _ranked(csv_path: Path, rows: list[dict]):
@@ -1512,11 +1514,14 @@ def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method:
     summary = part.csv.with_name("summary.html")
     if summary.is_file():
         build.copy(summary, build.out / STATS / "summaries" / f"{slug(part.source.address)}__{slug(part.set)}.html")
-    shown = dataclasses.replace(document, notes={k: v for k, v in document.notes.items() if not _method_note(k)}) \
-        if method else document
+    made = next((f for f in document.front if f.key == "front-method"), None)
+    record = tuple(("" if not line[3] else line[1], "" if line[3] else line[1]) for line in made.lines) \
+        if made is not None and any(s.key == "leaderboard" for s in document.sections) else ()
+    shown = dataclasses.replace(document, notes={k: v for k, v in document.notes.items() if not _method_note(k)},
+                                front=[f for f in document.front if f.key != "front-method"]) if method else document
     lines = _typeset().document(shown, bars.paper.note_numbers(shown), bars.paper, _layout().tex, TEXT_W)
     return Typeset(heading, "statistics" + (" · as this report measures it" if part.look and "measures" not in heading else ""),
-                   lines, [data], page, notes={k: document.notes[k] for k in numbers}, refer=method)
+                   lines, [data], page, notes={k: document.notes[k] for k in numbers}, refer=method, record=record)
 
 
 def _raw_rows(path: Path) -> list[dict]:
@@ -1738,12 +1743,13 @@ def _sentence(text: str) -> str:
 def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
     """How the numbers are made, from the notes of the statistics shown: how a page is compared; each statistic
     shown, in the summary's order, its name, its formula set as display math and what it sums over and means, a
-    paragraph each; how points are ranked (each part's rule on the pages counted) and play their matches."""
+    paragraph each; how points are ranked, each leaderboard's record (a paragraph a stage, once for records alike); and how
+    they play their matches."""
     typeset, tex, esc = _typeset(), _layout().tex, html.escape
     notes: dict = {}
     for item in shown:
         notes.update({k: v for k, v in item.notes.items() if k not in notes})
-    counted = list(dict.fromkeys(item.notes["counted"] for item in shown if "counted" in item.notes))
+    records = list(dict.fromkeys(item.record for item in shown if item.record))
     registry = bars.M.REGISTRY
     used = sorted((k[5:] for k in notes if k.startswith("stat-") and k[5:] in registry),
                   key=lambda n: (list(bars.M.CATEGORIES).index(registry[n].category), list(registry).index(n)))
@@ -1778,9 +1784,18 @@ def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
                 page.append(f"<p><strong>{esc(title)}</strong>: {esc(_sentence(rest))}</p>")
             else:
                 paragraphs([f"{title}: {rest}"])
-    if "loss" in notes:
+    if records:
         heading("How points are ranked")
-        paragraphs([notes["loss"], bars.APART, *counted])
+        for k, record in enumerate(records):
+            stages: list[list[str]] = []
+            for title, line in record:
+                if title:
+                    stages.append([f"{title}."])
+                elif stages:
+                    stages[-1].append(line)
+            if len(records) > 1:
+                paragraphs([f"Leaderboard {k + 1} of {len(records)}, ranked as follows."])
+            paragraphs([" ".join(stage) for stage in stages])
     if "h2h" in notes:
         heading("Head to head")
         paragraphs([notes["h2h"]])

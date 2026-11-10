@@ -52,6 +52,7 @@ draw a configuration's pages from its complete points
 | `--replot` | with --style-sync: then draw what was synced |
 | `--across` | the Runs of this errand together, results/<A>/<E>/plot.toml: its [plot.across] sets |
 | `--stats-only` | the statistics alone: the pages' numbers against the data, read by Paint into statistics/<set>/, no page drawn (--sets: these sets only; target also <A>/<E>, each of its Runs) |
+| `--head-to-head PAGE\|all` | the summary plays this page's curves pairwise ("<cell>/<object>", a page's name, or all), over [ranking].head_to_head |
 | `--keep WHAT` | cache: keep the card checks (as heimdall run --keep); the drawing's working files are .cache/'s anyway |
 | `[configuration]` | overrides [errand].configuration; under sweep_runs, only it |
 | `--set KEY=VALUE` | as for heimdall run |
@@ -71,6 +72,10 @@ a Run's leaderboard, marginals and baseline from its statistics.csv, drawing not
 | `--across` | the errand's own statistics (its Runs together, heimdall plot --across) |
 | `--by QUANTITIES` | marginals by these quantities (comma-separated), over the table's own [ranking].by |
 | `--baseline q=value` | deltas against a baseline: quantity=value[,quantity=value…], or a point's name, over the table's own |
+| `--trim ALPHA` | the marginals' trim α (0 to under 0.5), over the table's own [ranking].trim |
+| `--head-to-head PAGE\|all` | play this page's curves pairwise ("<cell>/<object>", a page's name, or all), over [ranking].head_to_head |
+| `--detail` | each point's metric values too ([ranking].detail) |
+| `--method` | each table's whole record of how its numbers were made, and no table |
 | `--json` | the same numbers as JSON |
 
 ## `heimdall score`
@@ -105,6 +110,7 @@ a quick report of Runs' pages and numbers, built only when asked into reports/, 
 | `--list, --dry-run` | its sources, sections and figures, each copied or drawn for the report; nothing written |
 | `--init SOURCE` | write the recipe RECIPE.toml (<A>/<E>.toml) once: SOURCE's sets and pages, listed |
 | `-o, --output DIR` | build into DIR (default: its recipe's [report].output, else reports/<A>/<E>/<R>/ as results/ has its sources) |
+| `--head-to-head PAGE\|all` | its statistics play this page's curves pairwise ("<cell>/<object>", a page's name, or all) |
 
 ## `heimdall ls`
 

@@ -511,6 +511,8 @@ def test_each_metric_has_its_own_section_after_its_category_with_detail_or_when_
     assert list(detailed)[1:] == expected                                       # each metric's section after its category's
     for m in (m for ms in pairs.values() for m in ms):
         assert detailed[m] == [f"{m}-ranking", f"{m}-crossed", m]
+    alone = shown_keys(summary_detail(["chi2_ndf"]))                            # named and not scored: its column's tables
+    assert list(alone)[-1] == "chi2_ndf" and alone["chi2_ndf"] == ["chi2_ndf-ranking", "chi2_ndf-crossed", "chi2_ndf"]
     named = summary_detail(["tilt"])
     assert [k for k in shown_keys(named) if k in ("tilt", "pull_autocorr")] == ["tilt"]       # the one named alone
     assert "detail: off (default)." in " ".join(line[1] for line in item_of(named, "tilt-crossed-made").lines)

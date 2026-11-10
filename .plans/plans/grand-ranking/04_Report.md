@@ -2,7 +2,7 @@
 
 The summary (`statistics/<set>/summary.pdf` and `.html`) and the report's statistics part draw the same document model (`bars.summary_model`). `report.HEADLINE` (`report.py:56`) lists its section keys. One change serves both.
 
-## Today, and what changes
+## Today, and what changes · closed 5.1, 5.2, 5.4
 
 | Today (`bars.summary_model`) | Proposed |
 |---|---|
@@ -45,7 +45,7 @@ A table for each varied quantity, in the order the sweep names them. A row a val
 
 Above the tables is one **headline line a quantity**: the best value, its distance to the next ("lepton PDF: on, ×0.86 against off, 144 strata"), and the values indistinguishable from the best. Notes: the definition of E and M (03 §2.2), the trim rule, the small-n marks, and why vetoed points are out.
 
-## §3 Categories (default, after the marginals)
+## §3 Categories (default, after the marginals) · closed 5.1, 5.2
 
 For each category with a metric on:
 - **what it asks:** today's `ASKS`, renamed `QUESTIONS`;
@@ -54,7 +54,7 @@ For each category with a metric on:
 
 **With `detail = true`** (`[ranking].detail`, `--detail`), each metric's ranking, cells × curves table and object table follow, as today's purpose sections hold them. Off by default: on B4 they are 36 × 8 rows per metric.
 
-## Notes and annotations
+## Notes and annotations · closed 5.1, 5.4
 
 - Every table's first note is the polarity legend. Every number column's header carries its glyph (02).
 - A vetoed point's note names the gate, the page count and the largest value found.
@@ -62,7 +62,7 @@ For each category with a metric on:
 - "Lower is better" appears once, in the reading key, and as the ↓ in each header. The title sentences ("lower is better; darker: costlier …") go.
 - The method section of a report ("How the numbers are made") gains the gate rule, the cost formula with its compression, and the marginal's two statistics, from 03.
 
-## Method: how every number was made (the transparency rule)
+## Method: how every number was made (the transparency rule) · closed 5.1, 5.3, 5.4
 
 The reader is never left to guess. Two layers, both rendered from the engine's method record (03 §3a):
 
@@ -83,7 +83,7 @@ When a setting departs from its default, both layers say so: "over_pages = media
 
 `heimdall rank` prints the "Made by" lines under its tables, and `--method` prints the whole record. `--json` carries it as `"method"`.
 
-## Settings and flags (the generated reference owns their defaults once built)
+## Settings and flags (the generated reference owns their defaults once built) · closed 2.2, 4.2, 5.2, 5.4
 
 | Where | Key or flag | Values |
 |---|---|---|

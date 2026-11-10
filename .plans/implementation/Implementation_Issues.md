@@ -31,3 +31,13 @@ Each is triaged (9.1, the developer's order of 2026-11-11): **Cause** (where in 
   - **A user sees:** with figure weights or `[ranking].weights` set, a metric's own section (`detail = true`, or a report naming a metric) gives a point a number weighted differently from the leaderboard's. Its "Made by" names `over_pages` but not that page weights are left out. Unweighted studies see no difference.
   - **Urgency:** low. Detail is opt-in, and weights are rare.
   - **Size:** light planning. The engine returns each point's per-metric mean over pages with page weights counting, as it returns `values`, and records it. bars draws that and drops `_mean` and the three notes.
+- **2026-11-11 · 7.1 · with gates off, a broken point's noise hides real effects in the marginals.**
+  - **Cause:** phase 8 made gates opt-in. `ranking.marginals` (`framework/stats/ranking.py:879`) leaves out vetoed points only (`alive = [p for p in known if not p.vetoed]`). A broken point is no longer vetoed, so it stays in its strata. Its ℓ = ln(0.01 + L) is about ln 12, and it varies by a unit or more between its strata, so the paired differences of every value it touches are noisy.
+  - **A user sees:** on B1, dr32 (a jet radius far worse than the rest with gates on, ×0.66 ± 0.10) reads "indistinguishable from the best" by default (×0.84 ± 0.19). On B3, the broken PDF itself reads "indistinguishable from the best" on two strata (×0.36 ± 1.02). The leaderboard is right: broken points last, by loss. A marginal's headline can mislead whenever a study holds broken points, and the record does not warn of it.
+  - **Urgency:** medium. It arises exactly when a study has broken curves, which is when a reader leans on the marginals to find the cause.
+  - **Size:** light planning and a decision:
+    - (a) the marginals leave out points whose integrity cost is past bad, counted as "broken" beside "vetoed", whether or not gates are on;
+    - (b) say in the headline and the record that broken points are in;
+    - (c) recommend `gates = true` for marginals.
+    - (a) changes printed numbers, so it is the developer's call. The recommendation is (a) with (b): the leaderboard keeps its penalty, and the marginals compare like with like.
+

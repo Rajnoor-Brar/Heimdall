@@ -10,7 +10,7 @@ Verified when: `peak_bin_ratio` and `yield_sign` are metrics of the integrity ca
 - Blocked by: P1.
 
 ### 2.2 The veto in the engine (S)
-- Acceptance: `PointLoss` gains `vetoed`, `failed_pages`, `gate_reason`; the order of 03 §1.4; `[ranking].gates` and `veto_loss`; property 3 of 03 §3 holds for random losses.
+- Acceptance: `PointLoss` gains `vetoed`, `failed_pages`, `gate_reason`; `score.rank` returns a `Method` record (03 §3a), its gate rows filled here; the order of 03 §1.4; `[ranking].gates` and `veto_loss`; property 3 of 03 §3 holds for random losses.
 - Files: `framework/stats/score.py`, `tests/runner/test_stats_score.py`.
 - Check: `source gjallarhorn.sh; cd tests; taskset -c 0-5 nice -n 10 python -m pytest runner/test_stats_score.py -q`
 - Seam: `score.rank(rows, settings)`, the engine's one entry.

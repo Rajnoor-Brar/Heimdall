@@ -1,6 +1,14 @@
 # Grand Ranking: gates, metrics, marginals and the report's order
 
-Stage 2, a design plan for the developer (`docs/rules/work.md`). **Gate: open, asked 2026-11-10.** Approval is recorded here with its date. Nothing in code changes until then.
+Stage 2, a design plan for the developer (`docs/rules/work.md`). **Approved 2026-11-10:** every gate question was answered yes, with two additions:
+- **5:** gates and cost normalisations are stated in the summary's and the report's notes.
+- **6:** compression is done, and said.
+
+Over all of it, the developer's rule: **transparency.** A reader is never left to guess how a value, a cost, a loss, a rank or a marginal was made. This covers:
+- **weights**, of pages (figures, globs) and of metrics alike;
+- **every averaging method:** within a category, across categories, across pages, and in marginals.
+
+This holds as the **method record** (03 §4, 04 §Method), and it is tested. Implementation waits for the developer's order.
 
 Source: the developer's design-audit request of 2026-11-10 (five pillars), and I-136 ("the scoring, read by the developer"), which this plan answers in part.
 
@@ -63,6 +71,14 @@ The scoring engine exists and is sound in its structure. This plan keeps its spi
 
 ## Gate: every decision, asked at once (yes accepts the recommendation)
 
+**Answers, 2026-11-10:**
+- 1, 2, 3: rename.
+- 4: yes.
+- 5: yes. The gates and the cost normalisation are named in the notes of every table they shape.
+- 6: yes, and the compression is said wherever a cost or loss is shown.
+- 7, 8, 9, 10: yes.
+- Added, over all: the method record (transparency).
+
 1. **The point's number is a loss, not a score.** `score` → `loss` in every user-facing word; `[score]` → `[ranking]`; `heimdall score` → `heimdall rank`. The old names are refused, naming the new, and `heimdall migrate` rewrites errand files. *(Alternative: keep `score`, add arrows.)*
 2. **"purpose" → "category",** your word, in code, the sidecar, the summary and the docs.
 3. **Metric ids are renamed** as in 02 (`norm` → `log_yield_ratio`, `worst` → `peak_pull2`, …). Old ids stay readable in old `statistics.csv` and sidecars through an alias table. In settings they are refused, naming the new id, and `migrate` rewrites them. The duplicates `wmape_yield` and `wmape_axis` go.
@@ -95,6 +111,7 @@ The scoring engine exists and is sound in its structure. This plan keeps its spi
 | Order of a vetoed point | after every passing point; among vetoed, by failed pages, then loss | a terrible page cannot be bought back by good ones, and the order inside the vetoed stays readable |
 | Compression | log₂(1 + z) | 0 and 1 stay where they were (good, bad), the far tail becomes decades, stability rose in 3 of 4 Runs |
 | Marginal statistic | trimmed mean of ln loss, ordered by the matched effect | ln makes effects ratios that compare across Runs; matching removes the strata's difficulty, the imbalance the gate creates included (B3) |
+| Transparency | the engine returns a method record of every choice it applied; the summary, report, `rank` and `--json` render it; a test fails when a setting changes a number and the record does not name it | the developer's rule (2026-11-10). Notes written beside the code drift: today's marginal note says "mean" over an RMS |
 | Trim | α = 0.2, g = max(1, ⌊αn⌋) for n ≥ 3, none for n ≤ 2 | Wilcox's standard 20 %. Rank stability changed little over α ∈ {0, 0.1, 0.2, 0.25, median} once gated (05 §3) |
 
 ## Not yet specified
@@ -105,7 +122,7 @@ The scoring engine exists and is sound in its structure. This plan keeps its spi
 
 ## Always / Never
 
-- **Always:** pool-independent losses; every number shown with its polarity; vetoed points visible, never dropped; n and the trimming beside every marginal; old tables still readable.
+- **Always:** every number traceable to how it was made, from the engine's own method record, never from prose written apart from the code (03 §4); pool-independent losses; every number shown with its polarity; vetoed points visible, never dropped; n and the trimming beside every marginal; old tables still readable.
 - **Never:** a rebuild; a change to identity or seeds; writing into a work dir without the gate's yes (question 10) and a snapshot; naming the study in docs or history; editing `docs/stable/` (live docs only, until a crystallise is ordered).
 
 ## Execution map (for the round, after approval)
@@ -124,5 +141,5 @@ The scoring engine exists and is sound in its structure. This plan keeps its spi
 
 | Phase | Status |
 |---|---|
-| Plan | written 2026-11-10, gate open |
+| Plan | written 2026-11-10; approved 2026-11-10 with the transparency rule; implementation waits for the order |
 | P1–P7 | not started |

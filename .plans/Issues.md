@@ -4,7 +4,7 @@ Pending work, one issue a task: what, why, done when. Rules: [work](../docs/rule
 
 **Status:** `open` · `decision` (waits for the developer) · `blocked` · `held` (ask first) · `idea`. **Priority:** P1 this cycle · P2 next · P3 when convenient.
 
-**Next:** the developer's reads (I-136, I-151's gate, and Notes' off-plan decisions); then plan one dialect (I-20, I-21), the snapshot question first. **Order of phases:** 2 safety net (I-13, I-76, I-77, I-129, I-135, I-138) → 3 one dialect (I-20, I-21, I-91) → 4 retirements (I-25, I-26, I-28, I-29, I-30, I-68) → 5 session and CLI (I-35–37, I-70, I-71, I-100, I-101, I-131, I-132, I-134, I-139) → 6 plot model (I-41–48, I-97, I-99, I-133, I-137) → 7 packages (I-50–52) → 8 stack (I-55–66, I-88) → 9 roots, cluster images (I-75, I-86) → 10 throughput (I-95, I-96, I-98, I-67, I-102) → 11 physics (I-103, I-104). The safety net matters before any change to identity or records. Round 1 (2026-11-09) and its review: [Notes](Notes.md). Parked: I-80, I-82, I-83, I-85, I-87, I-81.
+**Next:** the developer's reads (I-136, and Notes' off-plan decisions); then plan one dialect (I-20, I-21), the snapshot question first. **Order of phases:** 2 safety net (I-13, I-76, I-77, I-129, I-135, I-138) → 3 one dialect (I-20, I-21, I-91) → 4 retirements (I-25, I-26, I-28, I-29, I-30, I-68) → 5 session and CLI (I-35–37, I-70, I-71, I-100, I-101, I-131, I-132, I-134, I-139) → 6 plot model (I-41–48, I-97, I-99, I-133, I-137) → 7 packages (I-50–52) → 8 stack (I-55–66, I-88) → 9 roots, cluster images (I-75, I-86) → 10 throughput (I-95, I-96, I-98, I-67, I-102) → 11 physics (I-103, I-104). The safety net matters before any change to identity or records. Round 1 (2026-11-09) and its review: [Notes](Notes.md). Parked: I-80, I-82, I-83, I-85, I-87, I-81.
 
 **Decided (2026-10-25), standing:** drop v2 (a work dir's `configs/legacy/` stays as history) · `plot.toml` stays a drawing's source · retire `plot_points`, old documents still draw · delete the yoda backend, mpl may drift from mkhtml · `[heimdall]` keeps preference switches only · `editor/` stays · doctor's row goes to Himinbjorg, published on purpose · downloads to `<root>/downloads/` · identity golden file approved · `--logs` and `--journal` stay as shorthands · plan inside the image · Herwig for MadGraph, plus MG5aMC_PY8.
 
@@ -22,7 +22,7 @@ The names' migration (`[errand]`, `heimdall.toml`) is applied uncommitted in two
 ### I-136 The scoring, read by the developer · P1 · decision
 Built 2026-11-07 and never read by the developer. Yours: read one real Run's `statistics/<set>/summary.pdf`; accept or reject each rule the implementer chose alone, defaults first: weights precedence (figure `weight` > first glob > 1), data pages beating curve-measured pages in a mixed table, an Errand's row over only the pages every Run has; then the opt-in ones (`mad`'s floor at 10 % of the good-to-bad span, `median` floored at \|good\|, `promethee` q = 0.1 and p = 1.0, `topsis` as 1 − closeness, `fisher`'s p capped at 1e-300, no renormalisation of a merged file, marginals over (cell, point) scores). Also: `[figure].weight` is checked but the summary never reads it (read it, or refuse the key); keep or drop the `<metric>:crossed` table and `statistics.csv`'s `area` column. **Done when:** each rule is a decision note or an issue, and the summary is read. In part answered by I-151's plan: figure weights read, the crossed table opt-in, marginals redesigned.
 
-### I-151 Grand Ranking: gates, curated metrics, matched marginals, the report's order · P1 · decision
+### I-151 Grand Ranking: gates, curated metrics, matched marginals, the report's order · P1 · decided
 A design audit on four real Runs found five defects:
 - **The compatibility ranking inverts.** χ² ranks curves 10¹¹× the data first, because their error bars are as large.
 - **Trend owns 41–81 % of every score,** and shape is mute.
@@ -38,7 +38,7 @@ The plan proposes the following, each measured on those Runs:
 - a leaderboard → marginals → categories order;
 - renames with aliases.
 
-[Plan](plans/grand-ranking/00_Plan.md), its gate asked 2026-11-10. Overlaps I-137 (`[score]` sync, renamed `[ranking]`) and I-148 (Paint's totals). **Done when:** the developer has answered the gate, and the round it plans has closed.
+[Plan](plans/grand-ranking/00_Plan.md), approved 2026-11-10 with the transparency rule (every number traceable to the engine's method record); implementation waits for the order. Overlaps I-137 (`[score]` sync, renamed `[ranking]`) and I-148 (Paint's totals). **Done when:** the round it plans has closed.
 
 ## Safety net
 

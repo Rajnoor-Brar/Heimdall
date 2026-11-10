@@ -3,7 +3,7 @@
 Verified when: costs are oriented and compressed as 03 §1.2; the nine defaults of 02 are on; each category's ranking applies the gate; the summary fixtures are rewritten with the tests that need them.
 
 ### 3.1 Orientation and compression (S)
-- Acceptance: `Metric.cost(value)` = log₂(1 + z) with q by polarity and scale; `higher` on a log scale (`n_eff`); properties 2 and 5 of 03 §3.
+- Acceptance: `Metric.cost(value)` = log₂(1 + z) with q by polarity and scale; `higher` on a log scale (`n_eff`); properties 2 and 5 of 03 §3; the method record's metric, cost, category, page-loss and pages rows (03 §3a), weights with their sources.
 - Files: `framework/stats/metrics.py`, `framework/stats/score.py`, tests.
 - Check: `source gjallarhorn.sh; cd tests; taskset -c 0-5 nice -n 10 python -m pytest runner/test_stats_metrics.py runner/test_stats_score.py -q`
 - Seam: `Metric.cost`.

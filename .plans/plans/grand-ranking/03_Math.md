@@ -127,6 +127,24 @@ A quantity whose every stratum has one value, such as a quantity varied only tog
 
 Today a marginal is the RMS of the slice's scores (`score.py:497`). It is neither trimmed, gated nor matched, and its note calls it a mean (`bars.py:708`). On B1, half of every jet-radius slice is pathological: today's order of dr values is noise, with a bootstrap Kendall τ of 0.09. Gated, it rises to 0.56, and the trend (dr32 ×1.38) is visible (05 §3).
 
+## 3a. The method record (the developer's transparency rule)
+
+Every engine call returns, beside its numbers, a `Method` value: what was applied, with where each choice came from. A choice's source is the registry default, `[ranking]`, a set's `ranking = {…}`, a figure's `weight`, or a CLI flag. The presenters only render the record. They never restate a rule in their own words, so a note cannot drift from the computation, as today's marginal note ("mean") does over an RMS.
+
+| Stage | The record names |
+|---|---|
+| Gates | each gate on, its level and its source; per vetoed point, which gate, how many pages, the largest value found |
+| Metrics | each metric scored: its polarity, its scale T, its thresholds (g, b) with their source and reason (`why`), its weight w_j with its source; each metric computed but not scored, and why (a descriptor, shown only) |
+| Cost | the orientation per polarity; the normalisation (`thresholds`, or the opt-in in use, with its pool dependence said); the compression c = log₂(1 + z), with the fixed points 0 and 1 |
+| Category | the mean inside it (RMS, metric weights counting), and which metrics fell in it |
+| Page loss | the mean across categories (RMS, equal), and which categories had a cost |
+| Pages | each page's weight ω_k and its source (figure `weight` > first matching glob, named > 1); the mean across pages (`over_pages`, RMS by default); the pages left out and why (a reference curve, pages against a curve when others are against data, no bins) |
+| Order | the rank rule (03 §1.4), ties, and the cells the ranking is flat across or banded within, with the reason |
+| Marginals | α, g(n), δ, log scale; E vs M and which orders the table; the strata's quantities; per row n, g, vetoed, unmatched; the paired test against the best and that it is uncorrected for multiplicity |
+| Opt-in aggregators | `aggregate`, `weights_by = "critic"` (the learned weights, printed), `dominated`, each with what it costs |
+
+The record lives in the sidecar (`statistics.json`, `"method"`), in `rank --json`, in the summary's and the report's method section, and in a short form under every table (04 §Method).
+
 ## 3. Properties the tests hold (P2–P4)
 
 1. **Pool independence:** adding a point to the table changes no other point's loss.
@@ -137,3 +155,4 @@ Today a marginal is the RMS of the slice's scores (`score.py:497`). It is neithe
 6. **Matched effects are invariant to a stratum's difficulty:** adding a constant to every point of one stratum leaves every E_v unchanged.
 7. **Small-n rules,** as the table in §2.4.
 8. **Trimmed mean:** TM₀ is the mean, and TM at g = ⌊(n−1)/2⌋ is the median. The SE matches a reference value computed by hand on a built sample.
+9. **The method record is complete.** For each setting of `[ranking]`, a set's `ranking`, a figure's `weight` and each CLI flag, changing it from its default changes either the numbers and the record together, or neither. A setting that moves a number the record does not name fails the test.

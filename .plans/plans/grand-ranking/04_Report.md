@@ -62,6 +62,27 @@ For each category with a metric on:
 - "Lower is better" appears once, in the reading key, and as the ↓ in each header. The title sentences ("lower is better; darker: costlier …") go.
 - The method section of a report ("How the numbers are made") gains the gate rule, the cost formula with its compression, and the marginal's two statistics, from 03.
 
+## Method: how every number was made (the transparency rule)
+
+The reader is never left to guess. Two layers, both rendered from the engine's method record (03 §3a):
+
+**1. Under every table, a "Made by" line** naming the rules that shaped that table's numbers, with the values in use:
+- *Leaderboard:* "Gates: a bin ≥ 10³ × reference, a yield ≤ 0 (registry). Cost: thresholds, compressed log₂(1 + z). Category: RMS of its metrics, weights 1. Page loss: RMS of 5 categories. Point loss: RMS over 12 pages, weights 1 (no figure weight, no glob). Ranked flat across 36 cells: same objects, same reference."
+- *A marginal:* "20 % trimmed mean of ln(0.01 + loss) over 32 strata, 6 trimmed each end; ordered by the effect against each stratum's mean; 0 vetoed; best compared by a paired trimmed difference, uncorrected."
+- *A category ranking:* its metrics with their weights and thresholds, and the mean used over pages.
+
+**2. A "How these numbers were made" section,** at the front of the summary and in every report that shows statistics (today's method section, extended). It gives:
+- each metric scored: its formula or note, polarity, thresholds with their source and why, and its weight;
+- the gates, and every point they vetoed, with the evidence;
+- the cost transform, its compression said in words ("a cost of 2 is three times bad's excess, not twice"), and a worked line from one real row, value → z → c;
+- each mean in the chain, named: within a category, across categories, across pages, and for marginals, with what each favours ("RMS weighs a bad page up: the all-rounder wins");
+- every weight that is not 1, and where it came from;
+- what was left out, and why.
+
+When a setting departs from its default, both layers say so: "over_pages = median ([ranking], not the default rms)".
+
+`heimdall rank` prints the "Made by" lines under its tables, and `--method` prints the whole record. `--json` carries it as `"method"`.
+
 ## Settings and flags (the generated reference owns their defaults once built)
 
 | Where | Key or flag | Values |

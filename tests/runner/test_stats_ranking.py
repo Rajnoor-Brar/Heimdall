@@ -525,6 +525,7 @@ def gated(point, loss_chi2=1.0, pages=1, failed=0, failure="peak_bin_ratio", cel
 
 
 CHI2 = {"metrics": ["chi2_ndf"]}
+GATED = {**CHI2, "gates": True}
 
 
 def test_a_vetoed_point_ranks_after_every_passing_point_whatever_the_losses():
@@ -535,7 +536,7 @@ def test_a_vetoed_point_ranks_after_every_passing_point_whatever_the_losses():
         for i in range(rng.randint(2, 7)):
             rows += gated(f"pt{i}", loss_chi2=rng.choice([1.0, rng.uniform(1, 40)]), pages=3, failed=rng.choice([0, 0, 1, 2, 3]),
                           failure=rng.choice(["peak_bin_ratio", "yield_sign"]))
-        order = ranking.rank(rows, ranking.settings_of(CHI2)).points
+        order = ranking.rank(rows, ranking.settings_of(GATED)).points
         flags = [p.vetoed for p in order]
         assert flags == sorted(flags)
         assert all((p.rank is None) == p.vetoed for p in order)
@@ -544,7 +545,7 @@ def test_a_vetoed_point_ranks_after_every_passing_point_whatever_the_losses():
 def test_among_the_vetoed_fewer_failed_pages_first_then_the_smaller_loss():
     rows = (gated("three", 1.0, 3, 3) + gated("one", 30.0, 3, 1) + gated("two_bad", 20.0, 3, 2) + gated("two_good", 2.0, 3, 2)
             + gated("ok", 40.0, 3, 0) + [row("empty", page="p0", chi2_ndf=NAN, peak_bin_ratio=0.0, yield_sign=0.0)])
-    out = ranking.rank(rows, ranking.settings_of(CHI2))
+    out = ranking.rank(rows, ranking.settings_of(GATED))
     assert [p.point for p in out.points] == ["ok", "empty", "one", "two_good", "two_bad", "three"]
     assert [p.rank for p in out.points] == [1, None, None, None, None, None]
     one = out.points[2]
@@ -557,13 +558,32 @@ def test_ties_at_three_figures_share_a_rank_and_the_next_skips():
     assert [(p.point, p.rank) for p in out.points] == [("a", 1), ("b", 2), ("c", 2), ("d", 4)]
 
 
-def test_gates_off_vetoes_none_and_the_record_says_where_that_came_from():
+def test_gates_are_opt_in_and_the_record_says_where_that_came_from():
     rows = gated("bad", 1.0, 2, 2) + gated("ok", 3.0, 2, 0)
-    on = ranking.rank(rows, ranking.settings_of(CHI2))
+    on = ranking.rank(rows, ranking.settings_of(GATED))
     assert [p.point for p in on.points] == ["ok", "bad"] and on.points[1].vetoed
-    off = ranking.rank(rows, ranking.settings_of({**CHI2, "gates": False}))
+    off = ranking.rank(rows, ranking.settings_of(CHI2))
     assert [p.point for p in off.points] == ["bad", "ok"] and not any(p.vetoed for p in off.points)
-    assert "gates: off ([ranking]). no gate metric is applied" in off.method.lines("gates")
+    assert "gates: off (default). no gate is applied: a bad page is penalised through its cost" in off.method.lines("gates")
+    said = ranking.rank(rows, ranking.settings_of({**CHI2, "gates": False}))
+    assert "gates: off ([ranking]). no gate is applied: a bad page is penalised through its cost" in said.method.lines("gates")
+
+
+def test_by_default_a_broken_curve_is_ranked_by_its_cost_not_vetoed_and_costs_more_the_worse_it_is():
+    ordinary = [row(f"ok{i}", page=f"p{j}", chi2_sigma=1.0 + i, peak_bin_ratio=0.5, yield_sign=0.0) for i in range(3) for j in range(2)]
+    def broken(name, decades):
+        return [row(name, page=f"p{j}", chi2_sigma=0.0, peak_bin_ratio=decades, yield_sign=0.0) for j in range(2)]
+    out = ranking.rank(ordinary + broken("bad4", 4.0) + broken("bad8", 8.0), ranking.settings_of({}))
+    assert not any(p.vetoed for p in out.points) and all(p.rank is not None for p in out.points)
+    assert [p.point for p in out.points] == ["ok0", "ok1", "ok2", "bad4", "bad8"]
+    loss = {p.point: p.loss for p in out.points}
+    assert loss["ok2"] < loss["bad4"] < loss["bad8"]
+    negative = ranking.rank([row("neg", chi2_sigma=0.0, peak_bin_ratio=0.0, yield_sign=1.0), row("pos", chi2_sigma=0.0, peak_bin_ratio=0.0,
+                             yield_sign=0.0)], ranking.settings_of({})).points
+    assert [(p.point, p.vetoed) for p in negative] == [("pos", False), ("neg", False)] and negative[1].loss > 0
+    lines = out.method.lines("metrics")
+    assert "peak_bin_ratio: lower, linear scale (registry). category integrity" in lines
+    assert any(l.startswith("thresholds of yield_sign: 0, 1 (registry).") for l in lines)
 
 
 def test_a_named_gate_list_leaves_the_other_gate_unapplied():
@@ -571,7 +591,7 @@ def test_a_named_gate_list_leaves_the_other_gate_unapplied():
     st = ranking.settings_of({**CHI2, "gates": ["peak_bin_ratio"]})
     (p,) = ranking.rank(rows, st).points
     assert not p.vetoed and p.rank == 1
-    (q,) = ranking.rank(rows, ranking.settings_of(CHI2)).points
+    (q,) = ranking.rank(rows, ranking.settings_of(GATED)).points
     assert q.vetoed and q.gate_reason == "a yield of zero or less on 2 of 2 pages"
     with pytest.raises(HeimdallError, match="not a gate metric"):
         ranking.settings_of({**CHI2, "gates": ["chi2_ndf"]})
@@ -586,7 +606,7 @@ def test_veto_loss_is_a_gate_on_the_page_loss():
 
 
 def test_a_table_without_the_gate_columns_vetoes_none_and_says_not_evaluated():
-    out = ranking.rank([row("a"), row("b", chi2_ndf=3.0)], ranking.settings_of(CHI2))
+    out = ranking.rank([row("a"), row("b", chi2_ndf=3.0)], ranking.settings_of(GATED))
     assert not any(p.vetoed for p in out.points)
     lines = out.method.lines("gates")
     assert any(l.startswith("gate peak_bin_ratio: 3 (table). not evaluated: no `peak_bin_ratio` column") for l in lines)
@@ -672,7 +692,7 @@ def test_the_record_names_each_metric_its_thresholds_weight_and_what_is_computed
     assert any(l.startswith("chi2_sigma: not in this table (table).") for l in lines)
     assert any(l.startswith("tail_slope: computed, not scored (registry). a descriptor") for l in lines)
     assert any(l.startswith("n_eff: computed, not scored (registry). shown") for l in lines)
-    assert not any(l.startswith(("peak_bin_ratio", "yield_sign")) for l in lines)          # gates are the Gates stage's
+    assert any(l.startswith("peak_bin_ratio: computed, not scored (registry). not named") for l in lines)    # not a gate: gates are off
     record = ranking.rank(rows, st).method
     assert record.lines("cost")[0].startswith("cost: thresholds (default).") and "log₂(1 + z)" in record.lines("cost")[0]
     assert [c.name for c in record.optin] == ["aggregate", "dominated", "weights_by", "baseline", "head_to_head", "detail"]

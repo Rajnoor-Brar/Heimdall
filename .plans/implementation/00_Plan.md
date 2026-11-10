@@ -184,6 +184,6 @@ Frontier: one step at a time, in the table's order. Nothing runs in parallel: ev
 | 4 | done 2026-11-10 (4.1 `ee9dc32`, 4.2): `trimmed_se`; marginals gated, matched and trimmed, ordered by the effect, with the paired test and a headline. Fast suite 2403 passed, 11 skipped, the two stable-docs reds |
 | 5 | done 2026-11-10 (5.1 `6a70bed`, 5.2 `0171881`, 5.3 `5a8d074`, 5.4): the summary and the report render the record, `[ranking].detail`, property 9, `rank`'s flags and "made by:" lines, `--head-to-head` on plot and report. Fast suite 2310 passed, 11 skipped, the two stable-docs reds; plot_stage 53, report_draw 2 passed |
 | 6 | done 2026-11-10 (6.1 `77de8ee`, 6.2): `live-grand-ranking`; fast suite 2314 passed, 11 skipped, the two stable-docs reds; plot_stage 53, report_draw 2. The round waits at its milestone for the order to run phase 7 |
-| 8 | not started; runs before 7 |
+| 8 | done 2026-11-11 (8.1): gates opt-in, the integrity metrics scored; fast suite 2315 passed, the two stable-docs reds; plot_stage 53, report_draw 2 |
 | 7 | ordered 2026-11-11; not started |
 | 9 | not started |

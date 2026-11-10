@@ -155,7 +155,7 @@ def test_the_default_report_is_a4_and_holds_everything_it_shows(trees, tmp_path)
     body = (out / "report.tex").read_text(encoding="utf-8").split(r"\begin{document}")[1]
     method = body[body.index(r"\section*{How the numbers are made}"):]
     ranked = method[method.index(r"\hdStatSection{How points are ranked}"):]      # from the leaderboard's record
-    assert r"Gates. gate peak\_bin\_ratio: 3 (table). not evaluated" in ranked and "cells: flat (table)." in ranked
+    assert r"Gates. gates: off (default). no gate is applied" in ranked and "cells: flat (table)." in ranked
     assert r"over\_pages: rms (default)." in ranked and r"Worked: chi2\_ndf of 18x275" in ranked      # one row through the cost
 
 

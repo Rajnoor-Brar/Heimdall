@@ -2913,7 +2913,7 @@
      "minimum": 0
     },
     "gates": {
-     "description": "the integrity gates: true (every gate metric: peak_bin_ratio, yield_sign), false, or a list of them; a page that fails one vetoes its point, ranked after every point that passes",
+     "description": "the integrity gates, opt-in: false (none: a bad page is penalised through its cost), true (every gate metric: peak_bin_ratio, yield_sign) or a list of them; a page that fails one vetoes its point, ranked after every point that passes",
      "type": [
       "boolean",
       "array"
@@ -2921,7 +2921,7 @@
      "items": {
       "type": "string"
      },
-     "default": true
+     "default": false
     },
     "aggregate": {
      "description": "how metrics and pages combine: RMS over categories (default), or Fisher's combined probability, TOPSIS, PROMETHEE",

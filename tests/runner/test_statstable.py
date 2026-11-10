@@ -146,9 +146,9 @@ def test_a_set_is_ranked_with_the_errands_ranking_and_its_own_laid_over_it(tmp_p
 def test_the_columns_are_the_stats_metrics_and_every_metric_scored_and_the_table_keeps_how_it_was_scored(tmp_path):
     assert statstable.metric_names(None, None) == list(statstable.default_metrics())
     score = {"metrics": ["chi2_ndf", "yield_weighted_abs_dev"], "veto_loss": 3.0}
-    assert statstable.metric_names({"metrics": ["log_yield_ratio"]}, score) == ["log_yield_ratio", "chi2_ndf", "yield_weighted_abs_dev",
-                                                                                 "peak_bin_ratio", "yield_sign"]   # the gates in use
-    assert statstable.metric_names({"metrics": ["log_yield_ratio"]}, {**score, "gates": False})[-1] == "yield_weighted_abs_dev"
+    assert statstable.metric_names({"metrics": ["log_yield_ratio"]}, {**score, "gates": True}) == [
+        "log_yield_ratio", "chi2_ndf", "yield_weighted_abs_dev", "peak_bin_ratio", "yield_sign"]                     # the gates in use
+    assert statstable.metric_names({"metrics": ["log_yield_ratio"]}, score)[-1] == "yield_weighted_abs_dev"       # gates are opt-in
     pages = [page_with_numbers(tmp_path / "pages", "d01-x01-y01", NUMBERS)]
     numbers = tmp_path / "statistics" / "totality"
     statstable.write_set(pages, numbers, ["png"], None, ["chi2_ndf", "yield_weighted_abs_dev"], score)

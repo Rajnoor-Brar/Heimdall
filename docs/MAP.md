@@ -138,5 +138,5 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 - [live-adopted-runs](live/adopted-runs.md): an adopted Run reads, numbers and draws as before (its points library points by their links, its plot document re-keyed); migrate --layout leaves statistics/ alone (3 KB)
 - [live-canonical-cards](live/canonical-cards.md): every tool with a card reads a final config with no comments, and the identity hashes it, so one physics is one identity whatever the writing (9 KB)
-- [live-grand-ranking](live/grand-ranking.md): points ranked by a loss after integrity gates; compressed costs, nine curated metrics, matched marginals; every table says how its numbers were made (12 KB)
+- [live-grand-ranking](live/grand-ranking.md): points ranked by a loss; compressed costs, eleven curated metrics, opt-in gates, matched marginals; every table says how its numbers were made (12 KB)
 - [live-runs-ends](live/runs-ends.md): heimdall runs shows when and how each run ended in its state's colour, orders a history list by its runs' ends, and gives every state a colour (2 KB)

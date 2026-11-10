@@ -710,9 +710,9 @@ A page whose loss is above this fails, as a gate's page does, and vetoes its poi
 
 | Type | Default | Acceptable |
 |---|---|---|
-| true or false or list of strings | `true` | — |
+| true or false or list of strings | `false` | — |
 
-The integrity gates: true (every gate metric: peak_bin_ratio, yield_sign), false, or a list of them; a page that fails one vetoes its point, ranked after every point that passes.
+The integrity gates, opt-in: false (none: a bad page is penalised through its cost), true (every gate metric: peak_bin_ratio, yield_sign) or a list of them; a page that fails one vetoes its point, ranked after every point that passes.
 
 ## `aggregate`
 

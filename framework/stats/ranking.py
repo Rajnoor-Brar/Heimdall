@@ -10,9 +10,9 @@ the page's reference rows have no loss.
     page loss   the RMS over the categories that have a metric: four accuracy metrics weigh one category, not four
     point loss  the `over_pages` mean (rms by default) of a point's page losses, page weights counting
 
-Before the loss, the gates: a page fails when a gate metric (`peak_bin_ratio`, `yield_sign`) reaches its level, or when its
-page loss is above `veto_loss`; a point with a failed page is vetoed and ranks after every point that passes, whatever the
-losses. Beside the loss: the worst page, each category's share of the loss, and with `dominated` whether another point beats
+The integrity metrics (`peak_bin_ratio`, `yield_sign`) are scored like any other, so a broken curve costs as much as it is
+broken. The gates are opt-in (`gates`, `veto_loss`): a page fails when a gate metric reaches its level, or when its page loss
+is above `veto_loss`; a point with a failed page is vetoed and ranks after every point that passes, whatever the losses. Beside the loss: the worst page, each category's share of the loss, and with `dominated` whether another point beats
 it on every category. `aggregate` may instead be `fisher`, `topsis` or `promethee` (each says in its note what it costs).
 Lower is better throughout. `rank` returns the order and a `Method`: what was applied, and where each choice came from.
 """
@@ -45,7 +45,7 @@ class Settings:
     weights_by: str = "equal"
     over_pages: str = "rms"                            # the mean of a point's page losses
     veto_loss: float | None = None                     # a page whose loss is above it fails, as a gate's does
-    gates: object = True                               # True (every gate metric), False, or a tuple of gate metric ids
+    gates: object = False                              # False (none: a bad page costs), True (every gate metric), or ids
     aggregate: str = "rms"
     dominated: bool = False
     trim: float = 0.2                                  # α of a marginal's trimmed means
@@ -120,7 +120,7 @@ def settings_of(table: dict | None = None, flags: dict | None = None, sources: d
         raise HeimdallError("[ranking].trim is 0 or more and under 0.5", hint=f"got {trim!r}; 0.2 trims a fifth off each end")
     return Settings(trim=float(trim), metrics=weights, cost=merged.get("cost", "thresholds"), thresholds=thresholds,
                     weights=dict(merged.get("weights") or {}), weights_by=merged.get("weights_by", "equal"), over_pages=mean,
-                    veto_loss=merged.get("veto_loss"), gates=gates_of(merged.get("gates", True)),
+                    veto_loss=merged.get("veto_loss"), gates=gates_of(merged.get("gates", False)),
                     aggregate=merged.get("aggregate", "rms"), dominated=bool(merged.get("dominated", False)),
                     by=(by,) if isinstance(by, str) else tuple(by), baseline=merged.get("baseline"),
                     head_to_head=merged.get("head_to_head"), detail=bool(merged.get("detail", False)), sources=where)
@@ -619,7 +619,7 @@ def _gates(result: Ranking, obs: list[Obs], groups: dict) -> tuple:
     st = result.settings
     stage = []
     if st.gates is False:
-        stage.append(Choice("gates", False, st.source("gates"), "no gate metric is applied"))
+        stage.append(Choice("gates", False, st.source("gates"), "no gate is applied: a bad page is penalised through its cost"))
     elif st.gates is not True:
         stage.append(Choice("gates", list(st.gates), st.source("gates"), "only these gate metrics are applied"))
     used = []

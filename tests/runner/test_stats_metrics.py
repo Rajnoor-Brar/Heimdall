@@ -458,10 +458,10 @@ def test_peak_bin_ratio_is_nan_with_no_positive_reference():
     assert math.isnan(metrics.evaluate("peak_bin_ratio", replace(c, ref_y=np.zeros(c.n))))
 
 
-def test_a_gate_is_a_level_and_a_gate_metric_is_on_in_every_table():
+def test_a_gate_is_a_level_and_a_gate_metric_is_scored_by_default_and_in_every_table():
     from stats import table
     assert metrics.REGISTRY["peak_bin_ratio"].gate == 3.0 and metrics.REGISTRY["peak_bin_ratio"].thresholds == (1.0, 3.0)
-    assert metrics.REGISTRY["yield_sign"].gate == 1.0 and metrics.REGISTRY["yield_sign"].thresholds is None
+    assert metrics.REGISTRY["yield_sign"].gate == 1.0 and metrics.REGISTRY["yield_sign"].thresholds == (0.0, 1.0)
     assert metrics.REGISTRY["negative_share"].gate is None and metrics.REGISTRY["negative_share"].category == "quality"
     assert {"peak_bin_ratio", "yield_sign"} <= set(table.default_metrics())
-    assert not metrics.REGISTRY["peak_bin_ratio"].default and not metrics.REGISTRY["yield_sign"].default
+    assert metrics.REGISTRY["peak_bin_ratio"].default and metrics.REGISTRY["yield_sign"].default

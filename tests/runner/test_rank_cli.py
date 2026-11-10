@@ -174,7 +174,7 @@ def test_stats_only_will_not_mix_with_plan_or_style_sync():
 def test_a_vetoed_point_is_last_with_its_reason_and_the_json_holds_the_record(results, capsys):
     names = ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "peak_bin_ratio", "yield_sign"]
     rows = [reference(), row("blown", 1.0, peak_bin_ratio=10.7, yield_sign=0.0), row("fine", 3.0, peak_bin_ratio=0.1, yield_sign=0.0)]
-    folder = make_run(results, "A/E/R1", [reference()], axes={})
+    folder = make_run(results, "A/E/R1", [reference()], axes={}, ranking={"gates": True})
     out = folder / "statistics" / "totality"
     with open(out / "statistics.csv", "w", encoding="utf-8", newline="") as handle:          # a table with the gate columns
         writer = csv.DictWriter(handle, fieldnames=table.columns_for(names), restval="")

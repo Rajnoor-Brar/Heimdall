@@ -42,16 +42,16 @@ def test_a_scored_metric_has_ordered_thresholds_and_the_reason_for_them(name):
     assert (good > bad) if m.polarity == "higher" else (good < bad)
 
 
-def test_the_defaults_are_the_nine_the_gates_two_and_n_eff_is_shown():
+def test_the_defaults_are_the_nine_and_the_two_integrity_metrics_which_gate_only_when_asked_and_n_eff_is_shown():
     used = {m.category for m in metrics.REGISTRY.values()}
     assert used == set(metrics.CATEGORIES)
     assert {n for n, m in metrics.REGISTRY.items() if m.default} == {
         "chi2_sigma", "poisson_dev", "log_yield_ratio", "log_dev_shrunk", "log_dev_l4", "tilt", "pull_autocorr", "peak_pull2",
-        "log_ratio_roughness"}
+        "log_ratio_roughness", "peak_bin_ratio", "yield_sign"}
     assert {n for n, m in metrics.REGISTRY.items() if m.gate is not None} == {"peak_bin_ratio", "yield_sign"}
     assert {n for n, m in metrics.REGISTRY.items() if m.shown} == {"n_eff"} and metrics.REGISTRY["n_eff"].thresholds == (1000.0, 100.0)
     on = {m.category for m in metrics.REGISTRY.values() if m.default}
-    assert set(metrics.CATEGORIES) - on == {"similarity", "integrity", "quality"}
+    assert set(metrics.CATEGORIES) - on == {"similarity", "quality"}
     assert list(metrics.CATEGORIES) == ["compatibility", "normalisation", "accuracy", "similarity", "trend", "defects",
                                         "integrity", "quality"]
 

@@ -48,8 +48,9 @@ QUESTIONS = {
     "similarity": "Are the two distributions alike as shapes: the share of yield per bin, normalisation removed.",
     "trend": "Does the curve drift away from the reference across the axis (a slope or a curvature in the ratio)?",
     "defects": "Is there a bin, or a few, badly off: a spike or a hole the averages hide?",
-    "integrity": "Is the curve fit to be ranked at all: no bin a thousand times its reference, a positive yield on a "
-                 "cross-section page? A page that fails it is a gate's veto, not a cost.",
+    "integrity": "Is the curve sound at all: no bin a thousand times its reference, a positive yield on a cross-section "
+                 "page? Scored like every category, so a broken curve costs as much as it is broken; with [ranking].gates "
+                 "a page that fails it vetoes its point too.",
     "quality": "Is the curve itself sound as a Monte Carlo histogram, with no reference: smooth, filled, enough events?",
 }
 
@@ -693,11 +694,12 @@ REGISTRY: dict[str, Metric] = {m.name: m for m in (
     Metric("negative_share", negative_share, "quality", thresholds=(0.0, 0.25), needs_reference=False,
            why="ordinary Sherpa curves reach 0.36 at most, p99 0.18: a quarter negative is past bad, and not a gate",
            note="the share of the curve's |yield| in negative bins"),
-    # 8. integrity: the gates, a page that fails one vetoes its point
-    Metric("peak_bin_ratio", peak_bin_ratio, "integrity", thresholds=(1.0, 3.0), gate=3.0,
+    # 8. integrity: scored by default; with [ranking].gates, a page that fails one vetoes its point
+    Metric("peak_bin_ratio", peak_bin_ratio, "integrity", thresholds=(1.0, 3.0), gate=3.0, default=True,
            why="ordinary curves reach 2.01 at most; a pathological one 10.7 at the median: 3 is a bin 1000× its reference",
            note="log10 of the largest |y|/ref of a bin with a positive reference"),
-    Metric("yield_sign", yield_sign, "integrity", gate=1.0, needs_reference=False,
+    Metric("yield_sign", yield_sign, "integrity", thresholds=(0.0, 1.0), gate=1.0, default=True, needs_reference=False,
+           why="a cross-section is positive: a page whose yield is not costs as much as bad, every such page alike",
            note="1 when the page's summed yield is not positive (a cross-section page), else 0"),
 )}
 

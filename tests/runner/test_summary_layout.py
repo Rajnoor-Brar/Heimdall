@@ -537,7 +537,7 @@ def test_a_page_image_has_a_panel_a_metric_on(scratch):
     assert bars.grid(4, 1.0, 3)[:2] == (3, 1)                                    # three panels fit across
     assert [t for _, t in bars.panels(["chi2_ndf", "tilt"])] == ["χ²/ndf", "tilt, Δ ln ratio across the page"]
     assert [n for n, _ in bars.panels()] == ["chi2_sigma", "poisson_dev", "log_yield_ratio", "log_dev_shrunk", "log_dev_l4", "tilt",
-                                             "pull_autocorr", "peak_pull2", "log_ratio_roughness"]
+                                             "pull_autocorr", "peak_pull2", "log_ratio_roughness", "peak_bin_ratio", "yield_sign"]
 
 
 def test_a_metric_off_or_without_numbers_has_no_section():
@@ -605,7 +605,7 @@ def test_a_confounded_marginal_says_so_and_an_unmatched_point_is_listed():
 
 def test_a_vetoed_point_is_last_in_the_leaderboard_unnumbered_under_a_rule_and_its_gate_says_why():
     rows = [dict(r, peak_bin_ratio=0.0, yield_sign=0.0) for r in worst_rows()]
-    st = ranking.settings_of()
+    st = ranking.settings_of({"gates": True})
     best = ranking.rank(bars._rows_of(rows), st).points[0].point
     rows = [dict(r, yield_sign=1.0) if r["point"] == best and not r["is_reference"] else r for r in rows]
     document = summary(rows, "", st)
@@ -686,6 +686,10 @@ def test_a_setting_off_its_default_is_said_with_its_source_under_the_leaderboard
     assert "over_pages: rms (default)." in made_by(summary(worst_rows(), "", ranking.settings_of()), "leaderboard")
 
 
+#: The default metrics the fixture's table has a column for: it was written before the integrity columns.
+HAVE = [n for n in bars.default_names() if n not in ("peak_bin_ratio", "yield_sign")]
+
+
 def test_no_title_says_lower_is_better_and_each_number_column_carries_its_glyph(full):
     from stats import metrics
     document, _ = full
@@ -696,7 +700,7 @@ def test_no_title_says_lower_is_better_and_each_number_column_carries_its_glyph(
                                  "Statistical compatibility ↓"]
     assert board.headers[-1] == "n_eff ↑"
     values = item_of(document, "metric-values")
-    assert values.headers == [f"{n} {metrics.GLYPH[metrics.REGISTRY[n].polarity]}" for n in bars.default_names()]
+    assert values.headers == [f"{n} {metrics.GLYPH[metrics.REGISTRY[n].polarity]}" for n in HAVE]
     assert next(r for r in board.rows if not r.band).cells[1].text in PDFS          # the quantity's value, as given
 
 
@@ -707,7 +711,7 @@ def test_the_metric_values_are_each_points_median_over_its_pages_in_the_leaderbo
     assert [r.label for r in values.rows] == [r.label for r in board.rows]
     first = ranking.rank(bars._rows_of(rows), st).points[0]
     row = next(r for r in values.rows if not r.band)
-    assert [c.text for c in row.cells] == [bars._shown(first.values[n]) for n in bars.default_names()]
+    assert [c.text for c in row.cells] == [bars._shown(first.values[n]) for n in HAVE]
     assert "values shown: median over a point's pages (default)." in made_by(document, "metric-values")
 
 

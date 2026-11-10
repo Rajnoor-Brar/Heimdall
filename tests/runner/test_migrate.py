@@ -486,6 +486,24 @@ stats = ["standings", "purpose:shape", "chi2_z:ranking", "worst"]   # see heimda
 '''
 
 
+@pytest.mark.parametrize("old,where,expected", [
+    ('score.mean = "median"\nscore.veto = 3.0\n', ("ranking",), {"over_pages": "median", "veto_loss": 3.0}),
+    ('["score"]\nmean = "median"\n', ("ranking",), {"over_pages": "median"}),
+    ("[[plot.sets]]\nname = \"mine\"\npoints = [\"a=1\"]\n\n[plot.sets.score]\nmean = \"median\"\nmetrics = [\"shape\"]\n",
+     ("plot", "sets", 0, "ranking"), {"over_pages": "median", "metrics": ["log_dev_shrunk"]}),
+])
+def test_every_form_the_refusal_names_migrate_rewrites(old, where, expected):
+    """A dotted key, a quoted header and a set's own table under [[plot.sets]]: each refused as it is, read after migrate."""
+    with pytest.raises(HeimdallError, match="renamed"):
+        config.renamed(tomllib.loads(old), "configs/P/study.toml", recorded=False)
+    new = tomllib.loads(migrate.ranking_text(old))
+    assert config.renamed(new, "configs/P/study.toml", recorded=False) is new
+    got = new
+    for step in where:
+        got = got[step]
+    assert got == expected
+
+
 def test_the_ranking_names_are_rewritten_by_line_and_a_records_are_left(scratch, monkeypatch):
     """`migrate.ranking_text` rewrites every old name a user writes (T3) in a config and a recipe: once, they load with
     nothing renamed; twice, nothing changes. An id in a comment's prose and a quantity's key `shape` are left, and a

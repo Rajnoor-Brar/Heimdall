@@ -1366,7 +1366,12 @@ def errand_text(text: str) -> str:
 
 
 #: A ranking header, `[score]` or `[score.<sub>]`, commented out or not: (lead, `[`, the rest from its dot or `]`).
-_OLD_RANKING = re.compile(r"^(\s*(?:#+\s*)?)(\[\s*)score(\s*[.\]])")
+_OLD_RANKING = re.compile(r"^(\s*(?:#+\s*)?)(\[\s*)([\"']?)score\3(\s*[.\]])")
+#: A set's own table under [[plot.sets]] or a named set: [plot.sets.score], [plot.sets.<name>.score].
+_OLD_SET_RANKING = re.compile(r"^(\s*\[\s*plot\.sets(?:\.[^.\]]+)?\.)score(\s*[.\]])")
+#: A dotted key at the top: score.<key> = …
+_OLD_DOTTED = re.compile(r"^(\s*)([\"']?)score\2\.([A-Za-z0-9_\-]+)(\s*=\s*)(.*)$")
+_SET_RANKING = re.compile(r"plot\.sets(?:\.[^.]+)?\.ranking")
 #: Inside a value: a key whose value names metrics (`metrics = …` in a set's ranking table, a figure's `metric = …`).
 _ID_KEYS = re.compile(r"(?<![\w.\-])(metrics|thresholds|legend_metric|metric)(\s*=\s*)")
 #: An inline ranking table, a set's: `score = {` or `ranking = {`.
@@ -1475,14 +1480,18 @@ def ranking_text(text: str) -> str:
             depth = max(0, depth + _depth(code))
             listing = listing if depth else ""
         elif not code.strip():                             # a comment: a commented-out header in today's names
-            note = _OLD_RANKING.sub(r"\1\2ranking\3", note)
+            note = _OLD_RANKING.sub(r"\1\2\3ranking\3\4", note)
         elif _TABLE.match(code):
-            code = _OLD_RANKING.sub(r"\1\2ranking\3", code)
-            table = _TABLE.match(code)[1].strip()
+            code = _OLD_SET_RANKING.sub(r"\1ranking\2", _OLD_RANKING.sub(r"\1\2\3ranking\3\4", code))
+            table = _TABLE.match(code)[1].strip().replace('"', "").replace("'", "")
+        elif not table and (dotted := _OLD_DOTTED.match(code)):            # score.mean = …: a dotted key of [score]
+            sub = RANKING_KEYS.get(dotted[3], dotted[3])
+            value = _ids(dotted[5], False) if sub in ("metrics", "thresholds") else _inline(dotted[5])
+            code = f"{dotted[1]}ranking.{sub}{dotted[4]}{value}"
         elif (key := _KEY.match(code)):
             name = key[2].strip('"')
             figure = table.startswith("plot.figures.") and table.count(".") == 2
-            if table == "ranking" and name in RANKING_KEYS:
+            if (table == "ranking" or _SET_RANKING.fullmatch(table)) and name in RANKING_KEYS:
                 code = _renamed_key(code, RANKING_KEYS[name])
             elif table in ("ranking.metrics", "ranking.thresholds") and metrics.resolve(name) != name:
                 code = key[1] + metrics.resolve(name) + key[3] + key[4]

@@ -82,4 +82,4 @@ Lower-is-better runs through one family of words: cost → category cost → pag
 
 **Kept as they are:** `[stats]`, `statistics.csv`, `--stats-only`, `statistics/<set>/` (the table of metrics is "the statistics"), "configuration" (Heimdall's recipe), `tests/reference/`.
 
-**Missing from today's glossary** (`docs/stable/design/glossary.md`): metric, category, cost, page loss, point loss, gate, Grand Ranking, leaderboard, slice, stratum, marginal, matched effect, baseline, reference (in this sense), head to head, polarity. They go into the live doc in P6 and reach the glossary at the next crystallise.
+**Missing from today's glossary** (`docs/stable/design/glossary.md`): metric, category, cost, page loss, point loss, gate, Grand Ranking, leaderboard, slice, stratum, marginal, matched effect, baseline, reference (in this sense), head to head, polarity. They go into the live doc in P6 and reach the glossary at the next crystallise. · closed 6.1

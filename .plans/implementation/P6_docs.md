@@ -1,6 +1,6 @@
 # Phase 6: docs
 
-Status: not started. Blocked by: phase 5. Rules: `docs/rules/writing.md`, read first.
+Status: in progress (6.1 done). Blocked by: phase 5. Rules: `docs/rules/writing.md`, read first.
 
 **Today:** `docs/live/` holds `adopted-runs.md`, `canonical-cards.md`, `runs-ends.md`. The stable pages this round overlays are `plots-statistics` (`docs/stable/guide/plots-statistics.md`), `reports` (`docs/stable/guide/reports.md`), `glossary` (`docs/stable/design/glossary.md`); the generated ones are `settings-plot`, `commands`, `keys` under `docs/reference/`. The reference is written by `docs.write_generated` (`framework/runner/docs.py:282`); `test_the_generated_pages_are_current` holds it, and its failure message names the command that regenerates.
 
@@ -24,3 +24,9 @@ Status: not started. Blocked by: phase 5. Rules: `docs/rules/writing.md`, read f
 - Blocked by: 6.1.
 
 ## Log
+
+- **6.1 · done 2026-11-10.**
+  - `docs/live/grand-ranking.md` (11 993 bytes of the 12 000 cap): Now holds, No longer holds, Decisions (V276–V285, then the plan's decisions a reader relies on, as sentences), Stable pages need, page by page, with the glossary's terms defined.
+  - `affects` is `plots-statistics, reports, glossary, extending, runner, decisions-plots`: three more than the acceptance named, each found stale by the drift check (Notes).
+  - `make -s schema` changed nothing; `make -s docs` regenerated `docs/MAP.md` (the five pages marked "⟵ live: live-grand-ranking", the page listed). The reference was current since 5.4.
+  - Check: `test_docs.py` 565 passed, the two named reds. `heimdall docs --drift` names 26 pages: everyday, first-run, model, chains, guide-failures, overlay, paths, plots-across, plots-curves, plots-data, plots-figures, plots-sets, plots-style, plots, scale, sweeps, validation, watching, tools-overview, connections, data-model, docs-system, layout, plot-stage, run-flow, run-queue. None of the overlaid ones: drift leaves out a page a live doc affects. None of the 26 holds `score`, `[score]`, `scorecmd`, `standings` or a ranking purpose.

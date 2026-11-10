@@ -8,7 +8,7 @@ Over all of it, the developer's rule: **transparency.** A reader is never left t
 - **weights**, of pages (figures, globs) and of metrics alike;
 - **every averaging method:** within a category, across categories, across pages, and in marginals.
 
-This holds as the **method record** (03 §4, 04 §Method), and it is tested. Implementation waits for the developer's order.
+This holds as the **method record** (03 §3a, 04 §Method), and it is tested. Implementation waits for the developer's order.
 
 Source: the developer's design-audit request of 2026-11-10 (five pillars), and I-136 ("the scoring, read by the developer"), which this plan answers in part.
 
@@ -122,7 +122,7 @@ The scoring engine exists and is sound in its structure. This plan keeps its spi
 
 ## Always / Never
 
-- **Always:** every number traceable to how it was made, from the engine's own method record, never from prose written apart from the code (03 §4); pool-independent losses; every number shown with its polarity; vetoed points visible, never dropped; n and the trimming beside every marginal; old tables still readable.
+- **Always:** every number traceable to how it was made, from the engine's own method record, never from prose written apart from the code (03 §3a); pool-independent losses; every number shown with its polarity; vetoed points visible, never dropped; n and the trimming beside every marginal; old tables still readable.
 - **Never:** a rebuild; a change to identity or seeds; writing into a work dir without the gate's yes (question 10) and a snapshot; naming the study in docs or history; editing `docs/stable/` (live docs only, until a crystallise is ordered).
 
 ## Execution map (for the round, after approval)
@@ -142,4 +142,4 @@ The scoring engine exists and is sound in its structure. This plan keeps its spi
 | Phase | Status |
 |---|---|
 | Plan | written 2026-11-10; approved 2026-11-10 with the transparency rule; implementation waits for the order |
-| P1–P7 | not started |
+| P1–P7 | not started; the implementation round is planned in [../../implementation/00_Plan.md](../../implementation/00_Plan.md), hardened 2026-11-10, waiting for the order |

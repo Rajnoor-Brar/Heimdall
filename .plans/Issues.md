@@ -38,7 +38,7 @@ The plan proposes the following, each measured on those Runs:
 - a leaderboard → marginals → categories order;
 - renames with aliases.
 
-[Plan](plans/grand-ranking/00_Plan.md), approved 2026-11-10 with the transparency rule (every number traceable to the engine's method record); implementation waits for the order. Overlaps I-137 (`[score]` sync, renamed `[ranking]`) and I-148 (Paint's totals). **Done when:** the round it plans has closed.
+[Plan](plans/grand-ranking/00_Plan.md), approved 2026-11-10 with the transparency rule (every number traceable to the engine's method record); the [implementation round](implementation/00_Plan.md) is planned and waits for the order. Overlaps I-137 (`[score]` sync, renamed `[ranking]`) and I-148 (Paint's totals). **Done when:** the round it plans has closed.
 
 ## Safety net
 

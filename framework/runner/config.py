@@ -547,13 +547,32 @@ def _ids_in(found: list, place: str, table: dict, key: str) -> None:
         table[key] = {_id(found, f"{place}.{key}", n): v for n, v in given.items()}
 
 
+#: A page's key, a figure's key and a figure's class as they were (old → new).
+PAGE_KEYS = {"legend_statistic": "legend_metric"}
+FIGURE_KEYS = {"statistic": "metric"}
+OLD_CLASSES = {"statistic": "metric"}
+
+
 def _page_keys(found: list, place: str, table) -> None:
-    """The keys a page may carry that name a metric."""
+    """The key a page may carry that names a metric, under its name now."""
     if not isinstance(table, dict):
         return
-    for key in ("legend_statistic", "statistic"):
-        if key in table:
-            table[key] = _id(found, f"{place}.{key}", table[key])
+    _keys(found, place, table, PAGE_KEYS)
+    if "legend_metric" in table:
+        table["legend_metric"] = _id(found, f"{place}.legend_metric", table["legend_metric"])
+
+
+def _figure(found: list, place: str, table) -> None:
+    """A figure's table: its page keys, its class and its own key under their names now."""
+    if not isinstance(table, dict):
+        return
+    _page_keys(found, place, table)
+    if table.get("class") in OLD_CLASSES:
+        old, table["class"] = table["class"], OLD_CLASSES[table["class"]]
+        found.append((f"{place}.class", f'class = "{old}"', f'class = "{table["class"]}"'))
+    _keys(found, place, table, FIGURE_KEYS)
+    if "metric" in table:
+        table["metric"] = _id(found, f"{place}.metric", table["metric"])
 
 
 #: The ranking table's name and keys as they were (old → new): the table was [score].
@@ -640,7 +659,7 @@ def renamed(raw: dict, where: str, recorded: bool) -> dict:
     if isinstance(plot, dict):
         _page_keys(found, "[plot]", plot)
         for name, figure in (plot.get("figures") or {}).items() if isinstance(plot.get("figures"), dict) else ():
-            _page_keys(found, f"[plot.figures.{name}]", figure)
+            _figure(found, f"[plot.figures.{name}]", figure)
         _sets(found, "[plot].sets", plot.get("sets"))
     if "report" in out:
         _report(found, "[report]", out["report"])
@@ -1774,14 +1793,14 @@ def check_plot(plot: dict, where: str, strict: bool = True) -> None:
             continue
         if "pages" in table or "columns" in table:
             raise HeimdallError(f"a {kind} figure draws pages: pages and columns are a sheet's", where=at, hint='class = "sheet"')
-        if (kind == "statistic") != ("statistic" in table) or ("sort" in table and kind != "statistic"):   # V160
-            raise HeimdallError("a statistic figure needs statistic = \"chi2_ndf\" | …" if kind == "statistic"
-                           else f"statistic and sort are a statistic figure's, not a {kind} figure's",
-                           where=f"{at}.statistic", hint='class = "statistic", statistic = "chi2_ndf", objects = ["d01-*"]')
-        if kind == "statistic":
+        if (kind == "metric") != ("metric" in table) or ("sort" in table and kind != "metric"):   # V160
+            raise HeimdallError("a metric figure needs metric = \"chi2_ndf\" | …" if kind == "metric"
+                           else f"metric and sort are a metric figure's, not a {kind} figure's",
+                           where=f"{at}.metric", hint='class = "metric", metric = "chi2_ndf", objects = ["d01-*"]')
+        if kind == "metric":
             extra = sorted(set(table) & {"labels", "over", "op", "x", "y", "configurations", "band", "ratio", "normalise"})
             if extra:
-                raise HeimdallError(f"a statistic figure takes no {extra[0]}: its page is a number per point", where=f"{at}.{extra[0]}")
+                raise HeimdallError(f"a metric figure takes no {extra[0]}: its page is a number per point", where=f"{at}.{extra[0]}")
         if kind in ("merged", "scan", "compare") and {"sets", "split"} & set(table):     # V159
             own = sorted({"sets", "split"} & set(table))[0]
             raise HeimdallError(f"a {kind} figure pages by plot_points: {own} is a defined or overlay figure's (or [plot]'s)",

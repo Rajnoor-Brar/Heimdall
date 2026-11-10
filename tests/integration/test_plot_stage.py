@@ -580,11 +580,11 @@ def test_a_set_table_naming_what_no_point_has_is_refused_at_plan_time(stage):
 
 def test_statistics_are_a_table_and_a_legend_may_show_them(stage):
     """Paint's numbers as it draws each page: statistics.csv, a row per curve; the d01 pages against the
-    mapped data, the others against their first curve; legend_statistic in each entry but the reference's."""
+    mapped data, the others against their first curve; legend_metric in each entry but the reference's."""
     import csv
     errand, configuration, plans = stage
     said = []
-    shown = replace(errand, plot={**errand.plot, "legend_statistic": "chi2_ndf"})
+    shown = replace(errand, plot={**errand.plot, "legend_metric": "chi2_ndf"})
     assert plot.draw(shown, configuration, plans, said.append) == 0
     table = plans[0].folders.statistics / "totality" / "statistics.csv"       # V164: a set's own
     assert any(line.startswith("plot: statistics of") and str(table.parent) in line for line in said)
@@ -616,16 +616,16 @@ def test_statistics_are_a_table_and_a_legend_may_show_them(stage):
     assert not table.exists()
 
 
-def test_a_statistic_figure_ranks_the_points(stage):
+def test_a_metric_figure_ranks_the_points(stage):
     """A page per cell and object: the page's curves as bins, labelled, sorted by the number (best first)."""
     import csv
     errand, configuration, plans = stage
-    figure = {"class": "statistic", "statistic": "chi2_ndf", "objects": ["d01-*"], "sort": True}
+    figure = {"class": "metric", "metric": "chi2_ndf", "objects": ["d01-*"], "sort": True}
     ranked = replace(errand, plot={**errand.plot, "y_range": ["default", 1e9],          # [plot]'s: the 1D pages'
                                    "figures": {**errand.plot["figures"], "rank": figure}})
     said = []
     assert plot.draw(ranked, configuration, plans, said.append) == 0
-    assert "plot: statistic rank, 2 page(s)" in said
+    assert "plot: metric rank, 2 page(s)" in said
     page = tomllib.loads((plans[0].folders.pages / "statistic" / "rank" / "totality__em__rank__d01-x01-y01.toml")
                          .read_text(encoding="utf-8"))
     numbers = plans[0].folders.statistics / "totality"

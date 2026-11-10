@@ -96,7 +96,7 @@ def _style(ax, labels: list[str]) -> None:
 
 
 def _bars(ax, values: list, notes: list[str], size: float = 8, panel: float = 2.0) -> bool:
-    """Thin bars from one baseline, each value at its tip; a missing value says why. The axis runs both ways from 0
+    """Thin bars from one zero line, each value at its tip; a missing value says why. The axis runs both ways from 0
     (a mean ratio may be below it), as far as paper.reach: a bar far beyond the rest is cut at the axis's end, its
     value beside with » (or « below 0); blue above 0 and orange below, violet and golden yellow when cut, pink and
     red when absurd or infinite (paper.colour_of). Beside the bars

@@ -962,13 +962,13 @@ notes = """\
   Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `mean_abs_ratio_dev` (its area about one over the width \
   compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table"""
 
-[plot.legend_statistic]
+[plot.legend_metric]
 page    = true
 type    = "str"
 choices = ["none", "area", "abs_area", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev", "chi2",
            "chi2_ndf"]
 default = "none"
-doc     = "a statistic after each curve's legend entry, against the page's reference"
+doc     = "a metric after each curve's legend entry, against the page's reference"
 notes = """\
   one of the statistics (see `statistics`) after each curve's legend entry: `chi2_ndf` → `(χ²/ndf 1.31)`; \
   the reference's own entry gets none"""
@@ -1167,9 +1167,9 @@ doc  = "the pages the summary plays as matches, each pair of curves: \"<cell>/<o
 
 [figure.class]
 type    = "str"
-choices = ["defined", "overlay", "merged", "compare", "derived", "scan", "sheet", "statistic"]
+choices = ["defined", "overlay", "merged", "compare", "derived", "scan", "sheet", "metric"]
 default = "defined"
-doc     = "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid)"
+doc     = "how its pages are built: defined (an analysis object's own), overlay (several objects of each point), merged (the objects' pages with the points merged over `over`), compare (the objects' pages across configurations), derived (a new object from the objects, per point), scan (one number per point against a swept quantity), sheet (drawn pages in a grid), metric (one metric of each curve, a bin per point)"
 notes = """\
   how the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its \
   curves the cell's points (and option variants). `overlay`: several objects of each point on one \
@@ -1233,12 +1233,12 @@ notes = """\
   matched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob \
   matching no object of the points is an error, at the plot stage"""
 
-[figure.statistic]
+[figure.metric]
 type    = "str"
 choices = ["area", "abs_area", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev", "chi2", "chi2_ndf"]
-doc     = "a statistic figure's number: one of the plot stage's statistics, a bin per point"
+doc     = "a metric figure's number: one of the plot stage's metrics, a bin per point"
 notes = """\
-  a statistic figure's number, as `statistics.csv` has it: per cell (or set) and object, a page \
+  a metric figure's number, as `statistics.csv` has it: per cell (or set) and object, a page \
   whose x axis is the page's curves by their labels, a bin each, and y that number of each against the \
   page's reference (its own reference curve left out), drawn as markers; `area` with its error. Its \
   pages: `<cell>/<name>/<object>`"""

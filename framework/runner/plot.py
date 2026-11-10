@@ -86,7 +86,7 @@ class Page:
     style: dict = field(default_factory=dict)       # base.toml with the page's [style] over it
     overlay: str = ""                                # an overlay figure's name: curves are several objects (V51)
     bands: list = field(default_factory=list)        # per curve: its band members' (YODA, object), V69
-    statistic: str = ""                              # legend_statistic: the number after each curve's entry (V160) …
+    metric: str = ""                                 # legend_metric: the number after each curve's entry (V160) …
     plain: list = field(default_factory=list)        # … and the curves' labels without it
     set: str = ""                                    # its set (V164): totality, a [plot].sets entry; "" none (compare)
     rel: str = ""                                    # its name within its set: "<cell>/<object>"
@@ -114,7 +114,7 @@ class Figure:
     y: str = ""              # … and the number it reads of each point
     table_pages: tuple = ()  # a sheet's page globs … (V89)
     columns: int = 0         # … and its columns
-    statistic: str = ""      # a statistic figure's number … (V160)
+    metric: str = ""         # a metric figure's number … (V160)
     sort: bool = False       # … best first
 
 
@@ -128,7 +128,7 @@ def figures(errand) -> list[Figure]:
                           {k: v for k, v in table.items() if k not in schema.FIGURE_OWN}, f"{errand.path}: {written}",
                           tuple(table.get("over", ())), tuple(table.get("configurations", ())), table.get("op", ""),
                           table.get("x", ""), table.get("y", ""), tuple(table.get("pages", ())), table.get("columns", 0),
-                          table.get("statistic", ""), bool(table.get("sort", False))))
+                          table.get("metric", ""), bool(table.get("sort", False))))
     return out
 
 
@@ -974,7 +974,7 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
                     sources=[yodas[plan.point.name] for plan, _, _ in folded], variants=[full for _, full, _ in folded],
                     bands=[[(yodas[m.point.name], f) for m, f in ms] for _, _, ms in folded], data=data_of,
                     overrides={k for k, v in {**keys, **override}.items() if v != DEFAULT},
-                    style=merge_style(base, layer), statistic=_statistic_of(override, here), overlay=overlay,
+                    style=merge_style(base, layer), metric=_metric_of(override, here), overlay=overlay,
                     set=set_, rel=rel, root=root, numbers=numbers,
                     merged={plan.point.name: plan.context["members"] for plan, _, _ in folded if "members" in plan.context},
                     runs={plan.point.name: plan.context["run"] for plan, _, _ in folded if plan.context.get("run")})
@@ -1084,13 +1084,13 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
 
 # ── page statistics (V160): Paint's numbers, as it draws the page ──────────────────────────────
 
-#: What each statistic is called after a legend entry (LaTeX, as every label).
-STATISTIC_LABELS = {"area": "area", "abs_area": "$|\\Delta|$ area", "yield_weighted_abs_dev": "$|\\Delta|$/ref",
+#: What each metric is called after a legend entry (LaTeX, as every label).
+METRIC_LABELS = {"area": "area", "abs_area": "$|\\Delta|$ area", "yield_weighted_abs_dev": "$|\\Delta|$/ref",
                     "yield_ratio": "area/ref", "mean_bin_ratio": "mean ratio", "mean_abs_ratio_dev": "|ratio-1|", "chi2": "$\\chi^{2}$", "chi2_ndf": "$\\chi^{2}$/ndf"}
 
 
-def _statistic_of(override: dict, settings: dict) -> str:
-    chosen_one = chosen("legend_statistic", "none", "none", (override, settings))
+def _metric_of(override: dict, settings: dict) -> str:
+    chosen_one = chosen("legend_metric", "none", "none", (override, settings))
     if chosen_one in ("none", DEFAULT, None):
         return ""
     from stats import metrics
@@ -1102,9 +1102,9 @@ def _shown(value: float) -> str:
 
 
 def _with_statistics(paint: Path, todo: list[Page]) -> None:
-    """legend_statistic (V160): Paint reads those pages first (--ranges-only writes their statistics), and each
+    """legend_metric (V160): Paint reads those pages first (--ranges-only writes their statistics), and each
     curve's legend entry gains its number, in the page document every backend draws from."""
-    asked = [p for p in todo if p.statistic and not p.document["page"].get("heatmap")]
+    asked = [p for p in todo if p.metric and not p.document["page"].get("heatmap")]
     if not asked:
         return
     _paint(paint, [p.config for p in asked], ["--ranges-only"])
@@ -1115,19 +1115,19 @@ def _with_statistics(paint: Path, todo: list[Page]) -> None:
         page.plain = [c["label"] for c in page.document["curve"]]
         for curve, row in zip(page.document["curve"], rows):
             if not row["is_reference"]:
-                curve["label"] = f"{curve['label']} ({STATISTIC_LABELS[page.statistic]} {_shown(row[page.statistic])})"
+                curve["label"] = f"{curve['label']} ({METRIC_LABELS[page.metric]} {_shown(row[page.metric])})"
         page.config.write_text(tomli_w.dumps(for_root(page.document)), encoding="utf-8")
 
 
-def statistic_pages(errand, figure: Figure, todo: list[Page], where: Path) -> list[Page]:
-    """A statistic figure's pages (V160): per cell and object its globs match among the drawn defined pages,
+def metric_pages(errand, figure: Figure, todo: list[Page], where: Path) -> list[Page]:
+    """A metric figure's pages (V160): per cell and object its globs match among the drawn defined pages,
     the page's curves (its own reference curve left out) as bins 1, 2, …, labelled by the curves' labels, y
-    their `statistic` against the page's reference; `sort`: the smallest first. A Scatter2D per page, as a
+    their `metric` against the page's reference; `sort`: the smallest first. A Scatter2D per page, as a
     scan figure's (derive.scatter), into .cache/…/statistic/<name>/, converted for Paint; drawn into the page's
     set's statistics/<set>/figures/<backend>/<cell>/<name>/<object> (V164)."""
     from stats import metrics
     module = plugins.load(heimdall_root() / "framework" / "plot" / "figures" / "derive.py", "derive")
-    figure = replace(figure, statistic=metrics.resolve(figure.statistic))
+    figure = replace(figure, metric=metrics.resolve(figure.metric))
     where.mkdir(parents=True, exist_ok=True)
     style, base = errand_style(errand), base_style()
     made = []
@@ -1138,23 +1138,23 @@ def statistic_pages(errand, figure: Figure, todo: list[Page], where: Path) -> li
             continue
         rows = [r for r in (statistics_of(page) or []) if not r["is_reference"]]
         if figure.sort:
-            rows.sort(key=lambda r: (r[figure.statistic] != r[figure.statistic], r[figure.statistic]))   # NaN last
+            rows.sort(key=lambda r: (r[figure.metric] != r[figure.metric], r[figure.metric]))   # NaN last
         if not rows:
             continue
         short = page.object.rsplit("/", 1)[-1]
         rel = "/".join(part for part in (page.cell, figure.name, short) if part)
         stem = f"{page.set}/{rel}".replace("/", "__")
         path = f"/FIGURES/{figure.name}"
-        points = [(i + 1.0, 0.5, 0.5, r[figure.statistic], r["area_err"] if figure.statistic == "area" else 0.0)
-                  for i, r in enumerate(rows) if r[figure.statistic] == r[figure.statistic]]
+        points = [(i + 1.0, 0.5, 0.5, r[figure.metric], r["area_err"] if figure.metric == "area" else 0.0)
+                  for i, r in enumerate(rows) if r[figure.metric] == r[figure.metric]]
         if not points:
             continue
-        kept = [r for r in rows if r[figure.statistic] == r[figure.statistic]]
+        kept = [r for r in rows if r[figure.metric] == r[figure.metric]]
         (where / f"{stem}.yoda").write_text(module.scatter(path, points), encoding="utf-8")
         root = convert(where / f"{stem}.yoda", where / f"{stem}.root")
         reference = rows[0]["reference"]
-        compared = "" if figure.statistic == "area" else f" against {reference}"
-        table = {"y_label": f"{STATISTIC_LABELS[figure.statistic]}{compared}", "x_label": "", "logy": False,
+        compared = "" if figure.metric == "area" else f" against {reference}"
+        table = {"y_label": f"{METRIC_LABELS[figure.metric]}{compared}", "x_label": "", "logy": False,
                  **figure.table, "ratio": False, "normalise": False, "void_empty": False, "min_entries": 0,
                  "auto_range": False, "x_gutter": DEFAULT if "x_gutter" not in figure.table else figure.table["x_gutter"]}
         folder = page.numbers / "figures" if page.numbers else page.root
@@ -1164,7 +1164,7 @@ def statistic_pages(errand, figure: Figure, todo: list[Page], where: Path) -> li
         settings_page.update({"markers": True, "x_labels": [r["curve"] for r in kept]})
         layer = merge_style(style, override.get("style", {}))
         document = {"page": settings_page, "style": layer,
-                    "curve": [{"file": str(root), "object": root_name(path), "label": STATISTIC_LABELS[figure.statistic]}]}
+                    "curve": [{"file": str(root), "object": root_name(path), "label": METRIC_LABELS[figure.metric]}]}
         config = where / f"{stem}.toml"
         config.parent.mkdir(parents=True, exist_ok=True)
         document_root = for_root(document)
@@ -1464,7 +1464,7 @@ def page_settings(settings: dict, path: str, rel: str, output: Path, with_data: 
                   child: dict | None = None, fill=lambda text: text, own_ranges: bool = False) -> tuple[dict, dict]:
     """A page's [page] table: labels from the analysis's .plot, its figure's own values (`child`), and the
     [plot] values, their placeholders filled (`fill`, V66). `own_ranges`: x_range and y_range from the
-    figure alone (a heat map's, a statistic figure's). Returns it and the figure's values."""
+    figure alone (a heat map's, a metric figure's). Returns it and the figure's values."""
     labels = labels_of(path)
     override = override_of(child)
 
@@ -1696,7 +1696,7 @@ def _draw_stage(errand, configuration, plans, say, others=None, stats=True) -> i
     if todo and stats and separate:
         failed += measure(errand, configuration, plans, say, picked=stats if isinstance(stats, list) else None)
     elif todo and stats:                                # V160: from what was drawn
-        failed += _statistic_figures(errand, configuration, todo, plans, paint, say)
+        failed += _metric_figures(errand, configuration, todo, plans, paint, say)
     if not todo:
         say("plot: no complete point has a YODA product to draw")
     for figure in (f for f in figures(errand) if f.kind == "sheet") if todo else ():
@@ -1730,7 +1730,7 @@ FIGURE_PLANS = {"defined": "its objects' pages, its keys over [plot]'s", "overla
                 "scan": "{y} per point against {x}: plots/totality/<backend>/<cell>/{name}",
                 "compare": "its objects across {configurations}: compare/{name}/<backend>/",
                 "sheet": "drawn pages tiled: plots/<set>/<backend>/sheets/{name}",
-                "statistic": "{statistic} per curve: statistics/<set>/figures/<backend>/<cell>/{name}/<object>"}
+                "metric": "{metric} per curve: statistics/<set>/figures/<backend>/<cell>/{name}/<object>"}
 
 
 def _plan_outputs(errand, configuration, complete: list) -> list[str]:
@@ -1744,7 +1744,7 @@ def _plan_outputs(errand, configuration, complete: list) -> list[str]:
                      f"documents in {here.pages}/<set>/")
     for figure in figures(errand):
         what = FIGURE_PLANS.get(figure.kind, figure.kind).format(
-            name=figure.name, over=", ".join(figure.over) or "?", y=figure.y, x=figure.x, statistic=figure.statistic,
+            name=figure.name, over=", ".join(figure.over) or "?", y=figure.y, x=figure.x, metric=figure.metric,
             configurations=", ".join(figure.configurations) or "the swept configurations")
         objects = f", objects {', '.join(figure.objects)}" if figure.objects else ""
         lines.append(f"figure {figure.key} ({figure.kind}{objects}): {what}")
@@ -1955,7 +1955,7 @@ def measure(errand, configuration, plans, say, picked=None) -> int:
 def _measure(errand, configuration, plans, say, picked=None) -> int:
     """The statistics alone (V168): the pages [plot] defines (as `measured` reads them), their documents in the
     working folder's stats/, read by Paint --ranges-only (numbers, no images); each set's statistics/<set>/,
-    its bar graphs, and the statistic figures' pages. The pages Paint could not read."""
+    its bar graphs, and the metric figures' pages. The pages Paint could not read."""
     if not errand.plot:
         return 0
     paint = apps_dir() / "Paint.exe"
@@ -1985,20 +1985,21 @@ def _measure(errand, configuration, plans, say, picked=None) -> int:
     if not _tables(numbers, groups, outcomes, say, "stats"):
         say("stats: no page has numbers (heat maps and unread pages have none)")
     read = [p for p in todo if outcomes[str(p.config)][0]]
-    failed += _statistic_figures(numbers, configuration, read, plans, paint, say)
+    failed += _metric_figures(numbers, configuration, read, plans, paint, say)
     return failed
 
 
-def _statistic_figures(errand, configuration, todo: list, plans: list, paint: Path, say) -> int:
-    """The statistic figures' pages (V160): from the numbers of these pages, drawn into statistics/<set>/figures/."""
+def _metric_figures(errand, configuration, todo: list, plans: list, paint: Path, say) -> int:
+    """The metric figures' pages (V160): from the numbers of these pages, drawn into statistics/<set>/figures/. The cache
+    folder keeps the name `statistic`, as Paint's object `/statistic/<name>` does: no path on disk changes."""
     failed = 0
-    for figure in (f for f in figures(errand) if f.kind == "statistic") if todo else ():
-        drawn = statistic_pages(errand, figure, todo, plans[0].folders.pages / "statistic" / figure.name)
+    for figure in (f for f in figures(errand) if f.kind == "metric") if todo else ():
+        drawn = metric_pages(errand, figure, todo, plans[0].folders.pages / "statistic" / figure.name)
         if drawn:
-            say(f"plot: statistic {figure.name}, {len(drawn)} page(s)")
+            say(f"plot: metric {figure.name}, {len(drawn)} page(s)")
             failed += _draw(errand, paint, drawn, f"{errand.name} · {figure.name}", say, table=False)
         else:
-            say(f"plot: statistic {figure.name}: no drawn page of {', '.join(figure.objects)} has its numbers")
+            say(f"plot: metric {figure.name}: no drawn page of {', '.join(figure.objects)} has its numbers")
     return failed
 
 

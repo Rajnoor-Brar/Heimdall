@@ -37,7 +37,7 @@ TABLES = ("config", "errand", "configuration", "prelim", "quantity", "tool", "pl
 REPORT_TABLES = ("report", "section")
 #: A figure's own keys: the rest are what it sets for its pages.
 FIGURE_OWN = ("class", "type", "name", "objects", "labels", "over", "configurations", "op", "x", "y", "pages", "columns",
-              "statistic", "sort", "weight")
+              "metric", "sort", "weight")
 
 
 def path(name: str = "run") -> Path:

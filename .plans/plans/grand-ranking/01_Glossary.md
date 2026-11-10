@@ -75,9 +75,9 @@ Lower-is-better runs through one family of words: cost → category cost → pag
 | `veto` (a loss threshold) | **`veto_loss`** | `[ranking]`; the gate is the default veto | · closed 1.5
 | `[score].normalise` | **`[ranking].cost`** (`thresholds` default) | frees "normalise" for pages | · closed 1.5
 | `[score].mean` | **`[ranking].over_pages`** (`rms` default) | its job, not its kind | · closed 1.5
-| `legend_statistic` | **`legend_metric`** | `[plot]` |
-| figure kind `statistic`, `[figure].statistic` | **`metric`** | figures |
-| "the bars' baseline" | **zero line** | `bars.py` docstrings and keys |
+| `legend_statistic` | **`legend_metric`** | `[plot]` | · closed 1.6
+| figure kind `statistic`, `[figure].statistic` | **`metric`** | figures | · closed 1.6
+| "the bars' baseline" | **zero line** | `bars.py` docstrings and keys | · closed 1.6
 | metric ids | see 02 | registry, alias table | · closed 1.1
 
 **Kept as they are:** `[stats]`, `statistics.csv`, `--stats-only`, `statistics/<set>/` (the table of metrics is "the statistics"), "configuration" (Heimdall's recipe), `tests/reference/`.

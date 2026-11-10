@@ -9,7 +9,7 @@ Generated from the code; change it there. `heimdall explain <key>` says the same
 
 # `[plot]`
 
-[`backend`](#backend) · [`formats`](#formats) · [`band`](#band) · [`objects`](#objects) · [`ratio`](#ratio) · [`y_gutter`](#y_gutter) · [`x_gutter`](#x_gutter) · [`x_range`](#x_range) · [`y_range`](#y_range) · [`logy`](#logy) · [`logx`](#logx) · [`logz`](#logz) · [`auto_range`](#auto_range) · [`normalise`](#normalise) · [`void_empty`](#void_empty) · [`use_data`](#use_data) · [`min_entries`](#min_entries) · [`range_pad`](#range_pad) · [`sets`](#sets) · [`looks`](#looks) · [`across`](#across) · [`across_from`](#across_from) · [`draw`](#draw) · [`split`](#split) · [`statistics`](#statistics) · [`legend_statistic`](#legend_statistic) · [`root_style`](#root_style) · [`title`](#title) · [`title_left`](#title_left) · [`title_right`](#title_right) · [`legend_header`](#legend_header) · [`data`](#data) · [`style`](#style) · [`figures`](#figures)
+[`backend`](#backend) · [`formats`](#formats) · [`band`](#band) · [`objects`](#objects) · [`ratio`](#ratio) · [`y_gutter`](#y_gutter) · [`x_gutter`](#x_gutter) · [`x_range`](#x_range) · [`y_range`](#y_range) · [`logy`](#logy) · [`logx`](#logx) · [`logz`](#logz) · [`auto_range`](#auto_range) · [`normalise`](#normalise) · [`void_empty`](#void_empty) · [`use_data`](#use_data) · [`min_entries`](#min_entries) · [`range_pad`](#range_pad) · [`sets`](#sets) · [`looks`](#looks) · [`across`](#across) · [`across_from`](#across_from) · [`draw`](#draw) · [`split`](#split) · [`statistics`](#statistics) · [`legend_metric`](#legend_metric) · [`root_style`](#root_style) · [`title`](#title) · [`title_left`](#title_left) · [`title_right`](#title_right) · [`legend_header`](#legend_header) · [`data`](#data) · [`style`](#style) · [`figures`](#figures)
 
 ## `backend`
 
@@ -252,7 +252,7 @@ At most this many points on a page: each cell (a `plot_points` cell, or a set) c
 
 Each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `yield_weighted_abs_dev` (abs_area / ref_area), `yield_ratio` (cmp_area / ref_area: MC over data), `mean_bin_ratio` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `mean_abs_ratio_dev` (its area about one over the width compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table.
 
-## `legend_statistic`
+## `legend_metric`
 
 | Type | Default | Acceptable |
 |---|---|---|
@@ -340,13 +340,13 @@ Style keys for these pages, over `base.toml` and any style file: `heimdall expla
 
 ## `[plot.figures.<name>]`
 
-[`class`](#class) · [`type`](#type) · [`name`](#name) · [`objects`](#objects-1) · [`statistic`](#statistic) · [`weight`](#weight) · [`sort`](#sort) · [`op`](#op) · [`x`](#x) · [`y`](#y) · [`pages`](#pages) · [`columns`](#columns) · [`over`](#over) · [`configurations`](#configurations) · [`labels`](#labels) · [`x_label`](#x_label) · [`y_label`](#y_label) · [`style`](#style-1)
+[`class`](#class) · [`type`](#type) · [`name`](#name) · [`objects`](#objects-1) · [`metric`](#metric) · [`weight`](#weight) · [`sort`](#sort) · [`op`](#op) · [`x`](#x) · [`y`](#y) · [`pages`](#pages) · [`columns`](#columns) · [`over`](#over) · [`configurations`](#configurations) · [`labels`](#labels) · [`x_label`](#x_label) · [`y_label`](#y_label) · [`style`](#style-1)
 
 ### `class`
 
 | Type | Default | Acceptable |
 |---|---|---|
-| string | `"defined"` | `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"`, `"statistic"` |
+| string | `"defined"` | `"defined"`, `"overlay"`, `"merged"`, `"compare"`, `"derived"`, `"scan"`, `"sheet"`, `"metric"` |
 
 How the pages are built. `defined`: an analysis object's own pages, `<cell>/<object>`, its curves the cell's points (and option variants). `overlay`: several objects of each point on one page, `<cell>/<name>`; a curve per object and point, labelled by `labels` (plus the point's, when the page has several); a ratio divides by the first curve. `merged`: the objects' pages, `<cell>/<name>/<object>`, with the points merged over the `over` axes: per value of the other axes, their YODAs merged by the combine folder's command (`rivet-merge -e`: statistics add, σ averaged), once per change of a member's YODA, into `.cache/…/merged/<name>/`. The run keeps its points apart; the figure alone merges them (`combine` merges them for the whole configuration). `sheet`: drawn pages laid out in a grid (`pages`, `columns`; below). `compare`: the objects' pages across configurations, `<E>/compare/<name>/<cell>/<object>` beside the configurations' own folders (in `records/` and `results/`, a folder per backend). A curve per configuration and point (or combined group), labelled by the configuration (`labels`, else its `label`) and then the point's curve axes. The configurations must have the same page and curve axes (checked at plan time); the figure is drawn by the plot stage of each of them once all have complete points, and says what it waits for otherwise (`heimdall plot` draws it too). `derived`: a new object per point, `/FIGURES/<name>` (`/FIGURES:R=0.4/<name>` per analysis-option variant): `op = "ratio"`, `"difference"` or `"sum"` of its two objects (histograms made estimates first; the same binning, else an error naming both), or `"projection-x"`/`"projection-y"` of its one 2D object (summed over the other axis: a histogram's weights, an estimate's values × widths, as a Scatter2D whose x ranges are the bins). It is appended to a copy of each point's YODA (`.cache/…/derived/`, remade when the product or the figures change, by `framework/plot/figures/derive.py`: YODA's Python, so `gjallarhorn`), and is then an object like any: its pages `<cell>/<name>` (labels from its first object's `.plot`; set `y_label`), an overlay or a merged or compare figure may name it (`"r15"`). `scan`: one number per point against a swept quantity: `x` a curve axis whose values are numbers, `y` = `sigma` (the point's `/_XSEC`), `entries` (its events, or its object's raw entries), or `integral`, `mean`, `bin:N` of its one object. A page per cell, `<cell>/<name>`, a curve per value of the other curve axes: a Scatter2D, a point per x value with an x range halfway to its neighbours centred on it (so every backend can draw it as a bin; it is drawn as markers, `type = "Scatter2D"`). Axis titles: the quantity's name and the y read, until set. A quantity of names (PDF sets) cannot be an x yet.
 
@@ -374,13 +374,13 @@ An overlay's page file stem, a merged figure's folder. A defined figure takes no
 
 Matched against the short name (`d04-x01-y01`), the option-free path or a variant's path. A glob matching no object of the points is an error, at the plot stage.
 
-### `statistic`
+### `metric`
 
 | Type | Default | Acceptable |
 |---|---|---|
 | string | — | `"area"`, `"abs_area"`, `"yield_weighted_abs_dev"`, `"yield_ratio"`, `"mean_bin_ratio"`, `"mean_abs_ratio_dev"`, `"chi2"`, `"chi2_ndf"` |
 
-A statistic figure's number, as `statistics.csv` has it: per cell (or set) and object, a page whose x axis is the page's curves by their labels, a bin each, and y that number of each against the page's reference (its own reference curve left out), drawn as markers; `area` with its error. Its pages: `<cell>/<name>/<object>`
+A metric figure's number, as `statistics.csv` has it: per cell (or set) and object, a page whose x axis is the page's curves by their labels, a bin each, and y that number of each against the page's reference (its own reference curve left out), drawn as markers; `area` with its error. Its pages: `<cell>/<name>/<object>`
 
 ### `weight`
 

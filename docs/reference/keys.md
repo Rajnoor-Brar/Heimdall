@@ -115,7 +115,7 @@ plot.across_from | table | -
 plot.draw | list of strings | -
 plot.split | integer | -
 plot.statistics | true or false | true
-plot.legend_statistic | string | "none"
+plot.legend_metric | string | "none"
 plot.root_style | string | -
 plot.title | string | -
 plot.title_left | string | -
@@ -128,7 +128,7 @@ plot.figures.<name>.class | string | "defined"
 plot.figures.<name>.type | string | -
 plot.figures.<name>.name | string | -
 plot.figures.<name>.objects | list of strings | -
-plot.figures.<name>.statistic | string | -
+plot.figures.<name>.metric | string | -
 plot.figures.<name>.weight | number | -
 plot.figures.<name>.sort | true or false | false
 plot.figures.<name>.op | string | -

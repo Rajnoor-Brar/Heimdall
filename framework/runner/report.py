@@ -2325,7 +2325,7 @@ def _draw_for(plan: Plan, say) -> None:
         if "sets" in settings and TOTALITY in wanted and TOTALITY not in named_sets(settings["sets"]):
             settings["sets"] = {TOTALITY: totality(configuration, members), **named_sets(settings["sets"])}
         figures = {k: t for k, t in (settings.get("figures") or {}).items()
-                   if not isinstance(t, dict) or t.get("class") not in ("compare", "sheet", "statistic")}
+                   if not isinstance(t, dict) or t.get("class") not in ("compare", "sheet", "metric")}
         settings = {**{k: v for k, v in settings.items() if k not in ("figures", "draw")}, **({"figures": figures} if figures else {}),
                     "formats": ["pdf", "png"]}
         if drawing.backends:

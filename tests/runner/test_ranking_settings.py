@@ -98,12 +98,12 @@ OLD_IN_PLACE = [
     ({"ranking": {"thresholds": {"rho1": [0.3, 0.9]}}}, "[ranking].thresholds", "rho1", "pull_autocorr"),
     ({"plot": {"sets": [{"name": "a", "ranking": {"metrics": ["L4"]}}]}}, "[plot].sets[1].ranking.metrics", "L4", "log_dev_l4"),
     ({"plot": {"sets": {"a": {"ranking": {"thresholds": {"cvar": [1, 2]}}}}}}, "[plot].sets.a.ranking.thresholds", "cvar", "peak_deviance"),
-    ({"plot": {"legend_statistic": "ratio_dev"}}, "[plot].legend_statistic", "ratio_dev", "mean_abs_ratio_dev"),
-    ({"plot": {"figures": {"f": {"class": "statistic", "statistic": "area_ratio"}}}}, "[plot.figures.f].statistic", "area_ratio",
+    ({"plot": {"legend_metric": "ratio_dev"}}, "[plot].legend_metric", "ratio_dev", "mean_abs_ratio_dev"),
+    ({"plot": {"figures": {"f": {"class": "metric", "metric": "area_ratio"}}}}, "[plot.figures.f].metric", "area_ratio",
      "yield_ratio"),
-    ({"plot": {"sets": [{"name": "a", "legend_statistic": "ratio_mean"}]}}, "[plot].sets[1].legend_statistic", "ratio_mean",
+    ({"plot": {"sets": [{"name": "a", "legend_metric": "ratio_mean"}]}}, "[plot].sets[1].legend_metric", "ratio_mean",
      "mean_bin_ratio"),
-    ({"report": {"section": [{"title": "a", "plot": {"legend_statistic": "rel_abs_area"}}]}}, "[report].section[1].plot.legend_statistic",
+    ({"report": {"section": [{"title": "a", "plot": {"legend_metric": "rel_abs_area"}}]}}, "[report].section[1].plot.legend_metric",
      "rel_abs_area", "yield_weighted_abs_dev"),
     ({"report": {"section": [{"title": "a", "stats": ["leaderboard", "chi2_z:ranking"]}]}}, "[report].section[1].stats", "chi2_z",
      "chi2_sigma"),
@@ -129,7 +129,7 @@ def test_an_old_metric_id_in_a_record_is_read_as_its_id_now_and_noted_once(given
 
 
 def test_a_file_with_no_old_name_is_returned_as_it_is():
-    given = {"ranking": {"metrics": ["log_dev_shrunk"]}, "plot": {"legend_statistic": "chi2_ndf", "sets": ["pdf=A"]}}
+    given = {"ranking": {"metrics": ["log_dev_shrunk"]}, "plot": {"legend_metric": "chi2_ndf", "sets": ["pdf=A"]}}
     assert config.renamed(given, "t.toml", recorded=False) is given
 
 
@@ -157,3 +157,19 @@ def test_a_records_score_table_reads_as_ranking_with_its_keys_now(monkeypatch):
     assert read == {"ranking": {"cost": "median", "veto_loss": 2}}
     sets = config.renamed({"plot": {"sets": [{"name": "a", "score": {"mean": "rms"}}]}}, "records/…/t.toml", recorded=True)
     assert sets["plot"]["sets"][0] == {"name": "a", "ranking": {"over_pages": "rms"}}
+
+
+# ── legend_statistic, the figure class statistic and its key: refused in a user's file ──────────────────────
+
+OLD_FIGURE = [
+    ({"plot": {"legend_statistic": "chi2_ndf"}}, "[plot].legend_statistic", "legend_statistic", "legend_metric"),
+    ({"plot": {"figures": {"f": {"class": "statistic"}}}}, "[plot.figures.f].class", 'class = "statistic"', 'class = "metric"'),
+    ({"plot": {"figures": {"f": {"class": "metric", "statistic": "chi2_ndf"}}}}, "[plot.figures.f].statistic", "statistic", "metric"),
+]
+
+
+@pytest.mark.parametrize("given,place,old,new", OLD_FIGURE)
+def test_the_old_legend_and_figure_names_in_a_users_file_are_refused(given, place, old, new):
+    with pytest.raises(HeimdallError, match=f"renamed: {re.escape(old)} is {re.escape(new)}") as caught:
+        config.renamed(given, "configs/T/t.toml", recorded=False)
+    assert caught.value.where == f"configs/T/t.toml: {place}"

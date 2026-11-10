@@ -398,6 +398,28 @@ def test_a_document_loaded_into_other_folders_reads_its_own_and_draws_there(tree
     assert {m.folders for m in moved} == {elsewhere} and {m.folders for m in own} == {p.every[0].folders}
 
 
+def test_a_snapshots_old_legend_and_figure_names_load_as_metric(trees):
+    """A snapshot's legend_statistic, a figure's class = "statistic" and its statistic key load under configs_at as the
+    names now: legend_metric, class "metric", metric."""
+    from runner import config
+    p = recorded_run("Demo/jets", "pdf")
+    folder = p.every[0].folders.config
+    snapshot = folder / "Demo" / "jets.toml"
+    raw = tomllib.loads(snapshot.read_text(encoding="utf-8"))
+    raw["plot"] = {**raw.get("plot", {}), "legend_statistic": "chi2_ndf",
+                   "figures": {**raw.get("plot", {}).get("figures", {}),
+                               "rank": {"class": "statistic", "statistic": "chi2_ndf", "objects": ["d01-*"]}}}
+    import tomli_w
+    snapshot.write_text(tomli_w.dumps(raw), encoding="utf-8")
+    config.OLD_NAMES.clear()
+    with paths.configs_at(folder):
+        errand = config.load("Demo/jets")
+    (rank,) = [f for f in plot.figures(errand) if f.key == "rank"]
+    assert rank.kind == "metric" and rank.metric == "chi2_ndf" and errand.plot["legend_metric"] == "chi2_ndf"
+    assert "legend_statistic" not in errand.plot and set(config.OLD_NAMES) == {
+        "`legend_statistic` → `legend_metric`", '`class = "statistic"` → `class = "metric"`', "`statistic` → `metric`"}
+
+
 def test_an_old_name_in_a_snapshot_is_read_and_said_once_and_refused_in_configs(trees, capsys, monkeypatch):
     """A Run recorded before a rename keeps its old names: read under configs_at its config/, said once a command. The
     same file under configs/ is the user's, refused naming the new name; a lenient load (migrate's) reads it."""

@@ -1464,16 +1464,22 @@ def _measuring():
     matplotlib.use("Agg")
 
 
-def _scored(csv_path: Path):
-    """The settings a statistics.csv was ranked with: its statistics.json's `ranking`, the defaults for a csv without."""
+def _settings(csv_path: Path):
+    """The settings a statistics.csv was ranked with: its statistics.json's `ranking` (and its sources), the defaults for a
+    csv without."""
     from stats import ranking
-    side = statstable.sidecar(csv_path)
-    return ranking.settings_of((side or {}).get("ranking"))
+    side = statstable.sidecar(csv_path) or {}
+    return ranking.settings_of(side.get("ranking"), None, side.get("ranking_sources"))
 
 
-def _axes(csv_path: Path) -> dict:
-    """What each point's sweep chose, from its statistics.json: {point: {quantity: tag}}, {} for a csv without."""
-    return dict((statstable.sidecar(csv_path) or {}).get("values") or {})
+def _ranked(csv_path: Path, rows: list[dict]):
+    """A statistics.csv's rows ranked as its statistics.json says (its settings, `page_weights`, and each point's
+    `values`)."""
+    from stats import ranking
+    side = statstable.sidecar(csv_path) or {}
+    st = _settings(csv_path)
+    shown = [r for r in rows if not str(r.get("object", "")).startswith("/overlay/")]
+    return ranking.rank(shown, st, side.get("page_weights"), dict(side.get("values") or {}))
 
 
 def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method: bool = False) -> Typeset | None:
@@ -1483,7 +1489,8 @@ def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method:
     heading = statstable.heading_of(part.csv.parent) if part.csv.is_relative_to(part.source.folder) else \
         f"{part.source.address} · {part.set}" + (" · as this report measures it" if part.look else "")
     _measuring()
-    document, gone = chosen(bars.summary_model(statstable.read(part.csv), heading, _scored(part.csv), _axes(part.csv)), part.keys)
+    rows = statstable.read(part.csv)
+    document, gone = chosen(bars.summary_model(rows, heading, _ranked(part.csv, rows)), part.keys)
     gone = [k for k in gone if not (part.optional and (k.startswith("category:") or k in ("marginals", "baseline", "head-to-head")))]
     if gone:
         say(f"report: {heading} has no {', '.join(gone)} (too few curves or page cells for them)")
@@ -1523,7 +1530,7 @@ def _bars(build: _Build, bars, item: Bars, folder: Path, number: int, method: bo
                        hint=f"its pages: {', '.join(list(sorted(pages, key=natural))[:6])} …" if pages else None)
     _measuring()
     typeset, tex = _typeset(), _layout().tex
-    st = _scored(item.csv)
+    st = _settings(item.csv)
     shown = bars.panels([n for n in bars._on(rows, st)] or None)
     where = folder / f"{number:02d}_{slug(item.source.folder.name)}"
     lines, data = [], []

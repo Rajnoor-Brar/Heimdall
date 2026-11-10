@@ -24,7 +24,7 @@ Generated: `heimdall make --framework docs`. One line a page: what it holds, its
 
 - [settings-cluster](reference/settings/cluster.md): every key of [cluster], for running a job on Slurm (4 KB)
 - [settings-errand](reference/settings/errand.md): every key of an errand file's [file], [errand], [cfgs.*] and [quantities.*]: type, default, values, effect (20 KB)
-- [settings-plot](reference/settings/plot.md): every key of [plot], its figures, data and runs together, and [stats] and [ranking]: type, default, values, effect (32 KB)
+- [settings-plot](reference/settings/plot.md): every key of [plot], its figures, data and runs together, and [stats] and [ranking]: type, default, values, effect (33 KB)
 - [settings-report](reference/settings/report.md): every key of a report's recipe: [report] and [[report.section]] (9 KB)
 - [settings-stack](reference/settings/stack.md): every setting of the stack's build: what is built, with what, how many cores, nested as the file nests them (6 KB)
 - [settings-style](reference/settings/style.md): every style key a page may set in [plot.style] or a style file, nested as the file nests them (6 KB)

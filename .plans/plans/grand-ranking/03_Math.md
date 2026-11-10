@@ -11,7 +11,7 @@ A page k has a weight ω_k (default 1, then a figure's `weight`, then the first 
 
 ## 1. The Grand Ranking
 
-### 1.1 Integrity gates (the veto, first and lexicographic)
+### 1.1 Integrity gates (the veto, first and lexicographic) · closed 2.1, 2.2
 
 On each page, a curve fails a gate when either holds:
 - **G1:** `peak_bin_ratio` = log₁₀ max_i \|y_i\| / ref_i ≥ 3, over the compared bins with ref_i > 0;
@@ -55,7 +55,7 @@ worst page      k*(p)     =  argmax_k L(p,k)
 
 Each step is the power mean with exponent 2, so it is monotone and Pareto-respecting: lowering any cost never raises a loss. The quadratic mean weighs an imbalance up, the all-rounder property. A point with C = (1, 1) has L = 1, one with (0, √2) also has L = 1, and one with (0, 2) has L = 1.41, worse than (1, 1). RMS inside a category keeps a pair of metrics at one category's weight (V251).
 
-### 1.4 The order
+### 1.4 The order · closed 2.2
 
 ```
 rank order:  (vetoed(p) ascending,  F(p) descending among vetoed,  L(p) ascending,  label)
@@ -133,13 +133,13 @@ Every engine call returns, beside its numbers, a `Method` value: what was applie
 
 | Stage | The record names |
 |---|---|
-| Gates | each gate on, its level and its source; per vetoed point, which gate, how many pages, the largest value found |
+| Gates | each gate on, its level and its source; per vetoed point, which gate, how many pages, the largest value found · closed 2.2 |
 | Metrics | each metric scored: its polarity, its scale T, its thresholds (g, b) with their source and reason (`why`), its weight w_j with its source; each metric computed but not scored, and why (a descriptor, shown only) |
 | Cost | the orientation per polarity; the normalisation (`thresholds`, or the opt-in in use, with its pool dependence said); the compression c = log₂(1 + z), with the fixed points 0 and 1 |
 | Category | the mean inside it (RMS, metric weights counting), and which metrics fell in it |
 | Page loss | the mean across categories (RMS, equal), and which categories had a cost |
 | Pages | each page's weight ω_k and its source (figure `weight` > first matching glob, named > 1); the mean across pages (`over_pages`, RMS by default); the pages left out and why (a reference curve, pages against a curve when others are against data, no bins) |
-| Order | the rank rule (03 §1.4), ties, and the cells the ranking is flat across or banded within, with the reason |
+| Order | the rank rule (03 §1.4), ties, and the cells the ranking is flat across or banded within, with the reason · closed 2.2 |
 | Marginals | α, g(n), δ, log scale; E vs M and which orders the table; the strata's quantities; per row n, g, vetoed, unmatched; the paired test against the best and that it is uncorrected for multiplicity |
 | Opt-in aggregators | `aggregate`, `weights_by = "critic"` (the learned weights, printed), `dominated`, each with what it costs |
 
@@ -149,7 +149,7 @@ The record lives in the sidecar (`statistics.json`, `"method"`), in `rank --json
 
 1. **Pool independence:** adding a point to the table changes no other point's loss.
 2. **Monotone:** raising any one metric's excess never lowers a loss.
-3. **Lexicographic veto:** a vetoed point ranks after every passing point, for any losses.
+3. **Lexicographic veto:** a vetoed point ranks after every passing point, for any losses. · closed 2.2
 4. **Category balance:** n metrics of one category on a page weigh as one category (today's test, kept).
 5. **Compression fixed points:** c(0) = 0, c(1) = 1; c is concave beyond 1.
 6. **Matched effects are invariant to a stratum's difficulty:** adding a constant to every point of one stratum leaves every E_v unchanged.

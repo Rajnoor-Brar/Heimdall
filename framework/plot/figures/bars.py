@@ -3,8 +3,8 @@ page, and the summary (V174). Drawing only: the numbers are stats/ (metrics and 
 losses are stats/ranking.py's, the sentences are the registries' notes (stats/metrics.py).
 
 The summary is a document (V196): `summary_model` builds it as paper.py's model, and paper.py lays it out on A4 portrait
-pages. First the leaderboard: each point's loss, its worst page and a veto (a loss beyond `[ranking].veto_loss`), and a column a
-category, the question each asks beside; then a section per category that has a metric on (what it asks, a ranking of the
+pages. First the leaderboard: each point's loss, its worst page and a veto (a page that fails a gate, or a loss beyond `[ranking].veto_loss`:
+ranked last), and a column a category, the question each asks beside; then a section per category that has a metric on (what it asks, a ranking of the
 points, and for each metric of it a ranking, its page cells against its curves and a table, a row per point and a column
 per object); a head-to-head section only for the pages `[ranking].head_to_head` names. statistics/<set>/summary.pdf holds
 every page; a PNG or SVG is a file a page in statistics/<set>/summary/, numbered in the PDF's order (summary_01.png, …).
@@ -541,29 +541,24 @@ def _loss_text(st) -> str:
 
 
 def _leaderboard_tables(rows: list[dict], names: list[str], st, notes: dict, ranked):
-    """The leaderboard table: a row per point, ranked within its page cell by its loss, its worst page, a veto when set, and a
-    column a category (its value, shaded as a cost). Then the categories' list."""
+    """The leaderboard table: a row per point in the engine's order (one order, or one a page cell; the vetoed last), its loss,
+    its worst page, a veto when a point has one or `veto_loss` is set, and a column a category (its value, shaded as a cost).
+    Then the categories' list."""
     rows = _rows_of(rows)
     points, parts = _points(rows), _parts(rows)
     by_point = {(p.cell, p.point): p for p in ranked.points}
     cell_of = {r["point"]: r.get("cell") or "" for r in rows}
     categories = [p for p in M.CATEGORIES if any(M.REGISTRY[n].category == p for n in names)]
-    order = [p for p in points if (cell_of[p], p) in by_point]
-    banded = len({cell_of[p] for p in order}) > 1 and all(cell_of[p] for p in order)
-    cells = list(dict.fromkeys(cell_of[p] for p in order))
+    order = [s.point for s in ranked.points if s.point in points and cell_of[s.point] == s.cell]
+    banded = not ranked.flat and len({cell_of[p] for p in order}) > 1 and all(cell_of[p] for p in order)
     shown, labels, groups = [], [], []
-    for cell in cells:
-        members = [p for p in order if cell_of[p] == cell]
-        members.sort(key=lambda p: (by_point[(cell, p)].loss != by_point[(cell, p)].loss, by_point[(cell, p)].loss, points[p]))
-        place = {}
-        for i, p in enumerate(members, 1):
-            s = by_point[(cell, p)].loss
-            place[p] = 1 + sum(1 for q in members if by_point[(cell, q)].loss < s) if s == s else i
-        for p in members:
-            shown.append(p)
-            name = parts[p][1] if banded else points[p]
-            labels.append(f"{place[p]}. {name}")
-            groups.append(cell)
+    for p in order:                                   # the engine's order: within a cell when banded, the vetoed last
+        s = by_point[(cell_of[p], p)]
+        shown.append(p)
+        labels.append(f"{s.rank}. {parts[p][1] if banded else points[p]}" if s.rank else f"– {parts[p][1] if banded else points[p]}")
+        groups.append(cell_of[p])
+    vetoed = [by_point[(cell_of[p], p)] for p in shown if by_point[(cell_of[p], p)].vetoed]
+    veto = st.veto_loss is not None or bool(vetoed)
 
     finite = [v for p in shown for v in (by_point[(cell_of[p], p)].loss, by_point[(cell_of[p], p)].worst_loss,
                                           *by_point[(cell_of[p], p)].categories.values()) if math.isfinite(v)]
@@ -574,14 +569,14 @@ def _leaderboard_tables(rows: list[dict], names: list[str], st, notes: dict, ran
             return ("–", SURFACE, MUTED)
         f = min(v / top, 1.0)
         return ("∞" if math.isinf(v) else _shown(v), _shade(f), "white" if f > 0.55 else INK)
-    headers = ["loss", "worst page", "worst"] + (["veto"] if st.veto_loss is not None else []) + \
+    headers = ["loss", "worst page", "worst"] + (["veto"] if veto else []) + \
         [M.CATEGORIES[p] for p in categories] + (["dominated"] if st.dominated else [])
     styled = []
     for p in shown:
         s = by_point[(cell_of[p], p)]
         row = [cost_cell(s.loss), (s.worst_page.rsplit("/", 1)[-1] if s.worst_page else "–", SURFACE, INK, False, "left"),
                cost_cell(s.worst_loss)]
-        if st.veto_loss is not None:
+        if veto:
             row.append(("veto", WARM, "white", True) if s.vetoed else ("", SURFACE, INK))
         row += [cost_cell(s.categories.get(q, math.nan)) for q in categories]
         if st.dominated:
@@ -590,8 +585,11 @@ def _leaderboard_tables(rows: list[dict], names: list[str], st, notes: dict, ran
     with_data = any(not any(r["is_reference"] for r in rows if r["page"] == page) for page in {r["page"] for r in rows})
     notes["loss"], notes["apart"] = _loss_text(st), APART
     notes["counted"] = COUNTED_DATA if with_data else COUNTED_CURVE
+    if vetoed:
+        notes["vetoed"] = ("Vetoed: a page that fails a gate, ranked after every point that passes, whatever its loss; fewer failed "
+                           "pages first. " + "; ".join(f"{points[s.point]}: {s.gate_reason}" for s in vetoed) + ".")
     leaderboard = _table("leaderboard", "Leaderboard: each point's loss\nlower is better; darker: costlier, darkest at the table's worst (at least bad)",
-                         labels, headers, styled, ("loss", "apart", "counted"),
+                         labels, headers, styled, ("loss", "apart", "counted") + (("vetoed",) if vetoed else ()),
                        groups=groups if banded else None) if shown else None
     for p in categories:
         notes[f"category-{p}"] = f"{M.CATEGORIES[p]}. {M.QUESTIONS[p]}"
@@ -686,12 +684,10 @@ def _shown_delta(v: float) -> str:
     return "∞" if math.isinf(v) else f"{v:+.2f}"
 
 
-def _marginals(rows: list[dict], st, axes: dict, notes: dict, ranked) -> list:
+def _marginals(rows: list[dict], st, notes: dict, ranked) -> list:
     """The marginals section: for each quantity (`[ranking].by`, else every varied quantity) a table of its values, the mean loss
     of the points having each, their number and a column a category; a confounded quantity says which values confound it."""
-    if not axes:
-        return []
-    found = S.marginals(ranked, axes, st)
+    found = ranked.marginals
     items = []
     for marginal in found:
         if len(marginal.rows) < 2:
@@ -717,12 +713,12 @@ def _marginals(rows: list[dict], st, axes: dict, notes: dict, ranked) -> list:
     return [paper.Section("marginals", "Marginals", items)] if items else []
 
 
-def _baseline(rows: list[dict], st, axes: dict, notes: dict, ranked) -> list:
+def _baseline(rows: list[dict], st, notes: dict, ranked) -> list:
     """The baseline section: each point's Δloss against its baseline partner and its Δloss on each object (negative, blue:
     better than the baseline); the points with no partner listed."""
-    if not st.baseline or not axes:
+    result = ranked.baseline
+    if result is None:
         return []
-    result = S.baseline(ranked, axes)
     if not result.rows and not result.unmatched:
         return []
     parts = _parts(_rows_of(rows))
@@ -775,36 +771,36 @@ def _facts(rows: list[dict]) -> list[str]:
             + ("; the others are compared against their first curve." if with_data < len(pages) else ".")]
 
 
-def summary_model(rows: list[dict], heading: str = "", st=None, axes: dict | None = None):
+def summary_model(rows: list[dict], heading: str = "", ranking=None):
     """The summary as a document (V196): its facts and notes up front (V197), the leaderboard and the categories' list, a
     section a category with a metric on (what it asks, a ranking, and each metric's ranking, page cells against curves and
-    table), then the head to head for the pages `[ranking].head_to_head` names. `st`: stats.ranking.Settings (the defaults when
-    None)."""
-    st = st or S.settings_of()
+    table), then the head to head for the pages `[ranking].head_to_head` names. `ranking`: the stats.ranking.Ranking of these
+    rows (ranked here with the defaults when None: no marginals then, having no values)."""
+    ranked = ranking or S.rank(_rows_of(rows))
+    st = ranked.settings
     notes: dict = {}
     names = _on(_rows_of(rows), st)
     sections = []
     if names:
-        ranked = S.score(_rows_of(rows), st)
         notes["loss"] = _loss_text(st)
         front = _leaderboard_tables(rows, names, st, notes, ranked)
         if front:
             sections.append(paper.Section("leaderboard", "Leaderboard", front))
         sections += _category_sections(rows, names, st, notes, ranked)
-        sections += _marginals(rows, st, axes or {}, notes, ranked)
-        sections += _baseline(rows, st, axes or {}, notes, ranked)
+        sections += _marginals(rows, st, notes, ranked)
+        sections += _baseline(rows, st, notes, ranked)
         sections += _matches(rows, st, notes)
     return paper.Document(heading, sections, notes, _facts(rows) if rows else [])
 
 
-def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str = "", st=None, axes: dict | None = None) -> list[Path]:
+def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str = "", ranking=None) -> list[Path]:
     """The summary (V174, V196): `target`.pdf holds every page, each A4 portrait; a PNG or SVG is a file a page in
     the folder `target`, <target name>_<NN>.<fmt> in the PDF's order; `target`.html the same document as one page
     (V199), whatever the formats."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    document = summary_model(rows, heading, st, axes)
+    document = summary_model(rows, heading, ranking)
     written = []
     if document.sections:
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -815,10 +811,10 @@ def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str 
 
 
 def draw(pages: list[tuple[str, list[dict]]], folder: Path, formats: list[str], summary: Path | None = None,
-         heading: str = "", st=None, axes: dict | None = None) -> int:
+         heading: str = "", ranking=None) -> int:
     """Every page's image into `folder` (a panel a metric on), then the summary (`summary`, else folder/summary, under
-    `heading`); the number of images."""
-    st = st or S.settings_of()
+    `heading`, of `ranking`: the rows' stats.ranking.Ranking); the number of images."""
+    st = ranking.settings if ranking is not None else S.settings_of()
     formats = [f for f in formats if f in ("png", "pdf", "svg")] or ["png"]
     made = 0
     every = [r for _, rows in pages for r in rows]
@@ -826,5 +822,5 @@ def draw(pages: list[tuple[str, list[dict]]], folder: Path, formats: list[str], 
     for name, rows in pages:
         if rows:
             made += bool(page(rows, folder / name, formats, name, names))
-    made += bool(summary_of(every, summary or folder / "summary", formats, heading, st, axes))
+    made += bool(summary_of(every, summary or folder / "summary", formats, heading, ranking))
     return made

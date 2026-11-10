@@ -632,7 +632,7 @@ Where a bin sits in x for tilt and roughness: its middle, or the centre of gravi
 
 # `[ranking]`
 
-[`metrics`](#metrics-1) · [`cost`](#cost) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`over_pages`](#over_pages) · [`by`](#by) · [`baseline`](#baseline) · [`veto_loss`](#veto_loss) · [`aggregate`](#aggregate) · [`dominated`](#dominated) · [`head_to_head`](#head_to_head)
+[`metrics`](#metrics-1) · [`cost`](#cost) · [`thresholds`](#thresholds) · [`weights`](#weights) · [`weights_by`](#weights_by) · [`over_pages`](#over_pages) · [`by`](#by) · [`baseline`](#baseline) · [`veto_loss`](#veto_loss) · [`gates`](#gates) · [`aggregate`](#aggregate) · [`dominated`](#dominated) · [`head_to_head`](#head_to_head)
 
 ## `metrics`
 
@@ -704,7 +704,15 @@ The point every loss is also shown against: a point name, or a filter { pdf = "N
 |---|---|---|
 | number | — | at least 0 |
 
-A point whose worst page loses more than this is vetoed (default: none)
+A page whose loss is above this fails, as a gate's page does, and vetoes its point (default: none)
+
+## `gates`
+
+| Type | Default | Acceptable |
+|---|---|---|
+| true or false or list of strings | `true` | — |
+
+The integrity gates: true (every gate metric: peak_bin_ratio, yield_sign), false, or a list of them; a page that fails one vetoes its point, ranked after every point that passes.
 
 ## `aggregate`
 

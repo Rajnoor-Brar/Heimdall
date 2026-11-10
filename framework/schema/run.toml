@@ -1144,7 +1144,13 @@ doc  = "the point every loss is also shown against: a point name, or a filter { 
 [ranking.veto_loss]
 type = "float"
 min  = 0
-doc  = "a point whose worst page loses more than this is vetoed (default: none)"
+doc  = "a page whose loss is above this fails, as a gate's page does, and vetoes its point (default: none)"
+
+[ranking.gates]
+type    = "bool|list"
+items   = "str"
+default = true
+doc     = "the integrity gates: true (every gate metric: peak_bin_ratio, yield_sign), false, or a list of them; a page that fails one vetoes its point, ranked after every point that passes"
 
 [ranking.aggregate]
 type    = "str"

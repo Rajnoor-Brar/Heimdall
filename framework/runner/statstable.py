@@ -43,11 +43,12 @@ def ranking_of(errand, set_: str) -> dict:
 
 
 def metric_names(errand_stats: dict | None, ranking_table: dict | None) -> list[str]:
-    """The metric columns a table carries: `[stats].metrics` (the defaults when it names none) and every metric `[ranking]`
-    has on, so that whatever is ranked by is there to read."""
+    """The metric columns a table carries: `[stats].metrics` (the defaults when it names none), every metric `[ranking]`
+    has on and every gate metric in use, so that whatever is ranked by is there to read."""
     from stats import ranking
     names = list((errand_stats or {}).get("metrics") or default_metrics())
-    return names + [n for n in ranking.settings_of(ranking_table).metrics if n not in names]
+    st = ranking.settings_of(ranking_table)
+    return names + [n for n in dict.fromkeys([*st.metrics, *st.gate_ids()]) if n not in names]
 
 
 def point_values(numbers: Path) -> dict:
@@ -86,6 +87,8 @@ def write_set(pages: list, numbers: Path, formats: list[str], module=None, names
     if not count:
         return 0, 0
     module = module or bars()
-    images = module.draw([(p.rel, statistics_of(p, names) or []) for p in pages], numbers / "bars", formats,
-                         summary=numbers / "summary", heading=heading_of(numbers), st=engine.settings_of(ranking), axes=values)
+    drawn = [(p.rel, statistics_of(p, names) or []) for p in pages]
+    rows = [r for _, page_rows in drawn for r in page_rows if not str(r.get("object", "")).startswith("/overlay/")]
+    ranked = engine.rank(rows, engine.settings_of(ranking), None, values)
+    images = module.draw(drawn, numbers / "bars", formats, summary=numbers / "summary", heading=heading_of(numbers), ranking=ranked)
     return count, images

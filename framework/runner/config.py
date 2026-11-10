@@ -1612,6 +1612,10 @@ def check_ranking(ranking: dict, where: str, *, whole: bool = True) -> None:
     mean = ranking.get("over_pages")
     if mean is not None and mean not in means.MEANS_BY_NAME:
         raise HeimdallError(f"no mean '{mean}'", where=f"{where}.over_pages", hint=did_you_mean(mean, means.MEANS_BY_NAME) or "means: heimdall explain ranking")
+    gates = [n for n, m in metrics.REGISTRY.items() if m.gate is not None]
+    for name in ranking.get("gates") if isinstance(ranking.get("gates"), list) else ():
+        if name not in gates:
+            raise HeimdallError(f"'{name}' is not a gate metric", where=f"{where}.gates", hint="gates: " + ", ".join(gates))
 
 
 def _check_stats_metrics(stats: dict, where: str) -> None:

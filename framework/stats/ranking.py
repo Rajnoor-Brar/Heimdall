@@ -10,9 +10,11 @@ the page's reference rows have no loss.
     page loss   the RMS over the categories that have a metric: four accuracy metrics weigh one category, not four
     point loss  the `over_pages` mean (rms by default) of a point's page losses, page weights counting
 
-Beside the loss: the worst page (and a veto when it loses more than `veto_loss`), each category's share of the loss, and with
-`dominated` whether another point beats it on every category. `aggregate` may instead be `fisher`, `topsis` or `promethee`
-(each says in its note what it costs). Lower is better throughout.
+Before the loss, the gates: a page fails when a gate metric (`peak_bin_ratio`, `yield_sign`) reaches its level, or when its
+page loss is above `veto_loss`; a point with a failed page is vetoed and ranks after every point that passes, whatever the
+losses. Beside the loss: the worst page, each category's share of the loss, and with `dominated` whether another point beats
+it on every category. `aggregate` may instead be `fisher`, `topsis` or `promethee` (each says in its note what it costs).
+Lower is better throughout. `rank` returns the order and a `Method`: what was applied, and where each choice came from.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from __future__ import annotations
 import fnmatch
 import math
 from dataclasses import dataclass, field
+from typing import ClassVar
 
 import numpy as np
 
@@ -41,16 +44,32 @@ class Settings:
     weights: dict = field(default_factory=dict)        # object glob → page weight
     weights_by: str = "equal"
     over_pages: str = "rms"                            # the mean of a point's page losses
-    veto_loss: float | None = None                     # a point whose worst page loses more is vetoed
+    veto_loss: float | None = None                     # a page whose loss is above it fails, as a gate's does
+    gates: object = True                               # True (every gate metric), False, or a tuple of gate metric ids
     aggregate: str = "rms"
     dominated: bool = False
     by: tuple = ()
     baseline: object = None
     head_to_head: str | None = None                    # "<cell>/<object>" or "all": the pages the summary plays as matches
+    sources: dict = field(default_factory=dict)        # key → "default", "[ranking]", "set <name>" or "--<flag>"
 
     def thresholds_of(self, name: str):
         name = metrics.resolve(name)
         return self.thresholds.get(name) or metrics.REGISTRY[name].thresholds
+
+    def gate_ids(self) -> tuple:
+        """The gate metrics in use: every metric with a gate level, none, or those named."""
+        if self.gates is True:
+            return tuple(n for n, m in metrics.REGISTRY.items() if m.gate is not None)
+        return tuple(self.gates or ())
+
+    def source(self, key: str) -> str:
+        return self.sources.get(key, "default")
+
+
+#: The keys of [ranking], in Settings' order: what a source is kept for.
+KEYS = ("metrics", "cost", "thresholds", "weights", "weights_by", "over_pages", "veto_loss", "gates", "aggregate", "dominated",
+        "by", "baseline", "head_to_head")
 
 
 def overlaid(table: dict | None = None, over: dict | None = None) -> dict:
@@ -58,9 +77,14 @@ def overlaid(table: dict | None = None, over: dict | None = None) -> dict:
     return {**(table or {}), **(over or {})}
 
 
-def settings_of(table: dict | None = None, over: dict | None = None) -> Settings:
-    """Settings from a `[ranking]` table with a set's `ranking` over it; names are checked here too (a set's are not at parse)."""
-    merged = overlaid(table, over)
+def settings_of(table: dict | None = None, flags: dict | None = None, sources: dict | None = None) -> Settings:
+    """Settings from a merged `[ranking]` table (a sidecar's, or `overlaid(errand's, set's)`) with a command's `flags` over it;
+    names are checked here too (a set's are not at parse). A key's source: "--<flag>" when a flag set it, else `sources[key]`
+    when given (a sidecar's record), else "[ranking]" when the table has it, else "default"."""
+    table, flags = dict(table or {}), dict(flags or {})
+    merged = {**table, **flags}
+    where = {key: ("--" + key.replace("_", "-") if key in flags else (sources or {}).get(key)
+                   or ("[ranking]" if key in table else "default")) for key in KEYS}
     given = merged.get("metrics")
     if given is None:
         weights = {n: 1.0 for n, m in metrics.REGISTRY.items() if m.default}
@@ -91,9 +115,28 @@ def settings_of(table: dict | None = None, over: dict | None = None) -> Settings
     by = merged.get("by") or ()
     return Settings(metrics=weights, cost=merged.get("cost", "thresholds"), thresholds=thresholds,
                     weights=dict(merged.get("weights") or {}), weights_by=merged.get("weights_by", "equal"), over_pages=mean,
-                    veto_loss=merged.get("veto_loss"), aggregate=merged.get("aggregate", "rms"),
-                    dominated=bool(merged.get("dominated", False)), by=(by,) if isinstance(by, str) else tuple(by),
-                    baseline=merged.get("baseline"), head_to_head=merged.get("head_to_head"))
+                    veto_loss=merged.get("veto_loss"), gates=gates_of(merged.get("gates", True)),
+                    aggregate=merged.get("aggregate", "rms"), dominated=bool(merged.get("dominated", False)),
+                    by=(by,) if isinstance(by, str) else tuple(by), baseline=merged.get("baseline"),
+                    head_to_head=merged.get("head_to_head"), sources=where)
+
+
+def gates_of(given) -> object:
+    """`[ranking].gates`: true (every gate metric), false, or a list of gate metric ids, checked."""
+    if isinstance(given, bool):
+        return given
+    if isinstance(given, str):
+        given = [given]
+    if not isinstance(given, (list, tuple)):
+        raise HeimdallError("[ranking].gates is true, false or a list of gate metrics", hint=f"got {given!r}")
+    gates = [n for n, m in metrics.REGISTRY.items() if m.gate is not None]
+    out = []
+    for name in given:
+        name = metrics.resolve(str(name))
+        if name not in gates:
+            raise HeimdallError(f"'{name}' is not a gate metric", hint="gates: " + ", ".join(gates))
+        out.append(name)
+    return tuple(out)
 
 
 # ── the null distributions (for surprisal and Fisher) ─────────────────────────────────────────
@@ -269,14 +312,17 @@ def costs(obs: list[Obs], st: Settings) -> dict[str, float]:
 
 # ── losses ────────────────────────────────────────────────────────────────────────────────────
 
-@dataclass
+@dataclass(kw_only=True)
 class PointLoss:
     cell: str
     point: str
-    loss: float
+    loss: float = math.nan                            # NaN: no scored page
+    rank: int | None = None                           # None: vetoed, or no loss
+    vetoed: bool = False
+    failed_pages: int = 0                             # its pages that fail a gate (or are above veto_loss)
+    gate_reason: str = ""                             # which gates, on how many pages, the largest value
     worst_page: str = ""
     worst_loss: float = math.nan
-    vetoed: bool = False
     categories: dict = field(default_factory=dict)    # category → RMS over pages of its cost
     shares: dict = field(default_factory=dict)        # category → its share of the squared loss
     pages: dict = field(default_factory=dict)         # page → loss
@@ -284,25 +330,79 @@ class PointLoss:
     n_pages: int = 0
 
 
-@dataclass
-class Scores:
-    settings: Settings
-    points: list[PointLoss]
-    weights: dict                                     # the metric weights used
-    notes: list = field(default_factory=list)
+@dataclass(frozen=True)
+class Choice:
+    name: str                                         # what was chosen: "cost", "gate peak_bin_ratio", "cells"
+    value: object                                     # JSON-safe: str, number, bool, list or dict of those
+    source: str                                       # "registry", "default", "[ranking]", "set <name>", "--<flag>", "table"
+    note: str = ""                                    # the sentence a reader needs beside it
 
-    def ranked(self, cell: str | None = None) -> list[PointLoss]:
-        return sorted((p for p in self.points if cell is None or p.cell == cell), key=lambda p: (p.loss != p.loss, p.loss))
+
+def _said(value) -> str:
+    if isinstance(value, bool):
+        return "on" if value else "off"
+    if isinstance(value, float):
+        return f"{value:g}"
+    if isinstance(value, (list, tuple)):
+        return ", ".join(_said(v) for v in value) or "none"
+    if isinstance(value, dict):
+        return ", ".join(f"{k} = {_said(v)}" for k, v in value.items()) or "none"
+    return str(value)
+
+
+@dataclass(frozen=True)
+class Method:
+    """What a ranking applied, stage by stage, each choice with its source: what the presenters render, never restate."""
+    gates: tuple = ()
+    metrics: tuple = ()
+    cost: tuple = ()
+    category: tuple = ()
+    page_loss: tuple = ()
+    pages: tuple = ()
+    order: tuple = ()
+    marginals: tuple = ()
+    optin: tuple = ()
+    STAGES: ClassVar[tuple] = ("gates", "metrics", "cost", "category", "page_loss", "pages", "order", "marginals", "optin")
+    TITLES: ClassVar[dict] = {"gates": "Gates", "metrics": "Metrics", "cost": "Cost", "category": "Category",
+                              "page_loss": "Page loss", "pages": "Pages", "order": "Order", "marginals": "Marginals",
+                              "optin": "Opt-in aggregators and views"}
+
+    def as_dict(self) -> dict:
+        return {stage: [{"name": c.name, "value": c.value, "source": c.source, "note": c.note} for c in getattr(self, stage)]
+                for stage in self.STAGES}
+
+    def lines(self, *stages) -> list[str]:
+        """A sentence a choice: "<name>: <value> (<source>). <note>"; every stage when none is named."""
+        return [f"{c.name}: {_said(c.value)} ({c.source})." + (f" {c.note}" if c.note else "")
+                for stage in (stages or self.STAGES) for c in getattr(self, stage)]
+
+
+@dataclass(kw_only=True)
+class Ranking:
+    settings: Settings
+    points: list                                      # PointLoss, in rank order
+    cells: list                                       # the cells, in the rows' order
+    flat: bool                                        # one order over every cell, else an order a cell
+    method: Method
+    weights: dict                                     # the metric weights used (CRITIC's when weights_by = "critic")
+    notes: list = field(default_factory=list)
+    marginals: list = field(default_factory=list)     # Marginal, when `values` is given
+    baseline: object = None                           # Baseline, when settings.baseline is set and `values` given
+
+    def of(self, cell: str | None = None) -> list[PointLoss]:
+        """A cell's points in order; every point when `cell` is None."""
+        return [p for p in self.points if cell is None or p.cell == cell]
 
 
 def _weighted(name: str, values, weights) -> float:
     return means.evaluate(name, values, weights)
 
 
-def score(rows: list[dict], st: Settings | None = None, figure_weights: dict | None = None) -> Scores:
-    """Score the points of a table's rows: see the module note. `figure_weights` is {page: weight} from the figures."""
-    st = st or settings_of()
-    obs = observations(rows, st, figure_weights)
+def rank(rows: list[dict], settings: Settings | None = None, page_weights: dict | None = None, values: dict | None = None) -> Ranking:
+    """Rank the points of a table's rows: see the module note. `page_weights` is {page: weight} from the figures; `values`
+    {point: {quantity: value}}, for the marginals and the baseline."""
+    st = settings or settings_of()
+    obs = observations(rows, st, page_weights)
     used = costs(obs, st)
     groups: dict = {}
     for o in obs:
@@ -310,13 +410,12 @@ def score(rows: list[dict], st: Settings | None = None, figure_weights: dict | N
     out = []
     for (cell, point), group in groups.items():
         good = [o for o in group if not math.isnan(o.loss)]
-        ps = PointLoss(cell, point, math.nan, n_pages=len(good), pages={o.page: o.loss for o in good})
+        ps = PointLoss(cell=cell, point=point, n_pages=len(good), pages={o.page: o.loss for o in good})
         if good:
             weights = [o.weight for o in good]
             ps.loss = _weighted(st.over_pages, [o.loss for o in good], weights)
             worst = max(good, key=lambda o: o.loss)
             ps.worst_page, ps.worst_loss = worst.page, worst.loss
-            ps.vetoed = st.veto_loss is not None and worst.loss > st.veto_loss
             for p in metrics.CATEGORIES:
                 have = [(o.categories[p], o.weight) for o in good if p in o.categories]
                 if have:
@@ -324,15 +423,122 @@ def score(rows: list[dict], st: Settings | None = None, figure_weights: dict | N
             total = sum(v * v for v in ps.categories.values())
             ps.shares = {p: (v * v / total if total else 0.0) for p, v in ps.categories.items()}
         out.append(ps)
-    result = Scores(st, out, used)
+    result = Ranking(settings=st, points=out, cells=list(dict.fromkeys(r["cell"] for r in rows)), flat=True, method=Method(),
+                     weights=used)
     if st.aggregate != "rms":
         _aggregate(result, obs, groups)
     if st.dominated:
         _dominated(result)
+    gates = _gates(result, obs, groups)
+    order = _order(result, obs)
+    result.method = Method(gates=gates, order=order)
+    if values:
+        result.marginals = marginals(result, values, st)
+        if st.baseline:
+            result.baseline = baseline(result, values)
     return result
 
 
-def _dominated(result: Scores) -> None:
+# ── the gates and the order ───────────────────────────────────────────────────────────────────
+
+def _fails(name: str, value) -> bool:
+    """A gate's test: the value is finite and at the gate's level or more, or is +inf; NaN never fails."""
+    if value is None or value != value:
+        return False
+    return value == math.inf or (math.isfinite(value) and value >= metrics.REGISTRY[name].gate)
+
+
+def _reason(name: str, worst: float, failed: int, of: int) -> str:
+    pages = f"on {failed} of {of} page{'s' if of != 1 else ''}"
+    if name == "peak_bin_ratio":
+        return f"a bin 10^{worst:.3g} × reference {pages}" if math.isfinite(worst) else f"a bin with an infinite ratio to its reference {pages}"
+    if name == "yield_sign":
+        return f"a yield of zero or less {pages}"
+    if name == "veto_loss":
+        return f"a page loss of up to {worst:.3g} {pages}"
+    return f"{name} up to {worst:.3g} {pages}"
+
+
+def _gates(result: Ranking, obs: list[Obs], groups: dict) -> tuple:
+    """Mark each point's failed pages, its veto and its reason; the record's Gates stage."""
+    st = result.settings
+    stage = []
+    if st.gates is False:
+        stage.append(Choice("gates", False, st.source("gates"), "no gate metric is applied"))
+    elif st.gates is not True:
+        stage.append(Choice("gates", list(st.gates), st.source("gates"), "only these gate metrics are applied"))
+    used = []
+    for name in st.gate_ids():
+        level = metrics.REGISTRY[name].gate
+        if not any(name in o.row for o in obs):
+            stage.append(Choice(f"gate {name}", level, "table", f"not evaluated: no `{name}` column (a table written before format 3)"))
+            continue
+        used.append(name)
+        stage.append(Choice(f"gate {name}", level, "registry", f"a page fails at {name} ≥ {level:g} (or +inf); a missing value never fails"))
+    if st.veto_loss is not None:
+        stage.append(Choice("veto_loss", st.veto_loss, st.source("veto_loss"), "a page whose loss is above it fails as a gate's does"))
+    by_point = {(p.cell, p.point): p for p in result.points}
+    for key, group in groups.items():
+        p = by_point[key]
+        failed: set = set()
+        reasons = []
+        checks = [(name, lambda o, n=name: o.row.get(n)) for name in used]
+        if st.veto_loss is not None:
+            checks.append(("veto_loss", lambda o: o.loss))
+        for name, value_of in checks:
+            bad = [o for o in group if (_fails(name, value_of(o)) if name != "veto_loss" else value_of(o) > st.veto_loss)]
+            if bad:
+                failed |= {o.page for o in bad}
+                reasons.append(_reason(name, max(value_of(o) for o in bad), len(bad), len(group)))
+        p.failed_pages, p.vetoed, p.gate_reason = len(failed), bool(failed), "; ".join(reasons)
+    for p in result.points:
+        if p.vetoed:
+            stage.append(Choice(f"vetoed {p.cell + '/' if len(result.cells) > 1 else ''}{p.point}", p.failed_pages, "table", p.gate_reason))
+    return tuple(stage)
+
+
+def _flat(obs: list[Obs]) -> tuple[bool, str]:
+    """One order over every cell when each cell's scored pages are the same objects against the same reference."""
+    cells: dict = {}
+    for o in obs:
+        cells.setdefault(o.cell, set()).add((o.object.rsplit("/", 1)[-1], str(o.row.get("reference", ""))))
+    if len(cells) <= 1:
+        return True, "one page cell"
+    if len({frozenset(v) for v in cells.values()}) == 1:
+        return True, f"the {len(cells)} page cells have the same objects against the same reference"
+    return False, f"the {len(cells)} page cells differ in their objects or their reference, so a point is ranked within its cell"
+
+
+def _order(result: Ranking, obs: list[Obs]) -> tuple:
+    """Put the points in rank order and number the passing ones; the record's Order stage. The key: passing points with a
+    loss, then those with no scored page, then the vetoed (fewer failed pages first); then the loss (NaN last), then the
+    name. Losses equal to three significant figures share a rank: 1, 2, 2, 4."""
+    result.flat, why = _flat(obs)
+
+    def key(p: PointLoss):
+        group = 2 if p.vetoed else 1 if p.loss != p.loss else 0
+        return (group, p.failed_pages if p.vetoed else 0, math.inf if p.loss != p.loss else p.loss, p.point)
+    bands = [result.points] if result.flat else [[p for p in result.points if p.cell == c] for c in result.cells]
+    ordered = []
+    for band in bands:
+        band = sorted(band, key=key)
+        last, place = None, 0
+        for i, p in enumerate(band, 1):
+            if p.vetoed or p.loss != p.loss:
+                p.rank = None
+                continue
+            shown = f"{p.loss:.3g}"
+            place = place if shown == last else i
+            p.rank, last = place, shown
+        ordered += band
+    result.points[:] = ordered
+    return (Choice("rule", "passing points by loss; then points with no scored page; then the vetoed, fewer failed pages first, "
+                           "then by loss", "default", "no loss can buy a failed page back"),
+            Choice("ties", "equal to 3 significant figures share a rank (1, 2, 2, 4), tied points by name", "default"),
+            Choice("cells", "flat" if result.flat else "banded", "table", why))
+
+
+def _dominated(result: Ranking) -> None:
     """A point is dominated when another in its cell is no worse on every category and better on one (Pareto)."""
     for p in result.points:
         mine = p.categories
@@ -343,7 +549,7 @@ def _dominated(result: Scores) -> None:
 
 # ── the other aggregators (3c): each says what it costs ───────────────────────────────────────
 
-def _aggregate(result: Scores, obs: list[Obs], groups: dict) -> None:
+def _aggregate(result: Ranking, obs: list[Obs], groups: dict) -> None:
     st = result.settings
     if st.aggregate == "fisher":
         result.notes.append("fisher: Σ −2 ln p over each page's χ² and tail p-values; needs chi2_ndf (with ndf) and optionally tail_excess_sigma; "
@@ -474,7 +680,7 @@ def _confounded(quantity: str, every: dict[str, list[str]], values: dict, points
     return out
 
 
-def marginals(result: Scores, values: dict, st: Settings | None = None) -> list[Marginal]:
+def marginals(result: Ranking, values: dict, st: Settings | None = None) -> list[Marginal]:
     """For each quantity in `st.by` (every varied quantity when it names none), a table of value → the `over_pages` mean of the losses of the points
     having it, the points' number and each category's value; and which other quantities' values confound it (spread unevenly over this
     quantity's values, as pdf = X only with generator = Y). A quantity named that is not varied is refused."""
@@ -532,7 +738,7 @@ def baseline_filter(given, values: dict) -> dict:
     return {str(k): str(v) for k, v in dict(given).items()}
 
 
-def baseline(result: Scores, values: dict, given=None) -> Baseline:
+def baseline(result: Ranking, values: dict, given=None) -> Baseline:
     """Each point's Δ against the baseline point equal to it on every quantity the filter leaves alone (the filter's values on the
     others): its Δloss, and its Δloss on each object. A point with no partner, or none of whose values are known, is listed as
     unmatched with the reason."""

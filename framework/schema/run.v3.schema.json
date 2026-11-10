@@ -2908,9 +2908,20 @@
      ]
     },
     "veto_loss": {
-     "description": "a point whose worst page loses more than this is vetoed (default: none)",
+     "description": "a page whose loss is above this fails, as a gate's page does, and vetoes its point (default: none)",
      "type": "number",
      "minimum": 0
+    },
+    "gates": {
+     "description": "the integrity gates: true (every gate metric: peak_bin_ratio, yield_sign), false, or a list of them; a page that fails one vetoes its point, ranked after every point that passes",
+     "type": [
+      "boolean",
+      "array"
+     ],
+     "items": {
+      "type": "string"
+     },
+     "default": true
     },
     "aggregate": {
      "description": "how metrics and pages combine: RMS over categories (default), or Fisher's combined probability, TOPSIS, PROMETHEE",

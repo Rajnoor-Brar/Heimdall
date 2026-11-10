@@ -166,3 +166,24 @@ def test_stats_only_will_not_mix_with_plan_or_style_sync():
     got = cli.parser().parse_args(["plot", "A/E/R1", "--stats-only", "--plan"])
     with pytest.raises(HeimdallError, match="--stats-only measures"):
         cli.cmd_plot(got)
+
+
+def test_a_vetoed_point_is_last_with_its_reason_and_the_json_holds_the_record(results, capsys):
+    names = ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "peak_bin_ratio", "yield_sign"]
+    rows = [reference(), row("blown", 1.0, peak_bin_ratio=10.7, yield_sign=0.0), row("fine", 3.0, peak_bin_ratio=0.1, yield_sign=0.0)]
+    folder = make_run(results, "A/E/R1", [reference()], axes={})
+    out = folder / "statistics" / "totality"
+    with open(out / "statistics.csv", "w", encoding="utf-8", newline="") as handle:          # a table with the gate columns
+        writer = csv.DictWriter(handle, fieldnames=table.columns_for(names), restval="")
+        writer.writeheader()
+        writer.writerows(rows)
+    assert rankcmd.run(args("A/E/R1", json=True)) == 0
+    (got,) = json.loads(capsys.readouterr().out)["tables"]
+    board = got["leaderboard"]
+    assert [(s["point"], s["rank"], s["vetoed"], s["failed_pages"]) for s in board] == [("fine", 1, False, 0), ("blown", None, True, 1)]
+    assert board[1]["gate_reason"] == "a bin 10^10.7 × reference on 1 of 1 page"
+    assert got["flat"] is True and list(got["method"])[0] == "gates"
+    assert any(c["name"] == "gate peak_bin_ratio" and c["source"] == "registry" for c in got["method"]["gates"])
+    assert rankcmd.run(args("A/E/R1")) == 0
+    text = capsys.readouterr().out
+    assert text.index("fine") < text.index("blown") and "vetoed: blown: a bin 10^10.7 × reference on 1 of 1 page" in text

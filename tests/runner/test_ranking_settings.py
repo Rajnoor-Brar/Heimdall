@@ -16,7 +16,7 @@ from runner.sweep import set_entries
 def test_ranking_is_a_section_with_its_keys(scratch):
     score = {"metrics": {"chi2_ndf": 1, "log_yield_ratio": 2, "js_divergence": 0.5}, "cost": "thresholds", "thresholds": {"log_yield_ratio": [0.01, 0.1]},
              "weights": {"d01-*": 2}, "over_pages": "rms", "veto_loss": 3.0, "dominated": True, "aggregate": "rms", "weights_by": "equal",
-             "by": ["pdf"], "baseline": {"pdf": "NNPDF23lo"}}
+             "by": ["pdf"], "baseline": {"pdf": "NNPDF23lo"}, "gates": ["peak_bin_ratio"]}
     errand = config.parse(raw(ranking=score), scratch / "t.toml")
     assert errand.ranking == score
     assert config.parse(raw(), scratch / "u.toml").ranking == {}
@@ -36,6 +36,8 @@ def test_ranking_is_a_section_with_its_keys(scratch):
     ({"veto_loss": -1.0}, "at least"),
     ({"aggregate": "sum"}, "must be one of"),
     ({"surprise": 1}, "unknown key 'surprise'"),
+    ({"gates": ["chi2_ndf"]}, "'chi2_ndf' is not a gate metric"),
+    ({"gates": "peak_bin_ratio"}, "true or false"),
 ])
 def test_a_bad_ranking_is_refused_with_a_hint(scratch, bad, message):
     with pytest.raises(HeimdallError, match=message):

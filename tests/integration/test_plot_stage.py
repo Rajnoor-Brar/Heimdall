@@ -882,7 +882,7 @@ def test_the_summary_is_scored_by_category(stage):
     st = ranking.settings_of(scored)
     rows = [r for page in plot.pages(shown, configuration, plans) for r in (statstable.statistics_of(page, names) or [])]
     assert any(math.isfinite(r["peak_pull2"]) for r in rows)                          # Paint measured the bins they come from
-    document = bars.summary_model(rows, statstable.heading_of(numbers), st)
+    document = bars.summary_model(rows, statstable.heading_of(numbers), ranking.rank(bars._rows_of(rows), st))
     assert len(bars.paper.pages(document)) == count
     assert document.heading.endswith(" · totality")
     assert document.facts[0].startswith("4 point(s) in 2 page cell(s), on 17 object(s)")       # V197: up front
@@ -914,16 +914,14 @@ def test_the_summary_is_scored_by_category(stage):
         assert all(shape.label_width + sum(shape.widths[j] for j in block) <= bars.paper.WIDTH + 1e-9
                    for block in shape.blocks)
 
-    scores = ranking.score(rows, st)                                              # the standings are the engine's
+    scores = ranking.rank(bars._rows_of(rows), st)                                # the standings are the engine's
     assert [p.n_pages for p in scores.points] == [1, 1, 1, 1]                   # only d01 has data: one page each
     standings = items["leaderboard"]
-    assert [r.label for r in standings.rows if r.band] == ["em", "ep"] and standings.headers[:4] == [
-        "loss", "worst page", "worst", "veto"]
-    for cell in ("em", "ep"):
-        mine = sorted((p for p in scores.points if p.cell == cell), key=lambda p: p.loss)
-        first = next(r for r in standings.rows[standings.rows.index(next(r for r in standings.rows if r.band and r.label == cell)) + 1:]
-                     if not r.band)
-        assert first.cells[0].text == bars._shown(mine[0].loss) and first.label.startswith("1. ")
+    assert scores.flat and not any(r.band for r in standings.rows)            # em and ep: d01 against the same data, one order
+    assert standings.headers[:4] == ["loss", "worst page", "worst", "veto"]
+    shown_rows = [r for r in standings.rows if not r.band]
+    assert [r.cells[0].text for r in shown_rows] == [bars._shown(p.loss) for p in scores.points]
+    assert all(r.label.startswith(f"{p.rank}. ") if p.rank else r.label.startswith("– ") for r, p in zip(shown_rows, scores.points))
     for key in names:
         shown = items[f"{key}-ranking"]
         ratio = key in ("yield_ratio", "mean_bin_ratio")

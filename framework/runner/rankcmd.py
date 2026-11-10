@@ -72,21 +72,22 @@ def settings_for(table: Table, by: str | None, baseline: str | None):
     """The settings a table was ranked with, `--by` and `--baseline` over them, and its points' values."""
     from stats import ranking
     side = statstable.sidecar(table.csv) or {}
-    over = {}
+    flags = {}
     if by:
-        over["by"] = [b.strip() for b in by.split(",") if b.strip()]
+        flags["by"] = [b.strip() for b in by.split(",") if b.strip()]
     if baseline:
-        over["baseline"] = parse_filter(baseline)
+        flags["baseline"] = parse_filter(baseline)
     values = dict(side.get("values") or {}) or statstable.point_values(table.csv.parent)   # a table from before the sidecar held them
-    return ranking.settings_of(side.get("ranking"), over), values
+    return ranking.settings_of(side.get("ranking"), flags, side.get("ranking_sources")), values
 
 
 def ranked(table: Table, by: str | None = None, baseline: str | None = None, rows: list | None = None):
     """(rows, settings, values, the ranking) of one table; `rows` replace its own (a Run's rows over the pages Runs share)."""
     from stats import ranking
     st, values = settings_for(table, by, baseline)
+    side = statstable.sidecar(table.csv) or {}
     rows = [r for r in (rows if rows is not None else statstable.read(table.csv)) if not str(r.get("object", "")).startswith("/overlay/")]
-    return rows, st, values, ranking.score(rows, st)
+    return rows, st, values, ranking.rank(rows, st, side.get("page_weights"), values)
 
 
 def _num(v: float, digits: int = 3) -> str:
@@ -99,30 +100,27 @@ def _grid(headers: list[str], rows: list[list[str]], left: int = 1) -> list[str]
     return [line(headers), line(["-" * w for w in widths]), *(line(r) for r in rows)]
 
 
-def leaderboard_of(result, st) -> list[dict]:
+def leaderboard_of(result) -> list[dict]:
+    """The ranking's points in its order: `rank` is None for a vetoed point and one with no loss."""
     from stats import metrics
-    out = []
-    for cell in dict.fromkeys(p.cell for p in result.points):
-        for rank, p in enumerate(result.ranked(cell), 1):
-            out.append({"cell": cell, "rank": rank, "point": p.point, "loss": p.loss, "worst_page": p.worst_page,
-                        "worst": p.worst_loss, "vetoed": p.vetoed, "dominated": p.dominated, "pages": p.n_pages,
-                        "categories": {metrics.CATEGORIES[k]: v for k, v in p.categories.items()},
-                        "shares": {metrics.CATEGORIES[k]: v for k, v in p.shares.items()}})
-    return out
+    return [{"cell": p.cell, "rank": p.rank, "point": p.point, "loss": p.loss, "worst_page": p.worst_page,
+             "worst": p.worst_loss, "vetoed": p.vetoed, "failed_pages": p.failed_pages, "gate_reason": p.gate_reason,
+             "dominated": p.dominated, "pages": p.n_pages,
+             "categories": {metrics.CATEGORIES[k]: v for k, v in p.categories.items()},
+             "shares": {metrics.CATEGORIES[k]: v for k, v in p.shares.items()}} for p in result.points]
 
 
 def report_of(table: Table, by: str | None, baseline: str | None) -> dict:
     """One table's leaderboard, marginals (when its points' values are known) and baseline (when set), as plain data."""
-    from stats import ranking
     rows, st, values, result = ranked(table, by, baseline)
-    out = {"run": table.run, "serial": table.serial, "set": table.set, "metrics": list(st.metrics),
-           "leaderboard": leaderboard_of(result, st), "notes": list(result.notes)}
+    out = {"run": table.run, "serial": table.serial, "set": table.set, "metrics": list(st.metrics), "flat": result.flat,
+           "leaderboard": leaderboard_of(result), "notes": list(result.notes), "method": result.method.as_dict()}
     if values:
         out["marginals"] = [{"quantity": m.quantity, "confounded": m.confounded,
                              "values": [{"value": v, "loss": s, "points": n, "categories": by_p} for v, s, n, by_p in m.rows]}
-                            for m in ranking.marginals(result, values, st)]
-        if st.baseline:
-            b = ranking.baseline(result, values)
+                            for m in result.marginals]
+        if result.baseline is not None:
+            b = result.baseline
             out["baseline"] = {"filter": b.filter, "unmatched": [{"cell": c, "point": p, "why": w} for c, p, w in b.unmatched],
                                "rows": [{"cell": r.cell, "point": r.point, "partner": r.partner, "loss": r.loss, "base": r.base,
                                          "delta": r.delta, "baseline": r.is_baseline, "objects": r.objects} for r in b.rows]}
@@ -162,9 +160,10 @@ def lines_of(report: dict) -> list[str]:
     categories = list(dict.fromkeys(k for s in board for k in s["categories"]))
     cells = len({s["cell"] for s in board}) > 1
     headers = ["", "point", "loss", "worst page", "worst", "veto", *categories]
-    body = [[f"{s['rank']}." + (f" {s['cell']}" if cells else ""), s["point"], _num(s["loss"]), s["worst_page"].rsplit("/", 1)[-1] or "–",
+    body = [[(f"{s['rank']}." if s["rank"] else "–") + (f" {s['cell']}" if cells else ""), s["point"], _num(s["loss"]), s["worst_page"].rsplit("/", 1)[-1] or "–",
              _num(s["worst"]), "veto" if s["vetoed"] else "", *(_num(s["categories"].get(p, math.nan)) for p in categories)] for s in board]
-    out += ["Leaderboard (lower loss is better):", *_grid(headers, body, 2), ""]
+    out += ["Leaderboard (lower loss is better; a vetoed point last, whatever its loss):", *_grid(headers, body, 2)]
+    out += [f"  vetoed: {s['point']}: {s['gate_reason']}" for s in board if s["vetoed"]] + [""]
     for m in report.get("marginals", []):
         rows = [[v["value"], _num(v["loss"]), str(v["points"])] for v in m["values"]]
         out += [f"By {m['quantity']}:", *_grid([m["quantity"], "loss", "points"], rows)]

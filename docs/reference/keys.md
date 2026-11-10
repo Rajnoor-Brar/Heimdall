@@ -167,6 +167,7 @@ ranking.over_pages | string | "rms"
 ranking.by | string or list of strings | -
 ranking.baseline | string or table | -
 ranking.veto_loss | number | -
+ranking.gates | true or false or list of strings | true
 ranking.aggregate | string | "rms"
 ranking.dominated | true or false | false
 ranking.head_to_head | string | -

@@ -891,7 +891,8 @@ def test_the_summary_is_scored_by_category(stage):
                               "category-trend", "category-defects", "head-to-head"]
     items = {item.key: item for s in document.sections for item in s.items}
     assert [i.key for i in sections["category-compatibility"].items] == [
-        "category-compatibility-ranking", "chi2_ndf-ranking", "chi2_ndf-crossed", "chi2_ndf"]
+        "category-compatibility-asks", "category-compatibility-ranking", "category-compatibility-ranking-made", "chi2_ndf-ranking",
+        "chi2_ndf-ranking-made", "chi2_ndf-crossed", "chi2_ndf-crossed-made", "chi2_ndf", "chi2_ndf-made"]
     crossed = items["chi2_ndf-crossed"]                                         # V198: page cells against curves
     assert crossed.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "rms"] and [r.label for r in crossed.rows] == [
         "em", "ep", "rms"]
@@ -917,11 +918,11 @@ def test_the_summary_is_scored_by_category(stage):
     scores = ranking.rank(bars._rows_of(rows), st)                                # the standings are the engine's
     assert [p.n_pages for p in scores.points] == [1, 1, 1, 1]                   # only d01 has data: one page each
     standings = items["leaderboard"]
-    assert scores.flat and not any(r.band for r in standings.rows)            # em and ep: d01 against the same data, one order
-    assert standings.headers[:4] == ["loss", "worst page", "worst", "veto"]
+    assert scores.flat and not any(r.band and r.label in ("em", "ep") for r in standings.rows)   # d01 against the same data: one order
+    assert standings.headers[:4] == ["rank", "point loss ↓", "worst page", "page loss ↓"]
     shown_rows = [r for r in standings.rows if not r.band]
-    assert [r.cells[0].text for r in shown_rows] == [bars._shown(p.loss) for p in scores.points]
-    assert all(r.label.startswith(f"{p.rank}. ") if p.rank else r.label.startswith("– ") for r, p in zip(shown_rows, scores.points))
+    assert [r.cells[1].text for r in shown_rows] == [bars._shown(p.loss) for p in scores.points]
+    assert [r.cells[0].text for r in shown_rows] == [str(p.rank) if p.rank else "" for p in scores.points]
     for key in names:
         shown = items[f"{key}-ranking"]
         ratio = key in ("yield_ratio", "mean_bin_ratio")
@@ -931,8 +932,8 @@ def test_the_summary_is_scored_by_category(stage):
         assert all(re.search(r"  \(\d+\)$", n) for n in shown.names)         # the pages it was compared on, in brackets
         assert "the root mean square" in notes(shown)
         assert shown.base == (1.0 if ratio else 0.0)
-    (match,) = sections["head-to-head"].items                                   # the one page asked: em's d01
-    assert match.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "loss"] and match.title.endswith("em/d01-x01-y01")
+    match, _ = sections["head-to-head"].items                                   # the one page asked: em's d01, and its "Made by"
+    assert match.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "loss ↓"] and match.title.endswith("em/d01-x01-y01")
     assert float(match.rows[0].cells[1].text) == pytest.approx(-float(match.rows[1].cells[0].text))
 
 

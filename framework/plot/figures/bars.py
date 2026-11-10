@@ -3,10 +3,13 @@ page, and the summary (V174). Drawing only: the numbers are stats/ (metrics and 
 losses are stats/ranking.py's, the sentences are the registries' notes (stats/metrics.py).
 
 The summary is a document (V196): `summary_model` builds it as paper.py's model, and paper.py lays it out on A4 portrait
-pages. First the leaderboard: each point's loss, its worst page and a veto (a page that fails a gate, or a loss beyond `[ranking].veto_loss`:
-ranked last), and a column a category, the question each asks beside; then a section per category that has a metric on (what it asks, a ranking of the
-points, and for each metric of it a ranking, its page cells against its curves and a table, a row per point and a column
-per object); a head-to-head section only for the pages `[ranking].head_to_head` names. statistics/<set>/summary.pdf holds
+pages. Up front, the reading key and the whole record of how the numbers were made (stats/ranking.py's Method). Then the
+leaderboard, a row a point in the engine's order (its rank, its quantities, its loss, its worst page, a column a category,
+its n_eff, its gate when vetoed: unnumbered and last) and each point's metric values; the marginals; a section per category
+that has a metric on (what it asks, a ranking by its cost, and for each metric of it a ranking, its page cells against its
+curves and a table, a row per point and a column per object); the baseline; a head-to-head section only for the pages
+`[ranking].head_to_head` names. Under every table, its "Made by": the record's sentences that shaped it; a presenter states
+no rule of its own. statistics/<set>/summary.pdf holds
 every page; a PNG or SVG is a file a page in statistics/<set>/summary/, numbered in the PDF's order (summary_01.png, …).
 Each page ends with its items' notes, each once. Matplotlib (the conda base's), Agg.
 
@@ -41,11 +44,6 @@ TABLE_NOTE = ("A row per point (its label, under its page cell's band), a column
               "compared, or not on that page).")
 RANKING_NOTE = ("Per point (its page cell · its label), the {mean} of its {name} over the pages where it was "
                 "compared (their number in brackets), {order}.")
-APART = "Points of different page cells never meet: a page holds one cell's points."
-COUNTED_DATA = ("Only the pages compared against data count: on a page compared against its first curve, that curve "
-                "has no loss.")
-COUNTED_CURVE = ("No page here has data: each is compared against its first curve, which has no loss there, so a "
-                 "point that is a page's reference has no loss on it.")
 CROSSED_NOTE = ("Page cells against curves: each entry a point's mean over the pages where it was compared "
                 "(its ranking's number), its page cell one way and its curve the other; rms: the root mean square of the "
                 "row's, the column's, or all the entries; bold: the best in its row, closest to agreement; –: no "
@@ -397,7 +395,7 @@ def _ranking(rows: list[dict], key: str, notes: dict, st):
                          [f"{points[p]}  ({means[p][1]})" for p in ranked], values,
                          subtitle=order, base=1.0 if ratio else 0.0,
                          colours=(DARK, WARM) if ratio else (SERIES, SERIES),
-                         notes=(f"ranking-{key}", f"stat-{key}", "compared"))
+                         notes=("legend", f"ranking-{key}", f"stat-{key}", "compared"))
 
 
 def _mean_name(st) -> str:
@@ -449,7 +447,7 @@ def _crossed(rows: list[dict], key: str, notes: dict, st):
     notes["compared"] = COMPARED
     way = "page cells against curves" if down is cells else "curves against page cells"
     return _table(f"{key}-crossed", f"{M.title_of(key)}: {way}\n{SHADING[rule]}; bold: the best in its row", list(down) + ["rms"],
-                  list(across) + ["rms"], styled, ("crossed", f"stat-{key}", "compared"), tail=1,
+                  list(across) + ["rms"], styled, ("legend", "crossed", f"stat-{key}", "compared"), tail=1,
                   bold=frozenset({len(down)}), pinned=frozenset({len(down)}))
 
 
@@ -511,11 +509,21 @@ def _table_of(rows: list[dict], key: str, notes: dict, st):
         styled = [styled[at[p]] for p in order]
     return _table(key, f"{M.title_of(key)}{against}\n{SHADING[rule]}",
                   [parts[p][1] if grouped else points[p] for p in order],
-                  [short[o] for o in objects] + ["rms"], styled, (f"stat-{key}", "compared", "table"), tail=1,
+                  [short[o] for o in objects] + ["rms"], styled, ("legend", f"stat-{key}", "compared", "table"), tail=1,
                   groups=[parts[p][0] for p in order] if grouped else None)
 
 
 # ── the leaderboard: ranked by stats/ranking.py ────────────────────────────────────────────────────────────
+
+#: The polarity legend, every table's first note: a glyph a way of being better (stats/metrics.py).
+LEGEND = " · ".join(f"{M.GLYPH[p]} {M.PHRASE[p]}" for p in M.POLARITIES) + "."
+LOWER = M.GLYPH["lower"]
+CUT_AT = 25                       # the PDF's leaderboard: its first 25 points and every vetoed one; the HTML holds all
+
+
+def _glyph(name: str) -> str:
+    return M.GLYPH[M.REGISTRY[name].polarity]
+
 
 def _on(rows: list[dict], st) -> list[str]:
     """The metrics on that the rows have a number for, grouped by category in the registry's order."""
@@ -525,116 +533,157 @@ def _on(rows: list[dict], st) -> list[str]:
     return sorted(have, key=lambda n: (categories.index(M.REGISTRY[n].category), named.index(n)))
 
 
-def _loss_text(st) -> str:
-    """How a loss is made, as `st` sets it."""
-    norm = {"thresholds": "Each metric becomes a cost: 0 at or inside its good threshold, 1 at its bad one, in proportion "
-                          "beyond; a metric's own thresholds, so a loss does not move when other curves are added.",
-            "median": "Each metric becomes a cost: its value over the median of the page's curves.",
-            "mad": "Each metric becomes a cost from its distance to the page's median in units of their spread.",
-            "minmax": "Each metric becomes a cost: 0 for the page's best curve, 1 for its worst.",
-            "surprisal": "Each metric becomes a cost: the minus log of the probability a true curve would read as badly."}
-    return (f"{norm[st.cost]} A category's value is the root mean square of its metrics' costs; a curve's loss on a page "
-            f"is the root mean square over the categories, so a category with four metrics weighs as one with a single metric. "
-            f"A point's loss is the {_mean_name(st)} of its losses over its pages, a page weighted as set "
-            f"(0: every page within good, 1: every page at bad; lower is better). Worst page: the page where its loss is largest"
-            + (f"; veto: that loss is beyond {st.veto_loss:g}." if st.veto_loss is not None else "."))
+def _lines(ranked, stage: str, keep=lambda choice: True) -> list[str]:
+    """The record's sentences of a stage, of the choices `keep` keeps."""
+    import dataclasses
+    return dataclasses.replace(S.Method(), **{stage: tuple(c for c in getattr(ranked.method, stage) if keep(c))}).lines(stage)
 
 
-def _leaderboard_tables(rows: list[dict], names: list[str], st, notes: dict, ranked):
-    """The leaderboard table: a row per point in the engine's order (one order, or one a page cell; the vetoed last), its loss,
-    its worst page, a veto when a point has one or `veto_loss` is set, and a column a category (its value, shaded as a cost).
-    Then the categories' list."""
+def _of_metrics(names) -> object:
+    """Keeps a Metrics choice about one of `names` (its polarity, thresholds or weight), and how the values shown are made."""
+    return lambda c: c.name == "values shown" or any(c.name == n or c.name.endswith(f" of {n}") for n in names)
+
+
+def _not_vetoed(choice) -> bool:
+    return not choice.name.startswith("vetoed ")
+
+
+def _made(item, lines: list[str]) -> list:
+    """`item` and the "Made by" under it: the record's sentences that shaped its numbers."""
+    return [item, paper.Text(f"{item.key}-made", "Made by", [("", line, "", False) for line in lines], aside=True)]
+
+
+def _shown_points(rows: list[dict], ranked) -> tuple[list, bool]:
+    """The ranked points these rows hold, in the engine's order, and whether they are banded by cell (the engine ranks a cell
+    apart, and there are two cells or more)."""
+    cell_of = {r["point"]: r.get("cell") or "" for r in rows}
+    shown = [s for s in ranked.points if cell_of.get(s.point) == s.cell]
+    return shown, not ranked.flat and len({s.cell for s in shown}) > 1 and all(s.cell for s in shown)
+
+
+def _ranked_rows(shown: list, banded: bool, cells_of, label_of) -> list:
+    """A row a point in the engine's order: a band a cell when banded; a rule (a band) over the vetoed; past the first CUT_AT
+    passing points, rows the web page alone holds, and on paper a band that says how many."""
+    out, cell, rule, passing, at = [], None, False, 0, None
+    for s in shown:
+        if banded and s.cell != cell:
+            cell, rule = s.cell, False
+            out.append(paper.Row(cell, band=True))
+        if s.vetoed and not rule:
+            rule = True
+            out.append(paper.Row(f"{cell} · vetoed" if banded else "vetoed", band=True))
+        only = ""
+        if not s.vetoed:
+            passing += 1
+            only = "html" if passing > CUT_AT else ""
+            at = len(out) + 1 if passing == CUT_AT else at
+        out.append(paper.Row(label_of(s), [paper.Cell(*c) for c in cells_of(s)], only=only))
+    for i, row in enumerate(out):                         # a band whose rows are all the web page's is the web page's
+        if row.band:
+            end = next((j for j in range(i + 1, len(out)) if out[j].band), len(out))
+            if end > i + 1 and all(r.only == "html" for r in out[i + 1:end]):
+                row.only = "html"
+    more = passing - CUT_AT
+    if more > 0:
+        out.insert(at, paper.Row(f"{more} more point{'s' if more != 1 else ''} in the HTML page and heimdall rank --json",
+                                 band=True, only="pdf"))
+    return out
+
+
+def _cost_cell(v: float, top: float) -> tuple:
+    if v != v:
+        return ("–", SURFACE, MUTED)
+    f = min(v / top, 1.0)
+    return ("∞" if math.isinf(v) else _shown(v), _shade(f), "white" if f > 0.55 else INK)
+
+
+def _leaderboard(rows: list[dict], names: list[str], st, notes: dict, ranked) -> list:
+    """The leaderboard: a row a point in the engine's order (flat, or banded by cell), its rank (none when vetoed), its value of
+    each varied quantity, its loss, its worst page and that page's loss, a column a category, its n_eff, and its gate when a
+    point is vetoed; then the metric values: each point's median of each metric on, in the same order. Each with its "Made by"."""
     rows = _rows_of(rows)
     points, parts = _points(rows), _parts(rows)
-    by_point = {(p.cell, p.point): p for p in ranked.points}
-    cell_of = {r["point"]: r.get("cell") or "" for r in rows}
-    categories = [p for p in M.CATEGORIES if any(M.REGISTRY[n].category == p for n in names)]
-    order = [s.point for s in ranked.points if s.point in points and cell_of[s.point] == s.cell]
-    banded = not ranked.flat and len({cell_of[p] for p in order}) > 1 and all(cell_of[p] for p in order)
-    shown, labels, groups = [], [], []
-    for p in order:                                   # the engine's order: within a cell when banded, the vetoed last
-        s = by_point[(cell_of[p], p)]
-        shown.append(p)
-        labels.append(f"{s.rank}. {parts[p][1] if banded else points[p]}" if s.rank else f"– {parts[p][1] if banded else points[p]}")
-        groups.append(cell_of[p])
-    vetoed = [by_point[(cell_of[p], p)] for p in shown if by_point[(cell_of[p], p)].vetoed]
-    veto = st.veto_loss is not None or bool(vetoed)
+    shown, banded = _shown_points(rows, ranked)
+    if not shown:
+        return []
+    quantities = list(S.varied(ranked.values, {s.point for s in shown}))
+    categories = [c for c in M.CATEGORIES if any(M.REGISTRY[n].category == c for n in names)]
+    vetoed = any(s.vetoed for s in shown)
+    top = max([1.0] + [v for s in shown for v in (s.loss, s.worst_loss, *s.categories.values()) if math.isfinite(v)])
+    headers = ["rank", *quantities, f"point loss {LOWER}", "worst page", f"page loss {LOWER}",
+               *(f"{M.CATEGORIES[c]} {LOWER}" for c in categories), f"n_eff {_glyph('n_eff')}"] + \
+        (["gate"] if vetoed else []) + (["dominated"] if st.dominated else [])
 
-    finite = [v for p in shown for v in (by_point[(cell_of[p], p)].loss, by_point[(cell_of[p], p)].worst_loss,
-                                          *by_point[(cell_of[p], p)].categories.values()) if math.isfinite(v)]
-    top = max([1.0] + finite)
+    def label(s):
+        return parts[s.point][1] if banded else points[s.point]
 
-    def cost_cell(v):
-        if v != v:
-            return ("–", SURFACE, MUTED)
-        f = min(v / top, 1.0)
-        return ("∞" if math.isinf(v) else _shown(v), _shade(f), "white" if f > 0.55 else INK)
-    headers = ["loss", "worst page", "worst"] + (["veto"] if veto else []) + \
-        [M.CATEGORIES[p] for p in categories] + (["dominated"] if st.dominated else [])
-    styled = []
-    for p in shown:
-        s = by_point[(cell_of[p], p)]
-        row = [cost_cell(s.loss), (s.worst_page.rsplit("/", 1)[-1] if s.worst_page else "–", SURFACE, INK, False, "left"),
-               cost_cell(s.worst_loss)]
-        if veto:
-            row.append(("veto", WARM, "white", True) if s.vetoed else ("", SURFACE, INK))
-        row += [cost_cell(s.categories.get(q, math.nan)) for q in categories]
+    def board(s):
+        given = ranked.values.get(s.point, {})
+        n_eff = s.values.get("n_eff", math.nan)
+        cells = [(str(s.rank) if s.rank else "", SURFACE, INK),
+                 *((str(given.get(q, "–")), SURFACE, INK, False, "left") for q in quantities),
+                 _cost_cell(s.loss, top), (s.worst_page.rsplit("/", 1)[-1] if s.worst_page else "–", SURFACE, INK, False, "left"),
+                 _cost_cell(s.worst_loss, top), *(_cost_cell(s.categories.get(c, math.nan), top) for c in categories),
+                 (_shown(n_eff) if _finite(n_eff) else "–", SURFACE, INK)]
+        if vetoed:
+            cells.append((s.gate_reason, SURFACE, INK, False, "left"))
         if st.dominated:
-            row.append(("yes", SURFACE, INK) if s.dominated else ("–", SURFACE, MUTED) if s.dominated is None else ("", SURFACE, INK))
-        styled.append(row)
-    with_data = any(not any(r["is_reference"] for r in rows if r["page"] == page) for page in {r["page"] for r in rows})
-    notes["loss"], notes["apart"] = _loss_text(st), APART
-    notes["counted"] = COUNTED_DATA if with_data else COUNTED_CURVE
-    if vetoed:
-        notes["vetoed"] = ("Vetoed: a page that fails a gate, ranked after every point that passes, whatever its loss; fewer failed "
-                           "pages first. " + "; ".join(f"{points[s.point]}: {s.gate_reason}" for s in vetoed) + ".")
-    leaderboard = _table("leaderboard", "Leaderboard: each point's loss\nlower is better; darker: costlier, darkest at the table's worst (at least bad)",
-                         labels, headers, styled, ("loss", "apart", "counted") + (("vetoed",) if vetoed else ()),
-                       groups=groups if banded else None) if shown else None
-    for p in categories:
-        notes[f"category-{p}"] = f"{M.CATEGORIES[p]}. {M.QUESTIONS[p]}"
-    listed = []
-    for p in categories:
-        here = [n for n in names if M.REGISTRY[n].category == p]
-        listed.append((M.CATEGORIES[p], [(", ".join(M.title_of(n) for n in here), SURFACE, INK, False, "left")]))
-    categories_table = _table("categories", "The categories: what each asks\nthe metrics on under each", [l for l, _ in listed], ["metrics on"],
-                            [c for _, c in listed], tuple(f"category-{p}" for p in categories)) if listed else None
-    return [t for t in (leaderboard, categories_table) if t is not None]
+            cells.append(("yes", SURFACE, INK) if s.dominated else ("–", SURFACE, MUTED) if s.dominated is None else ("", SURFACE, INK))
+        return cells
+    leaderboard = paper.Table("leaderboard", "Leaderboard", headers, _ranked_rows(shown, banded, board, label),
+                              subtitle=SHADING["cost"], notes=("legend",))
+    scales = {n: _fraction(n, st, "cost", [v for s in shown if _finite(v := s.values.get(n))]) for n in names}
+
+    def value(s, n):
+        v = s.values.get(n, math.nan)
+        if not _finite(v):
+            return ("–", SURFACE, MUTED)
+        f = scales[n](v)
+        return (_shown(v), _shade(f), "white" if f > 0.55 else INK)
+    values = paper.Table("metric-values", "Metric values", [f"{n} {_glyph(n)}" for n in names],
+                         _ranked_rows(shown, banded, lambda s: [value(s, n) for n in names], label),
+                         subtitle=SHADING["cost"], notes=("legend",))
+    made = [*_lines(ranked, "gates", _not_vetoed), *_lines(ranked, "cost"), *_lines(ranked, "category"),
+            *_lines(ranked, "page_loss"), *_lines(ranked, "pages"), *_lines(ranked, "order")]
+    return _made(leaderboard, made) + _made(values, _lines(ranked, "metrics", _of_metrics(names)))
 
 
 def _category_sections(rows: list[dict], names: list[str], st, notes: dict, ranked) -> list:
-    """A section a category with a metric on: what it asks, a ranking of its value, then each metric's ranking, its page cells
+    """A section a category with a metric on: what it asks and each metric (its polarity, what it is, its thresholds), one
+    ranking of the points by the category's cost (the vetoed last and marked), then each metric's ranking, its page cells
     against its curves, and its table."""
     sections = []
     rows_ = _rows_of(rows)
     points = _points(rows_)
-    by_point = {(p.cell, p.point): p for p in ranked.points}
-    cell_of = {r["point"]: r.get("cell") or "" for r in rows_}
+    shown, _ = _shown_points(rows_, ranked)
     for category in M.CATEGORIES:
         here = [n for n in names if M.REGISTRY[n].category == category]
         if not here:
             continue
-        items = []
         notes[f"category-{category}"] = f"{M.CATEGORIES[category]}. {M.QUESTIONS[category]}"
-        values = {p: by_point[(cell_of[p], p)].categories[category] for p in points
-                  if (cell_of[p], p) in by_point and category in by_point[(cell_of[p], p)].categories}
-        if values:
-            ranked = sorted(values, key=lambda p: (values[p], points[p]))
-            notes["loss"] = _loss_text(st)
-            items.append(paper.Ranking(f"category-{category}-ranking",
-                                       f"{M.CATEGORIES[category]}: each point's value over its pages",
-                                       [points[p] for p in ranked], [values[p] for p in ranked],
-                                       subtitle="lowest first; 1: its metrics at their bad thresholds",
-                                       notes=(f"category-{category}", "loss")))
+        asks = [("", M.QUESTIONS[category], "", False)] + [
+            ("", f"{n} {_glyph(n)} ({M.PHRASE[M.REGISTRY[n].polarity]}). {M.describe(n, st.thresholds.get(n))}", "", False)
+            for n in here]
+        items = [paper.Text(f"category-{category}-asks", M.CATEGORIES[category], asks)]
+        have = [s for s in shown if category in s.categories]
+        if have:
+            ordered = sorted(have, key=lambda s: (s.vetoed, s.categories[category], points[s.point]))
+            ranking = paper.Ranking(f"category-{category}-ranking", f"{M.CATEGORIES[category]}: each point's cost {LOWER}",
+                                    [points[s.point] + (" · vetoed" if s.vetoed else "") for s in ordered],
+                                    [s.categories[category] for s in ordered], subtitle="the vetoed last, whatever their cost",
+                                    notes=("legend", f"category-{category}"))
+            items += _made(ranking, [*_lines(ranked, "metrics", _of_metrics(here)), *_lines(ranked, "category"),
+                                     *_lines(ranked, "pages")])
         for key in here:
+            detail = [*_lines(ranked, "metrics", _of_metrics([key])), *_lines(ranked, "pages", lambda c: c.name == "over_pages")]
             for item in (_ranking(rows, key, notes, st), _crossed(rows, key, notes, st), _table_of(rows, key, notes, st)):
                 if item is not None:
-                    items.append(item)
+                    items += _made(item, detail)
         sections.append(paper.Section(f"category-{category}", M.CATEGORIES[category], items))
     return sections
 
 
-def _matches(rows: list[dict], st, notes: dict) -> list:
+def _matches(rows: list[dict], st, notes: dict, ranked) -> list:
     """The head-to-head section: for each page `[ranking].head_to_head` names, its curves pairwise, the row's loss less the
     column's (blue: the row's curve is better), each pair on its own and no wins counted."""
     want = st.head_to_head
@@ -674,9 +723,11 @@ def _matches(rows: list[dict], st, notes: dict) -> list:
                                 _shade(f, NEUTRAL, DARK if v < 0 else WARM), "white" if f > 0.55 else INK))
             row.append((_shown(losses[a]) if losses.get(a) == losses.get(a) else "–", SURFACE, INK))
             styled.append(row)
-        items.append(_table(f"head-to-head-{n}", f"Head to head: {out['page']}" + ("\nthe row's loss less the column's"
-                                                                                  if n == 1 else ""),
-                            [short[p] for p in members], [short[p] for p in members] + ["loss"], styled, ("h2h",), tail=1))
+        items += _made(_table(f"head-to-head-{n}", f"Head to head: {out['page']}" + ("\nthe row's loss less the column's"
+                                                                                    if n == 1 else ""),
+                              [short[p] for p in members], [short[p] for p in members] + [f"loss {LOWER}"], styled,
+                              ("legend", "h2h"), tail=1),
+                       _lines(ranked, "optin", lambda c: c.name == "head_to_head"))       # one line: a match a page, many pages
     return [paper.Section("head-to-head", "Head to head", items)] if items else []
 
 
@@ -684,7 +735,7 @@ def _shown_delta(v: float) -> str:
     return "∞" if math.isinf(v) else f"{v:+.2f}"
 
 
-MARGINAL_HEADERS = ["× vs strata", "± SE", "vs best", "level", "n", "trimmed", "vetoed", "unmatched"]
+MARGINAL_HEADERS = [f"× vs strata {LOWER}", "± SE", f"vs best {LOWER}", f"level {LOWER}", "n", "trimmed", "vetoed", "unmatched"]
 
 
 def _times(x) -> str:
@@ -692,13 +743,14 @@ def _times(x) -> str:
 
 
 def _marginals(rows: list[dict], st, notes: dict, ranked) -> list:
-    """The marginals section: for each quantity (`[ranking].by`, else every varied quantity) its headline and a row a value,
-    ordered by the matched effect: e^E against its strata with its SE, against the best, the level e^M, the strata matched,
-    those trimmed, the slice's vetoed points and its unmatched strata; ≈ best shaded with the best."""
-    items = []
-    for marginal in ranked.marginals:
-        if len(marginal.rows) < 2:
-            continue
+    """The marginals section: a headline a quantity above the tables, then for each quantity (`[ranking].by`, else every varied
+    one) a row a value, ordered by the matched effect: e^E against its strata with its SE, against the best, the level e^M, the
+    strata matched, those trimmed, the slice's vetoed points and its unmatched strata; ≈ best shaded with the best."""
+    shown = [m for m in ranked.marginals if len(m.rows) >= 2]
+    if not shown:
+        return []
+    items = [paper.Text("marginal-headlines", "Headlines", [("", m.headline + ".", "", False) for m in shown])]
+    for marginal in shown:
         styled = []
         for r in marginal.rows:
             shade = (_shade(0.15), INK) if r.same_as_best else (SURFACE, INK)
@@ -709,18 +761,14 @@ def _marginals(rows: list[dict], st, notes: dict, ranked) -> list:
                            (str(r.n), SURFACE, INK), (f"{r.g} + {r.g}", SURFACE, INK), (str(r.vetoed), SURFACE, INK),
                            (str(r.unmatched), SURFACE, INK)])
         key = f"marginal-{marginal.quantity}"
-        notes["marginals"] = ("A marginal: for each value, e^E, its points' loss against the other points of their stratum (the same "
-                              "values of every other varied quantity), as a ratio; and e^M, the level: its points' typical loss. Both "
-                              "are trimmed means of ln(0.01 + loss); the table is ordered by E. Against the best: the paired ratio over "
-                              "the strata both hold, ≈ best within two standard errors, uncorrected for multiplicity. A vetoed point is "
-                              "in no number and is counted; a stratum where no other value survives is unmatched.")
-        notes[f"headline-{marginal.quantity}"] = marginal.headline + "."
         if marginal.confounded:
             notes[f"confounded-{marginal.quantity}"] = f"Confounded: {marginal.confounded}."
-        items.append(_table(key, f"By {marginal.quantity}\n{marginal.headline}" + ("; confounded" if marginal.confounded else ""),
-                            [r.value for r in marginal.rows], MARGINAL_HEADERS, styled,
-                            ("marginals", f"headline-{marginal.quantity}") + ((f"confounded-{marginal.quantity}",) if marginal.confounded else ())))
-    return [paper.Section("marginals", "Marginals", items)] if items else []
+        table = _table(key, f"By {marginal.quantity}" + ("\nconfounded" if marginal.confounded else ""),
+                       [r.value for r in marginal.rows], MARGINAL_HEADERS, styled,
+                       ("legend",) + ((f"confounded-{marginal.quantity}",) if marginal.confounded else ()))
+        items += _made(table, _lines(ranked, "marginals", lambda c, q=marginal.quantity: not c.name.startswith("strata of ")
+                                     or c.name == f"strata of {q}"))
+    return [paper.Section("marginals", "Marginals", items)]
 
 
 def _baseline(rows: list[dict], st, notes: dict, ranked) -> list:
@@ -752,14 +800,15 @@ def _baseline(rows: list[dict], st, notes: dict, ranked) -> list:
     notes["baseline"] = (f"Each point against the point equal to it on every quantity but {', '.join(result.filter)}, which take the "
                          f"values {given}: its loss less the baseline's, and its page loss less the baseline's on each object. "
                          "Negative (blue): better than the baseline.")
-    items = [_table("baseline", f"Baseline: {given}\nΔ against the baseline point; negative is better", labels,
-                    ["loss", "baseline", "Δloss"] + [o.replace("-x01-y01", "") for o in objects],
-                    styled, ("baseline",), groups=[r.cell for r in ordered] if banded else None)]
+    table = _table("baseline", f"Baseline: {given}\nΔ against the baseline point; negative is better", labels,
+                   [f"loss {LOWER}", f"baseline {LOWER}", f"Δloss {LOWER}"] + [o.replace("-x01-y01", "") for o in objects],
+                   styled, ("legend", "baseline"), groups=[r.cell for r in ordered] if banded else None)
     if result.unmatched:
         notes["unmatched"] = "Unmatched: points with no baseline partner, so no Δ: " + "; ".join(
             f"{c + ' · ' if c else ''}{p} ({why})" for c, p, why in result.unmatched) + "."
-        items[0].notes = items[0].notes + ("unmatched",)
-    return [paper.Section("baseline", "Baseline", items)]
+        table.notes = table.notes + ("unmatched",)
+    return [paper.Section("baseline", "Baseline", _made(table, [*_lines(ranked, "optin", lambda c: c.name == "baseline"),
+                                                                 *_lines(ranked, "pages", lambda c: c.name == "over_pages")]))]
 
 
 def _facts(rows: list[dict]) -> list[str]:
@@ -781,26 +830,66 @@ def _facts(rows: list[dict]) -> list[str]:
             + ("; the others are compared against their first curve." if with_data < len(pages) else ".")]
 
 
+def _worked(rows: list[dict], names: list[str], st, ranked) -> str:
+    """One real row worked through the cost: the best point's first page, its first metric on with a number, value → q → z → c."""
+    if st.cost != "thresholds":
+        return ""
+    best = next((s for s in ranked.points if s.rank), None)
+    if best is None:
+        return ""
+    points = _points(rows)
+    for r in rows:
+        if r["point"] != best.point or (r.get("cell") or "") != best.cell or r["is_reference"]:
+            continue
+        for n in names:
+            v, given = _number(r.get(n)), st.thresholds_of(n)
+            if v is None or not math.isfinite(v) or given is None:
+                continue
+            m = M.REGISTRY[n]
+            return (f"Worked: {n} of {points[best.point]} on {r['page']}: value {_shown(v)} → q {m.oriented(v):.4g} "
+                    f"→ z {m.excess(v, given):.4g} → c {m.cost(v, given):.4g}.")
+    return ""
+
+
+def _front(rows: list[dict], names: list[str], st, ranked) -> list:
+    """The front's reading key (the legend, the cost, the gates, the order) and "How these numbers were made": the whole record,
+    stage by stage, with one row worked through the cost."""
+    key = [LEGEND, *_lines(ranked, "cost"), *_lines(ranked, "gates", _not_vetoed), *_lines(ranked, "order")]
+    record = []
+    for stage in S.Method.STAGES:
+        lines = ranked.method.lines(stage)
+        if not lines:
+            continue
+        record.append(("", S.Method.TITLES[stage], "", True))
+        record += [("", line, "", False) for line in lines]
+        if stage == "cost" and (worked := _worked(_rows_of(rows), names, st, ranked)):
+            record.append(("", worked, "", False))
+    return [paper.Text("front-key", "Reading key", [("", line, "", False) for line in key]),
+            paper.Text("front-method", "How these numbers were made", record)]
+
+
 def summary_model(rows: list[dict], heading: str = "", ranking=None):
-    """The summary as a document (V196): its facts and notes up front (V197), the leaderboard and the categories' list, a
-    section a category with a metric on (what it asks, a ranking, and each metric's ranking, page cells against curves and
-    table), then the head to head for the pages `[ranking].head_to_head` names. `ranking`: the stats.ranking.Ranking of these
-    rows (ranked here with the defaults when None: no marginals then, having no values)."""
+    """The summary as a document (V196): its facts, reading key and record up front (V197), then the leaderboard and the metric
+    values, the marginals, a section a category with a metric on (what it asks, a ranking, and each metric's ranking, page cells
+    against curves and table), the baseline, and the head to head for the pages `[ranking].head_to_head` names; under every table
+    its "Made by", from the record. `ranking`: the stats.ranking.Ranking of these rows (ranked here with the defaults when None:
+    no marginals then, having no values)."""
     ranked = ranking or S.rank(_rows_of(rows))
     st = ranked.settings
     notes: dict = {}
     names = _on(_rows_of(rows), st)
-    sections = []
+    sections, front = [], []
     if names:
-        notes["loss"] = _loss_text(st)
-        front = _leaderboard_tables(rows, names, st, notes, ranked)
-        if front:
-            sections.append(paper.Section("leaderboard", "Leaderboard", front))
-        sections += _category_sections(rows, names, st, notes, ranked)
+        notes["legend"] = LEGEND
+        board = _leaderboard(rows, names, st, notes, ranked)
+        if board:
+            sections.append(paper.Section("leaderboard", "Leaderboard", board))
         sections += _marginals(rows, st, notes, ranked)
+        sections += _category_sections(rows, names, st, notes, ranked)
         sections += _baseline(rows, st, notes, ranked)
-        sections += _matches(rows, st, notes)
-    return paper.Document(heading, sections, notes, _facts(rows) if rows else [])
+        sections += _matches(rows, st, notes, ranked)
+        front = _front(rows, names, st, ranked) if sections else []
+    return paper.Document(heading, sections, notes, _facts(rows) if rows else [], front=front)
 
 
 def summary_of(rows: list[dict], target: Path, formats: list[str], heading: str = "", ranking=None) -> list[Path]:

@@ -111,7 +111,7 @@ def _blocks(widths: list[float], room: float, tail: int) -> list[list[int]]:
 
 def table(item, numbers: dict, scale, tex, width: float) -> list[str]:
     """A table as `longtable` column blocks (see the module's doc)."""
-    headers, rows = list(item.headers), list(item.rows)
+    headers, rows = list(item.headers), [r for r in item.rows if getattr(r, "only", "") != "html"]     # paper's rows
     cells = [r for r in rows if not r.band]
     label_w = min(LABEL_MOST, max([_width(r.label, scale) for r in rows] + [_width("point", scale)])) + 2 * PAD
     widths = []
@@ -236,6 +236,8 @@ def document(doc, numbers: dict, scale, tex, width: float) -> list[str]:
     out: list[str] = []
     if doc.facts:
         out += ["\\begin{hdFacts}", *(f"\\item {tex(fact)}" for fact in doc.facts), "\\end{hdFacts}"]
+    for item in getattr(doc, "front", []):
+        out += text(item, numbers, tex)
     for section in doc.sections:
         if not section.items:
             continue

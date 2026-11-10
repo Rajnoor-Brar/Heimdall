@@ -15,7 +15,7 @@ The summary (`statistics/<set>/summary.pdf` and `.html`) and the report's statis
 
 The report's default section list becomes `["leaderboard", "marginals", *("category:" + c), "baseline", "head-to-head"]`. A section with nothing to show is left out without a word, as today.
 
-## §1 Leaderboard (default)
+## §1 Leaderboard (default) · closed 5.1
 
 One flat table, a row a point, in Grand Ranking order (03 §1.4):
 
@@ -34,7 +34,7 @@ One flat table, a row a point, in Grand Ranking order (03 §1.4):
 
 Under it, **Metric values**: a table a row a point (same order), a column a default metric, each holding the metric's median over the point's pages, with the metric's polarity in the header and shaded by its cost. This is the "evaluated metric values" of the request. The loss explains the order, and the values explain the loss.
 
-## §2 Quantity marginals (default)
+## §2 Quantity marginals (default) · closed 4.2, 5.1
 
 A table for each varied quantity, in the order the sweep names them. A row a value, ordered by the matched effect:
 

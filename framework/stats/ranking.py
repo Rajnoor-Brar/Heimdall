@@ -426,6 +426,7 @@ class Ranking:
     notes: list = field(default_factory=list)
     marginals: list = field(default_factory=list)     # Marginal, when `values` is given
     baseline: object = None                           # Baseline, when settings.baseline is set and `values` given
+    values: dict = field(default_factory=dict)        # {point: {quantity: value}}, as given: the leaderboard's quantity columns
 
     def of(self, cell: str | None = None) -> list[PointLoss]:
         """A cell's points in order; every point when `cell` is None."""
@@ -472,7 +473,7 @@ def rank(rows: list[dict], settings: Settings | None = None, page_weights: dict 
             ps.shares = {p: (v * v / total if total else 0.0) for p, v in ps.categories.items()}
         out.append(ps)
     result = Ranking(settings=st, points=out, cells=list(dict.fromkeys(r["cell"] for r in rows)), flat=True, method=Method(),
-                     weights=used)
+                     weights=used, values=dict(values or {}))
     if st.aggregate != "rms":
         _aggregate(result, obs, groups)
     if st.dominated:
@@ -538,6 +539,8 @@ def _stages(result: "Ranking", rows: list[dict], obs: list[Obs]) -> dict:
                                 "" if mine else m.why))
         stage.append(Choice(f"weight of {name}", result.weights.get(name, weight), st.source("metrics") if st.weights_by == "equal"
                             else st.source("weights_by"), "" if st.weights_by == "equal" else f"given {weight:g}, times CRITIC's"))
+    stage.append(Choice("values shown", "median over a point's pages", "default",
+                        "each default and shown metric's value beside the loss: it explains the loss and is not in it"))
     gates = set(st.gate_ids())
     for name in sorted(columns - set(st.metrics) - gates, key=list(metrics.REGISTRY).index):
         stage.append(Choice(name, "computed, not scored", "registry", _why_not(name)))

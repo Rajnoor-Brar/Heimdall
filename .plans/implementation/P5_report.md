@@ -1,6 +1,6 @@
 # Phase 5: the leaderboard, the sections, and the record shown
 
-Status: not started. Blocked by: phase 4. Source: [04](../plans/grand-ranking/04_Report.md), all of it; [02](../plans/grand-ranking/02_Metrics.md) for where a glyph goes; [03 §3 property 9](../plans/grand-ranking/03_Math.md). Names in code: [Tables](Tables.md) T4, T6, T7, T8.
+Status: in progress (5.1 done). Blocked by: phase 4. Source: [04](../plans/grand-ranking/04_Report.md), all of it; [02](../plans/grand-ranking/02_Metrics.md) for where a glyph goes; [03 §3 property 9](../plans/grand-ranking/03_Math.md). Names in code: [Tables](Tables.md) T4, T6, T7, T8.
 
 The rule of this phase: **a presenter renders the record and writes no rule of its own.** `bars.py`, `rankcmd.py` and `report.py` hold no sentence about a mean, a gate, a weight or a compression except through `Method.lines`.
 
@@ -54,3 +54,15 @@ The rule of this phase: **a presenter renders the record and writes no rule of i
 - Blocked by: 5.2, 5.3.
 
 ## Log
+- **5.1 · done 2026-11-10.** `bars.summary_model` rebuilt.
+  - **Sections:** `leaderboard` (the leaderboard, then `metric-values`), `marginals` (`marginal-headlines`, then a table for each quantity), `category-<c>` (`-asks`: the question and each metric with its glyph, phrase, description and thresholds; `-ranking`: by the category's cost, vetoed points last and marked; then the per-metric detail until 5.2), `baseline` and `head-to-head`.
+  - **Front:** `Document.front` holds `front-key` (the legend, then the cost, gates and order lines) and `front-method` (every stage of the record under its title, with one row worked as value → q → z → c).
+  - **Leaderboard:** the leaderboard's and the metric values' rows come from `_ranked_rows`: the engine's order, flat or banded by `Ranking.flat`, a band "vetoed" over the vetoed rows, and R14's cut through `Row.only`.
+  - **"Made by":** each table and ranking is followed by `<key>-made`, an `aside` Text built from `Method.lines` of the stages that shaped it. The legend is every table's first note, and headers carry the glyphs.
+  - **Removed:** `_loss_text`, the `loss`, `apart`, `counted`, `vetoed` and `marginals` notes, and the title sentences.
+  - **Renderers:** paper gains `Row.only`, `Text.aside`, `Document.front` and `printed` (cut rows dropped, sentences wrapped). webpage gains the front section and nav, drops paper-only rows and sets bold lines. typeset gains the front texts and drops web-only rows. `report.chosen` keeps an item's "Made by".
+  - **Engine:** `Ranking.values` and the Metrics choice "values shown".
+  - Fails first: 16 of `test_summary_layout.py`'s 37 on the old code (e.g. `AttributeError: 'Document' object has no attribute 'front'`, `StopIteration` for `metric-values`).
+  - Tests: the section order, and the front's key and whole record with a worked row whose c = log₂(1 + z). Every table and ranking is followed by its "Made by" and has the legend first, and an aside is not in the contents. Flat on the built table, banded when one cell's reference differs, with the reason in "Made by". `over_pages = "median"` is said with `[ranking]`. No title says "lower is better", and the headers carry their glyphs. The metric values are the engine's medians in the leaderboard's order. The PDF holds 25 of 76 points plus "51 more …", and the HTML holds all of them. The vetoed row is last, unranked, under a "vetoed" band, with its gate. The older tests were moved to the new keys and headers.
+  - Check: `test_summary_layout.py` 37 passed. `tests/runner -m 'not slow'`: 2280 passed, 11 skipped, and the two named reds. `tests/integration -m 'not slow'`: 131 passed. `test_plot_stage.py -k summary`: 1 passed.
+  - A reader may rely on: the summary's section order and the leaderboard's columns; "Made by" under every table; the reading key and the record at the front; R14's cut.

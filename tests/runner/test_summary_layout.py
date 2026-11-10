@@ -164,7 +164,7 @@ def test_a_page_holds_whole_rows_and_a_band_never_ends_it():
 def test_small_tables_share_a_page_and_each_section_starts_one(worst):
     _, pages = worst
     head_to_head = [p for p in pages if p.section.key == "head-to-head"]
-    assert sum(len(p.pieces) for p in head_to_head) == 1                         # the one page `head_to_head` names
+    assert [piece.item.key for p in head_to_head for piece in p.pieces] == ["head-to-head-1", "head-to-head-1-made"]   # the one page asked
     keys = [p.section.key for p in pages]
     for page in pages:                                           # a section's pieces never share a page with another's
         assert {piece.item.key for piece in page.pieces} <= {i.key for i in page.section.items}
@@ -232,7 +232,7 @@ def test_each_page_footnote_is_a_line_of_note_numbers(worst):
     where = "(page 1)" if front == 1 else f"(pages 1–{front})"
     for page in pages:
         text = paper.footnote(document, page.notes)
-        if page.section.key == "front":
+        if page.section.key == "front" or not page.notes:          # the front, or a page of a table's "Made by" alone
             assert text == ""
             continue
         assert re.fullmatch(r"Notes? [\d, ]+ " + re.escape(where) + r": what these numbers are and how they are computed\.",
@@ -247,16 +247,18 @@ def test_rows_in_curve_order_are_grouped_under_their_cells():
     bands = [r.label for r in table.rows if r.band]
     assert len(bands) == 38 and bands[0] == "NNPDF23lo_lpdfon"
     assert {r.label for r in table.rows if not r.band} == {"lepton QED shower on", "lepton QED shower off"}
-    standings = items["leaderboard"]                     # the cells share their objects and reference: one order, no band
+    standings = items["leaderboard"]                     # the cells share their objects and reference: one order, no cell's band
+    cells = {r["cell"] for r in worst_rows()}
     labels = [r.label for r in standings.rows if not r.band]
-    assert not any(r.band for r in standings.rows) and labels[0].startswith("1. ") and " · lepton QED shower" in labels[0]
+    assert not any(r.band and r.label in cells for r in standings.rows) and " · lepton QED shower" in labels[0]
     apart = [dict(r, object=r["object"] + "_" + r["cell"]) for r in worst_rows()]          # each cell its own objects
     banded = next(i for s in summary(apart, "", ALL).sections for i in s.items if i.key == "leaderboard")
-    assert len([r for r in banded.rows if r.band]) == 38 and any(r.label.startswith("1. lepton QED shower") for r in banded.rows)
-    assert standings.headers[:3] == ["loss", "worst page", "worst"] and "veto" in standings.headers
-    assert all(c.cells[1].align == "left" for c in standings.rows if not c.band)    # the worst page's name
+    assert len([r for r in banded.rows if r.band and r.label in cells]) == 38
+    assert labels[0] not in [r.label for r in banded.rows] and "lepton QED shower on" in [r.label for r in banded.rows]
+    at = standings.headers.index("worst page")
+    assert all(c.cells[at].align == "left" for c in standings.rows if not c.band)    # the worst page's name
     one = summary([dict(r, cell="") for r in worst_rows() if r["cell"] == "NNPDF23lo_lpdfon"], "", ALL)
-    assert not any(r.band for s in one.sections for i in s.items if isinstance(i, paper.Table) for r in i.rows)
+    assert not any(r.band and r.label in cells for s in one.sections for i in s.items if isinstance(i, paper.Table) for r in i.rows)
 
 
 # ── page cells against curves (V198) ─────────────────────────────────────────────────────────────────
@@ -267,7 +269,7 @@ def test_cells_against_curves_hold_each_points_mean_the_longer_list_down():
     document = summary(rows, "", ALL)
     items = {i.key: i for s in document.sections for i in s.items}
     keys = [i.key for s in document.sections if s.key == "category-normalisation" for i in s.items
-            if i.key.startswith("yield_ratio")]
+            if i.key.startswith("yield_ratio") and not i.key.endswith("-made")]
     assert keys == ["yield_ratio-ranking", "yield_ratio-crossed", "yield_ratio"]
     crossed = items["chi2_ndf-crossed"]
     assert crossed.headers == ["lepton QED shower on", "lepton QED shower off", "rms"]   # 38 cells down, 2 across
@@ -429,58 +431,76 @@ def keys_of(document):
     return {s.key: [i.key for i in s.items] for s in document.sections}
 
 
+def item_of(document, key: str):
+    return next(i for s in document.sections for i in s.items if i.key == key)
+
+
+def made_by(document, key: str) -> str:
+    """The "Made by" under the item `key`, as one text."""
+    return " ".join(line[1] for line in item_of(document, f"{key}-made").lines)
+
+
+def shown_keys(document):
+    """Each section's item keys, its "Made by" texts left out."""
+    return {s.key: [i.key for i in s.items if not i.key.endswith("-made")] for s in document.sections}
+
+
 def test_the_default_summary_is_the_leaderboard_then_a_section_per_category_with_a_metric_on():
     document = summary(worst_rows(), "", ranking.settings_of())
-    keys = keys_of(document)
+    keys = shown_keys(document)
     assert list(keys) == ["leaderboard", "category-compatibility", "category-normalisation", "category-accuracy", "category-trend",
                           "category-defects"]                                  # the nine defaults; no similarity, no quality
-    assert keys["leaderboard"] == ["leaderboard", "categories"]
+    assert keys["leaderboard"] == ["leaderboard", "metric-values"]
     pairs = {"compatibility": ("chi2_sigma", "poisson_dev"), "accuracy": ("log_dev_shrunk", "log_dev_l4"),
              "trend": ("tilt", "pull_autocorr"), "defects": ("peak_pull2", "log_ratio_roughness")}    # 02's pairs
     for category, (a, b) in pairs.items():
-        assert keys[f"category-{category}"] == [f"category-{category}-ranking", f"{a}-ranking", f"{a}-crossed", a,
-                                                f"{b}-ranking", f"{b}-crossed", b]
-    assert keys["category-normalisation"][1:] == ["log_yield_ratio-ranking", "log_yield_ratio-crossed", "log_yield_ratio"]
-    standings = next(i for s in document.sections for i in s.items if i.key == "leaderboard")
-    assert "veto" not in standings.headers and "dominated" not in standings.headers
+        assert keys[f"category-{category}"] == [f"category-{category}-asks", f"category-{category}-ranking", f"{a}-ranking",
+                                                f"{a}-crossed", a, f"{b}-ranking", f"{b}-crossed", b]
+    assert keys["category-normalisation"][2:] == ["log_yield_ratio-ranking", "log_yield_ratio-crossed", "log_yield_ratio"]
+    standings = item_of(document, "leaderboard")
+    assert "gate" not in standings.headers and "dominated" not in standings.headers
     assert not any(s.key == "head-to-head" for s in document.sections)         # only when asked
 
 
-def test_the_leaderboard_is_the_engines_losses_and_veto_and_dominated_columns_follow_the_settings():
+def test_the_leaderboard_is_the_engines_losses_and_gate_and_dominated_columns_follow_the_settings():
     st = ranking.settings_of({"veto_loss": 0.5, "dominated": True})
     rows = worst_rows()
     document = summary(rows, "", st)
-    standings = next(i for s in document.sections for i in s.items if i.key == "leaderboard")
-    assert standings.headers[:4] == ["loss", "worst page", "worst", "veto"] and standings.headers[-1] == "dominated"
-    scored = {p.point: p for p in ranking.rank(rows, st).points}
+    standings = item_of(document, "leaderboard")
+    assert "gate" in standings.headers and standings.headers[-1] == "dominated"
     first = next(r for r in standings.rows if not r.band)
     best = ranking.rank(rows, st).points[0]                                       # the engine's first, vetoed or not
-    assert first.cells[0].text == bars._shown(best.loss)
-    assert first.cells[1].text == best.worst_page.rsplit("/", 1)[-1]
-    assert (first.cells[3].text == "veto") == best.vetoed
+    assert first.cells[standings.headers.index("point loss ↓")].text == bars._shown(best.loss)
+    assert first.cells[standings.headers.index("worst page")].text == best.worst_page.rsplit("/", 1)[-1]
+    assert first.cells[standings.headers.index("gate")].text == best.gate_reason
 
 
-def test_a_purposes_section_says_what_it_asks_and_each_metric_what_it_is_and_how_it_is_scored():
+def test_a_categorys_section_says_what_it_asks_and_each_metric_what_it_is_and_how_it_is_scored():
     from stats import metrics
     document = summary(worst_rows(), "", ranking.settings_of({"thresholds": {"log_yield_ratio": [0.1, 0.5]}}))
     assert document.notes["category-accuracy"].startswith("Shape accuracy, bin by bin. ")
     assert document.notes["stat-chi2_sigma"] == metrics.describe("chi2_sigma")
-    assert "Scored from 0.1 (cost 0) to 0.5 (cost 1)" in document.notes["stat-log_yield_ratio"]    # the setting's thresholds, not the registry's
-    ranked = next(i for s in document.sections for i in s.items if i.key == "category-accuracy-ranking")
-    assert {"category-accuracy", "loss"} <= set(ranked.notes)
+    asks = [line[1] for line in item_of(document, "category-normalisation-asks").lines]
+    assert asks[0] == metrics.QUESTIONS["normalisation"]
+    assert asks[1].startswith("log_yield_ratio ↓ (lower is better). ")
+    assert "Scored from 0.1 (cost 0) to 0.5 (cost 1)" in asks[1]                # the setting's thresholds, not the registry's
+    ranked = item_of(document, "category-accuracy-ranking")
+    assert ranked.notes == ("legend", "category-accuracy")
 
 
 def test_a_head_to_head_is_played_for_the_pages_asked_and_counts_no_wins():
     rows = worst_rows()
     one = summary(rows, "", ranking.settings_of({"head_to_head": "NNPDF23lo_lpdfon/d01-x01-y01"}))
     section = next(s for s in one.sections if s.key == "head-to-head")
-    (table,) = section.items
-    assert table.headers == ["lepton QED shower on", "lepton QED shower off", "loss"]
+    table, made = section.items
+    assert made.key == "head-to-head-1-made" and "head_to_head: NNPDF23lo_lpdfon/d01-x01-y01 ([ranking])." in made.lines[0][1]
+    assert table.headers == ["lepton QED shower on", "lepton QED shower off", "loss ↓"]
     on, off = table.rows[0].cells, table.rows[1].cells
     assert on[0].text == "–" and off[1].text == "–"
     assert float(on[1].text) == pytest.approx(-float(off[0].text))              # the pair, seen from each side
     every = summary(rows, "", ranking.settings_of({"head_to_head": "all"}))
-    assert len(next(s for s in every.sections if s.key == "head-to-head").items) == 12 * 38
+    matches = next(s for s in every.sections if s.key == "head-to-head").items
+    assert len([i for i in matches if isinstance(i, paper.Table)]) == 12 * 38
     none = summary(rows, "", ranking.settings_of({"head_to_head": "nowhere/d99"}))
     assert not any(s.key == "head-to-head" for s in none.sections)
 
@@ -533,16 +553,19 @@ def test_marginals_and_a_baseline_are_sections_when_the_points_axes_are_known():
     rows, axes = worst_rows(), worst_axes()
     st = ranking.settings_of({"baseline": {"shower": "on"}})
     document = summary(rows, "", st, axes)
-    keys = keys_of(document)
-    assert keys["marginals"] == ["marginal-pdf", "marginal-lepton", "marginal-shower"] and keys["baseline"] == ["baseline"]
-    assert list(keys)[-2:] == ["marginals", "baseline"]
-    pdf = next(i for s in document.sections for i in s.items if i.key == "marginal-pdf")
-    assert pdf.headers[:2] == ["× vs strata", "± SE"] and len([r for r in pdf.rows]) == len(PDFS)
+    keys = shown_keys(document)
+    assert keys["marginals"] == ["marginal-headlines", "marginal-pdf", "marginal-lepton", "marginal-shower"]
+    assert keys["baseline"] == ["baseline"]
+    assert list(keys)[:2] == ["leaderboard", "marginals"] and list(keys)[-1] == "baseline"
+    pdf = item_of(document, "marginal-pdf")
+    assert pdf.headers[:2] == ["× vs strata ↓", "± SE"] and len([r for r in pdf.rows]) == len(PDFS)
     assert {r.cells[pdf.headers.index("n")].text for r in pdf.rows} == {"4"}      # lepton × shower: four strata a PDF
     base = next(i for s in document.sections for i in s.items if i.key == "baseline")
-    assert base.headers[:3] == ["loss", "baseline", "Δloss"] and len(base.headers) == 3 + 12
+    assert base.headers[:3] == ["loss ↓", "baseline ↓", "Δloss ↓"] and len(base.headers) == 3 + 12
     assert sum(1 for r in base.rows if not r.band and r.label.endswith("(baseline)")) == 38     # the "on" points are their own
-    assert "marginals" in document.notes and "baseline" in document.notes
+    assert "baseline" in document.notes
+    headlines = [line[1] for line in item_of(document, "marginal-headlines").lines]
+    assert [h.split(":")[0] for h in headlines] == ["pdf", "lepton", "shower"]          # a headline a quantity, above the tables
     none = summary(rows, "", st, {})
     assert "marginals" not in keys_of(none) and "baseline" not in keys_of(none)          # no axes known: no sections
 
@@ -552,23 +575,131 @@ def test_a_confounded_marginal_says_so_and_an_unmatched_point_is_listed():
     rows = [r for r in rows if r["point"] != "NNPDF23lo_lpdfon_on"]
     st = ranking.settings_of({"by": ["shower"], "baseline": {"shower": "on"}})
     document = summary(rows, "", st, axes)
-    assert keys_of(document)["marginals"] == ["marginal-shower"]
-    shower = next(i for s in document.sections for i in s.items if i.key == "marginal-shower")
+    assert shown_keys(document)["marginals"] == ["marginal-headlines", "marginal-shower"]
+    shower = item_of(document, "marginal-shower")
     unmatched = {r.label: r.cells[shower.headers.index("unmatched")].text for r in shower.rows}
     assert unmatched == {"on": "0", "off": "1"}                                   # NNPDF23lo_lpdfon holds its "off" point alone
-    assert document.notes["headline-shower"].startswith("shower: ")
+    assert item_of(document, "marginal-headlines").lines[0][1].startswith("shower: ")
     assert "NNPDF23lo_lpdfon_off" in document.notes["unmatched"] and "no point equal to it" in document.notes["unmatched"]
     with pytest.raises(Exception, match="not a quantity"):
         summary(rows, "", ranking.settings_of({"by": "beams"}), axes)
 
 
-def test_a_vetoed_point_is_last_in_the_leaderboard_and_its_note_says_why():
+def test_a_vetoed_point_is_last_in_the_leaderboard_unnumbered_under_a_rule_and_its_gate_says_why():
     rows = [dict(r, peak_bin_ratio=0.0, yield_sign=0.0) for r in worst_rows()]
     st = ranking.settings_of()
     best = ranking.rank(bars._rows_of(rows), st).points[0].point
     rows = [dict(r, yield_sign=1.0) if r["point"] == best and not r["is_reference"] else r for r in rows]
     document = summary(rows, "", st)
-    standings = next(i for s in document.sections for i in s.items if i.key == "leaderboard")
-    last = [r for r in standings.rows if not r.band][-1]
-    assert last.label.startswith("– ") and last.cells[standings.headers.index("veto")].text == "veto"
-    assert "vetoed" in standings.notes and "a yield of zero or less on" in document.notes["vetoed"]
+    standings = item_of(document, "leaderboard")
+    shown = [r for r in standings.rows if r.only != "pdf"]                       # the web page's rows: every one
+    rule, last = shown[-2:]
+    assert rule.band and rule.label == "vetoed" and not last.band
+    assert last.label == bars._points(rows)[best] and last.cells[standings.headers.index("rank")].text == ""
+    assert last.cells[standings.headers.index("gate")].text == "a yield of zero or less on 12 of 12 pages"
+    assert shown[1].cells[standings.headers.index("rank")].text == "1"            # the first passing point: rank 1
+    for values in (item_of(document, "metric-values"),):                          # its values, in the same order
+        assert [r.label for r in values.rows] == [r.label for r in standings.rows]
+
+
+# ── the document as the report reads it (grand-ranking 5.1) ───────────────────────────────────────────────
+
+FULL = ranking.settings_of({"baseline": {"shower": "on"}, "head_to_head": "NNPDF23lo_lpdfon/d01-x01-y01"})
+
+
+@pytest.fixture(scope="module")
+def full():
+    rows, axes = worst_rows(), worst_axes()
+    return summary(rows, "", FULL, axes), ranking.rank(bars._rows_of(rows), FULL, None, axes)
+
+
+def test_the_sections_come_in_the_reports_order_and_the_front_holds_the_key_and_the_record(full):
+    import math
+    document, ranked = full
+    assert [s.key for s in document.sections] == ["leaderboard", "marginals", "category-compatibility", "category-normalisation",
+                                                  "category-accuracy", "category-trend", "category-defects", "baseline",
+                                                  "head-to-head"]
+    assert [i.key for i in document.front] == ["front-key", "front-method"]
+    assert document.front[0].lines[0][1] == document.notes["legend"]
+    record = document.front[1].lines
+    titles = [line[1] for line in record if line[3]]
+    assert titles == [ranking.Method.TITLES[s] for s in ranking.Method.STAGES if getattr(ranked.method, s)]
+    said = [line[1] for line in record]
+    assert all(line in said for line in ranked.method.lines())                   # the whole record, every line
+    worked = next(line for line in said if line.startswith("Worked: "))
+    z, c = (float(re.search(rf"→ {k} (-?\d+(?:\.\d+)?(?:e[-+]?\d+)?)", worked).group(1)) for k in ("z", "c"))
+    assert c == pytest.approx(math.log2(1 + z), rel=2e-2) and "value " in worked    # value → z → c, from one real row
+
+
+def test_every_table_has_its_made_by_under_it_and_the_legend_as_its_first_note(full):
+    document, _ = full
+    seen = 0
+    for section in document.sections:
+        for k, item in enumerate(section.items):
+            if isinstance(item, (paper.Table, paper.Ranking)):
+                after = section.items[k + 1]
+                assert after.key == f"{item.key}-made" and after.aside and after.title == "Made by" and after.lines, item.key
+                assert item.notes[0] == "legend", item.key
+                seen += 1
+    assert seen > 20 and document.notes["legend"].startswith("↓ lower is better · ↑ higher is better")
+    contents = paper._front(document).items[1]
+    assert not any(line[1].strip() == "Made by" for line in contents.lines)        # an aside is not in the contents
+
+
+def test_the_leaderboard_is_flat_when_its_cells_share_objects_and_reference_else_banded_and_made_by_says_why():
+    rows = worst_rows()
+    flat = summary(rows, "", ranking.settings_of())
+    board = item_of(flat, "leaderboard")
+    assert all(r.only == "pdf" for r in board.rows if r.band)                    # no cell's band: one order
+    assert "cells: flat (table). the 38 page cells have the same objects against the same reference" in made_by(flat, "leaderboard")
+    ranks = [str(p.rank) for p in ranking.rank(bars._rows_of(rows), ranking.settings_of()).points]
+    assert [r.cells[0].text for r in board.rows if not r.band] == ranks and ranks[0] == "1"     # the engine's ranks, ties shared
+    other = [dict(r, reference="H1 2009") if r["cell"] == "NNPDF23lo_lpdfon" else r for r in rows]
+    banded = summary(other, "", ranking.settings_of())
+    board = item_of(banded, "leaderboard")
+    bands = [r.label for r in board.rows if r.band and r.only != "pdf"]
+    assert bands[:2] == ["NNPDF23lo_lpdfon", "NNPDF23lo_lpdfoff"] and len(bands) == 38
+    assert "cells: banded (table). the 38 page cells differ in their objects or their reference" in made_by(banded, "leaderboard")
+
+
+def test_a_setting_off_its_default_is_said_with_its_source_under_the_leaderboard():
+    assert "over_pages: median ([ranking])." in made_by(summary(worst_rows(), "", ranking.settings_of({"over_pages": "median"})),
+                                                        "leaderboard")
+    assert "over_pages: rms (default)." in made_by(summary(worst_rows(), "", ranking.settings_of()), "leaderboard")
+
+
+def test_no_title_says_lower_is_better_and_each_number_column_carries_its_glyph(full):
+    from stats import metrics
+    document, _ = full
+    for item in [i for s in document.sections for i in s.items] + document.front:
+        assert "lower is better" not in item.title + getattr(item, "subtitle", ""), item.key
+    board = item_of(document, "leaderboard")
+    assert board.headers[:8] == ["rank", "pdf", "lepton", "shower", "point loss ↓", "worst page", "page loss ↓",
+                                 "Statistical compatibility ↓"]
+    assert board.headers[-1] == "n_eff ↑"
+    values = item_of(document, "metric-values")
+    assert values.headers == [f"{n} {metrics.GLYPH[metrics.REGISTRY[n].polarity]}" for n in bars.default_names()]
+    assert next(r for r in board.rows if not r.band).cells[1].text in PDFS          # the quantity's value, as given
+
+
+def test_the_metric_values_are_each_points_median_over_its_pages_in_the_leaderboards_order():
+    rows, st = worst_rows(), ranking.settings_of()
+    document = summary(rows, "", st)
+    board, values = item_of(document, "leaderboard"), item_of(document, "metric-values")
+    assert [r.label for r in values.rows] == [r.label for r in board.rows]
+    first = ranking.rank(bars._rows_of(rows), st).points[0]
+    row = next(r for r in values.rows if not r.band)
+    assert [c.text for c in row.cells] == [bars._shown(first.values[n]) for n in bars.default_names()]
+    assert "values shown: median over a point's pages (default)." in made_by(document, "metric-values")
+
+
+def test_the_pdf_holds_the_first_25_points_and_every_vetoed_one_and_says_how_many_more_the_page_holds():
+    document = summary(worst_rows(), "", ranking.settings_of())
+    board = item_of(document, "leaderboard")
+    assert sum(1 for r in board.rows if r.only == "html") == 76 - 25
+    (more,) = [r for r in board.rows if r.only == "pdf"]
+    assert more.band and more.label == "51 more points in the HTML page and heimdall rank --json"
+    printed = paper.printed(board)
+    assert len([r for r in printed.rows if not r.band]) == 25 and more in printed.rows
+    text, _ = page_of(document)
+    assert "51 more points" not in text                                          # the web page holds them all

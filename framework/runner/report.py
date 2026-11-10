@@ -1422,6 +1422,7 @@ def chosen(document, keys: list[str]):
             wanted = {statistic, f"{statistic}-ranking", f"{statistic}-crossed"} if not part else \
                 {statistic} if part == "table" else {f"{statistic}-{part}"}
             section = next((s for s in document.sections if any(i.key in wanted for i in s.items)), None)
+        wanted = wanted if wanted is None else wanted | {f"{k}-made" for k in wanted}      # an item and its "Made by"
         items = [] if section is None else [i for i in section.items if wanted is None or i.key in wanted]
         if items:
             kept.append(dataclasses.replace(section, items=items))

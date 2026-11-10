@@ -2,12 +2,14 @@
 
 * The model, pure data (bars.py builds it; this module knows no statistic): a `Document(heading, sections,
   notes, facts)`, each `Section(key, title, items)` a flow of items, each a `Table(key, title, headers, rows,
-  …)` of `Row(label, cells, bold, band)` and `Cell(text, fill, ink, bold, align)`, a `Ranking(key, title, names,
-  values, …)`: sorted bars from a base, or a `Text(key, title, lines)`. An item names its notes by key
-  (`Document.notes`).
+  …)` of `Row(label, cells, bold, band, pinned, only)` and `Cell(text, fill, ink, bold, align)`, a `Ranking(key, title,
+  names, values, …)`: sorted bars from a base, or a `Text(key, title, lines, aside)`. An item names its notes by key
+  (`Document.notes`). A row `only` on "html" is the web page's alone, one `only` on "pdf" the paper's alone; an `aside`
+  text (a table's "Made by") is left out of the contents. A text's lines are sentences, wrapped on paper.
 * The front matter (V197), when the document has facts or notes: its facts, its contents (each section, and
-  the items of a section of a few, with the page each starts on) and its notes, numbered in the order the
-  items first name them, each written once; a page's footnote is then one line, the numbers it needs.
+  the items of a section of a few, with the page each starts on), the document's own `front` items, and its notes,
+  numbered in the order the items first name them, each written once; a page's footnote is then one line, the
+  numbers it needs.
 * `pages(document)`: every page planned before any is drawn, so that each knows its number and the count. A
   section starts a page; its items follow one below another, a new page only when the next does not fit (its
   title and LEAST rows at least). A table wider than the page is cut into column blocks, the fewest that fit,
@@ -24,6 +26,7 @@ length.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -80,6 +83,7 @@ class Row:
     bold: bool = False
     band: bool = False                              # a group's name across the table, no cells
     pinned: bool = False                            # a summing row (a mean): last however the table is sorted
+    only: str = ""                                  # "html": on the web page alone; "pdf": on paper alone
 
 
 @dataclass
@@ -112,6 +116,7 @@ class Text:
     lines: list                                     # (number, text, page, bold) a line: a note's number or "",
     subtitle: str = ""                              # the line, a page number or "", bold or not
     notes: tuple = ()
+    aside: bool = False                             # not in the contents: a table's "Made by"
 
 
 @dataclass
@@ -127,6 +132,7 @@ class Document:
     sections: list
     notes: dict = field(default_factory=dict)       # key → text
     facts: list = field(default_factory=list)       # what it holds, a sentence each
+    front: list = field(default_factory=list)       # Text items the front matter holds after the contents
 
 
 @dataclass
@@ -465,7 +471,7 @@ def _clipped(text: str, room: float, size: float, bold: bool = False) -> str:
 def _front(document: Document) -> Section | None:
     """The front matter (V197): the document's facts, its contents (each section, and the items of a section of a
     few; their pages filled in once laid out) and its notes, numbered; None when it has neither facts nor notes."""
-    if not (document.facts or document.notes):
+    if not (document.facts or document.notes or document.front):
         return None
     items = []
     if document.facts:
@@ -473,17 +479,19 @@ def _front(document: Document) -> Section | None:
                           [("", line, "", False) for fact in document.facts for line in wrap(fact, WIDTH, TEXT)]))
     lines, targets = [], []
     for section in document.sections:
-        if not section.items:
+        listed = [item for item in section.items if not getattr(item, "aside", False)]
+        if not listed:
             continue
         lines.append(("", _clipped(section.title, WIDTH - 0.6, TEXT, True), "", True))
-        targets.append(section.items[0].key)
-        if 1 < len(section.items) <= CONTENTS_ITEMS:
-            for item in section.items:
+        targets.append(listed[0].key)
+        if 1 < len(listed) <= CONTENTS_ITEMS:
+            for item in listed:
                 lines.append(("", "      " + _clipped(item.title, WIDTH - 0.9, TEXT), "", False))
                 targets.append(item.key)
     contents = Text("front-contents", "Contents", lines)
     contents.__dict__["_targets"] = targets
     items.append(contents)
+    items += document.front
     notes = []
     for key, number in sorted(note_numbers(document).items(), key=lambda kv: kv[1]):
         for k, line in enumerate(wrap(document.notes[key], WIDTH - HANG, TEXT)):
@@ -492,6 +500,28 @@ def _front(document: Document) -> Section | None:
         items.append(Text("front-notes", "Notes", notes,
                           subtitle="Each page's footnote names the notes its tables and rankings need."))
     return Section("front", "Contents and notes", items)
+
+
+#: The front matter's own texts, wrapped as they are made.
+FRONT = ("front-facts", "front-contents", "front-notes")
+
+
+def printed(item):
+    """`item` as paper holds it: a table without the rows only the web page shows, a text's sentences wrapped to the page
+    (a wrapped line's number and page on its first line). The same item when nothing changes."""
+    done = item.__dict__.get("_printed")
+    if done is not None:
+        return done
+    out = item
+    if isinstance(item, Table) and any(r.only == "html" for r in item.rows):
+        out = dataclasses.replace(item, rows=[r for r in item.rows if r.only != "html"])
+    elif isinstance(item, Text) and item.key not in FRONT:
+        hang = HANG if any(line[0] for line in item.lines) else 0.0
+        lines = [(number if k == 0 else "", part, page if k == 0 else "", bold)
+                 for number, line, page, bold in item.lines for k, part in enumerate(wrap(line, WIDTH - hang, TEXT, bold) or [""])]
+        out = item if lines == list(item.lines) else dataclasses.replace(item, lines=lines)
+    item.__dict__["_printed"] = out
+    return out
 
 
 def body_height(document: Document, keys: list[str]) -> float:
@@ -507,7 +537,7 @@ def pages(document: Document) -> list[Page]:
     out: list[Page] = []
     for section in ([front] if front else []) + list(document.sections):
         page = None
-        for item in section.items:
+        for item in map(printed, section.items):
             start, first, n = 0, True, _size(item)
             while start < n:
                 if page is None:

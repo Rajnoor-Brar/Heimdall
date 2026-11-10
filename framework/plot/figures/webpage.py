@@ -169,6 +169,8 @@ def _table(table, numbers: dict) -> list[str]:
            f'<thead><tr><th class="label" data-col="-1" title="the table\'s own order"></th>{heads}</tr></thead>']
     body, at = [], 0
     for row in table.rows:
+        if getattr(row, "only", "") == "pdf":
+            continue
         if row.band:
             if body:
                 out.append("<tbody>" + "".join(body) + "</tbody>")
@@ -225,7 +227,8 @@ def _ranking(ranking, numbers: dict, scale) -> list[str]:
 
 
 def _text(text, numbers: dict) -> list[str]:
-    lines = "".join(f"<p>{text_of(line[1])}</p>" for line in text.lines if line[1])
+    lines = "".join(f"<p><strong>{text_of(line[1])}</strong></p>" if len(line) > 3 and line[3] else f"<p>{text_of(line[1])}</p>"
+                    for line in text.lines if line[1])
     return [f'<figure class="item" id="{anchor("i", text.key)}">', _caption(text), lines, _notes(text, numbers),
             "</figure>"]
 
@@ -248,17 +251,25 @@ def render(document, numbers: dict, scale) -> str:
            "</head>", "<body>", "<header>", '<p class="kicker">Statistics</p>', f"<h1>{heading}</h1>",
            '<div class="facts">' + "".join(f"<p>{text_of(f)}</p>" for f in document.facts) + "</div>", "</header>",
            '<nav id="contents">', "<h2>Contents</h2>", "<ol>"]
+    for item in getattr(document, "front", []):
+        out.append(f'<li><a href="#{anchor("i", item.key)}">{text_of(item.title)}</a></li>')
     for section in document.sections:
-        if not section.items:
+        listed = [i for i in section.items if not getattr(i, "aside", False)]
+        if not listed:
             continue
         inner = ""
-        if 1 < len(section.items) <= 8:
+        if 1 < len(listed) <= 8:
             inner = "<ol>" + "".join(f'<li><a href="#{anchor("i", i.key)}">{text_of(i.title)}</a></li>'
-                                     for i in section.items) + "</ol>"
+                                     for i in listed) + "</ol>"
         out.append(f'<li><a href="#{anchor("s", section.key)}">{text_of(section.title)}</a>{inner}</li>')
     if numbers:
         out.append('<li><a href="#notes">Notes</a></li>')
     out += ["</ol>", "</nav>", "<main>"]
+    if getattr(document, "front", []):
+        out.append(f'<section id="{anchor("s", "front")}">')
+        for item in document.front:
+            out += _item(item, numbers, scale)
+        out.append("</section>")
     for section in document.sections:
         if not section.items:
             continue

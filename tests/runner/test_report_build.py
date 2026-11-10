@@ -171,7 +171,7 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     document, missing = report.chosen(bars.summary_model(rows, "here", report._ranked(csv_path, rows)),
                                       ["leaderboard", "chi2_ndf:ranking", "area:ranking"])
     assert [s.key for s in document.sections] == ["leaderboard", "category-compatibility"] and missing == ["area:ranking"]
-    assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking"]
+    assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking", "chi2_ndf-ranking-made"]     # with its "Made by"
     recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Leaderboard"\n'
                              'stats = ["chi2_ndf:ranking"]\n\n[[report.section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
     _, said = built("P/numbers.toml", [])

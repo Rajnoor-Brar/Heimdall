@@ -43,7 +43,7 @@ def test_a_statistics_csv_reads_back_as_the_rows_it_was_written_from(tmp_path):
     assert back[0]["is_reference"] is True and back[1]["is_reference"] is False
     assert isinstance(back[1]["bins"], int) and isinstance(back[1]["ndf"], int) and math.isnan(back[0]["chi2"])
     assert list(back[0])[:len(statstable.STATISTIC_COLUMNS)] == list(statstable.STATISTIC_COLUMNS)    # the old columns first, in order
-    assert list(back[0])[len(statstable.STATISTIC_COLUMNS):] == ["log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2"]   # then the new defaults
+    assert list(back[0])[len(statstable.STATISTIC_COLUMNS):] == ["log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "peak_bin_ratio", "yield_sign"]   # then the defaults and the gates
     assert all(math.isnan(r[k]) for r in back for k in ("log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2"))      # no measured bins in these numbers
 
 
@@ -95,10 +95,11 @@ def test_the_sidecar_says_what_the_columns_are(tmp_path):
     side = json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8"))
     assert side["format"] == 3 == statstable.FORMAT and statstable.format_of(target) == 3
     assert side["columns"] == list(statstable.read(target)[0])
-    assert set(side["metrics"]) == {"chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev"}   # the old columns that are metrics too
+    assert set(side["metrics"]) == {"chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev", "peak_bin_ratio", "yield_sign"}   # the old columns that are metrics too, and the gates
     norm = side["metrics"]["log_yield_ratio"]
     assert norm["polarity"] == "lower" and norm["phrase"] == "lower is better" and norm["scale"] == "linear"
     assert norm["category"] == "normalisation" and norm["thresholds"] == [0.02, 0.15] and norm["default"] and norm["note"]
+    assert norm["gate"] is None and not norm["shown"] and side["metrics"]["yield_sign"]["gate"] == 1.0
 
 
 def test_a_csv_from_before_format_2_has_no_sidecar_and_reads_as_format_1(tmp_path):
@@ -202,3 +203,16 @@ def test_a_format_2_table_reads_with_every_metric_under_its_id_now_and_no_value_
     assert read["ranking"]["thresholds"] == {"peak_pull2": [5, 20]} and read["ranking"]["cost"] == "thresholds"
     assert read["values"] == {"x": {"pdf": "A"}} and "score" not in read and "axes" not in read
     assert json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8")) == side          # never written back
+
+
+def test_a_normalised_pages_curves_know_it_and_their_yield_sign_is_not_asked(tmp_path):
+    """A page drawn with `normalise` on: its curves are normalised, so a negative yield is not a gate's failure there."""
+    measured = [[0.0, 1.0, -2.0, 0.1, 1.0, 0.1], [1.0, 2.0, -1.0, 0.1, 1.0, 0.1]]
+    numbers = [{**NUMBERS[0], "measured": [[lo, hi, ref, e, ref, e] for lo, hi, _, e, ref, _ in measured]},
+               {**NUMBERS[1], "measured": measured}]
+    flat = page_with_numbers(tmp_path / "flat", "d01-x01-y01", numbers)
+    flat.document["page"] = {}
+    normed = page_with_numbers(tmp_path / "normed", "d01-x01-y01", numbers)
+    normed.document["page"] = {"normalise": "area"}
+    assert statstable.statistics_of(flat)[1]["yield_sign"] == 1.0
+    assert math.isnan(statstable.statistics_of(normed)[1]["yield_sign"])

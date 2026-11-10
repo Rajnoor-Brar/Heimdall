@@ -35,6 +35,9 @@ def test_a_scored_metric_has_ordered_thresholds_and_the_reason_for_them(name):
     if m.polarity == "descriptor":
         assert m.thresholds is None                                       # a descriptor: it has no better or worse
         return
+    if m.gate is not None and m.thresholds is None:                       # a gate only: its level is its test
+        assert m.gate > 0 and m.note.strip()
+        return
     assert m.thresholds is not None and m.why.strip(), f"{name}: thresholds and why"
     good, bad = m.thresholds
     assert (good > bad) if m.polarity == "higher" else (good < bad)
@@ -44,9 +47,10 @@ def test_exactly_the_five_are_on_by_default():
     assert {n for n, m in metrics.REGISTRY.items() if m.default} == DEFAULTS
 
 
-def test_every_category_but_integrity_has_a_metric_and_the_defaults_cover_all_but_three():
+def test_every_category_has_a_metric_and_the_defaults_cover_all_but_three():
     used = {m.category for m in metrics.REGISTRY.values()}
-    assert used == set(metrics.CATEGORIES) - {"integrity"}                           # its gates come with the gate metrics
+    assert used == set(metrics.CATEGORIES)
+    assert {n for n, m in metrics.REGISTRY.items() if m.gate is not None} == {"peak_bin_ratio", "yield_sign"}
     on = {m.category for m in metrics.REGISTRY.values() if m.default}
     assert set(metrics.CATEGORIES) - on == {"similarity", "integrity", "quality"}
     assert list(metrics.CATEGORIES) == ["compatibility", "normalisation", "accuracy", "similarity", "trend", "defects",

@@ -16,7 +16,7 @@ class Curve:
     """The bins one curve was compared on, against the page's reference: (lo, hi, y, err, ref_y, ref_err) per bin,
     the curve rebinned onto the reference's edges, in x order. `logx`: the page's x axis is logarithmic, so a
     bin's drawn width and centre are in log10 x (as Paint's ratio sums are). `reference`: this is the page's
-    first curve, being its own reference."""
+    first curve, being its own reference. `normalised`: the page is drawn normalised, so a yield is not a cross-section."""
 
     lo: np.ndarray
     hi: np.ndarray
@@ -26,6 +26,7 @@ class Curve:
     ref_err: np.ndarray
     logx: bool = False
     reference: bool = False
+    normalised: bool = False
 
     @property
     def n(self) -> int:
@@ -60,7 +61,7 @@ class Curve:
         return float(b[-1] - a[0]) if self.n else float("nan")
 
 
-def curves(made: dict, logx: bool = False) -> list[Curve]:
+def curves(made: dict, logx: bool = False, normalised: bool = False) -> list[Curve]:
     """The curves of one page's stats.json (already parsed). A curve with no `measured` (a file written before
     Paint did) is refused: the numbers cannot be made from totals."""
     out = []
@@ -69,7 +70,8 @@ def curves(made: dict, logx: bool = False) -> list[Curve]:
             raise HeimdallError("this page's statistics have no measured bins (written by an older Paint)",
                            hint="draw the page again (heimdall plot), which writes them")
         rows = np.array([[np.nan if v is None else v for v in row] for row in curve["measured"]], dtype=float).reshape(-1, 6)
-        out.append(Curve(*(rows[:, k] for k in range(6)), logx=logx, reference=bool(curve.get("reference"))))
+        out.append(Curve(*(rows[:, k] for k in range(6)), logx=logx, reference=bool(curve.get("reference")),
+                         normalised=normalised))
     return out
 
 

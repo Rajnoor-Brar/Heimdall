@@ -28,9 +28,9 @@ SIDECAR = "statistics.json"
 
 
 def default_metrics() -> tuple[str, ...]:
-    """The metrics that are on unless a setting names others."""
+    """The metrics a table holds unless a setting names others: those scored by default, those shown, and the gates."""
     from . import metrics
-    return tuple(name for name, m in metrics.REGISTRY.items() if m.default)
+    return tuple(name for name, m in metrics.REGISTRY.items() if m.default or m.shown or m.gate is not None)
 
 
 def columns_for(names, run: bool = False) -> list[str]:
@@ -85,7 +85,8 @@ def _add_metrics(rows: list[dict], made: dict, page, names: list[str]) -> None:
     from runner.errors import HeimdallError
     from . import bins, metrics
     try:
-        curves = bins.curves(made, bool(page.document.get("page", {}).get("logx")))
+        settings = page.document.get("page", {})
+        curves = bins.curves(made, bool(settings.get("logx")), bool(settings.get("normalise")))
     except HeimdallError:
         curves = None
     for i, row in enumerate(rows):
@@ -100,7 +101,8 @@ def sidecar_of(names, ranking: dict | None = None, values: dict | None = None, m
     columns = columns_for(names, run)
     out = {"format": FORMAT, "columns": columns,
            "metrics": {n: {"category": m.category, "polarity": m.polarity, "phrase": metrics.PHRASE[m.polarity], "scale": m.scale,
-                           "thresholds": list(m.thresholds) if m.thresholds else None, "default": m.default, "note": m.note,
+                           "thresholds": list(m.thresholds) if m.thresholds else None, "default": m.default, "shown": m.shown,
+                           "gate": m.gate, "note": m.note,
                            "why": m.why}
                        for n in columns if (m := metrics.REGISTRY.get(n))}}
     if ranking:

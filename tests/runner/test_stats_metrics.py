@@ -409,3 +409,48 @@ def test_the_loss_is_hinged_and_works_for_every_direction():
     assert m["log_yield_ratio"].loss(0.3) > 1                                       # linear beyond bad, not capped
     assert math.isnan(m["log_yield_ratio"].loss(math.nan))
     assert m["log_yield_ratio"].loss(0.1, thresholds=(0.0, 0.2)) == pytest.approx(0.5)   # a setting overrides the registry's
+
+
+# ── the gate metrics ──────────────────────────────────────────────────────────────────────────
+
+def test_a_clean_curve_passes_every_gate_and_has_no_negative_share():
+    c = spectrum(noise=True)
+    assert metrics.evaluate("peak_bin_ratio", c) < 1
+    assert metrics.evaluate("yield_sign", c) == 0.0 and metrics.evaluate("negative_share", c) == 0.0
+
+
+def test_a_bin_ten_thousand_times_its_reference_is_four_decades():
+    c = spectrum(bump=(5, 1e4))
+    assert metrics.evaluate("peak_bin_ratio", c) == pytest.approx(4.0, abs=1e-12)
+
+
+def test_a_negative_yield_fails_on_a_cross_section_page_and_is_not_asked_on_a_normalised_one():
+    from dataclasses import replace
+    c = spectrum()
+    negative = replace(c, y=-c.y)
+    assert metrics.evaluate("yield_sign", negative) == 1.0
+    assert math.isnan(metrics.evaluate("yield_sign", replace(negative, normalised=True)))
+    assert metrics.evaluate("yield_sign", c) == 0.0
+
+
+def test_half_the_yield_in_negative_bins_is_a_negative_share_of_a_half():
+    from dataclasses import replace
+    c = spectrum()
+    y = np.full(c.n, 1.0) / c.width
+    y[: c.n // 2] *= -1                                                 # equal widths: half the |yield| below zero
+    assert metrics.evaluate("negative_share", replace(c, y=y)) == pytest.approx(0.5, abs=1e-12)
+
+
+def test_peak_bin_ratio_is_nan_with_no_positive_reference():
+    from dataclasses import replace
+    c = spectrum()
+    assert math.isnan(metrics.evaluate("peak_bin_ratio", replace(c, ref_y=np.zeros(c.n))))
+
+
+def test_a_gate_is_a_level_and_a_gate_metric_is_on_in_every_table():
+    from stats import table
+    assert metrics.REGISTRY["peak_bin_ratio"].gate == 3.0 and metrics.REGISTRY["peak_bin_ratio"].thresholds == (1.0, 3.0)
+    assert metrics.REGISTRY["yield_sign"].gate == 1.0 and metrics.REGISTRY["yield_sign"].thresholds is None
+    assert metrics.REGISTRY["negative_share"].gate is None and metrics.REGISTRY["negative_share"].category == "quality"
+    assert {"peak_bin_ratio", "yield_sign"} <= set(table.default_metrics())
+    assert not metrics.REGISTRY["peak_bin_ratio"].default and not metrics.REGISTRY["yield_sign"].default

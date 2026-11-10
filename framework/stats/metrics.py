@@ -65,6 +65,7 @@ TITLES = {
     "peak_deviance": "largest deviances, mean of the top k", "log_ratio_roughness": "roughness of ln ratio",
     "n_eff": "effective events", "hole_fraction": "hole fraction", "log_roughness": "roughness of ln y",
     "smoothness_chi2": "smoothness χ²", "tail_nonlinearity": "tail non-linearity, 1 − R²", "tail_slope": "tail decay rate",
+    "peak_bin_ratio": "largest bin ratio (decades)", "yield_sign": "page yield ≤ 0", "negative_share": "negative-weight share",
 }
 
 #: Each metric's id before the catalogue was renamed → its id now. Two retired twins read as the metric they equal.
@@ -123,6 +124,8 @@ class Metric:
     note: str = ""
     why: str = ""                             # where the thresholds come from
     pool: bool = False                        # needs the page's other curves (`pool=`): its value depends on who else is on the page
+    shown: bool = False                       # computed in every table, not scored unless named
+    gate: float | None = None                 # a page fails at this value or more (or +inf); NaN never fails
 
     def __call__(self, curve: Curve, **settings) -> float:
         return self.fn(curve, **settings)
@@ -444,6 +447,13 @@ def smoothness_chi2(c: Curve, eps: float = EPS, **_) -> float:
     return float(np.mean(jump**2 / np.maximum(var, 1e-300)))
 
 
+def negative_share(c: Curve, **_) -> float:
+    """Σ max(−y, 0)·Δx / Σ |y|·Δx: how much of the curve is negative bins (negative weights), no reference."""
+    use = np.isfinite(c.y)
+    total = float(np.sum(np.abs(c.y[use]) * c.width[use]))
+    return float(np.sum(np.maximum(-c.y[use], 0) * c.width[use])) / total if total > 0 else math.nan
+
+
 def n_eff(c: Curve, **_) -> float:
     """Kish's effective count: (Σ y Δx)² / Σ (σ Δx)². How many equal-weight events the histogram is worth; one huge
     weight in one bin takes it to ~1. Needs no reference. Not meaningful where the errors are not weighted-count errors."""
@@ -547,6 +557,26 @@ def ad_distance(c: Curve, **_) -> float:
     return float(np.sum((fc[inside] - fr[inside]) ** 2 / (fr[inside] * (1 - fr[inside])) * q[:-1][inside]))
 
 
+# ── the integrity gates ──────────────────────────────────────────────────────────────────────
+
+def peak_bin_ratio(c: Curve, **_) -> float:
+    """log10 of the largest |y|/ref over the compared bins with a positive reference: 3 is a bin 1000× its reference.
+    NaN when no such bin has a yield."""
+    use = np.isfinite(c.y) & np.isfinite(c.ref_y) & (c.ref_y > 0)
+    ratio = np.abs(c.y[use]) / c.ref_y[use]
+    top = float(ratio.max()) if ratio.size else 0.0
+    return math.log10(top) if top > 0 else math.nan
+
+
+def yield_sign(c: Curve, **_) -> float:
+    """1 when the page's summed yield Σ y·Δx is not positive, else 0: a cross-section is positive. NaN on a normalised
+    page, where the yield is not a cross-section."""
+    use = np.isfinite(c.y)
+    if c.normalised or not use.any():
+        return math.nan
+    return 1.0 if float(np.sum(c.y[use] * c.width[use])) <= 0 else 0.0
+
+
 REGISTRY: dict[str, Metric] = {m.name: m for m in (
     # 1. Statistical compatibility
     Metric("chi2_ndf", chi2_ndf, "compatibility", thresholds=(1.0, 3.0), default=True,
@@ -630,6 +660,15 @@ REGISTRY: dict[str, Metric] = {m.name: m for m in (
            note="how far the last quarter is from a straight line in ln y"),
     Metric("tail_slope", tail_slope, "quality", polarity="descriptor", needs_reference=False,
            note="the fitted decay rate of the last quarter; a descriptor"),
+    Metric("negative_share", negative_share, "quality", thresholds=(0.0, 0.25), needs_reference=False,
+           why="ordinary Sherpa curves reach 0.36 at most, p99 0.18: a quarter negative is past bad, and not a gate",
+           note="the share of the curve's |yield| in negative bins"),
+    # 8. integrity: the gates, a page that fails one vetoes its point
+    Metric("peak_bin_ratio", peak_bin_ratio, "integrity", thresholds=(1.0, 3.0), gate=3.0,
+           why="ordinary curves reach 2.01 at most; a pathological one 10.7 at the median: 3 is a bin 1000× its reference",
+           note="log10 of the largest |y|/ref of a bin with a positive reference"),
+    Metric("yield_sign", yield_sign, "integrity", gate=1.0, needs_reference=False,
+           note="1 when the page's summed yield is not positive (a cross-section page), else 0"),
 )}
 
 
@@ -643,6 +682,8 @@ def describe(name: str, thresholds: tuple[float, float] | None = None) -> str:
     if used:
         good, bad = used
         text += f" Scored from {good:g} (cost 0) to {bad:g} (cost 1)" + (f": {m.why}." if m.why and not thresholds else ".")
+    elif m.gate is not None:
+        text += f" A gate only: a page fails it at {m.gate:g} or more, and it is not scored."
     else:
         text += " A descriptor: it is not scored."
     return text

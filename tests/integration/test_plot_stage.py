@@ -600,6 +600,7 @@ def test_statistics_are_a_table_and_a_legend_may_show_them(stage):
     assert [r["is_reference"] for r in d02] == ["True", "False"] and float(d02[0]["chi2"]) == 0
     assert float(d02[0]["yield_ratio"]) == float(d02[0]["mean_bin_ratio"]) == 1 and float(d02[0]["mean_abs_ratio_dev"]) == 0   # itself
     assert d01[0]["curve"] == "MSTW 2008 LO"                                   # the table's labels are plain
+    assert all(float(r["yield_sign"]) == 0 and float(r["peak_bin_ratio"]) < 3 for r in d01)   # the gates, on a cross-section page
     bars = table.parent                                                          # V162: the table as bar graphs
     assert (bars / "bars" / "em" / "d01-x01-y01.png").is_file()
     assert not list(bars.glob("summary*.png"))                                   # the summary's PNGs: in summary/
@@ -751,6 +752,7 @@ def test_a_stats_table_measures_otherwise_than_the_pages_draw(stage):
     d01 = [r for r in rows if r["page"] == "em/d01-x01-y01"]
     assert d01[0]["is_reference"] == "True" and d01[0]["reference"] == "MSTW 2008 LO"
     assert all(abs(float(r["area"]) - 1) < 1e-6 for r in rows if r["area"])
+    assert rows and all(r["yield_sign"] in ("", "nan") for r in rows)          # normalised: a yield is not a cross-section
     assert len(list((plans[0].folders.plots / "totality" / "root").rglob("*.png"))) == 34
 
 

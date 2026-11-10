@@ -36,3 +36,9 @@ Status: not started. Blocked by: phase 1. Sources: [03 §1.1, §1.4, §3a](../pl
 - Blocked by: 2.1.
 
 ## Log
+- **2.1 · done 2026-11-10.** `bins.Curve.normalised` and `bins.curves(made, logx, normalised)`; `table._add_metrics` passes `bool(page.document["page"].get("normalise"))`. `peak_bin_ratio` (integrity, thresholds (1, 3), gate 3), `yield_sign` (integrity, gate 1, no thresholds, NaN on a normalised page), `negative_share` (quality, thresholds (0, 0.25), opt-in), each with 02's title and note. `Metric.shown` and `Metric.gate`; the sidecar's `shown` and `gate`; `describe` says "a gate only" for `yield_sign`. `table.default_metrics()` is every metric with `default`, `shown` or `gate`, so a table has the two gate columns from now on.
+  - Fails first: `HeimdallError: no metric 'peak_bin_ratio'` (and `yield_sign`, `negative_share`).
+  - The key R4 names is the one the measured page carries: `test_a_stats_table_measures_otherwise_than_the_pages_draw` (`[stats] normalise = "area"`) now asserts every row's `yield_sign` is NaN, and `test_statistics_are_a_table_and_a_legend_may_show_them` that a cross-section page's gates read 0 and under 3.
+  - The registry test lets a gate-only metric have no thresholds, and every category now has a metric (1.4's exclusion of `integrity` ends here).
+  - Check: the three step files, 169 passed. Fast suite, 2363 passed, 11 skipped, and the two named reds (a third, a section cited in a comment of `metrics.py`, was removed). `tests/integration/test_plot_stage.py` alone: 53 passed.
+  - A reader may rely on: the three metrics and their columns in every new table; a gate's level in the registry and the sidecar.

@@ -16,10 +16,23 @@ The implementer made these alone. Each is in the stable docs since round 1's cry
 - **`complete.py` never imports `cli`.** `cli.main` hands it the parser.
 - **Commits.** Three pairs of steps went in one commit each (2.1 with 2.2, 1.2 with 1.3, 6.1 with 6.2), each with its reason in its phase log. The commit trailer names the model that did the work.
 
-### About the developer's own files
+### Canonical cards' off-plan decisions (2026-11-10)
+The implementer made these under the developer's word for the session ("make decisions by yourself… see this implementation run to end"). V274 and V275 are in [the live doc](../docs/live/canonical-cards.md).
+- **Pythia's argv is `{card}`** (V274), a P3 miss found in P5: App_Pythia read its raw bases and the point card. The developer said yes to the fix and to rewriting the golden file (125 Pythia points, `argv[2]` alone).
+- **Entries that became one physics** (V275): the most linked stays in the library; each other is its Run's own `<name>.adopted-duplicate` beside its link. In work dir 1, the 12 `_antikt` entries of `01_sherpa_pdf_dr_alg`.
+- **256 entries of work dir 1 fail `heimdall library verify`:** no Run proves them, so their `identity.json` is still the old form. Each is linked only by points stale before the remake. A run of their Runs makes new entries, and `library prune` then removes the old ones.
+- **Left for the developer to delete:** the remake's `.format1` copies in work dir 1, and the snapshot `~/heimdall-baselines/pre-remake-20261110/`.
+- **`test_prune_removes_what_no_run_links_and_verify_reports_what_is_wrong`** now breaks an entry it names: it took the first its glob listed, which the new keys made the entry it also deletes.
+
 - **A real study's config fails `heimdall check`.** Its `[plot].sets[4].curves[1].pdf` names a PDF that its `[quantities.pdf]` does not enable (seen 2026-11-08). It is the study's file, so Heimdall does not change it.
 
 ## Rounds
+
+### Canonical cards, 2026-11-10: final configs and the identity that hashes them (I-149)
+- **Source and plan:** I-149, planned as `canonical-cards` and gated on 2026-11-09; the plan, its logs and the one-off are in git at `7c1a205` (`.plans/plans/canonical-cards/`).
+- **Built** (`d765cd5..ec53974`, local, not pushed): `runner/cards.py` (a card as entries, merged by priority and written in its folder's order); pythia, herwig and delphes read a final config, with a key twice in a free card refused; the rendered tools' final configs; the identity hashing each final config (no `base_sha256`, the library key the identity, record format 2, the prepare key); Pythia's argv `{card}`; work dir 1 remade by the one-off. Decisions V268–V275, in [the live doc](../docs/live/canonical-cards.md).
+- **Suite at `ec53974`:** 2363 passed, 11 skipped, 2 xfailed, 0 failed (18 min).
+- **The review:** not by another session. On the developer's order ("Just quick recheck and close it"), the implementing session rechecked: the code against the live doc (`argv` `{card}`, `FORMAT = 2`, `LAYOUT = 1`, no `{cards}` left), and work dir 1 against its snapshot (the drawable members the same before, after and now; `verify` the 256 unproven entries alone; the 24 set-aside folders there). Closed with that.
 
 ### Round 1, 2026-11-09: clean-up and core
 - **Source and plan:** the code audit of 2026-11-08 and the plans of 2026-11-07, gated by the developer on 2026-11-09. The plan, its ledger and its logs are in git at `f8ee7eb` (`.plans/implementation/`). The sources are at `7bed373`.

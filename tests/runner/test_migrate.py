@@ -505,7 +505,7 @@ def test_every_form_the_refusal_names_migrate_rewrites(old, where, expected):
 
 
 def test_the_ranking_names_are_rewritten_by_line_and_a_records_are_left(scratch, monkeypatch):
-    """`migrate.ranking_text` rewrites every old name a user writes (T3) in a config and a recipe: once, they load with
+    """`migrate.ranking_text` rewrites every old name a user writes in a config and a recipe: once, they load with
     nothing renamed; twice, nothing changes. An id in a comment's prose and a quantity's key `shape` are left, and a
     tool's arguments (hashed) too. `errand_changes` rewrites configs/, not a record's snapshot: that is read."""
     import tomli_w

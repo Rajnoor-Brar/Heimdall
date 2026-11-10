@@ -289,6 +289,15 @@ def configs_root() -> Path:
     return _rooted(CONFIGS_VAR, "configs")
 
 
+#: A record's snapshot file, in its config/ folder (record.py writes it).
+SNAPSHOT = "snapshot.toml"
+
+
+def in_record() -> bool:
+    """True while configs_root() is a record's config/ (configs_at, over a snapshot): its files keep their old names."""
+    return (configs_root() / SNAPSHOT).is_file()
+
+
 @contextlib.contextmanager
 def configs_at(folder: Path):
     """configs_root() at `folder` while the block runs: a record's snapshot, read as configs/ is (V158)."""

@@ -1048,7 +1048,7 @@
      "minimum": 1
     },
     "statistics": {
-     "description": "write results/…/statistics/<set>/statistics.csv and its bar graphs: each page's curves' area, area against the reference, χ²\n\neach page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `rel_abs_area` (abs_area / ref_area), `area_ratio` (cmp_area / ref_area: MC over data), `ratio_mean` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `ratio_dev` (its area about one over the width compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table",
+     "description": "write results/…/statistics/<set>/statistics.csv and its bar graphs: each page's curves' area, area against the reference, χ²\n\neach page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `yield_weighted_abs_dev` (abs_area / ref_area), `yield_ratio` (cmp_area / ref_area: MC over data), `mean_bin_ratio` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `mean_abs_ratio_dev` (its area about one over the width compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table",
      "anyOf": [
       {
        "type": "boolean"
@@ -1066,10 +1066,10 @@
       "none",
       "area",
       "abs_area",
-      "rel_abs_area",
-      "area_ratio",
-      "ratio_mean",
-      "ratio_dev",
+      "yield_weighted_abs_dev",
+      "yield_ratio",
+      "mean_bin_ratio",
+      "mean_abs_ratio_dev",
       "chi2",
       "chi2_ndf"
      ],
@@ -1455,10 +1455,10 @@
            "none",
            "area",
            "abs_area",
-           "rel_abs_area",
-           "area_ratio",
-           "ratio_mean",
-           "ratio_dev",
+           "yield_weighted_abs_dev",
+           "yield_ratio",
+           "mean_bin_ratio",
+           "mean_abs_ratio_dev",
            "chi2",
            "chi2_ndf"
           ]
@@ -1565,10 +1565,10 @@
         "enum": [
          "area",
          "abs_area",
-         "rel_abs_area",
-         "area_ratio",
-         "ratio_mean",
-         "ratio_dev",
+         "yield_weighted_abs_dev",
+         "yield_ratio",
+         "mean_bin_ratio",
+         "mean_abs_ratio_dev",
          "chi2",
          "chi2_ndf"
         ]
@@ -1952,7 +1952,7 @@
         }
        },
        "stats": {
-        "description": "the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): standings (each point's score, worst page, veto and purposes), `purpose:<name>` (a purpose's section: what it asks and its metrics), marginals (a table per axis: the mean score of the points having each value), baseline (each point against `[score].baseline`), head-to-head (the pages `[score].head_to_head` names), or a metric's name (`chi2_ndf`) for its section, `<metric>:ranking`, `:crossed` or `:table` for one of its parts",
+        "description": "the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): standings (each point's score, worst page, veto and purposes), `purpose:<name>` (a purpose's section: what it asks and its metrics), marginals (a table per axis: the mean score of the points having each value), baseline (each point against `[score].baseline`), head-to-head (the pages `[score].head_to_head` names), or a metric's id (`chi2_sigma`) for its section, `<metric>:ranking`, `:crossed` or `:table` for one of its parts",
         "type": "array",
         "items": {
          "type": "string"
@@ -2337,7 +2337,7 @@
           "minimum": 1
          },
          "statistics": {
-          "description": "write results/…/statistics/<set>/statistics.csv and its bar graphs: each page's curves' area, area against the reference, χ²\n\neach page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `rel_abs_area` (abs_area / ref_area), `area_ratio` (cmp_area / ref_area: MC over data), `ratio_mean` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `ratio_dev` (its area about one over the width compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table",
+          "description": "write results/…/statistics/<set>/statistics.csv and its bar graphs: each page's curves' area, area against the reference, χ²\n\neach page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `yield_weighted_abs_dev` (abs_area / ref_area), `yield_ratio` (cmp_area / ref_area: MC over data), `mean_bin_ratio` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `mean_abs_ratio_dev` (its area about one over the width compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table",
           "anyOf": [
            {
             "type": "boolean"
@@ -2355,10 +2355,10 @@
            "none",
            "area",
            "abs_area",
-           "rel_abs_area",
-           "area_ratio",
-           "ratio_mean",
-           "ratio_dev",
+           "yield_weighted_abs_dev",
+           "yield_ratio",
+           "mean_bin_ratio",
+           "mean_abs_ratio_dev",
            "chi2",
            "chi2_ndf"
           ],
@@ -2744,10 +2744,10 @@
                 "none",
                 "area",
                 "abs_area",
-                "rel_abs_area",
-                "area_ratio",
-                "ratio_mean",
-                "ratio_dev",
+                "yield_weighted_abs_dev",
+                "yield_ratio",
+                "mean_bin_ratio",
+                "mean_abs_ratio_dev",
                 "chi2",
                 "chi2_ndf"
                ]
@@ -2854,10 +2854,10 @@
              "enum": [
               "area",
               "abs_area",
-              "rel_abs_area",
-              "area_ratio",
-              "ratio_mean",
-              "ratio_dev",
+              "yield_weighted_abs_dev",
+              "yield_ratio",
+              "mean_bin_ratio",
+              "mean_abs_ratio_dev",
               "chi2",
               "chi2_ndf"
              ]

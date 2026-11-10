@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .errors import HeimdallError
-from .paths import find_work, heimdall_root, portable, work_meta
+from .paths import SNAPSHOT as _SNAPSHOT, find_work, heimdall_root, portable, work_meta
 from .image import inside
 from .tools import DEFAULT_SEED_RANGE, PointPlan, package_states, version_of
 
@@ -690,7 +690,7 @@ def constants_lines(data: dict) -> list[str]:
 # ── a run's snapshot (V158) ─────────────────────────────────────────────────────────────────────
 
 #: A record's snapshot: records/<A>/<E>/<R>/config/<A>/… (its files, as configs/ holds them) and this file.
-SNAPSHOT = "snapshot.toml"
+SNAPSHOT = _SNAPSHOT
 
 
 def snapshot_files(errand, plans: list) -> list[Path]:

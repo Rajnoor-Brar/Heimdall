@@ -396,3 +396,37 @@ def test_a_document_loaded_into_other_folders_reads_its_own_and_draws_there(tree
     assert [m.yoda for m in moved] == [m.yoda for m in own] and all(m.yoda.is_file() for m in moved)
     assert [m.recorded for m in moved] == [m.recorded for m in own] == [m.identity for m in own]
     assert {m.folders for m in moved} == {elsewhere} and {m.folders for m in own} == {p.every[0].folders}
+
+
+def test_an_old_name_in_a_snapshot_is_read_and_said_once_and_refused_in_configs(trees, capsys, monkeypatch):
+    """A Run recorded before a rename keeps its old names: read under configs_at its config/, said once a command. The
+    same file under configs/ is the user's, refused naming the new name; a lenient load (migrate's) reads it."""
+    from runner import config
+    p = recorded_run("Demo/jets", "pdf")
+    folder = p.every[0].folders.config
+    snapshot = folder / "Demo" / "jets.toml"
+    text = snapshot.read_text(encoding="utf-8") + '\n[score]\nmetrics = ["shape"]\n'
+    snapshot.write_text(text, encoding="utf-8")
+    config.OLD_NAMES.clear()
+    with paths.configs_at(folder):
+        assert paths.in_record()
+        assert config.load("Demo/jets").score == {"metrics": ["log_dev_shrunk"]}
+    assert config.OLD_NAMES == ["`shape` → `log_dev_shrunk`"]
+    assert not paths.in_record()
+    live = p.errand.path.read_text(encoding="utf-8")                          # the session's work dir: put back after
+    p.errand.path.write_text(text, encoding="utf-8")
+    try:
+        with pytest.raises(HeimdallError, match="renamed: shape is log_dev_shrunk") as caught:
+            config.load("Demo/jets")
+        assert caught.value.where.endswith("[score].metrics")
+        assert config.load("Demo/jets", strict=False).score == {"metrics": ["log_dev_shrunk"]}
+        assert not config.LENIENT.get()
+    finally:
+        p.errand.path.write_text(live, encoding="utf-8")
+    rel = str(p.every[0].folders.record.relative_to(paths.records_root()))
+    capsys.readouterr()
+    monkeypatch.setenv("HEIMDALL_CONFIGS", os.environ.get("HEIMDALL_CONFIGS", ""))      # opened() sets it: undone after
+    monkeypatch.delenv("HEIMDALL_CONFIGS")
+    cli.main(["status", rel])
+    err = capsys.readouterr().err
+    assert err.count("read old names from the record") == 1 and "`shape` → `log_dev_shrunk`" in err

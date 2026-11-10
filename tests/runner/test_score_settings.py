@@ -78,3 +78,47 @@ def test_explain_one_metric_or_mean_in_full():
     trimmed = "\n".join(house.explain("score.trimmed"))
     assert "guard" in trimmed and "approximate" in trimmed and "alpha" in trimmed
     assert "[score].mean" in "\n".join(house.explain("score.mean"))
+
+
+# ── an old metric id: refused in a user's file, read in a record ──────────────────────────────
+
+OLD_IN_PLACE = [
+    ({"stats": {"metrics": ["chi2_ndf", "norm"]}}, "[stats].metrics", "norm", "log_yield_ratio"),
+    ({"score": {"metrics": ["shape"]}}, "[score].metrics", "shape", "log_dev_shrunk"),
+    ({"score": {"metrics": {"worst": 2}}}, "[score].metrics", "worst", "peak_pull2"),
+    ({"score": {"thresholds": {"rho1": [0.3, 0.9]}}}, "[score].thresholds", "rho1", "pull_autocorr"),
+    ({"plot": {"sets": [{"name": "a", "score": {"metrics": ["L4"]}}]}}, "[plot].sets[1].score.metrics", "L4", "log_dev_l4"),
+    ({"plot": {"sets": {"a": {"score": {"thresholds": {"cvar": [1, 2]}}}}}}, "[plot].sets.a.score.thresholds", "cvar", "peak_deviance"),
+    ({"plot": {"legend_statistic": "ratio_dev"}}, "[plot].legend_statistic", "ratio_dev", "mean_abs_ratio_dev"),
+    ({"plot": {"figures": {"f": {"class": "statistic", "statistic": "area_ratio"}}}}, "[plot.figures.f].statistic", "area_ratio",
+     "yield_ratio"),
+    ({"plot": {"sets": [{"name": "a", "legend_statistic": "ratio_mean"}]}}, "[plot].sets[1].legend_statistic", "ratio_mean",
+     "mean_bin_ratio"),
+    ({"report": {"section": [{"title": "a", "plot": {"legend_statistic": "rel_abs_area"}}]}}, "[report].section[1].plot.legend_statistic",
+     "rel_abs_area", "yield_weighted_abs_dev"),
+    ({"report": {"section": [{"title": "a", "stats": ["standings", "chi2_z:ranking"]}]}}, "[report].section[1].stats", "chi2_z",
+     "chi2_sigma"),
+]
+
+
+@pytest.mark.parametrize("given,place,old,new", OLD_IN_PLACE)
+def test_an_old_metric_id_in_a_users_file_is_refused_naming_its_id_now(given, place, old, new):
+    with pytest.raises(HeimdallError, match=f"renamed: {old} is {new}") as caught:
+        config.renamed(given, "configs/T/t.toml", recorded=False)
+    assert caught.value.where == f"configs/T/t.toml: {place}" and "heimdall migrate" in caught.value.hint
+
+
+@pytest.mark.parametrize("given,place,old,new", OLD_IN_PLACE)
+def test_an_old_metric_id_in_a_record_is_read_as_its_id_now_and_noted_once(given, place, old, new, monkeypatch):
+    monkeypatch.setattr(config, "OLD_NAMES", [])
+    import json
+    read = config.renamed(given, "records/…/config/T/t.toml", recorded=True)
+    read = config.renamed(given, "records/…/config/T/t.toml", recorded=True)
+    assert old not in json.dumps(read).replace(f'"{new}"', "") and new in json.dumps(read)
+    assert config.OLD_NAMES == [f"`{old}` → `{new}`"]
+    assert given != read                                                         # a copy: the file's tables are left alone
+
+
+def test_a_file_with_no_old_name_is_returned_as_it_is():
+    given = {"score": {"metrics": ["log_dev_shrunk"]}, "plot": {"legend_statistic": "chi2_ndf", "sets": ["pdf=A"]}}
+    assert config.renamed(given, "t.toml", recorded=False) is given

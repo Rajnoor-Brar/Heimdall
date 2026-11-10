@@ -28,7 +28,7 @@ from pathlib import Path
 import tomli_w
 
 from . import schema
-from .config import Quantity, check_read_for
+from .config import Quantity, check_read_for, renamed
 from .errors import HeimdallError, did_you_mean
 from .paths import cache_root, records_root, results_root
 from .plot import DEFAULT, Member, data_source, style_file, yoda_of
@@ -630,7 +630,7 @@ def load(path: Path, folders: RunFolders | None = None) -> tuple[Doc, DocConfigu
     completeness are still read from the document's own, which nothing writes then."""
     import tomllib
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
+        data = renamed(tomllib.loads(path.read_text(encoding="utf-8")), str(path), True)     # a record: old names read
     except OSError as error:
         raise HeimdallError(f"no plot document: {error.strerror}", where=str(path),
                        hint="a run writes it; heimdall migrate --plot-docs writes one for a run made before") from None

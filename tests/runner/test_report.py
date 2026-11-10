@@ -679,3 +679,13 @@ def test_what_was_run_comes_first_and_how_the_numbers_are_made_after_it(trees):
     recipe(trees, "bad", '[report]\ncontext = "middle"\n')
     with pytest.raises(HeimdallError, match="middle"):
         report.planned("P/bad.toml", ["P/validation/01_pdf"])
+
+
+def test_an_old_metric_id_in_a_users_recipe_is_refused_and_in_a_runs_own_report_toml_read(trees):
+    text = '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["chi2_z:ranking"]\n'
+    with pytest.raises(HeimdallError, match="renamed: chi2_z is chi2_sigma"):
+        report.load_recipe(recipe(trees, "old", text))
+    own = trees / "results" / "P" / "validation" / "01_pdf" / report.RECIPE                 # beside the Run's plot.toml
+    assert (own.parent / report.plotdoc.FILE).is_file()
+    own.write_text(text, encoding="utf-8")
+    assert report.load_recipe(own)["section"][0]["stats"] == ["chi2_sigma:ranking"]

@@ -272,8 +272,9 @@ def recipes(assignment: str | None = None) -> list[str]:
 
 def load_recipe(path: Path) -> dict:
     """A recipe's [report] table, checked, its template laid under it (V209): a recipe of its own ([report] alone,
-    every key against report.toml), or an errand file's [report] as it is read (its from and output a recipe's)."""
-    data = _read(path)
+    every key against report.toml), or an errand file's [report] as it is read (its from and output a recipe's). The recipe
+    a run wrote beside its plot.toml is a record: its old names are read; a recipe of the user's is refused one."""
+    data = configmod.renamed(_read(path), str(path), path.name == RECIPE and (path.parent / plotdoc.FILE).is_file())
     if "errand" in data or "run" in data:                     # [run]: the names before Assignment/Errand, refused by load
         return dict(configmod.load(str(path)).report)
     if set(data) != {"report"}:

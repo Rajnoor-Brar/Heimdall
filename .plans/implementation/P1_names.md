@@ -118,3 +118,10 @@ Three commits, in this order, each with the fast suite as the baseline: (a) the 
   - Fails first: on the code before this step, the new test gives `AssertionError: ['rel_abs_are…'] == ['yield_weigh…']`.
   - Check: `test_statstable`, `test_summary_layout`, `test_report`: 72 passed. Fast suite: 2181 passed, 11 skipped. `tests/integration/test_paint_bins.py` alone: 2 passed. `tests/integration/test_plot_stage.py` alone: 53 passed.
   - A reader may rely on: an older Run's `statistics.csv` and sidecar reading with today's ids and polarity, the file untouched.
+- **1.3 · done 2026-11-10.** `paths.SNAPSHOT` and `paths.in_record()` exist, and `record.SNAPSHOT` is `paths.SNAPSHOT`. `config.renamed(raw, where, recorded)` exists with `config.OLD_NAMES` and `config.LENIENT`. `load(strict=False)` sets `LENIENT` for its whole body; its old body is `config._load`. It walks these places: `[stats].metrics`; `[score].metrics` and `.thresholds`; each `[plot].sets` entry's `score`; `legend_statistic` and `statistic` in `[plot]`, each `[plot.figures.<name>]`, each set entry and a report section's `plot`; and each report section's `stats`, the part before `:`.
+  - `config._toml` and `load`'s `text=` branch call it through `config._loaded`. `plotdoc.load` calls it with `recorded=True`. `report.load_recipe` treats a `report.toml` beside a `plot.toml` as a record.
+  - `cli.main` clears `OLD_NAMES`, runs `_main` and says the line once on stderr; it says nothing for `__complete`.
+  - The schema's choices name the new ids. `run.schema.json`, `run.v3.schema.json` and `docs/reference/settings/{plot,report}.md` are regenerated (`make schema`, `make docs`).
+  - Fails first: `AttributeError: module 'runner.config' has no attribute 'OLD_NAMES'`.
+  - Check: `test_score_settings`, `test_report`, `test_snapshot`: 92 passed. Fast suite: 2206 passed, 11 skipped.
+  - A reader may rely on: an old metric id in a user's file being refused with "renamed: <old> is <new>" and the place; a record's snapshot, a Run's `plot.toml` and the `report.toml` beside it reading old ids; one stderr line a command saying which were read.

@@ -250,13 +250,13 @@ At most this many points on a page: each cell (a `plot_points` cell, or a set) c
 
 - `"default"`: the layer below's value, as if left out
 
-Each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `rel_abs_area` (abs_area / ref_area), `area_ratio` (cmp_area / ref_area: MC over data), `ratio_mean` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `ratio_dev` (its area about one over the width compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table.
+Each page's statistics, as Paint draws it (after voiding, alignment and normalisation, over the x span auto-range and the gutters give: `x_range` and `y_range` only show), into each set's `results/…/statistics/<set>/statistics.csv`: per curve `area` (Σ y·Δx) and its error; against the reference (the data, else the page's first curve), on the reference's bins the curve covers, `ref_area` and the curve's `cmp_area` there, `abs_area` (Σ |y − y_ref|·Δx), `yield_weighted_abs_dev` (abs_area / ref_area), `yield_ratio` (cmp_area / ref_area: MC over data), `mean_bin_ratio` (the ratio pad's mean, Σ y/y_ref·Δx / Σ Δx, Δx in log x on a log-x page), `mean_abs_ratio_dev` (its area about one over the width compared, Σ |y/y_ref − 1|·Δx / Σ Δx), `chi2`, `ndf`, `chi2_ndf`. false: no table.
 
 ## `legend_statistic`
 
 | Type | Default | Acceptable |
 |---|---|---|
-| string | `"none"` | `"none"`, `"area"`, `"abs_area"`, `"rel_abs_area"`, `"area_ratio"`, `"ratio_mean"`, `"ratio_dev"`, `"chi2"`, `"chi2_ndf"` |
+| string | `"none"` | `"none"`, `"area"`, `"abs_area"`, `"yield_weighted_abs_dev"`, `"yield_ratio"`, `"mean_bin_ratio"`, `"mean_abs_ratio_dev"`, `"chi2"`, `"chi2_ndf"` |
 
 One of the statistics (see `statistics`) after each curve's legend entry: `chi2_ndf` → `(χ²/ndf 1.31)`; the reference's own entry gets none. A figure may override it.
 
@@ -378,7 +378,7 @@ Matched against the short name (`d04-x01-y01`), the option-free path or a varian
 
 | Type | Default | Acceptable |
 |---|---|---|
-| string | — | `"area"`, `"abs_area"`, `"rel_abs_area"`, `"area_ratio"`, `"ratio_mean"`, `"ratio_dev"`, `"chi2"`, `"chi2_ndf"` |
+| string | — | `"area"`, `"abs_area"`, `"yield_weighted_abs_dev"`, `"yield_ratio"`, `"mean_bin_ratio"`, `"mean_abs_ratio_dev"`, `"chi2"`, `"chi2_ndf"` |
 
 A statistic figure's number, as `statistics.csv` has it: per cell (or set) and object, a page whose x axis is the page's curves by their labels, a bin each, and y that number of each against the page's reference (its own reference curve left out), drawn as markers; `area` with its error. Its pages: `<cell>/<name>/<object>`
 

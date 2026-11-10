@@ -9,6 +9,8 @@ Every error names the file and the key (`where`) and says what to do (`hint`).
 
 from __future__ import annotations
 
+import contextvars
+import copy
 import os
 import re
 import tomllib
@@ -17,7 +19,7 @@ from pathlib import Path
 
 from . import plugins, schema, v3
 from .errors import HeimdallError, did_you_mean
-from .paths import config_file, configs_root, heimdall_root, resolve
+from .paths import config_file, configs_root, heimdall_root, in_record, resolve
 from .quantities import check_shapes, select
 from .sweep import Listed, check_curve_style, set_entries
 
@@ -515,9 +517,116 @@ def _form(raw: dict, path: Path) -> dict:
     return raw
 
 
+# ── old names (a record keeps the names it was written in) ──────────────────────────────────────
+
+#: Each old name read from a record by this process, said once by the CLI (`` `<old>` → `<new>` ``).
+OLD_NAMES: list[str] = []
+#: True while a lenient load reads a file (heimdall migrate, completion): old names are read there, never refused.
+LENIENT: contextvars.ContextVar[bool] = contextvars.ContextVar("lenient", default=False)
+
+
+def _metric_ids() -> dict:
+    from stats import metrics                     # numpy loads here, only when a file names a metric
+    return metrics.ALIASES
+
+
+def _id(found: list, place: str, name):
+    """A metric id at `place`: its id now, the rename noted in `found`."""
+    if isinstance(name, str) and name in (aliases := _metric_ids()):
+        found.append((place, name, aliases[name]))
+        return aliases[name]
+    return name
+
+
+def _ids_in(found: list, place: str, table: dict, key: str) -> None:
+    """`table[key]` names metrics: a list of ids, or a table keyed by them."""
+    given = table.get(key)
+    if isinstance(given, list):
+        table[key] = [_id(found, f"{place}.{key}", n) for n in given]
+    elif isinstance(given, dict):
+        table[key] = {_id(found, f"{place}.{key}", n): v for n, v in given.items()}
+
+
+def _page_keys(found: list, place: str, table) -> None:
+    """The keys a page may carry that name a metric."""
+    if not isinstance(table, dict):
+        return
+    for key in ("legend_statistic", "statistic"):
+        if key in table:
+            table[key] = _id(found, f"{place}.{key}", table[key])
+
+
+def _scoring(found: list, place: str, table) -> None:
+    if isinstance(table, dict):
+        for key in ("metrics", "thresholds"):
+            _ids_in(found, place, table, key)
+
+
+def _stats_entry(found: list, place: str, entry):
+    """A report section's `stats` entry: `<what>[:<part>]`, the part before `:` a metric's id or a section's key."""
+    if not isinstance(entry, str):
+        return entry
+    head, colon, tail = entry.partition(":")
+    return _id(found, place, head) + colon + tail
+
+
+def _report(found: list, place: str, table) -> None:
+    sections = table.get("section") if isinstance(table, dict) else None
+    for k, section in enumerate(sections if isinstance(sections, list) else [], start=1):
+        if not isinstance(section, dict):
+            continue
+        at = f"{place}.section[{k}]"
+        if isinstance(section.get("stats"), list):
+            section["stats"] = [_stats_entry(found, f"{at}.stats", e) for e in section["stats"]]
+        _page_keys(found, f"{at}.plot", section.get("plot"))
+
+
+def _sets(found: list, place: str, sets) -> None:
+    entries = sets.items() if isinstance(sets, dict) else enumerate(sets if isinstance(sets, list) else [], start=1)
+    for key, entry in entries:
+        if isinstance(entry, dict):
+            at = f"{place}.{key}" if isinstance(sets, dict) else f"{place}[{key}]"
+            _scoring(found, f"{at}.score", entry.get("score"))
+            _page_keys(found, at, entry)
+
+
+def renamed(raw: dict, where: str, recorded: bool) -> dict:
+    """A file's tables with every old name in its new one's place. `recorded` (a record's snapshot, a Run's plot.toml, a
+    lenient load): the copy is returned and each rename joins OLD_NAMES once; else the first old name is refused, with the
+    command that rewrites it. A file with no old name is returned as it is."""
+    out = copy.deepcopy(raw)
+    found: list = []
+    if isinstance(out.get("stats"), dict):
+        _ids_in(found, "[stats]", out["stats"], "metrics")
+    _scoring(found, "[score]", out.get("score"))
+    plot = out.get("plot")
+    if isinstance(plot, dict):
+        _page_keys(found, "[plot]", plot)
+        for name, figure in (plot.get("figures") or {}).items() if isinstance(plot.get("figures"), dict) else ():
+            _page_keys(found, f"[plot.figures.{name}]", figure)
+        _sets(found, "[plot].sets", plot.get("sets"))
+    if "report" in out:
+        _report(found, "[report]", out["report"])
+    if not found:
+        return raw
+    if not recorded:
+        place, old, new = found[0]
+        raise HeimdallError(f"renamed: {old} is {new}", where=f"{where}: {place}", hint="heimdall migrate rewrites it")
+    for _, old, new in found:
+        said = f"`{old}` → `{new}`"
+        if said not in OLD_NAMES:
+            OLD_NAMES.append(said)
+    return out
+
+
+def _loaded(text: str, path: Path) -> dict:
+    """A TOML file's tables, its old names read or refused (`renamed`)."""
+    return renamed(tomllib.loads(text), str(path), in_record() or LENIENT.get())
+
+
 def _toml(path: Path) -> dict:
     try:
-        return tomllib.loads(path.read_text(encoding="utf-8"))
+        return _loaded(path.read_text(encoding="utf-8"), path)
     except OSError:
         raise HeimdallError("cannot read the file", where=str(path)) from None
     except tomllib.TOMLDecodeError as error:
@@ -940,12 +1049,21 @@ def load(name: str, *, sets: list[str] = (), strict: bool = True, text: str | No
     """An errand file, checked. `strict=False` (heimdall migrate only, V79) still reads the forms it rewrites;
     `text` (heimdall migrate's, V81) is read in place of the file's. Read for `configuration` (else the
     default one), with its own vars and data (V179)."""
+    token = LENIENT.set(True) if not strict else None
+    try:
+        return _load(name, sets=sets, strict=strict, text=text, configuration=configuration)
+    finally:
+        if token is not None:
+            LENIENT.reset(token)
+
+
+def _load(name: str, *, sets, strict: bool, text: str | None, configuration: str | None) -> Errand:
     path = config_file(name)
     if text is None:
         given = _toml(path)
     else:
         try:
-            given = tomllib.loads(text)
+            given = _loaded(text, path)
         except tomllib.TOMLDecodeError as error:
             raise HeimdallError(f"not valid TOML, even migrated: {error}", where=str(path)) from None
     own_names = v3.is_v3(given)                 # a v3 file takes --set in its own names: run.events, cfgs.pdf.vary

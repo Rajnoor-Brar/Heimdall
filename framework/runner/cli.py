@@ -3503,6 +3503,15 @@ def cmd_shell_verb(args) -> int:
 
 
 def main(argv: list[str]) -> int:
+    configmod.OLD_NAMES.clear()
+    try:
+        return _main(argv)
+    finally:
+        if argv[:1] != ["__complete"] and configmod.OLD_NAMES:      # once a command, however many files it read
+            print(f"heimdall: read old names from the record: {', '.join(configmod.OLD_NAMES)}", file=sys.stderr)
+
+
+def _main(argv: list[str]) -> int:
     if argv[:1] == ["__complete"]:                              # TAB in a loaded shell (complete.py): before anything else
         from .complete import answer
         return answer(parser(), argv[1:])

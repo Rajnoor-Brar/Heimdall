@@ -1,6 +1,6 @@
 """The metrics: a number for one curve against its page's reference, from Paint's measured bins.
 
-`REGISTRY` maps an id to a `Metric`: its function, the purpose it answers (PURPOSES), its polarity (which way is
+`REGISTRY` maps an id to a `Metric`: its function, the category it answers (CATEGORIES), its polarity (which way is
 better, POLARITIES), its scale, the (good, bad) thresholds that normalise it (a value at or under `good` costs nothing; at `bad`, 1), whether it needs a
 reference, whether it is on by default, and a note saying what it measures and what it is blind to. A function takes a
 `bins.Curve` and returns a float, NaN when the curve has too little to say. `ALIASES` maps an id a metric had before to
@@ -26,27 +26,30 @@ EPS = 0.01        # the floor of the log ratio, as a fraction of the reference
 TAU = 0.10        # the model tolerance that sets how much a noisy bin counts in `log_dev_shrunk`
 TAU0 = 0.01       # keeps one very precise bin from owning the `tilt` regression
 
-#: What a metric answers, in the order the summary and the report show them.
-PURPOSES = {
+#: What a metric answers: its category, in the order the summary and the report show them.
+CATEGORIES = {
     "compatibility": "Statistical compatibility",
     "normalisation": "Normalisation",
-    "shape": "Shape accuracy, bin by bin",
+    "accuracy": "Shape accuracy, bin by bin",
     "similarity": "Shape similarity, as distributions",
     "trend": "Trend",
     "defects": "Local defects",
+    "integrity": "Integrity",
     "quality": "Monte Carlo quality, without a reference",
 }
 
-#: What each purpose asks, as the summary says it: a sentence on the question, and what is not answered by it.
-ASKS = {
+#: The question each category asks, as the summary says it: a sentence on the question, and what is not answered by it.
+QUESTIONS = {
     "compatibility": "Is the curve statistically compatible with the reference, bin errors counted? Near the good threshold: yes; "
                      "past bad: no. It says nothing of where, and a curve with large errors is compatible with anything.",
     "normalisation": "Does the curve hold the reference's yield? An overall factor, whatever the shape; blind to where the yield goes.",
-    "shape": "How far is the curve from the reference, bin by bin, once its normalisation is set aside? Counts the "
-             "whole axis, the tails as much as the peak.",
+    "accuracy": "How far is the curve from the reference, bin by bin, once its normalisation is set aside? Counts the "
+                "whole axis, the tails as much as the peak.",
     "similarity": "Are the two distributions alike as shapes: the share of yield per bin, normalisation removed.",
     "trend": "Does the curve drift away from the reference across the axis (a slope or a curvature in the ratio)?",
     "defects": "Is there a bin, or a few, badly off: a spike or a hole the averages hide?",
+    "integrity": "Is the curve fit to be ranked at all: no bin a thousand times its reference, a positive yield on a "
+                 "cross-section page? A page that fails it is a gate's veto, not a cost.",
     "quality": "Is the curve itself sound as a Monte Carlo histogram, with no reference: smooth, filled, enough events?",
 }
 
@@ -111,7 +114,7 @@ FORMULAS = {
 class Metric:
     name: str
     fn: Callable[..., float]
-    purpose: str
+    category: str
     polarity: str = "lower"                   # one of POLARITIES; "one": closest to 1, scored by |log10|; "descriptor": not scored
     scale: str = "linear"                     # "log": the metric spans decades, as n_eff
     thresholds: tuple[float, float] | None = None   # (good, bad), in the scored quantity; None: none chosen, so it cannot be normalised by default
@@ -569,19 +572,19 @@ REGISTRY: dict[str, Metric] = {m.name: m for m in (
            why="the same as yield_ratio",
            note="the ratio pad's mean height over the axis as drawn"),
     # 3. Shape accuracy, bin by bin
-    Metric("log_dev_shrunk", log_dev_shrunk, "shape", thresholds=(0.02, 0.15), default=True,
+    Metric("log_dev_shrunk", log_dev_shrunk, "accuracy", thresholds=(0.02, 0.15), default=True,
            why="2 % is the noise floor of a precise page, 15 % a shape no one accepts",
            note="the log ratio's mean size over the axis, a bin less precise than 10 % counted less"),
-    Metric("log_dev_l4", log_dev_l4, "shape", thresholds=(0.07, 0.40),
+    Metric("log_dev_l4", log_dev_l4, "accuracy", thresholds=(0.07, 0.40),
            why="a true curve reads 0.05 at p97; 0.4 is a bin off by a factor 1.5 in a fifth of the bins or a 10× in one",
            note="(mean |ln ratio|⁴)^¼: one bin off by 10× costs as much as thousands of 10 % ones"),
-    Metric("mean_abs_ratio_dev", mean_abs_ratio_dev, "shape", thresholds=(0.04, 0.25),
+    Metric("mean_abs_ratio_dev", mean_abs_ratio_dev, "accuracy", thresholds=(0.04, 0.25),
            why="a true curve reads 0.023 at p97; 25 % is a ratio pad off by a quarter on average",
            note="the ratio pad's mean distance from 1 over the axis, every bin alike"),
-    Metric("yield_weighted_abs_dev", yield_weighted_abs_dev, "shape", thresholds=(0.03, 0.20),
+    Metric("yield_weighted_abs_dev", yield_weighted_abs_dev, "accuracy", thresholds=(0.03, 0.20),
            why="a true curve reads 0.016 at p97; 20 % is a yield-weighted error nobody accepts",
            note="Σ |y − ref| Δx / Σ ref Δx: shape and normalisation together, where the yield is"),
-    Metric("consensus_dev", consensus_dev, "shape", thresholds=(0.03, 0.20), needs_reference=False, pool=True,
+    Metric("consensus_dev", consensus_dev, "accuracy", thresholds=(0.03, 0.20), needs_reference=False, pool=True,
            why="log_dev_shrunk against the median of at least three curves: a true curve among true curves reads 0.02 to 0.03",
            note="log_dev_shrunk against the median of ≥ 3 curves, not the reference; pool-dependent"),
     # 4. Shape similarity, as distributions

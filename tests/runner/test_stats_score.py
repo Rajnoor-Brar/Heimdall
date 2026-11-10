@@ -20,8 +20,8 @@ def row(point, page="p", cell="c", obj="run/pt/jet", ndf=10, reference=False, **
             "ndf": ndf, **base, **values}
 
 
-def two_purposes():
-    """chi2_ndf (compatibility) and norm (normalisation): two purposes of one metric each."""
+def two_categories():
+    """chi2_ndf (compatibility) and norm (normalisation): two categories of one metric each."""
     return score.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio"]})
 
 
@@ -46,28 +46,28 @@ def test_a_set_s_score_table_is_laid_over_the_run_s():
 
 def test_a_perfect_curve_scores_zero_and_a_point_at_bad_scores_one_per_metric():
     rows = [row("good"), row("bad", chi2_ndf=3.0, log_yield_ratio=0.15)]
-    out = {p.point: p for p in score.score(rows, two_purposes()).points}
+    out = {p.point: p for p in score.score(rows, two_categories()).points}
     assert out["good"].score == 0.0
     assert out["bad"].score == pytest.approx(1.0)                         # both at their `bad` threshold: cost 1 each
 
 
 def test_the_loss_is_the_rms_over_purposes_of_the_rms_within_each():
     rows = [row("a", chi2_ndf=2.0, log_yield_ratio=0.0)]                              # chi2: (2−1)/(3−1) = 0.5; norm: 0
-    (p,) = score.score(rows, two_purposes()).points
+    (p,) = score.score(rows, two_categories()).points
     assert p.score == pytest.approx(math.sqrt((0.5**2 + 0.0) / 2))
-    assert p.purposes == pytest.approx({"compatibility": 0.5, "normalisation": 0.0})
+    assert p.categories == pytest.approx({"compatibility": 0.5, "normalisation": 0.0})
 
 
 def test_the_shares_of_the_loss_sum_to_one_and_name_the_purpose_that_costs():
     rows = [row("a", chi2_ndf=3.0, log_yield_ratio=0.02)]                             # chi2 at bad: 1; norm at good: 0
-    (p,) = score.score(rows, two_purposes()).points
+    (p,) = score.score(rows, two_categories()).points
     assert p.shares["compatibility"] == pytest.approx(1.0) and p.shares["normalisation"] == pytest.approx(0.0)
     assert sum(p.shares.values()) == pytest.approx(1.0)
 
 
 def test_metrics_of_one_purpose_weigh_one_purpose_not_one_each():
-    shape = [n for n, m in metrics.REGISTRY.items() if m.purpose == "shape" and m.default]
-    others = [n for n, m in metrics.REGISTRY.items() if m.purpose == "compatibility" and m.default]
+    shape = [n for n, m in metrics.REGISTRY.items() if m.category == "accuracy" and m.default]
+    others = [n for n, m in metrics.REGISTRY.items() if m.category == "compatibility" and m.default]
     assert shape and others
     values = {n: metrics.REGISTRY[n].thresholds[1] for n in shape}        # every shape metric at bad: cost 1
     one = score.settings_of({"metrics": [*shape[:1], *others]})
@@ -76,20 +76,20 @@ def test_metrics_of_one_purpose_weigh_one_purpose_not_one_each():
     assert score.score(r, one).points[0].score == pytest.approx(score.score(r, all_).points[0].score)
 
 
-def test_a_metric_weight_counts_within_its_purpose():
-    shape = [n for n, m in metrics.REGISTRY.items() if m.purpose == "shape" and m.default][0]
+def test_a_metric_weight_counts_within_its_category():
+    shape = [n for n, m in metrics.REGISTRY.items() if m.category == "accuracy" and m.default][0]
     bad = metrics.REGISTRY[shape].thresholds[1]
     st = score.settings_of({"metrics": {shape: 3.0, "tilt": 1.0}})
-    # tilt is another purpose: weights do not leak across purposes
+    # tilt is another category: weights do not leak across categories
     (p,) = score.score([row("a", **{shape: bad, "tilt": 0.0})], st).points
-    assert p.purposes[metrics.REGISTRY[shape].purpose] == pytest.approx(1.0)
+    assert p.categories[metrics.REGISTRY[shape].category] == pytest.approx(1.0)
 
 
 def test_adding_a_curve_leaves_the_others_threshold_scores_unchanged():
     rows = [row("a", chi2_ndf=2.0, log_yield_ratio=0.05), row("b", chi2_ndf=1.2, log_yield_ratio=0.01)]
-    before = {p.point: p.score for p in score.score(rows, two_purposes()).points}
+    before = {p.point: p.score for p in score.score(rows, two_categories()).points}
     more = rows + [row("c", chi2_ndf=40.0, log_yield_ratio=0.9)]
-    after = {p.point: p.score for p in score.score(more, two_purposes()).points}
+    after = {p.point: p.score for p in score.score(more, two_categories()).points}
     assert after["a"] == before["a"] and after["b"] == before["b"]
 
 
@@ -150,18 +150,18 @@ def test_the_mean_is_a_setting_median_ignores_one_bad_page():
 
 def test_a_missing_metric_is_skipped_not_scored_as_zero():
     rows = [row("a", chi2_ndf=NAN, log_yield_ratio=0.15)]
-    (p,) = score.score(rows, two_purposes()).points
-    assert list(p.purposes) == ["normalisation"] and p.score == pytest.approx(1.0)
+    (p,) = score.score(rows, two_categories()).points
+    assert list(p.categories) == ["normalisation"] and p.score == pytest.approx(1.0)
 
 
 def test_a_point_with_nothing_to_score_has_a_nan_score_and_ranks_last():
     rows = [row("none", chi2_ndf=NAN, log_yield_ratio=NAN), row("ok", chi2_ndf=1.0, log_yield_ratio=0.0)]
-    out = score.score(rows, two_purposes())
+    out = score.score(rows, two_categories())
     assert math.isnan(out.points[0].score)
     assert [p.point for p in out.ranked()] == ["ok", "none"]
 
 
-def test_dominated_is_pareto_over_purposes():
+def test_dominated_is_pareto_over_categories():
     rows = [row("best", chi2_ndf=1.0, log_yield_ratio=0.0), row("worse", chi2_ndf=2.0, log_yield_ratio=0.1),
             row("tradeoff", chi2_ndf=1.0, log_yield_ratio=0.3), row("other", chi2_ndf=3.0, log_yield_ratio=0.0)]
     st = score.settings_of({"metrics": ["chi2_ndf", "log_yield_ratio"], "dominated": True})
@@ -287,7 +287,7 @@ def test_promethee_ranks_by_net_outranking_flow():
 
 def test_head_to_head_gives_the_pairwise_differences_and_counts_no_wins():
     rows = [row("a", chi2_ndf=1.0, log_yield_ratio=0.0), row("b", chi2_ndf=3.0, log_yield_ratio=0.02), row("c", chi2_ndf=2.0, log_yield_ratio=0.15)]
-    out = score.head_to_head(rows, "p", two_purposes())
+    out = score.head_to_head(rows, "p", two_categories())
     assert out["points"] == ["a", "b", "c"]
     pairs = {(p["a"], p["b"]): p for p in out["pairs"]}
     assert set(pairs) == {("a", "b"), ("a", "c"), ("b", "c")}

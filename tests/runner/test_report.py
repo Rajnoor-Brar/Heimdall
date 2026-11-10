@@ -177,9 +177,9 @@ def test_the_default_report_is_the_headline_and_each_set_its_document_draws(tree
 
 
 
-def test_the_default_standings_name_every_purpose_in_order():
+def test_the_default_standings_name_every_category_in_order():
     from stats import metrics
-    assert [k.partition(":")[2] for k in report.HEADLINE if k.startswith("purpose:")] == list(metrics.PURPOSES)
+    assert [k.partition(":")[2] for k in report.HEADLINE if k.startswith("category:")] == list(metrics.CATEGORIES)
     assert report.HEADLINE[0] == "standings" and report.HEADLINE[-3:] == ["marginals", "baseline", "head-to-head"]
 
 
@@ -226,10 +226,13 @@ def test_a_recipe_is_checked(trees):
         recipe(trees, "old", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["%s"]\n' % old)
         with pytest.raises(HeimdallError, match=f"'{old}' is now '{new}'"):
             report.planned("P/old.toml", ["P/validation/01_pdf"])
-    recipe(trees, "purpose", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["purpose:shap"]\n')
-    with pytest.raises(HeimdallError, match="no purpose 'shap'") as error:
+    recipe(trees, "category", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["category:shap"]\n')
+    with pytest.raises(HeimdallError, match="no category 'shap'") as error:
+        report.planned("P/category.toml", ["P/validation/01_pdf"])
+    assert "accuracy" in str(error.value.hint)
+    recipe(trees, "purpose", '[report]\n\n[[report.section]]\ntitle = "a"\nstats = ["purpose:trend"]\n')
+    with pytest.raises(HeimdallError, match="renamed: purpose:trend is category:trend"):
         report.planned("P/purpose.toml", ["P/validation/01_pdf"])
-    assert "shape" in str(error.value.hint)
     recipe(trees, "look", '[report]\n\n[[report.section]]\ntitle = "a"\npages = ["*"]\nplot = { normalize = "area" }\n')
     with pytest.raises(HeimdallError, match="normalize"):
         report.planned("P/look.toml", ["P/validation/01_pdf"])

@@ -604,7 +604,7 @@ def test_statistics_are_a_table_and_a_legend_may_show_them(stage):
     assert (bars / "bars" / "em" / "d01-x01-y01.png").is_file()
     assert not list(bars.glob("summary*.png"))                                   # the summary's PNGs: in summary/
     shown = sorted(p.name for p in (bars / "summary").iterdir())               # a page each, numbered in order (V196)
-    assert shown == [f"summary_{n:02d}.png" for n in range(1, len(shown) + 1)] and len(shown) >= 1 + 6   # a section a page at least: the front, the standings, five purposes
+    assert shown == [f"summary_{n:02d}.png" for n in range(1, len(shown) + 1)] and len(shown) >= 1 + 6   # a section a page at least: the front, the standings, five categories
     assert any(", 1 set(s), 35 bar graph(s) → " in line for line in said)         # 34 pages, the summary
     page = tomllib.loads((plans[0].folders.pages / "totality" / "em" / "d01-x01-y01.toml").read_text(encoding="utf-8"))
     assert all("#chi^{2}/ndf " in c["label"] for c in page["curve"])
@@ -851,9 +851,9 @@ def test_plot_looks_give_a_value_its_look_by_tag(stage, scratch):
 
 
 
-def test_the_summary_is_scored_by_purpose(stage):
+def test_the_summary_is_scored_by_category(stage):
     """V174, V196: statistics/<set>/summary.pdf, every page A4 portrait: the standings (score, worst page, veto, a column a
-    purpose), then a section per purpose with a metric on: its ranking, then each metric's ranking, page cells against
+    category), then a section per category with a metric on: its ranking, then each metric's ranking, page cells against
     curves and table (a row per point, a column per object in natural order, then the mean; the reference "ref"); each item
     names its notes. A table wider than the page is cut into column blocks, the mean on the last. V197: a table in curve
     order groups its rows under their cells' bands; the facts, contents and notes up front. V199: summary.html beside it.
@@ -885,11 +885,11 @@ def test_the_summary_is_scored_by_purpose(stage):
     assert document.heading.endswith(" · totality")
     assert document.facts[0].startswith("4 point(s) in 2 page cell(s), on 17 object(s)")       # V197: up front
     sections = {s.key: s for s in document.sections}
-    assert list(sections) == ["standings", "purpose-compatibility", "purpose-normalisation", "purpose-shape",
-                              "purpose-trend", "purpose-defects", "head-to-head"]
+    assert list(sections) == ["standings", "category-compatibility", "category-normalisation", "category-accuracy",
+                              "category-trend", "category-defects", "head-to-head"]
     items = {item.key: item for s in document.sections for item in s.items}
-    assert [i.key for i in sections["purpose-compatibility"].items] == [
-        "purpose-compatibility-ranking", "chi2_ndf-ranking", "chi2_ndf-crossed", "chi2_ndf"]
+    assert [i.key for i in sections["category-compatibility"].items] == [
+        "category-compatibility-ranking", "chi2_ndf-ranking", "chi2_ndf-crossed", "chi2_ndf"]
     crossed = items["chi2_ndf-crossed"]                                         # V198: page cells against curves
     assert crossed.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "rms"] and [r.label for r in crossed.rows] == [
         "em", "ep", "rms"]

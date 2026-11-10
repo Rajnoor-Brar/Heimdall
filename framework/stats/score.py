@@ -6,12 +6,12 @@ the page's reference rows are not scored.
 
     cost      each metric normalised to a cost (`normalise`: hinged thresholds by default, which depend on the metric alone, so a
               score is the same whatever else is in the pool and compares across Runs; the others use the pool of curves on the page)
-    purpose   the RMS of a purpose's metric costs, metric weights counting
-    page loss the RMS over the purposes that have a metric: four shape metrics weigh one purpose, not four
+    category   the RMS of a category's metric costs, metric weights counting
+    page loss the RMS over the categories that have a metric: four shape metrics weigh one category, not four
     score     the `mean` (rms by default) of a point's page losses, page weights counting
 
-Beside the score: the worst page (and a veto when it loses more than `veto`), each purpose's share of the loss, and with
-`dominated` whether another point beats it on every purpose. `aggregate` may instead be `fisher`, `topsis` or `promethee`
+Beside the score: the worst page (and a veto when it loses more than `veto`), each category's share of the loss, and with
+`dominated` whether another point beats it on every category. `aggregate` may instead be `fisher`, `topsis` or `promethee`
 (each says in its note what it costs). Lower is better throughout.
 """
 
@@ -161,7 +161,7 @@ class Obs:
     row: dict
     weight: float = 1.0
     cost: dict = field(default_factory=dict)        # metric → cost (NaN where the metric is missing)
-    purposes: dict = field(default_factory=dict)    # purpose → its RMS of costs
+    categories: dict = field(default_factory=dict)    # category → its RMS of costs
     loss: float = math.nan
 
 
@@ -242,7 +242,7 @@ def critic_weights(obs: list[Obs], names: list[str]) -> dict[str, float]:
 
 
 def costs(obs: list[Obs], st: Settings) -> dict[str, float]:
-    """Fill every observation's metric costs, purpose values and page loss; the metric weights used."""
+    """Fill every observation's metric costs, category values and page loss; the metric weights used."""
     names = list(st.metrics)
     pages: dict = {}
     for o in obs:
@@ -256,13 +256,13 @@ def costs(obs: list[Obs], st: Settings) -> dict[str, float]:
         learned = critic_weights(obs, names)
         weights = {n: weights[n] * learned[n] for n in names}
     for o in obs:
-        by_purpose: dict = {}
+        by_category: dict = {}
         for name in names:
             c = o.cost[name]
             if not math.isnan(c) and weights[name] > 0:
-                by_purpose.setdefault(metrics.REGISTRY[name].purpose, []).append((weights[name], c))
-        o.purposes = {p: math.sqrt(sum(w * c * c for w, c in v) / sum(w for w, _ in v)) for p, v in by_purpose.items()}
-        o.loss = math.sqrt(sum(v * v for v in o.purposes.values()) / len(o.purposes)) if o.purposes else math.nan
+                by_category.setdefault(metrics.REGISTRY[name].category, []).append((weights[name], c))
+        o.categories = {p: math.sqrt(sum(w * c * c for w, c in v) / sum(w for w, _ in v)) for p, v in by_category.items()}
+        o.loss = math.sqrt(sum(v * v for v in o.categories.values()) / len(o.categories)) if o.categories else math.nan
     return weights
 
 
@@ -276,8 +276,8 @@ class PointScore:
     worst_page: str = ""
     worst_loss: float = math.nan
     veto: bool = False
-    purposes: dict = field(default_factory=dict)      # purpose → RMS over pages of its value
-    shares: dict = field(default_factory=dict)        # purpose → its share of the squared loss
+    categories: dict = field(default_factory=dict)      # category → RMS over pages of its value
+    shares: dict = field(default_factory=dict)        # category → its share of the squared loss
     pages: dict = field(default_factory=dict)         # page → loss
     dominated: bool | None = None
     n_pages: int = 0
@@ -316,12 +316,12 @@ def score(rows: list[dict], st: Settings | None = None, figure_weights: dict | N
             worst = max(good, key=lambda o: o.loss)
             ps.worst_page, ps.worst_loss = worst.page, worst.loss
             ps.veto = st.veto is not None and worst.loss > st.veto
-            for p in metrics.PURPOSES:
-                have = [(o.purposes[p], o.weight) for o in good if p in o.purposes]
+            for p in metrics.CATEGORIES:
+                have = [(o.categories[p], o.weight) for o in good if p in o.categories]
                 if have:
-                    ps.purposes[p] = means.power_mean([v for v, _ in have], [w for _, w in have], 2.0)
-            total = sum(v * v for v in ps.purposes.values())
-            ps.shares = {p: (v * v / total if total else 0.0) for p, v in ps.purposes.items()}
+                    ps.categories[p] = means.power_mean([v for v, _ in have], [w for _, w in have], 2.0)
+            total = sum(v * v for v in ps.categories.values())
+            ps.shares = {p: (v * v / total if total else 0.0) for p, v in ps.categories.items()}
         out.append(ps)
     result = Scores(st, out, used)
     if st.aggregate != "rms":
@@ -332,11 +332,11 @@ def score(rows: list[dict], st: Settings | None = None, figure_weights: dict | N
 
 
 def _dominated(result: Scores) -> None:
-    """A point is dominated when another in its cell is no worse on every purpose and better on one (Pareto)."""
+    """A point is dominated when another in its cell is no worse on every category and better on one (Pareto)."""
     for p in result.points:
-        mine = p.purposes
-        p.dominated = any(q is not p and q.cell == p.cell and q.purposes and all(
-            q.purposes.get(k, math.inf) <= v for k, v in mine.items()) and any(q.purposes.get(k, math.inf) < v for k, v in mine.items())
+        mine = p.categories
+        p.dominated = any(q is not p and q.cell == p.cell and q.categories and all(
+            q.categories.get(k, math.inf) <= v for k, v in mine.items()) and any(q.categories.get(k, math.inf) < v for k, v in mine.items())
             for q in result.points) if mine else None
 
 
@@ -441,7 +441,7 @@ def head_to_head(rows: list[dict], page: str, st: Settings | None = None) -> dic
 @dataclass
 class Marginal:
     axis: str
-    rows: list = field(default_factory=list)        # (value, score, points, {purpose: value}), best score first
+    rows: list = field(default_factory=list)        # (value, score, points, {category: value}), best score first
     confounded: list = field(default_factory=list)  # sentences: which values of other axes share this axis's values unevenly
 
 
@@ -475,7 +475,7 @@ def _confounded(axis: str, every: dict[str, list[str]], axes: dict, points: set)
 
 def marginals(scores: Scores, axes: dict, st: Settings | None = None) -> list[Marginal]:
     """For each axis in `st.by` (every varied axis when it names none), a table of value → the `mean` of the scores of the points
-    having it, the points' number and each purpose's value; and which other axes' values confound it (spread unevenly over this
+    having it, the points' number and each category's value; and which other axes' values confound it (spread unevenly over this
     axis's values, as pdf = X only with generator = Y). An axis named that is not varied is refused."""
     st = st or scores.settings
     scored = {p.point for p in scores.points if p.score == p.score and p.point in axes}
@@ -492,12 +492,12 @@ def marginals(scores: Scores, axes: dict, st: Settings | None = None) -> list[Ma
             mine = [p for p in scores.points if p.point in scored and str(axes[p.point].get(axis)) == value and p.score == p.score]
             if not mine:
                 continue
-            purposes = {}
-            for purpose in metrics.PURPOSES:
-                have = [p.purposes[purpose] for p in mine if purpose in p.purposes]
+            categories = {}
+            for category in metrics.CATEGORIES:
+                have = [p.categories[category] for p in mine if category in p.categories]
                 if have:
-                    purposes[purpose] = means.evaluate(st.mean, have)
-            marginal.rows.append((value, means.evaluate(st.mean, [p.score for p in mine]), len({p.point for p in mine}), purposes))
+                    categories[category] = means.evaluate(st.mean, have)
+            marginal.rows.append((value, means.evaluate(st.mean, [p.score for p in mine]), len({p.point for p in mine}), categories))
         marginal.rows.sort(key=lambda r: r[1])
         out.append(marginal)
     return out

@@ -98,7 +98,7 @@ def test_the_sidecar_says_what_the_columns_are(tmp_path):
     assert set(side["metrics"]) == {"chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "yield_weighted_abs_dev", "yield_ratio", "mean_bin_ratio", "mean_abs_ratio_dev"}   # the old columns that are metrics too
     norm = side["metrics"]["log_yield_ratio"]
     assert norm["polarity"] == "lower" and norm["phrase"] == "lower is better" and norm["scale"] == "linear"
-    assert norm["purpose"] == "normalisation" and norm["thresholds"] == [0.02, 0.15] and norm["default"] and norm["note"]
+    assert norm["category"] == "normalisation" and norm["thresholds"] == [0.02, 0.15] and norm["default"] and norm["note"]
 
 
 def test_a_csv_from_before_format_2_has_no_sidecar_and_reads_as_format_1(tmp_path):
@@ -183,7 +183,8 @@ def test_a_format_2_table_reads_with_every_metric_under_its_id_now_and_no_value_
     target.write_text(",".join(old) + "\n" + ",".join(values) + "\n", encoding="utf-8")
     side = {"format": 2, "columns": old,
             "metrics": {"norm": {"purpose": "normalisation", "better": "lower", "thresholds": [0.02, 0.15]},
-                        "lambda": {"purpose": "quality", "better": "none", "thresholds": None}},
+                        "lambda": {"purpose": "quality", "better": "none", "thresholds": None},
+                        "shape": {"purpose": "shape", "better": "lower"}},
             "score": {"metrics": {"norm": 2.0, "shape": 1.0}, "thresholds": {"worst": [5, 20]}, "normalise": "thresholds"},
             "axes": {"x": {"pdf": "A"}}}
     (tmp_path / "statistics.json").write_text(json.dumps(side), encoding="utf-8")
@@ -194,8 +195,9 @@ def test_a_format_2_table_reads_with_every_metric_under_its_id_now_and_no_value_
     read = statstable.sidecar(target)
     assert read["format"] == 3 and statstable.format_of(target) == 2               # the file's own format, as written
     assert read["columns"] == list(row)
-    assert read["metrics"]["log_yield_ratio"] == {"purpose": "normalisation", "polarity": "lower", "thresholds": [0.02, 0.15]}
+    assert read["metrics"]["log_yield_ratio"] == {"category": "normalisation", "polarity": "lower", "thresholds": [0.02, 0.15]}
     assert read["metrics"]["tail_slope"]["polarity"] == "descriptor"
+    assert read["metrics"]["log_dev_shrunk"]["category"] == "accuracy"                # the category's key was shape
     assert read["score"]["metrics"] == {"log_yield_ratio": 2.0, "log_dev_shrunk": 1.0}
     assert read["score"]["thresholds"] == {"peak_pull2": [5, 20]} and read["score"]["normalise"] == "thresholds"
     assert json.loads((tmp_path / "statistics.json").read_text(encoding="utf-8")) == side          # never written back

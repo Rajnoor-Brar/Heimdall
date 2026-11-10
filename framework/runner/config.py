@@ -562,11 +562,20 @@ def _scoring(found: list, place: str, table) -> None:
             _ids_in(found, place, table, key)
 
 
+#: A metric's category, by the key it had as a report's `purpose:<key>`.
+OLD_CATEGORIES = {"shape": "accuracy"}
+
+
 def _stats_entry(found: list, place: str, entry):
-    """A report section's `stats` entry: `<what>[:<part>]`, the part before `:` a metric's id or a section's key."""
+    """A report section's `stats` entry: `<what>[:<part>]`, the part before `:` a metric's id or a section's key;
+    `purpose:<key>` is `category:<key>`."""
     if not isinstance(entry, str):
         return entry
     head, colon, tail = entry.partition(":")
+    if head == "purpose":
+        new = f"category:{OLD_CATEGORIES.get(tail, tail)}"
+        found.append((place, entry, new))
+        return new
     return _id(found, place, head) + colon + tail
 
 
@@ -1567,7 +1576,7 @@ def _check_stats_metrics(stats: dict, where: str) -> None:
 
 
 REPORT_ITEMS = ("pages", "compare", "stats", "bars", "files", "tools")
-#: The statistics summary's sections (bars.summary_model): the standings, a purpose (`purpose:<name>`), a metric (`<metric>`, or
+#: The statistics summary's sections (bars.summary_model): the standings, a category (`category:<name>`), a metric (`<metric>`, or
 #: `<metric>:<part>`) and the head to head. Names from before the scoring was rebuilt are refused with the name that replaced them.
 SUMMARY = ("standings", "marginals", "baseline", "head-to-head")
 PARTS = ("ranking", "crossed", "table")
@@ -1576,20 +1585,20 @@ REPLACED = {"top5": "standings", "scoreboard": "standings", "scoreboard-cells": 
 
 
 def check_stats_key(key: str, at: str) -> None:
-    """One entry of a section's `stats`: `standings`, `head-to-head`, `purpose:<name>`, or a metric with an optional part."""
+    """One entry of a section's `stats`: `standings`, `head-to-head`, `category:<name>`, or a metric with an optional part."""
     from stats import metrics
     statistic, _, part = key.partition(":")
     for old, new in REPLACED.items():
         if statistic == old or (old.endswith("-") and statistic.startswith(old)):
             raise HeimdallError(f"stats: '{key}' is now '{new}'", where=f"{at}.stats",
-                                hint="the summary is scored by purpose now: standings, purpose:<name>, <metric>:ranking|table, head-to-head")
+                                hint="the summary is scored by category now: standings, category:<name>, <metric>:ranking|table, head-to-head")
     if statistic == "area":
         raise HeimdallError("stats: 'area' is no longer a summary table", where=f"{at}.stats",
                             hint="its numbers are the area column of statistics.csv")
-    if statistic == "purpose":
-        if part not in metrics.PURPOSES:
-            raise HeimdallError(f"stats: no purpose '{part}'", where=f"{at}.stats",
-                                hint=did_you_mean(part, metrics.PURPOSES) or f"the purposes: {', '.join(metrics.PURPOSES)}")
+    if statistic == "category":
+        if part not in metrics.CATEGORIES:
+            raise HeimdallError(f"stats: no category '{part}'", where=f"{at}.stats",
+                                hint=did_you_mean(part, metrics.CATEGORIES) or f"the categories: {', '.join(metrics.CATEGORIES)}")
         return
     if statistic in SUMMARY:
         if part:
@@ -1601,7 +1610,7 @@ def check_stats_key(key: str, at: str) -> None:
                                 hint=f"its parts: {', '.join(f'{statistic}:{p}' for p in PARTS)}")
         return
     raise HeimdallError(f"stats: no section {key!r}", where=f"{at}.stats",
-                        hint=did_you_mean(statistic, [*SUMMARY, *metrics.REGISTRY]) or f"the sections: {', '.join(SUMMARY)}, purpose:<name>, <metric>")
+                        hint=did_you_mean(statistic, [*SUMMARY, *metrics.REGISTRY]) or f"the sections: {', '.join(SUMMARY)}, category:<name>, <metric>")
 
 
 #: An errand file's [report] says neither: each folder is its own report's source, built where results/ has it (V209).

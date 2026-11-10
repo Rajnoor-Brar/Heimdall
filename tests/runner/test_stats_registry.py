@@ -22,7 +22,7 @@ def is_tested(name: str, *files: str) -> bool:
 def test_every_metric_has_a_purpose_a_polarity_a_scale_a_note_and_a_test(name):
     m = metrics.REGISTRY[name]
     assert m.name == name
-    assert m.purpose in metrics.PURPOSES
+    assert m.category in metrics.CATEGORIES
     assert m.polarity in ("lower", "higher", "one", "descriptor")
     assert m.scale in ("linear", "log")
     assert m.note.strip(), "say what it measures and what it is blind to"
@@ -44,16 +44,18 @@ def test_exactly_the_five_are_on_by_default():
     assert {n for n, m in metrics.REGISTRY.items() if m.default} == DEFAULTS
 
 
-def test_every_purpose_has_a_metric_and_the_defaults_cover_all_but_two():
-    used = {m.purpose for m in metrics.REGISTRY.values()}
-    assert used == set(metrics.PURPOSES)
-    on = {m.purpose for m in metrics.REGISTRY.values() if m.default}
-    assert set(metrics.PURPOSES) - on == {"similarity", "quality"}
+def test_every_category_but_integrity_has_a_metric_and_the_defaults_cover_all_but_three():
+    used = {m.category for m in metrics.REGISTRY.values()}
+    assert used == set(metrics.CATEGORIES) - {"integrity"}                           # its gates come with the gate metrics
+    on = {m.category for m in metrics.REGISTRY.values() if m.default}
+    assert set(metrics.CATEGORIES) - on == {"similarity", "integrity", "quality"}
+    assert list(metrics.CATEGORIES) == ["compatibility", "normalisation", "accuracy", "similarity", "trend", "defects",
+                                        "integrity", "quality"]
 
 
 def test_a_metric_that_needs_no_reference_says_so_and_a_pooled_one_is_flagged():
     for m in metrics.REGISTRY.values():
-        if m.purpose == "quality":
+        if m.category == "quality":
             assert not m.needs_reference, m.name
         if m.pool:
             assert "pool-dependent" in m.note, m.name
@@ -67,8 +69,8 @@ def test_every_mean_has_a_guard_a_note_an_error_rule_and_a_test(name):
 
 
 def test_every_purpose_says_what_it_asks_and_every_metric_has_a_title():
-    assert set(metrics.ASKS) == set(metrics.PURPOSES)
-    assert all(text.strip().endswith((".", "?")) for text in metrics.ASKS.values())
+    assert set(metrics.QUESTIONS) == set(metrics.CATEGORIES)
+    assert all(text.strip().endswith((".", "?")) for text in metrics.QUESTIONS.values())
     assert set(metrics.TITLES) == set(metrics.REGISTRY)
     assert set(metrics.FORMULAS) <= set(metrics.REGISTRY)
 

@@ -163,7 +163,7 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     bars = statstable.bars()
     rows = statstable.read(trees / "results" / "P" / "validation" / "01_pdf" / "statistics" / "totality" / "statistics.csv")
     document, missing = report.chosen(bars.summary_model(rows, "here"), ["standings", "chi2_ndf:ranking", "area:ranking"])
-    assert [s.key for s in document.sections] == ["standings", "purpose-compatibility"] and missing == ["area:ranking"]
+    assert [s.key for s in document.sections] == ["standings", "category-compatibility"] and missing == ["area:ranking"]
     assert [i.key for i in document.sections[1].items] == ["chi2_ndf-ranking"]
     recipe(trees, "numbers", '[report]\nfrom = ["P/validation/01_pdf"]\n\n[[report.section]]\ntitle = "Standings"\n'
                              'stats = ["chi2_ndf:ranking"]\n\n[[report.section]]\ntitle = "Bars"\nbars = ["*d01*"]\n')
@@ -189,7 +189,7 @@ def test_a_statistics_part_holds_the_sections_chosen(trees):
     assert body.index(r"\section*{How the numbers are made}") < body.index(r"\section{Standings}")
     assert body.count(r"\hdDefinition{") == 1 and r"\hdDefinition{χ²/ndf}{\chi^2/\mathrm{ndf} = " in body
     assert r"\hdStatSection{The metrics}" in body
-    assert r"What each purpose asks" not in body                                        # no purpose section is shown here
+    assert r"What each category asks" not in body                                        # no category section is shown here
     assert r"\hdStatSection{How a page is compared}" in body and "How points are scored" not in body
     assert "Scored from 1 (cost 0) to 3 (cost 1)" in body                              # a metric's thresholds, said
     notes = body[body.index(r"\begin{hdNotes}"):body.index(r"\end{hdNotes}")]

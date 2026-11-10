@@ -2847,7 +2847,7 @@
    "type": "object",
    "properties": {
     "metrics": {
-     "description": "the metrics scored: a list of names, or { name = weight } (default: the five default metrics, weight 1)\n\na metric is scored through its purpose: a page's loss is the RMS over purposes of the (weighted) RMS of its metrics' normalised values, so four shape metrics weigh one purpose and not four",
+     "description": "the metrics scored: a list of names, or { name = weight } (default: the five default metrics, weight 1)\n\na metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS of its metrics' normalised values, so four shape metrics weigh one category and not four",
      "type": [
       "array",
       "object"
@@ -2913,7 +2913,7 @@
      "minimum": 0
     },
     "aggregate": {
-     "description": "how metrics and pages combine: RMS over purposes (default), or Fisher's combined probability, TOPSIS, PROMETHEE",
+     "description": "how metrics and pages combine: RMS over categories (default), or Fisher's combined probability, TOPSIS, PROMETHEE",
      "type": "string",
      "enum": [
       "rms",
@@ -2924,7 +2924,7 @@
      "default": "rms"
     },
     "dominated": {
-     "description": "add a column marking a point that another beats on every purpose",
+     "description": "add a column marking a point that another beats on every category",
      "type": "boolean",
      "default": false
     },
@@ -3051,7 +3051,7 @@
         }
        },
        "stats": {
-        "description": "the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): standings (each point's score, worst page, veto and purposes), `purpose:<name>` (a purpose's section: what it asks and its metrics), marginals (a table per axis: the mean score of the points having each value), baseline (each point against `[score].baseline`), head-to-head (the pages `[score].head_to_head` names), or a metric's id (`chi2_sigma`) for its section, `<metric>:ranking`, `:crossed` or `:table` for one of its parts",
+        "description": "the statistics summary's sections, from each source's statistics/<set>/statistics.csv (else measured for the report): standings (each point's score, worst page, veto and categories), `category:<name>` (a category's section: what it asks and its metrics), marginals (a table per axis: the mean score of the points having each value), baseline (each point against `[score].baseline`), head-to-head (the pages `[score].head_to_head` names), or a metric's id (`chi2_sigma`) for its section, `<metric>:ranking`, `:crossed` or `:table` for one of its parts",
         "type": "array",
         "items": {
          "type": "string"

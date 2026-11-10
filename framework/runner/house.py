@@ -202,12 +202,12 @@ def _score_names() -> list[str]:
 
 
 def _score_lines(name: str) -> list[str]:
-    """`heimdall explain score`: the keys of [score], the metrics by purpose and the means; `score.<name>` one in full."""
+    """`heimdall explain score`: the keys of [score], the metrics by category and the means; `score.<name>` one in full."""
     from stats import means, metrics
     if name in metrics.REGISTRY:
         m = metrics.REGISTRY[name]
         thresholds = f"good {m.thresholds[0]:g}, bad {m.thresholds[1]:g}" if m.thresholds else "none (give [score].thresholds to score it)"
-        return [f"metric {name}: {metrics.PURPOSES[m.purpose]}", f"  polarity   {m.polarity}: {metrics.PHRASE[m.polarity]}", f"  thresholds {thresholds}",
+        return [f"metric {name}: {metrics.CATEGORIES[m.category]}", f"  polarity   {m.polarity}: {metrics.PHRASE[m.polarity]}", f"  thresholds {thresholds}",
                 *([f"  because    {m.why}"] if m.why else []), f"  on         {'by default' if m.default else 'when named in [stats].metrics'}",
                 f"  needs      {'a reference' if m.needs_reference else 'no reference'}{', and the page\'s other curves' if m.pool else ''}",
                 f"  {m.note}"]
@@ -216,9 +216,9 @@ def _score_lines(name: str) -> list[str]:
         return [f"mean {name}: {m.kind}", f"  guard   {m.guard}", f"  error   {m.error_kind}", *([f"  takes   {', '.join(m.settings)}"] if m.settings else []), f"  {m.note}"]
     lines = ["[score]: how the statistics become a score (heimdall explain score.<key> for a key, score.<metric or mean> for one in full)"]
     lines += [f"  {k:12} {knowledge.plain(c["doc"])[:90]}" for k, c in schema.keys("score").items()]
-    for purpose, title in metrics.PURPOSES.items():
+    for category, title in metrics.CATEGORIES.items():
         lines += ["", f"metrics, {title.lower()}:"]
-        lines += [f"  {n:14} {'(default) ' if m.default else ''}{m.note[:80]}" for n, m in metrics.REGISTRY.items() if m.purpose == purpose]
+        lines += [f"  {n:14} {'(default) ' if m.default else ''}{m.note[:80]}" for n, m in metrics.REGISTRY.items() if m.category == category]
     lines += ["", "means (scalar over pages; ensemble over histograms):"]
     lines += [f"  {n:18} {m.kind:8} {m.error_kind:11} {m.note[:60]}" for n, m in means.REGISTRY.items()]
     return lines

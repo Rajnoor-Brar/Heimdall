@@ -254,7 +254,7 @@ def test_cells_against_curves_hold_each_points_mean_the_longer_list_down():
     rows = worst_rows()
     document = bars.summary_model(rows, "", ALL)
     items = {i.key: i for s in document.sections for i in s.items}
-    keys = [i.key for s in document.sections if s.key == "purpose-normalisation" for i in s.items
+    keys = [i.key for s in document.sections if s.key == "category-normalisation" for i in s.items
             if i.key.startswith("yield_ratio")]
     assert keys == ["yield_ratio-ranking", "yield_ratio-crossed", "yield_ratio"]
     crossed = items["chi2_ndf-crossed"]
@@ -411,7 +411,7 @@ def test_a_bar_is_blue_or_orange_by_its_side_violet_or_golden_when_cut_pink_or_r
     plt.close(figure)
 
 
-# ── scored by purpose (stats-backend phase 6) ───────────────────────────────────────────────────────
+# ── scored by category (stats-backend phase 6) ───────────────────────────────────────────────────────
 
 def keys_of(document):
     return {s.key: [i.key for i in s.items] for s in document.sections}
@@ -420,10 +420,10 @@ def keys_of(document):
 def test_the_default_summary_is_the_standings_then_a_section_per_purpose_with_a_metric_on():
     document = bars.summary_model(worst_rows(), "", score.settings_of())
     keys = keys_of(document)
-    assert list(keys) == ["standings", "purpose-compatibility", "purpose-normalisation", "purpose-shape", "purpose-trend",
-                          "purpose-defects"]                                  # the five defaults; no similarity, no quality
-    assert keys["standings"] == ["standings", "purposes"]
-    assert keys["purpose-trend"] == ["purpose-trend-ranking", "tilt-ranking", "tilt-crossed", "tilt"]
+    assert list(keys) == ["standings", "category-compatibility", "category-normalisation", "category-accuracy", "category-trend",
+                          "category-defects"]                                  # the five defaults; no similarity, no quality
+    assert keys["standings"] == ["standings", "categories"]
+    assert keys["category-trend"] == ["category-trend-ranking", "tilt-ranking", "tilt-crossed", "tilt"]
     standings = next(i for s in document.sections for i in s.items if i.key == "standings")
     assert "veto" not in standings.headers and "dominated" not in standings.headers
     assert not any(s.key == "head-to-head" for s in document.sections)         # only when asked
@@ -446,11 +446,11 @@ def test_the_standings_are_the_engines_scores_and_veto_and_dominated_columns_fol
 def test_a_purposes_section_says_what_it_asks_and_each_metric_what_it_is_and_how_it_is_scored():
     from stats import metrics
     document = bars.summary_model(worst_rows(), "", score.settings_of({"thresholds": {"log_yield_ratio": [0.1, 0.5]}}))
-    assert document.notes["purpose-shape"].startswith("Shape accuracy, bin by bin. ")
+    assert document.notes["category-accuracy"].startswith("Shape accuracy, bin by bin. ")
     assert document.notes["stat-chi2_ndf"] == metrics.describe("chi2_ndf")
     assert "Scored from 0.1 (cost 0) to 0.5 (cost 1)" in document.notes["stat-log_yield_ratio"]    # the setting's thresholds, not the registry's
-    ranking = next(i for s in document.sections for i in s.items if i.key == "purpose-shape-ranking")
-    assert {"purpose-shape", "score"} <= set(ranking.notes)
+    ranking = next(i for s in document.sections for i in s.items if i.key == "category-accuracy-ranking")
+    assert {"category-accuracy", "score"} <= set(ranking.notes)
 
 
 def test_a_head_to_head_is_played_for_the_pages_asked_and_counts_no_wins():
@@ -487,7 +487,7 @@ def test_a_page_image_has_a_panel_a_metric_on(scratch):
 def test_a_metric_off_or_without_numbers_has_no_section():
     rows = [{k: v for k, v in r.items() if k != "tilt"} for r in worst_rows()]
     document = bars.summary_model(rows, "", score.settings_of())
-    assert "purpose-trend" not in keys_of(document)
+    assert "category-trend" not in keys_of(document)
     assert bars.summary_model([], "", score.settings_of()).sections == []
 
 

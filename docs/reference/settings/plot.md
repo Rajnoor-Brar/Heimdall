@@ -640,7 +640,7 @@ Where a bin sits in x for tilt and roughness: its middle, or the centre of gravi
 |---|---|---|
 | list of strings or table | — | — |
 
-A metric is scored through its purpose: a page's loss is the RMS over purposes of the (weighted) RMS of its metrics' normalised values, so four shape metrics weigh one purpose and not four.
+A metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS of its metrics' normalised values, so four shape metrics weigh one category and not four.
 
 ## `normalise`
 
@@ -712,7 +712,7 @@ A point whose worst page loses more than this is vetoed (default: none)
 |---|---|---|
 | string | `"rms"` | `"rms"`, `"fisher"`, `"topsis"`, `"promethee"` |
 
-How metrics and pages combine: RMS over purposes (default), or Fisher's combined probability, TOPSIS, PROMETHEE.
+How metrics and pages combine: RMS over categories (default), or Fisher's combined probability, TOPSIS, PROMETHEE.
 
 ## `dominated`
 
@@ -720,7 +720,7 @@ How metrics and pages combine: RMS over purposes (default), or Fisher's combined
 |---|---|---|
 | true or false | `false` | — |
 
-Add a column marking a point that another beats on every purpose.
+Add a column marking a point that another beats on every category.
 
 ## `head_to_head`
 

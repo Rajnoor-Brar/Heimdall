@@ -3,7 +3,7 @@
 Format 2. The columns of `STATISTIC_COLUMNS` come first, in their old order, from Paint's totals; the metrics asked for
 (by default the five of `metrics.REGISTRY` that are `default`) follow, those not already among the old columns, computed from
 the `measured` bins of the page's stats.json. `statistics.json` beside the csv holds `format = 2`, the columns, and for each
-metric on its purpose, direction, thresholds and note. A csv with no sidecar is format 1: the old columns, read as before.
+metric on its category, direction, thresholds and note. A csv with no sidecar is format 1: the old columns, read as before.
 
 This module imports only the standard library at module level (the runner imports it); numpy is loaded when a metric is
 computed. A page is plot's `Page`, used by duck type: its config, document, plain labels, name, rel, cell and object.
@@ -99,7 +99,7 @@ def sidecar_of(names, score: dict | None = None, axes: dict | None = None, merge
     from . import metrics
     columns = columns_for(names, run)
     out = {"format": FORMAT, "columns": columns,
-           "metrics": {n: {"purpose": m.purpose, "polarity": m.polarity, "phrase": metrics.PHRASE[m.polarity], "scale": m.scale,
+           "metrics": {n: {"category": m.category, "polarity": m.polarity, "phrase": metrics.PHRASE[m.polarity], "scale": m.scale,
                            "thresholds": list(m.thresholds) if m.thresholds else None, "default": m.default, "note": m.note,
                            "why": m.why}
                        for n in columns if (m := metrics.REGISTRY.get(n))}}
@@ -136,9 +136,13 @@ def _raw(path: Path) -> dict | None:
     return json.loads(side.read_text(encoding="utf-8")) if side.is_file() else None
 
 
+#: A metric's keys in a format 2 sidecar → (their key in format 3, the values that changed).
+OLD_KEYS = {"better": ("polarity", {"none": "descriptor"}), "purpose": ("category", {"shape": "accuracy"})}
+
+
 def upgraded(side: dict) -> dict:
     """A sidecar of format 1, 2 or 3 as format 3 says it, never written back: each metric under its id now, a metric's
-    `better` as `polarity` (`none` a `descriptor`). A key format 3 has and the file lacks stays absent."""
+    old keys as OLD_KEYS says. A key format 3 has and the file lacks stays absent."""
     from . import metrics
     out = dict(side)
     out["format"] = FORMAT
@@ -148,9 +152,10 @@ def upgraded(side: dict) -> dict:
         named = {}
         for name, entry in out["metrics"].items():
             entry = dict(entry)
-            if "better" in entry:
-                better = entry.pop("better")
-                entry.setdefault("polarity", "descriptor" if better == "none" else better)
+            for old, (new, values) in OLD_KEYS.items():
+                if old in entry:
+                    value = entry.pop(old)
+                    entry.setdefault(new, values.get(value, value))
             named[metrics.resolve(name)] = entry
         out["metrics"] = named
     if isinstance(out.get("score"), dict):

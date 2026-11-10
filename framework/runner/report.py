@@ -51,10 +51,10 @@ RECIPE = "report.toml"
 #: Whose drawn pages a section takes, in order of preference, when it names none.
 BACKENDS = ("root", "mpl")
 #: The default report's headline: the top five and each statistic's ranking (the area has none).
-#: The default Standings section: the standings, a section a purpose, then the marginals, the baseline and the head to head when `[score]` has what they need
-#: (what has nothing to show is left out without a word). A test holds the purposes to stats.metrics.PURPOSES.
-HEADLINE = ["standings", *(f"purpose:{p}" for p in ("compatibility", "normalisation", "shape", "similarity", "trend",
-                                                       "defects", "quality")), "marginals", "baseline", "head-to-head"]
+#: The default Standings section: the standings, a section a category, then the marginals, the baseline and the head to head when `[score]` has what they need
+#: (what has nothing to show is left out without a word). A test holds the categories to stats.metrics.CATEGORIES.
+HEADLINE = ["standings", *(f"category:{p}" for p in ("compatibility", "normalisation", "accuracy", "similarity", "trend",
+                                                       "defects", "integrity", "quality")), "marginals", "baseline", "head-to-head"]
 #: What a title or subtitle may name, filled in from its sources' plot documents.
 PLACEHOLDERS = ("assignment", "errand", "configuration", "title")
 #: Panels on an A4 page of a grid, for the listing's page count (the build lays them out).
@@ -624,7 +624,7 @@ class Part:
     keys: list[str]
     csv: Path | None             # None: to be measured for the report (P6)
     look: bool = False           # measured with its section's plot keys
-    optional: bool = False       # its section is optional: a purpose with no metric on, or no head to head asked, is not said
+    optional: bool = False       # its section is optional: a category with no metric on, or no head to head asked, is not said
 
 
 @dataclass
@@ -1406,16 +1406,16 @@ def _figure(build: _Build, figure: Figure, folder: Path, stem: str) -> tuple[Pat
 
 
 def chosen(document, keys: list[str]):
-    """The summary's sections that `keys` name, in their order: `standings`, `head-to-head`, `purpose:<name>` (a whole
-    purpose's section), or a metric (`chi2_ndf`: its ranking, page cells against curves and table; `:ranking`, `:crossed`,
+    """The summary's sections that `keys` name, in their order: `standings`, `head-to-head`, `category:<name>` (a whole
+    category's section), or a metric (`chi2_ndf`: its ranking, page cells against curves and table; `:ranking`, `:crossed`,
     `:table` for one). Its facts and notes stay (only the notes its items name are numbered). (The document, the keys it has
     no part for.)"""
     by_key = {s.key: s for s in document.sections}
     kept, missing = [], []
     for key in keys:
         statistic, _, part = key.partition(":")
-        if statistic == "purpose":
-            section, wanted = by_key.get(f"purpose-{part}"), None
+        if statistic == "category":
+            section, wanted = by_key.get(f"category-{part}"), None
         elif statistic in by_key:
             section, wanted = by_key[statistic], None
         else:
@@ -1455,7 +1455,7 @@ METHOD_TITLE = "How the numbers are made"
 
 
 def _method_note(key: str) -> bool:
-    return key.startswith(("stat-", "purpose-")) or key in METHOD_NOTES
+    return key.startswith(("stat-", "category-")) or key in METHOD_NOTES
 
 
 def _measuring():
@@ -1484,7 +1484,7 @@ def _part(build: _Build, bars, part: Part, folder: Path, stem: str, say, method:
         f"{part.source.address} · {part.set}" + (" · as this report measures it" if part.look else "")
     _measuring()
     document, gone = chosen(bars.summary_model(statstable.read(part.csv), heading, _scored(part.csv), _axes(part.csv)), part.keys)
-    gone = [k for k in gone if not (part.optional and (k.startswith("purpose:") or k in ("marginals", "baseline", "head-to-head")))]
+    gone = [k for k in gone if not (part.optional and (k.startswith("category:") or k in ("marginals", "baseline", "head-to-head")))]
     if gone:
         say(f"report: {heading} has no {', '.join(gone)} (too few curves or page cells for them)")
     if not document.sections:
@@ -1731,8 +1731,8 @@ def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
     counted = list(dict.fromkeys(item.notes["counted"] for item in shown if "counted" in item.notes))
     registry = bars.M.REGISTRY
     used = sorted((k[5:] for k in notes if k.startswith("stat-") and k[5:] in registry),
-                  key=lambda n: (list(bars.M.PURPOSES).index(registry[n].purpose), list(registry).index(n)))
-    asked = [p for p in bars.M.PURPOSES if f"purpose-{p}" in notes]
+                  key=lambda n: (list(bars.M.CATEGORIES).index(registry[n].category), list(registry).index(n)))
+    asked = [p for p in bars.M.CATEGORIES if f"category-{p}" in notes]
     where = "below" if plan.context == "first" else "above"
     lines = [rf"\hdNote{{What each number in the statistics and bar tables {where} is: how a page is compared with its "
              r"reference, each statistic's formula and what it says, and how points are scored.}"]
@@ -1750,8 +1750,8 @@ def _method(bars, shown: list[Typeset], plan: Plan) -> Prose:
         heading("How a page is compared")
         paragraphs([bars.COMPARED])
     if asked:
-        heading("What each purpose asks")
-        paragraphs([notes[f"purpose-{p}"] for p in asked])
+        heading("What each category asks")
+        paragraphs([notes[f"category-{p}"] for p in asked])
     if used:
         heading("The metrics")
         for key in used:

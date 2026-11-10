@@ -1100,8 +1100,8 @@ type  = "list|table"
 items = "str"
 doc   = "the metrics scored: a list of names, or { name = weight } (default: the five default metrics, weight 1)"
 notes = """\
-  a metric is scored through its purpose: a page's loss is the RMS over purposes of the (weighted) RMS \
-  of its metrics' normalised values, so four shape metrics weigh one purpose and not four"""
+  a metric is scored through its category: a page's loss is the RMS over categories of the (weighted) RMS \
+  of its metrics' normalised values, so four shape metrics weigh one category and not four"""
 
 [score.normalise]
 type    = "str"
@@ -1150,12 +1150,12 @@ doc  = "a point whose worst page loses more than this is vetoed (default: none)"
 type    = "str"
 choices = ["rms", "fisher", "topsis", "promethee"]
 default = "rms"
-doc     = "how metrics and pages combine: RMS over purposes (default), or Fisher's combined probability, TOPSIS, PROMETHEE"
+doc     = "how metrics and pages combine: RMS over categories (default), or Fisher's combined probability, TOPSIS, PROMETHEE"
 
 [score.dominated]
 type    = "bool"
 default = false
-doc     = "add a column marking a point that another beats on every purpose"
+doc     = "add a column marking a point that another beats on every category"
 
 [score.head_to_head]
 type = "str"

@@ -106,8 +106,8 @@ def standings_of(result, st) -> list[dict]:
         for place, p in enumerate(result.ranked(cell), 1):
             out.append({"cell": cell, "place": place, "point": p.point, "score": p.score, "worst_page": p.worst_page,
                         "worst": p.worst_loss, "veto": p.veto, "dominated": p.dominated, "pages": p.n_pages,
-                        "purposes": {metrics.PURPOSES[k]: v for k, v in p.purposes.items()},
-                        "shares": {metrics.PURPOSES[k]: v for k, v in p.shares.items()}})
+                        "categories": {metrics.CATEGORIES[k]: v for k, v in p.categories.items()},
+                        "shares": {metrics.CATEGORIES[k]: v for k, v in p.shares.items()}})
     return out
 
 
@@ -119,7 +119,7 @@ def report_of(table: Table, by: str | None, baseline: str | None) -> dict:
            "standings": standings_of(result, st), "notes": list(result.notes)}
     if axes:
         out["marginals"] = [{"axis": m.axis, "confounded": m.confounded,
-                             "values": [{"value": v, "score": s, "points": n, "purposes": by_p} for v, s, n, by_p in m.rows]}
+                             "values": [{"value": v, "score": s, "points": n, "categories": by_p} for v, s, n, by_p in m.rows]}
                             for m in score.marginals(result, axes, st)]
         if st.baseline:
             b = score.baseline(result, axes)
@@ -159,11 +159,11 @@ def lines_of(report: dict) -> list[str]:
     head = f"{report['run']}" + (f" (run {report['serial']})" if report["serial"] else "") + f" · {report['set']}"
     out = [head, f"metrics: {', '.join(report['metrics'])}", ""]
     stand = report["standings"]
-    purposes = list(dict.fromkeys(k for s in stand for k in s["purposes"]))
+    categories = list(dict.fromkeys(k for s in stand for k in s["categories"]))
     cells = len({s["cell"] for s in stand}) > 1
-    headers = ["", "point", "score", "worst page", "worst", "veto", *purposes]
+    headers = ["", "point", "score", "worst page", "worst", "veto", *categories]
     body = [[f"{s['place']}." + (f" {s['cell']}" if cells else ""), s["point"], _num(s["score"]), s["worst_page"].rsplit("/", 1)[-1] or "–",
-             _num(s["worst"]), "veto" if s["veto"] else "", *(_num(s["purposes"].get(p, math.nan)) for p in purposes)] for s in stand]
+             _num(s["worst"]), "veto" if s["veto"] else "", *(_num(s["categories"].get(p, math.nan)) for p in categories)] for s in stand]
     out += ["Standings (lower is better):", *_grid(headers, body, 2), ""]
     for m in report.get("marginals", []):
         rows = [[v["value"], _num(v["score"]), str(v["points"])] for v in m["values"]]

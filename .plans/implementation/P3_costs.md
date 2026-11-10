@@ -1,6 +1,6 @@
 # Phase 3: compressed costs, the default set, figure weights
 
-Status: in progress (3.1). Blocked by: phase 2. Sources: [03 §1.2, §1.3, §3a](../plans/grand-ranking/03_Math.md), [02 §Defaults](../plans/grand-ranking/02_Metrics.md). Names in code: [Tables](Tables.md) T1 (flags), T5, T7, T8.
+Status: done (3.1–3.3). Blocked by: phase 2. Sources: [03 §1.2, §1.3, §3a](../plans/grand-ranking/03_Math.md), [02 §Defaults](../plans/grand-ranking/02_Metrics.md). Names in code: [Tables](Tables.md) T1 (flags), T5, T7, T8.
 
 Every loss changes in this phase, on purpose. A test's expected number is rewritten in the step that changes it, computed by hand in the test's own comment, never copied from the new code's output.
 
@@ -59,3 +59,8 @@ Every loss changes in this phase, on purpose. A test's expected number is rewrit
   - Tests: the registry test (nine, two gates, `n_eff` shown, the categories without a default); a default table's 9 + 2 + 1 columns; the summary's categories with 02's pairs; `values`; the weight test over the accuracy pair (√0.75 by hand).
   - Check: the four step files, 223 passed. Fast suite: 2376 passed, 11 skipped, the two named reds, and nine tests of three fixtures that ranked χ²/ndf rows with the defaults (`test_rank_cli.py` 4, `test_report_build.py` 4, `test_stats_metrics.py` 1); fixed as Implementation_Notes says, those three files 64 passed. `tests/integration/test_plot_stage.py` alone: 53 passed.
   - A reader may rely on: the nine defaults, `n_eff` shown, `chi2_ndf` a column and not a default; a point's `values`.
+- **3.3 · done 2026-11-10.** `plot.Figure.weight` (from the figure's table; `Figure` built by keyword), `plot.Page.weight`, `written(…, weight=)` from both callers. `statstable.write_set(…, ranking, over=, set_name=)` makes the rows once, ranks once with `page_weights` and `ranking_sources`, writes the sidecar with `page_weights`, `ranking_sources`, `method` beside `ranking` and `values`, and draws the summary from that ranking. `rankcmd` and `report` read the two keys. The record's Pages stage: `over_pages`, each weight not by default with its source, the pages left out and why.
+  - Fails first: `TypeError: write_set() got an unexpected keyword argument 'over'`; `'Figure' object has no attribute 'weight'`; the Pages stage empty.
+  - Tests: two pages, one weighted 3 by its figure over a glob of 5: the loss √((3·log₂(1.5)² + log₂(2.5)²)/4) by hand, the sidecar's `method` equal to `rank --json`'s, the Pages stage naming the figure's weight as the winner; the Pages stage's glob, figure, default and left-out lines; `figures()` reads `weight` and keeps it out of the page keys.
+  - Check: the three step files, 94 passed. Fast suite: 2388 passed, 11 skipped, the two named reds. `tests/integration/test_plot_stage.py` alone: 53 passed.
+  - A reader may rely on: a figure's `weight` in the loss; one ranking a set, in its sidecar with `page_weights`, `ranking_sources` and `method`, the same as `rank --json`'s.

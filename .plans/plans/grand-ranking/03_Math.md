@@ -44,7 +44,7 @@ The map is monotone in m, so it preserves each metric's ordering; compression ch
 
 The alternatives under `[ranking].cost` (`median`, `mad`, `minmax`, `surprisal`) are kept as opt-ins, defined as today, each computed on z before compression.
 
-### 1.3 Aggregation · closed 3.1 (category, page; the pages' weights at 3.3)
+### 1.3 Aggregation · closed 3.1, 3.3
 
 ```
 category cost   C_κ(p,k)  =  ( Σ_{j∈κ} w_j c_j² / Σ_{j∈κ} w_j )^{1/2}          over the metrics with a number
@@ -138,7 +138,7 @@ Every engine call returns, beside its numbers, a `Method` value: what was applie
 | Cost | the orientation per polarity; the normalisation (`thresholds`, or the opt-in in use, with its pool dependence said); the compression c = log₂(1 + z), with the fixed points 0 and 1 · closed 3.1 |
 | Category | the mean inside it (RMS, metric weights counting), and which metrics fell in it · closed 3.1 |
 | Page loss | the mean across categories (RMS, equal), and which categories had a cost · closed 3.1 |
-| Pages | each page's weight ω_k and its source (figure `weight` > first matching glob, named > 1); the mean across pages (`over_pages`, RMS by default); the pages left out and why (a reference curve, pages against a curve when others are against data, no bins) |
+| Pages | each page's weight ω_k and its source (figure `weight` > first matching glob, named > 1); the mean across pages (`over_pages`, RMS by default); the pages left out and why (a reference curve, pages against a curve when others are against data, no bins) · closed 3.3 |
 | Order | the rank rule (03 §1.4), ties, and the cells the ranking is flat across or banded within, with the reason · closed 2.2 |
 | Marginals | α, g(n), δ, log scale; E vs M and which orders the table; the strata's quantities; per row n, g, vetoed, unmatched; the paired test against the best and that it is uncorrected for multiplicity |
 | Opt-in aggregators | `aggregate`, `weights_by = "critic"` (the learned weights, printed), `dominated`, each with what it costs · closed 3.1 |

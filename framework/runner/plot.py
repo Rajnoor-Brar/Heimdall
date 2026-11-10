@@ -94,6 +94,7 @@ class Page:
     numbers: Path | None = None                      # its set's statistics folder (statistics/<set>)
     merged: dict = field(default_factory=dict)       # a set's merged curves on it: {curve name: the points it is made of}
     runs: dict = field(default_factory=dict)         # across: each curve's Run as it is named, {curve name: "03·nlo"}
+    weight: float | None = None                      # its figure's `weight` in a point's loss; None: [ranking].weights', else 1
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,7 @@ class Figure:
     columns: int = 0         # … and its columns
     metric: str = ""         # a metric figure's number … (V160)
     sort: bool = False       # … best first
+    weight: float | None = None   # its pages' weight in a point's loss
 
 
 def figures(errand) -> list[Figure]:
@@ -123,12 +125,13 @@ def figures(errand) -> list[Figure]:
     from .config import figure_tables
     out = []
     for key, (table, written) in figure_tables(errand.plot or {}).items():
-        out.append(Figure(key, table.get("class", "defined"), table.get("type", ""), table.get("name", key),
-                          tuple(table.get("objects", ())), tuple(table.get("labels", ())),
-                          {k: v for k, v in table.items() if k not in schema.FIGURE_OWN}, f"{errand.path}: {written}",
-                          tuple(table.get("over", ())), tuple(table.get("configurations", ())), table.get("op", ""),
-                          table.get("x", ""), table.get("y", ""), tuple(table.get("pages", ())), table.get("columns", 0),
-                          table.get("metric", ""), bool(table.get("sort", False))))
+        out.append(Figure(key=key, kind=table.get("class", "defined"), type=table.get("type", ""), name=table.get("name", key),
+                          objects=tuple(table.get("objects", ())), labels=tuple(table.get("labels", ())),
+                          table={k: v for k, v in table.items() if k not in schema.FIGURE_OWN}, where=f"{errand.path}: {written}",
+                          over=tuple(table.get("over", ())), configurations=tuple(table.get("configurations", ())),
+                          op=table.get("op", ""), x=table.get("x", ""), y=table.get("y", ""),
+                          table_pages=tuple(table.get("pages", ())), columns=table.get("columns", 0),
+                          metric=table.get("metric", ""), sort=bool(table.get("sort", False)), weight=table.get("weight")))
     return out
 
 
@@ -954,7 +957,7 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
         return "/".join(part for part in (key, folder, stem) if part)
 
     def written(name, config, output, cell, object_, page, layer, folded, label_of, look_of, override, keys, here, place_,
-                data_entry=None, data_of=None, overlay="") -> Page:
+                data_entry=None, data_of=None, overlay="", weight=None) -> Page:
         """A page's document from its curves (V170: one for the defined and the overlay pages): each curve's file,
         object, raw entries, label (`label_of`), look (`look_of`) and band; its data; written, and its Page."""
         set_, rel, root, numbers = place_
@@ -970,7 +973,7 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
             document["data"] = data_entry
         config.parent.mkdir(parents=True, exist_ok=True)
         config.write_text(tomli_w.dumps(for_root(document)), encoding="utf-8")
-        return Page(name, config, output, cell=cell, object=object_, document=document,
+        return Page(name=name, config=config, output=output, cell=cell, object=object_, document=document, weight=weight,
                     sources=[yodas[plan.point.name] for plan, _, _ in folded], variants=[full for _, full, _ in folded],
                     bands=[[(yodas[m.point.name], f) for m, f in ms] for _, _, ms in folded], data=data_of,
                     overrides={k for k, v in {**keys, **override}.items() if v != DEFAULT},
@@ -1038,7 +1041,7 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
             override, keys, here, (set_, rel, root, numbers),
             data_entry={"file": str(data_file), "object": root_name(reference),
                         "label": canonical(fill(data.get("legend", "Data")))} if reference else None,
-            data_of=(source, reference) if reference else None))
+            data_of=(source, reference) if reference else None, weight=figure.weight if figure else None))
 
     for figure in (f for f in declared if f.kind == "overlay"):     # V51: several objects of a point on one page
         name, table = figure.name, figure.table
@@ -1078,7 +1081,7 @@ def _pages(errand, complete: list, yodas: dict, merged: Path, declared: list, pa
                 lambda plan, full, folded_members: named[(plan.point.name, full)]
                 + (f", {_curve_label(errand, plan, line_groups, curve_fill(plan))}" if len(lines) > 1 else "")
                 + (envelope if folded_members else ""),
-                lambda plan: {}, override, keys, here, (set_, rel, root, numbers), overlay=name))
+                lambda plan: {}, override, keys, here, (set_, rel, root, numbers), overlay=name, weight=figure.weight))
     return made
 
 
@@ -1902,9 +1905,10 @@ def _tables(errand, groups: dict, outcomes: dict, say, who: str) -> int:
             continue
         _clear(numbers)
         read = [p for p in pages_ if outcomes[str(p.config)][0]]
-        table = statstable.ranking_of(errand, set_)
+        own = statstable.own_ranking(errand, set_)
         count, drawn = statstable.write_set(read, numbers, formats_of(errand.plot), bars,
-                                            statstable.metric_names(errand.stats, table), ranking=table)
+                                            statstable.metric_names(errand.stats, statstable.ranking_of(errand, set_)),
+                                            ranking=errand.ranking, over=own, set_name=set_)
         if count:
             counted += count
             tables.append(numbers)

@@ -496,8 +496,8 @@ def test_the_record_holds_every_stage_and_the_sources_follow_the_flags():
     assert ranking.settings_of({"cost": "mad"}, sources={"cost": "set lo"}).sources["cost"] == "set lo"
     assert ranking.settings_of(flags={"head_to_head": "all"}).sources["head_to_head"] == "--head-to-head"
     record = ranking.rank([row("a")], ranking.settings_of(CHI2)).method.as_dict()
-    assert list(record) == list(ranking.Method.STAGES) and record["pages"] == [] and record["marginals"] == []    # 3.3, 4.2
-    assert all(record[stage] for stage in ("gates", "metrics", "cost", "category", "page_loss", "order", "optin"))
+    assert list(record) == list(ranking.Method.STAGES) and record["marginals"] == []                             # 4.2
+    assert all(record[stage] for stage in ("gates", "metrics", "cost", "category", "page_loss", "pages", "order", "optin"))
 
 
 def test_cells_are_one_order_when_their_pages_match_else_an_order_a_cell():
@@ -574,3 +574,13 @@ def test_the_record_names_each_metric_its_thresholds_weight_and_what_is_computed
     assert record.lines("cost")[0].startswith("cost: thresholds (default).") and "log₂(1 + z)" in record.lines("cost")[0]
     assert [c.name for c in record.optin] == ["aggregate", "dominated", "weights_by", "baseline", "head_to_head"]
     assert "categories with a cost: compatibility, normalisation (table)." in record.lines("page_loss")
+
+
+def test_the_pages_stage_names_each_weight_and_its_source_and_the_pages_left_out():
+    rows = [row("a", page="p1", obj="run/pt/jet_pt"), row("a", page="p2", obj="run/pt/mass"), row("a", page="p3", obj="run/pt/eta"),
+            row("data", page="vs_curve", reference=True), row("a", page="vs_curve")]
+    st = ranking.settings_of({**CHI2, "weights": {"jet_*": 2.0}})
+    lines = ranking.rank(rows, st, page_weights={"p2": 4.0}).method.lines("pages")
+    assert "page p1: 2 ([ranking]). the glob 'jet_*'" in lines and "page p2: 4 (figure)." in lines
+    assert any(l.startswith("every other page: 1 (default). 1 page(s)") for l in lines)
+    assert any(l.startswith("pages left out: 1 (table). against their first curve") for l in lines)

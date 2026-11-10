@@ -209,18 +209,25 @@ class Obs:
     loss: float = math.nan
 
 
-def page_weight(object_path: str, page: str, st: Settings, figure_weights: dict | None) -> float:
-    """A figure's weight, else the first glob of `weights` that matches the object's short name, its path or the page, else 1."""
-    if figure_weights and page in figure_weights:
-        return float(figure_weights[page])
+def weight_of(object_path: str, page: str, st: Settings, page_weights: dict | None) -> tuple[float, str, str]:
+    """A page's weight, where it came from and what it beat: its figure's `weight`, else the first glob of
+    `[ranking].weights` that matches the object's short name, its path or the page, else 1."""
     short = object_path.rsplit("/", 1)[-1]
-    for glob, weight in st.weights.items():
-        if fnmatch.fnmatch(short, glob) or fnmatch.fnmatch(object_path, glob) or fnmatch.fnmatch(page, glob):
-            return float(weight)
-    return 1.0
+    glob = next((g for g in st.weights if fnmatch.fnmatch(short, g) or fnmatch.fnmatch(object_path, g) or fnmatch.fnmatch(page, g)), None)
+    if page_weights and page in page_weights:
+        beat = f"over [ranking].weights' '{glob}' = {float(st.weights[glob]):g}" if glob is not None else ""
+        return float(page_weights[page]), "figure", beat
+    if glob is not None:
+        return float(st.weights[glob]), st.source("weights"), f"the glob '{glob}'"
+    return 1.0, "default", ""
 
 
-def observations(rows: list[dict], st: Settings, figure_weights: dict | None = None) -> list[Obs]:
+def page_weight(object_path: str, page: str, st: Settings, page_weights: dict | None) -> float:
+    """A page's weight: see weight_of."""
+    return weight_of(object_path, page, st, page_weights)[0]
+
+
+def observations(rows: list[dict], st: Settings, page_weights: dict | None = None) -> list[Obs]:
     """The curves with a loss: a page's reference curve has none; when any page is measured against data, only those pages count
     (a page against its first curve ranks the curves against a generator, not the data)."""
     by_page: dict = {}
@@ -233,8 +240,34 @@ def observations(rows: list[dict], st: Settings, figure_weights: dict | None = N
         for row in by_page[key]:
             if not row.get("is_reference"):
                 out.append(Obs(row["cell"], row["page"], row.get("object", ""), row["point"], row,
-                               page_weight(row.get("object", ""), row["page"], st, figure_weights)))
+                               page_weight(row.get("object", ""), row["page"], st, page_weights)))
     return out
+
+
+def _pages_stage(rows: list[dict], obs: list[Obs], st: Settings, page_weights: dict | None) -> tuple:
+    """The record's Pages stage: the mean over pages, each page whose weight is not 1 by default with its source, and the
+    pages left out and why."""
+    stage = [Choice("over_pages", st.over_pages, st.source("over_pages"), "the mean of a point's page losses, page weights counting")]
+    seen, plain = set(), 0
+    for o in obs:
+        if o.page in seen:
+            continue
+        seen.add(o.page)
+        weight, source, note = weight_of(o.object, o.page, st, page_weights)
+        if source == "default":
+            plain += 1
+        else:
+            stage.append(Choice(f"page {o.page}", weight, source, note))
+    if plain:
+        stage.append(Choice("every other page", 1.0, "default", f"{plain} page(s): no figure weight and no glob of [ranking].weights"))
+    every = {r["page"] for r in rows}
+    if len(every - seen):
+        stage.append(Choice("pages left out", len(every - seen), "table",
+                            "against their first curve while other pages are against data: only pages against data are ranked"))
+    empty = {o.page for o in obs} - {o.page for o in obs if o.loss == o.loss}
+    if empty:
+        stage.append(Choice("pages without a cost", len(empty), "table", "no metric on has a number there"))
+    return tuple(stage)
 
 
 # ── cost ──────────────────────────────────────────────────────────────────────────────────────
@@ -442,7 +475,7 @@ def rank(rows: list[dict], settings: Settings | None = None, page_weights: dict 
         _dominated(result)
     gates = _gates(result, obs, groups)
     order = _order(result, obs)
-    result.method = Method(gates=gates, order=order, **_stages(result, rows, obs))
+    result.method = Method(gates=gates, order=order, pages=_pages_stage(rows, obs, st, page_weights), **_stages(result, rows, obs))
     if values:
         result.marginals = marginals(result, values, st)
         if st.baseline:

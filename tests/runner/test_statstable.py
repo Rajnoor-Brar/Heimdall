@@ -7,6 +7,8 @@ import json
 import math
 from pathlib import Path
 
+import pytest
+
 from runner import plot, statstable
 
 
@@ -225,3 +227,27 @@ def test_a_normalised_pages_curves_know_it_and_their_yield_sign_is_not_asked(tmp
     normed.document["page"] = {"normalise": "area"}
     assert statstable.statistics_of(flat)[1]["yield_sign"] == 1.0
     assert math.isnan(statstable.statistics_of(normed)[1]["yield_sign"])
+
+
+def test_a_figures_weight_reaches_the_loss_and_the_sidecar_holds_the_same_record_as_rank(tmp_path):
+    """d01's curve has χ²/ndf 22/11 = 2 (z 0.5, cost log2 1.5) and weight 3 from its figure; d02's 44/11 = 4 (z 1.5, cost
+    log2 2.5) and weight 1. One category, so a page's loss is its cost, and the point's the ω-weighted RMS:
+    √((3 · log2(1.5)² + log2(2.5)²) / 4)."""
+    from runner import rankcmd
+    from stats import ranking
+    worse = [dict(NUMBERS[0]), {**NUMBERS[1], "chi2": 44.0}]
+    pages = [page_with_numbers(tmp_path / "pages", "d01-x01-y01", NUMBERS), page_with_numbers(tmp_path / "pages", "d02-x01-y01", worse)]
+    pages[0].weight = 3.0
+    numbers = tmp_path / "statistics" / "totality"
+    table = {"metrics": ["chi2_ndf"], "weights": {"d01-*": 5.0}}
+    statstable.write_set(pages, numbers, ["png"], ranking=table, over={"over_pages": "rms"}, set_name="totality")
+    side = json.loads((numbers / "statistics.json").read_text(encoding="utf-8"))
+    assert side["page_weights"] == {"d01-x01-y01": 3.0}
+    assert side["ranking_sources"] == {"metrics": "[ranking]", "weights": "[ranking]", "over_pages": "set totality"}
+    report = rankcmd.report_of(rankcmd.Table("A/E/R", "", "totality", numbers / "statistics.csv"), None, None)
+    (p2,) = [s for s in report["leaderboard"] if s["point"] == "p2"]
+    assert p2["loss"] == pytest.approx(math.sqrt((3 * math.log2(1.5) ** 2 + math.log2(2.5) ** 2) / 4))
+    assert json.loads(json.dumps(report["method"])) == side["method"]                  # one record, wherever it is read
+    pages_stage = ranking.Method(**{k: tuple(ranking.Choice(**c) for c in v) for k, v in side["method"].items()}).lines("pages")
+    assert "page d01-x01-y01: 3 (figure). over [ranking].weights' 'd01-*' = 5" in pages_stage     # the figure's weight won
+    assert "over_pages: rms (set totality). the mean of a point's page losses, page weights counting" in pages_stage

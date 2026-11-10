@@ -420,6 +420,11 @@ def test_the_figures_of_a_run_in_file_order(scratch):
                      ("eta", "overlay", "algorithms", ("d02-*", "d03-*"), {})]
 
 
+def test_a_figures_weight_is_its_own_not_a_page_key(scratch):
+    errand = validated(scratch, figures={"tails": {"objects": ["d04-*"], "weight": 3.0}, "rest": {"objects": ["d05-*"]}})
+    assert [(f.key, f.weight, "weight" in f.table) for f in plot.figures(errand)] == [("tails", 3.0, False), ("rest", None, False)]
+
+
 def test_a_style_default_falls_through_to_the_layer_below():
     plot.check_style({"legend": {"position": "default"}, "ratio": {"divisions": "default"}}, "here")
     merged = plot.merge_style({"legend": {"position": "top-left"}}, {"legend": {"position": "default"}})

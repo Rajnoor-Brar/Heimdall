@@ -94,7 +94,8 @@ def _add_metrics(rows: list[dict], made: dict, page, names: list[str]) -> None:
             row[name] = metrics.evaluate(name, curves[i], pool=curves) if curves and i < len(curves) else float("nan")
 
 
-def sidecar_of(names, ranking: dict | None = None, values: dict | None = None, merged: dict | None = None, run: bool = False) -> dict:
+def sidecar_of(names, ranking: dict | None = None, values: dict | None = None, merged: dict | None = None, run: bool = False,
+               extra: dict | None = None) -> dict:
     """What statistics.json holds for a table with the metrics `names`, ranked as `ranking` (the merged [ranking] table, a
     plain dict) says: the summary and the report rank the rows the way the table was written."""
     from . import metrics
@@ -111,14 +112,16 @@ def sidecar_of(names, ranking: dict | None = None, values: dict | None = None, m
         out["values"] = values                              # {point: {quantity: tag}}: what each point's sweep chose
     if merged:
         out["merged"] = merged                              # {curve: [its points]}: a set's merge, a curve of its own
+    out.update(extra or {})                                 # ranking_sources, page_weights, method: how the set was ranked
     return out
 
 
 def write_statistics(todo: list, target: Path, names=None, *, ranking: dict | None = None, values: dict | None = None,
-                     merged: dict | None = None) -> int:
-    """results/…/statistics.csv (V160) and its statistics.json: every drawn page's curves; the number of rows."""
+                     merged: dict | None = None, rows: list | None = None, extra: dict | None = None) -> int:
+    """results/…/statistics.csv (V160) and its statistics.json: every drawn page's curves (`rows`, when the caller has made
+    them already), the sidecar's `extra` keys beside; the number of rows."""
     names = list(default_metrics() if names is None else names)
-    rows = [row for page in todo for row in (statistics_of(page, names) or [])]
+    rows = rows if rows is not None else [row for page in todo for row in (statistics_of(page, names) or [])]
     if not rows:
         return 0
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +132,8 @@ def write_statistics(todo: list, target: Path, names=None, *, ranking: dict | No
         out.writeheader()
         for row in rows:
             out.writerow({k: ("" if isinstance(v, float) and v != v else v) for k, v in row.items()})
-    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names, ranking, values, merged, run), indent=2) + "\n", encoding="utf-8")
+    target.with_name(SIDECAR).write_text(json.dumps(sidecar_of(names, ranking, values, merged, run, extra), indent=2) + "\n",
+                                         encoding="utf-8")
     return len(rows)
 
 

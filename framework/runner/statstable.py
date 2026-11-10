@@ -33,13 +33,22 @@ def heading_of(numbers: Path) -> str:
     return f"{where} · {numbers.name}"
 
 
+def own_ranking(errand, set_: str) -> dict:
+    """A set's own `ranking = {…}`, {} for a set without one (and for totality)."""
+    from .sweep import set_entries
+    sets = (errand.plot or {}).get("sets")
+    return next((s.ranking for s in set_entries(sets, "[plot].sets") if s.name == set_), {}) if sets else {}
+
+
 def ranking_of(errand, set_: str) -> dict:
     """The [ranking] a set is ranked with: the errand's, a set's own `ranking` laid over it (a plain dict)."""
     from stats import ranking
-    from .sweep import set_entries
-    sets = (errand.plot or {}).get("sets")
-    own = next((s.ranking for s in set_entries(sets, "[plot].sets") if s.name == set_), {}) if sets else {}
-    return ranking.overlaid(errand.ranking, own)
+    return ranking.overlaid(errand.ranking, own_ranking(errand, set_))
+
+
+def sources_of(table: dict | None, over: dict | None, set_name: str) -> dict:
+    """Where each key of a set's ranking came from: "set <name>" for its own `ranking = {…}`, "[ranking]" for the errand's."""
+    return {**{k: "[ranking]" for k in (table or {})}, **{k: f"set {set_name}" for k in (over or {})}}
 
 
 def metric_names(errand_stats: dict | None, ranking_table: dict | None) -> list[str]:
@@ -75,20 +84,28 @@ def point_values(numbers: Path) -> dict:
     return out
 
 
-def write_set(pages: list, numbers: Path, formats: list[str], module=None, names=None, ranking: dict | None = None) -> tuple[int, int]:
+def write_set(pages: list, numbers: Path, formats: list[str], module=None, names=None, ranking: dict | None = None, *,
+              over: dict | None = None, set_name: str = "") -> tuple[int, int]:
     """A set's numbers, statistics/<set>/ (V160, V164): statistics.csv and statistics.json (the metrics `names`, ranked as
-    `ranking` says), then each page's bar graph and the summary (bars.draw), when any page has numbers. (rows written,
-    images made). `module`: bars, loaded once by the caller."""
+    the errand's `ranking` with the set's own `over` it says), then each page's bar graph and the summary (bars.draw), when
+    any page has numbers. The rows are made once and ranked once: the sidecar holds the ranking's sources, the figures'
+    page weights and the method record, and the summary is drawn from that same ranking. (rows written, images made).
+    `module`: bars, loaded once by the caller."""
     from stats import ranking as engine
-    names = list(names) if names is not None else metric_names(None, ranking)
+    table = engine.overlaid(ranking, over)
+    names = list(names) if names is not None else metric_names(None, table)
     values = point_values(numbers)
     merged = {name: members for page in pages for name, members in getattr(page, "merged", {}).items()}
-    count = write_statistics(pages, numbers / "statistics.csv", names, ranking=ranking, values=values, merged=merged)
-    if not count:
-        return 0, 0
-    module = module or bars()
     drawn = [(p.rel, statistics_of(p, names) or []) for p in pages]
-    rows = [r for _, page_rows in drawn for r in page_rows if not str(r.get("object", "")).startswith("/overlay/")]
-    ranked = engine.rank(rows, engine.settings_of(ranking), None, values)
+    rows = [r for _, page_rows in drawn for r in page_rows]
+    if not rows:
+        return 0, 0
+    sources = sources_of(ranking, over, set_name)
+    page_weights = {(p.rel or p.name): float(p.weight) for p in pages if getattr(p, "weight", None) is not None}
+    shown = [r for r in rows if not str(r.get("object", "")).startswith("/overlay/")]
+    ranked = engine.rank(shown, engine.settings_of(table, None, sources), page_weights or None, values)
+    count = write_statistics(pages, numbers / "statistics.csv", names, ranking=table, values=values, merged=merged, rows=rows,
+                             extra={"ranking_sources": sources, "page_weights": page_weights, "method": ranked.method.as_dict()})
+    module = module or bars()
     images = module.draw(drawn, numbers / "bars", formats, summary=numbers / "summary", heading=heading_of(numbers), ranking=ranked)
     return count, images

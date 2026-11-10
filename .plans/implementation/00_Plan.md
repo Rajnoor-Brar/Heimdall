@@ -35,6 +35,17 @@ The implementing agent cannot ask. Every decision is below. A surprise is handle
 7. An old name in a record's snapshot is read, not refused (R9). This narrows gate answer 1, and the report at the round's end says so.
 8. Python is 3.10 or later (the base is 3.12, `recipes/settings.toml:11`): `kw_only` dataclasses and `X | None` are used.
 
+## The second gate (developer, 2026-11-11, at the milestone)
+
+| # | Question | Decided |
+|---|---|---|
+| 1 | the veto by default (gate answer 5) | **optional**: `[ranking].gates` defaults to false; bad performance is penalised according to its badness (phase 8) |
+| 2 | how the integrity metrics penalise | both scored by default in Integrity, through the same hinge and compression as every metric |
+| 3 | phase 7's Runs and where it writes | the study's work dir that holds them (found by 05's shapes); read from their standard results; every output in a temporary folder, the work dir not written (replaces R18 and gate answer 10's write) |
+| 4 | the two stable-docs reds | wait for a crystallise |
+| 5 | the other open issues | each noted with its cause, its effect on a user, its urgency and its size (9.1) |
+| 6 | the close | a review by an agent that did not implement, then the close, which clears the plan files (9.2, 9.3) |
+
 ## Found while planning (verified at `db72aa7`)
 
 Each is a difference between the design plan and the code, with what the round does about it.
@@ -73,7 +84,9 @@ Test command, from the checkout with the stack loaded (`source gjallarhorn.sh`):
 | 4 | [Marginals](P4_marginals.md) | `trimmed_se`; gated, matched marginals with the small-n rules | 3 | M, 4.1–4.2 |
 | 5 | [Leaderboard, sections, the record shown](P5_report.md) | 04's sections; "Made by" lines; the completeness test; the report and the CLI | 4 | M, 5.1–5.4 |
 | 6 | [Docs](P6_docs.md) | `docs/live/grand-ranking.md`; the reference regenerated; `test_docs` green | 5 | S |
-| 7 | [Benchmarks](P7_benchmarks.md) ⏸ | 05's six acceptance items on the engine; the four Runs rescored after a snapshot | 6, and the developer | S, 7.1–7.2 |
+| 8 | [The veto optional](P8_penalty.md) | gates opt-in; the integrity metrics scored by default; a bad point ranked by its loss | 6 | S, 8.1 |
+| 7 | [Benchmarks](P7_benchmarks.md) | 05's acceptance items on the engine under phase 8's defaults; the four Runs rescored into scratch | 8 | S, 7.1–7.2 |
+| 9 | [Issues, review, close](P9_close.md) | every issue triaged; a review's verdict; `.plans/` cleared | 7 | S, 9.1–9.3 |
 
 Frontier: one step at a time, in the table's order. Nothing runs in parallel: every phase edits `framework/stats/`.
 
@@ -171,4 +184,6 @@ Frontier: one step at a time, in the table's order. Nothing runs in parallel: ev
 | 4 | done 2026-11-10 (4.1 `ee9dc32`, 4.2): `trimmed_se`; marginals gated, matched and trimmed, ordered by the effect, with the paired test and a headline. Fast suite 2403 passed, 11 skipped, the two stable-docs reds |
 | 5 | done 2026-11-10 (5.1 `6a70bed`, 5.2 `0171881`, 5.3 `5a8d074`, 5.4): the summary and the report render the record, `[ranking].detail`, property 9, `rank`'s flags and "made by:" lines, `--head-to-head` on plot and report. Fast suite 2310 passed, 11 skipped, the two stable-docs reds; plot_stage 53, report_draw 2 passed |
 | 6 | done 2026-11-10 (6.1 `77de8ee`, 6.2): `live-grand-ranking`; fast suite 2314 passed, 11 skipped, the two stable-docs reds; plot_stage 53, report_draw 2. The round waits at its milestone for the order to run phase 7 |
-| 7 ⏸ | not started |
+| 8 | not started; runs before 7 |
+| 7 | ordered 2026-11-11; not started |
+| 9 | not started |

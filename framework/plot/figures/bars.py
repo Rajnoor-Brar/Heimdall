@@ -656,7 +656,8 @@ def _category_sections(rows: list[dict], names: list[str], st, notes: dict, rank
             ordered = sorted(have, key=lambda s: (s.vetoed, s.categories[category], points[s.point]))
             ranking = paper.Ranking(f"category-{category}-ranking", f"{M.CATEGORIES[category]}: each point's cost {LOWER}",
                                     [points[s.point] + (" · vetoed" if s.vetoed else "") for s in ordered],
-                                    [s.categories[category] for s in ordered], subtitle="the vetoed last, whatever their cost",
+                                    [s.categories[category] for s in ordered],
+                                    subtitle="the vetoed last, whatever their cost" if any(s.vetoed for s in ordered) else "",
                                     notes=("legend", f"category-{category}"))
             items += _made(ranking, ranked.method.made_by("category", here))
         sections.append(paper.Section(f"category-{category}", M.CATEGORIES[category], items))

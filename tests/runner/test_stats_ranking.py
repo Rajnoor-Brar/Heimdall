@@ -603,6 +603,9 @@ def test_veto_loss_is_a_gate_on_the_page_loss():
     out = ranking.rank(rows, ranking.settings_of({**CHI2, "veto_loss": 2.0}))      # a's awful page: z 4, c log2 5 = 2.32 > 2
     assert [p.point for p in out.points] == ["b", "a"]                              # b's pages: z 2, c log2 3 = 1.58: it passes
     assert out.points[1].gate_reason == "a page loss of up to 2.32 on 1 of 2 pages"
+    lines = out.method.lines("gates")
+    assert "gates: off (default). no gate metric is applied; veto_loss alone vetoes" in lines      # the record never says none is
+    assert not any("no gate is applied" in l for l in lines)
 
 
 def test_a_table_without_the_gate_columns_vetoes_none_and_says_not_evaluated():

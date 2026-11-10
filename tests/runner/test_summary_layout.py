@@ -603,6 +603,16 @@ def test_a_confounded_marginal_says_so_and_an_unmatched_point_is_listed():
         summary(rows, "", ranking.settings_of({"by": "beams"}), axes)
 
 
+def test_a_category_ranking_speaks_of_the_vetoed_only_when_a_point_is():
+    rows = [dict(r, peak_bin_ratio=0.0, yield_sign=0.0) for r in worst_rows()]
+    plain = summary(rows, "", ranking.settings_of())
+    assert all(i.subtitle == "" for s in plain.sections for i in s.items if i.key.endswith("-ranking") and s.key.startswith("category-"))
+    best = ranking.rank(bars._rows_of(rows), ranking.settings_of()).points[0].point
+    broken = [dict(r, yield_sign=1.0) if r["point"] == best and not r["is_reference"] else r for r in rows]
+    gated = summary(broken, "", ranking.settings_of({"gates": True}))
+    assert item_of(gated, "category-compatibility-ranking").subtitle == "the vetoed last, whatever their cost"
+
+
 def test_a_vetoed_point_is_last_in_the_leaderboard_unnumbered_under_a_rule_and_its_gate_says_why():
     rows = [dict(r, peak_bin_ratio=0.0, yield_sign=0.0) for r in worst_rows()]
     st = ranking.settings_of({"gates": True})

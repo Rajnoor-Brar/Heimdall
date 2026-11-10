@@ -619,7 +619,8 @@ def _gates(result: Ranking, obs: list[Obs], groups: dict) -> tuple:
     st = result.settings
     stage = []
     if st.gates is False:
-        stage.append(Choice("gates", False, st.source("gates"), "no gate is applied: a bad page is penalised through its cost"))
+        stage.append(Choice("gates", False, st.source("gates"), "no gate is applied: a bad page is penalised through its cost"
+                            if st.veto_loss is None else "no gate metric is applied; veto_loss alone vetoes"))
     elif st.gates is not True:
         stage.append(Choice("gates", list(st.gates), st.source("gates"), "only these gate metrics are applied"))
     used = []

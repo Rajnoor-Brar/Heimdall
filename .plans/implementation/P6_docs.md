@@ -1,6 +1,6 @@
 # Phase 6: docs
 
-Status: in progress (6.1 done). Blocked by: phase 5. Rules: `docs/rules/writing.md`, read first.
+Status: done; the round waits at its milestone. Blocked by: phase 5. Rules: `docs/rules/writing.md`, read first.
 
 **Today:** `docs/live/` holds `adopted-runs.md`, `canonical-cards.md`, `runs-ends.md`. The stable pages this round overlays are `plots-statistics` (`docs/stable/guide/plots-statistics.md`), `reports` (`docs/stable/guide/reports.md`), `glossary` (`docs/stable/design/glossary.md`); the generated ones are `settings-plot`, `commands`, `keys` under `docs/reference/`. The reference is written by `docs.write_generated` (`framework/runner/docs.py:282`); `test_the_generated_pages_are_current` holds it, and its failure message names the command that regenerates.
 
@@ -30,3 +30,33 @@ Status: in progress (6.1 done). Blocked by: phase 5. Rules: `docs/rules/writing.
   - `affects` is `plots-statistics, reports, glossary, extending, runner, decisions-plots`: three more than the acceptance named, each found stale by the drift check (Notes).
   - `make -s schema` changed nothing; `make -s docs` regenerated `docs/MAP.md` (the five pages marked "⟵ live: live-grand-ranking", the page listed). The reference was current since 5.4.
   - Check: `test_docs.py` 565 passed, the two named reds. `heimdall docs --drift` names 26 pages: everyday, first-run, model, chains, guide-failures, overlay, paths, plots-across, plots-curves, plots-data, plots-figures, plots-sets, plots-style, plots, scale, sweeps, validation, watching, tools-overview, connections, data-model, docs-system, layout, plot-stage, run-flow, run-queue. None of the overlaid ones: drift leaves out a page a live doc affects. None of the 26 holds `score`, `[score]`, `scorecmd`, `standings` or a ranking purpose.
+- **6.2 · done 2026-11-10 · the milestone.**
+  - Check, against 0.1 at `4d225a3`:
+    - `tests/runner -m 'not slow'`: 2314 passed, 11 skipped, 2 failed (0.1: 2182 passed, 0 failed). The two reds are the stable pages that name `scorecmd.py` (Issues).
+    - `test_plot_stage.py` alone: 53 passed (0.1: 53).
+    - `test_report_draw.py` alone: 2 passed (0.1: 2).
+  - **The report to the developer.**
+    - *What holds.* Phases 0–6, 24 commits after `4d225a3` with this one, local and unpushed:
+      - every name of Tables T1–T4, with old names refused in a user's file, read in a record, and rewritten by `migrate`;
+      - gates first, then the loss;
+      - compressed costs, the nine defaults, and figure weights in the loss;
+      - matched, trimmed marginals with a headline;
+      - the summary, the report and `rank` render the method record, and "Made by" is under every table;
+      - property 9 holds the record complete.
+      - The live doc is `live-grand-ranking`.
+    - *Off-plan decisions.* 59 bullets in Implementation_Notes. Those that change what a reader sees, or wait on a word:
+      - (3.2) a set with no measured bins gets no leaderboard;
+      - (3.3) a figure weight's source is `figure`, not the figure's name;
+      - (5.1) the front's order puts the contents second;
+      - (5.4) `--head-to-head` on `plot` and `report` goes through a ContextVar;
+      - (5.4) two earlier report reds were fixed;
+      - (6.1) `affects` gains `extending`, `runner` and `decisions-plots`.
+    - *Open issues,* five, all in Implementation_Issues:
+      - the two stable-doc reds, which need the developer's edit or a crystallise;
+      - "tag" for a value outside `rank`;
+      - a Run row that counts vetoed points;
+      - the flat order judged by the reference's label;
+      - the detail tables' own means.
+    - *Gate answer 1, narrowed.* Old names are refused in `configs/` and in a report recipe, as answered. But a record's snapshot, a Run's `plot.toml` and its `report.toml` are mapped on read, with one line a command. `migrate` rewrites `configs/` only, unlike earlier renames, which rewrote records.
+    - *Asked:* the order to run phase 7. With it, for each of B1–B4: its results address, its pages address, and the `--bad` glob of its pathological points. These are given on the command line only and written nowhere in the repo.
+

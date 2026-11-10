@@ -130,3 +130,7 @@ Three commits, in this order, each with the fast suite as the baseline: (a) the 
   - The grep finds one line, `table.OLD_KEYS`: the reader of old sidecars has to name the old key. That is the one line it leaves.
   - Check: fast suite, 2206 passed, 11 skipped. The schema and the settings pages are regenerated.
   - A reader may rely on: the word category and the eight keys, `category:<key>` in a recipe, `category-<key>` sections, `categories` in `--json`, and a format 2 sidecar's `purpose` read as `category`.
+- **1.5(a) · done 2026-11-10.** The "same numbers" test (`test_three_points_on_two_pages_lose_what_the_hinge_and_the_rms_give_by_hand`) was written first against `score.score` and passed; after the rename it passes to 1e-12.
+  - `git mv`: `stats/score.py` → `stats/ranking.py`, `runner/scorecmd.py` → `runner/rankcmd.py`, and the three tests. `RANKS` says `rankcmd`, and the imports follow. `stats/__init__.py` lists its six modules.
+  - The engine's words: `COSTS`; `Settings` is `kw_only` and built by keyword, with `.cost`, `.over_pages` and `.veto_loss`; `PointLoss` with `.loss` and `.vetoed`; `BaselineRow.loss`; `Marginal.quantity`; `values` for a point's coordinates. `ranking.score` and `Scores` keep their names until 2.2. The `[score]` keys are still read under their old names until (b).
+  - Check: fast suite, 2204 passed, 11 skipped, and the two named reds of Implementation_Issues (stable pages naming `scorecmd.py`).

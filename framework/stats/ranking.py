@@ -1,16 +1,16 @@
-"""Scoring: rows in, scores out. No files, no drawing.
+"""Ranking: rows in, losses out. No files, no drawing.
 
 The rows are a statistics table's (stats/table.py): one per curve of a page, with the metric columns. A *point* is a
 curve's `point`, scored within a page *cell* (points of different cells never meet). A curve on a page is an observation;
 the page's reference rows are not scored.
 
-    cost      each metric normalised to a cost (`normalise`: hinged thresholds by default, which depend on the metric alone, so a
-              score is the same whatever else is in the pool and compares across Runs; the others use the pool of curves on the page)
-    category   the RMS of a category's metric costs, metric weights counting
-    page loss the RMS over the categories that have a metric: four shape metrics weigh one category, not four
-    score     the `mean` (rms by default) of a point's page losses, page weights counting
+    cost        each metric made a cost (`cost`: hinged thresholds by default, which depend on the metric alone, so a loss is
+                the same whatever else is in the pool and compares across Runs; the others use the pool of curves on the page)
+    category    the RMS of a category's metric costs, metric weights counting
+    page loss   the RMS over the categories that have a metric: four accuracy metrics weigh one category, not four
+    point loss  the `over_pages` mean (rms by default) of a point's page losses, page weights counting
 
-Beside the score: the worst page (and a veto when it loses more than `veto`), each category's share of the loss, and with
+Beside the loss: the worst page (and a veto when it loses more than `veto_loss`), each category's share of the loss, and with
 `dominated` whether another point beats it on every category. `aggregate` may instead be `fisher`, `topsis` or `promethee`
 (each says in its note what it costs). Lower is better throughout.
 """
@@ -27,21 +27,21 @@ from runner.errors import HeimdallError, did_you_mean
 
 from . import means, metrics
 
-NORMALISE = ("thresholds", "median", "mad", "minmax", "surprisal")
+COSTS = ("thresholds", "median", "mad", "minmax", "surprisal")
 AGGREGATE = ("rms", "fisher", "topsis", "promethee")
 CRITIC_MIN = 15          # observations CRITIC needs for a correlation matrix worth weighting by
 P_FLOOR = 1e-300
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class Settings:
-    metrics: dict = field(default_factory=dict)        # name → weight
-    normalise: str = "thresholds"
-    thresholds: dict = field(default_factory=dict)     # name → (good, bad) over the registry's
+    metrics: dict = field(default_factory=dict)        # id → weight
+    cost: str = "thresholds"                           # one of COSTS: how a metric's value becomes a cost
+    thresholds: dict = field(default_factory=dict)     # id → (good, bad) over the registry's
     weights: dict = field(default_factory=dict)        # object glob → page weight
     weights_by: str = "equal"
-    mean: str = "rms"
-    veto: float | None = None
+    over_pages: str = "rms"                            # the mean of a point's page losses
+    veto_loss: float | None = None                     # a point whose worst page loses more is vetoed
     aggregate: str = "rms"
     dominated: bool = False
     by: tuple = ()
@@ -73,7 +73,7 @@ def settings_of(score: dict | None = None, over: dict | None = None) -> Settings
             raise HeimdallError(f"no metric '{name}'", hint=did_you_mean(name, metrics.REGISTRY) or "heimdall explain score")
     if not weights or sum(weights.values()) <= 0:
         raise HeimdallError("[score].metrics scores nothing", hint="name at least one metric with a weight above zero")
-    for key, choices in (("normalise", NORMALISE), ("aggregate", AGGREGATE), ("weights_by", ("equal", "critic"))):
+    for key, choices in (("normalise", COSTS), ("aggregate", AGGREGATE), ("weights_by", ("equal", "critic"))):
         if merged.get(key, choices[0] if key != "weights_by" else "equal") not in choices:
             raise HeimdallError(f"[score].{key} is one of {', '.join(choices)}", hint=f"got {merged[key]!r}")
     mean = merged.get("mean", "rms")
@@ -89,10 +89,11 @@ def settings_of(score: dict | None = None, over: dict | None = None) -> Settings
     if base is not None and not isinstance(base, (str, dict)):
         raise HeimdallError("[score].baseline is a point's name or a filter { axis = \"value\" }", hint=f"got {base!r}")
     by = merged.get("by") or ()
-    return Settings(weights, merged.get("normalise", "thresholds"), thresholds, dict(merged.get("weights") or {}),
-                    merged.get("weights_by", "equal"), mean, merged.get("veto"), merged.get("aggregate", "rms"),
-                    bool(merged.get("dominated", False)), (by,) if isinstance(by, str) else tuple(by), merged.get("baseline"),
-                    merged.get("head_to_head"))
+    return Settings(metrics=weights, cost=merged.get("normalise", "thresholds"), thresholds=thresholds,
+                    weights=dict(merged.get("weights") or {}), weights_by=merged.get("weights_by", "equal"), over_pages=mean,
+                    veto_loss=merged.get("veto"), aggregate=merged.get("aggregate", "rms"),
+                    dominated=bool(merged.get("dominated", False)), by=(by,) if isinstance(by, str) else tuple(by),
+                    baseline=merged.get("baseline"), head_to_head=merged.get("head_to_head"))
 
 
 # ── the null distributions (for surprisal and Fisher) ─────────────────────────────────────────
@@ -199,23 +200,23 @@ def _cost_column(name: str, obs: list[Obs], st: Settings) -> list[float]:
     """The cost of one metric for the observations of one page."""
     m = metrics.REGISTRY[name]
     values = [o.row.get(name, math.nan) for o in obs]
-    if st.normalise == "thresholds":
+    if st.cost == "thresholds":
         if st.thresholds_of(name) is None:
             raise HeimdallError(f"'{name}' has no thresholds, so it cannot be hinged", hint=f"[score.thresholds] {name} = [good, bad], or another normalise")
         return [m.loss(v, st.thresholds.get(name)) if not math.isnan(v) else math.nan for v in values]
-    if st.normalise == "surprisal":
+    if st.cost == "surprisal":
         return [(-math.log(max(null_p(name, v, o.row), P_FLOOR)) if not math.isnan(v) else math.nan) for v, o in zip(values, obs)]
     if m.polarity in ("higher", "descriptor"):
-        raise HeimdallError(f"'{name}' cannot be normalised against the pool ({st.normalise})", hint='use normalise = "thresholds"')
+        raise HeimdallError(f"'{name}' cannot be normalised against the pool ({st.cost})", hint='use normalise = "thresholds"')
     q = np.array([m.scored(v) if not math.isnan(v) else math.nan for v in values], dtype=float)
     ok = np.isfinite(q)
     if not ok.any():
         return [math.nan] * len(q)
     good, bad = st.thresholds_of(name) or (0.0, 1.0)
-    if st.normalise == "median":
+    if st.cost == "median":
         floor = max(abs(good), 1e-12)
         return list(np.where(ok, q / max(float(np.median(q[ok])), floor), np.nan))
-    if st.normalise == "mad":
+    if st.cost == "mad":
         med = float(np.median(q[ok]))
         mad = 1.4826 * float(np.median(np.abs(q[ok] - med)))
         z = (q - med) / max(mad, 0.1 * abs(bad - good), 1e-12)
@@ -269,14 +270,14 @@ def costs(obs: list[Obs], st: Settings) -> dict[str, float]:
 # ── scores ────────────────────────────────────────────────────────────────────────────────────
 
 @dataclass
-class PointScore:
+class PointLoss:
     cell: str
     point: str
-    score: float
+    loss: float
     worst_page: str = ""
     worst_loss: float = math.nan
-    veto: bool = False
-    categories: dict = field(default_factory=dict)      # category → RMS over pages of its value
+    vetoed: bool = False
+    categories: dict = field(default_factory=dict)    # category → RMS over pages of its cost
     shares: dict = field(default_factory=dict)        # category → its share of the squared loss
     pages: dict = field(default_factory=dict)         # page → loss
     dominated: bool | None = None
@@ -286,12 +287,12 @@ class PointScore:
 @dataclass
 class Scores:
     settings: Settings
-    points: list[PointScore]
+    points: list[PointLoss]
     weights: dict                                     # the metric weights used
     notes: list = field(default_factory=list)
 
-    def ranked(self, cell: str | None = None) -> list[PointScore]:
-        return sorted((p for p in self.points if cell is None or p.cell == cell), key=lambda p: (p.score != p.score, p.score))
+    def ranked(self, cell: str | None = None) -> list[PointLoss]:
+        return sorted((p for p in self.points if cell is None or p.cell == cell), key=lambda p: (p.loss != p.loss, p.loss))
 
 
 def _weighted(name: str, values, weights) -> float:
@@ -309,13 +310,13 @@ def score(rows: list[dict], st: Settings | None = None, figure_weights: dict | N
     out = []
     for (cell, point), group in groups.items():
         good = [o for o in group if not math.isnan(o.loss)]
-        ps = PointScore(cell, point, math.nan, n_pages=len(good), pages={o.page: o.loss for o in good})
+        ps = PointLoss(cell, point, math.nan, n_pages=len(good), pages={o.page: o.loss for o in good})
         if good:
             weights = [o.weight for o in good]
-            ps.score = _weighted(st.mean, [o.loss for o in good], weights)
+            ps.loss = _weighted(st.over_pages, [o.loss for o in good], weights)
             worst = max(good, key=lambda o: o.loss)
             ps.worst_page, ps.worst_loss = worst.page, worst.loss
-            ps.veto = st.veto is not None and worst.loss > st.veto
+            ps.vetoed = st.veto_loss is not None and worst.loss > st.veto_loss
             for p in metrics.CATEGORIES:
                 have = [(o.categories[p], o.weight) for o in good if p in o.categories]
                 if have:
@@ -360,7 +361,7 @@ def _aggregate(result: Scores, obs: list[Obs], groups: dict) -> None:
                                 x += -2 * math.log(max(pv, P_FLOOR))
                 terms.append(x)
                 weights.append(o.weight)
-            p.score = float(np.average(terms, weights=weights)) if terms else math.nan
+            p.loss = float(np.average(terms, weights=weights)) if terms else math.nan
         return
     if st.aggregate == "topsis":
         result.notes.append("topsis: 1 − closeness to the best and worst page loss among the cell's points; pool-dependent: adding "
@@ -379,7 +380,7 @@ def _aggregate(result: Scores, obs: list[Obs], groups: dict) -> None:
                     continue
                 dp += (o.weight * (o.loss - best[k]) / span) ** 2
                 dm += (o.weight * (worst[k] - o.loss) / span) ** 2
-            p.score = 1 - math.sqrt(dm) / (math.sqrt(dp) + math.sqrt(dm)) if dp + dm > 0 else 0.0
+            p.loss = 1 - math.sqrt(dm) / (math.sqrt(dp) + math.sqrt(dm)) if dp + dm > 0 else 0.0
         return
     result.notes.append("promethee: net outranking flow Φ over the curves of each page, per metric with indifference 0.1 and strict "
                         "preference 1.0 of the good-to-bad span; score (1 − Φ)/2; pool-dependent, and a 100× blow-up costs no more than a 5×")
@@ -407,7 +408,7 @@ def _aggregate(result: Scores, obs: list[Obs], groups: dict) -> None:
     for p in result.points:
         vals = [(1 - flows[id(o)]) / 2 for o in groups[(p.cell, p.point)] if id(o) in flows]
         w = [o.weight for o in groups[(p.cell, p.point)] if id(o) in flows]
-        p.score = float(np.average(vals, weights=w)) if vals else math.nan
+        p.loss = float(np.average(vals, weights=w)) if vals else math.nan
 
 
 # ── head to head, for one page ────────────────────────────────────────────────────────────────
@@ -434,70 +435,70 @@ def head_to_head(rows: list[dict], page: str, st: Settings | None = None) -> dic
 
 # ── marginals and baselines ───────────────────────────────────────────────────────────────────
 #
-# `axes` is {point: {axis: value}}: what each point's sweep chose (the plot document's members, kept in statistics.json). A
-# marginal is a mean of the points' scores, never the score of a mean curve: a curve merged from several points has no entry
-# in `axes`, so it never enters one.
+# `values` is {point: {quantity: value}}: what each point's sweep chose (the plot document's members, kept in statistics.json). A
+# marginal is a mean of the points' losses, never the loss of a mean curve: a curve merged from several points has no entry
+# in `values`, so it never enters one.
 
 @dataclass
 class Marginal:
-    axis: str
-    rows: list = field(default_factory=list)        # (value, score, points, {category: value}), best score first
-    confounded: list = field(default_factory=list)  # sentences: which values of other axes share this axis's values unevenly
+    quantity: str
+    rows: list = field(default_factory=list)        # (value, loss, points, {category: value}), best loss first
+    confounded: list = field(default_factory=list)  # sentences: which values of other quantities share this quantity's values unevenly
 
 
-def varied(axes: dict, scored: set | None = None) -> dict[str, list[str]]:
-    """The axes with at least two values among the points (those in `scored`, when given): {axis: its values, in the order met}."""
+def varied(values: dict, scored: set | None = None) -> dict[str, list[str]]:
+    """The quantities with at least two values among the points (those in `scored`, when given): {quantity: its values, in the order met}."""
     seen: dict[str, dict] = {}
-    for point, chosen in axes.items():
+    for point, chosen in values.items():
         if scored is not None and point not in scored:
             continue
-        for axis, value in chosen.items():
-            seen.setdefault(axis, {})[str(value)] = None
+        for quantity, value in chosen.items():
+            seen.setdefault(quantity, {})[str(value)] = None
     return {a: list(v) for a, v in seen.items() if len(v) >= 2}
 
 
-def _confounded(axis: str, every: dict[str, list[str]], axes: dict, points: set) -> list[str]:
-    """For `axis`, which values of the other varied axes are not spread evenly over its values: each point counts once."""
+def _confounded(quantity: str, every: dict[str, list[str]], values: dict, points: set) -> list[str]:
+    """For `quantity`, which values of the other varied quantities are not spread evenly over its values: each point counts once."""
     out = []
-    mine = every[axis]
+    mine = every[quantity]
     for b, b_values in every.items():
-        if b == axis:
+        if b == quantity:
             continue
         for bv in b_values:
-            count = {a: sum(1 for p in points if axes[p].get(axis) == a and axes[p].get(b) == bv) for a in mine}
+            count = {a: sum(1 for p in points if values[p].get(quantity) == a and values[p].get(b) == bv) for a in mine}
             have = [a for a, n in count.items() if n]
             if len(have) < len(mine):
-                out.append(f"{b} = {bv} only with {axis} = {', '.join(have)}" if have else f"{b} = {bv} has no point")
+                out.append(f"{b} = {bv} only with {quantity} = {', '.join(have)}" if have else f"{b} = {bv} has no point")
             elif len(set(count.values())) > 1:
-                out.append(f"{b} = {bv} has unequal numbers of points over {axis}'s values")
+                out.append(f"{b} = {bv} has unequal numbers of points over {quantity}'s values")
     return out
 
 
-def marginals(scores: Scores, axes: dict, st: Settings | None = None) -> list[Marginal]:
-    """For each axis in `st.by` (every varied axis when it names none), a table of value → the `mean` of the scores of the points
-    having it, the points' number and each category's value; and which other axes' values confound it (spread unevenly over this
-    axis's values, as pdf = X only with generator = Y). An axis named that is not varied is refused."""
+def marginals(scores: Scores, values: dict, st: Settings | None = None) -> list[Marginal]:
+    """For each quantity in `st.by` (every varied quantity when it names none), a table of value → the `over_pages` mean of the losses of the points
+    having it, the points' number and each category's value; and which other quantities' values confound it (spread unevenly over this
+    quantity's values, as pdf = X only with generator = Y). A quantity named that is not varied is refused."""
     st = st or scores.settings
-    scored = {p.point for p in scores.points if p.score == p.score and p.point in axes}
-    every = varied(axes, scored)
+    scored = {p.point for p in scores.points if p.loss == p.loss and p.point in values}
+    every = varied(values, scored)
     names = list(st.by) or list(every)
-    for axis in names:
-        if axis not in every:
-            raise HeimdallError(f"[score].by: '{axis}' is not an axis these points vary",
-                                hint=("axes varied: " + ", ".join(every)) if every else "no axis is varied among the scored points")
+    for quantity in names:
+        if quantity not in every:
+            raise HeimdallError(f"[score].by: '{quantity}' is not a quantity these points vary",
+                                hint=("quantities varied: " + ", ".join(every)) if every else "no quantity is varied among the scored points")
     out = []
-    for axis in names:
-        marginal = Marginal(axis, confounded=_confounded(axis, every, axes, scored))
-        for value in every[axis]:
-            mine = [p for p in scores.points if p.point in scored and str(axes[p.point].get(axis)) == value and p.score == p.score]
+    for quantity in names:
+        marginal = Marginal(quantity, confounded=_confounded(quantity, every, values, scored))
+        for value in every[quantity]:
+            mine = [p for p in scores.points if p.point in scored and str(values[p.point].get(quantity)) == value and p.loss == p.loss]
             if not mine:
                 continue
             categories = {}
             for category in metrics.CATEGORIES:
                 have = [p.categories[category] for p in mine if category in p.categories]
                 if have:
-                    categories[category] = means.evaluate(st.mean, have)
-            marginal.rows.append((value, means.evaluate(st.mean, [p.score for p in mine]), len({p.point for p in mine}), categories))
+                    categories[category] = means.evaluate(st.over_pages, have)
+            marginal.rows.append((value, means.evaluate(st.over_pages, [p.loss for p in mine]), len({p.point for p in mine}), categories))
         marginal.rows.sort(key=lambda r: r[1])
         out.append(marginal)
     return out
@@ -508,9 +509,9 @@ class BaselineRow:
     cell: str
     point: str
     partner: str                                    # the baseline point it is taken against
-    score: float
+    loss: float
     base: float
-    delta: float                                    # score − base: negative is better
+    delta: float                                    # loss − base: negative is better
     objects: dict = field(default_factory=dict)     # object → the page loss less the partner's
     is_baseline: bool = False
 
@@ -522,44 +523,44 @@ class Baseline:
     unmatched: list = field(default_factory=list)   # (cell, point, why): never dropped quietly
 
 
-def baseline_filter(given, axes: dict) -> dict:
-    """`[score].baseline` as a filter {axis: value}: a table as it is, a point's name as that point's every axis."""
+def baseline_filter(given, values: dict) -> dict:
+    """`[score].baseline` as a filter {quantity: value}: a table as it is, a point's name as that point's every quantity."""
     if isinstance(given, str):
-        if given not in axes:
-            raise HeimdallError(f"[score].baseline: no point '{given}'", hint="a point's name, or a filter { axis = \"value\" }")
-        return dict(axes[given])
+        if given not in values:
+            raise HeimdallError(f"[score].baseline: no point '{given}'", hint="a point's name, or a filter { quantity = \"value\" }")
+        return dict(values[given])
     return {str(k): str(v) for k, v in dict(given).items()}
 
 
-def baseline(scores: Scores, axes: dict, given=None) -> Baseline:
-    """Each point's Δ against the baseline point equal to it on every axis the filter leaves alone (the filter's values on the
-    others): its Δscore, and its Δloss on each object. A point with no partner, or none of whose axes are known, is listed as
+def baseline(scores: Scores, values: dict, given=None) -> Baseline:
+    """Each point's Δ against the baseline point equal to it on every quantity the filter leaves alone (the filter's values on the
+    others): its Δloss, and its Δloss on each object. A point with no partner, or none of whose values are known, is listed as
     unmatched with the reason."""
     given = scores.settings.baseline if given is None else given
     if not given:
         raise HeimdallError("no baseline: [score].baseline is not set")
-    wanted = baseline_filter(given, axes)
-    known = set().union(*(set(a) for a in axes.values())) if axes else set()
-    for axis in wanted:
-        if axis not in known:
-            raise HeimdallError(f"[score].baseline: '{axis}' is not an axis of these points", hint="axes: " + ", ".join(sorted(known)))
-    by_axes: dict = {}
+    wanted = baseline_filter(given, values)
+    known = set().union(*(set(a) for a in values.values())) if values else set()
+    for quantity in wanted:
+        if quantity not in known:
+            raise HeimdallError(f"[score].baseline: '{quantity}' is not a quantity of these points", hint="quantities: " + ", ".join(sorted(known)))
+    by_values: dict = {}
     for ps in scores.points:
-        if ps.point in axes:
-            by_axes.setdefault(frozenset((k, str(v)) for k, v in axes[ps.point].items()), []).append(ps)
+        if ps.point in values:
+            by_values.setdefault(frozenset((k, str(v)) for k, v in values[ps.point].items()), []).append(ps)
     out = Baseline(wanted)
     for ps in scores.points:
-        if ps.point not in axes:
-            out.unmatched.append((ps.cell, ps.point, "not a point of the sweep (a merged curve), or its axes were not recorded"))
+        if ps.point not in values:
+            out.unmatched.append((ps.cell, ps.point, "not a point of the sweep (a merged curve), or its values were not recorded"))
             continue
-        mine = {k: str(v) for k, v in axes[ps.point].items()}
-        partners = by_axes.get(frozenset({**mine, **wanted}.items()), [])
+        mine = {k: str(v) for k, v in values[ps.point].items()}
+        partners = by_values.get(frozenset({**mine, **wanted}.items()), [])
         partner = next((q for q in partners if q.cell == ps.cell), partners[0] if partners else None)
         if partner is None:
             out.unmatched.append((ps.cell, ps.point, "no point equal to it but for " + ", ".join(f"{k} = {v}" for k, v in wanted.items())))
             continue
-        if ps.score != ps.score or partner.score != partner.score:
-            out.unmatched.append((ps.cell, ps.point, f"it or its baseline {partner.point} has no score"))
+        if ps.loss != ps.loss or partner.loss != partner.loss:
+            out.unmatched.append((ps.cell, ps.point, f"it or its baseline {partner.point} has no loss"))
             continue
         objects = {}
         for page, loss in ps.pages.items():
@@ -567,6 +568,6 @@ def baseline(scores: Scores, axes: dict, given=None) -> Baseline:
             other = next((v for k, v in partner.pages.items() if k.rsplit("/", 1)[-1] == name), None)
             if other is not None:
                 objects[name] = loss - other
-        out.rows.append(BaselineRow(ps.cell, ps.point, partner.point, ps.score, partner.score, ps.score - partner.score, objects,
+        out.rows.append(BaselineRow(ps.cell, ps.point, partner.point, ps.loss, partner.loss, ps.loss - partner.loss, objects,
                                     partner is ps or all(mine.get(k) == v for k, v in wanted.items())))
     return out

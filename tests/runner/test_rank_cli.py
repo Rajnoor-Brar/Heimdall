@@ -10,7 +10,7 @@ import math
 
 import pytest
 
-from runner import cli, scorecmd
+from runner import cli, rankcmd
 from runner.errors import HeimdallError
 from stats import table
 
@@ -62,7 +62,7 @@ def sweep_rows():
 
 def test_a_run_prints_its_standings_best_first(results, capsys):
     make_run(results, "A/E/R1", sweep_rows(), serial=3, axes=AXES)
-    assert scorecmd.run(args("A/E/R1")) == 0
+    assert rankcmd.run(args("A/E/R1")) == 0
     out = capsys.readouterr().out
     assert "A/E/R1 (run 3) · totality" in out
     places = [line.split()[1] for line in out.splitlines() if line[:2] in ("1.", "2.", "3.", "4.")]
@@ -73,7 +73,7 @@ def test_a_run_prints_its_standings_best_first(results, capsys):
 
 def test_json_carries_the_same_numbers_and_the_baseline(results, capsys):
     make_run(results, "A/E/R1", sweep_rows(), axes=AXES)
-    assert scorecmd.run(args("A/E/R1", json=True, baseline="generator=py8")) == 0
+    assert rankcmd.run(args("A/E/R1", json=True, baseline="generator=py8")) == 0
     data = json.loads(capsys.readouterr().out)["tables"][0]
     scores = {s["point"]: s["score"] for s in data["standings"]}
     assert scores["py8_a"] < scores["py8_b"] < scores["hw7_a"] < scores["hw7_b"]
@@ -85,15 +85,15 @@ def test_json_carries_the_same_numbers_and_the_baseline(results, capsys):
 
 
 def test_a_filter_is_axis_tag_pairs_or_a_point_name():
-    assert scorecmd.parse_filter("generator=py8, pdf=a") == {"generator": "py8", "pdf": "a"}
-    assert scorecmd.parse_filter(" py8_a ") == "py8_a"
+    assert rankcmd.parse_filter("generator=py8, pdf=a") == {"generator": "py8", "pdf": "a"}
+    assert rankcmd.parse_filter(" py8_a ") == "py8_a"
     with pytest.raises(HeimdallError, match="not axis=tag"):
-        scorecmd.parse_filter("generator=py8,pdf")
+        rankcmd.parse_filter("generator=py8,pdf")
 
 
 def test_a_table_without_axes_says_so_when_marginals_were_asked(results, capsys):
     make_run(results, "A/E/R1", sweep_rows())
-    assert scorecmd.run(args("A/E/R1", by="generator")) == 0
+    assert rankcmd.run(args("A/E/R1", by="generator")) == 0
     out = capsys.readouterr().out
     assert "no marginals or baseline" in out and "By generator" not in out
 
@@ -103,45 +103,45 @@ def test_an_errand_prints_a_row_a_run_over_the_pages_they_share(results, capsys)
     two = [reference("p1"), row("x", 9.0, "p1")]                    # only p1: the shared page
     make_run(results, "A/E/R1", one, serial=1)
     make_run(results, "A/E/R2", two, serial=2)
-    assert scorecmd.run(args("A/E", json=True)) == 0
+    assert rankcmd.run(args("A/E", json=True)) == 0
     runs = {r["serial"]: r for r in json.loads(capsys.readouterr().out)["runs"]}
     assert set(runs) == {"1", "2"} and runs["1"]["pages"] == runs["2"]["pages"] == 1
     assert runs["1"]["score"] < runs["2"]["score"] and runs["2"]["best"] == "x" and runs["1"]["points"] == 1
-    assert scorecmd.run(args("A/E")) == 0
+    assert rankcmd.run(args("A/E")) == 0
     text = capsys.readouterr().out
     assert "each Run's score over the 1 page(s) its Runs share" in text and "A/E/R1" in text and "A/E/R2" in text
 
 
 def test_the_set_option_picks_a_set_and_a_missing_one_is_refused(results):
     make_run(results, "A/E/R1", sweep_rows())
-    assert [t.set for t in scorecmd.tables_of("A/E/R1", "totality", False)] == ["totality"]
+    assert [t.set for t in rankcmd.tables_of("A/E/R1", "totality", False)] == ["totality"]
     with pytest.raises(HeimdallError, match="no statistics in A/E/R1 for set nope"):
-        scorecmd.tables_of("A/E/R1", "nope", False)
+        rankcmd.tables_of("A/E/R1", "nope", False)
     with pytest.raises(HeimdallError, match="no results folder"):
-        scorecmd.tables_of("A/E/R9", None, False)
+        rankcmd.tables_of("A/E/R9", None, False)
 
 
 def test_across_reads_the_errands_own_folder(results, capsys):
     make_run(results, "A/E", sweep_rows(), axes=AXES)
     make_run(results, "A/E/R1", sweep_rows())
-    assert [t.run for t in scorecmd.tables_of("A/E", None, True)] == ["A/E"]
-    assert [t.run for t in scorecmd.tables_of("A/E", None, False)] == ["A/E/R1"]      # without --across: its Runs
-    assert scorecmd.run(args("A/E", across=True)) == 0
+    assert [t.run for t in rankcmd.tables_of("A/E", None, True)] == ["A/E"]
+    assert [t.run for t in rankcmd.tables_of("A/E", None, False)] == ["A/E/R1"]      # without --across: its Runs
+    assert rankcmd.run(args("A/E", across=True)) == 0
     assert "A/E · totality" in capsys.readouterr().out
 
 
 def test_a_table_scored_with_its_own_settings_keeps_them_and_by_overlays(results):
     make_run(results, "A/E/R1", sweep_rows(), axes=AXES, score={"by": ["pdf"], "mean": "median"})
-    (t,) = scorecmd.tables_of("A/E/R1", None, False)
-    st, axes = scorecmd.settings_for(t, None, None)
-    assert st.by == ("pdf",) and st.mean == "median" and axes == AXES
-    assert scorecmd.settings_for(t, "generator,pdf", None)[0].by == ("generator", "pdf")
-    assert scorecmd.settings_for(t, None, "generator=hw7")[0].baseline == {"generator": "hw7"}
+    (t,) = rankcmd.tables_of("A/E/R1", None, False)
+    st, axes = rankcmd.settings_for(t, None, None)
+    assert st.by == ("pdf",) and st.over_pages == "median" and axes == AXES
+    assert rankcmd.settings_for(t, "generator,pdf", None)[0].by == ("generator", "pdf")
+    assert rankcmd.settings_for(t, None, "generator=hw7")[0].baseline == {"generator": "hw7"}
 
 
 def test_an_infinite_loss_prints_as_infinity_not_a_crash(results, capsys):
     make_run(results, "A/E/R1", [reference(), row("a", 1.0), row("b", math.inf)], axes={})
-    assert scorecmd.run(args("A/E/R1")) == 0
+    assert rankcmd.run(args("A/E/R1")) == 0
     assert "∞" in capsys.readouterr().out
 
 

@@ -1984,9 +1984,9 @@ def cmd_diff(args) -> int:
 
 def cmd_score(args) -> int:
     """`heimdall score TARGET [--set S] [--across] [--by AXES] [--baseline FILTER] [--json]`: standings, marginals and
-    baselines read from the statistics already measured; see scorecmd."""
-    from . import scorecmd
-    return scorecmd.run(args)
+    baselines read from the statistics already measured; see rankcmd."""
+    from . import rankcmd
+    return rankcmd.run(args)
 
 
 def across_of(args) -> Path:

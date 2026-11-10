@@ -1,6 +1,6 @@
 """`heimdall score`: a Run's standings, marginals and baselines, read from its statistics.csv with no page drawn.
 
-The numbers are stats/score.py's; this module finds the tables, lays settings over what each was scored with, and prints.
+The numbers are stats/ranking.py's; this module finds the tables, lays settings over what each was scored with, and prints.
 A Run's folder holds statistics/<set>/statistics.csv (and statistics.json: the `[score]` it was scored with and each point's
 axes); `<A>/<E>` names every Run under it, and `--across` the errand's own folder (its Runs together).
 """
@@ -70,7 +70,7 @@ def tables_of(target: str, set_: str | None, across: bool) -> list[Table]:
 
 def settings_for(table: Table, by: str | None, baseline: str | None):
     """The settings a table was scored with, `--by` and `--baseline` over them, and its axes."""
-    from stats import score
+    from stats import ranking
     side = statstable.sidecar(table.csv) or {}
     over = {}
     if by:
@@ -78,15 +78,15 @@ def settings_for(table: Table, by: str | None, baseline: str | None):
     if baseline:
         over["baseline"] = parse_filter(baseline)
     axes = dict(side.get("axes") or {}) or statstable.point_axes(table.csv.parent)      # a table from before the sidecar held them
-    return score.settings_of(side.get("score"), over), axes
+    return ranking.settings_of(side.get("score"), over), axes
 
 
 def scored(table: Table, by: str | None = None, baseline: str | None = None, rows: list | None = None):
     """(rows, settings, axes, Scores) of one table; `rows` replace its own (a Run's rows over the pages Runs share)."""
-    from stats import score
+    from stats import ranking
     st, axes = settings_for(table, by, baseline)
     rows = [r for r in (rows if rows is not None else statstable.read(table.csv)) if not str(r.get("object", "")).startswith("/overlay/")]
-    return rows, st, axes, score.score(rows, st)
+    return rows, st, axes, ranking.score(rows, st)
 
 
 def _num(v: float, digits: int = 3) -> str:
@@ -104,8 +104,8 @@ def standings_of(result, st) -> list[dict]:
     out = []
     for cell in dict.fromkeys(p.cell for p in result.points):
         for place, p in enumerate(result.ranked(cell), 1):
-            out.append({"cell": cell, "place": place, "point": p.point, "score": p.score, "worst_page": p.worst_page,
-                        "worst": p.worst_loss, "veto": p.veto, "dominated": p.dominated, "pages": p.n_pages,
+            out.append({"cell": cell, "place": place, "point": p.point, "score": p.loss, "worst_page": p.worst_page,
+                        "worst": p.worst_loss, "veto": p.vetoed, "dominated": p.dominated, "pages": p.n_pages,
                         "categories": {metrics.CATEGORIES[k]: v for k, v in p.categories.items()},
                         "shares": {metrics.CATEGORIES[k]: v for k, v in p.shares.items()}})
     return out
@@ -113,18 +113,18 @@ def standings_of(result, st) -> list[dict]:
 
 def report_of(table: Table, by: str | None, baseline: str | None) -> dict:
     """One table's standings, marginals (when its axes are known) and baseline (when set), as plain data."""
-    from stats import score
+    from stats import ranking
     rows, st, axes, result = scored(table, by, baseline)
     out = {"run": table.run, "serial": table.serial, "set": table.set, "metrics": list(st.metrics),
            "standings": standings_of(result, st), "notes": list(result.notes)}
     if axes:
-        out["marginals"] = [{"axis": m.axis, "confounded": m.confounded,
+        out["marginals"] = [{"axis": m.quantity, "confounded": m.confounded,
                              "values": [{"value": v, "score": s, "points": n, "categories": by_p} for v, s, n, by_p in m.rows]}
-                            for m in score.marginals(result, axes, st)]
+                            for m in ranking.marginals(result, axes, st)]
         if st.baseline:
-            b = score.baseline(result, axes)
+            b = ranking.baseline(result, axes)
             out["baseline"] = {"filter": b.filter, "unmatched": [{"cell": c, "point": p, "why": w} for c, p, w in b.unmatched],
-                               "rows": [{"cell": r.cell, "point": r.point, "partner": r.partner, "score": r.score, "base": r.base,
+                               "rows": [{"cell": r.cell, "point": r.point, "partner": r.partner, "score": r.loss, "base": r.base,
                                          "delta": r.delta, "baseline": r.is_baseline, "objects": r.objects} for r in b.rows]}
     elif by or st.baseline:
         out["warning"] = "this table's points have no axes (its statistics.json and plot.toml name none): no marginals or baseline"
@@ -145,12 +145,12 @@ def runs_of(tables: list[Table], by: str | None, baseline: str | None) -> list[d
         for t in group:
             keep = [r for r in statstable.read(t.csv) if str(r["object"]).rsplit("/", 1)[-1] in shared]
             _, st, _, result = scored(t, by, baseline, keep)
-            good = [p for p in result.points if p.score == p.score]
-            best = min(good, key=lambda p: p.score, default=None)
+            good = [p for p in result.points if p.loss == p.loss]
+            best = min(good, key=lambda p: p.loss, default=None)
             worst = max(good, key=lambda p: p.worst_loss, default=None)
             out.append({"run": t.run, "serial": t.serial, "set": set_, "points": len(good), "pages": len(shared),
-                        "score": means.evaluate(st.mean, [p.score for p in good]) if good else math.nan,
-                        "best": best.point if best else "", "best_score": best.score if best else math.nan,
+                        "score": means.evaluate(st.over_pages, [p.loss for p in good]) if good else math.nan,
+                        "best": best.point if best else "", "best_score": best.loss if best else math.nan,
                         "worst_page": worst.worst_page if worst else ""})
     return out
 

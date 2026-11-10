@@ -860,7 +860,7 @@ def test_the_summary_is_scored_by_category(stage):
     A head to head only for the pages `[score].head_to_head` names."""
     import re
     from runner import plugins
-    from stats import metrics, score
+    from stats import metrics, ranking
     errand, configuration, plans = stage
     names = ["chi2_ndf", "log_yield_ratio", "log_dev_shrunk", "tilt", "peak_pull2", "yield_weighted_abs_dev", "yield_ratio",
              "mean_bin_ratio", "mean_abs_ratio_dev"]
@@ -877,7 +877,7 @@ def test_the_summary_is_scored_by_category(stage):
     side = json.loads((numbers / "statistics.json").read_text(encoding="utf-8"))
     assert side["score"] == scored and set(names) <= set(side["columns"])        # the table says how it was scored
     bars = plugins.load(plot.heimdall_root() / "framework" / "plot" / "figures" / "bars.py", "bars")
-    st = score.settings_of(scored)
+    st = ranking.settings_of(scored)
     rows = [r for page in plot.pages(shown, configuration, plans) for r in (statstable.statistics_of(page, names) or [])]
     assert any(math.isfinite(r["peak_pull2"]) for r in rows)                          # Paint measured the bins they come from
     document = bars.summary_model(rows, statstable.heading_of(numbers), st)
@@ -912,25 +912,25 @@ def test_the_summary_is_scored_by_category(stage):
         assert all(shape.label_width + sum(shape.widths[j] for j in block) <= bars.paper.WIDTH + 1e-9
                    for block in shape.blocks)
 
-    scores = score.score(rows, st)                                              # the standings are the engine's
+    scores = ranking.score(rows, st)                                              # the standings are the engine's
     assert [p.n_pages for p in scores.points] == [1, 1, 1, 1]                   # only d01 has data: one page each
     standings = items["standings"]
     assert [r.label for r in standings.rows if r.band] == ["em", "ep"] and standings.headers[:4] == [
         "score", "worst page", "worst", "veto"]
     for cell in ("em", "ep"):
-        mine = sorted((p for p in scores.points if p.cell == cell), key=lambda p: p.score)
+        mine = sorted((p for p in scores.points if p.cell == cell), key=lambda p: p.loss)
         first = next(r for r in standings.rows[standings.rows.index(next(r for r in standings.rows if r.band and r.label == cell)) + 1:]
                      if not r.band)
-        assert first.cells[0].text == bars._shown(mine[0].score) and first.label.startswith("1. ")
+        assert first.cells[0].text == bars._shown(mine[0].loss) and first.label.startswith("1. ")
     for key in names:
-        ranking = items[f"{key}-ranking"]
+        shown = items[f"{key}-ranking"]
         ratio = key in ("yield_ratio", "mean_bin_ratio")
         have = {r["point"] for r in rows if not r["is_reference"] and math.isfinite(r[key])}
-        assert len(ranking.values) == len(have) >= 2                            # a point with no number is left out
-        assert ranking.values == sorted(ranking.values, key=lambda m: abs(math.log10(m)) if ratio else m)
-        assert all(re.search(r"  \(\d+\)$", n) for n in ranking.names)         # the pages it was compared on, in brackets
-        assert "the root mean square" in notes(ranking)
-        assert ranking.base == (1.0 if ratio else 0.0)
+        assert len(shown.values) == len(have) >= 2                            # a point with no number is left out
+        assert shown.values == sorted(shown.values, key=lambda m: abs(math.log10(m)) if ratio else m)
+        assert all(re.search(r"  \(\d+\)$", n) for n in shown.names)         # the pages it was compared on, in brackets
+        assert "the root mean square" in notes(shown)
+        assert shown.base == (1.0 if ratio else 0.0)
     (match,) = sections["head-to-head"].items                                   # the one page asked: em's d01
     assert match.headers == ["MSTW 2008 LO", "NNPDF 2.3 LO", "loss"] and match.title.endswith("em/d01-x01-y01")
     assert float(match.rows[0].cells[1].text) == pytest.approx(-float(match.rows[1].cells[0].text))

@@ -1466,9 +1466,9 @@ def _measuring():
 
 def _scored(csv_path: Path):
     """The settings a statistics.csv was scored with: its statistics.json's `score`, the defaults for a csv without."""
-    from stats import score
+    from stats import ranking
     side = statstable.sidecar(csv_path)
-    return score.settings_of((side or {}).get("score"))
+    return ranking.settings_of((side or {}).get("score"))
 
 
 def _axes(csv_path: Path) -> dict:

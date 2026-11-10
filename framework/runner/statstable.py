@@ -35,19 +35,19 @@ def heading_of(numbers: Path) -> str:
 
 def score_of(errand, set_: str) -> dict:
     """The [score] a set is scored with: the errand's, a set's own `score` laid over it (a plain dict)."""
-    from stats import score
+    from stats import ranking
     from .sweep import set_entries
     sets = (errand.plot or {}).get("sets")
     own = next((s.score for s in set_entries(sets, "[plot].sets") if s.name == set_), {}) if sets else {}
-    return score.overlaid(errand.score, own)
+    return ranking.overlaid(errand.score, own)
 
 
 def metric_names(errand_stats: dict | None, score_table: dict | None) -> list[str]:
     """The metric columns a table carries: `[stats].metrics` (the defaults when it names none) and every metric `[score]`
     has on, so that whatever is scored is there to read."""
-    from stats import score
+    from stats import ranking
     names = list((errand_stats or {}).get("metrics") or default_metrics())
-    return names + [n for n in score.settings_of(score_table).metrics if n not in names]
+    return names + [n for n in ranking.settings_of(score_table).metrics if n not in names]
 
 
 def point_axes(numbers: Path) -> dict:
@@ -78,7 +78,7 @@ def write_set(pages: list, numbers: Path, formats: list[str], module=None, names
     """A set's numbers, statistics/<set>/ (V160, V164): statistics.csv and statistics.json (the metrics `names`, scored as
     `score` says), then each page's bar graph and the summary (bars.draw), when any page has numbers. (rows written, images
     made). `module`: bars, loaded once by the caller."""
-    from stats import score as scoring
+    from stats import ranking as scoring
     names = list(names) if names is not None else metric_names(None, score)
     axes = point_axes(numbers)
     merged = {name: members for page in pages for name, members in getattr(page, "merged", {}).items()}
